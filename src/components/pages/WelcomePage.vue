@@ -10,7 +10,7 @@
       <div class="flex gap-3 justify-center">
         <button 
           @click="createNewDocument"
-          class="btn btn-primary w-60 mb-4 h-9 items-center justify-center space-x-2 whitespace-nowrap"
+          class="btn btn-primary w-44 mb-4 h-9 items-center justify-center space-x-2 whitespace-nowrap"
         >
           <IconPlus class="w-5 h-5" />
           <span>New Document</span>
@@ -18,7 +18,7 @@
         
         <button 
           @click="openFile"
-          class="btn btn-primary w-60 mb-4 h-9 items-center justify-center space-x-2 whitespace-nowrap"
+          class="btn btn-primary w-44 mb-4 h-9 items-center justify-center space-x-2 whitespace-nowrap"
         >
           <IconFolderOpen class="w-5 h-5" />
           <span>Open Document</span>
@@ -26,7 +26,7 @@
         
         <button 
           @click="openFolder"
-          class="btn btn-primary w-60 mb-4 h-9 items-center justify-center space-x-2 whitespace-nowrap"
+          class="btn btn-primary w-44 mb-4 h-9 items-center justify-center space-x-2 whitespace-nowrap"
         >
           <IconFolder class="w-5 h-5" />
           <span>Open Folder</span>

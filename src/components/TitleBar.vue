@@ -124,6 +124,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
+import { DocumentType } from '@/types'
 import type { FileTab } from '@/types'
 import {
   IconLayoutSidebarLeftCollapse,
@@ -182,17 +183,8 @@ function switchTab(tabId: string) {
 }
 
 async function closeTab(tabId: string) {
-  const tab = appStore.tabs.find(t => t.id === tabId)
-  if (tab && tab.isDirty) {
-    const result = await window.electronAPI?.showSaveDialog(tab.name)
-    if (result === 'save') {
-      await appStore.saveActiveTab()
-    } else if (result === 'cancel') {
-      return // Cancel close
-    }
-  }
-  
-  appStore.closeTab(tabId)
+  // Use the centralized closeTab function from app store
+  await appStore.closeTab(tabId)
 }
 
 function getDisplayName(fileName: string): string {
@@ -204,29 +196,6 @@ function getDisplayName(fileName: string): string {
   return fileName.substring(0, lastDotIndex)
 }
 
-async function handleCloseTab(tab: any) {
-  if (tab.isDirty) {
-    // 如果文档有未保存的更改，显示确认对话框
-    if (window.electronAPI) {
-      const result = await window.electronAPI.showSaveDialog(tab.name)
-      if (result === 'save') {
-        // 用户选择保存
-        await appStore.saveActiveTab()
-        appStore.closeTab(tab.id)
-      } else if (result === 'dontSave') {
-        // 用户选择不保存
-        appStore.closeTab(tab.id)
-      }
-      // 如果用户选择取消，什么都不做
-    } else {
-      // 如果没有electronAPI，直接关闭
-      appStore.closeTab(tab.id)
-    }
-  } else {
-    // 如果文档没有更改，直接关闭
-    appStore.closeTab(tab.id)
-  }
-}
 
 // 监听状态变化，自动切换到合适的模式
 function checkAndSwitchMode() {

@@ -21,8 +21,6 @@
 
         <div class="mb-2 text-sm">
           <p>Opening a folder will close all currently open editors.</p>
-          <p>To keep them open, add a folder instead.</p>
-          <p>You can clone a repository locally.</p>
         </div>
       </div>
     </div>

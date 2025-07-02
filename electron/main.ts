@@ -21,6 +21,11 @@ interface WindowContentInfo {
     strikethrough: boolean
     inlineCode: boolean
   };
+  view?: {
+    leftSidebar?: boolean;
+    rightSidebar?: boolean;
+    statusbar?: boolean;
+  }
 }
 
 // 窗口状态接口
@@ -203,7 +208,7 @@ function updateMenu(): void {
           accelerator: 'CmdOrCtrl+N',
           enabled: currentFocusedWindowId !== null,
           click: () => {
-            sendMenuAction(focusedWindow, 'new-document')
+            sendMenuAction(focusedWindow, 'new-file')
           }
         },
         {
@@ -1533,6 +1538,8 @@ function updateMenu(): void {
             {
               label: 'Left Side Bar',
               accelerator: 'CmdOrCtrl+Shift+L',
+              type: 'checkbox',
+              checked: focusedWindow?.contentInfo?.view?.leftSidebar? true : false,
               click: () => {
                 sendMenuAction(focusedWindow, 'view-toggle-left-sidebar')
               }
@@ -1540,6 +1547,8 @@ function updateMenu(): void {
             {
               label: 'Right Side Bar',
               accelerator: 'CmdOrCtrl+Shift+R',
+              type: 'checkbox',
+              checked: focusedWindow?.contentInfo?.view?.rightSidebar? true : false,
               click: () => {
                 sendMenuAction(focusedWindow, 'view-toggle-right-sidebar')
               }
@@ -1547,6 +1556,8 @@ function updateMenu(): void {
             {
               label: 'Status Bar',
               accelerator: 'CmdOrCtrl+Shift+S',
+              type: 'checkbox',
+              checked: focusedWindow?.contentInfo?.view?.statusbar? true : false,
               click: () => {
                 sendMenuAction(focusedWindow, 'view-toggle-statusbar')
               }
@@ -1745,9 +1756,10 @@ ipcMain.handle('open-file', async () => {
   const result = await dialog.showOpenDialog(focusedWindow.window, {
     properties: ['openFile'],
     filters: [
-      { name: 'Markdown', extensions: ['md', 'markdown'] },
-      { name: 'Text', extensions: ['txt'] },
-      { name: 'All Files', extensions: ['*'] }
+      { name: 'Text and Markdown Files', extensions: ['txt', 'iwt', 'md', 'markdown'] },
+      { name: 'Image Files', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'] },
+      { name: 'PDF Files', extensions: ['pdf'] },
+      { name: 'All Files', extensions: ['txt', 'iwt', 'md', 'markdown', 'pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'] }
     ]
   })
   
@@ -1772,10 +1784,10 @@ ipcMain.handle('save-file', async (_, content: string, filePath?: string) => {
     
     const result = await dialog.showSaveDialog(focusedWindow.window, {
       filters: [
-        { name: 'iWriter Document', extensions: ['iwt'] },
-        { name: 'Markdown', extensions: ['md'] },
-        { name: 'Text', extensions: ['txt'] },
-        { name: 'All Files', extensions: ['*'] }
+        { name: 'iWriter Files', extensions: ['iwt'] },
+        { name: 'Markdown Files', extensions: ['md', 'markdown'] },
+        { name: 'Text Files', extensions: ['txt'] },
+        { name: 'All Files', extensions: ['iwt', 'md', 'markdown', 'txt'] }
       ]
     })
     
@@ -2029,7 +2041,11 @@ ipcMain.handle('window-content-changed', async (event, contentInfo: WindowConten
     // 更新窗口状态...
     const windowIndex = windows.findIndex(w => w.id === windowId);
     if (windowIndex !== -1) {
-      windows[windowIndex].contentInfo = contentInfo;
+      windows[windowIndex].contentInfo = {
+        ...windows[windowIndex].contentInfo,
+        ...contentInfo
+      };
+      //console.log(`=>窗口 ${windowId} 的内容:`, windows[windowIndex].contentInfo);
       if (currentFocusedWindowId === windowId) {
         updateMenu();
       }

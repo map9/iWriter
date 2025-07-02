@@ -277,4 +277,4 @@ MainView (主视图)
 
 ## 许可证
 
-MIT License
+Apache License

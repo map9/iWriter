@@ -46,7 +46,52 @@ export const useAppStore = defineStore('app', () => {
   
   // 使用高效的文件监听代替定时器
   const isFileWatchingEnabled = ref(true)
-  
+
+  // Update menu when showLeftSidebar state changes
+  watch(() => showLeftSidebar.value, (status) => {
+    const leftSidebar = !!status
+    if (window.electronAPI?.windowContentChange) {
+      window.electronAPI.windowContentChange({
+        type: 'tiptap-editor',
+        view: {
+          leftSidebar: leftSidebar,
+          rightSidebar: showRightSidebar.value,
+          statusbar: showStatusbar.value,
+        },
+      })
+    }
+  }, { immediate: true })
+
+  // Update menu when showRightSidebar state changes
+  watch(() => showRightSidebar.value, (status) => {
+    const rightSidebar = !!status
+    if (window.electronAPI?.windowContentChange) {
+      window.electronAPI.windowContentChange({
+        type: 'tiptap-editor',
+        view: {
+          leftSidebar: showLeftSidebar.value,
+          rightSidebar: rightSidebar,
+          statusbar: showStatusbar.value,
+        },
+      })
+    }
+  }, { immediate: true })
+
+  // Update menu when showRightSidebar state changes
+  watch(() => showStatusbar.value, (status) => {
+    const statusbar = !!status
+    if (window.electronAPI?.windowContentChange) {
+      window.electronAPI.windowContentChange({
+        type: 'tiptap-editor',
+        view: {
+          leftSidebar: showLeftSidebar.value,
+          rightSidebar: showRightSidebar.value,
+          statusbar: statusbar,
+        },
+      })
+    }
+  }, { immediate: true })
+
   // Update menu when tabs change
   watch(() => tabs.value.length, (newLength) => {
     const hasActiveDocument = newLength > 0
@@ -72,11 +117,14 @@ export const useAppStore = defineStore('app', () => {
   // Update menu when folder state changes
   watch(() => currentFolder.value, (newFolder) => {
     const hasFolderOpen = !!newFolder
-    if (window.electronAPI?.setFolderState) {
-      window.electronAPI.setFolderState(hasFolderOpen)
+    if (window.electronAPI?.windowContentChange) {
+      window.electronAPI.windowContentChange({
+        type: 'tiptap-editor',
+        hasFolderOpen: hasFolderOpen,
+      })
     }
   }, { immediate: true })
-  
+
   // Actions
   function toggleLeftSidebar() {
     showLeftSidebar.value = !showLeftSidebar.value
@@ -432,10 +480,40 @@ export const useAppStore = defineStore('app', () => {
     return newTab
   }
   
-  function closeTab(tabId: string) {
+  async function closeTab(tabId: string): Promise<boolean> {
     const index = tabs.value.findIndex(tab => tab.id === tabId)
-    if (index === -1) return
+    if (index === -1) return false
     
+    const tab = tabs.value[index]
+    
+    // Check if tab has unsaved changes
+    if (tab.isDirty) {
+      if (!window.electronAPI?.showSaveDialog) {
+        console.warn('showSaveDialog not available')
+        return false
+      }
+      
+      const result = await window.electronAPI.showSaveDialog(tab.name)
+      
+      switch (result) {
+        case 'save':
+          // Save the file first
+          if (await saveTab(tab) === false) {
+            return false // If save failed, don't close the tab
+          }
+          break
+        case 'cancel':
+          // User cancelled, don't close the tab
+          return false
+        case 'dontSave':
+          // User chose not to save, continue closing
+          break
+        default:
+          return false
+      }
+    }
+    
+    // Remove the tab
     tabs.value.splice(index, 1)
     
     // If closing active tab, activate another tab
@@ -448,6 +526,8 @@ export const useAppStore = defineStore('app', () => {
         activeTabId.value = null
       }
     }
+    
+    return true
   }
   
   function setActiveTab(tabId: string) {
@@ -465,76 +545,126 @@ export const useAppStore = defineStore('app', () => {
     }
   }
   
-  async function saveActiveTab() {
-    if (!activeTab.value || !window.electronAPI) return
+  async function saveTab(tab: FileTab, saveAs: boolean = false): Promise<boolean> {
+    if (!tab || !window.electronAPI) return false
     
-    const originalPath = activeTab.value.path
+    const originalPath = tab.path
     const savedPath = await window.electronAPI.saveFile(
-      activeTab.value.content,
-      activeTab.value.path
+      tab.content,
+      saveAs ? undefined : tab.path // If saveAs is true, use the current path, otherwise prompt for a new path
     )
     
     if (savedPath) {
-      activeTab.value.path = savedPath
-      activeTab.value.isDirty = false
+      tab.path = savedPath
+      tab.isDirty = false
       // Always update tab name to match the saved file name
       const fileName = savedPath.split('/').pop() || 'Untitled'
-      activeTab.value.name = fileName
+      tab.name = fileName
       
       // Refresh file tree if this was a new file or saved to a different location
       if (!originalPath || savedPath !== originalPath) {
         await loadFileTree()
       }
     }
+
+    return !!savedPath
   }
+
+  async function saveActiveTab() {
+    if (!activeTab.value || !window.electronAPI) return
     
+    saveTab(activeTab.value)
+  }
+
+  async function saveActiveTabAs() {
+    if (!activeTab.value || !window.electronAPI) return
+    
+    saveTab(activeTab.value, true)
+  }
+  
+  // 或者使用 Promise.all（但要处理对话框冲突）
+  async function saveAllTabs() {
+    const dirtyTabs = tabs.value.filter(tab => tab.isDirty)
+
+    // 分别处理有路径和无路径的文件
+    const tabsWithPath = dirtyTabs.filter(tab => tab.path)
+    const tabsWithoutPath = dirtyTabs.filter(tab => !tab.path)
+
+    // 先保存有路径的文件（不需要对话框）
+    await Promise.all(tabsWithPath.map(tab => saveTab(tab)))
+
+    // 然后顺序保存无路径的文件（需要对话框）
+    for (const tab of tabsWithoutPath) {
+      await saveTab(tab)
+    }
+  }
+
   // Handle menu actions for the application
   // There are Paragraph / Format Menu Actions handled in MarkdownEditor.vue
-  function handleMenuAction(action: string) {
+  async function handleMenuAction(action: string): Promise<boolean> {
     switch (action) {
       case 'new-file':
-      case 'new-document':
         createNewTab(undefined, undefined, '', DocumentType.TEXT_EDITOR)
-        break
+        return true
+      case 'new-from-template':
+        console.error('New from template action is not implemented yet')
+        return true
       case 'open-file':
-        openFileDialog()
-        break
+        await openFileDialog()
+        return true
       case 'open-folder':
-        openFolder()
-        break
+        await openFolder()
+        return true
       case 'save':
-        saveActiveTab()
-        break
+        await saveActiveTab()
+        return true
+      case 'save-as':
+        await saveActiveTabAs()
+        return true
+      case 'toggle-auto-save':
+        toggleAutoSave()
+        return true
+      case 'save-all':
+        await saveAllTabs()
+        return true
+      case 'page-setting':
+        console.error('page-setting action is not implemented yet')
+        return true
+      case 'print':
+        console.error('print action is not implemented yet')
+        return true
       case 'close-file':
         if (activeTabId.value) {
-          closeTab(activeTabId.value)
+          await closeTab(activeTabId.value)
         }
-        break
+        return true
+      case 'close-folder':
+        closeFolder()
+        return true
+
       case 'view-toggle-left-sidebar':
         toggleLeftSidebar()
-        break;
+        return true
       case 'view-toggle-right-sidebar':
         toggleRightSidebar()
-        break
+        return true
       case 'view-toggle-statusbar':
         toggleStatusbar()
-        break
+        return true
       case 'view-explorer':
       case 'view-search':
       case 'view-tag':
       case 'view-toc':
         const mode = action.replace('view-', '') as keyof typeof SidebarMode
         setLeftSidebarMode(SidebarMode[mode.toUpperCase() as keyof typeof SidebarMode])
-        break
-      case 'toggle-auto-save':
-        toggleAutoSave()
-        break
-      case 'close-folder':
-        closeFolder()
-        break
+        return true
+      
       default:
         console.log('Unhandled menu action in app:', action)
+        return false
     }
+
+    return false
   }
   
   return {
@@ -585,9 +715,12 @@ export const useAppStore = defineStore('app', () => {
     // Tab operations
     createNewTab,
     closeTab,
+    saveTab,
     setActiveTab,
     updateTabContent,
     saveActiveTab,
+    saveActiveTabAs,
+    saveAllTabs,
 
     // Menu actions
     handleMenuAction,

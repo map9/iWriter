@@ -114,7 +114,7 @@ function getActivePageRef() {
 
 // Expose methods to parent component (App.vue)
 defineExpose({
-  handleMenuAction: (action: string) => {
+  handleMenuAction: async (action: string) => {
     // First try to handle through the active page
     let handled = false
     const activePageRef = getActivePageRef()
@@ -124,7 +124,7 @@ defineExpose({
     
     // If not handled by active page, fallback to app store
     if (!handled) {
-      appStore.handleMenuAction(action)
+      await appStore.handleMenuAction(action)
     }
   },
   updateMenuFormattingState: () => {
