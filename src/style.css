@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-feature-settings: "cv11", "ss01";
+    font-variation-settings: "opsz" 850;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  body {
+    @apply font-sans;
+  }
+  
+  * {
+    box-sizing: border-box;
+  }
+
+  /* 恢复列表默认样式 */
+  ol, ul {
+    list-style: revert;
+    margin: revert;
+    padding: revert;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-3 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+  
+  .btn-primary {
+    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500;
+  }
+  
+  .btn-ghost {
+    @apply btn bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:ring-gray-500;
+  }
+  
+  .sidebar {
+    @apply flex flex-col bg-gray-100 border-r border-gray-200;
+  }
+  
+  .sidebar-header {
+    @apply flex items-center justify-between px-4 border-b border-gray-200;
+    height: 36px;
+  }
+  
+  .sidebar-content {
+    @apply flex-1 overflow-hidden;
+  }
+  
+  .editor-toolbar {
+    @apply flex items-center gap-1 px-4 border-b border-gray-200 bg-white;
+    height: 36px;
+  }
+  
+  .toolbar-group {
+    @apply flex items-center gap-1;
+  }
+  
+  .toolbar-separator {
+    @apply w-px h-4 bg-gray-300 mx-1;
+  }
+}
