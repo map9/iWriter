@@ -1,10 +1,9 @@
 <template>
-  <div class="flex items-center h-9 bg-gray-50 border-b border-gray-200 select-none drag-region">
+  <div class="flex items-center h-9 bg-gray-50 border-b border-gray-200 select-none w-full drag-region overflow-hidden">
     <!-- Window Controls - handled by system traffic lights -->
     <div v-if="!isMaximized && !appStore.showLeftSidebar" class="flex items-center pl-20"></div>
-
     <!-- Left Sidebar Toggle -->
-    <div class="flex items-center no-drag" :class="isMaximized ? 'pl-2 pr-1' : 'px-1'">
+    <div class="flex items-center flex-shrink-0 no-drag" :class="isMaximized ? 'pl-2 pr-1' : 'px-1'">
       <button
         @click="appStore.toggleLeftSidebar()"
         class="p-1.5 rounded hover:bg-gray-200 transition-colors"
@@ -23,84 +22,88 @@
       </button>
     </div>
 
-    <!-- Document Tabs Area -->
-    <div class="flex items-center min-w-0">
-      <!-- Tab Navigation -->
-      <div class="flex items-center px-2 no-drag">
-        <button
-          @click="navigateTabs(-1)"
-          :disabled="!canNavigateBack"
-          class="p-1 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Previous Tab"
-        >
-          <IconChevronLeft :size="20" class="text-gray-600" />
-        </button>
-        <button
-          @click="navigateTabs(1)"
-          :disabled="!canNavigateForward"
-          class="p-1 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Next Tab"
-        >
-          <IconChevronRight :size="20" class="text-gray-600" />
-        </button>
+    <!-- Tab Navigation -->
+    <div class="flex items-center px-2 flex-shrink-0 no-drag">
+      <button
+        @click="navigateTabs(-1)"
+        :disabled="!canNavigateBack"
+        class="p-1 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        title="Previous Tab"
+      >
+        <IconChevronLeft :size="20" class="text-gray-600" />
+      </button>
+      <button
+        @click="navigateTabs(1)"
+        :disabled="!canNavigateForward"
+        class="p-1 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        title="Next Tab"
+      >
+        <IconChevronRight :size="20" class="text-gray-600" />
+      </button>
+    </div>
+
+    <!-- Document Tabs Area - 按内容伸缩，有最大宽度限制 -->
+    <div class="flex items-center h-full overflow-hidden no-drag" style="max-width: calc(100% - 252px);">
+      <!-- Left separator for tabs -->
+      <div v-if="appStore.tabs.length > 0" class="w-px h-9 bg-gray-200 flex-shrink-0"></div>      
+      <!-- Document Tabs Container -->
+      <div class="flex items-center h-full overflow-x-auto scrollbar-hide">
+        <!-- Tabs List -->
+        <div class="flex items-center">
+          <div style="min-width: 128px; max-width: 180px;"
+            v-for="tab in appStore.tabs" 
+            :key="tab.id"
+            :class="[
+              'px-3 py-2 border-r border-gray-200 cursor-pointer flex items-center space-x-2 whitespace-nowrap flex-shrink-0',
+              tab.isActive ? 'bg-white border-b-white' : 'hover:bg-gray-100'
+            ]"
+            @click="switchTab(tab.id)"
+          >
+            <!-- 文档类型图标（固定宽度） -->
+            <component 
+              :is="getTabIcon(tab)" 
+              class="w-4 h-4 flex-shrink-0"
+            />
+            
+            <!-- 标签名称（伸缩部分） -->
+            <span class="flex-1 text-sm whitespace-nowrap overflow-hidden text-ellipsis mr-2">{{ tab.name }}</span>
+            
+            <!-- 未保存指示器（固定宽度） -->
+            <div 
+              v-if="tab.isDirty" 
+              class="w-2 h-2 bg-orange-400 rounded-full flex-shrink-0"
+            />
+            
+            <!-- 关闭按钮（固定宽度） -->
+            <button 
+              @click.stop="closeTab(tab.id)"
+              class="w-4 h-4 flex items-center justify-center hover:bg-gray-200 rounded flex-shrink-0"
+            >
+              <IconX class="w-3 h-3" />
+            </button>
+          </div>
+        </div>
       </div>
-      
-      <!-- Document Tabs -->
-      <div class="flex-1 flex items-center min-w-0 overflow-hidden no-drag">
-        <!-- Left separator for tabs -->
-        <div v-if="appStore.tabs.length > 0" class="w-px h-9 bg-gray-200"></div>
-        
-        <div 
-          v-for="tab in appStore.tabs" 
-          :key="tab.id"
-          :class="[
-            'px-4 py-2 border-r border-gray-200 cursor-pointer flex items-center space-x-2 min-w-0',
-            tab.isActive ? 'bg-white border-b-white' : 'hover:bg-gray-100'
-          ]"
-          @click="switchTab(tab.id)"
+      <!-- Right separator for tabs -->
+      <div v-if="appStore.tabs.length > 0" class="w-px h-9 bg-gray-200 flex-shrink-0"></div>      
+
+      <!-- New Tab Button - 固定在标签右侧 -->
+      <div class="flex items-center px-2 flex-shrink-0 no-drag">
+        <button
+          @click="appStore.createNewTab(undefined, undefined, '')"
+          class="p-1 rounded hover:bg-gray-200 transition-colors"
+          title="New Tab"
         >
-          <!-- Document Type Icon -->
-          <component 
-            :is="getTabIcon(tab)" 
-            class="w-4 h-4 flex-shrink-0"
-          />
-          
-          <!-- Tab Name -->
-          <span class="truncate text-sm">{{ tab.name }}</span>
-          
-          <!-- Dirty Indicator -->
-          <div 
-            v-if="tab.isDirty" 
-            class="w-2 h-2 bg-orange-400 rounded-full flex-shrink-0"
-          />
-          
-          <!-- Close Button -->
-          <button 
-            @click.stop="closeTab(tab.id)"
-            class="ml-2 w-4 h-4 flex items-center justify-center hover:bg-gray-200 rounded flex-shrink-0"
-          >
-            <IconX class="w-3 h-3" />
-          </button>
-        </div>
-        
-        <!-- New Tab Button - next to tabs when tabs exist -->
-        <div class="flex items-center px-2 no-drag">
-          <button
-            @click="appStore.createNewTab(undefined, undefined, '')"
-            class="p-1 rounded hover:bg-gray-200 transition-colors"
-            title="New Tab"
-          >
-            <IconPlus :size="20" class="text-gray-600" />
-          </button>
-        </div>
+          <IconPlus :size="20" class="text-gray-600" />
+        </button>
       </div>
     </div>
     
-    <!-- Flexible drag area -->
-    <div class="flex-1"></div>
+    <!-- Flexible drag area - 填充剩余空间，可被完全压缩 -->
+    <div class="flex-1 h-full cursor-move drag-region" style="min-width: 180px;"></div>
     
     <!-- Right Sidebar Toggle -->
-    <div class="flex items-center px-2 no-drag">
+    <div class="flex items-center px-2 flex-shrink-0 no-drag">
       <button
         @click="appStore.toggleRightSidebar()"
         class="p-2 rounded hover:bg-gray-200 transition-colors"
@@ -244,5 +247,14 @@ watch([() => appStore.hasOpenFolder, () => appStore.tabs.length], () => {
 
 .no-drag {
   -webkit-app-region: no-drag;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 </style>

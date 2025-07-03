@@ -6,14 +6,14 @@
       <LeftSidebar v-if="appStore.showLeftSidebar" />
       
       <!-- Main Content -->
-      <div class="h-full flex-1 flex flex-col">
+      <div class="h-full flex-1 flex flex-col overflow-hidden">
         <!-- Title Bar -->
         <TitleBar />
 
           <div class="flex-1 flex overflow-hidden">
 
             <!-- Editor Area -->
-            <div class="flex-1 flex flex-col">
+            <div class="flex-1 flex flex-col overflow-hidden">
 
               <!-- Document Pages -->
               <div class="flex-1 overflow-hidden">

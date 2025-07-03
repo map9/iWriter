@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Window controls
   close: () => ipcRenderer.send('close'),
+  updateWindowTitle: (title: string) => ipcRenderer.invoke('update-window-title', title),
   
   // Menu actions
   onMenuAction: (callback: (action: string) => void) => {

@@ -2,13 +2,12 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { FileTab, FileTreeItem, FileOperationResult, ConflictAction } from '@/types'
 import { SidebarMode, ErrorType, ErrorSeverity, DocumentType } from '@/types'
-import { useErrorHandler } from '@/utils/ErrorHandler'
 import { useFileWatcher } from '@/utils/FileWatcher'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
+import { notify } from '@/utils/notifications'
 
 export const useAppStore = defineStore('app', () => {
-  // 错误处理和文件监听
-  const { handleError, handleFileSystemError } = useErrorHandler()
+  // 文件监听和类型检测
   const { watchFolder, stopWatching, stopAllWatchers } = useFileWatcher()
   const { detectFromPath } = useDocumentTypeDetector()
   
@@ -105,6 +104,9 @@ export const useAppStore = defineStore('app', () => {
   
   // Update menu when active tab changes
   watch(() => activeTab.value, (newTab) => {
+    // Update window title when active tab changes
+    updateWindowTitle()
+
     const hasActiveDocument = !!newTab
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI.windowContentChange({
@@ -116,6 +118,9 @@ export const useAppStore = defineStore('app', () => {
   
   // Update menu when folder state changes
   watch(() => currentFolder.value, (newFolder) => {
+    // Update window title when folder state changes
+    updateWindowTitle()
+
     const hasFolderOpen = !!newFolder
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI.windowContentChange({
@@ -128,6 +133,31 @@ export const useAppStore = defineStore('app', () => {
   // Actions
   function toggleLeftSidebar() {
     showLeftSidebar.value = !showLeftSidebar.value
+  }
+  
+  // Update window title based on current state
+  function updateWindowTitle() {
+    if (!window.electronAPI?.updateWindowTitle) return
+    
+    let title = 'iWriter'
+    
+    // Check current state and generate appropriate title
+    if (currentFolder.value && activeTab.value) {
+      // File opened with folder open: "文件名 - folder名"
+      const folderName = currentFolder.value.split('/').pop() || 'Folder'
+      title = `${activeTab.value.name} - ${folderName}`
+    } else if (activeTab.value) {
+      // File opened without folder: "文件名"
+      title = activeTab.value.name
+    } else if (currentFolder.value) {
+      // Only folder opened: "folder名"
+      const folderName = currentFolder.value.split('/').pop() || 'Folder'
+      title = folderName
+    }
+    
+    window.electronAPI.updateWindowTitle(title).catch(error => {
+      console.error('Failed to update window title:', error)
+    })
   }
   
   function toggleRightSidebar() {
@@ -191,6 +221,10 @@ export const useAppStore = defineStore('app', () => {
       leftSidebarMode.value = SidebarMode.EXPLORER
       await loadFileTree()
       startAdvancedFileWatching() // Start advanced file watching
+      
+      // 成功通知
+      const folderName = folderPath.split('/').pop() || 'folder'
+      notify.success(`已成功打开文件夹：${folderName}`, '文件夹操作')
     }
   }
   
@@ -221,7 +255,7 @@ export const useAppStore = defineStore('app', () => {
         childCount: file.childCount || 0
       }))
     } catch (error) {
-      handleFileSystemError(error, 'loadFileTree', currentFolder.value)
+      notify.error(`无法加载文件树: ${error instanceof Error ? error.message : String(error)}`, '文件系统错误')
     }
   }
 
@@ -238,7 +272,7 @@ export const useAppStore = defineStore('app', () => {
           window.electronAPI?.getFiles(dirPath).then(files => {
             item.childCount = files.length
           }).catch(error => {
-            console.error('Error updating child count:', error)
+            notify.warning(`更新目录文件数失败: ${error instanceof Error ? error.message : String(error)}`, '文件系统')
           })
           return true
         }
@@ -269,10 +303,11 @@ export const useAppStore = defineStore('app', () => {
       const filePath = await window.electronAPI.createFile(parentPath, fileName)
       await loadFileTree() // Refresh the tree
       updateDirectoryChildCount(parentPath) // Update parent directory count
+      notify.success(`文件创建成功: ${fileName}`, '文件操作')
       return filePath
     } catch (error) {
-      const appError = handleFileSystemError(error, 'createNewFile', parentPath)
-      throw appError
+      notify.error(`无法创建文件: ${error instanceof Error ? error.message : String(error)}`, '文件系统错误')
+      throw error
     }
   }
   
@@ -283,10 +318,11 @@ export const useAppStore = defineStore('app', () => {
       const folderPath = await window.electronAPI.createFolder(parentPath, folderName)
       await loadFileTree() // Refresh the tree
       updateDirectoryChildCount(parentPath) // Update parent directory count
+      notify.success(`文件夹创建成功: ${folderName}`, '文件操作')
       return folderPath
     } catch (error) {
-      const appError = handleFileSystemError(error, 'createNewFolder', parentPath)
-      throw appError
+      notify.error(`无法创建文件夹: ${error instanceof Error ? error.message : String(error)}`, '文件系统错误')
+      throw error
     }
   }
   
@@ -314,8 +350,8 @@ export const useAppStore = defineStore('app', () => {
       await loadFileTree() // Refresh the tree
       return true
     } catch (error) {
-      const appError = handleFileSystemError(error, 'deleteFileOrFolder', filePath)
-      throw appError
+      notify.error(`无法删除文件或文件夹: ${error instanceof Error ? error.message : String(error)}`, '文件系统错误')
+      throw error
     }
   }
   
@@ -337,8 +373,8 @@ export const useAppStore = defineStore('app', () => {
       await loadFileTree() // Refresh the tree
       return newPath
     } catch (error) {
-      const appError = handleFileSystemError(error, 'renameFileOrFolder', oldPath)
-      throw appError
+      notify.error(`无法重命名文件或文件夹: ${error instanceof Error ? error.message : String(error)}`, '文件系统错误')
+      throw error
     }
   }
   
@@ -378,8 +414,8 @@ export const useAppStore = defineStore('app', () => {
       
       return result
     } catch (error) {
-      const appError = handleFileSystemError(error, 'moveFileOrFolder', sourcePath)
-      throw appError
+      notify.error(`无法移动文件或文件夹: ${error instanceof Error ? error.message : String(error)}`, '文件系统错误')
+      throw error
     }
   }
 
@@ -400,17 +436,11 @@ export const useAppStore = defineStore('app', () => {
         
         // 监听错误事件
         window.electronAPI.onFileWatchError?.((error) => {
-          handleError({
-            type: ErrorType.FILE_SYSTEM,
-            severity: ErrorSeverity.MEDIUM,
-            message: `文件监听错误: ${error.message}`,
-            context: 'fileWatching',
-            timestamp: new Date()
-          })
+          notify.warning(`文件监听错误: ${error.message}`, '文件监听')
         })
       }
     } catch (error) {
-      handleFileSystemError(error, 'startAdvancedFileWatching', currentFolder.value)
+      notify.error(`无法启动文件监听: ${error instanceof Error ? error.message : String(error)}`, '文件监听')
     }
   }
   
@@ -423,7 +453,7 @@ export const useAppStore = defineStore('app', () => {
       window.electronAPI.removeFileChangeListeners?.()
       console.log('Advanced file watching stopped')
     } catch (error) {
-      handleFileSystemError(error, 'stopAdvancedFileWatching', currentFolder.value)
+      notify.error(`无法停止文件监听: ${error instanceof Error ? error.message : String(error)}`, '文件监听')
     }
   }
   
@@ -565,6 +595,9 @@ export const useAppStore = defineStore('app', () => {
       if (!originalPath || savedPath !== originalPath) {
         await loadFileTree()
       }
+      
+      // 成功通知
+      notify.success(`文件已保存：${fileName}`, '文件操作')
     }
 
     return !!savedPath
@@ -695,6 +728,7 @@ export const useAppStore = defineStore('app', () => {
     setLeftSidebarMode,
     setLeftSidebarWidth,
     toggleAutoSave,
+    updateWindowTitle,
 
     // File operations
     openFile,

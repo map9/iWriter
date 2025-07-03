@@ -173,7 +173,35 @@ export enum ErrorSeverity {
   CRITICAL = 'critical'
 }
 
-// 应用错误接口
+// 通知类型枚举
+export enum NotificationType {
+  SUCCESS = 'success',
+  INFORMATION = 'information', 
+  WARNING = 'warning',
+  ERROR = 'error',
+  CRITICAL = 'critical'
+}
+
+// 通知严重程度枚举 (映射到 ErrorSeverity 以保持兼容性)
+export enum NotificationSeverity {
+  SUCCESS = 'success',
+  INFO = 'low',           // 映射到 low
+  WARNING = 'low',        // 警告映射到 low
+  ERROR = 'medium',       // 错误映射到 medium  
+  CRITICAL = 'critical'   // 严重映射到 critical
+}
+
+// 通用通知接口
+export interface Notification {
+  type: NotificationType
+  message: string
+  details?: string
+  context?: string
+  timestamp: Date
+  duration?: number  // 自定义显示时长，毫秒
+}
+
+// 应用错误接口 (保持向后兼容)
 export interface AppError {
   type: ErrorType
   severity: ErrorSeverity
@@ -205,6 +233,7 @@ export interface ElectronAPI {
   
   // 窗口控制
   close: () => void
+  updateWindowTitle: (title: string) => Promise<{ success: boolean; error?: string }>
   
   // 菜单操作
   onMenuAction: (callback: (action: string) => void) => void

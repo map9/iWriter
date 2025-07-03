@@ -123,6 +123,7 @@
 <script setup lang="ts">
 import { computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { useAppStore, type FileTreeItem as FileTreeItemType } from '@/stores/app'
+import { notify } from '@/utils/notifications'
 import {
   IconChevronDown,
   IconChevronRight,
@@ -209,7 +210,7 @@ async function toggleExpand() {
         }))
       }
     } catch (error) {
-      console.error('Error loading folder contents:', error)
+      notify.error(`无法加载文件夹内容: ${error instanceof Error ? error.message : String(error)}`, '文件系统错误')
     }
   }
 }
@@ -268,8 +269,7 @@ async function handleRenameSubmit() {
       cancelRename()
     }
   } catch (error) {
-    console.error('Rename error:', error)
-    alert('Error renaming: ' + (error as Error).message)
+    notify.error(`重命名失败: ${error instanceof Error ? error.message : String(error)}`, '文件操作错误')
     cancelRename()
   } finally {
     isRenameSubmitting.value = false

@@ -36,6 +36,7 @@ import TurndownService from 'turndown'
 import EditorToolbar from '@/components/EditorToolbar.vue'
 import { useAppStore } from '@/stores/app'
 import type { FileTab } from '@/types'
+import { notify } from '@/utils/notifications'
 import { 
   getHeading,
   setHeading, 
@@ -208,7 +209,7 @@ async function loadTabContent(editorInstance: any) {
       }
     }
   } catch (error) {
-    console.error('Error loading tab content:', error)
+    notify.error(`加载文档内容失败: ${error instanceof Error ? error.message : String(error)}`, '编辑器错误')
   } finally {
     isLoading.value = false
   }

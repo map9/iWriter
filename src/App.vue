@@ -1,7 +1,6 @@
 <template>
   <div id="app" class="h-screen flex flex-col overflow-hidden">
     <router-view ref="routerViewRef"/>
-    <ErrorNotification />
   </div>
 </template>
 
@@ -9,7 +8,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useRouter } from 'vue-router'
-import ErrorNotification from '@/components/ErrorNotification.vue'
 
 const router = useRouter()
 const appStore = useAppStore()

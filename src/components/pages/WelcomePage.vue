@@ -38,7 +38,8 @@
 
 <script setup lang="ts">
 import { useAppStore } from '@/stores/app'
-import { DocumentType } from '@/types'
+import { useNotificationHandler } from '@/utils/NotificationHandler'
+import { DocumentType, NotificationType } from '@/types'
 import { 
   IconFileText, 
   IconPlus, 
@@ -47,6 +48,7 @@ import {
 } from '@tabler/icons-vue'
 
 const appStore = useAppStore()
+const { success, info, warning, error, critical } = useNotificationHandler()
 
 function createNewDocument() {
   appStore.createNewTab(undefined, undefined, '', DocumentType.TEXT_EDITOR)

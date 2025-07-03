@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import type { AppError } from '@/types'
-import { ErrorType, ErrorSeverity } from '@/types'
+import { ErrorType, ErrorSeverity, NotificationType } from '@/types'
+import { notify } from '@/utils/notifications'
 
 // 错误状态管理
 export const errors = ref<AppError[]>([])
@@ -71,10 +72,8 @@ export class ErrorHandler {
     handler.notifyCallbacks(appError)
     handler.logError(appError)
     
-    // 根据严重程度决定是否显示用户提示
-    if (appError.severity === ErrorSeverity.HIGH || appError.severity === ErrorSeverity.CRITICAL) {
-      handler.showErrorToUser(appError)
-    }
+    // 使用通知系统显示错误
+    handler.showErrorNotification(appError)
   }
 
   // 文件系统错误处理
@@ -205,16 +204,59 @@ export class ErrorHandler {
     }
   }
 
-  // 显示错误给用户
-  private showErrorToUser(error: AppError): void {
-    // 在实际应用中，这里会显示错误对话框或通知
-    if (window.electronAPI) {
-      // 如果有 electron API，可以显示原生对话框
-      console.error('User Error:', error.message)
-      // TODO: 实现原生错误对话框
-    } else {
-      // 在浏览器环境中使用 alert 或其他 UI 组件
-      alert(`错误: ${error.message}`)
+  // 使用通知系统显示错误
+  private showErrorNotification(error: AppError): void {
+    // 将错误严重程度映射到通知类型
+    let notificationType: NotificationType
+    
+    switch (error.severity) {
+      case ErrorSeverity.CRITICAL:
+        notificationType = NotificationType.CRITICAL
+        break
+      case ErrorSeverity.HIGH:
+        notificationType = NotificationType.ERROR
+        break
+      case ErrorSeverity.MEDIUM:
+        notificationType = NotificationType.WARNING
+        break
+      case ErrorSeverity.LOW:
+        notificationType = NotificationType.WARNING
+        break
+      default:
+        notificationType = NotificationType.ERROR
+    }
+    
+    // 根据通知类型调用相应的通知方法
+    const context = error.context || this.getErrorTypeLabel(error.type)
+    
+    switch (notificationType) {
+      case NotificationType.CRITICAL:
+        notify.critical(error.message, context)
+        break
+      case NotificationType.ERROR:
+        notify.error(error.message, context)
+        break
+      case NotificationType.WARNING:
+        notify.warning(error.message, context)
+        break
+      default:
+        notify.error(error.message, context)
+    }
+  }
+  
+  // 获取错误类型标签
+  private getErrorTypeLabel(type: ErrorType): string {
+    switch (type) {
+      case ErrorType.FILE_SYSTEM:
+        return '文件系统错误'
+      case ErrorType.NETWORK:
+        return '网络错误'
+      case ErrorType.VALIDATION:
+        return '验证错误'
+      case ErrorType.PERMISSION:
+        return '权限错误'
+      default:
+        return '系统错误'
     }
   }
 

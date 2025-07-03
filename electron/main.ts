@@ -1622,6 +1622,7 @@ function updateMenu(): void {
     },
     {
       label: 'Window',
+      id: 'window',
       submenu: [
         { role: 'minimize' },
         { role: 'close' },
@@ -1704,12 +1705,13 @@ function updateMenu(): void {
   })
 
   // 添加窗口列表
-  const windowList = filteredTemplate.find(item => item.id === 'view') as Electron.MenuItemConstructorOptions | undefined;
+  const windowList = filteredTemplate.find(item => item.id === 'window') as Electron.MenuItemConstructorOptions | undefined;
   
   windows?.forEach((windowState: WindowState) => {
     const isActive = windowState.id === currentFocusedWindowId;
+
     const menuItem: Electron.MenuItemConstructorOptions = {
-      label: `${isActive ? '(活动) ' : ''}${windowState.window.getTitle()}`,
+      label: windowState.window.getTitle(),
       type: 'radio',
       checked: isActive,
       click: () => {
@@ -2165,6 +2167,16 @@ ipcMain.handle('get-file-watching-status', async () => {
     watchedPaths: Array.from(fileWatchers.keys()),
     totalWatchers: fileWatchers.size
   };
+})
+
+// Window title update IPC handler
+ipcMain.handle('update-window-title', async (event, title: string) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    window.setTitle(title);
+    return { success: true };
+  }
+  return { success: false, error: 'Window not found' };
 })
 
 app.whenReady().then(() => {
