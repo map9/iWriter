@@ -5,22 +5,27 @@ import { NotificationHandler } from './NotificationHandler'
 export const notify = {
   success: (message: string, context?: string, duration?: number) => {
     NotificationHandler.success(message, context, duration)
+    console.info(`${context}: ${message}.`)
   },
   
   info: (message: string, context?: string, duration?: number) => {
     NotificationHandler.info(message, context, duration)
+    console.info(`${context}: ${message}.`)
   },
   
   warning: (message: string, context?: string, duration?: number) => {
     NotificationHandler.warning(message, context, duration)
+    console.warn(`${context}: ${message}.`)
   },
   
   error: (message: string, context?: string, duration?: number) => {
     NotificationHandler.error(message, context, duration)
+    console.error(`${context}: ${message}.`)
   },
   
   critical: (message: string, context?: string, duration?: number) => {
     NotificationHandler.critical(message, context, duration)
+    console.error(`${context}: ${message}.`)
   }
 }
 

@@ -1,14 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { FileTab, FileTreeItem, FileOperationResult, ConflictAction } from '@/types'
-import { SidebarMode, ErrorType, ErrorSeverity, DocumentType } from '@/types'
-import { useFileWatcher } from '@/utils/FileWatcher'
+import type { FileTab, FileOperationResult } from '@/types'
+import { SidebarMode, DocumentType } from '@/types'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
+import { pathUtils } from '@/utils/pathUtils'
 import { notify } from '@/utils/notifications'
+import type { FileTreeNode, FileTreeSortType } from '@/components/common/tree'
 
 export const useAppStore = defineStore('app', () => {
   // 文件监听和类型检测
-  const { watchFolder, stopWatching, stopAllWatchers } = useFileWatcher()
   const { detectFromPath } = useDocumentTypeDetector()
   
   // UI State
@@ -22,9 +22,11 @@ export const useAppStore = defineStore('app', () => {
   
   // Folder and Files
   const currentFolder = ref<string | null>(null)
-  const fileTree = ref<FileTreeItem[]>([])
-  const selectedItem = ref<FileTreeItem | null>(null)
-  
+  const fileTree = ref<FileTreeNode | null>(null)
+  const selectedItem = ref<FileTreeNode | null>(null)
+  const currentFileTreeSortType = ref<FileTreeSortType>('none')
+  const filetreeUntitledCounter = ref<Map<string, number>>(new Map<string, number>)
+
   // Tabs
   const tabs = ref<FileTab[]>([])
   const activeTabId = ref<string | null>(null)
@@ -141,17 +143,13 @@ export const useAppStore = defineStore('app', () => {
     
     let title = 'iWriter'
     
-    // Check current state and generate appropriate title
     if (currentFolder.value && activeTab.value) {
-      // File opened with folder open: "文件名 - folder名"
-      const folderName = currentFolder.value.split('/').pop() || 'Folder'
+      const folderName = pathUtils.basename(currentFolder.value)
       title = `${activeTab.value.name} - ${folderName}`
     } else if (activeTab.value) {
-      // File opened without folder: "文件名"
       title = activeTab.value.name
     } else if (currentFolder.value) {
-      // Only folder opened: "folder名"
-      const folderName = currentFolder.value.split('/').pop() || 'Folder'
+      const folderName = pathUtils.basename(currentFolder.value)
       title = folderName
     }
     
@@ -206,84 +204,238 @@ export const useAppStore = defineStore('app', () => {
     
     const content = await window.electronAPI.readFile(filePath)
     if (content !== null) {
-      const fileName = filePath.split('/').pop() || 'Untitled'
       const documentType = detectFromPath(filePath)
-      createNewTab(fileName, filePath, content, documentType)
+      createTab(pathUtils.basename(filePath), filePath, content, documentType)
     }
   }
 
+  function logFileTreeNode(node: FileTreeNode | null) {
+    if (!node) {
+      console.log('Invalid node provided to logFileTreeNode') 
+      return
+    }
+    
+    // 如果是文件，直接返回
+    if (node.type === 'file') {
+      console.log(`Traversing file: ${node.parent?.label} ${node.type} ${node.path}`)
+      return
+    }
+    
+    // 如果是目录，递归遍历子节点
+    if (node.children && node.children.length > 0) {
+      console.log(`Traversing folder: ${node.parent?.label} ${node.type} ${node.path}`)
+      node.children.forEach(child => {
+        logFileTreeNode(child as FileTreeNode)
+      })
+    }
+    return
+  }
+
+  // File or Folder operations
   async function openFolder() {
     if (!window.electronAPI) return
     
     const folderPath = await window.electronAPI.openFolder()
     if (folderPath) {
+      // Close all tabs since folder is open
+      await closeAllTab();
+
       currentFolder.value = folderPath
       leftSidebarMode.value = SidebarMode.EXPLORER
       await loadFileTree()
       startAdvancedFileWatching() // Start advanced file watching
       
       // 成功通知
-      const folderName = folderPath.split('/').pop() || 'folder'
-      notify.success(`已成功打开文件夹：${folderName}`, '文件夹操作')
+      const folderName = pathUtils.basename(folderPath)
+      notify.success(`${folderName} 打开成功`, '文件操作')
     }
   }
   
-  function closeFolder() {
-    stopAdvancedFileWatching() // Stop file watching when folder is closed
-    currentFolder.value = null
-    fileTree.value = []
-    selectedItem.value = null
-    leftSidebarMode.value = SidebarMode.START
-    
+  async function closeFolder() {
     // Close all tabs since no folder is open
-    tabs.value.forEach(tab => {
-      closeTab(tab.id)
-    })
+    const result = await closeAllTab();
+    
+    if (result) {
+      stopAdvancedFileWatching() // Stop file watching when folder is closed
+      currentFolder.value = null
+      fileTree.value = null
+      selectedItem.value = null
+      leftSidebarMode.value = SidebarMode.START
+    }
   }
 
   async function loadFileTree() {
     if (!currentFolder.value || !window.electronAPI) return
-    
+
     try {
-      const files = await window.electronAPI.getFiles(currentFolder.value)
-      fileTree.value = files.map(file => ({
-        name: file.name,
+      // 使用 await 等待异步操作完成
+      const files = await window.electronAPI.getFiles(currentFolder.value, true)
+      if (!files || files.length === 0 || files[0].isDirectory === false) {
+        throw(new Error('文件不是目录'))
+      }
+      const file = files[0]
+      fileTree.value = {
+        id: generateId(),
+        label: file.name,
         path: file.path,
-        isDirectory: file.isDirectory,
-        children: file.isDirectory ? [] : undefined,
+        type: 'folder',
+        children: [],
+        isExpanded: false,
+        isVisible: true,
+        isEnabled: true,
+        data: {},
         isOpen: false,
-        childCount: file.childCount || 0
-      }))
+        created: file.created,
+        modified: file.modified,
+      }
+
+      // 使用 await 等待异步操作完成
+      fileTree.value.children = await traverseFileTree(currentFolder.value, fileTree.value)
     } catch (error) {
-      notify.error(`无法加载文件树: ${error instanceof Error ? error.message : String(error)}`, '文件系统错误')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件树加载错误')
+      return []
     }
   }
 
-  function selectItem(item: FileTreeItem) {
-    selectedItem.value = item
+  async function traverseFileTree(dirPath: string, parent?: FileTreeNode): Promise<FileTreeNode[] | undefined> {
+    if (!dirPath || !window.electronAPI) return undefined
+    
+    try {
+      // 使用 await 等待异步操作完成
+      const files = await window.electronAPI.getFiles(dirPath)
+      if (files && Array.isArray(files)) {
+        // 使用 Promise.all 处理所有子目录的异步操作
+        const fileTree = await Promise.all(
+          files.map(async (file) => {
+            const node: FileTreeNode = {
+              id: generateId(),
+              label: file.name,
+              path: file.path,
+              type: file.isDirectory ? 'folder' : 'file',
+              children: file.isDirectory ? [] : undefined,
+              parent: parent,
+              isExpanded: file.isDirectory ? false : undefined,
+              isVisible: true,
+              isEnabled: true,
+              data: {},
+              isOpen: false,
+              created: file?.created,
+              modified: file?.modified,
+            }
+
+            // 如果是目录，递归读取子内容
+            if (file.isDirectory) {
+              node.children = await traverseFileTree(file.path, node)
+            }
+            
+            return node
+          })
+        )
+        
+        return fileTree
+      }      
+    } catch (error) {
+      throw(error)
+    }
   }
   
-  // Helper function to update childCount for a specific directory
-  function updateDirectoryChildCount(dirPath: string) {
-    const updateChildCountRecursive = (items: FileTreeItem[]): boolean => {
-      for (const item of items) {
-        if (item.path === dirPath && item.isDirectory) {
-          // Update childCount by re-reading directory
-          window.electronAPI?.getFiles(dirPath).then(files => {
-            item.childCount = files.length
-          }).catch(error => {
-            notify.warning(`更新目录文件数失败: ${error instanceof Error ? error.message : String(error)}`, '文件系统')
-          })
-          return true
-        }
-        if (item.children && updateChildCountRecursive(item.children)) {
-          return true
-        }
-      }
-      return false
-    }
+  function generateId(): string {
+    return Math.random().toString(36).substring(2, 11)
+  }
+
+  // Generate untitled name with counter
+  function generateUntitledName(type: string, parentPath: string): string {
+    const key = `${parentPath}/${type}`
+    const counter = filetreeUntitledCounter.value.get(key) || 0
+    const newCounter = counter + 1
+    filetreeUntitledCounter.value.set(key, newCounter)
+
+    const paddedNumber = newCounter.toString().padStart(2, '0')
     
-    updateChildCountRecursive(fileTree.value)
+    if (type === 'folder') {
+      return `Untitled-${paddedNumber}`
+    } else {
+      return `Untitled-${paddedNumber}.${type}`
+    }
+  }
+
+  function sortFileTreeNodes(nodes: FileTreeNode[], sortType: FileTreeSortType) {
+    // Sort current level
+    nodes.sort((a, b) => {
+      switch (sortType) {
+        case 'name-asc':
+          return a.label.localeCompare(b.label)
+        case 'name-desc':
+          return b.label.localeCompare(a.label)
+        case 'type-asc':
+          if (a.type !== b.type) {
+            return a.type === 'folder' ? -1 : 1
+          }
+          return a.label.localeCompare(b.label)
+        case 'type-desc':
+          if (a.type !== b.type) {
+            return a.type === 'file' ? -1 : 1
+          }
+          return a.label.localeCompare(b.label)
+        case 'created-asc':
+          return (a.created?.getTime() || 0) - (b.created?.getTime() || 0)
+        case 'created-desc':
+          return (b.created?.getTime() || 0) - (a.created?.getTime() || 0)
+        case 'modified-asc':
+          return (a.modified?.getTime() || 0) - (b.modified?.getTime() || 0)
+        case 'modified-desc':
+          return (b.modified?.getTime() || 0) - (a.modified?.getTime() || 0)
+        default:
+          return 0
+      }
+    })
+
+    // Sort children recursively
+    nodes.forEach(node => {
+      if (node.children && node.children.length > 0) {
+        sortFileTreeNodes(node.children as FileTreeNode[], sortType)
+      }
+    })
+  }
+
+  function queryFileTreeNodes(nodes: FileTreeNode[], query: string) {
+    // Sort children recursively
+    nodes.forEach(node => {
+      if (query && query !== '') {
+        node.isVisible = node.label.toLowerCase().includes(query)
+      } else {
+        node.isVisible = true
+      }
+
+      if (node.children && node.children.length > 0) {
+        queryFileTreeNodes(node.children as FileTreeNode[], query)
+      }
+    })
+  }
+
+  
+  function setSelectedItem(node: FileTreeNode | null) {
+    selectedItem.value = node
+  }
+
+  function updateFileTreeNodePath(node: FileTreeNode, dir: string, filename: string) {
+    const sourcePath = node.path
+    node.id = generateId()
+    node.label = filename
+    node.path = `${dir}/${filename}`
+    //console.log(`updateFileTreeNodePath: ${sourcePath} -> ${node.path}`)
+
+    if (node.type === 'file') {
+      const openTab = tabs.value.find(tab => tab.path === sourcePath)
+      if (openTab) {
+        openTab.path = node.path
+      }
+    }
+    else if (node.type === 'folder') {
+      node?.children?.forEach(child => {
+        updateFileTreeNodePath(child as FileTreeNode, `${dir}/${node.label}`, child.label)
+      });
+    }
   }
 
   async function openFileDialog() {
@@ -295,126 +447,269 @@ export const useAppStore = defineStore('app', () => {
     }
   }
   
-  // File operations
-  async function createNewFile(parentPath: string, fileName: string) {
+  // Create a new file
+  async function createFile(parentNode: FileTreeNode, customName?: string): Promise<FileTreeNode | null> {
     if (!window.electronAPI) return null
-    
+
     try {
-      const filePath = await window.electronAPI.createFile(parentPath, fileName)
-      await loadFileTree() // Refresh the tree
-      updateDirectoryChildCount(parentPath) // Update parent directory count
-      notify.success(`文件创建成功: ${fileName}`, '文件操作')
-      return filePath
+      if (parentNode.type !== 'folder') {
+        throw new Error('Invalid parent directory')
+      }
+
+      const fileName = customName || generateUntitledName('txt', parentNode.path)
+      const filePath = await window.electronAPI.createFile(parentNode.path, fileName)
+      if (filePath) {
+        const date = new Date()
+
+        const newNode: FileTreeNode = {
+          id: generateId(),
+          label: pathUtils.basename(filePath),
+          path: filePath,
+          type: 'file',
+          parent: parentNode,
+          isVisible: true,
+          isEnabled: true,
+          data: {},
+          size: 0,
+          created: date,
+          modified: date,
+        }
+
+        if (!parentNode.children) {
+          parentNode.children = []
+        }
+        parentNode.children.push(newNode)
+        //sortFileTreeNodes(parentNode.children as FileTreeNode[], currentFileTreeSortType.value)
+        setSelectedItem(newNode)
+        notify.success(`${fileName} 创建成功`, '文件操作')
+
+        return newNode
+      }
+
+      return null;
     } catch (error) {
-      notify.error(`无法创建文件: ${error instanceof Error ? error.message : String(error)}`, '文件系统错误')
-      throw error
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件创建错误')
+      return null
     }
   }
   
-  async function createNewFolder(parentPath: string, folderName: string) {
+  // Create a new folder
+  async function createFolder(parentNode: FileTreeNode, customName?: string): Promise<FileTreeNode | null> {
     if (!window.electronAPI) return null
-    
+
     try {
-      const folderPath = await window.electronAPI.createFolder(parentPath, folderName)
-      await loadFileTree() // Refresh the tree
-      updateDirectoryChildCount(parentPath) // Update parent directory count
-      notify.success(`文件夹创建成功: ${folderName}`, '文件操作')
-      return folderPath
+      if (parentNode.type !== 'folder') {
+        throw new Error('Invalid parent directory')
+      }
+
+      const folderName = customName || generateUntitledName('folder', parentNode.path)
+      const folderPath = await window.electronAPI.createFolder(parentNode.path, folderName)
+      if (folderPath) {
+        const date = new Date()
+
+        const newNode: FileTreeNode = {
+          id: generateId(),
+          label: pathUtils.basename(folderPath),
+          path: folderPath,
+          type: 'folder',
+          parent: parentNode,
+          children: [],
+          isVisible: true,
+          isEnabled: true,
+          data: {},
+          created: date,
+          modified: date,
+        }
+
+        if (!parentNode.children) {
+          parentNode.children = []
+        }
+
+        parentNode.children.push(newNode)
+        //sortFileTreeNodes(parentNode.children as FileTreeNode[], currentFileTreeSortType.value)
+        setSelectedItem(newNode)
+        notify.success(`${folderName} 创建成功`, '文件操作')
+        
+        return newNode
+      }
+
+      return null;
     } catch (error) {
-      notify.error(`无法创建文件夹: ${error instanceof Error ? error.message : String(error)}`, '文件系统错误')
-      throw error
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件夹创建错误')
+      return null
     }
   }
-  
-  async function deleteFileOrFolder(filePath: string) {
+
+    // Create a file or folder by input node parameters
+  async function CreateFileOrFolder(parentNode: FileTreeNode, childNode: FileTreeNode): Promise<boolean> {
     if (!window.electronAPI) return false
-    
+    const date = new Date()
+
     try {
-      await window.electronAPI.deleteFile(filePath)
-      
-      // Close tabs for deleted files (including files inside deleted folders)
-      const tabsToClose = tabs.value.filter(tab => {
-        return tab.path && (tab.path === filePath || tab.path.startsWith(filePath + '/'))
-      })
-      
-      tabsToClose.forEach(tab => {
-        closeTab(tab.id)
-      })
-      
-      // Update parent directory count
-      const parentPath = filePath.substring(0, filePath.lastIndexOf('/'))
-      if (parentPath) {
-        updateDirectoryChildCount(parentPath)
+      if (childNode.type === 'file') {
+        const filePath = await window.electronAPI.createFile(parentNode.path, childNode.label)
+        if (filePath) {
+          childNode.label = pathUtils.basename(filePath)
+          childNode.path = filePath
+          childNode.data = {}
+          childNode.created = date
+          childNode.modified = date
+          notify.success(`${filePath} 创建成功`, '文件操作')
+        }
+      } else if (childNode.type === 'folder') {
+        const folderPath = await window.electronAPI.createFolder(parentNode.path, childNode.label)
+        if (folderPath) {
+          childNode.label = pathUtils.basename(folderPath)
+          childNode.path = folderPath
+          childNode.data = {}
+          childNode.created = date
+          childNode.modified = date
+          notify.success(`${folderPath} 创建成功`, '文件操作')
+        }
       }
       
-      await loadFileTree() // Refresh the tree
       return true
     } catch (error) {
-      notify.error(`无法删除文件或文件夹: ${error instanceof Error ? error.message : String(error)}`, '文件系统错误')
-      throw error
-    }
-  }
-  
-  async function renameFileOrFolder(oldPath: string, newName: string) {
-    if (!window.electronAPI) return null
-    
-    try {
-      const newPath = await window.electronAPI.renameFile(oldPath, newName)
-      
-      // Update tab if the renamed file was open
-      const openTab = tabs.value.find(tab => tab.path === oldPath)
-      if (openTab) {
-        openTab.path = newPath
-        // Extract filename from newPath instead of using newName directly
-        const fileName = newPath.split('/').pop() || newName
-        openTab.name = fileName
+      if (childNode.type === 'file') {
+        notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件创建错误')
+      } else if (childNode.type === 'folder') {
+        notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件夹创建错误')
       }
+      return false
+    }
+
+  }
+
+  // Delete a file or folder
+  async function deleteFileOrFolder(node: FileTreeNode): Promise<boolean> {
+    if (!window.electronAPI) return false
+
+    try {
+      let result = await window.electronAPI.deleteFile(node.path)
       
-      await loadFileTree() // Refresh the tree
-      return newPath
+      if (result) {
+        // Remove from parent's children
+        if (node.parent?.children) {
+          const index = node.parent.children.findIndex(child => child.id === node.id)
+          if (index > -1) {
+            node.parent.children.splice(index, 1)
+          }
+        }
+        notify.success(`${node.path} 删除成功`, '文件操作')
+
+        // Close tabs for deleted files (including files inside deleted folders)
+        const tabsToClose = tabs.value.filter(tab => {
+          return tab.path && (tab.path === node.path || tab.path.startsWith(node.path + '/'))
+        })
+
+        let result: boolean = true
+        // Close all tabs since no folder is open
+        for (const tab of tabsToClose) {
+          tab.path = undefined
+          result = await closeTab(tab.id)
+        }
+        setSelectedItem(null)
+
+        return true
+      }
+
+      return false
     } catch (error) {
-      notify.error(`无法重命名文件或文件夹: ${error instanceof Error ? error.message : String(error)}`, '文件系统错误')
-      throw error
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件删除错误')
+      return false
     }
   }
-  
-  async function moveFileOrFolder(sourcePath: string, targetDir: string, conflictAction?: ConflictAction): Promise<FileOperationResult | null> {
-    if (!window.electronAPI) return null
-    
-    
+
+  // Rename a file or folder
+  async function renameFileOrFolder(node: FileTreeNode, newName: string): Promise<boolean> {
+    if (!window.electronAPI) return false
+
     try {
-      const result = await window.electronAPI.moveFile(sourcePath, targetDir, conflictAction)
-      
-      if (result.conflict) {
-        // Return conflict info for UI to handle
-        return result
-      }
-      
-      if (result.success && result.newPath) {
-        // Update tab if the moved file was open
-        const openTab = tabs.value.find(tab => tab.path === sourcePath)
+      const newPath = await window.electronAPI.renameFile(node.path, newName)
+
+      if (newPath) {
+        // Update tab if the renamed file was open
+        const openTab = tabs.value.find(tab => tab.path === node.path)
         if (openTab) {
-          openTab.path = result.newPath
+          openTab.path = newPath
+          openTab.name = pathUtils.basename(newPath)
         }
-        
-        // Update child counts for both source and target directories
-        const sourceParentPath = sourcePath.substring(0, sourcePath.lastIndexOf('/'))
-        const targetParentPath = result.newPath.substring(0, result.newPath.lastIndexOf('/'))
-        
-        if (sourceParentPath && sourceParentPath !== targetParentPath) {
-          updateDirectoryChildCount(sourceParentPath) // Update source directory
-        }
-        if (targetParentPath) {
-          updateDirectoryChildCount(targetParentPath) // Update target directory
-        }
-        
-        await loadFileTree() // Refresh the tree
-        return result
+        node.path = newPath
+
+        // Sort parent's children
+        //if (node.parent) {
+        //  sortFileTreeNodes(node.parent.children as FileTreeNode[], currentFileTreeSortType.value)
+        //}
+        setSelectedItem(node)
+
+        notify.success(`${node.path} -> ${newName} 重命名成功`, '文件操作')
+        return true
+      }
+
+      return false
+    } catch (error) {
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件重命名错误')
+      return false
+    }
+  }
+
+  async function moveFileOrFolder(sourceNode: FileTreeNode, targetParentNode: FileTreeNode): Promise<FileOperationResult | null> {
+    if (!window.electronAPI) return null
+
+    const sourcePath: string = sourceNode.path
+    const targetDir: string = targetParentNode.path
+    try {
+      const result = await window.electronAPI.moveFile(sourcePath, targetDir)
+      
+      if (!result) {
+        throw new Error('Unknown error')
       }
       
+      if (result.success) {
+        // Remove from source parent's children
+        if (sourceNode.parent?.children) {
+          const sourceParentChildren = sourceNode.parent.children as FileTreeNode[]
+          const index = sourceParentChildren.findIndex(child => child.id === sourceNode.id)
+          if (index > -1) {
+            sourceParentChildren.splice(index, 1)
+          }
+        }
+
+        // 如果是替换模式
+        if (result.conflictAction === 'replace') {
+          const targetParentChildren = targetParentNode.children as FileTreeNode[]
+          let index = targetParentChildren.findIndex(child => child.label === sourceNode.label && child.type === sourceNode.type)
+          if (index === -1)
+            index = targetParentChildren.findIndex(child => {
+              const targetLabel = child.label.toUpperCase()
+              const sourceLabel = sourceNode.label.toUpperCase()
+              return targetLabel === sourceLabel && child.type === sourceNode.type
+          })
+          
+          // Remove replaced from target parent's children
+          targetParentChildren.splice(index, 1)
+        }
+         
+        // update sourceNode path to target path
+        updateFileTreeNodePath(sourceNode, pathUtils.dirname(result.newPath), pathUtils.basename(result.newPath))
+
+        // Add to Target parent's children
+        if (!targetParentNode.children) {
+          targetParentNode.children = []
+        }
+        (targetParentNode.children as FileTreeNode[]).push(sourceNode)
+        sourceNode.parent = targetParentNode
+    
+        //sortFileTreeNodes(targetParentNode.children as FileTreeNode[], currentFileTreeSortType.value)
+        setSelectedItem(sourceNode)
+        notify.success(`${sourcePath} -> ${result.newPath} 移动成功`, '文件操作')
+
+        return result
+      }
+
       return result
     } catch (error) {
-      notify.error(`无法移动文件或文件夹: ${error instanceof Error ? error.message : String(error)}`, '文件系统错误')
+      notify.error(`${error instanceof Error ? error.message : String(error)} 移动失败`, '文件移动错误')
       throw error
     }
   }
@@ -426,21 +721,19 @@ export const useAppStore = defineStore('app', () => {
     try {
       // 启动原生文件监听
       const result = await window.electronAPI.startFileWatching(currentFolder.value)
-      if (result.success) {
-        console.log('Advanced file watching started for:', currentFolder.value)
-        
+      if (result.success) {        
         // 监听文件变化事件
-        window.electronAPI.onFileChange?.((change) => {
+        window.electronAPI.onFileChange((change) => {
           handleFileChange(change)
         })
         
         // 监听错误事件
-        window.electronAPI.onFileWatchError?.((error) => {
-          notify.warning(`文件监听错误: ${error.message}`, '文件监听')
+        window.electronAPI.onFileWatchError((error) => {
+          notify.warning(`${error.message}`, '文件监听')
         })
       }
     } catch (error) {
-      notify.error(`无法启动文件监听: ${error instanceof Error ? error.message : String(error)}`, '文件监听')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件监听无法启动')
     }
   }
   
@@ -450,10 +743,9 @@ export const useAppStore = defineStore('app', () => {
     
     try {
       await window.electronAPI.stopFileWatching(currentFolder.value)
-      window.electronAPI.removeFileChangeListeners?.()
-      console.log('Advanced file watching stopped')
+      window.electronAPI.removeFileChangeListeners()
     } catch (error) {
-      notify.error(`无法停止文件监听: ${error instanceof Error ? error.message : String(error)}`, '文件监听')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件监听无法停止')
     }
   }
   
@@ -468,7 +760,7 @@ export const useAppStore = defineStore('app', () => {
       case 'unlink':
       case 'unlinkDir':
         // 文件/文件夹添加或删除，重新加载文件树
-        loadFileTree()
+        //loadFileTree()
         break
       case 'change':
         // 文件内容变化，可以选择性更新
@@ -476,7 +768,7 @@ export const useAppStore = defineStore('app', () => {
     }
   }
   
-  function createNewTab(name?: string, path?: string, content: string = '', documentType?: DocumentType) {
+  function createTab(name?: string, path?: string, content: string = '', documentType?: DocumentType) {
     const id = Date.now().toString()
     
     // Generate untitled name if not provided
@@ -506,6 +798,8 @@ export const useAppStore = defineStore('app', () => {
     
     tabs.value.push(newTab)
     activeTabId.value = id
+
+    notify.success(`${path? path : tabName} 打开成功`, '文件操作')
     
     return newTab
   }
@@ -560,6 +854,19 @@ export const useAppStore = defineStore('app', () => {
     return true
   }
   
+  async function closeAllTab(): Promise<boolean> {
+    let result: boolean = true
+
+    for (const tab of tabs.value) {
+      const result = await closeTab(tab.id)
+      if (result === false) {
+        break
+      }
+    }
+  
+    return result
+  }
+
   function setActiveTab(tabId: string) {
     tabs.value.forEach(tab => {
       tab.isActive = tab.id === tabId
@@ -593,11 +900,12 @@ export const useAppStore = defineStore('app', () => {
       
       // Refresh file tree if this was a new file or saved to a different location
       if (!originalPath || savedPath !== originalPath) {
-        await loadFileTree()
+        console.error("need to modify.")
+        //await loadFileTree()
       }
       
       // 成功通知
-      notify.success(`文件已保存：${fileName}`, '文件操作')
+      notify.success(`${fileName} 保存成功`, '文件操作')
     }
 
     return !!savedPath
@@ -637,10 +945,10 @@ export const useAppStore = defineStore('app', () => {
   async function handleMenuAction(action: string): Promise<boolean> {
     switch (action) {
       case 'new-file':
-        createNewTab(undefined, undefined, '', DocumentType.TEXT_EDITOR)
+        createTab(undefined, undefined, '', DocumentType.TEXT_EDITOR)
         return true
       case 'new-from-template':
-        console.error('New from template action is not implemented yet')
+        notify.error(`${action}`, 'Not implemented')
         return true
       case 'open-file':
         await openFileDialog()
@@ -661,10 +969,10 @@ export const useAppStore = defineStore('app', () => {
         await saveAllTabs()
         return true
       case 'page-setting':
-        console.error('page-setting action is not implemented yet')
+        notify.error(`${action}`, 'Not implemented')
         return true
       case 'print':
-        console.error('print action is not implemented yet')
+        notify.error(`${action}`, 'Not implemented')
         return true
       case 'close-file':
         if (activeTabId.value) {
@@ -712,6 +1020,7 @@ export const useAppStore = defineStore('app', () => {
     currentFolder,
     fileTree,
     selectedItem,
+    currentFileTreeSortType,
     tabs,
     activeTabId,
     searchQuery,
@@ -735,11 +1044,13 @@ export const useAppStore = defineStore('app', () => {
     openFolder,
     closeFolder,
     loadFileTree,
-    selectItem,
-    updateDirectoryChildCount,
+    sortFileTreeNodes,
+    queryFileTreeNodes,
+    setSelectedItem,
     openFileDialog,
-    createNewFile,
-    createNewFolder,
+    createFile,
+    createFolder,
+    CreateFileOrFolder,
     deleteFileOrFolder,
     renameFileOrFolder,
     moveFileOrFolder,
@@ -747,8 +1058,9 @@ export const useAppStore = defineStore('app', () => {
     stopAdvancedFileWatching,
 
     // Tab operations
-    createNewTab,
+    createTab,
     closeTab,
+    closeAllTab,
     saveTab,
     setActiveTab,
     updateTabContent,

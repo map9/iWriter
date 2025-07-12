@@ -54,24 +54,14 @@ export interface FileTab {
   metadata?: DocumentMetadata
 }
 
-// 文件树项接口
-export interface FileTreeItem {
-  name: string
-  path: string
-  isDirectory: boolean
-  children?: FileTreeItem[]
-  isOpen?: boolean
-  childCount?: number
-  size?: number
-  modifiedAt?: Date
-}
-
 // 搜索结果接口
+/*
 export interface SearchResult {
-  file: FileTreeItem
+  file: FileTreeNode
   matches: SearchMatch[]
   totalMatches: number
 }
+*/
 
 export interface SearchMatch {
   line: number
@@ -131,29 +121,10 @@ export enum FileOperationType {
 }
 
 // 文件操作结果接口
-export interface FileOperationResult<T = any> {
+export interface FileOperationResult {
   success: boolean
-  data?: T
-  error?: AppError
-  conflict?: FileConflict
-  cancelled?: boolean
-}
-
-// 文件冲突接口
-export interface FileConflict {
-  sourcePath: string
-  targetPath: string
-  fileName: string
-  isDirectory: boolean
-  conflictType: 'exists' | 'permission' | 'locked'
-}
-
-// 冲突解决动作枚举
-export enum ConflictAction {
-  KEEP_BOTH = 'keepBoth',
-  REPLACE = 'replace',
-  CANCEL = 'cancel',
-  SKIP = 'skip'
+  conflictAction: 'keepBoth' | 'replace' | 'cancel'
+  newPath: string
 }
 
 // 错误类型枚举
@@ -213,23 +184,36 @@ export interface AppError {
   stack?: string
 }
 
+// 文件信息接口
+export interface FileInfo {
+  name: string
+  isDirectory: boolean
+  path: string
+  size?: number
+  created?: Date
+  modified?: Date
+  accessed?: Date
+  changed?: Date
+}
+
 // Electron API 接口
 export interface ElectronAPI {
   platform: string
-  
+    
   // 文件操作
   openFolder: () => Promise<string | null>
   openFile: () => Promise<string | null>
   saveFile: (content: string, filePath?: string) => Promise<string | null>
   readFile: (filePath: string) => Promise<string | null>
-  getFiles: (folderPath: string) => Promise<FileInfo[]>
+  readFileBinary: (filePath: string) => Promise<string | null>
+  getFiles: (folderPath: string, onlyself?: boolean) => Promise<FileInfo[]>
   
   // 文件系统操作
   createFile: (folderPath: string, fileName: string) => Promise<string>
   createFolder: (parentPath: string, folderName: string) => Promise<string>
-  deleteFile: (filePath: string) => Promise<void>
+  deleteFile: (filePath: string) => Promise<boolean>
   renameFile: (oldPath: string, newName: string) => Promise<string>
-  moveFile: (sourcePath: string, targetDir: string, conflictAction?: ConflictAction) => Promise<FileOperationResult>
+  moveFile: (sourcePath: string, targetDir: string) => Promise<FileOperationResult>
   
   // 窗口控制
   close: () => void
@@ -247,7 +231,7 @@ export interface ElectronAPI {
   
   // 设置
   setAutoSave: (enabled: boolean) => Promise<void>
-  windowContentChange: (contentInfo: WindowContentInfo) => Promise<void>
+  windowContentChange: (contentInfo: any) => Promise<void>
   
   // 文件监听
   startFileWatching: (folderPath: string) => Promise<{ success: boolean; path?: string; error?: string }>
@@ -256,19 +240,9 @@ export interface ElectronAPI {
   getFileWatchingStatus: () => Promise<{ watchedPaths: string[]; totalWatchers: number }>
   
   // 文件变化事件
-  onFileChange?: (callback: (change: FileChange) => void) => void
-  onFileWatchError?: (callback: (error: { message: string; path: string; timestamp: Date }) => void) => void
-  removeFileChangeListeners?: () => void
-}
-
-// 文件信息接口
-export interface FileInfo {
-  name: string
-  path: string
-  isDirectory: boolean
-  size?: number
-  modifiedAt?: Date
-  childCount?: number
+  onFileChange: (callback: (change: FileChange) => void) => void
+  onFileWatchError: (callback: (error: { message: string; path: string; timestamp: Date }) => void) => void
+  removeFileChangeListeners: () => void
 }
 
 // 窗口内容信息接口

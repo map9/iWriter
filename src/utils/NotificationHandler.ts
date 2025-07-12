@@ -8,8 +8,8 @@ const callbacks = ref<Array<(notification: Notification) => void>>([])
 
 // 默认显示时长配置
 const DEFAULT_DURATIONS = {
-  success: 3000,
-  information: 3000,
+  success: 5000,
+  information: 5000,
   warning: 5000,
   error: 0, // 不自动关闭
   critical: 0 // 不自动关闭，强制手动关闭

@@ -91,9 +91,6 @@ const editor = useEditor({
     
     // Math support
     Math.configure({
-      HTMLAttributes: {
-        class: 'math'
-      },
       katexOptions: {
         displayMode: false
       }
@@ -101,9 +98,6 @@ const editor = useEditor({
     
     // Table support with full table kit
     TableKit.configure({
-      resizable: true,
-      lastColumnResizable: false,
-      allowTableNodeSelection: true,
     }),
     
     // List support

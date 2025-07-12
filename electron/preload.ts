@@ -9,7 +9,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveFile: (content: string, filePath?: string) => 
     ipcRenderer.invoke('save-file', content, filePath),
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
-  getFiles: (folderPath: string) => ipcRenderer.invoke('get-files', folderPath),
+  readFileBinary: (filePath: string) => ipcRenderer.invoke('read-file-binary', filePath),
+  getFiles: (folderPath: string, onlyself?: boolean) => ipcRenderer.invoke('get-files', folderPath, onlyself),
   
   // File operations
   createFile: (folderPath: string, fileName: string) => 

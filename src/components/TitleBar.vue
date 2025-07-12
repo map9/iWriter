@@ -43,21 +43,24 @@
     </div>
 
     <!-- Document Tabs Area - 按内容伸缩，有最大宽度限制 -->
-    <div class="flex items-center h-full overflow-hidden no-drag" style="max-width: calc(100% - 252px);">
+    <div class="flex items-center h-full overflow-hidden no-drag max-w-[calc(100%-256px)]">
       <!-- Left separator for tabs -->
       <div v-if="appStore.tabs.length > 0" class="w-px h-9 bg-gray-200 flex-shrink-0"></div>      
       <!-- Document Tabs Container -->
-      <div class="flex items-center h-full overflow-x-auto scrollbar-hide">
+      <div ref="tabsContainer" class="flex items-center h-full overflow-x-auto scrollbar-hide">
         <!-- Tabs List -->
         <div class="flex items-center">
-          <div style="min-width: 128px; max-width: 180px;"
+          <div 
             v-for="tab in appStore.tabs" 
             :key="tab.id"
+            :ref="el => { if (tab.isActive) activeTabRef = el }"
             :class="[
               'px-3 py-2 border-r border-gray-200 cursor-pointer flex items-center space-x-2 whitespace-nowrap flex-shrink-0',
+              'min-w-32 max-w-48',
               tab.isActive ? 'bg-white border-b-white' : 'hover:bg-gray-100'
             ]"
             @click="switchTab(tab.id)"
+            :title="tab.name"
           >
             <!-- 文档类型图标（固定宽度） -->
             <component 
@@ -90,7 +93,7 @@
       <!-- New Tab Button - 固定在标签右侧 -->
       <div class="flex items-center px-2 flex-shrink-0 no-drag">
         <button
-          @click="appStore.createNewTab(undefined, undefined, '')"
+          @click="appStore.createTab(undefined, undefined, '')"
           class="p-1 rounded hover:bg-gray-200 transition-colors"
           title="New Tab"
         >
@@ -100,7 +103,7 @@
     </div>
     
     <!-- Flexible drag area - 填充剩余空间，可被完全压缩 -->
-    <div class="flex-1 h-full cursor-move drag-region" style="min-width: 180px;"></div>
+    <div class="flex-1 h-full cursor-move drag-region min-w-44"></div>
     
     <!-- Right Sidebar Toggle -->
     <div class="flex items-center px-2 flex-shrink-0 no-drag">
@@ -125,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, watch, nextTick } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { DocumentType } from '@/types'
 import type { FileTab } from '@/types'
@@ -145,6 +148,8 @@ import {
 
 const appStore = useAppStore()
 const isMaximized = ref(false)
+const tabsContainer = ref<HTMLElement>()
+let activeTabRef: HTMLElement | null = null
 
 // Computed
 const activeTab = computed(() => appStore.activeTab)
@@ -183,6 +188,36 @@ function getTabIcon(tab: FileTab) {
 
 function switchTab(tabId: string) {
   appStore.setActiveTab(tabId)
+  // 确保激活的标签在视图中可见
+  nextTick(() => {
+    scrollActiveTabIntoView()
+  })
+}
+
+// 滚动激活标签到可视区域
+function scrollActiveTabIntoView() {
+  if (!tabsContainer.value || !activeTabRef) return
+  
+  const container = tabsContainer.value
+  const activeTab = activeTabRef
+  
+  const containerRect = container.getBoundingClientRect()
+  const tabRect = activeTab.getBoundingClientRect()
+  
+  // 检查标签是否在容器的可视区域内
+  const isTabVisible = (
+    tabRect.left >= containerRect.left &&
+    tabRect.right <= containerRect.right
+  )
+  
+  if (!isTabVisible) {
+    // 计算需要滚动的距离
+    const scrollLeft = activeTab.offsetLeft - container.offsetLeft - (container.clientWidth - activeTab.clientWidth) / 2
+    container.scrollTo({
+      left: scrollLeft,
+      behavior: 'smooth'
+    })
+  }
 }
 
 async function closeTab(tabId: string) {
@@ -238,23 +273,15 @@ watch([() => appStore.hasOpenFolder, () => appStore.tabs.length], () => {
   checkAndSwitchMode()
 })
 
+// 监听激活标签变化，确保其可见
+watch(() => appStore.activeTabId, () => {
+  nextTick(() => {
+    scrollActiveTabIntoView()
+  })
+})
+
 </script>
 
 <style>
-.drag-region {
-  -webkit-app-region: drag;
-}
 
-.no-drag {
-  -webkit-app-region: no-drag;
-}
-
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
 </style>

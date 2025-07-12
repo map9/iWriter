@@ -3,6 +3,7 @@ dist-electron
 
 # AI
 .claude
+CLAUDE.md
 
 # Temporary files
 *.tmp

@@ -44,7 +44,7 @@ onUnmounted(() => {
   
   if (window.electronAPI) {
     window.electronAPI.removeMenuActionListener()
-    window.electronAPI.removeFileChangeListeners?.()
+    window.electronAPI.removeFileChangeListeners()
   }
 })
 </script>

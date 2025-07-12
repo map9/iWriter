@@ -246,6 +246,7 @@ function updateMenu(): void {
         },
         {
           label: 'Open Recent',
+          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
           submenu: [
             // Will be populated dynamically
           ]
@@ -255,7 +256,7 @@ function updateMenu(): void {
           id: 'save',
           label: 'Save',
           accelerator: 'CmdOrCtrl+S',
-          enabled: focusedWindow?.contentInfo?.hasActiveDocument,
+          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
           click: () => {
             sendMenuAction(focusedWindow, 'save')
           }
@@ -264,7 +265,7 @@ function updateMenu(): void {
           id: 'save-as',
           label: 'Save As...',
           accelerator: 'CmdOrCtrl+Shift+S',
-          enabled: focusedWindow?.contentInfo?.hasActiveDocument,
+          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
           click: () => {
             sendMenuAction(focusedWindow, 'save-as')
           }
@@ -274,7 +275,7 @@ function updateMenu(): void {
           label: 'Auto Save',
           type: 'checkbox',
           checked: g.autoSave,
-          enabled: currentFocusedWindowId !== null,
+          enabled: currentFocusedWindowId !== null && currentFocusedWindowId !== null,
           click: () => {
             g.autoSave = !g.autoSave
             sendMenuAction(focusedWindow, 'toggle-auto-save')
@@ -285,7 +286,7 @@ function updateMenu(): void {
           id: 'save-all',
           label: 'Save All',
           accelerator: 'CmdOrCtrl+Alt+S',
-          enabled: focusedWindow?.contentInfo?.hasActiveDocument,
+          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
           click: () => {
             sendMenuAction(focusedWindow, 'save-all')
           }
@@ -331,7 +332,7 @@ function updateMenu(): void {
         {
           id: 'export',
           label: 'Export',
-          enabled: focusedWindow?.contentInfo?.hasActiveDocument,
+          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
           submenu: [
             {
               label: 'PDF',
@@ -364,6 +365,7 @@ function updateMenu(): void {
         {
           label: 'Page Setting...',
           accelerator: 'CmdOrCtrl+Shift+P',
+          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
           click: () => {
             sendMenuAction(focusedWindow, 'page-setting')
           }
@@ -371,6 +373,7 @@ function updateMenu(): void {
         {
           label: 'Print...',
           accelerator: 'CmdOrCtrl+P',
+          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
           click: () => {
             sendMenuAction(focusedWindow, 'print')
           }
@@ -380,7 +383,7 @@ function updateMenu(): void {
           id: 'close-file',
           label: 'Close File',
           accelerator: 'CmdOrCtrl+W',
-          enabled: focusedWindow?.contentInfo?.hasActiveDocument,
+          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
           click: () => {
             sendMenuAction(focusedWindow, 'close-file')
           }
@@ -388,7 +391,7 @@ function updateMenu(): void {
         {
           id: 'close-folder',
           label: 'Close Folder',
-          enabled: focusedWindow?.contentInfo?.hasFolderOpen,
+          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasFolderOpen,
           click: () => {
             sendMenuAction(focusedWindow, 'close-folder')
           }
@@ -1741,14 +1744,19 @@ ipcMain.handle('open-folder', async () => {
   const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
   if (focusedWindow === undefined) return null
   
-  const result = await dialog.showOpenDialog(focusedWindow.window, {
-    properties: ['openDirectory']
-  })
-  
-  if (!result.canceled && result.filePaths.length > 0) {
-    return result.filePaths[0]
+  try {
+    const result = await dialog.showOpenDialog(focusedWindow.window, {
+      properties: ['openDirectory']
+    })
+    
+    if (!result.canceled && result.filePaths.length > 0) {
+      return result.filePaths[0]
+    }
+    return null
+  } catch(error) {
+    console.error('Error Open file:', error)
+    throw error
   }
-  return null
 })
 
 ipcMain.handle('open-file', async () => {
@@ -1778,7 +1786,7 @@ ipcMain.handle('save-file', async (_, content: string, filePath?: string) => {
       return filePath
     } catch (error) {
       console.error('Error saving file:', error)
-      return null
+      throw(error)
     }
   } else {
     const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
@@ -1799,11 +1807,12 @@ ipcMain.handle('save-file', async (_, content: string, filePath?: string) => {
         return result.filePath
       } catch (error) {
         console.error('Error saving file:', error)
-        return null
+        throw error
       }
     }
+
+    return null
   }
-  return null
 })
 
 ipcMain.handle('read-file', async (_, filePath: string) => {
@@ -1816,34 +1825,53 @@ ipcMain.handle('read-file', async (_, filePath: string) => {
   }
 })
 
-ipcMain.handle('get-files', async (_, folderPath: string) => {
+ipcMain.handle('read-file-binary', async (_, filePath: string) => {
   try {
-    const files = fs.readdirSync(folderPath, { withFileTypes: true })
-    return files.map(file => {
-      const filePath = path.join(folderPath, file.name)
-      
-      let childCount = 0
-      if (file.isDirectory()) {
-        try {
-          // Count immediate children for directories
-          const children = fs.readdirSync(filePath)
-          childCount = children.length
-        } catch (error) {
-          // If can't read directory (permissions), set count to 0
-          childCount = 0
-        }
-      }
-      
-      return {
-        name: file.name,
-        isDirectory: file.isDirectory(),
-        path: filePath,
-        childCount: childCount
-      }
-    })
+    const buffer = fs.readFileSync(filePath)
+    // Convert Buffer to base64 string for transfer
+    return buffer.toString('base64')
   } catch (error) {
-    console.error('Error reading folder:', error)
-    return []
+    console.error('Error reading binary file:', error)
+    return null
+  }
+})
+
+ipcMain.handle('get-files', async (_, folderPath: string, onlyself?: boolean) => {
+  try {
+    let stats: fs.Stats | null = null
+    if (onlyself !== true) {
+      const files = fs.readdirSync(folderPath, { withFileTypes: true })
+      return files.map(file => {
+        const filePath = path.join(folderPath, file.name)
+        stats = fs.statSync(filePath)
+        
+        return {
+          name: file.name,
+          isDirectory: file.isDirectory(),
+          path: filePath,
+          size: stats?.size,
+          created: stats?.birthtime,
+          modified: stats?.mtime,
+          accessed: stats?.atime,
+          changed: stats?.ctime
+        }
+      })
+    } else {
+      stats = fs.statSync(folderPath)
+      return [{
+        name: path.basename(folderPath),
+        isDirectory: stats?.isDirectory(),
+        path: folderPath,
+        size: stats?.size,
+        created: stats?.birthtime,
+        modified: stats?.mtime,
+        accessed: stats?.atime,
+        changed: stats?.ctime
+      }]
+    }
+  } catch (error) {
+      console.error('Error get file/folder information:', error)
+      throw error
   }
 })
 
@@ -1881,9 +1909,8 @@ ipcMain.handle('create-file', async (_, folderPath: string, fileName: string) =>
     }
     
     // Create file with default content
-    const defaultContent = fileName.endsWith('.md') ? '# New Document\n\n' : ''
+    const defaultContent = ''
     fs.writeFileSync(filePath, defaultContent, 'utf8')
-    
     return filePath
   } catch (error) {
     console.error('Error creating file:', error)
@@ -1909,9 +1936,24 @@ ipcMain.handle('create-folder', async (_, parentPath: string, folderName: string
 })
 
 ipcMain.handle('delete-file', async (_, filePath: string) => {
+  const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
+  if (focusedWindow === undefined) return false
+
   try {
     const stats = fs.statSync(filePath)
+    const { response } = await dialog.showMessageBox(focusedWindow.window, {
+      type: 'warning',
+      title: 'Delete',
+      message: `Are you sure you want to delete '${filePath}'?`,
+      buttons: ['Yes', 'No'],
+      defaultId: 0,
+      cancelId: 1
+    })
     
+    if (response == 1) {
+      return false
+    }
+
     if (stats.isDirectory()) {
       fs.rmSync(filePath, { recursive: true, force: true })
     } else {
@@ -1949,9 +1991,12 @@ ipcMain.handle('rename-file', async (_, oldPath: string, newName: string) => {
   }
 })
 
-ipcMain.handle('move-file', async (_, sourcePath: string, targetDir: string, conflictAction?: 'keepBoth' | 'replace' | 'cancel') => {
+ipcMain.handle('move-file', async (_, sourcePath: string, targetDir: string) => {
+  const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
+  if (focusedWindow === undefined) return null
+
   try {
-    console.log('Moving file:', { sourcePath, targetDir, conflictAction })
+    console.log('Moving file:', { sourcePath, targetDir })
     
     const fileName = path.basename(sourcePath)
     const sourceDir = path.dirname(sourcePath)
@@ -1962,32 +2007,25 @@ ipcMain.handle('move-file', async (_, sourcePath: string, targetDir: string, con
     // Check if trying to move to the same directory
     if (sourceDir === targetDir) {
       console.log('Source and target directories are the same, skipping move')
-      return { success: true, newPath: sourcePath } // Return original path as no move is needed
+      return {
+        success: false,
+        conflictAction: 'skip'
+      }
     }
     
     // Check if target already exists
     if (fs.existsSync(targetPath)) {
-      if (!conflictAction) {
-        // Return conflict info for frontend to handle
-        return { 
-          conflict: true, 
-          sourcePath, 
-          targetPath, 
-          fileName,
-          isDirectory: fs.statSync(sourcePath).isDirectory()
-        }
-      }
+      const { response } = await dialog.showMessageBox(focusedWindow.window, {
+        type: 'warning',
+        title: 'Move',
+        message: `An older item named '${fileName}' already exists here. Replace it with the newer item being moved?`,
+        buttons: ['KeepBoth', 'No', 'Replace'],
+        defaultId: 0,
+        cancelId: 2
+      })
       
-      if (conflictAction === 'cancel') {
-        return { success: false, cancelled: true }
-      } else if (conflictAction === 'replace') {
-        // Delete existing file/folder
-        if (fs.statSync(targetPath).isDirectory()) {
-          fs.rmSync(targetPath, { recursive: true, force: true })
-        } else {
-          fs.unlinkSync(targetPath)
-        }
-      } else if (conflictAction === 'keepBoth') {
+      // keepBoth
+      if (response == 0) {
         // Generate a new name for the moved file
         const nameWithoutExt = path.parse(fileName).name
         const ext = path.parse(fileName).ext
@@ -2003,13 +2041,42 @@ ipcMain.handle('move-file', async (_, sourcePath: string, targetDir: string, con
         
         fs.renameSync(sourcePath, newTargetPath)
         console.log('Move successful with new name:', newTargetPath)
-        return { success: true, newPath: newTargetPath }
+        return {
+          success: true,
+          conflictAction: 'keepBoth',
+          newPath: newTargetPath,
+        }
+      }
+      // replace
+      else if (response == 2) {
+        // Delete existing file/folder
+        if (fs.statSync(targetPath).isDirectory()) {
+          fs.rmSync(targetPath, { recursive: true, force: true })
+        } else {
+          fs.unlinkSync(targetPath)
+        }
+
+        fs.renameSync(sourcePath, targetPath)
+        console.log('Move successful:', targetPath)
+        return {
+          success: true,
+          conflictAction: 'replace',
+          newPath: targetPath,
+        }
+      }
+      // cancel
+      return {
+        success: false,
+        conflictAction: 'cancel'
       }
     }
     
     fs.renameSync(sourcePath, targetPath)
     console.log('Move successful:', targetPath)
-    return { success: true, newPath: targetPath }
+    return {
+      success: true,
+      newPath: targetPath,
+    }
   } catch (error) {
     console.error('Error moving file:', error)
     throw error
@@ -2116,7 +2183,7 @@ ipcMain.handle('start-file-watching', async (event, folderPath: string) => {
       })
       .on('error', (error) => {
         event.sender.send('file-watch-error', {
-          message: error.message,
+          message: error instanceof Error ? error.message : error instanceof Error ? error.message : String(error),
           path: folderPath,
           timestamp: new Date()
         });
@@ -2129,7 +2196,7 @@ ipcMain.handle('start-file-watching', async (event, folderPath: string) => {
     return { success: true, path: folderPath };
   } catch (error) {
     console.error('Error starting file watcher:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 })
 
@@ -2145,7 +2212,7 @@ ipcMain.handle('stop-file-watching', async (event, folderPath: string) => {
     return { success: false, error: 'Watcher not found' };
   } catch (error) {
     console.error('Error stopping file watcher:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 })
 
@@ -2158,7 +2225,7 @@ ipcMain.handle('stop-all-file-watching', async () => {
     return { success: true };
   } catch (error) {
     console.error('Error stopping all file watchers:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 })
 

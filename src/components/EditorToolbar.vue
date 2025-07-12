@@ -234,7 +234,7 @@ import {
 } from '@tabler/icons-vue'
 
 interface Props {
-  editor: Editor | null
+  editor: Editor | undefined
 }
 
 const props = defineProps<Props>()

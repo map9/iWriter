@@ -80,21 +80,22 @@
     <div 
       ref="pdfContainer"
       class="flex-1 overflow-auto bg-gray-200 p-4"
+      tabindex="0"
+      @wheel="handleWheel"
     >
       <!-- PDF.js will render here -->
       <div 
         ref="pdfViewer"
         class="flex flex-col items-center space-y-4"
       >
-        <!-- Placeholder for now -->
-        <div class="bg-white shadow-lg p-8 text-center max-w-md">
-          <IconFile class="w-16 h-16 mx-auto mb-4 text-gray-300" />
-          <h3 class="text-lg font-semibold text-gray-700 mb-2">PDF 查看器</h3>
-          <p class="text-gray-500 mb-4">PDF.js 集成开发中</p>
-          <div class="text-sm text-gray-400">
-            文件: {{ tab.name }}
-          </div>
-        </div>
+        <!-- PDF Pages will be rendered here -->
+        <canvas
+          v-for="pageNum in renderedPages"
+          :key="pageNum"
+          :ref="el => setCanvasRef(el, pageNum)"
+          class="shadow-lg bg-white"
+          :class="{ 'ring-2 ring-blue-500': pageNum === currentPage }"
+        />
       </div>
     </div>
     
@@ -124,8 +125,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, toRef, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, toRef, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import type { FileTab } from '@/types'
+import * as pdfjsLib from 'pdfjs-dist'
 import { 
   IconZoomIn, 
   IconZoomOut, 
@@ -135,6 +137,9 @@ import {
   IconFile,
   IconAlertCircle
 } from '@tabler/icons-vue'
+
+// 设置PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf-worker/pdf.worker.min.js'
 
 // Props
 interface Props {
@@ -153,13 +158,23 @@ const pageInput = ref(1)
 const loading = ref(false)
 const error = ref<string | null>(null)
 
-// PDF document reference (will be used when PDF.js is integrated)
-const pdfDocument = ref<any>(null)
+// PDF.js references (use non-reactive to avoid proxy issues)
+let pdfDocumentInstance: pdfjsLib.PDFDocumentProxy | null = null
+const canvasRefs = ref<Map<number, HTMLCanvasElement>>(new Map())
+const renderedPages = ref<number[]>([])
+const renderScale = ref(window.devicePixelRatio || 1)
+
+// Helper function to set canvas ref
+function setCanvasRef(el: Element | null, pageNum: number) {
+  if (el instanceof HTMLCanvasElement) {
+    canvasRefs.value.set(pageNum, el)
+  }
+}
 
 // Computed
 const pdfUrl = computed(() => {
   if (props.tab.path) {
-    return `file://${props.tab.path}`
+    return props.tab.path
   }
   return props.tab.content || ''
 })
@@ -167,25 +182,45 @@ const pdfUrl = computed(() => {
 // Methods
 function zoomIn() {
   zoom.value = Math.min(zoom.value * 1.2, 5)
-  renderCurrentPage()
+  rerenderAllPages()
 }
 
 function zoomOut() {
   zoom.value = Math.max(zoom.value / 1.2, 0.25)
-  renderCurrentPage()
+  rerenderAllPages()
 }
 
 function zoomToFit() {
-  // This will be implemented when PDF.js is integrated
-  zoom.value = 1
-  renderCurrentPage()
+  if (!pdfContainer.value || !pdfDocumentInstance) return
+  
+  // 计算适合的缩放比例
+  const containerWidth = pdfContainer.value.clientWidth - 40 // 减去内边距
+  const containerHeight = pdfContainer.value.clientHeight - 40
+  
+  // 获取第一页的尺寸作为参考
+  pdfDocumentInstance.getPage(1).then(page => {
+    const viewport = page.getViewport({ scale: 1 })
+    const widthScale = containerWidth / viewport.width
+    const heightScale = containerHeight / viewport.height
+    zoom.value = Math.min(widthScale, heightScale, 2) // 最大不超过200%
+    
+    rerenderAllPages()
+  })
+}
+
+// 重新渲染所有已加载的页面
+async function rerenderAllPages() {
+  for (const pageNum of renderedPages.value) {
+    await renderPage(pageNum)
+  }
 }
 
 function previousPage() {
   if (currentPage.value > 1) {
     currentPage.value--
     pageInput.value = currentPage.value
-    renderCurrentPage()
+    scrollToPage(currentPage.value)
+    preloadNearbyPages()
   }
 }
 
@@ -193,7 +228,8 @@ function nextPage() {
   if (currentPage.value < totalPages.value) {
     currentPage.value++
     pageInput.value = currentPage.value
-    renderCurrentPage()
+    scrollToPage(currentPage.value)
+    preloadNearbyPages()
   }
 }
 
@@ -201,37 +237,217 @@ function goToPage() {
   const page = Math.max(1, Math.min(pageInput.value, totalPages.value))
   currentPage.value = page
   pageInput.value = page
-  renderCurrentPage()
+  scrollToPage(currentPage.value)
+  preloadNearbyPages()
+}
+
+// 滚动到指定页面
+function scrollToPage(pageNum: number) {
+  const canvas = canvasRefs.value.get(pageNum)
+  if (canvas && pdfContainer.value) {
+    canvas.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
 }
 
 async function loadPDF() {
-  if (!props.tab.path) return
+  if (!pdfUrl.value) {
+    error.value = '无效的PDF文件路径'
+    return
+  }
   
   loading.value = true
   error.value = null
   
   try {
-    // TODO: Integrate PDF.js here
-    // For now, just simulate loading
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    let pdfData: ArrayBuffer
     
-    // Simulate PDF loaded
-    totalPages.value = 10 // This should come from actual PDF
+    // 检查是否是本地文件路径
+    if (pdfUrl.value.startsWith('/') || pdfUrl.value.match(/^[A-Z]:\\/)) {
+      // 本地文件路径，通过Electron读取文件
+      if (window.electronAPI) {
+        const base64Content = await window.electronAPI.readFileBinary(pdfUrl.value)
+        if (!base64Content) {
+          throw new Error('无法读取PDF文件')
+        }
+        // 将base64字符串转换为ArrayBuffer
+        const binaryString = atob(base64Content)
+        const bytes = new Uint8Array(binaryString.length)
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i)
+        }
+        pdfData = bytes.buffer
+      } else {
+        throw new Error('Electron API 不可用')
+      }
+    } else {
+      // 网络URL，直接获取
+      const response = await fetch(pdfUrl.value)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      pdfData = await response.arrayBuffer()
+    }
+    
+    // 加载PDF文档
+    const loadingTask = pdfjsLib.getDocument({
+      data: pdfData,
+      cMapUrl: '/cmaps/',
+      cMapPacked: true
+    })
+    
+    const pdf = await loadingTask.promise
+    
+    // 验证PDF文档
+    if (!pdf || pdf.numPages === 0) {
+      throw new Error('无效的PDF文档')
+    }
+    
+    pdfDocumentInstance = pdf
+    totalPages.value = pdf.numPages
     currentPage.value = 1
     pageInput.value = 1
     
-    renderCurrentPage()
+    // 初始化可见页面列表
+    renderedPages.value = [1]
+    
+    // 等待DOM更新后渲染页面
+    await nextTick()
+    
+    // 渲染第一页
+    try {
+      await renderPage(1)
+    } catch (err) {
+      console.error('Failed to render first page:', err)
+      error.value = '无法渲染PDF页面'
+      return
+    }
+    
+    // 预加载附近页面（延迟执行，避免阻塞首页渲染）
+    setTimeout(() => {
+      preloadNearbyPages()
+    }, 100)
+    
   } catch (err) {
-    error.value = 'PDF 文件加载失败'
+    error.value = `PDF文件加载失败: ${err instanceof Error ? err.message : String(err)}`
     console.error('PDF loading error:', err)
   } finally {
     loading.value = false
   }
 }
 
-function renderCurrentPage() {
-  // TODO: Implement actual PDF page rendering with PDF.js
-  console.log(`Rendering page ${currentPage.value} at ${zoom.value * 100}% zoom`)
+async function renderPage(pageNum: number) {
+  if (!pdfDocumentInstance) {
+    console.warn('PDF document not available')
+    return
+  }
+  
+  // Check if page number is valid
+  if (pageNum < 1 || pageNum > totalPages.value) {
+    console.warn(`Invalid page number: ${pageNum}`)
+    return
+  }
+  
+  try {
+    // Check if PDF document is still valid
+    if (pdfDocumentInstance.destroyed) {
+      console.warn('PDF document has been destroyed')
+      return
+    }
+    
+    const page = await pdfDocumentInstance.getPage(pageNum)
+    const canvas = canvasRefs.value.get(pageNum)
+    
+    if (!canvas) {
+      console.warn(`Canvas for page ${pageNum} not found`)
+      return
+    }
+    
+    const context = canvas.getContext('2d')
+    if (!context) {
+      console.warn(`Canvas context not available for page ${pageNum}`)
+      return
+    }
+    
+    // 计算视口
+    const viewport = page.getViewport({ scale: zoom.value * renderScale.value })
+    
+    // 设置canvas尺寸
+    canvas.height = viewport.height
+    canvas.width = viewport.width
+    canvas.style.width = `${viewport.width / renderScale.value}px`
+    canvas.style.height = `${viewport.height / renderScale.value}px`
+    
+    // 清除之前的内容
+    context.clearRect(0, 0, canvas.width, canvas.height)
+    
+    // 渲染页面
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport
+    }
+    
+    // 使用 Promise 方式渲染，增加错误处理
+    const renderTask = page.render(renderContext)
+    
+    // 添加渲染超时机制
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Page render timeout')), 10000)
+    })
+    
+    await Promise.race([renderTask.promise, timeoutPromise])
+    
+  } catch (err) {
+    console.error(`Error rendering page ${pageNum}:`, err)
+  }
+}
+
+async function renderCurrentPage() {
+  if (!renderedPages.value.includes(currentPage.value)) {
+    renderedPages.value.push(currentPage.value)
+    await nextTick()
+  }
+  await renderPage(currentPage.value)
+}
+
+// 预加载附近页面
+async function preloadNearbyPages() {
+  if (!pdfDocumentInstance || totalPages.value === 0) {
+    console.warn('PDF document not ready for preloading')
+    return
+  }
+  
+  const preloadRange = 2 // 预加载前后2页
+  const start = Math.max(1, currentPage.value - preloadRange)
+  const end = Math.min(totalPages.value, currentPage.value + preloadRange)
+  
+  // 添加需要渲染的页面到列表
+  const pagesToAdd = []
+  for (let pageNum = start; pageNum <= end; pageNum++) {
+    if (!renderedPages.value.includes(pageNum)) {
+      pagesToAdd.push(pageNum)
+      renderedPages.value.push(pageNum)
+    }
+  }
+  
+  if (pagesToAdd.length === 0) {
+    return // 没有新页面需要加载
+  }
+  
+  await nextTick()
+  
+  // 渲染新页面（一次一个，避免并发问题）
+  for (const pageNum of pagesToAdd) {
+    try {
+      await renderPage(pageNum)
+    } catch (err) {
+      console.error(`Failed to preload page ${pageNum}:`, err)
+      // 从已渲染页面列表中移除失败的页面
+      const index = renderedPages.value.indexOf(pageNum)
+      if (index !== -1) {
+        renderedPages.value.splice(index, 1)
+      }
+    }
+  }
 }
 
 // Handle menu actions
@@ -315,8 +531,20 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
+// 鼠标滚轮缩放
+function handleWheel(event: WheelEvent) {
+  if (event.ctrlKey || event.metaKey) {
+    event.preventDefault()
+    if (event.deltaY < 0) {
+      zoomIn()
+    } else {
+      zoomOut()
+    }
+  }
+}
+
 onMounted(() => {
-  if (props.tab.path) {
+  if (pdfUrl.value) {
     loadPDF()
   }
   document.addEventListener('keydown', handleKeydown)
@@ -324,6 +552,23 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleKeydown)
+  
+  // 清理PDF文档资源
+  if (pdfDocumentInstance) {
+    try {
+      if (!pdfDocumentInstance.destroyed) {
+        pdfDocumentInstance.destroy()
+      }
+    } catch (err) {
+      console.warn('Error destroying PDF document:', err)
+    } finally {
+      pdfDocumentInstance = null
+    }
+  }
+  
+  // 清理canvas引用
+  canvasRefs.value.clear()
+  renderedPages.value = []
 })
 
 // Expose methods to parent

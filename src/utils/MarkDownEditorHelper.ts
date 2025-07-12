@@ -1,11 +1,11 @@
 import type { Editor } from '@tiptap/vue-3'
 
 // Update current heading based on editor state
-export function getHeading(editor: Editor | null) : string {
+export function getHeading(editor: Editor | undefined) : string {
   return editor?.isActive('heading') ? editor?.getAttributes('heading').level : 'paragraph';
 }
 
-export function setHeading(editor: Editor | null, heading: string) {
+export function setHeading(editor: Editor | undefined, heading: string) {
   if (!editor) return
   
   if (heading === 'paragraph') {
@@ -16,32 +16,32 @@ export function setHeading(editor: Editor | null, heading: string) {
   }
 }
 
-export function insertTable(editor: Editor | null) {
+export function insertTable(editor: Editor | undefined) {
   editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
 }
 
-export function insertMathBlock(editor: Editor | null) {
+export function insertMathBlock(editor: Editor | undefined) {
   const latex = prompt('Enter LaTeX expression:')
   if (latex) {
     editor?.chain().focus().setBlockMath({ latex }).run()
   }
 }
 
-export function insertInlineMath(editor: Editor | null) {
+export function insertInlineMath(editor: Editor | undefined) {
   const latex = prompt('Enter inline math expression:', '')
   if (latex) {
     editor?.chain().focus().setInlineMath({ latex }).run()
   }
 }
 
-export function insertImage(editor: Editor | null) {
+export function insertImage(editor: Editor | undefined) {
   const url = prompt('Enter image URL:')
   if (url) {
     editor?.chain().focus().setImage({ src: url }).run()
   }
 }
 
-export function insertAudio(editor: Editor | null) {
+export function insertAudio(editor: Editor | undefined) {
   const url = prompt('Enter audio URL:')
   if (url) {
     const audioHtml = `<audio controls><source src="${url}" type="audio/mpeg">Your browser does not support the audio element.</audio>`
@@ -49,7 +49,7 @@ export function insertAudio(editor: Editor | null) {
   }
 }
 
-export function insertVideo(editor: Editor | null) {
+export function insertVideo(editor: Editor | undefined) {
   const url = prompt('Enter YouTube video URL:')
   if (url) {
     // Extract video ID from YouTube URL
@@ -66,7 +66,7 @@ export function insertVideo(editor: Editor | null) {
   }
 }
 
-export function insertLink(editor: Editor | null) {
+export function insertLink(editor: Editor | undefined) {
   const url = prompt('Enter URL:')
   if (url) {
     const linkText = prompt('Enter link text (optional):') || url
@@ -81,7 +81,7 @@ export function insertLink(editor: Editor | null) {
   }
 }
 
-export function insertReferenceLink(editor: Editor | null) {
+export function insertReferenceLink(editor: Editor | undefined) {
   const refLinkText = prompt('Enter link text:', '')
   const refLinkUrl = prompt('Enter link URL:', '')
   if (refLinkText && refLinkUrl && editor) {
@@ -98,7 +98,7 @@ export function insertReferenceLink(editor: Editor | null) {
   }
 }
 
-export function insertFootnote(editor: Editor | null) {
+export function insertFootnote(editor: Editor | undefined) {
   const footnoteText = prompt('Enter footnote text:', '')
   if (footnoteText && editor) {
     const footnoteId = Date.now().toString()
@@ -114,7 +114,7 @@ export function insertFootnote(editor: Editor | null) {
   }
 }
 
-export function insertInlineLink(editor: Editor | null) {
+export function insertInlineLink(editor: Editor | undefined) {
 if (editor?.isActive('link')) {
     editor?.chain().focus().unsetLink().run()
   } else {
