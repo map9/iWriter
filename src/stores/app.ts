@@ -857,9 +857,11 @@ export const useAppStore = defineStore('app', () => {
   async function closeAllTab(): Promise<boolean> {
     let result: boolean = true
 
-    for (const tab of tabs.value) {
-      const result = await closeTab(tab.id)
-      if (result === false) {
+    const tabIds = tabs.value.map(tab => tab.id)
+    for (const tabId of tabIds) {
+      const closeResult = await closeTab(tabId)
+      if (closeResult === false) {
+        result = false
         break
       }
     }

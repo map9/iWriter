@@ -59,8 +59,7 @@
 import { computed, ref, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useNotificationHandler } from '@/utils/NotificationHandler'
-import { useErrorHandler } from '@/utils/ErrorHandler'
-import type { Notification, AppError } from '@/types'
+import type { Notification } from '@/types'
 import { NotificationType } from '@/types'
 import { 
   IconX,
@@ -73,7 +72,6 @@ import {
 
 const appStore = useAppStore()
 const { notifications } = useNotificationHandler()
-const { errors } = useErrorHandler()
 
 // Notification state
 const currentNotification = ref<Notification | null>(null)
@@ -128,49 +126,6 @@ watch(notifications, (newNotifications) => {
       autoCloseTimer.value = null
     }
   }
-}, { deep: true, immediate: true })
-
-// 监听旧的错误系统，转换为通知
-watch(errors, (newErrors) => {
-  newErrors.forEach(error => {
-    // 检查是否已经转换过
-    const key = `error_${error.timestamp.getTime()}`
-    if (!dismissedNotifications.value.has(error.timestamp.getTime())) {
-      // 将错误转换为通知类型
-      let notificationType: NotificationType
-      switch (error.severity) {
-        case 'critical':
-          notificationType = NotificationType.CRITICAL
-          break
-        case 'high':
-          notificationType = NotificationType.ERROR
-          break
-        case 'medium':
-          notificationType = NotificationType.ERROR
-          break
-        case 'low':
-          notificationType = NotificationType.WARNING
-          break
-        default:
-          notificationType = NotificationType.ERROR
-      }
-      
-      // 创建通知
-      const notification: Notification = {
-        type: notificationType,
-        message: error.message,
-        details: error.details,
-        context: error.context,
-        timestamp: error.timestamp,
-        duration: notificationType === NotificationType.CRITICAL || notificationType === NotificationType.ERROR ? 0 : 5000
-      }
-      
-      // 添加到通知列表
-      if (!notifications.value.find(n => n.timestamp.getTime() === notification.timestamp.getTime())) {
-        notifications.value.push(notification)
-      }
-    }
-  })
 }, { deep: true, immediate: true })
 
 // 关闭当前通知

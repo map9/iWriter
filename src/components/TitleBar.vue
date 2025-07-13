@@ -44,20 +44,19 @@
 
     <!-- Document Tabs Area - 按内容伸缩，有最大宽度限制 -->
     <div class="flex items-center h-full overflow-hidden no-drag max-w-[calc(100%-256px)]">
-      <!-- Left separator for tabs -->
-      <div v-if="appStore.tabs.length > 0" class="w-px h-9 bg-gray-200 flex-shrink-0"></div>      
       <!-- Document Tabs Container -->
       <div ref="tabsContainer" class="flex items-center h-full overflow-x-auto scrollbar-hide">
         <!-- Tabs List -->
         <div class="flex items-center">
           <div 
-            v-for="tab in appStore.tabs" 
+            v-for="(tab, idx) in appStore.tabs" 
             :key="tab.id"
-            :ref="el => { if (tab.isActive) activeTabRef = el }"
+            :ref="el => { if (tab.isActive) activeTabRef = el as HTMLElement}"
             :class="[
+              idx === 0 ? 'border-l' : '',
               'px-3 py-2 border-r border-gray-200 cursor-pointer flex items-center space-x-2 whitespace-nowrap flex-shrink-0',
               'min-w-32 max-w-48',
-              tab.isActive ? 'bg-white border-b-white' : 'hover:bg-gray-100'
+              tab.isActive ? 'bg-white' : 'hover:bg-gray-100'
             ]"
             @click="switchTab(tab.id)"
             :title="tab.name"
@@ -87,8 +86,6 @@
           </div>
         </div>
       </div>
-      <!-- Right separator for tabs -->
-      <div v-if="appStore.tabs.length > 0" class="w-px h-9 bg-gray-200 flex-shrink-0"></div>      
 
       <!-- New Tab Button - 固定在标签右侧 -->
       <div class="flex items-center px-2 flex-shrink-0 no-drag">
@@ -130,8 +127,10 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch, nextTick } from 'vue'
 import { useAppStore } from '@/stores/app'
-import { DocumentType } from '@/types'
 import type { FileTab } from '@/types'
+import { SidebarMode } from '@/types'
+import pathUtils from '@/utils/pathUtils'
+import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
@@ -141,15 +140,13 @@ import {
   IconChevronRight,
   IconX,
   IconPlus,
-  IconFileText, 
-  IconPhoto, 
-  IconFile,
 } from '@tabler/icons-vue'
 
 const appStore = useAppStore()
 const isMaximized = ref(false)
 const tabsContainer = ref<HTMLElement>()
 let activeTabRef: HTMLElement | null = null
+const { getIconByExtension } = useDocumentTypeDetector()
 
 // Computed
 const activeTab = computed(() => appStore.activeTab)
@@ -174,16 +171,7 @@ function navigateTabs(direction: number) {
 }
 
 function getTabIcon(tab: FileTab) {
-  switch (tab.documentType) {
-    case DocumentType.TEXT_EDITOR:
-      return IconFileText
-    case DocumentType.PDF_VIEWER:
-      return IconFile
-    case DocumentType.IMAGE_VIEWER:
-      return IconPhoto
-    default:
-      return IconFile
-  }
+  return getIconByExtension(pathUtils.extension(tab.name))
 }
 
 function switchTab(tabId: string) {
@@ -237,16 +225,14 @@ function getDisplayName(fileName: string): string {
 
 // 监听状态变化，自动切换到合适的模式
 function checkAndSwitchMode() {
-  // 如果当前是被禁用的模式，自动切换
-  if (['explorer', 'search', 'tag'].includes(appStore.leftSidebarMode) && !appStore.hasOpenFolder) {
-    appStore.setLeftSidebarMode('start')
+  if (appStore.leftSidebarMode !== SidebarMode.TOC && !appStore.hasOpenFolder) {
+    appStore.setLeftSidebarMode(SidebarMode.START)
   }
-  if (appStore.leftSidebarMode === 'toc' && appStore.tabs.length === 0) {
-    // 如果有文件夹打开，切换到explorer，否则切换到start
+  if (appStore.leftSidebarMode === SidebarMode.TOC && appStore.tabs.length === 0) {
     if (appStore.hasOpenFolder) {
-      appStore.setLeftSidebarMode('explorer')
+      appStore.setLeftSidebarMode(SidebarMode.EXPLORER)
     } else {
-      appStore.setLeftSidebarMode('start')
+      appStore.setLeftSidebarMode(SidebarMode.START)
     }
   }
 }

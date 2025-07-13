@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, IpcMainEvent, dialog, shell } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog, shell } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import chokidar from 'chokidar'

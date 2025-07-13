@@ -197,11 +197,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, nextTick } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import type { FileTreeNode, FileTreeCallbacks, FileTreeSortType } from '../common/tree'
 import Tree from '../common/tree/Tree.vue'
-import { getFileIconByExtension } from '@/utils/fileIcons'
+import pathUtils from '@/utils/pathUtils'
+import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import {
   IconSearch,
   IconFolderPlus,
@@ -224,6 +225,7 @@ import {
 
 const appStore = useAppStore()
 const searchQuery = ref('')
+const { getIconByExtension } = useDocumentTypeDetector()
 
 interface Props {
   allowCreate?: boolean
@@ -347,7 +349,7 @@ const fileCallbacks: FileTreeCallbacks = {
     if (fileNode.type === 'folder') {
       return fileNode.isExpanded && ((fileNode.children?.length ?? 0) > 0) ? IconFolderOpen : IconFolder
     }
-    return getFileIconByExtension(fileNode.label)
+    return getIconByExtension(pathUtils.extension(fileNode.label))
   },
   getRightContent: (node) => {
     const fileNode = node as FileTreeNode

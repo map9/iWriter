@@ -22,6 +22,16 @@ export const pathUtils = {
     return basename.slice(lastDot);
   },
 
+  extension: (path: string) => {
+    if (!path) return '';
+    
+    const basename = pathUtils.basename(path);
+    const lastDot = basename.lastIndexOf('.');
+    
+    if (lastDot === -1 || lastDot === 0) return '';
+    return basename.slice(lastDot + 1);
+  },
+
   dirname: (path: string) => {
     if (!path) return '.';
     

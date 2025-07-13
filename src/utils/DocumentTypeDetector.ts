@@ -1,6 +1,25 @@
 import type { DocumentType, DocumentTypeDetector } from '@/types'
-import { DocumentType as DocType, IMAGE_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS } from '@/types'
-import { ErrorHandler } from './ErrorHandler'
+import { DocumentType as DocType, IMAGE_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS, CODE_EXTENSIONS, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS } from '@/types'
+import {
+  IconFile,
+  IconFileCode,
+  IconPhoto,
+  IconFileMusic,
+  IconVideo,
+  IconFileText,
+  IconMarkdown,
+  IconFileTypeTxt,
+  IconFileTypeDoc,
+  IconFileTypeDocx,
+  IconFileTypePdf,
+  IconFileZip,
+  IconBrandJavascript,
+  IconBrandHtml5,
+  IconBrandCss3,
+  IconBrandPython,
+  IconDatabase,
+  IconSettings
+} from '@tabler/icons-vue'
 
 /**
  * 文档类型检测器
@@ -22,16 +41,8 @@ export class DefaultDocumentTypeDetector implements DocumentTypeDetector {
    * 从文件路径检测文档类型
    */
   detectFromPath(filePath: string): DocumentType {
-    try {
-      const extension = this.extractExtension(filePath)
-      return this.detectFromExtension(extension)
-    } catch (error) {
-      ErrorHandler.handleValidationError(
-        `无法从路径检测文档类型: ${filePath}`,
-        'DocumentTypeDetector.detectFromPath'
-      )
-      return DocType.UNKNOWN
-    }
+    const extension = this.extractExtension(filePath)
+    return this.detectFromExtension(extension)
   }
 
   /**
@@ -87,8 +98,8 @@ export class DefaultDocumentTypeDetector implements DocumentTypeDetector {
   getSupportedExtensions(): string[] {
     return [
       ...TEXT_EXTENSIONS,
+      ...IMAGE_EXTENSIONS,
       ...PDF_EXTENSIONS,
-      ...IMAGE_EXTENSIONS
     ]
   }
 
@@ -130,17 +141,129 @@ export class DefaultDocumentTypeDetector implements DocumentTypeDetector {
   /**
    * 获取文档类型的图标
    */
-  getIcon(documentType: DocumentType): string {
+  getIconByType(documentType: DocumentType) {
     switch (documentType) {
       case DocType.TEXT_EDITOR:
-        return 'file-text'
+        return IconFileText
       case DocType.PDF_VIEWER:
-        return 'file-type-pdf'
+        return IconFileTypePdf
       case DocType.IMAGE_VIEWER:
-        return 'photo'
+        return IconPhoto
       case DocType.UNKNOWN:
       default:
-        return 'file'
+        return IconFile
+    }
+  }
+
+  getIconByExtension(extension: string) {
+    switch (extension) {
+      // Code files
+      case 'js':
+      case 'mjs':
+        return IconBrandJavascript
+      case 'ts':
+      case 'tsx':
+        return IconFileCode
+      case 'html':
+      case 'htm':
+        return IconBrandHtml5
+      case 'css':
+      case 'scss':
+      case 'sass':
+      case 'less':
+        return IconBrandCss3
+      case 'py':
+        return IconBrandPython
+      case 'java':
+      case 'c':
+      case 'cpp':
+      case 'h':
+      case 'cs':
+      case 'php':
+      case 'rb':
+      case 'go':
+      case 'rs':
+      case 'swift':
+      case 'kt':
+        return IconFileCode
+      
+      // Images
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'bmp':
+      case 'svg':
+      case 'webp':
+      case 'ico':
+        return IconPhoto
+      
+      // Audio
+      case 'mp3':
+      case 'wav':
+      case 'flac':
+      case 'aac':
+      case 'ogg':
+      case 'm4a':
+        return IconFileMusic
+      
+      // Video
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+      case 'wmv':
+      case 'flv':
+      case 'webm':
+      case 'mkv':
+        return IconVideo
+      
+      // Documents
+      case 'txt':
+        return IconFileTypeTxt
+
+      case 'md':
+        return IconMarkdown
+        
+      case 'rtf':
+        return IconFileText
+
+      case 'doc':
+        return IconFileTypeDoc
+
+      case 'docx':
+        return IconFileTypeDocx
+
+      case 'pdf':
+        return IconFileTypePdf
+      
+      // Archives
+      case 'zip':
+      case 'rar':
+      case '7z':
+      case 'tar':
+      case 'gz':
+      case 'bz2':
+        return IconFileZip
+      
+      // Database
+      case 'db':
+      case 'sqlite':
+      case 'sql':
+        return IconDatabase
+      
+      // Config
+      case 'json':
+      case 'xml':
+      case 'yml':
+      case 'yaml':
+      case 'toml':
+      case 'ini':
+      case 'cfg':
+      case 'conf':
+        return IconSettings
+      
+      default:
+        return IconFile
     }
   }
 
@@ -173,7 +296,8 @@ export function useDocumentTypeDetector() {
     getSupportedExtensions: detector.getSupportedExtensions.bind(detector),
     isSupported: detector.isSupported.bind(detector),
     getDisplayName: detector.getDisplayName.bind(detector),
-    getIcon: detector.getIcon.bind(detector),
+    getIconByType: detector.getIconByType.bind(detector),
+    getIconByExtension: detector.getIconByExtension.bind(detector),
     isEditable: detector.isEditable.bind(detector),
     isReadOnly: detector.isReadOnly.bind(detector)
   }

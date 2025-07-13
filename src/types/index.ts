@@ -15,10 +15,13 @@ export enum DocumentType {
   UNKNOWN = 'unknown'
 }
 
-// 支持的图片格式
-export const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'] as const
-export const PDF_EXTENSIONS = ['pdf'] as const
+// 支持的文档格式
 export const TEXT_EXTENSIONS = ['md', 'markdown', 'txt', 'iwt'] as const
+export const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'ico'] as const
+export const PDF_EXTENSIONS = ['pdf'] as const
+export const CODE_EXTENSIONS = ['js', 'mjs', 'ts', 'tsx', 'html', 'htm', 'css', 'scss', 'sass', 'less', 'py', 'java', 'c', 'cpp', 'h', 'cs', 'php', 'rb', 'go', 'rs', 'swift', 'kt'] as const
+export const AUDIO_EXTENSIONS = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'] as const
+export const VIDEO_EXTENSIONS = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv'] as const
 
 // 文档元数据接口
 export interface DocumentMetadata {
@@ -127,23 +130,6 @@ export interface FileOperationResult {
   newPath: string
 }
 
-// 错误类型枚举
-export enum ErrorType {
-  FILE_SYSTEM = 'FILE_SYSTEM',
-  NETWORK = 'NETWORK',
-  VALIDATION = 'VALIDATION',
-  PERMISSION = 'PERMISSION',
-  UNKNOWN = 'UNKNOWN'
-}
-
-// 错误严重程度枚举
-export enum ErrorSeverity {
-  LOW = 'low',
-  MEDIUM = 'medium',
-  HIGH = 'high',
-  CRITICAL = 'critical'
-}
-
 // 通知类型枚举
 export enum NotificationType {
   SUCCESS = 'success',
@@ -151,15 +137,6 @@ export enum NotificationType {
   WARNING = 'warning',
   ERROR = 'error',
   CRITICAL = 'critical'
-}
-
-// 通知严重程度枚举 (映射到 ErrorSeverity 以保持兼容性)
-export enum NotificationSeverity {
-  SUCCESS = 'success',
-  INFO = 'low',           // 映射到 low
-  WARNING = 'low',        // 警告映射到 low
-  ERROR = 'medium',       // 错误映射到 medium  
-  CRITICAL = 'critical'   // 严重映射到 critical
 }
 
 // 通用通知接口
@@ -170,18 +147,6 @@ export interface Notification {
   context?: string
   timestamp: Date
   duration?: number  // 自定义显示时长，毫秒
-}
-
-// 应用错误接口 (保持向后兼容)
-export interface AppError {
-  type: ErrorType
-  severity: ErrorSeverity
-  message: string
-  details?: string
-  code?: string
-  context?: string
-  timestamp: Date
-  stack?: string
 }
 
 // 文件信息接口
@@ -304,15 +269,6 @@ export interface TocItem {
   anchor: string
   line?: number
   isActive?: boolean
-}
-
-// 文件监听器接口
-export interface FileWatcher {
-  path: string
-  isWatching: boolean
-  lastCheck: Date
-  onChange: (changes: FileChange[]) => void
-  onError: (error: AppError) => void
 }
 
 // 文件变化接口
