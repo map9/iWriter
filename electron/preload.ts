@@ -64,4 +64,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('file-change')
     ipcRenderer.removeAllListeners('file-watch-error')
   },
+  
+  // Context menu
+  showContextMenu: (menuItems: any[], position: { x: number; y: number }) => 
+    ipcRenderer.invoke('show-context-menu', menuItems, position),
+  
+  // Reveal in folder
+  revealInFolder: (path: string) => ipcRenderer.invoke('reveal-in-folder', path),
 })

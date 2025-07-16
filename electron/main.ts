@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, ipcMain, dialog, shell } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
-import chokidar from 'chokidar'
+import chokidar, { FSWatcher } from 'chokidar'
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -46,7 +46,7 @@ let g: GlobalParameters = {
 }
 
 // 文件监听器管理
-const fileWatchers: Map<string, chokidar.FSWatcher> = new Map();
+const fileWatchers: Map<string, FSWatcher> = new Map();
 
 // Send menu action to the focused window
 function sendMenuAction(focusedWindow: WindowState | undefined, action: string) {
@@ -111,7 +111,6 @@ function createWindow(): BrowserWindow {
   }
 
   function handleFocus() {
-    console.log('Focus')
     currentFocusedWindowId = windowId;
     updateMenu();
   }
@@ -428,13 +427,9 @@ function updateMenu(): void {
         },
         { type: 'separator' },
         {
-          label: 'Cut',
-          accelerator: 'CmdOrCtrl+X',
           role: 'cut'
         },
         {
-          label: 'Copy',
-          accelerator: 'CmdOrCtrl+C',
           role: 'copy'
         },
         {
@@ -467,8 +462,6 @@ function updateMenu(): void {
           ]
         },
         {
-          label: 'Paste',
-          accelerator: 'CmdOrCtrl+V',
           role: 'paste'
         },
         {
@@ -479,11 +472,7 @@ function updateMenu(): void {
           }
         },
         {
-          label: 'Delete',
-          accelerator: 'Backspace',
-          click: () => {
-            sendMenuAction(focusedWindow, 'delete')
-          }
+          role: 'delete'
         },
         {
           label: 'Select All',
@@ -2105,7 +2094,7 @@ ipcMain.handle('window-content-changed', async (event, contentInfo: WindowConten
   const window = BrowserWindow.fromWebContents(event.sender);
   if (window) {
     const windowId = window.id;
-    console.log(`收到窗口 ${windowId} 的内容更新:`, contentInfo);
+    //console.log(`收到窗口 ${windowId} 的内容更新:`, contentInfo);
     
     // 更新窗口状态...
     const windowIndex = windows.findIndex(w => w.id === windowId);
@@ -2135,6 +2124,14 @@ ipcMain.handle('start-file-watching', async (event, folderPath: string) => {
     // 创建新的监听器
     const watcher = chokidar.watch(folderPath, {
       ignored: /(^|[\/\\])\../, // 忽略隐藏文件
+      awaitWriteFinish: true, // emit single event when chunked writes are completed
+      atomic: true, // emit proper events when "atomic writes" (mv _tmp file) are used
+      // The options also allow specifying custom intervals in ms
+      // awaitWriteFinish: {
+      //   stabilityThreshold: 2000,
+      //   pollInterval: 100
+      // },
+      // atomic: 100,
       persistent: true,
       ignoreInitial: true,
       followSymlinks: false,
@@ -2244,6 +2241,91 @@ ipcMain.handle('update-window-title', async (event, title: string) => {
     return { success: true };
   }
   return { success: false, error: 'Window not found' };
+})
+
+// Context menu handler
+ipcMain.handle('show-context-menu', async (event, menuItems: any[], position: { x: number; y: number }) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window) {
+    return null;
+  }
+
+  // 将菜单项转换为 Electron 菜单格式
+  const convertMenuItems = (items: any[]): any[] => {
+    return items.map(item => {
+      if (item.type === 'separator') {
+        return { type: 'separator' };
+      }
+      
+      const menuItem: any = {}
+      if (item.id) {
+        menuItem.id = item.id
+      }
+      if (item.label) {
+        menuItem.label = item.label
+      }
+      if (item.type) {
+        menuItem.type = item.type || 'normal'
+      }
+      if (item.enabled) {
+        menuItem.enabled = item.enabled !== false
+      }
+      if (item.visible) {
+        menuItem.visible = item.visible !== false
+      }
+      if (item.checked) {
+        menuItem.type = 'radio'
+        menuItem.checked = item.checked !== false
+      }
+      if (item.role) {
+        menuItem.role = item.role
+      }
+      if (item.accelerator) {
+        menuItem.accelerator = item.accelerator;
+      }
+
+      if (item.submenu && item.submenu.length > 0) {
+        menuItem.submenu = convertMenuItems(item.submenu);
+      } else {
+        menuItem.click = () => {
+          if (item.id)
+            window.webContents.send('menu-action', item.id);
+        };
+      }
+
+      console.log(menuItem)
+      return menuItem;
+    });
+  };
+
+  try {
+    const menu = Menu.buildFromTemplate(convertMenuItems(menuItems));
+    
+    return new Promise<string | null>((resolve) => {
+      menu.popup({
+        window,
+        x: position.x,
+        y: position.y,
+        callback: () => {
+          resolve(null);
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error showing context menu:', error);
+    return null;
+  }
+})
+
+// Reveal in folder handler
+ipcMain.handle('reveal-in-folder', async (event, filePath: string) => {
+  try {
+    // 使用 shell.showItemInFolder 在系统文件管理器中显示文件或文件夹
+    shell.showItemInFolder(filePath);
+  } catch (error) {
+    console.error('Error revealing file in folder:', error);
+    throw error;
+  }
 })
 
 app.whenReady().then(() => {

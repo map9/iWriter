@@ -1,4 +1,4 @@
-import type { DocumentType, DocumentTypeDetector } from '@/types'
+import type { DocumentType } from '@/types'
 import { DocumentType as DocType, IMAGE_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS, CODE_EXTENSIONS, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS } from '@/types'
 import {
   IconFile,
@@ -25,7 +25,7 @@ import {
  * 文档类型检测器
  * 根据文件路径、扩展名或MIME类型检测文档类型
  */
-export class DefaultDocumentTypeDetector implements DocumentTypeDetector {
+export class DefaultDocumentTypeDetector {
   private static instance: DefaultDocumentTypeDetector
 
   private constructor() {}

@@ -14,7 +14,7 @@
       :class="[dropTargetClasses, selectedClasses]"
       :style="{ paddingLeft: `${(depth + initialDepth) * 12 + 8}px` }"
       @click="handleClick"
-      @contextmenu="handleContextMenu"
+      @contextmenu.stop="handleContextMenu"
       @dragstart="handleDragStart"
       @dragend="handleDragEnd"
       @dragover.prevent="handleDragOver"

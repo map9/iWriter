@@ -208,6 +208,12 @@ export interface ElectronAPI {
   onFileChange: (callback: (change: FileChange) => void) => void
   onFileWatchError: (callback: (error: { message: string; path: string; timestamp: Date }) => void) => void
   removeFileChangeListeners: () => void
+  
+  // 原生上下文菜单
+  showContextMenu: (menuItems: ContextMenuItem[], position: { x: number; y: number }) => Promise<string | null>
+  
+  // 在系统文件管理器中显示文件或文件夹
+  revealInFolder: (path: string) => Promise<void>
 }
 
 // 窗口内容信息接口
@@ -276,6 +282,28 @@ export interface FileChange {
   type: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir'
   path: string
   timestamp: Date
+}
+
+// 上下文菜单项接口
+export interface ContextMenuItem {
+  id?: string
+  label?: string
+  type?: 'normal' | 'separator' | 'submenu' | 'checkbox' | 'radio'
+  enabled?: boolean
+  visible?: boolean
+  checked?: boolean
+  submenu?: ContextMenuItem[]
+  accelerator?: string
+  role?: string
+}
+
+// 文件上下文信息接口
+export interface FileContextInfo {
+  type: 'file' | 'folder'
+  name: string
+  path: string
+  extension?: string
+  isReadonly?: boolean
 }
 
 // 文档编辑器基础接口
@@ -361,14 +389,6 @@ export interface DocumentEditorFactory {
   createEditor(type: DocumentType, options?: any): DocumentEditor
   canHandle(type: DocumentType): boolean
   getSupportedTypes(): DocumentType[]
-}
-
-// 文档类型检测器接口
-export interface DocumentTypeDetector {
-  detectFromPath(filePath: string): DocumentType
-  detectFromExtension(extension: string): DocumentType
-  detectFromMimeType(mimeType: string): DocumentType
-  getSupportedExtensions(): string[]
 }
 
 // 菜单动作上下文接口

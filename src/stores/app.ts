@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { FileTab, FileOperationResult } from '@/types'
+import type { FileTab, FileOperationResult, FileChange } from '@/types'
 import { SidebarMode, DocumentType } from '@/types'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { pathUtils } from '@/utils/pathUtils'
@@ -749,21 +749,25 @@ export const useAppStore = defineStore('app', () => {
     }
   }
   
+  // 通过文件路径，更新fileTree中path=给定path的FileTreeNode的状态size，created，modified
+  function updateFileTreeNodeInfo(filePath: string) {
+    
+  }
+
   // 处理文件变化
-  function handleFileChange(change: any) {
+  function handleFileChange(change: FileChange) {
     console.log('File change detected:', change)
     
     // 根据变化类型更新文件树
     switch (change.type) {
       case 'add':
       case 'addDir':
+        break
       case 'unlink':
       case 'unlinkDir':
-        // 文件/文件夹添加或删除，重新加载文件树
-        //loadFileTree()
         break
       case 'change':
-        // 文件内容变化，可以选择性更新
+        updateFileTreeNodeInfo(change.path)
         break
     }
   }
