@@ -26,7 +26,7 @@
             <span>Open Document</span>
           </button>
           
-          <button 
+          <button v-if="!appStore.hasOpenFolder"
             @click="openFolder"
             class="btn btn-primary w-44 mb-4 h-9 items-center justify-center space-x-2 whitespace-nowrap"
           >
@@ -41,7 +41,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { DocumentType } from '@/types'
 import { 
