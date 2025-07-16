@@ -13,6 +13,7 @@
       class="tree-node-content flex items-center py-1 border hover:bg-gray-100 cursor-pointer select-none transition-all duration-200 text-sm"
       :class="[dropTargetClasses, selectedClasses]"
       :style="{ paddingLeft: `${(depth + initialDepth) * 12 + 8}px` }"
+      :title = "node.path"
       @click="handleClick"
       @contextmenu.stop="handleContextMenu"
       @dragstart="handleDragStart"

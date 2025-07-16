@@ -634,7 +634,7 @@ export const useAppStore = defineStore('app', () => {
           openTab.path = newPath
           openTab.name = pathUtils.basename(newPath)
         }
-        node.path = newPath
+        updateFileTreeNodePath(node, pathUtils.dirname(newPath), pathUtils.basename(newPath))
 
         // Sort parent's children
         //if (node.parent) {
@@ -749,24 +749,159 @@ export const useAppStore = defineStore('app', () => {
     }
   }
   
-  // 通过文件路径，更新fileTree中path=给定path的FileTreeNode的状态size，created，modified
-  function updateFileTreeNodeInfo(filePath: string) {
+  // 根据路径在文件树中查找节点
+  function findNodeByPath(targetPath: string, tree?: FileTreeNode): FileTreeNode | null {
+    const rootNode = tree || fileTree.value
+    if (!rootNode) return null
     
+    // 检查当前节点
+    if (rootNode.path === targetPath) {
+      return rootNode
+    }
+    
+    // 递归搜索子节点
+    if (rootNode.children && rootNode.children.length > 0) {
+      for (const child of rootNode.children) {
+        const found = findNodeByPath(targetPath, child as FileTreeNode)
+        if (found) {
+          return found
+        }
+      }
+    }
+    
+    return null
+  }
+
+  // 从文件树中移除节点（基于 deleteFileOrFolder 的逻辑，但不实际删除文件）
+  function removeNodeFromFileTreeByFilePath(targetPath: string): boolean {
+    const node = findNodeByPath(targetPath)
+    if (!node) return false
+    
+    try {
+      // Remove from parent's children
+      if (node.parent?.children) {
+        const index = node.parent.children.findIndex(child => child.id === node.id)
+        if (index > -1) {
+          node.parent.children.splice(index, 1)
+        }
+      }
+      notify.success(`${node.path} 结点删除成功`, '文件树更新')
+
+      // Close tabs for deleted files (including files inside deleted folders)
+      const tabsToClose = tabs.value.filter(tab => {
+        return tab.path && (tab.path === targetPath || tab.path.startsWith(targetPath + '/'))
+      })
+
+      // Close all matching tabs
+      for (const tab of tabsToClose) {
+        tab.path = undefined
+        closeTab(tab.id)
+      }
+      
+      // Clear selection if the deleted node was selected
+      if (selectedItem.value?.path === targetPath || 
+          (selectedItem.value?.path && selectedItem.value.path.startsWith(targetPath + '/'))) {
+        setSelectedItem(null)
+      }
+
+      return true
+    } catch (error) {
+      notify.error(`删除 ${node.path} 结点失败`, '文件树更新错误')
+      return false
+    }
+  }
+
+  // 向文件树添加节点
+  async function addNodeToFileTreeByFilePath(filePath: string): Promise<boolean> {
+    if (!window.electronAPI) return false
+    // 文件或者文件夹已经存在
+    const node = findNodeByPath(filePath)
+    if (node) return false
+
+    try {
+      const parentPath = pathUtils.dirname(filePath)
+      const parentNode = findNodeByPath(parentPath)
+      if (!parentNode) {
+        throw new Error(`Parent node not found for path: ${parentPath}`)
+      }
+      
+      // 使用 await 等待异步操作完成
+      const files = await window.electronAPI.getFiles(filePath, true)
+      if (!files || files.length === 0) {
+        throw new Error(`获取 ${parentPath} 信息失败`)
+      }
+      const newNode: FileTreeNode = {
+        id: generateId(),
+        label: files[0].name,
+        path: files[0].path,
+        type: files[0].isDirectory ? 'folder' : 'file',
+        parent: parentNode,
+        isVisible: true,
+        isEnabled: true,
+        data: {},
+        size: files[0].size || 0,
+        created: files[0].created,
+        modified: files[0].modified,
+      }
+      if (files[0].isDirectory) {
+        newNode.children = await traverseFileTree(files[0].path, newNode)
+      }
+      if (!parentNode.children) {
+        parentNode.children = []
+      }
+      parentNode.children.push(newNode)
+
+      notify.success(`${filePath} 结点添加成功`, '文件树更新')
+
+      // Sort children based on current sort type
+      //sortFileTreeNodes(parentNode.children as FileTreeNode[], currentFileTreeSortType.value)
+      
+      return true
+    } catch (error) {
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件树更新错误')
+      return false
+    }
+  }
+
+  // 通过文件路径，更新fileTree中path=给定path的FileTreeNode的状态size，created，modified
+  async function updateFileTreeNodeInfo(filePath: string) {
+    if (!window.electronAPI) return
+    const node = findNodeByPath(filePath)
+    if (!node) return
+    
+    try {
+      // 使用 getFiles 获取单个文件信息
+      const parentPath = pathUtils.dirname(filePath)
+      const fileInfos = await window.electronAPI.getFiles(parentPath, true)
+      const fileName = pathUtils.basename(filePath)
+      const fileInfo = fileInfos.find(info => info.name === fileName)
+      
+      if (fileInfo) {
+        node.size = fileInfo.size
+        if (fileInfo.created) node.created = fileInfo.created
+        if (fileInfo.modified) node.modified = fileInfo.modified
+      }
+    } catch (error) {
+      notify.error(`文件树更新 ${node.path} 结点信息失败`, '文件树更新')
+    }
   }
 
   // 处理文件变化
-  function handleFileChange(change: FileChange) {
-    console.log('File change detected:', change)
-    
-    // 根据变化类型更新文件树
+  function handleFileChange(change: FileChange) {    
+    // 根据变化类型文件树更新
     switch (change.type) {
       case 'add':
       case 'addDir':
+        // 外部添加的文件或文件夹，添加到文件树
+        addNodeToFileTreeByFilePath(change.path)
         break
       case 'unlink':
       case 'unlinkDir':
+        // 外部删除的文件或文件夹，从文件树中移除
+        removeNodeFromFileTreeByFilePath(change.path)
         break
       case 'change':
+        // 文件内容变化，更新文件信息
         updateFileTreeNodeInfo(change.path)
         break
     }
