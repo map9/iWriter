@@ -6,16 +6,16 @@
       <div class="toolbar-group">
         <button
           @click="editor?.chain().focus().undo().run()"
-          :disabled="!editor || !editor?.can().undo()"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors"
+          :disabled="!editor || !canUndo"
+          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Undo (⌘Z)"
         >
           <IconArrowBackUp :size="20" />
         </button>
         <button
           @click="editor?.chain().focus().redo().run()"
-          :disabled="!editor || !editor?.can().redo()"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors"
+          :disabled="!editor || !canRedo"
+          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Redo (⌘⇧Z)"
         >
           <IconArrowForwardUp :size="20" />
@@ -295,6 +295,8 @@ const isLoading = ref(false)
 // Toolbar state
 const currentHeading = ref('paragraph')
 const isFullscreen = ref(false)
+const canUndo = ref(false)
+const canRedo = ref(false)
 
 // Create TipTap editor instance
 const editor = useEditor({
@@ -474,10 +476,12 @@ function updateTabContent(editorInstance: any) {
 }
 
 // Toolbar functions
-function updateCurrentHeading() {
+function updateToolbarState() {
   if (!editor.value) return
   
   currentHeading.value = getHeading(editor.value)
+  canUndo.value = editor.value.can().undo()
+  canRedo.value = editor.value.can().redo()
 }
 
 function toggleFullscreen() {
@@ -694,7 +698,7 @@ function focusEditor() {
 watch(() => editor.value, (newEditor) => {
   if (newEditor) {
     const updateState = () => {
-      updateCurrentHeading()
+      updateToolbarState()
     }
     
     // Listen to editor state changes

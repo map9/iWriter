@@ -53,9 +53,17 @@
                   <!-- Fallback for unknown types -->
                   <div v-else class="h-full flex items-center justify-center text-gray-500">
                     <div class="text-center">
-                      <IconFile class="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                      <IconAlertTriangle class="w-16 h-16 mx-auto mb-4 text-gray-700" />
                       <div class="text-xl mb-2">不支持的文件类型</div>
-                      <div class="text-sm text-gray-400">{{ tab.documentType || 'unknown' }}</div>
+                      <div class="text-base mx-auto max-w-xl mb-2">The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.</div>
+                      <div class="flex gap-3 justify-center">
+                        <button 
+                          @click="openWithShell(tab.path)"
+                          class="btn btn-primary h-9 items-center justify-center space-x-2 whitespace-nowrap"
+                        >
+                          <span>Open Anyway</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -85,6 +93,9 @@ import WelcomePage from '@/components/pages/WelcomePage.vue'
 import MarkdownEditorPage from '@/components/pages/MarkdownEditorPage.vue'
 import ImageViewerPage from '@/components/pages/ImageViewerPage.vue'
 import PDFViewerPage from '@/components/pages/PDFViewerPage.vue'
+import { 
+  IconAlertTriangle,
+} from '@tabler/icons-vue'
 
 const appStore = useAppStore()
 
@@ -109,6 +120,16 @@ function getActivePageRef() {
       return pdfViewerRefs.value.find(ref => ref && ref.tab?.id === activeTab.value?.id)
     default:
       return null
+  }
+}
+
+async function openWithShell(filePath: string | undefined) {
+  if (!filePath) return
+  
+  try {
+    await window.electronAPI.openWithShell(filePath)
+  } catch (error) {
+    console.error('Failed to open file with shell:', error)
   }
 }
 

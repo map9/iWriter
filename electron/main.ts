@@ -10,21 +10,26 @@ type ComponentType = 'tiptap-editor' | 'image-editor' | 'explorer';
 
 // 窗口内容信息接口
 interface WindowContentInfo {
-  type: ComponentType;
-  hasActiveDocument?: false,
-  hasFolderOpen?: false,
-  hasSelection?: boolean;
+  type: ComponentType
+  hasActiveDocument?: false
+  hasFolderOpen?: false
+  hasSelection?: boolean
+  undoRedo?: {
+    undo: boolean
+    redo: boolean
+  }
   formatting?: {
+    heading: string | number
     bold: boolean
     italic: boolean
     underline: boolean
     strikethrough: boolean
     inlineCode: boolean
-  };
+  }
   view?: {
-    leftSidebar?: boolean;
-    rightSidebar?: boolean;
-    statusbar?: boolean;
+    leftSidebar?: boolean
+    rightSidebar?: boolean
+    statusbar?: boolean
   }
 }
 
@@ -414,6 +419,7 @@ function updateMenu(): void {
         {
           label: 'Undo',
           accelerator: 'CmdOrCtrl+Z',
+          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.undoRedo?.undo,
           click: () => {
             sendMenuAction(focusedWindow, 'undo')
           }
@@ -421,6 +427,7 @@ function updateMenu(): void {
         {
           label: 'Redo',
           accelerator: 'CmdOrCtrl+Shift+Z',
+          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.undoRedo?.redo,
           click: () => {
             sendMenuAction(focusedWindow, 'redo')
           }
@@ -665,6 +672,8 @@ function updateMenu(): void {
         {
           label: 'Heading 1',
           accelerator: 'CmdOrCtrl+1',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.formatting?.heading === 1,
           click: () => {
             sendMenuAction(focusedWindow, 'heading-1')
           }
@@ -672,6 +681,8 @@ function updateMenu(): void {
         {
           label: 'Heading 2',
           accelerator: 'CmdOrCtrl+2',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.formatting?.heading === 2,
           click: () => {
             sendMenuAction(focusedWindow, 'heading-2')
           }
@@ -679,6 +690,8 @@ function updateMenu(): void {
         {
           label: 'Heading 3',
           accelerator: 'CmdOrCtrl+3',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.formatting?.heading === 3,
           click: () => {
             sendMenuAction(focusedWindow, 'heading-3')
           }
@@ -686,6 +699,8 @@ function updateMenu(): void {
         {
           label: 'Heading 4',
           accelerator: 'CmdOrCtrl+4',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.formatting?.heading === 4,
           click: () => {
             sendMenuAction(focusedWindow, 'heading-4')
           }
@@ -693,6 +708,8 @@ function updateMenu(): void {
         {
           label: 'Heading 5',
           accelerator: 'CmdOrCtrl+5',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.formatting?.heading === 5,
           click: () => {
             sendMenuAction(focusedWindow, 'heading-5')
           }
@@ -700,6 +717,8 @@ function updateMenu(): void {
         {
           label: 'Heading 6',
           accelerator: 'CmdOrCtrl+6',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.formatting?.heading === 6,
           click: () => {
             sendMenuAction(focusedWindow, 'heading-6')
           }
@@ -708,6 +727,8 @@ function updateMenu(): void {
         {
           label: 'Paragraph',
           accelerator: 'CmdOrCtrl+0',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.formatting?.heading === 'paragraph',
           click: () => {
             sendMenuAction(focusedWindow, 'paragraph')
           }
@@ -716,6 +737,7 @@ function updateMenu(): void {
         {
           label: 'Promote Heading',
           accelerator: 'CmdOrCtrl+=',
+          enabled: focusedWindow?.contentInfo?.formatting?.heading !== 1,
           click: () => {
             sendMenuAction(focusedWindow, 'promote-heading')
           }
@@ -723,6 +745,7 @@ function updateMenu(): void {
         {
           label: 'Demote Heading',
           accelerator: 'CmdOrCtrl+-',
+          enabled: focusedWindow?.contentInfo?.formatting?.heading !== 'paragraph',
           click: () => {
             sendMenuAction(focusedWindow, 'demote-heading')
           }
@@ -1105,7 +1128,7 @@ function updateMenu(): void {
           id: 'format-code',
           label: 'Inline Code',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.formatting?.inlinecode,
+          checked: focusedWindow?.contentInfo?.formatting?.inlineCode,
           accelerator: 'CmdOrCtrl+`',
           click: () => {
             sendMenuAction(focusedWindow, 'inline-code')
@@ -2094,7 +2117,7 @@ ipcMain.handle('window-content-changed', async (event, contentInfo: WindowConten
   const window = BrowserWindow.fromWebContents(event.sender);
   if (window) {
     const windowId = window.id;
-    //console.log(`收到窗口 ${windowId} 的内容更新:`, contentInfo);
+    console.log(`收到窗口 ${windowId} 的内容更新:`, contentInfo);
     
     // 更新窗口状态...
     const windowIndex = windows.findIndex(w => w.id === windowId);
@@ -2274,7 +2297,9 @@ ipcMain.handle('show-context-menu', async (event, menuItems: any[], position: { 
         menuItem.visible = item.visible !== false
       }
       if (item.checked) {
-        menuItem.type = 'radio'
+        if ( menuItem.type !== 'radio' && menuItem.type !== 'checkbox' ) {
+          menuItem.type = 'checkbox'
+        }
         menuItem.checked = item.checked !== false
       }
       if (item.role) {
@@ -2324,6 +2349,22 @@ ipcMain.handle('reveal-in-folder', async (event, filePath: string) => {
     shell.showItemInFolder(filePath);
   } catch (error) {
     console.error('Error revealing file in folder:', error);
+    throw error;
+  }
+})
+
+// Open with system default application handler
+ipcMain.handle('open-with-shell', async (event, filePath: string) => {
+  try {
+    // 使用 shell.openPath 用系统默认应用程序打开文件
+    const result = await shell.openPath(filePath);
+    
+    // shell.openPath 返回空字符串表示成功，返回错误信息表示失败
+    if (result) {
+      throw new Error(result);
+    }
+  } catch (error) {
+    console.error('Error opening file with shell:', error);
     throw error;
   }
 })

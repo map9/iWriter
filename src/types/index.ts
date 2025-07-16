@@ -214,6 +214,9 @@ export interface ElectronAPI {
   
   // 在系统文件管理器中显示文件或文件夹
   revealInFolder: (path: string) => Promise<void>
+  
+  // 使用系统默认应用程序打开文件
+  openWithShell: (path: string) => Promise<void>
 }
 
 // 窗口内容信息接口
@@ -222,6 +225,7 @@ export interface WindowContentInfo {
   hasActiveDocument?: boolean
   hasFolderOpen?: boolean
   hasSelection?: boolean
+  undoRedo?: UndoRedoState
   formatting?: FormattingState
 }
 
@@ -232,14 +236,19 @@ export enum ComponentType {
   EXPLORER = 'explorer'
 }
 
+export interface UndoRedoState {
+  undo: boolean
+  redo: boolean
+}
+
 // 格式化状态接口
 export interface FormattingState {
+  heading: string | number
   bold: boolean
   italic: boolean
   underline: boolean
   strikethrough: boolean
   inlineCode: boolean
-  heading?: number
 }
 
 // AI 聊天消息接口

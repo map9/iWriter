@@ -71,4 +71,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Reveal in folder
   revealInFolder: (path: string) => ipcRenderer.invoke('reveal-in-folder', path),
+  
+  // Open with system default application
+  openWithShell: (path: string) => ipcRenderer.invoke('open-with-shell', path),
 })
