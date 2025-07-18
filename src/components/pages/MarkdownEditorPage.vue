@@ -349,6 +349,8 @@ const editor = useEditor({
       getIndex: getHierarchicalIndexes,
       onUpdate: content => {
         tocItems.value = content
+        // Update the app store with TOC data
+        appStore.tocItems = content
       },
     }),
     UndoRedo, Dropcursor, Gapcursor, TrailingNode, 
@@ -532,6 +534,8 @@ watch(() => editor.value, (newEditor) => {
 
 // Cleanup
 onBeforeUnmount(() => {
+  // Clear TOC data when component is destroyed
+  appStore.tocItems = []
   editor.value?.destroy()
 })
 

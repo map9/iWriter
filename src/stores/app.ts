@@ -6,6 +6,7 @@ import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { pathUtils } from '@/utils/pathUtils'
 import { notify } from '@/utils/notifications'
 import type { FileTreeNode, FileTreeSortType } from '@/components/common/tree'
+import type { TableOfContentData } from '@tiptap/extension-table-of-contents'
 
 export const useAppStore = defineStore('app', () => {
   // 文件监听和类型检测
@@ -35,6 +36,9 @@ export const useAppStore = defineStore('app', () => {
   // Search
   const searchQuery = ref('')
   const searchResults = ref<any[]>([])
+  
+  // TOC (Table of Contents) from TipTap editor
+  const tocItems = ref<TableOfContentData>([])
   
   // Computed
   const activeTab = computed(() => {
@@ -1171,6 +1175,7 @@ export const useAppStore = defineStore('app', () => {
     activeTabId,
     searchQuery,
     searchResults,
+    tocItems,
     
     // Computed
     activeTab,

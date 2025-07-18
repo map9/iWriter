@@ -7,57 +7,46 @@
   </template>
 </template>
 
-<script>
+<script setup lang="ts">
 import { TextSelection } from '@tiptap/pm/state'
-import { defineComponent } from 'vue'
+import type { Editor } from '@tiptap/vue-3'
 
 import ToCEmptyState from './ToCEmptyState.vue'
 import ToCItem from './ToCItem.vue'
 
-export default defineComponent({
-  components: {
-    ToCItem,
-    ToCEmptyState,
-  },
+interface Props {
+  items: any[]
+  editor: Editor
+}
 
-  props: {
-    items: {
-      type: Array,
-      default: () => [],
-    },
-    editor: {
-      type: Object,
-      required: true,
-    },
-  },
-
-  methods: {
-    onItemClick(e, id) {
-      if (this.editor) {
-        const element = this.editor.view.dom.querySelector(`[data-toc-id="${id}"`)
-        const pos = this.editor.view.posAtDOM(element, 0)
-
-        // set focus
-        const tr = this.editor.view.state.tr
-
-        tr.setSelection(new TextSelection(tr.doc.resolve(pos)))
-
-        this.editor.view.dispatch(tr)
-
-        this.editor.view.focus()
-
-        // eslint-disable-next-line
-        if (history.pushState) {
-          // eslint-disable-next-line
-          history.pushState(null, null, `#${id}`)
-        }
-
-        window.scrollTo({
-          top: element.getBoundingClientRect().top + window.scrollY,
-          behavior: 'smooth',
-        })
-      }
-    },
-  },
+const props = withDefaults(defineProps<Props>(), {
+  items: () => [],
 })
+
+function onItemClick(e: Event, id: string) {
+  if (props.editor) {
+    const element = props.editor.view.dom.querySelector(`[data-toc-id="${id}"]`)
+    if (!element) return
+    
+    const pos = props.editor.view.posAtDOM(element, 0)
+
+    // set focus
+    const tr = props.editor.view.state.tr
+
+    tr.setSelection(new TextSelection(tr.doc.resolve(pos)))
+
+    props.editor.view.dispatch(tr)
+
+    props.editor.view.focus()
+
+    if (history.pushState) {
+      history.pushState(null, null as any, `#${id}`)
+    }
+
+    window.scrollTo({
+      top: element.getBoundingClientRect().top + window.scrollY,
+      behavior: 'smooth',
+    })
+  }
+}
 </script>

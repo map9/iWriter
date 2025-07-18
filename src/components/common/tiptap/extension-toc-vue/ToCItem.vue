@@ -12,27 +12,26 @@
   </div>
 </template>
 
-<script>
-import { defineComponent } from 'vue'
+<script setup lang="ts">
+interface Props {
+  item: {
+    id: string
+    textContent: string
+    level: number
+    isActive?: boolean
+    isScrolledOver?: boolean
+    itemIndex?: number
+  }
+  index: number
+}
 
-export default defineComponent({
-  props: {
-    item: {
-      type: Object,
-      required: true,
-    },
-    index: {
-      type: Number,
-      required: true,
-    },
-  },
+const props = defineProps<Props>()
 
-  emits: ['item-click'],
+const emit = defineEmits<{
+  'item-click': [event: Event, id: string]
+}>()
 
-  methods: {
-    onItemClick(event) {
-      this.$emit('item-click', event, this.item.id)
-    },
-  },
-})
+function onItemClick(event: Event) {
+  emit('item-click', event, props.item.id)
+}
 </script>
