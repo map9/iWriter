@@ -22,7 +22,14 @@
     
     <!-- TOC Content -->
     <div class="flex-1 overflow-auto table-of-contents">
-      <template v-if="tocItems && tocItems.length > 0">
+      <!-- Loading State -->
+      <div v-if="isLoading" class="p-4 text-center text-gray-500">
+        <div class="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full mx-auto mb-2"></div>
+        <p class="text-sm">Loading outline...</p>
+      </div>
+      
+      <!-- TOC Items -->
+      <template v-else-if="hasItems">
         <div
           v-for="(item, index) in tocItems"
           :key="item.id"
@@ -36,10 +43,10 @@
           <a 
             :href="'#' + item.id" 
             @click.prevent="onItemClick($event, item.id)"
-            :data-item-index="item.itemIndex || (index + 1)"
+            :data-item-index="item.metadata?.itemIndex || (index + 1)"
             class="toc-link"
           >
-            {{ item.textContent }}
+            {{ item.title }}
           </a>
         </div>
       </template>
@@ -47,109 +54,67 @@
       <!-- Empty State -->
       <div v-else class="empty-state p-4 text-center text-gray-500">
         <IconList :size="48" class="mx-auto mb-2 text-gray-400" />
-        <p class="text-sm">No headings found</p>
-        <p class="text-xs text-gray-400 mt-1">
-          Start editing your document to see the outline
+        <p class="text-sm font-medium text-gray-600">{{ emptyStateMessage.title }}</p>
+        <p class="text-xs text-gray-400 mt-1 leading-relaxed">
+          {{ emptyStateMessage.subtitle }}
         </p>
+        <div v-if="emptyStateMessage.showProvider" class="mt-3 pt-2 border-t border-gray-100">
+          <p class="text-xs text-gray-300">
+            Provider: {{ providerInfo.name }}
+          </p>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, inject } from 'vue'
-import { TextSelection } from '@tiptap/pm/state'
-import { useAppStore } from '@/stores/app'
-import type { TableOfContentData } from '@tiptap/extension-table-of-contents'
+import { computed } from 'vue'
+import { useGlobalTocState, useTocProvider } from '@/composables/useTocProvider'
 import {
   IconList,
   IconArrowUp
 } from '@tabler/icons-vue'
 
-// Get the current editor instance from parent component
-const appStore = useAppStore()
-const tocItems = ref<TableOfContentData>([]) 
+// 使用全局 TOC 状态
+const { tocItems, isLoading, hasItems } = useGlobalTocState()
+const { navigateToItem, getProviderInfo } = useTocProvider()
 
-// Get TipTap editor instance from the active MarkdownEditorPage
-const getActiveEditor = () => {
-  // Try to get editor from the active MarkdownEditorPage component
-  try {
-    const editorElement = document.querySelector('.tiptap')
-    if (editorElement && (editorElement as any).__vueParentComponent) {
-      const editorComponent = (editorElement as any).__vueParentComponent
-      return editorComponent?.editor || null
+// 计算属性
+const providerInfo = computed(() => getProviderInfo())
+
+// 不同状态下的空状态消息
+const emptyStateMessage = computed(() => {
+  const info = providerInfo.value
+  if (info.type === 'empty' || info.type === 'none') {
+    return {
+      title: 'No document open',
+      subtitle: 'Open a Markdown document to see its outline',
+      showProvider: false
     }
-  } catch (error) {
-    console.warn('Could not access editor instance:', error)
-  }
-  return null
-}
-
-// Watch for TOC updates from the active editor
-// This will be populated when the MarkdownEditorPage updates its TOC
-watch(() => appStore.tocItems, (newItems) => {
-  if (newItems) {
-    tocItems.value = newItems
+  } else if (info.type === 'markdown') {
+    return {
+      title: 'No headings found',
+      subtitle: 'Add headings (# ## ###) to your document to see the outline',
+      showProvider: true
+    }
   } else {
-    tocItems.value = []
+    return {
+      title: 'No table of contents',
+      subtitle: 'This document type may not support outline generation',
+      showProvider: true
+    }
   }
-}, { immediate: true, deep: true })
+})
 
 function onItemClick(event: Event, id: string) {
-  const editor = getActiveEditor()
-  if (!editor) {
-    // Fallback: scroll to element if editor is not available
-    const element = document.querySelector(`[data-toc-id="${id}"]`)
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-    return
-  }
-
-  try {
-    const element = editor.view.dom.querySelector(`[data-toc-id="${id}"]`)
-    if (!element) return
-
-    const pos = editor.view.posAtDOM(element, 0)
-
-    // Set focus and selection
-    const tr = editor.view.state.tr
-    tr.setSelection(new TextSelection(tr.doc.resolve(pos)))
-    editor.view.dispatch(tr)
-    editor.view.focus()
-
-    // Update URL hash if history API is available
-    if (history.pushState) {
-      history.pushState(null, null as any, `#${id}`)
-    }
-
-    // Smooth scroll to element
-    element.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start'
-    })
-  } catch (error) {
-    console.warn('Failed to scroll to heading:', error)
-    // Fallback: try to find and scroll to element by data attribute
-    const element = document.querySelector(`[data-toc-id="${id}"]`)
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-  }
+  event.preventDefault()
+  navigateToItem(id)
 }
 
 function scrollToTop() {
-  const editor = getActiveEditor()
-  if (editor) {
-    // Scroll editor to top
-    const editorElement = editor.view.dom.closest('.tiptap')
-    if (editorElement) {
-      editorElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-  } else {
-    // Fallback: scroll window to top
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
+  // 滚动到页面顶部
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 </script>
 

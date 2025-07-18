@@ -275,6 +275,8 @@ import TurndownService from 'turndown'
 import { useAppStore } from '@/stores/app'
 import type { FileTab } from '@/types'
 import { notify } from '@/utils/notifications'
+import { MarkdownTocProvider } from '@/services/toc/MarkdownTocProvider'
+import { useTocProvider } from '@/composables/useTocProvider'
 import {
   IconArrowBackUp,
   IconArrowForwardUp,
@@ -317,6 +319,7 @@ interface Props {
 
 const props = defineProps<Props>()
 const appStore = useAppStore()
+const { registerProvider } = useTocProvider()
 
 // Initialize markdown parser and converter
 const turndownService = new TurndownService({
@@ -341,6 +344,7 @@ lowlight.register('js', js)
 lowlight.register('ts', ts)
 
 const tocItems = ref<TableOfContentData>()
+const tocProvider = ref<MarkdownTocProvider | null>(null)
 
 // Create TipTap editor instance
 const editor = useEditor({
@@ -349,8 +353,10 @@ const editor = useEditor({
       getIndex: getHierarchicalIndexes,
       onUpdate: content => {
         tocItems.value = content
-        // Update the app store with TOC data
-        appStore.tocItems = content
+        // Update the TOC provider with new data
+        if (tocProvider.value) {
+          tocProvider.value.updateFromTipTap(content)
+        }
       },
     }),
     UndoRedo, Dropcursor, Gapcursor, TrailingNode, 
@@ -529,13 +535,22 @@ watch(() => editor.value, (newEditor) => {
     
     // Initial update
     updateState()
+    
+    // Initialize TOC provider
+    tocProvider.value = new MarkdownTocProvider(newEditor)
+    registerProvider(tocProvider.value)
   }
 }, { immediate: true })
 
 // Cleanup
 onBeforeUnmount(() => {
-  // Clear TOC data when component is destroyed
-  appStore.tocItems = []
+  // Clear TOC provider
+  if (tocProvider.value) {
+    tocProvider.value.destroy()
+    tocProvider.value = null
+  }
+  registerProvider(null)
+  
   editor.value?.destroy()
 })
 
