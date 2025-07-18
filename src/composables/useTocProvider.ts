@@ -1,4 +1,4 @@
-import { ref, readonly, onUnmounted, type Ref } from 'vue'
+import { ref, readonly, computed, onUnmounted, type Ref } from 'vue'
 import type { TocProvider, TocItem } from '@/types/toc'
 import { EmptyTocProvider } from '@/types/toc'
 
@@ -136,8 +136,8 @@ export function useTocProvider() {
     clearProvider,
     
     // 只读计算属性
-    isEmpty: readonly(ref(() => tocItems.value.length === 0)),
-    itemCount: readonly(ref(() => tocItems.value.length))
+    isEmpty: computed(() => tocItems.value.length === 0),
+    itemCount: computed(() => tocItems.value.length)
   }
 }
 
@@ -149,6 +149,6 @@ export function useGlobalTocState() {
   return {
     tocItems: readonly(tocItems),
     isLoading: readonly(isLoading),
-    hasItems: readonly(ref(() => tocItems.value.length > 0))
+    hasItems: computed(() => tocItems.value.length > 0)
   }
 }
