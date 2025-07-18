@@ -131,7 +131,6 @@ const mainSidebarModes = computed(() => [
 ])
 
 function handleModeClick(mode: string) {
-  // 只有在按钮启用时才允许切换
   if (mode === 'toc' && appStore.tabs.length === 0) {
     return
   }

@@ -228,7 +228,6 @@
 import { ref, toRef, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
-import type { TableOfContentData } from '@tiptap/extension-table-of-contents'
 import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus } from '@tiptap/extensions'
 
 import Document from '@tiptap/extension-document'
@@ -343,7 +342,6 @@ lowlight.register('css', css)
 lowlight.register('js', js)
 lowlight.register('ts', ts)
 
-const tocItems = ref<TableOfContentData>()
 const tocProvider = ref<MarkdownTocProvider | null>(null)
 
 // Create TipTap editor instance
@@ -352,7 +350,6 @@ const editor = useEditor({
     TableOfContents.configure({
       getIndex: getHierarchicalIndexes,
       onUpdate: content => {
-        tocItems.value = content
         // Update the TOC provider with new data
         if (tocProvider.value) {
           tocProvider.value.updateFromTipTap(content)

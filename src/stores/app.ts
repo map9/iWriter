@@ -167,7 +167,10 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function setLeftSidebarMode(mode: SidebarMode) {
-    if (hasOpenFolder.value === false) {
+    if (
+      (mode === SidebarMode.TOC && tabs.value.length === 0) &&
+      (hasOpenFolder.value === false && mode !== SidebarMode.TOC)
+    ) {
       leftSidebarMode.value = SidebarMode.START
     } else { 
       leftSidebarMode.value = mode
