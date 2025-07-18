@@ -66,6 +66,7 @@ export interface FileTab {
   isActive: boolean
   documentType?: DocumentType
   metadata?: FileMetadata
+  tocProvider?: import('@/types/toc').TocProvider
 }
 
 // 文件操作类型枚举

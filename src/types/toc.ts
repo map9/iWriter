@@ -35,10 +35,37 @@ export interface TocProvider {
    * 销毁 provider，清理资源
    */
   destroy(): void
+  
+  /**
+   * 加载状态
+   */
+  isLoading: boolean
+  
+  /**
+   * 重命名TOC项目对应的标题（可选）
+   */
+  renameHeading?(id: string, newText: string): boolean
+  
+  /**
+   * 删除TOC项目对应的标题（可选）
+   */
+  deleteHeading?(id: string): boolean
+  
+  /**
+   * 移动TOC项目（可选）
+   */
+  moveHeading?(dragId: string, dropId: string, position: 'before' | 'after' | 'inside'): boolean
+  
+  /**
+   * 更新TOC数据（用于Markdown类型）
+   */
+  updateFromTipTap?(tipTapTocData: any): void
 }
 
 // 空的 TOC 提供者，用于不支持 TOC 的文档类型
 export class EmptyTocProvider implements TocProvider {
+  isLoading = false
+  
   getTocItems(): TocItem[] {
     return []
   }

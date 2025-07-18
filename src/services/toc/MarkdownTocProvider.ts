@@ -9,6 +9,8 @@ export class MarkdownTocProvider implements TocProvider {
   private tocItems: Ref<TocItem[]>
   private updateCallbacks: Set<(items: TocItem[]) => void>
   private unsubscribeTipTapToc: (() => void) | null = null
+  
+  isLoading = false
 
   constructor(editor: Editor) {
     this.editor = editor
@@ -164,5 +166,155 @@ export class MarkdownTocProvider implements TocProvider {
    */
   getEditor(): Editor {
     return this.editor
+  }
+
+  /**
+   * 重命名TOC项目对应的标题
+   */
+  renameHeading(id: string, newText: string): boolean {
+    if (!this.editor || this.editor.isDestroyed) {
+      console.warn('Editor is not available for renaming')
+      return false
+    }
+
+    try {
+      // 查找对应的标题元素
+      const element = this.editor.view.dom.querySelector(`[data-toc-id="${id}"]`) as HTMLElement
+      if (!element) {
+        console.warn(`Heading element with id "${id}" not found`)
+        return false
+      }
+
+      // 获取标题在编辑器中的位置
+      const pos = this.editor.view.posAtDOM(element, 0)
+      const node = this.editor.view.state.doc.nodeAt(pos)
+      
+      if (!node) {
+        console.warn(`Node at position ${pos} not found`)
+        return false
+      }
+
+      // 计算标题内容的范围
+      const startPos = pos
+      const endPos = pos + node.nodeSize
+      
+      // 更新标题文本
+      const transaction = this.editor.view.state.tr
+      transaction.insertText(newText, startPos + 1, endPos - 1)
+      
+      this.editor.view.dispatch(transaction)
+      
+      return true
+    } catch (error) {
+      console.error('Failed to rename heading:', error)
+      return false
+    }
+  }
+
+  /**
+   * 删除TOC项目对应的标题
+   */
+  deleteHeading(id: string): boolean {
+    if (!this.editor || this.editor.isDestroyed) {
+      console.warn('Editor is not available for deleting')
+      return false
+    }
+
+    try {
+      // 查找对应的标题元素
+      const element = this.editor.view.dom.querySelector(`[data-toc-id="${id}"]`) as HTMLElement
+      if (!element) {
+        console.warn(`Heading element with id "${id}" not found`)
+        return false
+      }
+
+      // 获取标题在编辑器中的位置
+      const pos = this.editor.view.posAtDOM(element, 0)
+      const node = this.editor.view.state.doc.nodeAt(pos)
+      
+      if (!node) {
+        console.warn(`Node at position ${pos} not found`)
+        return false
+      }
+
+      // 删除整个标题节点
+      const transaction = this.editor.view.state.tr
+      transaction.delete(pos, pos + node.nodeSize)
+      
+      this.editor.view.dispatch(transaction)
+      
+      return true
+    } catch (error) {
+      console.error('Failed to delete heading:', error)
+      return false
+    }
+  }
+
+  /**
+   * 移动TOC项目（重排序）
+   */
+  moveHeading(dragId: string, dropId: string, position: 'before' | 'after' | 'inside'): boolean {
+    if (!this.editor || this.editor.isDestroyed) {
+      console.warn('Editor is not available for moving')
+      return false
+    }
+
+    try {
+      // 查找拖拽和目标元素
+      const dragElement = this.editor.view.dom.querySelector(`[data-toc-id="${dragId}"]`) as HTMLElement
+      const dropElement = this.editor.view.dom.querySelector(`[data-toc-id="${dropId}"]`) as HTMLElement
+      
+      if (!dragElement || !dropElement) {
+        console.warn('Drag or drop element not found')
+        return false
+      }
+
+      // 获取节点位置
+      const dragPos = this.editor.view.posAtDOM(dragElement, 0)
+      const dropPos = this.editor.view.posAtDOM(dropElement, 0)
+      
+      const dragNode = this.editor.view.state.doc.nodeAt(dragPos)
+      const dropNode = this.editor.view.state.doc.nodeAt(dropPos)
+      
+      if (!dragNode || !dropNode) {
+        console.warn('Drag or drop node not found')
+        return false
+      }
+
+      // 计算移动的位置
+      let insertPos: number
+      let dragStartPos = dragPos
+      let dragEndPos = dragPos + dragNode.nodeSize
+
+      if (position === 'before') {
+        insertPos = dropPos
+      } else if (position === 'after') {
+        insertPos = dropPos + dropNode.nodeSize
+      } else { // inside - 对于标题，inside等同于after
+        insertPos = dropPos + dropNode.nodeSize
+      }
+
+      // 如果拖拽位置在插入位置之前，需要调整插入位置
+      if (dragStartPos < insertPos) {
+        insertPos -= dragNode.nodeSize
+      }
+
+      // 创建事务来移动节点
+      const transaction = this.editor.view.state.tr
+      
+      // 首先删除拖拽的节点
+      const dragContent = transaction.doc.slice(dragStartPos, dragEndPos)
+      transaction.delete(dragStartPos, dragEndPos)
+      
+      // 然后在新位置插入
+      transaction.insert(insertPos, dragContent.content)
+      
+      this.editor.view.dispatch(transaction)
+      
+      return true
+    } catch (error) {
+      console.error('Failed to move heading:', error)
+      return false
+    }
   }
 }

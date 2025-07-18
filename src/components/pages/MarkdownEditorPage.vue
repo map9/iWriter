@@ -275,7 +275,6 @@ import { useAppStore } from '@/stores/app'
 import type { FileTab } from '@/types'
 import { notify } from '@/utils/notifications'
 import { MarkdownTocProvider } from '@/services/toc/MarkdownTocProvider'
-import { useTocProvider } from '@/composables/useTocProvider'
 import {
   IconArrowBackUp,
   IconArrowForwardUp,
@@ -318,7 +317,6 @@ interface Props {
 
 const props = defineProps<Props>()
 const appStore = useAppStore()
-const { registerProvider } = useTocProvider()
 
 // Initialize markdown parser and converter
 const turndownService = new TurndownService({
@@ -342,7 +340,6 @@ lowlight.register('css', css)
 lowlight.register('js', js)
 lowlight.register('ts', ts)
 
-const tocProvider = ref<MarkdownTocProvider | null>(null)
 
 // Create TipTap editor instance
 const editor = useEditor({
@@ -351,8 +348,8 @@ const editor = useEditor({
       getIndex: getHierarchicalIndexes,
       onUpdate: content => {
         // Update the TOC provider with new data
-        if (tocProvider.value) {
-          tocProvider.value.updateFromTipTap(content)
+        if (props.tab.tocProvider) {
+          props.tab.tocProvider.updateFromTipTap(content)
         }
       },
     }),
@@ -512,13 +509,6 @@ watch(() => props.tab.content, (newContent) => {
   */
 })
 
-// Focus editor when component becomes active
-function focusEditor() {
-  nextTick(() => {
-    editor.value?.commands.focus()
-  })
-}
-
 // Watch for editor state changes and update toolbar
 watch(() => editor.value, (newEditor) => {
   if (newEditor) {
@@ -533,20 +523,19 @@ watch(() => editor.value, (newEditor) => {
     // Initial update
     updateState()
     
-    // Initialize TOC provider
-    tocProvider.value = new MarkdownTocProvider(newEditor)
-    registerProvider(tocProvider.value)
+    // Initialize TOC provider and store it in tab
+    props.tab.tocProvider = new MarkdownTocProvider(newEditor)
   }
 }, { immediate: true })
+
 
 // Cleanup
 onBeforeUnmount(() => {
   // Clear TOC provider
-  if (tocProvider.value) {
-    tocProvider.value.destroy()
-    tocProvider.value = null
+  if (props.tab.tocProvider) {
+    props.tab.tocProvider.destroy()
+    props.tab.tocProvider = undefined
   }
-  registerProvider(null)
   
   editor.value?.destroy()
 })
@@ -950,7 +939,6 @@ defineExpose({
   tab: toRef(props, 'tab'), // 不暴露属性值，在MainView中无法访问到
   handleMenuAction,
   updateMenuFormattingState,
-  focusEditor
 })
 </script>
 
