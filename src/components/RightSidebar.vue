@@ -3,7 +3,7 @@
     <!-- AI Chat Header -->
     <div class="sidebar-header bg-gray-50">
       <div class="flex items-center gap-2">
-        <IconRobot :size="20" class="text-primary-600" />
+        <IconRobot class="w-5 h-5 text-primary-600" />
         <span class="font-medium text-gray-900">AI Chat</span>
       </div>
       <button
@@ -11,7 +11,7 @@
         class="p-1 rounded hover:bg-gray-200 transition-colors"
         title="Close AI Chat"
       >
-        <IconX :size="20" class="text-gray-600" />
+        <IconX class="w-5 h-5 text-gray-600" />
       </button>
     </div>
     
@@ -29,8 +29,8 @@
             class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
             :class="message.role === 'user' ? 'bg-primary-500' : 'bg-gray-500'"
           >
-            <IconUser v-if="message.role === 'user'" :size="20" />
-            <IconRobot v-else :size="20" />
+            <IconUser v-if="message.role === 'user'" class="w-5 h-5" />
+            <IconRobot v-else class="w-5 h-5" />
           </div>
         </div>
         
@@ -88,7 +88,7 @@
               }"
               title="Send Message"
             >
-              <IconSend :size="20" />
+              <IconSend class="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -108,7 +108,7 @@
             class="p-1 rounded hover:bg-gray-200 transition-colors"
             title="Format Message"
           >
-            <IconTextSize :size="20" class="text-gray-600" />
+            <IconTextSize class="w-5 h-5 text-gray-600" />
           </button>
         </div>
         
@@ -117,20 +117,20 @@
             class="p-1 rounded hover:bg-gray-200 transition-colors"
             title="Attach File"
           >
-            <IconPaperclip :size="20" class="text-gray-600" />
+            <IconPaperclip class="w-5 h-5 text-gray-600" />
           </button>
           <button
             class="p-1 rounded hover:bg-gray-200 transition-colors"
             title="Voice Input"
           >
-            <IconMicrophone :size="20" class="text-gray-600" />
+            <IconMicrophone class="w-5 h-5 text-gray-600" />
           </button>
           <button
             @click="clearChat"
             class="p-1 rounded hover:bg-gray-200 transition-colors"
             title="Clear Chat"
           >
-            <IconTrash :size="20" class="text-gray-600" />
+            <IconTrash class="w-5 h-5 text-gray-600" />
           </button>
         </div>
       </div>

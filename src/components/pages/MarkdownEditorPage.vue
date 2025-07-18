@@ -2,23 +2,25 @@
   <div class="h-full flex flex-col bg-white">
     <!-- Editor Toolbar -->
     <div class="editor-toolbar">
+      <!-- Spacer -->
+      <div class="flex-grow flex-shrink flex-basis-0"></div>
       <!-- Undo/Redo Group -->
       <div class="toolbar-group">
         <button
           @click="editor?.chain().focus().undo().run()"
-          :disabled="!editor || !canUndo"
+          :disabled="!editor?.can().undo()"
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Undo (⌘Z)"
         >
-          <IconArrowBackUp :size="20" />
+          <IconArrowBackUp class = "w-5 h-5" />
         </button>
         <button
           @click="editor?.chain().focus().redo().run()"
-          :disabled="!editor || !canRedo"
+          :disabled="!editor?.can().redo()"
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Redo (⌘⇧Z)"
         >
-          <IconArrowForwardUp :size="20" />
+          <IconArrowForwardUp class="w-5 h-5" />
         </button>
       </div>
       
@@ -51,7 +53,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Bold (⌘B)"
         >
-          <IconBold :size="20" />
+          <IconBold class="w-5 h-5" />
         </button>
         <button
           @click="editor?.chain().focus().toggleItalic().run()"
@@ -60,7 +62,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Italic (⌘I)"
         >
-          <IconItalic :size="20" />
+          <IconItalic class="w-5 h-5" />
         </button>
         <button
           @click="editor?.chain().focus().toggleUnderline().run()"
@@ -69,7 +71,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Underline (⌘U)"
         >
-          <IconUnderline :size="20" />
+          <IconUnderline class="w-5 h-5" />
         </button>
         <button
           @click="editor?.chain().focus().toggleStrike().run()"
@@ -78,7 +80,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Strikethrough (⌘⇧X)"
         >
-          <IconStrikethrough :size="20" />
+          <IconStrikethrough class="w-5 h-5" />
         </button>
       </div>
       
@@ -93,7 +95,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Ordered List"
         >
-          <IconListNumbers :size="20" />
+          <IconListNumbers class="w-5 h-5" />
         </button>
         <button
           @click="editor?.chain().focus().toggleBulletList().run()"
@@ -102,7 +104,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Bullet List"
         >
-          <IconList :size="20" />
+          <IconList class="w-5 h-5" />
         </button>
         <button
           @click="editor?.chain().focus().toggleTaskList().run()"
@@ -111,7 +113,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Task List"
         >
-          <IconListCheck :size="20" />
+          <IconListCheck class="w-5 h-5" />
         </button>
       </div>
       
@@ -125,7 +127,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Insert Table"
         >
-          <IconTable :size="20" />
+          <IconTable class="w-5 h-5" />
         </button>
         <button
           @click="insertImage(editor)"
@@ -133,7 +135,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Insert Image"
         >
-          <IconPhoto :size="20" />
+          <IconPhoto class="w-5 h-5" />
         </button>
         <button
           @click="insertAudio(editor)"
@@ -141,7 +143,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Insert Audio"
         >
-          <IconVolume :size="20" />
+          <IconVolume class="w-5 h-5" />
         </button>
         <button
           @click="insertVideo(editor)"
@@ -149,7 +151,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Insert Video"
         >
-          <IconVideo :size="20" />
+          <IconVideo class="w-5 h-5" />
         </button>
         <button
           @click="insertLink(editor)"
@@ -157,7 +159,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Insert Link"
         >
-          <IconLink :size="20" />
+          <IconLink class="w-5 h-5" />
         </button>
       </div>
       
@@ -172,7 +174,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Quote Block"
         >
-          <IconBlockquote :size="20" />
+          <IconBlockquote class="w-5 h-5" />
         </button>
         <button
           @click="insertMathBlock(editor)"
@@ -180,7 +182,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Math Block"
         >
-          <IconMath :size="20" />
+          <IconMath class="w-5 h-5" />
         </button>
         <button
           @click="editor?.chain().focus().toggleCodeBlock().run()"
@@ -189,12 +191,12 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Code Block"
         >
-          <IconCode :size="20" />
+          <IconCode class="w-5 h-5" />
         </button>
       </div>
       
       <!-- Spacer -->
-      <div class="flex-1" />
+      <div class="flex-grow flex-shrink flex-basis-0"></div>
       
       <!-- Fullscreen Button -->
       <div class="toolbar-group">
@@ -204,17 +206,19 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Toggle Fullscreen"
         >
-          <IconMaximize :size="20" />
+          <IconMaximize class="w-5 h-5" />
         </button>
       </div>
     </div>
     
     <!-- TipTap Editor -->
-    <div class="flex-1 overflow-hidden">
-      <EditorContent
-        :editor="editor"
-        class="h-full p-6 focus:outline-none overflow-y-auto editor-scroll-area"
-      />
+    <div class="flex-1 overflow-y-auto scrollbar-thin">
+      <div class="w-full max-w-3xl my-4 mx-auto">
+        <EditorContent
+          :editor="editor"
+          class="w-full px-4"
+        />
+      </div>
     </div>
   </div>
   
@@ -223,20 +227,51 @@
 <script setup lang="ts">
 import { ref, toRef, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
-import StarterKit from '@tiptap/starter-kit'
-import 'katex/dist/katex.min.css'
-import { Math } from '@tiptap/extension-mathematics'
+import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
+import type { TableOfContentData } from '@tiptap/extension-table-of-contents'
+import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus } from '@tiptap/extensions'
+
+import Document from '@tiptap/extension-document'
+import Heading from '@tiptap/extension-heading'
+import Paragraph from '@tiptap/extension-paragraph'
+import Text from '@tiptap/extension-text'
+import TextAlign from '@tiptap/extension-text-align'
+import HorizontalRule from '@tiptap/extension-horizontal-rule'
+
 import { TableKit } from '@tiptap/extension-table'
 import Image from '@tiptap/extension-image'
 import Youtube from '@tiptap/extension-youtube'
-import { ListKit } from '@tiptap/extension-list'
-import { Color, TextStyle, TextStyleKit } from '@tiptap/extension-text-style'
+import FileHandler from '@tiptap/extension-file-handler'
+
+import Blockquote from '@tiptap/extension-blockquote'
+
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import css from 'highlight.js/lib/languages/css'
+import js from 'highlight.js/lib/languages/javascript'
+import ts from 'highlight.js/lib/languages/typescript'
+import html from 'highlight.js/lib/languages/xml'
+import { all, createLowlight } from 'lowlight'
+
+import 'katex/dist/katex.min.css'
+import { Mathematics, migrateMathStrings } from '@tiptap/extension-mathematics'
+
+import { ListItem, BulletList, OrderedList, ListKeymap, TaskItem, TaskList } from '@tiptap/extension-list'
+
+import Bold from '@tiptap/extension-bold'
+import Italic from '@tiptap/extension-italic'
+import Strike from '@tiptap/extension-strike'
+import Underline from '@tiptap/extension-underline'
+import Code from '@tiptap/extension-code'
+import Link from '@tiptap/extension-link'
 import Highlight from '@tiptap/extension-highlight'
 import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
-import Underline from '@tiptap/extension-underline'
+import Typography from '@tiptap/extension-typography'
+import { TextStyleKit } from '@tiptap/extension-text-style'
+
 import { marked } from 'marked'
 import TurndownService from 'turndown'
+
 import { useAppStore } from '@/stores/app'
 import type { FileTab } from '@/types'
 import { notify } from '@/utils/notifications'
@@ -295,44 +330,40 @@ const isLoading = ref(false)
 // Toolbar state
 const currentHeading = ref('paragraph')
 const isFullscreen = ref(false)
-const canUndo = ref(false)
-const canRedo = ref(false)
+
+// create a lowlight instance
+const lowlight = createLowlight(all)
+
+// you can also register languages
+lowlight.register('html', html)
+lowlight.register('css', css)
+lowlight.register('js', js)
+lowlight.register('ts', ts)
+
+const tocItems = ref<TableOfContentData>()
 
 // Create TipTap editor instance
 const editor = useEditor({
   extensions: [
-    Color,
-    TextStyle,
-    
-    StarterKit.configure({
-      // Most extensions like Link, TaskList, etc. are included in StarterKit v3
+    TableOfContents.configure({
+      getIndex: getHierarchicalIndexes,
+      onUpdate: content => {
+        tocItems.value = content
+      },
     }),
-    
-    // Additional extensions
-    Underline,
-    Subscript,
-    Superscript,
-    Highlight.configure({
-      HTMLAttributes: {
-        class: 'highlight'
-      }
+    UndoRedo, Dropcursor, Gapcursor, TrailingNode, 
+    Focus.configure({
+      className: 'has-focus',
+      mode: 'all',
     }),
-    
-    // Math support
-    Math.configure({
-      katexOptions: {
-        displayMode: false
-      }
+
+    Document, Heading, Paragraph, Text, HorizontalRule,
+    TextAlign.configure({
+      types: ['heading', 'paragraph'],
     }),
-    
-    // Table support with full table kit
     TableKit.configure({
+      table: { resizable: true },
     }),
-    
-    // List support
-    ListKit.configure(),
-    
-    // Image support
     Image.configure({
       inline: true,
       allowBase64: true,
@@ -340,8 +371,6 @@ const editor = useEditor({
         class: 'editor-image'
       }
     }),
-    
-    // YouTube support
     Youtube.configure({
       controls: false,
       nocookie: true,
@@ -349,6 +378,96 @@ const editor = useEditor({
         class: 'youtube-embed'
       },
     }),
+    FileHandler.configure({
+      allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
+      onDrop: (currentEditor, files, pos) => {
+        files.forEach(file => {
+          const fileReader = new FileReader()
+
+          fileReader.readAsDataURL(file)
+          fileReader.onload = () => {
+            currentEditor
+              .chain()
+              .insertContentAt(pos, {
+                type: 'image',
+                attrs: {
+                  src: fileReader.result,
+                },
+              })
+              .focus()
+              .run()
+          }
+        })
+      },
+      onPaste: (currentEditor, files, htmlContent) => {
+        files.forEach(file => {
+          const fileReader = new FileReader()
+
+          fileReader.readAsDataURL(file)
+          fileReader.onload = () => {
+            currentEditor
+              .chain()
+              .insertContentAt(currentEditor.state.selection.anchor, {
+                type: 'image',
+                attrs: {
+                  src: fileReader.result,
+                },
+              })
+              .focus()
+              .run()
+          }
+        })
+      },
+    }),
+
+    Blockquote,
+    CodeBlockLowlight.configure({
+      lowlight,
+    }),
+    Mathematics.configure({
+      inlineOptions: {
+        onClick: (node, pos) => {
+          const newCalculation = prompt('Enter new calculation:', node.attrs.latex)
+          if (newCalculation) {
+            editor?.chain().setNodeSelection(pos).updateInlineMath({ latex: newCalculation }).focus().run()
+          }
+        },
+      },
+      blockOptions: {
+        onClick: (node, pos) => {
+          const newCalculation = prompt('Enter new calculation:', node.attrs.latex)
+          if (newCalculation) {
+            editor?.chain().setNodeSelection(pos).updateBlockMath({ latex: newCalculation }).focus().run()
+          }
+        },
+      },
+      // Options for the KaTeX renderer. See here: https://katex.org/docs/options.html
+      katexOptions: {
+        throwOnError: false, // don't throw an error if the LaTeX code is invalid
+        macros: {
+          '\\R': '\\mathbb{R}', // add a macro for the real numbers
+          '\\N': '\\mathbb{N}', // add a macro for the natural numbers
+        },
+      },
+    }),    
+
+
+    BulletList, OrderedList, ListItem, ListKeymap,
+    TaskList,
+    TaskItem.configure({
+      nested: true,
+    }),
+
+    
+    Bold, Italic, Strike, Underline, Code, Link,
+    Subscript, Superscript, Typography,
+    Highlight.configure({
+      HTMLAttributes: {
+        class: 'highlight'
+      }
+    }),
+    
+    TextStyleKit,
   ],
   content: '',
   editorProps: {
@@ -368,13 +487,52 @@ const editor = useEditor({
     updateMenuFormattingState()
   },
   onCreate: ({ editor }) => {
+    migrateMathStrings(editor)
+
     // Load content when editor is created
     loadTabContent(editor).then(() => {
-      // After loading, you may want to clear the undo/redo history here.
-      // TipTap does not provide a clearHistory command by default.
-      // If you need this feature, consider using the History extension's API directly.
+      // After loading, you may want to do something.
+      updateMenuFormattingState()
     })
   }
+})
+
+// Watch for tab content changes
+watch(() => props.tab.content, (newContent) => {
+  /*
+  if (editor.value && !isLoading.value) {
+    console.log('before Tab content loaded:', props.tab.id)
+    loadTabContent(editor.value)
+  }
+  */
+})
+
+// Focus editor when component becomes active
+function focusEditor() {
+  nextTick(() => {
+    editor.value?.commands.focus()
+  })
+}
+
+// Watch for editor state changes and update toolbar
+watch(() => editor.value, (newEditor) => {
+  if (newEditor) {
+    const updateState = () => {
+      updateToolbarState()
+    }
+    
+    // Listen to editor state changes
+    newEditor.on('selectionUpdate', updateState)
+    newEditor.on('transaction', updateState)
+    
+    // Initial update
+    updateState()
+  }
+}, { immediate: true })
+
+// Cleanup
+onBeforeUnmount(() => {
+  editor.value?.destroy()
 })
 
 // Helper functions for file types
@@ -480,8 +638,6 @@ function updateToolbarState() {
   if (!editor.value) return
   
   currentHeading.value = getHeading(editor.value)
-  canUndo.value = editor.value.can().undo()
-  canRedo.value = editor.value.can().redo()
 }
 
 function toggleFullscreen() {
@@ -594,13 +750,34 @@ function handleMenuAction(action: string): boolean {
     case 'task-list':
       editor.value.chain().focus().toggleTaskList().run()
       return true
+    
+    // Toggle Task Status
+    case 'toggle-task-status':
+      //editor.value.chain().focus().toggleTaskList().run()
+      return true
+    case 'complete-task':
+      //editor.value.chain().focus().toggleTaskList().run()
+      editor.value.chain().focus().setCellAttribute('backgroundColor', '#FAF594').run()
+      return true
+    case 'uncomplete-task':
+      //editor.value.chain().focus().toggleTaskList().run()
+      return true
+
 
     // Increase/Decrease List Item Level
     case 'increase-indent':
-      editor.value.chain().focus().liftListItem('listItem').run()
+      if (editor.value.can().sinkListItem('listItem')) {
+        editor.value.chain().focus().sinkListItem('listItem').run()
+      } else if (editor.value.can().sinkListItem('taskItem')) {
+        editor.value.chain().focus().sinkListItem('taskItem').run()
+      }
       return true
     case 'decrease-indent':
-      editor.value.chain().focus().sinkListItem('listItem').run()
+      if (editor.value.can().liftListItem('listItem')) {
+        editor.value.chain().focus().liftListItem('listItem').run()
+      } else if (editor.value.can().liftListItem('taskItem')) {
+        editor.value.chain().focus().liftListItem('taskItem').run()
+      }
       return true
     
     // Insert paragraph above/below
@@ -638,6 +815,31 @@ function handleMenuAction(action: string): boolean {
       editor.value.chain().focus().toggleStrike().run()
       return true
 
+    // Text Align
+    case 'align-left':
+      editor.value.chain().focus().setTextAlign('left').run()
+      return true
+    case 'align-center':
+      editor.value.chain().focus().setTextAlign('center').run()
+      return true
+    case 'align-right':
+      editor.value.chain().focus().setTextAlign('right').run()
+      return true
+    case 'align-justify':
+      editor.value.chain().focus().setTextAlign('justify').run()
+      return true
+
+    // Superscript Subscript Highlight
+    case 'superscript':
+      editor.value.chain().focus().toggleSuperscript().run()
+      return true
+    case 'subscript':
+      editor.value.chain().focus().toggleSubscript().run()
+      return true
+    case 'highlight':
+      editor.value.chain().focus().toggleHighlight().run()
+      return true
+
     case 'inline-code':
       editor.value.chain().focus().toggleCode().run()
       return true
@@ -657,63 +859,75 @@ function handleMenuAction(action: string): boolean {
 // Update menu state
 function updateMenuFormattingState() {
   if (window.electronAPI?.windowContentChange && editor.value) {
+    let textAlign: string = 'left'
+    if (editor.value.isActive({ textAlign: 'left' }))
+      textAlign = 'left'
+    else if (editor.value.isActive({ textAlign: 'center' }))
+      textAlign = 'center'
+    else if (editor.value.isActive({ textAlign: 'right' }))
+      textAlign = 'right'
+    else if (editor.value.isActive({ textAlign: 'justify' }))
+      textAlign = 'justify'
+
     const formatting = {
-      heading: editor.value.isActive('heading') ? editor.value.getAttributes('heading').level : 'paragraph',
       bold: editor.value.isActive('bold'),
       italic: editor.value.isActive('italic'),
       underline: editor.value.isActive('underline'),
+      textAlign: textAlign,
       strikethrough: editor.value.isActive('strike'),
+      script: editor.value.isActive('superscript')? 'superscript' : editor.value.isActive('subscript')? 'subscript' : 'none',
+      highlight: editor.value.isActive('highlight'),
       inlineCode: editor.value.isActive('code'),
     }
+    const undoRedo = {
+      undo: editor.value.can().undo(),
+      redo: editor.value.can().redo(),
+    }
+
+    let contentState = 'paragraph'
+    let [canSink, canLift] = [false, false]
+    if (editor.value.isActive('heading'))
+      contentState = editor.value.getAttributes('heading').level
+    else if (editor.value.isActive('heading'))
+      contentState = 'paragraph'
+    else if (editor.value.isActive('blockquote'))
+      contentState = 'blockquote'
+    else if (editor.value.isActive('bulletList')) {
+      contentState = 'bulletList'
+      canSink = editor.value.can().sinkListItem('listItem')
+      canLift = editor.value.can().liftListItem('listItem')
+    }
+    else if (editor.value.isActive('orderedList')) {
+      contentState = 'orderedList'
+      canSink = editor.value.can().sinkListItem('listItem')
+      canLift = editor.value.can().liftListItem('listItem')
+    }
+    else if (editor.value.isActive('taskList')) {
+      contentState = 'taskList'
+      canSink = editor.value.can().sinkListItem('taskItem')
+      canLift = editor.value.can().liftListItem('taskItem')
+    }
+    else if (editor.value.isActive('codeBlock'))
+      contentState = 'codeBlock'
+    else
+      contentState = 'paragraph'
     
     const context = {
       type: 'tiptap-editor',
       hasActiveDocument: true,
       hasSelection: !editor.value.state.selection.empty,
+      undoRedo,
+      contentState: { 
+        type: contentState,
+        canSink: canSink,
+        canLift: canLift
+      },
       formatting
     }
     
     window.electronAPI.windowContentChange(context)
   }
 }
-
-// Watch for tab content changes
-watch(() => props.tab.content, (newContent) => {
-  /*
-  if (editor.value && !isLoading.value) {
-    console.log('before Tab content loaded:', props.tab.id)
-    loadTabContent(editor.value)
-  }
-  */
-})
-
-// Focus editor when component becomes active
-function focusEditor() {
-  nextTick(() => {
-    editor.value?.commands.focus()
-  })
-}
-
-// Watch for editor state changes and update toolbar
-watch(() => editor.value, (newEditor) => {
-  if (newEditor) {
-    const updateState = () => {
-      updateToolbarState()
-    }
-    
-    // Listen to editor state changes
-    newEditor.on('selectionUpdate', updateState)
-    newEditor.on('transaction', updateState)
-    
-    // Initial update
-    updateState()
-  }
-}, { immediate: true })
-
-// Cleanup
-onBeforeUnmount(() => {
-  editor.value?.destroy()
-})
 
 // Expose methods to parent
 defineExpose({
@@ -727,7 +941,7 @@ defineExpose({
 <style lang="scss">
 /* Toolbar styles */
 .editor-toolbar {
-  @apply flex items-center gap-1 p-2 bg-white w-full;
+  @apply flex items-center gap-1 p-2 bg-white w-full overflow-x-auto scrollbar-hide;
 }
 
 .toolbar-group {
@@ -740,11 +954,17 @@ defineExpose({
 
 /* Modern editor styles */
 .tiptap {
+  color: #888888;
   line-height: 1.6;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
   :first-child {
     margin-top: 0;
+  }
+
+  // Focus styles
+  .has-focus {
+    color: #000000;
   }
 
   /* Heading styles */
@@ -809,19 +1029,71 @@ defineExpose({
   }
 
   pre {
-    background: #1e293b;
+    background: #000000;
     border-radius: 0.5rem;
-    color: #f8fafc;
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    color: #FFFFFF;
+    font-family: 'JetBrainsMono', monospace;
     margin: 1.5rem 0;
-    padding: 1rem;
-    overflow-x: auto;
+    padding: 0.75rem 1rem;
 
     code {
       background: none;
       color: inherit;
-      font-size: 0.875rem;
+      font-size: 0.8rem;
       padding: 0;
+    }
+
+    /* Code styling */
+    .hljs-comment,
+    .hljs-quote {
+      color: #616161;
+    }
+
+    .hljs-variable,
+    .hljs-template-variable,
+    .hljs-attribute,
+    .hljs-tag,
+    .hljs-name,
+    .hljs-regexp,
+    .hljs-link,
+    .hljs-name,
+    .hljs-selector-id,
+    .hljs-selector-class {
+      color: #f98181;
+    }
+
+    .hljs-number,
+    .hljs-meta,
+    .hljs-built_in,
+    .hljs-builtin-name,
+    .hljs-literal,
+    .hljs-type,
+    .hljs-params {
+      color: #fbbc88;
+    }
+
+    .hljs-string,
+    .hljs-symbol,
+    .hljs-bullet {
+      color: #b9f18d;
+    }
+
+    .hljs-title,
+    .hljs-section {
+      color: #faf594;
+    }
+
+    .hljs-keyword,
+    .hljs-selector-tag {
+      color: #70cff8;
+    }
+
+    .hljs-emphasis {
+      font-style: italic;
+    }
+
+    .hljs-strong {
+      font-weight: 700;
     }
   }
 
@@ -914,30 +1186,75 @@ defineExpose({
     }
   }
 
-  /* Table styles */
+  /* Table-specific styling */
   table {
     border-collapse: collapse;
-    margin: 1.5rem 0;
+    margin: 0;
+    overflow: hidden;
     table-layout: fixed;
     width: 100%;
-    
-    td, th {
-      border: 1px solid #e2e8f0;
+
+    td,
+    th {
+      border: 1px solid var(--gray-3);
       box-sizing: border-box;
       min-width: 1em;
-      padding: 0.5rem;
+      padding: 6px 8px;
       position: relative;
       vertical-align: top;
-      
+
       > * {
         margin-bottom: 0;
       }
     }
-    
+
     th {
-      background-color: #f8fafc;
-      font-weight: 600;
+      background-color: var(--gray-1);
+      font-weight: bold;
       text-align: left;
+    }
+
+    .selectedCell:after {
+      background: var(--gray-2);
+      content: '';
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      pointer-events: none;
+      position: absolute;
+      z-index: 2;
+    }
+
+    .column-resize-handle {
+      background-color: var(--purple);
+      bottom: -2px;
+      pointer-events: none;
+      position: absolute;
+      right: -2px;
+      top: 0;
+      width: 4px;
+    }
+  }
+
+  .tableWrapper {
+    margin: 1.5rem 0;
+    overflow-x: auto;
+  }
+
+  &.resize-cursor {
+    cursor: ew-resize;
+    cursor: col-resize;
+  }
+
+  img {
+    display: block;
+    height: auto;
+    margin: 1.5rem 0;
+    max-width: 100%;
+
+    &.ProseMirror-selectednode {
+      outline: 3px solid var(--purple);
     }
   }
 
@@ -960,10 +1277,42 @@ defineExpose({
     border-radius: 2px;
   }
 
-  .math {
-    background-color: #f8f9fa;
-    padding: 2px 4px;
-    border-radius: 2px;
+  // Mathematics extension styles
+  .tiptap-mathematics-render {
+    padding: 0 0.25rem;
+
+    &--editable {
+      cursor: pointer;
+      transition: background 0.2s;
+
+      &:hover {
+        background: #eee;
+      }
+    }
+  }
+
+  .tiptap-mathematics-render {
+    border-radius: 0.25rem;
+
+    &[data-type='inline-math'] {
+      display: inline-block;
+    }
+
+    &[data-type='block-math'] {
+      display: block;
+      margin: 1rem 0;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    &.inline-math-error,
+    &.block-math-error {
+      background: var(--red-light);
+      color: var(--red);
+      border: 1px solid var(--red-dark);
+      padding: 0.5rem;
+      border-radius: 0.25rem;
+    }
   }
 }
 

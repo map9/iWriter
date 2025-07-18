@@ -24,7 +24,7 @@
             }"
             :title="mode.title"
           >
-            <component :is="mode.icon" :size="20" />
+            <component :is="mode.icon" class="w-5 h-5" />
           </button>
           
           <!-- Separator -->
@@ -42,7 +42,7 @@
             }"
             title="Table of Contents"
           >
-            <IconList :size="20" />
+            <IconList class="w-5 h-5" />
           </button>
         </div>
       </div>

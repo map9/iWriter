@@ -9,7 +9,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="缩小"
         >
-          <IconZoomOut :size="20" />
+          <IconZoomOut class="w-5 h-5" />
         </button>
         
         <div class="px-3 py-1 text-sm bg-gray-100 rounded min-w-[80px] text-center">
@@ -22,7 +22,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="放大"
         >
-          <IconZoomIn :size="20" />
+          <IconZoomIn class="w-5 h-5" />
         </button>
         
         <button
@@ -30,7 +30,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors"
           title="适应窗口"
         >
-          <IconZoomReset :size="20" />
+          <IconZoomReset class="w-5 h-5" />
         </button>
       </div>
       
@@ -42,7 +42,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors"
           title="向左旋转"
         >
-          <IconRotate :size="20" class="transform scale-x-[-1]" />
+          <IconRotate class="w-5 h-5 transform scale-x-[-1]" />
         </button>
         
         <button
@@ -50,7 +50,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors"
           title="向右旋转"
         >
-          <IconRotateClockwise :size="20" />
+          <IconRotateClockwise class="w-5 h-5" />
         </button>
       </div>
       

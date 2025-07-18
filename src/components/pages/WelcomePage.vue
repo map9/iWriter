@@ -66,19 +66,4 @@ function openFolder() {
 </script>
 
 <style scoped>
-.btn {
-  @apply px-3 py-1.5 rounded transition-colors font-medium text-sm flex items-center gap-1;
-}
-
-.btn-primary {
-  @apply bg-blue-600 text-white hover:bg-blue-700;
-}
-
-.btn-secondary {
-  @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
-}
-
-.btn-xs {
-  @apply px-2 py-1 text-xs;
-}
 </style>

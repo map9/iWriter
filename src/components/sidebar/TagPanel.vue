@@ -14,7 +14,7 @@
           class="p-1 rounded hover:bg-gray-200 transition-colors"
           title="Refresh Tags"
         >
-          <IconRefresh :size="20" class="text-gray-600" />
+          <IconRefresh class="w-5 h-5 text-gray-600" />
         </button>
       </div>
     </div>
@@ -22,7 +22,7 @@
     <!-- Tag Search -->
     <div class="px-3 border-b border-gray-200 h-12 flex items-center">
       <div class="relative w-full">
-        <IconSearch :size="20" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+        <IconSearch class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
         <input
           v-model="searchQuery"
           type="text"
@@ -47,16 +47,14 @@
           <button class="p-0.5 mr-2 rounded hover:bg-gray-200 transition-colors">
             <IconChevronDown
               v-if="expandedTags.has(tag.name)"
-              :size="20"
-              class="text-gray-500"
+              class="w-5 h-5 text-gray-500"
             />
             <IconChevronRight
               v-else
-              :size="20"
-              class="text-gray-500"
+              class="w-5 h-5 text-gray-500"
             />
           </button>
-          <IconTag :size="20" class="mr-2 text-blue-500" />
+          <IconTag class="w-5 h-5 mr-2 text-blue-500" />
           <span class="flex-1 text-sm font-medium">{{ tag.name }}</span>
           <span class="text-xs text-gray-400">{{ tag.files.length }}</span>
         </div>
@@ -69,7 +67,7 @@
             class="flex items-center px-3 py-1 hover:bg-gray-100 cursor-pointer text-sm"
             @click="openFile(file.path)"
           >
-            <IconFileText :size="20" class="mr-2 text-gray-500" />
+            <IconFileText class="w-5 h-5 mr-2 text-gray-500" />
             <span class="flex-1 truncate">{{ file.name }}</span>
           </div>
         </div>

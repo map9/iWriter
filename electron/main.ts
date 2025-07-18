@@ -5,31 +5,45 @@ import chokidar, { FSWatcher } from 'chokidar'
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
-// 窗口类型定义
-type ComponentType = 'tiptap-editor' | 'image-editor' | 'explorer';
+// 文档类型枚举
+export enum DocumentType {
+  TEXT_EDITOR = 'text-editor',
+  PDF_VIEWER = 'pdf-viewer',
+  IMAGE_VIEWER = 'image-viewer',
+  UNKNOWN = 'unknown'
+}
 
 // 窗口内容信息接口
 interface WindowContentInfo {
-  type: ComponentType
+  type: DocumentType
   hasActiveDocument?: false
   hasFolderOpen?: false
   hasSelection?: boolean
-  undoRedo?: {
-    undo: boolean
-    redo: boolean
-  }
-  formatting?: {
-    heading: string | number
-    bold: boolean
-    italic: boolean
-    underline: boolean
-    strikethrough: boolean
-    inlineCode: boolean
-  }
   view?: {
     leftSidebar?: boolean
     rightSidebar?: boolean
     statusbar?: boolean
+    isFullscreen?: boolean
+    theme?: 'light' | 'dark' | 'auto'
+  }
+  undoRedo?: {
+    undo: boolean
+    redo: boolean
+  }
+  contentState?: {
+    type: string | number
+    canSink?: boolean
+    canLift?: boolean
+  }
+  formatting?: {
+    bold: boolean
+    italic: boolean
+    underline: boolean
+    strikethrough: boolean
+    textAlign: string
+    script: 'superscript' | 'subscript' | 'none',
+    highlight: boolean,
+    inlineCode: boolean
   }
 }
 
@@ -673,7 +687,7 @@ function updateMenu(): void {
           label: 'Heading 1',
           accelerator: 'CmdOrCtrl+1',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.formatting?.heading === 1,
+          checked: focusedWindow?.contentInfo?.contentState?.type === 1,
           click: () => {
             sendMenuAction(focusedWindow, 'heading-1')
           }
@@ -682,7 +696,7 @@ function updateMenu(): void {
           label: 'Heading 2',
           accelerator: 'CmdOrCtrl+2',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.formatting?.heading === 2,
+          checked: focusedWindow?.contentInfo?.contentState?.type === 2,
           click: () => {
             sendMenuAction(focusedWindow, 'heading-2')
           }
@@ -691,7 +705,7 @@ function updateMenu(): void {
           label: 'Heading 3',
           accelerator: 'CmdOrCtrl+3',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.formatting?.heading === 3,
+          checked: focusedWindow?.contentInfo?.contentState?.type === 3,
           click: () => {
             sendMenuAction(focusedWindow, 'heading-3')
           }
@@ -700,7 +714,7 @@ function updateMenu(): void {
           label: 'Heading 4',
           accelerator: 'CmdOrCtrl+4',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.formatting?.heading === 4,
+          checked: focusedWindow?.contentInfo?.contentState?.type === 4,
           click: () => {
             sendMenuAction(focusedWindow, 'heading-4')
           }
@@ -709,7 +723,7 @@ function updateMenu(): void {
           label: 'Heading 5',
           accelerator: 'CmdOrCtrl+5',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.formatting?.heading === 5,
+          checked: focusedWindow?.contentInfo?.contentState?.type === 5,
           click: () => {
             sendMenuAction(focusedWindow, 'heading-5')
           }
@@ -718,7 +732,7 @@ function updateMenu(): void {
           label: 'Heading 6',
           accelerator: 'CmdOrCtrl+6',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.formatting?.heading === 6,
+          checked: focusedWindow?.contentInfo?.contentState?.type === 6,
           click: () => {
             sendMenuAction(focusedWindow, 'heading-6')
           }
@@ -728,24 +742,37 @@ function updateMenu(): void {
           label: 'Paragraph',
           accelerator: 'CmdOrCtrl+0',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.formatting?.heading === 'paragraph',
+          checked: focusedWindow?.contentInfo?.contentState?.type === 'paragraph',
           click: () => {
             sendMenuAction(focusedWindow, 'paragraph')
-          }
-        },
-        { type: 'separator' },
-        {
-          label: 'Promote Heading',
-          accelerator: 'CmdOrCtrl+=',
-          enabled: focusedWindow?.contentInfo?.formatting?.heading !== 1,
-          click: () => {
+            }
+          },
+          { type: 'separator' },
+          {
+            label: 'Promote Heading',
+            accelerator: 'CmdOrCtrl+=',
+            enabled:
+            focusedWindow?.contentInfo?.contentState?.type !== 1 &&
+            (
+              (typeof focusedWindow?.contentInfo?.contentState?.type === 'number' &&
+              focusedWindow?.contentInfo?.contentState?.type >= 2 &&
+              focusedWindow?.contentInfo?.contentState?.type <= 6
+              ) ||
+              focusedWindow?.contentInfo?.contentState?.type === 'paragraph'
+            ),
+            click: () => {
             sendMenuAction(focusedWindow, 'promote-heading')
           }
         },
         {
           label: 'Demote Heading',
           accelerator: 'CmdOrCtrl+-',
-          enabled: focusedWindow?.contentInfo?.formatting?.heading !== 'paragraph',
+          enabled: 
+          focusedWindow?.contentInfo?.contentState?.type !== 'paragraph' &&
+          (typeof focusedWindow?.contentInfo?.contentState?.type === 'number' &&
+          focusedWindow?.contentInfo?.contentState?.type >= 1 &&
+          focusedWindow?.contentInfo?.contentState?.type <= 6
+          ),
           click: () => {
             sendMenuAction(focusedWindow, 'demote-heading')
           }
@@ -856,6 +883,8 @@ function updateMenu(): void {
         {
           label: 'Code Block',
           accelerator: 'CmdOrCtrl+Shift+C',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.contentState?.type === 'codeBlock',
           click: () => {
             sendMenuAction(focusedWindow, 'insert-code-block')
           }
@@ -929,6 +958,8 @@ function updateMenu(): void {
         {
           label: 'Quote Block',
           accelerator: 'CmdOrCtrl+Shift+Q',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.contentState?.type === 'blockquote',
           click: () => {
             sendMenuAction(focusedWindow, 'insert-quote-block')
           }
@@ -937,6 +968,8 @@ function updateMenu(): void {
         {
           label: 'Ordered List',
           accelerator: 'CmdOrCtrl+Shift+O',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.contentState?.type === 'orderedList',
           click: () => {
             sendMenuAction(focusedWindow, 'ordered-list')
           }
@@ -944,6 +977,8 @@ function updateMenu(): void {
         {
           label: 'Bullet List',
           accelerator: 'CmdOrCtrl+Shift+U',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.contentState?.type === 'bulletList',
           click: () => {
             sendMenuAction(focusedWindow, 'bullet-list')
           }
@@ -951,6 +986,8 @@ function updateMenu(): void {
         {
           label: 'Task List',
           accelerator: 'CmdOrCtrl+Shift+X',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.contentState?.type === 'taskList',
           click: () => {
             sendMenuAction(focusedWindow, 'task-list')
           }
@@ -987,6 +1024,11 @@ function updateMenu(): void {
             {
               label: 'Increase Indent',
               accelerator: 'CmdOrCtrl+]',
+              enabled: 
+              (
+                ['bulletList', 'orderedList', 'taskList'].includes(focusedWindow?.contentInfo?.contentState?.type as string) &&
+                focusedWindow?.contentInfo?.contentState?.canSink
+              ),
               click: () => {
                 sendMenuAction(focusedWindow, 'increase-indent')
               }
@@ -994,6 +1036,11 @@ function updateMenu(): void {
             {
               label: 'Decrease Indent',
               accelerator: 'CmdOrCtrl+[',
+              enabled: 
+              (
+                ['bulletList', 'orderedList', 'taskList'].includes(focusedWindow?.contentInfo?.contentState?.type as string) &&
+                focusedWindow?.contentInfo?.contentState?.canLift
+              ),
               click: () => {
                 sendMenuAction(focusedWindow, 'decrease-indent')
               }
@@ -1089,7 +1136,11 @@ function updateMenu(): void {
             {
               label: 'Left Aligned',
               type: 'radio',
-              checked: true,
+              checked: 
+              (
+                !focusedWindow?.contentInfo?.formatting?.textAlign || 
+                focusedWindow?.contentInfo?.formatting?.textAlign === 'left'
+              ),
               click: () => {
                 sendMenuAction(focusedWindow, 'align-left')
               }
@@ -1097,6 +1148,7 @@ function updateMenu(): void {
             {
               label: 'Center Aligned',
               type: 'radio',
+              checked: focusedWindow?.contentInfo?.formatting?.textAlign === 'center',
               click: () => {
                 sendMenuAction(focusedWindow, 'align-center')
               }
@@ -1104,6 +1156,7 @@ function updateMenu(): void {
             {
               label: 'Right Aligned',
               type: 'radio',
+              checked: focusedWindow?.contentInfo?.formatting?.textAlign === 'right',
               click: () => {
                 sendMenuAction(focusedWindow, 'align-right')
               }
@@ -1111,6 +1164,7 @@ function updateMenu(): void {
             {
               label: 'Justified',
               type: 'radio',
+              checked: focusedWindow?.contentInfo?.formatting?.textAlign === 'justify',
               click: () => {
                 sendMenuAction(focusedWindow, 'align-justify')
               }
@@ -1151,12 +1205,16 @@ function updateMenu(): void {
         { type: 'separator' },
         {
           label: 'Superscript',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.formatting?.script === 'superscript',
           click: () => {
             sendMenuAction(focusedWindow, 'superscript')
           }
         },
         {
           label: 'Subscript',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.formatting?.script === 'subscript',
           click: () => {
             sendMenuAction(focusedWindow, 'subscript')
           }
@@ -1164,6 +1222,8 @@ function updateMenu(): void {
         {
           label: 'Highlight',
           accelerator: 'CmdOrCtrl+Shift+H',
+          type: 'checkbox',
+          checked: focusedWindow?.contentInfo?.formatting?.highlight,
           click: () => {
             sendMenuAction(focusedWindow, 'highlight')
           }

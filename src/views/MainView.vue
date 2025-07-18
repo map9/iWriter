@@ -85,6 +85,7 @@
 import { ref, computed } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { DocumentType } from '@/types'
+import { notify } from '@/utils/notifications'
 import TitleBar from '@/components/TitleBar.vue'
 import LeftSidebar from '@/components/LeftSidebar.vue'
 import RightSidebar from '@/components/RightSidebar.vue'
@@ -129,7 +130,7 @@ async function openWithShell(filePath: string | undefined) {
   try {
     await window.electronAPI.openWithShell(filePath)
   } catch (error) {
-    console.error('Failed to open file with shell:', error)
+    notify.success(`${error instanceof Error ? error.message : String(error)}`, '文件操作')
   }
 }
 

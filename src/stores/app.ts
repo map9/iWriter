@@ -237,6 +237,11 @@ export const useAppStore = defineStore('app', () => {
     
     const folderPath = await window.electronAPI.openFolder()
     if (folderPath) {
+      if (folderPath === currentFolder.value) {
+        notify.success(`${folderPath} 已打开`, '文件操作')
+        return
+      }
+
       // Close all tabs since folder is open
       await closeAllTab();
 

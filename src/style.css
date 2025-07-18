@@ -27,23 +27,23 @@
   }
 }
 
-@layer components {
+@layer components {  
   .btn {
-    @apply inline-flex items-center justify-center px-3 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply px-3 py-1.5 rounded transition-colors font-medium text-sm flex items-center gap-1;
   }
-  
+
   .btn-primary {
-    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+    @apply bg-blue-600 text-white hover:bg-blue-700;
   }
-  
+
   .btn-secondary {
-    @apply btn bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500;
+    @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
   }
-  
-  .btn-ghost {
-    @apply btn bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:ring-gray-500;
+
+  .btn-xs {
+    @apply px-2 py-1 text-xs;
   }
-  
+
   .sidebar {
     @apply flex flex-col bg-gray-100 border-r border-gray-200;
   }

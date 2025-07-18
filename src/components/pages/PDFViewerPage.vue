@@ -9,7 +9,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="缩小"
         >
-          <IconZoomOut :size="20" />
+          <IconZoomOut class="w-5 h-5" />
         </button>
         
         <div class="px-3 py-1 text-sm bg-gray-100 rounded min-w-[80px] text-center">
@@ -22,7 +22,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="放大"
         >
-          <IconZoomIn :size="20" />
+          <IconZoomIn class="w-5 h-5" />
         </button>
         
         <button
@@ -30,7 +30,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors"
           title="适应页面"
         >
-          <IconZoomReset :size="20" />
+          <IconZoomReset class="w-5 h-5" />
         </button>
       </div>
       
@@ -43,7 +43,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="上一页"
         >
-          <IconChevronLeft :size="20" />
+          <IconChevronLeft class="w-5 h-5" />
         </button>
         
         <div class="flex items-center gap-2">
@@ -65,7 +65,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="下一页"
         >
-          <IconChevronRight :size="20" />
+          <IconChevronRight class="w-5 h-5" />
         </button>
       </div>
       

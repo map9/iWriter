@@ -15,7 +15,7 @@
           class="p-1 rounded hover:bg-gray-200 transition-colors"
           title="Refresh"
         >
-          <IconRefresh :size="20" class="text-gray-600" />
+          <IconRefresh class="w-5 h-5 text-gray-600" />
         </button>
       </div>
     </div>

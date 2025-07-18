@@ -380,47 +380,56 @@ const showSortContextMenu = async (event: MouseEvent) => {
     {
       id: 'filetree-sort-none',
       label: 'No Sort',
+      type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'none',
     },
     { type: 'separator' },
     {
       id: 'filetree-sort-name-asc',
       label: 'Name (A-Z)',
+      type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'name-asc',
     },
     {
       id: 'filetree-sort-name-desc',
       label: 'Name (Z-A)',
+      type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'name-desc',
     },
     {
       id: 'filetree-sort-type-asc',
       label: 'Type (A-Z)',
+      type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'type-asc',
     },
     {
       id: 'filetree-sort-type-desc',
       label: 'Type (Z-A)',
+      type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'type-desc',
     },
     {
       id: 'filetree-sort-created-asc',
       label: 'Created (Oldest)',
+      type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'created-asc',
     },
     {
       id: 'filetree-sort-created-desc',
       label: 'Created (Newest)',
+      type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'created-desc',
     },
     {
       id: 'filetree-sort-modified-asc',
       label: 'Modified (Oldest)',
+      type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'modified-asc',
     },
     {
       id: 'filetree-sort-modified-desc',
       label: 'Modified (Newest)',
+      type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'modified-desc',
     },
   ]

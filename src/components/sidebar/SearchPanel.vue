@@ -14,7 +14,7 @@
           class="p-1 rounded hover:bg-gray-200 transition-colors"
           title="Search Settings"
         >
-          <IconSettings :size="20" class="text-gray-600" />
+          <IconSettings class="w-5 h-5 text-gray-600" />
         </button>
       </div>
     </div>
@@ -23,7 +23,7 @@
     <div class="px-3 py-3 border-b border-gray-200 space-y-2">
       <!-- Search Input -->
       <div class="relative">
-        <IconSearch :size="16" class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+        <IconSearch class="w-4 h-4 absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
         <input
           v-model="searchQuery"
           type="text"
@@ -34,7 +34,7 @@
       
       <!-- Replace Input -->
       <div class="relative">
-        <IconReplace :size="16" class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+        <IconReplace class="w-4 h-4 absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
         <input
           v-model="replaceQuery"
           type="text"
@@ -59,7 +59,7 @@
           :class="{ 'bg-primary-100 text-primary-700': options.wholeWord, 'text-gray-600 hover:bg-gray-100': !options.wholeWord }"
           title="Match Whole Word"
         >
-          <IconLetterCase :size="16" />
+          <IconLetterCase class="w-4 h-4" />
         </button>
         <button
           @click="toggleOption('regex')"
@@ -90,7 +90,7 @@
         <!-- File Header -->
         <div class="px-3 py-2 bg-gray-25">
           <div class="flex items-center gap-2">
-            <IconFileText :size="20" class="text-gray-500" />
+            <IconFileText class="w-5 h-5 text-gray-500" />
             <span class="text-sm font-medium">{{ result.fileName }}</span>
             <span class="text-xs text-gray-500">{{ result.matchCount }}</span>
           </div>

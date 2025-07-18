@@ -11,13 +11,11 @@
       >
         <IconLayoutSidebarLeftCollapse
           v-if="appStore.showLeftSidebar"
-          :size="20"
-          class="text-gray-600"
+          class="w-5 h-5 text-gray-600"
         />
         <IconLayoutSidebarLeftExpand
           v-else
-          :size="20"
-          class="text-gray-600"
+          class="w-5 h-5 text-gray-600"
         />
       </button>
     </div>
@@ -30,7 +28,7 @@
         class="p-1 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         title="Previous Tab"
       >
-        <IconChevronLeft :size="20" class="text-gray-600" />
+        <IconChevronLeft class="w-5 h-5 text-gray-600" />
       </button>
       <button
         @click="navigateTabs(1)"
@@ -38,7 +36,7 @@
         class="p-1 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         title="Next Tab"
       >
-        <IconChevronRight :size="20" class="text-gray-600" />
+        <IconChevronRight class="w-5 h-5 text-gray-600" />
       </button>
     </div>
 
@@ -94,7 +92,7 @@
           class="p-1 rounded hover:bg-gray-200 transition-colors"
           title="New Tab"
         >
-          <IconPlus :size="20" class="text-gray-600" />
+          <IconPlus class="w-5 h-5 text-gray-600" />
         </button>
       </div>
     </div>
@@ -111,13 +109,11 @@
       >
         <IconLayoutSidebarRightCollapse
           v-if="appStore.showRightSidebar"
-          :size="20"
-          class="text-gray-600"
+          class="w-5 h-5 text-gray-600"
         />
         <IconLayoutSidebarRightExpand
           v-else
-          :size="20"
-          class="text-gray-600"
+          class="w-5 h-5 text-gray-600"
         />
       </button>
     </div>

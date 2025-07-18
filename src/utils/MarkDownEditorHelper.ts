@@ -21,17 +21,23 @@ export function insertTable(editor: Editor | undefined) {
 }
 
 export function insertMathBlock(editor: Editor | undefined) {
-  const latex = prompt('Enter LaTeX expression:')
-  if (latex) {
-    editor?.chain().focus().setBlockMath({ latex }).run()
+  const hasSelection = !editor?.state.selection.empty
+  if (hasSelection) {
+    return editor?.chain().setBlockMath().focus().run()
   }
+
+  const latex = prompt('Enter block math expression:', '') || ''
+  return editor?.chain().insertBlockMath({ latex }).focus().run()
 }
 
 export function insertInlineMath(editor: Editor | undefined) {
-  const latex = prompt('Enter inline math expression:', '')
-  if (latex) {
-    editor?.chain().focus().setInlineMath({ latex }).run()
+  const hasSelection = !editor?.state.selection.empty
+  if (hasSelection) {
+    return editor?.chain().setInlineMath().focus().run()
   }
+
+  const latex = prompt('Enter inline math expression:', '') || ''
+  return editor?.chain().insertInlineMath({ latex }).focus().run()
 }
 
 export function insertImage(editor: Editor | undefined) {
