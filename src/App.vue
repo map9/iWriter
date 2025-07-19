@@ -13,11 +13,11 @@ const router = useRouter()
 const appStore = useAppStore()
 const routerViewRef = ref(null)
 
-function handleMenuAction(action) {
+function handleMenuAction(action: string) {
   const currentRoute = router.currentRoute.value
   const routeComponent = currentRoute.matched[0]?.instances?.default
 
-  if (routeComponent?.handleMenuAction) {
+  if (routeComponent && 'handleMenuAction' in routeComponent && typeof routeComponent.handleMenuAction === 'function') {
     return routeComponent.handleMenuAction(action)
   }
 
@@ -25,6 +25,9 @@ function handleMenuAction(action) {
 }
 
 onMounted(() => {
+  // Initialize theme system
+  appStore.initTheme()
+  
   if (window.electronAPI) {
     window.electronAPI.onMenuAction((action: string) => {
       // Try to handle through editor first

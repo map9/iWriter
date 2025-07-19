@@ -74,4 +74,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Open with system default application
   openWithShell: (path: string) => ipcRenderer.invoke('open-with-shell', path),
+
+  getSystemColors: () => ipcRenderer.invoke('get-system-colors'),
+  onSystemColorsChanged: (callback: (newColors: any) => void) => {
+    ipcRenderer.on('system-colors-changed', (_, newColors) => callback(newColors))
+  },
 })

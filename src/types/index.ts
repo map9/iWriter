@@ -155,7 +155,8 @@ export interface ViewState {
   rightSidebar?: boolean
   statusbar?: boolean
   isFullscreen?: boolean
-  theme?: 'light' | 'dark' | 'auto'
+  theme?: string // 支持任意主题ID
+  themeType?: 'light' | 'dark' | 'system' // 主题类型
 }
 
 export interface UndoRedoState {

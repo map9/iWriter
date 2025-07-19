@@ -1,33 +1,33 @@
 <template>
-  <div class="h-6 bg-primary-600 text-white flex items-center justify-between px-4 text-xs relative">
+  <div class="relative flex h-6 px-4 items-center justify-between bg-blue-600 text-xs text-background-secondary">
     <!-- Notification Overlay (占据整条状态栏) -->
     <div 
       v-if="currentNotification" 
       :class="[
-        'absolute inset-0 flex items-center justify-between px-4 text-xs z-10',
+        'absolute inset-0 flex items-center justify-between px-4 z-10',
         getNotificationBgClass(currentNotification.type),
         { 'animate-pulse': shouldFlash(currentNotification.type) }
       ]"
     >
       <div class="flex items-center gap-2">
-        <component :is="getNotificationIcon(currentNotification.type)" class="w-4 h-4 flex-shrink-0" />
+        <component :is="getNotificationIcon(currentNotification.type)" class="icon-sm flex-shrink-0" />
         <span class="font-medium">{{ getNotificationTitle(currentNotification.type) }}:</span>
         <span>{{ currentNotification.message }}</span>
       </div>
       <button 
         v-if="!isForceClose(currentNotification.type)"
         @click="dismissCurrentNotification" 
-        class="hover:bg-black hover:bg-opacity-20 rounded p-1"
+        class="hover:bg-text-primary hover:bg-opacity-20 rounded p-1"
       >
-        <IconX class="w-3 h-3" />
+        <IconX class="icon-sm" />
       </button>
       <button 
         v-else
         @click="dismissCurrentNotification" 
-        class="hover:bg-black hover:bg-opacity-20 rounded p-1 animate-bounce"
-        title="点击关闭"
+        class="hover:bg-text-primary hover:bg-opacity-20 rounded p-1 animate-bounce"
+        title="Close"
       >
-        <IconX class="w-3 h-3" />
+        <IconX class="icon-sm" />
       </button>
     </div>
 
@@ -182,17 +182,17 @@ function getNotificationTitle(type: NotificationType): string {
 function getNotificationBgClass(type: NotificationType): string {
   switch (type) {
     case NotificationType.SUCCESS:
-      return 'bg-green-600'       // 绿色系
+      return 'bg-status-success'
     case NotificationType.INFORMATION:
-      return 'bg-blue-600'        // 蓝色系
+      return 'bg-status-info'        // 蓝色系
     case NotificationType.WARNING:
-      return 'bg-yellow-600'      // 黄色系
+      return 'bg-status-warning'      // 黄色系
     case NotificationType.ERROR:
-      return 'bg-red-600'         // 红色系
+      return 'bg-status-error'         // 红色系
     case NotificationType.CRITICAL:
-      return 'bg-red-700'         // 红色系 + 更深
+      return 'bg-status-error filter brightness-75'         // 红色系 + 更深
     default:
-      return 'bg-gray-600'
+      return 'bg-status-neutral'
   }
 }
 

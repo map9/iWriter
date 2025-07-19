@@ -1,6 +1,6 @@
 <template>
   <div class="h-full flex flex-col">
-    <div class="flex-1 flex overflow-hidden">
+    <div class="flex-1 flex overflow-hidden bg-background-secondary">
     
       <!-- Left Sidebar -->
       <LeftSidebar v-if="appStore.showLeftSidebar" />
@@ -53,9 +53,9 @@
                   <!-- Fallback for unknown types -->
                   <div v-else class="h-full flex items-center justify-center text-gray-500">
                     <div class="text-center">
-                      <IconAlertTriangle class="w-16 h-16 mx-auto mb-4 text-gray-700" />
-                      <div class="text-xl mb-2">不支持的文件类型</div>
-                      <div class="text-base mx-auto max-w-xl mb-2">The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.</div>
+                      <IconAlertTriangle class="w-16 h-16 mx-auto mb-4 text-status-warning" />
+                      <div class="text-xl mb-2 text-text-secondary">不支持的文件类型</div>
+                      <div class="text-base mx-auto max-w-xl mb-2 text-text-tertiary">The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.</div>
                       <div class="flex gap-3 justify-center">
                         <button 
                           @click="openWithShell(tab.path)"

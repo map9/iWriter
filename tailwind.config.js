@@ -1,35 +1,62 @@
 /** @type {import('tailwindcss').Config} */
+// tailwind.config.js
 module.exports = {
   content: [
-    "./index.html",
-    "./src/**/*.{vue,js,ts,jsx,tsx}",
+    './src/**/*.{js,vue,ts,jsx,tsx}',
+    './src/**/*.html',
   ],
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
+        // 强调色
+        accent: {
+          primary: 'var(--color-accent-primary)',
         },
-        gray: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
+        
+        // 背景色
+        background: {
+          primary: 'var(--color-background-primary)',
+          secondary: 'var(--color-background-secondary)',
+          tertiary: 'var(--color-background-tertiary)',
+          elevated: 'var(--color-background-elevated)'
+        },
+        
+        // 文本色
+        text: {
+          primary: 'var(--color-text-primary)',
+          secondary: 'var(--color-text-secondary)',
+          tertiary: 'var(--color-text-tertiary)',
+          disabled: 'var(--color-text-disabled)'
+        },
+        
+        // 边框色
+        border: {
+          primary: 'var(--color-border-primary)',
+          secondary: 'var(--color-border-secondary)',
+          focus: 'var(--color-border-focus)'
+        },
+        
+        // 交互色
+        interactive: {
+          hover: 'var(--color-interactive-hover)',
+          active: 'var(--color-interactive-active)',
+          selected: 'var(--color-interactive-selected)'
+        },
+        
+        // 状态色
+        status: {
+          success: 'var(--color-status-success)',
+          warning: 'var(--color-status-warning)',
+          error: 'var(--color-status-error)',
+          info: 'var(--color-status-info)',
+          neutral: 'var(--color-status-neutral)'
+        },
+        
+        // 其他色彩
+        other: {
+          link: 'var(--color-other-link)',
+          highlight: 'var(--color-other-highlight)',
+          shadow: 'var(--color-other-shadow)'
         }
       },
       fontFamily: {
@@ -38,5 +65,5 @@ module.exports = {
       }
     },
   },
-  plugins: [],
+  plugins: []
 }

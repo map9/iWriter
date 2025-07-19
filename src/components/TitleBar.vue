@@ -1,21 +1,21 @@
 <template>
-  <div class="flex items-center h-9 bg-gray-50 border-b border-gray-200 select-none w-full drag-region overflow-hidden">
+  <div class="flex items-center h-9 select-none w-full drag-region overflow-hidden bg-background-primary border-b border-border-primary">
     <!-- Window Controls - handled by system traffic lights -->
     <div v-if="!isMaximized && !appStore.showLeftSidebar" class="flex items-center pl-20"></div>
     <!-- Left Sidebar Toggle -->
     <div class="flex items-center flex-shrink-0 no-drag" :class="isMaximized ? 'pl-2 pr-1' : 'px-1'">
       <button
         @click="appStore.toggleLeftSidebar()"
-        class="p-1.5 rounded hover:bg-gray-200 transition-colors"
+        class="toolbar-button"
         title="Toggle Sidebar"
       >
         <IconLayoutSidebarLeftCollapse
           v-if="appStore.showLeftSidebar"
-          class="w-5 h-5 text-gray-600"
+          class="icon-base"
         />
         <IconLayoutSidebarLeftExpand
           v-else
-          class="w-5 h-5 text-gray-600"
+          class="icon-base"
         />
       </button>
     </div>
@@ -25,18 +25,18 @@
       <button
         @click="navigateTabs(-1)"
         :disabled="!canNavigateBack"
-        class="p-1 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        class="toolbar-button"
         title="Previous Tab"
       >
-        <IconChevronLeft class="w-5 h-5 text-gray-600" />
+        <IconChevronLeft class="icon-base" />
       </button>
       <button
         @click="navigateTabs(1)"
         :disabled="!canNavigateForward"
-        class="p-1 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        class="toolbar-button"
         title="Next Tab"
       >
-        <IconChevronRight class="w-5 h-5 text-gray-600" />
+        <IconChevronRight class="icon-base" />
       </button>
     </div>
 
@@ -52,9 +52,8 @@
             :ref="el => { if (tab.isActive) activeTabRef = el as HTMLElement}"
             :class="[
               idx === 0 ? 'border-l' : '',
-              'px-3 py-2 border-r border-gray-200 cursor-pointer flex items-center space-x-2 whitespace-nowrap flex-shrink-0',
-              'min-w-32 max-w-48',
-              tab.isActive ? 'bg-white' : 'hover:bg-gray-100'
+              'flex items-center px-3 py-2 space-x-2 border-r border-border-primary min-w-32 max-w-48 flex-shrink-0',
+              tab.isActive ? 'bg-background-secondary' : 'hover:bg-interactive-hover'
             ]"
             @click="switchTab(tab.id)"
             :title="tab.name"
@@ -62,24 +61,25 @@
             <!-- 文档类型图标（固定宽度） -->
             <component 
               :is="getTabIcon(tab)" 
-              class="w-4 h-4 flex-shrink-0"
+              class="icon-sm flex-shrink-0"
             />
             
             <!-- 标签名称（伸缩部分） -->
-            <span class="flex-1 text-sm whitespace-nowrap overflow-hidden text-ellipsis mr-2">{{ tab.name }}</span>
+            <span class="flex-1 text-sm whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-text-primary">{{ tab.name }}</span>
             
             <!-- 未保存指示器（固定宽度） -->
             <div 
               v-if="tab.isDirty" 
-              class="w-2 h-2 bg-orange-400 rounded-full flex-shrink-0"
+              class="icon-dot flex-shrink-0"
             />
             
             <!-- 关闭按钮（固定宽度） -->
             <button 
               @click.stop="closeTab(tab.id)"
-              class="w-4 h-4 flex items-center justify-center hover:bg-gray-200 rounded flex-shrink-0"
+              class="toolbar-button flex-shrink-0"
+              title="Close Tab"
             >
-              <IconX class="w-3 h-3" />
+              <IconX class="icon-sm" />
             </button>
           </div>
         </div>
@@ -89,10 +89,10 @@
       <div class="flex items-center px-2 flex-shrink-0 no-drag">
         <button
           @click="appStore.createTab(undefined, undefined, '')"
-          class="p-1 rounded hover:bg-gray-200 transition-colors"
+          class="toolbar-button flex-shrink-0"
           title="New Tab"
         >
-          <IconPlus class="w-5 h-5 text-gray-600" />
+          <IconPlus class="icon-base" />
         </button>
       </div>
     </div>
@@ -104,16 +104,16 @@
     <div class="flex items-center px-2 flex-shrink-0 no-drag">
       <button
         @click="appStore.toggleRightSidebar()"
-        class="p-2 rounded hover:bg-gray-200 transition-colors"
+        class="toolbar-button flex-shrink-0"
         title="Toggle AI Chat"
       >
         <IconLayoutSidebarRightCollapse
           v-if="appStore.showRightSidebar"
-          class="w-5 h-5 text-gray-600"
+          class="icon-base"
         />
         <IconLayoutSidebarRightExpand
           v-else
-          class="w-5 h-5 text-gray-600"
+          class="icon-base"
         />
       </button>
     </div>

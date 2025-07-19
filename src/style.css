@@ -13,69 +13,95 @@
   
   body {
     @apply font-sans;
-  }
-  
-  * {
-    box-sizing: border-box;
+    @apply bg-background-primary text-text-primary transition-colors duration-200 ease-in-out;
   }
 
   /* 恢复列表默认样式 */
   ol, ul {
-    list-style: revert;
-    margin: revert;
-    padding: revert;
+    @apply list-disc m-4 pl-5;
+  }
+  
+  /* Custom scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: var(--color-background-secondary);
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-secondary);
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-tertiary);
   }
 }
 
-@layer components {  
-  .btn {
-    @apply px-3 py-1.5 rounded transition-colors font-medium text-sm flex items-center gap-1;
+@layer components {
+  .sidebar {
+    @apply flex flex-col border-r border-border-primary
+  }
+  
+  .sidebar-header {
+    @apply flex items-center bg-background-primary justify-between px-4 h-9 border-b border-border-primary select-none flex-shrink-0
+  }
+  
+  .sidebar-content {
+    @apply flex-1 overflow-hidden;
   }
 
-  .btn-primary {
-    @apply bg-blue-600 text-white hover:bg-blue-700;
+  .button-m {
+    @apply flex items-center justify-center space-x-2 whitespace-nowrap px-3 py-1.5 gap-1 rounded transition-colors font-medium text-sm disabled:opacity-50 disabled:hover:bg-transparent disabled:cursor-not-allowed
   }
 
+  .button-m-primary {
+    @apply bg-accent-primary text-background-secondary hover:bg-interactive-selected
+  }
+  
   .btn-secondary {
-    @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
+    background-color: var(--color-background-secondary);
+    color: var(--color-text-primary);
+    transition: background-color 0.2s ease;
+  }
+  
+  .btn-secondary:hover {
+    background-color: var(--color-interactive-hover);
   }
 
   .btn-xs {
     @apply px-2 py-1 text-xs;
   }
 
-  .sidebar {
-    @apply flex flex-col bg-gray-100 border-r border-gray-200;
+  .toolbar-button {
+    @apply p-1 rounded transition-colors text-text-primary hover:bg-interactive-hover disabled:opacity-50 disabled:hover:bg-transparent disabled:cursor-not-allowed
   }
-  
-  .sidebar-header {
-    @apply flex items-center justify-between px-4 border-b border-gray-200;
-    height: 36px;
+
+  .toolbar-button-primary {
+    @apply bg-accent-primary text-background-secondary hover:bg-interactive-selected
   }
-  
-  .sidebar-content {
-    @apply flex-1 overflow-hidden;
+
+  .icon-base {
+    @apply w-5 h-5
   }
-  
-  .editor-toolbar {
-    @apply flex items-center gap-1 px-4 border-b border-gray-200 bg-white;
-    height: 36px;
+
+  .icon-sm {
+    @apply w-4 h-4
   }
-  
-  .toolbar-group {
-    @apply flex items-center gap-1;
+
+  .icon-xs {
+    @apply w-3 h-3
   }
-  
+
+  .icon-dot {
+    @apply w-2 h-2 rounded-full text-status-warning
+  }
+
   .toolbar-separator {
-    @apply w-px h-4 bg-gray-300 mx-1;
-  }
-
-  .drag-region {
-    -webkit-app-region: drag;
-  }
-
-  .no-drag {
-    -webkit-app-region: no-drag;
+    @apply w-px h-4 mx-1 border-border-primary
   }
 
   .scrollbar-hide::-webkit-scrollbar {
@@ -85,5 +111,46 @@
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+  
+  .editor-toolbar {
+    @apply flex items-center gap-1 px-4;
+    background-color: var(--color-background-primary);
+    border-bottom: 1px solid var(--color-border-primary);
+    height: 36px;
+  }
+  
+  .toolbar-group {
+    @apply flex items-center gap-1;
+  }
+  
+  
+  
+  /* Theme-aware styling using CSS variables */
+  .theme-input {
+    background-color: var(--color-background-primary);
+    border-color: var(--color-border-primary);
+    color: var(--color-text-primary);
+  }
+  
+  .theme-text-muted {
+    color: var(--color-text-tertiary);
+  }
+  
+  
+  .theme-active {
+    background-color: var(--color-interactive-active);
+  }
+  
+  .theme-border {
+    border-color: var(--color-border-primary);
   }
 }

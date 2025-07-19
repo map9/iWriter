@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, shell } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog, shell, systemPreferences, nativeTheme } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import chokidar, { FSWatcher } from 'chokidar'
@@ -24,7 +24,7 @@ interface WindowContentInfo {
     rightSidebar?: boolean
     statusbar?: boolean
     isFullscreen?: boolean
-    theme?: 'light' | 'dark' | 'auto'
+    theme?: 'system' | 'light' | 'dark' | 'ocean' | 'forest' | 'sunset'
   }
   undoRedo?: {
     undo: boolean
@@ -49,13 +49,18 @@ interface WindowContentInfo {
 
 // 窗口状态接口
 interface WindowState {
-  id: number;
-  window: BrowserWindow;
-  contentInfo?: WindowContentInfo;
+  id: number
+  window: BrowserWindow
+  contentInfo?: WindowContentInfo
 }
 
 interface GlobalParameters {
-  autoSave: boolean;
+  autoSave: boolean
+}
+
+interface ThemeListener{
+  type: string
+  handler: any 
 }
 
 let windows: WindowState[] = [];
@@ -66,6 +71,7 @@ let g: GlobalParameters = {
 
 // 文件监听器管理
 const fileWatchers: Map<string, FSWatcher> = new Map();
+const themeListeners: ThemeListener[] = []
 
 // Send menu action to the focused window
 function sendMenuAction(focusedWindow: WindowState | undefined, action: string) {
@@ -136,6 +142,8 @@ function createWindow(): BrowserWindow {
 
   window.once('ready-to-show', () => {
     window.show()
+
+    //console.log(getSystemColors())
 
     // Handle window state changes after window is ready
     window.on('enter-full-screen', handleEnterFullScreen)
@@ -1641,7 +1649,7 @@ function updateMenu(): void {
             {
               label: 'Follow System',
               type: 'radio',
-              checked: true,
+              checked: focusedWindow?.contentInfo?.view?.theme === 'system',
               click: () => {
                 sendMenuAction(focusedWindow, 'view-theme-follow-system')
               }
@@ -1650,15 +1658,42 @@ function updateMenu(): void {
             {
               label: 'Light',
               type: 'radio',
+              checked: focusedWindow?.contentInfo?.view?.theme === 'light',
               click: () => {
                 sendMenuAction(focusedWindow, 'view-theme-light')
               }
             },
             {
-              label: 'Night',
+              label: 'Dark',
               type: 'radio',
+              checked: focusedWindow?.contentInfo?.view?.theme === 'dark',
               click: () => {
-                sendMenuAction(focusedWindow, 'view-theme-night')
+                sendMenuAction(focusedWindow, 'view-theme-dark')
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Ocean',
+              type: 'radio',
+              checked: focusedWindow?.contentInfo?.view?.theme === 'ocean',
+              click: () => {
+                sendMenuAction(focusedWindow, 'view-theme-ocean')
+              }
+            },
+            {
+              label: 'Forest',
+              type: 'radio',
+              checked: focusedWindow?.contentInfo?.view?.theme === 'forest',
+              click: () => {
+                sendMenuAction(focusedWindow, 'view-theme-forest')
+              }
+            },
+            {
+              label: 'Sunset',
+              type: 'radio',
+              checked: focusedWindow?.contentInfo?.view?.theme === 'sunset',
+              click: () => {
+                sendMenuAction(focusedWindow, 'view-theme-sunset')
               }
             }
           ]
@@ -2429,8 +2464,134 @@ ipcMain.handle('open-with-shell', async (event, filePath: string) => {
   }
 })
 
+// 获取系统颜色
+// 需要做跨平台的适配
+function getSystemColors() {  
+  let colors = null
+  
+  try {
+    if (process.platform === 'darwin') {
+      colors = {
+        // 风格色
+        accent: {
+          primary: systemPreferences.getAccentColor(),
+        },
+        // 背景色
+        background: {
+          primary: systemPreferences.getColor('window-background'),
+          secondary: systemPreferences.getColor('control-background'),
+          tertiary: systemPreferences.getColor('under-page-background'),
+          elevated: systemPreferences.getColor('selected-text-background')
+        },
+        // 文本色
+        text: {
+          primary: systemPreferences.getColor('label'),
+          secondary: systemPreferences.getColor('secondary-label'),
+          tertiary: systemPreferences.getColor('tertiary-label'),
+          disabled: systemPreferences.getColor('quaternary-label')
+        },
+        // 边框和分隔线
+        border: {
+          primary: systemPreferences.getColor('separator'),
+          secondary: systemPreferences.getColor('grid'),
+          focus: systemPreferences.getColor('keyboard-focus-indicator')
+        },
+        interactive: {
+        // 交互色
+          active: systemPreferences.getColor('selected-text'),
+          selected: systemPreferences.getColor('selected-content-background')
+        },
+        other: {
+          link: systemPreferences.getColor('link'),
+          highlight: systemPreferences.getColor('find-highlight'),
+          shadow: systemPreferences.getColor('shadow'),
+        }
+      }
+    } else if (process.platform === 'win32') {
+      console.warn('need to fixed')
+
+    } else {
+      console.warn('need to fixed')
+    }
+  } catch (error) {
+    console.warn('获取系统颜色失败:', error)
+  }
+
+  return colors
+}
+
+function setupThemeListeners() {
+  if (process.platform === 'darwin') {
+    const themeHandler = () => {
+      const theme = systemPreferences.getEffectiveAppearance()
+      // 系统主题改变时的回调
+      const newColors = getSystemColors()
+      windows.forEach((w)=>{
+        if (w.window) {
+          w.window.webContents.send('system-colors-changed', theme, newColors);
+        }
+      })
+    }
+    // macOS: 使用 systemPreferences.subscribeNotification
+    const themeId = systemPreferences.subscribeNotification('AppleInterfaceThemeChangedNotification', themeHandler)
+    const colorId = systemPreferences.subscribeNotification('AppleColorPreferencesChangedNotification', themeHandler)
+    
+    themeListeners.push({ type: 'notification', handler: themeId })
+    themeListeners.push({ type: 'notification', handler: colorId })
+    
+  } else if (process.platform === 'win32') {
+    // Windows: 使用 nativeTheme 事件
+    const themeHandler = () => {
+      const newColors = getSystemColors()
+      const theme = nativeTheme.shouldUseDarkColors
+      windows.forEach((w)=>{
+        if (w.window) {
+          w.window.webContents.send('system-colors-changed', {theme, newColors});
+        }
+      })
+    }
+    
+    nativeTheme.on('updated', themeHandler)
+    themeListeners.push({ type: 'event', handler: themeHandler })
+    
+  } else if (process.platform === 'linux') {
+    // Linux: 可以使用 nativeTheme 或者监听 GTK 主题变化
+    const themeHandler = () => {
+      const theme = nativeTheme.shouldUseDarkColors
+      // Linux 下的系统颜色获取比较有限
+      windows.forEach((w)=>{
+        if (w.window) {
+          w.window.webContents.send('system-colors-changed', theme, null);
+        }
+      })
+    }
+    
+    nativeTheme.on('updated', themeHandler)
+    themeListeners.push({ type: 'event', handler: themeHandler })
+  }
+}
+
+function removeThemeListeners() {
+  themeListeners.forEach(listener => {
+    if (listener.type === 'notification') {
+      // macOS 通知取消
+      systemPreferences.unsubscribeNotification(listener.handler)
+    } else if (listener.type === 'event') {
+      // Windows/Linux 事件取消
+      nativeTheme.removeListener('updated', listener.handler)
+    }
+  })
+  themeListeners.length = 0
+}
+
+// 向渲染进程提供系统颜色
+ipcMain.handle('get-system-colors', () => {
+  return getSystemColors()
+})
+
 app.whenReady().then(() => {
   createWindow()
+  setupThemeListeners()
 })
 
 app.on('activate', function () {
@@ -2440,13 +2601,16 @@ app.on('activate', function () {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  if (process.platform !== 'darwin'){
+    app.quit()
+    removeThemeListeners()
+  }
 });
 
 app.on('before-quit', async () => {
   // 清理所有文件监听器
   const promises = Array.from(fileWatchers.values()).map(watcher => watcher.close());
-  await Promise.all(promises);
-  fileWatchers.clear();
-  console.log('All file watchers cleaned up on app quit');
+  await Promise.all(promises)
+  fileWatchers.clear()
+  removeThemeListeners()
 });

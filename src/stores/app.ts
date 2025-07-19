@@ -6,6 +6,7 @@ import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { pathUtils } from '@/utils/pathUtils'
 import { notify } from '@/utils/notifications'
 import type { FileTreeNode, FileTreeSortType } from '@/components/common/tree'
+import { availableThemes, getThemeById, applyThemeColors, getSystemColors, type Theme } from '@/utils/themes'
 
 export const useAppStore = defineStore('app', () => {
   // 文件监听和类型检测
@@ -19,6 +20,16 @@ export const useAppStore = defineStore('app', () => {
   const leftSidebarWidth = ref(288) // 默认宽度
   const minSidebarWidth = 256 // 最小宽度 - 对应TOC按钮右边缘
   const autoSave = ref(true)
+  
+  // Theme System
+  const currentThemeId = ref<string>('system')
+  const systemPrefersDark = ref(false)
+  
+  // 动态导入主题系统
+  const themeModule = computed(() => {
+    // 这里使用动态导入以避免循环依赖
+    return import('@/utils/themes')
+  })
   
   // Folder and Files
   const currentFolder = ref<string | null>(null)
@@ -91,6 +102,19 @@ export const useAppStore = defineStore('app', () => {
         },
       })
     }
+  }, { immediate: true })
+
+  // Update menu when theme changes
+  watch(() => currentThemeId.value, (themeId) => {
+    if (window.electronAPI?.windowContentChange) {
+      window.electronAPI.windowContentChange({
+        type: 'tiptap-editor',
+        view: {
+          theme: themeId,
+        },
+      })
+    }
+    applyCurrentTheme()
   }, { immediate: true })
 
   // Update menu when tabs change
@@ -1089,6 +1113,66 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  // Theme System Functions
+  function initTheme() {
+    // Load saved theme preference
+    const savedThemeId = localStorage.getItem('iwriter-theme') || 'system'
+    const theme = getThemeById(savedThemeId)
+    
+    if (theme) {
+      currentThemeId.value = savedThemeId
+    } else {
+      // Fallback to system theme if saved theme is not found
+      currentThemeId.value = 'system'
+    }
+    
+    // Detect system theme preference
+    if (window.matchMedia) {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+      systemPrefersDark.value = mediaQuery.matches
+      
+      // Listen for system theme changes
+      mediaQuery.addEventListener('change', (e) => {
+        systemPrefersDark.value = e.matches
+        // Re-apply theme if current theme is system
+        const currentTheme = getThemeById(currentThemeId.value)
+        if (currentTheme?.isSystem) {
+          applyCurrentTheme()
+        }
+      })
+    }
+    
+    // Apply initial theme
+    applyCurrentTheme()
+  }
+  
+  function setTheme(themeId: string) {
+    const theme = getThemeById(themeId)
+    if (!theme) {
+      notify.error(`主题 ${themeId} 不存在`, '主题设置错误')
+      return
+    }
+    
+    currentThemeId.value = themeId
+    localStorage.setItem('iwriter-theme', themeId)
+    applyCurrentTheme()
+  }
+  
+  function applyCurrentTheme() {
+    const theme = getThemeById(currentThemeId.value)
+    if (!theme) return
+    
+    applyThemeColors(theme)
+  }
+  
+  function getCurrentTheme(): Theme | undefined {
+    return getThemeById(currentThemeId.value)
+  }
+  
+  function getAvailableThemes(): Theme[] {
+    return availableThemes
+  }
+
   // Handle menu actions for the application
   // There are Paragraph / Format Menu Actions handled in MarkdownEditor.vue
   async function handleMenuAction(action: string): Promise<boolean> {
@@ -1149,6 +1233,28 @@ export const useAppStore = defineStore('app', () => {
         setLeftSidebarMode(SidebarMode[mode.toUpperCase() as keyof typeof SidebarMode])
         return true
       
+      case 'view-theme-follow-system':
+        setTheme('system')
+        return true
+      case 'view-theme-light':
+        setTheme('light')
+        return true
+      case 'view-theme-dark':
+        setTheme('dark')
+        return true
+      case 'view-theme-ocean':
+        setTheme('ocean')
+        return true
+      case 'view-theme-forest':
+        setTheme('forest')
+        return true
+      case 'view-theme-sunset':
+        setTheme('sunset')
+        return true
+      case 'view-theme-settings':
+        notify.info('主题设置', '使用 视图 > 主题 子菜单来更换主题')
+        return true
+      
       default:
         console.log('Unhandled menu action in app:', action)
         return false
@@ -1166,6 +1272,8 @@ export const useAppStore = defineStore('app', () => {
     leftSidebarWidth,
     minSidebarWidth,
     autoSave,
+    currentThemeId,
+    systemPrefersDark,
     currentFolder,
     fileTree,
     selectedItem,
@@ -1187,6 +1295,13 @@ export const useAppStore = defineStore('app', () => {
     setLeftSidebarWidth,
     toggleAutoSave,
     updateWindowTitle,
+    
+    // Theme actions
+    initTheme,
+    setTheme,
+    applyCurrentTheme,
+    getCurrentTheme,
+    getAvailableThemes,
 
     // File operations
     openFile,

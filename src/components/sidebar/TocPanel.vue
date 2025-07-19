@@ -1,9 +1,9 @@
 <template>
   <div class="h-full flex flex-col">
     <!-- TOC Header -->
-    <div class="sidebar-header h-9">
+    <div class="sidebar-header h-9 flex-shrink-0 select-none">
       <div class="flex items-center gap-2">
-        <span class="text-xs font-medium text-gray-700 uppercase tracking-wide">
+        <span class="text-xs font-medium text-text-primary uppercase tracking-wide">
           Table of Contents
         </span>
       </div>
@@ -12,35 +12,35 @@
       <div class="flex items-center gap-1">
         <button
           @click="toggleNumbering"
-          class="p-1 rounded hover:bg-gray-200 transition-colors"
-          :class="{ 'bg-blue-100 text-blue-600': showNumbering }"
+          class="toolbar-button"
+          :class="{ 'toolbar-button-primary': showNumbering }"
           title="Toggle Numbering"
         >
-          <IconNumbers class="w-4 h-4" />
+          <IconNumbers class="icon-sm" />
         </button>
         <button
           @click="toggleExpandAll"
-          class="p-1 rounded hover:bg-gray-200 transition-colors"
+          class="toolbar-button"
           title="Toggle Expand/Collapse All"
         >
-          <IconChevronDown class="w-4 h-4 text-gray-600" />
+          <IconChevronDown class="icon-sm" />
         </button>
         <button
           @click="scrollToTop"
-          class="p-1 rounded hover:bg-gray-200 transition-colors"
+          class="toolbar-button"
           title="Scroll to Top"
         >
-          <IconArrowUp class="w-4 h-4 text-gray-600" />
+          <IconArrowUp class="icon-sm" />
         </button>
       </div>
-    </div>
+   </div>
     
     <!-- TOC Content -->
     <div class="flex-1 overflow-hidden">
       <!-- Loading State -->
-      <div v-if="isLoading" class="p-4 text-center text-gray-500">
-        <div class="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full mx-auto mb-2"></div>
-        <p class="text-sm">Loading outline...</p>
+      <div v-if="isLoading" class="p-4 text-center text-text-primary">
+        <div class="animate-spin w-6 h-6 border-2 border-gray-300 border-t-border-primary rounded-full mx-auto mb-2"></div>
+        <p class="text-sm">Loading table of contents...</p>
       </div>
       
       <!-- TOC Tree -->
@@ -53,13 +53,13 @@
       />
       
       <!-- Empty State -->
-      <div v-else class="empty-state p-4 text-center text-gray-500">
-        <IconList :size="48" class="mx-auto mb-2 text-gray-400" />
-        <p class="text-sm font-medium text-gray-600">{{ emptyStateMessage.title }}</p>
-        <p class="text-xs text-gray-400 mt-1 leading-relaxed">
+      <div v-else class="p-4 text-center select-none">
+        <IconList class="w-12 h-12 mx-auto mb-2 text-text-primary" />
+        <p class="text-sm font-medium text-text-secondary">{{ emptyStateMessage.title }}</p>
+        <p class="text-xs text-text-tertiary mt-1 leading-relaxed">
           {{ emptyStateMessage.subtitle }}
         </p>
-        <div v-if="emptyStateMessage.showProvider" class="mt-3 pt-2 border-t border-gray-100">
+        <div v-if="emptyStateMessage.showProvider" class="mt-3 pt-2 border-t text-text-tertiary">
           <p class="text-xs text-gray-300">
             Provider: {{ providerInfo.name }}
           </p>
@@ -315,9 +315,3 @@ function scrollToTop() {
   }
 }
 </script>
-
-<style scoped>
-.empty-state {
-  @apply text-gray-500 select-none;
-}
-</style>

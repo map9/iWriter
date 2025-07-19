@@ -4,7 +4,7 @@
     <!-- Explorer Header -->
     <div class="sidebar-header h-9 flex-shrink-0 select-none">
       <div class="flex items-center gap-2">
-        <span class="text-xs font-medium text-gray-700 uppercase tracking-wide">
+        <span class="text-xs font-medium text-text-primary uppercase tracking-wide">
           EXPLORER
         </span>
       </div>
@@ -13,29 +13,29 @@
       <div class="flex items-center gap-1">
         <button
           @click="appStore.openFolder"
-          class="p-1 rounded hover:bg-gray-200 transition-colors"
+          class="toolbar-button"
           title="Open Folder"
         >
-          <IconFolderOpen class="w-4 h-4 text-gray-700" />
+          <IconFolderOpen class="icon-sm" />
         </button>
         <button
-          class="p-1 rounded hover:bg-gray-200 transition-colors"
+          class="toolbar-button"
           title="More actions"
         >
-          <IconDots class="w-4 h-4 text-gray-700" />
+          <IconDots class="icon-sm" />
         </button>
       </div>
     </div>
 
     <!-- Search Files -->
-    <div class="flex items-center h-9 flex-shrink-0 select-none px-3 border-b border-gray-200 ">
-      <div class="relative w-full">
-        <IconSearch class="w-4 h-4 absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+    <div class="flex items-center h-9 px-3 border-b border-border-primary select-none flex-shrink-0">
+      <div class="relative w-full bg-background-secondary">
+        <IconSearch class="icon-sm absolute left-2 top-1/2 transform -translate-y-1/2 text-text-secondary" />
         <input
           v-model="searchQuery"
           type="text"
           placeholder="Search Files"
-          class="w-full pl-7 pr-3 h-6 text-sm border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent"
+          class="w-full pl-7 pr-3 h-6 text-sm bg-transparent border border-border-primary focus:outline-none focus:ring-1 focus:ring-border-focus focus:border-transparent"
         />
       </div>
     </div>
@@ -47,12 +47,12 @@
     >
       <div 
         v-if="hasRootFolder"
-        class="flex items-center justify-between h-9 flex-shrink-0 select-none p-1 bg-gray-100 border-b border-gray-200"
+        class="flex items-center justify-between h-9 p-1 select-none flex-shrink-0"
       >
         <div class="flex items-center ml-2">
           <!-- Root Folder Icon and Name -->
-          <IconFolder class="w-4 h-4 mr-2" />
-          <span class="text-sm font-medium text-gray-700">{{ folderName }}</span>
+          <IconFolder class="icon-sm mr-2" />
+          <span class="text-sm font-medium text-text-primary">{{ folderName }}</span>
         </div>
         
         <!-- Action Buttons -->
@@ -63,46 +63,46 @@
           <!-- Create File -->
           <button
             @click="createFile"
-            class="action-btn p-1 hover:bg-gray-200 rounded"
+            class="toolbar-button p-1"
             title="Create File"
           >
-            <IconFilePlus class="w-4 h-4" />
+            <IconFilePlus class="icon-sm" />
           </button>
           
           <!-- Create Folder -->
           <button
             @click="createFolder"
-            class="action-btn p-1 hover:bg-gray-200 rounded"
+            class="toolbar-button p-1"
             title="Create Folder"
           >
-            <IconFolderPlus class="w-4 h-4" />
+            <IconFolderPlus class="icon-sm" />
           </button>
           
           <!-- Sort Menu -->
           <button
             @click="showSortContextMenu"
-            class="action-btn flex items-center gap-1 px-1 py-1 hover:bg-gray-200 rounded text-gray-700"
+            class="flex items-center toolbar-button p-1 gap-1 px-1 py-1"
             title="Sort"
           >
-            <IconArrowsSort class="w-4 h-4" />
-            <IconChevronDown class="w-3 h-3" />
+            <IconArrowsSort class="icon-sm" />
+            <IconChevronDown class="icon-xs" />
           </button>
           
           <!-- Expand/Collapse All -->
           <button
             @click="collapseAll"
-            class="action-btn p-1 hover:bg-gray-200 rounded"
+            class="toolbar-button p-1"
             title="Collapse All"
             :disabled="!hasRootFolder"
           >
-            <IconFoldUp class="w-4 h-4 text-gray-600" />
+            <IconFoldUp class="icon-sm" />
           </button>
         </div>
       </div>
 
       <!-- Tree Content -->
       <div 
-        class="flex-1  bg-white transition-all duration-200"
+        class="flex-1 transition-all duration-200"
         :class="[
           isTreeHovered ? 'overflow-auto' : 'overflow-hidden'
         ]"
@@ -119,7 +119,7 @@
           @contextmenu="handleContextMenu"
         />
       </div>
-    </div>  
+    </div>
   </div>
 </template>
 
@@ -648,70 +648,3 @@ const handleNodeDrop = (data: { dragNode: any; dropNode: any; position: string }
 }
 
 </script>
-
-<style scoped>
-.workspace-file-tree {
-  @apply bg-white border border-gray-200 overflow-hidden;
-}
-
-.workspace-root-header {
-  @apply border-b border-gray-200;
-}
-
-.action-btn {
-  @apply transition-colors duration-200;
-}
-
-.action-btn:disabled {
-  @apply opacity-50 cursor-not-allowed;
-}
-
-.sort-menu {
-  min-width: 180px;
-}
-
-.context-menu {
-  min-width: 150px;
-}
-
-.context-menu-item {
-  font-size: 0.875rem;
-  border: none;
-  background: none;
-  cursor: pointer;
-}
-
-.context-menu-item:hover {
-  background-color: #f3f4f6;
-}
-
-.tree-wrapper {
-  @apply pl-1 pr-1;
-}
-
-/* 自定义滚动条样式 */
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scrollbar-thumb-gray-400::-webkit-scrollbar-thumb {
-  background-color: rgb(156 163 175);
-  border-radius: 3px;
-}
-
-.scrollbar-thumb-gray-400:hover::-webkit-scrollbar-thumb {
-  background-color: rgb(107 114 128);
-}
-
-/* Firefox 滚动条 */
-.scrollbar-thin {
-  scrollbar-width: thin;
-  scrollbar-color: rgb(156 163 175) transparent;
-}
-
-</style>
