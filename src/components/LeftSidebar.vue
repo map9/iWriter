@@ -49,37 +49,32 @@
       <!-- Start(No Folder) Opened -->
       <NoFolderOpened 
         v-if="appStore.leftSidebarMode === 'start'" 
-        class="h-full"
       />
       
       <!-- Explorer -->
       <ExplorerPanel
         v-else-if="appStore.leftSidebarMode === 'explorer'"
-        class="h-full"
       />
       
       <!-- Search -->
       <SearchPanel
         v-else-if="appStore.leftSidebarMode === 'search'"
-        class="h-full"
       />
       
       <!-- By TAG -->
       <TagPanel
         v-else-if="appStore.leftSidebarMode === 'tag'"
-        class="h-full"
       />
       
       <!-- Table of Contents -->
       <TocPanel
         v-else-if="appStore.leftSidebarMode === 'toc'"
-        class="h-full"
       />
     </div>
     
     <!-- Resizable handle -->
     <div 
-      class="absolute top-0 right-0 w-2 h-full cursor-ew-resize hover:bg-interactive-selected hover:opacity-50 transition-all bg-transparent"
+      class="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-interactive-selected hover:opacity-50 transition-all bg-transparent"
       @mousedown="startResize"
     ></div>
   </div>

@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import type { TreeNode } from './tree'
+import type { TreeNode } from './index'
 
 // Global drag and drop state management
 export const dragDropState = {

@@ -62,7 +62,10 @@ module.exports = {
       fontFamily: {
         sans: ['SF Pro Display', 'system-ui', 'sans-serif'],
         mono: ['SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'monospace']
-      }
+      },
+      //filter: {
+      //  'brightness-hover': 'brightness(var(--brightness-hover, 0.85))',
+      //},
     },
   },
   plugins: []

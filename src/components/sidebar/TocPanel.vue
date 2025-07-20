@@ -47,6 +47,7 @@
       <Tree
         v-else-if="hasItems"
         ref="treeRef"
+        class="toc-tree"
         :nodes="treeNodes"
         :callbacks="treeCallbacks"
         @node-click="handleNodeClick"
@@ -73,7 +74,7 @@
 import { computed, ref, reactive, toRefs, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
 import Tree from '@/components/common/tree/Tree.vue'
-import type { TreeNode, TreeCallbacks } from '@/components/common/tree/tree'
+import type { TreeNode, TreeCallbacks } from '@/components/common/tree'
 import type { TocItem } from '@/types/toc'
 import {
   IconList,
@@ -315,3 +316,24 @@ function scrollToTop() {
   }
 }
 </script>
+
+<style scoped>
+
+.toc-tree {
+  --tree-font-size: 12px;
+  --tree-font-weight: 500;
+  --tree-text-color: var(--color-text-primary);
+  --tree-background-color: var(--color-background-secondary);
+  --tree-hover-color: #eee;
+  --tree-selected-background: var(--color-accent-primary);
+  --tree-selected-color: var(--color-background-secondary);
+  --tree-selected-border-color: transparent;
+
+  --tree-input-background: transparent;
+  --tree-input-border: 1px solid var(--color-border-focus);
+  
+  --tree-drop-border-color: transparent;
+  --tree-drop-background: var(--color-background-elevated);
+}
+
+</style>

@@ -39,6 +39,7 @@
   ::-webkit-scrollbar-thumb:hover {
     background: var(--color-text-tertiary);
   }
+  
 }
 
 @layer components {
@@ -81,7 +82,7 @@
   }
 
   .toolbar-button-primary {
-    @apply bg-accent-primary text-background-secondary hover:bg-interactive-selected
+    @apply bg-accent-primary text-background-secondary hover:bg-accent-primary;
   }
 
   .icon-base {

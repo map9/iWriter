@@ -51,7 +51,7 @@
                   />
                   
                   <!-- Fallback for unknown types -->
-                  <div v-else class="h-full flex items-center justify-center text-gray-500">
+                  <div v-else class="h-full flex items-center justify-center">
                     <div class="text-center">
                       <IconAlertTriangle class="w-16 h-16 mx-auto mb-4 text-status-warning" />
                       <div class="text-xl mb-2 text-text-secondary">不支持的文件类型</div>
@@ -59,8 +59,9 @@
                       <div class="flex gap-3 justify-center">
                         <button 
                           @click="openWithShell(tab.path)"
-                          class="btn btn-primary h-9 items-center justify-center space-x-2 whitespace-nowrap"
+                          class="button-m button-m-primary w-44 mb-4 h-9"
                         >
+                          <IconFolderOpen class="icon-base" />
                           <span>Open Anyway</span>
                         </button>
                       </div>
@@ -96,6 +97,7 @@ import ImageViewerPage from '@/components/pages/ImageViewerPage.vue'
 import PDFViewerPage from '@/components/pages/PDFViewerPage.vue'
 import { 
   IconAlertTriangle,
+  IconFolderOpen, 
 } from '@tabler/icons-vue'
 
 const appStore = useAppStore()

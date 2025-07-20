@@ -35,7 +35,7 @@ export const useAppStore = defineStore('app', () => {
   const currentFolder = ref<string | null>(null)
   const fileTree = ref<FileTreeNode | null>(null)
   const selectedItem = ref<FileTreeNode | null>(null)
-  const currentFileTreeSortType = ref<FileTreeSortType>('none')
+  const currentFileTreeSortType = ref<FileTreeSortType>('type-asc')
   const filetreeUntitledCounter = ref<Map<string, number>>(new Map<string, number>)
 
   // Tabs

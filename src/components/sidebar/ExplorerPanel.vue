@@ -40,8 +40,8 @@
       </div>
     </div>
     
-    <!-- Root Header with Controls - Only show when folder is open -->
-    <div class="h-full flex flex-col"
+    <!-- Root Header with Controls -->
+    <div class="h-full flex flex-col overflow-hidden"
       @mouseenter="handleTreeMouseEnter"
       @mouseleave="handleTreeMouseLeave"
     >
@@ -102,14 +102,12 @@
 
       <!-- Tree Content -->
       <div 
-        class="flex-1 transition-all duration-200"
-        :class="[
-          isTreeHovered ? 'overflow-auto' : 'overflow-hidden'
-        ]"
+        class="overflow-y-auto"
       >
         <Tree v-if="hasRootFolder"
           ref="treeRef"
           :nodes="rootChildren"
+          class="file-tree"
           :callbacks="fileCallbacks"
           drop-mode="inside-only"
           :initialDepth="1"
@@ -141,7 +139,6 @@ import {
   IconChevronRight,
   IconChevronDown,
   IconFoldUp,
-  IconFoldDown,
   IconArrowsSort,
 } from '@tabler/icons-vue'
 
@@ -648,3 +645,24 @@ const handleNodeDrop = (data: { dragNode: any; dropNode: any; position: string }
 }
 
 </script>
+
+<style scoped>
+
+.file-tree {
+  --tree-font-size: 12px;
+  --tree-font-weight: 500;
+  --tree-text-color: var(--color-text-primary);
+  --tree-background-color: var(--color-background-secondary);
+  --tree-hover-color: #eee;
+  --tree-selected-background: var(--color-accent-primary);
+  --tree-selected-color: var(--color-background-secondary);
+  --tree-selected-border-color: transparent;
+
+  --tree-input-background: transparent;
+  --tree-input-border: 1px solid var(--color-border-focus);
+  
+  --tree-drop-border-color: transparent;
+  --tree-drop-background: var(--color-background-elevated);
+}
+
+</style>

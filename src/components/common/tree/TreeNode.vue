@@ -3,14 +3,14 @@
     v-if="node.isVisible !== false"
     class="tree-node"
     :class="{ 
-      'opacity-50': node.isEnabled === false,
-      'being-dragged': isDraggedNode,
+      'disabled': node.isEnabled === false,
+      'dragged': isDraggedNode,
       'drag-over': isDragOver && canDropHere,
     }"
   >
     <div
       ref="nodeContentRef"
-      class="tree-node-content flex items-center py-1 border hover:bg-gray-100 cursor-pointer select-none transition-all duration-200 text-sm"
+      class="tree-node-content"
       :class="[dropTargetClasses, selectedClasses]"
       :style="{ paddingLeft: `${(depth + initialDepth) * 12 + 8}px` }"
       :title = "node.path"
@@ -26,41 +26,41 @@
       <!-- Expand/Collapse Icon -->
       <button
         v-if="hasChildren"
-        class="expand-btn w-4 h-4 flex items-center justify-center mr-1"
+        class="button"
         @click.stop="toggleExpanded"
       >
         <component 
           v-if="expandIcon" 
           :is="expandIcon" 
-          class="w-3 h-3"
+          class="expand-icon"
         />
-        <span v-else class="text-xs">{{ node.isExpanded ? '−' : '+' }}</span>
+        <span v-else class="text">{{ node.isExpanded ? '−' : '+' }}</span>
       </button>
-      <div v-else class="w-4 h-4 mr-1"></div>
+      <div v-else class="icon-wrapper"></div>
 
       <!-- Check Icon -->
       <button
         v-if="canCheck"
-        class="check-btn w-4 h-4 flex items-center justify-center mr-2"
+        class="button"
         @click.stop="toggleChecked"
       >
         <component 
           v-if="checkIcon" 
           :is="checkIcon" 
-          class="w-3 h-3"
+          class="check-icon"
         />
-        <span v-else class="text-xs">{{ node.isChecked ? '☑' : '☐' }}</span>
+        <span v-else class="text">{{ node.isChecked ? '☑' : '☐' }}</span>
       </button>
 
       <!-- Type Icon -->
-      <div v-if="typeIcon" class="type-icon w-4 h-4 mr-2 flex items-center justify-center">
-        <component :is="typeIcon" class="w-4 h-4" />
+      <div v-if="typeIcon" class="icon-wrapper">
+        <component :is="typeIcon" class="type-icon" />
       </div>
 
       <!-- Label -->
       <div
         v-if="!isRenaming"
-        class="node-label flex-1 truncate px-1 py-0.5 border border-transparent transition-colors text-sm"
+        class="label"
         @click="handleLabelClick"
         @dblclick="handleDoubleClick"
       >
@@ -72,7 +72,7 @@
         v-else
         ref="renameInput"
         v-model="renameValue"
-        class="node-rename-input flex-1 px-1 bg-white border border-blue-300 text-sm"
+        class="input"
         @blur="finishRename"
         @keydown.enter.stop="finishRename"
         @keydown.escape="cancelRename"
@@ -82,7 +82,7 @@
       <!-- Right Content -->
       <div
         v-if="rightContent"
-        class="node-right-content mr-2 px-2 text-xs text-gray-500 bg-gray-100 rounded-md whitespace-nowrap"
+        class="badge"
       >
         {{ rightContent }}
       </div>
@@ -92,7 +92,7 @@
     <div 
       v-if="node.isExpanded && hasChildren" 
       class="tree-children"
-      :class="{ 'pointer-events-none': isDraggedNode }"
+      :class="{ 'dragged': isDraggedNode }"
     >
       <TreeNode
         v-for="child in node.children"
@@ -118,7 +118,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onUnmounted } from 'vue'
-import type { TreeNode, TreeCallbacks, DropMode } from './tree'
+import type { TreeNode, TreeCallbacks, DropMode } from './index'
 import { dragDropState } from './dragDrop'
 
 interface Props {
@@ -210,9 +210,7 @@ const dropTargetClasses = computed(() => {
   if (!isDragOver.value) return {}
   
   const classes = {
-    'drop-target': true,
-    'transition-all': true,
-    'duration-200': true
+    'drop-target': true
   }
   
   if (canDropHere.value) {
@@ -221,20 +219,20 @@ const dropTargetClasses = computed(() => {
       case 'before':
         return {
           ...classes,
-          'border-t-2': true,
-          'border-t-green-400': true
+          'drop-border-top': true,
+          'drop-border': true
         }
       case 'after':
         return {
           ...classes,
-          'border-b-2': true,
-          'border-b-green-400': true
+          'drop-border-bottom': true,
+          'drop-border': true
         }
       case 'inside':
         return {
           ...classes,
-          'bg-green-100': true,
-          'border-green-400': true
+          'drop-background': true,
+          'drop-border': true
         }
     }
   } else {
@@ -249,24 +247,17 @@ const dropTargetClasses = computed(() => {
 })
 
 const selectedClasses = computed(() => {
-  if (!props.node.isSelected)
-    return {
-      'border-transparent': true,
-    }
-
   if (isRenaming.value) {
     return {
-      'border-transparent': true,
-      'bg-blue-100': true,
-      'text-blue-900': true
+      'renaming-status': true
     }
   }
-  else {
+  else if (props.node.isSelected){
     return {
-      'bg-blue-100': true,
-      'border-blue-500': true,
-      'text-blue-900': true
+      'selected-status': true
     }
+  } else {
+    return {}
   }
 })
 
@@ -644,81 +635,169 @@ defineExpose({
 </script>
 
 <style scoped>
+.tree-node {
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.tree-node.disabled {
+  opacity: var(--tree-disabled-opacity, 0.5);
+  cursor: not-allowed;
+}
+
 .tree-node-content {
-  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  user-select: none;
   position: relative;
+  height: var(--tree-node-content-height, 28px);
+  padding: var(--tree-node-content-padding, 0px 8px);
+  border: 1px solid transparent;
+  border-radius: var(--tree-border-radius, 0px);
+  font-size: var(--tree-font-size, 12px);
+  font-weight: var(--tree-font-weight, 500);
+  transition: all 0.2s ease;
 }
 
-/* Valid drop target effects */
-.drop-target.bg-green-50 {
-  background-color: rgba(34, 197, 94, 0.1) !important;
+.tree-node:not(.disabled) .tree-node-content:not(.selected-status).tree-node-content:hover {
+  background-color: var(--tree-hover-color, #eee);
 }
 
-.drop-target.bg-green-100 {
-  background-color: rgba(34, 197, 94, 0.2) !important;
+.tree-node-content .button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tree-icon-size, 16px);
+  height: var(--tree-icon-size, 16px);
+  margin-right: var(--tree-icon-spacing, 4px);
+  cursor: inherit;
+  border: none;
+  background: none;
 }
 
-.drop-target.border-green-400 {
-  border-color: rgb(74, 222, 128) !important;
+.tree-node-content .icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tree-icon-size, 16px);
+  height: var(--tree-icon-size, 16px);
+  margin-right: var(--tree-icon-spacing, 4px);
 }
 
-.drop-target.border-t-green-400 {
-  border-top-color: rgb(74, 222, 128) !important;
+.tree-node-content .button .expand-icon {
+  width: var(--tree-icon-size-small, 12px);
+  height: var(--tree-icon-size-small, 12px);
 }
 
-.drop-target.border-b-green-400 {
-  border-bottom-color: rgb(74, 222, 128) !important;
+.tree-node-content .button .check-icon {
+  width: var(--tree-icon-size, 16px);
+  height: var(--tree-icon-size, 16px);
 }
 
-/* Invalid drop target effects */
-.drop-target.bg-red-50 {
-  background-color: rgba(239, 68, 68, 0.1) !important;
+.tree-node-content .button .text {
+  font-size: var(--tree-icon-size-small, 12px);
+  line-height: 1;
 }
 
-.drop-target.border-red-300 {
-  border-color: rgb(252, 165, 165) !important;
+.tree-node-content .icon-wrapper .type-icon {
+  width: var(--tree-icon-size, 16px);
+  height: var(--tree-icon-size, 16px);
 }
 
-/* Position indicators */
-.tree-node-content.border-t-2::before {
+.tree-node-content .label {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border: 1px solid transparent;
+  transition-property: color, background-color, border-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+  font-size: inherit;
+  color: inherit;
+}
+
+.tree-node-content .input {
+  flex: 1;
+  outline: none;
+  background: var(--tree-input-background, transparent);
+  border: var(--tree-input-border, 1px solid #ccc);
+  border-radius: var(--tree-border-radius, 0px);
+  padding: var(--tree-input-padding, 0 4px);
+  font-size: inherit;
+  color: var(--tree-text-color, inherit);
+}
+
+.tree-node-content .badge {
+  white-space: nowrap;
+  background: var(--tree-badge-background, #f0f0f0);
+  color: var(--tree-badge-color, #666);
+  font-size: var(--tree-badge-font-size, inherit);
+  padding: var(--tree-badge-padding, 0px 8px);
+  border-radius: var(--tree-badge-border-radius, 12px);
+  margin-left: var(--tree-badge-spacing, 4px);
+  margin-right: var(--tree-badge-spacing, 4px);
+}
+
+.tree-node.dragged {
+  opacity: var(--tree-drag-opacity, 0.6);
+  background-color: var(--tree-drag-background, rgba(59, 130, 246, 0.1));
+}
+
+.tree-node.drag-over {
+  background-color: var(--tree-drop-background, rgba(34, 197, 94, 0.2));
+  border-color: var(--tree-drop-border-color, rgb(74, 222, 128));
+}
+
+.tree-node-content.drop-target {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+.tree-node-content.drop-target.drop-background {
+  background-color: var(--tree-drop-background, rgba(34, 197, 94, 0.2));
+}
+
+.tree-node-content.drop-target.drop-border {
+  border-color: var(--tree-drop-border-color, rgb(74, 222, 128));
+}
+
+.tree-node-content.drop-border-top::before {
   content: '';
   position: absolute;
   top: -2px;
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, rgb(74, 222, 128), rgba(74, 222, 128, 0.3));
+  background: var(--tree-drop-indicator, linear-gradient(90deg, rgb(74, 222, 128), rgba(74, 222, 128, 0.3)));
   border-radius: 2px;
 }
 
-.tree-node-content.border-b-2::after {
+.tree-node-content.drop-border-bottom::after {
   content: '';
   position: absolute;
   bottom: -2px;
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, rgb(74, 222, 128), rgba(74, 222, 128, 0.3));
+  background: var(--tree-drop-indicator, linear-gradient(90deg, rgb(74, 222, 128), rgba(74, 222, 128, 0.3)));
   border-radius: 2px;
 }
 
-.node-rename-input {
-  outline: none;
+.tree-node-content.renaming-status {
+  color: var(--tree-selected-color, #1976d2);
+  background-color: var(--tree-selected-background, #e3f2fd);
+  border-color: transparent;
 }
 
-/* Being dragged styles */
-.being-dragged {
-  opacity: 0.6;
-  background-color: rgba(59, 130, 246, 0.1) !important;
+.tree-node-content.selected-status {
+  color: var(--tree-selected-color, #1976d2);
+  background-color: var(--tree-selected-background, #e3f2fd);
+  border-color: var(--tree-selected-border-color, #2196f3);
 }
 
-.drag-over {
-  @apply bg-green-100;
-  @apply border-green-400;
-}
-
-/* Disable pointer events on children when parent is being dragged */
-.pointer-events-none {
+.tree-children.dragged {
   pointer-events: none;
 }
 </style>

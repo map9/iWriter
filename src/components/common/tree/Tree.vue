@@ -2,7 +2,9 @@
   <div 
     ref="treeRoot" 
     class="tree-root" 
-    :class="{ 'drag-over-root': isDragOverRoot && canDropToRoot }"
+    :class="{
+      'drag-over-root': isDragOverRoot && canDropToRoot,
+    }"
     tabindex="0"
     @keydown="handleKeyDown"
     @click="() => treeRoot?.focus()"
@@ -33,7 +35,7 @@
 <script setup lang="ts">
 import { computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
 import TreeNode from './TreeNode.vue'
-import type { TreeNode as TreeNodeType, TreeCallbacks, DropMode } from './tree'
+import type { TreeNode as TreeNodeType, TreeCallbacks, DropMode } from './index'
 import { dragDropState } from './dragDrop'
 
 interface Props {
@@ -477,19 +479,19 @@ const handleKeyDown = (e: KeyboardEvent) => {
       break
     case 'ArrowLeft':
       e.preventDefault()
-      if (currentFocusedNode) {
+      if (currentFocusedNode && currentFocusedNode.isEnabled) {
         collapseNode(currentFocusedNode)
       }
       break
     case 'ArrowRight':
       e.preventDefault()
-      if (currentFocusedNode) {
+      if (currentFocusedNode && currentFocusedNode.isEnabled) {
         expandNode(currentFocusedNode)
       }
       break
     case 'Enter':
       e.preventDefault()
-      if (currentFocusedNode) {
+      if (currentFocusedNode && currentFocusedNode.isEnabled) {
         startRenameNode(currentFocusedNode.id)
       }
       break
@@ -776,20 +778,25 @@ defineExpose({
 </script>
 
 <style scoped>
-
 .tree-root {
-  overflow-y: auto;
   height: 100%;
-  outline: none; /* Remove default focus outline */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  transition: scrollbar-color 0.2s ease;
+  background: var(--tree-container-background, transparent);
+  border: var(--tree-container-border, none);
+  border-radius: var(--tree-container-border-radius, 0px);
+  padding: var(--tree-container-padding, 0px);
+  outline: var(--tree-container-outline, none);
 }
 
 .tree-root:focus {
-  @apply ring-2 ring-blue-300 ring-opacity-50;
+  box-shadow: var(--tree-container-focus-ring, 2px solid rgba(59, 130, 246, 0.5));
 }
 
-/* Root drag over styles */
 .tree-root.drag-over-root {
-  @apply bg-green-100;
-  transition: all 0.2s ease;
+  background-color: var(--tree-drop-background, rgba(34, 197, 94, 0.2));
+  border-color: var(--tree-drop-border-color, rgb(74, 222, 128));
 }
+
 </style>
