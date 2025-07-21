@@ -4,7 +4,7 @@
     <div class="sidebar-header h-9 flex-shrink-0 select-none">
       <div class="flex items-center gap-2">
         <span class="text-xs font-medium text-text-primary uppercase tracking-wide">
-          Table of Contents
+          Outline
         </span>
       </div>
       
@@ -18,13 +18,47 @@
         >
           <IconNumbers class="icon-sm" />
         </button>
+
+        <!-- Separator -->
+        <div class="toolbar-separator" />
+
+        <!-- Heading Level Filter Buttons -->
         <button
-          @click="toggleExpandAll"
-          class="toolbar-button"
-          title="Toggle Expand/Collapse All"
+          @click="setExpandLevel(2)"
+          class="toolbar-button text-xs"
+          :class="{ 'toolbar-button-primary': expandLevel === 2 }"
+          title="Collapse to H2 level"
         >
-          <IconChevronDown class="icon-sm" />
+          H2
         </button>
+        <button
+          @click="setExpandLevel(3)"
+          class="toolbar-button text-xs"
+          :class="{ 'toolbar-button-primary': expandLevel === 3 }"
+          title="Collapse to H3 level"
+        >
+          H3
+        </button>
+        <button
+          @click="setExpandLevel(4)"
+          class="toolbar-button text-xs"
+          :class="{ 'toolbar-button-primary': expandLevel === 4 }"
+          title="Collapse to H4 level"
+        >
+          H4
+        </button>
+        <button
+          @click="setExpandLevel(6)"
+          class="toolbar-button text-xs"
+          :class="{ 'toolbar-button-primary': expandLevel === 6 }"
+          title="Expand all levels"
+        >
+          All
+        </button>
+
+        <!-- Separator -->
+        <div class="toolbar-separator" />
+
         <button
           @click="scrollToTop"
           class="toolbar-button"
@@ -39,7 +73,7 @@
     <div class="flex-1 overflow-hidden">
       <!-- Loading State -->
       <div v-if="isLoading" class="p-4 text-center text-text-primary">
-        <div class="animate-spin w-6 h-6 border-2 border-gray-300 border-t-border-primary rounded-full mx-auto mb-2"></div>
+        <div class="animate-spin w-6 h-6 border-2 border-gray-300 border-t-border-separator rounded-full mx-auto mb-2"></div>
         <p class="text-sm">Loading table of contents...</p>
       </div>
       
@@ -89,6 +123,7 @@ const appStore = useAppStore()
 
 // 组件状态
 const showNumbering = ref(true)
+const expandLevel = ref(6) // 默认展开所有级别
 const treeRef = ref<InstanceType<typeof Tree>>()
 
 // 使用reactive管理状态
@@ -144,7 +179,7 @@ const generateTreeNodes = (): TreeNode[] => {
   const nodes: TreeNode[] = []
   const nodeMap = new Map<string, TreeNode>()
   
-  // 首先创建所有节点
+  // 创建所有节点，保持所有内容
   if (!tocItems.value) return nodes
   
   tocItems.value.forEach((item, index) => {
@@ -158,7 +193,7 @@ const generateTreeNodes = (): TreeNode[] => {
         hierarchicalNumber: '',
         originalTitle: item.title // 保存原始标题
       },
-      isExpanded: item.level <= 2, // 展开前两级标题
+      isExpanded: item.level < expandLevel.value, // 只展开小于expandLevel的级别
       isSelected: item.isActive === true,
       isVisible: true,
       isEnabled: true,
@@ -217,6 +252,15 @@ watch(showNumbering, () => {
   updateNodeLabels(state.treeNodes)
 })
 
+// 监听expandLevel变化，重新生成treeNodes并收起超出级别的项
+watch(expandLevel, () => {
+  state.treeNodes = generateTreeNodes()
+  // 如果有tree引用，立即应用收起逻辑
+  if (treeRef.value) {
+    collapseToLevel(expandLevel.value)
+  }
+})
+
 // Tree组件的回调配置
 const treeCallbacks: TreeCallbacks = {
   // 获取展开图标
@@ -244,30 +288,28 @@ const toggleNumbering = () => {
   showNumbering.value = !showNumbering.value
 }
 
-const toggleExpandAll = () => {
-  if (treeRef.value) {
-    // 检查是否所有节点都已展开
-    const allExpanded = state.treeNodes.every(node => isNodeFullyExpanded(node))
-    
-    if (allExpanded) {
-      treeRef.value.collapseAll()
-    } else {
-      treeRef.value.expandAll()
-    }
-  }
+const setExpandLevel = (level: number) => {
+  expandLevel.value = level
 }
 
-// 递归检查节点是否完全展开
-const isNodeFullyExpanded = (node: TreeNode): boolean => {
-  if (!node.children || node.children.length === 0) {
-    return true
+// 收起到指定级别的函数
+const collapseToLevel = (level: number) => {
+  if (!treeRef.value) return
+  
+  const collapseNode = (node: TreeNode) => {
+    // 如果当前节点的级别大于等于指定级别，收起它
+    if (node.data.tocItem.level >= level) {
+      node.isExpanded = false
+    }
+    
+    // 递归处理子节点
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(child => collapseNode(child))
+    }
   }
   
-  if (!node.isExpanded) {
-    return false
-  }
-  
-  return node.children.every(child => isNodeFullyExpanded(child))
+  // 对所有根节点应用收起逻辑
+  state.treeNodes.forEach(node => collapseNode(node))
 }
 
 // 计算属性 - 提供者信息和空状态消息
@@ -312,6 +354,7 @@ function scrollToTop() {
     const tocItem = node.data.tocItem as TocItem
     if (tocProvider.value) {
       tocProvider.value.navigateToItem(tocItem.id)
+      treeRef.value?.focusNode(node)
     }
   }
 }
@@ -323,17 +366,17 @@ function scrollToTop() {
   --tree-font-size: 12px;
   --tree-font-weight: 500;
   --tree-text-color: var(--color-text-primary);
-  --tree-background-color: var(--color-background-secondary);
-  --tree-hover-color: #eee;
-  --tree-selected-background: var(--color-accent-primary);
-  --tree-selected-color: var(--color-background-secondary);
+  --tree-background-color: var(--color-background-content);
+  --tree-hover-color: var(--color-interactive-hover);
+  --tree-selected-background: var(--color-background-selected);
+  --tree-selected-color: #FFFFFFFF;
   --tree-selected-border-color: transparent;
 
   --tree-input-background: transparent;
-  --tree-input-border: 1px solid var(--color-border-focus);
-  
-  --tree-drop-border-color: transparent;
-  --tree-drop-background: var(--color-background-elevated);
+  --tree-input-border: 1px solid var(--color-interactive-focus);
+
+  --tree-badge-background: var(--color-background-underpage);
+  --tree-badge-color: var(--color-text-primary);
 }
 
 </style>
