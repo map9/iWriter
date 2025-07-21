@@ -6,7 +6,7 @@ import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { pathUtils } from '@/utils/pathUtils'
 import { notify } from '@/utils/notifications'
 import type { FileTreeNode, FileTreeSortType } from '@/components/common/tree'
-import { availableThemes, getThemeById, applyThemeColors, getSystemColors, type Theme } from '@/utils/themes'
+import { availableThemes, getThemeById, applyThemeColors, type Theme, applySystemColors } from '@/utils/themes'
 
 export const useAppStore = defineStore('app', () => {
   // 文件监听和类型检测
@@ -1127,17 +1127,13 @@ export const useAppStore = defineStore('app', () => {
     }
     
     // Detect system theme preference
-    if (window.matchMedia) {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-      systemPrefersDark.value = mediaQuery.matches
-      
-      // Listen for system theme changes
-      mediaQuery.addEventListener('change', (e) => {
-        systemPrefersDark.value = e.matches
+    if (window.electronAPI) {
+      window.electronAPI.onSystemColorsChanged((themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: any }) => {
+        console.log('System colors changed:', themeAndColors)
         // Re-apply theme if current theme is system
         const currentTheme = getThemeById(currentThemeId.value)
         if (currentTheme?.isSystem) {
-          applyCurrentTheme()
+          applySystemColors(themeAndColors)
         }
       })
     }
@@ -1155,6 +1151,7 @@ export const useAppStore = defineStore('app', () => {
     
     currentThemeId.value = themeId
     localStorage.setItem('iwriter-theme', themeId)
+    console.log('setTheme', themeId)
     applyCurrentTheme()
   }
   

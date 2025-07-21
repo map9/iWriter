@@ -769,6 +769,7 @@ defineExpose({
   findNode,
   clearSelection,
   selectNode,
+  focusNode,
   getSelectedNode,
   addChildToNode,
   deleteNode,

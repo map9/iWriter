@@ -1,7 +1,7 @@
 <template>
   <div class="h-full flex flex-col bg-white">
     <!-- Editor Toolbar -->
-    <div class="editor-toolbar">
+    <div class="toolbar">
       <!-- Spacer -->
       <div class="flex-grow flex-shrink flex-basis-0"></div>
       <!-- Undo/Redo Group -->
@@ -943,19 +943,6 @@ defineExpose({
 </script>
 
 <style lang="scss">
-/* Toolbar styles */
-.editor-toolbar {
-  @apply flex items-center gap-1 p-2 bg-white w-full overflow-x-auto scrollbar-hide;
-}
-
-.toolbar-group {
-  @apply flex items-center gap-1;
-}
-
-.toolbar-separator {
-  @apply w-px h-6 bg-gray-300 mx-2;
-}
-
 /* Modern editor styles */
 .tiptap {
   color: #888888;

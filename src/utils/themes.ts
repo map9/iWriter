@@ -1,41 +1,70 @@
 // Theme System for iWriter
+// selected-menu-item-text = white
 export interface ThemeColors {
   // Accent colors
   accent: {
-    primary: string   // accent color
-    //secondary: string // = background.elevated
-    //tertiary: string  // = interactive.active
-    //quaternary: string// = interactive.selected
+    primary: string
   }
 
-  // Background colors
+  // Background colors: Control Background / Window Background
   background: {
-    primary: string   // window-background
-    secondary: string // control-background
-    tertiary: string  // under-page-background
-    elevated: string  // selected-text-background
+    // window-background - The background of a window.
+    // Titlebar / Sidebar / Toolbar / Dialog background
+    window: string
+    // control-background - The background of a large interface element, such as a browser or table.
+    // text-background
+    content: string
+    // under-page-background - The background behind a document's content.
+    underpage: string
+    // selected-content-background - The background for selected content in a key window or view.
+    // [accent color]
+    selected: string
   }
   
-  // Text colors
+  // Text colors: Text / Label / Placeholder Text
   text: {
-    primary: string   // label
-    secondary: string // secondary-label
-    tertiary: string  // tertiary-label
-    disabled: string  // quaternary-label
+    // text - The text in a document. 
+    // selected-text / unemphasized-selected-text
+    base: string
+    // label - The text of a label containing primary content.
+    // control-text / selected-control-text / window-frame-fext / header-text
+    primary: string
+    // secondary-label - The text of a label of lesser importance than a normal label such as a label used to represent a subheading or additional information.
+    secondary: string
+    // tertiary-label - The text of a label of lesser importance than a secondary label such as a label used to represent disabled text.
+    // disabled-control-text / placeholder-text
+    tertiary: string
+    // missed: unemphasized-selected-content-background / unemphasized-selected-text-background
   }
   
-  // UI colors
+  // Border colors: Separator / Grid / Shadow
   border: {
-    primary: string   // separator
-    secondary: string // grid
-    focus: string     // keyboard-focus-indicator
+    // separator - A separator between different sections of content. macOS 10.14
+    separator: string
+    // grid - The gridlines of an interface element such as a table.
+    grid: string
+    // shadow = dark
+    shadow: string
   }
   
-  // Interactive colors
+  // Interactive colors: control, link, selected-control
   interactive: {
-    hover: string     // 
-    active: string    // selected-text
-    selected: string  // selected-content-background
+    // control - control - The surface of a control. unsupported
+    control: string
+    // selected-text-background - The background of selected text. macOS 10.14
+    // selected-control: selected checkbox / radio / button background
+    // [light accent color]
+    elevated: string
+    // 
+    hover: string
+    // keyboard-focus-indicator - The ring that appears around the currently focused control when using the keyboard for interface navigation.
+    // (dark accent color)
+    focus: string
+    // link - A link to other content.
+    link: string
+    // find-highlight - The color of a find indicator. macOS 10.14
+    highlight: string
+    // scrubber-textured-background = white
   }
 
   // Status colors
@@ -45,13 +74,6 @@ export interface ThemeColors {
     error: string
     info: string      // accent.primary
     neutral: string
-  }
-
-  // Other colors
-  other: {
-    link: string      // link
-    highlight: string // find-highlight
-    shadow: string // shadow
   }
 }
 
@@ -73,26 +95,29 @@ export const lightTheme: Theme = {
       primary: '#007AFFFF',
     },
     background: {
-      primary: '#ECECECFF',
-      secondary: '#FFFFFFFF',
-      tertiary: '#969696E5',
-      elevated: '#B3D7FFFF'
+      window: '#ECECECFF',
+      content: '#FFFFFFFF',
+      underpage: '#969696E5',
+      selected: '#0064E1FF'
     },
     text: {
+      base: '#000000FF',
       primary: '#000000D8',
       secondary: '#0000007F',
       tertiary: '#00000042',
-      disabled: '#00000019'
     },
     border: {
-      primary: '#00000019',
-      secondary: '#E6E6E6FF',
-      focus: '#0067F47F'
+      separator: '#00000019',
+      grid: '#E6E6E6FF',
+      shadow: '#000000FF'
     },
     interactive: {
+      control: '#FFFFFFFF',
+      elevated: '#B3D7FFFF',
       hover: '#BFBFBFBF',
-      active: '#000000FF',
-      selected: '#0064E1FF'
+      focus: '#0067F47F',
+      link: '#0068DAFF',
+      highlight: '#FFFF00FF',
     },    
     status: {
       success: '#34C759FF',
@@ -100,11 +125,6 @@ export const lightTheme: Theme = {
       error: '#FF3B30FF',
       info: '#007AFFFF',
       neutral: '#8E8E93FF'
-    },
-    other: {
-      link: '#0068DAFF',
-      highlight: '#FFFF00FF',
-      shadow: '#000000FF'
     }
   }
 }
@@ -119,26 +139,29 @@ export const darkTheme: Theme = {
       primary: '#007AFFFF',
     },
     background: {
-      primary: '#323232FF',
-      secondary: '#1E1E1EFF',
-      tertiary: '#282828FF',
-      elevated: '#3F638BFF'
+      window: '#323232FF',
+      content: '#1E1E1EFF',
+      underpage: '#282828FF',
+      selected: '#0059D1FF'
     },
     text: {
+      base: '#FFFFFFFF',
       primary: '#FFFFFFD8',
       secondary: '#FFFFFF8C',
       tertiary: '#FFFFFF3F',
-      disabled: '#FFFFFF19'
     },
     border: {
-      primary: '#FFFFFF19',
-      secondary: '#1A1A1AFF',
-      focus: '#1AA9FF7F'
+      separator: '#FFFFFF19',
+      grid: '#1A1A1AFF',
+      shadow: '#000000FF'
     },
     interactive: {
-      hover: '#BFBFBFBF',
-      active: '#FFFFFFFF',
-      selected: '#0059D1FF'
+      control: '#FFFFFF3F',
+      elevated: '#3F638BFF',
+      hover: '#404040FF',
+      focus: '#1AA9FF7F',
+      link: '#419CFFFF',
+      highlight: '#FFFF00FF',
     },    
     status: {
       success: '#30D158FF',
@@ -146,11 +169,6 @@ export const darkTheme: Theme = {
       error: '#FF453AFF',
       info: '#007AFFFF',
       neutral: '#8E8E93FF'
-    },
-    other: {
-      link: '#0068DAFF',
-      highlight: '#FFFF00FF',
-      shadow: '#000000FF'
     }
   }
 }
@@ -164,150 +182,11 @@ export const systemTheme: Theme = {
   colors: lightTheme.colors // Fallback, will be replaced with system colors
 }
 
-// Additional custom themes
-export const oceanTheme: Theme = {
-  id: 'ocean',
-  name: 'Ocean',
-  type: 'dark',
-  colors: {
-    accent: {
-      primary: '#00acc1',
-    },
-    background: {
-      primary: '#0c1821',
-      secondary: '#1b2935',
-      tertiary: '#2a3441',
-      elevated: '#1b2935'
-    },
-    text: {
-      primary: '#e0f2fe',
-      secondary: '#b3e5fc',
-      tertiary: '#81d4fa',
-      disabled: '#4fc3f7'
-    },
-    border: {
-      primary: '#2a3441',
-      secondary: '#3a4651',
-      focus: '#00acc1'
-    },
-    interactive: {
-      hover: '#2a3441',
-      active: '#3a4651',
-      selected: '#006064'
-    },
-    status: {
-      success: '#4caf50',
-      warning: '#ff9800',
-      error: '#f44336',
-      info: '#00acc1',
-      neutral: '#8E8E93FF'
-    },
-    other: {
-      link: '#0068DAFF',
-      highlight: '#FFFF00FF',
-      shadow: '#000000FF'
-    }
-  }
-}
-
-export const forestTheme: Theme = {
-  id: 'forest',
-  name: 'Forest',
-  type: 'dark',
-  colors: {
-    accent: {
-      primary: '#66bb6a'
-    },
-    background: {
-      primary: '#0d1b0d',
-      secondary: '#1a2e1a',
-      tertiary: '#2d4a2d',
-      elevated: '#1a2e1a'
-    },
-    text: {
-      primary: '#e8f5e8',
-      secondary: '#c8e6c9',
-      tertiary: '#a5d6a7',
-      disabled: '#81c784'
-    },
-    border: {
-      primary: '#2d4a2d',
-      secondary: '#3e5a3e',
-      focus: '#66bb6a'
-    },
-    interactive: {
-      hover: '#2d4a2d',
-      active: '#3e5a3e',
-      selected: '#2e7d32'
-    },
-    status: {
-      success: '#66bb6a',
-      warning: '#ffb74d',
-      error: '#e57373',
-      info: '#64b5f6',
-      neutral: '#8E8E93FF'
-    },
-    other: {
-      link: '#0068DAFF',
-      highlight: '#FFFF00FF',
-      shadow: '#000000FF'
-    }
-  }
-}
-
-export const sunsetTheme: Theme = {
-  id: 'sunset',
-  name: 'Sunset',
-  type: 'light',
-  colors: {
-    accent: {
-      primary: '#ff8f00'
-    },
-    background: {
-      primary: '#fff8e1',
-      secondary: '#ffecb3',
-      tertiary: '#ffe082',
-      elevated: '#fff8e1'
-    },
-    text: {
-      primary: '#3e2723',
-      secondary: '#5d4037',
-      tertiary: '#795548',
-      disabled: '#a1887f'
-    },
-    border: {
-      primary: '#ffe082',
-      secondary: '#ffcc02',
-      focus: '#ff8f00'
-    },
-    interactive: {
-      hover: '#ffe082',
-      active: '#ffcc02',
-      selected: '#ffb300'
-    },
-    status: {
-      success: '#388e3c',
-      warning: '#f57c00',
-      error: '#d32f2f',
-      info: '#1976d2',
-      neutral: '#8E8E93FF'
-    },
-    other: {
-      link: '#0068DAFF',
-      highlight: '#FFFF00FF',
-      shadow: '#000000FF'
-    }
-  }
-}
-
 // Available themes registry
 export const availableThemes: Theme[] = [
   systemTheme,
   lightTheme,
   darkTheme,
-  oceanTheme,
-  forestTheme,
-  sunsetTheme
 ]
 
 // Utility functions
@@ -315,15 +194,55 @@ export function getThemeById(id: string): Theme | undefined {
   return availableThemes.find(theme => theme.id === id)
 }
 
-export function getSystemColors(): ThemeColors {
-  // Check if system prefers dark mode
-  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-  
-  if (prefersDark) {
-    return darkTheme.colors
-  } else {
-    return lightTheme.colors
+function mergeDeep(target: any, ...sources: any) {
+  if (!sources.length) return target;
+  const source = sources.shift();
+
+  if (typeof target === 'object' && target !== null && typeof source === 'object' && source !== null) {
+    for (const key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        if (typeof source[key] === 'object' && source[key] !== null) {
+          if (!target[key]) Object.assign(target, { [key]: {} });
+          mergeDeep(target[key], source[key]);
+        } else {
+          Object.assign(target, { [key]: source[key] });
+        }
+      }
+    }
   }
+
+  return mergeDeep(target, ...sources);
+}
+
+export function applySystemColors(themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: any }) {
+  const root = document.documentElement
+  let newColors: any = null
+
+  // console.log(newColors)
+  // 实际上 Electron 应用获取的系统颜色只有在应用第一次获取时有效，后续获取的系统颜色都是缓存，没有及时更新；主题是每次都更新。
+  // 在 MacOS 中，经过测试 Accent color会发生变化，其他都不会发生变化
+  // 因此，这个部分的代码，不能达到实际效果
+  /*
+  if (themeAndColors.theme === 'dark') {
+    newColors = !newColors? darkTheme.colors : mergeDeep({}, darkTheme.colors, newColors)
+  } else if (themeAndColors.theme === 'light') {
+    newColors = !newColors? lightTheme.colors : mergeDeep({}, lightTheme.colors, newColors)
+  } else {
+    newColors = lightTheme.colors
+    console.warn('Unknown system theme, falling back to light theme colors.')
+  }
+  */
+  if (themeAndColors.theme === 'dark') {
+    newColors = darkTheme.colors
+  } else if (themeAndColors.theme === 'light') {
+    newColors = lightTheme.colors, newColors
+  }
+
+  Object.entries(newColors).forEach(([category, categoryColors]) => {
+    Object.entries(categoryColors as Record<string, string>).forEach(([colorName, colorValue]) => {
+      root.style.setProperty(`--color-${category}-${colorName}`, hex8ToRGBA(colorValue))
+    })
+  })
 }
 
 export function hex8ToRGBA(hex: string, alpha: string = '1') {
@@ -345,17 +264,21 @@ export function hex8ToRGBA(hex: string, alpha: string = '1') {
 }
 
 export function applyThemeColors(theme: Theme) {
+  if (theme.isSystem) {
+    window.electronAPI.getSystemColors().then(themeAndColors => {
+      applySystemColors(themeAndColors)
+    })
+    return
+  }
+
   const root = document.documentElement
-  const colors = theme.isSystem ? getSystemColors() : theme.colors
-  
-  // Apply CSS custom properties
-  Object.entries(colors).forEach(([category, categoryColors]) => {
+  Object.entries(theme.colors).forEach(([category, categoryColors]) => {
     Object.entries(categoryColors as Record<string, string>).forEach(([colorName, colorValue]) => {
       root.style.setProperty(`--color-${category}-${colorName}`, hex8ToRGBA(colorValue))
     })
   })
   
   // Apply theme class ???
-  root.classList.remove('light', 'dark', 'system')
-  root.classList.add(theme.type === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme.type)
+  //root.classList.remove('light', 'dark', 'system')
+  //root.classList.add(theme.type === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme.type)
 }

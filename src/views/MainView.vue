@@ -1,6 +1,6 @@
 <template>
   <div class="h-full flex flex-col">
-    <div class="flex-1 flex overflow-hidden bg-background-secondary">
+    <div class="flex-1 flex overflow-hidden bg-background-content">
     
       <!-- Left Sidebar -->
       <LeftSidebar v-if="appStore.showLeftSidebar" />
@@ -59,7 +59,7 @@
                       <div class="flex gap-3 justify-center">
                         <button 
                           @click="openWithShell(tab.path)"
-                          class="button-m button-m-primary w-44 mb-4 h-9"
+                          class="button button-primary w-44 mb-4 h-9"
                         >
                           <IconFolderOpen class="icon-base" />
                           <span>Open Anyway</span>

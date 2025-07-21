@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center h-9 select-none w-full drag-region overflow-hidden bg-background-primary border-b border-border-primary">
+  <div class="flex items-center h-9 select-none w-full drag-region overflow-hidden bg-background-window border-b border-border-separator">
     <!-- Window Controls - handled by system traffic lights -->
     <div v-if="!isMaximized && !appStore.showLeftSidebar" class="flex items-center pl-20"></div>
     <!-- Left Sidebar Toggle -->
@@ -52,8 +52,8 @@
             :ref="el => { if (tab.isActive) activeTabRef = el as HTMLElement}"
             :class="[
               idx === 0 ? 'border-l' : '',
-              'flex items-center px-3 py-2 space-x-2 border-r border-border-primary min-w-32 max-w-48 flex-shrink-0',
-              tab.isActive ? 'bg-background-secondary' : 'hover:bg-interactive-hover'
+              'flex items-center px-3 py-2 space-x-2 border-r border-border-separator min-w-32 max-w-48 flex-shrink-0',
+              tab.isActive ? 'bg-background-content' : 'hover:bg-interactive-hover'
             ]"
             @click="switchTab(tab.id)"
             :title="tab.name"

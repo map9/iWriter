@@ -15,7 +15,7 @@
         <p class="mb-2 text-sm text-left text-text-secondary">You have not yet opened folder.</p>
         <button
           @click="appStore.openFolder()"
-          class="button-m button-m-primary w-full mb-2 h-9"
+          class="button button-primary w-full mb-2 h-9"
         >
           <IconFolder class="icon-base" />
           <span>Open Folder</span>

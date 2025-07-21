@@ -28,14 +28,14 @@
     </div>
 
     <!-- Search Files -->
-    <div class="flex items-center h-9 px-3 border-b border-border-primary select-none flex-shrink-0">
-      <div class="relative w-full bg-background-secondary">
+    <div class="flex items-center h-9 px-3 border-b border-border-separator select-none flex-shrink-0">
+      <div class="relative w-full bg-background-content">
         <IconSearch class="icon-sm absolute left-2 top-1/2 transform -translate-y-1/2 text-text-secondary" />
         <input
           v-model="searchQuery"
           type="text"
           placeholder="Search Files"
-          class="w-full pl-7 pr-3 h-6 text-sm bg-transparent border border-border-primary focus:outline-none focus:ring-1 focus:ring-border-focus focus:border-transparent"
+          class="w-full pl-7 pr-3 h-6 text-sm bg-transparent border border-border-separator focus:outline-none focus:ring-1 focus:ring-interactive-focus focus:border-transparent"
         />
       </div>
     </div>
@@ -652,17 +652,20 @@ const handleNodeDrop = (data: { dragNode: any; dropNode: any; position: string }
   --tree-font-size: 12px;
   --tree-font-weight: 500;
   --tree-text-color: var(--color-text-primary);
-  --tree-background-color: var(--color-background-secondary);
-  --tree-hover-color: #eee;
-  --tree-selected-background: var(--color-accent-primary);
-  --tree-selected-color: var(--color-background-secondary);
+  --tree-background-color: var(--color-background-content);
+  --tree-hover-color: var(--color-interactive-hover);
+  --tree-selected-background: var(--color-background-selected);
+  --tree-selected-color: #FFFFFFFF;
   --tree-selected-border-color: transparent;
 
   --tree-input-background: transparent;
-  --tree-input-border: 1px solid var(--color-border-focus);
-  
+  --tree-input-border: 1px solid var(--color-interactive-focus);
+
+  --tree-badge-background: var(--color-interactive-control);
+  --tree-badge-color: var(--color-text-primary);
+
   --tree-drop-border-color: transparent;
-  --tree-drop-background: var(--color-background-elevated);
+  --tree-drop-background: var(--color-interactive-elevated);
 }
 
 </style>

@@ -37,7 +37,6 @@ onMounted(() => {
         appStore.handleMenuAction(action)
       }
     })
-    
   }
 })
 

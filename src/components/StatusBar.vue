@@ -1,5 +1,5 @@
 <template>
-  <div class="relative flex h-6 px-4 items-center justify-between bg-blue-600 text-xs text-background-secondary">
+  <div class="relative flex h-6 px-4 items-center justify-between bg-blue-600 text-xs text-white">
     <!-- Notification Overlay (占据整条状态栏) -->
     <div 
       v-if="currentNotification" 

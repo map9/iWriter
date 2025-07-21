@@ -3,7 +3,7 @@
     class="sidebar relative h-full flex flex-col min-w-64 shrink-0"
     :style="{ width: `${appStore.leftSidebarWidth}px` }"
   >
-    <div class="flex items-center h-9 bg-background-primary border-b border-border-primary select-none drag-region">
+    <div class="flex items-center h-9 bg-background-window border-b border-border-separator select-none drag-region">
       <!-- Window Controls - handled by system traffic lights -->
       <div v-if="!isMaximized" class="flex items-center pl-20"></div>
       
@@ -74,7 +74,7 @@
     
     <!-- Resizable handle -->
     <div 
-      class="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-interactive-selected hover:opacity-50 transition-all bg-transparent"
+      class="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-background-selected hover:opacity-50 transition-all bg-transparent"
       @mousedown="startResize"
     ></div>
   </div>

@@ -26,7 +26,7 @@
       <!-- Expand/Collapse Icon -->
       <button
         v-if="hasChildren"
-        class="button"
+        class="button-wrapper"
         @click.stop="toggleExpanded"
       >
         <component 
@@ -41,7 +41,7 @@
       <!-- Check Icon -->
       <button
         v-if="canCheck"
-        class="button"
+        class="button-wrapper"
         @click.stop="toggleChecked"
       >
         <component 
@@ -663,7 +663,7 @@ defineExpose({
   background-color: var(--tree-hover-color, #eee);
 }
 
-.tree-node-content .button {
+.tree-node-content .button-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -684,17 +684,17 @@ defineExpose({
   margin-right: var(--tree-icon-spacing, 4px);
 }
 
-.tree-node-content .button .expand-icon {
+.tree-node-content .button-wrapper .expand-icon {
   width: var(--tree-icon-size-small, 12px);
   height: var(--tree-icon-size-small, 12px);
 }
 
-.tree-node-content .button .check-icon {
+.tree-node-content .button-wrapper .check-icon {
   width: var(--tree-icon-size, 16px);
   height: var(--tree-icon-size, 16px);
 }
 
-.tree-node-content .button .text {
+.tree-node-content .button-wrapper .text {
   font-size: var(--tree-icon-size-small, 12px);
   line-height: 1;
 }

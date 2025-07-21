@@ -15,32 +15,35 @@ module.exports = {
         
         // 背景色
         background: {
-          primary: 'var(--color-background-primary)',
-          secondary: 'var(--color-background-secondary)',
-          tertiary: 'var(--color-background-tertiary)',
-          elevated: 'var(--color-background-elevated)'
+          window: 'var(--color-background-window)',
+          content: 'var(--color-background-content)',
+          underpage: 'var(--color-background-underpage)',
+          selected: 'var(--color-background-selected)'
         },
         
         // 文本色
         text: {
+          base: 'var(--color-text-base)',
           primary: 'var(--color-text-primary)',
           secondary: 'var(--color-text-secondary)',
           tertiary: 'var(--color-text-tertiary)',
-          disabled: 'var(--color-text-disabled)'
         },
         
         // 边框色
         border: {
-          primary: 'var(--color-border-primary)',
-          secondary: 'var(--color-border-secondary)',
-          focus: 'var(--color-border-focus)'
+          separator: 'var(--color-border-separator)',
+          grid: 'var(--color-border-grid)',
+          shadow: 'var(--color-border-shadow)'
         },
         
         // 交互色
         interactive: {
+          control: 'var(--color-interactive-control)',
+          elevated: 'var(--color-interactive-elevated)',
           hover: 'var(--color-interactive-hover)',
-          active: 'var(--color-interactive-active)',
-          selected: 'var(--color-interactive-selected)'
+          focus: 'var(--color-interactive-focus)',
+          link: 'var(--color-interactive-link)',
+          highlight: 'var(--color-interactive-highlight)',
         },
         
         // 状态色
@@ -51,13 +54,6 @@ module.exports = {
           info: 'var(--color-status-info)',
           neutral: 'var(--color-status-neutral)'
         },
-        
-        // 其他色彩
-        other: {
-          link: 'var(--color-other-link)',
-          highlight: 'var(--color-other-highlight)',
-          shadow: 'var(--color-other-shadow)'
-        }
       },
       fontFamily: {
         sans: ['SF Pro Display', 'system-ui', 'sans-serif'],

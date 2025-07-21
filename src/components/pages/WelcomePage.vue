@@ -12,7 +12,7 @@
         <div class="flex gap-3 justify-center">
           <button 
             @click="createNewDocument"
-            class="button-m button-m-primary w-44 mb-4 h-9"
+            class="button button-primary w-44 mb-4 h-9"
           >
             <IconPlus class="icon-base" />
             <span>New Document</span>
@@ -20,7 +20,7 @@
           
           <button 
             @click="openFile"
-            class="button-m button-m-primary w-44 mb-4 h-9"
+            class="button button-primary w-44 mb-4 h-9"
           >
             <IconFolderOpen class="icon-base" />
             <span>Open Document</span>
@@ -28,7 +28,7 @@
           
           <button v-if="!appStore.hasOpenFolder"
             @click="openFolder"
-            class="button-m button-m-primary w-44 mb-4 h-9"
+            class="button button-primary w-44 mb-4 h-9"
           >
             <IconFolder class="icon-base" />
             <span>Open Folder</span>

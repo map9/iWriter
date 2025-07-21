@@ -143,7 +143,7 @@ function createWindow(): BrowserWindow {
   window.once('ready-to-show', () => {
     window.show()
 
-    //console.log(getSystemColors())
+    console.log(getSystemColors())
 
     // Handle window state changes after window is ready
     window.on('enter-full-screen', handleEnterFullScreen)
@@ -2465,7 +2465,6 @@ ipcMain.handle('open-with-shell', async (event, filePath: string) => {
 })
 
 // 获取系统颜色
-// 需要做跨平台的适配
 function getSystemColors() {  
   let colors = null
   
@@ -2478,40 +2477,53 @@ function getSystemColors() {
         },
         // 背景色
         background: {
-          primary: systemPreferences.getColor('window-background'),
-          secondary: systemPreferences.getColor('control-background'),
-          tertiary: systemPreferences.getColor('under-page-background'),
-          elevated: systemPreferences.getColor('selected-text-background')
+          window: systemPreferences.getColor('window-background'),
+          content: systemPreferences.getColor('control-background'),
+          underpage: systemPreferences.getColor('under-page-background'),
+          selected: systemPreferences.getColor('selected-content-background')
         },
         // 文本色
         text: {
+          base: systemPreferences.getColor('text'),
           primary: systemPreferences.getColor('label'),
           secondary: systemPreferences.getColor('secondary-label'),
           tertiary: systemPreferences.getColor('tertiary-label'),
-          disabled: systemPreferences.getColor('quaternary-label')
         },
         // 边框和分隔线
         border: {
           primary: systemPreferences.getColor('separator'),
           secondary: systemPreferences.getColor('grid'),
-          focus: systemPreferences.getColor('keyboard-focus-indicator')
+          shadow: systemPreferences.getColor('shadow'),
         },
-        interactive: {
         // 交互色
-          active: systemPreferences.getColor('selected-text'),
-          selected: systemPreferences.getColor('selected-content-background')
-        },
-        other: {
+        interactive: {
+          control: systemPreferences.getColor('control'),
+          elevated: systemPreferences.getColor('selected-text-background'),
+          focus: systemPreferences.getColor('keyboard-focus-indicator'),
           link: systemPreferences.getColor('link'),
           highlight: systemPreferences.getColor('find-highlight'),
-          shadow: systemPreferences.getColor('shadow'),
+        },
+        other: {
+          controlText: systemPreferences.getColor('control-text'),
+          disabledControlText: systemPreferences.getColor('disabled-control-text'),
+          headerText: systemPreferences.getColor('header-text'),
+          highlight0: systemPreferences.getColor('highlight'),
+          placeholderText: systemPreferences.getColor('placeholder-text'),
+          scrubberTexturedBackground: systemPreferences.getColor('scrubber-textured-background'),
+          selectedControl: systemPreferences.getColor('selected-control'),
+          selectedControlText: systemPreferences.getColor('selected-control-text'),
+          selectedMenuItemText: systemPreferences.getColor('selected-menu-item-text'),
+          selectedText: systemPreferences.getColor('selected-text'),
+          textBackground: systemPreferences.getColor('text-background'),
+          windowFrameText: systemPreferences.getColor('window-frame-text'),
+          unemphasizedSelectedContentBackground: systemPreferences.getColor('unemphasized-selected-content-background'),
+          unemphasizedSelectedTextBackground: systemPreferences.getColor('unemphasized-selected-text-background'),
+          unemphasizedSelectedText: systemPreferences.getColor('unemphasized-selected-text'),
         }
       }
     } else if (process.platform === 'win32') {
       console.warn('need to fixed')
 
-    } else {
-      console.warn('need to fixed')
     }
   } catch (error) {
     console.warn('获取系统颜色失败:', error)
@@ -2528,7 +2540,7 @@ function setupThemeListeners() {
       const newColors = getSystemColors()
       windows.forEach((w)=>{
         if (w.window) {
-          w.window.webContents.send('system-colors-changed', theme, newColors);
+          w.window.webContents.send('system-colors-changed', {theme, newColors});
         }
       })
     }
@@ -2561,7 +2573,7 @@ function setupThemeListeners() {
       // Linux 下的系统颜色获取比较有限
       windows.forEach((w)=>{
         if (w.window) {
-          w.window.webContents.send('system-colors-changed', theme, null);
+          w.window.webContents.send('system-colors-changed', {theme, newColors: null} );
         }
       })
     }
@@ -2586,7 +2598,15 @@ function removeThemeListeners() {
 
 // 向渲染进程提供系统颜色
 ipcMain.handle('get-system-colors', () => {
-  return getSystemColors()
+  let theme = 'unknown'
+  if (process.platform === 'darwin') {
+    theme = systemPreferences.getEffectiveAppearance()
+  }
+  else if (process.platform === 'win32' || process.platform === 'linux') {
+    theme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
+  }
+
+  return {theme, newColors: getSystemColors()}
 })
 
 app.whenReady().then(() => {

@@ -251,6 +251,8 @@ export interface ElectronAPI {
   
   // 使用系统默认应用程序打开文件
   openWithShell: (path: string) => Promise<void>
+  getSystemColors: () => Promise<{ theme: 'light' | 'dark' | 'unknown', newColors: any }>,
+  onSystemColorsChanged: (callback: (themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: any }) => void) => void,
 }
 
 // 标签接口
