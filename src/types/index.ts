@@ -56,6 +56,19 @@ export interface FileMetadata {
   tags?: string[]
 }
 
+// 编辑器统计信息接口
+export interface EditorStats {
+  currentLine: number
+  currentColumn: number
+  paragraphType: string
+  selectionCharCount: number
+  selectionWordCount: number
+  totalCharCount: number
+  totalWordCount: number
+  totalParagraphCount: number
+  lineEnding: 'LF' | 'CRLF'
+}
+
 // 文件标签页接口
 export interface FileTab {
   id: string
@@ -67,6 +80,7 @@ export interface FileTab {
   documentType?: DocumentType
   metadata?: FileMetadata
   tocProvider?: import('@/types/toc').TocProvider
+  editorStats?: EditorStats
 }
 
 // 文件操作类型枚举

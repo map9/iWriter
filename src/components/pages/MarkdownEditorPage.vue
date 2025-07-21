@@ -861,6 +861,132 @@ function handleMenuAction(action: string): boolean {
   }
 }
 
+// 统计信息计算辅助函数
+function getParagraphTypeName(contentState: any): string {
+  if (typeof contentState.type === 'number') {
+    return `heading-${contentState.type}`
+  }
+  
+  switch (contentState.type) {
+    case 'paragraph': return 'paragraph'
+    case 'blockquote': return 'blockquote'
+    case 'bulletList': return 'bullet-list'
+    case 'orderedList': return 'ordered-list'
+    case 'taskList': return 'task-list'
+    case 'codeBlock': return 'code-block'
+    default: return 'paragraph'
+  }
+}
+
+function getCurrentLineFromPos(pos: number): number {
+  if (!editor.value) return 1
+  const doc = editor.value.state.doc
+  let line = 1
+  let currentPos = 0
+  
+  doc.descendants((node: any, offset: number) => {
+    if (currentPos >= pos) return false
+    if (node.type.name === 'paragraph' || node.type.name === 'heading') {
+      if (offset + node.nodeSize >= pos) {
+        return false
+      }
+      line++
+    }
+    currentPos = offset + node.nodeSize
+    return true
+  })
+  
+  return line
+}
+
+function getCurrentColumnFromPos(pos: number): number {
+  if (!editor.value) return 1
+  const doc = editor.value.state.doc
+  const resolved = doc.resolve(pos)
+  return resolved.parentOffset + 1
+}
+
+function getSelectionCharCount(selection: any): number {
+  if (selection.empty) return 0
+  return selection.to - selection.from
+}
+
+function getSelectionWordCount(selection: any): number {
+  if (selection.empty || !editor.value) return 0
+  const selectedText = editor.value.state.doc.textBetween(selection.from, selection.to)
+  return countWords(selectedText)
+}
+
+function countWords(text: string): number {
+  if (!text.trim()) return 0
+  // 使用正则匹配单词，排除标点符号
+  const words = text.trim().match(/\b[a-zA-Z0-9\u4e00-\u9fff]+\b/g)
+  return words ? words.length : 0
+}
+
+function countParagraphs(doc: any): number {
+  let count = 0
+  doc.descendants((node: any) => {
+    if (node.type.name === 'paragraph' || node.type.name === 'heading') {
+      count++
+    }
+  })
+  return count
+}
+
+function detectLineEnding(text: string): 'LF' | 'CRLF' {
+  if (text.includes('\r\n')) return 'CRLF'
+  return 'LF'
+}
+
+function calculateEditorStats(): import('@/types').EditorStats {
+  if (!editor.value) {
+    return {
+      currentLine: 1,
+      currentColumn: 1,
+      paragraphType: 'paragraph',
+      selectionCharCount: 0,
+      selectionWordCount: 0,
+      totalCharCount: 0,
+      totalWordCount: 0,
+      totalParagraphCount: 0,
+      lineEnding: 'LF'
+    }
+  }
+
+  const selection = editor.value.state.selection
+  const doc = editor.value.state.doc
+  const content = doc.textContent
+
+  // 获取段落类型信息（复用updateMenuFormattingState的逻辑）
+  let contentState = 'paragraph'
+  if (editor.value.isActive('heading')) {
+    contentState = editor.value.getAttributes('heading').level
+  } else if (editor.value.isActive('blockquote')) {
+    contentState = 'blockquote'
+  } else if (editor.value.isActive('bulletList')) {
+    contentState = 'bulletList'
+  } else if (editor.value.isActive('orderedList')) {
+    contentState = 'orderedList'
+  } else if (editor.value.isActive('taskList')) {
+    contentState = 'taskList'
+  } else if (editor.value.isActive('codeBlock')) {
+    contentState = 'codeBlock'
+  }
+
+  return {
+    currentLine: getCurrentLineFromPos(selection.from),
+    currentColumn: getCurrentColumnFromPos(selection.from),
+    paragraphType: getParagraphTypeName({ type: contentState }),
+    selectionCharCount: getSelectionCharCount(selection),
+    selectionWordCount: getSelectionWordCount(selection),
+    totalCharCount: content.length,
+    totalWordCount: countWords(content),
+    totalParagraphCount: countParagraphs(doc),
+    lineEnding: detectLineEnding(content)
+  }
+}
+
 // Update menu state
 function updateMenuFormattingState() {
   if (window.electronAPI?.windowContentChange && editor.value) {
@@ -931,6 +1057,10 @@ function updateMenuFormattingState() {
     }
     
     window.electronAPI.windowContentChange(context)
+    
+    // 更新编辑器统计信息
+    const stats = calculateEditorStats()
+    appStore.updateActiveTabStats(stats)
   }
 }
 

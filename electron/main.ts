@@ -74,10 +74,14 @@ const fileWatchers: Map<string, FSWatcher> = new Map();
 const themeListeners: ThemeListener[] = []
 
 // Send menu action to the focused window
-function sendMenuAction(focusedWindow: WindowState | undefined, action: string) {
+function sendMenuAction(action: string) {
+  const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
   if (focusedWindow?.window) {
     focusedWindow.window.webContents.send('menu-action', action);
+    return
   }
+
+  console.warn(`No focused window found for action: ${action}`);
 }
 
 function createWindow(): BrowserWindow {
@@ -172,6 +176,97 @@ function createNewWindow(): BrowserWindow {
   return createWindow()
 }
 
+/**
+ * 在菜单模板中指定ID的菜单项下方插入新项
+ * @param template 菜单模板数组
+ * @param parentId 父菜单ID（可选）
+ * @param targetId 目标菜单项ID
+ * @param newItem 要插入的新菜单项
+ * @returns 是否插入成功
+ */
+function insertInTemplate(
+  template: Electron.MenuItemConstructorOptions[],
+  parentId: string | undefined,
+  targetId: string,
+  newItems: Electron.MenuItemConstructorOptions | Electron.MenuItemConstructorOptions[]
+): boolean {
+  const itemsToInsert = Array.isArray(newItems) ? newItems : [newItems];
+
+  function findAndInsert(items: Electron.MenuItemConstructorOptions[]): boolean {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      if (item.id === parentId) {
+        if (item.submenu) {
+          const submenu = Array.isArray(item.submenu) ? item.submenu : [];
+          
+          for (let j = 0; j < submenu.length; j++) {
+            if (submenu[j].id === targetId) {
+              submenu.splice(j + 1, 0, ...itemsToInsert);
+              return true;
+            }
+          }
+        }
+      }
+      
+      // 如果当前项有子菜单，递归处理
+      if (item.submenu && Array.isArray(item.submenu)) {
+        if (findAndInsert(item.submenu)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  
+  return findAndInsert(template);
+}
+
+/**
+ * 在指定菜单项下方插入新菜单项
+ * @param menu 目标菜单对象
+ * @param parentId 父菜单ID（可选）
+ * @param targetId 要在其下方插入的目标菜单项ID
+ * @param newItem 要插入的新菜单项
+ * @returns 是否插入成功
+ */
+function insertMenuItemUnder(
+  menu: Electron.Menu,
+  parentId: string | undefined,
+  targetId: string,
+  newItems: Electron.MenuItemConstructorOptions[]
+): boolean {
+  function findAndInsert(items: Electron.MenuItem[]): boolean {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      if (item.id === parentId) {
+        if (item.submenu) {
+          const submenuItems = item.submenu.items;
+          for (let j = 0; j < submenuItems.length; j++) {
+            if (submenuItems[j].id === targetId) {
+              newItems.forEach(newItem => {
+                const menuItem = new Electron.MenuItem(newItem);
+                submenuItems.splice(j + 1, 0, menuItem);
+              });
+              return true;
+            }
+          }
+        }
+      }
+      
+      if (item.submenu) {
+        if (findAndInsert(item.submenu.items)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  
+  return findAndInsert(menu.items);
+}
+
 function updateMenu(): void {
   const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
   // Build base menu template
@@ -182,28 +277,28 @@ function updateMenu(): void {
         {
           label: 'About iWriter',
           click: () => {
-            sendMenuAction(focusedWindow, 'about')
+            sendMenuAction('about')
           }
         },
         { type: 'separator' },
         {
           label: 'License...',
           click: () => {
-            sendMenuAction(focusedWindow, 'license')
+            sendMenuAction('license')
           }
         },
         { type: 'separator' },
         {
           label: 'Check for update...',
           click: () => {
-            sendMenuAction(focusedWindow, 'check-update')
+            sendMenuAction('check-update')
           }
         },
         {
           label: 'Preferences...',
           accelerator: 'CmdOrCtrl+,',
           click: () => {
-            sendMenuAction(focusedWindow, 'preferences')
+            sendMenuAction('preferences')
           }
         },
         { type: 'separator' },
@@ -232,17 +327,17 @@ function updateMenu(): void {
         {
           label: 'New Document',
           accelerator: 'CmdOrCtrl+N',
-          enabled: currentFocusedWindowId !== null,
+          enabled: focusedWindow != null,
           click: () => {
-            sendMenuAction(focusedWindow, 'new-file')
+            sendMenuAction('new-file')
           }
         },
         {
           label: 'New from Template...',
           accelerator: 'CmdOrCtrl+Shift+N',
-          enabled: currentFocusedWindowId !== null,
+          enabled: focusedWindow != null,
           click: () => {
-            sendMenuAction(focusedWindow, 'new-from-template')
+            sendMenuAction('new-from-template')
           }
         },
         {
@@ -257,22 +352,22 @@ function updateMenu(): void {
         {
           label: 'Open File...',
           accelerator: 'CmdOrCtrl+O',
-          enabled: currentFocusedWindowId !== null,
+          enabled: focusedWindow != null,
           click: () => {
-            sendMenuAction(focusedWindow, 'open-file')
+            sendMenuAction('open-file')
           }
         },
         {
           label: 'Open Folder...',
           accelerator: 'CmdOrCtrl+Shift+O',
-          enabled: currentFocusedWindowId !== null,
+          enabled: focusedWindow != null,
           click: () => {
-            sendMenuAction(focusedWindow, 'open-folder')
+            sendMenuAction('open-folder')
           }
         },
         {
           label: 'Open Recent',
-          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
+          enabled: focusedWindow?.contentInfo?.hasActiveDocument,
           submenu: [
             // Will be populated dynamically
           ]
@@ -282,18 +377,18 @@ function updateMenu(): void {
           id: 'save',
           label: 'Save',
           accelerator: 'CmdOrCtrl+S',
-          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
+          enabled: focusedWindow?.contentInfo?.hasActiveDocument,
           click: () => {
-            sendMenuAction(focusedWindow, 'save')
+            sendMenuAction('save')
           }
         },
         {
           id: 'save-as',
           label: 'Save As...',
           accelerator: 'CmdOrCtrl+Shift+S',
-          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
+          enabled: focusedWindow?.contentInfo?.hasActiveDocument,
           click: () => {
-            sendMenuAction(focusedWindow, 'save-as')
+            sendMenuAction('save-as')
           }
         },
         {
@@ -301,10 +396,10 @@ function updateMenu(): void {
           label: 'Auto Save',
           type: 'checkbox',
           checked: g.autoSave,
-          enabled: currentFocusedWindowId !== null && currentFocusedWindowId !== null,
+          enabled: focusedWindow != null,
           click: () => {
             g.autoSave = !g.autoSave
-            sendMenuAction(focusedWindow, 'toggle-auto-save')
+            sendMenuAction('toggle-auto-save')
             updateMenu()
           }
         },
@@ -312,45 +407,45 @@ function updateMenu(): void {
           id: 'save-all',
           label: 'Save All',
           accelerator: 'CmdOrCtrl+Alt+S',
-          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
+          enabled: focusedWindow?.contentInfo?.hasActiveDocument,
           click: () => {
-            sendMenuAction(focusedWindow, 'save-all')
+            sendMenuAction('save-all')
           }
         },
         { type: 'separator' },
         {
           label: 'Import',
-          enabled: currentFocusedWindowId !== null,
+          enabled: focusedWindow != null,
           submenu: [
             {
               label: 'Evernote',
               click: () => {
-                sendMenuAction(focusedWindow, 'import-evernote')
+                sendMenuAction('import-evernote')
               }
             },
             {
               label: 'Drafts',
               click: () => {
-                sendMenuAction(focusedWindow, 'import-drafts')
+                sendMenuAction('import-drafts')
               }
             },
             {
               label: 'Obsidian',
               click: () => {
-                sendMenuAction(focusedWindow, 'import-obsidian')
+                sendMenuAction('import-obsidian')
               }
             },
             {
               label: 'Day One',
               click: () => {
-                sendMenuAction(focusedWindow, 'import-day-one')
+                sendMenuAction('import-day-one')
               }
             },
             { type: 'separator' },
             {
               label: 'More Options...',
               click: () => {
-                sendMenuAction(focusedWindow, 'import-more-options')
+                sendMenuAction('import-more-options')
               }
             }
           ]
@@ -358,31 +453,31 @@ function updateMenu(): void {
         {
           id: 'export',
           label: 'Export',
-          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
+          enabled: focusedWindow?.contentInfo?.hasActiveDocument,
           submenu: [
             {
               label: 'PDF',
               click: () => {
-                sendMenuAction(focusedWindow, 'export-pdf')
+                sendMenuAction('export-pdf')
               }
             },
             {
               label: 'Html',
               click: () => {
-                sendMenuAction(focusedWindow, 'export-html')
+                sendMenuAction('export-html')
               }
             },
             {
               label: 'Word(.docx)',
               click: () => {
-                sendMenuAction(focusedWindow, 'export-word')
+                sendMenuAction('export-word')
               }
             },
             { type: 'separator' },
             {
               label: 'More Options...',
               click: () => {
-                sendMenuAction(focusedWindow, 'export-more-options')
+                sendMenuAction('export-more-options')
               }
             }
           ]
@@ -391,17 +486,17 @@ function updateMenu(): void {
         {
           label: 'Page Setting...',
           accelerator: 'CmdOrCtrl+Shift+P',
-          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
+          enabled: focusedWindow?.contentInfo?.hasActiveDocument,
           click: () => {
-            sendMenuAction(focusedWindow, 'page-setting')
+            sendMenuAction('page-setting')
           }
         },
         {
           label: 'Print...',
           accelerator: 'CmdOrCtrl+P',
-          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
+          enabled: focusedWindow?.contentInfo?.hasActiveDocument,
           click: () => {
-            sendMenuAction(focusedWindow, 'print')
+            sendMenuAction('print')
           }
         },
         { type: 'separator' },
@@ -409,25 +504,26 @@ function updateMenu(): void {
           id: 'close-file',
           label: 'Close File',
           accelerator: 'CmdOrCtrl+W',
-          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasActiveDocument,
+          enabled: focusedWindow?.contentInfo?.hasActiveDocument,
           click: () => {
-            sendMenuAction(focusedWindow, 'close-file')
+            sendMenuAction('close-file')
           }
         },
         {
           id: 'close-folder',
           label: 'Close Folder',
-          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.hasFolderOpen,
+          enabled: focusedWindow?.contentInfo?.hasFolderOpen,
           click: () => {
-            sendMenuAction(focusedWindow, 'close-folder')
+            sendMenuAction('close-folder')
           }
         },
         {
           id: 'close-window',
           label: 'Close Window',
           accelerator: 'CmdOrCtrl+Shift+W',
-          enabled: currentFocusedWindowId !== null,
+          enabled: focusedWindow != null,
           click: () => {
+            const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
             if (focusedWindow?.window) {
               focusedWindow.window.close()
             }
@@ -441,17 +537,17 @@ function updateMenu(): void {
         {
           label: 'Undo',
           accelerator: 'CmdOrCtrl+Z',
-          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.undoRedo?.undo,
+          enabled: focusedWindow?.contentInfo?.undoRedo?.undo,
           click: () => {
-            sendMenuAction(focusedWindow, 'undo')
+            sendMenuAction('undo')
           }
         },
         {
           label: 'Redo',
           accelerator: 'CmdOrCtrl+Shift+Z',
-          enabled: currentFocusedWindowId !== null && focusedWindow?.contentInfo?.undoRedo?.redo,
+          enabled: focusedWindow?.contentInfo?.undoRedo?.redo,
           click: () => {
-            sendMenuAction(focusedWindow, 'redo')
+            sendMenuAction('redo')
           }
         },
         { type: 'separator' },
@@ -467,25 +563,25 @@ function updateMenu(): void {
             {
               label: 'Plain Text',
               click: () => {
-                sendMenuAction(focusedWindow, 'copy-as-plain-text')
+                sendMenuAction('copy-as-plain-text')
               }
             },
             {
               label: 'Markdown',
               click: () => {
-                sendMenuAction(focusedWindow, 'copy-as-markdown')
+                sendMenuAction('copy-as-markdown')
               }
             },
             {
               label: 'Html',
               click: () => {
-                sendMenuAction(focusedWindow, 'copy-as-html')
+                sendMenuAction('copy-as-html')
               }
             },
             {
               label: 'Picture',
               click: () => {
-                sendMenuAction(focusedWindow, 'copy-as-picture')
+                sendMenuAction('copy-as-picture')
               }
             }
           ]
@@ -497,7 +593,7 @@ function updateMenu(): void {
           label: 'Paste as Text',
           accelerator: 'CmdOrCtrl+Shift+V',
           click: () => {
-            sendMenuAction(focusedWindow, 'paste-as-text')
+            sendMenuAction('paste-as-text')
           }
         },
         {
@@ -517,14 +613,14 @@ function updateMenu(): void {
               type: 'radio',
               checked: true,
               click: () => {
-                sendMenuAction(focusedWindow, 'line-ending-crlf')
+                sendMenuAction('line-ending-crlf')
               }
             },
             {
               label: 'Unix LF',
               type: 'radio',
               click: () => {
-                sendMenuAction(focusedWindow, 'line-ending-lf')
+                sendMenuAction('line-ending-lf')
               }
             }
           ]
@@ -536,26 +632,26 @@ function updateMenu(): void {
               label: 'First line indent',
               type: 'checkbox',
               click: () => {
-                sendMenuAction(focusedWindow, 'first-line-indent')
+                sendMenuAction('first-line-indent')
               }
             },
             {
               label: 'Show <br/>',
               click: () => {
-                sendMenuAction(focusedWindow, 'show-br')
+                sendMenuAction('show-br')
               }
             },
             {
               label: 'Keep Line breaks',
               click: () => {
-                sendMenuAction(focusedWindow, 'keep-line-breaks')
+                sendMenuAction('keep-line-breaks')
               }
             },
             { type: 'separator' },
             {
               label: 'More Options...',
               click: () => {
-                sendMenuAction(focusedWindow, 'space-line-break-options')
+                sendMenuAction('space-line-break-options')
               }
             }
           ]
@@ -568,48 +664,48 @@ function updateMenu(): void {
               type: 'checkbox',
               checked: true,
               click: () => {
-                sendMenuAction(focusedWindow, 'convert-on-input')
+                sendMenuAction('convert-on-input')
               }
             },
             {
               label: 'Convert on Render',
               type: 'checkbox',
               click: () => {
-                sendMenuAction(focusedWindow, 'convert-on-render')
+                sendMenuAction('convert-on-render')
               }
             },
             {
               label: 'Smart Quotes',
               type: 'checkbox',
               click: () => {
-                sendMenuAction(focusedWindow, 'smart-quotes')
+                sendMenuAction('smart-quotes')
               }
             },
             {
               label: 'Smart Dashes',
               type: 'checkbox',
               click: () => {
-                sendMenuAction(focusedWindow, 'smart-dashes')
+                sendMenuAction('smart-dashes')
               }
             },
             {
               label: 'Text Replace',
               click: () => {
-                sendMenuAction(focusedWindow, 'text-replace')
+                sendMenuAction('text-replace')
               }
             },
             {
               label: 'Auto Convert Unicode Punctuation',
               type: 'checkbox',
               click: () => {
-                sendMenuAction(focusedWindow, 'auto-convert-unicode')
+                sendMenuAction('auto-convert-unicode')
               }
             },
             { type: 'separator' },
             {
               label: 'More Options...',
               click: () => {
-                sendMenuAction(focusedWindow, 'auto-replace-options')
+                sendMenuAction('auto-replace-options')
               }
             }
           ]
@@ -621,14 +717,14 @@ function updateMenu(): void {
               label: 'Check Document',
               accelerator: 'CmdOrCtrl+;',
               click: () => {
-                sendMenuAction(focusedWindow, 'check-document')
+                sendMenuAction('check-document')
               }
             },
             {
               label: 'Show Spelling and Grammar...',
               accelerator: 'CmdOrCtrl+Shift+;',
               click: () => {
-                sendMenuAction(focusedWindow, 'show-spelling-grammar')
+                sendMenuAction('show-spelling-grammar')
               }
             },
             { type: 'separator' },
@@ -636,21 +732,21 @@ function updateMenu(): void {
               label: 'Check Spelling On Input',
               type: 'checkbox',
               click: () => {
-                sendMenuAction(focusedWindow, 'check-spelling-on-input')
+                sendMenuAction('check-spelling-on-input')
               }
             },
             {
               label: 'Check Spell and Grammar',
               type: 'checkbox',
               click: () => {
-                sendMenuAction(focusedWindow, 'check-spell-grammar')
+                sendMenuAction('check-spell-grammar')
               }
             },
             {
               label: 'Auto Correct Spell',
               type: 'checkbox',
               click: () => {
-                sendMenuAction(focusedWindow, 'auto-correct-spell')
+                sendMenuAction('auto-correct-spell')
               }
             }
           ]
@@ -660,14 +756,14 @@ function updateMenu(): void {
           label: 'Find',
           accelerator: 'CmdOrCtrl+F',
           click: () => {
-            sendMenuAction(focusedWindow, 'find')
+            sendMenuAction('find')
           }
         },
         {
           label: 'Replace',
           accelerator: 'CmdOrCtrl+Alt+F',
           click: () => {
-            sendMenuAction(focusedWindow, 'replace')
+            sendMenuAction('replace')
           }
         },
         { type: 'separator' },
@@ -675,14 +771,14 @@ function updateMenu(): void {
           label: 'Find in Files',
           accelerator: 'CmdOrCtrl+Shift+F',
           click: () => {
-            sendMenuAction(focusedWindow, 'find-in-files')
+            sendMenuAction('find-in-files')
           }
         },
         {
           label: 'Replace in Files',
           accelerator: 'CmdOrCtrl+Shift+H',
           click: () => {
-            sendMenuAction(focusedWindow, 'replace-in-files')
+            sendMenuAction('replace-in-files')
           }
         }
       ]
@@ -697,7 +793,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.contentState?.type === 1,
           click: () => {
-            sendMenuAction(focusedWindow, 'heading-1')
+            sendMenuAction('heading-1')
           }
         },
         {
@@ -706,7 +802,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.contentState?.type === 2,
           click: () => {
-            sendMenuAction(focusedWindow, 'heading-2')
+            sendMenuAction('heading-2')
           }
         },
         {
@@ -715,7 +811,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.contentState?.type === 3,
           click: () => {
-            sendMenuAction(focusedWindow, 'heading-3')
+            sendMenuAction('heading-3')
           }
         },
         {
@@ -724,7 +820,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.contentState?.type === 4,
           click: () => {
-            sendMenuAction(focusedWindow, 'heading-4')
+            sendMenuAction('heading-4')
           }
         },
         {
@@ -733,7 +829,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.contentState?.type === 5,
           click: () => {
-            sendMenuAction(focusedWindow, 'heading-5')
+            sendMenuAction('heading-5')
           }
         },
         {
@@ -742,7 +838,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.contentState?.type === 6,
           click: () => {
-            sendMenuAction(focusedWindow, 'heading-6')
+            sendMenuAction('heading-6')
           }
         },
         { type: 'separator' },
@@ -752,37 +848,33 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.contentState?.type === 'paragraph',
           click: () => {
-            sendMenuAction(focusedWindow, 'paragraph')
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Promote Heading',
-            accelerator: 'CmdOrCtrl+=',
-            enabled:
+            sendMenuAction('paragraph')
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Promote Heading',
+          accelerator: 'CmdOrCtrl+=',
+          enabled:
             focusedWindow?.contentInfo?.contentState?.type !== 1 &&
-            (
-              (typeof focusedWindow?.contentInfo?.contentState?.type === 'number' &&
+            ((typeof focusedWindow?.contentInfo?.contentState?.type === 'number' &&
               focusedWindow?.contentInfo?.contentState?.type >= 2 &&
-              focusedWindow?.contentInfo?.contentState?.type <= 6
-              ) ||
-              focusedWindow?.contentInfo?.contentState?.type === 'paragraph'
-            ),
-            click: () => {
-            sendMenuAction(focusedWindow, 'promote-heading')
+              focusedWindow?.contentInfo?.contentState?.type <= 6) ||
+              focusedWindow?.contentInfo?.contentState?.type === 'paragraph'),
+          click: () => {
+            sendMenuAction('promote-heading')
           }
         },
         {
           label: 'Demote Heading',
           accelerator: 'CmdOrCtrl+-',
           enabled: 
-          focusedWindow?.contentInfo?.contentState?.type !== 'paragraph' &&
-          (typeof focusedWindow?.contentInfo?.contentState?.type === 'number' &&
-          focusedWindow?.contentInfo?.contentState?.type >= 1 &&
-          focusedWindow?.contentInfo?.contentState?.type <= 6
-          ),
+            focusedWindow?.contentInfo?.contentState?.type !== 'paragraph' &&
+            (typeof focusedWindow?.contentInfo?.contentState?.type === 'number' &&
+            focusedWindow?.contentInfo?.contentState?.type >= 1 &&
+            focusedWindow?.contentInfo?.contentState?.type <= 6),
           click: () => {
-            sendMenuAction(focusedWindow, 'demote-heading')
+            sendMenuAction('demote-heading')
           }
         },
         { type: 'separator' },
@@ -793,34 +885,34 @@ function updateMenu(): void {
               label: 'Insert Table',
               accelerator: 'CmdOrCtrl+Shift+T',
               click: () => {
-                sendMenuAction(focusedWindow, 'insert-table')
+                sendMenuAction('insert-table')
               }
             },
             { type: 'separator' },
             {
               label: 'Insert Line Above',
               click: () => {
-                sendMenuAction(focusedWindow, 'table-insert-line-above')
+                sendMenuAction('table-insert-line-above')
               }
             },
             {
               label: 'Insert Line Below',
               accelerator: 'CmdOrCtrl+Enter',
               click: () => {
-                sendMenuAction(focusedWindow, 'table-insert-line-below')
+                sendMenuAction('table-insert-line-below')
               }
             },
             { type: 'separator' },
             {
               label: 'Insert Row Left',
               click: () => {
-                sendMenuAction(focusedWindow, 'table-insert-row-left')
+                sendMenuAction('table-insert-row-left')
               }
             },
             {
               label: 'Insert Row Right',
               click: () => {
-                sendMenuAction(focusedWindow, 'table-insert-row-right')
+                sendMenuAction('table-insert-row-right')
               }
             },
             { type: 'separator' },
@@ -828,28 +920,28 @@ function updateMenu(): void {
               label: 'Move Line Up',
               accelerator: 'CmdOrCtrl+Shift+Up',
               click: () => {
-                sendMenuAction(focusedWindow, 'table-move-line-up')
+                sendMenuAction('table-move-line-up')
               }
             },
             {
               label: 'Move Line Up',
               accelerator: 'CmdOrCtrl+Shift+Down',
               click: () => {
-                sendMenuAction(focusedWindow, 'table-move-line-down')
+                sendMenuAction('table-move-line-down')
               }
             },
             {
               label: 'Move Line Left',
               accelerator: 'CmdOrCtrl+Shift+Left',
               click: () => {
-                sendMenuAction(focusedWindow, 'table-move-line-left')
+                sendMenuAction('table-move-line-left')
               }
             },
             {
               label: 'Move Line Right',
               accelerator: 'CmdOrCtrl+Shift+Right',
               click: () => {
-                sendMenuAction(focusedWindow, 'table-move-line-right')
+                sendMenuAction('table-move-line-right')
               }
             },
             { type: 'separator' },
@@ -857,33 +949,33 @@ function updateMenu(): void {
               label: 'Delete Line',
               accelerator: 'CmdOrCtrl+Shift+Backspace',
               click: () => {
-                sendMenuAction(focusedWindow, 'table-delete-line')
+                sendMenuAction('table-delete-line')
               }
             },
             {
               label: 'Delete Row',
               click: () => {
-                sendMenuAction(focusedWindow, 'table-delete-row')
+                sendMenuAction('table-delete-row')
               }
             },
             { type: 'separator' },
             {
               label: 'Duplicate Table',
               click: () => {
-                sendMenuAction(focusedWindow, 'table-duplicate')
+                sendMenuAction('table-duplicate')
               }
             },
             {
               label: 'Format Table Source',
               click: () => {
-                sendMenuAction(focusedWindow, 'table-format-source')
+                sendMenuAction('table-format-source')
               }
             },
             { type: 'separator' },
             {
               label: 'Delete Table',
               click: () => {
-                sendMenuAction(focusedWindow, 'table-delete')
+                sendMenuAction('table-delete')
               }
             }
           ]
@@ -894,7 +986,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.contentState?.type === 'codeBlock',
           click: () => {
-            sendMenuAction(focusedWindow, 'insert-code-block')
+            sendMenuAction('insert-code-block')
           }
         },
         {
@@ -903,19 +995,19 @@ function updateMenu(): void {
             {
               label: 'Duplicate Code Content',
               click: () => {
-                sendMenuAction(focusedWindow, 'code-duplicate-content')
+                sendMenuAction('code-duplicate-content')
               }
             },
             {
               label: 'Adjust Selected Indent',
               click: () => {
-                sendMenuAction(focusedWindow, 'code-adjust-selected-indent')
+                sendMenuAction('code-adjust-selected-indent')
               }
             },
             {
               label: 'Adjust Indent',
               click: () => {
-                sendMenuAction(focusedWindow, 'code-adjust-indent')
+                sendMenuAction('code-adjust-indent')
               }
             }
           ]
@@ -924,7 +1016,7 @@ function updateMenu(): void {
           label: 'Math Block',
           accelerator: 'CmdOrCtrl+Shift+B',
           click: () => {
-            sendMenuAction(focusedWindow, 'insert-math-block')
+            sendMenuAction('insert-math-block')
           }
         },
         {
@@ -933,31 +1025,31 @@ function updateMenu(): void {
             {
               label: 'Information',
               click: () => {
-                sendMenuAction(focusedWindow, 'insert-alert-information')
+                sendMenuAction('insert-alert-information')
               }
             },
             {
               label: 'Suggestion',
               click: () => {
-                sendMenuAction(focusedWindow, 'insert-alert-suggestion')
+                sendMenuAction('insert-alert-suggestion')
               }
             },
             {
               label: 'Important',
               click: () => {
-                sendMenuAction(focusedWindow, 'insert-alert-important')
+                sendMenuAction('insert-alert-important')
               }
             },
             {
               label: 'Warning',
               click: () => {
-                sendMenuAction(focusedWindow, 'insert-alert-warning')
+                sendMenuAction('insert-alert-warning')
               }
             },
             {
               label: 'Notification',
               click: () => {
-                sendMenuAction(focusedWindow, 'insert-alert-notification')
+                sendMenuAction('insert-alert-notification')
               }
             }
           ]
@@ -969,7 +1061,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.contentState?.type === 'blockquote',
           click: () => {
-            sendMenuAction(focusedWindow, 'insert-quote-block')
+            sendMenuAction('insert-quote-block')
           }
         },
         { type: 'separator' },
@@ -979,7 +1071,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.contentState?.type === 'orderedList',
           click: () => {
-            sendMenuAction(focusedWindow, 'ordered-list')
+            sendMenuAction('ordered-list')
           }
         },
         {
@@ -988,7 +1080,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.contentState?.type === 'bulletList',
           click: () => {
-            sendMenuAction(focusedWindow, 'bullet-list')
+            sendMenuAction('bullet-list')
           }
         },
         {
@@ -997,7 +1089,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.contentState?.type === 'taskList',
           click: () => {
-            sendMenuAction(focusedWindow, 'task-list')
+            sendMenuAction('task-list')
           }
         },
         {
@@ -1006,7 +1098,7 @@ function updateMenu(): void {
             {
               label: 'Toggle Task Status',
               click: () => {
-                sendMenuAction(focusedWindow, 'toggle-task-status')
+                sendMenuAction('toggle-task-status')
               }
             },
             { type: 'separator' },
@@ -1014,14 +1106,14 @@ function updateMenu(): void {
               label: 'Complete Task',
               type: 'radio',
               click: () => {
-                sendMenuAction(focusedWindow, 'complete-task')
+                sendMenuAction('complete-task')
               }
             },
             {
               label: 'Uncomplete Task',
               type: 'radio',
               click: () => {
-                sendMenuAction(focusedWindow, 'uncomplete-task')
+                sendMenuAction('uncomplete-task')
               }
             }
           ]
@@ -1038,7 +1130,7 @@ function updateMenu(): void {
                 focusedWindow?.contentInfo?.contentState?.canSink
               ),
               click: () => {
-                sendMenuAction(focusedWindow, 'increase-indent')
+                sendMenuAction('increase-indent')
               }
             },
             {
@@ -1050,7 +1142,7 @@ function updateMenu(): void {
                 focusedWindow?.contentInfo?.contentState?.canLift
               ),
               click: () => {
-                sendMenuAction(focusedWindow, 'decrease-indent')
+                sendMenuAction('decrease-indent')
               }
             }
           ]
@@ -1059,13 +1151,13 @@ function updateMenu(): void {
         {
           label: 'Insert Paragraph Above',
           click: () => {
-            sendMenuAction(focusedWindow, 'insert-paragraph-above')
+            sendMenuAction('insert-paragraph-above')
           }
         },
         {
           label: 'Insert Paragraph Below',
           click: () => {
-            sendMenuAction(focusedWindow, 'insert-paragraph-below')
+            sendMenuAction('insert-paragraph-below')
           }
         },
         { type: 'separator' },
@@ -1073,14 +1165,14 @@ function updateMenu(): void {
           label: 'Reference Link',
           accelerator: 'CmdOrCtrl+Shift+L',
           click: () => {
-            sendMenuAction(focusedWindow, 'reference-link')
+            sendMenuAction('reference-link')
           }
         },
         {
           label: 'Footprint',
           accelerator: 'CmdOrCtrl+Shift+R',
           click: () => {
-            sendMenuAction(focusedWindow, 'footprint')
+            sendMenuAction('footprint')
           }
         },
         { type: 'separator' },
@@ -1088,7 +1180,7 @@ function updateMenu(): void {
           label: 'Horizontal Rule',
           accelerator: 'CmdOrCtrl+Shift+-',
           click: () => {
-            sendMenuAction(focusedWindow, 'horizontal-rule')
+            sendMenuAction('horizontal-rule')
           }
         }
       ]
@@ -1104,7 +1196,7 @@ function updateMenu(): void {
           checked: focusedWindow?.contentInfo?.formatting?.bold,
           accelerator: 'CmdOrCtrl+B',
           click: () => {
-            sendMenuAction(focusedWindow, 'bold')
+            sendMenuAction('bold')
           }
         },
         {
@@ -1114,7 +1206,7 @@ function updateMenu(): void {
           checked: focusedWindow?.contentInfo?.formatting?.italic,
           accelerator: 'CmdOrCtrl+I',
           click: () => {
-            sendMenuAction(focusedWindow, 'italic')
+            sendMenuAction('italic')
           }
         },
         {
@@ -1124,7 +1216,7 @@ function updateMenu(): void {
           checked: focusedWindow?.contentInfo?.formatting?.underline,
           accelerator: 'CmdOrCtrl+U',
           click: () => {
-            sendMenuAction(focusedWindow, 'underline')
+            sendMenuAction('underline')
           }
         },
         {
@@ -1134,7 +1226,7 @@ function updateMenu(): void {
           checked: focusedWindow?.contentInfo?.formatting?.strikethrough,
           accelerator: 'CmdOrCtrl+Shift+X',
           click: () => {
-            sendMenuAction(focusedWindow, 'strikethrough')
+            sendMenuAction('strikethrough')
           }
         },
         { type: 'separator' },
@@ -1150,7 +1242,7 @@ function updateMenu(): void {
                 focusedWindow?.contentInfo?.formatting?.textAlign === 'left'
               ),
               click: () => {
-                sendMenuAction(focusedWindow, 'align-left')
+                sendMenuAction('align-left')
               }
             },
             {
@@ -1158,7 +1250,7 @@ function updateMenu(): void {
               type: 'radio',
               checked: focusedWindow?.contentInfo?.formatting?.textAlign === 'center',
               click: () => {
-                sendMenuAction(focusedWindow, 'align-center')
+                sendMenuAction('align-center')
               }
             },
             {
@@ -1166,7 +1258,7 @@ function updateMenu(): void {
               type: 'radio',
               checked: focusedWindow?.contentInfo?.formatting?.textAlign === 'right',
               click: () => {
-                sendMenuAction(focusedWindow, 'align-right')
+                sendMenuAction('align-right')
               }
             },
             {
@@ -1174,7 +1266,7 @@ function updateMenu(): void {
               type: 'radio',
               checked: focusedWindow?.contentInfo?.formatting?.textAlign === 'justify',
               click: () => {
-                sendMenuAction(focusedWindow, 'align-justify')
+                sendMenuAction('align-justify')
               }
             }
           ]
@@ -1193,21 +1285,21 @@ function updateMenu(): void {
           checked: focusedWindow?.contentInfo?.formatting?.inlineCode,
           accelerator: 'CmdOrCtrl+`',
           click: () => {
-            sendMenuAction(focusedWindow, 'inline-code')
+            sendMenuAction('inline-code')
           }
         },
         {
           label: 'Inline Math',
           accelerator: 'CmdOrCtrl+Shift+M',
           click: () => {
-            sendMenuAction(focusedWindow, 'inline-math')
+            sendMenuAction('inline-math')
           }
         },
         {
           label: 'Comment',
           accelerator: 'CmdOrCtrl+/',
           click: () => {
-            sendMenuAction(focusedWindow, 'comment')
+            sendMenuAction('comment')
           }
         },
         { type: 'separator' },
@@ -1216,7 +1308,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.formatting?.script === 'superscript',
           click: () => {
-            sendMenuAction(focusedWindow, 'superscript')
+            sendMenuAction('superscript')
           }
         },
         {
@@ -1224,7 +1316,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.formatting?.script === 'subscript',
           click: () => {
-            sendMenuAction(focusedWindow, 'subscript')
+            sendMenuAction('subscript')
           }
         },
         {
@@ -1233,7 +1325,7 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.formatting?.highlight,
           click: () => {
-            sendMenuAction(focusedWindow, 'highlight')
+            sendMenuAction('highlight')
           }
         },
         { type: 'separator' },
@@ -1241,7 +1333,7 @@ function updateMenu(): void {
           label: 'Inline Link',
           accelerator: 'CmdOrCtrl+K',
           click: () => {
-            sendMenuAction(focusedWindow, 'inline-link')
+            sendMenuAction('inline-link')
           }
         },
         {
@@ -1251,20 +1343,20 @@ function updateMenu(): void {
               label: 'Insert Media',
               accelerator: 'CmdOrCtrl+Shift+I',
               click: () => {
-                sendMenuAction(focusedWindow, 'insert-media')
+                sendMenuAction('insert-media')
               }
             },
             {
               label: 'Insert Local Media...',
               click: () => {
-                sendMenuAction(focusedWindow, 'insert-local-media')
+                sendMenuAction('insert-local-media')
               }
             },
             { type: 'separator' },
             {
               label: 'Open Media Location...',
               click: () => {
-                sendMenuAction(focusedWindow, 'open-media-location')
+                sendMenuAction('open-media-location')
               }
             },
             {
@@ -1273,57 +1365,57 @@ function updateMenu(): void {
                 {
                   label: '1 / 4',
                   click: () => {
-                    sendMenuAction(focusedWindow, 'resize-media-quarter')
+                    sendMenuAction('resize-media-quarter')
                   }
                 },
                 {
                   label: '1 / 3',
                   click: () => {
-                    sendMenuAction(focusedWindow, 'resize-media-third')
+                    sendMenuAction('resize-media-third')
                   }
                 },
                 {
                   label: '1 / 2',
                   click: () => {
-                    sendMenuAction(focusedWindow, 'resize-media-half')
+                    sendMenuAction('resize-media-half')
                   }
                 },
                 {
                   label: '2 / 3',
                   click: () => {
-                    sendMenuAction(focusedWindow, 'resize-media-two-thirds')
+                    sendMenuAction('resize-media-two-thirds')
                   }
                 },
                 {
                   label: '3 / 4',
                   click: () => {
-                    sendMenuAction(focusedWindow, 'resize-media-three-quarters')
+                    sendMenuAction('resize-media-three-quarters')
                   }
                 },
                 { type: 'separator' },
                 {
                   label: '100%',
                   click: () => {
-                    sendMenuAction(focusedWindow, 'resize-media-100')
+                    sendMenuAction('resize-media-100')
                   }
                 },
                 {
                   label: '150%',
                   click: () => {
-                    sendMenuAction(focusedWindow, 'resize-media-150')
+                    sendMenuAction('resize-media-150')
                   }
                 },
                 {
                   label: '200%',
                   click: () => {
-                    sendMenuAction(focusedWindow, 'resize-media-200')
+                    sendMenuAction('resize-media-200')
                   }
                 },
                 { type: 'separator' },
                 {
                   label: 'Custom Size...',
                   click: () => {
-                    sendMenuAction(focusedWindow, 'resize-media-custom')
+                    sendMenuAction('resize-media-custom')
                   }
                 }
               ]
@@ -1331,59 +1423,59 @@ function updateMenu(): void {
             {
               label: 'Delete Media',
               click: () => {
-                sendMenuAction(focusedWindow, 'delete-media')
+                sendMenuAction('delete-media')
               }
             },
             { type: 'separator' },
             {
               label: 'Copy Media To...',
               click: () => {
-                sendMenuAction(focusedWindow, 'copy-media-to')
+                sendMenuAction('copy-media-to')
               }
             },
             {
               label: 'Rename / Move Media To...',
               click: () => {
-                sendMenuAction(focusedWindow, 'rename-move-media')
+                sendMenuAction('rename-move-media')
               }
             },
             {
               label: 'Upload Media',
               click: () => {
-                sendMenuAction(focusedWindow, 'upload-media')
+                sendMenuAction('upload-media')
               }
             },
             { type: 'separator' },
             {
               label: 'Copy All Media To...',
               click: () => {
-                sendMenuAction(focusedWindow, 'copy-all-media')
+                sendMenuAction('copy-all-media')
               }
             },
             {
               label: 'Rename / Move All Media To...',
               click: () => {
-                sendMenuAction(focusedWindow, 'rename-move-all-media')
+                sendMenuAction('rename-move-all-media')
               }
             },
             {
               label: 'Upload All Media',
               click: () => {
-                sendMenuAction(focusedWindow, 'upload-all-media')
+                sendMenuAction('upload-all-media')
               }
             },
             { type: 'separator' },
             {
               label: 'Reload All Media',
               click: () => {
-                sendMenuAction(focusedWindow, 'reload-all-media')
+                sendMenuAction('reload-all-media')
               }
             },
             { type: 'separator' },
             {
               label: 'Media Setting...',
               click: () => {
-                sendMenuAction(focusedWindow, 'media-setting')
+                sendMenuAction('media-setting')
               }
             }
           ]
@@ -1399,7 +1491,7 @@ function updateMenu(): void {
           label: 'Clear Formatting',
           accelerator: 'CmdOrCtrl+\\',
           click: () => {
-            sendMenuAction(focusedWindow, 'clear-formatting')
+            sendMenuAction('clear-formatting')
           }
         }
       ]
@@ -1410,13 +1502,13 @@ function updateMenu(): void {
         {
           label: 'Chat',
           click: () => {
-            sendMenuAction(focusedWindow, 'ai-chat')
+            sendMenuAction('ai-chat')
           }
         },
         {
           label: 'Brain Storming...',
           click: () => {
-            sendMenuAction(focusedWindow, 'ai-brain-storming')
+            sendMenuAction('ai-brain-storming')
           }
         },
         { type: 'separator' },
@@ -1426,45 +1518,45 @@ function updateMenu(): void {
             {
               label: 'Formal',
               click: () => {
-                sendMenuAction(focusedWindow, 'ai-write-style-formal')
+                sendMenuAction('ai-write-style-formal')
               }
             },
             {
               label: 'Narrative',
               click: () => {
-                sendMenuAction(focusedWindow, 'ai-write-style-narrative')
+                sendMenuAction('ai-write-style-narrative')
               }
             },
             {
               label: 'Humorous',
               click: () => {
-                sendMenuAction(focusedWindow, 'ai-write-style-humorous')
+                sendMenuAction('ai-write-style-humorous')
               }
             },
             {
               label: 'Marketing',
               click: () => {
-                sendMenuAction(focusedWindow, 'ai-write-style-marketing')
+                sendMenuAction('ai-write-style-marketing')
               }
             },
             {
               label: 'Storytelling',
               click: () => {
-                sendMenuAction(focusedWindow, 'ai-write-style-storytelling')
+                sendMenuAction('ai-write-style-storytelling')
               }
             },
             { type: 'separator' },
             {
               label: 'Famous Writers...',
               click: () => {
-                sendMenuAction(focusedWindow, 'ai-write-style-famous-writers')
+                sendMenuAction('ai-write-style-famous-writers')
               }
             },
             {
               label: 'Charles Dickens',
               type: 'checkbox',
               click: () => {
-                sendMenuAction(focusedWindow, 'ai-write-style-charles-dickens')
+                sendMenuAction('ai-write-style-charles-dickens')
               }
             }
           ]
@@ -1475,19 +1567,19 @@ function updateMenu(): void {
             {
               label: 'Abbreviate',
               click: () => {
-                sendMenuAction(focusedWindow, 'ai-adjust-length-abbreviate')
+                sendMenuAction('ai-adjust-length-abbreviate')
               }
             },
             {
               label: 'Expand',
               click: () => {
-                sendMenuAction(focusedWindow, 'ai-adjust-length-expand')
+                sendMenuAction('ai-adjust-length-expand')
               }
             },
             {
               label: 'Continue',
               click: () => {
-                sendMenuAction(focusedWindow, 'ai-adjust-length-continue')
+                sendMenuAction('ai-adjust-length-continue')
               }
             }
           ]
@@ -1495,44 +1587,44 @@ function updateMenu(): void {
         {
           label: 'Extract Outline',
           click: () => {
-            sendMenuAction(focusedWindow, 'ai-extract-outline')
+            sendMenuAction('ai-extract-outline')
           }
         },
         {
           label: 'Summarize',
           click: () => {
-            sendMenuAction(focusedWindow, 'ai-summarize')
+            sendMenuAction('ai-summarize')
           }
         },
         {
           label: 'Spell and Grammar check',
           click: () => {
-            sendMenuAction(focusedWindow, 'ai-spell-grammar-check')
+            sendMenuAction('ai-spell-grammar-check')
           }
         },
         {
           label: 'Review',
           click: () => {
-            sendMenuAction(focusedWindow, 'ai-review')
+            sendMenuAction('ai-review')
           }
         },
         { type: 'separator' },
         {
           label: 'Keep',
           click: () => {
-            sendMenuAction(focusedWindow, 'ai-keep')
+            sendMenuAction('ai-keep')
           }
         },
         {
           label: 'Discard',
           click: () => {
-            sendMenuAction(focusedWindow, 'ai-discard')
+            sendMenuAction('ai-discard')
           }
         },
         {
           label: 'Modify...',
           click: () => {
-            sendMenuAction(focusedWindow, 'ai-modify')
+            sendMenuAction('ai-modify')
           }
         }
       ]
@@ -1542,60 +1634,52 @@ function updateMenu(): void {
       id: 'view',
       submenu: [
         {
-          label: 'Source Mode',
-          accelerator: 'CmdOrCtrl+/',
-          enabled: currentFocusedWindowId !== null,
-          click: () => {
-            sendMenuAction(focusedWindow, 'view-source-mode')
-          }
-        },
-        { type: 'separator' },
-        {
           label: 'Focus Mode',
           accelerator: 'CmdOrCtrl+Shift+F',
-          enabled: currentFocusedWindowId !== null,
+          enabled: focusedWindow != null,
           click: () => {
-            sendMenuAction(focusedWindow, 'view-focus-mode')
+            sendMenuAction('view-focus-mode')
           }
         },
         {
           label: 'Typewrite Mode',
           accelerator: 'CmdOrCtrl+Shift+T',
-          enabled: currentFocusedWindowId !== null,
+          enabled: focusedWindow != null,
           click: () => {
-            sendMenuAction(focusedWindow, 'view-typewrite-mode')
+            sendMenuAction('view-typewrite-mode')
           }
         },
         { type: 'separator' },
         {
           label: 'Explorer',
           accelerator: 'CmdOrCtrl+Shift+1',
-          enabled: currentFocusedWindowId !== null,
+          enabled: focusedWindow != null,
           click: () => {
-            sendMenuAction(focusedWindow, 'view-explorer')
+            sendMenuAction('view-explorer')
           }
         },
         {
           label: 'Search',
           accelerator: 'CmdOrCtrl+Shift+2',
-          enabled: currentFocusedWindowId !== null,
+          enabled: focusedWindow != null,
           click: () => {
-            sendMenuAction(focusedWindow, 'view-search')
+            sendMenuAction('view-search')
           }
         },
         {
           label: 'Tag',
           accelerator: 'CmdOrCtrl+Shift+3',
-          enabled: currentFocusedWindowId !== null,
+          enabled: focusedWindow != null,
           click: () => {
-            sendMenuAction(focusedWindow, 'view-tag')
+            sendMenuAction('view-tag')
           }
         },
         {
           label: 'Table of Contents',
           accelerator: 'CmdOrCtrl+Shift+4',
+          enabled: focusedWindow != null,
           click: () => {
-            sendMenuAction(focusedWindow, 'view-toc')
+            sendMenuAction('view-toc')
           }
         },
         { type: 'separator' },
@@ -1603,15 +1687,15 @@ function updateMenu(): void {
           label: 'Chat',
           accelerator: 'CmdOrCtrl+Shift+5',
           click: () => {
-            sendMenuAction(focusedWindow, 'view-chat')
+            sendMenuAction('view-chat')
           }
         },
         {
           label: 'Clean Mode',
           accelerator: 'CmdOrCtrl+Shift+L',
-          enabled: currentFocusedWindowId !== null,
+          enabled: focusedWindow != null,
           click: () => {
-            sendMenuAction(focusedWindow, 'view-toggle-clean-mode')
+            sendMenuAction('view-toggle-clean-mode')
           }
         },
         { type: 'separator' },
@@ -1624,7 +1708,7 @@ function updateMenu(): void {
               type: 'checkbox',
               checked: focusedWindow?.contentInfo?.view?.leftSidebar? true : false,
               click: () => {
-                sendMenuAction(focusedWindow, 'view-toggle-left-sidebar')
+                sendMenuAction('view-toggle-left-sidebar')
               }
             },
             {
@@ -1633,7 +1717,7 @@ function updateMenu(): void {
               type: 'checkbox',
               checked: focusedWindow?.contentInfo?.view?.rightSidebar? true : false,
               click: () => {
-                sendMenuAction(focusedWindow, 'view-toggle-right-sidebar')
+                sendMenuAction('view-toggle-right-sidebar')
               }
             },
             {
@@ -1642,7 +1726,7 @@ function updateMenu(): void {
               type: 'checkbox',
               checked: focusedWindow?.contentInfo?.view?.statusbar? true : false,
               click: () => {
-                sendMenuAction(focusedWindow, 'view-toggle-statusbar')
+                sendMenuAction('view-toggle-statusbar')
               }
             },
             { type: 'separator' },
@@ -1651,7 +1735,7 @@ function updateMenu(): void {
               type: 'radio',
               checked: focusedWindow?.contentInfo?.view?.theme === 'system',
               click: () => {
-                sendMenuAction(focusedWindow, 'view-theme-follow-system')
+                sendMenuAction('view-theme-follow-system')
               }
             },
             { type: 'separator' },
@@ -1660,48 +1744,24 @@ function updateMenu(): void {
               type: 'radio',
               checked: focusedWindow?.contentInfo?.view?.theme === 'light',
               click: () => {
-                sendMenuAction(focusedWindow, 'view-theme-light')
+                sendMenuAction('view-theme-light')
               }
             },
             {
+              id: 'dark',
               label: 'Dark',
               type: 'radio',
               checked: focusedWindow?.contentInfo?.view?.theme === 'dark',
               click: () => {
-                sendMenuAction(focusedWindow, 'view-theme-dark')
-              }
-            },
-            { type: 'separator' },
-            {
-              label: 'Ocean',
-              type: 'radio',
-              checked: focusedWindow?.contentInfo?.view?.theme === 'ocean',
-              click: () => {
-                sendMenuAction(focusedWindow, 'view-theme-ocean')
-              }
-            },
-            {
-              label: 'Forest',
-              type: 'radio',
-              checked: focusedWindow?.contentInfo?.view?.theme === 'forest',
-              click: () => {
-                sendMenuAction(focusedWindow, 'view-theme-forest')
-              }
-            },
-            {
-              label: 'Sunset',
-              type: 'radio',
-              checked: focusedWindow?.contentInfo?.view?.theme === 'sunset',
-              click: () => {
-                sendMenuAction(focusedWindow, 'view-theme-sunset')
+                sendMenuAction('view-theme-dark')
               }
             }
           ]
         },
         {
-          label: 'Theme...',
+          label: 'More Theme...',
           click: () => {
-            sendMenuAction(focusedWindow, 'view-theme-settings')
+            sendMenuAction('view-theme-settings')
           }
         },
         { type: 'separator' },
@@ -1709,7 +1769,7 @@ function updateMenu(): void {
           label: 'Actual Size',
           accelerator: 'CmdOrCtrl+0',
           click: () => {
-            sendMenuAction(focusedWindow, 'view-actual-size')
+            sendMenuAction('view-actual-size')
           }
         },
         {
@@ -1731,8 +1791,8 @@ function updateMenu(): void {
       ]
     },
     {
-      label: 'Window',
       id: 'window',
+      label: 'Window',
       submenu: [
         { role: 'minimize' },
         { role: 'close' },
@@ -1746,14 +1806,14 @@ function updateMenu(): void {
         {
           label: "What's New...",
           click: () => {
-            sendMenuAction(focusedWindow, 'help-whats-new')
+            sendMenuAction('help-whats-new')
           }
         },
         { type: 'separator' },
         {
           label: 'Quick Start',
           click: () => {
-            sendMenuAction(focusedWindow, 'help-quick-start')
+            sendMenuAction('help-quick-start')
           }
         },
         {
@@ -1765,26 +1825,26 @@ function updateMenu(): void {
         {
           label: 'Markdown Reference',
           click: () => {
-            sendMenuAction(focusedWindow, 'help-markdown-reference')
+            sendMenuAction('help-markdown-reference')
           }
         },
         {
           label: 'Keyboard Shortcuts',
           click: () => {
-            sendMenuAction(focusedWindow, 'help-keyboard-shortcuts')
+            sendMenuAction('help-keyboard-shortcuts')
           }
         },
         { type: 'separator' },
         {
           label: 'Acknowledgement',
           click: () => {
-            sendMenuAction(focusedWindow, 'help-acknowledgement')
+            sendMenuAction('help-acknowledgement')
           }
         },
         {
           label: 'Changelog',
           click: () => {
-            sendMenuAction(focusedWindow, 'help-changelog')
+            sendMenuAction('help-changelog')
           }
         },
         {
@@ -1814,9 +1874,29 @@ function updateMenu(): void {
     return true
   })
 
+  // Insert Theme items dynamically
+  if (focusedWindow?.contentInfo?.view?.theme && !['system', 'light', 'dark'].includes(focusedWindow?.contentInfo?.view?.theme)) {
+    let theme = focusedWindow?.contentInfo?.view?.theme
+    const insertThemeItems: Electron.MenuItemConstructorOptions[] = [
+      { type: 'separator' },
+      {
+        label: theme.charAt(0).toUpperCase() + theme.slice(1),
+        type: 'radio',
+        checked: true,
+        click: () => {
+          sendMenuAction(`view-theme-${theme}`)
+        }
+      }
+    ]
+
+    const result = insertInTemplate(baseTemplate, undefined, 'dark', insertThemeItems);
+    if (result === false) {
+      console.warn(`Failed to insert theme: ${theme} items into the template`);
+    }
+  }
+
   // 添加窗口列表
   const windowList = filteredTemplate.find(item => item.id === 'window') as Electron.MenuItemConstructorOptions | undefined;
-  
   windows?.forEach((windowState: WindowState) => {
     const isActive = windowState.id === currentFocusedWindowId;
 

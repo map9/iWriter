@@ -35,21 +35,15 @@
     <template v-if="!currentNotification">
       <!-- Left Section -->
       <div class="flex items-center gap-1">
-        <span v-if="!appStore.hasOpenFolder">No Folder Opened,</span>
-        <span v-else>Folder Opened,</span>
-        <span v-if="!appStore.activeTab">No Documents Opened.</span>
-        <span v-else>Documents Opened.</span>
+        <span>{{ statusSections.left }}</span>
       </div>
       
       <!-- Right Section -->
       <div class="flex items-center gap-1">
-        <span>Selection 15 bytes, 3 words, 0 lines</span>
-        <span v-if="appStore.activeTab">
-          Ln {{ currentLine }}, Col {{ currentColumn }}
-        </span>
-        <span v-if="appStore.activeTab">
-          {{ wordCount }} characters, {{ wordsCount }} words, {{ linesCount }} paragraphs
-        </span>
+        <template v-for="(section, index) in statusSections.right" :key="index">
+          <span v-if="index > 0" class="text-gray-300">|</span>
+          <span>{{ section }}</span>
+        </template>
       </div>
     </template>
   </div>
@@ -59,8 +53,9 @@
 import { computed, ref, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useNotificationHandler } from '@/utils/NotificationHandler'
-import type { Notification } from '@/types'
-import { NotificationType } from '@/types'
+import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
+import type { Notification, FileTab } from '@/types'
+import { NotificationType, DocumentType } from '@/types'
 import { 
   IconX,
   IconCircleCheck,        // success
@@ -72,6 +67,7 @@ import {
 
 const appStore = useAppStore()
 const { notifications } = useNotificationHandler()
+const { isEditable, isReadOnly } = useDocumentTypeDetector()
 
 // Notification state
 const currentNotification = ref<Notification | null>(null)
@@ -217,23 +213,111 @@ function getNotificationIcon(type: NotificationType) {
 // 暴露通知相关方法
 const { success, info, warning, error, critical } = useNotificationHandler()
 
-// Mock values - in real implementation, these would come from the editor
-const currentLine = computed(() => 6)
-const currentColumn = computed(() => 22)
+// 状态计算逻辑
+interface StatusBarContent {
+  left: string
+  right: string[]
+}
 
-const wordCount = computed(() => {
-  if (!appStore.activeTab?.content) return 0
-  return appStore.activeTab.content.length
-})
+function getTextEditorStatus(tab: FileTab): StatusBarContent {
+  const docType = tab.documentType
+  const editableStatus = (docType && isEditable(docType)) ? "Editable" : "Readonly"
+  const stats = tab.editorStats
+  
+  const rightSections: string[] = []
+  
+  if (stats) {
+    // 选择信息（仅在有选择时显示）
+    if (stats.selectionCharCount > 0) {
+      rightSections.push(`Selection ${stats.selectionCharCount} characters, ${stats.selectionWordCount} words`)
+    }
+    
+    // 光标位置与段落类型
+    rightSections.push(`Ln ${stats.currentLine}, Col ${stats.currentColumn}  ${stats.paragraphType.toUpperCase()}`)
+    
+    // 文档总体统计
+    rightSections.push(`${stats.totalCharCount} characters, ${stats.totalWordCount} words, ${stats.totalParagraphCount} paragraphs`)
+    
+    // 行结束符
+    if (stats?.lineEnding) {
+      rightSections.push(stats.lineEnding)
+    }
+  }
 
-const wordsCount = computed(() => {
-  if (!appStore.activeTab?.content) return 0
-  return appStore.activeTab.content.split(/\s+/).filter(word => word.length > 0).length
-})
+  return {
+    left: editableStatus,
+    right: rightSections
+  }
+}
 
-const linesCount = computed(() => {
-  if (!appStore.activeTab?.content) return 0
-  return appStore.activeTab.content.split('\n').length
+function getImageViewerStatus(tab: FileTab): StatusBarContent {
+  const rightSections: string[] = []
+  
+  // 图片尺寸（需要从metadata获取，暂时留空）
+  if (tab.metadata?.size) {
+    rightSections.push(formatFileSize(tab.metadata.size))
+  }
+  
+  return {
+    left: "Readonly",
+    right: rightSections
+  }
+}
+
+function getPdfViewerStatus(tab: FileTab): StatusBarContent {
+  const rightSections: string[] = []
+  
+  // PDF页数等信息（需要从PDF viewer获取，暂时留空）
+  if (tab.metadata?.size) {
+    rightSections.push(formatFileSize(tab.metadata.size))
+  }
+  
+  return {
+    left: "Readonly",
+    right: rightSections
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+}
+
+function getDefaultStatus(): StatusBarContent {
+  if (!appStore.hasOpenFolder) {
+    return {
+      left: "No Folder Opened",
+      right: appStore.activeTab ? ["Document Opened"] : ["No Documents Opened"]
+    }
+  } else {
+    return {
+      left: "Folder Opened",
+      right: appStore.activeTab ? ["Document Opened"] : ["No Documents Opened"] 
+    }
+  }
+}
+
+const statusSections = computed((): StatusBarContent => {
+  const activeTab = appStore.activeTab
+  
+  if (!activeTab) {
+    return getDefaultStatus()
+  }
+  
+  const docType = activeTab.documentType
+  
+  if (docType === DocumentType.TEXT_EDITOR) {
+    return getTextEditorStatus(activeTab)
+  } else if (docType === DocumentType.IMAGE_VIEWER) {
+    return getImageViewerStatus(activeTab)
+  } else if (docType === DocumentType.PDF_VIEWER) {
+    return getPdfViewerStatus(activeTab)
+  }
+  
+  return getDefaultStatus()
 })
 
 // 暴露方法供外部调用

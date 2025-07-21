@@ -114,7 +114,7 @@ export const useAppStore = defineStore('app', () => {
         },
       })
     }
-    applyCurrentTheme()
+    //applyCurrentTheme()
   }, { immediate: true })
 
   // Update menu when tabs change
@@ -1054,6 +1054,12 @@ export const useAppStore = defineStore('app', () => {
       tab.isDirty = true
     }
   }
+
+  function updateActiveTabStats(stats: import('@/types').EditorStats) {
+    if (activeTab.value) {
+      activeTab.value.editorStats = stats
+    }
+  }
   
   async function saveTab(tab: FileTab, saveAs: boolean = false): Promise<boolean> {
     if (!tab || !window.electronAPI) return false
@@ -1129,7 +1135,6 @@ export const useAppStore = defineStore('app', () => {
     // Detect system theme preference
     if (window.electronAPI) {
       window.electronAPI.onSystemColorsChanged((themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: any }) => {
-        console.log('System colors changed:', themeAndColors)
         // Re-apply theme if current theme is system
         const currentTheme = getThemeById(currentThemeId.value)
         if (currentTheme?.isSystem) {
@@ -1151,14 +1156,13 @@ export const useAppStore = defineStore('app', () => {
     
     currentThemeId.value = themeId
     localStorage.setItem('iwriter-theme', themeId)
-    console.log('setTheme', themeId)
     applyCurrentTheme()
   }
   
   function applyCurrentTheme() {
     const theme = getThemeById(currentThemeId.value)
     if (!theme) return
-    
+    console.log('applyCurrentTheme', theme.id)
     applyThemeColors(theme)
   }
   
@@ -1256,8 +1260,6 @@ export const useAppStore = defineStore('app', () => {
         console.log('Unhandled menu action in app:', action)
         return false
     }
-
-    return false
   }
   
   return {
@@ -1325,6 +1327,7 @@ export const useAppStore = defineStore('app', () => {
     saveTab,
     setActiveTab,
     updateTabContent,
+    updateActiveTabStats,
     saveActiveTab,
     saveActiveTabAs,
     saveAllTabs,
