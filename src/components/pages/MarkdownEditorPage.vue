@@ -226,7 +226,8 @@
 
 <script setup lang="ts">
 import { ref, toRef, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useEditor, EditorContent } from '@tiptap/vue-3'
+import { useEditor, EditorContent, VueNodeViewRenderer } from '@tiptap/vue-3'
+
 import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
 import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus } from '@tiptap/extensions'
 
@@ -250,6 +251,7 @@ import js from 'highlight.js/lib/languages/javascript'
 import ts from 'highlight.js/lib/languages/typescript'
 import html from 'highlight.js/lib/languages/xml'
 import { all, createLowlight } from 'lowlight'
+import CodeBlockComponent from '@/components/common/tiptap/CodeBlockComponent.vue'
 
 import 'katex/dist/katex.min.css'
 import { Mathematics, migrateMathStrings } from '@tiptap/extension-mathematics'
@@ -310,6 +312,8 @@ import {
   insertFootnote,
 } from '@/utils/MarkDownEditorHelper'
 
+import { formatCode, isLanguageSupported } from '@/components/common/tiptap/codeFormatter'
+
 // Props
 interface Props {
   tab: FileTab
@@ -333,8 +337,6 @@ const isFullscreen = ref(false)
 
 // create a lowlight instance
 const lowlight = createLowlight(all)
-
-// you can also register languages
 lowlight.register('html', html)
 lowlight.register('css', css)
 lowlight.register('js', js)
@@ -349,7 +351,7 @@ const editor = useEditor({
       onUpdate: content => {
         // Update the TOC provider with new data
         if (props.tab.tocProvider) {
-          props.tab.tocProvider.updateFromTipTap(content)
+          props.tab.tocProvider.updateFromTipTap?.(content)
         }
       },
     }),
@@ -423,15 +425,17 @@ const editor = useEditor({
     }),
 
     Blockquote,
-    CodeBlockLowlight.configure({
-      lowlight,
-    }),
+    CodeBlockLowlight.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(CodeBlockComponent)
+      },
+    }).configure({ lowlight }),
     Mathematics.configure({
       inlineOptions: {
         onClick: (node, pos) => {
           const newCalculation = prompt('Enter new calculation:', node.attrs.latex)
           if (newCalculation) {
-            editor?.chain().setNodeSelection(pos).updateInlineMath({ latex: newCalculation }).focus().run()
+            editor.value?.chain().setNodeSelection(pos).updateInlineMath({ latex: newCalculation }).focus().run()
           }
         },
       },
@@ -439,7 +443,7 @@ const editor = useEditor({
         onClick: (node, pos) => {
           const newCalculation = prompt('Enter new calculation:', node.attrs.latex)
           if (newCalculation) {
-            editor?.chain().setNodeSelection(pos).updateBlockMath({ latex: newCalculation }).focus().run()
+            editor.value?.chain().setNodeSelection(pos).updateBlockMath({ latex: newCalculation }).focus().run()
           }
         },
       },
@@ -656,7 +660,7 @@ function toggleFullscreen() {
 }
 
 // Handle menu actions
-function handleMenuAction(action: string): boolean {
+async function handleMenuAction(action: string): Promise<boolean> {
   if (!editor.value) return false
   
   switch (action) {
@@ -728,9 +732,18 @@ function handleMenuAction(action: string): boolean {
     case 'insert-image':
       insertImage(editor.value)
       return true
+
     case 'insert-code-block':
       editor.value.chain().focus().toggleCodeBlock().run()
       return true
+    case 'code-format-selection':
+      await formatCodeSelection()
+      return true
+    case 'code-format-codeblock':
+      await formatCurrentCodeBlock()
+      return true
+    
+
     case 'insert-math-block':
       insertMathBlock(editor.value)
       return true
@@ -1061,6 +1074,133 @@ function updateMenuFormattingState() {
     // 更新编辑器统计信息
     const stats = calculateEditorStats()
     appStore.updateActiveTabStats(stats)
+  }
+}
+
+// Code formatting functions
+async function formatCodeSelection(): Promise<void> {
+  if (!editor.value) return
+  
+  const { state } = editor.value
+  const { selection } = state
+  const { $from } = selection
+  
+  // 检查是否有选中的文本
+  if (selection.empty) {
+    notify.warning('Please select code text to format')
+    return
+  }
+  
+  // 获取选中的文本
+  const selectedText = state.doc.textBetween(selection.from, selection.to)
+  
+  if (!selectedText.trim()) {
+    notify.warning('Selected text is empty')
+    return
+  }
+  
+  // 尝试从当前代码块中获取语言，否则使用默认语言
+  let language = 'javascript' // 默认语言
+  
+  // 向上搜索代码块节点来获取语言
+  for (let depth = $from.depth; depth >= 0; depth--) {
+    const node = $from.node(depth)
+    if (node.type.name === 'codeBlock' && node.attrs.language) {
+      language = node.attrs.language
+      break
+    }
+  }
+  
+  if (!isLanguageSupported(language)) {
+    notify.error(`Language '${language}' is not supported for formatting`)
+    return
+  }
+  
+  try {
+    const result = await formatCode(selectedText, language)
+    
+    if (result.success && result.formattedCode) {
+      // 替换选中的文本
+      editor.value.chain()
+        .focus()
+        .deleteSelection()
+        .insertContent(result.formattedCode)
+        .run()
+      
+      notify.success('Code formatted successfully')
+    } else if (result.error) {
+      notify.error(`Code formatting failed: ${result.error}`)
+    }
+  } catch (error) {
+    console.error('Unexpected formatting error:', error)
+    notify.error('An unexpected error occurred during formatting')
+  }
+}
+
+async function formatCurrentCodeBlock(): Promise<void> {
+  if (!editor.value) return
+  
+  const { state } = editor.value
+  const { selection } = state
+  const { $from } = selection
+  
+  // 查找当前代码块节点
+  let codeBlockNode: any = null
+  let codeBlockPos: number = -1
+  
+  // 向上搜索代码块节点
+  for (let depth = $from.depth; depth >= 0; depth--) {
+    const node = $from.node(depth)
+    if (node.type.name === 'codeBlock') {
+      codeBlockNode = node
+      codeBlockPos = $from.start(depth)
+      break
+    }
+  }
+  
+  if (!codeBlockNode) {
+    notify.warning('Please place cursor inside a code block')
+    return
+  }
+  
+  // 获取代码块的语言和内容
+  const language = codeBlockNode.attrs.language
+  const codeContent = codeBlockNode.textContent
+  
+  if (!codeContent.trim()) {
+    notify.warning('Code block is empty')
+    return
+  }
+  
+  if (!isLanguageSupported(language)) {
+    notify.error(`Language '${language || 'auto'}' is not supported for formatting`)
+    return
+  }
+  
+  try {
+    const result = await formatCode(codeContent, language)
+    
+    if (result.success && result.formattedCode) {
+      // 更新代码块内容，而不是替换整个节点
+      const { state } = editor.value
+      const { tr } = state
+      
+      // 计算代码块内容的开始和结束位置
+      const contentStart = codeBlockPos + 1
+      const contentEnd = codeBlockPos + codeBlockNode.nodeSize - 1
+      
+      // 替换代码块内的文本内容
+      tr.replaceWith(contentStart, contentEnd, state.schema.text(result.formattedCode))
+      
+      editor.value.view.dispatch(tr)
+      
+      notify.success('Code block formatted successfully')
+    } else if (result.error) {
+      notify.error(`Code formatting failed: ${result.error}`)
+    }
+  } catch (error) {
+    console.error('Unexpected formatting error:', error)
+    notify.error('An unexpected error occurred during formatting')
   }
 }
 

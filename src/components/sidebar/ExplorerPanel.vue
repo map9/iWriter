@@ -101,28 +101,24 @@
       </div>
 
       <!-- Tree Content -->
-      <div 
-        class="overflow-y-auto"
-      >
-        <Tree v-if="hasRootFolder"
-          ref="treeRef"
-          :nodes="rootChildren"
-          class="file-tree"
-          :callbacks="fileCallbacks"
-          drop-mode="inside-only"
-          :initialDepth="1"
-          @node-click="handleNodeClick"
-          @node-drop="handleNodeDrop"
-          @node-contextmenu="handleNodeContextMenu"
-          @contextmenu="handleContextMenu"
-        />
-      </div>
+      <Tree v-if="hasRootFolder"
+        ref="treeRef"
+        :nodes="rootChildren"
+        class="file-tree"
+        :callbacks="fileCallbacks"
+        drop-mode="inside-only"
+        :initialDepth="1"
+        @node-click="handleNodeClick"
+        @node-drop="handleNodeDrop"
+        @node-contextmenu="handleNodeContextMenu"
+        @contextmenu="handleContextMenu"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import type { FileTreeNode, FileTreeCallbacks, FileTreeSortType } from '../common/tree'
 import type { ContextMenuItem } from '@/types'
@@ -654,11 +650,17 @@ const handleNodeDrop = (data: { dragNode: any; dropNode: any; position: string }
   --tree-text-color: var(--color-text-primary);
   --tree-background-color: var(--color-background-content);
   --tree-hover-color: var(--color-interactive-hover);
-  --tree-selected-background: var(--color-background-selected);
-  --tree-selected-color: #FFFFFFFF;
-  --tree-selected-border-color: transparent;
 
-  --tree-input-background: transparent;
+  --tree-selected-background: var(--color-interactive-elevated);
+  --tree-selected-color: var(--color-text-primary);
+
+  --tree-focus-outline: 1px solid var(--color-interactive-focus);
+  --tree-focus-outline-offset: -2px;
+
+  --tree-selected-focused-background: var(--color-background-selected);
+  --tree-selected-focused-color: #FFFFFFFF;
+
+  --tree-input-background: var(--color-background-window);
   --tree-input-border: 1px solid var(--color-interactive-focus);
 
   --tree-badge-background: var(--color-interactive-control);

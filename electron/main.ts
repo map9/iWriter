@@ -993,21 +993,15 @@ function updateMenu(): void {
           label: 'Code Tools',
           submenu: [
             {
-              label: 'Duplicate Code Content',
+              label: 'Format Selection',
               click: () => {
-                sendMenuAction('code-duplicate-content')
+                sendMenuAction('code-format-selection')
               }
             },
             {
-              label: 'Adjust Selected Indent',
+              label: 'Format CodeBlock',
               click: () => {
-                sendMenuAction('code-adjust-selected-indent')
-              }
-            },
-            {
-              label: 'Adjust Indent',
-              click: () => {
-                sendMenuAction('code-adjust-indent')
+                sendMenuAction('code-format-codeblock')
               }
             }
           ]

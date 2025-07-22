@@ -29,7 +29,7 @@
           :class="{ 'toolbar-button-primary': expandLevel === 2 }"
           title="Collapse to H2 level"
         >
-          H2
+          <p class="icon-sm">H2</p>
         </button>
         <button
           @click="setExpandLevel(3)"
@@ -37,7 +37,7 @@
           :class="{ 'toolbar-button-primary': expandLevel === 3 }"
           title="Collapse to H3 level"
         >
-          H3
+          <p class="icon-sm">H3</p>
         </button>
         <button
           @click="setExpandLevel(4)"
@@ -45,7 +45,7 @@
           :class="{ 'toolbar-button-primary': expandLevel === 4 }"
           title="Collapse to H4 level"
         >
-          H4
+          <p class="icon-sm">H4</p>
         </button>
         <button
           @click="setExpandLevel(6)"
@@ -53,7 +53,7 @@
           :class="{ 'toolbar-button-primary': expandLevel === 6 }"
           title="Expand all levels"
         >
-          All
+          <p class="icon-sm">All</p>
         </button>
 
         <!-- Separator -->
@@ -368,15 +368,24 @@ function scrollToTop() {
   --tree-text-color: var(--color-text-primary);
   --tree-background-color: var(--color-background-content);
   --tree-hover-color: var(--color-interactive-hover);
-  --tree-selected-background: var(--color-background-selected);
-  --tree-selected-color: #FFFFFFFF;
-  --tree-selected-border-color: transparent;
 
-  --tree-input-background: transparent;
+  --tree-selected-background: var(--color-interactive-elevated);
+  --tree-selected-color: var(--color-text-primary);
+
+  --tree-focus-outline: 1px solid var(--color-interactive-focus);
+  --tree-focus-outline-offset: -2px;
+
+  --tree-selected-focused-background: var(--color-background-selected);
+  --tree-selected-focused-color: #FFFFFFFF;
+
+  --tree-input-background: var(--color-background-window);
   --tree-input-border: 1px solid var(--color-interactive-focus);
 
-  --tree-badge-background: var(--color-background-underpage);
+  --tree-badge-background: var(--color-interactive-control);
   --tree-badge-color: var(--color-text-primary);
+
+  --tree-drop-border-color: transparent;
+  --tree-drop-background: var(--color-interactive-elevated);
 }
 
 </style>

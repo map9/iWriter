@@ -82,6 +82,7 @@
     "marked": "^16.0.0",
     "pdfjs-dist": "^3.11.174",
     "pinia": "^2.1.7",
+    "prettier": "^3.6.2",
     "turndown": "^7.2.0",
     "vue": "^3.3.4",
     "vue-router": "^4.2.5"

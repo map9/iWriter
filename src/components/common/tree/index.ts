@@ -4,11 +4,17 @@ export interface TreeNode {
   children?: TreeNode[]
   type?: string
   data?: any
+  
+  // 视图状态
   isExpanded?: boolean
-  isChecked?: boolean
-  isSelected?: boolean
   isVisible?: boolean
   isEnabled?: boolean
+  
+  // 交互状态（重新设计）
+  isSelected?: boolean    // 用户选择状态，可持久，支持多选
+  isFocused?: boolean     // 键盘导航焦点状态，瞬时状态，同时只能有一个
+  isChecked?: boolean     // 复选框状态
+  
   parent?: TreeNode
   path?: string
 }
@@ -36,6 +42,9 @@ export interface TreeCallbacks {
   onCheck?: (node: TreeNode) => void
   onUnCheck?: (node: TreeNode) => void
   onSelect?: (node: TreeNode) => void
+  onDeselect?: (node: TreeNode) => void
+  onFocus?: (node: TreeNode) => void
+  onBlur?: (node: TreeNode) => void
   onRename?: (node: TreeNode, newName: string) => void
   onAddChild?: (parentNode: TreeNode, newChild: TreeNode) => void
   onDelete?: (node: TreeNode) => void

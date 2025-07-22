@@ -5,9 +5,12 @@
     :class="{
       'drag-over-root': isDragOverRoot && canDropToRoot,
     }"
+    :data-has-focused-node="hasFocusedNode"
     tabindex="0"
     @keydown="handleKeyDown"
-    @click="() => treeRoot?.focus()"
+    @click="handleTreeRootClick"
+    @focus="handleTreeFocus"
+    @blur="handleTreeBlur"
     @dragover.prevent="handleRootDragOver"
     @dragleave="handleRootDragLeave"
     @drop="handleRootDrop"
@@ -20,7 +23,7 @@
       :callbacks="callbacks"
       :initialDepth="initialDepth"
       :drop-mode="dropMode"
-      @node-click="handleNodeClick"
+      @node-click="(data: { node: TreeNodeType; event?: MouseEvent }) => handleNodeClick(data.node, data.event)"
       @node-check="handleNodeCheck"
       @node-rename="handleNodeRename"
       @node-drag="handleNodeDrag"
@@ -34,8 +37,8 @@
 
 <script setup lang="ts">
 import { computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
-import TreeNode from './TreeNode.vue'
 import type { TreeNode as TreeNodeType, TreeCallbacks, DropMode } from './index'
+import TreeNode from './TreeNode.vue'
 import { dragDropState } from './dragDrop'
 
 interface Props {
@@ -43,23 +46,38 @@ interface Props {
   callbacks?: TreeCallbacks
   dropMode?: DropMode
   initialDepth?: number
+  multiSelectable?: boolean
 }
 
 interface Emits {
+  // 基础交互事件
   (e: 'node-click', node: TreeNodeType): void
   (e: 'node-check', node: TreeNodeType): void
-  (e: 'node-select', node: TreeNodeType): void
   (e: 'node-rename', data: { node: TreeNodeType; newName: string }): void
   (e: 'node-add-child', data: { parentNode: TreeNodeType; newChild: TreeNodeType }): void
   (e: 'node-delete', node: TreeNodeType): void
+  (e: 'node-contextmenu', data: { node: TreeNodeType; event: MouseEvent }): void
+  
+  // 选择相关事件
+  (e: 'node-select', node: TreeNodeType): void
+  (e: 'node-deselect', node: TreeNodeType): void
+  (e: 'selection-changed', nodes: TreeNodeType[]): void
+  
+  // 焦点相关事件
+  (e: 'node-focus', node: TreeNodeType): void
+  (e: 'node-blur', node: TreeNodeType): void
+  (e: 'tree-focus'): void
+  (e: 'tree-blur'): void
+  
+  // 拖拽事件
   (e: 'node-drag', node: TreeNodeType): void
   (e: 'node-drop', data: { dragNode: TreeNodeType; dropNode: TreeNodeType; position: 'before' | 'after' | 'inside' }): void
-  (e: 'node-contextmenu', data: { node: TreeNodeType; event: MouseEvent }): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   dropMode: 'all',
   initialDepth: 0,
+  multiSelectable: false,
 })
 const emit = defineEmits<Emits>()
 
@@ -67,13 +85,25 @@ const draggedNode = ref<TreeNodeType | null>(null)
 const nodeRefs = ref(new Map<string, any>())
 const treeRoot = ref<HTMLElement>()
 const autoScrollTimer = ref<number | null>(null)
-const focusedNodeId = ref<string | null>(null)
+
+// 新的状态管理系统
+const focusedNodeId = ref<string | null>(null)         // 当前焦点节点ID
+const selectedNodeIds = ref<Set<string>>(new Set())    // 选中节点ID集合
+const multiSelectMode = ref(false)                     // 多选模式
+const lastSelectedNodeId = ref<string | null>(null)    // 用于范围选择的最后选择节点
+
+// 拖拽相关
 const isDragOverRoot = ref(false)
 const canDropToRoot = ref(false)
 const rootDragTimeout = ref<number | null>(null)
 
 const visibleNodes = computed(() => {
   return props.nodes.filter(node => node.isVisible !== false)
+})
+
+// 检查是否有节点获得焦点
+const hasFocusedNode = computed(() => {
+  return focusedNodeId.value !== null
 })
 
 // Get all currently visible nodes in a flat array for keyboard navigation
@@ -115,24 +145,68 @@ const setNodeRef = (nodeId: string, el: any) => {
   }
 }
 
-const handleNodeClick = (node: TreeNodeType) => {
-  // Clear previous selection
-  clearSelection()
+// 处理tree根节点点击（空白区域点击）
+const handleTreeRootClick = (e: MouseEvent) => {
+  // 只有点击的是tree-root本身（空白区域）才清除焦点和选择
+  if (e.target === treeRoot.value) {
+    // 清除焦点状态
+    setFocusedNode(null)
+    
+    // 设置树组件获得焦点（支持键盘导航）
+    treeRoot.value?.focus()
+  }
+}
+
+// 处理Tree组件获得焦点
+const handleTreeFocus = () => {
+  emit('tree-focus')
+}
+
+// 处理Tree组件失去焦点
+const handleTreeBlur = () => {
+  // 当Tree失去焦点时，清除所有TreeNode的焦点状态
+  setFocusedNode(null)
+  emit('tree-blur')
+}
+
+// 新的鼠标点击处理逻辑
+const handleNodeClick = (node: TreeNodeType, event?: MouseEvent) => {
+  // 设置焦点到点击的节点
+  setFocusedNode(node.id)
   
-  // Set current node as selected and focused
-  node.isSelected = true
-  focusedNodeId.value = node.id
-  
-  // Call callback
-  props.callbacks?.onSelect?.(node)
+  if (event && props.multiSelectable) {
+    if (event.ctrlKey || event.metaKey) {
+      // Ctrl/Cmd + 点击：切换选择状态，进入多选模式（仅当支持多选时）
+      multiSelectMode.value = true
+      toggleNodeSelection(node.id)
+    } else if (event.shiftKey) {
+      // Shift + 点击：范围选择（仅当支持多选时）
+      if (lastSelectedNodeId.value && multiSelectMode.value) {
+        selectRange(lastSelectedNodeId.value, node.id)
+      } else {
+        // 如果没有上次选择的节点，就单选
+        clearAllSelections()
+        selectNode(node.id)
+        multiSelectMode.value = false
+      }
+    } else {
+      // 普通点击：单选，退出多选模式
+      clearAllSelections()
+      selectNode(node.id)
+      multiSelectMode.value = false
+    }
+  } else {
+    // 不支持多选时或没有事件信息时的默认行为：单选
+    clearAllSelections()
+    selectNode(node.id)
+    multiSelectMode.value = false
+  }
   
   emit('node-click', node)
-  emit('node-select', node)
   
-  // Scroll selected node into view
-  nextTick(() => {
-    scrollNodeIntoView(node.id)
-  })
+  // 发送选择变更事件
+  const selectedNodes = getSelectedNodes()
+  emit('selection-changed', selectedNodes)
 }
 
 const handleNodeCheck = (node: TreeNodeType) => {
@@ -263,32 +337,7 @@ const findNode = (id: string): TreeNodeType | null => {
   return findRecursive(props.nodes)
 }
 
-const clearSelection = () => {
-  const clearRecursive = (nodes: TreeNodeType[]) => {
-    nodes.forEach(node => {
-      node.isSelected = false
-      if (node.children && node.children.length > 0) {
-        clearRecursive(node.children)
-      }
-    })
-  }
-  clearRecursive(props.nodes)
-}
-
-const selectNode = (id: string) => {
-  clearSelection()
-  const node = findNode(id)
-  if (node) {
-    node.isSelected = true
-    props.callbacks?.onSelect?.(node)
-    emit('node-select', node)
-    
-    // Scroll selected node into view
-    nextTick(() => {
-      scrollNodeIntoView(id)
-    })
-  }
-}
+// selectNode方法已在上面重新定义，这里移除重复定义
 
 const scrollNodeIntoView = (nodeId: string) => {
   const nodeRef = nodeRefs.value.get(nodeId)
@@ -331,7 +380,7 @@ const getSelectedNode = (): TreeNodeType | null => {
 
 // Generate unique ID
 const generateId = (): string => {
-  return Math.random().toString(36).substr(2, 9)
+  return Math.random().toString(36).substring(2, 9)
 }
 
 // Generate unique label to avoid duplicates in the same parent
@@ -457,7 +506,7 @@ const deleteNode = (nodeToDelete: TreeNodeType): boolean => {
   return false
 }
 
-// Keyboard navigation functions
+// 重构的键盘导航 - 分离焦点移动和选择操作
 const handleKeyDown = (e: KeyboardEvent) => {
   if (!treeRoot.value) return
   
@@ -465,17 +514,39 @@ const handleKeyDown = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement
   if (target?.tagName === 'INPUT' || target?.closest('input')) return
   
-  const currentFocusedNode = focusedNodeId.value ? findNode(focusedNodeId.value) : null
+  const currentFocusedNode = getFocusedNode()
   const flatNodes = flatVisibleNodes.value
   
   switch (e.key) {
     case 'ArrowUp':
       e.preventDefault()
-      navigateUp(flatNodes, currentFocusedNode)
+      if (e.shiftKey && props.multiSelectable && multiSelectMode.value && lastSelectedNodeId.value) {
+        // Shift + 上箭头：扩展选择到上一个节点（仅当支持多选时）
+        const currentIndex = flatNodes.findIndex(node => node.id === (currentFocusedNode?.id || ''))
+        if (currentIndex > 0) {
+          const targetNode = flatNodes[currentIndex - 1]
+          setFocusedNode(targetNode.id)
+          selectRange(lastSelectedNodeId.value, targetNode.id)
+        }
+      } else {
+        // 普通上箭头：移动焦点
+        navigateUp(flatNodes, currentFocusedNode)
+      }
       break
     case 'ArrowDown':
       e.preventDefault()
-      navigateDown(flatNodes, currentFocusedNode)
+      if (e.shiftKey && props.multiSelectable && multiSelectMode.value && lastSelectedNodeId.value) {
+        // Shift + 下箭头：扩展选择到下一个节点（仅当支持多选时）
+        const currentIndex = flatNodes.findIndex(node => node.id === (currentFocusedNode?.id || ''))
+        if (currentIndex >= 0 && currentIndex < flatNodes.length - 1) {
+          const targetNode = flatNodes[currentIndex + 1]
+          setFocusedNode(targetNode.id)
+          selectRange(lastSelectedNodeId.value, targetNode.id)
+        }
+      } else {
+        // 普通下箭头：移动焦点
+        navigateDown(flatNodes, currentFocusedNode)
+      }
       break
     case 'ArrowLeft':
       e.preventDefault()
@@ -495,6 +566,31 @@ const handleKeyDown = (e: KeyboardEvent) => {
         startRenameNode(currentFocusedNode.id)
       }
       break
+    case ' ': // 空格键
+      e.preventDefault()
+      if (currentFocusedNode) {
+        if ((e.ctrlKey || e.metaKey) && props.multiSelectable) {
+          // Ctrl/Cmd + 空格：切换选择状态（仅当支持多选时）
+          multiSelectMode.value = true
+          toggleNodeSelection(currentFocusedNode.id)
+        } else {
+          // 普通空格：单选当前焦点节点
+          clearAllSelections()
+          selectNode(currentFocusedNode.id)
+          multiSelectMode.value = false
+        }
+        
+        // 发送选择变更事件
+        const selectedNodes = getSelectedNodes()
+        emit('selection-changed', selectedNodes)
+      }
+      break
+    case 'Escape':
+      e.preventDefault()
+      // ESC：清除所有选择，退出多选模式
+      clearAllSelections()
+      multiSelectMode.value = false
+      break
   }
 }
 
@@ -503,13 +599,13 @@ const navigateUp = (flatNodes: TreeNodeType[], currentNode: TreeNodeType | null)
   
   if (!currentNode) {
     // No current focus, focus on last node
-    focusNode(flatNodes[flatNodes.length - 1])
+    setFocusedNode(flatNodes[flatNodes.length - 1].id)
     return
   }
   
   const currentIndex = flatNodes.findIndex(node => node.id === currentNode.id)
   if (currentIndex > 0) {
-    focusNode(flatNodes[currentIndex - 1])
+    setFocusedNode(flatNodes[currentIndex - 1].id)
   }
 }
 
@@ -518,13 +614,13 @@ const navigateDown = (flatNodes: TreeNodeType[], currentNode: TreeNodeType | nul
   
   if (!currentNode) {
     // No current focus, focus on first node
-    focusNode(flatNodes[0])
+    setFocusedNode(flatNodes[0].id)
     return
   }
   
   const currentIndex = flatNodes.findIndex(node => node.id === currentNode.id)
   if (currentIndex >= 0 && currentIndex < flatNodes.length - 1) {
-    focusNode(flatNodes[currentIndex + 1])
+    setFocusedNode(flatNodes[currentIndex + 1].id)
   }
 }
 
@@ -542,19 +638,153 @@ const collapseNode = (node: TreeNodeType) => {
   }
 }
 
-const focusNode = (node: TreeNodeType) => {
-  focusedNodeId.value = node.id
+// 焦点管理方法
+const setFocusedNode = (nodeId: string | null) => {
+  const previousFocused = focusedNodeId.value ? findNode(focusedNodeId.value) : null
+  if (previousFocused) {
+    previousFocused.isFocused = false
+    props.callbacks?.onBlur?.(previousFocused)
+    emit('node-blur', previousFocused)
+  }
   
-  // Also select the node
-  clearSelection()
-  node.isSelected = true
-  props.callbacks?.onSelect?.(node)
-  emit('node-select', node)
+  focusedNodeId.value = nodeId
+  if (nodeId) {
+    const node = findNode(nodeId)
+    if (node) {
+      node.isFocused = true
+      props.callbacks?.onFocus?.(node)
+      emit('node-focus', node)
+      
+      // Scroll into view
+      nextTick(() => {
+        scrollNodeIntoView(nodeId)
+      })
+    }
+  }
+}
+
+const getFocusedNode = (): TreeNodeType | null => {
+  return focusedNodeId.value ? findNode(focusedNodeId.value) : null
+}
+
+// 选择管理方法
+const selectNode = (nodeId: string, clearOthers: boolean = true) => {
+  if (clearOthers) {
+    clearAllSelections()
+  }
   
-  // Scroll into view
-  nextTick(() => {
-    scrollNodeIntoView(node.id)
+  const node = findNode(nodeId)
+  if (node && !node.isSelected) {
+    node.isSelected = true
+    selectedNodeIds.value.add(nodeId)
+    lastSelectedNodeId.value = nodeId
+    
+    props.callbacks?.onSelect?.(node)
+    emit('node-select', node)
+  }
+}
+
+const deselectNode = (nodeId: string) => {
+  const node = findNode(nodeId)
+  if (node && node.isSelected) {
+    node.isSelected = false
+    selectedNodeIds.value.delete(nodeId)
+    
+    if (lastSelectedNodeId.value === nodeId) {
+      lastSelectedNodeId.value = null
+    }
+    
+    props.callbacks?.onDeselect?.(node)
+    emit('node-deselect', node)
+  }
+}
+
+const toggleNodeSelection = (nodeId: string) => {
+  const node = findNode(nodeId)
+  if (node) {
+    if (node.isSelected) {
+      deselectNode(nodeId)
+    } else {
+      selectNode(nodeId, false) // Don't clear others when toggling
+    }
+  }
+}
+
+const clearAllSelections = () => {
+  const selectedNodes: TreeNodeType[] = []
+  
+  // Clear all selected states
+  const clearRecursive = (nodes: TreeNodeType[]) => {
+    nodes.forEach(node => {
+      if (node.isSelected) {
+        node.isSelected = false
+        selectedNodes.push(node)
+      }
+      if (node.children && node.children.length > 0) {
+        clearRecursive(node.children)
+      }
+    })
+  }
+  
+  clearRecursive(props.nodes)
+  selectedNodeIds.value.clear()
+  lastSelectedNodeId.value = null
+  
+  // Emit events for all deselected nodes
+  selectedNodes.forEach(node => {
+    props.callbacks?.onDeselect?.(node)
+    emit('node-deselect', node)
   })
+  
+  if (selectedNodes.length > 0) {
+    emit('selection-changed', [])
+  }
+}
+
+const selectRange = (startNodeId: string, endNodeId: string) => {
+  const flatNodes = flatVisibleNodes.value
+  const startIndex = flatNodes.findIndex(node => node.id === startNodeId)
+  const endIndex = flatNodes.findIndex(node => node.id === endNodeId)
+  
+  if (startIndex === -1 || endIndex === -1) return
+  
+  const minIndex = Math.min(startIndex, endIndex)
+  const maxIndex = Math.max(startIndex, endIndex)
+  
+  // Clear existing selections
+  clearAllSelections()
+  
+  // Select range
+  for (let i = minIndex; i <= maxIndex; i++) {
+    selectNode(flatNodes[i].id, false)
+  }
+  
+  // Emit selection changed event
+  const selectedNodes = flatNodes.slice(minIndex, maxIndex + 1)
+  emit('selection-changed', selectedNodes)
+}
+
+const getSelectedNodes = (): TreeNodeType[] => {
+  const selectedNodes: TreeNodeType[] = []
+  
+  const findSelectedRecursive = (nodes: TreeNodeType[]) => {
+    nodes.forEach(node => {
+      if (node.isSelected) {
+        selectedNodes.push(node)
+      }
+      if (node.children && node.children.length > 0) {
+        findSelectedRecursive(node.children)
+      }
+    })
+  }
+  
+  findSelectedRecursive(props.nodes)
+  return selectedNodes
+}
+
+// 重构的focusNode方法 - 现在只处理焦点，不自动选择
+const focusNode = (node: TreeNodeType) => {
+  setFocusedNode(node.id)
 }
 
 // Handle drag over root area (empty space in tree)
@@ -618,7 +848,7 @@ const handleRootDragLeave = (e: DragEvent) => {
   }, 100)
 }
 
-const handleRootDrop = (e: DragEvent) => {
+const handleRootDrop = (_e: DragEvent) => {
   // Only handle if drop is allowed
   if (!canDropToRoot.value) return
   
@@ -762,15 +992,32 @@ onUnmounted(() => {
 })
 
 defineExpose({
+  // 展开/折叠
   expandAll,
   collapseAll,
+  
+  // 复选框
   checkAll,
   uncheckAll,
+  
+  // 节点查找
   findNode,
-  clearSelection,
+  
+  // 选择管理
+  clearAllSelections,
   selectNode,
-  focusNode,
+  deselectNode,
+  toggleNodeSelection,
+  selectRange,
   getSelectedNode,
+  getSelectedNodes,
+  
+  // 焦点管理
+  setFocusedNode,
+  getFocusedNode,
+  focusNode, // 兼容性
+  
+  // 节点操作
   addChildToNode,
   deleteNode,
   startRenameNode,
@@ -792,12 +1039,19 @@ defineExpose({
 }
 
 .tree-root:focus {
-  box-shadow: var(--tree-container-focus-ring, 2px solid rgba(59, 130, 246, 0.5));
+  outline: none;
+}
+
+.tree-root:focus:not([data-has-focused-node="true"]) {
+  outline: var(--tree-focus-outline, 2px solid rgba(59, 130, 246, 0.5));
+  outline-offset: var(--tree-focus-outline-offset, -2px);
 }
 
 .tree-root.drag-over-root {
   background-color: var(--tree-drop-background, rgba(34, 197, 94, 0.2));
   border-color: var(--tree-drop-border-color, rgb(74, 222, 128));
+  outline: var(--tree-focus-outline, 2px solid rgba(59, 130, 246, 0.5));
+  outline-offset: var(--tree-focus-outline-offset, -2px);
 }
 
 </style>

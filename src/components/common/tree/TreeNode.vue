@@ -14,7 +14,7 @@
       :class="[dropTargetClasses, selectedClasses]"
       :style="{ paddingLeft: `${(depth + initialDepth) * 12 + 8}px` }"
       :title = "node.path"
-      @click="handleClick"
+      @click="handleClick($event)"
       @contextmenu.stop="handleContextMenu"
       @dragstart="handleDragStart"
       @dragend="handleDragEnd"
@@ -130,7 +130,7 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'node-click', node: TreeNode): void
+  (e: 'node-click', data: { node: TreeNode; event?: MouseEvent }): void
   (e: 'node-check', node: TreeNode): void
   (e: 'node-rename', data: { node: TreeNode; newName: string }): void
   (e: 'node-drag', node: TreeNode): void
@@ -247,23 +247,22 @@ const dropTargetClasses = computed(() => {
 })
 
 const selectedClasses = computed(() => {
-  if (isRenaming.value) {
-    return {
-      'renaming-status': true
-    }
+  const classes: Record<string, boolean> = {}
+  
+  if (props.node.isSelected) {
+    classes['selected-status'] = true
   }
-  else if (props.node.isSelected){
-    return {
-      'selected-status': true
-    }
-  } else {
-    return {}
+  
+  if (props.node.isFocused) {
+    classes['focused-status'] = true
   }
+  
+  return classes
 })
 
-const handleClick = () => {
+const handleClick = (event: MouseEvent) => {
   if (props.node.isEnabled === false) return
-  emit('node-click', props.node)
+  emit('node-click', { node: props.node, event })
 }
 
 const handleLabelClick = (event: MouseEvent) => {
@@ -277,7 +276,7 @@ const handleLabelClick = (event: MouseEvent) => {
     startRename()
   } else {
     // If not selected, emit click to select it first
-    emit('node-click', props.node)
+    emit('node-click', { node: props.node, event })
   }
 }
 
@@ -723,9 +722,9 @@ defineExpose({
   background: var(--tree-input-background, transparent);
   border: var(--tree-input-border, 1px solid #ccc);
   border-radius: var(--tree-border-radius, 0px);
-  padding: var(--tree-input-padding, 0 4px);
+  padding: var(--tree-input-padding, 2px 4px);
   font-size: inherit;
-  color: var(--tree-text-color, inherit);
+  color: var(--tree-input-color, inherit);
 }
 
 .tree-node-content .badge {
@@ -785,16 +784,21 @@ defineExpose({
   border-radius: 2px;
 }
 
-.tree-node-content.renaming-status {
-  color: var(--tree-selected-color, #1976d2);
-  background-color: var(--tree-selected-background, #e3f2fd);
-  border-color: transparent;
-}
-
 .tree-node-content.selected-status {
   color: var(--tree-selected-color, #1976d2);
   background-color: var(--tree-selected-background, #e3f2fd);
-  border-color: var(--tree-selected-border-color, #2196f3);
+}
+
+.tree-node-content.focused-status {
+  outline: var(--tree-focus-outline, 2px solid rgba(59, 130, 246, 0.5));
+  outline-offset: var(--tree-focus-outline-offset, -2px);
+}
+
+.tree-node-content.focused-status.selected-status {
+  color: var(--tree-selected-focused-color, #1976d2);
+  background-color: var(--tree-selected-focused-background, #e3f2fd);
+  outline: var(--tree-focus-outline, 2px solid rgba(59, 130, 246, 0.5));
+  outline-offset: var(--tree-focus-outline-offset, -2px);
 }
 
 .tree-children.dragged {

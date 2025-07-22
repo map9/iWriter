@@ -1076,13 +1076,7 @@ export const useAppStore = defineStore('app', () => {
       // Always update tab name to match the saved file name
       const fileName = savedPath.split('/').pop() || 'Untitled'
       tab.name = fileName
-      
-      // Refresh file tree if this was a new file or saved to a different location
-      if (!originalPath || savedPath !== originalPath) {
-        console.error("need to modify.")
-        //await loadFileTree()
-      }
-      
+
       // 成功通知
       notify.success(`${fileName} 保存成功`, '文件操作')
     }
@@ -1162,7 +1156,6 @@ export const useAppStore = defineStore('app', () => {
   function applyCurrentTheme() {
     const theme = getThemeById(currentThemeId.value)
     if (!theme) return
-    console.log('applyCurrentTheme', theme.id)
     applyThemeColors(theme)
   }
   
