@@ -43,7 +43,12 @@ export function insertInlineMath(editor: Editor | undefined) {
 export function insertImage(editor: Editor | undefined) {
   const url = prompt('Enter image URL:')
   if (url) {
-    editor?.chain().focus().setImage({ src: url }).run()
+    const alt = prompt('Enter image alt text (optional):', '') || ''
+    editor?.chain().focus().setImageWithCaption({ 
+      src: url, 
+      alt: alt,
+      showCaption: false 
+    }).run()
   }
 }
 

@@ -225,8 +225,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, toRef, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useEditor, EditorContent, VueNodeViewRenderer } from '@tiptap/vue-3'
+import { ref, toRef, watch, onBeforeUnmount } from 'vue'
+import { useEditor, EditorContent } from '@tiptap/vue-3'
 
 import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
 import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus } from '@tiptap/extensions'
@@ -245,13 +245,13 @@ import FileHandler from '@tiptap/extension-file-handler'
 
 import Blockquote from '@tiptap/extension-blockquote'
 
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import { CodeBlockCaption } from '@/components/common/tiptap/CodeBlockWithCaptionExtension'
+import { ImageCaption } from '@/components/common/tiptap/ImageWithCaptionExtension'
 import css from 'highlight.js/lib/languages/css'
 import js from 'highlight.js/lib/languages/javascript'
 import ts from 'highlight.js/lib/languages/typescript'
 import html from 'highlight.js/lib/languages/xml'
 import { all, createLowlight } from 'lowlight'
-import CodeBlockComponent from '@/components/common/tiptap/CodeBlockComponent.vue'
 
 import 'katex/dist/katex.min.css'
 import { Mathematics, migrateMathStrings } from '@tiptap/extension-mathematics'
@@ -368,7 +368,7 @@ const editor = useEditor({
     TableKit.configure({
       table: { resizable: true },
     }),
-    Image.configure({
+    ImageCaption.configure({
       inline: true,
       allowBase64: true,
       HTMLAttributes: {
@@ -393,9 +393,11 @@ const editor = useEditor({
             currentEditor
               .chain()
               .insertContentAt(pos, {
-                type: 'image',
+                type: 'imageCaption',
                 attrs: {
                   src: fileReader.result,
+                  alt: file.name.replace(/\.[^/.]+$/, ''),
+                  title: file.name,
                 },
               })
               .focus()
@@ -412,9 +414,11 @@ const editor = useEditor({
             currentEditor
               .chain()
               .insertContentAt(currentEditor.state.selection.anchor, {
-                type: 'image',
+                type: 'imageCaption',
                 attrs: {
                   src: fileReader.result,
+                  alt: file.name.replace(/\.[^/.]+$/, ''),
+                  title: file.name,
                 },
               })
               .focus()
@@ -425,11 +429,7 @@ const editor = useEditor({
     }),
 
     Blockquote,
-    CodeBlockLowlight.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(CodeBlockComponent)
-      },
-    }).configure({ lowlight }),
+    CodeBlockCaption.configure({ lowlight }),
     Mathematics.configure({
       inlineOptions: {
         onClick: (node, pos) => {
@@ -729,8 +729,8 @@ async function handleMenuAction(action: string): Promise<boolean> {
     case 'insert-table':
       insertTable(editor.value)
       return true
-    case 'insert-image':
-      insertImage(editor.value)
+    case 'insert-media':
+      editor.value.chain().focus().toggleImageCaption().run()
       return true
 
     case 'insert-code-block':
@@ -741,6 +741,9 @@ async function handleMenuAction(action: string): Promise<boolean> {
       return true
     case 'code-format-codeblock':
       await formatCurrentCodeBlock()
+      return true
+    case 'code-block-toggle-caption':
+      editor.value.chain().focus().toggleCodeBlockCaption().run()
       return true
     
 
@@ -868,6 +871,10 @@ async function handleMenuAction(action: string): Promise<boolean> {
       insertInlineLink(editor.value)
       return true
 
+    case 'clear-formatting':
+      editor.value.chain().focus().unsetAllMarks().run()
+      return true
+      
     default:
       console.log('Unhandled menu action in MarkdownEditor:', action)
       return false

@@ -111,13 +111,19 @@ MainView
 ## Todo List
 ### Markdown 编辑器完善
 1. 实现对块数据的in Editor编辑，类似Notion。
--[] code block: 切换代码语言，格式化代码
--[] table: 增加、删除和插入行、列，改变列的宽度，设置与取消行、列的表头，移动行、列，删除整个table
--[] image: 改变图片容器大小，修改图片来源（本地、link），增加、删除图片标题
--[] voice: 
-  - 播放器：paly/pause、stop、track、mute，voice wave，position。
-  - 修改voice来源
-  - 转录功能：转录，终止转录，转录文字编辑，继续转录
+-[] code block: select language, caption, format, copy, delete
+-[] image
+  - change size
+  - source: local source | web link | drag / drop
+  - other: caption, open link/folder, copy, delete
+-[] voice 
+  - play / pause, stop, track, mute, voice wave, (current:total)
+  - source: local file | web link | drag / drop
+  - Transcription: start/pause, stop, 
+  - caption, copy, copt text, delete
+-[] table:
+  - add
+增加、删除和插入行、列，改变列的宽度，设置与取消行、列的表头，移动行、列，copy, delete
 
 ### AI 助手完善
 
