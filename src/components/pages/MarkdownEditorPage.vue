@@ -240,13 +240,14 @@ import HorizontalRule from '@tiptap/extension-horizontal-rule'
 
 import { TableKit } from '@tiptap/extension-table'
 import Image from '@tiptap/extension-image'
+import Caption from '../common/tiptap/Caption'
+import ImageWithCaption from '../common/tiptap/ImageWithCaption'
 import Youtube from '@tiptap/extension-youtube'
 import FileHandler from '@tiptap/extension-file-handler'
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 
 import Blockquote from '@tiptap/extension-blockquote'
 
-import { CodeBlockCaption } from '@/components/common/tiptap/CodeBlockWithCaptionExtension'
-import { ImageCaption } from '@/components/common/tiptap/ImageWithCaptionExtension'
 import css from 'highlight.js/lib/languages/css'
 import js from 'highlight.js/lib/languages/javascript'
 import ts from 'highlight.js/lib/languages/typescript'
@@ -362,19 +363,23 @@ const editor = useEditor({
     }),
 
     Document, Heading, Paragraph, Text, HorizontalRule,
+    Caption,
     TextAlign.configure({
-      types: ['heading', 'paragraph'],
+      types: ['heading', 'paragraph', 'caption'],
     }),
     TableKit.configure({
       table: { resizable: true },
     }),
-    ImageCaption.configure({
-      inline: true,
+    
+    // Image扩展 - 设置为block级别用于Caption系统
+    Image.configure({
+      inline: false, // 设置为block级别
       allowBase64: true,
       HTMLAttributes: {
         class: 'editor-image'
       }
     }),
+    ImageWithCaption,
     Youtube.configure({
       controls: false,
       nocookie: true,
@@ -393,7 +398,7 @@ const editor = useEditor({
             currentEditor
               .chain()
               .insertContentAt(pos, {
-                type: 'imageCaption',
+                type: 'imageWithCaption',
                 attrs: {
                   src: fileReader.result,
                   alt: file.name.replace(/\.[^/.]+$/, ''),
@@ -414,7 +419,7 @@ const editor = useEditor({
             currentEditor
               .chain()
               .insertContentAt(currentEditor.state.selection.anchor, {
-                type: 'imageCaption',
+                type: 'imageWithCaption',
                 attrs: {
                   src: fileReader.result,
                   alt: file.name.replace(/\.[^/.]+$/, ''),
@@ -429,7 +434,7 @@ const editor = useEditor({
     }),
 
     Blockquote,
-    CodeBlockCaption.configure({ lowlight }),
+    CodeBlockLowlight.configure({ lowlight }),
     Mathematics.configure({
       inlineOptions: {
         onClick: (node, pos) => {
@@ -742,10 +747,10 @@ async function handleMenuAction(action: string): Promise<boolean> {
     case 'code-format-codeblock':
       await formatCurrentCodeBlock()
       return true
-    case 'code-block-toggle-caption':
-      editor.value.chain().focus().toggleCodeBlockCaption().run()
-      return true
-    
+
+    case 'toggle-caption':
+      editor.value.chain().focus().setCaptionPosition('auto').run()
+      return true    
 
     case 'insert-math-block':
       insertMathBlock(editor.value)

@@ -1058,6 +1058,12 @@ function updateMenu(): void {
             sendMenuAction('insert-quote-block')
           }
         },
+        {
+          label: 'Caption',
+          click: () => {
+            sendMenuAction('toggle-caption')
+          }
+        },
         { type: 'separator' },
         {
           label: 'Ordered List',

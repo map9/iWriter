@@ -41,15 +41,13 @@ export function insertInlineMath(editor: Editor | undefined) {
 }
 
 export function insertImage(editor: Editor | undefined) {
-  const url = prompt('Enter image URL:')
-  if (url) {
-    const alt = prompt('Enter image alt text (optional):', '') || ''
-    editor?.chain().focus().setImageWithCaption({ 
-      src: url, 
-      alt: alt,
-      showCaption: false 
-    }).run()
-  }
+  const captionText = 'Please enter image caption'
+  editor?.chain().focus().setImageWithCaption({ 
+    src: "https://placehold.co/800x400", 
+    alt: '',
+    title: '图片标题',
+    showCaption: 'top',
+  }).run()
 }
 
 export function insertAudio(editor: Editor | undefined) {
