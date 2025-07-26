@@ -67,6 +67,7 @@ export interface EditorStats {
   totalWordCount: number
   totalParagraphCount: number
   lineEnding: 'LF' | 'CRLF'
+  invisibleCharacters: boolean
 }
 
 // 文件标签页接口

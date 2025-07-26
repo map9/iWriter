@@ -229,7 +229,7 @@ import { ref, toRef, watch, onBeforeUnmount } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 
 import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
-import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus } from '@tiptap/extensions'
+import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus, Placeholder } from '@tiptap/extensions'
 
 import Document from '@tiptap/extension-document'
 import Heading from '@tiptap/extension-heading'
@@ -242,6 +242,10 @@ import { TableKit } from '@tiptap/extension-table'
 import Image from '@tiptap/extension-image'
 import Caption from '../common/tiptap/Caption'
 import ImageWithCaption from '../common/tiptap/ImageWithCaption'
+//import VideoWithCaption from '../common/tiptap/VideoWithCaption'
+//import AudioWithCaption from '../common/tiptap/AudioWithCaption'
+//import TableWithCaption from '../common/tiptap/TableWithCaption'
+//import YoutubeWithCaption from '../common/tiptap/YoutubeWithCaption'
 import Youtube from '@tiptap/extension-youtube'
 import FileHandler from '@tiptap/extension-file-handler'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
@@ -270,6 +274,8 @@ import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
 import Typography from '@tiptap/extension-typography'
 import { TextStyleKit } from '@tiptap/extension-text-style'
+
+import InvisibleCharacters from '@tiptap/extension-invisible-characters'
 
 import { marked } from 'marked'
 import TurndownService from 'turndown'
@@ -371,22 +377,16 @@ const editor = useEditor({
       table: { resizable: true },
     }),
     
-    // Image扩展 - 设置为block级别用于Caption系统
-    Image.configure({
-      inline: false, // 设置为block级别
-      allowBase64: true,
-      HTMLAttributes: {
-        class: 'editor-image'
-      }
-    }),
+    Image,
     ImageWithCaption,
+    //VideoWithCaption,
+    //AudioWithCaption,
+    //TableWithCaption,
     Youtube.configure({
       controls: false,
-      nocookie: true,
-      HTMLAttributes: {
-        class: 'youtube-embed'
-      },
+      nocookie: true
     }),
+    //YoutubeWithCaption,
     FileHandler.configure({
       allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
       onDrop: (currentEditor, files, pos) => {
@@ -472,13 +472,23 @@ const editor = useEditor({
     
     Bold, Italic, Strike, Underline, Code, Link,
     Subscript, Superscript, Typography,
-    Highlight.configure({
-      HTMLAttributes: {
-        class: 'highlight'
-      }
-    }),
+    Highlight,
     
     TextStyleKit,
+
+    InvisibleCharacters,
+    Placeholder.configure({
+      // Use a placeholder:
+      //placeholder: 'Input text here …',
+      // Use different placeholders depending on the node type:
+      placeholder: ({ node }) => {
+        if (node.type.name === 'heading') {
+          return `Heading ${node.attrs.level}`
+        }
+
+        return 'Input text here...'
+      },
+    }),
   ],
   content: '',
   editorProps: {
@@ -674,6 +684,10 @@ async function handleMenuAction(action: string): Promise<boolean> {
       return true
     case 'redo':
       editor.value.chain().focus().redo().run()
+      return true
+
+    case 'toggle-invisible-characters':
+      editor.value.commands.toggleInvisibleCharacters()
       return true
       
     case 'heading-1':
@@ -975,7 +989,8 @@ function calculateEditorStats(): import('@/types').EditorStats {
       totalCharCount: 0,
       totalWordCount: 0,
       totalParagraphCount: 0,
-      lineEnding: 'LF'
+      lineEnding: 'LF',
+      invisibleCharacters: false,
     }
   }
 
@@ -1008,7 +1023,8 @@ function calculateEditorStats(): import('@/types').EditorStats {
     totalCharCount: content.length,
     totalWordCount: countWords(content),
     totalParagraphCount: countParagraphs(doc),
-    lineEnding: detectLineEnding(content)
+    lineEnding: detectLineEnding(content),
+    invisibleCharacters: editor.value.storage.invisibleCharacters.visibility() ? true : false,
   }
 }
 
@@ -1225,14 +1241,36 @@ defineExpose({
 </script>
 
 <style lang="scss">
+
+/*
+--white: #fff;
+--black: #2e2b29;
+--black-contrast: #110f0e;
+--gray-1: rgba(61, 37, 20, .05);
+--gray-2: rgba(61, 37, 20, .08);
+--gray-3: rgba(61, 37, 20, .12);
+--gray-4: rgba(53, 38, 28, .3);
+--gray-5: rgba(28, 25, 23, .6);
+--green: #22c55e;
+--purple: #6a00f5;
+--purple-contrast: #5800cc;
+--purple-light: rgba(88, 5, 255, .05);
+--yellow-contrast: #facc15;
+--yellow: rgba(250, 204, 21, .4);
+--yellow-light: #fffae5;
+--red: #ff5c33;
+--red-light: #ffebe5;
+--shadow: 0px 12px 33px 0px rgba(0, 0, 0, .06), 0px 3.618px 9.949px 0px rgba(0, 0, 0, .04);
+*/
+
 /* Modern editor styles */
 .tiptap {
   color: #888888;
-  line-height: 1.6;
+  line-height: 1.5;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
   :first-child {
-    margin-top: 0;
+    margin-top: 64;
   }
 
   // Focus styles
@@ -1279,6 +1317,19 @@ defineExpose({
     font-size: 1rem;
   }
 
+  /* Paragraph styles */
+  p {
+    margin: 1rem 0;
+    
+    &:first-child {
+      margin-top: 0;
+    }
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
   /* List styles */
   ul,
   ol {
@@ -1291,6 +1342,125 @@ defineExpose({
     }
   }
 
+  /* Task list styles */
+  ul[data-type="taskList"] {
+    list-style: none;
+    padding: 0;
+    
+    li {
+      display: flex;
+      align-items: flex-start;
+      
+      label {
+        flex-shrink: 0;
+        margin-right: 0.5rem;
+        margin-top: 0.125rem;
+      }
+      
+      > div {
+        flex: 1;
+      }
+    }
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    cursor: pointer;
+    margin: 2rem 0;
+
+    &.ProseMirror-selectednode {
+      border-top: 1px solid #3b82f6;
+    }
+  }
+
+  /* Highlight */
+  mark {
+    background-color: #fef08a;
+    border-radius: 0.25rem;
+    box-decoration-break: clone;
+    padding: 0.125rem 0.25rem;
+  }
+
+  /* Link styles */
+  a {
+    color: #3b82f6;
+    text-decoration: underline;
+    
+    &:hover {
+      color: #1d4ed8;
+    }
+  }
+
+  blockquote {
+    border-left: 4px solid #3b82f6;
+    margin: 1.5rem 0;
+    padding-left: 1rem;
+    font-style: italic;
+    color: #64748b;
+  }
+
+  /* Table-specific styling */
+  table {
+    border-collapse: collapse;
+    margin: 0;
+    overflow: hidden;
+    table-layout: fixed;
+    width: 100%;
+
+    td,
+    th {
+      border: 1px solid rgba(61, 37, 20, .12);
+      box-sizing: border-box;
+      min-width: 1em;
+      padding: 6px 8px;
+      position: relative;
+      vertical-align: top;
+
+      > * {
+        margin-bottom: 0;
+      }
+    }
+
+    th {
+      background-color: rgba(61, 37, 20, .05);
+      font-weight: bold;
+      text-align: left;
+    }
+
+    .selectedCell:after {
+      background: rgba(61, 37, 20, .08);
+      content: '';
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      pointer-events: none;
+      position: absolute;
+      z-index: 2;
+    }
+
+    .column-resize-handle {
+      background-color: #6a00f5;
+      bottom: -2px;
+      pointer-events: none;
+      position: absolute;
+      right: -2px;
+      top: 0;
+      width: 4px;
+    }
+  }
+
+  .tableWrapper {
+    margin: 1.5rem 0;
+    overflow-x: auto;
+  }
+
+  &.resize-cursor {
+    cursor: ew-resize;
+    cursor: col-resize;
+  }
+
   /* Code and preformatted text styles */
   code {
     background-color: #f1f5f9;
@@ -1301,6 +1471,7 @@ defineExpose({
     padding: 0.125rem 0.25rem;
   }
 
+  /* Code block */
   pre {
     background: #000000;
     border-radius: 0.5rem;
@@ -1370,156 +1541,7 @@ defineExpose({
     }
   }
 
-  blockquote {
-    border-left: 4px solid #3b82f6;
-    margin: 1.5rem 0;
-    padding-left: 1rem;
-    font-style: italic;
-    color: #64748b;
-  }
-
-  hr {
-    border: none;
-    border-top: 1px solid #e2e8f0;
-    cursor: pointer;
-    margin: 2rem 0;
-
-    &.ProseMirror-selectednode {
-      border-top: 1px solid #3b82f6;
-    }
-  }
-
-  /* Link styles */
-  a {
-    color: #3b82f6;
-    text-decoration: underline;
-    
-    &:hover {
-      color: #1d4ed8;
-    }
-  }
-
-  /* Paragraph styles */
-  p {
-    margin: 1rem 0;
-    
-    &:first-child {
-      margin-top: 0;
-    }
-    
-    &:last-child {
-      margin-bottom: 0;
-    }
-  }
-
-  /* Youtube embed */
-  div[data-youtube-video] {
-    margin: 1.5rem 0;
-    
-    iframe {
-      border-radius: 0.5rem;
-      display: block;
-      min-height: 200px;
-      min-width: 200px;
-      max-width: 100%;
-    }
-
-    &.ProseMirror-selectednode iframe {
-      outline: 3px solid #3b82f6;
-      transition: outline 0.15s;
-    }
-  }
-
-  /* Highlight */
-  mark {
-    background-color: #fef08a;
-    border-radius: 0.25rem;
-    box-decoration-break: clone;
-    padding: 0.125rem 0.25rem;
-  }
-
-  /* Task list styles */
-  ul[data-type="taskList"] {
-    list-style: none;
-    padding: 0;
-    
-    li {
-      display: flex;
-      align-items: flex-start;
-      
-      label {
-        flex-shrink: 0;
-        margin-right: 0.5rem;
-        margin-top: 0.125rem;
-      }
-      
-      > div {
-        flex: 1;
-      }
-    }
-  }
-
-  /* Table-specific styling */
-  table {
-    border-collapse: collapse;
-    margin: 0;
-    overflow: hidden;
-    table-layout: fixed;
-    width: 100%;
-
-    td,
-    th {
-      border: 1px solid var(--gray-3);
-      box-sizing: border-box;
-      min-width: 1em;
-      padding: 6px 8px;
-      position: relative;
-      vertical-align: top;
-
-      > * {
-        margin-bottom: 0;
-      }
-    }
-
-    th {
-      background-color: var(--gray-1);
-      font-weight: bold;
-      text-align: left;
-    }
-
-    .selectedCell:after {
-      background: var(--gray-2);
-      content: '';
-      left: 0;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      pointer-events: none;
-      position: absolute;
-      z-index: 2;
-    }
-
-    .column-resize-handle {
-      background-color: var(--purple);
-      bottom: -2px;
-      pointer-events: none;
-      position: absolute;
-      right: -2px;
-      top: 0;
-      width: 4px;
-    }
-  }
-
-  .tableWrapper {
-    margin: 1.5rem 0;
-    overflow-x: auto;
-  }
-
-  &.resize-cursor {
-    cursor: ew-resize;
-    cursor: col-resize;
-  }
-
+  /* Image */
   img {
     display: block;
     height: auto;
@@ -1527,27 +1549,27 @@ defineExpose({
     max-width: 100%;
 
     &.ProseMirror-selectednode {
-      outline: 3px solid var(--purple);
+      outline: 3px solid #6a00f5;
     }
   }
 
-  .editor-image {
-    max-width: 100%;
-    height: auto;
-    border-radius: 4px;
-    margin: 10px 0;
-  }
+  /* Youtube embed */
+  div[data-youtube-video] {
+    cursor: move;
+    margin: 1.5rem;
+    
+    iframe {
+      border: 0.5rem solid #110f0e;
+      display: block;
+      min-height: 200px;
+      min-width: 200px;
+      outline: 0px solid transparent;
+    }
 
-  .youtube-embed {
-    max-width: 100%;
-    margin: 10px 0;
-  }
-
-  .highlight {
-    background-color: #fff3cd;
-    color: #856404;
-    padding: 2px 4px;
-    border-radius: 2px;
+    &.ProseMirror-selectednode iframe {
+      outline: 3px solid #3b82f6;
+      transition: outline 0.15s;
+    }
   }
 
   // Mathematics extension styles
@@ -1580,12 +1602,30 @@ defineExpose({
 
     &.inline-math-error,
     &.block-math-error {
-      background: var(--red-light);
-      color: var(--red);
-      border: 1px solid var(--red-dark);
+      background: #ffebe5;
+      color: #ff5c33;
+      border: 1px solid #ae2300;
       padding: 0.5rem;
       border-radius: 0.25rem;
     }
+  }
+
+  /* Placeholder (at the top) */
+  p.is-editor-empty:first-child::before {
+    color: rgba(53, 38, 28, .3);
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+  }
+
+  /* Placeholder (on every new line) */
+  .is-empty::before {
+    color: rgba(53, 38, 28, .3);
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
   }
 }
 
