@@ -12,7 +12,8 @@
     "composite": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "turndown": ["node_modules/@types/turndown/index.d.ts"]
     }
   }
 }

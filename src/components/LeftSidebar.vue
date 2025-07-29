@@ -30,11 +30,11 @@
           
           <!-- TOC navigation -->
           <button
-            @click="handleModeClick('toc')"
+            @click="handleModeClick(SidebarMode.TOC)"
             :disabled="appStore.tabs.length === 0"
             class="toolbar-button"
             :class="{
-              'toolbar-button-primary': appStore.leftSidebarMode === 'toc' && appStore.tabs.length > 0,
+              'toolbar-button-primary': appStore.leftSidebarMode === SidebarMode.TOC && appStore.tabs.length > 0,
             }"
             title="Table of Contents"
           >
@@ -48,27 +48,27 @@
     <div class="sidebar-content flex-1 flex flex-col h-full">
       <!-- Start(No Folder) Opened -->
       <NoFolderOpened 
-        v-if="appStore.leftSidebarMode === 'start'" 
+        v-if="appStore.leftSidebarMode === SidebarMode.START" 
       />
       
       <!-- Explorer -->
       <ExplorerPanel
-        v-else-if="appStore.leftSidebarMode === 'explorer'"
+        v-else-if="appStore.leftSidebarMode === SidebarMode.EXPLORER"
       />
       
       <!-- Search -->
       <SearchPanel
-        v-else-if="appStore.leftSidebarMode === 'search'"
+        v-else-if="appStore.leftSidebarMode === SidebarMode.SEARCH"
       />
       
       <!-- By TAG -->
       <TagPanel
-        v-else-if="appStore.leftSidebarMode === 'tag'"
+        v-else-if="appStore.leftSidebarMode === SidebarMode.TAG"
       />
       
       <!-- Table of Contents -->
       <TocPanel
-        v-else-if="appStore.leftSidebarMode === 'toc'"
+        v-else-if="appStore.leftSidebarMode === SidebarMode.TOC"
       />
     </div>
     
@@ -91,6 +91,7 @@ import {
   IconDots
 } from '@tabler/icons-vue'
 
+import { SidebarMode } from '@/types'
 import NoFolderOpened from './sidebar/NoFolderOpened.vue'
 import ExplorerPanel from './sidebar/ExplorerPanel.vue'
 import SearchPanel from './sidebar/SearchPanel.vue'
@@ -105,27 +106,27 @@ const startWidth = ref(0)
 
 const mainSidebarModes = computed(() => [
   {
-    key: 'explorer' as const,
+    key: SidebarMode.EXPLORER as const,
     title: 'Explorer',
     icon: IconFolder
   },
   {
-    key: 'search' as const,
+    key: SidebarMode.SEARCH as const,
     title: 'Search',
     icon: IconSearch
   },
   {
-    key: 'tag' as const,
+    key: SidebarMode.TAG as const,
     title: 'By TAG',
     icon: IconTag
   }
 ])
 
-function handleModeClick(mode: string) {
-  if (mode === 'toc' && appStore.tabs.length === 0) {
+function handleModeClick(mode: SidebarMode) {
+  if (mode === SidebarMode.TOC && appStore.tabs.length === 0) {
     return
   }
-  if (['explorer', 'search', 'tag'].includes(mode) && !appStore.hasOpenFolder) {
+  if ([SidebarMode.EXPLORER, SidebarMode.SEARCH, SidebarMode.TAG].includes(mode) && !appStore.hasOpenFolder) {
     return
   }
   
@@ -175,15 +176,15 @@ function stopResize() {
 // 监听状态变化，自动切换到合适的模式
 function checkAndSwitchMode() {
   // 如果当前是被禁用的模式，自动切换
-  if (['explorer', 'search', 'tag'].includes(appStore.leftSidebarMode) && !appStore.hasOpenFolder) {
-    appStore.setLeftSidebarMode('start')
+  if ([SidebarMode.EXPLORER, SidebarMode.SEARCH, SidebarMode.TAG].includes(appStore.leftSidebarMode) && !appStore.hasOpenFolder) {
+    appStore.setLeftSidebarMode(SidebarMode.START)
   }
-  if (appStore.leftSidebarMode === 'toc' && appStore.tabs.length === 0) {
+  if (appStore.leftSidebarMode === SidebarMode.TOC && appStore.tabs.length === 0) {
     // 如果有文件夹打开，切换到explorer，否则切换到start
     if (appStore.hasOpenFolder) {
-      appStore.setLeftSidebarMode('explorer')
+      appStore.setLeftSidebarMode(SidebarMode.EXPLORER)
     } else {
-      appStore.setLeftSidebarMode('start')
+      appStore.setLeftSidebarMode(SidebarMode.START)
     }
   }
 }

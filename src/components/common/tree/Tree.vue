@@ -23,7 +23,7 @@
       :callbacks="callbacks"
       :initialDepth="initialDepth"
       :drop-mode="dropMode"
-      @node-click="(data: { node: TreeNodeType; event?: MouseEvent }) => handleNodeClick(data.node, data.event)"
+      @node-click="data => handleNodeClick(data.node, data.event)"
       @node-check="handleNodeCheck"
       @node-rename="handleNodeRename"
       @node-drag="handleNodeDrag"

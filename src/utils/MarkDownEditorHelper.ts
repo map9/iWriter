@@ -1,11 +1,13 @@
-import type { Editor } from '@tiptap/vue-3'
+import { type Editor as coreEditor } from '@tiptap/core'
+import { type Editor as vueEditor } from '@tiptap/vue-3'
+import type { Node as ProsemirrorNode } from '@tiptap/pm/model'
 
 // Update current heading based on editor state
-export function getHeading(editor: Editor | undefined) : string {
+export function getHeading(editor: vueEditor | undefined) : string {
   return editor?.isActive('heading') ? editor?.getAttributes('heading').level : 'paragraph';
 }
 
-export function setHeading(editor: Editor | undefined, heading: string) {
+export function setHeading(editor: vueEditor | undefined, heading: string) {
   if (!editor) return
   
   if (heading === 'paragraph') {
@@ -16,41 +18,70 @@ export function setHeading(editor: Editor | undefined, heading: string) {
   }
 }
 
-export function insertTable(editor: Editor | undefined) {
+export function insertTable(editor: vueEditor | undefined) {
   editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
 }
 
-export function insertMathBlock(editor: Editor | undefined) {
-  const hasSelection = !editor?.state.selection.empty
+export function insertMathBlock(editor: vueEditor | undefined) {
+  if (!editor) return
+
+  const hasSelection = !editor.state.selection.empty
   if (hasSelection) {
-    return editor?.chain().setBlockMath().focus().run()
+    // If there's a selection, wrap it in block math
+    const selectedText = editor.state.doc.textBetween(
+      editor.state.selection.from, 
+      editor.state.selection.to
+    )
+    
+    editor.chain().focus().deleteSelection().run()
+
+    // Clean up the text for inline math (remove newlines, extra spaces)
+    const latex = selectedText.replace(/\s+/g, ' ').trim()
+
+    // If selection looks like LaTeX (contains backslashes or common math symbols), use it directly
+    const isLikelyLatex = /\\|[\{\}\^\\_]|\$\$?|\\[a-zA-Z]+/.test(selectedText)
+    if (isLikelyLatex) {
+      return editor.chain().focus().insertBlockMath({ latex: selectedText }).run()
+    }
   }
 
-  const latex = prompt('Enter block math expression:', '') || ''
-  return editor?.chain().insertBlockMath({ latex }).focus().run()
+  // Insert a empty block math node
+  return editor.chain().focus().insertBlockMath({ latex: 'Pealse input Latex...' }).run()
 }
 
-export function insertInlineMath(editor: Editor | undefined) {
-  const hasSelection = !editor?.state.selection.empty
+export function insertInlineMath(editor: vueEditor | undefined) {
+  if (!editor) return
+
+    const hasSelection = !editor.state.selection.empty
   if (hasSelection) {
-    return editor?.chain().setInlineMath().focus().run()
+    // If there's a selection, wrap it in block math
+    const selectedText = editor.state.doc.textBetween(
+      editor.state.selection.from, 
+      editor.state.selection.to
+    )
+    
+    editor.chain().focus().deleteSelection().run()
+
+    // If selection looks like LaTeX (contains backslashes or common math symbols), use it directly
+    const isLikelyLatex = /\\|[\{\}\^\\_]|\$\$?|\\[a-zA-Z]+/.test(selectedText)
+    if (isLikelyLatex) {
+      return editor.chain().focus().insertInlineMath({ latex: selectedText }).run()
+    }
   }
 
-  const latex = prompt('Enter inline math expression:', '') || ''
-  return editor?.chain().insertInlineMath({ latex }).focus().run()
+  // Insert a empty block math node
+  return editor.chain().focus().insertInlineMath({ latex: 'Pealse input Latex...' }).run()
 }
 
-export function insertImage(editor: Editor | undefined) {
-  const captionText = 'Please enter image caption'
-  editor?.chain().focus().setImageWithCaption({ 
+export function insertImage(editor: vueEditor | undefined) {
+  editor?.chain().focus().setImage({ 
     src: "https://placehold.co/800x400", 
     alt: '',
-    title: '图片标题',
-    showCaption: 'top',
+    title: '800x400',
   }).run()
 }
 
-export function insertAudio(editor: Editor | undefined) {
+export function insertAudio(editor: vueEditor | undefined) {
   const url = prompt('Enter audio URL:')
   if (url) {
     const audioHtml = `<audio controls><source src="${url}" type="audio/mpeg">Your browser does not support the audio element.</audio>`
@@ -58,7 +89,7 @@ export function insertAudio(editor: Editor | undefined) {
   }
 }
 
-export function insertVideo(editor: Editor | undefined) {
+export function insertVideo(editor: vueEditor | undefined) {
   const url = prompt('Enter YouTube video URL:')
   if (url) {
     // Extract video ID from YouTube URL
@@ -75,7 +106,7 @@ export function insertVideo(editor: Editor | undefined) {
   }
 }
 
-export function insertLink(editor: Editor | undefined) {
+export function insertLink(editor: vueEditor | undefined) {
   const url = prompt('Enter URL:')
   if (url) {
     const linkText = prompt('Enter link text (optional):') || url
@@ -90,7 +121,7 @@ export function insertLink(editor: Editor | undefined) {
   }
 }
 
-export function insertReferenceLink(editor: Editor | undefined) {
+export function insertReferenceLink(editor: vueEditor | undefined) {
   const refLinkText = prompt('Enter link text:', '')
   const refLinkUrl = prompt('Enter link URL:', '')
   if (refLinkText && refLinkUrl && editor) {
@@ -107,7 +138,7 @@ export function insertReferenceLink(editor: Editor | undefined) {
   }
 }
 
-export function insertFootnote(editor: Editor | undefined) {
+export function insertFootnote(editor: vueEditor | undefined) {
   const footnoteText = prompt('Enter footnote text:', '')
   if (footnoteText && editor) {
     const footnoteId = Date.now().toString()
@@ -123,7 +154,7 @@ export function insertFootnote(editor: Editor | undefined) {
   }
 }
 
-export function insertInlineLink(editor: Editor | undefined) {
+export function insertInlineLink(editor: vueEditor | undefined) {
 if (editor?.isActive('link')) {
     editor?.chain().focus().unsetLink().run()
   } else {
@@ -144,4 +175,60 @@ if (editor?.isActive('link')) {
     // update link
     editor?.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
   }
+}
+
+export function onFileHandlerDrop(editor: coreEditor, files: File[], pos: number): void {
+  files.forEach(file => {
+    const fileReader = new FileReader()
+
+    fileReader.readAsDataURL(file)
+    fileReader.onload = () => {
+      editor
+        .chain()
+        .insertContentAt(pos, {
+          type: 'image',
+          attrs: {
+            src: fileReader.result,
+            alt: file.name.replace(/\.[^/.]+$/, ''),
+            title: file.name,
+          },
+        })
+        .focus()
+        .run()
+    }
+  })
+}
+
+export function onFileHandlerPaste(editor: coreEditor, files: File[], pasteContent?: string): void {
+  files.forEach(file => {
+    const fileReader = new FileReader()
+
+    fileReader.readAsDataURL(file)
+    fileReader.onload = () => {
+      editor
+        .chain()
+        .insertContentAt(editor.state.selection.anchor, {
+          type: 'image',
+          attrs: {
+            src: fileReader.result,
+            alt: file.name.replace(/\.[^/.]+$/, ''),
+            title: file.name,
+          },
+        })
+        .focus()
+        .run()
+    }
+  })
+}
+
+export function onPlaceholder(option: { editor: coreEditor; node: ProsemirrorNode; pos: number; hasAnchor: boolean }): string {
+  const { editor, node, pos, hasAnchor } = option
+  // Use a placeholder:
+  //placeholder: 'Input text here …',
+  // Use different placeholders depending on the node type:
+  if (node.type.name === 'heading') {
+    return `Heading ${node.attrs.level}`
+  }
+
+  return 'Input text here...'
 }

@@ -67,9 +67,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NodeViewContent, nodeViewProps, NodeViewWrapper } from '@tiptap/vue-3'
+import { NodeViewContent, NodeViewWrapper } from '@tiptap/vue-3'
 import { IconTrash, IconCode, IconCopy } from '@tabler/icons-vue'
-import { formatCode, isLanguageSupported, type FormatResult } from './codeFormatter'
+import { formatCode, isLanguageSupported, type FormatResult } from './CodeFormatter'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/vue-3'
 
@@ -139,32 +139,9 @@ const copyCode = async (): Promise<void> => {
     // TODO: 可以添加一个临时的成功提示图标或消息
   } catch (error) {
     console.error('Failed to copy code:', error)
-    // 降级到传统方法
-    copyCodeFallback(codeContent)
   }
 }
 
-const copyCodeFallback = (text: string): void => {
-  // 降级的复制方法，适用于不支持 Clipboard API 的浏览器
-  const textArea: HTMLTextAreaElement = document.createElement('textarea')
-  textArea.value = text
-  textArea.style.position = 'fixed'
-  textArea.style.opacity = '0'
-  document.body.appendChild(textArea)
-  textArea.focus()
-  textArea.select()
-  
-  try {
-    document.execCommand('copy')
-    console.log('Code copied to clipboard (fallback)')
-  } catch (error) {
-    console.error('Fallback copy failed:', error)
-    alert('Copy failed. Please copy manually.')
-  }
-  
-  document.body.removeChild(textArea)
-}
-    
 const formatCodeHandler = async (): Promise<void> => {
   if (!canFormat.value) return
   

@@ -92,7 +92,7 @@
         <canvas
           v-for="pageNum in renderedPages"
           :key="pageNum"
-          :ref="el => setCanvasRef(el, pageNum)"
+          :ref="el => setCanvasRef(el as Element, pageNum)"
           class="shadow-lg bg-white"
           :class="{ 'ring-2 ring-blue-500': pageNum === currentPage }"
         />
@@ -348,12 +348,6 @@ async function renderPage(pageNum: number) {
   }
   
   try {
-    // Check if PDF document is still valid
-    if (pdfDocumentInstance.destroyed) {
-      console.warn('PDF document has been destroyed')
-      return
-    }
-    
     const page = await pdfDocumentInstance.getPage(pageNum)
     const canvas = canvasRefs.value.get(pageNum)
     
@@ -556,9 +550,7 @@ onBeforeUnmount(() => {
   // 清理PDF文档资源
   if (pdfDocumentInstance) {
     try {
-      if (!pdfDocumentInstance.destroyed) {
-        pdfDocumentInstance.destroy()
-      }
+      pdfDocumentInstance.destroy()
     } catch (err) {
       console.warn('Error destroying PDF document:', err)
     } finally {

@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex flex-col bg-white">
+  <div class="flex flex-col h-full">
     <!-- Editor Toolbar -->
     <div class="toolbar">
       <!-- Spacer -->
@@ -213,20 +213,54 @@
     
     <!-- TipTap Editor -->
     <div class="flex-1 overflow-y-auto scrollbar-thin">
-      <div class="w-full max-w-3xl my-4 mx-auto">
-        <EditorContent
-          :editor="editor"
-          class="w-full px-4"
-        />
-      </div>
+        <EditorContent v-if="editor" :editor="editor" class="w-full h-full max-w-3xl my-4 mx-auto"/>
+        
+        <!-- Hover Toolbar -->
+        <HoverToolbar v-if="showHoverToolbar && editor" :editor="editor">
+          <template #default="{ editor, node, nodeType, pos, updateNode, deleteNode, copyNode, hideToolbar }">
+            
+            <!-- CodeBlock Toolbar -->
+            <CodeBlockToolbar 
+              v-if="nodeType === 'codeBlock'"
+              :editor="editor"
+              :node="node"
+              :pos="pos"
+              :updateNode="updateNode"
+              :hideToolbar="hideToolbar"
+            />
+            
+            <!-- Heading Toolbar -->
+            <HeadingToolbar 
+              v-else-if="nodeType === 'heading'"
+              :editor="editor"
+              :node="node"
+              :pos="pos"
+              :updateNode="updateNode"
+              :deleteNode="deleteNode"
+              :copyNode="copyNode"
+              :hideToolbar="hideToolbar"
+            />
+            
+            <!-- Default Toolbar for other node types -->
+            <DefaultToolbar 
+              :editor="editor"
+              :node="node"
+              :pos="pos"
+              :deleteNode="deleteNode"
+              :copyNode="copyNode"
+              :hideToolbar="hideToolbar"
+            />
+            
+          </template>
+        </HoverToolbar>
     </div>
   </div>
   
 </template>
 
 <script setup lang="ts">
-import { ref, toRef, watch, onBeforeUnmount } from 'vue'
-import { useEditor, EditorContent } from '@tiptap/vue-3'
+import { ref, toRef, watch, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
+import { Editor, EditorContent, useEditor } from '@tiptap/vue-3'
 
 import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
 import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus, Placeholder } from '@tiptap/extensions'
@@ -240,12 +274,6 @@ import HorizontalRule from '@tiptap/extension-horizontal-rule'
 
 import { TableKit } from '@tiptap/extension-table'
 import Image from '@tiptap/extension-image'
-import Caption from '../common/tiptap/Caption'
-import ImageWithCaption from '../common/tiptap/ImageWithCaption'
-//import VideoWithCaption from '../common/tiptap/VideoWithCaption'
-//import AudioWithCaption from '../common/tiptap/AudioWithCaption'
-//import TableWithCaption from '../common/tiptap/TableWithCaption'
-//import YoutubeWithCaption from '../common/tiptap/YoutubeWithCaption'
 import Youtube from '@tiptap/extension-youtube'
 import FileHandler from '@tiptap/extension-file-handler'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
@@ -278,6 +306,7 @@ import { TextStyleKit } from '@tiptap/extension-text-style'
 import InvisibleCharacters from '@tiptap/extension-invisible-characters'
 
 import { marked } from 'marked'
+// @ts-ignore
 import TurndownService from 'turndown'
 
 import { useAppStore } from '@/stores/app'
@@ -317,9 +346,19 @@ import {
   insertInlineMath,
   insertReferenceLink,
   insertFootnote,
+  onFileHandlerDrop,
+  onFileHandlerPaste,
+  onPlaceholder,
 } from '@/utils/MarkDownEditorHelper'
 
-import { formatCode, isLanguageSupported } from '@/components/common/tiptap/codeFormatter'
+import { formatCode, isLanguageSupported } from "@/components/common/utils/CodeFormatter"
+
+// Hover Toolbar imports
+import HoverToolbar from '@/components/common/tiptap/HoverToolbar.vue'
+import CodeBlockToolbar from '@/components/common/tiptap/toolbars/CodeBlockToolbar.vue'
+import HeadingToolbar from '@/components/common/tiptap/toolbars/HeadingToolbar.vue'
+import DefaultToolbar from '@/components/common/tiptap/toolbars/DefaultToolbar.vue'
+import { HoverToolbarExtension } from '@/components/common/tiptap/HoverToolbarPlugin'
 
 // Props
 interface Props {
@@ -342,13 +381,15 @@ const isLoading = ref(false)
 const currentHeading = ref('paragraph')
 const isFullscreen = ref(false)
 
+// 控制HoverToolbar的显示 - 简化生命周期管理
+const showHoverToolbar = ref(false)
+
 // create a lowlight instance
 const lowlight = createLowlight(all)
 lowlight.register('html', html)
 lowlight.register('css', css)
 lowlight.register('js', js)
 lowlight.register('ts', ts)
-
 
 // Create TipTap editor instance
 const editor = useEditor({
@@ -369,7 +410,6 @@ const editor = useEditor({
     }),
 
     Document, Heading, Paragraph, Text, HorizontalRule,
-    Caption,
     TextAlign.configure({
       types: ['heading', 'paragraph', 'caption'],
     }),
@@ -378,59 +418,14 @@ const editor = useEditor({
     }),
     
     Image,
-    ImageWithCaption,
-    //VideoWithCaption,
-    //AudioWithCaption,
-    //TableWithCaption,
     Youtube.configure({
       controls: false,
       nocookie: true
     }),
-    //YoutubeWithCaption,
     FileHandler.configure({
       allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
-      onDrop: (currentEditor, files, pos) => {
-        files.forEach(file => {
-          const fileReader = new FileReader()
-
-          fileReader.readAsDataURL(file)
-          fileReader.onload = () => {
-            currentEditor
-              .chain()
-              .insertContentAt(pos, {
-                type: 'imageWithCaption',
-                attrs: {
-                  src: fileReader.result,
-                  alt: file.name.replace(/\.[^/.]+$/, ''),
-                  title: file.name,
-                },
-              })
-              .focus()
-              .run()
-          }
-        })
-      },
-      onPaste: (currentEditor, files, htmlContent) => {
-        files.forEach(file => {
-          const fileReader = new FileReader()
-
-          fileReader.readAsDataURL(file)
-          fileReader.onload = () => {
-            currentEditor
-              .chain()
-              .insertContentAt(currentEditor.state.selection.anchor, {
-                type: 'imageWithCaption',
-                attrs: {
-                  src: fileReader.result,
-                  alt: file.name.replace(/\.[^/.]+$/, ''),
-                  title: file.name,
-                },
-              })
-              .focus()
-              .run()
-          }
-        })
-      },
+      onDrop: onFileHandlerDrop,
+      onPaste: onFileHandlerPaste,
     }),
 
     Blockquote,
@@ -478,23 +473,23 @@ const editor = useEditor({
 
     InvisibleCharacters,
     Placeholder.configure({
-      // Use a placeholder:
-      //placeholder: 'Input text here …',
-      // Use different placeholders depending on the node type:
-      placeholder: ({ node }) => {
-        if (node.type.name === 'heading') {
-          return `Heading ${node.attrs.level}`
-        }
-
-        return 'Input text here...'
-      },
+      placeholder: onPlaceholder,
     }),
+    
+    // Hover Toolbar Extension
+    HoverToolbarExtension.configure({
+      supportedNodeTypes: ['paragraph', 'heading', 'codeBlock', 'blockquote', 'image'],
+      hoverDelay: 100,
+      hideDelay: 200
+    }),
+
   ],
   content: '',
   editorProps: {
     attributes: {
       //class: 'prose max-w-none focus:outline-none',
-      class: 'prose prose-lg max-w-none focus:outline-none min-h-full',
+      //class: 'prose prose-lg max-w-none focus:outline-none min-h-full',
+      class: 'flex-1 flex-shrink p-[3rem] pb-[30vh] focus:outline-none',
       spellcheck: 'false',
     },
   },
@@ -514,8 +509,13 @@ const editor = useEditor({
     loadTabContent(editor).then(() => {
       // After loading, you may want to do something.
       updateMenuFormattingState()
+      // 编辑器完全初始化后显示HoverToolbar
+      showHoverToolbar.value = true
     })
   }
+})
+
+onMounted(() => {
 })
 
 // Watch for tab content changes
@@ -550,13 +550,19 @@ watch(() => editor.value, (newEditor) => {
 
 // Cleanup
 onBeforeUnmount(() => {
+  // 先隐藏HoverToolbar，确保组件卸载顺序正确
+  showHoverToolbar.value = false
+  
   // Clear TOC provider
   if (props.tab.tocProvider) {
     props.tab.tocProvider.destroy()
     props.tab.tocProvider = undefined
   }
   
-  editor.value?.destroy()
+  // 等待下一帧后再销毁编辑器，确保HoverToolbar完全卸载
+  nextTick(() => {
+    editor.value?.destroy()
+  })
 })
 
 // Helper functions for file types
@@ -749,7 +755,6 @@ async function handleMenuAction(action: string): Promise<boolean> {
       insertTable(editor.value)
       return true
     case 'insert-media':
-      editor.value.chain().focus().toggleImageCaption().run()
       return true
 
     case 'insert-code-block':
@@ -763,7 +768,7 @@ async function handleMenuAction(action: string): Promise<boolean> {
       return true
 
     case 'toggle-caption':
-      editor.value.chain().focus().setCaptionPosition('auto').run()
+      //editor.value.chain().focus().setCaptionPosition('auto').run()
       return true    
 
     case 'insert-math-block':
@@ -793,16 +798,11 @@ async function handleMenuAction(action: string): Promise<boolean> {
     
     // Toggle Task Status
     case 'toggle-task-status':
-      //editor.value.chain().focus().toggleTaskList().run()
       return true
     case 'complete-task':
-      //editor.value.chain().focus().toggleTaskList().run()
-      editor.value.chain().focus().setCellAttribute('backgroundColor', '#FAF594').run()
       return true
     case 'uncomplete-task':
-      //editor.value.chain().focus().toggleTaskList().run()
       return true
-
 
     // Increase/Decrease List Item Level
     case 'increase-indent':
@@ -1024,7 +1024,8 @@ function calculateEditorStats(): import('@/types').EditorStats {
     totalWordCount: countWords(content),
     totalParagraphCount: countParagraphs(doc),
     lineEnding: detectLineEnding(content),
-    invisibleCharacters: editor.value.storage.invisibleCharacters.visibility() ? true : false,
+    // @ts-ignore
+    invisibleCharacters: editor.value?.storage.invisibleCharacters?.visibility?.() ?? false,
   }
 }
 
@@ -1220,7 +1221,7 @@ async function formatCurrentCodeBlock(): Promise<void> {
       // 替换代码块内的文本内容
       tr.replaceWith(contentStart, contentEnd, state.schema.text(result.formattedCode))
       
-      editor.value.view.dispatch(tr)
+      editor.value.view.dispatch(tr as any)
       
       notify.success('Code block formatted successfully')
     } else if (result.error) {
@@ -1265,17 +1266,17 @@ defineExpose({
 
 /* Modern editor styles */
 .tiptap {
-  color: #888888;
+  /*color: #888888;*/
   line-height: 1.5;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
   :first-child {
-    margin-top: 64;
+    margin-top: 0;
   }
 
   // Focus styles
   .has-focus {
-    color: #000000;
+    /*color: #000000;*/
   }
 
   /* Heading styles */
@@ -1345,21 +1346,30 @@ defineExpose({
   /* Task list styles */
   ul[data-type="taskList"] {
     list-style: none;
+    margin-left: 0;
     padding: 0;
     
     li {
       display: flex;
       align-items: flex-start;
       
-      label {
-        flex-shrink: 0;
+      > label {
+        flex: 0 0 auto;
         margin-right: 0.5rem;
-        margin-top: 0.125rem;
+        user-select: none;
       }
-      
+
       > div {
-        flex: 1;
+        flex: 1 1 auto;
       }
+    }
+
+    input[type='checkbox'] {
+      cursor: pointer;
+    }
+
+    ul[data-type='taskList'] {
+      margin: 0;
     }
   }
 
@@ -1658,4 +1668,5 @@ defineExpose({
 .editor-scroll-area::-webkit-scrollbar-corner {
   background: #f1f5f9;
 }
+
 </style>
