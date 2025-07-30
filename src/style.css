@@ -84,7 +84,7 @@
   }
 
   .icon-dot {
-    @apply w-2 h-2 rounded-full text-status-warning
+    @apply w-1.5 h-1.5 rounded-full bg-status-warning
   }
 
   .toolbar-separator {

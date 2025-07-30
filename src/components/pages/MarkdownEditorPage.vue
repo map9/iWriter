@@ -429,7 +429,21 @@ const editor = useEditor({
     Image.extend({
       addAttributes() {
         return {
-          ...this.parent?.(),
+          src: {
+            default: null,
+          },
+          alt: {
+            default: null,
+          },
+          title: {
+            default: null,
+          },
+          width: {
+            default: null,
+          },
+          height: {
+            default: null,
+          },
           textAlign: {
             default: 'left',
             parseHTML: (element: HTMLElement) => {

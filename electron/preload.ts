@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('rename-file', oldPath, newName),
   moveFile: (sourcePath: string, targetDir: string, conflictAction?: 'keepBoth' | 'replace' | 'cancel') => 
     ipcRenderer.invoke('move-file', sourcePath, targetDir, conflictAction),
+  pathExists: (filePath: string) => ipcRenderer.invoke('path-exists', filePath),
   
   // Window controls
   close: () => ipcRenderer.send('close'),

@@ -233,6 +233,7 @@ export interface ElectronAPI {
   deleteFile: (filePath: string) => Promise<boolean>
   renameFile: (oldPath: string, newName: string) => Promise<string>
   moveFile: (sourcePath: string, targetDir: string) => Promise<FileOperationResult>
+  pathExists: (filePath: string) => Promise<boolean>
   
   // 窗口控制
   close: () => void

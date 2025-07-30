@@ -22,9 +22,26 @@
           <IconFolder class="control-button-icon" />
         </button>
         
-        <!-- 文件路径或URL显示 -->
-        <div class="control-input" :title="imagePath" v-if="!isEmptyImage">
-          <span class="control-input-text">{{ displayPath }}</span>
+        <!-- 文件路径或URL编辑输入框 -->
+        <div class="control-input-group" v-if="!isEmptyImage">
+          <input 
+            type="text"
+            class="control-input-field"
+            v-model="editableImagePath"
+            @keydown.enter="updateImageFromInput"
+            :placeholder="displayPath"
+            :title="imagePath"
+            contenteditable="false"
+          />
+          <button 
+            v-if="hasInputChanged"
+            @click.stop="updateImageFromInput"
+            class="control-button confirm-button"
+            title="Update image"
+            contenteditable="false"
+          >
+            <IconCheck class="control-button-icon" />
+          </button>
         </div>
       </div>
       
@@ -179,12 +196,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { nodeViewProps, NodeViewWrapper } from '@tiptap/vue-3'
-import { IconFolder, IconExternalLink, IconCopy, IconTrash, IconAlignLeft, IconAlignCenter, IconAlignRight, IconAlignJustified } from '@tabler/icons-vue'
+import { IconFolder, IconExternalLink, IconCopy, IconTrash, IconAlignLeft, IconAlignCenter, IconAlignRight, IconAlignJustified, IconCheck } from '@tabler/icons-vue'
 import { IMAGE_EXTENSIONS } from '@/types'
 import { notify } from '@/utils/notifications'
-import path from 'path-browserify'
+import path from '@/utils/pathUtils'
+import { isImageUrl } from '../utils/isImageUrl'
+
 import './component.scss'
 
 interface ImageAttributes {
@@ -201,6 +220,7 @@ const imageLoaded = ref(false)
 const imageError = ref(false)
 const isDragOver = ref(false)
 const urlInput = ref('')
+const editableImagePath = ref('')
 
 // Computed properties
 const imageAttrs = computed(() => props.node.attrs as ImageAttributes)
@@ -281,9 +301,21 @@ const currentAlign = computed((): string => {
   return textAlign.value
 })
 
+// 监听image src变化，自动更新input
+watch(() => imagePath.value, (newSrc) => {
+  editableImagePath.value = newSrc
+}, { immediate: true })
+
+// 检查输入是否有变化
+const hasInputChanged = computed((): boolean => {
+  return editableImagePath.value !== imagePath.value
+})
+
 // Methods
 const handleMouseEnter = (): void => {
   isHovered.value = true
+  // 确保input显示当前image src
+  editableImagePath.value = imagePath.value
 }
 
 const handleMouseLeave = (): void => {
@@ -316,13 +348,18 @@ const openFolder = async (): Promise<void> => {
         const selectedPath = result.filePaths[0]
         
         // 更新图片的src属性（替换而不是添加）
-        props.updateAttributes({ src: `file://${selectedPath}` })
+        props.updateAttributes({
+          src: `file://${selectedPath}`,
+          alt: path.basename(selectedPath),
+          title: selectedPath
+        })
+
       }
     } else {
       throw new Error('This feature is only available in desktop app')
     }
   } catch (error) {
-    notify.error(`Failed to select image: ${error instanceof Error ? error.message : String(error)}`, 'File Selection Error')
+    notify.error(`${error instanceof Error ? error.message : String(error)}`, 'File Selection Error')
   }
 }
 
@@ -334,9 +371,13 @@ const openWithShell = async (): Promise<void> => {
   }
   
   try {
-    const src = imageSrc.value
+    let src = imageSrc.value
     
     if (window.electronAPI?.openWithShell) {
+      /*if (src.startsWith('file://')) {
+        src = src.replace('file://', '')
+      }*/
+
       await window.electronAPI.openWithShell(src)
     } else {
       // 在浏览器中，尝试在新标签页打开
@@ -500,24 +541,92 @@ const handleDrop = async (event: DragEvent): Promise<void> => {
 }
 
 // 处理URL输入
-const handleUrlInput = (): void => {
+const handleUrlInput = async (): Promise<void> => {
   const url = urlInput.value.trim()
   if (!url) {
     notify.warning('Please enter an image URL')
     return
   }
   
-  // 简单的URL验证
   try {
-    new URL(url)
-    props.updateAttributes({ 
-      src: url,
-      alt: 'Image from URL',
-      title: url
-    })
-    urlInput.value = ''
+    const result = await isImageUrl(url)
+    if (result === false) {
+      notify.error('Please enter a valid URL', 'Invalid URL')
+    } else {
+      props.updateAttributes({ 
+        src: url,
+        alt: 'Image from URL',
+        title: url
+      })
+      urlInput.value = ''
+    }
   } catch (error) {
-    notify.error('Please enter a valid URL', 'Invalid URL')
+    notify.error(`${error instanceof Error ? error.message : String(error)}`, 'URL Error')
+  }
+}
+
+
+// 从输入框更新图片
+const updateImageFromInput = async (): Promise<void> => {
+  const newPath = editableImagePath.value.trim()
+  
+  if (!newPath) {
+    // 空值 → 空白图片
+    props.updateAttributes({ src: '' })
+    return
+  }
+  
+  if (newPath === imagePath.value) {
+    // 没有变化，无需处理
+    return
+  }
+  
+  // 检查是否是URL
+  if (newPath.startsWith('http://') || newPath.startsWith('https://')) {
+    try {
+      const result = await isImageUrl(newPath)
+      if (result === false) {
+        notify.error('Please enter a valid URL', 'URL Error')
+      } else {
+        props.updateAttributes({ 
+          src: newPath,
+          alt: 'Image from URL',
+          title: newPath
+        })
+      }
+    } catch (error) {
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, 'URL Error')
+    }
+    return
+  }
+  
+  // 检查是否是本地文件路径
+  let filePath = newPath
+  if (!filePath.startsWith('file://')) {
+    filePath = `file://${filePath}`
+  }
+  
+  try {
+    if (window.electronAPI?.pathExists) {
+      const actualPath = filePath.replace('file://', '')
+      const exists = await window.electronAPI.pathExists(actualPath)
+      
+      if (!exists) {
+        notify.error('File not found at the specified path', 'Invalid Path')
+        return
+      }
+      
+      props.updateAttributes({ 
+        src: filePath,
+        alt: path.basename(actualPath),
+        title: actualPath
+      })
+    } else {
+      throw new Error('This feature is only available in desktop app')
+    }
+  }
+  catch (error) {
+    notify.error(`${error instanceof Error ? error.message : String(error)}`, 'Path Error')
   }
 }
 </script>
