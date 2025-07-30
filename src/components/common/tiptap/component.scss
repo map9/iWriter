@@ -1,0 +1,171 @@
+.tiptap {
+  .toolbar-warpper {
+    position: relative;
+    
+    .toolbar-controls {
+      position: absolute;
+      top: 0px;
+      right: 0px;
+      padding: 4px 6px;
+      gap: 8px;
+      display: flex;
+      align-items: center;
+      opacity: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      transform: translateY(0px);
+      transition: all 0.2s ease;
+      z-index: 10;
+
+      &.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      
+      .control-group {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+      }
+
+      .control-selector {
+        background-color: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 6px;
+        padding: 4px 8px;
+        color: #fff;
+        font-size: 12px;
+        backdrop-filter: blur(8px);
+        height: 28px;
+
+        &:hover {
+          background-color: rgba(255, 255, 255, 0.15);
+          border-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        &:focus {
+          outline: none;
+          border-color: rgba(59, 130, 246, 0.8);
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        
+        option {
+          background-color: #2a2a2a;
+          color: #fff;
+        }
+      }
+
+      /* button */
+      .control-button {
+        background-color: rgba(59, 130, 246, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        padding: 4px;
+        color: white;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+
+        &:focus {
+          outline: 2px solid rgba(59, 130, 246, 0.5);
+          outline-offset: 2px;
+        }
+        
+        &:hover:not(.disabled) {
+          background-color: rgba(59, 130, 246, 1);
+          transform: scale(1.05);
+        }
+        
+        &.disabled {
+          background-color: rgba(107, 114, 128, 0.5);
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+        
+        &.active {
+          background-color: rgba(34, 197, 94, 0.8);
+          
+          &:hover {
+            background-color: rgba(34, 197, 94, 1);
+          }
+        }
+
+        &.delete-button {
+          background-color: rgba(239, 68, 68, 0.8);
+          
+          &:hover {
+            background-color: rgba(239, 68, 68, 1);
+          }
+        }
+
+        .control-button-icon {
+          width: 16px;
+          height: 16px;
+        }
+
+      }
+
+      .control-button-group {
+        display: flex;
+        align-items: center;
+        background-color: rgba(107, 114, 128, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        height: 26px;
+        flex-shrink: 0;
+
+        .control-button {
+          background-color: transparent;
+          border: 1px solid transparent;
+          
+          &:hover:not(.disabled) {
+            background-color: rgba(107, 114, 128, 1);
+          }
+
+          &.active {
+            background-color: rgba(34, 197, 94, 0.8);
+            
+            &:hover {
+              background-color: rgba(34, 197, 94, 1);
+            }
+          }
+        }
+      }
+
+      .control-input {
+        flex: 1;
+        min-width: 0;
+        padding: 4px 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        color: white;
+        font-size: 12px;
+        overflow: hidden;
+
+        .control-input-text {
+          display: block;
+          white-space: nowrap;
+          overflow-y: hidden;
+          overflow-x: auto;
+          text-overflow: clip;
+          font-size: 12px;
+          line-height: 1.2;
+          text-align: left;
+          height: 16px;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+
+          &::-webkit-scrollbar {
+            display: none;
+          }
+        }
+      }
+    }
+
+  }
+}

@@ -138,18 +138,14 @@ async function openWithShell(filePath: string | undefined) {
 
 // Expose methods to parent component (App.vue)
 defineExpose({
-  handleMenuAction: async (action: string) => {
+  handleMenuAction: async (action: string): Promise<boolean> => {
     // First try to handle through the active page
     let handled = false
     const activePageRef = getActivePageRef()
     if (activePageRef?.handleMenuAction) {
-      handled = activePageRef.handleMenuAction(action)
+      return await activePageRef.handleMenuAction(action)
     }
-    
-    // If not handled by active page, fallback to app store
-    if (!handled) {
-      await appStore.handleMenuAction(action)
-    }
+    return false
   },
   updateMenuFormattingState: () => {
     const activePageRef = getActivePageRef()

@@ -22,6 +22,7 @@
     "type-check": "vue-tsc --noEmit"
   },
   "devDependencies": {
+    "@types/path-browserify": "^1.0.3",
     "@types/turndown": "^5.0.5",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
@@ -84,6 +85,7 @@
     "katex": "^0.16.22",
     "lowlight": "^3.3.0",
     "marked": "^16.0.0",
+    "path-browserify": "^1.0.1",
     "pdfjs-dist": "^3.11.174",
     "pinia": "^2.1.7",
     "prettier": "^3.6.2",

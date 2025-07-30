@@ -13,12 +13,12 @@ const router = useRouter()
 const appStore = useAppStore()
 const routerViewRef = ref(null)
 
-function handleMenuAction(action: string) {
+async function handleMenuAction(action: string): Promise<boolean> {
   const currentRoute = router.currentRoute.value
   const routeComponent = currentRoute.matched[0]?.instances?.default
 
   if (routeComponent && 'handleMenuAction' in routeComponent && typeof routeComponent.handleMenuAction === 'function') {
-    return routeComponent.handleMenuAction(action)
+    return await routeComponent.handleMenuAction(action)
   }
 
   return false
@@ -29,9 +29,9 @@ onMounted(() => {
   appStore.initTheme()
   
   if (window.electronAPI) {
-    window.electronAPI.onMenuAction((action: string) => {
+    window.electronAPI.onMenuAction(async (action: string) => {
       // Try to handle through editor first
-      const isDone: boolean = handleMenuAction(action)
+      const isDone: boolean = await handleMenuAction(action)
       if (isDone == false) {
         // Fallback to app store for non-editor actions
         appStore.handleMenuAction(action)

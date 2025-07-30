@@ -1927,45 +1927,6 @@ function updateMenu(): void {
 }
 
 // IPC handlers
-ipcMain.handle('open-folder', async () => {
-  const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
-  if (focusedWindow === undefined) return null
-  
-  try {
-    const result = await dialog.showOpenDialog(focusedWindow.window, {
-      properties: ['openDirectory']
-    })
-    
-    if (!result.canceled && result.filePaths.length > 0) {
-      return result.filePaths[0]
-    }
-    return null
-  } catch(error) {
-    console.error('Error Open file:', error)
-    throw error
-  }
-})
-
-ipcMain.handle('open-file', async () => {
-  const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
-  if (focusedWindow === undefined) return null
-  
-  const result = await dialog.showOpenDialog(focusedWindow.window, {
-    properties: ['openFile'],
-    filters: [
-      { name: 'Text and Markdown Files', extensions: ['txt', 'iwt', 'md', 'markdown'] },
-      { name: 'Image Files', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'] },
-      { name: 'PDF Files', extensions: ['pdf'] },
-      { name: 'All Files', extensions: ['txt', 'iwt', 'md', 'markdown', 'pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'] }
-    ]
-  })
-  
-  if (!result.canceled && result.filePaths.length > 0) {
-    return result.filePaths[0]
-  }
-  return null
-})
-
 ipcMain.handle('save-file', async (_, content: string, filePath?: string) => {
   if (filePath) {
     try {
@@ -2061,6 +2022,22 @@ ipcMain.handle('get-files', async (_, folderPath: string, onlyself?: boolean) =>
       throw error
   }
 })
+
+// Show open dialog
+ipcMain.handle('show-open-dialog', async (_, options: any) => {
+  const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
+  if (focusedWindow === undefined) return null
+  
+  try {
+    const result = await dialog.showOpenDialog(focusedWindow.window, options)
+    
+    return result
+  } catch(error) {
+    console.error('Error Open file:', error)
+    throw error
+  }
+})
+
 
 // Show save dialog
 ipcMain.handle('show-save-dialog', async (_, fileName: string) => {

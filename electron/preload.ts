@@ -3,9 +3,12 @@ import { contextBridge, ipcRenderer } from 'electron'
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
 
-  // File operations
-  openFolder: () => ipcRenderer.invoke('open-folder'),
-  openFile: () => ipcRenderer.invoke('open-file'),
+  showOpenDialog: (options: {
+    properties: string[]
+    filters?: { name: string; extensions: string[] }[]
+  }) => ipcRenderer.invoke('show-open-dialog', options),
+  showSaveDialog: (fileName: string) => ipcRenderer.invoke('show-save-dialog', fileName),
+
   saveFile: (content: string, filePath?: string) => 
     ipcRenderer.invoke('save-file', content, filePath),
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
@@ -34,10 +37,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeMenuActionListener: () => {
     ipcRenderer.removeAllListeners('menu-action')
   },
-    
-  // Save dialog
-  showSaveDialog: (fileName: string) => ipcRenderer.invoke('show-save-dialog', fileName),
-  
+
   // Window state changes
   onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => {
     ipcRenderer.on('window-state-changed', (_, state) => callback(state))

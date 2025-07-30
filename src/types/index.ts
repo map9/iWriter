@@ -214,9 +214,14 @@ export interface WindowContentInfo {
 export interface ElectronAPI {
   platform: string
     
+  // 对话框
+  showOpenDialog: (options: {
+    properties: string[]
+    filters?: { name: string; extensions: string[] }[]
+  }) => Promise<{ canceled: boolean; filePaths: string[] }>
+  showSaveDialog: (fileName: string) => Promise<'save' | 'dontSave' | 'cancel'>
+
   // 文件操作
-  openFolder: () => Promise<string | null>
-  openFile: () => Promise<string | null>
   saveFile: (content: string, filePath?: string) => Promise<string | null>
   readFile: (filePath: string) => Promise<string | null>
   readFileBinary: (filePath: string) => Promise<string | null>
@@ -236,10 +241,7 @@ export interface ElectronAPI {
   // 菜单操作
   onMenuAction: (callback: (action: string) => void) => void
   removeMenuActionListener: () => void
-  
-  // 对话框
-  showSaveDialog: (fileName: string) => Promise<'save' | 'dontSave' | 'cancel'>
-  
+    
   // 窗口状态
   onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => void
   

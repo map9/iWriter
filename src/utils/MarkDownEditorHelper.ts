@@ -75,9 +75,9 @@ export function insertInlineMath(editor: vueEditor | undefined) {
 
 export function insertImage(editor: vueEditor | undefined) {
   editor?.chain().focus().setImage({ 
-    src: "https://placehold.co/800x400", 
+    src: "", 
     alt: '',
-    title: '800x400',
+    title: '',
   }).run()
 }
 

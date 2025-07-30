@@ -119,6 +119,48 @@
       
       <div class="toolbar-separator" />
       
+      <!-- Text Alignment Group -->
+      <div class="toolbar-group">
+        <button
+          @click="editor?.chain().focus().setTextAlign('left').run()"
+          :disabled="!editor"
+          :class="{ 'bg-gray-200': 'left' === getCurrentAlignment() }"
+          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Align Left"
+        >
+          <IconAlignLeft class="w-5 h-5" />
+        </button>
+        <button
+          @click="editor?.chain().focus().setTextAlign('center').run()"
+          :disabled="!editor"
+          :class="{ 'bg-gray-200': 'center' === getCurrentAlignment() }"
+          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Align Center"
+        >
+          <IconAlignCenter class="w-5 h-5" />
+        </button>
+        <button
+          @click="editor?.chain().focus().setTextAlign('right').run()"
+          :disabled="!editor"
+          :class="{ 'bg-gray-200': 'right' === getCurrentAlignment() }"
+          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Align Right"
+        >
+          <IconAlignRight class="w-5 h-5" />
+        </button>
+        <button
+          @click="editor?.chain().focus().setTextAlign('justify').run()"
+          :disabled="!editor"
+          :class="{ 'bg-gray-200': 'justify' === getCurrentAlignment() }"
+          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Align Justified"
+        >
+          <IconAlignJustified class="w-5 h-5" />
+        </button>
+      </div>
+      
+      <div class="toolbar-separator" />
+      
       <!-- Insert Group -->
       <div class="toolbar-group">
         <button
@@ -214,53 +256,15 @@
     <!-- TipTap Editor -->
     <div class="flex-1 overflow-y-auto scrollbar-thin">
         <EditorContent v-if="editor" :editor="editor" class="w-full h-full max-w-3xl my-4 mx-auto"/>
-        
-        <!-- Hover Toolbar -->
-        <HoverToolbar v-if="showHoverToolbar && editor" :editor="editor">
-          <template #default="{ editor, node, nodeType, pos, updateNode, deleteNode, copyNode, hideToolbar }">
-            
-            <!-- CodeBlock Toolbar -->
-            <CodeBlockToolbar 
-              v-if="nodeType === 'codeBlock'"
-              :editor="editor"
-              :node="node"
-              :pos="pos"
-              :updateNode="updateNode"
-              :hideToolbar="hideToolbar"
-            />
-            
-            <!-- Heading Toolbar -->
-            <HeadingToolbar 
-              v-else-if="nodeType === 'heading'"
-              :editor="editor"
-              :node="node"
-              :pos="pos"
-              :updateNode="updateNode"
-              :deleteNode="deleteNode"
-              :copyNode="copyNode"
-              :hideToolbar="hideToolbar"
-            />
-            
-            <!-- Default Toolbar for other node types -->
-            <DefaultToolbar 
-              :editor="editor"
-              :node="node"
-              :pos="pos"
-              :deleteNode="deleteNode"
-              :copyNode="copyNode"
-              :hideToolbar="hideToolbar"
-            />
-            
-          </template>
-        </HoverToolbar>
     </div>
   </div>
   
 </template>
 
 <script setup lang="ts">
-import { ref, toRef, watch, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
-import { Editor, EditorContent, useEditor } from '@tiptap/vue-3'
+import { ref, toRef, watch, onBeforeUnmount, nextTick } from 'vue'
+import { EditorContent, useEditor, VueNodeViewRenderer } from '@tiptap/vue-3'
+import { NodeSelection } from '@tiptap/pm/state'
 
 import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
 import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus, Placeholder } from '@tiptap/extensions'
@@ -276,7 +280,6 @@ import { TableKit } from '@tiptap/extension-table'
 import Image from '@tiptap/extension-image'
 import Youtube from '@tiptap/extension-youtube'
 import FileHandler from '@tiptap/extension-file-handler'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 
 import Blockquote from '@tiptap/extension-blockquote'
 
@@ -285,6 +288,9 @@ import js from 'highlight.js/lib/languages/javascript'
 import ts from 'highlight.js/lib/languages/typescript'
 import html from 'highlight.js/lib/languages/xml'
 import { all, createLowlight } from 'lowlight'
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import CodeBlockComponent from '@/components/common/tiptap/CodeBlockComponent.vue'
+import ImageComponent from '@/components/common/tiptap/ImageComponent.vue'
 
 import 'katex/dist/katex.min.css'
 import { Mathematics, migrateMathStrings } from '@tiptap/extension-mathematics'
@@ -323,6 +329,10 @@ import {
   IconListNumbers,
   IconList,
   IconListCheck,
+  IconAlignLeft,
+  IconAlignCenter,
+  IconAlignRight,
+  IconAlignJustified,
   IconTable,
   IconPhoto,
   IconVolume,
@@ -351,14 +361,13 @@ import {
   onPlaceholder,
 } from '@/utils/MarkDownEditorHelper'
 
-import { formatCode, isLanguageSupported } from "@/components/common/utils/CodeFormatter"
 
 // Hover Toolbar imports
-import HoverToolbar from '@/components/common/tiptap/HoverToolbar.vue'
-import CodeBlockToolbar from '@/components/common/tiptap/toolbars/CodeBlockToolbar.vue'
-import HeadingToolbar from '@/components/common/tiptap/toolbars/HeadingToolbar.vue'
-import DefaultToolbar from '@/components/common/tiptap/toolbars/DefaultToolbar.vue'
-import { HoverToolbarExtension } from '@/components/common/tiptap/HoverToolbarPlugin'
+//import HoverToolbar from '@/components/common/tiptap/HoverToolbar.vue'
+//import CodeBlockToolbar from '@/components/common/tiptap/toolbars/CodeBlockToolbar.vue'
+//import HeadingToolbar from '@/components/common/tiptap/toolbars/HeadingToolbar.vue'
+//import DefaultToolbar from '@/components/common/tiptap/toolbars/DefaultToolbar.vue'
+//import { HoverToolbarExtension } from '@/components/common/tiptap/HoverToolbarPlugin'
 
 // Props
 interface Props {
@@ -382,7 +391,7 @@ const currentHeading = ref('paragraph')
 const isFullscreen = ref(false)
 
 // 控制HoverToolbar的显示 - 简化生命周期管理
-const showHoverToolbar = ref(false)
+//const showHoverToolbar = ref(false)
 
 // create a lowlight instance
 const lowlight = createLowlight(all)
@@ -411,13 +420,35 @@ const editor = useEditor({
 
     Document, Heading, Paragraph, Text, HorizontalRule,
     TextAlign.configure({
-      types: ['heading', 'paragraph', 'caption'],
+      types: ['heading', 'paragraph', 'image', 'caption'],
     }),
     TableKit.configure({
       table: { resizable: true },
     }),
     
-    Image,
+    Image.extend({
+      addAttributes() {
+        return {
+          ...this.parent?.(),
+          textAlign: {
+            default: 'left',
+            parseHTML: (element: HTMLElement) => {
+              const align = element.style.textAlign
+              return ['left', 'center', 'right', 'justify'].includes(align) ? align : 'left'
+            },
+            renderHTML: (attributes: Record<string, any>) => {
+              if (!attributes.textAlign || attributes.textAlign === 'left') {
+                return {}
+              }
+              return { style: `text-align: ${attributes.textAlign}` }
+            },
+          },
+        }
+      },
+      addNodeView() {
+        return VueNodeViewRenderer(ImageComponent)
+      },
+    }),
     Youtube.configure({
       controls: false,
       nocookie: true
@@ -429,7 +460,11 @@ const editor = useEditor({
     }),
 
     Blockquote,
-    CodeBlockLowlight.configure({ lowlight }),
+    CodeBlockLowlight.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(CodeBlockComponent)
+      },
+    }).configure({ lowlight }),
     Mathematics.configure({
       inlineOptions: {
         onClick: (node, pos) => {
@@ -477,12 +512,13 @@ const editor = useEditor({
     }),
     
     // Hover Toolbar Extension
+    /*
     HoverToolbarExtension.configure({
       supportedNodeTypes: ['paragraph', 'heading', 'codeBlock', 'blockquote', 'image'],
       hoverDelay: 100,
       hideDelay: 200
     }),
-
+    */
   ],
   content: '',
   editorProps: {
@@ -510,23 +546,12 @@ const editor = useEditor({
       // After loading, you may want to do something.
       updateMenuFormattingState()
       // 编辑器完全初始化后显示HoverToolbar
-      showHoverToolbar.value = true
+      //showHoverToolbar.value = true
     })
   }
 })
 
-onMounted(() => {
-})
 
-// Watch for tab content changes
-watch(() => props.tab.content, (newContent) => {
-  /*
-  if (editor.value && !isLoading.value) {
-    console.log('before Tab content loaded:', props.tab.id)
-    loadTabContent(editor.value)
-  }
-  */
-})
 
 // Watch for editor state changes and update toolbar
 watch(() => editor.value, (newEditor) => {
@@ -551,7 +576,7 @@ watch(() => editor.value, (newEditor) => {
 // Cleanup
 onBeforeUnmount(() => {
   // 先隐藏HoverToolbar，确保组件卸载顺序正确
-  showHoverToolbar.value = false
+  //showHoverToolbar.value = false
   
   // Clear TOC provider
   if (props.tab.tocProvider) {
@@ -578,6 +603,28 @@ const isMarkdownFile = (filePath: string): boolean => {
 const isIWriterFile = (filePath: string): boolean => {
   const ext = getFileExtension(filePath)
   return ext === 'iwt'
+}
+
+// 获取当前对齐状态
+function getCurrentAlignment(): string {
+  if (!editor.value) return 'left'
+  
+  /*
+  // 检查当前选中的是否是图片节点
+  const { selection } = editor.value.state
+  
+  if (selection instanceof NodeSelection && 
+      selection.node && 
+      selection.node.type.name === 'image') {
+    // 对于图片节点，返回其 textAlign 属性
+    return selection.node.attrs.textAlign || 'left'
+  } else*/ {
+    // 对于文本节点，检查当前激活的对齐方式
+    if (editor.value.isActive({ textAlign: 'center' })) return 'center'
+    if (editor.value.isActive({ textAlign: 'right' })) return 'right'
+    if (editor.value.isActive({ textAlign: 'justify' })) return 'justify'
+    return 'left'
+  }
 }
 
 // Load content into editor
@@ -759,12 +806,6 @@ async function handleMenuAction(action: string): Promise<boolean> {
 
     case 'insert-code-block':
       editor.value.chain().focus().toggleCodeBlock().run()
-      return true
-    case 'code-format-selection':
-      await formatCodeSelection()
-      return true
-    case 'code-format-codeblock':
-      await formatCurrentCodeBlock()
       return true
 
     case 'toggle-caption':
@@ -1032,15 +1073,7 @@ function calculateEditorStats(): import('@/types').EditorStats {
 // Update menu state
 function updateMenuFormattingState() {
   if (window.electronAPI?.windowContentChange && editor.value) {
-    let textAlign: string = 'left'
-    if (editor.value.isActive({ textAlign: 'left' }))
-      textAlign = 'left'
-    else if (editor.value.isActive({ textAlign: 'center' }))
-      textAlign = 'center'
-    else if (editor.value.isActive({ textAlign: 'right' }))
-      textAlign = 'right'
-    else if (editor.value.isActive({ textAlign: 'justify' }))
-      textAlign = 'justify'
+    const textAlign = getCurrentAlignment()
 
     const formatting = {
       bold: editor.value.isActive('bold'),
@@ -1106,133 +1139,6 @@ function updateMenuFormattingState() {
   }
 }
 
-// Code formatting functions
-async function formatCodeSelection(): Promise<void> {
-  if (!editor.value) return
-  
-  const { state } = editor.value
-  const { selection } = state
-  const { $from } = selection
-  
-  // 检查是否有选中的文本
-  if (selection.empty) {
-    notify.warning('Please select code text to format')
-    return
-  }
-  
-  // 获取选中的文本
-  const selectedText = state.doc.textBetween(selection.from, selection.to)
-  
-  if (!selectedText.trim()) {
-    notify.warning('Selected text is empty')
-    return
-  }
-  
-  // 尝试从当前代码块中获取语言，否则使用默认语言
-  let language = 'javascript' // 默认语言
-  
-  // 向上搜索代码块节点来获取语言
-  for (let depth = $from.depth; depth >= 0; depth--) {
-    const node = $from.node(depth)
-    if (node.type.name === 'codeBlock' && node.attrs.language) {
-      language = node.attrs.language
-      break
-    }
-  }
-  
-  if (!isLanguageSupported(language)) {
-    notify.error(`Language '${language}' is not supported for formatting`)
-    return
-  }
-  
-  try {
-    const result = await formatCode(selectedText, language)
-    
-    if (result.success && result.formattedCode) {
-      // 替换选中的文本
-      editor.value.chain()
-        .focus()
-        .deleteSelection()
-        .insertContent(result.formattedCode)
-        .run()
-      
-      notify.success('Code formatted successfully')
-    } else if (result.error) {
-      notify.error(`Code formatting failed: ${result.error}`)
-    }
-  } catch (error) {
-    console.error('Unexpected formatting error:', error)
-    notify.error('An unexpected error occurred during formatting')
-  }
-}
-
-async function formatCurrentCodeBlock(): Promise<void> {
-  if (!editor.value) return
-  
-  const { state } = editor.value
-  const { selection } = state
-  const { $from } = selection
-  
-  // 查找当前代码块节点
-  let codeBlockNode: any = null
-  let codeBlockPos: number = -1
-  
-  // 向上搜索代码块节点
-  for (let depth = $from.depth; depth >= 0; depth--) {
-    const node = $from.node(depth)
-    if (node.type.name === 'codeBlock') {
-      codeBlockNode = node
-      codeBlockPos = $from.start(depth)
-      break
-    }
-  }
-  
-  if (!codeBlockNode) {
-    notify.warning('Please place cursor inside a code block')
-    return
-  }
-  
-  // 获取代码块的语言和内容
-  const language = codeBlockNode.attrs.language
-  const codeContent = codeBlockNode.textContent
-  
-  if (!codeContent.trim()) {
-    notify.warning('Code block is empty')
-    return
-  }
-  
-  if (!isLanguageSupported(language)) {
-    notify.error(`Language '${language || 'auto'}' is not supported for formatting`)
-    return
-  }
-  
-  try {
-    const result = await formatCode(codeContent, language)
-    
-    if (result.success && result.formattedCode) {
-      // 更新代码块内容，而不是替换整个节点
-      const { state } = editor.value
-      const { tr } = state
-      
-      // 计算代码块内容的开始和结束位置
-      const contentStart = codeBlockPos + 1
-      const contentEnd = codeBlockPos + codeBlockNode.nodeSize - 1
-      
-      // 替换代码块内的文本内容
-      tr.replaceWith(contentStart, contentEnd, state.schema.text(result.formattedCode))
-      
-      editor.value.view.dispatch(tr as any)
-      
-      notify.success('Code block formatted successfully')
-    } else if (result.error) {
-      notify.error(`Code formatting failed: ${result.error}`)
-    }
-  } catch (error) {
-    console.error('Unexpected formatting error:', error)
-    notify.error('An unexpected error occurred during formatting')
-  }
-}
-
 // Expose methods to parent
 defineExpose({
   tab: toRef(props, 'tab'), // 不暴露属性值，在MainView中无法访问到
@@ -1276,7 +1182,7 @@ defineExpose({
 
   // Focus styles
   .has-focus {
-    /*color: #000000;*/
+    color: inherit;
   }
 
   /* Heading styles */
@@ -1487,7 +1393,6 @@ defineExpose({
     border-radius: 0.5rem;
     color: #FFFFFF;
     font-family: 'JetBrainsMono', monospace;
-    margin: 1.5rem 0;
     padding: 0.75rem 1rem;
 
     code {
@@ -1555,8 +1460,8 @@ defineExpose({
   img {
     display: block;
     height: auto;
-    margin: 1.5rem 0;
     max-width: 100%;
+    border-radius: 0.5rem;
 
     &.ProseMirror-selectednode {
       outline: 3px solid #6a00f5;

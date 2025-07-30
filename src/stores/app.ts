@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { FileTab, FileOperationResult, FileChange } from '@/types'
+import { DocumentType as DocType, IMAGE_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS, CODE_EXTENSIONS, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS } from '@/types'
 import { SidebarMode, DocumentType } from '@/types'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { pathUtils } from '@/utils/pathUtils'
@@ -261,9 +262,11 @@ export const useAppStore = defineStore('app', () => {
   // File or Folder operations
   async function openFolder() {
     if (!window.electronAPI) return
-    
-    const folderPath = await window.electronAPI.openFolder()
-    if (folderPath) {
+
+    const result = await window.electronAPI.showOpenDialog({ properties: ['openDirectory'] })
+    if (!result.canceled && result.filePaths.length > 0) {
+      const folderPath = result.filePaths[0]
+
       if (folderPath === currentFolder.value) {
         notify.success(`${folderPath} 已打开`, '文件操作')
         return
@@ -473,9 +476,24 @@ export const useAppStore = defineStore('app', () => {
   async function openFileDialog() {
     if (!window.electronAPI) return
     
-    const filePath = await window.electronAPI.openFile()
-    if (filePath) {
-      await openFile(filePath)
+    const result = await window.electronAPI.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: 'Text and Markdown Files', extensions: [...TEXT_EXTENSIONS] },
+        { name: 'Image Files', extensions: [...IMAGE_EXTENSIONS] },
+        { name: 'PDF Files', extensions: [...PDF_EXTENSIONS] },
+        { 
+          name: 'All Files',
+          extensions: [
+            ...TEXT_EXTENSIONS,
+            ...IMAGE_EXTENSIONS,
+            ...PDF_EXTENSIONS,
+          ]
+        }
+      ]
+    })
+    if (!result.canceled && result.filePaths.length > 0) {
+      return openFile(result.filePaths[0])
     }
   }
   

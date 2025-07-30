@@ -1,10 +1,11 @@
 <template>
   <div class="codeblock-toolbar">
+
     <!-- 语言选择器 -->
     <select 
       contenteditable="false" 
       v-model="selectedLanguage"
-      class="toolbar-select"
+      class="language-selector toolbar-select"
       title="Select Language"
       @click.stop
     >
@@ -18,13 +19,13 @@
     <!-- 格式化按钮 -->
     <button 
       @click.stop="formatCodeHandler"
-      class="toolbar-button"
+      class="format-button control-button"
       :class="{ disabled: !canFormat }"
       :disabled="!canFormat"
       :title="canFormat ? 'Format Code' : `Language '${selectedLanguage}' not supported for formatting`"
       contenteditable="false"
     >
-      <IconCode class="toolbar-button-icon" />
+      <IconCode class="w-4 h-4" />
     </button>
   </div>
 </template>
@@ -133,5 +134,64 @@ const formatCodeHandler = async (): Promise<void> => {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.language-selector {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  min-width: 80px;
+  max-width: 120px;
+  cursor: pointer;
+  
+  &:hover {
+    background: rgba(255, 255, 255, 1);
+    border-color: rgba(0, 0, 0, 0.3);
+  }
+  
+  &:focus {
+    outline: none;
+    border-color: rgba(59, 130, 246, 0.8);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  }
+}
+
+.toolbar-button {
+  border: none;
+  border-radius: 4px;
+  padding: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    transform: scale(1.05);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+  
+  &.copy-button {
+    background: rgba(34, 197, 94, 0.8);
+    color: white;
+    
+    &:hover {
+      background: rgba(34, 197, 94, 1);
+    }
+  }
+  
+  &.delete-button {
+    background: rgba(239, 68, 68, 0.8);
+    color: white;
+    
+    &:hover {
+      background: rgba(239, 68, 68, 1);
+    }
+  }
 }
 </style>
