@@ -214,6 +214,24 @@ export interface WindowContentInfo {
 export interface ElectronAPI {
   platform: string
     
+  // Window Close Confirmation
+  windowCloseConfirm: (windowId: number, canClose: boolean) => void,
+  // Request Window Close Confirmation
+  onRequestWindowClose: (callback: (windowId: number) => void) => void,
+  removeRequestWindowCloseListeners: () => void
+
+  // 文件操作
+  readFile: (filePath: string) => Promise<string | null>
+  readFileBinary: (filePath: string) => Promise<string | null>
+  saveFile: (content: string, filePath?: string) => Promise<string | null>
+
+  pathExists: (filePath: string) => Promise<boolean>
+  getFiles: (folderPath: string, onlyself?: boolean) => Promise<FileInfo[]>
+  // 在系统文件管理器中显示文件或文件夹
+  revealInFolder: (path: string) => Promise<void>  
+  // 使用系统默认应用程序打开文件
+  openWithShell: (path: string) => Promise<void>
+
   // 对话框
   showOpenDialog: (options: {
     properties: string[]
@@ -221,34 +239,12 @@ export interface ElectronAPI {
   }) => Promise<{ canceled: boolean; filePaths: string[] }>
   showSaveDialog: (fileName: string) => Promise<'save' | 'dontSave' | 'cancel'>
 
-  // 文件操作
-  saveFile: (content: string, filePath?: string) => Promise<string | null>
-  readFile: (filePath: string) => Promise<string | null>
-  readFileBinary: (filePath: string) => Promise<string | null>
-  getFiles: (folderPath: string, onlyself?: boolean) => Promise<FileInfo[]>
-  
   // 文件系统操作
   createFile: (folderPath: string, fileName: string) => Promise<string>
   createFolder: (parentPath: string, folderName: string) => Promise<string>
   deleteFile: (filePath: string) => Promise<boolean>
   renameFile: (oldPath: string, newName: string) => Promise<string>
   moveFile: (sourcePath: string, targetDir: string) => Promise<FileOperationResult>
-  pathExists: (filePath: string) => Promise<boolean>
-  
-  // 窗口控制
-  close: () => void
-  updateWindowTitle: (title: string) => Promise<{ success: boolean; error?: string }>
-  
-  // 菜单操作
-  onMenuAction: (callback: (action: string) => void) => void
-  removeMenuActionListener: () => void
-    
-  // 窗口状态
-  onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => void
-  
-  // 设置
-  setAutoSave: (enabled: boolean) => Promise<void>
-  windowContentChange: (contentInfo: any) => Promise<void>
   
   // 文件监听
   startFileWatching: (folderPath: string) => Promise<{ success: boolean; path?: string; error?: string }>
@@ -260,17 +256,26 @@ export interface ElectronAPI {
   onFileChange: (callback: (change: FileChange) => void) => void
   onFileWatchError: (callback: (error: { message: string; path: string; timestamp: Date }) => void) => void
   removeFileChangeListeners: () => void
-  
+
   // 原生上下文菜单
   showContextMenu: (menuItems: ContextMenuItem[], position: { x: number; y: number }) => Promise<string | null>
-  
-  // 在系统文件管理器中显示文件或文件夹
-  revealInFolder: (path: string) => Promise<void>
-  
-  // 使用系统默认应用程序打开文件
-  openWithShell: (path: string) => Promise<void>
+
+  // 菜单操作
+  onMenuAction: (callback: (action: string) => void) => void
+  removeMenuActionListener: () => void
+    
+  // 窗口状态
+  onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => void
+  removeWindowStateChangedListeners: () => void
+
   getSystemColors: () => Promise<{ theme: 'light' | 'dark' | 'unknown', newColors: any }>,
   onSystemColorsChanged: (callback: (themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: any }) => void) => void,
+  removeSystemColorsChangedListeners: () => void
+
+  // 设置
+  setAutoSave: (enabled: boolean) => Promise<void>
+  windowContentChange: (contentInfo: any) => Promise<void>
+  updateWindowTitle: (title: string) => Promise<{ success: boolean; error?: string }>
 }
 
 // 标签接口

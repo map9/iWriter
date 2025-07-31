@@ -21,7 +21,7 @@ export const useAppStore = defineStore('app', () => {
   const leftSidebarWidth = ref(288) // 默认宽度
   const minSidebarWidth = 256 // 最小宽度 - 对应TOC按钮右边缘
   const autoSave = ref(true)
-  
+
   // Theme System
   const currentThemeId = ref<string>('system')
   const systemPrefersDark = ref(false)
@@ -157,6 +157,39 @@ export const useAppStore = defineStore('app', () => {
     }
   }, { immediate: true })
 
+  // Initial
+  function initial() {
+    initTheme();
+
+    // Detect system theme preference
+    if (window.electronAPI) {
+      window.electronAPI.onRequestWindowClose(async (windowId: number)=>{
+        let resultClosed: boolean = false
+        if (currentFolder.value) {
+          resultClosed = await closeFolder()
+        } else {
+          resultClosed = await closeAllTab();
+        }
+
+        window.electronAPI.windowCloseConfirm(windowId, resultClosed);
+      })
+    }
+  }
+
+  // Destroy
+  function destroy() {
+    // Clean up file watching
+    stopAdvancedFileWatching()
+    
+    if (window.electronAPI) {
+      window.electronAPI.removeMenuActionListener()
+      window.electronAPI.removeFileChangeListeners()
+      window.electronAPI.removeSystemColorsChangedListeners()
+      window.electronAPI.removeWindowStateChangedListeners()
+      window.electronAPI.removeRequestWindowCloseListeners()
+    }
+  }
+
   // Actions
   function toggleLeftSidebar() {
     showLeftSidebar.value = !showLeftSidebar.value
@@ -272,8 +305,14 @@ export const useAppStore = defineStore('app', () => {
         return
       }
 
-      // Close all tabs since folder is open
-      await closeAllTab();
+      let resultClosed: boolean = false
+      if (currentFolder.value) {
+        resultClosed = await closeFolder()
+      } else {
+        resultClosed = await closeAllTab();
+      }
+      if (resultClosed === false)
+        return
 
       currentFolder.value = folderPath
       leftSidebarMode.value = SidebarMode.EXPLORER
@@ -286,17 +325,23 @@ export const useAppStore = defineStore('app', () => {
     }
   }
   
-  async function closeFolder() {
-    // Close all tabs since no folder is open
-    const result = await closeAllTab();
-    
-    if (result) {
-      stopAdvancedFileWatching() // Stop file watching when folder is closed
-      currentFolder.value = null
-      fileTree.value = null
-      selectedItem.value = null
-      leftSidebarMode.value = SidebarMode.START
+  async function closeFolder(): Promise<boolean> {
+    if (currentFolder.value !== null) {
+      // Close all tabs since no folder is open
+      const result = await closeAllTab();
+      
+      if (result) {
+        stopAdvancedFileWatching() // Stop file watching when folder is closed
+        currentFolder.value = null
+        fileTree.value = null
+        selectedItem.value = null
+        leftSidebarMode.value = SidebarMode.START
+      }
+
+      return result
     }
+
+    return true
   }
 
   async function loadFileTree() {
@@ -1185,6 +1230,31 @@ export const useAppStore = defineStore('app', () => {
     return availableThemes
   }
 
+  // Window close confirmation
+  async function canWindowClose(): Promise<boolean> {
+    // 检查是否有未保存的标签页
+    const unsavedTabs = tabs.value.filter(tab => tab.isDirty);
+    
+    if (unsavedTabs.length === 0) {
+      return true; // 没有未保存的更改，可以关闭
+    }
+    
+    // 有未保存更改，需要用户确认
+    // 这里的具体实现由渲染进程决定
+    // 可以显示确认对话框，询问用户是否保存、放弃或取消
+    
+    // 临时实现：为了演示，这里总是返回 false，阻止关闭
+    // 实际使用时，这里应该实现具体的用户确认逻辑
+    console.log(`有 ${unsavedTabs.length} 个未保存的标签页:`, unsavedTabs.map(t => t.name));
+    
+    // TODO: 实现用户确认对话框
+    // - 显示未保存文档列表
+    // - 提供选项：保存全部、放弃更改、取消关闭
+    // - 根据用户选择返回相应结果
+    
+    return false; // 暂时阻止关闭，直到实现具体的确认逻辑
+  }
+
   // Handle menu actions for the application
   // There are Paragraph / Format Menu Actions handled in MarkdownEditor.vue
   async function handleMenuAction(action: string): Promise<boolean> {
@@ -1297,6 +1367,9 @@ export const useAppStore = defineStore('app', () => {
     activeTab,
     hasOpenFolder,
     
+    initial,
+    destroy,
+
     // Actions
     toggleLeftSidebar,
     toggleRightSidebar,
@@ -1345,5 +1418,8 @@ export const useAppStore = defineStore('app', () => {
 
     // Menu actions
     handleMenuAction,
+
+    // Window close confirmation
+    canWindowClose,
   }
 })

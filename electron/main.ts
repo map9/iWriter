@@ -51,6 +51,7 @@ interface WindowContentInfo {
 interface WindowState {
   id: number
   window: BrowserWindow
+  isClosing: boolean
   contentInfo?: WindowContentInfo
 }
 
@@ -65,6 +66,7 @@ interface ThemeListener{
 
 let windows: WindowState[] = [];
 let currentFocusedWindowId: number | null = null;
+let isAppQuitting = false; // 应用退出控制标志
 let g: GlobalParameters = {
   autoSave: true,
 }
@@ -111,31 +113,50 @@ function createWindow(): BrowserWindow {
   const windowState: WindowState = {
     id: windowId,
     window: window,
+    isClosing: false,
   };
   
   windows.push(windowState);
 
-  // Handle window close
+  // Handle window close confirmation
+  window.on('close', handleWindowClose);
   window.on('closed', () => {
-    windows = windows.filter(w => w.id !== windowId);
+    console.log({
+      function: 'closed',
+      windowsSize: windows.length,
+      isAppQuitting: isAppQuitting,
+      wID: window.id,
+      isClosing: windowState.isClosing,
+    })
+
+    // 从 windows 列表中，清除要关闭的 window
+    const index = windows.findIndex(w => w.id === window.id);
+    if (index !== -1) {
+      windows.splice(index, 1);
+    }
 
     window.removeListener('enter-full-screen', handleEnterFullScreen)
     window.removeListener('leave-full-screen', handleLeaveFullScreen)
     window.removeListener('focus', handleFocus)
+    window.removeListener('close', handleWindowClose)
     
-    if (currentFocusedWindowId === windowId) {
-      currentFocusedWindowId = getFirstWindowId();
+    if (currentFocusedWindowId === window.id) {
+      currentFocusedWindowId = windows.length > 0 ? windows[0].id : null
+      updateMenu();
     }
-    updateMenu();
+
+    // 退出应用
+    if (isAppQuitting && windows.length === 0) {
+      app.quit();
+      isAppQuitting = false
+    }
   })
 
   function handleEnterFullScreen() {
-    console.log('enter-full-screen')
     window.webContents.send('window-state-changed', { maximized: true })
   }
 
   function handleLeaveFullScreen() {
-    console.log('leave-full-screen')
     window.webContents.send('window-state-changed', { maximized: false })
   }
 
@@ -144,10 +165,40 @@ function createWindow(): BrowserWindow {
     updateMenu();
   }
 
+  async function handleWindowClose(event: any) {
+    console.log({
+      function: 'close',
+      windowsSize: windows.length,
+      isAppQuitting: isAppQuitting,
+      wID: window.id,
+      isClosing: windowState.isClosing,
+    })
+
+    const wState = windows.find(w => w.id === window.id);
+    if (!wState) {
+      console.error(`Find a unkown window id: ${window.id} request close`)
+      return
+    }
+
+    event.preventDefault(); // 阻止默认关闭行为
+    if (wState.isClosing === true) return
+    wState.isClosing = true
+    
+    /*// 超时处理：强制关闭窗口
+    wState.timeout = setTimeout(() => {
+      console.warn(`窗口 ${windowId} 关闭确认超时，强制关闭`);
+      if (wState) {
+        wState.window.destroy();
+      }
+    }, CLOSE_CONFIRMATION_TIMEOUT);*/
+
+    window.webContents.send('request-window-close', window.id);
+  }
+
   window.once('ready-to-show', () => {
     window.show()
 
-    console.log(getSystemColors())
+    //console.log(getSystemColors())
 
     // Handle window state changes after window is ready
     window.on('enter-full-screen', handleEnterFullScreen)
@@ -157,19 +208,14 @@ function createWindow(): BrowserWindow {
   // Handle window focus - request current state for menu updates
   window.on('focus', handleFocus)
 
-  window.webContents.on('did-finish-load', () => {
-    window.webContents.send('window-id', windowId);
-  });
+  /*window.webContents.on('did-finish-load', () => {
+  });*/
 
   if (isDev) {
     window.webContents.openDevTools()
   }
   
   return window
-}
-
-function getFirstWindowId(): number | null {
-  return windows.length > 0 ? windows[0].id : null;
 }
 
 function createNewWindow(): BrowserWindow {
@@ -222,51 +268,6 @@ function insertInTemplate(
   return findAndInsert(template);
 }
 
-/**
- * 在指定菜单项下方插入新菜单项
- * @param menu 目标菜单对象
- * @param parentId 父菜单ID（可选）
- * @param targetId 要在其下方插入的目标菜单项ID
- * @param newItem 要插入的新菜单项
- * @returns 是否插入成功
- */
-function insertMenuItemUnder(
-  menu: Electron.Menu,
-  parentId: string | undefined,
-  targetId: string,
-  newItems: Electron.MenuItemConstructorOptions[]
-): boolean {
-  function findAndInsert(items: Electron.MenuItem[]): boolean {
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      
-      if (item.id === parentId) {
-        if (item.submenu) {
-          const submenuItems = item.submenu.items;
-          for (let j = 0; j < submenuItems.length; j++) {
-            if (submenuItems[j].id === targetId) {
-              newItems.forEach(newItem => {
-                const menuItem = new Electron.MenuItem(newItem);
-                submenuItems.splice(j + 1, 0, menuItem);
-              });
-              return true;
-            }
-          }
-        }
-      }
-      
-      if (item.submenu) {
-        if (findAndInsert(item.submenu.items)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-  
-  return findAndInsert(menu.items);
-}
-
 function updateMenu(): void {
   const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
   // Build base menu template
@@ -316,7 +317,7 @@ function updateMenu(): void {
           label: 'Quit iWriter',
           accelerator: 'CmdOrCtrl+Q',
           click: () => {
-            app.quit()
+            app.quit() // 直接调用，触发 before-quit 流程
           }
         }
       ]
@@ -525,7 +526,7 @@ function updateMenu(): void {
           click: () => {
             const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
             if (focusedWindow?.window) {
-              focusedWindow.window.close()
+              focusedWindow.window.close() // 直接调用，触发 close 流程
             }
           }
         }
@@ -1926,7 +1927,48 @@ function updateMenu(): void {
   Menu.setApplicationMenu(menu)
 }
 
-// IPC handlers
+ipcMain.on('window-close-confirm', (_, windowId: number, canClose: boolean) => {
+  const wState = windows.find(w => w.id === windowId);
+  if (!wState) {
+    console.error(`Find a unkown window id: ${windowId} close confirm`)
+    return
+  }
+
+  //if (wState.timeout) {
+  //  clearTimeout(wState.timeout);
+  //}
+
+  console.log({
+    wId: windowId,
+    canClose: canClose,
+  })
+  // 根据回复决定是否关闭
+  if (canClose) {
+    wState.window.destroy();
+  }
+})
+
+ipcMain.handle('read-file', async (_, filePath: string) => {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8')
+    return content
+  } catch (error) {
+    console.error('Error reading file:', error)
+    return null
+  }
+})
+
+ipcMain.handle('read-file-binary', async (_, filePath: string) => {
+  try {
+    const buffer = fs.readFileSync(filePath)
+    // Convert Buffer to base64 string for transfer
+    return buffer.toString('base64')
+  } catch (error) {
+    console.error('Error reading binary file:', error)
+    return null
+  }
+})
+
 ipcMain.handle('save-file', async (_, content: string, filePath?: string) => {
   if (filePath) {
     try {
@@ -1963,24 +2005,12 @@ ipcMain.handle('save-file', async (_, content: string, filePath?: string) => {
   }
 })
 
-ipcMain.handle('read-file', async (_, filePath: string) => {
+ipcMain.handle('path-exists', async (_, filePath: string) => {
   try {
-    const content = fs.readFileSync(filePath, 'utf8')
-    return content
+    return fs.existsSync(filePath)
   } catch (error) {
-    console.error('Error reading file:', error)
-    return null
-  }
-})
-
-ipcMain.handle('read-file-binary', async (_, filePath: string) => {
-  try {
-    const buffer = fs.readFileSync(filePath)
-    // Convert Buffer to base64 string for transfer
-    return buffer.toString('base64')
-  } catch (error) {
-    console.error('Error reading binary file:', error)
-    return null
+    console.error('Error checking path existence:', error)
+    return false
   }
 })
 
@@ -2020,6 +2050,33 @@ ipcMain.handle('get-files', async (_, folderPath: string, onlyself?: boolean) =>
   } catch (error) {
       console.error('Error get file/folder information:', error)
       throw error
+  }
+})
+
+ipcMain.handle('reveal-in-folder', async (event, filePath: string) => {
+  try {
+    // 使用 shell.showItemInFolder 在系统文件管理器中显示文件或文件夹
+    shell.showItemInFolder(filePath);
+  } catch (error) {
+    console.error('Error revealing file in folder:', error);
+    throw error;
+  }
+})
+
+// Open with system default application handler
+ipcMain.handle('open-with-shell', async (event, filePath: string) => {
+  try {
+    // 使用 shell.openPath 用系统默认应用程序打开文件
+    if (filePath.startsWith('http://') || filePath.startsWith('https://') || filePath.startsWith('https://')) {
+      await shell.openExternal(filePath)
+    }
+    else {
+      await shell.openPath(filePath);
+    }
+    
+  } catch (error) {
+    console.error('Error opening file with shell:', error);
+    throw error;
   }
 })
 
@@ -2128,16 +2185,6 @@ ipcMain.handle('delete-file', async (_, filePath: string) => {
   } catch (error) {
     console.error('Error deleting file:', error)
     throw error
-  }
-})
-
-// Check if path exists
-ipcMain.handle('path-exists', async (_, filePath: string) => {
-  try {
-    return fs.existsSync(filePath)
-  } catch (error) {
-    console.error('Error checking path existence:', error)
-    return false
   }
 })
 
@@ -2254,45 +2301,6 @@ ipcMain.handle('move-file', async (_, sourcePath: string, targetDir: string) => 
   } catch (error) {
     console.error('Error moving file:', error)
     throw error
-  }
-})
-
-ipcMain.on('close', () => {
-  const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
-  if (!focusedWindow) return
-  focusedWindow.window.close()
-})
-
-ipcMain.handle('set-auto-save', async (event, autoSave: boolean) => {
-  g.autoSave = autoSave;
-
-  const window = BrowserWindow.fromWebContents(event.sender);
-  if (window) {
-    if (currentFocusedWindowId === window.id) {
-      updateMenu();
-    }
-  }
-})
-
-ipcMain.handle('window-content-changed', async (event, contentInfo: WindowContentInfo) => {
-  // 通过webContents查找对应的窗口
-  const window = BrowserWindow.fromWebContents(event.sender);
-  if (window) {
-    const windowId = window.id;
-    console.log(`收到窗口 ${windowId} 的内容更新:`, contentInfo);
-    
-    // 更新窗口状态...
-    const windowIndex = windows.findIndex(w => w.id === windowId);
-    if (windowIndex !== -1) {
-      windows[windowIndex].contentInfo = {
-        ...windows[windowIndex].contentInfo,
-        ...contentInfo
-      };
-      //console.log(`=>窗口 ${windowId} 的内容:`, windows[windowIndex].contentInfo);
-      if (currentFocusedWindowId === windowId) {
-        updateMenu();
-      }
-    }
   }
 })
 
@@ -2504,31 +2512,36 @@ ipcMain.handle('show-context-menu', async (event, menuItems: any[], position: { 
   }
 })
 
-// Reveal in folder handler
-ipcMain.handle('reveal-in-folder', async (event, filePath: string) => {
-  try {
-    // 使用 shell.showItemInFolder 在系统文件管理器中显示文件或文件夹
-    shell.showItemInFolder(filePath);
-  } catch (error) {
-    console.error('Error revealing file in folder:', error);
-    throw error;
+ipcMain.handle('set-auto-save', async (event, autoSave: boolean) => {
+  g.autoSave = autoSave;
+
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    if (currentFocusedWindowId === window.id) {
+      updateMenu();
+    }
   }
 })
 
-// Open with system default application handler
-ipcMain.handle('open-with-shell', async (event, filePath: string) => {
-  try {
-    // 使用 shell.openPath 用系统默认应用程序打开文件
-    if (filePath.startsWith('http://') || filePath.startsWith('https://') || filePath.startsWith('https://')) {
-      await shell.openExternal(filePath)
-    }
-    else {
-      await shell.openPath(filePath);
-    }
+ipcMain.handle('window-content-changed', async (event, contentInfo: WindowContentInfo) => {
+  // 通过webContents查找对应的窗口
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    const windowId = window.id;
+    console.log(`收到窗口 ${windowId} 的内容更新:`, contentInfo);
     
-  } catch (error) {
-    console.error('Error opening file with shell:', error);
-    throw error;
+    // 更新窗口状态...
+    const windowIndex = windows.findIndex(w => w.id === windowId);
+    if (windowIndex !== -1) {
+      windows[windowIndex].contentInfo = {
+        ...windows[windowIndex].contentInfo,
+        ...contentInfo
+      };
+      //console.log(`=>窗口 ${windowId} 的内容:`, windows[windowIndex].contentInfo);
+      if (currentFocusedWindowId === windowId) {
+        updateMenu();
+      }
+    }
   }
 })
 
@@ -2677,11 +2690,6 @@ ipcMain.handle('get-system-colors', () => {
   return {theme, newColors: getSystemColors()}
 })
 
-app.whenReady().then(() => {
-  createWindow()
-  setupThemeListeners()
-})
-
 app.on('activate', function () {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
@@ -2689,16 +2697,53 @@ app.on('activate', function () {
 })
 
 app.on('window-all-closed', () => {
+    console.log({
+    function: 'window-all-closed',
+  })
+
   if (process.platform !== 'darwin'){
     app.quit()
-    removeThemeListeners()
   }
 });
 
-app.on('before-quit', async () => {
-  // 清理所有文件监听器
-  const promises = Array.from(fileWatchers.values()).map(watcher => watcher.close());
-  await Promise.all(promises)
-  fileWatchers.clear()
-  removeThemeListeners()
+app.on('before-quit', async (event) => {
+  console.log({
+    function: 'before-quit',
+    windowsSize: windows.length,
+    isAppQuitting: isAppQuitting
+  })
+  if (windows.length === 0) return
+  
+  event.preventDefault(); // 阻止默认退出行为
+  if (isAppQuitting) return; // 防止重复处理  
+  isAppQuitting = true;
+  
+  // 向所有窗口发送退出询问​
+  windows.forEach(w => {
+    w.window.webContents.send('request-window-close', w.id);
+  });
 });
+
+app.on('will-quit', async (event) => {
+  console.log({
+    function: 'will-quit',
+  })
+  
+  // 清理文件监听器
+  try {
+    const promises = Array.from(fileWatchers.values()).map(watcher => watcher.close());
+    await Promise.all(promises);
+    fileWatchers.clear();
+    console.log('All file watchers stopped');
+  } catch (error) {
+    console.error('Error stopping all file watchers:', error);
+  }
+  // 清理主题监听器
+  removeThemeListeners()
+  isAppQuitting = false;
+});
+
+app.whenReady().then(() => {
+  createWindow()
+  setupThemeListeners()
+})
