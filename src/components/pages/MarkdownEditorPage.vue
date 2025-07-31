@@ -1319,6 +1319,7 @@ defineExpose({
     
     &:hover {
       color: #1d4ed8;
+      cursor: pointer;
     }
   }
 

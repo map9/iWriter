@@ -25,8 +25,8 @@ async function handleMenuAction(action: string): Promise<boolean> {
 }
 
 onMounted(() => {
-  // Initialize theme system
-  appStore.initTheme()
+  // Initialize
+  appStore.initial()
   
   if (window.electronAPI) {
     window.electronAPI.onMenuAction(async (action: string) => {
@@ -41,12 +41,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  // Clean up file watching
-  appStore.stopAdvancedFileWatching()
-  
-  if (window.electronAPI) {
-    window.electronAPI.removeMenuActionListener()
-    window.electronAPI.removeFileChangeListeners()
-  }
+  // Destroy
+  appStore.destroy()
 })
 </script>

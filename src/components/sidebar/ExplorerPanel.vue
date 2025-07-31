@@ -626,12 +626,12 @@ const handleTreeMouseLeave = () => {
 
 onMounted(() => {
   // 监听菜单动作
-  window.electronAPI.onMenuAction(handleMenuAction)
+  //window.electronAPI.onMenuAction(handleMenuAction)
 })
 
 onUnmounted(() => {
   // 清理菜单动作监听器
-  window.electronAPI.removeMenuActionListener()
+  //window.electronAPI.removeMenuActionListener()
 })
 
 const handleNodeDrop = (data: { dragNode: any; dropNode: any; position: string }) => {
