@@ -87,7 +87,27 @@ export const pathUtils = {
       return '/' + finalPath;
     }
     return finalPath || '.';
-  }
+  },
+
+  isRelativePath(path: string): boolean {
+    return (
+      path.startsWith('./') ||
+      path.startsWith('../') ||
+      (!path.startsWith('/') && !/^[a-zA-Z]+:/.test(path))
+    );
+  },
+
+  parentDir: (path: string): string => {
+    if (!path) return '/';
+
+    const cleaned = path.replace(/\\/g, '/').replace(/\/+$/, ''); // 统一为正斜杠，去除末尾多余的/
+    const lastSlash = cleaned.lastIndexOf('/');
+
+    if (lastSlash === -1) return './';
+    if (lastSlash === 0) return '/';
+
+    return cleaned.slice(0, lastSlash + 1); // 保留末尾的 `/`
+  },
 }
 
 

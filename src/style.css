@@ -15,11 +15,6 @@
     @apply font-sans;
     @apply bg-background-content text-text-base transition-colors duration-200 ease-in-out;
   }
-
-  /* 恢复列表默认样式 */
-  ol, ul {
-    @apply list-disc m-4 pl-5;
-  }
   
   /* Custom scrollbar styling */
   ::-webkit-scrollbar {

@@ -1,28 +1,10 @@
-import { type Editor as coreEditor } from '@tiptap/core'
-import { type Editor as vueEditor } from '@tiptap/vue-3'
-import type { Node as ProsemirrorNode } from '@tiptap/pm/model'
+import { type Editor } from '@tiptap/vue-3'
 
-// Update current heading based on editor state
-export function getHeading(editor: vueEditor | undefined) : string {
-  return editor?.isActive('heading') ? editor?.getAttributes('heading').level : 'paragraph';
-}
-
-export function setHeading(editor: vueEditor | undefined, heading: string) {
-  if (!editor) return
-  
-  if (heading === 'paragraph') {
-    editor.chain().focus().setParagraph().run()
-  } else {
-    const level = parseInt(heading) as 1 | 2 | 3 | 4 | 5 | 6
-    editor.chain().focus().setHeading({ level }).run()
-  }
-}
-
-export function insertTable(editor: vueEditor | undefined) {
+export function insertTable(editor: Editor | undefined) {
   editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
 }
 
-export function insertMathBlock(editor: vueEditor | undefined) {
+export function insertMathBlock(editor: Editor | undefined) {
   if (!editor) return
 
   const hasSelection = !editor.state.selection.empty
@@ -49,7 +31,7 @@ export function insertMathBlock(editor: vueEditor | undefined) {
   return editor.chain().focus().insertBlockMath({ latex: 'Pealse input Latex...' }).run()
 }
 
-export function insertInlineMath(editor: vueEditor | undefined) {
+export function insertInlineMath(editor: Editor | undefined) {
   if (!editor) return
 
     const hasSelection = !editor.state.selection.empty
@@ -73,7 +55,7 @@ export function insertInlineMath(editor: vueEditor | undefined) {
   return editor.chain().focus().insertInlineMath({ latex: 'Pealse input Latex...' }).run()
 }
 
-export function insertImage(editor: vueEditor | undefined) {
+export function insertImage(editor: Editor | undefined) {
   editor?.chain().focus().setImage({ 
     src: "", 
     alt: '',
@@ -81,7 +63,7 @@ export function insertImage(editor: vueEditor | undefined) {
   }).run()
 }
 
-export function insertAudio(editor: vueEditor | undefined) {
+export function insertAudio(editor: Editor | undefined) {
   const url = prompt('Enter audio URL:')
   if (url) {
     const audioHtml = `<audio controls><source src="${url}" type="audio/mpeg">Your browser does not support the audio element.</audio>`
@@ -89,7 +71,7 @@ export function insertAudio(editor: vueEditor | undefined) {
   }
 }
 
-export function insertVideo(editor: vueEditor | undefined) {
+export function insertVideo(editor: Editor | undefined) {
   const url = prompt('Enter YouTube video URL:')
   if (url) {
     // Extract video ID from YouTube URL
@@ -106,7 +88,7 @@ export function insertVideo(editor: vueEditor | undefined) {
   }
 }
 
-export function insertLink(editor: vueEditor | undefined) {
+export function insertLink(editor: Editor | undefined) {
   const url = prompt('Enter URL:')
   if (url) {
     const linkText = prompt('Enter link text (optional):') || url
@@ -121,7 +103,7 @@ export function insertLink(editor: vueEditor | undefined) {
   }
 }
 
-export function insertReferenceLink(editor: vueEditor | undefined) {
+export function insertReferenceLink(editor: Editor | undefined) {
   const refLinkText = prompt('Enter link text:', '')
   const refLinkUrl = prompt('Enter link URL:', '')
   if (refLinkText && refLinkUrl && editor) {
@@ -138,7 +120,7 @@ export function insertReferenceLink(editor: vueEditor | undefined) {
   }
 }
 
-export function insertFootnote(editor: vueEditor | undefined) {
+export function insertFootnote(editor: Editor | undefined) {
   const footnoteText = prompt('Enter footnote text:', '')
   if (footnoteText && editor) {
     const footnoteId = Date.now().toString()
@@ -154,7 +136,7 @@ export function insertFootnote(editor: vueEditor | undefined) {
   }
 }
 
-export function insertInlineLink(editor: vueEditor | undefined) {
+export function insertInlineLink(editor: Editor | undefined) {
 if (editor?.isActive('link')) {
     editor?.chain().focus().unsetLink().run()
   } else {
@@ -175,60 +157,4 @@ if (editor?.isActive('link')) {
     // update link
     editor?.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
   }
-}
-
-export function onFileHandlerDrop(editor: coreEditor, files: File[], pos: number): void {
-  files.forEach(file => {
-    const fileReader = new FileReader()
-
-    fileReader.readAsDataURL(file)
-    fileReader.onload = () => {
-      editor
-        .chain()
-        .insertContentAt(pos, {
-          type: 'image',
-          attrs: {
-            src: fileReader.result,
-            alt: file.name.replace(/\.[^/.]+$/, ''),
-            title: file.name,
-          },
-        })
-        .focus()
-        .run()
-    }
-  })
-}
-
-export function onFileHandlerPaste(editor: coreEditor, files: File[], pasteContent?: string): void {
-  files.forEach(file => {
-    const fileReader = new FileReader()
-
-    fileReader.readAsDataURL(file)
-    fileReader.onload = () => {
-      editor
-        .chain()
-        .insertContentAt(editor.state.selection.anchor, {
-          type: 'image',
-          attrs: {
-            src: fileReader.result,
-            alt: file.name.replace(/\.[^/.]+$/, ''),
-            title: file.name,
-          },
-        })
-        .focus()
-        .run()
-    }
-  })
-}
-
-export function onPlaceholder(option: { editor: coreEditor; node: ProsemirrorNode; pos: number; hasAnchor: boolean }): string {
-  const { editor, node, pos, hasAnchor } = option
-  // Use a placeholder:
-  //placeholder: 'Input text here …',
-  // Use different placeholders depending on the node type:
-  if (node.type.name === 'heading') {
-    return `Heading ${node.attrs.level}`
-  }
-
-  return 'Input text here...'
 }

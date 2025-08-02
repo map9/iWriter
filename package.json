@@ -46,6 +46,7 @@
     "wait-on": "^7.0.1"
   },
   "dependencies": {
+    "@guyplusplus/turndown-plugin-gfm": "^1.0.7",
     "@tabler/icons-vue": "^2.44.0",
     "@tiptap/extension-blockquote": "^3.0.7",
     "@tiptap/extension-bold": "^3.0.7",
@@ -54,6 +55,7 @@
     "@tiptap/extension-document": "^3.0.7",
     "@tiptap/extension-drag-handle": "^3.0.7",
     "@tiptap/extension-drag-handle-vue-3": "^3.0.7",
+    "@tiptap/extension-emoji": "^3.0.7",
     "@tiptap/extension-file-handler": "^3.0.7",
     "@tiptap/extension-hard-break": "^3.0.7",
     "@tiptap/extension-heading": "^3.0.7",
@@ -79,6 +81,7 @@
     "@tiptap/extension-youtube": "^3.0.6",
     "@tiptap/extensions": "^3.0.7",
     "@tiptap/pm": "^3.0.6",
+    "@tiptap/static-renderer": "^3.0.7",
     "@tiptap/vue-3": "^3.0.6",
     "chokidar": "^4.0.3",
     "electron-store": "^8.1.0",

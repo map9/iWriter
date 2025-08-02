@@ -52,6 +52,9 @@ interface WindowState {
   id: number
   window: BrowserWindow
   isClosing: boolean
+  alive: boolean
+  aliveTimeout: NodeJS.Timeout | null
+  closeTimeout?: NodeJS.Timeout
   contentInfo?: WindowContentInfo
 }
 
@@ -64,9 +67,16 @@ interface ThemeListener{
   handler: any 
 }
 
-let windows: WindowState[] = [];
-let currentFocusedWindowId: number | null = null;
-let isAppQuitting = false; // 应用退出控制标志
+const ALIVE_TIMEOUT = 3000 // 3秒
+const CLOSE_CONFIRMATION_TIMEOUT = 5000 // 5秒
+const QUIT_CONFIRMATION_TIMEOUT = 10000 // 10秒
+const USE_CONFIRMATION_TIMEOUT = false
+
+let windows: WindowState[] = []
+let currentFocusedWindowId: number | null = null
+let isAppQuitting = false
+let exitApp = false
+let quitTimeout: NodeJS.Timeout | null = null
 let g: GlobalParameters = {
   autoSave: true,
 }
@@ -75,8 +85,61 @@ let g: GlobalParameters = {
 const fileWatchers: Map<string, FSWatcher> = new Map();
 const themeListeners: ThemeListener[] = []
 
+function startHeartbeatCheck(wState: WindowState) {
+  if (wState.aliveTimeout) {
+    clearTimeout(wState.aliveTimeout)
+    wState.aliveTimeout = null
+  }
+
+  wState.aliveTimeout = setTimeout(() => {
+    wState.alive = false
+    console.warn(`窗口 ${wState.id} 超时没有检测到心跳。`);
+
+    startHeartbeatCheck(wState)
+  }, ALIVE_TIMEOUT)
+}
+
+function endHeartbeatCheck(wState: WindowState) {
+  if (wState.aliveTimeout) {
+    clearTimeout(wState.aliveTimeout)
+    wState.aliveTimeout = null
+  }
+}
+
+function startWindowCloseCheck(wState: WindowState) {
+  if (wState.closeTimeout) {
+    clearTimeout(wState.closeTimeout)
+    wState.closeTimeout = undefined
+  }
+
+  wState.closeTimeout = setTimeout(() => {
+    console.warn(`窗口 ${wState.id} 关闭确认超时，强制关闭`);
+    if (wState) {
+      wState.window.destroy();
+    }
+  }, CLOSE_CONFIRMATION_TIMEOUT)
+}
+
+function startAppQuitCheck() {
+  if (quitTimeout) {
+    clearTimeout(quitTimeout)
+    quitTimeout = null
+  }
+
+  quitTimeout = setTimeout(() => {
+    console.warn(`应用程序关闭确认超时，强制关闭`);
+    exitApp = true
+    app.quit()
+  }, QUIT_CONFIRMATION_TIMEOUT)
+}
+
 // Send menu action to the focused window
 function sendMenuAction(action: string) {
+  console.log({
+    focusedWindow: windows.find(w => w.id === currentFocusedWindowId)?.id,
+    realFocusedWindow: BrowserWindow.getFocusedWindow()?.id,
+  })
+
   const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
   if (focusedWindow?.window) {
     focusedWindow.window.webContents.send('menu-action', action);
@@ -114,6 +177,8 @@ function createWindow(): BrowserWindow {
     id: windowId,
     window: window,
     isClosing: false,
+    alive: true,
+    aliveTimeout: null
   };
   
   windows.push(windowState);
@@ -135,11 +200,12 @@ function createWindow(): BrowserWindow {
       windows.splice(index, 1);
     }
 
+    endHeartbeatCheck(windowState)
     window.removeListener('enter-full-screen', handleEnterFullScreen)
     window.removeListener('leave-full-screen', handleLeaveFullScreen)
     window.removeListener('focus', handleFocus)
     window.removeListener('close', handleWindowClose)
-    
+
     if (currentFocusedWindowId === window.id) {
       currentFocusedWindowId = windows.length > 0 ? windows[0].id : null
       updateMenu();
@@ -180,19 +246,19 @@ function createWindow(): BrowserWindow {
       return
     }
 
-    event.preventDefault(); // 阻止默认关闭行为
-    if (wState.isClosing === true) return
-    wState.isClosing = true
-    
-    /*// 超时处理：强制关闭窗口
-    wState.timeout = setTimeout(() => {
-      console.warn(`窗口 ${windowId} 关闭确认超时，强制关闭`);
-      if (wState) {
-        wState.window.destroy();
+    // 如果不是坚决要退出，先阻止，并通知window
+    if (exitApp === false) {
+      event.preventDefault(); // 阻止默认关闭行为
+      if (wState.isClosing === true) return
+      wState.isClosing = true
+      
+      // 超时处理：强制关闭窗口
+      if (USE_CONFIRMATION_TIMEOUT) {
+        startWindowCloseCheck(wState)
       }
-    }, CLOSE_CONFIRMATION_TIMEOUT);*/
 
-    window.webContents.send('request-window-close', window.id);
+      window.webContents.send('request-window-close', window.id);
+    }
   }
 
   window.once('ready-to-show', () => {
@@ -203,13 +269,16 @@ function createWindow(): BrowserWindow {
     // Handle window state changes after window is ready
     window.on('enter-full-screen', handleEnterFullScreen)
     window.on('leave-full-screen', handleLeaveFullScreen)
+
   })
 
   // Handle window focus - request current state for menu updates
   window.on('focus', handleFocus)
 
-  /*window.webContents.on('did-finish-load', () => {
-  });*/
+  window.webContents.on('did-finish-load', () => {
+    window.webContents.send('window-id', window.id);
+    startHeartbeatCheck(windowState)
+  });
 
   if (isDev) {
     window.webContents.openDevTools()
@@ -1927,6 +1996,25 @@ function updateMenu(): void {
   Menu.setApplicationMenu(menu)
 }
 
+ipcMain.on('hello', (_, windowId: number) => {
+  const wState = windows.find(w => w.id === windowId);
+  if (!wState) {
+    console.error(`Find a unkown window id: ${windowId} say hello`)
+    return
+  }
+  //console.log(`窗口 ${wState.id} say hello。`);
+  wState.alive = true
+  // 发现还有窗口活着
+  if (exitApp === false && USE_CONFIRMATION_TIMEOUT) {
+    // 先不着急退出窗口，先等待
+    if (wState.isClosing === true) startWindowCloseCheck(wState)    
+    // 先不着急强制退出应用，先等待
+    if (isAppQuitting === true) startAppQuitCheck()
+  }
+  
+  startHeartbeatCheck(wState)
+})
+
 ipcMain.on('window-close-confirm', (_, windowId: number, canClose: boolean) => {
   const wState = windows.find(w => w.id === windowId);
   if (!wState) {
@@ -1934,18 +2022,44 @@ ipcMain.on('window-close-confirm', (_, windowId: number, canClose: boolean) => {
     return
   }
 
-  //if (wState.timeout) {
-  //  clearTimeout(wState.timeout);
-  //}
-
   console.log({
     wId: windowId,
     canClose: canClose,
   })
+
+  if (wState.closeTimeout) {
+    clearTimeout(wState.closeTimeout)
+    wState.closeTimeout = undefined
+  }
   // 根据回复决定是否关闭
   if (canClose) {
     wState.window.destroy();
+  } else if (isAppQuitting) {
+    // 有应用退出，也取消应用退出
+    isAppQuitting = false
+    // 清除窗口退出定时器
+    windows.forEach(w => {
+      if (w.closeTimeout) {
+        clearTimeout(w.closeTimeout)
+        w.closeTimeout = undefined
+      }
+    });
+
+    // 清理应用退出定时器
+    if (quitTimeout) {
+      clearTimeout(quitTimeout)
+      quitTimeout = null
+    }
   }
+})
+
+ipcMain.handle('hello', async (_, windowId: number) => {
+  const wState = windows.find(w => w.id === windowId);
+  if (!wState) {
+    console.error(`Find a unkown window id: ${windowId} say hello`)
+    return
+  }
+  startHeartbeatCheck(wState)
 })
 
 ipcMain.handle('read-file', async (_, filePath: string) => {
@@ -1954,55 +2068,28 @@ ipcMain.handle('read-file', async (_, filePath: string) => {
     return content
   } catch (error) {
     console.error('Error reading file:', error)
-    return null
+    throw(error)
   }
 })
 
 ipcMain.handle('read-file-binary', async (_, filePath: string) => {
   try {
     const buffer = fs.readFileSync(filePath)
-    // Convert Buffer to base64 string for transfer
     return buffer.toString('base64')
   } catch (error) {
     console.error('Error reading binary file:', error)
-    return null
+    throw(error)
   }
 })
 
-ipcMain.handle('save-file', async (_, content: string, filePath?: string) => {
-  if (filePath) {
-    try {
-      fs.writeFileSync(filePath, content, 'utf8')
-      return filePath
-    } catch (error) {
-      console.error('Error saving file:', error)
-      throw(error)
-    }
-  } else {
-    const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
-    if (focusedWindow === undefined) return null
-    
-    const result = await dialog.showSaveDialog(focusedWindow.window, {
-      filters: [
-        { name: 'iWriter Files', extensions: ['iwt'] },
-        { name: 'Markdown Files', extensions: ['md', 'markdown'] },
-        { name: 'Text Files', extensions: ['txt'] },
-        { name: 'All Files', extensions: ['iwt', 'md', 'markdown', 'txt'] }
-      ]
-    })
-    
-    if (!result.canceled && result.filePath) {
-      try {
-        fs.writeFileSync(result.filePath, content, 'utf8')
-        return result.filePath
-      } catch (error) {
-        console.error('Error saving file:', error)
-        throw error
-      }
-    }
-
-    return null
+ipcMain.handle('save-file', async (_, content: string, filePath: string) => {
+  try {
+    fs.writeFileSync(filePath, content, 'utf8')
+  } catch (error) {
+    console.error('Error saving file:', error)
+    throw(error)
   }
+  return true
 })
 
 ipcMain.handle('path-exists', async (_, filePath: string) => {
@@ -2090,33 +2177,34 @@ ipcMain.handle('show-open-dialog', async (_, options: any) => {
     
     return result
   } catch(error) {
-    console.error('Error Open file:', error)
+    console.error('Error show open dialog file:', error)
     throw error
   }
 })
 
+// Show open dialog
+ipcMain.handle('show-save-dialog', async (_, options: any) => {
+  const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
+  if (focusedWindow === undefined) return null
+  
+  try {
+    const result = await dialog.showSaveDialog(focusedWindow.window, options)
+    
+    return result
+  } catch(error) {
+    console.error('Error show save dialog file:', error)
+    throw error
+  }
+})
 
 // Show save dialog
-ipcMain.handle('show-save-dialog', async (_, fileName: string) => {
+ipcMain.handle('show-message-box', async (_, options) => {
   const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
-  if (focusedWindow === undefined) return 'cancel'
+  if (focusedWindow === undefined) return undefined
 
-  const { response } = await dialog.showMessageBox(focusedWindow.window, {
-    type: 'question',
-    title: 'Save Changes',
-    message: `Do you want to save the changes you made to "${fileName}"?`,
-    detail: 'Your changes will be lost if you don\'t save them.',
-    buttons: ['Save', 'Don\'t Save', 'Cancel'],
-    defaultId: 0,
-    cancelId: 2
-  })
+  const result = await dialog.showMessageBox(focusedWindow.window, options)
   
-  switch (response) {
-    case 0: return 'save'
-    case 1: return 'dontSave'
-    case 2: return 'cancel'
-    default: return 'cancel'
-  }
+  return result
 })
 
 // File operations
@@ -2488,7 +2576,7 @@ ipcMain.handle('show-context-menu', async (event, menuItems: any[], position: { 
         };
       }
 
-      console.log(menuItem)
+      //console.log(menuItem)
       return menuItem;
     });
   };
@@ -2528,7 +2616,7 @@ ipcMain.handle('window-content-changed', async (event, contentInfo: WindowConten
   const window = BrowserWindow.fromWebContents(event.sender);
   if (window) {
     const windowId = window.id;
-    console.log(`收到窗口 ${windowId} 的内容更新:`, contentInfo);
+    //console.log(`收到窗口 ${windowId} 的内容更新:`, contentInfo);
     
     // 更新窗口状态...
     const windowIndex = windows.findIndex(w => w.id === windowId);
@@ -2706,6 +2794,15 @@ app.on('window-all-closed', () => {
   }
 });
 
+/*
+当调用 app.quit() 后，事件触发顺序为：​
+1.主进程：app.before-quit（可阻止退出）​
+2.所有窗口：window.close（逐个触发，可阻止单个窗口关闭）​
+3.所有窗口：window.closed（窗口关闭后）​
+4.主进程：app.will-quit（所有窗口关闭后）​
+5.渲染进程：beforeunload → unload（页面卸载）​
+6.主进程：app.quit（应用完全退出）
+*/
 app.on('before-quit', async (event) => {
   console.log({
     function: 'before-quit',
@@ -2713,15 +2810,23 @@ app.on('before-quit', async (event) => {
     isAppQuitting: isAppQuitting
   })
   if (windows.length === 0) return
-  
-  event.preventDefault(); // 阻止默认退出行为
-  if (isAppQuitting) return; // 防止重复处理  
-  isAppQuitting = true;
-  
-  // 向所有窗口发送退出询问​
-  windows.forEach(w => {
-    w.window.webContents.send('request-window-close', w.id);
-  });
+
+  // 如果不是坚决要退出，先阻止，并通知所有的window
+  if (exitApp === false) {
+    event.preventDefault(); // 阻止默认退出行为
+    if (isAppQuitting) return; // 防止重复处理  
+    isAppQuitting = true;
+    
+    // 向所有窗口发送退出询问​
+    windows.forEach(w => {
+      w.window.close()
+    })
+
+    // 超时处理：强制关闭应用
+    if (USE_CONFIRMATION_TIMEOUT) {
+      startAppQuitCheck()
+    }
+  }
 });
 
 app.on('will-quit', async (event) => {
@@ -2729,6 +2834,12 @@ app.on('will-quit', async (event) => {
     function: 'will-quit',
   })
   
+  // 清理定时器
+  if (quitTimeout) {
+    clearTimeout(quitTimeout)
+    quitTimeout = null
+  }
+
   // 清理文件监听器
   try {
     const promises = Array.from(fileWatchers.values()).map(watcher => watcher.close());
@@ -2741,6 +2852,7 @@ app.on('will-quit', async (event) => {
   // 清理主题监听器
   removeThemeListeners()
   isAppQuitting = false;
+  exitApp = false
 });
 
 app.whenReady().then(() => {

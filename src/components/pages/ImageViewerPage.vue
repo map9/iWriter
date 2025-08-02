@@ -142,7 +142,7 @@ const imageUrl = computed(() => {
   if (props.tab.path) {
     return `file://${props.tab.path}`
   }
-  return props.tab.content || ''
+  return ''
 })
 
 // Methods

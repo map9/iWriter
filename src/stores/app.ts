@@ -1,13 +1,25 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { FileTab, FileOperationResult, FileChange } from '@/types'
-import { DocumentType as DocType, IMAGE_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS, CODE_EXTENSIONS, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS } from '@/types'
 import { SidebarMode, DocumentType } from '@/types'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { pathUtils } from '@/utils/pathUtils'
 import { notify } from '@/utils/notifications'
 import type { FileTreeNode, FileTreeSortType } from '@/components/common/tree'
 import { availableThemes, getThemeById, applyThemeColors, type Theme, applySystemColors } from '@/utils/themes'
+import {
+  DocumentType as DocType,
+  TEXT_MD_EXTENSIONS,
+  TEXT_TXT_EXTENSIONS,
+  TEXT_IWT_EXTENSIONS,
+  TEXT_EXTENSIONS,
+  IMAGE_EXTENSIONS,
+  PDF_EXTENSIONS,
+  CODE_EXTENSIONS,
+  AUDIO_EXTENSIONS,
+  VIDEO_EXTENSIONS
+} from '@/types'
+import { convertContentTo } from '@/convert/formatConverter'
 
 export const useAppStore = defineStore('app', () => {
   // 文件监听和类型检测
@@ -21,6 +33,10 @@ export const useAppStore = defineStore('app', () => {
   const leftSidebarWidth = ref(288) // 默认宽度
   const minSidebarWidth = 256 // 最小宽度 - 对应TOC按钮右边缘
   const autoSave = ref(true)
+
+  // Heart beat
+  let sayHelloTimeout: number | null = null
+  const SAY_HELLO_TIMEOUT = 1000
 
   // Theme System
   const currentThemeId = ref<string>('system')
@@ -161,17 +177,55 @@ export const useAppStore = defineStore('app', () => {
   function initial() {
     initTheme();
 
+    function startSayHello(windowId: number) {
+      sayHelloTimeout = setTimeout(() => {
+        window.electronAPI.hello(windowId);
+        //console.log(`window ${windowId} say hello.`)
+        startSayHello(windowId)
+      }, SAY_HELLO_TIMEOUT)
+    }
+
     // Detect system theme preference
     if (window.electronAPI) {
+      window.electronAPI.onWindowId(async (windowId: number)=>{
+        startSayHello(windowId)
+      })
+
       window.electronAPI.onRequestWindowClose(async (windowId: number)=>{
         let resultClosed: boolean = false
-        if (currentFolder.value) {
-          resultClosed = await closeFolder()
-        } else {
-          resultClosed = await closeAllTab();
-        }
 
-        window.electronAPI.windowCloseConfirm(windowId, resultClosed);
+        try {
+          if (currentFolder.value) {
+            resultClosed = await closeFolder()
+          } else {
+            resultClosed = await closeAllTab();
+          }
+
+          console.log({
+            function: 'onRequestWindowClose',
+            wID: windowId,
+            isClosing: resultClosed,
+          })
+          window.electronAPI.windowCloseConfirm(windowId, resultClosed);
+        } catch(error) {
+          console.error(`窗口${windowId}任务失败:`, error);
+          // 提示用户后决定是否强制退出​
+          const result = await window.electronAPI.showMessageBox({
+            message: 'Failed to close the window. Do you want to continue?',
+            type: 'question',
+            buttons: ['Close', 'Cancel'],
+            defaultId: 0,
+            title: 'Close Window',
+            detail: 'Some opened files and configuration settings could not be properly closed or saved during the process.',
+            cancelId: 1
+          })
+      
+          if (result.response === 0) {
+            window.electronAPI.windowCloseConfirm(windowId, true);
+          } else {
+            window.electronAPI.windowCloseConfirm(windowId, false);
+          }
+        }
       })
     }
   }
@@ -180,13 +234,17 @@ export const useAppStore = defineStore('app', () => {
   function destroy() {
     // Clean up file watching
     stopAdvancedFileWatching()
-    
+    if (sayHelloTimeout) {
+      clearTimeout(sayHelloTimeout)
+      sayHelloTimeout = null
+    }
     if (window.electronAPI) {
       window.electronAPI.removeMenuActionListener()
       window.electronAPI.removeFileChangeListeners()
       window.electronAPI.removeSystemColorsChangedListeners()
       window.electronAPI.removeWindowStateChangedListeners()
       window.electronAPI.removeRequestWindowCloseListeners()
+      window.electronAPI.removeWindowIdListeners()
     }
   }
 
@@ -1019,7 +1077,6 @@ export const useAppStore = defineStore('app', () => {
       id,
       name: tabName,
       path,
-      content,
       isDirty: false,
       isActive: true,
       documentType: documentType || (path ? detectFromPath(path) : DocumentType.TEXT_EDITOR)
@@ -1046,26 +1103,37 @@ export const useAppStore = defineStore('app', () => {
     
     // Check if tab has unsaved changes
     if (tab.isDirty) {
-      if (!window.electronAPI?.showSaveDialog) {
-        console.warn('showSaveDialog not available')
+      if (!window.electronAPI?.showMessageBox) {
+        console.warn('showMessageBox not available')
         return false
       }
       
-      const result = await window.electronAPI.showSaveDialog(tab.name)
+      const result = await window.electronAPI.showMessageBox({
+        message: `Do you want to save the changes you made to "${tab.name}"?`,
+        type: 'question',
+        buttons: ['Save', 'Don\'t Save', 'Cancel'],
+        defaultId: 0,
+        title: 'Save Changes',
+        detail: 'Your changes will be lost if you don\'t save them.',
+        cancelId: 2
+      })
       
-      switch (result) {
-        case 'save':
+      switch (result.response) {
+        //'save'
+        case 0:
           // Save the file first
           if (await saveTab(tab) === false) {
             return false // If save failed, don't close the tab
           }
           break
-        case 'cancel':
-          // User cancelled, don't close the tab
-          return false
-        case 'dontSave':
+        // 'dontSave'
+        case 1:
           // User chose not to save, continue closing
           break
+        // 'cancel'
+        case 2:
+          // User cancelled, don't close the tab
+          return false
         default:
           return false
       }
@@ -1110,14 +1178,6 @@ export const useAppStore = defineStore('app', () => {
     activeTabId.value = tabId
   }
   
-  function updateTabContent(tabId: string, content: string) {
-    const tab = tabs.value.find(tab => tab.id === tabId)
-    if (tab) {
-      tab.content = content
-      tab.isDirty = true
-    }
-  }
-
   function updateActiveTabStats(stats: import('@/types').EditorStats) {
     if (activeTab.value) {
       activeTab.value.editorStats = stats
@@ -1127,24 +1187,46 @@ export const useAppStore = defineStore('app', () => {
   async function saveTab(tab: FileTab, saveAs: boolean = false): Promise<boolean> {
     if (!tab || !window.electronAPI) return false
     
-    const originalPath = tab.path
-    const savedPath = await window.electronAPI.saveFile(
-      tab.content,
-      saveAs ? undefined : tab.path // If saveAs is true, use the current path, otherwise prompt for a new path
-    )
-    
-    if (savedPath) {
-      tab.path = savedPath
-      tab.isDirty = false
-      // Always update tab name to match the saved file name
-      const fileName = savedPath.split('/').pop() || 'Untitled'
-      tab.name = fileName
+    try {
+      let originalPath: string | undefined = tab.path
+      if (saveAs === true || !originalPath) {
+        const result = await window.electronAPI.showSaveDialog({
+          filters: [
+            { name: 'iWriter Files', extensions: [...TEXT_IWT_EXTENSIONS] },
+            { name: 'Markdown Files', extensions: [...TEXT_MD_EXTENSIONS] },
+            { name: 'Text Files', extensions: [...TEXT_TXT_EXTENSIONS] },
+            { name: 'All Files', extensions: [...TEXT_EXTENSIONS] }
+          ]
+        })
+        if (!result.canceled && result.filePath) {
+          originalPath = result.filePath
+        } else {
+          return false
+        }
+      }
 
-      // 成功通知
-      notify.success(`${fileName} 保存成功`, '文件操作')
+      if (originalPath != null) {
+        const content = convertContentTo(tab, pathUtils.extension(originalPath))
+        if (content === null) {
+          throw new Error('Unsupport file format')
+        }
+        const result = await window.electronAPI.saveFile(content, originalPath)
+
+        if (result === true) {
+          tab.path = originalPath
+          tab.isDirty = false
+          tab.name = pathUtils.basename(originalPath)
+
+          // 成功通知
+          notify.success(`${originalPath} 保存成功`, '文件操作')
+          return true
+        }
+      }
+    } catch(error) {
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件保存错误')
     }
 
-    return !!savedPath
+    return false 
   }
 
   async function saveActiveTab() {
@@ -1410,7 +1492,6 @@ export const useAppStore = defineStore('app', () => {
     closeAllTab,
     saveTab,
     setActiveTab,
-    updateTabContent,
     updateActiveTabStats,
     saveActiveTab,
     saveActiveTabAs,

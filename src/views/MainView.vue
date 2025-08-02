@@ -146,12 +146,6 @@ defineExpose({
       return await activePageRef.handleMenuAction(action)
     }
     return false
-  },
-  updateMenuFormattingState: () => {
-    const activePageRef = getActivePageRef()
-    if (activePageRef?.updateMenuFormattingState) {
-      activePageRef.updateMenuFormattingState()
-    }
   }
 })
 </script>

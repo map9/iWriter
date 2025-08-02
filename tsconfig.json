@@ -3,6 +3,7 @@
   "include": [
     "env.d.ts",
     "src/**/*",
+    "src/**/**/*",
     "src/**/*.vue"
   ],
   "exclude": [
@@ -13,7 +14,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "turndown": ["node_modules/@types/turndown/index.d.ts"]
+      "turndown": ["node_modules/@types/turndown/index.d.ts"],
+      "turndown-plugin-gfm": ["./src/types/@guyplusplus/turndown-plugin-gfm.d.ts"]
     }
   }
 }

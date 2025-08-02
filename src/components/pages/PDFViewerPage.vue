@@ -176,7 +176,7 @@ const pdfUrl = computed(() => {
   if (props.tab.path) {
     return props.tab.path
   }
-  return props.tab.content || ''
+  return ''
 })
 
 // Methods

@@ -30,8 +30,10 @@ export interface ContextMenuItem {
   role?: string
 }
 
-// 支持的文档格式
-export const TEXT_EXTENSIONS = ['md', 'markdown', 'txt', 'iwt'] as const
+export const TEXT_MD_EXTENSIONS = ['md', 'markdown'] as const
+export const TEXT_TXT_EXTENSIONS = ['txt'] as const
+export const TEXT_IWT_EXTENSIONS = ['iwt'] as const
+export const TEXT_EXTENSIONS = [...TEXT_MD_EXTENSIONS, ...TEXT_TXT_EXTENSIONS, ...TEXT_IWT_EXTENSIONS] as const
 export const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'ico'] as const
 export const PDF_EXTENSIONS = ['pdf'] as const
 export const CODE_EXTENSIONS = ['js', 'mjs', 'ts', 'tsx', 'html', 'htm', 'css', 'scss', 'sass', 'less', 'py', 'java', 'c', 'cpp', 'h', 'cs', 'php', 'rb', 'go', 'rs', 'swift', 'kt'] as const
@@ -75,13 +77,13 @@ export interface FileTab {
   id: string
   name: string
   path?: string
-  content: string
   isDirty: boolean
   isActive: boolean
   documentType?: DocumentType
   metadata?: FileMetadata
   tocProvider?: import('@/types/toc').TocProvider
   editorStats?: EditorStats
+  editorInstance?: any
 }
 
 // 文件操作类型枚举
@@ -213,7 +215,12 @@ export interface WindowContentInfo {
 // Electron API 接口
 export interface ElectronAPI {
   platform: string
-    
+  
+  // alive monitoring
+  hello: (windowId: number) => void,
+  onWindowId: (callback: (windowId: number) => void) => void,
+  removeWindowIdListeners: () => void,
+
   // Window Close Confirmation
   windowCloseConfirm: (windowId: number, canClose: boolean) => void,
   // Request Window Close Confirmation
@@ -223,7 +230,7 @@ export interface ElectronAPI {
   // 文件操作
   readFile: (filePath: string) => Promise<string | null>
   readFileBinary: (filePath: string) => Promise<string | null>
-  saveFile: (content: string, filePath?: string) => Promise<string | null>
+  saveFile: (content: string, filePath?: string) => Promise<boolean>
 
   pathExists: (filePath: string) => Promise<boolean>
   getFiles: (folderPath: string, onlyself?: boolean) => Promise<FileInfo[]>
@@ -234,10 +241,29 @@ export interface ElectronAPI {
 
   // 对话框
   showOpenDialog: (options: {
-    properties: string[]
+    title?: string
+    defaultPath?: string
     filters?: { name: string; extensions: string[] }[]
-  }) => Promise<{ canceled: boolean; filePaths: string[] }>
-  showSaveDialog: (fileName: string) => Promise<'save' | 'dontSave' | 'cancel'>
+    properties: string[]
+  }) => Promise<{ canceled: boolean, filePaths: string[] }>
+  showSaveDialog: (options: {
+    title?: string
+    defaultPath?: string
+    filters?: { name: string; extensions: string[] }[]
+    properties?: string[]
+  }) => Promise<{ canceled: boolean, filePath: string }>
+  showMessageBox: (options: {
+    message: string,
+    type?: string,
+    buttons?: string[],
+    defaultId?: number,
+    title?: string,
+    detail: string,
+    checkboxLabel?: string,
+    checkboxChecked?: boolean,
+    cancelId?: number,
+    noLink?: boolean
+  }) => Promise<{response: number, checkboxChecked: boolean}>
 
   // 文件系统操作
   createFile: (folderPath: string, fileName: string) => Promise<string>
@@ -262,8 +288,8 @@ export interface ElectronAPI {
 
   // 菜单操作
   onMenuAction: (callback: (action: string) => void) => void
-  removeMenuActionListener: () => void
-    
+  removeMenuActionListener: (listener?: any) => void
+
   // 窗口状态
   onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => void
   removeWindowStateChangedListeners: () => void

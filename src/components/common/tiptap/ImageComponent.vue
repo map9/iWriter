@@ -23,7 +23,7 @@
         </button>
         
         <!-- 文件路径或URL编辑输入框 -->
-        <div class="control-input-group" v-if="!isEmptyImage">
+        <div class="control-input-group" v-if="srcStatus !== SrcStatus.EMPTY">
           <input 
             type="text"
             class="control-input-field"
@@ -111,8 +111,8 @@
         <button 
           @click.stop="copyImage"
           class="control-button"
-          :disabled="isEmptyImage"
-          :title="isEmptyImage ? 'No image to copy' : 'Copy image'"
+          :disabled="srcStatus !== SrcStatus.LOADED"
+          :title="srcStatus !== SrcStatus.LOADED ? 'No image to copy' : 'Copy image'"
           contenteditable="false"
         >
           <IconCopy class="control-button-icon" />
@@ -132,7 +132,7 @@
     
     <!-- 图片内容区域 -->
     <div 
-      v-if="isEmptyImage"
+      v-if="srcStatus === SrcStatus.EMPTY"
       class="control-content-empty"
       @dragover.prevent="handleDragOver"
       @drop.prevent="handleDrop"
@@ -180,18 +180,76 @@
         </div>
       </div>
     </div>
-    <img 
-      v-else
-      :src="imageSrc" 
-      :alt="imageAlt"
-      :title="imageTitle"
-      class="control-content"
-      @error="handleImageError"
-      @load="handleImageLoad"
+
+    <div 
+      v-else-if="srcStatus === SrcStatus.ERROR"
+      class="control-content-empty"
       @dragover.prevent="handleDragOver"
       @drop.prevent="handleDrop"
       @dragleave="handleDragLeave"
-    />
+      @click="openFolder"
+      :class="{ 'drag-over': isDragOver }"
+    >
+      <div class="empty-image-content">
+        <!-- 错误图标 -->
+        <div class="empty-image-icon-container">
+          <svg class="empty-image-icon error-icon" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+            <path d="m15 9-6 6" stroke="currentColor" stroke-width="2"/>
+            <path d="m9 9 6 6" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </div>
+        
+        <!-- 主要文本 -->
+        <div class="empty-image-main-text error-text">
+          Failed to load image
+        </div>
+        
+        <!-- 重试按钮 -->
+        <button class="retry-button" @click.stop="retryLoadImage">
+          Try again
+        </button>
+      </div>
+    </div>
+
+    <!-- 图片容器：包含img和loading overlay -->
+    <div 
+      v-else 
+      class="image-container"
+      @dragover.prevent="handleDragOver"
+      @drop.prevent="handleDrop"
+      @dragleave="handleDragLeave"
+    >
+      <!-- 加载覆盖层 -->
+      <div 
+        v-if="srcStatus === SrcStatus.LOADING"
+        class="loading-overlay"
+      >
+        <div class="loading-content">
+          <!-- 加载动画 -->
+          <div class="loading-spinner">
+            <svg class="spinner-icon" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-dasharray="31.416" stroke-dashoffset="31.416">
+                <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416" repeatCount="indefinite"/>
+                <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+          </div>
+          <div class="loading-text">Loading image...</div>
+        </div>
+      </div>
+      
+      <!-- 图片本体 -->
+      <img 
+        :src="imageSrc" 
+        :alt="imageAlt"
+        :title="imageTitle"
+        class="control-content"
+        :class="{ 'loading': srcStatus === SrcStatus.LOADING }"
+        @error="handleImageError"
+        @load="handleImageLoad"
+      />
+    </div>
   </node-view-wrapper>
 </template>
 
@@ -205,6 +263,13 @@ import path from '@/utils/pathUtils'
 import { isImageUrl } from '../utils/isImageUrl'
 
 import './component.scss'
+
+enum SrcStatus {
+  EMPTY = 'empty',
+  LOADING = 'loading',
+  LOADED = 'loaded',
+  ERROR = 'error'
+}
 
 interface ImageAttributes {
   src: string
@@ -235,16 +300,21 @@ const isBase64Image = computed((): boolean => {
   return src.startsWith('data:image/')
 })
 
-// 空图片检测
-const isEmptyImage = computed((): boolean => {
-  return !imageSrc.value || imageSrc.value.trim() === ''
+// 图片状态检测
+const srcStatus = computed((): SrcStatus => {
+  if (!imageSrc.value || imageSrc.value.trim() === '') {
+    return SrcStatus.EMPTY
+  }
+  if (imageLoaded.value === true) return SrcStatus.LOADED
+  if (imageError.value === true) return SrcStatus.ERROR
+  return SrcStatus.LOADING  // 正在加载中
 })
 
 const shouldShowControls = computed((): boolean => {
-  // 空图片时不显示工具条，因为空区域已经有自己的UI
-  if (isEmptyImage.value) return false
-  // 显示工具条的条件：选中或悬停，且图片加载成功
-  return (props.selected || isHovered.value) && imageLoaded.value && !imageError.value
+  // 空状态不显示工具栏
+  if (srcStatus.value === SrcStatus.EMPTY) return false
+  
+  return (props.selected || isHovered.value)
 })
 
 // 获取图片路径
@@ -305,6 +375,14 @@ const currentAlign = computed((): string => {
 watch(() => imagePath.value, (newSrc) => {
   editableImagePath.value = newSrc
 }, { immediate: true })
+
+// 监听图片源变化，重置加载状态
+watch(() => imageSrc.value, (newSrc, oldSrc) => {
+  if (newSrc !== oldSrc && newSrc && newSrc.trim()) {
+    imageLoaded.value = false
+    imageError.value = false
+  }
+})
 
 // 检查输入是否有变化
 const hasInputChanged = computed((): boolean => {
@@ -393,8 +471,7 @@ const openWithShell = async (): Promise<void> => {
 }
 
 const copyImage = async (): Promise<void> => {
-  // 禁用空图片的复制功能
-  if (isEmptyImage.value) {
+  if (srcStatus.value !== SrcStatus.LOADED) {
     return
   }
   
@@ -565,6 +642,23 @@ const handleUrlInput = async (): Promise<void> => {
   }
 }
 
+
+// 重试加载图片
+const retryLoadImage = (): void => {
+  const currentSrc = imageSrc.value
+  if (currentSrc && currentSrc.trim()) {
+    // 重置状态并重新触发加载
+    imageLoaded.value = false
+    imageError.value = false
+    
+    // 通过短暂清空再重置 src 来重新触发加载
+    const originalSrc = currentSrc
+    props.updateAttributes({ src: '' })
+    setTimeout(() => {
+      props.updateAttributes({ src: originalSrc })
+    }, 10)
+  }
+}
 
 // 从输入框更新图片
 const updateImageFromInput = async (): Promise<void> => {
@@ -783,6 +877,87 @@ const updateImageFromInput = async (): Promise<void> => {
 
       &.ProseMirror-selectednode {
         outline: 3px solid #6a00f5;
+      }
+    }
+    
+    .image-container {
+      position: relative;
+      display: inline-block;
+      
+      .control-content {
+        display: block;
+        
+        &.loading {
+          opacity: 0.3;
+        }
+      }
+      
+      .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        z-index: 10;
+        
+        .loading-content {
+          text-align: center;
+          
+          .loading-spinner {
+            margin-bottom: 12px;
+            
+            .spinner-icon {
+              width: 28px;
+              height: 28px;
+              color: #3b82f6;
+              margin: 0 auto;
+            }
+          }
+          
+          .loading-text {
+            font-size: 13px;
+            font-weight: 500;
+            color: #374151;
+          }
+        }
+      }
+      
+      &.ProseMirror-selectednode {
+        outline: 3px solid #6a00f5;
+      }
+    }
+    
+    .control-content-empty {
+      .empty-image-content {
+        .error-icon {
+          color: #ef4444;
+        }
+        
+        .error-text {
+          color: #ef4444;
+          margin-bottom: 16px;
+        }
+        
+        .retry-button {
+          padding: 8px 16px;
+          background: #3b82f6;
+          color: #ffffff;
+          border: none;
+          border-radius: 6px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background-color 0.2s ease;
+          
+          &:hover {
+            background: #2563eb;
+          }
+        }
       }
     }
   }

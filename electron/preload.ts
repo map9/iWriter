@@ -3,6 +3,15 @@ import { contextBridge, ipcRenderer } from 'electron'
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
 
+  // alive monitoring
+  hello: (windowId: number) => ipcRenderer.send('hello', windowId),
+  onWindowId: (callback: (windowId: number) => void) => {
+    ipcRenderer.on('window-id', (_, windowId) => callback(windowId))
+  },
+  removeWindowIdListeners: () => {
+    ipcRenderer.removeAllListeners('window-id')
+  },
+  
   // Window Close Confirmation
   windowCloseConfirm: (windowId: number, canClose: boolean) => ipcRenderer.send('window-close-confirm', windowId, canClose),
   // Request Window Close Confirmation
@@ -25,10 +34,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openWithShell: (path: string) => ipcRenderer.invoke('open-with-shell', path),
   
   showOpenDialog: (options: {
-    properties: string[]
+    title?: string
+    defaultPath?: string
     filters?: { name: string; extensions: string[] }[]
+    properties?: string[]
   }) => ipcRenderer.invoke('show-open-dialog', options),
-  showSaveDialog: (fileName: string) => ipcRenderer.invoke('show-save-dialog', fileName),
+  showSaveDialog: (options: {
+    title?: string
+    defaultPath?: string
+    filters?: { name: string; extensions: string[] }[]
+    properties?: string[]
+  }) => ipcRenderer.invoke('show-save-dialog', options),
+  showMessageBox: (options: {
+    message: string,
+    type?: string,
+    buttons?: string[],
+    defaultId?: number,
+    title?: string,
+    detail: string,
+    checkboxLabel?: string,
+    checkboxChecked?: boolean,
+    cancelId?: number,
+    noLink?: boolean
+  }) => ipcRenderer.invoke('show-message-box', options),
 
   createFile: (folderPath: string, fileName: string) => 
     ipcRenderer.invoke('create-file', folderPath, fileName),
@@ -66,8 +94,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMenuAction: (callback: (action: string) => void) => {
     ipcRenderer.on('menu-action', (_, action) => callback(action))
   },
-  removeMenuActionListener: () => {
-    ipcRenderer.removeAllListeners('menu-action')
+  removeMenuActionListener: (listener?: any) => {
+    if (listener) {
+      ipcRenderer.removeListener('menu-action', listener)
+    } else {
+      ipcRenderer.removeAllListeners('menu-action')
+    }
   },
   
   // Window state changes

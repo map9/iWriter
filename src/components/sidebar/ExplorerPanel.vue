@@ -581,7 +581,7 @@ const isNodeChildOf = (potentialChild: FileTreeNode, potentialParent: FileTreeNo
 }
 
 // 菜单动作处理器
-const handleMenuAction = (action: string) => {
+const handleMenuAction = async (action: string) => {
   if (action.startsWith('filetree-sort-')) {
     const sortType = action.replace('filetree-sort-', '') as FileTreeSortType
     setSortOption(sortType)
@@ -626,12 +626,12 @@ const handleTreeMouseLeave = () => {
 
 onMounted(() => {
   // 监听菜单动作
-  //window.electronAPI.onMenuAction(handleMenuAction)
+  window.electronAPI.onMenuAction(handleMenuAction)
 })
 
 onUnmounted(() => {
   // 清理菜单动作监听器
-  //window.electronAPI.removeMenuActionListener()
+  window.electronAPI.removeMenuActionListener(handleMenuAction)
 })
 
 const handleNodeDrop = (data: { dragNode: any; dropNode: any; position: string }) => {
