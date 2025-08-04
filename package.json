@@ -18,6 +18,7 @@
     "dist:win": "npm run build:quick && electron-builder --win",
     "dist:linux": "npm run build:quick && electron-builder --linux",
     "dist:all": "npm run build:quick && electron-builder --mac --win --linux",
+    "publish": "npm run build:quick && cross-env GH_TOKEN=$GH_TOKEN electron-builder --publish always",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
     "type-check": "vue-tsc --noEmit"
   },
@@ -31,6 +32,8 @@
     "@vue/tsconfig": "^0.7.0",
     "autoprefixer": "^10.4.16",
     "concurrently": "^8.2.2",
+    "cross-env": "^10.0.0",
+    "dotenv": "^17.2.1",
     "electron": "^37.2.2",
     "electron-builder": "^26.0.12",
     "eslint": "^8.45.0",
@@ -83,8 +86,11 @@
     "@tiptap/pm": "^3.0.6",
     "@tiptap/static-renderer": "^3.0.7",
     "@tiptap/vue-3": "^3.0.6",
+    "canvas": "^3.1.2",
     "chokidar": "^4.0.3",
+    "electron-log": "^5.4.2",
     "electron-store": "^8.1.0",
+    "electron-updater": "^6.6.2",
     "katex": "^0.16.22",
     "lowlight": "^3.3.0",
     "marked": "^16.0.0",
@@ -104,6 +110,13 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "map9",
+        "repo": "iWriter"
+      }
     ],
     "mac": {
       "icon": "assets/icon.icns",

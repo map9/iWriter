@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeWindowIdListeners: () => {
     ipcRenderer.removeAllListeners('window-id')
   },
-  
+
   // Window Close Confirmation
   windowCloseConfirm: (windowId: number, canClose: boolean) => ipcRenderer.send('window-close-confirm', windowId, canClose),
   // Request Window Close Confirmation
@@ -122,4 +122,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAutoSave: (enabled: boolean) => ipcRenderer.invoke('set-auto-save', enabled),
   windowContentChange: (contentInfo: any) => ipcRenderer.invoke('window-content-changed', contentInfo),
   updateWindowTitle: (title: string) => ipcRenderer.invoke('update-window-title', title),
+
+  // Updater API
+  checkForUpdates: () => ipcRenderer.invoke('updater:check-for-updates'),
+  installUpdate: () => ipcRenderer.invoke('updater:install-update'),
+  getUpdaterStatus: () => ipcRenderer.invoke('updater:get-status'),
+  getUpdaterConfig: () => ipcRenderer.invoke('updater:get-config'),
+  setUpdaterConfig: (config: any) => ipcRenderer.invoke('updater:set-config', config),
+  
+  // Updater events
+  onUpdaterStateChanged: (callback: (stateMessage: any) => void) => {
+    ipcRenderer.on('updater:state-changed', (_, stateMessage) => callback(stateMessage))
+  },
+  removeUpdaterListeners: () => {
+    ipcRenderer.removeAllListeners('updater:state-changed')
+  },
 })

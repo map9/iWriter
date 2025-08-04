@@ -38,6 +38,23 @@
         <span>{{ statusSections.left }}</span>
       </div>
       
+      <!-- Center Section - Update Status -->
+      <div 
+        v-if="updateStatus.type !== 'idle'" 
+        class="flex items-center gap-2 cursor-pointer hover:bg-text-primary hover:bg-opacity-10 px-2 py-1 rounded"
+        :class="getUpdateStatusClass(updateStatus.type)"
+        @click="handleUpdateStatusClick"
+      >
+        <component :is="getUpdateStatusIcon(updateStatus.type)" 
+          class="icon-sm flex-shrink-0"
+          :class="{ 'animate-spin': isUpdateStatusSpinning(updateStatus.type) }"
+        />
+        <span class="font-medium">{{ updateStatus.message }}</span>
+        <div v-if="updateStatus.progress" class="flex items-center gap-1 text-xs">
+          <span>({{ updateStatus.progress }}%)</span>
+        </div>
+      </div>
+      
       <!-- Right Section -->
       <div class="flex items-center gap-1">
         <template v-for="(section, index) in statusSections.right" :key="index">
@@ -54,6 +71,7 @@ import { computed, ref, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useNotificationHandler } from '@/utils/NotificationHandler'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
+import updaterService from '@/updater/UpdaterService'
 import type { Notification, FileTab } from '@/types'
 import { NotificationType, DocumentType } from '@/types'
 import { 
@@ -63,6 +81,9 @@ import {
   IconAlertTriangle,      // warning
   IconExclamationCircle,  // error
   IconCircleX,            // critical
+  IconDownload,           // downloading
+  IconRefresh,            // checking
+  IconCheck,              // ready to install
 } from '@tabler/icons-vue'
 
 const appStore = useAppStore()
@@ -180,13 +201,13 @@ function getNotificationBgClass(type: NotificationType): string {
     case NotificationType.SUCCESS:
       return 'bg-status-success'
     case NotificationType.INFORMATION:
-      return 'bg-status-info'        // 蓝色系
+      return 'bg-status-info'
     case NotificationType.WARNING:
-      return 'bg-status-warning'      // 黄色系
+      return 'bg-status-warning'
     case NotificationType.ERROR:
-      return 'bg-status-error'         // 红色系
+      return 'bg-status-error'
     case NotificationType.CRITICAL:
-      return 'bg-status-error filter brightness-75'         // 红色系 + 更深
+      return 'bg-status-error filter brightness-75'
     default:
       return 'bg-status-neutral'
   }
@@ -319,6 +340,63 @@ const statusSections = computed((): StatusBarContent => {
   
   return getDefaultStatus()
 })
+
+// Update status management
+const updateStatus = computed(() => updaterService.status.value)
+
+function getUpdateStatusClass(type: string): string {
+  switch (type) {
+    case 'checking':
+      return 'bg-status-info'
+    case 'available':
+      return 'bg-status-success'
+    case 'downloading':
+      return 'bg-status-warning'
+    case 'downloaded':
+      return 'bg-status-success'
+    case 'installing':
+      return 'bg-status-warning'
+    case 'error':
+      return 'bg-status-error'
+    default:
+      return 'bg-status-info'
+  }
+}
+
+function getUpdateStatusIcon(type: string) {
+  switch (type) {
+    case 'checking':
+      return IconRefresh
+    case 'available':
+      return IconDownload
+    case 'downloading':
+      return IconDownload
+    case 'downloaded':
+      return IconCheck
+    case 'installing':
+      return IconRefresh
+    case 'error':
+      return IconExclamationCircle
+    default:
+      return IconInfoCircle
+  }
+}
+
+function isUpdateStatusSpinning(type: string): boolean {
+  return type === 'checking' || type === 'installing'
+}
+
+function handleUpdateStatusClick() {
+  const status = updateStatus.value
+  if (status.type === 'downloaded') {
+    // 可以安装更新
+    updaterService.installUpdate().catch(console.error)
+  } else if (status.type === 'error') {
+    // 显示错误详情或重试
+    updaterService.checkForUpdates().catch(console.error)
+  }
+  // 其他状态可以显示详情或无操作
+}
 
 // 暴露方法供外部调用
 defineExpose({

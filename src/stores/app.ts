@@ -7,6 +7,7 @@ import { pathUtils } from '@/utils/pathUtils'
 import { notify } from '@/utils/notifications'
 import type { FileTreeNode, FileTreeSortType } from '@/components/common/tree'
 import { availableThemes, getThemeById, applyThemeColors, type Theme, applySystemColors } from '@/utils/themes'
+import updaterService from '@/updater/UpdaterService'
 import {
   DocumentType as DocType,
   TEXT_MD_EXTENSIONS,
@@ -35,7 +36,7 @@ export const useAppStore = defineStore('app', () => {
   const autoSave = ref(true)
 
   // Heart beat
-  let sayHelloTimeout: number | null = null
+  let sayHelloTimeout: ReturnType<typeof setTimeout> | null = null
   const SAY_HELLO_TIMEOUT = 1000
 
   // Theme System
@@ -1417,6 +1418,29 @@ export const useAppStore = defineStore('app', () => {
         return true
       case 'view-theme-settings':
         notify.info('主题设置', '使用 视图 > 主题 子菜单来更换主题')
+        return true
+      
+      case 'check-update':
+        try {
+          await updaterService.checkForUpdates(true)
+          notify.success('检查更新', '正在检查更新...')
+        } catch (error) {
+          console.error('Error checking for updates:', error)
+          notify.error('检查更新失败', '无法检查更新，请稍后重试')
+        }
+        return true
+      
+      case 'auto-update-settings':
+        notify.info('自动更新设置', '此功能正在开发中')
+        return true
+      
+      case 'help-changelog':
+        try {
+          updaterService.openReleaseNotes()
+        } catch (error) {
+          console.error('Error opening changelog:', error)
+          window.electronAPI?.openWithShell?.('https://github.com/map9/iWriter/releases')
+        }
         return true
       
       default:

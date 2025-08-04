@@ -302,6 +302,17 @@ export interface ElectronAPI {
   setAutoSave: (enabled: boolean) => Promise<void>
   windowContentChange: (contentInfo: any) => Promise<void>
   updateWindowTitle: (title: string) => Promise<{ success: boolean; error?: string }>
+
+  // 更新器 API
+  checkForUpdates: () => Promise<import('@/updater/types').UpdateCheckResult>
+  installUpdate: () => Promise<void>
+  getUpdaterStatus: () => Promise<import('@/updater/types').UpdateStatus>
+  getUpdaterConfig: () => Promise<import('@/updater/types').UpdaterConfig>
+  setUpdaterConfig: (config: Partial<import('@/updater/types').UpdaterConfig>) => Promise<void>
+  
+  // 更新器事件
+  onUpdaterStateChanged: (callback: (stateMessage: import('@/updater/types').UpdaterStateMessage) => void) => void,
+  removeUpdaterListeners: () => void,
 }
 
 // 标签接口

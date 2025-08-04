@@ -79,14 +79,28 @@
     
     <!-- Status Bar -->
     <StatusBar v-if="appStore.showStatusbar"/>
+    
+    <!-- Update Dialog -->
+    <UpdateDialog
+      v-if="updateDialogData"
+      :updateInfo="updateDialogData"
+      :visible="showUpdateDialog"
+      @update="handleUpdateConfirm"
+      @later="handleUpdateLater"
+      @skip="handleUpdateSkip"
+      @close="handleUpdateDialogClose"
+      @view-details="handleViewUpdateDetails"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { DocumentType } from '@/types'
+import type { UpdateInfo } from '@/updater/types'
 import { notify } from '@/utils/notifications'
+import updaterService from '@/updater/UpdaterService'
 import TitleBar from '@/components/TitleBar.vue'
 import LeftSidebar from '@/components/LeftSidebar.vue'
 import RightSidebar from '@/components/RightSidebar.vue'
@@ -95,6 +109,7 @@ import WelcomePage from '@/components/pages/WelcomePage.vue'
 import MarkdownEditorPage from '@/components/pages/MarkdownEditorPage.vue'
 import ImageViewerPage from '@/components/pages/ImageViewerPage.vue'
 import PDFViewerPage from '@/components/pages/PDFViewerPage.vue'
+import UpdateDialog from '@/components/updater/UpdateDialog.vue'
 import { 
   IconAlertTriangle,
   IconFolderOpen, 
@@ -106,6 +121,10 @@ const appStore = useAppStore()
 const markdownEditorRefs = ref<any[]>([])
 const imageViewerRefs = ref<any[]>([])
 const pdfViewerRefs = ref<any[]>([])
+
+// Update dialog state
+const showUpdateDialog = ref(false)
+const updateDialogData = ref<UpdateInfo | null>(null)
 
 // Computed
 const activeTab = computed(() => appStore.activeTab)
@@ -135,6 +154,52 @@ async function openWithShell(filePath: string | undefined) {
     notify.success(`${error instanceof Error ? error.message : String(error)}`, '文件操作')
   }
 }
+
+// Update dialog methods
+function handleUpdateConfirm() {
+  showUpdateDialog.value = false
+  updaterService.installUpdate().catch(error => {
+    console.error('Failed to install update:', error)
+    notify.error('更新安装失败', '请稍后重试')
+  })
+}
+
+function handleUpdateLater() {
+  showUpdateDialog.value = false
+  updateDialogData.value = null
+}
+
+function handleUpdateSkip() {
+  showUpdateDialog.value = false
+  updateDialogData.value = null
+  // TODO: Save skipped version to avoid showing again
+}
+
+function handleUpdateDialogClose() {
+  showUpdateDialog.value = false
+  updateDialogData.value = null
+}
+
+function handleViewUpdateDetails() {
+  if (updateDialogData.value) {
+    updaterService.openReleaseNotes(updateDialogData.value.version)
+  }
+}
+
+// Lifecycle
+onMounted(() => {
+  // 监听更新可用状态
+  watch(() => updaterService.isUpdateAvailable.value, (isAvailable) => {
+    if (isAvailable && updaterService.updateInfo.value) {
+      updateDialogData.value = updaterService.updateInfo.value
+      showUpdateDialog.value = true
+    }
+  })
+})
+
+onUnmounted(() => {
+  // 响应式状态会自动清理，不需要手动清理
+})
 
 // Expose methods to parent component (App.vue)
 defineExpose({

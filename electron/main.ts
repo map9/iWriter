@@ -1,9 +1,18 @@
 import { app, BrowserWindow, Menu, ipcMain, dialog, shell, systemPreferences, nativeTheme } from 'electron'
+import dotenv from 'dotenv'
 import * as path from 'path'
 import * as fs from 'fs'
 import chokidar, { FSWatcher } from 'chokidar'
+import { UpdaterManager } from '../src/updater/UpdaterManager'
+import Timer from '../src/utils/Timer'
+import log from 'electron-log/main'
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+log.transports.file.level = 'info';
+
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
 
 // 文档类型枚举
 export enum DocumentType {
@@ -53,8 +62,8 @@ interface WindowState {
   window: BrowserWindow
   isClosing: boolean
   alive: boolean
-  aliveTimeout: NodeJS.Timeout | null
-  closeTimeout?: NodeJS.Timeout
+  aliveTimer?: Timer
+  closeTimer?: Timer
   contentInfo?: WindowContentInfo
 }
 
@@ -67,16 +76,16 @@ interface ThemeListener{
   handler: any 
 }
 
-const ALIVE_TIMEOUT = 3000 // 3秒
+const ALIVE_TIMEOUT = 5000              // 5秒
 const CLOSE_CONFIRMATION_TIMEOUT = 5000 // 5秒
 const QUIT_CONFIRMATION_TIMEOUT = 10000 // 10秒
-const USE_CONFIRMATION_TIMEOUT = false
+const USE_CONFIRMATION_TIMEOUT = true
 
 let windows: WindowState[] = []
 let currentFocusedWindowId: number | null = null
 let isAppQuitting = false
 let exitApp = false
-let quitTimeout: NodeJS.Timeout | null = null
+let appQuitTimer: Timer | null = null
 let g: GlobalParameters = {
   autoSave: true,
 }
@@ -85,52 +94,59 @@ let g: GlobalParameters = {
 const fileWatchers: Map<string, FSWatcher> = new Map();
 const themeListeners: ThemeListener[] = []
 
-function startHeartbeatCheck(wState: WindowState) {
-  if (wState.aliveTimeout) {
-    clearTimeout(wState.aliveTimeout)
-    wState.aliveTimeout = null
+// 更新器管理
+let updaterManager: UpdaterManager | null = null
+
+function loopHeartbeatCheck(wState: WindowState) {
+  if (!wState.aliveTimer) {
+    wState.aliveTimer = new Timer(() => {
+      wState.alive = false
+      console.warn(`窗口 ${wState.id} 超时没有检测到心跳。`);
+    }, ALIVE_TIMEOUT)
   }
 
-  wState.aliveTimeout = setTimeout(() => {
-    wState.alive = false
-    console.warn(`窗口 ${wState.id} 超时没有检测到心跳。`);
-
-    startHeartbeatCheck(wState)
-  }, ALIVE_TIMEOUT)
-}
-
-function endHeartbeatCheck(wState: WindowState) {
-  if (wState.aliveTimeout) {
-    clearTimeout(wState.aliveTimeout)
-    wState.aliveTimeout = null
-  }
+  wState.aliveTimer.loop()
 }
 
 function startWindowCloseCheck(wState: WindowState) {
-  if (wState.closeTimeout) {
-    clearTimeout(wState.closeTimeout)
-    wState.closeTimeout = undefined
+  console.log({
+    function: 'startWindowCloseCheck',
+    windowsSize: windows.length,
+    wID: wState.id,
+    isClosing: wState.isClosing,
+    isAppQuitting: isAppQuitting,
+    exitApp: exitApp
+  })
+
+  if (!wState.closeTimer) {
+    wState.closeTimer = new Timer(() => {
+      console.warn(`窗口 ${wState.id} 关闭确认超时，强制关闭`);
+      if (wState && !wState.window.isDestroyed()) {
+        wState.window.destroy();
+      }
+    }, CLOSE_CONFIRMATION_TIMEOUT)
   }
 
-  wState.closeTimeout = setTimeout(() => {
-    console.warn(`窗口 ${wState.id} 关闭确认超时，强制关闭`);
-    if (wState) {
-      wState.window.destroy();
-    }
-  }, CLOSE_CONFIRMATION_TIMEOUT)
+  wState.closeTimer?.start()
 }
 
 function startAppQuitCheck() {
-  if (quitTimeout) {
-    clearTimeout(quitTimeout)
-    quitTimeout = null
+  console.log({
+    function: 'startAppQuitCheck',
+    windowsSize: windows.length,
+    isAppQuitting: isAppQuitting,
+    exitApp: exitApp
+  })
+
+  if (!appQuitTimer) {
+    appQuitTimer = new Timer(() => {
+      console.warn(`应用程序关闭确认超时，强制关闭`);
+      exitApp = true
+      app.quit()
+    }, QUIT_CONFIRMATION_TIMEOUT)
   }
 
-  quitTimeout = setTimeout(() => {
-    console.warn(`应用程序关闭确认超时，强制关闭`);
-    exitApp = true
-    app.quit()
-  }, QUIT_CONFIRMATION_TIMEOUT)
+  appQuitTimer.start()
 }
 
 // Send menu action to the focused window
@@ -170,7 +186,7 @@ function createWindow(): BrowserWindow {
 
   const startUrl = isDev
     ? 'http://localhost:5173'
-    : `file://${path.join(__dirname, '../vue/index.html')}`
+    : `file://${path.join(__dirname, '../dist/index.html')}`
   window.loadURL(startUrl)
 
   const windowState: WindowState = {
@@ -178,7 +194,6 @@ function createWindow(): BrowserWindow {
     window: window,
     isClosing: false,
     alive: true,
-    aliveTimeout: null
   };
   
   windows.push(windowState);
@@ -189,9 +204,10 @@ function createWindow(): BrowserWindow {
     console.log({
       function: 'closed',
       windowsSize: windows.length,
-      isAppQuitting: isAppQuitting,
       wID: window.id,
       isClosing: windowState.isClosing,
+      isAppQuitting: isAppQuitting,
+      exitApp: exitApp
     })
 
     // 从 windows 列表中，清除要关闭的 window
@@ -199,22 +215,21 @@ function createWindow(): BrowserWindow {
     if (index !== -1) {
       windows.splice(index, 1);
     }
-
-    endHeartbeatCheck(windowState)
+    
+    windowState.closeTimer?.end()
+    windowState.aliveTimer?.end()
     window.removeListener('enter-full-screen', handleEnterFullScreen)
     window.removeListener('leave-full-screen', handleLeaveFullScreen)
     window.removeListener('focus', handleFocus)
     window.removeListener('close', handleWindowClose)
 
-    if (currentFocusedWindowId === window.id) {
-      currentFocusedWindowId = windows.length > 0 ? windows[0].id : null
-      updateMenu();
-    }
-
     // 退出应用
     if (isAppQuitting && windows.length === 0) {
+      exitApp = true
       app.quit();
-      isAppQuitting = false
+    } else if (currentFocusedWindowId === window.id) {
+      currentFocusedWindowId = windows.length > 0 ? windows[0].id : null
+      updateMenu();
     }
   })
 
@@ -235,9 +250,10 @@ function createWindow(): BrowserWindow {
     console.log({
       function: 'close',
       windowsSize: windows.length,
-      isAppQuitting: isAppQuitting,
       wID: window.id,
       isClosing: windowState.isClosing,
+      isAppQuitting: isAppQuitting,
+      exitApp: exitApp
     })
 
     const wState = windows.find(w => w.id === window.id);
@@ -277,7 +293,7 @@ function createWindow(): BrowserWindow {
 
   window.webContents.on('did-finish-load', () => {
     window.webContents.send('window-id', window.id);
-    startHeartbeatCheck(windowState)
+    loopHeartbeatCheck(windowState)
   });
 
   if (isDev) {
@@ -1917,6 +1933,13 @@ function updateMenu(): void {
             sendMenuAction('help-changelog')
           }
         },
+        { type: 'separator' },
+        {
+          label: 'Auto Update Settings...',
+          click: () => {
+            sendMenuAction('auto-update-settings')
+          }
+        },
         {
           label: 'Visit iWriter.com',
           click: async () => {
@@ -2002,8 +2025,10 @@ ipcMain.on('hello', (_, windowId: number) => {
     console.error(`Find a unkown window id: ${windowId} say hello`)
     return
   }
-  //console.log(`窗口 ${wState.id} say hello。`);
+  console.log(`窗口 ${wState.id} say hello。`);
   wState.alive = true
+  loopHeartbeatCheck(wState)
+
   // 发现还有窗口活着
   if (exitApp === false && USE_CONFIRMATION_TIMEOUT) {
     // 先不着急退出窗口，先等待
@@ -2011,8 +2036,6 @@ ipcMain.on('hello', (_, windowId: number) => {
     // 先不着急强制退出应用，先等待
     if (isAppQuitting === true) startAppQuitCheck()
   }
-  
-  startHeartbeatCheck(wState)
 })
 
 ipcMain.on('window-close-confirm', (_, windowId: number, canClose: boolean) => {
@@ -2025,41 +2048,28 @@ ipcMain.on('window-close-confirm', (_, windowId: number, canClose: boolean) => {
   console.log({
     wId: windowId,
     canClose: canClose,
+    isAppQuitting: isAppQuitting,
+    exitApp: exitApp
   })
 
-  if (wState.closeTimeout) {
-    clearTimeout(wState.closeTimeout)
-    wState.closeTimeout = undefined
-  }
+  wState.closeTimer?.end()
   // 根据回复决定是否关闭
-  if (canClose) {
+  if (canClose && wState.isClosing) {
     wState.window.destroy();
-  } else if (isAppQuitting) {
-    // 有应用退出，也取消应用退出
-    isAppQuitting = false
-    // 清除窗口退出定时器
-    windows.forEach(w => {
-      if (w.closeTimeout) {
-        clearTimeout(w.closeTimeout)
-        w.closeTimeout = undefined
-      }
-    });
+  } else {
+    // 只要有一个窗口不退出，就取消应用退出
+    if (isAppQuitting) {
+      isAppQuitting = false
+      exitApp = false
+      appQuitTimer?.end()
 
-    // 清理应用退出定时器
-    if (quitTimeout) {
-      clearTimeout(quitTimeout)
-      quitTimeout = null
+      // 清除窗口退出定时器
+      windows.forEach(w => {
+        w.isClosing = false
+        w.closeTimer?.end()
+      });
     }
   }
-})
-
-ipcMain.handle('hello', async (_, windowId: number) => {
-  const wState = windows.find(w => w.id === windowId);
-  if (!wState) {
-    console.error(`Find a unkown window id: ${windowId} say hello`)
-    return
-  }
-  startHeartbeatCheck(wState)
 })
 
 ipcMain.handle('read-file', async (_, filePath: string) => {
@@ -2778,9 +2788,12 @@ ipcMain.handle('get-system-colors', () => {
   return {theme, newColors: getSystemColors()}
 })
 
-app.on('activate', function () {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
+ipcMain.handle('open-external', async (_, url: string) => {
+  try {
+    await shell.openExternal(url)
+  } catch (error) {
+    console.error('Error opening external URL:', error)
+    throw error
   }
 })
 
@@ -2794,6 +2807,35 @@ app.on('window-all-closed', () => {
   }
 });
 
+function removeAllHandler() {
+  ipcMain.removeHandler('hello')
+  ipcMain.removeHandler('read-file')
+  ipcMain.removeHandler('read-file-binary')
+  ipcMain.removeHandler('save-file')
+  ipcMain.removeHandler('path-exists')
+  ipcMain.removeHandler('get-files')
+  ipcMain.removeHandler('reveal-in-folder')
+  ipcMain.removeHandler('open-with-shell')
+  ipcMain.removeHandler('show-open-dialog')
+  ipcMain.removeHandler('show-save-dialog')
+  ipcMain.removeHandler('show-message-box')
+  ipcMain.removeHandler('create-file')
+  ipcMain.removeHandler('create-folder')
+  ipcMain.removeHandler('rename-file')
+  ipcMain.removeHandler('move-file')
+  ipcMain.removeHandler('start-file-watching')
+  ipcMain.removeHandler('stop-file-watching')
+  ipcMain.removeHandler('stop-all-file-watching')
+  ipcMain.removeHandler('get-file-watching-status')
+  ipcMain.removeHandler('show-context-menu')
+  ipcMain.removeHandler('get-system-colors')
+  ipcMain.removeHandler('set-auto-save')
+  ipcMain.removeHandler('window-content-changed')
+  ipcMain.removeHandler('update-window-title')
+
+  ipcMain.removeAllListeners('hello');
+  ipcMain.removeAllListeners('window-close-confirm');
+}
 /*
 当调用 app.quit() 后，事件触发顺序为：​
 1.主进程：app.before-quit（可阻止退出）​
@@ -2807,7 +2849,8 @@ app.on('before-quit', async (event) => {
   console.log({
     function: 'before-quit',
     windowsSize: windows.length,
-    isAppQuitting: isAppQuitting
+    isAppQuitting: isAppQuitting,
+    exitApp: exitApp
   })
   if (windows.length === 0) return
 
@@ -2832,13 +2875,12 @@ app.on('before-quit', async (event) => {
 app.on('will-quit', async (event) => {
   console.log({
     function: 'will-quit',
+    isAppQuitting: isAppQuitting,
+    exitApp: exitApp
   })
   
-  // 清理定时器
-  if (quitTimeout) {
-    clearTimeout(quitTimeout)
-    quitTimeout = null
-  }
+  // 清理应用强制退出定时器
+  appQuitTimer?.end()
 
   // 清理文件监听器
   try {
@@ -2851,11 +2893,47 @@ app.on('will-quit', async (event) => {
   }
   // 清理主题监听器
   removeThemeListeners()
-  isAppQuitting = false;
-  exitApp = false
+
+  // 清理updaterManager
+  if (updaterManager) {
+    updaterManager.destroy()
+    updaterManager = null
+  }
+
+  removeAllHandler()
+  console.log('quit');
 });
 
 app.whenReady().then(() => {
   createWindow()
   setupThemeListeners()
+
+  // 只在生产环境启用更新器
+  if (!isDev) {
+    try {
+      updaterManager = new UpdaterManager()
+      if (windows) {
+        updaterManager.setSendToWindows((channel: string, data?: any)=>{
+          // 发送状态更新到所有渲染进程
+          windows.forEach(w => {
+            if (w.window && !w.window.isDestroyed()) {
+              w.window.webContents.send(channel, data)
+            }
+          })
+        })
+        updaterManager.checkOnStartup()
+      }
+    } catch (error) {
+      console.error('Failed to initialize UpdaterManager:', error)
+    }
+  } else {
+    console.log('UpdaterManager disabled in development mode')
+  }
+
+  app.on('activate', function () {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    }
+  })
+
 })
