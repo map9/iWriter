@@ -1,6 +1,6 @@
 <template>
   <div 
-    class="sidebar relative h-full flex flex-col min-w-64 shrink-0"
+    class="sidebar left-sidebar"
     :style="{ width: `${appStore.leftSidebarWidth}px` }"
   >
     <div class="flex items-center h-9 bg-background-window border-b border-border-separator select-none drag-region">

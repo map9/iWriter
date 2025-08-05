@@ -1,97 +1,91 @@
 <template>
-  <div class="h-full flex flex-col">
-    <div class="flex-1 flex overflow-hidden bg-background-content">
+  <!-- Workzone Wrapper -->
+  <div class="mainview">
+  
+    <!-- Left Sidebar -->
+    <LeftSidebar v-if="appStore.showLeftSidebar" />
     
-      <!-- Left Sidebar -->
-      <LeftSidebar v-if="appStore.showLeftSidebar" />
-      
-      <!-- Main Content -->
-      <div class="h-full flex-1 flex flex-col overflow-hidden">
-        <!-- Title Bar -->
-        <TitleBar />
+    <!-- Workzone -->
+    <div class="workzone0">
+      <!-- Title Bar -->
+      <TitleBar />
 
-          <div class="flex-1 flex overflow-hidden">
+      <!-- Document Workarea -->
+      <div class="workzone1">
 
-            <!-- Editor Area -->
-            <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- Document Page -->
+        <div class="document-page-wrapper">
 
-              <!-- Document Pages -->
-              <div class="flex-1 overflow-hidden">
-                <!-- Welcome Page (No tabs open) -->
-                <WelcomePage v-if="appStore.tabs.length === 0" />
-                
-                <!-- Document Pages for each tab -->
-                <div 
-                  v-for="tab in appStore.tabs" 
-                  :key="tab.id"
-                  :class="[
-                    'h-full',
-                    tab.isActive ? 'block' : 'hidden'
-                  ]"
-                >
-                  <!-- Markdown Editor Page -->
-                  <MarkdownEditorPage 
-                    v-if="tab.documentType === DocumentType.TEXT_EDITOR"
-                    ref="markdownEditorRefs"
-                    :tab="tab"
-                  />
-                  
-                  <!-- Image Viewer Page -->
-                  <ImageViewerPage 
-                    v-else-if="tab.documentType === DocumentType.IMAGE_VIEWER"
-                    ref="imageViewerRefs"
-                    :tab="tab"
-                  />
-                  
-                  <!-- PDF Viewer Page -->
-                  <PDFViewerPage 
-                    v-else-if="tab.documentType === DocumentType.PDF_VIEWER"
-                    ref="pdfViewerRefs"
-                    :tab="tab"
-                  />
-                  
-                  <!-- Fallback for unknown types -->
-                  <div v-else class="h-full flex items-center justify-center">
-                    <div class="text-center">
-                      <IconAlertTriangle class="w-16 h-16 mx-auto mb-4 text-status-warning" />
-                      <div class="text-xl mb-2 text-text-secondary">不支持的文件类型</div>
-                      <div class="text-base mx-auto max-w-xl mb-2 text-text-tertiary">The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.</div>
-                      <div class="flex gap-3 justify-center">
-                        <button 
-                          @click="openWithShell(tab.path)"
-                          class="button button-primary w-44 mb-4 h-9"
-                        >
-                          <IconFolderOpen class="icon-base" />
-                          <span>Open Anyway</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+          <!-- Welcome Page (No tabs open) -->
+          <WelcomePage v-if="appStore.tabs.length === 0" />
+          
+          <!-- Document Pages for each tab -->
+          <div 
+            v-for="tab in appStore.tabs" 
+            :key="tab.id"
+            :class="tab.isActive ? 'document-page' : 'hidden'"
+          >
+            <!-- Markdown Editor Page -->
+            <MarkdownEditorPage 
+              v-if="tab.documentType === DocumentType.TEXT_EDITOR"
+              ref="markdownEditorRefs"
+              :tab="tab"
+            />
+            
+            <!-- Image Viewer Page -->
+            <ImageViewerPage 
+              v-else-if="tab.documentType === DocumentType.IMAGE_VIEWER"
+              ref="imageViewerRefs"
+              :tab="tab"
+            />
+            
+            <!-- PDF Viewer Page -->
+            <PDFViewerPage 
+              v-else-if="tab.documentType === DocumentType.PDF_VIEWER"
+              ref="pdfViewerRefs"
+              :tab="tab"
+            />
+            
+            <!-- Fallback for unknown types -->
+            <div v-else class="h-full flex items-center justify-center">
+              <div class="text-center">
+                <IconAlertTriangle class="w-16 h-16 mx-auto mb-4 text-status-warning" />
+                <div class="text-xl mb-2 text-text-secondary">不支持的文件类型</div>
+                <div class="text-base mx-auto max-w-xl mb-2 text-text-tertiary">The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.</div>
+                <div class="flex gap-3 justify-center">
+                  <button 
+                    @click="openWithShell(tab.path)"
+                    class="button button-primary w-44 mb-4 h-9"
+                  >
+                    <IconFolderOpen class="icon-base" />
+                    <span>Open Anyway</span>
+                  </button>
                 </div>
               </div>
             </div>
-            
-            <!-- Right Sidebar (AI Chat) -->
-            <RightSidebar v-if="appStore.showRightSidebar" />
           </div>
         </div>
+        
+        <!-- Right Sidebar (AI Chat) -->
+        <RightSidebar v-if="appStore.showRightSidebar" />
       </div>
-    
-    <!-- Status Bar -->
-    <StatusBar v-if="appStore.showStatusbar"/>
-    
-    <!-- Update Dialog -->
-    <UpdateDialog
-      v-if="updateDialogData"
-      :updateInfo="updateDialogData"
-      :visible="showUpdateDialog"
-      @update="handleUpdateConfirm"
-      @later="handleUpdateLater"
-      @skip="handleUpdateSkip"
-      @close="handleUpdateDialogClose"
-      @view-details="handleViewUpdateDetails"
-    />
+    </div>
   </div>
+  
+  <!-- Status Bar -->
+  <StatusBar v-if="appStore.showStatusbar"/>
+  
+  <!-- Update Dialog -->
+  <UpdateDialog
+    v-if="updateDialogData"
+    :updateInfo="updateDialogData"
+    :visible="showUpdateDialog"
+    @update="handleUpdateConfirm"
+    @later="handleUpdateLater"
+    @skip="handleUpdateSkip"
+    @close="handleUpdateDialogClose"
+    @view-details="handleViewUpdateDetails"
+  />
 </template>
 
 <script setup lang="ts">

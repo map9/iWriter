@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex">
+  <div class="document-page">
     <!-- Left side: Welcome content -->
     <div class="flex-1 flex items-center justify-center">
       <div class="text-center max-w-xl">

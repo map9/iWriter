@@ -1,7 +1,5 @@
 <template>
-  <div id="app" class="h-screen flex flex-col overflow-hidden">
-    <router-view ref="routerViewRef"/>
-  </div>
+  <router-view ref="routerViewRef"/>
 </template>
 
 <script setup lang="ts">

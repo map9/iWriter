@@ -12,10 +12,14 @@
   }
   
   body {
+    @apply w-full h-full overflow-hidden m-0 p-0;
     @apply font-sans;
     @apply bg-background-content text-text-base transition-colors duration-200 ease-in-out;
   }
   
+  #app {
+    @apply flex flex-col w-screen h-screen overflow-hidden;
+  }
   /* Custom scrollbar styling */
   ::-webkit-scrollbar {
     width: 8px;
@@ -38,10 +42,54 @@
 }
 
 @layer components {
-  .sidebar {
-    @apply flex flex-col border-r border-border-separator
+  .mainview {
+    @apply flex-1 flex flex-row overflow-hidden bg-background-content;
   }
-  
+
+  .statusbar {
+    @apply relative flex w-full h-6 shrink-0 px-4 items-center justify-between bg-blue-600 text-xs text-white
+  }
+
+  .sidebar {
+    @apply relative flex flex-col min-w-64 h-full shrink-0 border-border-separator
+  }
+
+  .left-sidebar {
+    @apply min-w-64 border-r
+  }
+
+  .right-sidebar {
+    @apply min-w-72 border-l
+  }
+
+ .workzone0 {
+    @apply flex-1 flex flex-col overflow-hidden;
+  }
+
+  .titlebar {
+    @apply flex w-full h-9 shrink-0 overflow-hidden items-center select-none drag-region bg-background-window border-b border-border-separator
+  }
+
+  .workzone1 {
+    @apply flex-1 flex flex-row overflow-hidden;
+  }
+
+  .document-page-wrapper {
+    @apply flex-1 flex overflow-hidden;
+  }
+
+  .document-page {
+    @apply flex w-full h-full;
+  }
+
+  .document-editor-wrapper {
+    @apply flex-1 flex flex-col overflow-hidden;
+  }
+
+  .editor-content-wrapper {
+    @apply flex-1 overflow-y-auto;
+  }
+
   .sidebar-header {
     @apply flex items-center bg-background-window justify-between px-4 h-9 border-b border-border-separator select-none flex-shrink-0
   }
@@ -49,7 +97,7 @@
   .sidebar-content {
     @apply flex-1 overflow-hidden;
   }
-
+  
   .button {
     @apply flex items-center justify-center space-x-2 whitespace-nowrap px-3 py-1.5 gap-1 rounded transition-colors font-medium text-sm disabled:opacity-50 disabled:hover:bg-transparent disabled:cursor-not-allowed
   }
@@ -105,6 +153,10 @@
   
   .toolbar {
     @apply flex items-center gap-1 p-2 h-9 px-4 bg-background-content w-full overflow-x-auto scrollbar-hide border-b border-border-separator;
+  }
+
+  .toolbar-spacer {
+    @apply flex-grow shrink-0 basis-0;
   }
 
   .toolbar-group {

@@ -1,5 +1,5 @@
 <template>
-  <div class="relative flex h-6 px-4 items-center justify-between bg-blue-600 text-xs text-white">
+  <div class="statusbar">
     <!-- Notification Overlay (占据整条状态栏) -->
     <div 
       v-if="currentNotification" 
@@ -41,7 +41,7 @@
       <!-- Center Section - Update Status -->
       <div 
         v-if="updateStatus.type !== 'idle'" 
-        class="flex items-center gap-2 cursor-pointer hover:bg-text-primary hover:bg-opacity-10 px-2 py-1 rounded"
+        class="flex items-center gap-2 cursor-pointer hover:bg-text-primary hover:bg-opacity-10 px-2 py-1"
         :class="getUpdateStatusClass(updateStatus.type)"
         @click="handleUpdateStatusClick"
       >

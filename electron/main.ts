@@ -210,14 +210,15 @@ function createWindow(): BrowserWindow {
       exitApp: exitApp
     })
 
+    windowState.aliveTimer?.end()
+    windowState.closeTimer?.end()
+
     // 从 windows 列表中，清除要关闭的 window
     const index = windows.findIndex(w => w.id === window.id);
     if (index !== -1) {
       windows.splice(index, 1);
     }
     
-    windowState.closeTimer?.end()
-    windowState.aliveTimer?.end()
     window.removeListener('enter-full-screen', handleEnterFullScreen)
     window.removeListener('leave-full-screen', handleLeaveFullScreen)
     window.removeListener('focus', handleFocus)
@@ -2025,7 +2026,8 @@ ipcMain.on('hello', (_, windowId: number) => {
     console.error(`Find a unkown window id: ${windowId} say hello`)
     return
   }
-  console.log(`窗口 ${wState.id} say hello。`);
+  //console.log(`窗口 ${wState.id} say hello。`);
+  
   wState.alive = true
   loopHeartbeatCheck(wState)
 
@@ -2836,6 +2838,7 @@ function removeAllHandler() {
   ipcMain.removeAllListeners('hello');
   ipcMain.removeAllListeners('window-close-confirm');
 }
+
 /*
 当调用 app.quit() 后，事件触发顺序为：​
 1.主进程：app.before-quit（可阻止退出）​

@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center h-9 select-none w-full drag-region overflow-hidden bg-background-window border-b border-border-separator">
+  <div class="titlebar">
     <!-- Window Controls - handled by system traffic lights -->
     <div v-if="!isMaximized && !appStore.showLeftSidebar" class="flex items-center pl-20"></div>
     <!-- Left Sidebar Toggle -->

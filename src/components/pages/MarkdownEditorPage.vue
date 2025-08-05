@@ -1,9 +1,7 @@
 <template>
-  <div class="flex flex-col h-full">
+  <div class="document-editor-wrapper">
     <!-- Editor Toolbar -->
     <div class="toolbar">
-      <!-- Spacer -->
-      <div class="flex-grow flex-shrink flex-basis-0"></div>
       <!-- Undo/Redo Group -->
       <div class="toolbar-group">
         <button
@@ -238,7 +236,7 @@
       </div>
       
       <!-- Spacer -->
-      <div class="flex-grow flex-shrink flex-basis-0"></div>
+      <div class="toolbar-spacer"></div>
       
       <!-- Fullscreen Button -->
       <div class="toolbar-group">
@@ -254,8 +252,8 @@
     </div>
     
     <!-- TipTap Editor -->
-    <div class="flex-1 overflow-y-auto scrollbar-thin">
-        <EditorContent v-if="editor" :editor="editor" class="w-full h-full max-w-3xl my-4 mx-auto"/>
+    <div class="editor-content-wrapper">
+        <EditorContent v-if="editor" :editor="editor" class="w-full max-w-3xl my-4 mx-auto"/>
     </div>
   </div>
   
@@ -263,8 +261,7 @@
 
 <script setup lang="ts">
 import { ref, toRef, watch, onBeforeUnmount, nextTick } from 'vue'
-import { type Editor, EditorContent, useEditor, VueNodeViewRenderer } from '@tiptap/vue-3'
-import { NodeSelection } from '@tiptap/pm/state'
+import { EditorContent, useEditor, VueNodeViewRenderer } from '@tiptap/vue-3'
 
 import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
 import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus, Placeholder } from '@tiptap/extensions'
@@ -525,10 +522,14 @@ const extensions = [
   
   TextStyleKit,
 
+  /*
+  InvisibleCharacters和Placeholder不能一起存在
+  会导致回车换行时，内容逆向滚动
+   */
   InvisibleCharacters,
-  Placeholder.configure({
-    placeholder: onPlaceholder,
-  }),
+  //Placeholder.configure({
+  //  placeholder: onPlaceholder,
+  //}),
 ]
 
 // Create TipTap editor instance
@@ -537,9 +538,7 @@ const editor = useEditor({
   content: '',
   editorProps: {
     attributes: {
-      //class: 'prose max-w-none focus:outline-none',
-      //class: 'prose prose-lg max-w-none focus:outline-none min-h-full',
-      class: 'flex-1 flex-shrink p-[3rem] pb-[30vh] focus:outline-none',
+      class: 'flex-1 flex-shrink-0 p-[3rem] pb-[30vh] focus:outline-none',
       spellcheck: 'false',
     },
   },

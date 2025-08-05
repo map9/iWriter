@@ -1,5 +1,5 @@
 <template>
-  <div class="sidebar h-full border-l border-gray-200 shrink-0 min-w-72">
+  <div class="sidebar right-sidebar">
     <!-- AI Chat Header -->
     <div class="sidebar-header bg-gray-50">
       <div class="flex items-center gap-2">
