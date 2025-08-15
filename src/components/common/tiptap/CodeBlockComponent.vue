@@ -8,7 +8,6 @@
     <div 
       class="toolbar-controls"
       v-show="shouldShowControls"
-      :class="{ 'visible': shouldShowControls }"
     >
       <!-- 语言选择器 -->
       <select 
@@ -61,7 +60,7 @@
     </div>
     
     <!-- 代码内容区域 -->
-    <pre><code><node-view-content /></code></pre>
+    <pre><node-view-content as="code"/></pre>
   </node-view-wrapper>
 </template>
 

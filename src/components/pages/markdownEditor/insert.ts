@@ -1,9 +1,5 @@
 import { type Editor } from '@tiptap/vue-3'
 
-export function insertTable(editor: Editor | undefined) {
-  editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
-}
-
 export function insertMathBlock(editor: Editor | undefined) {
   if (!editor) return
 
@@ -157,4 +153,51 @@ if (editor?.isActive('link')) {
     // update link
     editor?.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
   }
+}
+
+export function toggleTaskItemChecked(editor: Editor | undefined) {
+  return editor?.chain().focus().command(({ tr, state }) => {
+    const { selection } = state
+    const { $from } = selection
+
+    // 查找当前选择位置的TaskItem节点
+    for (let depth = $from.depth; depth >= 0; depth--) {
+      const node = $from.node(depth)
+      if (node.type.name === 'taskItem') {
+        const pos = $from.start(depth) - 1
+        const currentChecked = node.attrs.checked || false
+
+        tr.setNodeMarkup(pos, undefined, {
+          ...node.attrs,
+          checked: !currentChecked
+        })
+        return true
+      }
+    }
+    return false
+  }).run()
+}
+
+export function setTaskItemChecked(editor: Editor | undefined, checked: boolean) {
+  return editor?.chain().focus().command(({ tr, state }) => {
+    const { selection } = state
+    const { $from } = selection
+
+    for (let depth = $from.depth; depth >= 0; depth--) {
+      const node = $from.node(depth)
+      if (node.type.name === 'taskItem') {
+        if (node.attrs.checked === checked)
+          return true
+
+        const pos = $from.start(depth) - 1
+
+        tr.setNodeMarkup(pos, undefined, {
+          ...node.attrs,
+          checked: checked
+        })
+        return true
+      }
+    }
+    return false
+  }).run()
 }

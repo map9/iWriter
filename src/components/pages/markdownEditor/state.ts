@@ -1,4 +1,6 @@
 import { type Editor } from '@tiptap/vue-3'
+import { getTableState } from '@/components/common/utils/TableOperations'
+import type { ContentState } from '@/types/windowContentState'
 
 export function getHeading(editor: Editor | undefined) : string {
   return editor?.isActive('heading') ? editor?.getAttributes('heading').level : 'paragraph';
@@ -15,37 +17,57 @@ export function setHeading(editor: Editor | undefined, heading: string) {
   }
 }
 
-export function getContentType(editor: Editor | undefined) : {contentType: string, canSink: boolean, canLift: boolean} {
-  let contentType = 'paragraph'
-  let [canSink, canLift] = [false, false]
+export function getContentType(editor: Editor | undefined) : ContentState {
+  let type = 'paragraph'
 
   if (editor?.isActive('heading'))
-    contentType = editor?.getAttributes('heading').level
-  else if (editor?.isActive('paragraph'))
-    contentType = 'paragraph'
+    type = editor?.getAttributes('heading').level
   else if (editor?.isActive('blockquote'))
-    contentType = 'blockquote'
+    type = 'blockquote'
   else if (editor?.isActive('bulletList')) {
-    contentType = 'bulletList'
-    canSink = editor?.can().sinkListItem('listItem')
-    canLift = editor?.can().liftListItem('listItem')
+    return {
+      type: 'bulletList',
+      data: {
+        canSink: editor?.can().sinkListItem('listItem'),
+        canLift: editor?.can().liftListItem('listItem')
+      }
+    }
   }
   else if (editor?.isActive('orderedList')) {
-    contentType = 'orderedList'
-    canSink = editor?.can().sinkListItem('listItem')
-    canLift = editor?.can().liftListItem('listItem')
+    return {
+      type: 'orderedList',
+      data: {
+        canSink: editor?.can().sinkListItem('listItem'),
+        canLift: editor?.can().liftListItem('listItem')
+      }
+    }
   }
   else if (editor?.isActive('taskList')) {
-    contentType = 'taskList'
-    canSink = editor?.can().sinkListItem('taskItem')
-    canLift = editor?.can().liftListItem('taskItem')
+    return {
+      type: 'taskList',
+      data: {
+        canSink: editor?.can().sinkListItem('taskItem'),
+        canLift: editor?.can().liftListItem('taskItem'),
+        checked: editor.getAttributes('taskItem').checked || false
+      }
+    }
+  }
+  else if (editor?.isActive('image'))
+    type = 'image'
+  else if (editor?.isActive('table')) {
+    return {
+      type: 'table',
+      data: getTableState(editor)
+    }
   }
   else if (editor?.isActive('codeBlock'))
-    contentType = 'codeBlock'
+    type = 'codeBlock'
+  else if (editor?.isActive('paragraph')) // all list are paragraph
+    type = 'paragraph'
   else
-    contentType = 'paragraph'
+    console.log('Unknown content type')
 
-  return { contentType, canSink, canLift }
+  return { type }
 }
 
 export function getCurrentAlignment(editor: Editor | undefined) : string {

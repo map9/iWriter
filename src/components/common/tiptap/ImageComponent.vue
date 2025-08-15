@@ -9,7 +9,6 @@
     <div 
       class="toolbar-controls"
       v-show="shouldShowControls"
-      :class="{ 'visible': shouldShowControls }"
     >
       <div class="control-group flex-1 min-w-0">
         <!-- 打开文件夹按钮 -->

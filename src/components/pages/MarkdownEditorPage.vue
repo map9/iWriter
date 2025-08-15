@@ -273,7 +273,7 @@ import Text from '@tiptap/extension-text'
 import Emoji, { gitHubEmojis } from '@tiptap/extension-emoji'
 import HorizontalRule from '@tiptap/extension-horizontal-rule'
 
-import { TableKit } from '@tiptap/extension-table'
+import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import Image from '@tiptap/extension-image'
 import Youtube from '@tiptap/extension-youtube'
 import FileHandler from '@tiptap/extension-file-handler'
@@ -288,6 +288,7 @@ import { all, createLowlight } from 'lowlight'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import CodeBlockComponent from '@/components/common/tiptap/CodeBlockComponent.vue'
 import ImageComponent from '@/components/common/tiptap/ImageComponent.vue'
+import TableComponent from '@/components/common/tiptap/TableComponent.vue'
 
 import 'katex/dist/katex.min.css'
 import { Mathematics, migrateMathStrings } from '@tiptap/extension-mathematics'
@@ -343,7 +344,6 @@ import { getHeading, setHeading, getContentType, getCurrentAlignment } from './m
 import { calculateEditorStats } from './markdownEditor/stats' 
 import { onFileHandlerDrop, onFileHandlerPaste, onPlaceholder } from './markdownEditor/on'
 import { 
-  insertTable, 
   insertImage, 
   insertAudio, 
   insertVideo, 
@@ -392,7 +392,6 @@ const extensions = [
   }),
   UndoRedo, Dropcursor, Gapcursor, TrailingNode, 
   Focus.configure({
-    className: 'has-focus',
     mode: 'all',
   }),
 
@@ -402,8 +401,14 @@ const extensions = [
     enableEmoticons: true,
   }),
   HorizontalRule,
-  TableKit.configure({
-    table: { resizable: true },
+
+  TableCell, TableHeader, TableRow,
+  Table.configure({
+    resizable: true 
+  }).extend({
+    addNodeView() {
+      return VueNodeViewRenderer(TableComponent)
+    }
   }),
   
   Image.extend({
@@ -644,13 +649,12 @@ function updateEditorState() {
       undo: editor.value.can().undo(),
       redo: editor.value.can().redo(),
     }
-    const contentState = getContentType(editor.value)
     const context = {
       type: 'tiptap-editor',
       hasActiveDocument: true,
       hasSelection: !editor.value.state.selection.empty,
       undoRedo,
-      contentState: contentState,
+      content: getContentType(editor.value),
       formatting
     }
     

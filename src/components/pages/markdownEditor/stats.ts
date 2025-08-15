@@ -81,15 +81,15 @@ export function calculateEditorStats(editor: Editor | undefined): import('@/type
   const selection = editor.state.selection
   const doc = editor.state.doc
   const content = doc.textContent
-  let { contentType } = getContentType(editor)
-  if (typeof contentType === 'number') {
-    contentType = `heading-${contentType}`
+  let { type } = getContentType(editor)
+  if (typeof type === 'number') {
+    type = `heading-${type}`
   }
   
   return {
     currentLine: getCurrentLineFromPos(editor, selection.from),
     currentColumn: getCurrentColumnFromPos(editor, selection.from),
-    paragraphType: contentType,
+    paragraphType: type,
     selectionCharCount: getSelectionCharCount(selection),
     selectionWordCount: getSelectionWordCount(editor, selection),
     totalCharCount: content.length,

@@ -1,11 +1,17 @@
 import { app, BrowserWindow, Menu, ipcMain, dialog, shell, systemPreferences, nativeTheme } from 'electron'
+import log from 'electron-log/main'
 import dotenv from 'dotenv'
 import * as path from 'path'
 import * as fs from 'fs'
 import chokidar, { FSWatcher } from 'chokidar'
 import { UpdaterManager } from '../src/updater/UpdaterManager'
 import Timer from '../src/utils/Timer'
-import log from 'electron-log/main'
+import type {
+  WindowContentState,
+  ContentStateListData,
+  ContentStateTaskListData,
+  ContentStateTableData
+} from '../src/types/windowContentState'
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 log.transports.file.level = 'info';
@@ -14,47 +20,8 @@ if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
 }
 
-// 文档类型枚举
-export enum DocumentType {
-  TEXT_EDITOR = 'text-editor',
-  PDF_VIEWER = 'pdf-viewer',
-  IMAGE_VIEWER = 'image-viewer',
-  UNKNOWN = 'unknown'
-}
-
-// 窗口内容信息接口
-interface WindowContentInfo {
-  type: DocumentType
-  hasActiveDocument?: false
-  hasFolderOpen?: false
-  hasSelection?: boolean
-  view?: {
-    leftSidebar?: boolean
-    rightSidebar?: boolean
-    statusbar?: boolean
-    isFullscreen?: boolean
-    theme?: 'system' | 'light' | 'dark' | 'ocean' | 'forest' | 'sunset'
-  }
-  undoRedo?: {
-    undo: boolean
-    redo: boolean
-  }
-  contentState?: {
-    type: string | number
-    canSink?: boolean
-    canLift?: boolean
-  }
-  formatting?: {
-    bold: boolean
-    italic: boolean
-    underline: boolean
-    strikethrough: boolean
-    textAlign: string
-    script: 'superscript' | 'subscript' | 'none',
-    highlight: boolean,
-    inlineCode: boolean
-  }
-}
+// 提升性能，先去除默认菜单
+Menu.setApplicationMenu(null)
 
 // 窗口状态接口
 interface WindowState {
@@ -64,7 +31,7 @@ interface WindowState {
   alive: boolean
   aliveTimer?: Timer
   closeTimer?: Timer
-  contentInfo?: WindowContentInfo
+  contentInfo?: WindowContentState
 }
 
 interface GlobalParameters {
@@ -154,6 +121,7 @@ function sendMenuAction(action: string) {
   console.log({
     focusedWindow: windows.find(w => w.id === currentFocusedWindowId)?.id,
     realFocusedWindow: BrowserWindow.getFocusedWindow()?.id,
+    action: action,
   })
 
   const focusedWindow = windows.find(w => w.id === currentFocusedWindowId);
@@ -878,7 +846,7 @@ function updateMenu(): void {
           label: 'Heading 1',
           accelerator: 'CmdOrCtrl+1',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.contentState?.type === 1,
+          checked: focusedWindow?.contentInfo?.content?.type === 1,
           click: () => {
             sendMenuAction('heading-1')
           }
@@ -887,7 +855,7 @@ function updateMenu(): void {
           label: 'Heading 2',
           accelerator: 'CmdOrCtrl+2',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.contentState?.type === 2,
+          checked: focusedWindow?.contentInfo?.content?.type === 2,
           click: () => {
             sendMenuAction('heading-2')
           }
@@ -896,7 +864,7 @@ function updateMenu(): void {
           label: 'Heading 3',
           accelerator: 'CmdOrCtrl+3',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.contentState?.type === 3,
+          checked: focusedWindow?.contentInfo?.content?.type === 3,
           click: () => {
             sendMenuAction('heading-3')
           }
@@ -905,7 +873,7 @@ function updateMenu(): void {
           label: 'Heading 4',
           accelerator: 'CmdOrCtrl+4',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.contentState?.type === 4,
+          checked: focusedWindow?.contentInfo?.content?.type === 4,
           click: () => {
             sendMenuAction('heading-4')
           }
@@ -914,7 +882,7 @@ function updateMenu(): void {
           label: 'Heading 5',
           accelerator: 'CmdOrCtrl+5',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.contentState?.type === 5,
+          checked: focusedWindow?.contentInfo?.content?.type === 5,
           click: () => {
             sendMenuAction('heading-5')
           }
@@ -923,7 +891,7 @@ function updateMenu(): void {
           label: 'Heading 6',
           accelerator: 'CmdOrCtrl+6',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.contentState?.type === 6,
+          checked: focusedWindow?.contentInfo?.content?.type === 6,
           click: () => {
             sendMenuAction('heading-6')
           }
@@ -933,7 +901,7 @@ function updateMenu(): void {
           label: 'Paragraph',
           accelerator: 'CmdOrCtrl+0',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.contentState?.type === 'paragraph',
+          checked: focusedWindow?.contentInfo?.content?.type === 'paragraph',
           click: () => {
             sendMenuAction('paragraph')
           }
@@ -943,11 +911,11 @@ function updateMenu(): void {
           label: 'Promote Heading',
           accelerator: 'CmdOrCtrl+=',
           enabled:
-            focusedWindow?.contentInfo?.contentState?.type !== 1 &&
-            ((typeof focusedWindow?.contentInfo?.contentState?.type === 'number' &&
-              focusedWindow?.contentInfo?.contentState?.type >= 2 &&
-              focusedWindow?.contentInfo?.contentState?.type <= 6) ||
-              focusedWindow?.contentInfo?.contentState?.type === 'paragraph'),
+            focusedWindow?.contentInfo?.content?.type !== 1 &&
+            ((typeof focusedWindow?.contentInfo?.content?.type === 'number' &&
+              focusedWindow?.contentInfo?.content?.type >= 2 &&
+              focusedWindow?.contentInfo?.content?.type <= 6) ||
+              focusedWindow?.contentInfo?.content?.type === 'paragraph'),
           click: () => {
             sendMenuAction('promote-heading')
           }
@@ -956,10 +924,10 @@ function updateMenu(): void {
           label: 'Demote Heading',
           accelerator: 'CmdOrCtrl+-',
           enabled: 
-            focusedWindow?.contentInfo?.contentState?.type !== 'paragraph' &&
-            (typeof focusedWindow?.contentInfo?.contentState?.type === 'number' &&
-            focusedWindow?.contentInfo?.contentState?.type >= 1 &&
-            focusedWindow?.contentInfo?.contentState?.type <= 6),
+            focusedWindow?.contentInfo?.content?.type !== 'paragraph' &&
+            (typeof focusedWindow?.contentInfo?.content?.type === 'number' &&
+            focusedWindow?.contentInfo?.content?.type >= 1 &&
+            focusedWindow?.contentInfo?.content?.type <= 6),
           click: () => {
             sendMenuAction('demote-heading')
           }
@@ -977,90 +945,124 @@ function updateMenu(): void {
             },
             { type: 'separator' },
             {
-              label: 'Insert Line Above',
-              click: () => {
-                sendMenuAction('table-insert-line-above')
+              label: 'Header Row',
+              type: 'checkbox',
+              enabled: focusedWindow?.contentInfo?.content?.type === 'table',
+              checked: (focusedWindow?.contentInfo?.content?.data as ContentStateTableData)?.hasHeaderRow,
+              click: (menuItem) => {
+                menuItem.checked = false
+                sendMenuAction('table-toggle-header-row')
               }
             },
             {
-              label: 'Insert Line Below',
+              label: 'Header Column',
+              type: 'checkbox',
+              enabled: focusedWindow?.contentInfo?.content?.type === 'table',
+              checked: (focusedWindow?.contentInfo?.content?.data as ContentStateTableData)?.hasHeaderColumn,
+              click: (menuItem) => {
+                menuItem.checked = false
+                sendMenuAction('table-toggle-header-column')
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Insert Row Above',
+              enabled: focusedWindow?.contentInfo?.content?.type === 'table',
+              click: () => {
+                sendMenuAction('table-insert-row-above')
+              }
+            },
+            {
+              label: 'Insert Row Below',
+              enabled: focusedWindow?.contentInfo?.content?.type === 'table',
               accelerator: 'CmdOrCtrl+Enter',
               click: () => {
-                sendMenuAction('table-insert-line-below')
+                sendMenuAction('table-insert-row-below')
               }
             },
             { type: 'separator' },
             {
-              label: 'Insert Row Left',
+              label: 'Insert Column Left',
+              enabled: focusedWindow?.contentInfo?.content?.type === 'table',
               click: () => {
-                sendMenuAction('table-insert-row-left')
+                sendMenuAction('table-insert-column-left')
               }
             },
             {
-              label: 'Insert Row Right',
+              label: 'Insert Column Right',
+              enabled: focusedWindow?.contentInfo?.content?.type === 'table',
               click: () => {
-                sendMenuAction('table-insert-row-right')
+                sendMenuAction('table-insert-column-right')
               }
             },
             { type: 'separator' },
             {
-              label: 'Move Line Up',
+              label: 'Move Row Up',
+              enabled:
+                focusedWindow?.contentInfo?.content?.type === 'table' &&
+                (focusedWindow?.contentInfo?.content?.data as ContentStateTableData)?.canMoveAbove,
               accelerator: 'CmdOrCtrl+Shift+Up',
               click: () => {
-                sendMenuAction('table-move-line-up')
+                sendMenuAction('table-move-row-above')
               }
             },
             {
-              label: 'Move Line Up',
+              label: 'Move Row Down',
+              enabled:
+                focusedWindow?.contentInfo?.content?.type === 'table' &&
+                (focusedWindow?.contentInfo?.content?.data as ContentStateTableData)?.canMoveBelow,
               accelerator: 'CmdOrCtrl+Shift+Down',
               click: () => {
-                sendMenuAction('table-move-line-down')
+                sendMenuAction('table-move-row-below')
               }
             },
             {
-              label: 'Move Line Left',
+              label: 'Move Column Left',
+              enabled:
+                focusedWindow?.contentInfo?.content?.type === 'table' &&
+                (focusedWindow?.contentInfo?.content?.data as ContentStateTableData)?.canMoveLeft,
               accelerator: 'CmdOrCtrl+Shift+Left',
               click: () => {
-                sendMenuAction('table-move-line-left')
+                sendMenuAction('table-move-column-left')
               }
             },
             {
-              label: 'Move Line Right',
+              label: 'Move Column Right',
+              enabled:
+                focusedWindow?.contentInfo?.content?.type === 'table' &&
+                (focusedWindow?.contentInfo?.content?.data as ContentStateTableData)?.canMoveRight,
               accelerator: 'CmdOrCtrl+Shift+Right',
               click: () => {
-                sendMenuAction('table-move-line-right')
+                sendMenuAction('table-move-column-right')
               }
             },
             { type: 'separator' },
             {
-              label: 'Delete Line',
+              label: 'Delete Row',
+              enabled: focusedWindow?.contentInfo?.content?.type === 'table',
               accelerator: 'CmdOrCtrl+Shift+Backspace',
               click: () => {
-                sendMenuAction('table-delete-line')
+                sendMenuAction('table-delete-row')
               }
             },
             {
-              label: 'Delete Row',
+              label: 'Delete Column',
+              enabled: focusedWindow?.contentInfo?.content?.type === 'table',
               click: () => {
-                sendMenuAction('table-delete-row')
+                sendMenuAction('table-delete-column')
               }
             },
             { type: 'separator' },
             {
               label: 'Duplicate Table',
+              enabled: focusedWindow?.contentInfo?.content?.type === 'table',
               click: () => {
                 sendMenuAction('table-duplicate')
               }
             },
             {
-              label: 'Format Table Source',
-              click: () => {
-                sendMenuAction('table-format-source')
-              }
-            },
-            { type: 'separator' },
-            {
               label: 'Delete Table',
+              enabled: focusedWindow?.contentInfo?.content?.type === 'table',
               click: () => {
                 sendMenuAction('table-delete')
               }
@@ -1071,7 +1073,7 @@ function updateMenu(): void {
           label: 'Code Block',
           accelerator: 'CmdOrCtrl+Shift+C',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.contentState?.type === 'codeBlock',
+          checked: focusedWindow?.contentInfo?.content?.type === 'codeBlock',
           click: () => {
             sendMenuAction('insert-code-block')
           }
@@ -1081,12 +1083,18 @@ function updateMenu(): void {
           submenu: [
             {
               label: 'Format Selection',
+              enabled: 
+              (
+                focusedWindow?.contentInfo?.content?.type === 'codeBlock' &&
+                focusedWindow?.contentInfo?.hasSelection
+              ),
               click: () => {
                 sendMenuAction('code-format-selection')
               }
             },
             {
               label: 'Format CodeBlock',
+              enabled: focusedWindow?.contentInfo?.content?.type === 'codeBlock',
               click: () => {
                 sendMenuAction('code-format-codeblock')
               }
@@ -1140,7 +1148,7 @@ function updateMenu(): void {
           label: 'Quote Block',
           accelerator: 'CmdOrCtrl+Shift+Q',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.contentState?.type === 'blockquote',
+          checked: focusedWindow?.contentInfo?.content?.type === 'blockquote',
           click: () => {
             sendMenuAction('insert-quote-block')
           }
@@ -1156,7 +1164,7 @@ function updateMenu(): void {
           label: 'Ordered List',
           accelerator: 'CmdOrCtrl+Shift+O',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.contentState?.type === 'orderedList',
+          checked: focusedWindow?.contentInfo?.content?.type === 'orderedList',
           click: () => {
             sendMenuAction('ordered-list')
           }
@@ -1165,7 +1173,7 @@ function updateMenu(): void {
           label: 'Bullet List',
           accelerator: 'CmdOrCtrl+Shift+U',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.contentState?.type === 'bulletList',
+          checked: focusedWindow?.contentInfo?.content?.type === 'bulletList',
           click: () => {
             sendMenuAction('bullet-list')
           }
@@ -1174,7 +1182,7 @@ function updateMenu(): void {
           label: 'Task List',
           accelerator: 'CmdOrCtrl+Shift+X',
           type: 'checkbox',
-          checked: focusedWindow?.contentInfo?.contentState?.type === 'taskList',
+          checked: focusedWindow?.contentInfo?.content?.type === 'taskList',
           click: () => {
             sendMenuAction('task-list')
           }
@@ -1184,6 +1192,7 @@ function updateMenu(): void {
           submenu: [
             {
               label: 'Toggle Task Status',
+              enabled: focusedWindow?.contentInfo?.content?.type === 'taskList',
               click: () => {
                 sendMenuAction('toggle-task-status')
               }
@@ -1192,6 +1201,11 @@ function updateMenu(): void {
             {
               label: 'Complete Task',
               type: 'radio',
+              enabled: 
+              (
+                focusedWindow?.contentInfo?.content?.type === 'taskList' &&
+                !(focusedWindow?.contentInfo?.content?.data as ContentStateTaskListData)?.checked
+              ),
               click: () => {
                 sendMenuAction('complete-task')
               }
@@ -1199,6 +1213,11 @@ function updateMenu(): void {
             {
               label: 'Uncomplete Task',
               type: 'radio',
+              enabled: 
+              (
+                focusedWindow?.contentInfo?.content?.type === 'taskList' &&
+                (focusedWindow?.contentInfo?.content?.data as ContentStateTaskListData)?.checked
+              ),
               click: () => {
                 sendMenuAction('uncomplete-task')
               }
@@ -1213,8 +1232,8 @@ function updateMenu(): void {
               accelerator: 'CmdOrCtrl+]',
               enabled: 
               (
-                ['bulletList', 'orderedList', 'taskList'].includes(focusedWindow?.contentInfo?.contentState?.type as string) &&
-                focusedWindow?.contentInfo?.contentState?.canSink
+                ['bulletList', 'orderedList', 'taskList'].includes(focusedWindow?.contentInfo?.content?.type as string) &&
+                (focusedWindow?.contentInfo?.content?.data as ContentStateListData)?.canSink
               ),
               click: () => {
                 sendMenuAction('increase-indent')
@@ -1225,8 +1244,8 @@ function updateMenu(): void {
               accelerator: 'CmdOrCtrl+[',
               enabled: 
               (
-                ['bulletList', 'orderedList', 'taskList'].includes(focusedWindow?.contentInfo?.contentState?.type as string) &&
-                focusedWindow?.contentInfo?.contentState?.canLift
+                ['bulletList', 'orderedList', 'taskList'].includes(focusedWindow?.contentInfo?.content?.type as string) &&
+                (focusedWindow?.contentInfo?.content?.data as ContentStateListData)?.canLift
               ),
               click: () => {
                 sendMenuAction('decrease-indent')
@@ -1282,7 +1301,9 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.formatting?.bold,
           accelerator: 'CmdOrCtrl+B',
-          click: () => {
+          click: (menuItem) => {
+            // cancle toggled status
+            menuItem.checked = false
             sendMenuAction('bold')
           }
         },
@@ -1292,7 +1313,9 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.formatting?.italic,
           accelerator: 'CmdOrCtrl+I',
-          click: () => {
+          click: (menuItem) => {
+            // cancle toggled status
+            menuItem.checked = false
             sendMenuAction('italic')
           }
         },
@@ -1302,7 +1325,9 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.formatting?.underline,
           accelerator: 'CmdOrCtrl+U',
-          click: () => {
+          click: (menuItem) => {
+            // cancle toggled status
+            menuItem.checked = false
             sendMenuAction('underline')
           }
         },
@@ -1312,7 +1337,9 @@ function updateMenu(): void {
           type: 'checkbox',
           checked: focusedWindow?.contentInfo?.formatting?.strikethrough,
           accelerator: 'CmdOrCtrl+Shift+X',
-          click: () => {
+          click: (menuItem) => {
+            // cancle toggled status
+            menuItem.checked = false
             sendMenuAction('strikethrough')
           }
         },
@@ -2623,22 +2650,25 @@ ipcMain.handle('set-auto-save', async (event, autoSave: boolean) => {
   }
 })
 
-ipcMain.handle('window-content-changed', async (event, contentInfo: WindowContentInfo) => {
+ipcMain.handle('window-content-changed', async (event, contentInfo: WindowContentState) => {
   // 通过webContents查找对应的窗口
   const window = BrowserWindow.fromWebContents(event.sender);
   if (window) {
-    const windowId = window.id;
-    //console.log(`收到窗口 ${windowId} 的内容更新:`, contentInfo);
+    const windowIndex = windows.findIndex(w => w.id === window.id);
     
-    // 更新窗口状态...
-    const windowIndex = windows.findIndex(w => w.id === windowId);
+    console.log({
+      function: 'window-content-changed',
+      wID: window.id,
+      newContentInfo: contentInfo,
+      oldContentInfo: windows[windowIndex].contentInfo,
+    });
+
     if (windowIndex !== -1) {
       windows[windowIndex].contentInfo = {
         ...windows[windowIndex].contentInfo,
         ...contentInfo
       };
-      //console.log(`=>窗口 ${windowId} 的内容:`, windows[windowIndex].contentInfo);
-      if (currentFocusedWindowId === windowId) {
+      if (currentFocusedWindowId === window.id) {
         updateMenu();
       }
     }

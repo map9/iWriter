@@ -20,6 +20,7 @@
   #app {
     @apply flex flex-col w-screen h-screen overflow-hidden;
   }
+
   /* Custom scrollbar styling */
   ::-webkit-scrollbar {
     width: 8px;
@@ -27,18 +28,16 @@
   }
   
   ::-webkit-scrollbar-track {
-    background: var(--color-background-underpage);
+    @apply bg-background-underpage;
   }
   
   ::-webkit-scrollbar-thumb {
-    background: var(--color-interactive-control);
-    border-radius: 4px;
+    @apply bg-interactive-control border-r-4
   }
   
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-interactive-hover);
+    @apply bg-interactive-hover
   }
-  
 }
 
 @layer components {

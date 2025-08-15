@@ -6,29 +6,46 @@
       position: absolute;
       top: 0px;
       right: 0px;
+      width: auto;
+      height: auto;
       padding: 4px 6px;
       gap: 8px;
       display: flex;
       align-items: center;
-      opacity: 0;
+      flex-direction: row;
       background: rgba(0, 0, 0, 0.8);
       backdrop-filter: blur(8px);
       border-radius: 8px;
-      transform: translateY(0px);
       transition: all 0.2s ease;
+      transform: translateX(0px);
+      transform: translateY(0px);
       z-index: 10;
-
-      &.visible {
-        opacity: 1;
-        transform: translateY(0);
-      }
       
+      &.outside-top {
+        left: 50% !important;
+        top: -40px !important;
+        right: auto !important;
+        transform: translateX(-50%) !important;
+      }
+
+      &.outside-left {
+        position: absolute !important;
+        left: -40px !important;
+        top: 50% !important;
+        right: auto !important;
+        bottom: auto !important;
+        transform: translateY(-50%) !important;
+        flex-direction: column !important;
+        padding: 6px 4px !important;
+      }
+
       .control-group {
         display: flex;
         align-items: center;
+        flex-direction: inherit;
         gap: 4px;
         flex-shrink: 0;
-      }
+     }
 
       .control-selector {
         background-color: rgba(255, 255, 255, 0.1);
@@ -38,7 +55,7 @@
         color: #fff;
         font-size: 12px;
         backdrop-filter: blur(8px);
-        height: 28px;
+        height: 26px;
 
         &:hover {
           background-color: rgba(255, 255, 255, 0.15);

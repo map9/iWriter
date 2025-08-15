@@ -8,6 +8,7 @@ CLAUDE.md
 # Temporary files
 *.tmp
 *.temp
+*.iwt
 
 # Mac OS --------------------------------------
 .DS_Store

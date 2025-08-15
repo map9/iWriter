@@ -1,6 +1,5 @@
 import { type Editor } from '@tiptap/vue-3'
 import { 
-  insertTable, 
   insertImage, 
   insertAudio, 
   insertVideo, 
@@ -9,8 +8,18 @@ import {
   insertMathBlock, 
   insertInlineMath,
   insertReferenceLink,
-  insertFootnote
+  insertFootnote,
+  toggleTaskItemChecked,
+  setTaskItemChecked,
 } from './insert'
+import {
+  moveRowAbove,
+  moveRowBelow,
+  moveColumnLeft,
+  moveColumnRight,
+  copyTable,
+  deleteTable,
+} from '@/components/common/utils/TableOperations'
 
 // Handle menu actions
 export async function doMenuAction(editor: Editor | undefined, action: string): Promise<boolean> {
@@ -82,10 +91,51 @@ export async function doMenuAction(editor: Editor | undefined, action: string): 
       }
       return true
     
-    // Blocks
+    // Table operations  
     case 'insert-table':
-      insertTable(editor)
+      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
       return true
+    case 'table-toggle-header-row':
+      editor.chain().focus().toggleHeaderRow().run()
+      return true
+    case 'table-toggle-header-column':
+      editor.chain().focus().toggleHeaderColumn().run()
+      return true
+    case 'table-insert-row-above':
+      editor.chain().focus().addRowBefore().run()
+      return true
+    case 'table-insert-row-below':
+      editor.chain().focus().addRowAfter().run()
+      return true
+    case 'table-insert-column-left':
+      editor.chain().focus().addColumnBefore().run()
+      return true
+    case 'table-insert-column-right':
+      editor.chain().focus().addColumnAfter().run()
+      return true
+    case 'table-move-row-above':
+      moveRowAbove(editor)
+      return true
+    case 'table-move-row-below':
+      moveRowBelow(editor)
+      return true
+    case 'table-move-column-left':
+      moveColumnLeft(editor)
+      return true
+    case 'table-move-column-right':
+      moveColumnRight(editor)
+      return true
+    case 'table-delete-row':
+      editor.chain().focus().deleteRow().run()
+      return true
+    case 'table-delete-column':
+      editor.chain().focus().deleteColumn().run()
+      return true
+    case 'table-duplicate':
+      return await copyTable(editor)
+    case 'table-delete':
+      return deleteTable(editor)
+    
     case 'insert-media':
       return true
 
@@ -124,10 +174,13 @@ export async function doMenuAction(editor: Editor | undefined, action: string): 
     
     // Toggle Task Status
     case 'toggle-task-status':
+      toggleTaskItemChecked(editor)
       return true
     case 'complete-task':
+      setTaskItemChecked(editor, true)
       return true
     case 'uncomplete-task':
+      setTaskItemChecked(editor, false)
       return true
 
     // Increase/Decrease List Item Level
@@ -195,7 +248,6 @@ export async function doMenuAction(editor: Editor | undefined, action: string): 
       editor.chain().focus().setTextAlign('justify').run()
       return true
 
-    // Superscript Subscript Highlight
     case 'superscript':
       editor.chain().focus().toggleSuperscript().run()
       return true
