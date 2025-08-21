@@ -344,6 +344,7 @@ import { getHeading, setHeading, getContentType, getCurrentAlignment } from './m
 import { calculateEditorStats } from './markdownEditor/stats' 
 import { onFileHandlerDrop, onFileHandlerPaste, onPlaceholder } from './markdownEditor/on'
 import { 
+  insertTable,
   insertImage, 
   insertAudio, 
   insertVideo, 

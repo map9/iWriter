@@ -51,6 +51,10 @@ export function insertInlineMath(editor: Editor | undefined) {
   return editor.chain().focus().insertInlineMath({ latex: 'Pealse input Latex...' }).run()
 }
 
+export function insertTable(editor: Editor | undefined) {
+  editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+}
+
 export function insertImage(editor: Editor | undefined) {
   editor?.chain().focus().setImage({ 
     src: "", 

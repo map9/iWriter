@@ -156,7 +156,7 @@ const isDragOver = ref(false)
 const dropPosition = ref<'before' | 'after' | 'inside' | null>(null)
 const canDropHere = ref(false)
 const draggedNode = ref<TreeNode | null>(null)
-const expandTimer = ref<number | null>(null)
+const expandTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 const hasChildren = computed(() => {
   return props.node.children && props.node.children.length > 0

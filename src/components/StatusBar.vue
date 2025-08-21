@@ -93,7 +93,7 @@ const { isEditable, isReadOnly } = useDocumentTypeDetector()
 // Notification state
 const currentNotification = ref<Notification | null>(null)
 const dismissedNotifications = ref<Set<number>>(new Set())
-const autoCloseTimer = ref<number | null>(null)
+const autoCloseTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 // 监听通知变化，显示最新的未被忽略的通知
 watch(notifications, (newNotifications) => {

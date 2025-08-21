@@ -1,4 +1,4 @@
-import { app, ipcMain, BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import { autoUpdater, AppUpdater } from 'electron-updater'
 import type { UpdateInfo as ElectronUpdateInfo, UpdateDownloadedEvent } from 'electron-updater'
 import log from 'electron-log/main'
@@ -17,7 +17,7 @@ import {
 } from './types'
 
 export class UpdaterManager {
-  private sendToWindows: (action: string, data?: any) => void
+  private sendAppUpdateInfo: (action: string, data?: any) => void
   private updater: AppUpdater
   private store: Store<UpdaterConfig>
   private currentStatus: UpdateStatus = { type: 'idle', message: '' }
@@ -28,7 +28,7 @@ export class UpdaterManager {
     autoUpdater.logger = log;
 
     try {
-      this.sendToWindows = () => {}
+      this.sendAppUpdateInfo = () => {}
       this.updater = autoUpdater
       this.store = new Store({
         name: 'updater-config',
@@ -44,8 +44,8 @@ export class UpdaterManager {
     }
   }
 
-  setSendToWindows(callback: (action: string, data?: any) => void) {
-    this.sendToWindows = callback;
+  setSendAppUpdateInfo(callback: (action: string, data?: any) => void) {
+    this.sendAppUpdateInfo = callback;
   }
 
   private configure() {
@@ -186,7 +186,7 @@ export class UpdaterManager {
       ...additionalData
     }
     
-    this.sendToWindows(UPDATE_IPC_EVENTS.STATE_CHANGED, stateMessage)
+    this.sendAppUpdateInfo(UPDATE_IPC_EVENTS.STATE_CHANGED, stateMessage)
   }
 
   private scheduleUpdateCheck(intervalHours: number) {

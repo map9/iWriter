@@ -1,5 +1,6 @@
 import { type Editor } from '@tiptap/vue-3'
-import { 
+import {
+  insertTable,  
   insertImage, 
   insertAudio, 
   insertVideo, 
@@ -93,7 +94,7 @@ export async function doMenuAction(editor: Editor | undefined, action: string): 
     
     // Table operations  
     case 'insert-table':
-      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+      insertTable(editor)
       return true
     case 'table-toggle-header-row':
       editor.chain().focus().toggleHeaderRow().run()

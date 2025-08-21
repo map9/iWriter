@@ -84,7 +84,7 @@ const emit = defineEmits<Emits>()
 const draggedNode = ref<TreeNodeType | null>(null)
 const nodeRefs = ref(new Map<string, any>())
 const treeRoot = ref<HTMLElement>()
-const autoScrollTimer = ref<number | null>(null)
+const autoScrollTimer = ref<ReturnType<typeof setInterval> | null>(null)
 
 // 新的状态管理系统
 const focusedNodeId = ref<string | null>(null)         // 当前焦点节点ID
@@ -95,7 +95,7 @@ const lastSelectedNodeId = ref<string | null>(null)    // 用于范围选择的�
 // 拖拽相关
 const isDragOverRoot = ref(false)
 const canDropToRoot = ref(false)
-const rootDragTimeout = ref<number | null>(null)
+const rootDragTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
 
 const visibleNodes = computed(() => {
   return props.nodes.filter(node => node.isVisible !== false)
