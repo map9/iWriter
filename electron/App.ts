@@ -109,7 +109,6 @@ export class App {
       try {
         const content = fs.readFileSync(filePath, 'utf8')
         app.addRecentDocument(filePath)
-        console.log('File read successfully:', filePath)
         return content
       } catch (error) {
         console.error('Error reading file:', error)
