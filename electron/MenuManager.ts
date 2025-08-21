@@ -1601,35 +1601,18 @@ export class MenuManager {
               this.sendMenuAction('view-theme-settings')
             }
           },
-          { role: 'reload' },
-          { role: 'forceReload' },
-          { role: 'toggleDevTools' },
           { type: 'separator' },
           { role: 'resetZoom' },
           { role: 'zoomIn' },
           { role: 'zoomOut' },
           { type: 'separator' },
+          { role: 'forceReload' },
+          { role: 'toggleDevTools' },
+          { type: 'separator' },
           { role: 'togglefullscreen' },
         ]
       },
-      // { role: 'windowMenu' }
-      {
-        label: 'Window',
-        submenu: [
-          { role: 'minimize' },
-          { role: 'zoom' },
-          ...(isMac
-            ? [
-                { type: 'separator' },
-                { role: 'front' },
-                { type: 'separator' },
-                { role: 'window' }
-              ]
-            : [
-                { role: 'close' }
-              ])
-        ]
-      },
+      { role: 'windowMenu' },
       {
         label: 'Help',
         submenu: [
@@ -1731,35 +1714,6 @@ export class MenuManager {
         console.warn(`Failed to insert theme: ${theme} items into the template`);
       }
     }
-
-    // 添加窗口列表
-    const wId = BrowserWindow.getFocusedWindow()?.id
-    const windowList = filteredTemplate.find(item => item.id === 'window') as Electron.MenuItemConstructorOptions | undefined;
-    
-    BrowserWindow.getAllWindows().forEach((window) => {
-      const isActive = window.id === wId
-
-      const menuItem: Electron.MenuItemConstructorOptions = {
-        label: window.getTitle(),
-        type: 'radio',
-        checked: isActive,
-        click: () => {
-          if (window.isMinimized()) window.restore();
-          window.focus();
-        }
-      };
-
-      // 处理 submenu 可能是 Menu 实例或数组的情况
-      if (windowList?.submenu) {
-        if (Array.isArray(windowList.submenu)) {
-          // 情况 1: submenu 是数组
-          windowList.submenu.push(menuItem);
-        } else {
-          // 情况 2: submenu 是 Menu 实例
-          windowList.submenu.append(new Electron.MenuItem(menuItem));
-        }
-      }
-    });
 
     const menu = Menu.buildFromTemplate(filteredTemplate)
     Menu.setApplicationMenu(menu)
