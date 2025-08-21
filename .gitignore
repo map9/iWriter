@@ -9,6 +9,7 @@ CLAUDE.md
 *.tmp
 *.temp
 *.iwt
+assets
 
 # Mac OS --------------------------------------
 .DS_Store

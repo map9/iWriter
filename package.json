@@ -10,7 +10,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/generate-icons.mjs",
+    "check-deps": "node scripts/check-dependencies.mjs",
+    "prebuild": "node scripts/generate-icons.mjs && node scripts/prepare-build.mjs",
     "build": "vue-tsc --noEmit && vite build",
     "build:quick": "vite build",
     "dist": "npm run build && electron-builder",
