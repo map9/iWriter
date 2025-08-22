@@ -769,7 +769,7 @@ export class App {
       this.removeAllHandler()
     });
       
-    app.on('activate', function () {
+    app.on('activate', () =>{
       if (
         this._exitApp === false &&
         BrowserWindow.getAllWindows().length === 0
