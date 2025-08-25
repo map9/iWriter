@@ -286,9 +286,9 @@ import ts from 'highlight.js/lib/languages/typescript'
 import html from 'highlight.js/lib/languages/xml'
 import { all, createLowlight } from 'lowlight'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import CodeBlockComponent from '@/components/common/tiptap/CodeBlockComponent.vue'
-import ImageComponent from '@/components/common/tiptap/ImageComponent.vue'
-import TableComponent from '@/components/common/tiptap/TableComponent.vue'
+import iwCodeBlockView from '@/components/common/tiptap/iwCodeBlockView.vue'
+import iwImageView from '@/components/common/tiptap/iwImageView.vue'
+import iwTableView from '@/components/common/tiptap/iwTableView.vue'
 
 import 'katex/dist/katex.min.css'
 import { Mathematics, migrateMathStrings } from '@tiptap/extension-mathematics'
@@ -301,7 +301,7 @@ import Strike from '@tiptap/extension-strike'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Code from '@tiptap/extension-code'
-import Link from '@tiptap/extension-link'
+import { iwLink } from '@/components/common/tiptap/iwLink'
 import Highlight from '@tiptap/extension-highlight'
 import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
@@ -357,7 +357,6 @@ import {
 } from './markdownEditor/insert'
 import { convertContentFrom } from '@/convert/formatConverter'
 import { doMenuAction } from './markdownEditor/menuAction'
-import './markdownEditor/style.scss'
 
 // Props
 interface Props {
@@ -408,7 +407,7 @@ const extensions = [
     resizable: true 
   }).extend({
     addNodeView() {
-      return VueNodeViewRenderer(TableComponent)
+      return VueNodeViewRenderer(iwTableView)
     }
   }),
   
@@ -464,7 +463,7 @@ const extensions = [
       }
     },
     addNodeView() {
-      return VueNodeViewRenderer(ImageComponent)
+      return VueNodeViewRenderer(iwImageView)
     },
   }),
   Youtube.configure({
@@ -480,7 +479,7 @@ const extensions = [
   Blockquote,
   CodeBlockLowlight.extend({
     addNodeView() {
-      return VueNodeViewRenderer(CodeBlockComponent)
+      return VueNodeViewRenderer(iwCodeBlockView)
     },
   }).configure({ lowlight }),
   Mathematics.configure({
@@ -522,7 +521,18 @@ const extensions = [
   TextAlign.configure({
     types: ['heading', 'paragraph', 'image', 'caption'],
   }),
-  Code, Link,
+  Code, 
+  iwLink.configure({
+    linkOnPaste: true,
+    autolink: true,
+    editOnFocus: true,
+    editDelay: 300,
+    HTMLAttributes: {
+      class: 'iw-link',
+      target: '_blank',
+      rel: 'noopener noreferrer nofollow'
+    }
+  }),
   Subscript, Superscript, Typography,
   Highlight,
   
@@ -532,7 +542,7 @@ const extensions = [
   InvisibleCharacters和Placeholder不能一起存在
   会导致回车换行时，内容逆向滚动
    */
-  InvisibleCharacters,
+  //InvisibleCharacters,
   //Placeholder.configure({
   //  placeholder: onPlaceholder,
   //}),
@@ -673,3 +683,8 @@ defineExpose({
   handleMenuAction,
 })
 </script>
+
+<style lang="scss">
+@use '@/components/common/tiptap/iwLink.scss' as *;
+@use './markdownEditor/style.scss';
+</style>

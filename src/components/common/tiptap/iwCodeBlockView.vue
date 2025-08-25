@@ -55,7 +55,7 @@
         title="Delete Code Block"
         contenteditable="false"
       >
-        <IconTrash class="w-4 h-4" />
+        <IconTrash class="control-button-icon" />
       </button>
     </div>
     
@@ -70,7 +70,6 @@ import { NodeViewContent, nodeViewProps, NodeViewWrapper } from '@tiptap/vue-3'
 import { IconTrash, IconCode, IconCopy } from '@tabler/icons-vue'
 import { formatCode, isLanguageSupported, type FormatResult } from "@/components/common/utils/CodeFormatter"
 import { notify } from '@/utils/notifications'
-import './component.scss'
 
 interface NodeAttributes {
   language: string
@@ -195,3 +194,7 @@ const deleteCodeBlock = (): void => {
   }
 }
 </script>
+
+<style lang="scss" scoped>
+@use './iwComponent.scss' as *;
+</style>

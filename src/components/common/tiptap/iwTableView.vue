@@ -209,7 +209,6 @@ import {
   canMoveRowAbove,
   canMoveRowBelow
 } from '../utils/TableOperations'
-import './component.scss'
 
 const props = defineProps(nodeViewProps)
 
@@ -619,3 +618,7 @@ const deleteRow = (): void => {
   }
 }
 </script>
+
+<style lang="scss" scoped>
+@use './iwComponent.scss' as *;
+</style>

@@ -1,209 +1,129 @@
 <template>
-  <node-view-wrapper 
-    class="toolbar-warpper"
-    :style="{ 'text-align': textAlign }"
-    @mouseenter="handleMouseEnter"
-    @mouseleave="handleMouseLeave"
-  >
+  <node-view-wrapper class="toolbar-warpper" :style="{ 'text-align': textAlign }" @mouseenter="handleMouseEnter"
+    @mouseleave="handleMouseLeave">
     <!-- 图片工具栏：在图片内部 -->
-    <div 
-      class="toolbar-controls"
-      v-show="shouldShowControls"
-    >
+    <div class="toolbar-controls" v-show="shouldShowControls">
       <div class="control-group flex-1 min-w-0">
         <!-- 打开文件夹按钮 -->
-        <button 
-          @click.stop="openFolder"
-          class="control-button"
-          title="Select image file"
-          contenteditable="false"
-        >
+        <button @click.stop="openFolder" class="control-button" title="Select image file" contenteditable="false">
           <IconFolder class="control-button-icon" />
         </button>
-        
+
         <!-- 文件路径或URL编辑输入框 -->
         <div class="control-input-group" v-if="srcStatus !== SrcStatus.EMPTY">
-          <input 
-            type="text"
-            class="control-input-field"
-            v-model="editableImagePath"
-            @keydown.enter="updateImageFromInput"
-            :placeholder="displayPath"
-            :title="imagePath"
-            contenteditable="false"
-          />
-          <button 
-            v-if="hasInputChanged"
-            @click.stop="updateImageFromInput"
-            class="control-button confirm-button"
-            title="Update image"
-            contenteditable="false"
-          >
+          <input type="text" class="control-input-field" v-model="editableImagePath"
+            @keydown.enter="updateImageFromInput" :placeholder="displayPath" :title="imagePath"
+            contenteditable="false" />
+          <button v-if="hasInputChanged" @click.stop="updateImageFromInput" class="control-button confirm-button"
+            title="Update image" contenteditable="false">
             <IconCheck class="control-button-icon" />
           </button>
         </div>
       </div>
-      
+
       <!-- 对齐按钮组 -->
       <div class="control-button-group">
         <!-- 左对齐按钮 -->
-        <button 
-          @click.stop="alignImage('left')"
-          class="control-button"
-          :class="{ 'active': currentAlign === 'left' }"
-          title="Align Left"
-          contenteditable="false"
-        >
+        <button @click.stop="alignImage('left')" class="control-button" :class="{ 'active': currentAlign === 'left' }"
+          title="Align Left" contenteditable="false">
           <IconAlignLeft class="control-button-icon" />
         </button>
-        
+
         <!-- 居中对齐按钮 -->
-        <button 
-          @click.stop="alignImage('center')"
-          class="control-button"
-          :class="{ 'active': currentAlign === 'center' }"
-          title="Align Center"
-          contenteditable="false"
-        >
+        <button @click.stop="alignImage('center')" class="control-button"
+          :class="{ 'active': currentAlign === 'center' }" title="Align Center" contenteditable="false">
           <IconAlignCenter class="control-button-icon" />
         </button>
-        
+
         <!-- 右对齐按钮 -->
-        <button 
-          @click.stop="alignImage('right')"
-          class="control-button"
-          :class="{ 'active': currentAlign === 'right' }"
-          title="Align Right"
-          contenteditable="false"
-        >
+        <button @click.stop="alignImage('right')" class="control-button" :class="{ 'active': currentAlign === 'right' }"
+          title="Align Right" contenteditable="false">
           <IconAlignRight class="control-button-icon" />
         </button>
 
         <!-- 两端对齐按钮 -->
-        <button 
-          @click.stop="alignImage('justify')"
-          class="control-button"
-          :class="{ 'active': currentAlign === 'justify' }"
-          title="Align Justified"
-          contenteditable="false"
-        >
+        <button @click.stop="alignImage('justify')" class="control-button"
+          :class="{ 'active': currentAlign === 'justify' }" title="Align Justified" contenteditable="false">
           <IconAlignJustified class="control-button-icon" />
         </button>
 
       </div>
-      
+
       <!-- 用系统默认程序打开按钮 -->
       <!-- 按钮组 -->
       <div class="control-group">
-        <button 
-          @click.stop="openWithShell"
-          class="control-button"
-          :class="{ disabled: isBase64Image }"
+        <button @click.stop="openWithShell" class="control-button" :class="{ disabled: isBase64Image }"
           :disabled="isBase64Image"
           :title="isBase64Image ? 'Cannot open embedded image with external application' : 'Open with default application'"
-          contenteditable="false"
-        >
+          contenteditable="false">
           <IconExternalLink class="control-button-icon" />
         </button>
-        
+
         <!-- 复制按钮 -->
-        <button 
-          @click.stop="copyImage"
-          class="control-button"
-          :disabled="srcStatus !== SrcStatus.LOADED"
-          :title="srcStatus !== SrcStatus.LOADED ? 'No image to copy' : 'Copy image'"
-          contenteditable="false"
-        >
+        <button @click.stop="copyImage" class="control-button" :disabled="srcStatus !== SrcStatus.LOADED"
+          :title="srcStatus !== SrcStatus.LOADED ? 'No image to copy' : 'Copy image'" contenteditable="false">
           <IconCopy class="control-button-icon" />
         </button>
       </div>
-      
+
       <!-- 删除按钮 -->
-      <button 
-        @click.stop="deleteImage"
-        class="control-button delete-button"
-        title="Delete image"
-        contenteditable="false"
-      >
+      <button @click.stop="deleteImage" class="control-button delete-button" title="Delete image"
+        contenteditable="false">
         <IconTrash class="control-button-icon" />
       </button>
     </div>
-    
+
     <!-- 图片内容区域 -->
-    <div 
-      v-if="srcStatus === SrcStatus.EMPTY"
-      class="control-content-empty"
-      @dragover.prevent="handleDragOver"
-      @drop.prevent="handleDrop"
-      @dragleave="handleDragLeave"
-      @click="openFolder"
-      :class="{ 'drag-over': isDragOver }"
-    >
+    <div v-if="srcStatus === SrcStatus.EMPTY" class="control-content-empty" @dragover.prevent="handleDragOver"
+      @drop.prevent="handleDrop" @dragleave="handleDragLeave" @click="openFolder" :class="{ 'drag-over': isDragOver }">
       <div class="empty-image-content">
         <!-- 图片图标 -->
         <div class="empty-image-icon-container">
           <svg class="empty-image-icon" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
-            <path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="2"/>
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
+            <path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="2" />
           </svg>
         </div>
-        
+
         <!-- 主要文本 -->
-        <div class="empty-image-main-text">Drag an image here or 
+        <div class="empty-image-main-text">Drag an image here or
           <span class="empty-image-link">upload a file</span>
         </div>
-        
+
         <!-- 分隔线 -->
         <div class="empty-image-divider">
           <span class="empty-image-divider-text">OR</span>
         </div>
-        
+
         <!-- 输入框区域 -->
         <div class="empty-image-input-area">
-          <input 
-            type="text" 
-            placeholder="Paste image link"
-            class="empty-image-input"
-            @keydown.enter="handleUrlInput"
-            @click.stop
-            v-model="urlInput"
-          />
-          <button 
-            class="empty-image-search-btn"
-            @click.stop="handleUrlInput"
-            :disabled="!urlInput.trim()"
-          >
+          <input type="text" placeholder="Paste image link" class="empty-image-input" @keydown.enter="handleUrlInput"
+            @click.stop v-model="urlInput" />
+          <button class="empty-image-search-btn" @click.stop="handleUrlInput" :disabled="!urlInput.trim()">
             Search
           </button>
         </div>
       </div>
     </div>
 
-    <div 
-      v-else-if="srcStatus === SrcStatus.ERROR"
-      class="control-content-empty"
-      @dragover.prevent="handleDragOver"
-      @drop.prevent="handleDrop"
-      @dragleave="handleDragLeave"
-      @click="openFolder"
-      :class="{ 'drag-over': isDragOver }"
-    >
+    <div v-else-if="srcStatus === SrcStatus.ERROR" class="control-content-empty" @dragover.prevent="handleDragOver"
+      @drop.prevent="handleDrop" @dragleave="handleDragLeave" @click="openFolder" :class="{ 'drag-over': isDragOver }">
       <div class="empty-image-content">
         <!-- 错误图标 -->
         <div class="empty-image-icon-container">
           <svg class="empty-image-icon error-icon" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-            <path d="m15 9-6 6" stroke="currentColor" stroke-width="2"/>
-            <path d="m9 9 6 6" stroke="currentColor" stroke-width="2"/>
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" />
+            <path d="m15 9-6 6" stroke="currentColor" stroke-width="2" />
+            <path d="m9 9 6 6" stroke="currentColor" stroke-width="2" />
           </svg>
         </div>
-        
+
         <!-- 主要文本 -->
         <div class="empty-image-main-text error-text">
           Failed to load image
         </div>
-        
+
         <!-- 重试按钮 -->
         <button class="retry-button" @click.stop="retryLoadImage">
           Try again
@@ -212,42 +132,30 @@
     </div>
 
     <!-- 图片容器：包含img和loading overlay -->
-    <div 
-      v-else 
-      class="image-container"
-      @dragover.prevent="handleDragOver"
-      @drop.prevent="handleDrop"
-      @dragleave="handleDragLeave"
-    >
+    <div v-else class="image-container" @dragover.prevent="handleDragOver" @drop.prevent="handleDrop"
+      @dragleave="handleDragLeave">
       <!-- 加载覆盖层 -->
-      <div 
-        v-if="srcStatus === SrcStatus.LOADING"
-        class="loading-overlay"
-      >
+      <div v-if="srcStatus === SrcStatus.LOADING" class="loading-overlay">
         <div class="loading-content">
           <!-- 加载动画 -->
           <div class="loading-spinner">
             <svg class="spinner-icon" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-dasharray="31.416" stroke-dashoffset="31.416">
-                <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416" repeatCount="indefinite"/>
-                <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416" repeatCount="indefinite"/>
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-dasharray="31.416"
+                stroke-dashoffset="31.416">
+                <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416"
+                  repeatCount="indefinite" />
+                <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416"
+                  repeatCount="indefinite" />
               </circle>
             </svg>
           </div>
           <div class="loading-text">Loading image...</div>
         </div>
       </div>
-      
+
       <!-- 图片本体 -->
-      <img 
-        :src="imageSrc" 
-        :alt="imageAlt"
-        :title="imageTitle"
-        class="control-content"
-        :class="{ 'loading': srcStatus === SrcStatus.LOADING }"
-        @error="handleImageError"
-        @load="handleImageLoad"
-      />
+      <img :src="imageSrc" :alt="imageAlt" :title="imageTitle" class="control-content"
+        :class="{ 'loading': srcStatus === SrcStatus.LOADING }" @error="handleImageError" @load="handleImageLoad" />
     </div>
   </node-view-wrapper>
 </template>
@@ -260,8 +168,6 @@ import { IMAGE_EXTENSIONS } from '@/types'
 import { notify } from '@/utils/notifications'
 import path from '@/utils/pathUtils'
 import { isImageUrl } from '../utils/isImageUrl'
-
-import './component.scss'
 
 enum SrcStatus {
   EMPTY = 'empty',
@@ -312,7 +218,7 @@ const srcStatus = computed((): SrcStatus => {
 const shouldShowControls = computed((): boolean => {
   // 空状态不显示工具栏
   if (srcStatus.value === SrcStatus.EMPTY) return false
-  
+
   return (props.selected || isHovered.value)
 })
 
@@ -331,12 +237,12 @@ const displayPath = computed((): string => {
   if (isBase64Image.value) {
     return 'Embedded Image Object'
   }
-  
+
   const fullPath = imagePath.value
   if (fullPath.length <= 50) {
     return fullPath
   }
-  
+
   // 如果是URL，显示域名和文件名
   if (fullPath.startsWith('http://') || fullPath.startsWith('https://')) {
     try {
@@ -347,16 +253,16 @@ const displayPath = computed((): string => {
       return '...' + fullPath.slice(-47)
     }
   }
-  
+
   // 如果是本地文件路径，显示文件夹和文件名
   const dirname = path.dirname(fullPath)
   const basename = path.basename(fullPath)
   const parentDir = path.basename(dirname)
-  
+
   if (parentDir && basename) {
     return `.../${parentDir}/${basename}`
   }
-  
+
   return '...' + fullPath.slice(-47)
 })
 
@@ -420,10 +326,10 @@ const openFolder = async (): Promise<void> => {
           { name: 'All Files', extensions: ['*'] }
         ]
       })
-      
+
       if (!result.canceled && result.filePaths.length > 0) {
         const selectedPath = result.filePaths[0]
-        
+
         // 更新图片的src属性（替换而不是添加）
         props.updateAttributes({
           src: `file://${selectedPath}`,
@@ -446,10 +352,10 @@ const openWithShell = async (): Promise<void> => {
     notify.warning('Cannot open embedded images with external applications')
     return
   }
-  
+
   try {
     let src = imageSrc.value
-    
+
     if (window.electronAPI?.openWithShell) {
       /*if (src.startsWith('file://')) {
         src = src.replace('file://', '')
@@ -473,33 +379,33 @@ const copyImage = async (): Promise<void> => {
   if (srcStatus.value !== SrcStatus.LOADED) {
     return
   }
-  
+
   try {
     const src = imageSrc.value
-    
+
     if (!src.trim()) {
       return
     }
-    
+
     // 如果是base64图片，直接复制为图片对象
     if (isBase64Image.value) {
       // 创建图片元素并转换为blob
       const img = new Image()
       img.crossOrigin = 'anonymous'
-      
+
       img.onload = async () => {
         try {
           const canvas = document.createElement('canvas')
           const ctx = canvas.getContext('2d')
           if (!ctx) throw new Error('Cannot get canvas context')
-          
+
           canvas.width = img.width
           canvas.height = img.height
           ctx.drawImage(img, 0, 0)
-          
+
           canvas.toBlob(async (blob) => {
             if (!blob) throw new Error('Failed to create blob')
-            
+
             await navigator.clipboard.write([
               new ClipboardItem({ 'image/png': blob })
             ])
@@ -508,33 +414,33 @@ const copyImage = async (): Promise<void> => {
           notify.error(`${error instanceof Error ? error.message : String(error)}`, 'Copy Image Error')
         }
       }
-      
+
       img.onerror = () => {
         notify.error('Failed to load image for copying', 'Copy Image Error')
       }
-      
+
       img.src = src
       return
     }
-    
+
     // 对于文件路径或URL，尝试加载并复制图片对象
     if (src.startsWith('file://') || src.startsWith('http://') || src.startsWith('https://')) {
       const img = new Image()
       img.crossOrigin = 'anonymous'
-      
+
       img.onload = async () => {
         try {
           const canvas = document.createElement('canvas')
           const ctx = canvas.getContext('2d')
           if (!ctx) throw new Error('Cannot get canvas context')
-          
+
           canvas.width = img.width
           canvas.height = img.height
           ctx.drawImage(img, 0, 0)
-          
+
           canvas.toBlob(async (blob) => {
             if (!blob) throw new Error('Failed to create blob')
-            
+
             await navigator.clipboard.write([
               new ClipboardItem({ 'image/png': blob })
             ])
@@ -545,19 +451,19 @@ const copyImage = async (): Promise<void> => {
           await navigator.clipboard.writeText(imagePath.value)
         }
       }
-      
+
       img.onerror = async () => {
         // 如果图片加载失败，回退到复制路径
         await navigator.clipboard.writeText(imagePath.value)
       }
-      
+
       img.src = src
       return
     }
-    
+
     // 其他情况，复制路径
     await navigator.clipboard.writeText(imagePath.value)
-    
+
   } catch (error) {
     notify.error(`${error instanceof Error ? error.message : String(error)}`, 'Copy Image Error')
   }
@@ -588,23 +494,23 @@ const handleDragLeave = (): void => {
 const handleDrop = async (event: DragEvent): Promise<void> => {
   event.preventDefault()
   isDragOver.value = false
-  
+
   const files = event.dataTransfer?.files
   if (!files || files.length === 0) return
-  
+
   const file = files[0]
   if (!file.type.startsWith('image/')) {
     notify.warning('Please drop an image file')
     return
   }
-  
+
   try {
     // 读取文件为 base64
     const reader = new FileReader()
     reader.onload = () => {
       const base64 = reader.result as string
       // 替换图片而不是添加
-      props.updateAttributes({ 
+      props.updateAttributes({
         src: base64,
         alt: file.name,
         title: file.name
@@ -623,13 +529,13 @@ const handleUrlInput = async (): Promise<void> => {
     notify.warning('Please enter an image URL')
     return
   }
-  
+
   try {
     const result = await isImageUrl(url)
     if (result === false) {
       notify.error('Please enter a valid URL', 'Invalid URL')
     } else {
-      props.updateAttributes({ 
+      props.updateAttributes({
         src: url,
         alt: 'Image from URL',
         title: url
@@ -649,7 +555,7 @@ const retryLoadImage = (): void => {
     // 重置状态并重新触发加载
     imageLoaded.value = false
     imageError.value = false
-    
+
     // 通过短暂清空再重置 src 来重新触发加载
     const originalSrc = currentSrc
     props.updateAttributes({ src: '' })
@@ -662,18 +568,18 @@ const retryLoadImage = (): void => {
 // 从输入框更新图片
 const updateImageFromInput = async (): Promise<void> => {
   const newPath = editableImagePath.value.trim()
-  
+
   if (!newPath) {
     // 空值 → 空白图片
     props.updateAttributes({ src: '' })
     return
   }
-  
+
   if (newPath === imagePath.value) {
     // 没有变化，无需处理
     return
   }
-  
+
   // 检查是否是URL
   if (newPath.startsWith('http://') || newPath.startsWith('https://')) {
     try {
@@ -681,7 +587,7 @@ const updateImageFromInput = async (): Promise<void> => {
       if (result === false) {
         notify.error('Please enter a valid URL', 'URL Error')
       } else {
-        props.updateAttributes({ 
+        props.updateAttributes({
           src: newPath,
           alt: 'Image from URL',
           title: newPath
@@ -692,24 +598,24 @@ const updateImageFromInput = async (): Promise<void> => {
     }
     return
   }
-  
+
   // 检查是否是本地文件路径
   let filePath = newPath
   if (!filePath.startsWith('file://')) {
     filePath = `file://${filePath}`
   }
-  
+
   try {
     if (window.electronAPI?.pathExists) {
       const actualPath = filePath.replace('file://', '')
       const exists = await window.electronAPI.pathExists(actualPath)
-      
+
       if (!exists) {
         notify.error('File not found at the specified path', 'Invalid Path')
         return
       }
-      
-      props.updateAttributes({ 
+
+      props.updateAttributes({
         src: filePath,
         alt: path.basename(actualPath),
         title: actualPath
@@ -725,6 +631,8 @@ const updateImageFromInput = async (): Promise<void> => {
 </script>
 
 <style lang="scss" scoped>
+@use './iwComponent.scss' as *;
+
 .tiptap {
   .toolbar-warpper {
     .toolbar-controls {
@@ -735,8 +643,8 @@ const updateImageFromInput = async (): Promise<void> => {
     .control-content {
       display: inline-block;
     }
-      
-    .control-content-empty { 
+
+    .control-content-empty {
       display: inline-block;
       background: #ffffff;
       border: 2px dashed #e5e7eb;
@@ -750,25 +658,25 @@ const updateImageFromInput = async (): Promise<void> => {
       cursor: pointer;
       transition: all 0.2s ease;
       padding: 40px;
-      
+
       &:hover {
         border-color: #d1d5db;
         background: #f9fafb;
       }
-      
+
       &.drag-over {
         background: #eff6ff;
         border-color: #3b82f6;
         color: #3b82f6;
       }
-      
+
       .empty-image-content {
         text-align: center;
         width: 100%;
-        
+
         .empty-image-icon-container {
           margin-bottom: 16px;
-          
+
           .empty-image-icon {
             width: 48px;
             height: 48px;
@@ -776,30 +684,30 @@ const updateImageFromInput = async (): Promise<void> => {
             margin: 0 auto;
           }
         }
-        
+
         .empty-image-main-text {
           font-size: 16px;
           font-weight: 400;
           color: #6b7280;
           margin-bottom: 24px;
           line-height: 1.5;
-          
+
           .empty-image-link {
             color: #3b82f6;
             font-weight: 500;
             text-decoration: underline;
             cursor: pointer;
-            
+
             &:hover {
               color: #2563eb;
             }
           }
         }
-        
+
         .empty-image-divider {
           position: relative;
           margin: 24px 0;
-          
+
           &::before {
             content: '';
             position: absolute;
@@ -810,7 +718,7 @@ const updateImageFromInput = async (): Promise<void> => {
             background: #e5e7eb;
             z-index: 1;
           }
-          
+
           .empty-image-divider-text {
             position: relative;
             background: #ffffff;
@@ -821,13 +729,13 @@ const updateImageFromInput = async (): Promise<void> => {
             z-index: 2;
           }
         }
-        
+
         .empty-image-input-area {
           display: flex;
           gap: 8px;
           max-width: 400px;
           margin: 0 auto;
-          
+
           .empty-image-input {
             flex: 1;
             padding: 12px 16px;
@@ -838,17 +746,17 @@ const updateImageFromInput = async (): Promise<void> => {
             background: #ffffff;
             outline: none;
             transition: border-color 0.2s ease;
-            
+
             &::placeholder {
               color: #9ca3af;
             }
-            
+
             &:focus {
               border-color: #3b82f6;
               box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
             }
           }
-          
+
           .empty-image-search-btn {
             padding: 12px 24px;
             background: #3b82f6;
@@ -860,11 +768,11 @@ const updateImageFromInput = async (): Promise<void> => {
             cursor: pointer;
             transition: background-color 0.2s ease;
             white-space: nowrap;
-            
+
             &:hover:not(:disabled) {
               background: #2563eb;
             }
-            
+
             &:disabled {
               background: #d1d5db;
               cursor: not-allowed;
@@ -878,19 +786,19 @@ const updateImageFromInput = async (): Promise<void> => {
         outline: 3px solid #6a00f5;
       }
     }
-    
+
     .image-container {
       position: relative;
       display: inline-block;
-      
+
       .control-content {
         display: block;
-        
+
         &.loading {
           opacity: 0.3;
         }
       }
-      
+
       .loading-overlay {
         position: absolute;
         top: 0;
@@ -903,13 +811,13 @@ const updateImageFromInput = async (): Promise<void> => {
         justify-content: center;
         border-radius: 8px;
         z-index: 10;
-        
+
         .loading-content {
           text-align: center;
-          
+
           .loading-spinner {
             margin-bottom: 12px;
-            
+
             .spinner-icon {
               width: 28px;
               height: 28px;
@@ -917,7 +825,7 @@ const updateImageFromInput = async (): Promise<void> => {
               margin: 0 auto;
             }
           }
-          
+
           .loading-text {
             font-size: 13px;
             font-weight: 500;
@@ -925,23 +833,23 @@ const updateImageFromInput = async (): Promise<void> => {
           }
         }
       }
-      
+
       &.ProseMirror-selectednode {
         outline: 3px solid #6a00f5;
       }
     }
-    
+
     .control-content-empty {
       .empty-image-content {
         .error-icon {
           color: #ef4444;
         }
-        
+
         .error-text {
           color: #ef4444;
           margin-bottom: 16px;
         }
-        
+
         .retry-button {
           padding: 8px 16px;
           background: #3b82f6;
@@ -952,7 +860,7 @@ const updateImageFromInput = async (): Promise<void> => {
           font-weight: 500;
           cursor: pointer;
           transition: background-color 0.2s ease;
-          
+
           &:hover {
             background: #2563eb;
           }
