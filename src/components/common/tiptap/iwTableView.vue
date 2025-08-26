@@ -8,7 +8,7 @@
     <div 
       class="toolbar-controls"
       :class="{'outside-top': isInside}"
-      v-show="shouldShowControls"
+      v-show="shouldShowToolbar"
     >
       <!-- 表格头部切换组 -->
       <div class="control-group">
@@ -219,7 +219,7 @@ const cellMinWidth = computed(() => {
   return props.extension?.options?.cellMinWidth || 25
 })
 
-const shouldShowControls = computed((): boolean => {
+const shouldShowToolbar = computed((): boolean => {
   return isHovered.value || isInside.value
 })
 

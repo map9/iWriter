@@ -1,11 +1,12 @@
 import { Link } from '@tiptap/extension-link'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
+import type { LinkOptions } from '@tiptap/extension-link'
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { Mark } from '@tiptap/pm/model'
-import { TextSelection } from '@tiptap/pm/state'
 import type { EditorState } from '@tiptap/pm/state'
-import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/core'
+
+import { findMarkRange } from '../utils/findMarkRange'
 
 interface LinkEditState {
   editingLink: {
@@ -13,10 +14,10 @@ interface LinkEditState {
     to: number 
     mark: Mark
   } | null
-  showEditor: boolean
+  shouldShowToolbar: boolean
 }
 
-interface IwLinkOptions {
+interface IwLinkOptions extends LinkOptions {
   editOnFocus: boolean
   editDelay: number
   autoExitOnValid: boolean
@@ -25,80 +26,14 @@ interface IwLinkOptions {
   HTMLAttributes: Record<string, any>
 }
 
-const iwLinkPluginKey = new PluginKey('iwLinkInlineEdit')
+const markTypeName = 'iwLink'
+const iwLinkPluginKey = new PluginKey(`${markTypeName}Edit`)
 
 // 辅助函数
 const escapeHtml = (text: string): string => {
   const div = document.createElement('div')
   div.textContent = text
   return div.innerHTML
-}
-
-const isValidUrl = (url: string): boolean => {
-  try {
-    new URL(url)
-    return true
-  } catch {
-    return url.startsWith('/') || url.startsWith('#')
-  }
-}
-
-const findCompleteLinkRange = (state: EditorState, pos: number, targetMark: Mark, linkTypeName: string) => {
-  const doc = state.doc
-  let from = pos
-  let to = pos + 1
-  
-  // 向前扩展
-  while (from > 0) {
-    const $pos = doc.resolve(from - 1)
-    const marks = $pos.marks()
-    const linkMark = marks.find(mark => mark.type.name === linkTypeName)
-    
-    if (!linkMark || !linkMark.eq(targetMark)) break
-    from--
-  }
-  
-  // 向后扩展
-  while (to < doc.content.size) {
-    const $pos = doc.resolve(to)
-    const marks = $pos.marks()
-    const linkMark = marks.find(mark => mark.type.name === linkTypeName)
-    
-    if (!linkMark || !linkMark.eq(targetMark)) break
-    to++
-  }
-  
-  return { from, to, mark: targetMark }
-}
-
-const detectLinkAtCursor = (state: EditorState, linkTypeName: string) => {
-  const { selection } = state
-  const { $from } = selection
-  
-  // 获取光标位置的marks
-  const marks = $from.marks()
-  const linkMark = marks.find(mark => mark.type.name === linkTypeName)
-  console.log('detectLinkAtCursor', { linkMark, marks })
-  
-  if (!linkMark) {
-    // 检查光标前后位置是否有link
-    const beforeMarks = $from.nodeBefore?.marks || []
-    const afterMarks = $from.nodeAfter?.marks || []
-    
-    const beforeLink = beforeMarks.find(mark => mark.type.name === linkTypeName)
-    const afterLink = afterMarks.find(mark => mark.type.name === linkTypeName)
-    
-    if (beforeLink) {
-      return findCompleteLinkRange(state, $from.pos - 1, beforeLink, linkTypeName)
-    }
-    if (afterLink) {
-      return findCompleteLinkRange(state, $from.pos, afterLink, linkTypeName)
-    }
-    
-    return null
-  }
-  
-  return findCompleteLinkRange(state, $from.pos, linkMark, linkTypeName)
 }
 
 const createEditWidget = (textContent: string, href: string, from: number, to: number, mark: Mark, editor: Editor): HTMLElement => {
@@ -155,14 +90,24 @@ const createEditWidget = (textContent: string, href: string, from: number, to: n
       }))
     }
     
-    dispatch(tr.setMeta('exitLinkEdit', true))
+    // 用 tr.mapping.map(...) 把旧位置映射到当前事务文档；
+    const rawPos = state.selection.from
+    const mappedPos = tr.mapping.map(rawPos, -1)
+    const safePos = Math.max(0, Math.min(mappedPos, tr.doc.content.size))
+    // 在 tr.doc 上创建 Selection；
+    const selection = TextSelection.create(tr.doc, safePos)
+    dispatch(tr.setSelection(selection).setMeta('exitLinkEdit', true))
+    editor.view.focus()
   }
   
   // 取消编辑
   const cancelEdit = () => {
     const { state, dispatch } = editor.view
-    const tr = state.tr.setMeta('exitLinkEdit', true)
-    dispatch(tr)
+    
+    const tr = state.tr
+    const selection = TextSelection.create(state.doc, from)
+    dispatch(tr.setSelection(selection).setMeta('exitLinkEdit', true))
+    editor.view.focus()
   }
   
   // 键盘事件
@@ -206,7 +151,7 @@ const createEditWidget = (textContent: string, href: string, from: number, to: n
 }
 
 export const iwLink = Link.extend<IwLinkOptions>({
-  name: 'iwLink',
+  name: markTypeName,
 
   addOptions() {
     return {
@@ -236,28 +181,47 @@ export const iwLink = Link.extend<IwLinkOptions>({
           init(): LinkEditState {
             return {
               editingLink: null,
-              showEditor: false
+              shouldShowToolbar: false
             }
           },
           
           apply(tr, prev, oldState, newState): LinkEditState {
+            /*
+            console.log('iwLink apply in', {
+              editingLink: prev.editingLink, 
+              shouldShowToolbar: prev.shouldShowToolbar,
+              exitLinkEdit: tr.getMeta('exitLinkEdit'),
+            })
+            */
+            // 计算当前光标所处 link
+            const cur = findMarkRange(newState, newState.selection.$from.pos, markTypeName)
+
             // 处理退出编辑的meta
-            if (tr.getMeta('exitLinkEdit')) {
-              return {
-                editingLink: null,
-                showEditor: false
-              }
+            if (
+              tr.getMeta('exitLinkEdit') ||
+              !newState.selection.empty
+            ) {
+                return { editingLink: cur, shouldShowToolbar: false }
             }
-            
-            // 检测光标位置变化
-            const newEditingLink = detectLinkAtCursor(newState, 'iwLink')
-            
-            // 判断是否应该显示编辑器
-            const shouldShow = !!newEditingLink
-            
+
+            // 1) 是否“进入”新的 link（从无到有，或者从一个 link 跳到另一个 link）
+            const prevLink = prev.editingLink
+            const enteringNewLink =
+              (!prevLink && !!cur) ||
+              (prevLink && cur && (prevLink.from !== cur.from || prevLink.to !== cur.to))
+
+            // 2) 是否“离开” link（从有到无）
+            const leavingLink = !!prevLink && !cur
+
+            // 基于之前的 shouldShowToolbar 做增量更新，避免被焦点变化误关
+            let shouldShow = prev.shouldShowToolbar
+            if (enteringNewLink) shouldShow = true
+            if (leavingLink) shouldShow = false
+
+            // 其余情况（仍在同一个 link 内移动、DOM 聚焦变化等） => 保持现状
             return {
-              editingLink: newEditingLink,
-              showEditor: shouldShow
+              editingLink: cur,
+              shouldShowToolbar: shouldShow,
             }
           }
         },
@@ -265,7 +229,13 @@ export const iwLink = Link.extend<IwLinkOptions>({
         props: {
           decorations: (state: EditorState): DecorationSet | null => {
             const pluginState = iwLinkPluginKey.getState(state) as LinkEditState
-            if (!pluginState.showEditor || !pluginState.editingLink) {
+            /*
+            console.log('iwLink decorations', {
+              editingLink: pluginState.editingLink, 
+              shouldShowToolbar: pluginState.shouldShowToolbar
+            })
+            */
+            if (!pluginState.shouldShowToolbar || !pluginState.editingLink) {
               return null
             }
             
@@ -283,35 +253,14 @@ export const iwLink = Link.extend<IwLinkOptions>({
                 class: 'iw-link-editing-highlight'
               }),
               // 编辑面板 - 始终在最后一个字符位置
-              Decoration.widget(Math.max(from, to - 1), editWidget, {
+              Decoration.widget(Math.max(from, to), editWidget, {
                 side: 1, // 显示在位置右侧
                 key: 'iw-link-editor'
               })
             ])
           },
+        },
 
-          handleClick: (view: EditorView, pos: number, event: MouseEvent) => {
-            const state = view.state
-            const $pos = state.doc.resolve(pos)
-            const marks = $pos.marks()
-            const linkMark = marks.find(mark => mark.type.name === 'iwLink')
-            
-            if (linkMark) {
-              const linkInfo = findCompleteLinkRange(state, pos, linkMark, 'iwLink')
-              
-              if (linkInfo) {
-                // 设置选区到链接位置
-                const tr = state.tr.setSelection(
-                  TextSelection.near(state.doc.resolve(linkInfo.from))
-                )
-                view.dispatch(tr)
-                return true
-              }
-            }
-            
-            return false
-          }
-        }
       })
     ]
   }

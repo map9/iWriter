@@ -2,7 +2,7 @@
   <node-view-wrapper class="toolbar-warpper" :style="{ 'text-align': textAlign }" @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave">
     <!-- 图片工具栏：在图片内部 -->
-    <div class="toolbar-controls" v-show="shouldShowControls">
+    <div class="toolbar-controls" v-show="shouldShowToolbar">
       <div class="control-group flex-1 min-w-0">
         <!-- 打开文件夹按钮 -->
         <button @click.stop="openFolder" class="control-button" title="Select image file" contenteditable="false">
@@ -215,7 +215,7 @@ const srcStatus = computed((): SrcStatus => {
   return SrcStatus.LOADING  // 正在加载中
 })
 
-const shouldShowControls = computed((): boolean => {
+const shouldShowToolbar = computed((): boolean => {
   // 空状态不显示工具栏
   if (srcStatus.value === SrcStatus.EMPTY) return false
 

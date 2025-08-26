@@ -1,4 +1,61 @@
 import { type Editor } from '@tiptap/vue-3'
+import { find } from 'linkifyjs'
+
+export function toggleMath(editor: Editor | undefined) {
+  if (!editor) return
+
+    const hasSelection = !editor.state.selection.empty
+  if (hasSelection) {
+    // If there's a selection, wrap it in block math
+    const selectedText = editor.state.doc.textBetween(
+      editor.state.selection.from, 
+      editor.state.selection.to
+    )
+    
+    editor.chain().focus().deleteSelection().run()
+
+    // If selection looks like LaTeX (contains backslashes or common math symbols), use it directly
+    const isLikelyLatex = /\\|[\{\}\^\\_]|\$\$?|\\[a-zA-Z]+/.test(selectedText)
+    if (isLikelyLatex) {
+      return editor.chain().focus().insertInlineMath({ latex: selectedText }).run()
+    }
+  }
+
+  // Insert a empty block math node
+  return editor.chain().focus().insertInlineMath({ latex: 'Pealse input Latex...' }).run()
+}
+
+function isValidUrl(text: string): boolean {
+  if (!text?.trim()) return false
+  
+  // 使用linkifyjs检测URL
+  const links = find(text.trim())
+  
+  // 检查是否整个文本都是一个链接
+  return links.length === 1 && links[0].value === text.trim()
+}
+
+export function toggleLink(editor: Editor | undefined) {
+  if (!editor) return
+  if (editor?.isActive('iwLink')) {
+    editor?.chain().focus().unsetLink().run()
+  } else {
+    if (!editor.state.selection.empty) {
+      const selectedText = editor.state.doc.textBetween(
+        editor.state.selection.from, 
+        editor.state.selection.to
+      )
+      
+      if (isValidUrl(selectedText)) {
+        editor.chain().focus().setLink({ href: selectedText }).run()
+      } else {
+        editor.chain().focus().setLink({ href: '' }).run()
+      }
+    } else {
+      editor?.chain().focus().extendMarkRange('iwLink').setLink({ href: '' }).run()
+    }
+  }
+}
 
 export function insertMathBlock(editor: Editor | undefined) {
   if (!editor) return
@@ -25,30 +82,6 @@ export function insertMathBlock(editor: Editor | undefined) {
 
   // Insert a empty block math node
   return editor.chain().focus().insertBlockMath({ latex: 'Pealse input Latex...' }).run()
-}
-
-export function insertInlineMath(editor: Editor | undefined) {
-  if (!editor) return
-
-    const hasSelection = !editor.state.selection.empty
-  if (hasSelection) {
-    // If there's a selection, wrap it in block math
-    const selectedText = editor.state.doc.textBetween(
-      editor.state.selection.from, 
-      editor.state.selection.to
-    )
-    
-    editor.chain().focus().deleteSelection().run()
-
-    // If selection looks like LaTeX (contains backslashes or common math symbols), use it directly
-    const isLikelyLatex = /\\|[\{\}\^\\_]|\$\$?|\\[a-zA-Z]+/.test(selectedText)
-    if (isLikelyLatex) {
-      return editor.chain().focus().insertInlineMath({ latex: selectedText }).run()
-    }
-  }
-
-  // Insert a empty block math node
-  return editor.chain().focus().insertInlineMath({ latex: 'Pealse input Latex...' }).run()
 }
 
 export function insertTable(editor: Editor | undefined) {
@@ -88,21 +121,6 @@ export function insertVideo(editor: Editor | undefined) {
   }
 }
 
-export function insertLink(editor: Editor | undefined) {
-  const url = prompt('Enter URL:')
-  if (url) {
-    const linkText = prompt('Enter link text (optional):') || url
-    
-    // If there's selected text, just set the link
-    if (editor?.state.selection.empty === false) {
-      editor?.chain().focus().setLink({ href: url }).run()
-    } else {
-      // If no selection, insert link with text
-      editor?.chain().focus().insertContent(`<a href="${url}">${linkText}</a>`).run()
-    }
-  }
-}
-
 export function insertReferenceLink(editor: Editor | undefined) {
   const refLinkText = prompt('Enter link text:', '')
   const refLinkUrl = prompt('Enter link URL:', '')
@@ -133,29 +151,6 @@ export function insertFootnote(editor: Editor | undefined) {
       }
       return true
     }).run()
-  }
-}
-
-export function insertInlineLink(editor: Editor | undefined) {
-if (editor?.isActive('link')) {
-    editor?.chain().focus().unsetLink().run()
-  } else {
-    const previousUrl = editor?.getAttributes('link').href
-    const url = window.prompt('URL', previousUrl)
-
-    // cancelled
-    if (url === null) {
-      return
-    }
-
-    // empty
-    if (url === '') {
-      editor?.chain().focus().extendMarkRange('link').unsetLink().run()
-      return
-    }
-
-    // update link
-    editor?.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
   }
 }
 

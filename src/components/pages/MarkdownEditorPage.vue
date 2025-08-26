@@ -80,6 +80,41 @@
         >
           <IconStrikethrough class="w-5 h-5" />
         </button>
+        <button
+          @click="editor?.chain().focus().toggleHighlight().run()"
+          :disabled="!editor"
+          :class="{ 'bg-gray-200': editor?.isActive('highlight') }"
+          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Highlight"
+        >
+          <IconHighlight class="w-5 h-5" />
+        </button>
+        <button
+          @click="toggleLink(editor)"
+          :disabled="!editor"
+          :class="{ 'bg-gray-200': editor?.isActive('iwLink') }"
+          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Link"
+        >
+          <IconLink class="w-5 h-5" />
+        </button>
+        <button
+          @click="editor?.chain().focus().toggleCode().run()"
+          :disabled="!editor"
+          :class="{ 'bg-gray-200': editor?.isActive('code') }"
+          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Inline Code"
+        >
+          <IconCode class="w-5 h-5" />
+        </button>
+        <button
+          @click="toggleMath(editor)"
+          :disabled="!editor"
+          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Inline Math"
+        >
+          <IconMath class="w-5 h-5" />
+        </button>
       </div>
       
       <div class="toolbar-separator" />
@@ -193,14 +228,6 @@
         >
           <IconVideo class="w-5 h-5" />
         </button>
-        <button
-          @click="insertLink(editor)"
-          :disabled="!editor"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Insert Link"
-        >
-          <IconLink class="w-5 h-5" />
-        </button>
       </div>
       
       <div class="toolbar-separator" />
@@ -222,7 +249,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Math Block"
         >
-          <IconMath class="w-5 h-5" />
+          <IconFunction class="w-5 h-5" />
         </button>
         <button
           @click="editor?.chain().focus().toggleCodeBlock().run()"
@@ -231,7 +258,7 @@
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Code Block"
         >
-          <IconCode class="w-5 h-5" />
+          <IconSourceCode class="w-5 h-5" />
         </button>
       </div>
       
@@ -317,6 +344,9 @@ import {
   IconItalic,
   IconUnderline,
   IconStrikethrough,
+  IconHighlight,
+  IconCode,
+  IconMath,
   IconListNumbers,
   IconList,
   IconListCheck,
@@ -330,8 +360,8 @@ import {
   IconVideo,
   IconLink,
   IconBlockquote,
-  IconMath,
-  IconCode,
+  IconFunction,
+  IconSourceCode,
   IconMaximize
 } from '@tabler/icons-vue'
 
@@ -344,14 +374,13 @@ import { getHeading, setHeading, getContentType, getCurrentAlignment } from './m
 import { calculateEditorStats } from './markdownEditor/stats' 
 import { onFileHandlerDrop, onFileHandlerPaste, onPlaceholder } from './markdownEditor/on'
 import { 
+  toggleLink,
+  toggleMath,
   insertTable,
   insertImage, 
   insertAudio, 
   insertVideo, 
-  insertLink, 
-  insertInlineLink,
   insertMathBlock, 
-  insertInlineMath,
   insertReferenceLink,
   insertFootnote
 } from './markdownEditor/insert'
@@ -523,6 +552,7 @@ const extensions = [
   }),
   Code, 
   iwLink.configure({
+    openOnClick: false,
     linkOnPaste: true,
     autolink: true,
     editOnFocus: true,
@@ -542,7 +572,7 @@ const extensions = [
   InvisibleCharacters和Placeholder不能一起存在
   会导致回车换行时，内容逆向滚动
    */
-  //InvisibleCharacters,
+  InvisibleCharacters,
   //Placeholder.configure({
   //  placeholder: onPlaceholder,
   //}),

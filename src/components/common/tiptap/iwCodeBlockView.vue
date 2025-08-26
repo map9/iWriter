@@ -7,7 +7,7 @@
     <!-- 内部控制按钮：在代码块内部 -->
     <div 
       class="toolbar-controls"
-      v-show="shouldShowControls"
+      v-show="shouldShowToolbar"
     >
       <!-- 语言选择器 -->
       <select 
@@ -112,7 +112,7 @@ const selectedLanguage = computed({
   },
 })
 
-const shouldShowControls = computed((): boolean => {
+const shouldShowToolbar = computed((): boolean => {
   return props.selected || isHovered.value
 })
 

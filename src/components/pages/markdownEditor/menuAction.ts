@@ -1,13 +1,12 @@
 import { type Editor } from '@tiptap/vue-3'
 import {
+  toggleLink,
+  toggleMath,
   insertTable,  
   insertImage, 
   insertAudio, 
   insertVideo, 
-  insertLink, 
-  insertInlineLink,
   insertMathBlock, 
-  insertInlineMath,
   insertReferenceLink,
   insertFootnote,
   toggleTaskItemChecked,
@@ -263,10 +262,10 @@ export async function doMenuAction(editor: Editor | undefined, action: string): 
       editor.chain().focus().toggleCode().run()
       return true
     case 'inline-math':
-      insertInlineMath(editor)
+      toggleMath(editor)
       return true
     case 'inline-link':
-      insertInlineLink(editor)
+      toggleLink(editor)
       return true
 
     case 'clear-formatting':
