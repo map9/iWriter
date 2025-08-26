@@ -11,8 +11,14 @@ export function findMarkRange(state: EditorState, pos: number, markTypeName: str
   const mark = node.marks.find(m => m.type === linkType);
   if (!mark) return null;
 
-  // === 修复点：当前 node 的绝对范围 ===
+  const childBefore = $pos.parent.childBefore($pos.parentOffset);
   let start = $pos.start() + $pos.parent.childBefore($pos.parentOffset).offset;
+  if (
+    childBefore.node !== node &&
+    node.marks.some(m => m.type === linkType)
+  ) {
+    start = $pos.start() + $pos.parentOffset;
+  }
   let end = start + node.nodeSize;
 
   // 向前扩展

@@ -6,7 +6,7 @@
   >
     <!-- 内部控制按钮：在代码块内部 -->
     <div 
-      class="toolbar-controls"
+      class="toolbar-controls inside-top-right"
       v-show="shouldShowToolbar"
     >
       <!-- 语言选择器 -->

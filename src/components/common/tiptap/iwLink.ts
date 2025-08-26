@@ -8,6 +8,9 @@ import type { Editor } from '@tiptap/core'
 
 import { findMarkRange } from '../utils/findMarkRange'
 
+const checkSvg = `<svg  xmlns="http://www.w3.org/2000/svg"  class="control-button-icon" width="24"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-check"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>`
+const unlinkSvg = `<svg  xmlns="http://www.w3.org/2000/svg" class="control-button-icon" width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-unlink"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M17 22v-2" /><path d="M9 15l6 -6" /><path d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464" /><path d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463" /><path d="M20 17h2" /><path d="M2 7h2" /><path d="M7 2v2" /></svg>`
+
 interface LinkEditState {
   editingLink: {
     from: number
@@ -38,56 +41,38 @@ const escapeHtml = (text: string): string => {
 
 const createEditWidget = (textContent: string, href: string, from: number, to: number, mark: Mark, editor: Editor): HTMLElement => {
   const editWidget = document.createElement('span')
-  editWidget.className = 'iw-link-edit-popup'
+  editWidget.className = 'toolbar-warpper inline-block'
   editWidget.contentEditable = 'false'
   
   editWidget.innerHTML = `
-    <div class="iw-link-editor-panel">
-      <div class="iw-link-editor-inputs">
-        <input class="iw-link-text-input" value="${escapeHtml(textContent)}" placeholder="Link text">
-        <input class="iw-link-href-input" value="${escapeHtml(href)}" placeholder="https://...">
-      </div>
-      <div class="iw-link-editor-actions">
-        <button class="iw-link-confirm" title="Confirm" type="button">✓</button>
-        <button class="iw-link-cancel" title="Cancel" type="button">✕</button>
+    <div class="toolbar-controls floating">
+      <div class="control-input-group">
+        <input id="href-input" class="control-input-field" value="${escapeHtml(href)}" placeholder="https://...">
+        <button id="confirm" class="control-button confirm-button" title="Confirm" type="button">${checkSvg}</button>
+        <button id="unlink" class="control-button delete-button" title="Unlink" type="button">${unlinkSvg}</button>
       </div>
     </div>
   `
-  
-  const textInput = editWidget.querySelector('.iw-link-text-input') as HTMLInputElement
-  const hrefInput = editWidget.querySelector('.iw-link-href-input') as HTMLInputElement
-  const confirmBtn = editWidget.querySelector('.iw-link-confirm') as HTMLButtonElement
-  const cancelBtn = editWidget.querySelector('.iw-link-cancel') as HTMLButtonElement
+  const hrefInput = editWidget.querySelector<HTMLInputElement>('#href-input')!
+  const confirmBtn = editWidget.querySelector<HTMLButtonElement>('#confirm')!
+  const unlinkBtn = editWidget.querySelector<HTMLButtonElement>('#unlink')!
   
   // 确认修改
   const confirmEdit = () => {
-    const newText = textInput.value.trim()
-    const newHref = hrefInput.value.trim()
-    
-    if (!newText || !newHref) return
-    
     const { state, dispatch } = editor.view
+    
     const tr = state.tr
-    
-    
-    // 替换文本内容（如果改变了）
-    const oldText = state.doc.textBetween(from, to, ' ')
-    if (newText !== oldText) {
-      tr.replaceWith(from, to, state.schema.text(newText))
-      // 重新计算范围
-      const newTo = from + newText.length
-      tr.addMark(from, newTo, mark.type.create({ 
-        ...mark.attrs, 
-        href: newHref 
-      }))
-    } else {
-      // 先移除旧的mark
-      tr.removeMark(from, to, mark.type)
-      // 只更新href
-      tr.addMark(from, to, mark.type.create({ 
-        ...mark.attrs, 
-        href: newHref 
-      }))
+    const pluginState = iwLinkPluginKey.getState(state)
+    if (pluginState?.editingLink) {
+      const oldHref = pluginState.editingLink.mark.attrs.href
+      const newHref = hrefInput.value.trim()
+      if (newHref !== oldHref) {
+        tr.removeMark(from, to, mark.type)
+        tr.addMark(from, to, mark.type.create({ 
+          ...mark.attrs, 
+          href: newHref 
+        }))
+      }
     }
     
     // 用 tr.mapping.map(...) 把旧位置映射到当前事务文档；
@@ -110,6 +95,12 @@ const createEditWidget = (textContent: string, href: string, from: number, to: n
     editor.view.focus()
   }
   
+  const unlink = () => {
+    editor.chain().focus().unsetLink().run()
+    //editor.commands.unsetLink()
+    editor.view.focus()
+  }
+
   // 键盘事件
   const handleKeydown = (e: KeyboardEvent) => {
     switch (e.key) {
@@ -127,32 +118,22 @@ const createEditWidget = (textContent: string, href: string, from: number, to: n
         e.stopPropagation()
         cancelEdit()
         break
-      case 'Tab':
-        e.preventDefault()
-        e.stopPropagation()
-        if (e.target === textInput) {
-          hrefInput.focus()
-        } else {
-          textInput.focus()
-        }
-        break
     }
   }
   
-  textInput.addEventListener('keydown', handleKeydown)
   hrefInput.addEventListener('keydown', handleKeydown)
   confirmBtn.addEventListener('click', confirmEdit)
-  cancelBtn.addEventListener('click', cancelEdit)
+  unlinkBtn.addEventListener('click', unlink)
   
   // 自动聚焦到文本输入
-  setTimeout(() => textInput.focus(), 100)
+  setTimeout(() => hrefInput.focus(), 100)
   
   return editWidget
 }
 
 export const iwLink = Link.extend<IwLinkOptions>({
   name: markTypeName,
-
+  // @ts-ignore
   addOptions() {
     return {
       ...this.parent?.(),

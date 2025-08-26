@@ -2,7 +2,7 @@
   <node-view-wrapper class="toolbar-warpper" :style="{ 'text-align': textAlign }" @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave">
     <!-- 图片工具栏：在图片内部 -->
-    <div class="toolbar-controls" v-show="shouldShowToolbar">
+    <div class="toolbar-controls inside-top" v-show="shouldShowToolbar">
       <div class="control-group flex-1 min-w-0">
         <!-- 打开文件夹按钮 -->
         <button @click.stop="openFolder" class="control-button" title="Select image file" contenteditable="false">
@@ -636,7 +636,6 @@ const updateImageFromInput = async (): Promise<void> => {
 .tiptap {
   .toolbar-warpper {
     .toolbar-controls {
-      left: 0px;
       border-radius: 8px 8px 0 0;
     }
 

@@ -6,7 +6,7 @@
   >
     <!-- 内部控制按钮：在表格内部 -->
     <div 
-      class="toolbar-controls"
+      class="toolbar-controls inside-top-right"
       :class="{'outside-top': isInside}"
       v-show="shouldShowToolbar"
     >

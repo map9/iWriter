@@ -1,26 +1,9 @@
 // iwLink inline editing styles
 .tiptap {
-  // 链接基础样式
-  .iw-link {
-    color: var(--accent-primary, #3b82f6);
-    text-decoration: underline;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    
-    &:hover {
-      color: var(--accent-secondary, #2563eb);
-      background: rgba(59, 130, 246, 0.1);
-      border-radius: 3px;
-      padding: 1px 2px;
-      text-decoration: none;
-    }
-  }
-
   // 编辑模式高亮
   .iw-link-editing-highlight {
     background: rgba(59, 130, 246, 0.15);
-    border-radius: 3px;
-    padding: 1px 2px;
+    border-radius: 4px;
     position: relative;
     
     &::before {

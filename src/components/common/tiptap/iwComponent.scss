@@ -1,11 +1,13 @@
 .tiptap {
   .toolbar-warpper {
     position: relative;
+
+    &.inline-block {
+      display: inline-block;
+    }
     
     .toolbar-controls {
       position: absolute;
-      top: 0px;
-      right: 0px;
       width: auto;
       height: auto;
       padding: 4px 6px;
@@ -19,8 +21,27 @@
       transition: all 0.2s ease;
       transform: translateX(0px);
       transform: translateY(0px);
-      z-index: 10;
+      box-shadow: 
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      z-index: 1000;
       
+      &.inside-top-left {
+        top: 0px;
+        left: 0px;
+      }
+
+      &.inside-top-right {
+        top: 0px;
+        right: 0px;
+      }
+
+      &.inside-top {
+        top: 0px;
+        left: 0px;
+        right: 0px;
+      }
+
       &.outside-top {
         left: 50% !important;
         top: -40px !important;
@@ -39,6 +60,41 @@
         padding: 6px 4px !important;
       }
 
+      &.floating {
+        top: -8px;
+        left: 8px;
+
+        // 小三角指示器
+        &::before {
+          content: '';
+          position: absolute;
+          top: 12px;
+          left: -6px;
+          width: 0;
+          height: 0;
+          border-style: solid;
+          border-width: 6px 6px 6px 0;
+          border-color: transparent rgba(0, 0, 0, 0.1) transparent transparent;
+        }
+        
+        &::after {
+          content: '';
+          position: absolute;
+          top: 13px;
+          left: -5px;
+          width: 0;
+          height: 0;
+          border-style: solid;
+          border-width: 5px 5px 5px 0;
+          border-color: transparent rgba(0, 0, 0, 0.8) transparent transparent;
+          
+          // 暗色主题适配
+          @media (prefers-color-scheme: dark) {
+            border-right-color: var(--background-content, #1f2937);
+          }
+        }
+      }
+
       .control-group {
         display: flex;
         align-items: center;
@@ -53,7 +109,7 @@
         border-radius: 6px;
         padding: 4px 8px;
         color: #fff;
-        font-size: 12px;
+        font-size: 13px;
         backdrop-filter: blur(8px);
         height: 26px;
 
@@ -170,7 +226,7 @@
         border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 4px;
         color: white;
-        font-size: 12px;
+        font-size: 13px;
         overflow: hidden;
 
         .control-input-text {
@@ -179,7 +235,7 @@
           overflow-y: hidden;
           overflow-x: auto;
           text-overflow: clip;
-          font-size: 12px;
+          font-size: 13px;
           line-height: 1.2;
           text-align: left;
           height: 16px;
@@ -207,7 +263,7 @@
           border: 1px solid rgba(255, 255, 255, 0.2);
           border-radius: 4px;
           color: white;
-          font-size: 12px;
+          font-size: 13px;
           outline: none;
           transition: all 0.2s ease;
           height: 26px;
