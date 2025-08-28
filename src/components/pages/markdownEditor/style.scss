@@ -180,7 +180,7 @@
   table {
     border-collapse: collapse;
     margin: 0;
-    overflow: hidden;
+    overflow: visible;
     table-layout: fixed;
     width: 100%;
 
@@ -225,21 +225,11 @@
       top: 0;
       width: 4px;
     }
-
-    .tableWrapper {
-      margin: 1.5rem 0;
-      overflow-x: auto;
-    }
-
-    &.resize-cursor {
-      cursor: ew-resize;
-      cursor: col-resize;
-    }
   }
 
   .tableWrapper {
     margin: 1.5rem 0;
-    overflow-x: auto;
+    overflow: visible;
   }
 
   &.resize-cursor {

@@ -8,8 +8,10 @@ import type { Editor } from '@tiptap/core'
 
 import { findMarkRange } from '../utils/findMarkRange'
 
-const checkSvg = `<svg  xmlns="http://www.w3.org/2000/svg"  class="control-button-icon" width="24"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-check"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>`
+const editSvg = `<svg  xmlns="http://www.w3.org/2000/svg"  class="control-button-icon"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-edit"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" /><path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" /><path d="M16 5l3 3" /></svg>`
+const checkSvg = `<svg  xmlns="http://www.w3.org/2000/svg"  class="control-button-icon" width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-check"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>`
 const unlinkSvg = `<svg  xmlns="http://www.w3.org/2000/svg" class="control-button-icon" width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-unlink"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M17 22v-2" /><path d="M9 15l6 -6" /><path d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464" /><path d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463" /><path d="M20 17h2" /><path d="M2 7h2" /><path d="M7 2v2" /></svg>`
+const outboundSvg = `<svg  xmlns="http://www.w3.org/2000/svg"  class="control-button-icon" width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-external-link"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6" /><path d="M11 13l9 -9" /><path d="M15 4h5v5" /></svg>`
 
 interface LinkEditState {
   editingLink: {
@@ -19,14 +21,12 @@ interface LinkEditState {
   } | null
   shouldShowToolbar: boolean
 }
+let editMode: boolean = false
 
 interface IwLinkOptions extends LinkOptions {
   editOnFocus: boolean
   editDelay: number
-  autoExitOnValid: boolean
-  linkOnPaste: boolean
-  autolink: boolean
-  HTMLAttributes: Record<string, any>
+  openOnClickFun: (url: string) => {}
 }
 
 const markTypeName = 'iwLink'
@@ -39,7 +39,13 @@ const escapeHtml = (text: string): string => {
   return div.innerHTML
 }
 
-const createEditWidget = (textContent: string, href: string, from: number, to: number, mark: Mark, editor: Editor): HTMLElement => {
+const createEditWidget = (
+  textContent: string,
+  href: string,
+  openOnClickFun: (url: string) => {},
+  from: number, to: number, mark: Mark,
+  editor: Editor
+): HTMLElement => {
   const editWidget = document.createElement('span')
   editWidget.className = 'toolbar-warpper inline-block'
   editWidget.contentEditable = 'false'
@@ -47,30 +53,48 @@ const createEditWidget = (textContent: string, href: string, from: number, to: n
   editWidget.innerHTML = `
     <div class="toolbar-controls floating">
       <div class="control-input-group">
-        <input id="href-input" class="control-input-field" value="${escapeHtml(href)}" placeholder="https://...">
-        <button id="confirm" class="control-button confirm-button" title="Confirm" type="button">${checkSvg}</button>
-        <button id="unlink" class="control-button delete-button" title="Unlink" type="button">${unlinkSvg}</button>
+        <input id="href-input" style="display: ${editMode? 'block': 'none'};" class="control-input-field" value="${escapeHtml(href)}" placeholder="https://...">
+        <button id="edit" style="display: ${editMode? 'none' : 'block' };"class="control-button" title="Edit" type="button">${editSvg}</button>
+        <button id="confirm" style="display: ${editMode? 'block': 'none'};" class="control-button confirm-button" title="Confirm" type="button">${checkSvg}</button>
+        <button id="open"  style="display: ${editMode? 'block': 'none'};" class="control-button" title="Open" type="button">${outboundSvg}</button>
+        <button id="unlink"  style="display: ${editMode? 'block': 'none'};" class="control-button delete-button" title="Unlink" type="button">${unlinkSvg}</button>
       </div>
     </div>
   `
   const hrefInput = editWidget.querySelector<HTMLInputElement>('#href-input')!
+  const editBtn = editWidget.querySelector<HTMLButtonElement>('#edit')!
   const confirmBtn = editWidget.querySelector<HTMLButtonElement>('#confirm')!
+  const openBtn = editWidget.querySelector<HTMLButtonElement>('#open')!
   const unlinkBtn = editWidget.querySelector<HTMLButtonElement>('#unlink')!
   
+  // edit mode
+  const edit = () => {
+    hrefInput.style.display = 'block'
+    editBtn.style.display = 'none'
+    confirmBtn.style.display = 'block'
+    openBtn.style.display = 'block'
+    unlinkBtn.style.display = 'block'
+    editMode = true
+
+    // 自动聚焦到文本输入
+    setTimeout(() => hrefInput.focus(), 100)
+  }
+
   // 确认修改
-  const confirmEdit = () => {
+  const confirmEdit = (): string => {
     const { state, dispatch } = editor.view
     
     const tr = state.tr
     const pluginState = iwLinkPluginKey.getState(state)
+    let href = pluginState.editingLink.mark.attrs.href
     if (pluginState?.editingLink) {
-      const oldHref = pluginState.editingLink.mark.attrs.href
       const newHref = hrefInput.value.trim()
-      if (newHref !== oldHref) {
+      if (newHref !== href) {
+        href = newHref
         tr.removeMark(from, to, mark.type)
         tr.addMark(from, to, mark.type.create({ 
           ...mark.attrs, 
-          href: newHref 
+          href: href 
         }))
       }
     }
@@ -83,6 +107,8 @@ const createEditWidget = (textContent: string, href: string, from: number, to: n
     const selection = TextSelection.create(tr.doc, safePos)
     dispatch(tr.setSelection(selection).setMeta('exitLinkEdit', true))
     editor.view.focus()
+
+    return href
   }
   
   // 取消编辑
@@ -95,9 +121,13 @@ const createEditWidget = (textContent: string, href: string, from: number, to: n
     editor.view.focus()
   }
   
+  const open = () => {
+    const href = confirmEdit()
+    openOnClickFun?.(href)
+  }
+
   const unlink = () => {
     editor.chain().focus().unsetLink().run()
-    //editor.commands.unsetLink()
     editor.view.focus()
   }
 
@@ -122,12 +152,18 @@ const createEditWidget = (textContent: string, href: string, from: number, to: n
   }
   
   hrefInput.addEventListener('keydown', handleKeydown)
+  //editBtn.addEventListener('click', edit)
+  editBtn.addEventListener('mousedown', (e) => {
+    e.stopPropagation()
+    e.preventDefault()
+    edit();
+  });
   confirmBtn.addEventListener('click', confirmEdit)
+  openBtn.addEventListener('click', open)
   unlinkBtn.addEventListener('click', unlink)
   
-  // 自动聚焦到文本输入
-  setTimeout(() => hrefInput.focus(), 100)
-  
+  if (editMode) setTimeout(() => hrefInput.focus(), 100)
+ 
   return editWidget
 }
 
@@ -137,11 +173,10 @@ export const iwLink = Link.extend<IwLinkOptions>({
   addOptions() {
     return {
       ...this.parent?.(),
+      openOnClick: false,
+      openOnClickFun: () => {},
       editOnFocus: true,
       editDelay: 300,
-      autoExitOnValid: true,
-      linkOnPaste: true,
-      autolink: true,
       HTMLAttributes: {
         target: '_blank',
         rel: 'noopener noreferrer nofollow',
@@ -160,9 +195,10 @@ export const iwLink = Link.extend<IwLinkOptions>({
         
         state: {
           init(): LinkEditState {
+            editMode = false
             return {
               editingLink: null,
-              shouldShowToolbar: false
+              shouldShowToolbar: false,
             }
           },
           
@@ -171,6 +207,7 @@ export const iwLink = Link.extend<IwLinkOptions>({
             console.log('iwLink apply in', {
               editingLink: prev.editingLink, 
               shouldShowToolbar: prev.shouldShowToolbar,
+              editMode: editMode,
               exitLinkEdit: tr.getMeta('exitLinkEdit'),
             })
             */
@@ -182,6 +219,7 @@ export const iwLink = Link.extend<IwLinkOptions>({
               tr.getMeta('exitLinkEdit') ||
               !newState.selection.empty
             ) {
+                editMode = false
                 return { editingLink: cur, shouldShowToolbar: false }
             }
 
@@ -196,8 +234,14 @@ export const iwLink = Link.extend<IwLinkOptions>({
 
             // 基于之前的 shouldShowToolbar 做增量更新，避免被焦点变化误关
             let shouldShow = prev.shouldShowToolbar
-            if (enteringNewLink) shouldShow = true
-            if (leavingLink) shouldShow = false
+            if (enteringNewLink) {
+              shouldShow = true
+              editMode = false
+            }
+            if (leavingLink) {
+              shouldShow = false
+              editMode = false
+            }
 
             // 其余情况（仍在同一个 link 内移动、DOM 聚焦变化等） => 保持现状
             return {
@@ -213,7 +257,8 @@ export const iwLink = Link.extend<IwLinkOptions>({
             /*
             console.log('iwLink decorations', {
               editingLink: pluginState.editingLink, 
-              shouldShowToolbar: pluginState.shouldShowToolbar
+              shouldShowToolbar: pluginState.shouldShowToolbar,
+              editMode: editMode
             })
             */
             if (!pluginState.shouldShowToolbar || !pluginState.editingLink) {
@@ -227,7 +272,7 @@ export const iwLink = Link.extend<IwLinkOptions>({
             const href = mark.attrs.href || ''
             
             // 创建编辑widget
-            const editWidget = createEditWidget(textContent, href, from, to, mark, this.editor)
+            const editWidget = createEditWidget(textContent, href, this.options.openOnClickFun, from, to, mark, this.editor)
             return DecorationSet.create(state.doc, [
               // 高亮当前编辑的链接
               Decoration.inline(from, to, {

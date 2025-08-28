@@ -61,37 +61,32 @@
       }
 
       &.floating {
-        top: -8px;
-        left: 8px;
+        top: 5px;
+        left: -10px;
 
         // 小三角指示器
         &::before {
           content: '';
           position: absolute;
-          top: 12px;
-          left: -6px;
+          top: -10px;
+          left: 6px;
           width: 0;
           height: 0;
           border-style: solid;
-          border-width: 6px 6px 6px 0;
-          border-color: transparent rgba(0, 0, 0, 0.1) transparent transparent;
+          border-width: 6px;
+          border-color: transparent transparent rgba(0, 0, 0, 0.1) transparent;
         }
         
         &::after {
           content: '';
           position: absolute;
-          top: 13px;
-          left: -5px;
+          top: -9px;
+          left: 7px;
           width: 0;
           height: 0;
           border-style: solid;
-          border-width: 5px 5px 5px 0;
-          border-color: transparent rgba(0, 0, 0, 0.8) transparent transparent;
-          
-          // 暗色主题适配
-          @media (prefers-color-scheme: dark) {
-            border-right-color: var(--background-content, #1f2937);
-          }
+          border-width: 5px;
+          border-color: transparent transparent rgba(0, 0, 0, 0.8) transparent;
         }
       }
 

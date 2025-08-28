@@ -715,7 +715,6 @@ defineExpose({
 </script>
 
 <style lang="scss">
-@use '@/components/common/tiptap/iwLink.scss' as *;
 @use '@/components/common/tiptap/iwComponent.scss' as *;
 @use './markdownEditor/style.scss';
 </style>
