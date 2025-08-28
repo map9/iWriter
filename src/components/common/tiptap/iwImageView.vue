@@ -167,7 +167,7 @@ import { IconFolder, IconExternalLink, IconCopy, IconTrash, IconAlignLeft, IconA
 import { IMAGE_EXTENSIONS } from '@/types'
 import { notify } from '@/utils/notifications'
 import path from '@/utils/pathUtils'
-import { isImageUrl } from '../utils/isImageUrl'
+import { isImageUrl } from './utils/isImageUrl'
 
 enum SrcStatus {
   EMPTY = 'empty',
@@ -631,7 +631,7 @@ const updateImageFromInput = async (): Promise<void> => {
 </script>
 
 <style lang="scss" scoped>
-@use './iwComponent.scss' as *;
+@use './style.scss' as *;
 
 .tiptap {
   .toolbar-warpper {

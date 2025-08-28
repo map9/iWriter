@@ -313,9 +313,6 @@ import ts from 'highlight.js/lib/languages/typescript'
 import html from 'highlight.js/lib/languages/xml'
 import { all, createLowlight } from 'lowlight'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import iwCodeBlockView from '@/components/common/tiptap/iwCodeBlockView.vue'
-import iwImageView from '@/components/common/tiptap/iwImageView.vue'
-import iwTableView from '@/components/common/tiptap/iwTableView.vue'
 
 import 'katex/dist/katex.min.css'
 import { Mathematics, migrateMathStrings } from '@tiptap/extension-mathematics'
@@ -328,7 +325,6 @@ import Strike from '@tiptap/extension-strike'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Code from '@tiptap/extension-code'
-import { iwLink } from '@/components/common/tiptap/iwLink'
 import Highlight from '@tiptap/extension-highlight'
 import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
@@ -336,6 +332,8 @@ import Typography from '@tiptap/extension-typography'
 import { TextStyleKit } from '@tiptap/extension-text-style'
 
 import InvisibleCharacters from '@tiptap/extension-invisible-characters'
+
+import { iwCodeBlockView, iwImageView, iwTableView, iwLink } from '@/components/common/tiptap'
 
 import {
   IconArrowBackUp,
@@ -715,6 +713,6 @@ defineExpose({
 </script>
 
 <style lang="scss">
-@use '@/components/common/tiptap/iwComponent.scss' as *;
+@use '@/components/common/tiptap/style.scss' as *;
 @use './markdownEditor/style.scss';
 </style>

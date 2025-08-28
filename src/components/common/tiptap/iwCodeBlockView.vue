@@ -68,7 +68,7 @@
 import { ref, computed } from 'vue'
 import { NodeViewContent, nodeViewProps, NodeViewWrapper } from '@tiptap/vue-3'
 import { IconTrash, IconCode, IconCopy } from '@tabler/icons-vue'
-import { formatCode, isLanguageSupported, type FormatResult } from "@/components/common/utils/CodeFormatter"
+import { formatCode, isLanguageSupported, type FormatResult } from "./utils/CodeFormatter"
 import { notify } from '@/utils/notifications'
 
 interface NodeAttributes {
@@ -196,5 +196,5 @@ const deleteCodeBlock = (): void => {
 </script>
 
 <style lang="scss" scoped>
-@use './iwComponent.scss' as *;
+@use './style.scss' as *;
 </style>

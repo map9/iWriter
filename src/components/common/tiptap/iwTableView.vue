@@ -197,7 +197,7 @@ import {
   IconColumnRemove,
   IconRowRemove
 } from '@tabler/icons-vue'
-import { isSelectionInsideNode } from '../utils/isSelectionInsideNode'
+import { isSelectionInsideNode } from './utils/isSelectionInsideNode'
 import { notify } from '@/utils/notifications'
 import { 
   moveColumnLeft as moveColumnLeftUtil, 
@@ -208,7 +208,7 @@ import {
   canMoveColumnRight,
   canMoveRowAbove,
   canMoveRowBelow
-} from '../utils/TableOperations'
+} from './utils/TableOperations'
 
 const props = defineProps(nodeViewProps)
 
@@ -620,5 +620,5 @@ const deleteRow = (): void => {
 </script>
 
 <style lang="scss" scoped>
-@use './iwComponent.scss' as *;
+@use './style.scss' as *;
 </style>
