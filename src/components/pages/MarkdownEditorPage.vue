@@ -325,6 +325,7 @@ import Strike from '@tiptap/extension-strike'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Code from '@tiptap/extension-code'
+import Link from '@tiptap/extension-link'
 import Highlight from '@tiptap/extension-highlight'
 import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
@@ -333,7 +334,7 @@ import { TextStyleKit } from '@tiptap/extension-text-style'
 
 import InvisibleCharacters from '@tiptap/extension-invisible-characters'
 
-import { iwCodeBlockView, iwImageView, iwTableView, iwLink } from '@/components/common/tiptap'
+import { iwCodeBlockView, iwImageView, iwTableView, iwLink, iwPopupTools } from '@/components/common/tiptap'
 
 import {
   IconArrowBackUp,
@@ -549,6 +550,14 @@ const extensions = [
     types: ['heading', 'paragraph', 'image', 'caption'],
   }),
   Code, 
+  iwPopupTools,
+  Link.configure({
+    openOnClick: false,
+    HTMLAttributes: {
+      rel: 'noopener noreferrer nofollow'
+    }
+  }),
+  /*
   iwLink.configure({
     openOnClick: false,
     linkOnPaste: true,
@@ -561,6 +570,7 @@ const extensions = [
       rel: 'noopener noreferrer nofollow'
     }
   }),
+  */
   Subscript, Superscript, Typography,
   Highlight,
   

@@ -1,5 +1,5 @@
 import { type Editor } from '@tiptap/vue-3'
-import { getTableState } from '@/components/common/utils/TableOperations'
+import { getTableState } from '@/components/common/tiptap'
 import type { ContentState } from '@/types/windowContentState'
 
 export function getHeading(editor: Editor | undefined) : string {

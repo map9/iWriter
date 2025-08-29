@@ -6,6 +6,10 @@
       display: inline-block;
     }
     
+    .hidden {
+      display: none !important;
+    }
+
     .toolbar-controls {
       position: absolute;
       width: auto;
@@ -96,6 +100,11 @@
         flex-direction: inherit;
         gap: 4px;
         flex-shrink: 0;
+
+        &.flex-grow {
+          flex: 1;
+          min-width: 0;
+        }
      }
 
       .control-selector {
@@ -222,60 +231,20 @@
         border-radius: 4px;
         color: white;
         font-size: 13px;
-        overflow: hidden;
+        outline: none;
+        transition: all 0.2s ease;
+        height: 26px;
 
-        .control-input-text {
-          display: block;
-          white-space: nowrap;
-          overflow-y: hidden;
-          overflow-x: auto;
-          text-overflow: clip;
-          font-size: 13px;
-          line-height: 1.2;
-          text-align: left;
-          height: 16px;
-          scrollbar-width: none;
-          -ms-overflow-style: none;
-
-          &::-webkit-scrollbar {
-            display: none;
-          }
-        }
-      }
-      
-      .control-input-group {
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        
-        .control-input-field {
-          flex: 1;
-          min-width: 0;
-          padding: 4px 8px;
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          border-radius: 4px;
-          color: white;
-          font-size: 13px;
-          outline: none;
-          transition: all 0.2s ease;
-          height: 26px;
-
-          &::placeholder {
-            color: rgba(255, 255, 255, 0.6);
-          }
-          
-          &:focus {
-            background: rgba(255, 255, 255, 0.15);
-            border-color: rgba(59, 130, 246, 0.8);
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-          }
+        &::placeholder {
+          color: rgba(255, 255, 255, 0.6);
         }
         
+        &:focus {
+          background: rgba(255, 255, 255, 0.15);
+          border-color: rgba(59, 130, 246, 0.8);
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
       }
     }
-
   }
 }

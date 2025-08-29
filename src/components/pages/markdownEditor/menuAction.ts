@@ -19,7 +19,7 @@ import {
   moveColumnRight,
   copyTable,
   deleteTable,
-} from '@/components/common/utils/TableOperations'
+} from '@/components/common/tiptap'
 
 // Handle menu actions
 export async function doMenuAction(editor: Editor | undefined, action: string): Promise<boolean> {

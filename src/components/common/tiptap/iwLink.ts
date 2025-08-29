@@ -52,8 +52,8 @@ const createEditWidget = (
   
   editWidget.innerHTML = `
     <div class="toolbar-controls floating">
-      <div class="control-input-group">
-        <input id="href-input" style="display: ${editMode? 'block': 'none'};" class="control-input-field" value="${escapeHtml(href)}" placeholder="https://...">
+      <div class="control-group">
+        <input id="href-input" style="display: ${editMode? 'block': 'none'};" class="control-input" value="${escapeHtml(href)}" placeholder="https://...">
         <button id="edit" style="display: ${editMode? 'none' : 'block' };"class="control-button" title="Edit" type="button">${editSvg}</button>
         <button id="confirm" style="display: ${editMode? 'block': 'none'};" class="control-button confirm-button" title="Confirm" type="button">${checkSvg}</button>
         <button id="open"  style="display: ${editMode? 'block': 'none'};" class="control-button" title="Open" type="button">${outboundSvg}</button>

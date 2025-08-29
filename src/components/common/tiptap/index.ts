@@ -1,5 +1,6 @@
 export * from './utils'
 export * from './iwLink.ts'
+export * from './iwPopupTools'
 
 import iwCodeBlockView from './iwCodeBlockView.vue'
 import iwTableView from './iwTableView.vue'

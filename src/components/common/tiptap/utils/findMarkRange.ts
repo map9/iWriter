@@ -2,20 +2,20 @@ import type { EditorState } from '@tiptap/pm/state'
 
 export function findMarkRange(state: EditorState, pos: number, markTypeName: string) {
   const $pos = state.doc.resolve(pos);
-  const linkType = state.schema.marks[markTypeName];
-  if (!linkType) return null;
+  const markType = state.schema.marks[markTypeName];
+  if (!markType) return null;
 
   let node = $pos.parent.maybeChild($pos.index());
   if (!node || !node.isText) return null;
 
-  const mark = node.marks.find(m => m.type === linkType);
+  const mark = node.marks.find(m => m.type === markType);
   if (!mark) return null;
 
   const childBefore = $pos.parent.childBefore($pos.parentOffset);
   let start = $pos.start() + $pos.parent.childBefore($pos.parentOffset).offset;
   if (
     childBefore.node !== node &&
-    node.marks.some(m => m.type === linkType)
+    node.marks.some(m => m.type === markType)
   ) {
     start = $pos.start() + $pos.parentOffset;
   }
