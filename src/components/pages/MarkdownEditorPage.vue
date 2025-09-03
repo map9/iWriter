@@ -92,7 +92,7 @@
         <button
           @click="toggleLink(editor)"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': editor?.isActive('iwLink') }"
+          :class="{ 'bg-gray-200': editor?.isActive('link') }"
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Link"
         >
@@ -334,7 +334,7 @@ import { TextStyleKit } from '@tiptap/extension-text-style'
 
 import InvisibleCharacters from '@tiptap/extension-invisible-characters'
 
-import { iwCodeBlockView, iwImageView, iwTableView, iwLink, iwPopupTools } from '@/components/common/tiptap'
+import { iwCodeBlockView, iwImageView, iwTableView, iwPopupTools } from '@/components/common/tiptap'
 
 import {
   IconArrowBackUp,
@@ -557,20 +557,6 @@ const extensions = [
       rel: 'noopener noreferrer nofollow'
     }
   }),
-  /*
-  iwLink.configure({
-    openOnClick: false,
-    linkOnPaste: true,
-    autolink: true,
-    editOnFocus: true,
-    editDelay: 300,
-    HTMLAttributes: {
-      class: 'iw-link',
-      target: '_blank',
-      rel: 'noopener noreferrer nofollow'
-    }
-  }),
-  */
   Subscript, Superscript, Typography,
   Highlight,
   

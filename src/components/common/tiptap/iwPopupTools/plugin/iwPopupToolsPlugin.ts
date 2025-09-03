@@ -31,9 +31,12 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
           cur = tool.getEditableMark(newState, newState.selection.$from.pos)
           if (cur) break
         }
-        
+        if (!cur || !currentTool) {
+          return { visible: prev.visible, shouldShowToolbar: false, editableMark: null, popupTool: null }
+        }
+
         /*
-        console.log('iwLink apply in', {
+        console.log('iwPopupToolsPlugins apply in', {
           visible: prev.visible,
           shouldShowToolbar: prev.shouldShowToolbar,
           editMode: currentTool.editMode,
@@ -48,7 +51,7 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
           !newState.selection.empty
         ) {
             currentTool.editMode = false
-            return { visible: prev.visible,shouldShowToolbar: false, editableMark: cur, popupTool: null }
+            return { visible: prev.visible, shouldShowToolbar: false, editableMark: cur, popupTool: null }
         }
 
         // 1) 是否“进入”新的 edtableMark（从无到有，或者从一个 edtableMark 跳到另一个 edtableMark）
@@ -85,7 +88,7 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
       decorations: (state: EditorState): DecorationSet | null => {
         const pluginState = iwPopupToolsPluginKey.getState(state) as PluginState
         /*
-        console.log('iwLink decorations', {
+        console.log('iwPopupToolsPlugins decorations', {
           visible: pluginState.visible,
           shouldShowToolbar: pluginState.shouldShowToolbar,
           editMode: pluginState.popupTool?.editMode,

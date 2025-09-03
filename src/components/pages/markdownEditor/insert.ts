@@ -37,7 +37,7 @@ function isValidUrl(text: string): boolean {
 
 export function toggleLink(editor: Editor | undefined) {
   if (!editor) return
-  if (editor?.isActive('iwLink')) {
+  if (editor?.isActive('link')) {
     editor?.chain().focus().unsetLink().run()
   } else {
     if (!editor.state.selection.empty) {
@@ -52,7 +52,7 @@ export function toggleLink(editor: Editor | undefined) {
         editor.chain().focus().setLink({ href: '' }).run()
       }
     } else {
-      editor?.chain().focus().extendMarkRange('iwLink').setLink({ href: '' }).run()
+      editor?.chain().focus().extendMarkRange('link').setLink({ href: '' }).run()
     }
   }
 }
