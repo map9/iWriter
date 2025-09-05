@@ -1,5 +1,4 @@
-import type { Mark } from '@tiptap/pm/model'
-import { DecorationSet } from '@tiptap/pm/view'
+import type { Mark, Node } from '@tiptap/pm/model'
 import type { iwPopupTool } from './plugin/iwPopupTool.ts'
 
 export interface iwPopupToolsOptions {
@@ -7,15 +6,15 @@ export interface iwPopupToolsOptions {
   tools: Array<iwPopupTool>
 }
 
-export interface EditableMark {
+export interface EditableFeature {
   from: number
   to: number
-  mark: Mark
+  element: Mark | Node  // 支持Mark或Node
 }
 
 export interface PluginState {
   visible: boolean
-  editableMark: EditableMark | null
+  feature: EditableFeature | null
   popupTool: iwPopupTool | null
   shouldShowToolbar: boolean
 }

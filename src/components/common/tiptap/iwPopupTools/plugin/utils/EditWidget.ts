@@ -20,7 +20,7 @@ export class EditWidget {
   private editWidget: HTMLElement
   private floatingPanel: HTMLElement
   private editButton: HTMLButtonElement
-  static toggleEditModeElements: { editMode: boolean, element: HTMLElement }[] = []
+  private toggleEditModeElements: { editMode: boolean, element: HTMLElement }[] = []
 
   constructor() {
     this.editWidget = document.createElement('span')
@@ -31,7 +31,7 @@ export class EditWidget {
     this.floatingPanel.className = 'toolbar-controls floating'
     this.editWidget.appendChild(this.floatingPanel)
 
-    EditWidget.toggleEditModeElements.length = 0
+    this.toggleEditModeElements = []
     this.editButton = EditWidget.createButton({
       title: 'Edit',
       icon: EditWidget.IconEdit,
@@ -54,19 +54,21 @@ export class EditWidget {
   appendChildToPanel(child: HTMLElement, displayMode: ElementDisplayMode = ElementDisplayMode.EDITMODE): void {
     this.floatingPanel.appendChild(child)
     if (displayMode !== ElementDisplayMode.ALWAYS) {
-      EditWidget.toggleEditModeElements.push({
+      this.toggleEditModeElements.push({
         editMode: displayMode === ElementDisplayMode.EDITMODE,
         element: child,
       })
     }
   }
 
-  static setEditMode(editMode: boolean = true): void {
-    if (editMode) {
-      EditWidget.toggleEditModeElements.forEach(tl => tl.editMode === editMode ? tl.element.classList.remove('hidden') : tl.element.classList.add('hidden') )
-    } else {
-      EditWidget.toggleEditModeElements.forEach(tl => tl.editMode === editMode ? tl.element.classList.remove('hidden') : tl.element.classList.add('hidden'))
-    }
+  setEditMode(editMode: boolean = true): void {
+    this.toggleEditModeElements.forEach(tl => {
+      if (tl.editMode === editMode) {
+        tl.element.classList.remove('hidden')
+      } else {
+        tl.element.classList.add('hidden')
+      }
+    })
   }
 
   static createButton({

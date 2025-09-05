@@ -34,7 +34,7 @@ export const iwPopupTools = Extension.create<iwPopupToolsOptions>({
   addOptions() {
     return {
       visible: true,
-      tools: [new iwLinkPopupTool()/*, new iwMathPopupTool()*/],
+      tools: [new iwLinkPopupTool(), new iwMathPopupTool()],
     }
   },
 

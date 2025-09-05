@@ -15,7 +15,7 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
         return {
           visible: options.visible,
           shouldShowToolbar: false,
-          editableMark: null,
+          feature: null,
           popupTool: null,
         }
       },
@@ -28,11 +28,12 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
         let currentTool = null
         for (const tool of options.tools) {
           currentTool = tool
-          cur = tool.getEditableMark(newState, newState.selection.$from.pos)
+          cur = tool.getEditableFeature(newState, newState.selection.$from.pos)
           if (cur) break
+          currentTool.editMode = false
         }
         if (!cur || !currentTool) {
-          return { visible: prev.visible, shouldShowToolbar: false, editableMark: null, popupTool: null }
+          return { visible: prev.visible, shouldShowToolbar: false, feature: null, popupTool: null }
         }
 
         /*
@@ -40,7 +41,8 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
           visible: prev.visible,
           shouldShowToolbar: prev.shouldShowToolbar,
           editMode: currentTool.editMode,
-          editableMark: prev.editableMark, 
+          feature: prev.feature, 
+          selection: {from: newState.selection.$from.pos, to: newState.selection.$to.pos},
           exitPopupTool: tr.getMeta('exitPopupTool'),
         })
         */
@@ -48,27 +50,30 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
         // 处理退出编辑的meta
         if (
           tr.getMeta('exitPopupTool') ||
-          !newState.selection.empty
+          (
+            currentTool.getEditableFeatureType(newState) === 'mark' &&
+            !newState.selection.empty &&
+            !((newState.selection.from === cur.from) && (newState.selection.to === cur.to))
+          )
         ) {
             currentTool.editMode = false
-            return { visible: prev.visible, shouldShowToolbar: false, editableMark: cur, popupTool: null }
+            return { visible: prev.visible, shouldShowToolbar: false, feature: null, popupTool: null }
         }
 
-        // 1) 是否“进入”新的 edtableMark（从无到有，或者从一个 edtableMark 跳到另一个 edtableMark）
-        const prevLink = prev.editableMark
-        const enteringNewLink =
-          (!prevLink && !!cur) ||
-          (prevLink && cur && (prevLink.from !== cur.from || prevLink.to !== cur.to))
+        // 1) 是否“进入”新的 edtableMark（ 从无到有，或者从一个 feature 跳到另一个 feature ）
+        const prevLink = prev.feature
+        const enteringNewLink0 = (!prevLink && !!cur)
+        const enteringNewLink1 = (prevLink && cur && (prevLink.from !== cur.from || prevLink.to !== cur.to))
 
         // 2) 是否“离开” edtableMark（从有到无）
         const leavingLink = !!prevLink && !cur
 
         // 基于之前的 shouldShowToolbar 做增量更新，避免被焦点变化误关
         let shouldShow = prev.shouldShowToolbar
-        if (enteringNewLink) {
-          shouldShow = true
-          currentTool.editMode = false
-        }
+        if (enteringNewLink0 || enteringNewLink1) shouldShow = true        
+        // 新建对象，强制设施editMode时，保持不变
+        if (enteringNewLink1) currentTool.editMode = false
+
         if (leavingLink) {
           shouldShow = false
           currentTool.editMode = false
@@ -78,7 +83,7 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
         return {
           visible: prev.visible, 
           shouldShowToolbar: shouldShow,
-          editableMark: cur,
+          feature: cur,
           popupTool: currentTool,
         }
       }
@@ -92,20 +97,42 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
           visible: pluginState.visible,
           shouldShowToolbar: pluginState.shouldShowToolbar,
           editMode: pluginState.popupTool?.editMode,
-          editableMark: pluginState.editableMark, 
+          feature: pluginState.feature, 
           exitPopupTool: state.tr.getMeta('exitPopupTool'),
         })
         */
         if (
           !pluginState.visible ||
           !pluginState.shouldShowToolbar ||
-          !pluginState.editableMark
+          !pluginState.feature
         ) {
           return null
         }
         
-        return pluginState.popupTool?.createDecoration(pluginState.editableMark, state, editor) || null
+        return pluginState.popupTool?.createDecoration(pluginState.feature, state, editor) || null
       },
+      
+      handleDOMEvents: {
+        mousedown: (view, event) => {
+          const pluginState = iwPopupToolsPluginKey.getState(view.state)
+          
+          // 只在编辑模式下处理
+          if (!pluginState?.popupTool?.editMode) {
+            return false
+          }
+          
+          const target = event.target as Element
+          // 检查点击是否在popup工具外部
+          if (!target.closest('.toolbar-warpper')) {
+            // 强制退出编辑模式
+            const tr = view.state.tr.setMeta('exitPopupTool', true)
+            view.dispatch(tr)
+            return false // 让编辑器正常处理点击
+          }
+          
+          return false
+        }
+      }
     },
 
   })

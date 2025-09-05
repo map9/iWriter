@@ -1,5 +1,5 @@
 import { TextSelection } from '@tiptap/pm/state'
-import type { Mark } from '@tiptap/pm/model'
+import type { Mark, Node } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/core'
 
 import { iwPopupTool } from '../iwPopupTool.ts'
@@ -12,12 +12,14 @@ export interface iwLinkPopupToolOptions extends iwPopupToolOptions {
 }
 
 export class iwLinkPopupTool extends iwPopupTool {
+  private openOnClickFun?: (url: string) => void
+
   constructor() {
     super({
       type: "link",
-      createEditWidget: (tool: iwPopupTool, from: number, to: number, mark: Mark, editor: Editor): HTMLElement => {
-        const href: string = mark.attrs.href || ''
-        const editMode = tool.editMode
+      createEditWidget: (tool: iwPopupTool, from: number, to: number, element: Mark | Node, editor: Editor): EditWidget => {
+        const linkMark = element as Mark
+        const href: string = linkMark.attrs.href || ''
 
         const editWidget = new EditWidget()
 
@@ -59,14 +61,14 @@ export class iwLinkPopupTool extends iwPopupTool {
           
           const tr = state.tr
           const pluginState = iwPopupToolsPluginKey.getState(state)
-          let href = pluginState?.editableMark?.mark.attrs.href
-          if (pluginState?.editableMark) {
+          let href = pluginState?.feature?.element.attrs.href
+          if (pluginState?.feature) {
             const newHref = hrefInput.value.trim()
             if (newHref !== href) {
               href = newHref
-              tr.removeMark(from, to, mark.type)
-              tr.addMark(from, to, mark.type.create({ 
-                ...mark.attrs, 
+              tr.removeMark(from, to, linkMark.type)
+              tr.addMark(from, to, linkMark.type.create({ 
+                ...linkMark.attrs, 
                 href: href 
               }))
             }
@@ -95,17 +97,6 @@ export class iwLinkPopupTool extends iwPopupTool {
           editor.view.focus()
         }
 
-        const openBtn = EditWidget.createButton({
-          title: 'Open',
-          icon: EditWidget.IconOutbound,
-        })
-        const open = () => {
-          const href = confirmEdit()
-          if (href) tool.options.openOnClickFun?.(href)
-        }
-        openBtn.addEventListener('click', open)
-        iputGroup.appendChild(openBtn)
-        
         const unlinkBtn = EditWidget.createButton({
           title: 'Unlink',
           className: 'delete-button',
@@ -118,23 +109,62 @@ export class iwLinkPopupTool extends iwPopupTool {
         unlinkBtn.addEventListener('click', unlink)
         iputGroup.appendChild(unlinkBtn)
 
+                const openBtn = EditWidget.createButton({
+          title: 'Open',
+          icon: EditWidget.IconOutbound,
+        })
+        const open = () => {
+          const href = confirmEdit()
+          if (href) (tool as iwLinkPopupTool).openOnClickFun?.(href)
+        }
+        openBtn.addEventListener('click', open)
+        editWidget.appendChildToPanel(openBtn, ElementDisplayMode.ALWAYS)
+
         const toggleEditMode = (e: MouseEvent) => {
           e.preventDefault()
           e.stopPropagation()
           tool.editMode = true
-          EditWidget.setEditMode(tool.editMode)
-          setTimeout(() => hrefInput.focus(), 100)
+          editWidget.setEditMode(true)
+          if (tool.editMode) {
+            setTimeout(() => {
+              hrefInput.select()
+              hrefInput.focus()
+            }, 100)
+          }
         }
         editWidget.editBtn.addEventListener('mousedown', toggleEditMode)
+        editWidget.setEditMode(tool.editMode)
+        if (tool.editMode) {
+          setTimeout(() => {
+            hrefInput.select()
+            hrefInput.focus()
+          }, 100)
+        }
 
-        console.log({editMode: tool.editMode})
-        EditWidget.setEditMode(tool.editMode)
-        if (editMode) setTimeout(() => hrefInput.focus(), 100)
-
-        return editWidget.dom
-
+        return editWidget
       },
-      openOnClickFun: (url: string) => {}
+
+      updateEditWidget: (editWidget: EditWidget, tool: iwPopupTool, from: number, to: number, element: Mark | Node, editor: Editor) => {
+        const linkMark = element as Mark
+        const href: string = linkMark.attrs.href || ''
+        const hrefInput = editWidget.dom.querySelector('input')
+        let changed = false
+        if (hrefInput && href !== (hrefInput as HTMLInputElement).value) {
+          hrefInput.value = href
+          changed = true
+        }
+
+        editWidget.setEditMode(tool.editMode)
+        if (tool.editMode && hrefInput) {
+          setTimeout(() => {
+            if (changed) hrefInput.select()
+            hrefInput.focus()
+          }, 100)
+        }
+      }
+
     })
+    
+    this.openOnClickFun = (url: string) => {}
   }
 }

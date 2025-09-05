@@ -1,30 +1,6 @@
 import { type Editor } from '@tiptap/vue-3'
 import { find } from 'linkifyjs'
 
-export function toggleMath(editor: Editor | undefined) {
-  if (!editor) return
-
-    const hasSelection = !editor.state.selection.empty
-  if (hasSelection) {
-    // If there's a selection, wrap it in block math
-    const selectedText = editor.state.doc.textBetween(
-      editor.state.selection.from, 
-      editor.state.selection.to
-    )
-    
-    editor.chain().focus().deleteSelection().run()
-
-    // If selection looks like LaTeX (contains backslashes or common math symbols), use it directly
-    const isLikelyLatex = /\\|[\{\}\^\\_]|\$\$?|\\[a-zA-Z]+/.test(selectedText)
-    if (isLikelyLatex) {
-      return editor.chain().focus().insertInlineMath({ latex: selectedText }).run()
-    }
-  }
-
-  // Insert a empty block math node
-  return editor.chain().focus().insertInlineMath({ latex: 'Pealse input Latex...' }).run()
-}
-
 function isValidUrl(text: string): boolean {
   if (!text?.trim()) return false
   
@@ -40,11 +16,24 @@ export function toggleLink(editor: Editor | undefined) {
   if (editor?.isActive('link')) {
     editor?.chain().focus().unsetLink().run()
   } else {
+    // 找到iwPopupTools扩展
+    const iwPopupToolsExt = editor.extensionManager.extensions.find(ext => ext.name === 'iwPopupTools')
+    if (iwPopupToolsExt && iwPopupToolsExt.options.tools) {
+      // 找到iwLinkPopupTool实例
+      const linkTool = iwPopupToolsExt.options.tools.find((tool: any) => tool.options.type === 'link')
+      if (linkTool) linkTool.editMode = true
+    }
+    
+    let linkFrom: number, linkTo: number
+    
     if (!editor.state.selection.empty) {
       const selectedText = editor.state.doc.textBetween(
         editor.state.selection.from, 
         editor.state.selection.to
       )
+      
+      linkFrom = editor.state.selection.from
+      linkTo = editor.state.selection.to
       
       if (isValidUrl(selectedText)) {
         editor.chain().focus().setLink({ href: selectedText }).run()
@@ -52,7 +41,60 @@ export function toggleLink(editor: Editor | undefined) {
         editor.chain().focus().setLink({ href: '' }).run()
       }
     } else {
-      editor?.chain().focus().extendMarkRange('link').setLink({ href: '' }).run()
+      const markRange = editor.state.selection.$from.marks().find(mark => mark.type.name === 'link')
+      if (markRange) {
+        // 扩展到整个link范围
+        editor.chain().focus().extendMarkRange('link').setLink({ href: '' }).run()
+        // 获取扩展后的选区范围
+        linkFrom = editor.state.selection.from
+        linkTo = editor.state.selection.to
+      } else {
+        editor.chain().focus().setLink({ href: '' }).run()
+        linkFrom = editor.state.selection.from
+        linkTo = editor.state.selection.to
+      }
+    }
+  }
+}
+
+function isValidLatex(text: string): boolean {
+  if (!text?.trim()) return false
+  
+  // Check if text looks like LaTeX (contains backslashes or common math symbols)
+  return /\\|[\{\}\^\\_]|\$\$?|\\[a-zA-Z]+/.test(text.trim())
+}
+
+export function toggleMath(editor: Editor | undefined) {
+  if (!editor) return
+  
+  if (editor?.isActive('inlineMath')) {
+    // 如果当前在 inlineMath node 内，删除该 node
+    editor?.chain().focus().deleteNode('inlineMath').run()
+  } else {
+    // 找到iwPopupTools扩展
+    const iwPopupToolsExt = editor.extensionManager.extensions.find(ext => ext.name === 'iwPopupTools')
+    if (iwPopupToolsExt && iwPopupToolsExt.options.tools) {
+      // 找到iwMathPopupTool实例
+      const mathTool = iwPopupToolsExt.options.tools.find((tool: any) => tool.options.type === 'inlineMath')
+      if (mathTool) mathTool.editMode = true
+    }
+    
+    if (!editor.state.selection.empty) {
+      const selectedText = editor.state.doc.textBetween(
+        editor.state.selection.from, 
+        editor.state.selection.to
+      )
+      
+      const insertPos = editor.state.selection.from
+      
+      if (isValidLatex(selectedText)) {
+        editor.chain().focus().deleteSelection().insertInlineMath({ latex: selectedText }).setNodeSelection(insertPos).run()
+      } else {
+        editor.chain().focus().deleteSelection().insertInlineMath({ latex: '\\LaTeX' }).setNodeSelection(insertPos).run()
+      }
+    } else {
+      const insertPos = editor.state.selection.from
+      editor.chain().focus().insertInlineMath({ latex: '\\LaTeX' }).setNodeSelection(insertPos).run()
     }
   }
 }

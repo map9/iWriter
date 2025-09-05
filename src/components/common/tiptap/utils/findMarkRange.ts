@@ -39,5 +39,5 @@ export function findMarkRange(state: EditorState, pos: number, markTypeName: str
     index++;
   }
 
-  return { from: start, to: end, mark };
+  return { from: start, to: end, element: mark };
 }

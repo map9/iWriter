@@ -316,6 +316,7 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 
 import 'katex/dist/katex.min.css'
 import { Mathematics, migrateMathStrings } from '@tiptap/extension-mathematics'
+import katex from 'katex'
 
 import { ListItem, BulletList, OrderedList, ListKeymap, TaskItem, TaskList } from '@tiptap/extension-list'
 
@@ -334,7 +335,7 @@ import { TextStyleKit } from '@tiptap/extension-text-style'
 
 import InvisibleCharacters from '@tiptap/extension-invisible-characters'
 
-import { iwCodeBlockView, iwImageView, iwTableView, iwPopupTools } from '@/components/common/tiptap'
+import { iwCodeBlockView, iwImageView, iwTableView, iwPopupTools, iwLinkPopupTool, iwMathPopupTool } from '@/components/common/tiptap'
 
 import {
   IconArrowBackUp,
@@ -511,22 +512,14 @@ const extensions = [
     },
   }).configure({ lowlight }),
   Mathematics.configure({
+    /*
     inlineOptions: {
-      onClick: (node, pos) => {
-        const newCalculation = prompt('Enter new calculation:', node.attrs.latex)
-        if (newCalculation) {
-          editor.value?.chain().setNodeSelection(pos).updateInlineMath({ latex: newCalculation }).focus().run()
-        }
-      },
+      onClick: undefined, // 移除prompt，让PopupTools接管
     },
     blockOptions: {
-      onClick: (node, pos) => {
-        const newCalculation = prompt('Enter new calculation:', node.attrs.latex)
-        if (newCalculation) {
-          editor.value?.chain().setNodeSelection(pos).updateBlockMath({ latex: newCalculation }).focus().run()
-        }
-      },
+      onClick: undefined, // 保持一致性
     },
+    */
     // Options for the KaTeX renderer. See here: https://katex.org/docs/options.html
     katexOptions: {
       throwOnError: false, // don't throw an error if the LaTeX code is invalid
@@ -550,7 +543,9 @@ const extensions = [
     types: ['heading', 'paragraph', 'image', 'caption'],
   }),
   Code, 
-  iwPopupTools,
+  iwPopupTools.configure({
+    tools: [new iwLinkPopupTool(), new iwMathPopupTool()]
+  }),
   Link.configure({
     openOnClick: false,
     HTMLAttributes: {
