@@ -64,6 +64,11 @@
         right: 0px;
       }
 
+      &.outside-top-right {
+        top: -40px !important;
+        right: 0px;
+      }
+
       &.outside-top {
         left: 50% !important;
         top: -40px !important;

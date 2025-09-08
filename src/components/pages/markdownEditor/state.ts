@@ -62,6 +62,8 @@ export function getContentType(editor: Editor | undefined) : ContentState {
   }
   else if (editor?.isActive('codeBlock'))
     type = 'codeBlock'
+  else if (editor?.isActive('blockMath'))
+    type = 'mathBlock'
   else if (editor?.isActive('paragraph')) // all list are paragraph
     type = 'paragraph'
   else
