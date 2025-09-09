@@ -524,6 +524,7 @@ const extensions = [
     },
   }),
   BlockMath.extend({
+    draggable: true,
     addNodeView() {
       return VueNodeViewRenderer(iwMathBlockView)
     },

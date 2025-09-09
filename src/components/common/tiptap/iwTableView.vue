@@ -621,4 +621,32 @@ const deleteRow = (): void => {
 
 <style lang="scss" scoped>
 @use './style.scss' as *;
+/*
+.toolbar-warpper {
+  &.has-focus {
+   .tableWrapper, .tableWrapper:hover {
+      border: 2px solid transparent !important;
+    }
+  }
+
+  &:not(.has-focus) {
+    .tableWrapper:hover {
+      border: 2px solid #3b82f6;
+    }
+  }
+
+  .tableWrapper {
+    border: 2px solid transparent;
+
+    table {
+      td,
+      th {
+        &.has-focus {
+          border: 2px solid #3b82f6;
+        }
+      }
+    }
+  }
+}
+*/
 </style>

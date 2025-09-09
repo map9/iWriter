@@ -1,6 +1,8 @@
 <template>
   <node-view-wrapper 
-    class="toolbar-warpper" 
+    ref="mathBlockRef"
+    class="toolbar-warpper"
+    :class="{ editing: isEditing }"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
   >
@@ -30,23 +32,22 @@
 
     <!-- LaTeX输入区：独立区域 -->
     <div class="latex-input-area" v-show="isEditing">
-      <input 
+      <textarea 
         ref="latexInput"
-        type="text" 
         class="latex-input" 
         v-model="editableLatex"
-        @input="handleInput"
         @keydown="handleKeydown"
-        placeholder="Enter LaTeX expression..."
+        placeholder="Enter LaTeX expression... (Ctrl+Enter to confirm, Escape to cancel)"
         contenteditable="false"
-      />
+        rows="3"
+      ></textarea>
     </div>
 
     <!-- 数学内容区：保持原有样式 -->
     <div 
       class="tiptap-mathematics-render"
       :class="{
-        'tiptap-mathematics-render--editable': props.editor.isEditable,
+        'tiptap-mathematics-render--editable': props.editor.isEditable && !isEditing,
         }"
       data-type="block-math"
       contenteditable="false"
@@ -59,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { nodeViewProps, NodeViewWrapper } from '@tiptap/vue-3'
 import { IconEdit, IconCopy, IconTrash, IconCheck } from '@tabler/icons-vue'
 import katex from 'katex'
@@ -75,7 +76,7 @@ const props = defineProps(nodeViewProps)
 const isHovered = ref(false)
 const isEditing = ref(false)
 const editableLatex = ref('')
-const latexInput = ref<HTMLInputElement>()
+const latexInput = ref<HTMLTextAreaElement>()
 const mathContent = ref<HTMLDivElement>()
 
 // Computed properties
@@ -152,17 +153,16 @@ const deleteMathBlock = (): void => {
   }
 }
 
-const handleInput = (): void => {
-  // editableLatex.value已通过v-model自动更新
-  // math-content会通过currentLatex计算属性和watch自动重渲染
-}
-
 const handleKeydown = (event: KeyboardEvent): void => {
   switch (event.key) {
     case 'Enter':
-      event.preventDefault()
-      event.stopPropagation()
-      confirmEdit()
+      if (event.ctrlKey || event.metaKey) {
+        // Ctrl+Enter or Cmd+Enter to confirm
+        event.preventDefault()
+        event.stopPropagation()
+        confirmEdit()
+      }
+      // Allow normal Enter for line breaks
       break
     case 'Escape':
       event.preventDefault()
@@ -177,9 +177,33 @@ const handleKeydown = (event: KeyboardEvent): void => {
   }
 }
 
+
+// Handle click outside to cancel editing
+const mathBlockRef = ref()
+
+const handleClickOutside = (event: MouseEvent): void => {
+  if (!isEditing.value || !mathBlockRef.value) return
+  
+  const target = event.target as Element
+  const domElement = mathBlockRef.value.$el || mathBlockRef.value
+  
+  // Check if click is outside the math block component
+  if (!domElement?.contains(target)) {
+    isEditing.value = false
+    editableLatex.value = mathAttrs.value.latex
+  }
+}
+
 // Initialize math rendering on mount
 onMounted(() => {
   renderMath(mathAttrs.value.latex)
+  // Add global click listener
+  document.addEventListener('click', handleClickOutside, true)
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside, true)
 })
 </script>
 
@@ -188,34 +212,35 @@ onMounted(() => {
 
 .tiptap {
   .toolbar-warpper {
+    &.editing {
+      border: 1px solid rgba(0, 0, 0, 0.2);
+      border-radius: 0.5rem;
+    }
+
     .latex-input-area {
       width: 100%;
-      padding: 8px;
-      background: rgba(0, 0, 0, 0.8);
-      backdrop-filter: blur(8px);
-      border-radius: 8px;
-      margin-bottom: 8px;
+      cursor: default;
       
       .latex-input {
         width: 100%;
-        padding: 8px 12px;
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 6px;
-        color: white;
+        min-height: 30px;
+        padding: 0.75rem 1rem;
+        border: none;
+        border-radius: 0.5rem 0.5rem 0 0;
+        background: rgba(0, 0, 0, 0.8);
+        color: #fff;
         font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
         font-size: 14px;
+        line-height: 1.4;
         outline: none;
         transition: all 0.2s ease;
+        cursor: text;
+        resize: none;
+        vertical-align: middle;
 
         &::placeholder {
+          line-height: 1.4;
           color: rgba(255, 255, 255, 0.6);
-        }
-        
-        &:focus {
-          background: rgba(255, 255, 255, 0.15);
-          border-color: rgba(59, 130, 246, 0.8);
-          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
       }
     }

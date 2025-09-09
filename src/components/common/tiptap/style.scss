@@ -1,7 +1,7 @@
 .tiptap {
   .floating-editor-highlight {
     background: rgba(59, 130, 246, 0.15);
-    border-radius: 4px;
+    border-radius: 0.25rem;
     position: relative;
     
     &::before {
@@ -12,7 +12,7 @@
       right: -2px;
       bottom: -2px;
       border: 1px dashed var(--accent-primary, #3b82f6);
-      border-radius: 4px;
+      border-radius: 0.25rem;
       pointer-events: none;
     }
   }
@@ -39,7 +39,7 @@
       flex-direction: row;
       background: rgba(0, 0, 0, 0.8);
       backdrop-filter: blur(8px);
-      border-radius: 8px;
+      border-radius: 0.5rem;
       transition: all 0.2s ease;
       transform: translateX(0px);
       transform: translateY(0px);
@@ -133,7 +133,7 @@
       .control-selector {
         background-color: rgba(255, 255, 255, 0.1);
         border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 6px;
+        border-radius: 0.25rem;
         padding: 4px 8px;
         color: #fff;
         font-size: 13px;
@@ -161,7 +161,7 @@
       .control-button {
         background-color: rgba(59, 130, 246, 0.8);
         border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 4px;
+        border-radius: 0.25rem;
         padding: 4px;
         color: white;
         cursor: pointer;
@@ -223,7 +223,7 @@
         align-items: center;
         background-color: rgba(107, 114, 128, 0.5);
         border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 4px;
+        border-radius: 0.25rem;
         height: 26px;
         flex-shrink: 0;
 
@@ -251,7 +251,7 @@
         padding: 4px 8px;
         background: rgba(255, 255, 255, 0.1);
         border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 4px;
+        border-radius: 0.25rem;
         color: white;
         font-size: 13px;
         outline: none;

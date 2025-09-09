@@ -636,7 +636,7 @@ const updateImageFromInput = async (): Promise<void> => {
 .tiptap {
   .toolbar-warpper {
     .toolbar-controls {
-      border-radius: 8px 8px 0 0;
+      border-radius: 0.5rem 0.5rem 0 0;
     }
 
     .control-content {
@@ -647,7 +647,7 @@ const updateImageFromInput = async (): Promise<void> => {
       display: inline-block;
       background: #ffffff;
       border: 2px dashed #e5e7eb;
-      border-radius: 8px;
+      border-radius: 0.5rem;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -739,7 +739,7 @@ const updateImageFromInput = async (): Promise<void> => {
             flex: 1;
             padding: 12px 16px;
             border: 1px solid #d1d5db;
-            border-radius: 8px;
+            border-radius: 0.5rem;
             font-size: 14px;
             color: #374151;
             background: #ffffff;
@@ -761,7 +761,7 @@ const updateImageFromInput = async (): Promise<void> => {
             background: #3b82f6;
             color: #ffffff;
             border: none;
-            border-radius: 8px;
+            border-radius: 0.5rem;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
@@ -808,7 +808,7 @@ const updateImageFromInput = async (): Promise<void> => {
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 8px;
+        border-radius: 0.5rem;
         z-index: 10;
 
         .loading-content {
@@ -832,10 +832,6 @@ const updateImageFromInput = async (): Promise<void> => {
           }
         }
       }
-
-      &.ProseMirror-selectednode {
-        outline: 3px solid #6a00f5;
-      }
     }
 
     .control-content-empty {
@@ -854,7 +850,7 @@ const updateImageFromInput = async (): Promise<void> => {
           background: #3b82f6;
           color: #ffffff;
           border: none;
-          border-radius: 6px;
+          border-radius: 0.25rem;
           font-size: 14px;
           font-weight: 500;
           cursor: pointer;
@@ -866,6 +862,17 @@ const updateImageFromInput = async (): Promise<void> => {
         }
       }
     }
+
+    /*
+    &.ProseMirror-selectednode, &.has-focus {
+      .image-container {
+        img {
+          outline: 3px solid #6a00f5;
+          border-radius: 0.5rem;
+        }
+      }
+    }
+    */
   }
 }
 </style>
