@@ -49,7 +49,7 @@
           <div 
             v-for="(tab, idx) in appStore.tabs" 
             :key="tab.id"
-            :ref="el => { if (tab.isActive) activeTabRef = el as HTMLElement}"
+            :ref="(el: any) => { if (tab.isActive) activeTabRef = el}"
             :class="[
               idx === 0 ? 'border-l' : '',
               'flex items-center px-3 py-2 space-x-2 border-r border-border-separator min-w-32 max-w-48 flex-shrink-0',
@@ -161,7 +161,7 @@ function navigateTabs(direction: number) {
   const activeIndex = appStore.tabs.findIndex(tab => tab.isActive)
   const newIndex = activeIndex + direction
   
-  if (newIndex >= 0 && newIndex < appStore.tabs.length) {
+  if (newIndex >= 0 && newIndex < appStore.tabs.length && appStore.tabs[newIndex]) {
     appStore.setActiveTab(appStore.tabs[newIndex].id)
   }
 }

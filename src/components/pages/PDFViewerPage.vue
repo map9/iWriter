@@ -34,7 +34,7 @@
         </button>
       </div>
       
-      <div class="toolbar-separator" />
+      <div class="w-px h-6 bg-gray-300 mx-2" />
       
       <div class="flex items-center gap-1">
         <button
@@ -377,6 +377,7 @@ async function renderPage(pageNum: number) {
     // 渲染页面
     const renderContext = {
       canvasContext: context,
+      canvas: canvas,
       viewport: viewport
     }
     
@@ -570,9 +571,3 @@ defineExpose({
   focusViewer
 })
 </script>
-
-<style scoped>
-.toolbar-separator {
-  @apply w-px h-6 bg-gray-300 mx-2;
-}
-</style>

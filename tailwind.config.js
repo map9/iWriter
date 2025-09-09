@@ -1,9 +1,10 @@
 /** @type {import('tailwindcss').Config} */
-// tailwind.config.js
-module.exports = {
+export default {
   content: [
+    './index.html',
     './src/**/*.{js,vue,ts,jsx,tsx}',
     './src/**/*.html',
+    './node_modules/@tabler/icons-vue/**/*.{js,vue}' // 包含第三方组件
   ],
   theme: {
     extend: {
@@ -59,9 +60,6 @@ module.exports = {
         sans: ['SF Pro Display', 'system-ui', 'sans-serif'],
         mono: ['SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'monospace']
       },
-      //filter: {
-      //  'brightness-hover': 'brightness(var(--brightness-hover, 0.85))',
-      //},
     },
   },
   plugins: []

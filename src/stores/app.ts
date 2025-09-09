@@ -43,12 +43,6 @@ export const useAppStore = defineStore('app', () => {
   const currentThemeId = ref<string>('system')
   const systemPrefersDark = ref(false)
   
-  // 动态导入主题系统
-  const themeModule = computed(() => {
-    // 这里使用动态导入以避免循环依赖
-    return import('@/utils/themes')
-  })
-  
   // Folder and Files
   const currentFolder = ref<string | null>(null)
   const fileTree = ref<FileTreeNode | null>(null)
@@ -357,7 +351,7 @@ export const useAppStore = defineStore('app', () => {
 
     const result = await window.electronAPI.showOpenDialog({ properties: ['openDirectory'] })
     if (!result.canceled && result.filePaths.length > 0) {
-      const folderPath = result.filePaths[0]
+      const folderPath = result.filePaths[0]!
 
       if (folderPath === currentFolder.value) {
         notify.success(`${folderPath} 已打开`, '文件操作')
@@ -409,7 +403,7 @@ export const useAppStore = defineStore('app', () => {
     try {
       // 使用 await 等待异步操作完成
       const files = await window.electronAPI.getFiles(currentFolder.value, true)
-      if (!files || files.length === 0 || files[0].isDirectory === false) {
+      if (!files || files.length === 0 || !files[0] || files[0].isDirectory === false) {
         throw(new Error('文件不是目录'))
       }
       const file = files[0]
@@ -597,7 +591,7 @@ export const useAppStore = defineStore('app', () => {
       ]
     })
     if (!result.canceled && result.filePaths.length > 0) {
-      return openFile(result.filePaths[0])
+      return openFile(result.filePaths[0]!)
     }
   }
   
@@ -981,7 +975,7 @@ export const useAppStore = defineStore('app', () => {
       
       // 使用 await 等待异步操作完成
       const files = await window.electronAPI.getFiles(filePath, true)
-      if (!files || files.length === 0) {
+      if (!files || files.length === 0 || !files[0]) {
         throw new Error(`获取 ${parentPath} 信息失败`)
       }
       const newNode: FileTreeNode = {
@@ -1103,7 +1097,7 @@ export const useAppStore = defineStore('app', () => {
     const tab = tabs.value[index]
     
     // Check if tab has unsaved changes
-    if (tab.isDirty) {
+    if (tab && tab.isDirty) {
       if (!window.electronAPI?.showMessageBox) {
         console.warn('showMessageBox not available')
         return false
@@ -1147,11 +1141,13 @@ export const useAppStore = defineStore('app', () => {
     if (activeTabId.value === tabId) {
       if (tabs.value.length > 0) {
         const newActiveIndex = Math.min(index, tabs.value.length - 1)
-        activeTabId.value = tabs.value[newActiveIndex].id
-        tabs.value[newActiveIndex].isActive = true
-      } else {
-        activeTabId.value = null
+        if (tabs.value[newActiveIndex]) {
+          activeTabId.value = tabs.value[newActiveIndex].id
+          tabs.value[newActiveIndex].isActive = true
+          return true
+        }
       }
+      activeTabId.value = null
     }
     
     return true

@@ -567,8 +567,9 @@ const extensions = [
   /*
   InvisibleCharacters和Placeholder不能一起存在
   会导致回车换行时，内容逆向滚动
-   */
-  InvisibleCharacters,
+  InvisibleCharacters和inline code不能一起存在，隔离了css的连续性
+  */
+  //InvisibleCharacters,
   //Placeholder.configure({
   //  placeholder: onPlaceholder,
   //}),

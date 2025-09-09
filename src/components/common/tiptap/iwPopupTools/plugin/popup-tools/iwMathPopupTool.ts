@@ -30,7 +30,6 @@ export class iwMathPopupTool extends iwPopupTool {
 
         // 实时更新
         const handleInput = () => {
-          console.log('handleInput')
           const newLatex = latexInput.value
           editor.chain()
             .setNodeSelection(from)

@@ -34,7 +34,7 @@
         </button>
       </div>
       
-      <div class="toolbar-separator" />
+      <div class="w-px h-6 bg-gray-300 mx-2" />
       
       <div class="flex items-center gap-1">
         <button
@@ -283,10 +283,6 @@ defineExpose({
 </script>
 
 <style scoped>
-.toolbar-separator {
-  @apply w-px h-6 bg-gray-300 mx-2;
-}
-
 .transition-transform {
   transition: transform 0.2s ease-in-out;
 }

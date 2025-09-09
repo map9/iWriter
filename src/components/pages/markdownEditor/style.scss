@@ -100,14 +100,18 @@
 
   /* BulletList styles */
   ul {
-    @apply list-disc m-4 pl-5;
+    list-style-type: disc;
+    margin: 1rem;
+    padding-left: 1.25rem;
   }
 
   /* OrderedList styles */
   ol {
-    @apply list-decimal m-4 pl-5;
+    list-style-type: decimal;
+    margin: 1rem;
+    padding-left: 1.25rem;
   }
-
+  
   /* Task list styles */
   ul[data-type="taskList"] {
     list-style: none;

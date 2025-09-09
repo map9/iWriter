@@ -32,7 +32,7 @@ function getTableInfo(tr: Transaction) {
   
   // 遍历 map 找到对应的列
   for (let i = 0; i < map.map.length; i++) {
-    if (map.map[i] <= cellPos) {
+    if (map.map[i]! <= cellPos) {
       columnIndex = i % map.width
     } else {
       break
@@ -66,7 +66,7 @@ function reorderRowCells(row: PMNode, fromIndex: number, toIndex: number): PMNod
 
   // 移动单元格
   const [movedCell] = cells.splice(fromIndex, 1)
-  cells.splice(toIndex, 0, movedCell)
+  cells.splice(toIndex, 0, movedCell!)
 
   return cells
 }
@@ -82,7 +82,7 @@ function reorderColWidths(colwidths: number[] | null, fromIndex: number, toIndex
   const newColwidths = [...colwidths]
   if (fromIndex < newColwidths.length && toIndex < newColwidths.length) {
     const [movedWidth] = newColwidths.splice(fromIndex, 1)
-    newColwidths.splice(toIndex, 0, movedWidth)
+    newColwidths.splice(toIndex, 0, movedWidth!)
   }
 
   return newColwidths
@@ -151,7 +151,7 @@ function moveColumnLeftImpl(tr: Transaction): boolean {
       // 计算新位置（移动后的列索引）
       const newColIndex = targetIndex
       const newCellPos = newCellIndex - (columnIndex - newColIndex)
-      const newPos = tablePos + 1 + newMap.map[newCellPos]
+      const newPos = tablePos + 1 + newMap.map[newCellPos]!
       
       if (newPos >= 0) {
         const $newPos = tr.doc.resolve(newPos + 1)
@@ -229,7 +229,7 @@ function moveColumnRightImpl(tr: Transaction): boolean {
       // 计算新位置（移动后的列索引）
       const newColIndex = targetIndex
       const newCellPos = newCellIndex + (newColIndex - columnIndex)
-      const newPos = tablePos + 1 + newMap.map[newCellPos]
+      const newPos = tablePos + 1 + newMap.map[newCellPos]!
       
       if (newPos >= 0) {
         const $newPos = tr.doc.resolve(newPos + 1)
@@ -315,7 +315,7 @@ function getRowInfo(tr: Transaction) {
   
   // 遍历 map 找到对应的行
   for (let i = 0; i < map.map.length; i++) {
-    if (map.map[i] <= cellPos) {
+    if (map.map[i]! <= cellPos) {
       rowIndex = Math.floor(i / map.width)
     } else {
       break
@@ -358,7 +358,7 @@ function moveRowAboveImpl(tr: Transaction): boolean {
 
     // 移动行
     const [movedRow] = allRows.splice(rowIndex, 1)
-    allRows.splice(targetIndex, 0, movedRow)
+    allRows.splice(targetIndex, 0, movedRow!)
 
     // 创建新的表格节点
     const newTable = tableNode.type.create(tableNode.attrs, allRows)
@@ -370,7 +370,7 @@ function moveRowAboveImpl(tr: Transaction): boolean {
     const newMap = TableMap.get(newTable)
     // 找到移动后行中第一个单元格的位置
     const newCellIndex = targetIndex * newMap.width
-    const newPos = tablePos + 1 + newMap.map[newCellIndex]
+    const newPos = tablePos + 1 + newMap.map[newCellIndex]!
     
     if (newPos >= 0) {
       const $newPos = tr.doc.resolve(newPos + 1)
@@ -411,7 +411,7 @@ function moveRowBelowImpl(tr: Transaction): boolean {
 
     // 移动行
     const [movedRow] = allRows.splice(rowIndex, 1)
-    allRows.splice(targetIndex, 0, movedRow)
+    allRows.splice(targetIndex, 0, movedRow!)
 
     // 创建新的表格节点
     const newTable = tableNode.type.create(tableNode.attrs, allRows)
@@ -423,7 +423,7 @@ function moveRowBelowImpl(tr: Transaction): boolean {
     const newMap = TableMap.get(newTable)
     // 找到移动后行中第一个单元格的位置
     const newCellIndex = targetIndex * newMap.width
-    const newPos = tablePos + 1 + newMap.map[newCellIndex]
+    const newPos = tablePos + 1 + newMap.map[newCellIndex]!
     
     if (newPos >= 0) {
       const $newPos = tr.doc.resolve(newPos + 1)

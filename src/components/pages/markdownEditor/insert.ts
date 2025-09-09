@@ -8,7 +8,7 @@ function isValidUrl(text: string): boolean {
   const links = find(text.trim())
   
   // 检查是否整个文本都是一个链接
-  return links.length === 1 && links[0].value === text.trim()
+  return links.length === 1 && links[0]!.value === text.trim()
 }
 
 export function toggleLink(editor: Editor | undefined) {

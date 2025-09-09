@@ -216,7 +216,7 @@ const generateTreeNodes = (): TreeNode[] => {
     const node = nodeMap.get(item.id)!
     
     // 找到合适的父节点
-    while (stack.length > 0 && stack[stack.length - 1].data.tocItem.level >= item.level) {
+    while (stack.length > 0 && stack[stack.length - 1]!.data.tocItem.level >= item.level) {
       stack.pop()
     }
     
@@ -226,7 +226,7 @@ const generateTreeNodes = (): TreeNode[] => {
     } else {
       // 子节点
       const parent = stack[stack.length - 1]
-      parent.children!.push(node)
+      parent!.children!.push(node)
       node.parent = parent
     }
     
@@ -350,11 +350,13 @@ const emptyStateMessage = computed(() => {
 
 function scrollToTop() {
   if (treeNodes.value.length > 0) {
-    const node: TreeNode = treeNodes.value[0]
-    const tocItem = node.data.tocItem as TocItem
-    if (tocProvider.value) {
-      tocProvider.value.navigateToItem(tocItem.id)
-      treeRef.value?.focusNode(node)
+    const node = treeNodes.value[0]
+    if (node) {
+      const tocItem = node.data.tocItem as TocItem
+      if (tocProvider.value) {
+        tocProvider.value.navigateToItem(tocItem.id)
+        treeRef.value?.focusNode(node)
+      }
     }
   }
 }

@@ -115,7 +115,7 @@ watch(notifications, (newNotifications) => {
     })
     
     // 如果当前通知不是最高优先级，则更新
-    const highestPriority = sortedNotifications[0]
+    const highestPriority = sortedNotifications[0]!
     if (!currentNotification.value || 
         priorityOrder[highestPriority.type] > priorityOrder[currentNotification.value.type]) {
       

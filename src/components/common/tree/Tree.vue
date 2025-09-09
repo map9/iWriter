@@ -18,12 +18,12 @@
     <TreeNode
       v-for="node in visibleNodes"
       :key="node.id"
-      :ref="el => setNodeRef(node.id, el)"
+      :ref="(el: any) => setNodeRef(node.id, el)"
       :node="node"
       :callbacks="callbacks"
       :initialDepth="initialDepth"
       :drop-mode="dropMode"
-      @node-click="data => handleNodeClick(data.node, data.event)"
+      @node-click="(data: any) => handleNodeClick(data.node, data.event)"
       @node-check="handleNodeCheck"
       @node-rename="handleNodeRename"
       @node-drag="handleNodeDrag"
@@ -128,7 +128,7 @@ const getRootNode = (): TreeNodeType | null => {
   if (props.nodes.length === 0) return null
 
   // Try to get root from any node's parent chain
-  let current = props.nodes[0]
+  let current = props.nodes[0]!
   while (current.parent) {
     current = current.parent
   }
@@ -524,7 +524,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
         // Shift + 上箭头：扩展选择到上一个节点（仅当支持多选时）
         const currentIndex = flatNodes.findIndex(node => node.id === (currentFocusedNode?.id || ''))
         if (currentIndex > 0) {
-          const targetNode = flatNodes[currentIndex - 1]
+          const targetNode = flatNodes[currentIndex - 1]!
           setFocusedNode(targetNode.id)
           selectRange(lastSelectedNodeId.value, targetNode.id)
         }
@@ -539,7 +539,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
         // Shift + 下箭头：扩展选择到下一个节点（仅当支持多选时）
         const currentIndex = flatNodes.findIndex(node => node.id === (currentFocusedNode?.id || ''))
         if (currentIndex >= 0 && currentIndex < flatNodes.length - 1) {
-          const targetNode = flatNodes[currentIndex + 1]
+          const targetNode = flatNodes[currentIndex + 1]!
           setFocusedNode(targetNode.id)
           selectRange(lastSelectedNodeId.value, targetNode.id)
         }
@@ -599,13 +599,13 @@ const navigateUp = (flatNodes: TreeNodeType[], currentNode: TreeNodeType | null)
   
   if (!currentNode) {
     // No current focus, focus on last node
-    setFocusedNode(flatNodes[flatNodes.length - 1].id)
+    setFocusedNode(flatNodes[flatNodes.length - 1]!.id)
     return
   }
   
   const currentIndex = flatNodes.findIndex(node => node.id === currentNode.id)
   if (currentIndex > 0) {
-    setFocusedNode(flatNodes[currentIndex - 1].id)
+    setFocusedNode(flatNodes[currentIndex - 1]!.id)
   }
 }
 
@@ -614,13 +614,13 @@ const navigateDown = (flatNodes: TreeNodeType[], currentNode: TreeNodeType | nul
   
   if (!currentNode) {
     // No current focus, focus on first node
-    setFocusedNode(flatNodes[0].id)
+    setFocusedNode(flatNodes[0]!.id)
     return
   }
   
   const currentIndex = flatNodes.findIndex(node => node.id === currentNode.id)
   if (currentIndex >= 0 && currentIndex < flatNodes.length - 1) {
-    setFocusedNode(flatNodes[currentIndex + 1].id)
+    setFocusedNode(flatNodes[currentIndex + 1]!.id)
   }
 }
 
@@ -756,7 +756,7 @@ const selectRange = (startNodeId: string, endNodeId: string) => {
   
   // Select range
   for (let i = minIndex; i <= maxIndex; i++) {
-    selectNode(flatNodes[i].id, false)
+    selectNode(flatNodes[i]!.id, false)
   }
   
   // Emit selection changed event
@@ -974,7 +974,7 @@ onMounted(() => {
   nextTick(() => {
     const selectedNode = getSelectedNode()
     if (!selectedNode && flatVisibleNodes.value.length > 0) {
-      focusedNodeId.value = flatVisibleNodes.value[0].id
+      focusedNodeId.value = flatVisibleNodes.value[0]!.id
     }
   })
 })

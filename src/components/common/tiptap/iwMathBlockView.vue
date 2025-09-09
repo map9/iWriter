@@ -15,7 +15,7 @@
       }"
       v-show="shouldShowToolbar">
       <div class="control-group">
-        <button  v-show="isEditing" @click="confirmEdit" class="control-button confirm-button" title="Confirm" contenteditable="false">
+        <button  v-show="isEditing" @click="closeEdit" class="control-button confirm-button" title="Close" contenteditable="false">
           <IconCheck class="control-button-icon" />
         </button>
         <button  v-show="!isEditing" @click="toggleEditMode" class="control-button" title="Edit LaTeX" contenteditable="false">
@@ -36,8 +36,9 @@
         ref="latexInput"
         class="latex-input" 
         v-model="editableLatex"
+        @input="handleInput"
         @keydown="handleKeydown"
-        placeholder="Enter LaTeX expression... (Ctrl+Enter to confirm, Escape to cancel)"
+        placeholder="Enter LaTeX expression... (Ctrl+Enter to close, Escape to close)"
         contenteditable="false"
         rows="3"
       ></textarea>
@@ -127,8 +128,18 @@ const toggleEditMode = (): void => {
   })
 }
 
-const confirmEdit = (): void => {
-  props.updateAttributes({ latex: editableLatex.value })
+const handleInput = (): void => {
+  const pos = props.getPos()
+  if (typeof pos !== 'number') return
+  
+  const newLatex = editableLatex.value
+  props.editor.chain()
+    .setNodeSelection(pos)
+    .updateBlockMath({ latex: newLatex })
+    .run()
+}
+
+const closeEdit = (): void => {
   isEditing.value = false
 }
 
@@ -157,18 +168,17 @@ const handleKeydown = (event: KeyboardEvent): void => {
   switch (event.key) {
     case 'Enter':
       if (event.ctrlKey || event.metaKey) {
-        // Ctrl+Enter or Cmd+Enter to confirm
+        // Ctrl+Enter or Cmd+Enter to close edit
         event.preventDefault()
         event.stopPropagation()
-        confirmEdit()
+        closeEdit()
       }
       // Allow normal Enter for line breaks
       break
     case 'Escape':
       event.preventDefault()
       event.stopPropagation()
-      isEditing.value = false
-      editableLatex.value = mathAttrs.value.latex
+      closeEdit()
       break
     case 'Delete':
     case 'Backspace':
@@ -189,8 +199,7 @@ const handleClickOutside = (event: MouseEvent): void => {
   
   // Check if click is outside the math block component
   if (!domElement?.contains(target)) {
-    isEditing.value = false
-    editableLatex.value = mathAttrs.value.latex
+    closeEdit()
   }
 }
 

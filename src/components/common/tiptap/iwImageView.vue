@@ -327,7 +327,7 @@ const openFolder = async (): Promise<void> => {
         ]
       })
 
-      if (!result.canceled && result.filePaths.length > 0) {
+      if (!result.canceled && result.filePaths.length > 0 && result.filePaths[0]) {
         const selectedPath = result.filePaths[0]
 
         // 更新图片的src属性（替换而不是添加）
@@ -496,7 +496,7 @@ const handleDrop = async (event: DragEvent): Promise<void> => {
   isDragOver.value = false
 
   const files = event.dataTransfer?.files
-  if (!files || files.length === 0) return
+  if (!files || files.length === 0 || !files[0]) return
 
   const file = files[0]
   if (!file.type.startsWith('image/')) {

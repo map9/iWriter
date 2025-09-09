@@ -422,7 +422,7 @@ function focusCell(rowIndex: number, columnIndex: number): boolean {
 
   const map = TableMap.get(props.node)
   const cellIndex = rowIndex * map.width + columnIndex
-  const cellOffset = map.map[cellIndex]
+  const cellOffset = map.map[cellIndex] || 0
 
   const pos = tablePos + cellOffset
   const $pos = state.doc.resolve(pos + 1)
