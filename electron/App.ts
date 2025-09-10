@@ -693,7 +693,7 @@ export class App {
       wState = this.windowManager.getWindowStateById(focusedWindow.id);
     }
 
-    this.menuManager.setupMenu(wState, this.g);
+    if (wState) this.menuManager.setupMenu(wState, this.g);
   }
 
   run() {

@@ -5,6 +5,7 @@ import type {
   ContentStateTableData
 } from '../src/types/windowContentState'
 import { isMac } from './utils'
+import type { WindowState, GlobalParameters } from './types'
 
 /**
  * 在菜单模板中指定ID的菜单项下方插入新项
@@ -119,6 +120,7 @@ export class MenuManager {
               this.sendMenuAction('new-file')
             }
           },
+          /*
           {
             label: 'New from Template...',
             accelerator: 'CmdOrCtrl+Shift+N',
@@ -127,6 +129,7 @@ export class MenuManager {
               this.sendMenuAction('new-from-template')
             }
           },
+          */
           {
             id: 'new-window',
             label: 'New Window',
@@ -272,14 +275,6 @@ export class MenuManager {
             ]
           },
           { type: 'separator' },
-          {
-            label: 'Page Setting...',
-            accelerator: 'CmdOrCtrl+Shift+P',
-            enabled: wState?.contentInfo?.hasActiveDocument,
-            click: () => {
-              this.sendMenuAction('page-setting')
-            }
-          },
           {
             label: 'Print...',
             accelerator: 'CmdOrCtrl+P',

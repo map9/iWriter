@@ -1334,6 +1334,69 @@ export const useAppStore = defineStore('app', () => {
     return false; // 暂时阻止关闭，直到实现具体的确认逻辑
   }
 
+  // Handle print functionality
+  async function handlePrint() {
+    const activeTab = tabs.value.find(tab => tab.id === activeTabId.value)
+    if (!activeTab) {
+      notify.warning('No document to print')
+      return
+    }
+
+    try {
+      // Prepare print options based on document type
+      const printOptions = preparePrintOptions(activeTab)
+      
+      // Call Electron's native print function
+      const result = await window.electronAPI.print(printOptions)
+      
+      if (result.success) {
+        notify.success('Print completed')
+      } else if (result.cancelled) {
+        // User cancelled printing - don't show error notification
+        console.log('Print operation cancelled by user')
+      } else {
+        notify.error('Print failed', result.error || 'Unknown error')
+      }
+      
+    } catch (error: any) {
+      notify.error('Print failed', error?.message || 'Unknown error')
+    }
+  }
+
+  // Prepare print options based on document type
+  function preparePrintOptions(tab: FileTab) {
+    const printOptions: any = {
+      printBackground: true,
+      color: true,
+      pageSize: 'A4',
+      margins: { marginType: 'default' }
+    }
+
+    // Customize options based on document type
+    switch (tab.documentType) {
+      case DocumentType.TEXT_EDITOR:
+        // Markdown/Text documents - ensure proper styling
+        printOptions.printBackground = true
+        printOptions.scaleFactor = 1.0
+        break
+      case DocumentType.IMAGE_VIEWER:
+        // Image documents - fit to page
+        printOptions.scaleFactor = 1.0
+        printOptions.landscape = false
+        break
+      case DocumentType.PDF_VIEWER:
+        // PDF documents - maintain original formatting
+        printOptions.printBackground = false
+        printOptions.scaleFactor = 1.0
+        break
+      default:
+        // Default settings for other document types
+        break
+    }
+
+    return printOptions
+  }
+
   // Handle menu actions for the application
   // There are Paragraph / Format Menu Actions handled in MarkdownEditor.vue
   async function handleMenuAction(action: string): Promise<boolean> {
@@ -1362,11 +1425,8 @@ export const useAppStore = defineStore('app', () => {
       case 'save-all':
         await saveAllTabs()
         return true
-      case 'page-setting':
-        notify.error(`${action}`, 'Not implemented')
-        return true
       case 'print':
-        notify.error(`${action}`, 'Not implemented')
+        await handlePrint()
         return true
       case 'close-file':
         if (activeTabId.value) {

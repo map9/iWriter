@@ -137,4 +137,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeUpdaterListeners: () => {
     ipcRenderer.removeAllListeners('updater:state-changed')
   },
+
+  // Print API
+  print: (options: any = {}) => ipcRenderer.invoke('print', options),
 })

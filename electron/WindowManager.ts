@@ -291,6 +291,41 @@ export class WindowManager {
       return { success: false, error: 'Window not found' };
     })
 
+    // Print IPC handler
+    ipcMain.handle('print', async (event, options: any = {}) => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (!window) {
+        return { success: false, error: 'Window not found' };
+      }
+
+      return new Promise((resolve) => {
+        const printOptions = {
+          silent: false, // Show system print dialog
+          printBackground: true,
+          color: true,
+          pageSize: 'A4',
+          margins: { marginType: 'default' },
+          ...options // Allow custom options to override defaults
+        };
+
+        window.webContents.print(printOptions, (success: boolean, errorType?: string) => {
+          // Check if print was cancelled by user
+          const isCancelled = errorType && (
+            errorType.toLowerCase().includes('cancel') ||
+            errorType.toLowerCase().includes('cancelled') ||
+            errorType.toLowerCase().includes('user abort') ||
+            errorType.toLowerCase().includes('abort')
+          );
+          
+          resolve({ 
+            success, 
+            error: errorType || (success ? null : 'Unknown print error'),
+            cancelled: isCancelled || false
+          });
+        });
+      });
+    })
+
     ipcMain.handle('window-content-changed', async (event, contentInfo: WindowContentState) => {
       // 通过webContents查找对应的窗口
       const window = BrowserWindow.fromWebContents(event.sender);

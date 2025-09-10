@@ -99,4 +99,7 @@ export interface ElectronAPI {
   // 更新器事件
   onUpdaterStateChanged: (callback: (stateMessage: import('@/updater/types').UpdaterStateMessage) => void) => void,
   removeUpdaterListeners: () => void,
+
+  // 打印 API
+  print: (options?: any) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
 }
