@@ -88,7 +88,7 @@
       <!-- New Tab Button - 固定在标签右侧 -->
       <div class="flex items-center px-2 flex-shrink-0 no-drag">
         <button
-          @click="appStore.createTab(undefined, undefined, '')"
+          @click="appStore.createTab(undefined, undefined)"
           class="toolbar-button flex-shrink-0"
           title="New Tab"
         >

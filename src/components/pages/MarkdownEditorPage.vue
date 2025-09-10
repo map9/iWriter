@@ -395,14 +395,6 @@ interface Props {
 const props = defineProps<Props>()
 
 const appStore = useAppStore()
-// Define emit events to replace direct props mutations
-const emit = defineEmits<{
-  'tab-dirty-change': [{ tabId: string, isDirty: boolean }]
-  'tab-editor-ready': [{ tabId: string, editorInstance: any, tocProvider: any }]
-  'tab-editor-destroy': [{ tabId: string }]
-  'tab-stats-update': [{ tabId: string, stats: import('@/types').EditorStats }]
-}>()
-
 
 // Loading flag for this editor
 const isLoading = ref(false)
@@ -595,16 +587,13 @@ const editor = useEditor({
     },
   },
   onUpdate: () => {
-    //emit('tab-dirty-change', { tabId: props.tab.id, isDirty: true })
-    appStore.updateTabState(props.tab.id, { isDirty: true })
-    updateEditorState()
+    // 当非加载状态下，内容发生变化，更新文件状态
+    if (!isLoading.value) appStore.updateTabState(props.tab.id, { isDirty: true })
   },
-  onSelectionUpdate: (options) => {
-    currentHeading.value = getHeading(editor.value)
+  onSelectionUpdate: () => {
     updateEditorState()
   },
   onTransaction() {
-    currentHeading.value = getHeading(editor.value)
   },
   onCreate: (options) => {
     migrateMathStrings(options.editor)
@@ -617,26 +606,15 @@ const editor = useEditor({
 // Watch for editor state changes and update toolbar
 watch(() => editor.value, (newEditor) => {
   if (newEditor) {
-    currentHeading.value = getHeading(newEditor)
-
-    appStore.updateTabState(props.tab.id, { editorInstance: newEditor, tocProvider: new MarkdownTocProvider(newEditor) })
-    /*
-    emit('tab-editor-ready', { 
-      tabId: props.tab.id, 
-      editorInstance: newEditor, 
-      tocProvider: new MarkdownTocProvider(newEditor) 
-    })
-    */    
+    appStore.updateTabState(props.tab.id, { editorInstance: newEditor,  tocProvider: new MarkdownTocProvider(newEditor)})
   }
 }, { immediate: true })
 
 // Cleanup
 onBeforeUnmount(() => {
-  // Emit cleanup event to let parent handle proper cleanup
-  //appStore.cleanupTabEditor(props.tab.id)
-  //emit('tab-editor-destroy', { tabId: props.tab.id })
+  appStore.cleanTab(props.tab.id)
   
-  // 等待下一帧后再销毁编辑器，确保HoverToolbar完全卸载
+  // 等待下一帧后再销毁编辑器
   nextTick(() => {
     editor.value?.destroy()
   })
@@ -657,20 +635,18 @@ async function loadTabContent(editorInstance: any) {
           throw new Error('Unsupport file format')
         }
         //editorInstance.commands.setContent(contentConverted, { emitUpdate: false })
-        // 需要在 setContent 调用时就防止记录历史
-        editorInstance.chain()
-          .command(({ tr, dispatch }: { tr: any, dispatch: any }) => {
-            if (dispatch) {
-              tr.setMeta('addToHistory', false)
-              // 手动设置文档内容
-              const json = generateJSON(contentConverted, extensions)
-              const doc = editorInstance.schema.nodeFromJSON(json)
-              tr.replaceWith(0, tr.doc.content.size, doc.content)
-              dispatch(tr)
-            }
-            return true
-          })
-          .run()
+        // 第一次加载文件内容，忽略掉 undo
+        editorInstance.chain().command(({ tr, dispatch }: { tr: any; dispatch?: (tr: any) => void }) => {
+          if (dispatch) {
+            tr.setMeta('addToHistory', false)
+            const json = generateJSON(contentConverted, extensions)
+            const doc = editorInstance.schema.nodeFromJSON(json)
+            tr.replaceWith(0, tr.doc.content.size, doc.content)
+            dispatch(tr)
+          }
+          return true
+        })
+        .run()
       }
     }
   } catch (error) {
@@ -722,13 +698,15 @@ function updateEditorState() {
       content: getContentType(editor.value),
       formatting
     }
+
+    currentHeading.value = context.content.type as string
+    //currentHeading.value = getHeading(editor.value)
     
     window.electronAPI.windowContentChange(context)
     
     // 更新编辑器统计信息
     const stats = calculateEditorStats(editor.value)
-    appStore.updateTabStats(props.tab.id, stats)
-    //emit('tab-stats-update', { tabId: props.tab.id, stats })
+    appStore.updateTabState(props.tab.id, { editorStats: stats })
   }
 }
 

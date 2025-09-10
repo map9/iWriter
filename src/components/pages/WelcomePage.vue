@@ -53,7 +53,7 @@ import {
 const appStore = useAppStore()
 
 function createNewDocument() {
-  appStore.createTab(undefined, undefined, '', DocumentType.TEXT_EDITOR)
+  appStore.createTab(undefined, undefined, DocumentType.TEXT_EDITOR)
 }
 
 function openFile() {

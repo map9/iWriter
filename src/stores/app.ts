@@ -9,16 +9,12 @@ import type { FileTreeNode, FileTreeSortType } from '@/components/common/tree'
 import { availableThemes, getThemeById, applyThemeColors, type Theme, applySystemColors } from '@/utils/themes'
 import updaterService from '@/updater/UpdaterService'
 import {
-  DocumentType as DocType,
   TEXT_MD_EXTENSIONS,
   TEXT_TXT_EXTENSIONS,
   TEXT_IWT_EXTENSIONS,
   TEXT_EXTENSIONS,
   IMAGE_EXTENSIONS,
   PDF_EXTENSIONS,
-  CODE_EXTENSIONS,
-  AUDIO_EXTENSIONS,
-  VIDEO_EXTENSIONS
 } from '@/types'
 import { convertContentTo } from '@/convert/formatConverter'
 
@@ -68,9 +64,6 @@ export const useAppStore = defineStore('app', () => {
     return currentFolder.value !== null
   })
   
-  // 使用高效的文件监听代替定时器
-  const isFileWatchingEnabled = ref(true)
-
   // Update menu when showLeftSidebar state changes
   watch(() => showLeftSidebar.value, (status) => {
     const leftSidebar = !!status
@@ -316,13 +309,17 @@ export const useAppStore = defineStore('app', () => {
       return
     }
     
-    const content = await window.electronAPI.readFile(filePath)
-    if (content !== null) {
-      const documentType = detectFromPath(filePath)
-      createTab(pathUtils.basename(filePath), filePath, content, documentType)
+    const files = await window.electronAPI.getFiles(filePath, true)
+    if (!files || files.length === 0 || !files[0] || files[0].isDirectory === true) {
+      notify.error(`${filePath}不是文件或不存在`, '文件打开错误')
+      return
     }
+    
+    const documentType = detectFromPath(filePath)
+    createTab(pathUtils.basename(filePath), filePath, documentType)
   }
 
+  /* for debug
   function logFileTreeNode(node: FileTreeNode | null) {
     if (!node) {
       console.log('Invalid node provided to logFileTreeNode') 
@@ -344,6 +341,7 @@ export const useAppStore = defineStore('app', () => {
     }
     return
   }
+  */
 
   // File or Folder operations
   async function openFolder() {
@@ -733,7 +731,7 @@ export const useAppStore = defineStore('app', () => {
     if (!window.electronAPI) return false
 
     try {
-      let result = await window.electronAPI.deleteFile(node.path)
+      const result = await window.electronAPI.deleteFile(node.path)
       
       if (result) {
         // Remove from parent's children
@@ -750,11 +748,10 @@ export const useAppStore = defineStore('app', () => {
           return tab.path && (tab.path === node.path || tab.path.startsWith(node.path + '/'))
         })
 
-        let result: boolean = true
         // Close all tabs since no folder is open
         for (const tab of tabsToClose) {
           tab.path = undefined
-          result = await closeTab(tab.id)
+          await closeTab(tab.id)
         }
         setSelectedItem(null)
 
@@ -954,7 +951,7 @@ export const useAppStore = defineStore('app', () => {
 
       return true
     } catch (error) {
-      notify.error(`删除 ${node.path} 结点失败`, '文件树更新错误')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件树更新错误')
       return false
     }
   }
@@ -1030,7 +1027,7 @@ export const useAppStore = defineStore('app', () => {
         if (fileInfo.modified) node.modified = fileInfo.modified
       }
     } catch (error) {
-      notify.error(`文件树更新 ${node.path} 结点信息失败`, '文件树更新')
+      notify.error(`文件树更新 ${node.path} 结点信息失败：${error instanceof Error ? error.message : String(error)}`, '文件树更新')
     }
   }
 
@@ -1055,7 +1052,7 @@ export const useAppStore = defineStore('app', () => {
     }
   }
   
-  function createTab(name?: string, path?: string, content: string = '', documentType?: DocumentType) {
+  function createTab(name?: string, path?: string, documentType?: DocumentType) {
     const id = Date.now().toString()
     
     // Generate untitled name if not provided
@@ -1175,37 +1172,6 @@ export const useAppStore = defineStore('app', () => {
     activeTabId.value = tabId
   }
   
-  function updateActiveTabStats(stats: import('@/types').EditorStats) {
-    if (activeTab.value) {
-      activeTab.value.editorStats = stats
-    }
-  }
-
-  function updateTabState(tabId: string, updates: Partial<FileTab>) {
-    const tab = tabs.value.find(t => t.id === tabId)
-    if (tab) {
-      Object.assign(tab, updates)
-    }
-  }
-
-  function updateTabStats(tabId: string, stats: import('@/types').EditorStats) {
-    const tab = tabs.value.find(t => t.id === tabId)
-    if (tab) {
-      tab.editorStats = stats
-    }
-  }
-
-  function cleanupTabEditor(tabId: string) {
-    const tab = tabs.value.find(t => t.id === tabId)
-    if (tab?.tocProvider) {
-      tab.tocProvider.destroy()
-      tab.tocProvider = undefined
-    }
-    if (tab?.editorInstance) {
-      tab.editorInstance = undefined
-    }
-  }
-  
   async function saveTab(tab: FileTab, saveAs: boolean = false): Promise<boolean> {
     if (!tab || !window.electronAPI) return false
     
@@ -1280,6 +1246,32 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  function updateTabState(tabId: string, updates: Partial<FileTab>) {
+    const tab = tabs.value.find(t => t.id === tabId)
+    if (tab) {
+      Object.assign(tab, updates)
+    }
+  }
+
+  function cleanTab(tabId: string) {
+    const tab = tabs.value.find(t => t.id === tabId)
+    if (tab?.tocProvider) {
+      tab.tocProvider.destroy()
+      tab.tocProvider = undefined
+    }
+    if (tab?.editorInstance) {
+      tab.editorInstance = undefined
+    }
+  }
+
+  function updateActiveTabStats(stats: import('@/types').EditorStats) {
+    if (activeTab.value) {
+      activeTab.value.editorStats = stats
+    }
+  }
+
+
+
   // Theme System Functions
   function initTheme() {
     // Load saved theme preference
@@ -1334,31 +1326,6 @@ export const useAppStore = defineStore('app', () => {
     return availableThemes
   }
 
-  // Window close confirmation
-  async function canWindowClose(): Promise<boolean> {
-    // 检查是否有未保存的标签页
-    const unsavedTabs = tabs.value.filter(tab => tab.isDirty);
-    
-    if (unsavedTabs.length === 0) {
-      return true; // 没有未保存的更改，可以关闭
-    }
-    
-    // 有未保存更改，需要用户确认
-    // 这里的具体实现由渲染进程决定
-    // 可以显示确认对话框，询问用户是否保存、放弃或取消
-    
-    // 临时实现：为了演示，这里总是返回 false，阻止关闭
-    // 实际使用时，这里应该实现具体的用户确认逻辑
-    console.log(`有 ${unsavedTabs.length} 个未保存的标签页:`, unsavedTabs.map(t => t.name));
-    
-    // TODO: 实现用户确认对话框
-    // - 显示未保存文档列表
-    // - 提供选项：保存全部、放弃更改、取消关闭
-    // - 根据用户选择返回相应结果
-    
-    return false; // 暂时阻止关闭，直到实现具体的确认逻辑
-  }
-
   // Handle print functionality
   async function handlePrint() {
     const activeTab = tabs.value.find(tab => tab.id === activeTabId.value)
@@ -1375,16 +1342,15 @@ export const useAppStore = defineStore('app', () => {
       const result = await window.electronAPI.print(printOptions)
       
       if (result.success) {
-        notify.success('Print completed')
+        notify.success(`${activeTab.name} 打印成功`, '打印操作')
       } else if (result.cancelled) {
-        // User cancelled printing - don't show error notification
         console.log('Print operation cancelled by user')
       } else {
-        notify.error('Print failed', result.error || 'Unknown error')
+        notify.error(result.error || 'Unknown error', '打印失败')
       }
       
-    } catch (error: any) {
-      notify.error('Print failed', error?.message || 'Unknown error')
+    } catch (error) {
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, '打印错误')
     }
   }
 
@@ -1427,7 +1393,7 @@ export const useAppStore = defineStore('app', () => {
   async function handleMenuAction(action: string): Promise<boolean> {
     switch (action) {
       case 'new-file':
-        createTab(undefined, undefined, '', DocumentType.TEXT_EDITOR)
+        createTab(undefined, undefined, DocumentType.TEXT_EDITOR)
         return true
       case 'new-from-template':
         notify.error(`${action}`, 'Not implemented')
@@ -1597,18 +1563,14 @@ export const useAppStore = defineStore('app', () => {
     closeAllTab,
     saveTab,
     setActiveTab,
-    updateActiveTabStats,
-    updateTabState,
-    updateTabStats,
-    cleanupTabEditor,
     saveActiveTab,
     saveActiveTabAs,
     saveAllTabs,
+    cleanTab,
+    updateTabState,
+    updateActiveTabStats,
 
     // Menu actions
     handleMenuAction,
-
-    // Window close confirmation
-    canWindowClose,
   }
 })
