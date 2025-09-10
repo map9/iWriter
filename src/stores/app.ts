@@ -1180,6 +1180,31 @@ export const useAppStore = defineStore('app', () => {
       activeTab.value.editorStats = stats
     }
   }
+
+  function updateTabState(tabId: string, updates: Partial<FileTab>) {
+    const tab = tabs.value.find(t => t.id === tabId)
+    if (tab) {
+      Object.assign(tab, updates)
+    }
+  }
+
+  function updateTabStats(tabId: string, stats: import('@/types').EditorStats) {
+    const tab = tabs.value.find(t => t.id === tabId)
+    if (tab) {
+      tab.editorStats = stats
+    }
+  }
+
+  function cleanupTabEditor(tabId: string) {
+    const tab = tabs.value.find(t => t.id === tabId)
+    if (tab?.tocProvider) {
+      tab.tocProvider.destroy()
+      tab.tocProvider = undefined
+    }
+    if (tab?.editorInstance) {
+      tab.editorInstance = undefined
+    }
+  }
   
   async function saveTab(tab: FileTab, saveAs: boolean = false): Promise<boolean> {
     if (!tab || !window.electronAPI) return false
@@ -1573,6 +1598,9 @@ export const useAppStore = defineStore('app', () => {
     saveTab,
     setActiveTab,
     updateActiveTabStats,
+    updateTabState,
+    updateTabStats,
+    cleanupTabEditor,
     saveActiveTab,
     saveActiveTabAs,
     saveAllTabs,

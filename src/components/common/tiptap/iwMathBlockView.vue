@@ -240,7 +240,7 @@ onUnmounted(() => {
         color: #fff;
         font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
         font-size: 14px;
-        line-height: 1.4;
+        line-height: 1.5;
         outline: none;
         transition: all 0.2s ease;
         cursor: text;
@@ -248,7 +248,7 @@ onUnmounted(() => {
         vertical-align: middle;
 
         &::placeholder {
-          line-height: 1.4;
+          line-height: 1.5;
           color: rgba(255, 255, 255, 0.6);
         }
       }

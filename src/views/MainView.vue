@@ -30,6 +30,10 @@
               v-if="tab.documentType === DocumentType.TEXT_EDITOR"
               ref="markdownEditorRefs"
               :tab="tab"
+              @tab-dirty-change="handleTabDirtyChange"
+              @tab-editor-ready="handleTabEditorReady"
+              @tab-editor-destroy="handleTabEditorDestroy"
+              @tab-stats-update="handleTabStatsUpdate"
             />
             
             <!-- Image Viewer Page -->
@@ -47,7 +51,7 @@
             />
             
             <!-- Fallback for unknown types -->
-            <div v-else class="h-full flex items-center justify-center">
+            <div v-else class="flex-1 flex items-center justify-center">
               <div class="text-center">
                 <IconAlertTriangle class="w-16 h-16 mx-auto mb-4 text-status-warning" />
                 <div class="text-xl mb-2 text-text-secondary">不支持的文件类型</div>
@@ -195,11 +199,47 @@ onUnmounted(() => {
   // 响应式状态会自动清理，不需要手动清理
 })
 
+// Event handlers for MarkdownEditorPage events
+const handleTabDirtyChange = ({ tabId, isDirty }: { tabId: string, isDirty: boolean }) => {
+  console.log({
+    function: 'handleTabDirtyChange',
+    tabId,
+    isDirty
+  })
+  appStore.updateTabState(tabId, { isDirty })
+}
+
+const handleTabEditorReady = ({ tabId, editorInstance, tocProvider }: { tabId: string, editorInstance: any, tocProvider: any }) => {
+  console.log({
+    function: 'handleTabEditorReady',
+    tabId,
+    editorInstance,
+    tocProvider
+  })
+  //appStore.updateTabState(tabId, { editorInstance, tocProvider })
+}
+
+const handleTabEditorDestroy = ({ tabId }: { tabId: string }) => {
+  console.log({
+    function: 'handleTabEditorDestroy',
+    tabId
+  })
+  //appStore.cleanupTabEditor(tabId)
+}
+
+const handleTabStatsUpdate = ({ tabId, stats }: { tabId: string, stats: import('@/types').EditorStats }) => {
+  console.log({
+    function: 'handleTabStatsUpdate',
+    tabId,
+    stats
+  })
+  //appStore.updateTabStats(tabId, stats)
+}
+
 // Expose methods to parent component (App.vue)
 defineExpose({
   handleMenuAction: async (action: string): Promise<boolean> => {
     // First try to handle through the active page
-    let handled = false
     const activePageRef = getActivePageRef()
     if (activePageRef?.handleMenuAction) {
       return await activePageRef.handleMenuAction(action)

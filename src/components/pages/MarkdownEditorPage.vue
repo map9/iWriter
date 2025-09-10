@@ -289,6 +289,7 @@
 <script setup lang="ts">
 import { ref, toRef, watch, onBeforeUnmount, nextTick } from 'vue'
 import { EditorContent, useEditor, VueNodeViewRenderer } from '@tiptap/vue-3'
+import { generateJSON } from '@tiptap/core'
 
 import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
 import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus, Placeholder } from '@tiptap/extensions'
@@ -316,7 +317,6 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath, migrateMathStrings } from '@tiptap/extension-mathematics'
-import katex from 'katex'
 
 import { ListItem, BulletList, OrderedList, ListKeymap, TaskItem, TaskList } from '@tiptap/extension-list'
 
@@ -365,7 +365,6 @@ import {
   IconMaximize
 } from '@tabler/icons-vue'
 
-import { useAppStore } from '@/stores/app'
 import type { FileTab } from '@/types'
 import { notify } from '@/utils/notifications'
 import pathUtils from '@/utils/pathUtils'
@@ -386,6 +385,7 @@ import {
 } from './markdownEditor/insert'
 import { convertContentFrom } from '@/convert/formatConverter'
 import { doMenuAction } from './markdownEditor/menuAction'
+import { useAppStore } from '@/stores/app'
 
 // Props
 interface Props {
@@ -393,7 +393,16 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
 const appStore = useAppStore()
+// Define emit events to replace direct props mutations
+const emit = defineEmits<{
+  'tab-dirty-change': [{ tabId: string, isDirty: boolean }]
+  'tab-editor-ready': [{ tabId: string, editorInstance: any, tocProvider: any }]
+  'tab-editor-destroy': [{ tabId: string }]
+  'tab-stats-update': [{ tabId: string, stats: import('@/types').EditorStats }]
+}>()
+
 
 // Loading flag for this editor
 const isLoading = ref(false)
@@ -456,13 +465,13 @@ const extensions = [
               pathUtils.isRelativePath(src) &&
               props.tab.path
             ) {
-              let localDir = pathUtils.parentDir(props.tab.path)
+              const localDir = pathUtils.parentDir(props.tab.path)
               src = pathUtils.join(localDir, decodeURIComponent(src))
               src = `file://${src}`
             }
             return src
           },
-          renderHTML: (attributes: any) => ({ src: attributes.src })
+          renderHTML: (attributes: Record<string, any>) => ({ src: attributes.src })
         },
         alt: {
           default: null,
@@ -585,20 +594,20 @@ const editor = useEditor({
       spellcheck: 'false',
     },
   },
-  onUpdate: ({ editor }) => {
-    props.tab.isDirty = true
+  onUpdate: () => {
+    //emit('tab-dirty-change', { tabId: props.tab.id, isDirty: true })
+    appStore.updateTabState(props.tab.id, { isDirty: true })
     updateEditorState()
   },
   onSelectionUpdate: (options) => {
     currentHeading.value = getHeading(editor.value)
     updateEditorState()
   },
-  onTransaction(options) {
+  onTransaction() {
     currentHeading.value = getHeading(editor.value)
   },
   onCreate: (options) => {
     migrateMathStrings(options.editor)
-
     loadTabContent(options.editor).then(() => {
       updateEditorState()
     })
@@ -609,23 +618,27 @@ const editor = useEditor({
 watch(() => editor.value, (newEditor) => {
   if (newEditor) {
     currentHeading.value = getHeading(newEditor)
-    props.tab.editorInstance = newEditor
-    props.tab.tocProvider = new MarkdownTocProvider(newEditor)
+
+    appStore.updateTabState(props.tab.id, { editorInstance: newEditor, tocProvider: new MarkdownTocProvider(newEditor) })
+    /*
+    emit('tab-editor-ready', { 
+      tabId: props.tab.id, 
+      editorInstance: newEditor, 
+      tocProvider: new MarkdownTocProvider(newEditor) 
+    })
+    */    
   }
 }, { immediate: true })
 
 // Cleanup
 onBeforeUnmount(() => {
-  // Clear TOC provider
-  if (props.tab.tocProvider) {
-    props.tab.tocProvider.destroy()
-    props.tab.tocProvider = undefined
-  }
+  // Emit cleanup event to let parent handle proper cleanup
+  //appStore.cleanupTabEditor(props.tab.id)
+  //emit('tab-editor-destroy', { tabId: props.tab.id })
   
   // 等待下一帧后再销毁编辑器，确保HoverToolbar完全卸载
   nextTick(() => {
     editor.value?.destroy()
-    props.tab.editorInstance = undefined
   })
 })
 
@@ -643,7 +656,21 @@ async function loadTabContent(editorInstance: any) {
         if (contentConverted === null) {
           throw new Error('Unsupport file format')
         }
-        editorInstance.commands.setContent(contentConverted, { emitUpdate: false })
+        //editorInstance.commands.setContent(contentConverted, { emitUpdate: false })
+        // 需要在 setContent 调用时就防止记录历史
+        editorInstance.chain()
+          .command(({ tr, dispatch }: { tr: any, dispatch: any }) => {
+            if (dispatch) {
+              tr.setMeta('addToHistory', false)
+              // 手动设置文档内容
+              const json = generateJSON(contentConverted, extensions)
+              const doc = editorInstance.schema.nodeFromJSON(json)
+              tr.replaceWith(0, tr.doc.content.size, doc.content)
+              dispatch(tr)
+            }
+            return true
+          })
+          .run()
       }
     }
   } catch (error) {
@@ -700,7 +727,8 @@ function updateEditorState() {
     
     // 更新编辑器统计信息
     const stats = calculateEditorStats(editor.value)
-    appStore.updateActiveTabStats(stats)
+    appStore.updateTabStats(props.tab.id, stats)
+    //emit('tab-stats-update', { tabId: props.tab.id, stats })
   }
 }
 
