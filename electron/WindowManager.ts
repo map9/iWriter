@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import * as path from 'path'
+import { merge } from 'lodash'
 
 import Timer from '../src/utils/Timer'
 import type { WindowContentState } from '../src/types/windowContentState'
@@ -340,10 +341,10 @@ export class WindowManager {
         });
 
         if (windowIndex !== -1) {
-          this._windows[windowIndex].contentInfo = {
-            ...this._windows[windowIndex].contentInfo,
-            ...contentInfo
-          };
+          this._windows[windowIndex].contentInfo = merge(
+            this._windows[windowIndex].contentInfo, 
+            contentInfo
+          );
           if (BrowserWindow.getFocusedWindow()?.id === window.id) {
             this.updateMenu();
           }

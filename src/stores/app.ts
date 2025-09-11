@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
+import { undoDepth } from '@tiptap/pm/history'
 import type { FileTab, FileOperationResult, FileChange } from '@/types'
 import { SidebarMode, DocumentType } from '@/types'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
@@ -1204,8 +1205,8 @@ export const useAppStore = defineStore('app', () => {
           tab.path = originalPath
           tab.isDirty = false
           tab.name = pathUtils.basename(originalPath)
-
-          // 成功通知
+          tab.savedCheckPoint = undoDepth(tab.editorInstance.state)
+          
           notify.success(`${originalPath} 保存成功`, '文件操作')
           return true
         }

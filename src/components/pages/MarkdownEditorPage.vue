@@ -290,7 +290,7 @@
 import { ref, toRef, watch, onBeforeUnmount, nextTick } from 'vue'
 import { EditorContent, useEditor, VueNodeViewRenderer } from '@tiptap/vue-3'
 import { generateJSON } from '@tiptap/core'
-
+import { undoDepth } from '@tiptap/pm/history'
 import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
 import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus, Placeholder } from '@tiptap/extensions'
 
@@ -369,7 +369,7 @@ import type { FileTab } from '@/types'
 import { notify } from '@/utils/notifications'
 import pathUtils from '@/utils/pathUtils'
 import { MarkdownTocProvider } from '@/services/toc/MarkdownTocProvider'
-import { getHeading, setHeading, getContentType, getCurrentAlignment } from './markdownEditor/state' 
+import { setHeading, getContentType, getCurrentAlignment } from './markdownEditor/state' 
 import { calculateEditorStats } from './markdownEditor/stats' 
 import { onFileHandlerDrop, onFileHandlerPaste, onPlaceholder } from './markdownEditor/on'
 import { 
@@ -380,8 +380,6 @@ import {
   insertAudio, 
   insertVideo, 
   insertMathBlock, 
-  insertReferenceLink,
-  insertFootnote
 } from './markdownEditor/insert'
 import { convertContentFrom } from '@/convert/formatConverter'
 import { doMenuAction } from './markdownEditor/menuAction'
@@ -587,13 +585,14 @@ const editor = useEditor({
     },
   },
   onUpdate: () => {
-    // 当非加载状态下，内容发生变化，更新文件状态
-    if (!isLoading.value) appStore.updateTabState(props.tab.id, { isDirty: true })
+    // 当非加载状态下，内容发生变化，使用新的dirty判断逻辑
+    if (!isLoading.value && editor.value) {
+      const isDirty = !(props.tab.savedCheckPoint === undoDepth(editor.value.state))
+      appStore.updateTabState(props.tab.id, { isDirty })
+    }
   },
   onSelectionUpdate: () => {
     updateEditorState()
-  },
-  onTransaction() {
   },
   onCreate: (options) => {
     migrateMathStrings(options.editor)
@@ -649,6 +648,14 @@ async function loadTabContent(editorInstance: any) {
         .run()
       }
     }
+    
+    // 等待DOM更新后设置初始历史状态
+    await nextTick()
+    // 文件加载完成后，设置当前状态为"干净"状态
+    appStore.updateTabState(props.tab.id, { 
+      isDirty: false,
+      savedCheckPoint: undoDepth(editorInstance.state)
+    })
   } catch (error) {
     notify.error(`加载文档内容失败: ${error instanceof Error ? error.message : String(error)}`, '编辑器错误')
   } finally {
@@ -698,10 +705,7 @@ function updateEditorState() {
       content: getContentType(editor.value),
       formatting
     }
-
-    currentHeading.value = context.content.type as string
-    //currentHeading.value = getHeading(editor.value)
-    
+    currentHeading.value = context.content.type as string    
     window.electronAPI.windowContentChange(context)
     
     // 更新编辑器统计信息

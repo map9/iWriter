@@ -28,4 +28,5 @@ export interface FileTab {
   tocProvider?: import('@/types/toc').TocProvider
   editorStats?: import('@/types/editorStats').EditorStats
   editorInstance?: any
+  savedCheckPoint?: number
 }
