@@ -1,6 +1,6 @@
 import { type Editor } from '@tiptap/vue-3'
 import { getTableState } from '@/components/common/tiptap'
-import type { ContentState } from '@/types/windowContentState'
+import type { ContentState } from '@/types'
 
 export function getHeading(editor: Editor | undefined) : string {
   return editor?.isActive('heading') ? editor?.getAttributes('heading').level : 'paragraph';

@@ -17,7 +17,7 @@ import {
   IMAGE_EXTENSIONS,
   PDF_EXTENSIONS,
 } from '@/types'
-import { convertContentTo } from '@/convert/formatConverter'
+import { convertContentTo } from '@/import-export/'
 
 export const useAppStore = defineStore('app', () => {
   // 文件监听和类型检测
@@ -1470,7 +1470,7 @@ export const useAppStore = defineStore('app', () => {
       
       case 'check-update':
         try {
-          await updaterService.checkForUpdates(true)
+          await updaterService.checkForUpdates()
           notify.success('检查更新', '正在检查更新...')
         } catch (error) {
           console.error('Error checking for updates:', error)

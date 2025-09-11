@@ -723,5 +723,5 @@ defineExpose({
 
 <style lang="scss">
 @use '@/components/common/tiptap/style.scss' as *;
-@use './markdownEditor/style.scss';
+@use './markdown-editor/style.scss';
 </style>

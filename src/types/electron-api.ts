@@ -19,7 +19,7 @@ export interface ElectronAPI {
   saveFile: (content: string, filePath?: string) => Promise<boolean>
 
   pathExists: (filePath: string) => Promise<boolean>
-  getFiles: (folderPath: string, onlyself?: boolean) => Promise<import('./fileOperation').FileInfo[]>
+  getFiles: (folderPath: string, onlyself?: boolean) => Promise<import('./file-operation').FileInfo[]>
   // 在系统文件管理器中显示文件或文件夹
   revealInFolder: (path: string) => Promise<void>  
   // 使用系统默认应用程序打开文件
@@ -56,7 +56,7 @@ export interface ElectronAPI {
   createFolder: (parentPath: string, folderName: string) => Promise<string>
   deleteFile: (filePath: string) => Promise<boolean>
   renameFile: (oldPath: string, newName: string) => Promise<string>
-  moveFile: (sourcePath: string, targetDir: string) => Promise<import('./fileOperation').FileOperationResult>
+  moveFile: (sourcePath: string, targetDir: string) => Promise<import('./file-operation').FileOperationResult>
   
   // 文件监听
   startFileWatching: (folderPath: string) => Promise<{ success: boolean; path?: string; error?: string }>
@@ -65,7 +65,7 @@ export interface ElectronAPI {
   getFileWatchingStatus: () => Promise<{ watchedPaths: string[]; totalWatchers: number }>
   
   // 文件变化事件
-  onFileChange: (callback: (change: import('./fileOperation').FileChange) => void) => void
+  onFileChange: (callback: (change: import('./file-operation').FileChange) => void) => void
   onFileWatchError: (callback: (error: { message: string; path: string; timestamp: Date }) => void) => void
   removeFileChangeListeners: () => void
 

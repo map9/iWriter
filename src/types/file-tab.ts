@@ -26,7 +26,7 @@ export interface FileTab {
   documentType?: DocumentType
   metadata?: FileMetadata
   tocProvider?: import('@/types/toc').TocProvider
-  editorStats?: import('@/types/editorStats').EditorStats
+  editorStats?: import('@/types/editor-stats').EditorStats
   editorInstance?: any
   savedCheckPoint?: number
 }
