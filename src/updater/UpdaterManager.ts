@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, ipcMain } from 'electron'
 import { autoUpdater, AppUpdater } from 'electron-updater'
 import type { UpdateInfo as ElectronUpdateInfo, UpdateDownloadedEvent } from 'electron-updater'
 import log from 'electron-log/main'

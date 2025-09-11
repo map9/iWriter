@@ -194,26 +194,6 @@ export function getThemeById(id: string): Theme | undefined {
   return availableThemes.find(theme => theme.id === id)
 }
 
-function mergeDeep(target: any, ...sources: any) {
-  if (!sources.length) return target;
-  const source = sources.shift();
-
-  if (typeof target === 'object' && target !== null && typeof source === 'object' && source !== null) {
-    for (const key in source) {
-      if (Object.prototype.hasOwnProperty.call(source, key)) {
-        if (typeof source[key] === 'object' && source[key] !== null) {
-          if (!target[key]) Object.assign(target, { [key]: {} });
-          mergeDeep(target[key], source[key]);
-        } else {
-          Object.assign(target, { [key]: source[key] });
-        }
-      }
-    }
-  }
-
-  return mergeDeep(target, ...sources);
-}
-
 export function applySystemColors(themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: any }) {
   const root = document.documentElement
   let newColors: any = null
@@ -235,7 +215,7 @@ export function applySystemColors(themeAndColors: { theme: 'light' | 'dark' | 'u
   if (themeAndColors.theme === 'dark') {
     newColors = darkTheme.colors
   } else if (themeAndColors.theme === 'light') {
-    newColors = lightTheme.colors, newColors
+    newColors = lightTheme.colors
   }
 
   Object.entries(newColors).forEach(([category, categoryColors]) => {

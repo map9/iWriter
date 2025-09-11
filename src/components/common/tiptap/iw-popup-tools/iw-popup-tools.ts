@@ -1,8 +1,8 @@
 import { Extension } from '@tiptap/core'
 
 import { iwPopupToolsPlugin, iwPopupToolsPluginKey } from './plugin'
-import { iwLinkPopupTool } from './plugin/popup-tools/iwLinkPopupTool.ts'
-import { iwMathPopupTool } from './plugin/popup-tools/iwMathPopupTool.ts'
+import { iwLinkPopupTool } from './plugin/popup-tools/iw-link-popup-tool.ts'
+import { iwMathPopupTool } from './plugin/popup-tools/iw-math-popup-tool.ts'
 import type { iwPopupToolsOptions } from './types.ts'
 
 export { iwLinkPopupTool, iwMathPopupTool }

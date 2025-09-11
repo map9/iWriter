@@ -4,9 +4,8 @@ import type { Editor } from '@tiptap/core'
 import type { EditorState } from '@tiptap/pm/state'
 
 import type { EditableFeature } from '../types.js'
-import { findMarkRange } from '../../utils/findMarkRange'
-import { findNodeRange } from '../../utils/findNodeRange'
-import type { EditWidget }  from './utils/EditWidget.ts'
+import { findMarkRange, findNodeRange } from '../../utils'
+import type { EditWidget }  from './utils/edit-widget.ts'
 
 export interface iwPopupToolOptions {
   type: string

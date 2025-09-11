@@ -119,7 +119,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onUnmounted } from 'vue'
 import type { TreeNode, TreeCallbacks, DropMode } from './index'
-import { dragDropState } from './dragDrop'
+import { dragDropState } from './drag-drop.ts'
 
 interface Props {
   node: TreeNode

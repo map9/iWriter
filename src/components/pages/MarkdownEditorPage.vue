@@ -369,9 +369,9 @@ import type { FileTab } from '@/types'
 import { notify } from '@/utils/notifications'
 import pathUtils from '@/utils/pathUtils'
 import { MarkdownTocProvider } from '@/services/toc/MarkdownTocProvider'
-import { setHeading, getContentType, getCurrentAlignment } from './markdownEditor/state' 
-import { calculateEditorStats } from './markdownEditor/stats' 
-import { onFileHandlerDrop, onFileHandlerPaste, onPlaceholder } from './markdownEditor/on'
+import { setHeading, getContentType, getCurrentAlignment } from './markdown-editor/state' 
+import { calculateEditorStats } from './markdown-editor/stats' 
+import { onFileHandlerDrop, onFileHandlerPaste, onPlaceholder } from './markdown-editor/on'
 import { 
   toggleLink,
   toggleMath,
@@ -380,9 +380,9 @@ import {
   insertAudio, 
   insertVideo, 
   insertMathBlock, 
-} from './markdownEditor/insert'
-import { convertContentFrom } from '@/convert/formatConverter'
-import { doMenuAction } from './markdownEditor/menuAction'
+} from './markdown-editor/insert'
+import { convertContentFrom } from '@/import-export'
+import { doMenuAction } from './markdown-editor/menu-action'
 import { useAppStore } from '@/stores/app'
 
 // Props

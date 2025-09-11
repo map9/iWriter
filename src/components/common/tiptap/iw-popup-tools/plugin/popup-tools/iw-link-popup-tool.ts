@@ -2,10 +2,9 @@ import { TextSelection } from '@tiptap/pm/state'
 import type { Mark, Node } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/core'
 
-import { iwPopupTool } from '../iwPopupTool.ts'
-import type { iwPopupToolOptions } from '../iwPopupTool.ts'
+import { iwPopupTool, type iwPopupToolOptions } from '../iw-popup-tool.ts'
 import { iwPopupToolsPluginKey } from '../iwPopupToolsPlugin.ts'
-import { EditWidget, ElementDisplayMode, escapeHtml }  from '../utils/EditWidget.ts'
+import { EditWidget, ElementDisplayMode, escapeHtml }  from '../utils/edit-widget.ts'
 
 export interface iwLinkPopupToolOptions extends iwPopupToolOptions {
   openOnClickFun?: (url: string) => void

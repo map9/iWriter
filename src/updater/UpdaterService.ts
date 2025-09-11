@@ -1,4 +1,4 @@
-import { ref, reactive } from 'vue'
+import { ref } from 'vue'
 import type {
   UpdaterConfig,
   UpdateStatus,
@@ -6,7 +6,6 @@ import type {
   UpdateCheckResult,
   UpdaterStateMessage
 } from './types'
-import { UPDATE_IPC_EVENTS } from './types'
 
 class UpdaterService {
   // 响应式状态
@@ -91,7 +90,7 @@ class UpdaterService {
   }
 
   // 公共方法
-  async checkForUpdates(manual = false): Promise<UpdateCheckResult> {
+  async checkForUpdates(): Promise<UpdateCheckResult> {
     if (!window.electronAPI?.checkForUpdates) {
       throw new Error('Updater API not available')
     }

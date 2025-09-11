@@ -1,6 +1,4 @@
 import { marked } from 'marked'
-// @ts-ignore
-import { renderToMarkdown } from '@tiptap/static-renderer'
 import TurndownService from 'turndown'
 import { gfm } from '@guyplusplus/turndown-plugin-gfm'
 

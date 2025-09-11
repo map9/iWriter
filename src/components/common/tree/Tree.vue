@@ -39,7 +39,7 @@
 import { computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
 import type { TreeNode as TreeNodeType, TreeCallbacks, DropMode } from './index'
 import TreeNode from './TreeNode.vue'
-import { dragDropState } from './dragDrop'
+import { dragDropState } from './drag-drop.ts'
 
 interface Props {
   nodes: TreeNodeType[]

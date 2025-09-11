@@ -1,5 +1,5 @@
 import type { Mark, Node } from '@tiptap/pm/model'
-import type { iwPopupTool } from './plugin/iwPopupTool.ts'
+import type { iwPopupTool } from './plugin/iw-popup-tool.ts'
 
 export interface iwPopupToolsOptions {
   visible: boolean
