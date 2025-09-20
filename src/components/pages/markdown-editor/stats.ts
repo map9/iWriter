@@ -94,7 +94,7 @@ export function calculateEditorStats(editor: Editor | undefined): import('@/type
     selectionWordCount: getSelectionWordCount(editor, selection),
     totalCharCount: content.length,
     totalWordCount: countWords(content),
-    totalParagraphCount: countParagraphs(doc),
+    totalParagraphCount: (content.length == 0)? 0 : countParagraphs(doc),
     lineEnding: detectLineEnding(content),
     // @ts-ignore
     invisibleCharacters: editor?.storage.invisibleCharacters?.visibility?.() ?? false,
