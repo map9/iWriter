@@ -1,6 +1,6 @@
 <template>
   <div
-    class="absolute inset-0 flex items-center justify-between px-2 h-6 min-h-6 text-xs font-medium bg-blue-700 text-white dark:bg-blue-700 border-none select-none z-40"
+    class="absolute inset-0 flex items-center justify-between px-2 h-6 min-h-6 text-[13px] font-medium bg-blue-700 text-white dark:bg-blue-700 border-none select-none z-40"
   >
     <!-- Left section -->
     <div class="flex items-center gap-2">

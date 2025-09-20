@@ -5,7 +5,7 @@
     :key="item.id"
     class="statusbar-item"
     :class="[
-      'flex items-center gap-1 px-1 py-1 text-xs h-6 min-h-6',
+      'flex items-center gap-1 px-1 py-1 h-6 min-h-6',
       'hover:bg-blue-500 dark:hover:bg-gray-700',
       'transition-colors duration-150 rounded-none',
       'border-none bg-transparent cursor-pointer',
@@ -39,7 +39,7 @@
       <!-- Text segment -->
       <span
         v-else-if="segment.type === 'text' && segment.value.trim()"
-        class="text-xs leading-none select-none"
+        class="select-none"
         v-text="segment.value"
       />
     </template>

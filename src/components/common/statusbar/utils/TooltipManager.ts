@@ -142,9 +142,9 @@ export class TooltipManager {
         border: 1px solid #454545;
         border-radius: 4px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 12px;
-        line-height: 1.4;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.5;
         pointer-events: auto;
         opacity: 0;
         transition: opacity 150ms ease-out, transform 150ms ease-out;

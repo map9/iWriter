@@ -10,7 +10,7 @@
   >
     <div
       v-if="state.isVisible && state.currentNotification"
-      class="absolute inset-0 px-4 z-50 flex items-center gap-2 text-xs font-medium text-white"
+      class="absolute inset-0 px-4 z-50 flex items-center gap-2 text-[13px] font-medium text-white"
       :class="[
         notificationClasses,
         state.displayOptions.flash ? 'animate-pulse' : ''
@@ -24,7 +24,7 @@
       />
 
       <!-- Type: 固定宽度 -->
-      <span class="font-medium flex-shrink-0">{{ getNotificationTitle() }}:</span>
+      <span class="flex-shrink-0">{{ getNotificationTitle() }}:</span>
 
       <!-- Message: 占据剩余空间，可截断 -->
       <span class="flex-1 truncate text-left">{{ state.currentNotification.message }}</span>

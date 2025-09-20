@@ -319,7 +319,7 @@ const handleOverlayClick = () => {
   
   .notes-content {
     font-size: 14px;
-    line-height: 1.6;
+    line-height: 1.5;
     color: #374151;
     
     :deep(h1), :deep(h2), :deep(h3) {
