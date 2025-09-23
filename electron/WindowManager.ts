@@ -327,7 +327,7 @@ export class WindowManager {
       });
     })
 
-    ipcMain.handle('window-content-changed', async (event, contentInfo: WindowContentState) => {
+    ipcMain.handle('window-content-changed', async (event, wContentState: WindowContentState) => {
       // 通过webContents查找对应的窗口
       const window = BrowserWindow.fromWebContents(event.sender);
       if (window) {
@@ -336,14 +336,14 @@ export class WindowManager {
         console.log({
           function: 'window-content-changed',
           wID: window.id,
-          newContentInfo: contentInfo,
-          oldContentInfo: this._windows[windowIndex].contentInfo,
+          newWContentState: wContentState,
+          oldWContentState: this._windows[windowIndex].wContentState,
         });
-
+        
         if (windowIndex !== -1) {
-          this._windows[windowIndex].contentInfo = merge(
-            this._windows[windowIndex].contentInfo, 
-            contentInfo
+          this._windows[windowIndex].wContentState = merge(
+            this._windows[windowIndex].wContentState, 
+            wContentState
           );
           if (BrowserWindow.getFocusedWindow()?.id === window.id) {
             this.updateMenu();

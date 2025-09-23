@@ -8,6 +8,4 @@ export interface EditorStats {
   totalCharCount: number
   totalWordCount: number
   totalParagraphCount: number
-  lineEnding: 'LF' | 'CRLF'
-  invisibleCharacters: boolean
 }

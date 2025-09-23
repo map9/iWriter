@@ -24,9 +24,9 @@ export const useAppStore = defineStore('app', () => {
   const { detectFromPath } = useDocumentTypeDetector()
   
   // UI State
-  const showLeftSidebar = ref(true)
-  const showRightSidebar = ref(false)
-  const showStatusbar = ref(true)  
+  const isLeftSidebarVisible = ref(true)
+  const isRightSidebarVisible = ref(false)
+  const isStatusbarVisible = ref(true)  
   const leftSidebarMode = ref<SidebarMode>(SidebarMode.START)
   const leftSidebarWidth = ref(288) // 默认宽度
   const minSidebarWidth = 256 // 最小宽度 - 对应TOC按钮右边缘
@@ -65,56 +65,10 @@ export const useAppStore = defineStore('app', () => {
     return currentFolder.value !== null
   })
   
-  // Update menu when showLeftSidebar state changes
-  watch(() => showLeftSidebar.value, (status) => {
-    const leftSidebar = !!status
-    if (window.electronAPI?.windowContentChange) {
-      window.electronAPI.windowContentChange({
-        type: 'tiptap-editor',
-        view: {
-          leftSidebar: leftSidebar,
-          rightSidebar: showRightSidebar.value,
-          statusbar: showStatusbar.value,
-        },
-      })
-    }
-  }, { immediate: true })
-
-  // Update menu when showRightSidebar state changes
-  watch(() => showRightSidebar.value, (status) => {
-    const rightSidebar = !!status
-    if (window.electronAPI?.windowContentChange) {
-      window.electronAPI.windowContentChange({
-        type: 'tiptap-editor',
-        view: {
-          leftSidebar: showLeftSidebar.value,
-          rightSidebar: rightSidebar,
-          statusbar: showStatusbar.value,
-        },
-      })
-    }
-  }, { immediate: true })
-
-  // Update menu when showRightSidebar state changes
-  watch(() => showStatusbar.value, (status) => {
-    const statusbar = !!status
-    if (window.electronAPI?.windowContentChange) {
-      window.electronAPI.windowContentChange({
-        type: 'tiptap-editor',
-        view: {
-          leftSidebar: showLeftSidebar.value,
-          rightSidebar: showRightSidebar.value,
-          statusbar: statusbar,
-        },
-      })
-    }
-  }, { immediate: true })
-
   // Update menu when theme changes
   watch(() => currentThemeId.value, (themeId) => {
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI.windowContentChange({
-        type: 'tiptap-editor',
         view: {
           theme: themeId,
         },
@@ -128,7 +82,6 @@ export const useAppStore = defineStore('app', () => {
     const hasActiveDocument = newLength > 0
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI.windowContentChange({
-        type: 'tiptap-editor',
         hasActiveDocument: hasActiveDocument,
       })
     }
@@ -142,7 +95,6 @@ export const useAppStore = defineStore('app', () => {
     const hasActiveDocument = !!newTab
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI.windowContentChange({
-        type: 'tiptap-editor',
         hasActiveDocument: hasActiveDocument,
       })
     }
@@ -156,7 +108,6 @@ export const useAppStore = defineStore('app', () => {
     const hasFolderOpen = !!newFolder
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI.windowContentChange({
-        type: 'tiptap-editor',
         hasFolderOpen: hasFolderOpen,
       })
     }
@@ -238,10 +189,70 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // Actions
+  function showLeftSidebar(show: boolean = true) {
+    if (isLeftSidebarVisible.value === show) return
+    isLeftSidebarVisible.value = show
+    window.electronAPI?.windowContentChange?.({
+      view: {
+        leftSidebar: isLeftSidebarVisible.value,
+      },
+    })
+  }
+
   function toggleLeftSidebar() {
-    showLeftSidebar.value = !showLeftSidebar.value
+    showLeftSidebar(!isLeftSidebarVisible.value)
   }
   
+  function showRightSidebar(show: boolean = true) {
+    if (isLeftSidebarVisible.value === show) return
+    isLeftSidebarVisible.value = show
+    window.electronAPI?.windowContentChange?.({
+      view: {
+        rightSidebar: isRightSidebarVisible.value,
+      },
+    })
+  }
+
+  function toggleRightSidebar() {
+    showRightSidebar(!isRightSidebarVisible.value)
+  }
+
+  function showStatusbar(show: boolean = true) {
+    if (isLeftSidebarVisible.value === show) return
+    isLeftSidebarVisible.value = show
+    window.electronAPI?.windowContentChange?.({
+      view: {
+        statusbar: isStatusbarVisible.value,
+      },
+    })
+  }
+
+  function setLeftSidebarMode(mode: SidebarMode) {
+    if (
+      (mode === SidebarMode.TOC && tabs.value.length === 0) &&
+      (hasOpenFolder.value === false && mode !== SidebarMode.TOC)
+    ) {
+      leftSidebarMode.value = SidebarMode.START
+    } else { 
+      leftSidebarMode.value = mode
+    }
+    showLeftSidebar(true)
+  }
+  
+  function setLeftSidebarWidth(width: number) {
+    if (width < minSidebarWidth) {
+      // 如果宽度小于最小值，自动隐藏sidebar
+      showLeftSidebar(false)
+    } else {
+      leftSidebarWidth.value = width
+      showLeftSidebar(true)
+    }
+  }
+  
+  function toggleStatusbar() {
+    showStatusbar(!isStatusbarVisible.value)
+  }
+
   // Update window title based on current state
   function updateWindowTitle() {
     if (!window.electronAPI?.updateWindowTitle) return
@@ -262,37 +273,7 @@ export const useAppStore = defineStore('app', () => {
       console.error('Failed to update window title:', error)
     })
   }
-  
-  function toggleRightSidebar() {
-    showRightSidebar.value = !showRightSidebar.value
-  }
 
-  function toggleStatusbar() {
-    showStatusbar.value = !showStatusbar.value
-  }
-
-  function setLeftSidebarMode(mode: SidebarMode) {
-    if (
-      (mode === SidebarMode.TOC && tabs.value.length === 0) &&
-      (hasOpenFolder.value === false && mode !== SidebarMode.TOC)
-    ) {
-      leftSidebarMode.value = SidebarMode.START
-    } else { 
-      leftSidebarMode.value = mode
-    }
-    showLeftSidebar.value = true
-  }
-  
-  function setLeftSidebarWidth(width: number) {
-    if (width < minSidebarWidth) {
-      // 如果宽度小于最小值，自动隐藏sidebar
-      showLeftSidebar.value = false
-    } else {
-      leftSidebarWidth.value = width
-      showLeftSidebar.value = true
-    }
-  }
-  
   function toggleAutoSave() {
     autoSave.value = !autoSave.value
     if (window.electronAPI?.setAutoSave) {
@@ -1072,7 +1053,7 @@ export const useAppStore = defineStore('app', () => {
       path,
       isDirty: false,
       isActive: true,
-      documentType: documentType || (path ? detectFromPath(path) : DocumentType.TEXT_EDITOR)
+      documentType: documentType || (path ? detectFromPath(path) : DocumentType.MARKDOWN_EDITOR)
     }
     
     // Deactivate all other tabs
@@ -1254,6 +1235,13 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  function setTabLineEnding(tabId: string, lineEnding: 'CRLF' | 'LF') {
+    window.electronAPI?.windowContentChange?.({
+      content: { lineEnding: lineEnding }
+    })
+    updateTabState(tabId, { lineEnding: lineEnding })
+  }
+
   function cleanTab(tabId: string) {
     const tab = tabs.value.find(t => t.id === tabId)
     if (tab?.tocProvider) {
@@ -1264,14 +1252,6 @@ export const useAppStore = defineStore('app', () => {
       tab.editorInstance = undefined
     }
   }
-
-  function updateActiveTabStats(stats: import('@/types').EditorStats) {
-    if (activeTab.value) {
-      activeTab.value.editorStats = stats
-    }
-  }
-
-
 
   // Theme System Functions
   function initTheme() {
@@ -1366,7 +1346,7 @@ export const useAppStore = defineStore('app', () => {
 
     // Customize options based on document type
     switch (tab.documentType) {
-      case DocumentType.TEXT_EDITOR:
+      case DocumentType.MARKDOWN_EDITOR:
         // Markdown/Text documents - ensure proper styling
         printOptions.printBackground = true
         printOptions.scaleFactor = 1.0
@@ -1393,8 +1373,9 @@ export const useAppStore = defineStore('app', () => {
   // There are Paragraph / Format Menu Actions handled in MarkdownEditor.vue
   async function handleMenuAction(action: string): Promise<boolean> {
     switch (action) {
+      // File Menu Actions
       case 'new-file':
-        createTab(undefined, undefined, DocumentType.TEXT_EDITOR)
+        createTab(undefined, undefined, DocumentType.MARKDOWN_EDITOR)
         return true
       case 'new-from-template':
         notify.error(`${action}`, 'Not implemented')
@@ -1428,7 +1409,10 @@ export const useAppStore = defineStore('app', () => {
       case 'close-folder':
         closeFolder()
         return true
+      
+      // Edit Menu Actions
 
+      // View Menu Actions
       case 'view-toggle-left-sidebar':
         toggleLeftSidebar()
         return true
@@ -1499,9 +1483,9 @@ export const useAppStore = defineStore('app', () => {
   
   return {
     // State
-    showLeftSidebar,
-    showRightSidebar,
-    showStatusbar,
+    isLeftSidebarVisible,
+    isRightSidebarVisible,
+    isStatusbarVisible,
     leftSidebarMode,
     leftSidebarWidth,
     minSidebarWidth,
@@ -1569,7 +1553,7 @@ export const useAppStore = defineStore('app', () => {
     saveAllTabs,
     cleanTab,
     updateTabState,
-    updateActiveTabStats,
+    setTabLineEnding,
 
     // Menu actions
     handleMenuAction,

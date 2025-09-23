@@ -1,11 +1,3 @@
-// 文档类型枚举
-export enum DocumentType {
-  TEXT_EDITOR = 'text-editor',
-  PDF_VIEWER = 'pdf-viewer',
-  IMAGE_VIEWER = 'image-viewer',
-  UNKNOWN = 'unknown'
-}
-
 // 文档元数据接口
 export interface FileMetadata {
   size: number
@@ -23,10 +15,12 @@ export interface FileTab {
   path?: string
   isDirty: boolean
   isActive: boolean
-  documentType?: DocumentType
+  documentType?: import('@/types/document-type').DocumentType;
   metadata?: FileMetadata
   tocProvider?: import('@/types/toc').TocProvider
   editorStats?: import('@/types/editor-stats').EditorStats
+  lineEnding?: 'LF' | 'CRLF'
+  firstLineIndent?: boolean
   editorInstance?: any
   savedCheckPoint?: number
 }

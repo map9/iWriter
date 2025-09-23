@@ -17,7 +17,7 @@ export function setHeading(editor: Editor | undefined, heading: string) {
   }
 }
 
-export function getContentType(editor: Editor | undefined) : ContentState {
+export function getContentState(editor: Editor | undefined) : ContentState {
   let type = 'paragraph'
 
   if (editor?.isActive('heading'))
@@ -27,6 +27,7 @@ export function getContentType(editor: Editor | undefined) : ContentState {
   else if (editor?.isActive('bulletList')) {
     return {
       type: 'bulletList',
+      hasSelection: !editor.state.selection.empty,
       data: {
         canSink: editor?.can().sinkListItem('listItem'),
         canLift: editor?.can().liftListItem('listItem')
@@ -36,6 +37,7 @@ export function getContentType(editor: Editor | undefined) : ContentState {
   else if (editor?.isActive('orderedList')) {
     return {
       type: 'orderedList',
+      hasSelection: !editor.state.selection.empty,
       data: {
         canSink: editor?.can().sinkListItem('listItem'),
         canLift: editor?.can().liftListItem('listItem')
@@ -45,6 +47,7 @@ export function getContentType(editor: Editor | undefined) : ContentState {
   else if (editor?.isActive('taskList')) {
     return {
       type: 'taskList',
+      hasSelection: !editor.state.selection.empty,
       data: {
         canSink: editor?.can().sinkListItem('taskItem'),
         canLift: editor?.can().liftListItem('taskItem'),
@@ -57,6 +60,7 @@ export function getContentType(editor: Editor | undefined) : ContentState {
   else if (editor?.isActive('table')) {
     return {
       type: 'table',
+      hasSelection: !editor.state.selection.empty,
       data: getTableState(editor)
     }
   }
@@ -66,10 +70,15 @@ export function getContentType(editor: Editor | undefined) : ContentState {
     type = 'mathBlock'
   else if (editor?.isActive('paragraph')) // all list are paragraph
     type = 'paragraph'
+  else if (editor?.isActive('horizontalRule'))
+    type = 'horizontalRule'
   else
     console.log('Unknown content type')
 
-  return { type }
+  return {
+    type,
+    hasSelection: !editor?.state.selection.empty,
+  }
 }
 
 export function getCurrentAlignment(editor: Editor | undefined) : string {

@@ -1,3 +1,4 @@
+export * from './document-type'
 export * from './notification'
 export * from './menu'
 export * from './file-extension'

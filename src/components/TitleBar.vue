@@ -1,7 +1,7 @@
 <template>
   <div class="titlebar">
     <!-- Window Controls - handled by system traffic lights -->
-    <div v-if="!isMaximized && !appStore.showLeftSidebar" class="flex items-center pl-20"></div>
+    <div v-if="!isMaximized && !appStore.isLeftSidebarVisible" class="flex items-center pl-20"></div>
     <!-- Left Sidebar Toggle -->
     <div class="flex items-center flex-shrink-0 no-drag" :class="isMaximized ? 'pl-2 pr-1' : 'px-1'">
       <button
@@ -10,7 +10,7 @@
         title="Toggle Sidebar"
       >
         <IconLayoutSidebarLeftCollapse
-          v-if="appStore.showLeftSidebar"
+          v-if="appStore.isLeftSidebarVisible"
           class="icon-base"
         />
         <IconLayoutSidebarLeftExpand
@@ -108,7 +108,7 @@
         title="Toggle AI Chat"
       >
         <IconLayoutSidebarRightCollapse
-          v-if="appStore.showRightSidebar"
+          v-if="appStore.isRightSidebarVisible"
           class="icon-base"
         />
         <IconLayoutSidebarRightExpand

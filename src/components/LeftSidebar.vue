@@ -9,7 +9,7 @@
       
       <!-- Sidebar Mode Navigation - only show when sidebar is visible -->
       <div class="flex items-center flex-1">
-        <div v-if="appStore.showLeftSidebar" class="flex items-center gap-1 px-2 ml-auto no-drag">
+        <div v-if="appStore.isLeftSidebarVisible" class="flex items-center gap-1 px-2 ml-auto no-drag">
           <!-- Main navigation group: folder, search, tags -->
           <button
             v-for="mode in mainSidebarModes"
@@ -156,7 +156,7 @@ function handleResize(event: MouseEvent) {
   if (newWidth > 50) { // 设置一个基本的最小值避免负数
     appStore.setLeftSidebarWidth(newWidth)
     // 如果左侧边栏被隐藏，则停止调整大小，避免光标和缩放状态没有被恢复
-    if (appStore.showLeftSidebar === false) {
+    if (appStore.isLeftSidebarVisible === false) {
       stopResize()
     }
   }

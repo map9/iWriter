@@ -298,6 +298,7 @@ import Document from '@tiptap/extension-document'
 import Heading from '@tiptap/extension-heading'
 import Paragraph from '@tiptap/extension-paragraph'
 import Text from '@tiptap/extension-text'
+import HardBreak from '@tiptap/extension-hard-break'
 import Emoji, { gitHubEmojis } from '@tiptap/extension-emoji'
 import HorizontalRule from '@tiptap/extension-horizontal-rule'
 
@@ -369,7 +370,7 @@ import type { FileTab } from '@/types'
 import { notify } from '@/utils/notifications'
 import pathUtils from '@/utils/pathUtils'
 import { MarkdownTocProvider } from '@/services/toc/MarkdownTocProvider'
-import { setHeading, getContentType, getCurrentAlignment } from './markdown-editor/state' 
+import { setHeading, getContentState, getCurrentAlignment } from './markdown-editor/state' 
 import { calculateEditorStats } from './markdown-editor/stats' 
 import { onFileHandlerDrop, onFileHandlerPaste, onPlaceholder } from './markdown-editor/on'
 import { 
@@ -382,8 +383,10 @@ import {
   insertMathBlock, 
 } from './markdown-editor/insert'
 import { convertContentFrom } from '@/import-export'
-import { doMenuAction } from './markdown-editor/menu-action'
+import { onEditorMenuAction } from './markdown-editor/menu-action'
 import { useAppStore } from '@/stores/app'
+import type { WindowContentState } from '@/types'
+import { DocumentType } from '@/types'
 
 // Props
 interface Props {
@@ -400,6 +403,7 @@ const isLoading = ref(false)
 // Toolbar state
 const currentHeading = ref('paragraph')
 const isFullscreen = ref(false)
+const firstLineIndent = ref(props.tab.firstLineIndent ?? false)
 
 // create a lowlight instance
 const lowlight = createLowlight(all)
@@ -423,7 +427,7 @@ const extensions = [
     mode: 'all',
   }),
 
-  Document, Heading, Paragraph, Text,
+  Document, Heading, Paragraph, Text, HardBreak,
   Emoji.configure({
     emojis: gitHubEmojis,
     enableEmoticons: true,
@@ -598,6 +602,8 @@ const editor = useEditor({
     migrateMathStrings(options.editor)
     loadTabContent(options.editor).then(() => {
       updateEditorState()
+      updateEditorInvisibleCharactersState()
+      setFirstLineIndent(firstLineIndent.value)
     })
   }
 })
@@ -605,7 +611,7 @@ const editor = useEditor({
 // Watch for editor state changes and update toolbar
 watch(() => editor.value, (newEditor) => {
   if (newEditor) {
-    appStore.updateTabState(props.tab.id, { editorInstance: newEditor,  tocProvider: new MarkdownTocProvider(newEditor)})
+    appStore.updateTabState(props.tab.id, { editorInstance: newEditor, tocProvider: new MarkdownTocProvider(newEditor)})
   }
 }, { immediate: true })
 
@@ -638,7 +644,7 @@ async function loadTabContent(editorInstance: any) {
         editorInstance.chain().command(({ tr, dispatch }: { tr: any; dispatch?: (tr: any) => void }) => {
           if (dispatch) {
             tr.setMeta('addToHistory', false)
-            const json = generateJSON(contentConverted, extensions)
+            const json = generateJSON(contentConverted.content, extensions)
             const doc = editorInstance.schema.nodeFromJSON(json)
             tr.replaceWith(0, tr.doc.content.size, doc.content)
             dispatch(tr)
@@ -646,6 +652,9 @@ async function loadTabContent(editorInstance: any) {
           return true
         })
         .run()
+        appStore.setTabLineEnding(props.tab.id, contentConverted.lineEnding)
+      } else {
+        appStore.setTabLineEnding(props.tab.id, 'LF')
       }
     }
     
@@ -675,7 +684,24 @@ function toggleFullscreen() {
 
 // Handle menu actions
 async function handleMenuAction(action: string): Promise<boolean> {
-  return doMenuAction(editor.value, action)
+  switch (action) {
+    case 'line-ending-crlf':
+      appStore.setTabLineEnding(props.tab.id, 'CRLF')
+      return true
+    case 'line-ending-lf':
+      appStore.setTabLineEnding(props.tab.id, 'LF')
+      return true
+
+    case 'first-line-indent':
+      toggleFirstLineIndent()
+      return true
+    case 'toggle-space-line-break':
+      editor.value?.commands.toggleInvisibleCharacters()
+      updateEditorInvisibleCharactersState()
+      return true
+  }
+
+  return onEditorMenuAction(editor.value, action)
 }
 
 // Update editor state to Main Menu and Tab Stats
@@ -697,21 +723,50 @@ function updateEditorState() {
       undo: editor.value.can().undo(),
       redo: editor.value.can().redo(),
     }
-    const context = {
-      type: 'tiptap-editor',
+    const windowContentState: WindowContentState = {
+      type: DocumentType.MARKDOWN_EDITOR,
       hasActiveDocument: true,
-      hasSelection: !editor.value.state.selection.empty,
       undoRedo,
-      content: getContentType(editor.value),
+      content: getContentState(editor.value),
+      // @ts-ignore
       formatting
     }
-    currentHeading.value = context.content.type as string    
-    window.electronAPI.windowContentChange(context)
+    currentHeading.value = windowContentState.content?.type as string    
+    window.electronAPI.windowContentChange(windowContentState)
     
     // 更新编辑器统计信息
     const stats = calculateEditorStats(editor.value)
     appStore.updateTabState(props.tab.id, { editorStats: stats })
   }
+}
+
+function updateEditorInvisibleCharactersState() {
+  window.electronAPI?.windowContentChange?.({
+    // @ts-ignore
+    content: { invisibleCharacters: editor.value?.storage.invisibleCharacters?.visibility?.() ?? false }
+  })
+}
+
+function setFirstLineIndent(has: boolean) {
+  firstLineIndent.value = has
+
+  const editorElement = document.querySelector('.tiptap') as HTMLElement;
+  if (editorElement) {
+    if (firstLineIndent.value) {
+      editorElement.classList.add('first-line-indent')
+    } else {
+      editorElement.classList.remove('first-line-indent')
+    }
+  }
+ 
+  appStore.updateTabState(props.tab.id, { firstLineIndent: firstLineIndent.value})
+  window.electronAPI?.windowContentChange?.({
+    content: { firstLineIndent: firstLineIndent.value }
+  })
+}
+
+function toggleFirstLineIndent() {
+  setFirstLineIndent( !firstLineIndent.value )
 }
 
 // Expose methods to parent

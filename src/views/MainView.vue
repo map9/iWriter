@@ -3,7 +3,7 @@
   <div class="mainview">
   
     <!-- Left Sidebar -->
-    <LeftSidebar v-if="appStore.showLeftSidebar" />
+    <LeftSidebar v-if="appStore.isLeftSidebarVisible" />
     
     <!-- Workzone -->
     <div class="workzone0">
@@ -27,7 +27,7 @@
           >
             <!-- Markdown Editor Page -->
             <MarkdownEditorPage 
-              v-if="tab.documentType === DocumentType.TEXT_EDITOR"
+              v-if="tab.documentType === DocumentType.MARKDOWN_EDITOR"
               ref="markdownEditorRefs"
               :tab="tab"
               @tab-dirty-change="handleTabDirtyChange"
@@ -71,13 +71,13 @@
         </div>
         
         <!-- Right Sidebar (AI Chat) -->
-        <RightSidebar v-if="appStore.showRightSidebar" />
+        <RightSidebar v-if="appStore.isRightSidebarVisible" />
       </div>
     </div>
   </div>
   
   <!-- Status Bar -->
-  <StatusBar v-if="appStore.showStatusbar"/>
+  <StatusBar v-if="appStore.isStatusbarVisible"/>
   
   <!-- Update Dialog -->
   <UpdateDialog
@@ -132,7 +132,7 @@ function getActivePageRef() {
   if (!activeTab.value) return null
 
   switch (activeTab.value.documentType) {
-    case DocumentType.TEXT_EDITOR:
+    case DocumentType.MARKDOWN_EDITOR:
       return markdownEditorRefs.value.find(ref => ref && ref.tab?.id === activeTab.value?.id)
     case DocumentType.IMAGE_VIEWER:
       return imageViewerRefs.value.find(ref => ref && ref.tab?.id === activeTab.value?.id)

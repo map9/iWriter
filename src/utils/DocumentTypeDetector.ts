@@ -52,7 +52,7 @@ export class DefaultDocumentTypeDetector {
     const normalizedExt = extension.toLowerCase().replace('.', '')
 
     if (TEXT_EXTENSIONS.includes(normalizedExt as any)) {
-      return DocType.TEXT_EDITOR
+      return DocType.MARKDOWN_EDITOR
     }
 
     if (PDF_EXTENSIONS.includes(normalizedExt as any)) {
@@ -76,7 +76,7 @@ export class DefaultDocumentTypeDetector {
     if (normalizedMime.startsWith('text/') ||
         normalizedMime === 'application/x-markdown' ||
         normalizedMime === 'text/markdown') {
-      return DocType.TEXT_EDITOR
+      return DocType.MARKDOWN_EDITOR
     }
 
     // PDF类型
@@ -126,7 +126,7 @@ export class DefaultDocumentTypeDetector {
    */
   getDisplayName(documentType: DocumentType): string {
     switch (documentType) {
-      case DocType.TEXT_EDITOR:
+      case DocType.MARKDOWN_EDITOR:
         return '文本编辑器'
       case DocType.PDF_VIEWER:
         return 'PDF 查看器'
@@ -143,7 +143,7 @@ export class DefaultDocumentTypeDetector {
    */
   getIconByType(documentType: DocumentType) {
     switch (documentType) {
-      case DocType.TEXT_EDITOR:
+      case DocType.MARKDOWN_EDITOR:
         return IconFileText
       case DocType.PDF_VIEWER:
         return IconFileTypePdf
@@ -271,7 +271,7 @@ export class DefaultDocumentTypeDetector {
    * 检查文件是否可编辑
    */
   isEditable(documentType: DocumentType): boolean {
-    return documentType === DocType.TEXT_EDITOR
+    return documentType === DocType.MARKDOWN_EDITOR
   }
 
   /**

@@ -53,13 +53,8 @@ export const createEditorStatsStatusBarGroup = () => {
   })
 
   const lineEnding = computed((): string => {
-    const stats = appStore.activeTab?.editorStats
-
-    if (stats && stats.lineEnding) {
-      return stats.lineEnding
-    } else {
-      return ''
-    }
+    const lineEnding = appStore.activeTab?.lineEnding
+    return lineEnding ? lineEnding : ''
   })
 
   const editable = computed((): string => {

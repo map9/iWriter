@@ -19,23 +19,37 @@ gfm (which applies all of the above)
 */
 turndownService.use(gfm)
 
+function detectLineEnding(text: string): 'LF' | 'CRLF' {
+  if (text.includes('\r\n')) return 'CRLF'
+  return 'LF'
+}
+
 // Load content into editor
 export async function convertContentFrom(content: string, extension: string) {
   if (TEXT_MD_EXTENSIONS.includes(extension as any)) {
     // Convert markdown to HTML for TipTap
-    return await marked(content)
+    return {
+      content: await marked(content),
+      lineEnding: detectLineEnding(content)
+    }
   } else if (TEXT_IWT_EXTENSIONS.includes(extension as any)) {
     // iWriter files are stored as JSON with HTML content
     const parsed = JSON.parse(content)
-    return parsed.content || ''
+    return {
+      content: parsed.content || '',
+      lineEnding: detectLineEnding(content)
+    }
   } else if (TEXT_TXT_EXTENSIONS.includes(extension as any)) {
-    return content
+    return {
+      content: content,
+      lineEnding: detectLineEnding(content)
+    }
   } else {
     return null
   }
 }
 
-export function convertContentTo(tab: FileTab, extension: string): string | null {
+export function convertContentTo(tab: FileTab, extension: string, lineEnding?: 'LF' | 'CRLF'): string | null {
   if (!tab.editorInstance) return null
 
   if (TEXT_MD_EXTENSIONS.includes(extension as any)) {

@@ -22,19 +22,15 @@ import {
 } from '@/components/common/tiptap'
 
 // Handle menu actions
-export async function doMenuAction(editor: Editor | undefined, action: string): Promise<boolean> {
+export async function onEditorMenuAction(editor: Editor | undefined, action: string): Promise<boolean> {
   if (!editor) return false
-  
+        
   switch (action) {
     case 'undo':
       editor.chain().focus().undo().run()
       return true
     case 'redo':
       editor.chain().focus().redo().run()
-      return true
-
-    case 'toggle-invisible-characters':
-      editor.commands.toggleInvisibleCharacters()
       return true
       
     case 'heading-1':

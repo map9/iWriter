@@ -73,6 +73,44 @@
     font-size: 1rem;
   }
 
+  &.first-line-indent {
+    p {
+      text-indent: 2em;
+
+      .tiptap-invisible-character {
+        text-indent: 0em;
+      }
+    }
+
+    ul {
+      padding-left: 2.25rem;
+    }
+
+    ul,
+    ol {
+      li p {
+        text-indent: 0em;
+      }
+    }
+
+    blockquote {
+      p {
+        text-indent: 0em;
+      }
+    }
+
+    .tableWrapper {
+      table {
+        td,
+        th {
+          p {
+            text-indent: 0em;
+          }
+        }
+      }
+    }
+  }
+
   /* Paragraph styles */
   p {
     margin: 1rem 0;
@@ -203,6 +241,10 @@
         
         > * {
           margin-bottom: 0;
+        }
+
+        p {
+          text-indent: 0em;
         }
       }
 
@@ -369,7 +411,7 @@
     border-radius: 0.25rem;
 
     &[data-type='inline-math'] {
-      display: inline-block;
+      display: inline;
     }
 
     &[data-type='block-math'] {

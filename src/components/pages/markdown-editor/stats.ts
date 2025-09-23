@@ -1,5 +1,5 @@
 import { type Editor } from '@tiptap/vue-3'
-import { getContentType } from './state' 
+import { getContentState } from './state' 
 
 function getCurrentLineFromPos(editor: Editor | undefined, pos: number): number {
   if (!editor) return 1
@@ -57,11 +57,6 @@ function countParagraphs(doc: any): number {
   return count
 }
 
-function detectLineEnding(text: string): 'LF' | 'CRLF' {
-  if (text.includes('\r\n')) return 'CRLF'
-  return 'LF'
-}
-
 export function calculateEditorStats(editor: Editor | undefined): import('@/types').EditorStats {
   if (!editor) {
     return {
@@ -73,15 +68,13 @@ export function calculateEditorStats(editor: Editor | undefined): import('@/type
       totalCharCount: 0,
       totalWordCount: 0,
       totalParagraphCount: 0,
-      lineEnding: 'LF',
-      invisibleCharacters: false,
     }
   }
 
   const selection = editor.state.selection
   const doc = editor.state.doc
   const content = doc.textContent
-  let { type } = getContentType(editor)
+  let { type } = getContentState(editor)
   if (typeof type === 'number') {
     type = `heading-${type}`
   }
@@ -89,14 +82,11 @@ export function calculateEditorStats(editor: Editor | undefined): import('@/type
   return {
     currentLine: getCurrentLineFromPos(editor, selection.from),
     currentColumn: getCurrentColumnFromPos(editor, selection.from),
-    paragraphType: type,
+    paragraphType: type || 'unknown',
     selectionCharCount: getSelectionCharCount(selection),
     selectionWordCount: getSelectionWordCount(editor, selection),
     totalCharCount: content.length,
     totalWordCount: countWords(content),
     totalParagraphCount: (content.length == 0)? 0 : countParagraphs(doc),
-    lineEnding: detectLineEnding(content),
-    // @ts-ignore
-    invisibleCharacters: editor?.storage.invisibleCharacters?.visibility?.() ?? false,
   }
 }

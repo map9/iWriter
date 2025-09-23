@@ -53,8 +53,12 @@ export interface ContentStateTableData {
 
 // 文字内容类型信息
 export interface ContentState {
-  type: string | number
+  type?: string | number
   data?: ContentStateListData | ContentStateTaskListData | ContentStateTableData
+  hasSelection?: boolean
+  lineEnding?: 'CRLF' | 'LF'
+  invisibleCharacters?: boolean
+  firstLineIndent?: boolean
 }
 
 // 文字内容格式化状态接口
@@ -71,10 +75,9 @@ export interface FormattingState {
 
 // 窗口内容信息接口
 export interface WindowContentState {
-  type: DocumentType
+  type?: import('@/types/document-type').DocumentType
   hasFolderOpen?: boolean
   hasActiveDocument?: boolean
-  hasSelection?: boolean
   view?: ViewState
   undoRedo?: UndoRedoState
   content?: ContentState

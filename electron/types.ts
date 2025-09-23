@@ -10,7 +10,7 @@ export interface WindowState {
   alive: boolean
   aliveTimer?: Timer
   closeTimer?: Timer
-  contentInfo?: WindowContentState
+  wContentState?: WindowContentState
 }
 
 export interface GlobalParameters {

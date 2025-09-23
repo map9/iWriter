@@ -171,7 +171,7 @@ export class MenuManager {
             id: 'save',
             label: 'Save',
             accelerator: 'CmdOrCtrl+S',
-            enabled: wState?.contentInfo?.hasActiveDocument,
+            enabled: wState?.wContentState?.hasActiveDocument,
             click: () => {
               this.sendMenuAction('save')
             }
@@ -180,7 +180,7 @@ export class MenuManager {
             id: 'save-as',
             label: 'Save As...',
             accelerator: 'CmdOrCtrl+Shift+S',
-            enabled: wState?.contentInfo?.hasActiveDocument,
+            enabled: wState?.wContentState?.hasActiveDocument,
             click: () => {
               this.sendMenuAction('save-as')
             }
@@ -199,11 +199,12 @@ export class MenuManager {
             id: 'save-all',
             label: 'Save All',
             accelerator: 'CmdOrCtrl+Alt+S',
-            enabled: wState?.contentInfo?.hasActiveDocument,
+            enabled: wState?.wContentState?.hasActiveDocument,
             click: () => {
               this.sendMenuAction('save-all')
             }
           },
+          /*
           { type: 'separator' },
           {
             label: 'Import',
@@ -245,7 +246,7 @@ export class MenuManager {
           {
             id: 'export',
             label: 'Export',
-            enabled: wState?.contentInfo?.hasActiveDocument,
+            enabled: wState?.wContentState?.hasActiveDocument,
             submenu: [
               {
                 label: 'PDF',
@@ -274,11 +275,12 @@ export class MenuManager {
               }
             ]
           },
+          */
           { type: 'separator' },
           {
             label: 'Print...',
             accelerator: 'CmdOrCtrl+P',
-            enabled: wState?.contentInfo?.hasActiveDocument,
+            enabled: wState?.wContentState?.hasActiveDocument,
             click: () => {
               this.sendMenuAction('print')
             }
@@ -288,7 +290,7 @@ export class MenuManager {
             id: 'close-file',
             label: 'Close File',
             accelerator: 'CmdOrCtrl+W',
-            enabled: wState?.contentInfo?.hasActiveDocument,
+            enabled: wState?.wContentState?.hasActiveDocument,
             click: () => {
               this.sendMenuAction('close-file')
             }
@@ -296,7 +298,7 @@ export class MenuManager {
           {
             id: 'close-folder',
             label: 'Close Folder',
-            enabled: wState?.contentInfo?.hasFolderOpen,
+            enabled: wState?.wContentState?.hasFolderOpen,
             click: () => {
               this.sendMenuAction('close-folder')
             }
@@ -310,7 +312,7 @@ export class MenuManager {
           {
             label: 'Undo',
             accelerator: 'CmdOrCtrl+Z',
-            enabled: wState?.contentInfo?.undoRedo?.undo,
+            enabled: wState?.wContentState?.undoRedo?.undo,
             click: () => {
               this.sendMenuAction('undo')
             }
@@ -318,20 +320,23 @@ export class MenuManager {
           {
             label: 'Redo',
             accelerator: 'CmdOrCtrl+Shift+Z',
-            enabled: wState?.contentInfo?.undoRedo?.redo,
+            enabled: wState?.wContentState?.undoRedo?.redo,
             click: () => {
               this.sendMenuAction('redo')
             }
           },
           { type: 'separator' },
           {
-            role: 'cut'
+            role: 'cut',
+            enabled: wState?.wContentState?.hasActiveDocument,
           },
           {
-            role: 'copy'
+            role: 'copy',
+            enabled: wState?.wContentState?.hasActiveDocument,
           },
           {
             label: 'Copy as',
+            enabled: wState?.wContentState?.hasActiveDocument,
             submenu: [
               {
                 label: 'Plain Text',
@@ -360,38 +365,44 @@ export class MenuManager {
             ]
           },
           {
-            role: 'paste'
+            role: 'paste',
+            enabled: wState?.wContentState?.hasActiveDocument,
           },
           {
             label: 'Paste as Text',
             accelerator: 'CmdOrCtrl+Shift+V',
+            enabled: wState?.wContentState?.hasActiveDocument,
             click: () => {
               this.sendMenuAction('paste-as-text')
             }
           },
           {
-            role: 'delete'
+            role: 'delete',
+            enabled: wState?.wContentState?.hasActiveDocument,
           },
           {
             label: 'Select All',
             accelerator: 'CmdOrCtrl+A',
+            enabled: wState?.wContentState?.hasActiveDocument,
             role: 'selectAll'
           },
           { type: 'separator' },
           {
             label: 'Line Ending',
+            enabled: wState?.wContentState?.hasActiveDocument,
             submenu: [
               {
                 label: 'Windows CRLF',
-                type: 'radio',
-                checked: true,
+                type: 'checkbox',
+                checked: wState?.wContentState?.content?.lineEnding === 'CRLF',
                 click: () => {
                   this.sendMenuAction('line-ending-crlf')
                 }
               },
               {
                 label: 'Unix LF',
-                type: 'radio',
+                type: 'checkbox',
+                checked: wState?.wContentState?.content?.lineEnding === 'LF',
                 click: () => {
                   this.sendMenuAction('line-ending-lf')
                 }
@@ -400,31 +411,22 @@ export class MenuManager {
           },
           {
             label: 'Space and Line break',
+            enabled: wState?.wContentState?.hasActiveDocument,
             submenu: [
               {
                 label: 'First line indent',
                 type: 'checkbox',
+                checked: wState?.wContentState?.content?.firstLineIndent === true,
                 click: () => {
                   this.sendMenuAction('first-line-indent')
                 }
               },
               {
-                label: 'Show <br/>',
+                label: 'Toggle Space and Line break',
+                type: 'checkbox',
+                checked: wState?.wContentState?.content?.invisibleCharacters === true,
                 click: () => {
-                  this.sendMenuAction('show-br')
-                }
-              },
-              {
-                label: 'Keep Line breaks',
-                click: () => {
-                  this.sendMenuAction('keep-line-breaks')
-                }
-              },
-              { type: 'separator' },
-              {
-                label: 'More Options...',
-                click: () => {
-                  this.sendMenuAction('space-line-break-options')
+                  this.sendMenuAction('toggle-space-line-break')
                 }
               }
             ]
@@ -564,7 +566,7 @@ export class MenuManager {
             label: 'Heading 1',
             accelerator: 'CmdOrCtrl+1',
             type: 'checkbox',
-            checked: wState?.contentInfo?.content?.type === 1,
+            checked: wState?.wContentState?.content?.type === 1,
             click: () => {
               this.sendMenuAction('heading-1')
             }
@@ -573,7 +575,7 @@ export class MenuManager {
             label: 'Heading 2',
             accelerator: 'CmdOrCtrl+2',
             type: 'checkbox',
-            checked: wState?.contentInfo?.content?.type === 2,
+            checked: wState?.wContentState?.content?.type === 2,
             click: () => {
               this.sendMenuAction('heading-2')
             }
@@ -582,7 +584,7 @@ export class MenuManager {
             label: 'Heading 3',
             accelerator: 'CmdOrCtrl+3',
             type: 'checkbox',
-            checked: wState?.contentInfo?.content?.type === 3,
+            checked: wState?.wContentState?.content?.type === 3,
             click: () => {
               this.sendMenuAction('heading-3')
             }
@@ -591,7 +593,7 @@ export class MenuManager {
             label: 'Heading 4',
             accelerator: 'CmdOrCtrl+4',
             type: 'checkbox',
-            checked: wState?.contentInfo?.content?.type === 4,
+            checked: wState?.wContentState?.content?.type === 4,
             click: () => {
               this.sendMenuAction('heading-4')
             }
@@ -600,7 +602,7 @@ export class MenuManager {
             label: 'Heading 5',
             accelerator: 'CmdOrCtrl+5',
             type: 'checkbox',
-            checked: wState?.contentInfo?.content?.type === 5,
+            checked: wState?.wContentState?.content?.type === 5,
             click: () => {
               this.sendMenuAction('heading-5')
             }
@@ -609,7 +611,7 @@ export class MenuManager {
             label: 'Heading 6',
             accelerator: 'CmdOrCtrl+6',
             type: 'checkbox',
-            checked: wState?.contentInfo?.content?.type === 6,
+            checked: wState?.wContentState?.content?.type === 6,
             click: () => {
               this.sendMenuAction('heading-6')
             }
@@ -619,7 +621,7 @@ export class MenuManager {
             label: 'Paragraph',
             accelerator: 'CmdOrCtrl+0',
             type: 'checkbox',
-            checked: wState?.contentInfo?.content?.type === 'paragraph',
+            checked: wState?.wContentState?.content?.type === 'paragraph',
             click: () => {
               this.sendMenuAction('paragraph')
             }
@@ -629,11 +631,11 @@ export class MenuManager {
             label: 'Promote Heading',
             accelerator: 'CmdOrCtrl+=',
             enabled:
-              wState?.contentInfo?.content?.type !== 1 &&
-              ((typeof wState?.contentInfo?.content?.type === 'number' &&
-                wState?.contentInfo?.content?.type >= 2 &&
-                wState?.contentInfo?.content?.type <= 6) ||
-                wState?.contentInfo?.content?.type === 'paragraph'),
+              wState?.wContentState?.content?.type !== 1 &&
+              ((typeof wState?.wContentState?.content?.type === 'number' &&
+                wState?.wContentState?.content?.type >= 2 &&
+                wState?.wContentState?.content?.type <= 6) ||
+                wState?.wContentState?.content?.type === 'paragraph'),
             click: () => {
               this.sendMenuAction('promote-heading')
             }
@@ -642,10 +644,10 @@ export class MenuManager {
             label: 'Demote Heading',
             accelerator: 'CmdOrCtrl+-',
             enabled: 
-              wState?.contentInfo?.content?.type !== 'paragraph' &&
-              (typeof wState?.contentInfo?.content?.type === 'number' &&
-              wState?.contentInfo?.content?.type >= 1 &&
-              wState?.contentInfo?.content?.type <= 6),
+              wState?.wContentState?.content?.type !== 'paragraph' &&
+              (typeof wState?.wContentState?.content?.type === 'number' &&
+              wState?.wContentState?.content?.type >= 1 &&
+              wState?.wContentState?.content?.type <= 6),
             click: () => {
               this.sendMenuAction('demote-heading')
             }
@@ -665,8 +667,8 @@ export class MenuManager {
               {
                 label: 'Header Row',
                 type: 'checkbox',
-                enabled: wState?.contentInfo?.content?.type === 'table',
-                checked: (wState?.contentInfo?.content?.data as ContentStateTableData)?.hasHeaderRow,
+                enabled: wState?.wContentState?.content?.type === 'table',
+                checked: (wState?.wContentState?.content?.data as ContentStateTableData)?.hasHeaderRow,
                 click: (menuItem) => {
                   menuItem.checked = false
                   this.sendMenuAction('table-toggle-header-row')
@@ -675,8 +677,8 @@ export class MenuManager {
               {
                 label: 'Header Column',
                 type: 'checkbox',
-                enabled: wState?.contentInfo?.content?.type === 'table',
-                checked: (wState?.contentInfo?.content?.data as ContentStateTableData)?.hasHeaderColumn,
+                enabled: wState?.wContentState?.content?.type === 'table',
+                checked: (wState?.wContentState?.content?.data as ContentStateTableData)?.hasHeaderColumn,
                 click: (menuItem) => {
                   menuItem.checked = false
                   this.sendMenuAction('table-toggle-header-column')
@@ -685,14 +687,14 @@ export class MenuManager {
               { type: 'separator' },
               {
                 label: 'Insert Row Above',
-                enabled: wState?.contentInfo?.content?.type === 'table',
+                enabled: wState?.wContentState?.content?.type === 'table',
                 click: () => {
                   this.sendMenuAction('table-insert-row-above')
                 }
               },
               {
                 label: 'Insert Row Below',
-                enabled: wState?.contentInfo?.content?.type === 'table',
+                enabled: wState?.wContentState?.content?.type === 'table',
                 accelerator: 'CmdOrCtrl+Enter',
                 click: () => {
                   this.sendMenuAction('table-insert-row-below')
@@ -701,14 +703,14 @@ export class MenuManager {
               { type: 'separator' },
               {
                 label: 'Insert Column Left',
-                enabled: wState?.contentInfo?.content?.type === 'table',
+                enabled: wState?.wContentState?.content?.type === 'table',
                 click: () => {
                   this.sendMenuAction('table-insert-column-left')
                 }
               },
               {
                 label: 'Insert Column Right',
-                enabled: wState?.contentInfo?.content?.type === 'table',
+                enabled: wState?.wContentState?.content?.type === 'table',
                 click: () => {
                   this.sendMenuAction('table-insert-column-right')
                 }
@@ -717,8 +719,8 @@ export class MenuManager {
               {
                 label: 'Move Row Up',
                 enabled:
-                  wState?.contentInfo?.content?.type === 'table' &&
-                  (wState?.contentInfo?.content?.data as ContentStateTableData)?.canMoveAbove,
+                  wState?.wContentState?.content?.type === 'table' &&
+                  (wState?.wContentState?.content?.data as ContentStateTableData)?.canMoveAbove,
                 accelerator: 'CmdOrCtrl+Shift+Up',
                 click: () => {
                   this.sendMenuAction('table-move-row-above')
@@ -727,8 +729,8 @@ export class MenuManager {
               {
                 label: 'Move Row Down',
                 enabled:
-                  wState?.contentInfo?.content?.type === 'table' &&
-                  (wState?.contentInfo?.content?.data as ContentStateTableData)?.canMoveBelow,
+                  wState?.wContentState?.content?.type === 'table' &&
+                  (wState?.wContentState?.content?.data as ContentStateTableData)?.canMoveBelow,
                 accelerator: 'CmdOrCtrl+Shift+Down',
                 click: () => {
                   this.sendMenuAction('table-move-row-below')
@@ -737,8 +739,8 @@ export class MenuManager {
               {
                 label: 'Move Column Left',
                 enabled:
-                  wState?.contentInfo?.content?.type === 'table' &&
-                  (wState?.contentInfo?.content?.data as ContentStateTableData)?.canMoveLeft,
+                  wState?.wContentState?.content?.type === 'table' &&
+                  (wState?.wContentState?.content?.data as ContentStateTableData)?.canMoveLeft,
                 accelerator: 'CmdOrCtrl+Shift+Left',
                 click: () => {
                   this.sendMenuAction('table-move-column-left')
@@ -747,8 +749,8 @@ export class MenuManager {
               {
                 label: 'Move Column Right',
                 enabled:
-                  wState?.contentInfo?.content?.type === 'table' &&
-                  (wState?.contentInfo?.content?.data as ContentStateTableData)?.canMoveRight,
+                  wState?.wContentState?.content?.type === 'table' &&
+                  (wState?.wContentState?.content?.data as ContentStateTableData)?.canMoveRight,
                 accelerator: 'CmdOrCtrl+Shift+Right',
                 click: () => {
                   this.sendMenuAction('table-move-column-right')
@@ -757,7 +759,7 @@ export class MenuManager {
               { type: 'separator' },
               {
                 label: 'Delete Row',
-                enabled: wState?.contentInfo?.content?.type === 'table',
+                enabled: wState?.wContentState?.content?.type === 'table',
                 accelerator: 'CmdOrCtrl+Shift+Backspace',
                 click: () => {
                   this.sendMenuAction('table-delete-row')
@@ -765,7 +767,7 @@ export class MenuManager {
               },
               {
                 label: 'Delete Column',
-                enabled: wState?.contentInfo?.content?.type === 'table',
+                enabled: wState?.wContentState?.content?.type === 'table',
                 click: () => {
                   this.sendMenuAction('table-delete-column')
                 }
@@ -773,14 +775,14 @@ export class MenuManager {
               { type: 'separator' },
               {
                 label: 'Duplicate Table',
-                enabled: wState?.contentInfo?.content?.type === 'table',
+                enabled: wState?.wContentState?.content?.type === 'table',
                 click: () => {
                   this.sendMenuAction('table-duplicate')
                 }
               },
               {
                 label: 'Delete Table',
-                enabled: wState?.contentInfo?.content?.type === 'table',
+                enabled: wState?.wContentState?.content?.type === 'table',
                 click: () => {
                   this.sendMenuAction('table-delete')
                 }
@@ -791,7 +793,7 @@ export class MenuManager {
             label: 'Code Block',
             accelerator: 'CmdOrCtrl+Shift+C',
             type: 'checkbox',
-            checked: wState?.contentInfo?.content?.type === 'codeBlock',
+            checked: wState?.wContentState?.content?.type === 'codeBlock',
             click: () => {
               this.sendMenuAction('insert-code-block')
             }
@@ -803,8 +805,8 @@ export class MenuManager {
                 label: 'Format Selection',
                 enabled: 
                 (
-                  wState?.contentInfo?.content?.type === 'codeBlock' &&
-                  wState?.contentInfo?.hasSelection
+                  wState?.wContentState?.content?.type === 'codeBlock' &&
+                  wState?.wContentState?.content?.hasSelection
                 ),
                 click: () => {
                   this.sendMenuAction('code-format-selection')
@@ -812,7 +814,7 @@ export class MenuManager {
               },
               {
                 label: 'Format CodeBlock',
-                enabled: wState?.contentInfo?.content?.type === 'codeBlock',
+                enabled: wState?.wContentState?.content?.type === 'codeBlock',
                 click: () => {
                   this.sendMenuAction('code-format-codeblock')
                 }
@@ -866,7 +868,7 @@ export class MenuManager {
             label: 'Quote Block',
             accelerator: 'CmdOrCtrl+Shift+Q',
             type: 'checkbox',
-            checked: wState?.contentInfo?.content?.type === 'blockquote',
+            checked: wState?.wContentState?.content?.type === 'blockquote',
             click: () => {
               this.sendMenuAction('insert-quote-block')
             }
@@ -882,7 +884,7 @@ export class MenuManager {
             label: 'Ordered List',
             accelerator: 'CmdOrCtrl+Shift+O',
             type: 'checkbox',
-            checked: wState?.contentInfo?.content?.type === 'orderedList',
+            checked: wState?.wContentState?.content?.type === 'orderedList',
             click: () => {
               this.sendMenuAction('ordered-list')
             }
@@ -891,7 +893,7 @@ export class MenuManager {
             label: 'Bullet List',
             accelerator: 'CmdOrCtrl+Shift+U',
             type: 'checkbox',
-            checked: wState?.contentInfo?.content?.type === 'bulletList',
+            checked: wState?.wContentState?.content?.type === 'bulletList',
             click: () => {
               this.sendMenuAction('bullet-list')
             }
@@ -900,7 +902,7 @@ export class MenuManager {
             label: 'Task List',
             accelerator: 'CmdOrCtrl+Shift+X',
             type: 'checkbox',
-            checked: wState?.contentInfo?.content?.type === 'taskList',
+            checked: wState?.wContentState?.content?.type === 'taskList',
             click: () => {
               this.sendMenuAction('task-list')
             }
@@ -910,7 +912,7 @@ export class MenuManager {
             submenu: [
               {
                 label: 'Toggle Task Status',
-                enabled: wState?.contentInfo?.content?.type === 'taskList',
+                enabled: wState?.wContentState?.content?.type === 'taskList',
                 click: () => {
                   this.sendMenuAction('toggle-task-status')
                 }
@@ -921,8 +923,8 @@ export class MenuManager {
                 type: 'radio',
                 enabled: 
                 (
-                  wState?.contentInfo?.content?.type === 'taskList' &&
-                  !(wState?.contentInfo?.content?.data as ContentStateTaskListData)?.checked
+                  wState?.wContentState?.content?.type === 'taskList' &&
+                  !(wState?.wContentState?.content?.data as ContentStateTaskListData)?.checked
                 ),
                 click: () => {
                   this.sendMenuAction('complete-task')
@@ -933,8 +935,8 @@ export class MenuManager {
                 type: 'radio',
                 enabled: 
                 (
-                  wState?.contentInfo?.content?.type === 'taskList' &&
-                  (wState?.contentInfo?.content?.data as ContentStateTaskListData)?.checked
+                  wState?.wContentState?.content?.type === 'taskList' &&
+                  (wState?.wContentState?.content?.data as ContentStateTaskListData)?.checked
                 ),
                 click: () => {
                   this.sendMenuAction('uncomplete-task')
@@ -950,8 +952,8 @@ export class MenuManager {
                 accelerator: 'CmdOrCtrl+]',
                 enabled: 
                 (
-                  ['bulletList', 'orderedList', 'taskList'].includes(wState?.contentInfo?.content?.type as string) &&
-                  (wState?.contentInfo?.content?.data as ContentStateListData)?.canSink
+                  ['bulletList', 'orderedList', 'taskList'].includes(wState?.wContentState?.content?.type as string) &&
+                  (wState?.wContentState?.content?.data as ContentStateListData)?.canSink
                 ),
                 click: () => {
                   this.sendMenuAction('increase-indent')
@@ -962,8 +964,8 @@ export class MenuManager {
                 accelerator: 'CmdOrCtrl+[',
                 enabled: 
                 (
-                  ['bulletList', 'orderedList', 'taskList'].includes(wState?.contentInfo?.content?.type as string) &&
-                  (wState?.contentInfo?.content?.data as ContentStateListData)?.canLift
+                  ['bulletList', 'orderedList', 'taskList'].includes(wState?.wContentState?.content?.type as string) &&
+                  (wState?.wContentState?.content?.data as ContentStateListData)?.canLift
                 ),
                 click: () => {
                   this.sendMenuAction('decrease-indent')
@@ -1017,7 +1019,7 @@ export class MenuManager {
             id: 'format-bold',
             label: 'Bold',
             type: 'checkbox',
-            checked: wState?.contentInfo?.formatting?.bold,
+            checked: wState?.wContentState?.formatting?.bold,
             accelerator: 'CmdOrCtrl+B',
             click: (menuItem) => {
               // cancle toggled status
@@ -1029,7 +1031,7 @@ export class MenuManager {
             id: 'format-italic',
             label: 'Italic',
             type: 'checkbox',
-            checked: wState?.contentInfo?.formatting?.italic,
+            checked: wState?.wContentState?.formatting?.italic,
             accelerator: 'CmdOrCtrl+I',
             click: (menuItem) => {
               // cancle toggled status
@@ -1041,7 +1043,7 @@ export class MenuManager {
             id: 'format-underline',
             label: 'Underline',
             type: 'checkbox',
-            checked: wState?.contentInfo?.formatting?.underline,
+            checked: wState?.wContentState?.formatting?.underline,
             accelerator: 'CmdOrCtrl+U',
             click: (menuItem) => {
               // cancle toggled status
@@ -1053,7 +1055,7 @@ export class MenuManager {
             id: 'format-strikethrough',
             label: 'Strike Through',
             type: 'checkbox',
-            checked: wState?.contentInfo?.formatting?.strikethrough,
+            checked: wState?.wContentState?.formatting?.strikethrough,
             accelerator: 'CmdOrCtrl+Shift+X',
             click: (menuItem) => {
               // cancle toggled status
@@ -1070,8 +1072,8 @@ export class MenuManager {
                 type: 'radio',
                 checked: 
                 (
-                  !wState?.contentInfo?.formatting?.textAlign || 
-                  wState?.contentInfo?.formatting?.textAlign === 'left'
+                  !wState?.wContentState?.formatting?.textAlign || 
+                  wState?.wContentState?.formatting?.textAlign === 'left'
                 ),
                 click: () => {
                   this.sendMenuAction('align-left')
@@ -1080,7 +1082,7 @@ export class MenuManager {
               {
                 label: 'Center Aligned',
                 type: 'radio',
-                checked: wState?.contentInfo?.formatting?.textAlign === 'center',
+                checked: wState?.wContentState?.formatting?.textAlign === 'center',
                 click: () => {
                   this.sendMenuAction('align-center')
                 }
@@ -1088,7 +1090,7 @@ export class MenuManager {
               {
                 label: 'Right Aligned',
                 type: 'radio',
-                checked: wState?.contentInfo?.formatting?.textAlign === 'right',
+                checked: wState?.wContentState?.formatting?.textAlign === 'right',
                 click: () => {
                   this.sendMenuAction('align-right')
                 }
@@ -1096,7 +1098,7 @@ export class MenuManager {
               {
                 label: 'Justified',
                 type: 'radio',
-                checked: wState?.contentInfo?.formatting?.textAlign === 'justify',
+                checked: wState?.wContentState?.formatting?.textAlign === 'justify',
                 click: () => {
                   this.sendMenuAction('align-justify')
                 }
@@ -1114,7 +1116,7 @@ export class MenuManager {
             id: 'format-code',
             label: 'Inline Code',
             type: 'checkbox',
-            checked: wState?.contentInfo?.formatting?.inlineCode,
+            checked: wState?.wContentState?.formatting?.inlineCode,
             accelerator: 'CmdOrCtrl+`',
             click: () => {
               this.sendMenuAction('inline-code')
@@ -1138,7 +1140,7 @@ export class MenuManager {
           {
             label: 'Superscript',
             type: 'checkbox',
-            checked: wState?.contentInfo?.formatting?.script === 'superscript',
+            checked: wState?.wContentState?.formatting?.script === 'superscript',
             click: () => {
               this.sendMenuAction('superscript')
             }
@@ -1146,7 +1148,7 @@ export class MenuManager {
           {
             label: 'Subscript',
             type: 'checkbox',
-            checked: wState?.contentInfo?.formatting?.script === 'subscript',
+            checked: wState?.wContentState?.formatting?.script === 'subscript',
             click: () => {
               this.sendMenuAction('subscript')
             }
@@ -1155,7 +1157,7 @@ export class MenuManager {
             label: 'Highlight',
             accelerator: 'CmdOrCtrl+Shift+H',
             type: 'checkbox',
-            checked: wState?.contentInfo?.formatting?.highlight,
+            checked: wState?.wContentState?.formatting?.highlight,
             click: () => {
               this.sendMenuAction('highlight')
             }
@@ -1538,7 +1540,7 @@ export class MenuManager {
                 label: 'Left Side Bar',
                 accelerator: 'CmdOrCtrl+Shift+L',
                 type: 'checkbox',
-                checked: wState?.contentInfo?.view?.leftSidebar? true : false,
+                checked: wState?.wContentState?.view?.leftSidebar? true : false,
                 click: () => {
                   this.sendMenuAction('view-toggle-left-sidebar')
                 }
@@ -1547,7 +1549,7 @@ export class MenuManager {
                 label: 'Right Side Bar',
                 accelerator: 'CmdOrCtrl+Shift+R',
                 type: 'checkbox',
-                checked: wState?.contentInfo?.view?.rightSidebar? true : false,
+                checked: wState?.wContentState?.view?.rightSidebar? true : false,
                 click: () => {
                   this.sendMenuAction('view-toggle-right-sidebar')
                 }
@@ -1556,7 +1558,7 @@ export class MenuManager {
                 label: 'Status Bar',
                 accelerator: 'CmdOrCtrl+Shift+S',
                 type: 'checkbox',
-                checked: wState?.contentInfo?.view?.statusbar? true : false,
+                checked: wState?.wContentState?.view?.statusbar? true : false,
                 click: () => {
                   this.sendMenuAction('view-toggle-statusbar')
                 }
@@ -1565,7 +1567,7 @@ export class MenuManager {
               {
                 label: 'Follow System',
                 type: 'radio',
-                checked: wState?.contentInfo?.view?.theme === 'system',
+                checked: wState?.wContentState?.view?.theme === 'system',
                 click: () => {
                   this.sendMenuAction('view-theme-follow-system')
                 }
@@ -1574,7 +1576,7 @@ export class MenuManager {
               {
                 label: 'Light',
                 type: 'radio',
-                checked: wState?.contentInfo?.view?.theme === 'light',
+                checked: wState?.wContentState?.view?.theme === 'light',
                 click: () => {
                   this.sendMenuAction('view-theme-light')
                 }
@@ -1583,7 +1585,7 @@ export class MenuManager {
                 id: 'dark',
                 label: 'Dark',
                 type: 'radio',
-                checked: wState?.contentInfo?.view?.theme === 'dark',
+                checked: wState?.wContentState?.view?.theme === 'dark',
                 click: () => {
                   this.sendMenuAction('view-theme-dark')
                 }
@@ -1680,18 +1682,18 @@ export class MenuManager {
 
     // Filter out Paragraph and Format menus based on document state
     const filteredTemplate = baseTemplate.filter(item => {
-      if (item.id === 'paragraph-menu' && !wState?.contentInfo?.hasActiveDocument) {
+      if (item.id === 'paragraph-menu' && !wState?.wContentState?.hasActiveDocument) {
         return false
       }
-      if (item.id === 'format-menu' && !wState?.contentInfo?.hasActiveDocument) {
+      if (item.id === 'format-menu' && !wState?.wContentState?.hasActiveDocument) {
         return false
       }
       return true
     })
 
     // Insert Theme items dynamically
-    if (wState?.contentInfo?.view?.theme && !['system', 'light', 'dark'].includes(wState?.contentInfo?.view?.theme)) {
-      let theme = wState?.contentInfo?.view?.theme
+    if (wState?.wContentState?.view?.theme && !['system', 'light', 'dark'].includes(wState?.wContentState?.view?.theme)) {
+      let theme = wState?.wContentState?.view?.theme
       const insertThemeItems: Electron.MenuItemConstructorOptions[] = [
         { type: 'separator' },
         {
