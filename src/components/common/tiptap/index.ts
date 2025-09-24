@@ -1,5 +1,7 @@
 export * from './utils'
 export * from './iw-popup-tools'
+export * from './iwTextInputRule'
+export * from './iwTypography'
 
 import iwCodeBlockView from './iwCodeBlockView.vue'
 import iwTableView from './iwTableView.vue'

@@ -149,7 +149,7 @@ async function openWithShell(filePath: string | undefined) {
   try {
     await window.electronAPI.openWithShell(filePath)
   } catch (error) {
-    notify.success(`${error instanceof Error ? error.message : String(error)}`, '文件操作')
+    notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件操作')
   }
 }
 

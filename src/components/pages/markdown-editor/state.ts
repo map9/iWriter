@@ -18,7 +18,12 @@ export function setHeading(editor: Editor | undefined, heading: string) {
 }
 
 export function getContentState(editor: Editor | undefined) : ContentState {
-  let type = 'paragraph'
+  let type = 'unknown'
+  const hasSelection = !editor?.state.selection.empty || false
+  
+  if (!editor || hasSelection) {
+    return { type, hasSelection } 
+  }
 
   if (editor?.isActive('heading'))
     type = editor?.getAttributes('heading').level
@@ -27,7 +32,7 @@ export function getContentState(editor: Editor | undefined) : ContentState {
   else if (editor?.isActive('bulletList')) {
     return {
       type: 'bulletList',
-      hasSelection: !editor.state.selection.empty,
+      hasSelection,
       data: {
         canSink: editor?.can().sinkListItem('listItem'),
         canLift: editor?.can().liftListItem('listItem')
@@ -37,7 +42,7 @@ export function getContentState(editor: Editor | undefined) : ContentState {
   else if (editor?.isActive('orderedList')) {
     return {
       type: 'orderedList',
-      hasSelection: !editor.state.selection.empty,
+      hasSelection,
       data: {
         canSink: editor?.can().sinkListItem('listItem'),
         canLift: editor?.can().liftListItem('listItem')
@@ -47,7 +52,7 @@ export function getContentState(editor: Editor | undefined) : ContentState {
   else if (editor?.isActive('taskList')) {
     return {
       type: 'taskList',
-      hasSelection: !editor.state.selection.empty,
+      hasSelection,
       data: {
         canSink: editor?.can().sinkListItem('taskItem'),
         canLift: editor?.can().liftListItem('taskItem'),
@@ -60,7 +65,7 @@ export function getContentState(editor: Editor | undefined) : ContentState {
   else if (editor?.isActive('table')) {
     return {
       type: 'table',
-      hasSelection: !editor.state.selection.empty,
+      hasSelection,
       data: getTableState(editor)
     }
   }
@@ -77,7 +82,7 @@ export function getContentState(editor: Editor | undefined) : ContentState {
 
   return {
     type,
-    hasSelection: !editor?.state.selection.empty,
+    hasSelection,
   }
 }
 

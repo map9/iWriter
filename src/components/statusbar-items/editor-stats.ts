@@ -44,7 +44,7 @@ export const createEditorStatsStatusBarGroup = () => {
     let result = ''
     if (stats) {
       if (stats.selectionCharCount > 0) {
-        result = `**Selection**<br>- **${stats.selectionCharCount}** characters<br>- **${stats.selectionWordCount}** words`
+        result = `**Selection**<br>- **${stats.selectionCharCount}** characters<br>- **${stats.selectionWordCount}** words\n\n`
       }
       return result + `**Document**<br>- **${stats.totalCharCount}** characters<br>- **${stats.totalWordCount}** words<br>- **${stats.totalParagraphCount}** paragraphs`
     } else {

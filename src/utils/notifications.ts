@@ -5,27 +5,27 @@ const notification = useNotification()
 export const notify = {
   success: (message: string, context?: string) => {
     notification.success(message, context)
-    console.info(`${context}: ${message}.`)
+    console.info(context ? `${context}: ${message}` : message)
   },
   
   info: (message: string, context?: string) => {
     notification.info(message, context)
-    console.info(`${context}: ${message}.`)
+    console.info(context ? `${context}: ${message}` : message)
   },
   
   warning: (message: string, context?: string) => {
     notification.warning(message, context)
-    console.warn(`${context}: ${message}.`)
+    console.warn(context ? `${context}: ${message}` : message)
   },
   
   error: (message: string, context?: string) => {
     notification.error(message, context)
-    console.error(`${context}: ${message}.`)
+    console.error(context ? `${context}: ${message}` : message)
   },
   
   critical: (message: string, context?: string) => {
     notification.critical(message, context)
-    console.error(`${context}: ${message}.`)
+    console.error(context ? `${context}: ${message}` : message)
   }
 }
 

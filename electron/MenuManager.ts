@@ -70,46 +70,46 @@ export class MenuManager {
     // Build base menu template
     const baseTemplate: Electron.MenuItemConstructorOptions[] = [
       // { role: 'appMenu' }
-      ...(isMac
-        ? [{
-            label: 'iWriter',
-            submenu: [
-              { role: 'about' },
-              /*
-              { type: 'separator' },
-              {
-                label: 'License...',
-                click: () => {
-                  this.sendMenuAction('license')
-                }
-              },
-              */
-              { type: 'separator' },
-              {
-                label: 'Check for update...',
-                click: () => {
-                  this.sendMenuAction('check-update')
-                }
-              },
-              {
-                label: 'Preferences...',
-                accelerator: 'CmdOrCtrl+,',
-                click: () => {
-                  this.sendMenuAction('preferences')
-                }
-              },
-              { type: 'separator' },
-              { role: 'services' },
-              { type: 'separator' },
-              { role: 'hide' },
-              { role: 'hideOthers' },
-              { role: 'unhide' },
-              { type: 'separator' },
-              { role: 'quit' },
-            ]
-          }]
-        : []),
       {
+        id: 'appMenu',
+        label: 'iWriter',
+        submenu: [
+          { role: 'about' },
+          /*
+          { type: 'separator' },
+          {
+            label: 'License...',
+            click: () => {
+              this.sendMenuAction('license')
+            }
+          },
+          */
+          { type: 'separator' },
+          {
+            label: 'Check for update...',
+            click: () => {
+              this.sendMenuAction('check-update')
+            }
+          },
+          {
+            label: 'Preferences...',
+            accelerator: 'CmdOrCtrl+,',
+            click: () => {
+              this.sendMenuAction('preferences')
+            }
+          },
+          { type: 'separator' },
+          { role: 'services' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' },
+        ]
+      },
+      {
+        id: 'fileMenu',
         label: 'File',
         submenu: [
           {
@@ -156,13 +156,11 @@ export class MenuManager {
             }
           },
           {
-            label: 'Open Recent',
-            role: 'recentdocuments',
+            role: 'recentDocuments',
             submenu:[
               { type: 'separator' },
               {
-                label: 'Clear Recent',
-                role: 'clearrecentdocuments'
+                role: 'clearRecentDocuments'
               }
             ]
           },
@@ -307,6 +305,7 @@ export class MenuManager {
         ]
       },
       {
+        id: 'editMenu',
         label: 'Edit',
         submenu: [
           {
@@ -328,15 +327,17 @@ export class MenuManager {
           { type: 'separator' },
           {
             role: 'cut',
-            enabled: wState?.wContentState?.hasActiveDocument,
           },
           {
             role: 'copy',
-            enabled: wState?.wContentState?.hasActiveDocument,
           },
           {
+            role: 'paste',
+          },
+          { type: 'separator' },
+          {
             label: 'Copy as',
-            enabled: wState?.wContentState?.hasActiveDocument,
+            enabled: wState?.wContentState?.hasSelection,
             submenu: [
               {
                 label: 'Plain Text',
@@ -355,18 +356,8 @@ export class MenuManager {
                 click: () => {
                   this.sendMenuAction('copy-as-html')
                 }
-              },
-              {
-                label: 'Picture',
-                click: () => {
-                  this.sendMenuAction('copy-as-picture')
-                }
               }
             ]
-          },
-          {
-            role: 'paste',
-            enabled: wState?.wContentState?.hasActiveDocument,
           },
           {
             label: 'Paste as Text',
@@ -376,15 +367,13 @@ export class MenuManager {
               this.sendMenuAction('paste-as-text')
             }
           },
+          { type: 'separator' },
           {
             role: 'delete',
-            enabled: wState?.wContentState?.hasActiveDocument,
+            accelerator: isMac ? 'Backspace' : 'Delete',
           },
           {
-            label: 'Select All',
-            accelerator: 'CmdOrCtrl+A',
-            enabled: wState?.wContentState?.hasActiveDocument,
-            role: 'selectAll'
+            role: 'selectAll',
           },
           { type: 'separator' },
           {
@@ -418,11 +407,11 @@ export class MenuManager {
                 type: 'checkbox',
                 checked: wState?.wContentState?.content?.firstLineIndent === true,
                 click: () => {
-                  this.sendMenuAction('first-line-indent')
+                  this.sendMenuAction('toggle-first-line-indent')
                 }
               },
               {
-                label: 'Toggle Space and Line break',
+                label: 'Space and Line break',
                 type: 'checkbox',
                 checked: wState?.wContentState?.content?.invisibleCharacters === true,
                 click: () => {
@@ -432,55 +421,27 @@ export class MenuManager {
             ]
           },
           {
-            label: 'Auto replace',
+            label: 'Text Replacement',
             submenu: [
               {
-                label: 'Convert on Input',
+                label: 'Smart Punctuation',
                 type: 'checkbox',
-                checked: true,
+                checked: wState?.wContentState?.content?.smartPunctuation === true,
                 click: () => {
-                  this.sendMenuAction('convert-on-input')
+                  this.sendMenuAction('toggle-smart-punctuation')
                 }
               },
               {
-                label: 'Convert on Render',
-                type: 'checkbox',
-                click: () => {
-                  this.sendMenuAction('convert-on-render')
-                }
-              },
-              {
-                label: 'Smart Quotes',
-                type: 'checkbox',
-                click: () => {
-                  this.sendMenuAction('smart-quotes')
-                }
-              },
-              {
-                label: 'Smart Dashes',
-                type: 'checkbox',
-                click: () => {
-                  this.sendMenuAction('smart-dashes')
-                }
-              },
-              {
-                label: 'Text Replace',
+                label: 'Text Replace...',
                 click: () => {
                   this.sendMenuAction('text-replace')
-                }
-              },
-              {
-                label: 'Auto Convert Unicode Punctuation',
-                type: 'checkbox',
-                click: () => {
-                  this.sendMenuAction('auto-convert-unicode')
                 }
               },
               { type: 'separator' },
               {
                 label: 'More Options...',
                 click: () => {
-                  this.sendMenuAction('auto-replace-options')
+                  this.sendMenuAction('preferences-text-replacement')
                 }
               }
             ]
@@ -545,6 +506,7 @@ export class MenuManager {
           {
             label: 'Find in Files',
             accelerator: 'CmdOrCtrl+Shift+F',
+            enabled: wState?.wContentState?.hasFolderOpen,
             click: () => {
               this.sendMenuAction('find-in-files')
             }
@@ -552,6 +514,7 @@ export class MenuManager {
           {
             label: 'Replace in Files',
             accelerator: 'CmdOrCtrl+Shift+H',
+            enabled: wState?.wContentState?.hasFolderOpen,
             click: () => {
               this.sendMenuAction('replace-in-files')
             }
@@ -559,7 +522,7 @@ export class MenuManager {
         ]
       },
       {
-        id: 'paragraph-menu',
+        id: 'paragraphMenu',
         label: 'Paragraph',
         submenu: [
           {
@@ -1012,7 +975,7 @@ export class MenuManager {
         ]
       },
       {
-        id: 'format-menu',
+        id: 'formatMenu',
         label: 'Format',
         submenu: [
           {
@@ -1331,6 +1294,7 @@ export class MenuManager {
         ]
       },
       {
+        id: 'aiMenu',
         label: 'AI',
         submenu: [
           {
@@ -1464,8 +1428,8 @@ export class MenuManager {
         ]
       },
       {
+        id: 'viewMenu',
         label: 'View',
-        id: 'view',
         submenu: [
           {
             label: 'Focus Mode',
@@ -1582,7 +1546,7 @@ export class MenuManager {
                 }
               },
               {
-                id: 'dark',
+                id: 'viewThemeDark',
                 label: 'Dark',
                 type: 'radio',
                 checked: wState?.wContentState?.view?.theme === 'dark',
@@ -1611,6 +1575,7 @@ export class MenuManager {
       },
       { role: 'windowMenu' },
       {
+        id: 'helpMenu',
         label: 'Help',
         submenu: [
           {
@@ -1680,20 +1645,24 @@ export class MenuManager {
       }
     ]
 
-    // Filter out Paragraph and Format menus based on document state
     const filteredTemplate = baseTemplate.filter(item => {
-      if (item.id === 'paragraph-menu' && !wState?.wContentState?.hasActiveDocument) {
+      // Filter out App menu based on runtime platform
+      if (item.id === 'appMenu' && !isMac) return false
+      
+      // Filter out Edit, Paragraph and Format menus based on document state
+      if (
+        (item.id === 'editMenu' || item.id === 'paragraphMenu' || item.id === 'formatMenu') &&
+        !wState?.wContentState?.hasActiveDocument
+      ) {
         return false
       }
-      if (item.id === 'format-menu' && !wState?.wContentState?.hasActiveDocument) {
-        return false
-      }
+
       return true
     })
 
     // Insert Theme items dynamically
     if (wState?.wContentState?.view?.theme && !['system', 'light', 'dark'].includes(wState?.wContentState?.view?.theme)) {
-      let theme = wState?.wContentState?.view?.theme
+      const theme = wState?.wContentState?.view?.theme
       const insertThemeItems: Electron.MenuItemConstructorOptions[] = [
         { type: 'separator' },
         {
@@ -1706,7 +1675,7 @@ export class MenuManager {
         }
       ]
 
-      const result = insertInTemplate(baseTemplate, undefined, 'dark', insertThemeItems);
+      const result = insertInTemplate(baseTemplate, undefined, 'viewThemeDark', insertThemeItems);
       if (result === false) {
         console.warn(`Failed to insert theme: ${theme} items into the template`);
       }

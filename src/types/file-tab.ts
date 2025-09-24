@@ -21,6 +21,7 @@ export interface FileTab {
   editorStats?: import('@/types/editor-stats').EditorStats
   lineEnding?: 'LF' | 'CRLF'
   firstLineIndent?: boolean
+  smartPunctuation?: boolean
   editorInstance?: any
   savedCheckPoint?: number
 }

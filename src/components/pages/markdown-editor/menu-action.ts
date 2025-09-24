@@ -20,6 +20,12 @@ import {
   copyTable,
   deleteTable,
 } from '@/components/common/tiptap'
+import {
+  copyAsPlainText,
+  copyAsMarkdown,
+  copyAsHtml,
+  pasteAsText,
+} from './clipboard-operations'
 
 // Handle menu actions
 export async function onEditorMenuAction(editor: Editor | undefined, action: string): Promise<boolean> {
@@ -267,7 +273,20 @@ export async function onEditorMenuAction(editor: Editor | undefined, action: str
     case 'clear-formatting':
       editor.chain().focus().unsetAllMarks().run()
       return true
-      
+
+    // Clipboard operations
+    case 'copy-as-plain-text':
+      await copyAsPlainText(editor)
+      return true
+
+    case 'copy-as-markdown':
+      await copyAsMarkdown(editor)
+      return true
+
+    case 'copy-as-html':
+      await copyAsHtml(editor)
+      return true
+
     default:
       console.log('Unhandled menu action in MarkdownEditor:', action)
       return false

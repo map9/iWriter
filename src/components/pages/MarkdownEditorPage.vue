@@ -331,12 +331,11 @@ import Link from '@tiptap/extension-link'
 import Highlight from '@tiptap/extension-highlight'
 import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
-import Typography from '@tiptap/extension-typography'
 import { TextStyleKit } from '@tiptap/extension-text-style'
 
 import InvisibleCharacters from '@tiptap/extension-invisible-characters'
 
-import { iwCodeBlockView, iwImageView, iwTableView, iwMathBlockView, iwPopupTools, iwLinkPopupTool, iwMathPopupTool } from '@/components/common/tiptap'
+import { iwCodeBlockView, iwImageView, iwTableView, iwMathBlockView, iwPopupTools, iwLinkPopupTool, iwMathPopupTool, iwTypography } from '@/components/common/tiptap'
 
 import {
   IconArrowBackUp,
@@ -404,6 +403,7 @@ const isLoading = ref(false)
 const currentHeading = ref('paragraph')
 const isFullscreen = ref(false)
 const firstLineIndent = ref(props.tab.firstLineIndent ?? false)
+const smartPunctuation = ref(props.tab.smartPunctuation ?? false)
 
 // create a lowlight instance
 const lowlight = createLowlight(all)
@@ -562,7 +562,7 @@ const extensions = [
       rel: 'noopener noreferrer nofollow'
     }
   }),
-  Subscript, Superscript, Typography,
+  Subscript, Superscript, iwTypography,
   Highlight,
   
   TextStyleKit,
@@ -604,6 +604,7 @@ const editor = useEditor({
       updateEditorState()
       updateEditorInvisibleCharactersState()
       setFirstLineIndent(firstLineIndent.value)
+      setSmartPunctuation(smartPunctuation.value)
     })
   }
 })
@@ -629,7 +630,8 @@ onBeforeUnmount(() => {
 async function loadTabContent(editorInstance: any) {
   if (isLoading.value || !window.electronAPI || !editorInstance) return
   isLoading.value = true
-  
+
+  let lineEnding = props.tab.lineEnding ?? 'LF'
   try {
     // Load from file if path exists and content is empty
     if (props.tab.path) {
@@ -652,9 +654,7 @@ async function loadTabContent(editorInstance: any) {
           return true
         })
         .run()
-        appStore.setTabLineEnding(props.tab.id, contentConverted.lineEnding)
-      } else {
-        appStore.setTabLineEnding(props.tab.id, 'LF')
+        lineEnding = contentConverted.lineEnding || 'LF'
       }
     }
     
@@ -665,6 +665,7 @@ async function loadTabContent(editorInstance: any) {
       isDirty: false,
       savedCheckPoint: undoDepth(editorInstance.state)
     })
+    appStore.setTabLineEnding(props.tab.id, lineEnding)
   } catch (error) {
     notify.error(`加载文档内容失败: ${error instanceof Error ? error.message : String(error)}`, '编辑器错误')
   } finally {
@@ -692,13 +693,19 @@ async function handleMenuAction(action: string): Promise<boolean> {
       appStore.setTabLineEnding(props.tab.id, 'LF')
       return true
 
-    case 'first-line-indent':
+    case 'toggle-first-line-indent':
       toggleFirstLineIndent()
       return true
+
     case 'toggle-space-line-break':
       editor.value?.commands.toggleInvisibleCharacters()
       updateEditorInvisibleCharactersState()
       return true
+
+    case 'toggle-smart-punctuation':
+      toggleSmartPunctuation()
+      return true
+
   }
 
   return onEditorMenuAction(editor.value, action)
@@ -765,8 +772,26 @@ function setFirstLineIndent(has: boolean) {
   })
 }
 
+function setSmartPunctuation(has: boolean) {
+  smartPunctuation.value = has
+
+  // 通过 iwTypography 扩展的命令控制智能标点功能
+  if (editor.value) {
+    editor.value.commands.setSmartPunctuation(has)
+  }
+
+  appStore.updateTabState(props.tab.id, { smartPunctuation: smartPunctuation.value})
+  window.electronAPI?.windowContentChange?.({
+    content: { smartPunctuation: smartPunctuation.value }
+  })
+}
+
 function toggleFirstLineIndent() {
   setFirstLineIndent( !firstLineIndent.value )
+}
+
+function toggleSmartPunctuation() {
+  setSmartPunctuation( !smartPunctuation.value )
 }
 
 // Expose methods to parent

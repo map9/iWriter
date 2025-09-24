@@ -59,6 +59,7 @@ export interface ContentState {
   lineEnding?: 'CRLF' | 'LF'
   invisibleCharacters?: boolean
   firstLineIndent?: boolean
+  smartPunctuation?: boolean
 }
 
 // 文字内容格式化状态接口
