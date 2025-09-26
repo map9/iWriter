@@ -1449,16 +1449,14 @@ export const useAppStore = defineStore('app', () => {
         setTheme('sunset')
         return true
       case 'view-theme-settings':
-        notify.info('主题设置', '使用 视图 > 主题 子菜单来更换主题')
+        notify.error(`${action}`, 'Not implemented')
         return true
       
       case 'check-update':
         try {
           await updaterService.checkForUpdates()
-          notify.success('检查更新', '正在检查更新...')
         } catch (error) {
-          console.error('Error checking for updates:', error)
-          notify.error('检查更新失败', '无法检查更新，请稍后重试')
+          notify.error(`${error instanceof Error ? error.message : String(error)}`, '检查更新失败')
         }
         return true
       

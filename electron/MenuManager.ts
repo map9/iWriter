@@ -447,42 +447,33 @@ export class MenuManager {
             ]
           },
           {
-            label: 'Spell and Grammar check',
+            label: 'Spelling and Grammar',
             submenu: [
               {
-                label: 'Check Document',
-                accelerator: 'CmdOrCtrl+;',
+                label: 'Show Spelling and Grammar Errors',
+                accelerator: 'CmdOrCtrl+Shift+;',
                 click: () => {
-                  this.sendMenuAction('check-document')
+                  this.sendMenuAction('toggle-spelling-grammar-errors')
                 }
               },
               {
-                label: 'Show Spelling and Grammar...',
-                accelerator: 'CmdOrCtrl+Shift+;',
+                label: 'Check Whole Document',
+                accelerator: 'CmdOrCtrl+;',
                 click: () => {
-                  this.sendMenuAction('show-spelling-grammar')
+                  this.sendMenuAction('check-whole-document')
+                }
+              },
+              {
+                label: 'Check Spelling and Grammar while Typing',
+                click: () => {
+                  this.sendMenuAction('check-spelling-grammar-while-typing')
                 }
               },
               { type: 'separator' },
               {
-                label: 'Check Spelling On Input',
-                type: 'checkbox',
+                label: 'More Options...',
                 click: () => {
-                  this.sendMenuAction('check-spelling-on-input')
-                }
-              },
-              {
-                label: 'Check Spell and Grammar',
-                type: 'checkbox',
-                click: () => {
-                  this.sendMenuAction('check-spell-grammar')
-                }
-              },
-              {
-                label: 'Auto Correct Spell',
-                type: 'checkbox',
-                click: () => {
-                  this.sendMenuAction('auto-correct-spell')
+                  this.sendMenuAction('preferences-spelling-grammar')
                 }
               }
             ]

@@ -46,7 +46,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
+      '@': resolve(__dirname, 'src'),
     }
   },
   css: {
@@ -56,6 +56,9 @@ export default defineConfig({
         implementation: require('sass'),
       },
     },
+  },
+  optimizeDeps: {
+    include: ["nanoid", "typo-js"],
   },
   build: {
     outDir: 'dist',
@@ -74,5 +77,8 @@ export default defineConfig({
     },
     // 调整警告阈值（从500KB提高到1000KB）
     chunkSizeWarningLimit: 1000,
-  }
+  },
+  worker: {
+    format: 'es' // Specify ES module format for workers
+  },
 })

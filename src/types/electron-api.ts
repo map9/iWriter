@@ -1,7 +1,7 @@
 // Electron API 接口
 export interface ElectronAPI {
   platform: string
-  
+
   // alive monitoring
   hello: (windowId: number) => void,
   onWindowId: (callback: (windowId: number) => void) => void,

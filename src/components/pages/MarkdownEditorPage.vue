@@ -289,8 +289,9 @@
 <script setup lang="ts">
 import { ref, toRef, watch, onBeforeUnmount, nextTick } from 'vue'
 import { EditorContent, useEditor, VueNodeViewRenderer } from '@tiptap/vue-3'
-import { generateJSON } from '@tiptap/core'
+import { generateJSON, Editor } from '@tiptap/core'
 import { undoDepth } from '@tiptap/pm/history'
+import { Transaction } from '@tiptap/pm/state'
 import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
 import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus, Placeholder } from '@tiptap/extensions'
 
@@ -336,6 +337,8 @@ import { TextStyleKit } from '@tiptap/extension-text-style'
 import InvisibleCharacters from '@tiptap/extension-invisible-characters'
 
 import { iwCodeBlockView, iwImageView, iwTableView, iwMathBlockView, iwPopupTools, iwLinkPopupTool, iwMathPopupTool, iwTypography } from '@/components/common/tiptap'
+
+import { iwProofreadExtension } from '@/components/common/tiptap/iw-proofread'
 
 import {
   IconArrowBackUp,
@@ -576,6 +579,16 @@ const extensions = [
   //Placeholder.configure({
   //  placeholder: onPlaceholder,
   //}),
+
+  // 拼写检查扩展
+  iwProofreadExtension.configure({
+    engineType: 'typo',
+    language: 'en_US',
+    enabled: true,
+    showErrors: true,
+    debounceTime: 800,
+    maxWorkers: 2
+  }),
 ]
 
 // Create TipTap editor instance
@@ -600,14 +613,16 @@ const editor = useEditor({
   },
   onCreate: (options) => {
     migrateMathStrings(options.editor)
-    loadTabContent(options.editor).then(() => {
+    loadTabContent(options.editor).then(async () => {
       updateEditorState()
       updateEditorInvisibleCharactersState()
       setFirstLineIndent(firstLineIndent.value)
       setSmartPunctuation(smartPunctuation.value)
+
     })
   }
 })
+
 
 // Watch for editor state changes and update toolbar
 watch(() => editor.value, (newEditor) => {
@@ -627,7 +642,7 @@ onBeforeUnmount(() => {
 })
 
 // Load content into editor
-async function loadTabContent(editorInstance: any) {
+async function loadTabContent(editorInstance: Editor) {
   if (isLoading.value || !window.electronAPI || !editorInstance) return
   isLoading.value = true
 
@@ -643,7 +658,7 @@ async function loadTabContent(editorInstance: any) {
         }
         //editorInstance.commands.setContent(contentConverted, { emitUpdate: false })
         // 第一次加载文件内容，忽略掉 undo
-        editorInstance.chain().command(({ tr, dispatch }: { tr: any; dispatch?: (tr: any) => void }) => {
+        editorInstance.chain().command(({ tr, dispatch }: { tr: Transaction; dispatch?: (tr: Transaction) => void }) => {
           if (dispatch) {
             tr.setMeta('addToHistory', false)
             const json = generateJSON(contentConverted.content, extensions)
@@ -696,7 +711,6 @@ async function handleMenuAction(action: string): Promise<boolean> {
     case 'toggle-first-line-indent':
       toggleFirstLineIndent()
       return true
-
     case 'toggle-space-line-break':
       editor.value?.commands.toggleInvisibleCharacters()
       updateEditorInvisibleCharactersState()
@@ -705,7 +719,46 @@ async function handleMenuAction(action: string): Promise<boolean> {
     case 'toggle-smart-punctuation':
       toggleSmartPunctuation()
       return true
+    case 'text-replace':
+      notify.error(`${action}`, 'Not implemented')
+      return true
+    case 'preferences-text-replacement':
+      notify.error(`${action}`, 'Not implemented')
+      return true
 
+    case 'toggle-spelling-grammar-errors':
+      if (editor.value) {
+        // @ts-expect-error - Extension storage type
+        const currentShowState = editor.value.storage.iwProofread?.showErrors ?? true
+
+        editor.value.commands.showErrors(!currentShowState)
+
+        // TODO: 更新当前tab的设置和菜单状态
+        updateEditorState()
+      }
+      return true
+    case 'check-whole-document':
+      if (editor.value) {
+      }
+      return true
+    case 'check-spelling-grammar-while-typing':
+      if (editor.value) {
+        // @ts-expect-error - Extension storage type
+        const currentState = editor.value.storage.iwProofread?.isEnabled ?? false
+
+        if (currentState) {
+          editor.value.commands.disableSpellCheck()
+        } else {
+          editor.value.commands.enableSpellCheck()
+        }
+
+        // TODO: 更新当前tab的设置和菜单状态
+        updateEditorState()
+      }
+      return true
+    case 'preferences-spelling-grammar':
+      notify.error(`${action}`, 'Not implemented')
+      return true
   }
 
   return onEditorMenuAction(editor.value, action)
@@ -735,7 +788,7 @@ function updateEditorState() {
       hasActiveDocument: true,
       undoRedo,
       content: getContentState(editor.value),
-      // @ts-ignore
+      // @ts-expect-error - formatting types
       formatting
     }
     currentHeading.value = windowContentState.content?.type as string    
@@ -749,7 +802,7 @@ function updateEditorState() {
 
 function updateEditorInvisibleCharactersState() {
   window.electronAPI?.windowContentChange?.({
-    // @ts-ignore
+    // @ts-expect-error - invisible characters types
     content: { invisibleCharacters: editor.value?.storage.invisibleCharacters?.visibility?.() ?? false }
   })
 }
