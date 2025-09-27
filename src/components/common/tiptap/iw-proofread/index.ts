@@ -1,10 +1,10 @@
 // 主要导出
-export { iwProofreadExtension, default } from './iwProofreadExtension.js'
-export type { iwProofreadOptions, iwProofreadStorage } from './iwProofreadExtension.js'
+export { iwProofreadExtension, default } from './iwProofreadExtension'
+export type { iwProofreadOptions, iwProofreadStorage } from './iwProofreadExtension'
 
 // 核心服务
-export { SpellCheckService } from './core/SpellCheckService.js'
-export { SpellWorkerPool } from './core/SpellWorkerPool.js'
+export { SpellCheckService } from './core/SpellCheckService'
+export { SpellWorkerPool } from './core/SpellWorkerPool'
 
 // 核心类型
 export type {
@@ -19,18 +19,10 @@ export type {
 } from './core/nodeTypes.js'
 
 // 工具函数
-export { debounce } from './core/utils.js'
+export { debounce } from './core/utils'
 
 // 建议框适配器
 export {
 	createTipTapSuggestionBox,
 	defaultSuggestionBoxCSS
-} from './adapters/suggestionBoxAdapter.js'
-
-// LanguageTool 适配器（保留兼容性）
-export {
-	createLanguageToolAdapter,
-	LanguageToolAdvancedAdapter,
-	LanguageToolPresets,
-	createLocalLanguageToolAdapter
-} from './adapters/languageToolAdapter.js'
+} from './adapters/suggestionBoxAdapter'

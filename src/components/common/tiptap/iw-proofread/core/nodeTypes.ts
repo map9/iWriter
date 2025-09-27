@@ -4,9 +4,9 @@ export interface SpellError {
   offset: number // 相对于node开始位置的偏移
   length: number
   word: string
-  message: string
   suggestions: string[]
-  type: 'spelling' | 'grammar'
+  message?: string
+  type?: 'spelling' | 'grammar'
 }
 
 export enum NodePriority {
@@ -18,6 +18,7 @@ export enum NodePriority {
 export interface NodeCheckRequest {
   id: string // 请求ID，用于结果匹配
   node: ProseMirrorNode
+  nodeKey: string // 由SpellCheckService统一生成的nodeKey
   position: number // 在文档中的位置
   priority: NodePriority
 }
@@ -27,7 +28,6 @@ export interface NodeSpellResult {
   nodeKey: string
   errors: SpellError[]
   checkedAt: number
-  processingTime: number
 }
 
 export interface SpellServiceConfig {

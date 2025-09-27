@@ -1,6 +1,6 @@
 import type {
 	SpellError
-} from '../core/nodeTypes.js';
+} from '../core/nodeTypes';
 
 /**
  * LanguageTool API 配置

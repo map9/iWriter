@@ -5,6 +5,9 @@ dist-electron
 .claude
 *.md
 
+# dictionaries files
+public/dictionaries
+
 # Temporary files
 *.tmp
 *.temp

@@ -16,8 +16,8 @@ export class SpellCheckService {
   constructor(config: SpellServiceConfig) {
     this.engineConfig = {
       type: config.engineType || 'typo',
-      language: config.language || 'en_US',
-      dictionaryPath: config.dictionaryPath || '/dictionaries'
+      language: config.language || 'en',
+      dictionaryPath: config.dictionaryPath || '/dictionaries/'
     }
 
     this.workerPool = new SpellWorkerPool({
@@ -39,8 +39,14 @@ export class SpellCheckService {
   async checkNodes(nodes: NodeCheckRequest[]): Promise<NodeSpellResult[]> {
     if (nodes.length === 0) return []
 
+    // 为每个node生成nodeKey（如果还没有的话）
+    const nodesWithKeys = nodes.map(node => ({
+      ...node,
+      nodeKey: node.nodeKey || this.generateNodeKey(node.node)
+    }))
+
     // 1. 分离缓存命中和未命中的nodes
-    const { cachedResults, nodesToCheck } = this.partitionNodes(nodes)
+    const { cachedResults, nodesToCheck } = this.partitionNodes(nodesWithKeys)
 
     // 2. 对未命中缓存的nodes进行多线程检查
     const newResults = await this.processNodesInParallel(nodesToCheck)
@@ -49,7 +55,7 @@ export class SpellCheckService {
     this.updateNodeCache(newResults)
 
     // 4. 合并结果并保持原始顺序
-    return this.mergeResults(cachedResults, newResults, nodes)
+    return this.mergeResults(cachedResults, newResults, nodesWithKeys)
   }
 
   private partitionNodes(nodes: NodeCheckRequest[]): {
@@ -60,8 +66,7 @@ export class SpellCheckService {
     const nodesToCheck: NodeCheckRequest[] = []
 
     for (const nodeRequest of nodes) {
-      const nodeKey = this.generateNodeKey(nodeRequest.node)
-      const cached = this.nodeCache.get(nodeKey)
+      const cached = this.nodeCache.get(nodeRequest.nodeKey)
 
       if (cached && !this.isCacheExpired(cached)) {
         cachedResults.set(nodeRequest.id, {
@@ -86,10 +91,9 @@ export class SpellCheckService {
       // 返回空错误结果而不是抛出异常
       return nodes.map(node => ({
         nodeId: node.id,
-        nodeKey: this.generateNodeKey(node.node),
+        nodeKey: node.nodeKey,
         errors: [],
         checkedAt: Date.now(),
-        processingTime: 0
       }))
     }
   }
@@ -147,10 +151,9 @@ export class SpellCheckService {
     return originalNodes.map(node =>
       resultMap.get(node.id) || {
         nodeId: node.id,
-        nodeKey: this.generateNodeKey(node.node),
+        nodeKey: node.nodeKey,
         errors: [],
         checkedAt: Date.now(),
-        processingTime: 0
       }
     )
   }

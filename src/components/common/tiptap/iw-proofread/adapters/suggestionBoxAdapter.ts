@@ -65,14 +65,14 @@ export function createTipTapSuggestionBox(
 		// 点击外部关闭
 		const handleOutsideClick = (event: MouseEvent) => {
 			if (!suggestionBox.contains(event.target as Node)) {
-				destroy()
+				onClose()
 			}
 		}
 
 		// 键盘事件处理
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key === 'Escape') {
-				destroy()
+				onClose()
 			}
 		}
 
@@ -87,7 +87,6 @@ export function createTipTapSuggestionBox(
 			if (suggestionBox.parentNode) {
 				suggestionBox.parentNode.removeChild(suggestionBox)
 			}
-			onClose()
 		}
 
 		return { destroy }

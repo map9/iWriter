@@ -1,12 +1,37 @@
+// 直接使用 import，让 Vite 处理模块
+import workerpool from 'workerpool'
 import Typo from 'typo-js'
 
+// 类型定义
+export interface SpellError {
+  offset: number // 相对于node开始位置的偏移
+  length: number
+  word: string
+  suggestions: string[]
+  message?: string
+  type?: 'spelling' | 'grammar'
+}
+
+interface NodeSpellResult {
+  nodeId: string
+  nodeKey: string
+  errors: SpellError[]
+  checkedAt: number
+}
+
+interface SerializedNode {
+  type: string
+  text?: string
+  textContent?: string
+  attrs?: any
+  marks?: any[]
+}
+
 let dictionary: any = null
-let engineConfig: any = null
 
 async function loadDictionary(language: string, dictionaryPath: string): Promise<void> {
-
-  const affUrl = `${dictionaryPath}/${language}.aff`
-  const dicUrl = `${dictionaryPath}/${language}.dic`
+  const affUrl = `${dictionaryPath}/${language}/index.aff`
+  const dicUrl = `${dictionaryPath}/${language}/index.dic`
 
   const [aff, dic] = await Promise.all([
     fetch(affUrl).then(r => r.text()),
@@ -14,23 +39,11 @@ async function loadDictionary(language: string, dictionaryPath: string): Promise
   ])
 
   dictionary = new Typo(language, aff, dic)
-  console.log(`[spellCheckWorker] Dictionary loaded: ${language}`)
-}
-
-interface SpellError {
-  offset: number
-  length: number
-  word: string
-  message: string
-  suggestions: string[]
-  type: 'spelling' | 'grammar'
 }
 
 function checkText(text: string): SpellError[] {
   if (!dictionary) return []
 
-  console.log('[spellCheckWorker] Checking text:', text)
-  
   const errors: SpellError[] = []
   const wordRegex = /\b\w+\b/g
   let match: RegExpExecArray | null
@@ -45,9 +58,7 @@ function checkText(text: string): SpellError[] {
         offset,
         length,
         word,
-        message: 'Possible spelling mistake',
         suggestions: dictionary.suggest(word),
-        type: 'spelling'
       })
     }
   }
@@ -55,81 +66,41 @@ function checkText(text: string): SpellError[] {
   return errors
 }
 
-// Worker 消息处理
-self.onmessage = async (event) => {
-  const { type, taskId, payload } = event.data
+// Workerpool 导出的函数
+async function initEngine(config: { language: string; dictionaryPath: string }): Promise<void> {
+  await loadDictionary(config.language, config.dictionaryPath)
+  console.log(`[spellCheckWorker] Engine ready, dictionary loaded for ${config.language}`)
+}
 
-  try {
-    switch (type) {
-      case 'INIT_ENGINE': {
-        try {
-          engineConfig = payload.engineConfig
-          console.log(`[spellCheckWorker] Initializing engine with language: ${engineConfig.language}`)
-          await loadDictionary(engineConfig.language, engineConfig.dictionaryPath)
+function checkSpelling(nodeData: SerializedNode, nodeId: string, nodeKey: string): NodeSpellResult {
+  const start = performance.now()
+  const errors = checkText(nodeData.textContent || '')
+  const duration = performance.now() - start
 
-          console.log(`[spellCheckWorker] Engine ready, sending ENGINE_READY for task: ${taskId}`)
-          self.postMessage({
-            type: 'ENGINE_READY',
-            taskId
-          })
-        } catch (error) {
-          console.error('[spellCheckWorker] Failed to initialize engine:', error)
-          self.postMessage({
-            type: 'ERROR',
-            taskId,
-            error: `Failed to initialize engine: ${error instanceof Error ? error.message : String(error)}`
-          })
-        }
-        break
-      }
+  console.log({
+    function: 'spellCheckWorker.checkSpelling',
+    nodeId: nodeId,
+    text: nodeData.textContent,
+    errors: errors,
+    duration
+  })
 
-      case 'CHECK_NODE': {
-        const start = performance.now()
-        const nodeData = payload.nodeData
-        const errors = checkText(nodeData.textContent || '')
-        console.log({
-          function: 'spellCheckWorker',
-          taskId: taskId,
-          text:nodeData.textContent,
-          start,
-          duration: performance.now() - start
-        })
-
-        self.postMessage({
-          type: 'NODE_RESULT',
-          taskId,
-          result: {
-            nodeId: payload.nodeId,
-            nodeKey: JSON.stringify(nodeData),
-            errors,
-            checkedAt: Date.now(),
-            processingTime: performance.now() - start
-          }
-        })
-        break
-      }
-
-      case 'TERMINATE': {
-        console.log('[spellCheckWorker] Terminating worker')
-        self.close()
-        break
-      }
-
-      default: {
-        console.warn('[spellCheckWorker] Unknown message type:', type)
-        self.postMessage({
-          type: 'ERROR',
-          taskId,
-          error: 'Unknown message type'
-        })
-      }
-    }
-  } catch (err) {
-    console.error('[spellCheckWorker] Error handling task:', err)
-    self.postMessage({
-      type: 'ERROR',
-      taskId,
-      error: `Failed to initialize engine: ${err instanceof Error ? err.message : String(err)}`
-    })
+  return {
+    nodeId,
+    nodeKey,
+    errors,
+    checkedAt: Date.now(),
   }
 }
+
+// 批量检查函数
+function batchCheckSpelling(nodes: { nodeData: SerializedNode; nodeId: string; nodeKey: string }[]): NodeSpellResult[] {
+  return nodes.map(({ nodeData, nodeId, nodeKey }) => checkSpelling(nodeData, nodeId, nodeKey))
+}
+
+// 导出 workerpool 可调用的函数
+workerpool.worker({
+  initEngine,
+  checkSpelling,
+  batchCheckSpelling
+})

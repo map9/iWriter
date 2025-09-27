@@ -583,7 +583,7 @@ const extensions = [
   // 拼写检查扩展
   iwProofreadExtension.configure({
     engineType: 'typo',
-    language: 'en_US',
+    language: 'en',
     enabled: true,
     showErrors: true,
     debounceTime: 800,

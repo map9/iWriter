@@ -5,15 +5,15 @@ import { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { Transaction } from '@tiptap/pm/state'
 import hash from 'object-hash'
 import { SpellCheckService } from './core/SpellCheckService.js'
-import { createTipTapSuggestionBox } from './adapters/suggestionBoxAdapter.js'
+import { createTipTapSuggestionBox } from './adapters/suggestionBoxAdapter'
 import type {
 	SpellEngineType,
 	NodeCheckRequest,
 	NodeSpellResult,
 	SpellError
-} from './core/nodeTypes.js'
-import { NodePriority } from './core/nodeTypes.js'
-import { debounce } from './core/utils.js'
+} from './core/nodeTypes'
+import { NodePriority } from './core/nodeTypes'
+import { debounce } from './core/utils'
 
 // TipTap Extension 配置接口
 export interface iwProofreadOptions {
@@ -114,6 +114,7 @@ const collectNodesToCheck = (doc: ProseMirrorNode, changedNodes?: Set<string>): 
 				nodes.push({
 					id: `node_${pos}_${Date.now()}_${Math.random()}`,
 					node,
+					nodeKey,
 					position: pos,
 					priority: calculateNodePriority(node, pos)
 				})
@@ -128,9 +129,11 @@ const collectAllNodes = (doc: ProseMirrorNode): NodeCheckRequest[] => {
 	const nodes: NodeCheckRequest[] = []
 	doc.descendants((node, pos) => {
 		if (shouldCheckNode(node)) {
+			const nodeKey = generateNodeKey(node)
 			nodes.push({
 				id: `node_${pos}_${Date.now()}_${Math.random()}`,
 				node,
+				nodeKey,
 				position: pos,
 				priority: calculateNodePriority(node, pos)
 			})
@@ -182,7 +185,7 @@ const createNodeDecorations = (doc: ProseMirrorNode, results: NodeSpellResult[])
 	return DecorationSet.create(doc, decorations)
 }
 
-const getErrorClass = (errorType: string): string => {
+const getErrorClass = (errorType: string | undefined): string => {
 	switch (errorType) {
 		case 'spelling':
 			return 'spelling-error'
@@ -240,9 +243,9 @@ const showSuggestionPopup = (
 		error: {
 			from: decoration.from,
 			to: decoration.to,
-			msg: error.message,
-			shortmsg: error.message,
-			type: error.type,
+			msg: error.message || `Misspelled word: ${error.word}`,
+			shortmsg: error.message || `Misspelled word: ${error.word}`,
+			type: error.type || 'spelling',
 			replacements: error.suggestions
 		},
 		position: { x: rect.left, y: rect.bottom },
@@ -316,7 +319,7 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 	addOptions() {
 		return {
 			engineType: 'typo' as SpellEngineType,
-			language: 'en_US',
+			language: 'en',
 			dictionaryPath: '/dictionaries',
 			maxWorkers: Math.min(navigator.hardwareConcurrency || 2, 4),
 			enabled: true,
