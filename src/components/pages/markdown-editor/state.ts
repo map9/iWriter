@@ -1,6 +1,6 @@
 import { type Editor } from '@tiptap/vue-3'
 import { getTableState } from '@/components/common/tiptap'
-import type { ContentState } from '@/types'
+import type { ParagraphState } from '@/types'
 
 export function getHeading(editor: Editor | undefined) : string {
   return editor?.isActive('heading') ? editor?.getAttributes('heading').level : 'paragraph';
@@ -17,12 +17,11 @@ export function setHeading(editor: Editor | undefined, heading: string) {
   }
 }
 
-export function getContentState(editor: Editor | undefined) : ContentState {
+export function getContentState(editor: Editor | undefined) : ParagraphState {
   let type = 'unknown'
-  const hasSelection = !editor?.state.selection.empty || false
   
-  if (!editor || hasSelection) {
-    return { type, hasSelection } 
+  if (!editor) {
+    return { type } 
   }
 
   if (editor?.isActive('heading'))
@@ -32,7 +31,6 @@ export function getContentState(editor: Editor | undefined) : ContentState {
   else if (editor?.isActive('bulletList')) {
     return {
       type: 'bulletList',
-      hasSelection,
       data: {
         canSink: editor?.can().sinkListItem('listItem'),
         canLift: editor?.can().liftListItem('listItem')
@@ -42,7 +40,6 @@ export function getContentState(editor: Editor | undefined) : ContentState {
   else if (editor?.isActive('orderedList')) {
     return {
       type: 'orderedList',
-      hasSelection,
       data: {
         canSink: editor?.can().sinkListItem('listItem'),
         canLift: editor?.can().liftListItem('listItem')
@@ -52,7 +49,6 @@ export function getContentState(editor: Editor | undefined) : ContentState {
   else if (editor?.isActive('taskList')) {
     return {
       type: 'taskList',
-      hasSelection,
       data: {
         canSink: editor?.can().sinkListItem('taskItem'),
         canLift: editor?.can().liftListItem('taskItem'),
@@ -65,7 +61,6 @@ export function getContentState(editor: Editor | undefined) : ContentState {
   else if (editor?.isActive('table')) {
     return {
       type: 'table',
-      hasSelection,
       data: getTableState(editor)
     }
   }
@@ -82,7 +77,6 @@ export function getContentState(editor: Editor | undefined) : ContentState {
 
   return {
     type,
-    hasSelection,
   }
 }
 

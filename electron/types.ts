@@ -13,10 +13,6 @@ export interface WindowState {
   wContentState?: WindowContentState
 }
 
-export interface GlobalParameters {
-  autoSave: boolean
-}
-
 export interface ThemeListener{
   type: string
   handler: any 

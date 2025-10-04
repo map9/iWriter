@@ -373,7 +373,7 @@ import { notify } from '@/utils/notifications'
 import pathUtils from '@/utils/pathUtils'
 import { MarkdownTocProvider } from '@/services/toc/MarkdownTocProvider'
 import { setHeading, getContentState, getCurrentAlignment } from './markdown-editor/state' 
-import { calculateEditorStats } from './markdown-editor/stats' 
+import { calculateFileStats } from './markdown-editor/stats' 
 import { onFileHandlerDrop, onFileHandlerPaste, onPlaceholder } from './markdown-editor/on'
 import { 
   toggleLink,
@@ -405,8 +405,6 @@ const isLoading = ref(false)
 // Toolbar state
 const currentHeading = ref('paragraph')
 const isFullscreen = ref(false)
-const firstLineIndent = ref(props.tab.firstLineIndent ?? false)
-const smartPunctuation = ref(props.tab.smartPunctuation ?? false)
 
 // create a lowlight instance
 const lowlight = createLowlight(all)
@@ -615,10 +613,11 @@ const editor = useEditor({
     migrateMathStrings(options.editor)
     loadTabContent(options.editor).then(async () => {
       updateEditorState()
-      updateEditorInvisibleCharactersState()
-      setFirstLineIndent(firstLineIndent.value)
-      setSmartPunctuation(smartPunctuation.value)
-
+      setFirstLineIndent(props.tab.editState?.firstLineIndent || true)
+      setSmartPunctuation(props.tab.editState?.smartPunctuation || true)
+      setInvisibleCharacters(props.tab.editState?.invisibleCharacters || true)
+      setProofreadErrorsDisplay(props.tab.editState?.showProofreadErrors || true)
+      setProofread(props.tab.editState?.proofread || true)
     })
   }
 })
@@ -646,7 +645,7 @@ async function loadTabContent(editorInstance: Editor) {
   if (isLoading.value || !window.electronAPI || !editorInstance) return
   isLoading.value = true
 
-  let lineEnding = props.tab.lineEnding ?? 'LF'
+  let lineEnding = props.tab.editState?.lineEnding ?? 'LF'
   try {
     // Load from file if path exists and content is empty
     if (props.tab.path) {
@@ -680,7 +679,7 @@ async function loadTabContent(editorInstance: Editor) {
       isDirty: false,
       savedCheckPoint: undoDepth(editorInstance.state)
     })
-    appStore.setTabLineEnding(props.tab.id, lineEnding)
+    setLineEnding(lineEnding)
   } catch (error) {
     notify.error(`加载文档内容失败: ${error instanceof Error ? error.message : String(error)}`, '编辑器错误')
   } finally {
@@ -702,18 +701,17 @@ function toggleFullscreen() {
 async function handleMenuAction(action: string): Promise<boolean> {
   switch (action) {
     case 'line-ending-crlf':
-      appStore.setTabLineEnding(props.tab.id, 'CRLF')
+      setLineEnding('CRLF')
       return true
     case 'line-ending-lf':
-      appStore.setTabLineEnding(props.tab.id, 'LF')
+      setLineEnding('LF')
       return true
 
     case 'toggle-first-line-indent':
       toggleFirstLineIndent()
       return true
     case 'toggle-space-line-break':
-      editor.value?.commands.toggleInvisibleCharacters()
-      updateEditorInvisibleCharactersState()
+      toggleInvisibleCharacters()
       return true
 
     case 'toggle-smart-punctuation':
@@ -727,34 +725,15 @@ async function handleMenuAction(action: string): Promise<boolean> {
       return true
 
     case 'toggle-spelling-grammar-errors':
-      if (editor.value) {
-        // @ts-expect-error - Extension storage type
-        const currentShowState = editor.value.storage.iwProofread?.showErrors ?? true
-
-        editor.value.commands.showErrors(!currentShowState)
-
-        // TODO: 更新当前tab的设置和菜单状态
-        updateEditorState()
-      }
+      toggleProofreadErrorsDisplay()
       return true
     case 'check-whole-document':
       if (editor.value) {
+        editor.value.commands.checkSpelling()
       }
       return true
     case 'check-spelling-grammar-while-typing':
-      if (editor.value) {
-        // @ts-expect-error - Extension storage type
-        const currentState = editor.value.storage.iwProofread?.isEnabled ?? false
-
-        if (currentState) {
-          editor.value.commands.disableSpellCheck()
-        } else {
-          editor.value.commands.enableSpellCheck()
-        }
-
-        // TODO: 更新当前tab的设置和菜单状态
-        updateEditorState()
-      }
+      toggleProofread()
       return true
     case 'preferences-spelling-grammar':
       notify.error(`${action}`, 'Not implemented')
@@ -787,6 +766,7 @@ function updateEditorState() {
       type: DocumentType.MARKDOWN_EDITOR,
       hasActiveDocument: true,
       undoRedo,
+      hasSelection: !editor.value.state.selection.empty,
       content: getContentState(editor.value),
       // @ts-expect-error - formatting types
       formatting
@@ -795,56 +775,105 @@ function updateEditorState() {
     window.electronAPI.windowContentChange(windowContentState)
     
     // 更新编辑器统计信息
-    const stats = calculateEditorStats(editor.value)
-    appStore.updateTabState(props.tab.id, { editorStats: stats })
+    const stats = calculateFileStats(editor.value)
+    appStore.updateTabState(props.tab.id, { fileStats: stats })
   }
 }
 
-function updateEditorInvisibleCharactersState() {
-  window.electronAPI?.windowContentChange?.({
-    // @ts-expect-error - invisible characters types
-    content: { invisibleCharacters: editor.value?.storage.invisibleCharacters?.visibility?.() ?? false }
-  })
+function setLineEnding(lineEnding: 'CRLF' | 'LF') {
+  appStore.updateTabState(props.tab.id, { editState: { lineEnding } })
+  window.electronAPI.windowContentChange({ edit: { lineEnding } })
+}
+
+function toggleFirstLineIndent() {
+  setFirstLineIndent( !props.tab.editState?.firstLineIndent )
 }
 
 function setFirstLineIndent(has: boolean) {
-  firstLineIndent.value = has
+  const firstLineIndent: boolean = !!has
 
   const editorElement = document.querySelector('.tiptap') as HTMLElement;
   if (editorElement) {
-    if (firstLineIndent.value) {
+    if (firstLineIndent) {
       editorElement.classList.add('first-line-indent')
     } else {
       editorElement.classList.remove('first-line-indent')
     }
   }
  
-  appStore.updateTabState(props.tab.id, { firstLineIndent: firstLineIndent.value})
+  appStore.updateTabState(props.tab.id, { editState: { firstLineIndent } })
   window.electronAPI?.windowContentChange?.({
-    content: { firstLineIndent: firstLineIndent.value }
+    edit: { firstLineIndent }
   })
 }
 
-function setSmartPunctuation(has: boolean) {
-  smartPunctuation.value = has
+function toggleInvisibleCharacters() {
+  setInvisibleCharacters(!props.tab.editState?.invisibleCharacters)
+}
 
-  // 通过 iwTypography 扩展的命令控制智能标点功能
-  if (editor.value) {
-    editor.value.commands.setSmartPunctuation(has)
+function setInvisibleCharacters(visible: boolean) {
+  const invisibleCharacters = !!visible
+
+  if (invisibleCharacters === true) {
+    editor.value?.commands.showInvisibleCharacters()
+  } else {
+  editor.value?.commands.hideInvisibleCharacters()
   }
 
-  appStore.updateTabState(props.tab.id, { smartPunctuation: smartPunctuation.value})
+  appStore.updateTabState(props.tab.id, { editState: { invisibleCharacters } })
   window.electronAPI?.windowContentChange?.({
-    content: { smartPunctuation: smartPunctuation.value }
+    edit: { invisibleCharacters }
   })
-}
-
-function toggleFirstLineIndent() {
-  setFirstLineIndent( !firstLineIndent.value )
 }
 
 function toggleSmartPunctuation() {
-  setSmartPunctuation( !smartPunctuation.value )
+  setSmartPunctuation(!props.tab.editState?.smartPunctuation)
+}
+
+function setSmartPunctuation(has: boolean) {
+  const smartPunctuation = !!has
+
+  editor.value?.commands.setSmartPunctuation(has)
+  
+  appStore.updateTabState(props.tab.id, { editState: { smartPunctuation } })
+  window.electronAPI?.windowContentChange?.({
+    edit: { smartPunctuation }
+  })
+}
+
+function toggleProofreadErrorsDisplay() {
+  setProofreadErrorsDisplay(!props.tab.editState?.showProofreadErrors)
+}
+
+function setProofreadErrorsDisplay(visible: boolean) {
+  const showProofreadErrors = !!visible
+
+  editor.value?.commands.showProofreadErrors(showProofreadErrors)
+  
+  appStore.updateTabState(props.tab.id, { editState: { showProofreadErrors } })
+  window.electronAPI?.windowContentChange?.({
+    edit: { showProofreadErrors }
+  })
+}
+
+function toggleProofread() {
+  setProofread(!props.tab.editState?.proofread)
+}
+
+function setProofread(enable: boolean) {
+  const proofread = !!enable
+
+  if (proofread === true) {
+      editor.value?.commands.enableSpellCheck()
+  } else {
+      editor.value?.commands.disableSpellCheck()
+  }
+
+  appStore.updateTabState(props.tab.id, { editState: { proofread } })
+  window.electronAPI?.windowContentChange?.({
+    edit: { proofread }
+  })
+
 }
 
 // Expose methods to parent

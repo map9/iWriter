@@ -12,7 +12,7 @@ export interface EditableFeature {
   element: Mark | Node  // 支持Mark或Node
 }
 
-export interface PluginState {
+export interface PopupToolsPluginState {
   visible: boolean
   feature: EditableFeature | null
   popupTool: iwPopupTool | null

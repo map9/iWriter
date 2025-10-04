@@ -16,16 +16,12 @@ export enum NodePriority {
 }
 
 export interface NodeCheckRequest {
-  id: string // 请求ID，用于结果匹配
+  id: string        // 唯一标识符
   node: ProseMirrorNode
-  nodeKey: string // 由SpellCheckService统一生成的nodeKey
-  position: number // 在文档中的位置
-  priority: NodePriority
 }
 
 export interface NodeSpellResult {
-  nodeId: string
-  nodeKey: string
+  id: string        // 唯一标识符
   errors: SpellError[]
   checkedAt: number
 }
@@ -54,47 +50,9 @@ export interface WordInfo {
   length: number
 }
 
-export interface SerializedNode {
-  type: string
-  text?: string
-  textContent?: string
-  attrs?: any
-  marks?: any[]
-}
-
-export interface WorkerMessage {
-  type: 'INIT_ENGINE' | 'CHECK_NODE' | 'TERMINATE'
-  taskId: string
-  payload: any
-}
-
-export interface WorkerResponse {
-  type: 'ENGINE_READY' | 'NODE_RESULT' | 'ERROR'
-  taskId: string
-  result?: NodeSpellResult
-  error?: string
-}
-
-export interface NodePayload {
-  nodeData: SerializedNode
-  position: number
-  nodeId: string
-}
-
 export interface WorkerPoolConfig {
   maxWorkers: number
   engineConfig: SpellEngineConfig
   workerScript?: string
   workerTimeout?: number
-}
-
-export interface NodeTask {
-  id: string
-  nodeRequest: NodeCheckRequest
-  priority: NodePriority
-  estimatedTime: number
-  // 队列管理相关
-  resolve?: (result: NodeSpellResult) => void
-  reject?: (error: Error) => void
-  timeout?: NodeJS.Timeout
 }

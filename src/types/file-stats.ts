@@ -1,5 +1,5 @@
 // 编辑器统计信息接口
-export interface EditorStats {
+export interface FileStats {
   currentLine: number
   currentColumn: number
   paragraphType: string

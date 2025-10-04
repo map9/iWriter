@@ -2,16 +2,16 @@ import type { EditorState } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { DecorationSet } from '@tiptap/pm/view'
-import type { iwPopupToolsOptions, PluginState } from '../types.js'
+import type { iwPopupToolsOptions, PopupToolsPluginState } from '../types.js'
 
-export const iwPopupToolsPluginKey = new PluginKey<PluginState>('iwPopupTools')
+export const iwPopupToolsPluginKey = new PluginKey<PopupToolsPluginState>('iwPopupTools')
 
 export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions) => {
   return new Plugin({
     key: iwPopupToolsPluginKey,
 
     state: {
-      init(): PluginState {
+      init(): PopupToolsPluginState {
         return {
           visible: options.visible,
           shouldShowToolbar: false,
@@ -20,7 +20,7 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
         }
       },
       
-      apply(tr, prev, oldState, newState): PluginState {
+      apply(tr, prev, oldState, newState): PopupToolsPluginState {
         if (tr.getMeta('iwPopupToolsVisible') !== undefined) prev.visible = true
 
         // 计算当前光标所处 link
@@ -91,7 +91,7 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
 
     props: {
       decorations: (state: EditorState): DecorationSet | null => {
-        const pluginState = iwPopupToolsPluginKey.getState(state) as PluginState
+        const pluginState = iwPopupToolsPluginKey.getState(state) as PopupToolsPluginState
         /*
         console.log('iwPopupToolsPlugins decorations', {
           visible: pluginState.visible,

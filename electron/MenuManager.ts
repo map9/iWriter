@@ -1,8 +1,8 @@
 import { BrowserWindow, Menu, shell } from 'electron'
 import type {
-  ContentStateListData,
-  ContentStateTaskListData,
-  ContentStateTableData
+  ParagraphStateListData,
+  ParagraphStateTaskListData,
+  ParagraphStateTableData
 } from '../src/types/windowContentState'
 import { isMac } from './utils'
 import type { WindowState, GlobalParameters } from './types'
@@ -187,7 +187,7 @@ export class MenuManager {
             id: 'auto-save',
             label: 'Auto Save',
             type: 'checkbox',
-            checked: g?.autoSave,
+            checked: (wState?.wContentState?.hasActiveDocument === true)? wState?.wContentState?.edit?.autoSave : wState?.wContentState?.autoSave,
             enabled: wState != null,
             click: () => {
               this.sendMenuAction('toggle-auto-save')
@@ -383,7 +383,7 @@ export class MenuManager {
               {
                 label: 'Windows CRLF',
                 type: 'checkbox',
-                checked: wState?.wContentState?.content?.lineEnding === 'CRLF',
+                checked: wState?.wContentState?.edit?.lineEnding === 'CRLF',
                 click: () => {
                   this.sendMenuAction('line-ending-crlf')
                 }
@@ -391,7 +391,7 @@ export class MenuManager {
               {
                 label: 'Unix LF',
                 type: 'checkbox',
-                checked: wState?.wContentState?.content?.lineEnding === 'LF',
+                checked: wState?.wContentState?.edit?.lineEnding === 'LF',
                 click: () => {
                   this.sendMenuAction('line-ending-lf')
                 }
@@ -405,7 +405,7 @@ export class MenuManager {
               {
                 label: 'First line indent',
                 type: 'checkbox',
-                checked: wState?.wContentState?.content?.firstLineIndent === true,
+                checked: wState?.wContentState?.edit?.firstLineIndent === true,
                 click: () => {
                   this.sendMenuAction('toggle-first-line-indent')
                 }
@@ -413,7 +413,7 @@ export class MenuManager {
               {
                 label: 'Space and Line break',
                 type: 'checkbox',
-                checked: wState?.wContentState?.content?.invisibleCharacters === true,
+                checked: wState?.wContentState?.edit?.invisibleCharacters === true,
                 click: () => {
                   this.sendMenuAction('toggle-space-line-break')
                 }
@@ -426,7 +426,7 @@ export class MenuManager {
               {
                 label: 'Smart Punctuation',
                 type: 'checkbox',
-                checked: wState?.wContentState?.content?.smartPunctuation === true,
+                checked: wState?.wContentState?.edit?.smartPunctuation === true,
                 click: () => {
                   this.sendMenuAction('toggle-smart-punctuation')
                 }
@@ -451,6 +451,8 @@ export class MenuManager {
             submenu: [
               {
                 label: 'Show Spelling and Grammar Errors',
+                type: 'checkbox',
+                checked: wState?.wContentState?.edit?.showProofreadErrors === true,
                 accelerator: 'CmdOrCtrl+Shift+;',
                 click: () => {
                   this.sendMenuAction('toggle-spelling-grammar-errors')
@@ -465,6 +467,8 @@ export class MenuManager {
               },
               {
                 label: 'Check Spelling and Grammar while Typing',
+                type: 'checkbox',
+                checked: wState?.wContentState?.edit?.proofread === true,
                 click: () => {
                   this.sendMenuAction('check-spelling-grammar-while-typing')
                 }
@@ -622,7 +626,7 @@ export class MenuManager {
                 label: 'Header Row',
                 type: 'checkbox',
                 enabled: wState?.wContentState?.content?.type === 'table',
-                checked: (wState?.wContentState?.content?.data as ContentStateTableData)?.hasHeaderRow,
+                checked: (wState?.wContentState?.content?.data as ParagraphStateTableData)?.hasHeaderRow,
                 click: (menuItem) => {
                   menuItem.checked = false
                   this.sendMenuAction('table-toggle-header-row')
@@ -632,7 +636,7 @@ export class MenuManager {
                 label: 'Header Column',
                 type: 'checkbox',
                 enabled: wState?.wContentState?.content?.type === 'table',
-                checked: (wState?.wContentState?.content?.data as ContentStateTableData)?.hasHeaderColumn,
+                checked: (wState?.wContentState?.content?.data as ParagraphStateTableData)?.hasHeaderColumn,
                 click: (menuItem) => {
                   menuItem.checked = false
                   this.sendMenuAction('table-toggle-header-column')
@@ -674,7 +678,7 @@ export class MenuManager {
                 label: 'Move Row Up',
                 enabled:
                   wState?.wContentState?.content?.type === 'table' &&
-                  (wState?.wContentState?.content?.data as ContentStateTableData)?.canMoveAbove,
+                  (wState?.wContentState?.content?.data as ParagraphStateTableData)?.canMoveAbove,
                 accelerator: 'CmdOrCtrl+Shift+Up',
                 click: () => {
                   this.sendMenuAction('table-move-row-above')
@@ -684,7 +688,7 @@ export class MenuManager {
                 label: 'Move Row Down',
                 enabled:
                   wState?.wContentState?.content?.type === 'table' &&
-                  (wState?.wContentState?.content?.data as ContentStateTableData)?.canMoveBelow,
+                  (wState?.wContentState?.content?.data as ParagraphStateTableData)?.canMoveBelow,
                 accelerator: 'CmdOrCtrl+Shift+Down',
                 click: () => {
                   this.sendMenuAction('table-move-row-below')
@@ -694,7 +698,7 @@ export class MenuManager {
                 label: 'Move Column Left',
                 enabled:
                   wState?.wContentState?.content?.type === 'table' &&
-                  (wState?.wContentState?.content?.data as ContentStateTableData)?.canMoveLeft,
+                  (wState?.wContentState?.content?.data as ParagraphStateTableData)?.canMoveLeft,
                 accelerator: 'CmdOrCtrl+Shift+Left',
                 click: () => {
                   this.sendMenuAction('table-move-column-left')
@@ -704,7 +708,7 @@ export class MenuManager {
                 label: 'Move Column Right',
                 enabled:
                   wState?.wContentState?.content?.type === 'table' &&
-                  (wState?.wContentState?.content?.data as ContentStateTableData)?.canMoveRight,
+                  (wState?.wContentState?.content?.data as ParagraphStateTableData)?.canMoveRight,
                 accelerator: 'CmdOrCtrl+Shift+Right',
                 click: () => {
                   this.sendMenuAction('table-move-column-right')
@@ -760,7 +764,7 @@ export class MenuManager {
                 enabled: 
                 (
                   wState?.wContentState?.content?.type === 'codeBlock' &&
-                  wState?.wContentState?.content?.hasSelection
+                  wState?.wContentState?.hasSelection
                 ),
                 click: () => {
                   this.sendMenuAction('code-format-selection')
@@ -878,7 +882,7 @@ export class MenuManager {
                 enabled: 
                 (
                   wState?.wContentState?.content?.type === 'taskList' &&
-                  !(wState?.wContentState?.content?.data as ContentStateTaskListData)?.checked
+                  !(wState?.wContentState?.content?.data as ParagraphStateTaskListData)?.checked
                 ),
                 click: () => {
                   this.sendMenuAction('complete-task')
@@ -890,7 +894,7 @@ export class MenuManager {
                 enabled: 
                 (
                   wState?.wContentState?.content?.type === 'taskList' &&
-                  (wState?.wContentState?.content?.data as ContentStateTaskListData)?.checked
+                  (wState?.wContentState?.content?.data as ParagraphStateTaskListData)?.checked
                 ),
                 click: () => {
                   this.sendMenuAction('uncomplete-task')
@@ -907,7 +911,7 @@ export class MenuManager {
                 enabled: 
                 (
                   ['bulletList', 'orderedList', 'taskList'].includes(wState?.wContentState?.content?.type as string) &&
-                  (wState?.wContentState?.content?.data as ContentStateListData)?.canSink
+                  (wState?.wContentState?.content?.data as ParagraphStateListData)?.canSink
                 ),
                 click: () => {
                   this.sendMenuAction('increase-indent')
@@ -919,7 +923,7 @@ export class MenuManager {
                 enabled: 
                 (
                   ['bulletList', 'orderedList', 'taskList'].includes(wState?.wContentState?.content?.type as string) &&
-                  (wState?.wContentState?.content?.data as ContentStateListData)?.canLift
+                  (wState?.wContentState?.content?.data as ParagraphStateListData)?.canLift
                 ),
                 click: () => {
                   this.sendMenuAction('decrease-indent')

@@ -31,18 +31,18 @@ export interface UndoRedoState {
   redo: boolean
 }
 
-export interface ContentStateListData {
+export interface ParagraphStateListData {
   canSink: boolean
   canLift: boolean
 }
 
-export interface ContentStateTaskListData {
+export interface ParagraphStateTaskListData {
   canSink: boolean
   canLift: boolean
   checked: boolean
 }
 
-export interface ContentStateTableData {
+export interface ParagraphStateTableData {
   hasHeaderRow: boolean
   hasHeaderColumn: boolean
   canMoveLeft: boolean
@@ -52,14 +52,9 @@ export interface ContentStateTableData {
 }
 
 // 文字内容类型信息
-export interface ContentState {
+export interface ParagraphState {
   type?: string | number
-  data?: ContentStateListData | ContentStateTaskListData | ContentStateTableData
-  hasSelection?: boolean
-  lineEnding?: 'CRLF' | 'LF'
-  invisibleCharacters?: boolean
-  firstLineIndent?: boolean
-  smartPunctuation?: boolean
+  data?: ParagraphStateListData | ParagraphStateTaskListData | ParagraphStateTableData
 }
 
 // 文字内容格式化状态接口
@@ -76,11 +71,14 @@ export interface FormattingState {
 
 // 窗口内容信息接口
 export interface WindowContentState {
-  type?: import('@/types/document-type').DocumentType
+  autoSave?: boolean
   hasFolderOpen?: boolean
   hasActiveDocument?: boolean
-  view?: ViewState
+  type?: import('@/types/document-type').DocumentType
+  hasSelection?: boolean
   undoRedo?: UndoRedoState
-  content?: ContentState
+  edit?: import('@/types/edit-setting').EditSetting
+  content?: ParagraphState
   formatting?: FormattingState
+  view?: ViewState
 }

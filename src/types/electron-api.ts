@@ -85,7 +85,6 @@ export interface ElectronAPI {
   removeSystemColorsChangedListeners: () => void
 
   // 设置
-  setAutoSave: (enabled: boolean) => Promise<void>
   windowContentChange: (wContentState: Partial<import('@/types').WindowContentState>) => Promise<void>
   updateWindowTitle: (title: string) => Promise<{ success: boolean; error?: string }>
 

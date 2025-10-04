@@ -13,15 +13,13 @@ export interface FileTab {
   id: string
   name: string
   path?: string
-  isDirty: boolean
-  isActive: boolean
   documentType?: import('@/types/document-type').DocumentType;
   metadata?: FileMetadata
-  tocProvider?: import('@/types/toc').TocProvider
-  editorStats?: import('@/types/editor-stats').EditorStats
-  lineEnding?: 'LF' | 'CRLF'
-  firstLineIndent?: boolean
-  smartPunctuation?: boolean
+  isActive: boolean
+  isDirty: boolean
   editorInstance?: any
   savedCheckPoint?: number
+  tocProvider?: import('@/types/toc').TocProvider
+  fileStats?: import('@/types/file-stats').FileStats
+  editState?: import('@/types/edit-setting').EditSetting
 }

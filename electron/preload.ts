@@ -119,7 +119,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Menu state updates
-  setAutoSave: (enabled: boolean) => ipcRenderer.invoke('set-auto-save', enabled),
   windowContentChange: (wContentState: any) => ipcRenderer.invoke('window-content-changed', wContentState),
   updateWindowTitle: (title: string) => ipcRenderer.invoke('update-window-title', title),
 

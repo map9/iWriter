@@ -116,9 +116,9 @@ export function insertMathBlock(editor: Editor | undefined) {
     const latex = selectedText.replace(/\s+/g, ' ').trim()
 
     // If selection looks like LaTeX (contains backslashes or common math symbols), use it directly
-    const isLikelyLatex = /\\|[\{\}\^\\_]|\$\$?|\\[a-zA-Z]+/.test(selectedText)
+    const isLikelyLatex = /\\|[\{\}\^\\_]|\$\$?|\\[a-zA-Z]+/.test(latex)
     if (isLikelyLatex) {
-      return editor.chain().focus().insertBlockMath({ latex: selectedText }).run()
+      return editor.chain().focus().insertBlockMath({ latex: latex }).run()
     }
   }
 

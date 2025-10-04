@@ -1,17 +1,17 @@
-import hash from 'object-hash'
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type {
   SpellServiceConfig,
   NodeCheckRequest,
   NodeSpellResult,
   SpellEngineConfig,
-} from './nodeTypes'
+} from './types'
 import { SpellWorkerPool } from './SpellWorkerPool'
+import { generateNodeKey } from './utils'
 
 export class SpellCheckService {
   private workerPool: SpellWorkerPool
   private nodeCache: Map<string, NodeSpellResult> = new Map()
   private engineConfig: SpellEngineConfig
+  private cacheCleanupInterval: NodeJS.Timeout
 
   constructor(config: SpellServiceConfig) {
     this.engineConfig = {
@@ -28,7 +28,7 @@ export class SpellCheckService {
     })
 
     // 初始化清理定时器
-    this.setupCacheCleanup(config.cacheExpiry || 300000) // 5分钟过期
+    this.cacheCleanupInterval = this.setupCacheCleanup(config.cacheExpiry || 300000) // 5分钟过期
   }
 
   /**
@@ -42,7 +42,7 @@ export class SpellCheckService {
     // 为每个node生成nodeKey（如果还没有的话）
     const nodesWithKeys = nodes.map(node => ({
       ...node,
-      nodeKey: node.nodeKey || this.generateNodeKey(node.node)
+      id: node.id || generateNodeKey(node.node)
     }))
 
     // 1. 分离缓存命中和未命中的nodes
@@ -66,12 +66,12 @@ export class SpellCheckService {
     const nodesToCheck: NodeCheckRequest[] = []
 
     for (const nodeRequest of nodes) {
-      const cached = this.nodeCache.get(nodeRequest.nodeKey)
+      const cached = this.nodeCache.get(nodeRequest.id)
 
       if (cached && !this.isCacheExpired(cached)) {
         cachedResults.set(nodeRequest.id, {
           ...cached,
-          nodeId: nodeRequest.id // 更新为当前请求ID
+          id: nodeRequest.id // 更新为当前请求ID
         })
       } else {
         nodesToCheck.push(nodeRequest)
@@ -90,22 +90,11 @@ export class SpellCheckService {
       console.error('SpellCheckService: Error processing nodes:', error)
       // 返回空错误结果而不是抛出异常
       return nodes.map(node => ({
-        nodeId: node.id,
-        nodeKey: node.nodeKey,
+        id: node.id,
         errors: [],
         checkedAt: Date.now(),
       }))
     }
-  }
-
-  private generateNodeKey(node: ProseMirrorNode): string {
-    // 生成Node的唯一标识，用于缓存
-    return hash({
-      type: node.type.name,
-      content: node.textContent,
-      attrs: node.attrs,
-      marks: node.marks?.map(mark => ({ type: mark.type.name, attrs: mark.attrs }))
-    })
   }
 
   private isCacheExpired(result: NodeSpellResult, maxAge: number = 300000): boolean {
@@ -114,7 +103,7 @@ export class SpellCheckService {
 
   private updateNodeCache(results: NodeSpellResult[]): void {
     for (const result of results) {
-      this.nodeCache.set(result.nodeKey, result)
+      this.nodeCache.set(result.id, result)
     }
 
     // 限制缓存大小
@@ -144,22 +133,21 @@ export class SpellCheckService {
 
     // 添加新结果
     for (const result of newResults) {
-      resultMap.set(result.nodeId, result)
+      resultMap.set(result.id, result)
     }
 
     // 按原始顺序返回结果
     return originalNodes.map(node =>
       resultMap.get(node.id) || {
-        nodeId: node.id,
-        nodeKey: node.nodeKey,
+        id: node.id,
         errors: [],
         checkedAt: Date.now(),
       }
     )
   }
 
-  private setupCacheCleanup(maxAge: number): void {
-    setInterval(() => {
+  private setupCacheCleanup(maxAge: number): NodeJS.Timeout {
+    return setInterval(() => {
       const now = Date.now()
       for (const [key, result] of this.nodeCache.entries()) {
         if (now - result.checkedAt > maxAge) {
@@ -173,6 +161,7 @@ export class SpellCheckService {
    * 销毁服务，清理资源
    */
   async destroy(): Promise<void> {
+    if (this.cacheCleanupInterval) clearInterval(this.cacheCleanupInterval)
     await this.workerPool.destroy()
     this.nodeCache.clear()
   }

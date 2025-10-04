@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.13",
+    "@types/lodash": "^4.17.20",
     "@types/object-hash": "^3.0.6",
     "@types/path-browserify": "^1.0.3",
     "@types/turndown": "^5.0.5",

@@ -7,14 +7,13 @@ import Timer from '../src/utils/Timer'
 
 import { isDev, isMac } from './utils'
 import { USE_CONFIRMATION_TIMEOUT, QUIT_APP_CONFIRMATION_TIMEOUT } from './types'
-import type { GlobalParameters, WindowState } from './types'
+import type { WindowState } from './types'
 import { MenuManager } from './MenuManager'
 import { WindowManager } from './WindowManager'
 import { ThemeManager } from './ThemeManager'
 import { UpdaterManager } from '../src/updater/UpdaterManager'
 
 export class App {
-  private g: GlobalParameters
   private fileWatchers: Map<string, FSWatcher>
   private menuManager: MenuManager
   private windowManager: WindowManager
@@ -25,9 +24,6 @@ export class App {
   private _exitApp: boolean
 
   constructor() {
-    this.g = {
-      autoSave: true,
-    }
     this.fileWatchers = new Map()
     this.menuManager = new MenuManager()
     this.windowManager = new WindowManager(this)
@@ -635,16 +631,6 @@ export class App {
       }
     })
 
-    ipcMain.handle('set-auto-save', async (event, autoSave: boolean) => {
-      this.g.autoSave = autoSave;
-
-      const window = BrowserWindow.fromWebContents(event.sender);
-      if (window) {
-        if (BrowserWindow.getFocusedWindow()?.id === window.id) {
-          this.handleUpdateMenu();
-        }
-      }
-    })
   }
 
   private removeAllHandler() {
@@ -668,7 +654,6 @@ export class App {
     ipcMain.removeHandler('stop-all-file-watching')
     ipcMain.removeHandler('get-file-watching-status')
     ipcMain.removeHandler('show-context-menu')
-    ipcMain.removeHandler('set-auto-save')
 
     ipcMain.removeAllListeners('hello');
     ipcMain.removeAllListeners('window-close-confirm');
@@ -679,8 +664,6 @@ export class App {
     if (action === 'new-window') {
       this.windowManager.createWindow()
       return
-    } else if (action === 'toggle-auto-save') {
-      this.g.autoSave = !this.g.autoSave
     }
   
     BrowserWindow.getFocusedWindow()?.webContents.send('menu-action', action)

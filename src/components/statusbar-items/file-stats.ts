@@ -16,7 +16,7 @@ function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
-export const createEditorStatsStatusBarGroup = () => {
+export const createFileStatsStatusBarGroup = () => {
   const statusBar = useStatusBar()
   const appStore = useAppStore()
   const { isEditable, getIconByExtension } = useDocumentTypeDetector()
@@ -24,7 +24,7 @@ export const createEditorStatsStatusBarGroup = () => {
   setTablerIcon('sum', IconSum)
 
   const position = computed((): string => {
-    const stats = appStore.activeTab?.editorStats
+    const stats = appStore.activeTab?.fileStats
 
     if (stats) {
       return `Ln ${stats.currentLine}, Col ${stats.currentColumn} ${stats.paragraphType.toUpperCase()}`
@@ -34,12 +34,12 @@ export const createEditorStatsStatusBarGroup = () => {
   })
 
   const statsVisible = computed((): boolean => {
-    const stats = appStore.activeTab?.editorStats
+    const stats = appStore.activeTab?.fileStats
     return !!stats
   })
 
   const statsTooltip = computed((): string => {
-    const stats = appStore.activeTab?.editorStats
+    const stats = appStore.activeTab?.fileStats
 
     let result = ''
     if (stats) {
@@ -53,7 +53,7 @@ export const createEditorStatsStatusBarGroup = () => {
   })
 
   const lineEnding = computed((): string => {
-    const lineEnding = appStore.activeTab?.lineEnding
+    const lineEnding = appStore.activeTab?.editState?.lineEnding
     return lineEnding ? lineEnding : ''
   })
 
@@ -95,7 +95,7 @@ export const createEditorStatsStatusBarGroup = () => {
   try {
     /*
     const editorStatusBarGroup = statusBar.createStatusBarGroup({
-      id: `group-editor-stats`,
+      id: `group-file-stats`,
       alignment: StatusBarAlignment.Right,
       priority: 100,
       //separator: '|'

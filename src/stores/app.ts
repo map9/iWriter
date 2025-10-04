@@ -1,7 +1,8 @@
+import { merge } from 'lodash'
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, reactive } from 'vue'
 import { undoDepth } from '@tiptap/pm/history'
-import type { FileTab, FileOperationResult, FileChange } from '@/types'
+import type { FileTab, FileOperationResult, FileChange, EditSetting } from '@/types'
 import { SidebarMode, DocumentType } from '@/types'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { pathUtils } from '@/utils/pathUtils'
@@ -30,7 +31,15 @@ export const useAppStore = defineStore('app', () => {
   const leftSidebarMode = ref<SidebarMode>(SidebarMode.START)
   const leftSidebarWidth = ref(288) // 默认宽度
   const minSidebarWidth = 256 // 最小宽度 - 对应TOC按钮右边缘
-  const autoSave = ref(true)
+  const globalEditSetting = reactive<EditSetting>({
+    autoSave: true,
+    lineEnding: 'LF',
+    invisibleCharacters: true,
+    firstLineIndent: true,
+    smartPunctuation: true,
+    showProofreadErrors: true,
+    proofread: true
+  })
 
   // Heart beat
   let sayHelloTimeout: ReturnType<typeof setTimeout> | null = null
@@ -83,6 +92,7 @@ export const useAppStore = defineStore('app', () => {
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI.windowContentChange({
         hasActiveDocument: hasActiveDocument,
+        autoSave: globalEditSetting.autoSave,
       })
     }
   })
@@ -96,6 +106,7 @@ export const useAppStore = defineStore('app', () => {
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI.windowContentChange({
         hasActiveDocument: hasActiveDocument,
+        autoSave: globalEditSetting.autoSave,
       })
     }
   }, { immediate: true })
@@ -275,9 +286,24 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function toggleAutoSave() {
-    autoSave.value = !autoSave.value
-    if (window.electronAPI?.setAutoSave) {
-      window.electronAPI.setAutoSave(autoSave.value)
+    if (!window.electronAPI?.windowContentChange) return
+
+    if (
+      activeTab.value && 
+      (activeTab.value.documentType === DocumentType.MARKDOWN_EDITOR) &&
+      activeTab.value.editState?.autoSave
+    ) {
+      activeTab.value.editState.autoSave = !activeTab.value.editState.autoSave
+      window.electronAPI.windowContentChange({autoSave: activeTab.value.editState.autoSave})
+    } else {
+      globalEditSetting.autoSave = !globalEditSetting.autoSave
+      window.electronAPI.windowContentChange(
+        {
+          edit: {
+            autoSave: globalEditSetting.autoSave
+          }
+        }
+      )
     }
   }
 
@@ -1053,7 +1079,8 @@ export const useAppStore = defineStore('app', () => {
       path,
       isDirty: false,
       isActive: true,
-      documentType: documentType || (path ? detectFromPath(path) : DocumentType.MARKDOWN_EDITOR)
+      documentType: documentType || (path ? detectFromPath(path) : DocumentType.MARKDOWN_EDITOR),
+      editState: globalEditSetting
     }
     
     // Deactivate all other tabs
@@ -1231,15 +1258,8 @@ export const useAppStore = defineStore('app', () => {
   function updateTabState(tabId: string, updates: Partial<FileTab>) {
     const tab = tabs.value.find(t => t.id === tabId)
     if (tab) {
-      Object.assign(tab, updates)
+      merge(tab, updates)
     }
-  }
-
-  function setTabLineEnding(tabId: string, lineEnding: 'CRLF' | 'LF') {
-    window.electronAPI?.windowContentChange?.({
-      content: { lineEnding: lineEnding }
-    })
-    updateTabState(tabId, { lineEnding: lineEnding })
   }
 
   function cleanTab(tabId: string) {
@@ -1487,7 +1507,6 @@ export const useAppStore = defineStore('app', () => {
     leftSidebarMode,
     leftSidebarWidth,
     minSidebarWidth,
-    autoSave,
     currentThemeId,
     systemPrefersDark,
     currentFolder,
@@ -1551,7 +1570,6 @@ export const useAppStore = defineStore('app', () => {
     saveAllTabs,
     cleanTab,
     updateTabState,
-    setTabLineEnding,
 
     // Menu actions
     handleMenuAction,

@@ -15,7 +15,7 @@ import { onMounted } from 'vue'
 import type { IBasicStatusBarItem, StatusBarItem } from '@/components/common/statusbar'
 import { StatusBar, tooltipManager } from '@/components/common/statusbar'
 import { useNotification, NotificationOverlay } from '@/components/common/statusbar'
-import { createEditorStatsStatusBarGroup } from './statusbar-items/editor-stats'
+import { createFileStatsStatusBarGroup } from './statusbar-items/file-stats'
 import { createUpdateStatusStatusBarItem } from './statusbar-items/update-status'
 
 const { state: notificationState, dismiss: hideNotification } = useNotification()
@@ -51,7 +51,7 @@ const handleTooltipCommand = (protocol: string, command: string, args?: any[]) =
 
 onMounted(() => {
   tooltipManager.setCommandHandler(handleTooltipCommand)
-  createEditorStatsStatusBarGroup()
+  createFileStatsStatusBarGroup()
   createUpdateStatusStatusBarItem()
 })
 </script>

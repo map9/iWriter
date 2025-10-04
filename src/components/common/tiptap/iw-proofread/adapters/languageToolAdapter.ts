@@ -1,6 +1,6 @@
 import type {
 	SpellError
-} from '../core/nodeTypes';
+} from '../spell-check';
 
 /**
  * LanguageTool API 配置

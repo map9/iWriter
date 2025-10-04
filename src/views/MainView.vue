@@ -30,10 +30,6 @@
               v-if="tab.documentType === DocumentType.MARKDOWN_EDITOR"
               ref="markdownEditorRefs"
               :tab="tab"
-              @tab-dirty-change="handleTabDirtyChange"
-              @tab-editor-ready="handleTabEditorReady"
-              @tab-editor-destroy="handleTabEditorDestroy"
-              @tab-stats-update="handleTabStatsUpdate"
             />
             
             <!-- Image Viewer Page -->
@@ -198,43 +194,6 @@ onMounted(() => {
 onUnmounted(() => {
   // 响应式状态会自动清理，不需要手动清理
 })
-
-// Event handlers for MarkdownEditorPage events
-const handleTabDirtyChange = ({ tabId, isDirty }: { tabId: string, isDirty: boolean }) => {
-  console.log({
-    function: 'handleTabDirtyChange',
-    tabId,
-    isDirty
-  })
-  appStore.updateTabState(tabId, { isDirty })
-}
-
-const handleTabEditorReady = ({ tabId, editorInstance, tocProvider }: { tabId: string, editorInstance: any, tocProvider: any }) => {
-  console.log({
-    function: 'handleTabEditorReady',
-    tabId,
-    editorInstance,
-    tocProvider
-  })
-  //appStore.updateTabState(tabId, { editorInstance, tocProvider })
-}
-
-const handleTabEditorDestroy = ({ tabId }: { tabId: string }) => {
-  console.log({
-    function: 'handleTabEditorDestroy',
-    tabId
-  })
-  //appStore.cleanupTabEditor(tabId)
-}
-
-const handleTabStatsUpdate = ({ tabId, stats }: { tabId: string, stats: import('@/types').EditorStats }) => {
-  console.log({
-    function: 'handleTabStatsUpdate',
-    tabId,
-    stats
-  })
-  //appStore.updateTabStats(tabId, stats)
-}
 
 // Expose methods to parent component (App.vue)
 defineExpose({

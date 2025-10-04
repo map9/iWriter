@@ -57,7 +57,7 @@ function countParagraphs(doc: any): number {
   return count
 }
 
-export function calculateEditorStats(editor: Editor | undefined): import('@/types').EditorStats {
+export function calculateFileStats(editor: Editor | undefined): import('@/types').FileStats {
   if (!editor) {
     return {
       currentLine: 1,
@@ -74,7 +74,8 @@ export function calculateEditorStats(editor: Editor | undefined): import('@/type
   const selection = editor.state.selection
   const doc = editor.state.doc
   const content = doc.textContent
-  const { type, hasSelection } = getContentState(editor)
+  const { type } = getContentState(editor)
+  const hasSelection = !editor?.state.selection.empty || false
   
   return {
     currentLine: getCurrentLineFromPos(editor, selection.from),

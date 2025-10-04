@@ -1,13 +1,11 @@
 import workerpool from 'workerpool'
 // 使用 Vite 的 ?worker&url 语法获取 Worker URL
 import WorkerURL from './workers/spellCheckWorker.ts?worker&url'
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type {
   NodeCheckRequest,
   NodeSpellResult,
   WorkerPoolConfig,
-  SerializedNode
-} from './nodeTypes'
+} from './types'
 
 export class SpellWorkerPool {
   private pool: workerpool.Pool
@@ -78,9 +76,8 @@ export class SpellWorkerPool {
     try {
       // 准备数据
       const nodeData = nodes.map(node => ({
-        nodeData: this.serializeNode(node.node),
-        nodeId: node.id,
-        nodeKey: node.nodeKey
+        id: node.id,
+        text: node.node.textContent
       }))
 
       // 使用 workerpool 批量处理
@@ -94,27 +91,12 @@ export class SpellWorkerPool {
 
       // 返回空结果而不是抛出异常
       return nodes.map(node => ({
-        nodeId: node.id,
-        nodeKey: node.nodeKey,
+        id: node.id,
         errors: [],
         checkedAt: Date.now(),
       }))
     }
   }
-
-  private serializeNode(node: ProseMirrorNode): SerializedNode {
-    return {
-      type: node.type.name,
-      text: node.text,
-      textContent: node.textContent,
-      attrs: node.attrs,
-      marks: node.marks?.map((mark) => ({
-        type: mark.type.name,
-        attrs: mark.attrs
-      }))
-    }
-  }
-
 
   getActiveWorkerCount(): number {
     // workerpool 没有直接暴露活跃 worker 数量，返回总数

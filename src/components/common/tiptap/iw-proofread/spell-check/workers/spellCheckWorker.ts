@@ -13,18 +13,9 @@ export interface SpellError {
 }
 
 interface NodeSpellResult {
-  nodeId: string
-  nodeKey: string
+  id: string
   errors: SpellError[]
   checkedAt: number
-}
-
-interface SerializedNode {
-  type: string
-  text?: string
-  textContent?: string
-  attrs?: any
-  marks?: any[]
 }
 
 let dictionary: any = null
@@ -72,30 +63,29 @@ async function initEngine(config: { language: string; dictionaryPath: string }):
   console.log(`[spellCheckWorker] Engine ready, dictionary loaded for ${config.language}`)
 }
 
-function checkSpelling(nodeData: SerializedNode, nodeId: string, nodeKey: string): NodeSpellResult {
+function checkSpelling(id: string, text: string): NodeSpellResult {
   const start = performance.now()
-  const errors = checkText(nodeData.textContent || '')
+  const errors = checkText(text || '')
   const duration = performance.now() - start
 
   console.log({
     function: 'spellCheckWorker.checkSpelling',
-    nodeId: nodeId,
-    text: nodeData.textContent,
+    id: id,
+    text: text,
     errors: errors,
     duration
   })
 
   return {
-    nodeId,
-    nodeKey,
+    id,
     errors,
     checkedAt: Date.now(),
   }
 }
 
 // 批量检查函数
-function batchCheckSpelling(nodes: { nodeData: SerializedNode; nodeId: string; nodeKey: string }[]): NodeSpellResult[] {
-  return nodes.map(({ nodeData, nodeId, nodeKey }) => checkSpelling(nodeData, nodeId, nodeKey))
+function batchCheckSpelling(nodes: {  id: string; text: string }[]): NodeSpellResult[] {
+  return nodes.map(({ id, text }) => checkSpelling(id, text))
 }
 
 // 导出 workerpool 可调用的函数

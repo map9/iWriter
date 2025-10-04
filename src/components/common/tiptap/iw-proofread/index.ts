@@ -1,10 +1,9 @@
 // 主要导出
 export { iwProofreadExtension, default } from './iwProofreadExtension'
-export type { iwProofreadOptions, iwProofreadStorage } from './iwProofreadExtension'
+export type { iwProofreadOptions, iwProofreadStorage } from './types'
 
 // 核心服务
-export { SpellCheckService } from './core/SpellCheckService'
-export { SpellWorkerPool } from './core/SpellWorkerPool'
+export { SpellCheckService, SpellWorkerPool, debounce } from './spell-check'
 
 // 核心类型
 export type {
@@ -16,10 +15,7 @@ export type {
 	SpellEngineType,
 	SpellEngineConfig,
 	WorkerPoolConfig
-} from './core/nodeTypes.js'
-
-// 工具函数
-export { debounce } from './core/utils'
+} from './spell-check'
 
 // 建议框适配器
 export {
