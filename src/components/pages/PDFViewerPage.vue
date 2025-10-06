@@ -356,7 +356,7 @@ async function renderPage(pageNum: number) {
       return
     }
     
-    const context = canvas.getContext('2d')
+    const context = canvas.getContext('2d', { willReadFrequently: true })
     if (!context) {
       console.warn(`Canvas context not available for page ${pageNum}`)
       return

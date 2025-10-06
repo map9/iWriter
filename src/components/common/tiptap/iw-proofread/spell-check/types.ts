@@ -44,12 +44,6 @@ export interface SpellEngineConfig {
   options?: Record<string, any>
 }
 
-export interface WordInfo {
-  word: string
-  offset: number
-  length: number
-}
-
 export interface WorkerPoolConfig {
   maxWorkers: number
   engineConfig: SpellEngineConfig

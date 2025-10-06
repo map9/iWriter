@@ -69,6 +69,7 @@ export class SpellCheckService {
       const cached = this.nodeCache.get(nodeRequest.id)
 
       if (cached && !this.isCacheExpired(cached)) {
+        console.log('SpellCheckService: get result from cache:', nodeRequest.id)
         cachedResults.set(nodeRequest.id, {
           ...cached,
           id: nodeRequest.id // 更新为当前请求ID

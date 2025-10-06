@@ -21,10 +21,11 @@ export interface iwProofreadStorage {
 	spellService: import('./spell-check').SpellCheckService | null
 	isEnabled: boolean
 	showErrors: boolean
-	nodeProofreadMap: import('./utils').LockedSharedMap<string, import('./types').NodeProofread>
+	nodeProofreadMap: import('./utils').LockedSharedMap<string, NodeProofread>
 	decorationSet: import('@tiptap/pm/view').DecorationSet
 	isProcessing: boolean
 	debounceTimer: NodeJS.Timeout | null
+	ignoredErrors: import('./utils').LockedSharedMap<string, boolean>
 }
 
 export interface ProofreadPluginState {

@@ -4,6 +4,7 @@ import type { iwProofreadOptions, iwProofreadStorage } from './types'
 import { iwProofreadPlugin } from './plugin/iwProofreadPlugin'
 import { SpellCheckService } from './spell-check'
 import { LockedSharedMap } from './utils'
+import './styles/styles.scss'
 
 // 声明命令类型
 declare module '@tiptap/core' {
@@ -48,7 +49,8 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 			nodeProofreadMap: new LockedSharedMap<string, import('./types').NodeProofread>(),
 			decorationSet: DecorationSet.empty,
 			isProcessing: false,
-			debounceTimer: null
+			debounceTimer: null,
+			ignoredErrors: new LockedSharedMap<string, boolean>()
     }
 	},
 

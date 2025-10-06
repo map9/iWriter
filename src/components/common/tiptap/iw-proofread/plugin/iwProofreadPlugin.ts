@@ -15,44 +15,111 @@ import type {
 	SpellError
 } from '../spell-check'
 
+// 错误指纹接口
+interface IgnoredErrorId {
+  from: number
+  to: number
+  word: string
+  type?: string
+}
+
+// 创建错误指纹
+function createIgnoredErrorId(from: number, to: number, word: string, type?: string): string {
+  return `${from}:${to}:${word}:${type || 'unknown'}`
+}
+
+// 解析错误指纹
+function parseIgnoredErrorId(id: string): IgnoredErrorId {
+  const [from, to, word, type] = id.split(':')
+  return {
+    from: parseInt(from || '0'),
+    to: parseInt(to || '0'),
+    word: word || '',
+    type: type || 'unknown'
+  }
+}
+
+// 更新忽略错误的位置
+function updateIgnoredErrorPositions(tr: Transaction, storage: iwProofreadStorage) {
+  storage.ignoredErrors.withLock((ignoredMap) => {
+    const currentIgnored = Array.from(ignoredMap.keys())
+
+    // 清空当前map
+    ignoredMap.clear()
+
+    // 重新验证和添加有效的ignored errors
+    for (const ignoredId of currentIgnored) {
+      const { from, to, word, type } = parseIgnoredErrorId(ignoredId)
+
+      const newFrom = tr.mapping.map(from)
+      const newTo = tr.mapping.map(to)
+
+      if (newFrom !== null && newTo !== null && newFrom < newTo) {
+        const newText = tr.doc.textBetween(newFrom, newTo)
+
+        if (newText === word) {
+          const newIgnoredId = createIgnoredErrorId(newFrom, newTo, word, type)
+          ignoredMap.set(newIgnoredId, true)
+        } else {
+          // 如果内容不匹配，说明用户已修正该错误，自动清除ignore状态
+          console.log({function: 'updateIgnoredErrorPositions', info: 'mismatch content', from, to, word, type })
+        }
+      } else {
+        // 如果位置无效，说明该区域被删除，自动清除ignore状态
+        console.log({function: 'updateIgnoredErrorPositions', info: `Can't find`, from, to, word, type })
+      }
+    }
+  })
+}
+
 const createNodeDecorations = (
 	doc: ProseMirrorNode,
 	storage: iwProofreadStorage
 ): DecorationSet => {
 	const decorations: Decoration[] = []
 
-  storage.nodeProofreadMap.withLock((map)=>{
-    
-    for (const nodep of map.values()) {
-      if (nodep.status !== 'checked' || !nodep.result || (nodep.result.errors.length === 0)) continue
+  storage.nodeProofreadMap.withLock((nodeMap)=>{
+    storage.ignoredErrors.withLock((ignoredMap) => {
 
-      doc.descendants((node, pos) => {
-        //if (shouldNotCheckNode(node)) return false
-        //if (!containsOnlyTextNodes(node)) return true
+      for (const nodep of nodeMap.values()) {
+        if (nodep.status !== 'checked' || !nodep.result || (nodep.result.errors.length === 0)) continue
 
-        if (generateNodeKey(node) === nodep.result!.id) {
-          for (const error of nodep.result!.errors) {
-            const from = pos + 1 + error.offset
-            const to = from + error.length
+        doc.descendants((node, pos) => {
+          //if (shouldNotCheckNode(node)) return false
+          //if (!containsOnlyTextNodes(node)) return true
 
-            if (from >= 0 && to <= doc.content.size && from < to) {
-              decorations.push(
-                Decoration.inline(
-                  from,
-                  to,
-                  { class: getErrorClass(error.type) },
-                  {
-                    error,
-                    id: nodep.result!.id,
-                  }
+          if (generateNodeKey(node) === nodep.result!.id) {
+            nodep.result!.errors.forEach((error, index) => {
+              const from = pos + 1 + error.offset
+              const to = from + error.length
+
+              // 检查是否被忽略（线程安全）
+              const ignoredId = createIgnoredErrorId(from, to, error.word, error.type)
+              if (ignoredMap.has(ignoredId)) {
+                console.log({function: 'createNodeDecorations', info: 'ignored error', error })
+                return  // 跳过已忽略的错误
+              }
+
+              if (from >= 0 && to <= doc.content.size && from < to) {
+                decorations.push(
+                  Decoration.inline(
+                    from,
+                    to,
+                    { class: getErrorClass(error.type) },
+                    {
+                      error,
+                      index,
+                      id: nodep.result!.id,
+                    }
+                  )
                 )
-              )
-            }
+              }
+            })
           }
-        }
-      })
-    }
+        })
+      }
 
+    })
   })
 
 	return DecorationSet.create(doc, decorations)
@@ -126,15 +193,20 @@ const showSuggestionPopup = (
 			const { from, to } = decoration
 			const tr = view.state.tr
 			tr.replaceWith(from, to, view.state.schema.text(value))
-
-			// 移除该装饰
 			removeDecorationAt(from, to, storage, view)
-
 			view.dispatch(tr)
 			app.destroy()
 		},
 		onIgnore: () => {
-			const { from, to } = decoration
+			const { from, to, spec } = decoration
+			const error = spec.error
+
+			const ignoredId = createIgnoredErrorId(from, to, error.word, error.type)
+
+			storage.ignoredErrors.withLock((ignoredMap) => {
+				ignoredMap.set(ignoredId, true)
+			})
+
 			removeDecorationAt(from, to, storage, view)
 			app.destroy()
 		},
@@ -230,10 +302,41 @@ function containsOnlyTextNodes(node: ProseMirrorNode) {
 	return onlyText;
 }
 
-const getChangedNodes = (transactions: Transaction[], state: EditorState, isNew: boolean = false) => {
+
+const getChangedNodes2 = (transactions: Transaction[], state: EditorState, isNew: boolean = false) => {
+	const changeNodes: { node: ProseMirrorNode; pos: number }[] = [];
+
+	// 直接从Transaction的steps中提取变化范围
+	for (const txn of transactions.filter((txn) => txn.docChanged)) {
+		txn.steps.forEach((step) => {
+			const map = step.getMap()
+
+			// StepMap.forEach 提供每个变化的范围信息
+			map.forEach((oldStart, oldEnd, newStart, newEnd) => {
+
+        const from = isNew ? newStart : oldStart
+				const to = isNew ? newEnd : oldEnd
+
+        state.doc.nodesBetween(from, to, (node, pos) => {
+          console.log({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', node: node.textContent, pos})
+          if (shouldNotCheckNode(node)) return false
+          if (!containsOnlyTextNodes(node)) return true
+
+          changeNodes.push({node, pos})
+          return false
+        });
+
+        console.log({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', from, to})
+			})
+		})
+	}
+
+  return changeNodes
+}
+
+const getChangedNodes1 = (transactions: Transaction[], state: EditorState, isNew: boolean = false) => {
 	let changeSet = ChangeSet.create(state.doc);
 
-	console.log(isNew? 'getNewChangedNodes' : 'getOldChangedNodes')
 	for (const txn of transactions.filter((txn) => txn.docChanged)) {
 		changeSet = changeSet.addSteps(
 			changeSet.startDoc,
@@ -247,7 +350,9 @@ const getChangedNodes = (transactions: Transaction[], state: EditorState, isNew:
 	for (const change of changeSet.changes) {
 		const start = isNew? change.fromB : change.fromA
 		const end = isNew? change.toB : change.toA
+
 		state.doc.nodesBetween(start, end, (node, pos) => {
+			console.log({function: 'getChangedNodes1', state: isNew? 'NewChange' : 'OldChange', node: node.textContent, pos})
 			if (shouldNotCheckNode(node)) return false
 			if (!containsOnlyTextNodes(node)) return true
 
@@ -255,9 +360,45 @@ const getChangedNodes = (transactions: Transaction[], state: EditorState, isNew:
 			return false
 		});
 	}
+
 	return changeNodes
 }
 
+const getChangedNodes = (transactions: Transaction[], oldEditorState: EditorState, newEditorState: EditorState): {
+  oldNodes: { node: ProseMirrorNode; pos: number }[],
+  newNodes: { node: ProseMirrorNode; pos: number }[]
+} => {
+  const oldNodes1 = getChangedNodes1(transactions, oldEditorState, false)
+  console.log({function: 'getChangedNodes1', state: 'OldChange', size: oldNodes1.length})
+  const newNodes1 = getChangedNodes1(transactions, newEditorState, true)
+  console.log({function: 'getChangedNodes1', state: 'NewChange', size: newNodes1.length})
+
+  // 发现变化为空时，检查是否是等长替换导致 getChangedNodes1 未能检测出来变化
+  if (oldNodes1.length === 0 && newNodes1.length === 0) {
+    console.log({function: 'getChangedNodes', state: '等长替换检查开始'})
+    const oldNodes2 = getChangedNodes2(transactions, oldEditorState, false)
+    console.log({function: 'getChangedNodes2', state: 'OldChange', size: oldNodes2.length})
+    const newNodes2 = getChangedNodes2(transactions, newEditorState, true)
+    console.log({function: 'getChangedNodes2', state: 'NewChange', size: newNodes2.length})
+
+    if (oldNodes2.length === newNodes2.length && newNodes2.length > 0) {
+      for(let i = 0; i < oldNodes2.length; i ++) {
+        if (oldNodes2[i]!.pos !== newNodes2[i]!.pos) return {oldNodes: [], newNodes: []}
+        
+        if (oldNodes2[i]!.node.textContent !== newNodes2[i]!.node.textContent) {
+          oldNodes1.push(oldNodes2[i]!)
+          newNodes1.push(newNodes2[i]!)
+          console.log({function: 'getChangedNodes', state: '等长替换', oldContent: oldNodes2[i]!.node.textContent, newContent: newNodes2[i]!.node.textContent})
+        }
+      }
+    }
+
+    console.log({function: 'getChangedNodes', state: '等长替换检查结束', oldSize: oldNodes1.length, newSize: newNodes1.length})
+    return {oldNodes: oldNodes1, newNodes: newNodes1}
+  } else {
+    return {oldNodes: oldNodes1, newNodes: newNodes1}
+  }
+}
 /**
  * 将文档中所有节点作为NodeCheckRequest集合返回
  * @param doc 文档根节点
@@ -277,8 +418,8 @@ const collectAllNodes = (editor: Editor, storage: iwProofreadStorage) => {
     // add newNodes to storage.nodeProofreadMap with lock
     newNodes.forEach((node) => {
       const id = generateNodeKey(node.node)
-      const nodeResult = map.get(id)
-      if (!nodeResult) {
+      const nodeProofread = map.get(id)
+      if (!nodeProofread) {
         map.set(id, {
           id: id,
           node: node.node,
@@ -314,14 +455,16 @@ const updateNodeProofreadResults = (storage: iwProofreadStorage, nodeProofreadRe
   const newNodeResults: NodeSpellResult[] = []
   storage.nodeProofreadMap.withLock((map)=>{
     nodeProofreadResults.forEach((value) => {
-      const node = map.get(value.id)
-      if (node) {
-        if (node.status === 'deleted') {
-          map.delete(node.id)
+      const nodeProofread = map.get(value.id)
+      if (nodeProofread) {
+        if (nodeProofread.status === 'deleted') {
+          console.log({function: 'updateNodeProofreadResults', text: nodeProofread.node.textContent, status: 'deleted'})
+          map.delete(nodeProofread.id)
         } else {
-          node.status = 'checked'
+          nodeProofread.status = 'checked'
+          console.log({function: 'updateNodeProofreadResults', text: nodeProofread.node.textContent, status: 'checked'})
           if (value.errors && value.errors.length > 0) {
-            node.result = value
+            nodeProofread.result = value
             newNodeResults.push(value)
           }
         }
@@ -350,44 +493,54 @@ export const iwProofreadPlugin = (editor: Editor, options: iwProofreadOptions, s
 
       apply: (tr, oldState, oldEditorState, newEditorState) => {
         if (tr.docChanged && storage.isEnabled) {
-          const oldNodes = getChangedNodes([tr], oldEditorState, false)
-          const newNodes = getChangedNodes([tr], newEditorState, true)
+          // 更新ignored errors的位置
+          updateIgnoredErrorPositions(tr, storage)
+
+          const { oldNodes, newNodes } = getChangedNodes([tr], oldEditorState, newEditorState)
           storage.nodeProofreadMap.withLock(async (map) => {
             // delete oldNodes from storage.nodeProofreadMap with lock
+            console.log(`delete oldNodes from storage.nodeProofreadMap with lock`)
             oldNodes.forEach((node) => {
               const id = generateNodeKey(node.node)
-              const nodeResult = map.get(id)
-              if (nodeResult) {
-                if (nodeResult.status !== 'checking'){
+              const nodeProofread = map.get(id)
+              console.log(nodeProofread)
+              if (nodeProofread) {
+                if (nodeProofread.status !== 'checking'){
+                  console.log({function: 'apply', text: nodeProofread.node.textContent, status: 'deleted'})
                   map.delete(id)
                 }
                 else {
-                  nodeResult.status = 'deleted'
+                  console.log({function: 'apply', text: nodeProofread.node.textContent, status: 'mark deleted'})
+                  nodeProofread.status = 'deleted'
                 }
               }
 
               dumpNode(node.node)
             });
-            
+
             // add newNodes to storage.nodeProofreadMap with lock
+            console.log(`add newNodes to storage.nodeProofreadMap with lock`)
             newNodes.forEach((node) => {
               const id = generateNodeKey(node.node)
-              const nodeResult = map.get(id)
-              if (!nodeResult) {
+              const nodeProofread = map.get(id)
+              if (!nodeProofread) {
                 map.set(id, {
                   id: id,
                   node: node.node,
                   status: 'idle'
                 })
+                console.log({function: 'apply', text: node.node.textContent, status: 'idle'})
               } else {
-                console.log('already has a checked node, maybe a same text.')
+                const oldStatus = nodeProofread.status
+                if (nodeProofread.status === 'deleted') nodeProofread.status = 'idle'
+                console.log({function: 'apply', text: node.node.textContent, status: nodeProofread.status, oldStatus})
               }
 
               dumpNode(node.node)
             });
-            
+
           })
-          
+
           debouncedIncrementalSpellCheck(storage, editor)
         }
 

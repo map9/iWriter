@@ -74,8 +74,8 @@ export function calculateFileStats(editor: Editor | undefined): import('@/types'
   const selection = editor.state.selection
   const doc = editor.state.doc
   const content = doc.textContent
-  const { type } = getContentState(editor)
   const hasSelection = !editor?.state.selection.empty || false
+  const { type } = hasSelection? getContentState(editor) : {type: 'unknown'}
   
   return {
     currentLine: getCurrentLineFromPos(editor, selection.from),
