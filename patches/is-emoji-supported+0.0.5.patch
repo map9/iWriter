@@ -1,0 +1,13 @@
+diff --git a/node_modules/is-emoji-supported/dist/esm/is-emoji-supported.js b/node_modules/is-emoji-supported/dist/esm/is-emoji-supported.js
+index a1d2518..eeaf61d 100644
+--- a/node_modules/is-emoji-supported/dist/esm/is-emoji-supported.js
++++ b/node_modules/is-emoji-supported/dist/esm/is-emoji-supported.js
+@@ -33,7 +33,7 @@ function setCacheHandler(store) {
+ var isSupported = (function () {
+     var ctx = null;
+     try {
+-        ctx = document.createElement('canvas').getContext('2d');
++        ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+     }
+     catch (_a) { }
+     // Not in browser env

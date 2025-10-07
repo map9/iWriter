@@ -14,6 +14,9 @@ export type {
 	SpellServiceConfig,
 	SpellEngineType,
 	SpellEngineConfig,
+	TypoEngineOptions,
+	LanguageToolEngineOptions,
+	CustomEngineOptions,
 	WorkerPoolConfig
 } from './spell-check'
 

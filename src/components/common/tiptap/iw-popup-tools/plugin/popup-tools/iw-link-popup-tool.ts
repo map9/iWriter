@@ -108,7 +108,7 @@ export class iwLinkPopupTool extends iwPopupTool {
         unlinkBtn.addEventListener('click', unlink)
         iputGroup.appendChild(unlinkBtn)
 
-                const openBtn = EditWidget.createButton({
+        const openBtn = EditWidget.createButton({
           title: 'Open',
           icon: EditWidget.IconOutbound,
         })

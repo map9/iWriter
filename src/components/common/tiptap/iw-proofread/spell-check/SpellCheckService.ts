@@ -14,21 +14,35 @@ export class SpellCheckService {
   private cacheCleanupInterval: NodeJS.Timeout
 
   constructor(config: SpellServiceConfig) {
+    // 构建引擎配置
     this.engineConfig = {
       type: config.engineType || 'typo',
       language: config.language || 'en',
-      dictionaryPath: config.dictionaryPath || '/dictionaries/'
+      engineOptions: config.engineOptions
     }
+
+    // 验证引擎特定配置
+    this.validateEngineConfig(this.engineConfig)
 
     this.workerPool = new SpellWorkerPool({
       maxWorkers: config.maxWorkers || Math.min(navigator.hardwareConcurrency || 2, 4),
       engineConfig: this.engineConfig,
       workerScript: '/workers/spellCheckWorker.js',
-      workerTimeout: 5000
+      workerTimeout: 10000  // LanguageTool 可能需要更长超时
     })
 
     // 初始化清理定时器
     this.cacheCleanupInterval = this.setupCacheCleanup(config.cacheExpiry || 300000) // 5分钟过期
+  }
+
+  private validateEngineConfig(config: SpellEngineConfig): void {
+    if (config.type === 'typo') {
+      const options = config.engineOptions as import('./types').TypoEngineOptions | undefined
+      if (!options?.dictionaryPath) {
+        throw new Error('Typo engine requires dictionaryPath in engineOptions')
+      }
+    }
+    // LanguageTool 的配置都有默认值，不需要强制验证
   }
 
   /**

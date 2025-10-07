@@ -1,8 +1,10 @@
 import hash from 'object-hash'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function debounce(func: (...args: any[]) => void, wait: number) {
 	let timeout: NodeJS.Timeout | undefined;
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return function(this: any, ...args: any[]) {
 		if (timeout) {
 			clearTimeout(timeout);

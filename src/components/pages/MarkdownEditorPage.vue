@@ -580,13 +580,28 @@ const extensions = [
 
   // 拼写检查扩展
   iwProofreadExtension.configure({
+    /*
     engineType: 'typo',
     language: 'en',
+    engineOptions: {
+      dictionaryPath: '/dictionaries'
+    },
+    */
+   
+    engineType: 'languagetool',
+    language: 'en-US',
+    engineOptions: {
+      // 可选：自定义 API URL，默认为官方免费 API
+      apiUrl: 'https://api.languagetool.org/v2/check',
+      // 可选：请求超时时间，默认 5000ms
+      timeout: 8000
+    },
+
     enabled: true,
     showErrors: true,
-    debounceTime: 800,
-    maxWorkers: 2
-  }),
+    debounceTime: 2000,
+    maxWorkers: 4
+  })
 ]
 
 // Create TipTap editor instance

@@ -2,7 +2,7 @@
 import workerpool from 'workerpool'
 import Typo from 'typo-js'
 
-// 类型定义
+// ===== 类型定义 =====
 export interface SpellError {
   offset: number // 相对于node开始位置的偏移
   length: number
@@ -18,112 +18,259 @@ interface NodeSpellResult {
   checkedAt: number
 }
 
-let dictionary: any = null
+type SpellEngineType = 'typo' | 'languagetool' | 'custom'
 
-async function loadDictionary(language: string, dictionaryPath: string): Promise<void> {
-  const affUrl = `${dictionaryPath}/${language}/index.aff`
-  const dicUrl = `${dictionaryPath}/${language}/index.dic`
-
-  const [aff, dic] = await Promise.all([
-    fetch(affUrl).then(r => r.text()),
-    fetch(dicUrl).then(r => r.text())
-  ])
-
-  dictionary = new Typo(language, aff, dic)
+interface TypoEngineOptions {
+  dictionaryPath: string
 }
 
-// 使用 Intl.Segmenter 提取单词
-function getWords(text: string): Array<{word: string, offset: number, length: number}> {
-  const words: Array<{word: string, offset: number, length: number}> = []
+interface LanguageToolEngineOptions {
+  apiUrl?: string
+  apiKey?: string
+  timeout?: number
+}
 
-  // 从字典中获取语言，如果没有则默认为 'en'
-  const language = dictionary?.locale || 'en'
+interface SpellEngineConfig {
+  type: SpellEngineType
+  language: string
+  engineOptions?: TypoEngineOptions | LanguageToolEngineOptions | Record<string, unknown>
+}
 
-  // 检查是否支持 Intl.Segmenter (现代浏览器)
-  if (typeof Intl !== 'undefined' && (Intl as any).Segmenter) {
-  //if (false) {
-    try {
-      // 使用 Intl.Segmenter 进行精确的单词分割，使用正确的语言
-      const segmenter = new (Intl as any).Segmenter(language, { granularity: 'word' })
-      const segments = segmenter.segment(text)
+// ===== 引擎抽象接口 =====
+interface SpellEngine {
+  init(config: SpellEngineConfig): Promise<void>
+  check(text: string): Promise<SpellError[]>
+}
 
-      for (const segment of segments) {
-        // 只处理真正的单词（不包括空格、标点等）
-        if (segment.isWordLike) {
-          words.push({
-            word: segment.segment,
-            offset: segment.index,
-            length: segment.segment.length
-          })
-        }
-      }
-    } catch (error) {
-      console.warn('[spellCheckWorker] Intl.Segmenter failed, falling back to regex:', error)
-      return getWordsWithRegex(text)
+// ===== Typo.js 引擎实现 =====
+class TypoEngine implements SpellEngine {
+  private dictionary: Typo | null = null
+  private language = 'en'
+
+  async init(config: SpellEngineConfig): Promise<void> {
+    this.language = config.language
+    const options = config.engineOptions as TypoEngineOptions | undefined
+
+    if (!options?.dictionaryPath) {
+      throw new Error('TypoEngine: dictionaryPath is required')
     }
-  } else {
-    // 回退到正则表达式方法
-    return getWordsWithRegex(text)
+
+    const affUrl = `${options.dictionaryPath}/${this.language}/index.aff`
+    const dicUrl = `${options.dictionaryPath}/${this.language}/index.dic`
+
+    const [aff, dic] = await Promise.all([
+      fetch(affUrl).then(r => r.text()),
+      fetch(dicUrl).then(r => r.text())
+    ])
+
+    this.dictionary = new Typo(this.language, aff, dic)
+    console.log(`[TypoEngine] Dictionary loaded for ${this.language}`)
   }
 
-  return words
-}
+  async check(text: string): Promise<SpellError[]> {
+    if (!this.dictionary) return []
 
-// 回退的正则表达式方法（移除单词边界 \b 以更好支持Unicode）
-function getWordsWithRegex(text: string): Array<{word: string, offset: number, length: number}> {
-  const words: Array<{word: string, offset: number, length: number}> = []
-  // 不使用 \b，直接匹配Unicode字母、数字和连接符
-  const wordRegex = /[\p{L}\p{N}\p{Pc}]+/gu
-  let match: RegExpExecArray | null
+    const errors: SpellError[] = []
+    const words = this.getWords(text)
 
-  while ((match = wordRegex.exec(text)) !== null) {
-    words.push({
-      word: match[0],
-      offset: match.index,
-      length: match[0].length
-    })
+    for (const {word, offset, length} of words) {
+      if (!this.dictionary.check(word)) {
+        errors.push({
+          offset,
+          length,
+          word,
+          suggestions: this.dictionary.suggest(word),
+          type: 'spelling'
+        })
+      }
+    }
+
+    return errors
   }
 
-  return words
-}
+  private getWords(text: string): Array<{word: string, offset: number, length: number}> {
+    const words: Array<{word: string, offset: number, length: number}> = []
 
-function checkText(text: string): SpellError[] {
-  if (!dictionary) return []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (typeof Intl !== 'undefined' && (Intl as any).Segmenter) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const segmenter = new (Intl as any).Segmenter(this.language, { granularity: 'word' })
+        const segments = segmenter.segment(text)
 
-  const errors: SpellError[] = []
-  const words = getWords(text)
+        for (const segment of segments) {
+          if (segment.isWordLike) {
+            words.push({
+              word: segment.segment,
+              offset: segment.index,
+              length: segment.segment.length
+            })
+          }
+        }
+      } catch (error) {
+        console.warn('[TypoEngine] Intl.Segmenter failed, falling back to regex:', error)
+        return this.getWordsWithRegex(text)
+      }
+    } else {
+      return this.getWordsWithRegex(text)
+    }
 
-  for (const {word, offset, length} of words) {
-    if (!dictionary.check(word)) {
-      errors.push({
-        offset,
-        length,
-        word,
-        suggestions: dictionary.suggest(word),
-        type: 'spelling'
+    return words
+  }
+
+  private getWordsWithRegex(text: string): Array<{word: string, offset: number, length: number}> {
+    const words: Array<{word: string, offset: number, length: number}> = []
+    const wordRegex = /[\p{L}\p{N}\p{Pc}]+/gu
+    let match: RegExpExecArray | null
+
+    while ((match = wordRegex.exec(text)) !== null) {
+      words.push({
+        word: match[0],
+        offset: match.index,
+        length: match[0].length
       })
     }
+
+    return words
+  }
+}
+
+// ===== LanguageTool 引擎实现 =====
+class LanguageToolEngine implements SpellEngine {
+  private apiUrl = 'https://api.languagetool.org/v2/check'
+  private language = 'en'
+  private apiKey?: string
+  private timeout = 5000
+
+  async init(config: SpellEngineConfig): Promise<void> {
+    this.language = config.language
+    const options = config.engineOptions as LanguageToolEngineOptions | undefined
+
+    if (options?.apiUrl) {
+      this.apiUrl = options.apiUrl
+    }
+    if (options?.apiKey) {
+      this.apiKey = options.apiKey
+    }
+    if (options?.timeout) {
+      this.timeout = options.timeout
+    }
+
+    console.log(`[LanguageToolEngine] Initialized for ${this.language}, API: ${this.apiUrl}`)
   }
 
-  return errors
+  async check(text: string): Promise<SpellError[]> {
+    if (!text || text.trim().length === 0) return []
+
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout)
+
+      const formData = new URLSearchParams({
+        text: text,
+        language: this.language
+      })
+
+      const headers: HeadersInit = {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+
+      if (this.apiKey) {
+        headers['Authorization'] = `Bearer ${this.apiKey}`
+      }
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: headers,
+        body: formData.toString(),
+        signal: controller.signal
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        throw new Error(`LanguageTool API error: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      return this.convertMatches(data.matches || [], text)
+
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        console.error('[LanguageToolEngine] Request timeout')
+      } else {
+        console.error('[LanguageToolEngine] Check failed:', error)
+      }
+      return []
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private convertMatches(matches: any[], text: string): SpellError[] {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return matches.map((match: any) => ({
+      offset: match.offset,
+      length: match.length,
+      word: text.substring(match.offset, match.offset + match.length),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      suggestions: (match.replacements || []).map((r: any) => r.value).slice(0, 10),
+      message: match.message,
+      type: this.detectErrorType(match.rule?.category?.id)
+    }))
+  }
+
+  private detectErrorType(categoryId?: string): 'spelling' | 'grammar' {
+    if (!categoryId) return 'spelling'
+
+    const grammarCategories = [
+      'GRAMMAR', 'PUNCTUATION', 'TYPOGRAPHY',
+      'CASING', 'REDUNDANCY', 'STYLE', 'SEMANTICS',
+      'COLLOCATION', 'CONFUSED_WORDS'
+    ]
+
+    return grammarCategories.includes(categoryId.toUpperCase()) ? 'grammar' : 'spelling'
+  }
 }
 
-// Workerpool 导出的函数
-async function initEngine(config: { language: string; dictionaryPath: string }): Promise<void> {
-  await loadDictionary(config.language, config.dictionaryPath)
-  console.log(`[spellCheckWorker] Engine ready, dictionary loaded for ${config.language}`)
+// ===== 引擎工厂 =====
+function createEngine(config: SpellEngineConfig): SpellEngine {
+  switch (config.type) {
+    case 'typo':
+      return new TypoEngine()
+    case 'languagetool':
+      return new LanguageToolEngine()
+    case 'custom':
+      throw new Error('Custom engine not implemented')
+    default:
+      throw new Error(`Unknown engine type: ${config.type}`)
+  }
 }
 
-function checkSpelling(id: string, text: string): NodeSpellResult {
+// ===== Worker 全局状态 =====
+let engine: SpellEngine | null = null
+
+// ===== Worker 导出函数 =====
+async function initEngine(config: SpellEngineConfig): Promise<void> {
+  engine = createEngine(config)
+  await engine.init(config)
+  console.log(`[spellCheckWorker] Engine ready: ${config.type}, language: ${config.language}`)
+}
+
+async function checkSpelling(id: string, text: string): Promise<NodeSpellResult> {
+  if (!engine) {
+    throw new Error('Engine not initialized')
+  }
+
   const start = performance.now()
-  const errors = checkText(text || '')
+  const errors = await engine.check(text || '')
   const duration = performance.now() - start
 
   console.log({
     function: 'spellCheckWorker.checkSpelling',
     id: id,
-    text: text,
-    errors: errors,
+    text: text.substring(0, 50),
+    errorCount: errors.length,
     duration
   })
 
@@ -134,9 +281,8 @@ function checkSpelling(id: string, text: string): NodeSpellResult {
   }
 }
 
-// 批量检查函数
-function batchCheckSpelling(nodes: {  id: string; text: string }[]): NodeSpellResult[] {
-  return nodes.map(({ id, text }) => checkSpelling(id, text))
+async function batchCheckSpelling(nodes: {id: string; text: string}[]): Promise<NodeSpellResult[]> {
+  return Promise.all(nodes.map(({id, text}) => checkSpelling(id, text)))
 }
 
 // 导出 workerpool 可调用的函数

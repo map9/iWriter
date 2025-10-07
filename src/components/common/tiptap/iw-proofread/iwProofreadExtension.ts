@@ -25,12 +25,21 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 
 	addOptions() {
 		return {
+			// 引擎配置
 			engineType: 'typo' as import('./spell-check').SpellEngineType,
 			language: 'en',
-			dictionaryPath: '/dictionaries',
+			engineOptions: {
+				dictionaryPath: '/dictionaries'
+			} as import('./spell-check').TypoEngineOptions,
+
+			// Worker 配置
 			maxWorkers: Math.min(navigator.hardwareConcurrency || 2, 4),
+
+			// 功能开关
 			enabled: true,
 			showErrors: true,
+
+			// 性能配置
 			debounceTime: 1000,
 			cacheSize: 1000,
 			cacheExpiry: 300000
@@ -91,7 +100,7 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 		this.storage.spellService = new SpellCheckService({
 			engineType: this.options.engineType,
 			language: this.options.language,
-			dictionaryPath: this.options.dictionaryPath,
+			engineOptions: this.options.engineOptions,
 			maxWorkers: this.options.maxWorkers,
 			cacheSize: this.options.cacheSize,
 			cacheExpiry: this.options.cacheExpiry

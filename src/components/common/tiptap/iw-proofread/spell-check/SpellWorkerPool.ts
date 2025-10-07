@@ -44,11 +44,8 @@ export class SpellWorkerPool {
 
   private async initializeEngine(): Promise<void> {
     try {
-      // 在第一个 worker 中初始化引擎
-      await this.pool.exec('initEngine', [{
-        language: this.config.engineConfig.language,
-        dictionaryPath: this.config.engineConfig.dictionaryPath || '/dictionaries'
-      }])
+      // 在第一个 worker 中初始化引擎，直接传递完整的引擎配置
+      await this.pool.exec('initEngine', [this.config.engineConfig])
       console.log('SpellWorkerPool: Engine initialized successfully')
     } catch (error) {
       console.error('SpellWorkerPool: Engine initialization failed:', error)

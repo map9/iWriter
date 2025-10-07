@@ -6,12 +6,21 @@ export interface NodeProofread {
 }
 
 export interface iwProofreadOptions {
+	// 引擎配置
 	engineType?: import('./spell-check').SpellEngineType
 	language?: string
-	dictionaryPath?: string
+	engineOptions?: import('./spell-check').TypoEngineOptions
+	              | import('./spell-check').LanguageToolEngineOptions
+	              | import('./spell-check').CustomEngineOptions
+
+	// Worker 配置
 	maxWorkers?: number
+
+	// 功能开关
 	enabled?: boolean
 	showErrors?: boolean
+
+	// 性能配置
 	debounceTime?: number
 	cacheSize?: number
 	cacheExpiry?: number
@@ -28,5 +37,6 @@ export interface iwProofreadStorage {
 	ignoredErrors: import('./utils').LockedSharedMap<string, boolean>
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ProofreadPluginState {
 }
