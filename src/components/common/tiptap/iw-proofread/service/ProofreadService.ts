@@ -1,19 +1,19 @@
 import type {
-  SpellServiceConfig,
-  NodeCheckRequest,
-  NodeSpellResult,
-  SpellEngineConfig,
+  ProofreadServiceConfig,
+  NodeProofreadRequest,
+  NodeProofreadResult,
+  ProofreadEngineConfig,
 } from './types'
-import { SpellWorkerPool } from './SpellWorkerPool'
+import { ProofreadWorkerPool } from './ProofreadWorkerPool'
 import { generateNodeKey } from './utils'
 
-export class SpellCheckService {
-  private workerPool: SpellWorkerPool
-  private nodeCache: Map<string, NodeSpellResult> = new Map()
-  private engineConfig: SpellEngineConfig
+export class ProofreadService {
+  private workerPool: ProofreadWorkerPool
+  private nodeCache: Map<string, NodeProofreadResult> = new Map()
+  private engineConfig: ProofreadEngineConfig
   private cacheCleanupInterval: NodeJS.Timeout
 
-  constructor(config: SpellServiceConfig) {
+  constructor(config: ProofreadServiceConfig) {
     // 构建引擎配置
     this.engineConfig = {
       type: config.engineType || 'typo',
@@ -24,10 +24,10 @@ export class SpellCheckService {
     // 验证引擎特定配置
     this.validateEngineConfig(this.engineConfig)
 
-    this.workerPool = new SpellWorkerPool({
+    this.workerPool = new ProofreadWorkerPool({
       maxWorkers: config.maxWorkers || Math.min(navigator.hardwareConcurrency || 2, 4),
       engineConfig: this.engineConfig,
-      workerScript: '/workers/spellCheckWorker.js',
+      workerScript: '/workers/proofreadCheckWorker.js',
       workerTimeout: 10000  // LanguageTool 可能需要更长超时
     })
 
@@ -35,7 +35,7 @@ export class SpellCheckService {
     this.cacheCleanupInterval = this.setupCacheCleanup(config.cacheExpiry || 300000) // 5分钟过期
   }
 
-  private validateEngineConfig(config: SpellEngineConfig): void {
+  private validateEngineConfig(config: ProofreadEngineConfig): void {
     if (config.type === 'typo') {
       const options = config.engineOptions as import('./types').TypoEngineOptions | undefined
       if (!options?.dictionaryPath) {
@@ -48,9 +48,9 @@ export class SpellCheckService {
   /**
    * 检查单个或多个Node
    * @param nodes - 要检查的Node数组
-   * @returns Promise<NodeSpellResult[]> - 每个Node对应一个结果
+   * @returns Promise<NodeProofreadResult[]> - 每个Node对应一个结果
    */
-  async checkNodes(nodes: NodeCheckRequest[]): Promise<NodeSpellResult[]> {
+  async checkNodes(nodes: NodeProofreadRequest[]): Promise<NodeProofreadResult[]> {
     if (nodes.length === 0) return []
 
     // 为每个node生成nodeKey（如果还没有的话）
@@ -72,18 +72,18 @@ export class SpellCheckService {
     return this.mergeResults(cachedResults, newResults, nodesWithKeys)
   }
 
-  private partitionNodes(nodes: NodeCheckRequest[]): {
-    cachedResults: Map<string, NodeSpellResult>
-    nodesToCheck: NodeCheckRequest[]
+  private partitionNodes(nodes: NodeProofreadRequest[]): {
+    cachedResults: Map<string, NodeProofreadResult>
+    nodesToCheck: NodeProofreadRequest[]
   } {
-    const cachedResults = new Map<string, NodeSpellResult>()
-    const nodesToCheck: NodeCheckRequest[] = []
+    const cachedResults = new Map<string, NodeProofreadResult>()
+    const nodesToCheck: NodeProofreadRequest[] = []
 
     for (const nodeRequest of nodes) {
       const cached = this.nodeCache.get(nodeRequest.id)
 
       if (cached && !this.isCacheExpired(cached)) {
-        console.log('SpellCheckService: get result from cache:', nodeRequest.id)
+        console.log('ProofreadService: get result from cache:', nodeRequest.id)
         cachedResults.set(nodeRequest.id, {
           ...cached,
           id: nodeRequest.id // 更新为当前请求ID
@@ -96,13 +96,13 @@ export class SpellCheckService {
     return { cachedResults, nodesToCheck }
   }
 
-  private async processNodesInParallel(nodes: NodeCheckRequest[]): Promise<NodeSpellResult[]> {
+  private async processNodesInParallel(nodes: NodeProofreadRequest[]): Promise<NodeProofreadResult[]> {
     if (nodes.length === 0) return []
 
     try {
       return await this.workerPool.processNodesInParallel(nodes)
     } catch (error) {
-      console.error('SpellCheckService: Error processing nodes:', error)
+      console.error('ProofreadService: Error processing nodes:', error)
       // 返回空错误结果而不是抛出异常
       return nodes.map(node => ({
         id: node.id,
@@ -112,11 +112,11 @@ export class SpellCheckService {
     }
   }
 
-  private isCacheExpired(result: NodeSpellResult, maxAge: number = 300000): boolean {
+  private isCacheExpired(result: NodeProofreadResult, maxAge: number = 300000): boolean {
     return Date.now() - result.checkedAt > maxAge
   }
 
-  private updateNodeCache(results: NodeSpellResult[]): void {
+  private updateNodeCache(results: NodeProofreadResult[]): void {
     for (const result of results) {
       this.nodeCache.set(result.id, result)
     }
@@ -135,11 +135,11 @@ export class SpellCheckService {
   }
 
   private mergeResults(
-    cachedResults: Map<string, NodeSpellResult>,
-    newResults: NodeSpellResult[],
-    originalNodes: NodeCheckRequest[]
-  ): NodeSpellResult[] {
-    const resultMap = new Map<string, NodeSpellResult>()
+    cachedResults: Map<string, NodeProofreadResult>,
+    newResults: NodeProofreadResult[],
+    originalNodes: NodeProofreadRequest[]
+  ): NodeProofreadResult[] {
+    const resultMap = new Map<string, NodeProofreadResult>()
 
     // 添加缓存结果
     for (const [id, result] of cachedResults.entries()) {

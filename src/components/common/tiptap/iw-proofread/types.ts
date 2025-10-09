@@ -2,16 +2,16 @@ export interface NodeProofread {
 	id: string
 	node: import('@tiptap/pm/model').Node
 	status: 'idle' | 'checking' | 'checked' | 'deleted'
-	result?: import('./spell-check').NodeSpellResult
+	result?: import('./service').NodeProofreadResult
 }
 
 export interface iwProofreadOptions {
 	// 引擎配置
-	engineType?: import('./spell-check').SpellEngineType
+	engineType?: import('./service').ProofreadEngineType
 	language?: string
-	engineOptions?: import('./spell-check').TypoEngineOptions
-	              | import('./spell-check').LanguageToolEngineOptions
-	              | import('./spell-check').CustomEngineOptions
+	engineOptions?: import('./service').TypoEngineOptions
+	              | import('./service').LanguageToolEngineOptions
+	              | import('./service').CustomEngineOptions
 
 	// Worker 配置
 	maxWorkers?: number
@@ -27,7 +27,7 @@ export interface iwProofreadOptions {
 }
 
 export interface iwProofreadStorage {
-	spellService: import('./spell-check').SpellCheckService | null
+	proofreadService: import('./service').ProofreadService | null
 	isEnabled: boolean
 	showErrors: boolean
 	nodeProofreadMap: import('./utils').LockedSharedMap<string, NodeProofread>

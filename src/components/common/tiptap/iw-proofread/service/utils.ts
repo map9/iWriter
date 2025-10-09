@@ -23,7 +23,7 @@ export function generateNodeKey(node: import('@tiptap/pm/model').Node): string {
 	})
 }
 
-export function generateErrorKey(error: import('./types').SpellError): string {
+export function generateErrorKey(error: import('./types').ProofreadError): string {
 	const keyContent = `${error.offset}-${error.length}-${hash(error.word)}`;
 	return keyContent
 }

@@ -7,13 +7,13 @@ import { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { Transaction, EditorState } from '@tiptap/pm/state'
 import { ChangeSet } from '@tiptap/pm/changeset'
 
-import { debounce, generateNodeKey } from '../spell-check'
+import { debounce, generateNodeKey } from '../service'
 import { createTipTapSuggestionBox } from '../adapters/suggestionBoxAdapter'
 import type {
-	NodeCheckRequest,
-	NodeSpellResult,
-	SpellError
-} from '../spell-check'
+	NodeProofreadRequest,
+	NodeProofreadResult,
+	ProofreadError
+} from '../service'
 
 // 错误指纹接口
 interface IgnoredErrorId {
@@ -131,8 +131,10 @@ const getErrorClass = (errorType: string | undefined): string => {
 			return 'spelling-error'
 		case 'grammar':
 			return 'grammar-error'
+		case 'style':
+			return 'style-error'
 		default:
-			return 'spell-error'
+			return 'misc-error'
 	}
 }
 
@@ -167,7 +169,7 @@ const handleErrorClick = (
 }
 
 const showSuggestionPopup = (
-	error: SpellError,
+	error: ProofreadError,
 	event: MouseEvent,
 	view: EditorView,
 	decoration: Decoration,
@@ -183,8 +185,8 @@ const showSuggestionPopup = (
 		error: {
 			from: decoration.from,
 			to: decoration.to,
-			msg: error.message || `Misspelled word: ${error.word}`,
-			shortmsg: error.message || `Misspelled word: ${error.word}`,
+			message: error.message || `Misspelled word: ${error.word}`,
+			shortMessage: error.shortMessage || `misspelling`,
 			type: error.type || 'spelling',
 			replacements: error.suggestions
 		},
@@ -226,19 +228,19 @@ const removeDecorationAt = (from: number, to: number, storage: iwProofreadStorag
 	}
 }
 
-const performSpellCheck = async (
+const performProofread = async (
 	storage: iwProofreadStorage,
 	editor: Editor,
 	isAllDocument: boolean = false
 ) => {
-	if (!storage.spellService || !storage.isEnabled) return
+	if (!storage.proofreadService || !storage.isEnabled) return
 
   while (storage.isProcessing) {
     await new Promise(resolve => setTimeout(resolve, 10));
   }
 	storage.isProcessing = true
 	
-	let nodeProofreadRequests: NodeCheckRequest[] = []
+	let nodeProofreadRequests: NodeProofreadRequest[] = []
 	if (isAllDocument) {
 		collectAllNodes(editor, storage)
 		console.log({ function: 'collectAllNodes', nodeProofreadMap: await storage.nodeProofreadMap.size() })
@@ -248,9 +250,9 @@ const performSpellCheck = async (
 	console.log({ function: 'buildNodeProofreadRequests', nodeProofreadRequests, nodeProofreadMap: await storage.nodeProofreadMap.size() })
 	
 	try {
-		let nodeProofreadResults: NodeSpellResult[] = []
+		let nodeProofreadResults: NodeProofreadResult[] = []
 		if (nodeProofreadRequests.length) {
-			nodeProofreadResults = await storage.spellService.checkNodes(nodeProofreadRequests)
+			nodeProofreadResults = await storage.proofreadService.checkNodes(nodeProofreadRequests)
   		console.log({ function: 'checkNodes', nodeProofreadResults })
     }
 
@@ -268,7 +270,7 @@ const performSpellCheck = async (
 		}
 
 	} catch (error) {
-		console.error('Spell check error:', error)
+		console.error('Proofread error:', error)
 	} finally {
 		storage.isProcessing = false
 	}
@@ -400,7 +402,7 @@ const getChangedNodes = (transactions: Transaction[], oldEditorState: EditorStat
   }
 }
 /**
- * 将文档中所有节点作为NodeCheckRequest集合返回
+ * 将文档中所有节点作为NodeProofreadRequest集合返回
  * @param doc 文档根节点
  * @returns
  */
@@ -435,8 +437,8 @@ const collectAllNodes = (editor: Editor, storage: iwProofreadStorage) => {
   })
 }
 
-const buildNodeProofreadRequests = (storage: iwProofreadStorage): NodeCheckRequest[] => {
-	const nodeProofreadRequests: NodeCheckRequest[] = []
+const buildNodeProofreadRequests = (storage: iwProofreadStorage): NodeProofreadRequest[] => {
+	const nodeProofreadRequests: NodeProofreadRequest[] = []
   storage.nodeProofreadMap.withLock((map)=>{
     map.forEach((value, key) => {
       if (value.status === 'idle') {
@@ -451,8 +453,8 @@ const buildNodeProofreadRequests = (storage: iwProofreadStorage): NodeCheckReque
   return nodeProofreadRequests
 }
 
-const updateNodeProofreadResults = (storage: iwProofreadStorage, nodeProofreadResults: NodeSpellResult[]) => {
-  const newNodeResults: NodeSpellResult[] = []
+const updateNodeProofreadResults = (storage: iwProofreadStorage, nodeProofreadResults: NodeProofreadResult[]) => {
+  const newNodeResults: NodeProofreadResult[] = []
   storage.nodeProofreadMap.withLock((map)=>{
     nodeProofreadResults.forEach((value) => {
       const nodeProofread = map.get(value.id)
@@ -479,7 +481,7 @@ export const iwProofreadPluginKey = new PluginKey<ProofreadPluginState>('iwProof
 export const iwProofreadPlugin = (editor: Editor, options: iwProofreadOptions, storage: iwProofreadStorage) => {
   
   const debouncedIncrementalSpellCheck = debounce(() => {
-      performSpellCheck(storage, editor)
+      performProofread(storage, editor)
     }, options.debounceTime || 1000)
 
   return new Plugin({

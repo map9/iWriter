@@ -1,24 +1,23 @@
-// 直接使用 import，让 Vite 处理模块
 import workerpool from 'workerpool'
 import Typo from 'typo-js'
 
-// ===== 类型定义 =====
-export interface SpellError {
+interface ProofreadError {
   offset: number // 相对于node开始位置的偏移
   length: number
   word: string
   suggestions: string[]
   message?: string
-  type?: 'spelling' | 'grammar'
+  shortMessage?: string
+  type?: 'spelling' | 'grammar' | 'style' | 'misc'
 }
 
-interface NodeSpellResult {
+interface NodeProofreadResult {
   id: string
-  errors: SpellError[]
+  errors: ProofreadError[]
   checkedAt: number
 }
 
-type SpellEngineType = 'typo' | 'languagetool' | 'custom'
+type ProofreadEngineType = 'typo' | 'languagetool' | 'custom'
 
 interface TypoEngineOptions {
   dictionaryPath: string
@@ -30,24 +29,24 @@ interface LanguageToolEngineOptions {
   timeout?: number
 }
 
-interface SpellEngineConfig {
-  type: SpellEngineType
+interface ProofreadEngineConfig {
+  type: ProofreadEngineType
   language: string
   engineOptions?: TypoEngineOptions | LanguageToolEngineOptions | Record<string, unknown>
 }
 
 // ===== 引擎抽象接口 =====
-interface SpellEngine {
-  init(config: SpellEngineConfig): Promise<void>
-  check(text: string): Promise<SpellError[]>
+interface ProofreadEngine {
+  init(config: ProofreadEngineConfig): Promise<void>
+  check(text: string): Promise<ProofreadError[]>
 }
 
 // ===== Typo.js 引擎实现 =====
-class TypoEngine implements SpellEngine {
+class TypoEngine implements ProofreadEngine {
   private dictionary: Typo | null = null
   private language = 'en'
 
-  async init(config: SpellEngineConfig): Promise<void> {
+  async init(config: ProofreadEngineConfig): Promise<void> {
     this.language = config.language
     const options = config.engineOptions as TypoEngineOptions | undefined
 
@@ -67,10 +66,10 @@ class TypoEngine implements SpellEngine {
     console.log(`[TypoEngine] Dictionary loaded for ${this.language}`)
   }
 
-  async check(text: string): Promise<SpellError[]> {
+  async check(text: string): Promise<ProofreadError[]> {
     if (!this.dictionary) return []
 
-    const errors: SpellError[] = []
+    const errors: ProofreadError[] = []
     const words = this.getWords(text)
 
     for (const {word, offset, length} of words) {
@@ -136,13 +135,38 @@ class TypoEngine implements SpellEngine {
 }
 
 // ===== LanguageTool 引擎实现 =====
-class LanguageToolEngine implements SpellEngine {
+class LanguageToolEngine implements ProofreadEngine {
+  private misspellingCategories = [
+    'TYPOS', 'CONFUSED_WORDS', 'NONSTANDARD_PHRASES', 'MULTITOKEN_SPELLING', 
+  ]
+
+  private grammarCategories = [
+    'GRAMMAR', 'COLLOCATION', 
+  ]
+
+  private styleCategories = [
+    'STYLE', 'REDUNDANCY', 'REPETITIONS_STYLE', 'PLAIN_ENGLISH',
+    'WIKIPEDIA', 'CREATIVE_WRITING', 'TON_ACADEMIC', 
+  ]
+
+  private miscCategories = [
+    // 排版类型的错误
+    'TYPOGRAPHY', 'CASING', 'PUNCTUATION',
+    // 组合词错误
+    'COMPOUNDING',
+    // 专用名词大小写错误
+    'PROPER_NOUNS',
+    // 语义不明错误
+    'SEMANTICS',
+    'MISC',
+  ]
+
   private apiUrl = 'https://api.languagetool.org/v2/check'
   private language = 'en'
   private apiKey?: string
   private timeout = 5000
 
-  async init(config: SpellEngineConfig): Promise<void> {
+  async init(config: ProofreadEngineConfig): Promise<void> {
     this.language = config.language
     const options = config.engineOptions as LanguageToolEngineOptions | undefined
 
@@ -159,7 +183,7 @@ class LanguageToolEngine implements SpellEngine {
     console.log(`[LanguageToolEngine] Initialized for ${this.language}, API: ${this.apiUrl}`)
   }
 
-  async check(text: string): Promise<SpellError[]> {
+  async check(text: string): Promise<ProofreadError[]> {
     if (!text || text.trim().length === 0) return []
 
     try {
@@ -207,7 +231,7 @@ class LanguageToolEngine implements SpellEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private convertMatches(matches: any[], text: string): SpellError[] {
+  private convertMatches(matches: any[], text: string): ProofreadError[] {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return matches.map((match: any) => ({
       offset: match.offset,
@@ -216,25 +240,31 @@ class LanguageToolEngine implements SpellEngine {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       suggestions: (match.replacements || []).map((r: any) => r.value).slice(0, 10),
       message: match.message,
+      shortMessage: match.shortMessage,
       type: this.detectErrorType(match.rule?.category?.id)
     }))
   }
 
-  private detectErrorType(categoryId?: string): 'spelling' | 'grammar' {
+  private detectErrorType(categoryId?: string): 'spelling' | 'grammar' | 'style' | 'misc' {
     if (!categoryId) return 'spelling'
 
-    const grammarCategories = [
-      'GRAMMAR', 'PUNCTUATION', 'TYPOGRAPHY',
-      'CASING', 'REDUNDANCY', 'STYLE', 'SEMANTICS',
-      'COLLOCATION', 'CONFUSED_WORDS'
-    ]
-
-    return grammarCategories.includes(categoryId.toUpperCase()) ? 'grammar' : 'spelling'
+    if (this.misspellingCategories.includes(categoryId.toUpperCase())) {
+      return 'spelling'
+    } else if (this.grammarCategories.includes(categoryId.toUpperCase())) {
+      return 'grammar'
+    } else if (this.styleCategories.includes(categoryId.toUpperCase())) {
+      return 'style'
+    } else if (this.miscCategories.includes(categoryId.toUpperCase())) {
+      return 'misc'
+    } else {
+      console.warn(`Can't find categoryId: ${categoryId}.`)
+      return 'spelling'
+    }
   }
 }
 
 // ===== 引擎工厂 =====
-function createEngine(config: SpellEngineConfig): SpellEngine {
+function createEngine(config: ProofreadEngineConfig): ProofreadEngine {
   switch (config.type) {
     case 'typo':
       return new TypoEngine()
@@ -248,16 +278,16 @@ function createEngine(config: SpellEngineConfig): SpellEngine {
 }
 
 // ===== Worker 全局状态 =====
-let engine: SpellEngine | null = null
+let engine: ProofreadEngine | null = null
 
 // ===== Worker 导出函数 =====
-async function initEngine(config: SpellEngineConfig): Promise<void> {
+async function initEngine(config: ProofreadEngineConfig): Promise<void> {
   engine = createEngine(config)
   await engine.init(config)
-  console.log(`[spellCheckWorker] Engine ready: ${config.type}, language: ${config.language}`)
+  console.log(`[proofreadCheckWorker] Engine ready: ${config.type}, language: ${config.language}`)
 }
 
-async function checkSpelling(id: string, text: string): Promise<NodeSpellResult> {
+async function proofread(id: string, text: string): Promise<NodeProofreadResult> {
   if (!engine) {
     throw new Error('Engine not initialized')
   }
@@ -267,7 +297,7 @@ async function checkSpelling(id: string, text: string): Promise<NodeSpellResult>
   const duration = performance.now() - start
 
   console.log({
-    function: 'spellCheckWorker.checkSpelling',
+    function: 'proofreadCheckWorker.proofread',
     id: id,
     text: text.substring(0, 50),
     errorCount: errors.length,
@@ -281,13 +311,13 @@ async function checkSpelling(id: string, text: string): Promise<NodeSpellResult>
   }
 }
 
-async function batchCheckSpelling(nodes: {id: string; text: string}[]): Promise<NodeSpellResult[]> {
-  return Promise.all(nodes.map(({id, text}) => checkSpelling(id, text)))
+async function batchProofread(nodes: {id: string; text: string}[]): Promise<NodeProofreadResult[]> {
+  return Promise.all(nodes.map(({id, text}) => proofread(id, text)))
 }
 
 // 导出 workerpool 可调用的函数
 workerpool.worker({
   initEngine,
-  checkSpelling,
-  batchCheckSpelling
+  proofread,
+  batchProofread
 })

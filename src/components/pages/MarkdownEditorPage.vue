@@ -744,7 +744,7 @@ async function handleMenuAction(action: string): Promise<boolean> {
       return true
     case 'check-whole-document':
       if (editor.value) {
-        editor.value.commands.checkSpelling()
+        editor.value.commands.proofreadWhole()
       }
       return true
     case 'check-spelling-grammar-while-typing':
@@ -879,9 +879,9 @@ function setProofread(enable: boolean) {
   const proofread = !!enable
 
   if (proofread === true) {
-      editor.value?.commands.enableSpellCheck()
+      editor.value?.commands.enableProofread()
   } else {
-      editor.value?.commands.disableSpellCheck()
+      editor.value?.commands.disableProofread()
   }
 
   appStore.updateTabState(props.tab.id, { editState: { proofread } })

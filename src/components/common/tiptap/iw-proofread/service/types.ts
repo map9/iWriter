@@ -1,36 +1,30 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 
 // ===== 错误类型定义 =====
-export interface SpellError {
+export interface ProofreadError {
   offset: number // 相对于node开始位置的偏移
   length: number
   word: string
   suggestions: string[]
   message?: string
-  type?: 'spelling' | 'grammar'
-}
-
-// ===== 优先级定义 =====
-export enum NodePriority {
-  HIGH = 1,    // 用户正在编辑的区域
-  NORMAL = 2,  // 可见区域
-  LOW = 3      // 不可见区域
+  shortMessage?: string
+  type?: 'spelling' | 'grammar' | 'style' | 'misc'
 }
 
 // ===== 检查请求和结果 =====
-export interface NodeCheckRequest {
+export interface NodeProofreadRequest {
   id: string        // 唯一标识符
   node: ProseMirrorNode
 }
 
-export interface NodeSpellResult {
+export interface NodeProofreadResult {
   id: string        // 唯一标识符
-  errors: SpellError[]
+  errors: ProofreadError[]
   checkedAt: number
 }
 
 // ===== 引擎类型枚举 =====
-export type SpellEngineType = 'typo' | 'languagetool' | 'custom'
+export type ProofreadEngineType = 'typo' | 'languagetool' | 'custom'
 
 // ===== 引擎特定配置 =====
 
@@ -52,9 +46,9 @@ export interface CustomEngineOptions {
 }
 
 // ===== 统一引擎配置接口 =====
-export interface SpellEngineConfig {
+export interface ProofreadEngineConfig {
   // 通用配置
-  type: SpellEngineType
+  type: ProofreadEngineType
   language: string        // 语言代码，如 'en', 'en-US', 'zh-CN'
 
   // 引擎特定配置（根据 type 选择对应的 options）
@@ -62,9 +56,9 @@ export interface SpellEngineConfig {
 }
 
 // ===== Service 配置接口 =====
-export interface SpellServiceConfig {
+export interface ProofreadServiceConfig {
   // 引擎配置
-  engineType?: SpellEngineType
+  engineType?: ProofreadEngineType
   language?: string
   engineOptions?: TypoEngineOptions | LanguageToolEngineOptions | CustomEngineOptions
 
@@ -79,7 +73,7 @@ export interface SpellServiceConfig {
 // ===== Worker 池配置 =====
 export interface WorkerPoolConfig {
   maxWorkers: number
-  engineConfig: SpellEngineConfig
+  engineConfig: ProofreadEngineConfig
   workerScript?: string
   workerTimeout?: number
 }

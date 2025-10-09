@@ -2,18 +2,18 @@ import { Extension } from '@tiptap/core'
 import { DecorationSet } from '@tiptap/pm/view'
 import type { iwProofreadOptions, iwProofreadStorage } from './types'
 import { iwProofreadPlugin } from './plugin/iwProofreadPlugin'
-import { SpellCheckService } from './spell-check'
+import { ProofreadService } from './service'
 import { LockedSharedMap } from './utils'
-import './styles/styles.scss'
+import './styles/style.scss'
 
 // 声明命令类型
 declare module '@tiptap/core' {
 	interface Commands<ReturnType> {
 		iwProofread: {
-			enableSpellCheck: () => ReturnType
-			disableSpellCheck: () => ReturnType
-			toggleSpellCheck: () => ReturnType
-			checkSpelling: () => ReturnType
+			enableProofread: () => ReturnType
+			disableProofread: () => ReturnType
+			toggleProofread: () => ReturnType
+			proofreadWhole: () => ReturnType
 			showProofreadErrors: (show: boolean) => ReturnType
 			toggleProofreadErrorDisplay: () => ReturnType
 		}
@@ -26,11 +26,11 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 	addOptions() {
 		return {
 			// 引擎配置
-			engineType: 'typo' as import('./spell-check').SpellEngineType,
+			engineType: 'typo' as import('./service').ProofreadEngineType,
 			language: 'en',
 			engineOptions: {
 				dictionaryPath: '/dictionaries'
-			} as import('./spell-check').TypoEngineOptions,
+			} as import('./service').TypoEngineOptions,
 
 			// Worker 配置
 			maxWorkers: Math.min(navigator.hardwareConcurrency || 2, 4),
@@ -52,7 +52,7 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 
 	addStorage() {
     return {
-			spellService: null,
+			proofreadService: null,
 			isEnabled: this.options.enabled ?? true,
 			showErrors: this.options.showErrors ?? true,
 			nodeProofreadMap: new LockedSharedMap<string, import('./types').NodeProofread>(),
@@ -65,24 +65,24 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 
 	addCommands() {
 		return {
-			enableSpellCheck: () => () => {
+			enableProofread: () => () => {
 				if (!this.storage.isEnabled) {
 					this.storage.isEnabled = true
 					this.storage.nodeProofreadMap.clear()
 				}
 				return true
 			},
-			disableSpellCheck: () => () => {
+			disableProofread: () => () => {
 				this.storage.isEnabled = false
 				this.storage.nodeProofreadMap.clear()
 				return true
 			},
-			toggleSpellCheck: () => ({ commands }) => {
+			toggleProofread: () => ({ commands }) => {
 				return this.storage.isEnabled
-					? commands.disableSpellCheck()
-					: commands.enableSpellCheck()
+					? commands.disableProofread()
+					: commands.enableProofread()
 			},
-			checkSpelling: () => () => {
+			proofreadWhole: () => () => {
 				// TODO
 				return true
 			},
@@ -97,7 +97,7 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 	},
 
 	onCreate() {
-		this.storage.spellService = new SpellCheckService({
+		this.storage.proofreadService = new ProofreadService({
 			engineType: this.options.engineType,
 			language: this.options.language,
 			engineOptions: this.options.engineOptions,
@@ -108,8 +108,8 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 	},
 
 	onDestroy() {
-		if (this.storage.spellService) {
-			this.storage.spellService.destroy()
+		if (this.storage.proofreadService) {
+			this.storage.proofreadService.destroy()
 		}
 		if (this.storage.debounceTimer) {
 			clearTimeout(this.storage.debounceTimer)

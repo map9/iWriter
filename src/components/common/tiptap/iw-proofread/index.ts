@@ -3,25 +3,23 @@ export { iwProofreadExtension, default } from './iwProofreadExtension'
 export type { iwProofreadOptions, iwProofreadStorage } from './types'
 
 // 核心服务
-export { SpellCheckService, SpellWorkerPool, debounce } from './spell-check'
+export { ProofreadService, ProofreadWorkerPool, debounce } from './service'
 
 // 核心类型
 export type {
-	SpellError,
-	NodeCheckRequest,
-	NodeSpellResult,
-	NodePriority,
-	SpellServiceConfig,
-	SpellEngineType,
-	SpellEngineConfig,
+	ProofreadError,
+	NodeProofreadRequest,
+	NodeProofreadResult,
+	ProofreadServiceConfig,
+	ProofreadEngineType,
+	ProofreadEngineConfig,
 	TypoEngineOptions,
 	LanguageToolEngineOptions,
 	CustomEngineOptions,
 	WorkerPoolConfig
-} from './spell-check'
+} from './service'
 
 // 建议框适配器
 export {
-	createTipTapSuggestionBox,
-	defaultSuggestionBoxCSS
+	createTipTapSuggestionBox
 } from './adapters/suggestionBoxAdapter'

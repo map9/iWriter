@@ -1,13 +1,13 @@
 import workerpool from 'workerpool'
 // 使用 Vite 的 ?worker&url 语法获取 Worker URL
-import WorkerURL from './workers/spellCheckWorker.ts?worker&url'
+import WorkerURL from './workers/proofreadCheckWorker.ts?worker&url'
 import type {
-  NodeCheckRequest,
-  NodeSpellResult,
+  NodeProofreadRequest,
+  NodeProofreadResult,
   WorkerPoolConfig,
 } from './types'
 
-export class SpellWorkerPool {
+export class ProofreadWorkerPool {
   private pool: workerpool.Pool
   private config: WorkerPoolConfig
   private initPromise: Promise<void> | null = null
@@ -37,7 +37,7 @@ export class SpellWorkerPool {
         throw err
       })
     } catch (error) {
-      console.error('SpellWorkerPool: Failed to create pool:', error)
+      console.error('ProofreadWorkerPool: Failed to create pool:', error)
       throw error
     }
   }
@@ -46,9 +46,9 @@ export class SpellWorkerPool {
     try {
       // 在第一个 worker 中初始化引擎，直接传递完整的引擎配置
       await this.pool.exec('initEngine', [this.config.engineConfig])
-      console.log('SpellWorkerPool: Engine initialized successfully')
+      console.log('ProofreadWorkerPool: Engine initialized successfully')
     } catch (error) {
-      console.error('SpellWorkerPool: Engine initialization failed:', error)
+      console.error('ProofreadWorkerPool: Engine initialization failed:', error)
       throw error
     }
   }
@@ -65,7 +65,7 @@ export class SpellWorkerPool {
     }
   }
 
-  async processNodesInParallel(nodes: NodeCheckRequest[]): Promise<NodeSpellResult[]> {
+  async processNodesInParallel(nodes: NodeProofreadRequest[]): Promise<NodeProofreadResult[]> {
     await this.ensureInitialized()
 
     if (nodes.length === 0) return []
@@ -78,13 +78,13 @@ export class SpellWorkerPool {
       }))
 
       // 使用 workerpool 批量处理
-      const results = await this.pool.exec('batchCheckSpelling', [nodeData])
+      const results = await this.pool.exec('batchProofread', [nodeData])
 
-      console.log(`SpellWorkerPool: Processed ${nodes.length} nodes`)
+      console.log(`ProofreadWorkerPool: Processed ${nodes.length} nodes`)
       return results
 
     } catch (error) {
-      console.error('SpellWorkerPool: Error processing nodes:', error)
+      console.error('ProofreadWorkerPool: Error processing nodes:', error)
 
       // 返回空结果而不是抛出异常
       return nodes.map(node => ({
@@ -103,9 +103,9 @@ export class SpellWorkerPool {
   async destroy(): Promise<void> {
     try {
       await this.pool.terminate()
-      console.log('SpellWorkerPool: Pool terminated successfully')
+      console.log('ProofreadWorkerPool: Pool terminated successfully')
     } catch (error) {
-      console.error('SpellWorkerPool: Error terminating pool:', error)
+      console.error('ProofreadWorkerPool: Error terminating pool:', error)
     }
 
     this.initPromise = null
