@@ -1,7 +1,7 @@
 import { Extension } from '@tiptap/core'
 import { DecorationSet } from '@tiptap/pm/view'
 import type { iwProofreadOptions, iwProofreadStorage } from './types'
-import { iwProofreadPlugin } from './plugin/iwProofreadPlugin'
+import { iwProofreadPlugin, performProofread } from './plugin/iwProofreadPlugin'
 import { ProofreadService } from './service'
 import { LockedSharedMap } from './utils'
 
@@ -82,7 +82,7 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 					: commands.enableProofread()
 			},
 			proofreadWhole: () => () => {
-				// TODO
+				performProofread(this.storage, this.editor)
 				return true
 			},
 			showProofreadErrors: (show: boolean) => () => {

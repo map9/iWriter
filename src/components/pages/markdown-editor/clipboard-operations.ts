@@ -1,6 +1,5 @@
 import type { Editor } from '@tiptap/vue-3'
 import { generateHTML } from '@tiptap/core'
-import html2canvas from 'html2canvas'
 import TurndownService from 'turndown'
 import { gfm } from '@guyplusplus/turndown-plugin-gfm'
 import { notify } from '@/utils/notifications'
@@ -144,40 +143,29 @@ export async function copyAsHtml(editor: Editor): Promise<boolean> {
  */
 export async function pasteAsText(editor: Editor): Promise<boolean> {
   try {
-    ///*
-    const clipboardItems = await navigator.clipboard.read();
-    // 遍历所有剪贴板项，查找 HTML 类型
-    for (const item of clipboardItems) {
-      console.log('ClipboardItem types:', item.types);
-
-      if (item.types.includes('text/html')) {
-        const htmlBlob = await item.getType('text/html');
-        const htmlContent = await htmlBlob.text();
-        console.log('Pasted HTML content:', htmlContent);
-      }
-      
-      if (item.types.includes('text/plain')) {
-        const textBlob = await item.getType('text/plain');
-        const textContent = await textBlob.text();
-        console.log('Pasted plain text content:', textContent);
-      }
-    }
-    //*/
-
-    // 从剪贴板读取纯文本
+    // readText() 返回的就是纯文本（即使剪贴板包含 HTML）
     const text = await navigator.clipboard.readText()
     if (!text) {
       return false
     }
 
-    // 清理文本，移除可能的HTML标签和特殊格式
-    const cleanText = text.replace(/<[^>]*>/g, '').trim()
-    if (!cleanText) {
-      return false
-    }
+    // 使用 ProseMirror 的 insertText 确保严格的纯文本插入
+    //const { state } = editor
+    //const { from, to } = state.selection
+    //const tr = state.tr.insertText(text, from, to)
+    //editor.view.dispatch(tr)
 
-    // 插入纯文本到当前位置
-    editor.chain().focus().insertContent(cleanText).run()
+    // 按换行符分割文本
+    const lines = text.split('\n')
+    
+    // 构建段落数组
+    const content = lines.map(line => ({
+      type: 'paragraph',
+      content: line ? [{ type: 'text', text: line }] : []
+    }))
+
+    editor.chain().focus().insertContent(content).run()
+    
     return true
   } catch (error) {
     notify.error(`${error instanceof Error ? error.message : String(error)}`, '粘贴失败')

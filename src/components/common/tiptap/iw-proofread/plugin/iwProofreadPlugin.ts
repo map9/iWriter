@@ -194,7 +194,13 @@ const showSuggestionPopup = (
 		onReplace: (value: string) => {
 			const { from, to } = decoration
 			const tr = view.state.tr
-			tr.replaceWith(from, to, view.state.schema.text(value))
+
+			// 获取原文本位置的 marks，以便在替换后保留格式
+			const $from = view.state.doc.resolve(from)
+			const marks = $from.marks()
+
+			// 创建带有原有 marks 的新文本节点
+			tr.replaceWith(from, to, view.state.schema.text(value, marks))
 			removeDecorationAt(from, to, storage, view)
 			view.dispatch(tr)
 			app.destroy()
@@ -228,7 +234,7 @@ const removeDecorationAt = (from: number, to: number, storage: iwProofreadStorag
 	}
 }
 
-const performProofread = async (
+export const performProofread = async (
 	storage: iwProofreadStorage,
 	editor: Editor,
 	isAllDocument: boolean = false

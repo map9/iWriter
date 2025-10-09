@@ -444,7 +444,9 @@ const extensions = [
     }
   }),
   
-  Image.extend({
+  Image.configure({
+    allowBase64: true
+  }).extend({
     addAttributes() {
       return {
         src: {
@@ -494,6 +496,35 @@ const extensions = [
           },
         },
       }
+    },
+    addPasteRules() {
+      return [
+        {
+          find: /(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?[^\s]*)?)/gi,
+          handler: ({ state, range, match }) => {
+            const url = match[1]
+            const { tr } = state
+            const { from, to } = range
+            
+            // 获取当前段落
+            const $from = tr.doc.resolve(from)
+            const paragraph = $from.parent
+            
+            // 如果当前段落只有这个 URL 文本（或为空），替换整个段落
+            if (paragraph.textContent.trim() === match[0].trim()) {
+              const paragraphStart = $from.before()
+              const paragraphEnd = $from.after()
+              tr.replaceWith(paragraphStart, paragraphEnd, this.type.create({ src: url }))
+            } else {
+              // 否则，在段落后插入新的图片块
+              tr.delete(from, to)
+              const imageNode = this.type.create({ src: url })
+              const insertPos = $from.after()
+              tr.insert(insertPos, imageNode)
+            }
+          }
+        }
+      ]
     },
     addNodeView() {
       return VueNodeViewRenderer(iwImageView)

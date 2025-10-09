@@ -287,6 +287,10 @@ export async function onEditorMenuAction(editor: Editor | undefined, action: str
       await copyAsHtml(editor)
       return true
 
+    case 'paste-as-text':
+      await pasteAsText(editor)
+      return true
+
     default:
       console.log('Unhandled menu action in MarkdownEditor:', action)
       return false
