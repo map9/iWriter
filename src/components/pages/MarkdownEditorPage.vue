@@ -899,6 +899,4 @@ defineExpose({
 </script>
 
 <style lang="scss">
-@use '@/components/common/tiptap/style.scss' as *;
-@use './markdown-editor/style.scss';
 </style>

@@ -34,7 +34,7 @@ export type CreateSuggestionBox = (options: SuggestionBoxOptions) => Destroy
 /**
  * 创建适配TipTap的建议框
  * 这个函数创建一个与TipTap扩展UI风格完全一致的建议框
- * 样式定义在 src/components/common/tiptap/style.scss 中
+ * 样式定义在 src/assets/styles/style.scss 中
  */
 export function createTipTapSuggestionBox(
 	uiStrings?: { noSuggestions?: string }
@@ -56,6 +56,12 @@ export function createTipTapSuggestionBox(
 		const content = createSuggestionContent(error, onReplace, onIgnore, uiStrings)
 		suggestionPanel.appendChild(content)
 
+		// 监听滚动事件
+    const handleScroll = () => {
+      // 滚动时关闭 suggestion box
+      onClose()
+    }
+
 		// 点击外部关闭
 		const handleOutsideClick = (event: MouseEvent) => {
 			if (!suggestionPanel.contains(event.target as Node)) {
@@ -73,11 +79,24 @@ export function createTipTapSuggestionBox(
 		setTimeout(() => {
 			document.addEventListener('click', handleOutsideClick)
 			document.addEventListener('keydown', handleKeyDown)
+			
+			const editorContent = document.querySelector('.ProseMirror')
+      if (editorContent) {
+        editorContent.addEventListener('scroll', handleScroll)
+      }
+      window.addEventListener('scroll', handleScroll, true)
 		}, 0)
 
 		function destroy() {
 			document.removeEventListener('click', handleOutsideClick)
 			document.removeEventListener('keydown', handleKeyDown)
+			
+			const editorContent = document.querySelector('.ProseMirror')
+      if (editorContent) {
+        editorContent.removeEventListener('scroll', handleScroll)
+      }
+      window.removeEventListener('scroll', handleScroll, true)
+
 			if (suggestionWidget.parentNode) {
 				suggestionWidget.parentNode.removeChild(suggestionWidget)
 			}

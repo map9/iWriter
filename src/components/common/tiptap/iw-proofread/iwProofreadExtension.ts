@@ -4,7 +4,6 @@ import type { iwProofreadOptions, iwProofreadStorage } from './types'
 import { iwProofreadPlugin } from './plugin/iwProofreadPlugin'
 import { ProofreadService } from './service'
 import { LockedSharedMap } from './utils'
-import './styles/style.scss'
 
 // 声明命令类型
 declare module '@tiptap/core' {

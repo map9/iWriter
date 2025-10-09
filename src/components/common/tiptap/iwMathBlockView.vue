@@ -217,9 +217,8 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
-@use './style.scss' as *;
 
-.tiptap {
+//.tiptap {
   .toolbar-warpper {
     &.editing {
       border: 1px solid rgba(0, 0, 0, 0.2);
@@ -254,5 +253,5 @@ onUnmounted(() => {
       }
     }
   }
-}
+//}
 </style>

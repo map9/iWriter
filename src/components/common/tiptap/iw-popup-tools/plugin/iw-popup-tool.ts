@@ -74,12 +74,12 @@ export class iwPopupTool {
       return DecorationSet.create(state.doc, [
         // 高亮当前编辑的链接
         Decoration.inline(feature.from, feature.to, {
-          class: 'floating-editor-highlight'
+          class: 'popup-tools-highlight'
         }),
         // 编辑面板 - 对于Node，放在Node后面以避免事件冲突
         Decoration.widget(feature.to, this._editWidget?.dom, {
           side: 1, // 显示在位置右侧
-          key: 'popop-editor',
+          key: 'popup-editor',
           stopEvent: () => true, // 阻止事件传播到Node
         })
       ])

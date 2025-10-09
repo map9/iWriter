@@ -620,7 +620,6 @@ const deleteRow = (): void => {
 </script>
 
 <style lang="scss" scoped>
-@use './style.scss' as *;
 /*
 .toolbar-warpper {
   &.has-focus {

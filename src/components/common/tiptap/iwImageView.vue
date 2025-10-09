@@ -631,9 +631,8 @@ const updateImageFromInput = async (): Promise<void> => {
 </script>
 
 <style lang="scss" scoped>
-@use './style.scss' as *;
 
-.tiptap {
+//.tiptap {
   .toolbar-warpper {
     .toolbar-controls {
       border-radius: 0.5rem 0.5rem 0 0;
@@ -874,5 +873,5 @@ const updateImageFromInput = async (): Promise<void> => {
     }
     */
   }
-}
+//}
 </style>
