@@ -88,7 +88,6 @@ import {
   IconSearch,
   IconTag,
   IconList,
-  IconDots
 } from '@tabler/icons-vue'
 
 import { SidebarMode } from '@/types'
@@ -130,7 +129,7 @@ function handleModeClick(mode: SidebarMode) {
     return
   }
   
-  appStore.setLeftSidebarMode(mode as any)
+  appStore.setLeftSidebarMode(mode as SidebarMode)
 }
 
 function startResize(event: MouseEvent) {

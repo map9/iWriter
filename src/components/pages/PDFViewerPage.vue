@@ -134,7 +134,6 @@ import {
   IconZoomReset,
   IconChevronLeft,
   IconChevronRight,
-  IconFile,
   IconAlertCircle
 } from '@tabler/icons-vue'
 

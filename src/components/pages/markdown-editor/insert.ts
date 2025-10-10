@@ -1,5 +1,6 @@
 import { type Editor } from '@tiptap/vue-3'
 import { find } from 'linkifyjs'
+import { iwPopupTool } from '@/components/common/tiptap/iw-popup-tools'
 
 function isValidUrl(text: string): boolean {
   if (!text?.trim()) return false
@@ -20,20 +21,15 @@ export function toggleLink(editor: Editor | undefined) {
     const iwPopupToolsExt = editor.extensionManager.extensions.find(ext => ext.name === 'iwPopupTools')
     if (iwPopupToolsExt && iwPopupToolsExt.options.tools) {
       // 找到iwLinkPopupTool实例
-      const linkTool = iwPopupToolsExt.options.tools.find((tool: any) => tool.options.type === 'link')
+      const linkTool = iwPopupToolsExt.options.tools.find((tool: iwPopupTool) => tool.options.type === 'link')
       if (linkTool) linkTool.editMode = true
     }
-    
-    let linkFrom: number, linkTo: number
     
     if (!editor.state.selection.empty) {
       const selectedText = editor.state.doc.textBetween(
         editor.state.selection.from, 
         editor.state.selection.to
       )
-      
-      linkFrom = editor.state.selection.from
-      linkTo = editor.state.selection.to
       
       if (isValidUrl(selectedText)) {
         editor.chain().focus().setLink({ href: selectedText }).run()
@@ -45,13 +41,8 @@ export function toggleLink(editor: Editor | undefined) {
       if (markRange) {
         // 扩展到整个link范围
         editor.chain().focus().extendMarkRange('link').setLink({ href: '' }).run()
-        // 获取扩展后的选区范围
-        linkFrom = editor.state.selection.from
-        linkTo = editor.state.selection.to
       } else {
         editor.chain().focus().setLink({ href: '' }).run()
-        linkFrom = editor.state.selection.from
-        linkTo = editor.state.selection.to
       }
     }
   }
@@ -75,7 +66,7 @@ export function toggleMath(editor: Editor | undefined) {
     const iwPopupToolsExt = editor.extensionManager.extensions.find(ext => ext.name === 'iwPopupTools')
     if (iwPopupToolsExt && iwPopupToolsExt.options.tools) {
       // 找到iwMathPopupTool实例
-      const mathTool = iwPopupToolsExt.options.tools.find((tool: any) => tool.options.type === 'inlineMath')
+      const mathTool = iwPopupToolsExt.options.tools.find((tool: iwPopupTool) => tool.options.type === 'inlineMath')
       if (mathTool) mathTool.editMode = true
     }
     

@@ -5,8 +5,8 @@ import type { TooltipContentParseAdapter } from '../types/tooltip'
  * Provides markdown parsing and HTML sanitization with graceful fallbacks
  */
 export class DefaultTooltipContentParseAdapter implements TooltipContentParseAdapter {
-  private marked: any = null
-  private DOMPurify: any = null
+  private marked: { parse: (content: string) => string } | null = null
+  private DOMPurify: { sanitize: (html: string, config?: Record<string, unknown>) => string } | null = null
   private initialized = false
 
   constructor() {
@@ -26,7 +26,7 @@ export class DefaultTooltipContentParseAdapter implements TooltipContentParseAda
   parseMarkdown(content: string): string {
     if (this.marked) {
       try {
-        return this.marked.parse(content)
+        return this.marked!.parse(content)
       } catch (error) {
         console.error('Marked parsing failed, falling back to basic parser:', error)
       }

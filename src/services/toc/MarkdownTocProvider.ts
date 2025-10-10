@@ -87,7 +87,7 @@ export class MarkdownTocProvider implements TocProvider {
 
       // 更新浏览器历史记录
       if (history.pushState) {
-        history.pushState(null, null as any, `#${id}`)
+        history.pushState(null, '', `#${id}`)
       }
 
       // 平滑滚动到元素
@@ -283,8 +283,8 @@ export class MarkdownTocProvider implements TocProvider {
 
       // 计算移动的位置
       let insertPos: number
-      let dragStartPos = dragPos
-      let dragEndPos = dragPos + dragNode.nodeSize
+      const dragStartPos = dragPos
+      const dragEndPos = dragPos + dragNode.nodeSize
 
       if (position === 'before') {
         insertPos = dropPos

@@ -5,7 +5,7 @@ export function findMarkRange(state: EditorState, pos: number, markTypeName: str
   const markType = state.schema.marks[markTypeName];
   if (!markType) return null;
 
-  let node = $pos.parent.maybeChild($pos.index());
+  const node = $pos.parent.maybeChild($pos.index());
   if (!node || !node.isText) return null;
 
   const mark = node.marks.find(m => m.type === markType);

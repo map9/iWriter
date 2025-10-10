@@ -158,7 +158,6 @@ function zoomToFit() {
   if (!imageElement.value || !imageContainer.value) return
   
   const containerRect = imageContainer.value.getBoundingClientRect()
-  const imageRect = imageElement.value.getBoundingClientRect()
   
   const containerWidth = containerRect.width - 32 // padding
   const containerHeight = containerRect.height - 32 // padding

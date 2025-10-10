@@ -276,6 +276,7 @@ const canMoveLeft = computed((): boolean => {
   try {
     return props.editor ? canMoveColumnLeft(props.editor) : false
   } catch (error) {
+    console.error('Move Column Left failed:', error)
     return false
   }
 })
@@ -284,6 +285,7 @@ const canMoveRight = computed((): boolean => {
   try {
     return props.editor ? canMoveColumnRight(props.editor) : false
   } catch (error) {
+    console.error('Move Column Right failed:', error)
     return false
   }
 })
@@ -292,6 +294,7 @@ const canMoveUp = computed((): boolean => {
   try {
     return props.editor ? canMoveRowAbove(props.editor) : false
   } catch (error) {
+    console.error('Move Row Above failed:', error)
     return false
   }
 })
@@ -300,6 +303,7 @@ const canMoveDown = computed((): boolean => {
   try {
     return props.editor ? canMoveRowBelow(props.editor) : false
   } catch (error) {
+    console.error('Move Row Below failed:', error)
     return false
   }
 })
@@ -394,7 +398,7 @@ const updateColumns = () => {
       tableRef.value.style.minWidth = `${totalWidth}px`
     }
   } catch (error) {
-    console.error('更新列失败:', error)
+    console.error('Update Columns failed:', error)
   }
 }
 

@@ -1,4 +1,6 @@
 import { type Editor } from '@tiptap/vue-3'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
+import { Selection } from '@tiptap/pm/state';
 import { getContentState } from './state' 
 
 function getCurrentLineFromPos(editor: Editor | undefined, pos: number): number {
@@ -7,7 +9,7 @@ function getCurrentLineFromPos(editor: Editor | undefined, pos: number): number 
   let line = 1
   let currentPos = 0
   
-  doc.descendants((node: any, offset: number) => {
+  doc.descendants((node: ProseMirrorNode, offset: number) => {
     if (currentPos >= pos) return false
     if (node.type.name === 'paragraph' || node.type.name === 'heading') {
       if (offset + node.nodeSize >= pos) {
@@ -29,12 +31,12 @@ function getCurrentColumnFromPos(editor: Editor | undefined, pos: number): numbe
   return resolved.parentOffset + 1
 }
 
-function getSelectionCharCount(selection: any): number {
+function getSelectionCharCount(selection: Selection): number {
   if (selection.empty) return 0
   return selection.to - selection.from
 }
 
-function getSelectionWordCount(editor: Editor | undefined, selection: any): number {
+function getSelectionWordCount(editor: Editor | undefined, selection: Selection): number {
   if (selection.empty || !editor) return 0
   const selectedText = editor.state.doc.textBetween(selection.from, selection.to)
   return countWords(selectedText)
@@ -47,9 +49,9 @@ function countWords(text: string): number {
   return words ? words.length : 0
 }
 
-function countParagraphs(doc: any): number {
+function countParagraphs(doc: ProseMirrorNode): number {
   let count = 0
-  doc.descendants((node: any) => {
+  doc.descendants((node: ProseMirrorNode) => {
     if (node.type.name === 'paragraph' || node.type.name === 'heading') {
       count++
     }

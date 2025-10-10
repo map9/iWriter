@@ -136,7 +136,7 @@ interface Emits {
   (e: 'node-drag', node: TreeNode): void
   (e: 'node-drop', data: { dragNode: TreeNode; dropNode: TreeNode; position: 'before' | 'after' | 'inside' }): void
   (e: 'node-contextmenu', data: { node: TreeNode; event: MouseEvent }): void
-  (e: 'node-ref', nodeId: string, ref: any): void
+  (e: 'node-ref', nodeId: string, ref: unknown): void
   (e: 'first-level-fallback', data: { enabled: boolean; nodeId: string }): void
 }
 
@@ -330,7 +330,7 @@ const startRename = () => {
 // Restore focus to the tree container after rename or cancel
 const restoreFocusToRoot = () => {
   // Find the tree root element by traversing up the DOM
-  let element = nodeContentRef.value?.closest('.tree-root') as HTMLElement
+  const element = nodeContentRef.value?.closest('.tree-root') as HTMLElement
   if (element) {
     element.focus()
   }
@@ -355,6 +355,7 @@ const finishRename = async () => {
       } catch (error) {
         // If rename failed, keep the old name - error is already handled by the callback
         // Don't update the label, keep the old one
+        console.debug(`Rename tree item label failed:`, error)
       }
     } else {
       // No callback, just update directly

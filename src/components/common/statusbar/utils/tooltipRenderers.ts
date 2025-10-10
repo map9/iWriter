@@ -113,7 +113,7 @@ export class CommandHandlerSetup {
       const protocol = parsedUrl.protocol.slice(0, -1)
       const command = parsedUrl.pathname.slice(1) || parsedUrl.host
 
-      const args: any[] = []
+      const args: unknown[] = []
       parsedUrl.searchParams.forEach((value, key) => {
         try {
           const parsed = JSON.parse(value)
@@ -138,7 +138,7 @@ export class TextRenderer implements TooltipRenderer {
 
   constructor(private content: string) {}
 
-  render(container: HTMLElement, commandHandler?: CommandHandler): void {
+  render(container: HTMLElement/*, commandHandler?: CommandHandler*/): void {
     // Handle line breaks
     const lines = this.content.split('\n')
 

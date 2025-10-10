@@ -21,7 +21,7 @@ import { createUpdateStatusStatusBarItem } from './statusbar-items/update-status
 const { state: notificationState, dismiss: hideNotification } = useNotification()
 import updaterService from '@/updater/UpdaterService'
 
-const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args?: any[]) => {
+const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args?: unknown[]) => {
   console.debug('StatusBar command executed:', { command, item: { id: item.id, name: (item as StatusBarItem).name }, args })
 
   switch(command) {
@@ -44,7 +44,7 @@ const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args
 }
 
 // Set up tooltip command handler to use the same logic as StatusBar commands
-const handleTooltipCommand = (protocol: string, command: string, args?: any[]) => {
+const handleTooltipCommand = (protocol: string, command: string, args?: unknown[]) => {
   console.debug('Tooltip command executed:', { protocol, command, args })
 
 }

@@ -109,7 +109,6 @@
         drop-mode="inside-only"
         :initialDepth="1"
         @node-click="handleNodeClick"
-        @node-drop="handleNodeDrop"
         @node-contextmenu="handleNodeContextMenu"
         @contextmenu="handleContextMenu"
       />
@@ -291,7 +290,7 @@ const fileCallbacks: FileTreeCallbacks = {
 }
 
 // Event handlers
-const handleNodeClick = async (node: any) => {
+const handleNodeClick = async (node: unknown) => {
   const fileNode = node as FileTreeNode
   appStore.setSelectedItem(fileNode)
   
@@ -450,7 +449,7 @@ const openFile = async (file: FileTreeNode) => {
 }
 
 // 处理节点右键上下文菜单
-const handleNodeContextMenu = async (data: { node: any; event: MouseEvent }) => {
+const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent }) => {
   const fileNode = data.node as FileTreeNode
 
   const menuItems: ContextMenuItem[] = []
@@ -566,7 +565,7 @@ const handleFileDrop = async (dragNode: FileTreeNode, dropNode: FileTreeNode, po
     return
   }
 
-  const success = await appStore.moveFileOrFolder(dragNode, targetParent)
+  await appStore.moveFileOrFolder(dragNode, targetParent)
 }
 
 const isNodeChildOf = (potentialChild: FileTreeNode, potentialParent: FileTreeNode): boolean => {
@@ -633,12 +632,6 @@ onUnmounted(() => {
   // 清理菜单动作监听器
   window.electronAPI.removeMenuActionListener(handleMenuAction)
 })
-
-const handleNodeDrop = (data: { dragNode: any; dropNode: any; position: string }) => {
-  const dragFileNode = data.dragNode as FileTreeNode
-  const dropFileNode = data.dropNode as FileTreeNode
-
-}
 
 </script>
 

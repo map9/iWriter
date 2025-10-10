@@ -102,6 +102,6 @@ const handleMouseLeave = () => {
 }
 
 const emit = defineEmits<{
-  command: [command: string, item: IStatusBarItem, args?: any[]]
+  command: [command: string, item: IStatusBarItem, args?: unknown[]]
 }>()
 </script>

@@ -35,7 +35,7 @@ export enum StatusBarEventType {
 export interface Command {
   command: string
   title?: string
-  arguments?: any[]
+  arguments?: unknown[]
 }
 
 /**
@@ -125,5 +125,5 @@ export interface IStatusBarManager {
 export interface StatusBarEvent {
   type: string
   item: IBasicStatusBarItem
-  data?: any
+  data?: unknown
 }

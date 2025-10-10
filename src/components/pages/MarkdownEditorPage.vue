@@ -456,7 +456,7 @@ const extensions = [
       return {
         src: {
           default: null,
-          parseHTML: (element: any) => {
+          parseHTML: (element: HTMLElement) => {
             let src = element.getAttribute('src')
             // 如果是相对路径且有当前文件夹，转换为绝对路径 
             if (
@@ -473,7 +473,7 @@ const extensions = [
             }
             return src
           },
-          renderHTML: (attributes: Record<string, any>) => ({ src: attributes.src })
+          renderHTML: (attributes: Record<string, string>) => ({ src: attributes.src })
         },
         alt: {
           default: null,
@@ -493,7 +493,7 @@ const extensions = [
             const align = element.style.textAlign
             return ['left', 'center', 'right', 'justify'].includes(align) ? align : 'left'
           },
-          renderHTML: (attributes: Record<string, any>) => {
+          renderHTML: (attributes: Record<string, string>) => {
             if (!attributes.textAlign || attributes.textAlign === 'left') {
               return {}
             }

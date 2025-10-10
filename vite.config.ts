@@ -53,7 +53,7 @@ export default defineConfig({
     preprocessorOptions: {
       scss: {
         // 解决Sass弃用警告
-        implementation: require('sass'),
+        // implementation: sass, // Removed because it's not supported by Vite
       },
     },
   },

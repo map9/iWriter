@@ -82,7 +82,8 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>()
 
 const draggedNode = ref<TreeNodeType | null>(null)
-const nodeRefs = ref(new Map<string, any>())
+type TreeNodeComponent = typeof TreeNode;
+const nodeRefs = ref(new Map<string, TreeNodeComponent>())
 const treeRoot = ref<HTMLElement>()
 const autoScrollTimer = ref<ReturnType<typeof setInterval> | null>(null)
 
@@ -137,9 +138,9 @@ const getRootNode = (): TreeNodeType | null => {
   return current.parent === undefined ? current : null
 }
 
-const setNodeRef = (nodeId: string, el: any) => {
+const setNodeRef = (nodeId: string, el: unknown) => {
   if (el) {
-    nodeRefs.value.set(nodeId, el)
+    nodeRefs.value.set(nodeId, el as TreeNodeComponent)
   } else {
     nodeRefs.value.delete(nodeId)
   }

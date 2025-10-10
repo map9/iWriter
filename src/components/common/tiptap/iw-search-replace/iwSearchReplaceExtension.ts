@@ -119,11 +119,12 @@ export const iwSearchReplaceExtension = Extension.create<
           this.storage.isOpen = true
           this.storage.mode = 'search'
 
-          // 如果有选中文本，自动作为搜索词
+          // 如果有选中文本，自动作为搜索词（仅单行文本有效）
           const { from, to } = editor.state.selection
           if (from !== to) {
-            const selectedText = editor.state.doc.textBetween(from, to, ' ')
-            if (selectedText && selectedText.length < 100) {
+            const selectedText = editor.state.doc.textBetween(from, to, '\n')
+            // 只有不包含换行符且长度合理的文本才作为搜索词
+            if (selectedText && !selectedText.includes('\n') && selectedText.length < 100) {
               this.storage.searchTerm = selectedText
             }
           }
@@ -138,11 +139,12 @@ export const iwSearchReplaceExtension = Extension.create<
           this.storage.isOpen = true
           this.storage.mode = 'replace'
 
-          // 如果有选中文本，自动作为搜索词
+          // 如果有选中文本，自动作为搜索词（仅单行文本有效）
           const { from, to } = editor.state.selection
           if (from !== to) {
-            const selectedText = editor.state.doc.textBetween(from, to, ' ')
-            if (selectedText && selectedText.length < 100) {
+            const selectedText = editor.state.doc.textBetween(from, to, '\n')
+            // 只有不包含换行符且长度合理的文本才作为搜索词
+            if (selectedText && !selectedText.includes('\n') && selectedText.length < 100) {
               this.storage.searchTerm = selectedText
             }
           }

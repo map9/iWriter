@@ -5,6 +5,7 @@ export async function isImageUrl(url: string) {
 
     return contentType && contentType.startsWith('image/')
   } catch (error) {
+    console.debug(`Check Image Url Failed: `, error)
     return false
   }
 }

@@ -5,8 +5,8 @@ export function findNodeRange(state: EditorState, pos: number, nodeTypeName: str
   if (!nodeType) return null;
 
   // 对于inline node，我们需要找到包含当前位置的节点
-  let node = state.doc.nodeAt(pos);
-  let nodePos = pos;
+  const node = state.doc.nodeAt(pos);
+  const nodePos = pos;
   
   /*
   if (!node) {

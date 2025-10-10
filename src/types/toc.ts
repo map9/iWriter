@@ -6,7 +6,7 @@ export interface TocItem {
   level: number
   isActive?: boolean
   isScrolledOver?: boolean
-  metadata?: Record<string, any> // 扩展字段，不同类型可以存储特定数据
+  metadata?: Record<string, unknown> // 扩展字段，不同类型可以存储特定数据
 }
 
 export type UnsubscribeFn = () => void
@@ -59,7 +59,7 @@ export interface TocProvider {
   /**
    * 更新TOC数据（用于Markdown类型）
    */
-  updateFromTipTap?(tipTapTocData: any): void
+  updateFromTipTap?(tipTapTocData: unknown): void
 }
 
 // 空的 TOC 提供者，用于不支持 TOC 的文档类型
@@ -70,7 +70,7 @@ export class EmptyTocProvider implements TocProvider {
     return []
   }
   
-  navigateToItem(id: string): void {
+  navigateToItem(/*id: string*/): void {
     // 空实现
   }
   

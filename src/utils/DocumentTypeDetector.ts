@@ -1,5 +1,5 @@
 import type { DocumentType } from '@/types'
-import { DocumentType as DocType, IMAGE_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS, CODE_EXTENSIONS, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS } from '@/types'
+import { DocumentType as DocType, IMAGE_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS } from '@/types'
 import {
   IconFile,
   IconFileCode,
@@ -51,15 +51,18 @@ export class DefaultDocumentTypeDetector {
   detectFromExtension(extension: string): DocumentType {
     const normalizedExt = extension.toLowerCase().replace('.', '')
 
-    if (TEXT_EXTENSIONS.includes(normalizedExt as any)) {
+    // @ts-expect-error: TEXT_EXTENSIONS may not be typed as string[] but is used as such here
+    if (TEXT_EXTENSIONS.includes(normalizedExt)) {
       return DocType.MARKDOWN_EDITOR
     }
 
-    if (PDF_EXTENSIONS.includes(normalizedExt as any)) {
+    // @ts-expect-error: PDF_EXTENSIONS may not be typed as string[] but is used as such here
+    if (PDF_EXTENSIONS.includes(normalizedExt)) {
       return DocType.PDF_VIEWER
     }
 
-    if (IMAGE_EXTENSIONS.includes(normalizedExt as any)) {
+    // @ts-expect-error: IMAGE_EXTENSIONS may not be typed as string[] but is used as such here
+    if (IMAGE_EXTENSIONS.includes(normalizedExt)) {
       return DocType.IMAGE_VIEWER
     }
 

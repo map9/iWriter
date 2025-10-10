@@ -85,8 +85,8 @@ const createNodeDecorations = (
         if (nodep.status !== 'checked' || !nodep.result || (nodep.result.errors.length === 0)) continue
 
         doc.descendants((node, pos) => {
-          //if (shouldNotCheckNode(node)) return false
-          //if (!containsOnlyTextNodes(node)) return true
+          if (shouldNotCheckNode(node)) return false
+          if (!containsOnlyTextNodes(node)) return true
 
           if (generateNodeKey(node) === nodep.result!.id) {
             nodep.result!.errors.forEach((error, index) => {
@@ -301,7 +301,7 @@ const shouldNotCheckNode = (node: ProseMirrorNode): boolean => {
 function containsOnlyTextNodes(node: ProseMirrorNode) {
 	let onlyText = true;
 	node.forEach((child) => {
-		if (!child.isText /*&& child.type.name !== 'inline-math' && child.type.name !== 'code'*/) {
+		if (!child.isText/* && child.type.name !== 'inlineMath' && child.type.name !== 'code'*/) {
 			onlyText = false;
 			return false;
 		}
@@ -325,16 +325,15 @@ const getChangedNodes2 = (transactions: Transaction[], state: EditorState, isNew
         const from = isNew ? newStart : oldStart
 				const to = isNew ? newEnd : oldEnd
 
+        console.debug({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', from, to})
         state.doc.nodesBetween(from, to, (node, pos) => {
-          console.debug({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', node: node.textContent, pos})
           if (shouldNotCheckNode(node)) return false
           if (!containsOnlyTextNodes(node)) return true
 
+          console.debug({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', node: node.textContent, pos})
           changeNodes.push({node, pos})
           return false
         });
-
-        console.debug({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', from, to})
 			})
 		})
 	}
@@ -359,13 +358,15 @@ const getChangedNodes1 = (transactions: Transaction[], state: EditorState, isNew
 		const start = isNew? change.fromB : change.fromA
 		const end = isNew? change.toB : change.toA
 
+    console.debug({function: 'getChangedNodes1', state: isNew? 'NewChange' : 'OldChange', start, end})
 		state.doc.nodesBetween(start, end, (node, pos) => {
-			console.debug({function: 'getChangedNodes1', state: isNew? 'NewChange' : 'OldChange', node: node.textContent, pos})
 			if (shouldNotCheckNode(node)) return false
 			if (!containsOnlyTextNodes(node)) return true
 
-      changeNodes.push({node, pos})
+      console.debug({function: 'getChangedNodes1', state: isNew? 'NewChange' : 'OldChange', node: node.textContent, pos})
+			changeNodes.push({node, pos})
 			return false
+      //return true
 		});
 	}
 

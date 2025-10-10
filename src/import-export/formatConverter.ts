@@ -1,3 +1,4 @@
+import { Editor } from '@tiptap/core'
 import { marked } from 'marked'
 import TurndownService from 'turndown'
 import { gfm } from '@guyplusplus/turndown-plugin-gfm'
@@ -26,20 +27,23 @@ function detectLineEnding(text: string): 'LF' | 'CRLF' {
 
 // Load content into editor
 export async function convertContentFrom(content: string, extension: string) {
-  if (TEXT_MD_EXTENSIONS.includes(extension as any)) {
+  // @ts-expect-error don't report error
+  if (TEXT_MD_EXTENSIONS.includes(extension)) {
     // Convert markdown to HTML for TipTap
     return {
       content: await marked(content),
       lineEnding: detectLineEnding(content)
     }
-  } else if (TEXT_IWT_EXTENSIONS.includes(extension as any)) {
+  // @ts-expect-error don't report error
+  } else if (TEXT_IWT_EXTENSIONS.includes(extension)) {
     // iWriter files are stored as JSON with HTML content
     const parsed = JSON.parse(content)
     return {
       content: parsed.content || '',
       lineEnding: detectLineEnding(content)
     }
-  } else if (TEXT_TXT_EXTENSIONS.includes(extension as any)) {
+  // @ts-expect-error don't report error
+  } else if (TEXT_TXT_EXTENSIONS.includes(extension)) {
     return {
       content: content,
       lineEnding: detectLineEnding(content)
@@ -52,28 +56,32 @@ export async function convertContentFrom(content: string, extension: string) {
 export function convertContentTo(tab: FileTab, extension: string, lineEnding?: 'LF' | 'CRLF'): string | null {
   if (!tab.editorInstance) return null
 
-  if (TEXT_MD_EXTENSIONS.includes(extension as any)) {
+  const editor = tab.editorInstance as Editor
+  // @ts-expect-error don't report error
+  if (TEXT_MD_EXTENSIONS.includes(extension)) {
     // Convert document back to markdown
     // 方案一，采用tiptap自有的转换，目前有不少的错误
-    //const json = tab.editorInstance?.getJSON()
-    //return renderToMarkdown({ content: json, extensions: tab.editorInstance.extensionManager.extensions })
+    //const json = editor.getJSON()
+    //return renderToMarkdown({ content: json, extensions: editor.extensionManager.extensions })
     // 方案二，采用turndown来转换
-    const html = tab.editorInstance.getHTML()
+    const html = editor.getHTML()
     return turndownService.turndown(html)
-  } else if (TEXT_IWT_EXTENSIONS.includes(extension as any)) {
+  // @ts-expect-error don't report error
+  } else if (TEXT_IWT_EXTENSIONS.includes(extension)) {
     // Store as JSON + HTML for iWriter files
-    const html = tab.editorInstance.getHTML()
+    const html = editor.getHTML()
     return JSON.stringify({
       version: iwtVersion,
       content: html,
       metadata: {
         lastModified: new Date().toISOString(),
-        wordCount: tab.editorInstance?.storage.characterCount?.words() || 0
+        wordCount: editor.storage.characterCount?.words() || 0
       }
     })
-  } else if (TEXT_TXT_EXTENSIONS.includes(extension as any)) {
+  // @ts-expect-error don't report error
+  } else if (TEXT_TXT_EXTENSIONS.includes(extension)) {
     // Plain text
-    return tab.editorInstance?.getText()
+    return editor.getText()
   } else {
     return null
   }

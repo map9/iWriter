@@ -1,3 +1,5 @@
+import type { ThemeColors } from '@/utils/themes'
+
 // Electron API 接口
 export interface ElectronAPI {
   platform: string
@@ -74,14 +76,14 @@ export interface ElectronAPI {
 
   // 菜单操作
   onMenuAction: (callback: (action: string) => void) => void
-  removeMenuActionListener: (listener?: any) => void
+  removeMenuActionListener: (listener?: unknown) => void
 
   // 窗口状态
   onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => void
   removeWindowStateChangedListeners: () => void
 
-  getSystemColors: () => Promise<{ theme: 'light' | 'dark' | 'unknown', newColors: any }>,
-  onSystemColorsChanged: (callback: (themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: any }) => void) => void,
+  getSystemColors: () => Promise<{ theme: 'light' | 'dark' | 'unknown', newColors: ThemeColors }>,
+  onSystemColorsChanged: (callback: (themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: ThemeColors }) => void) => void,
   removeSystemColorsChangedListeners: () => void
 
   // 设置
@@ -100,5 +102,5 @@ export interface ElectronAPI {
   removeUpdaterListeners: () => void,
 
   // 打印 API
-  print: (options?: any) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
+  print: (options?: Electron.WebContentsPrintOptions) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
 }

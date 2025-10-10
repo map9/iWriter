@@ -1,9 +1,11 @@
+import type { Component } from 'vue';
+
 export interface TreeNode {
   id: string
   label: string
   children?: TreeNode[]
   type?: string
-  data?: any
+  data?: unknown
   
   // 视图状态
   isExpanded?: boolean
@@ -29,11 +31,11 @@ export interface TreeCallbacks {
   canDrop?: (dragNode: TreeNode, dropNode: TreeNode, position: DropPosition) => boolean
   canAddChild?: (node: TreeNode) => boolean
   canDelete?: (node: TreeNode) => boolean
-  getExpandIcon?: (node: TreeNode) => any
-  getCollapseIcon?: (node: TreeNode) => any
-  getCheckIcon?: (node: TreeNode) => any
-  getUnCheckIcon?: (node: TreeNode) => any
-  getTypeIcon?: (node: TreeNode) => any
+  getExpandIcon?: (node: TreeNode) => Component | undefined
+  getCollapseIcon?: (node: TreeNode) => Component | undefined
+  getCheckIcon?: (node: TreeNode) => Component | undefined
+  getUnCheckIcon?: (node: TreeNode) => Component | undefined
+  getTypeIcon?: (node: TreeNode) => Component | undefined
   getRightContent?: (node: TreeNode) => string | null
   getDefaultChildType?: (parentNode: TreeNode) => string
   getDefaultChildLabel?: (parentNode: TreeNode) => string
@@ -84,13 +86,6 @@ export interface TreeOptions {
   allowContextMenu?: boolean
 }
 
-export interface TreeItemStyle {
-  itemClass?: string
-  itemStyle?: Record<string, any>
-  textClass?: string
-  textStyle?: Record<string, any>
-}
-
 export interface DragState {
   isDragging: boolean
   dragItem: TreeNode | null
@@ -98,11 +93,3 @@ export interface DragState {
 }
 
 export type FileTreeSortType = 'none' | 'name-asc' | 'name-desc' | 'type-asc' | 'type-desc' | 'created-asc' | 'created-desc' | 'modified-asc' | 'modified-desc'
-
-export interface ContextMenuItem {
-  label: string
-  icon?: any
-  action: () => void
-  disabled?: boolean
-  separator?: boolean
-}

@@ -26,7 +26,7 @@ export class StatusBarItem implements IStatusBarItem {
   visible: boolean = false
   
   // Event callbacks
-  private _eventCallbacks = new Map<string, Function[]>()
+  private _eventCallbacks = new Map<string, Array<(event: StatusBarEvent) => void>>()
   
   constructor(
     id: string,
@@ -60,14 +60,14 @@ export class StatusBarItem implements IStatusBarItem {
   }
   
   // Event system
-  on(event: string, callback: Function): void {
+  on(event: string, callback: (event: StatusBarEvent) => void): void {
     if (!this._eventCallbacks.has(event)) {
       this._eventCallbacks.set(event, [])
     }
     this._eventCallbacks.get(event)?.push(callback)
   }
   
-  off(event: string, callback?: Function): void {
+  off(event: string, callback?: (event: StatusBarEvent) => void): void {
     if (!callback) {
       this._eventCallbacks.delete(event)
     } else {
@@ -81,7 +81,7 @@ export class StatusBarItem implements IStatusBarItem {
     }
   }
   
-  private _emit(type: string, data?: any): void {
+  private _emit(type: string, data?: unknown): void {
     const callbacks = this._eventCallbacks.get(type)
     if (callbacks) {
       const event: StatusBarEvent = { type, item: this, data }

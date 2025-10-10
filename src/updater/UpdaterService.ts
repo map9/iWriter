@@ -14,7 +14,14 @@ class UpdaterService {
   public updateInfo = ref<UpdateInfo | null>(null)
   public isUpdateAvailable = ref(false)
   public downloadProgress = ref(0)
-  public downloadDetails = ref<any>(null)
+  public downloadDetails = ref<
+  {
+    progress: number
+    bytesPerSecond: number
+    transferred: number
+    total: number
+  } | null
+  >(null)
 
   constructor() {
     this.setupEventListeners()

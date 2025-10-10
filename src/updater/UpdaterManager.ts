@@ -17,7 +17,7 @@ import {
 } from './types'
 
 export class UpdaterManager {
-  private sendAppUpdateInfo: (action: string, data?: any) => void
+  private sendAppUpdateInfo: (action: string, data?: UpdaterStateMessage) => void
   private updater: AppUpdater
   private store: Store<UpdaterConfig>
   private currentStatus: UpdateStatus = { type: 'idle', message: '' }
@@ -44,7 +44,7 @@ export class UpdaterManager {
     }
   }
 
-  setSendAppUpdateInfo(callback: (action: string, data?: any) => void) {
+  setSendAppUpdateInfo(callback: (action: string, data?: UpdaterStateMessage) => void) {
     this.sendAppUpdateInfo = callback;
   }
 

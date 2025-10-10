@@ -118,6 +118,13 @@ import {
   IconChevronRight
 } from '@tabler/icons-vue'
 
+interface NodeData{
+  tocItem: TocItem, 
+  itemIndex: number,
+  hierarchicalNumber: string,
+  originalTitle: string
+}
+
 // 使用app store获取活跃标签页
 const appStore = useAppStore()
 
@@ -144,10 +151,11 @@ const hasItems = computed(() => tocItems.value.length > 0)
 // 生成层级序号的函数
 const generateHierarchicalNumbers = (nodes: TreeNode[], parentNumber = ''): void => {
   let counter = 1
-  
+  let currentNumber: string = ''
+
   nodes.forEach(node => {
-    const currentNumber = parentNumber ? `${parentNumber}.${counter}` : `${counter}`
-    node.data.hierarchicalNumber = currentNumber
+    currentNumber = parentNumber !== '' ? `${parentNumber}.${counter}` : `${counter}`
+    if (node.data) (node.data as NodeData).hierarchicalNumber = currentNumber
     
     if (node.children && node.children.length > 0) {
       generateHierarchicalNumbers(node.children, currentNumber)
@@ -163,9 +171,9 @@ const updateNodeLabels = (nodes: TreeNode[]): void => {
   
   nodes.forEach(node => {
     if (showNumbering.value) {
-      node.label = `${node.data.hierarchicalNumber} ${node.data.originalTitle}`
+      node.label = `${(node.data as NodeData).hierarchicalNumber} ${(node.data as NodeData).originalTitle}`
     } else {
-      node.label = node.data.originalTitle
+      node.label = (node.data as NodeData).originalTitle
     }
     
     if (node.children && node.children.length > 0) {
@@ -216,7 +224,7 @@ const generateTreeNodes = (): TreeNode[] => {
     const node = nodeMap.get(item.id)!
     
     // 找到合适的父节点
-    while (stack.length > 0 && stack[stack.length - 1]!.data.tocItem.level >= item.level) {
+    while (stack.length > 0 && (stack[stack.length - 1]!.data as NodeData).tocItem.level >= item.level) {
       stack.pop()
     }
     
@@ -277,7 +285,7 @@ const treeCallbacks: TreeCallbacks = {
 
 // 处理节点点击
 const handleNodeClick = (node: TreeNode) => {
-  const tocItem = node.data.tocItem as TocItem
+  const tocItem = (node.data as NodeData).tocItem as TocItem
   if (tocProvider.value) {
     tocProvider.value.navigateToItem(tocItem.id)
   }
@@ -298,7 +306,7 @@ const collapseToLevel = (level: number) => {
   
   const collapseNode = (node: TreeNode) => {
     // 如果当前节点的级别大于等于指定级别，收起它
-    if (node.data.tocItem.level >= level) {
+    if ((node.data as NodeData).tocItem.level >= level) {
       node.isExpanded = false
     }
     
@@ -352,7 +360,7 @@ function scrollToTop() {
   if (treeNodes.value.length > 0) {
     const node = treeNodes.value[0]
     if (node) {
-      const tocItem = node.data.tocItem as TocItem
+      const tocItem = (node.data as NodeData).tocItem as TocItem
       if (tocProvider.value) {
         tocProvider.value.navigateToItem(tocItem.id)
         treeRef.value?.focusNode(node)

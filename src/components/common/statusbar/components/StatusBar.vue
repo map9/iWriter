@@ -49,12 +49,12 @@ const statusBarManager = useStatusBar()
 const leftItems = statusBarManager.getReactiveItemsByAlignment(StatusBarAlignment.Left)
 const rightItems = statusBarManager.getReactiveItemsByAlignment(StatusBarAlignment.Right)
 
-const handleCommand = (command: string, item: IBasicStatusBarItem, args?: any[]): void => {
+const handleCommand = (command: string, item: IBasicStatusBarItem, args?: unknown[]): void => {
   emit('command', command, item, args)
 }
 
 const emit = defineEmits<{
-  command: [command: string, item: IBasicStatusBarItem, args?: any[]]
+  command: [command: string, item: IBasicStatusBarItem, args?: unknown[]]
 }>()
 
 </script>

@@ -296,7 +296,7 @@ export class TooltipManager {
     container.style.top = '-9999px'
 
     // Force reflow to get accurate measurements
-    container.offsetHeight
+    void container.offsetHeight
 
     // Calculate position and placement
     const rect = container.getBoundingClientRect()

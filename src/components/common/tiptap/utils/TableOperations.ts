@@ -97,7 +97,7 @@ function moveColumnLeftImpl(tr: Transaction): boolean {
     return false
   }
 
-  const { tableNode, tablePos, map, columnIndex, totalColumns } = tableInfo
+  const { tableNode, tablePos, map, columnIndex } = tableInfo
 
   // 检查是否可以向左移动
   if (columnIndex <= 0) {
@@ -117,7 +117,7 @@ function moveColumnLeftImpl(tr: Transaction): boolean {
       const reorderedCells = reorderRowCells(row, columnIndex, targetIndex)
       
       // 处理 colwidth 属性
-      const updatedCells = reorderedCells.map((cell, cellIndex) => {
+      const updatedCells = reorderedCells.map((cell) => {
         const colwidth = cell.attrs.colwidth
         if (colwidth && Array.isArray(colwidth)) {
           const newColwidth = reorderColWidths(colwidth, columnIndex, targetIndex)
@@ -195,7 +195,7 @@ function moveColumnRightImpl(tr: Transaction): boolean {
       const reorderedCells = reorderRowCells(row, columnIndex, targetIndex)
       
       // 处理 colwidth 属性
-      const updatedCells = reorderedCells.map((cell, cellIndex) => {
+      const updatedCells = reorderedCells.map((cell) => {
         const colwidth = cell.attrs.colwidth
         if (colwidth && Array.isArray(colwidth)) {
           const newColwidth = reorderColWidths(colwidth, columnIndex, targetIndex)
@@ -340,7 +340,7 @@ function moveRowAboveImpl(tr: Transaction): boolean {
     return false
   }
 
-  const { tableNode, tablePos, map, rowIndex, totalRows } = rowInfo
+  const { tableNode, tablePos, rowIndex } = rowInfo
 
   // 检查是否可以向上移动
   if (rowIndex <= 0) {
@@ -393,7 +393,7 @@ function moveRowBelowImpl(tr: Transaction): boolean {
     return false
   }
 
-  const { tableNode, tablePos, map, rowIndex, totalRows } = rowInfo
+  const { tableNode, tablePos, rowIndex, totalRows } = rowInfo
 
   // 检查是否可以向下移动
   if (rowIndex >= totalRows - 1) {
@@ -504,7 +504,7 @@ export function canMoveColumnLeft(editor: Editor): boolean {
 
     const { columnIndex } = tableInfo
     return columnIndex > 0 // 不是最左列
-  } catch (error) {
+  } catch {
     return false
   }
 }
@@ -528,7 +528,7 @@ export function canMoveColumnRight(editor: Editor): boolean {
 
     const { columnIndex, totalColumns } = tableInfo
     return columnIndex < totalColumns - 1 // 不是最右列
-  } catch (error) {
+  } catch {
     return false
   }
 }
@@ -552,7 +552,7 @@ export function canMoveRowAbove(editor: Editor): boolean {
 
     const { rowIndex } = rowInfo
     return rowIndex > 0 // 不是最上行
-  } catch (error) {
+  } catch {
     return false
   }
 }
@@ -576,7 +576,7 @@ export function canMoveRowBelow(editor: Editor): boolean {
 
     const { rowIndex, totalRows } = rowInfo
     return rowIndex < totalRows - 1 // 不是最下行
-  } catch (error) {
+  } catch {
     return false
   }
 }

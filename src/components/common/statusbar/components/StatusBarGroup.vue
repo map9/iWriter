@@ -47,11 +47,11 @@ const groupStyle = computed(() => {
   return style
 })
 
-const handleCommand = (command: string, item: IStatusBarItem, args?: any[]) => {
+const handleCommand = (command: string, item: IStatusBarItem, args?: unknown[]) => {
   emit('command', command, item, args)
 }
 
 const emit = defineEmits<{
-  command: [command: string, item: IStatusBarItem, args?: any[]]
+  command: [command: string, item: IStatusBarItem, args?: unknown[]]
 }>()
 </script>

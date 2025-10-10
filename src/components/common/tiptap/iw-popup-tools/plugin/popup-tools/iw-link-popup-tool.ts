@@ -143,7 +143,7 @@ export class iwLinkPopupTool extends iwPopupTool {
         return editWidget
       },
 
-      updateEditWidget: (editWidget: EditWidget, tool: iwPopupTool, from: number, to: number, element: Mark | Node, editor: Editor) => {
+      updateEditWidget: (editWidget: EditWidget, tool: iwPopupTool, from: number, to: number, element: Mark | Node/*, editor: Editor*/) => {
         const linkMark = element as Mark
         const href: string = linkMark.attrs.href || ''
         const hrefInput = editWidget.dom.querySelector('input')
@@ -164,6 +164,6 @@ export class iwLinkPopupTool extends iwPopupTool {
 
     })
     
-    this.openOnClickFun = (url: string) => {}
+    this.openOnClickFun = (/*url: string*/) => {}
   }
 }

@@ -194,9 +194,8 @@ export function getThemeById(id: string): Theme | undefined {
   return availableThemes.find(theme => theme.id === id)
 }
 
-export function applySystemColors(themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: any }) {
+export function applySystemColors(themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: ThemeColors }) {
   const root = document.documentElement
-  let newColors: any = null
 
   // console.debug(newColors)
   // 实际上 Electron 应用获取的系统颜色只有在应用第一次获取时有效，后续获取的系统颜色都是缓存，没有及时更新；主题是每次都更新。
@@ -212,17 +211,21 @@ export function applySystemColors(themeAndColors: { theme: 'light' | 'dark' | 'u
     console.warn('Unknown system theme, falling back to light theme colors.')
   }
   */
+ 
+  let newColors: ThemeColors | null = null
   if (themeAndColors.theme === 'dark') {
     newColors = darkTheme.colors
   } else if (themeAndColors.theme === 'light') {
     newColors = lightTheme.colors
   }
 
-  Object.entries(newColors).forEach(([category, categoryColors]) => {
-    Object.entries(categoryColors as Record<string, string>).forEach(([colorName, colorValue]) => {
-      root.style.setProperty(`--color-${category}-${colorName}`, hex8ToRGBA(colorValue))
+  if (newColors) {
+    Object.entries(newColors).forEach(([category, categoryColors]) => {
+      Object.entries(categoryColors as Record<string, string>).forEach(([colorName, colorValue]) => {
+        root.style.setProperty(`--color-${category}-${colorName}`, hex8ToRGBA(colorValue))
+      })
     })
-  })
+  }
 }
 
 export function hex8ToRGBA(hex: string, alpha: string = '1') {

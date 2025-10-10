@@ -6,6 +6,7 @@ import { iwPopupTool, type iwPopupToolOptions } from '../iw-popup-tool.ts'
 import { EditWidget, ElementDisplayMode, escapeHtml }  from '../utils/edit-widget.ts'
 
 export interface iwMathPopupToolOptions extends iwPopupToolOptions {
+  unused: boolean
 }
 
 export class iwMathPopupTool extends iwPopupTool {
@@ -107,7 +108,7 @@ export class iwMathPopupTool extends iwPopupTool {
         return editWidget
       },
 
-      updateEditWidget: (editWidget: EditWidget, tool: iwPopupTool, from: number, to: number, element: Mark | Node, editor: Editor) => {
+      updateEditWidget: (editWidget: EditWidget, tool: iwPopupTool, from: number, to: number, element: Mark | Node/*, editor: Editor*/) => {
         const latex: string = element.attrs.latex || ''
         const latexInput = editWidget.dom.querySelector('input')
         let changed = false

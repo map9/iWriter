@@ -86,9 +86,9 @@
         </button>
       </div>
 
-      <!-- 选区按钮（仅在 replace 模式且有选区时显示） -->
+      <!-- 选区按钮（有选区时显示） -->
       <button
-        v-if="mode === 'replace' && hasSelection"
+        v-if="hasSelection"
         @click="toggleSearchInSelection"
         :class="{ active: searchInSelection }"
         class="selection-btn"
@@ -262,14 +262,11 @@ function handleSearchEnter(event: KeyboardEvent) {
 }
 
 function toggleReplaceMode() {
+  // 切换 find 和 replace 模式
   if (mode.value === 'search') {
     props.editor.commands.openReplace()
   } else {
-    // 收起时重置为 search 模式
-    props.editor.storage.iwSearchReplace.mode = 'search'
-    // 同时禁用选区搜索
-    props.editor.storage.iwSearchReplace.searchInSelection = false
-    props.editor.storage.iwSearchReplace.selectionRange = null
+    props.editor.commands.openSearch()
   }
 }
 
@@ -299,8 +296,8 @@ function handleKeyDown(event: KeyboardEvent) {
     toggleRegex()
   }
 
-  // Alt+L: Toggle search in selection (仅在 replace 模式)
-  if (event.altKey && event.key === 'l' && mode.value === 'replace') {
+  // Alt+L: Toggle search in selection
+  if (event.altKey && event.key === 'l') {
     event.preventDefault()
     toggleSearchInSelection()
   }
@@ -538,7 +535,7 @@ onUnmounted(() => {
 .replace-input {
   width: 100%;
   height: 28px;
-  padding: 0 8px;
+  padding: 0 90px 0 8px;
   font-size: 13px;
   border: 1px solid var(--color-border-separator);
   border-radius: 4px;

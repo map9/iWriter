@@ -144,9 +144,6 @@ const tabsContainer = ref<HTMLElement>()
 let activeTabRef: HTMLElement | null = null
 const { getIconByExtension } = useDocumentTypeDetector()
 
-// Computed
-const activeTab = computed(() => appStore.activeTab)
-
 const canNavigateBack = computed(() => {
   const activeIndex = appStore.tabs.findIndex(tab => tab.isActive)
   return activeIndex > 0
@@ -208,16 +205,6 @@ async function closeTab(tabId: string) {
   // Use the centralized closeTab function from app store
   await appStore.closeTab(tabId)
 }
-
-function getDisplayName(fileName: string): string {
-  if (!fileName) return fileName
-  const lastDotIndex = fileName.lastIndexOf('.')
-  if (lastDotIndex === -1 || lastDotIndex === 0) {
-    return fileName
-  }
-  return fileName.substring(0, lastDotIndex)
-}
-
 
 // 监听状态变化，自动切换到合适的模式
 function checkAndSwitchMode() {

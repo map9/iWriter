@@ -112,9 +112,9 @@ import {
 const appStore = useAppStore()
 
 // Refs for different page types
-const markdownEditorRefs = ref<any[]>([])
-const imageViewerRefs = ref<any[]>([])
-const pdfViewerRefs = ref<any[]>([])
+const markdownEditorRefs = ref<InstanceType<typeof MarkdownEditorPage>[]>([])
+const imageViewerRefs = ref<InstanceType<typeof ImageViewerPage>[]>([])
+const pdfViewerRefs = ref<InstanceType<typeof PDFViewerPage>[]>([])
 
 // Update dialog state
 const showUpdateDialog = ref(false)

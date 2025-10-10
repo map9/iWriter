@@ -66,7 +66,7 @@ export function onFileHandlerPaste(editor: Editor, files: File[], pasteContent?:
 }
 
 export function onPlaceholder(option: { editor: Editor; node: ProsemirrorNode; pos: number; hasAnchor: boolean }): string {
-  const { editor, node, pos, hasAnchor } = option
+  const { node } = option
   // Use a placeholder:
   //placeholder: 'Input text here …',
   // Use different placeholders depending on the node type:

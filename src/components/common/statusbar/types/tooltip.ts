@@ -12,7 +12,7 @@ export enum TooltipRendererType {
  * Command handler interface for processing custom protocol commands
  */
 export interface CommandHandler {
-  (protocol: string, command: string, args?: any[]): void
+  (protocol: string, command: string, args?: unknown[]): void
 }
 
 /**

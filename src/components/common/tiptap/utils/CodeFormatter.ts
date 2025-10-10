@@ -5,6 +5,7 @@ import typescriptParser from 'prettier/plugins/typescript'
 import htmlParser from 'prettier/plugins/html'
 import cssParser from 'prettier/plugins/postcss'
 import yamlParser from 'prettier/plugins/yaml'
+import type { Options } from 'prettier';
 
 /**
  * Supported languages for code formatting
@@ -48,7 +49,7 @@ export type PrettierParser = typeof SUPPORTED_LANGUAGES[SupportedLanguage]
 /**
  * Formatting options for different languages
  */
-const DEFAULT_FORMAT_OPTIONS: Record<PrettierParser, any> = {
+const DEFAULT_FORMAT_OPTIONS: Options = {
   babel: {
     semi: true,
     singleQuote: true,
@@ -133,7 +134,7 @@ export function getParserForLanguage(language: SupportedLanguage): PrettierParse
 /**
  * Get plugins for a given parser
  */
-function getPluginsForParser(parser: PrettierParser): any[] {
+function getPluginsForParser(parser: PrettierParser): unknown[] {
   switch (parser) {
     case 'babel':
       return [babelParser, estreeParser]
@@ -168,7 +169,7 @@ function getPluginsForParser(parser: PrettierParser): any[] {
 export async function formatCode(
   code: string, 
   language: string | null | undefined,
-  customOptions?: any
+  customOptions?: Options
 ): Promise<FormatResult> {
   try {
     // Check if language is supported
@@ -192,7 +193,7 @@ export async function formatCode(
     }
 
     // Format the code
-    const formattedCode = await prettier.format(code, formatOptions)
+    const formattedCode = await prettier.format(code, formatOptions as Options)
     
     return {
       success: true,
@@ -215,15 +216,15 @@ export async function formatCode(
 export function formatCodeSync(
   code: string,
   language: string | null | undefined,
-  customOptions?: any
-): FormatResult {
+  customOptions?: Options
+): Promise<FormatResult> {
   try {
     // Check if language is supported
     if (!isLanguageSupported(language)) {
-      return {
+      return Promise.resolve({
         success: false,
         error: `Language '${language}' is not supported for formatting`
-      }
+      })
     }
 
     // Get parser and options
@@ -240,7 +241,7 @@ export function formatCodeSync(
 
     // Format the code synchronously (this will still be async due to prettier.format being async)
     // Note: This function is kept for API compatibility but will still return a Promise
-    return prettier.format(code, formatOptions).then(formattedCode => ({
+    return prettier.format(code, formatOptions as Options).then(formattedCode => ({
       success: true,
       formattedCode: formattedCode.trim()
     })).catch(error => {
@@ -249,14 +250,14 @@ export function formatCodeSync(
         success: false,
         error: error instanceof Error ? error.message : 'Unknown formatting error'
       }
-    }) as any
+    })
     
   } catch (error) {
     console.error('Code formatting error:', error)
-    return {
+    return Promise.resolve({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown formatting error'
-    }
+    })
   }
 }
 

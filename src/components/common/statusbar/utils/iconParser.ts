@@ -285,7 +285,6 @@ export function getTablerIcon(iconName: string): Component | null {
   // 1. 首先尝试内置映射（保持向后兼容）
   const builtinIcon = iconNameMap[iconName]
   if (builtinIcon) {
-    console.debug(`[IconParser] Icon '${iconName}' found in builtin map`)
     return builtinIcon
   }
 
@@ -294,7 +293,6 @@ export function getTablerIcon(iconName: string): Component | null {
     try {
       const externalIcon = externalIconResolver(iconName)
       if (externalIcon) {
-        console.debug(`[IconParser] Icon '${iconName}' resolved by external resolver`)
         return externalIcon
       }
     } catch (error) {
@@ -304,7 +302,6 @@ export function getTablerIcon(iconName: string): Component | null {
 
   // 3. 返回默认图标
   if (defaultIconComponent) {
-    console.debug(`[IconParser] Using default icon for '${iconName}'`)
     return defaultIconComponent
   }
 
@@ -319,10 +316,8 @@ export function getTablerIcon(iconName: string): Component | null {
 export function setTablerIcon(iconName: string, icon: Component, forceOverride = false): boolean {
   if (!iconNameMap[iconName] || forceOverride) {
     iconNameMap[iconName] = icon
-    console.debug(`[IconParser] Icon '${iconName}' registered in builtin map`)
     return true
   } else {
-    console.warn(`[IconParser] Icon '${iconName}' already exists in builtin map`)
     return false
   }
 }

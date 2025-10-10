@@ -8,7 +8,7 @@ import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { pathUtils } from '@/utils/pathUtils'
 import { notify } from '@/utils/notifications'
 import type { FileTreeNode, FileTreeSortType } from '@/components/common/tree'
-import { availableThemes, getThemeById, applyThemeColors, type Theme, applySystemColors } from '@/utils/themes'
+import { availableThemes, getThemeById, applyThemeColors, type Theme, applySystemColors, type ThemeColors } from '@/utils/themes'
 import updaterService from '@/updater/UpdaterService'
 import {
   TEXT_MD_EXTENSIONS,
@@ -60,10 +60,6 @@ export const useAppStore = defineStore('app', () => {
   const tabs = ref<FileTab[]>([])
   const activeTabId = ref<string | null>(null)
   const untitledCounter = ref(1)
-  
-  // Search
-  const searchQuery = ref('')
-  const searchResults = ref<any[]>([])
   
   // Computed
   const activeTab = computed(() => {
@@ -1213,7 +1209,7 @@ export const useAppStore = defineStore('app', () => {
           tab.path = originalPath
           tab.isDirty = false
           tab.name = pathUtils.basename(originalPath)
-          tab.savedCheckPoint = undoDepth(tab.editorInstance.state)
+          tab.savedCheckPoint = undoDepth((tab.editorInstance as import('@tiptap/core').Editor).state)
           
           notify.success(`${originalPath} 保存成功`, '文件操作')
           return true
@@ -1288,7 +1284,7 @@ export const useAppStore = defineStore('app', () => {
     
     // Detect system theme preference
     if (window.electronAPI) {
-      window.electronAPI.onSystemColorsChanged((themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: any }) => {
+      window.electronAPI.onSystemColorsChanged((themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: ThemeColors }) => {
         // Re-apply theme if current theme is system
         const currentTheme = getThemeById(currentThemeId.value)
         if (currentTheme?.isSystem) {
@@ -1357,7 +1353,7 @@ export const useAppStore = defineStore('app', () => {
 
   // Prepare print options based on document type
   function preparePrintOptions(tab: FileTab) {
-    const printOptions: any = {
+    const printOptions: Electron.WebContentsPrintOptions = {
       printBackground: true,
       color: true,
       pageSize: 'A4',
@@ -1515,8 +1511,6 @@ export const useAppStore = defineStore('app', () => {
     currentFileTreeSortType,
     tabs,
     activeTabId,
-    searchQuery,
-    searchResults,
     
     // Computed
     activeTab,

@@ -108,7 +108,7 @@ async function generateWindowsIcons(hasImageMagick) {
       execSync(`${magickCommand} ${tempFiles.join(' ')} ${icoPath}`);
       console.log(`✅ Windows ICO图标生成完成: ${icoPath}`);
     } catch (error) {
-      console.warn(`⚠️  ImageMagick生成ICO失败，尝试降级方案`);
+      console.warn(`⚠️  ImageMagick生成ICO失败，尝试降级方案, ${error}`);
       await generateWindowsIconsFallback(winDir, tempFiles);
     }
   } else {
@@ -156,7 +156,7 @@ async function generateMacIcons(hasIconutil) {
       execSync(`iconutil -c icns ${iconsetDir} -o ${icnsPath}`);
       console.log(`✅ macOS ICNS图标生成完成: ${icnsPath}`);
     } catch (error) {
-      console.warn(`⚠️  iconutil生成ICNS失败，尝试降级方案`);
+      console.warn(`⚠️  iconutil生成ICNS失败，尝试降级方案: ${error}`);
       await generateMacIconsFallback(macDir, sizes);
     }
   } else {

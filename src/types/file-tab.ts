@@ -17,7 +17,7 @@ export interface FileTab {
   metadata?: FileMetadata
   isActive: boolean
   isDirty: boolean
-  editorInstance?: any
+  editorInstance?: unknown
   savedCheckPoint?: number
   tocProvider?: import('@/types/toc').TocProvider
   fileStats?: import('@/types/file-stats').FileStats

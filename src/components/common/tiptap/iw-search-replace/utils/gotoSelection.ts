@@ -1,4 +1,6 @@
-export const goToSelection = (editor: any, range: {from: number, to: number}) => {
+import { Editor } from "@tiptap/core";
+
+export const goToSelection = (editor: Editor, range: {from: number, to: number}) => {
   if (!editor || !range) return
 
   editor.commands.setTextSelection(range);

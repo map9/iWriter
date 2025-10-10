@@ -354,7 +354,7 @@ const openWithShell = async (): Promise<void> => {
   }
 
   try {
-    let src = imageSrc.value
+    const src = imageSrc.value
 
     if (window.electronAPI?.openWithShell) {
       /*if (src.startsWith('file://')) {
@@ -447,6 +447,7 @@ const copyImage = async (): Promise<void> => {
             notify.success('Image copied to clipboard')
           }, 'image/png')
         } catch (error) {
+          console.warn(`无法加载并复制图片对象，${error}`)
           // 如果无法复制为图片，回退到复制路径
           await navigator.clipboard.writeText(imagePath.value)
         }

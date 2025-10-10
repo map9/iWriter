@@ -84,7 +84,7 @@ const languages = computed<string[]>(() => {
     const language = (props.node.attrs as NodeAttributes).language
 
     // 如果languages不包含language，将它增加进去，如果有，不管
-    let allLanguages = [...languages]
+    const allLanguages = [...languages]
     if (language && !languages.includes(language)) {
       allLanguages.push(language)
     }
@@ -155,9 +155,6 @@ const formatCodeHandler = async (): Promise<void> => {
       const result: FormatResult = await formatCode(currentContent, selectedLanguage.value)
 
       if (result.success && result.formattedCode) {
-        // 保存当前选区
-        const currentSelection = props.editor.state.selection
-
         // 使用编辑器命令更新内容，让lowlight有机会重新处理
         props.editor
           .chain()
