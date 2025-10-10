@@ -364,7 +364,7 @@ const getChangedNodes1 = (transactions: Transaction[], state: EditorState, isNew
 			if (shouldNotCheckNode(node)) return false
 			if (!containsOnlyTextNodes(node)) return true
 
-			changeNodes.push({node, pos})
+      changeNodes.push({node, pos})
 			return false
 		});
 	}
@@ -511,7 +511,6 @@ export const iwProofreadPlugin = (editor: Editor, options: iwProofreadOptions, s
             oldNodes.forEach((node) => {
               const id = generateNodeKey(node.node)
               const nodeProofread = map.get(id)
-              console.log(nodeProofread)
               if (nodeProofread) {
                 if (nodeProofread.status !== 'checking'){
                   console.log({function: 'apply', text: nodeProofread.node.textContent, status: 'deleted'})
@@ -521,6 +520,9 @@ export const iwProofreadPlugin = (editor: Editor, options: iwProofreadOptions, s
                   console.log({function: 'apply', text: nodeProofread.node.textContent, status: 'mark deleted'})
                   nodeProofread.status = 'deleted'
                 }
+              } else {
+                console.warn("find a nodeProofread is undefined, node info:")
+                dumpNode(node.node)
               }
 
               dumpNode(node.node)

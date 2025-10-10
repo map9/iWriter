@@ -40,9 +40,17 @@ export function createSearchReplacePlugin(
           tr.docChanged ||
           storage.searchTerm !== storage.lastSearchTerm ||
           !storage.lastOptions ||
-          (storage.options.caseSensitive !== storage.lastOptions.caseSensitive) ||
-          (storage.options.regex !== storage.lastOptions.regex) ||
-          (storage.options.wholeWord !== storage.lastOptions.wholeWord)
+          storage.options.caseSensitive !== storage.lastOptions.caseSensitive ||
+          storage.options.regex !== storage.lastOptions.regex ||
+          storage.options.wholeWord !== storage.lastOptions.wholeWord ||
+          storage.searchInSelection !== storage.lastSearchInSelection ||
+          (storage.searchInSelection && !storage.lastSelectionRange) ||
+          (
+            storage.searchInSelection && storage.selectionRange && 
+            (
+              storage.selectionRange?.from !== storage.lastSelectionRange?.from || 
+              storage.selectionRange?.to !== storage.lastSelectionRange?.to
+            )) 
         ) {
           const matches = findMatchesInDocument(
             tr.doc,
@@ -52,6 +60,13 @@ export function createSearchReplacePlugin(
           )
           storage.lastSearchTerm = storage.searchTerm
           storage.lastOptions = storage.options
+          storage.lastSearchInSelection = storage.searchInSelection
+          if (storage.searchInSelection) {
+            storage.lastSelectionRange = storage.selectionRange
+          } else {
+            storage.lastSelectionRange = null
+          }
+
           console.log(matches)
 
           // 限制匹配数量

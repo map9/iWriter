@@ -93,19 +93,21 @@ export const iwSearchReplaceExtension = Extension.create<
       mode: 'search',
       searchTerm: '',
       replaceTerm: '',
+      selectionRange: null,
+      searchInSelection: false,
       options: {
         caseSensitive: false,
         wholeWord: false,
         regex: false
       },
       lastSearchTerm: null,
+      lastSelectionRange: null,
+      lastSearchInSelection: false,
       lastOptions: null,
       matches: [],
       currentMatchIndex: -1,
       decorationSet: DecorationSet.empty,
       debounceTimer: null,
-      searchInSelection: false,
-      selectionRange: null
     }
   },
 
@@ -232,53 +234,36 @@ export const iwSearchReplaceExtension = Extension.create<
 
       replaceNext:
         () =>
-        ({ editor }) => {
+        ({ editor, tr, dispatch }) => {
           if (this.storage.matches.length === 0) return false
 
           const match = this.storage.matches[this.storage.currentMatchIndex]
           if (!match) return false
 
           // 执行替换
-          editor
-            .chain()
-            //.focus()
-            .setTextSelection({ from: match.from, to: match.to })
-            .insertContent(this.storage.replaceTerm)
-            .run()
-
-          // 自动跳到下一个
-          setTimeout(() => {
+          if (dispatch) dispatch(tr.insertText(this.storage.replaceTerm, match.from, match.to))
+          
+          requestAnimationFrame(() => {
             if (this.storage.matches.length > 0) {
               editor.commands.findNext()
             }
-          }, 50)
-
+          })
           return true
         },
 
       replaceAll:
         () =>
-        ({ editor, tr }) => {
+        ({ tr, dispatch }) => {
           if (this.storage.matches.length === 0) return false
 
           // 从后往前替换，避免位置偏移
           const matches = [...this.storage.matches].reverse()
 
           matches.forEach(match => {
-            tr.replaceWith(
-              match.from,
-              match.to,
-              editor.schema.text(this.storage.replaceTerm)
-            )
+            tr.insertText(this.storage.replaceTerm, match.from, match.to)
           })
 
-          editor.view.dispatch(tr)
-
-          // 清空搜索结果
-          this.storage.matches = []
-          this.storage.currentMatchIndex = -1
-          updateSearch(editor)
-
+          if (dispatch) dispatch(tr)
           return true
         },
 

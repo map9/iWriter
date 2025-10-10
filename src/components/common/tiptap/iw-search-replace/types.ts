@@ -52,9 +52,19 @@ export interface SearchReplaceStorage {
   replaceTerm: string
 
   /**
+   * 原始选区范围
+   */
+  selectionRange: Range | null
+
+  /**
    * 搜索选项
    */
   options: SearchOptions
+
+  /**
+   * 是否在选区内搜索
+   */
+  searchInSelection: boolean
 
   /**
    * 上一个搜索词
@@ -65,6 +75,16 @@ export interface SearchReplaceStorage {
    * 上一个搜索选项
    */
   lastOptions: SearchOptions | null
+
+  /**
+   * 是否在选区内搜索
+   */
+  lastSearchInSelection: boolean
+
+  /**
+   * 原始选区范围
+   */
+  lastSelectionRange: Range | null
 
   /**
    * 匹配结果
@@ -85,14 +105,4 @@ export interface SearchReplaceStorage {
    * 防抖定时器
    */
   debounceTimer: ReturnType<typeof setTimeout> | null
-
-  /**
-   * 是否在选区内搜索
-   */
-  searchInSelection: boolean
-
-  /**
-   * 原始选区范围
-   */
-  selectionRange: Range | null
 }
