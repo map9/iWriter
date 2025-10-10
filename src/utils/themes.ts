@@ -198,7 +198,7 @@ export function applySystemColors(themeAndColors: { theme: 'light' | 'dark' | 'u
   const root = document.documentElement
   let newColors: any = null
 
-  // console.log(newColors)
+  // console.debug(newColors)
   // 实际上 Electron 应用获取的系统颜色只有在应用第一次获取时有效，后续获取的系统颜色都是缓存，没有及时更新；主题是每次都更新。
   // 在 MacOS 中，经过测试 Accent color会发生变化，其他都不会发生变化
   // 因此，这个部分的代码，不能达到实际效果

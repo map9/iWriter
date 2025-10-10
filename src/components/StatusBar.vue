@@ -22,7 +22,7 @@ const { state: notificationState, dismiss: hideNotification } = useNotification(
 import updaterService from '@/updater/UpdaterService'
 
 const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args?: any[]) => {
-  console.log('StatusBar command executed:', { command, item: { id: item.id, name: (item as StatusBarItem).name }, args })
+  console.debug('StatusBar command executed:', { command, item: { id: item.id, name: (item as StatusBarItem).name }, args })
 
   switch(command) {
     case 'checkForUpdates':
@@ -34,7 +34,7 @@ const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args
         // 显示错误详情或重试
         updaterService.checkForUpdates().catch(console.error)
       }
-      console.log('Checking for updates...')
+      console.debug('Checking for updates...')
       break
     // Handle other commands as needed
     default:
@@ -45,7 +45,7 @@ const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args
 
 // Set up tooltip command handler to use the same logic as StatusBar commands
 const handleTooltipCommand = (protocol: string, command: string, args?: any[]) => {
-  console.log('Tooltip command executed:', { protocol, command, args })
+  console.debug('Tooltip command executed:', { protocol, command, args })
 
 }
 

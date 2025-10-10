@@ -29,8 +29,6 @@ export class NotificationHandler {
     callbacks.value.forEach(callback => {
       callback(notification)
     })
-    
-    // console.log('Notification added:', notification)
   }
 
   // 快捷方法：成功通知

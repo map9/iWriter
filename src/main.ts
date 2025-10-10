@@ -1,3 +1,6 @@
+// 必须在最开始导入日志配置，确保所有日志都被捕获
+import './utils/logger'
+
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'

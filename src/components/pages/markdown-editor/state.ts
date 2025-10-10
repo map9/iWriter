@@ -73,7 +73,7 @@ export function getContentState(editor: Editor | undefined) : ParagraphState {
   else if (editor?.isActive('horizontalRule'))
     type = 'horizontalRule'
   else
-    console.log('Unknown content type')
+    console.info('Unknown content type')
 
   return {
     type,

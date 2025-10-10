@@ -83,7 +83,7 @@ export class ProofreadService {
       const cached = this.nodeCache.get(nodeRequest.id)
 
       if (cached && !this.isCacheExpired(cached)) {
-        console.log('ProofreadService: get result from cache:', nodeRequest.id)
+        console.debug('ProofreadService: get result from cache:', nodeRequest.id)
         cachedResults.set(nodeRequest.id, {
           ...cached,
           id: nodeRequest.id // 更新为当前请求ID

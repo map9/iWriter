@@ -154,7 +154,7 @@ function toggleOption(option: keyof typeof options.value) {
 
 function jumpToResult(result: any) {
   // TODO: Implement jump to search result
-  console.log('Jump to result:', result)
+  console.warn('Jump to result:', result)
 }
 
 // Watch for search query changes
@@ -175,6 +175,6 @@ watch(searchQuery, (newQuery) => {
 
 function performSearch() {
   // TODO: Implement actual search functionality
-  console.log('Performing search:', searchQuery.value)
+  console.warn('Performing search:', searchQuery.value)
 }
 </script>

@@ -157,7 +157,7 @@ export async function onEditorMenuAction(editor: Editor | undefined, action: str
     case 'insert-alert-important':
     case 'insert-alert-warning':
     case 'insert-alert-notification':
-      console.log(`Unsupported menu command: ${action}`)
+      console.info(`Unsupported menu command: ${action}`)
       return true
     case 'insert-quote-block':
       editor.chain().focus().toggleBlockquote().run()
@@ -292,7 +292,7 @@ export async function onEditorMenuAction(editor: Editor | undefined, action: str
       return true
 
     default:
-      console.log('Unhandled menu action in MarkdownEditor:', action)
+      console.warn('Unhandled menu action in MarkdownEditor:', action)
       return false
   }
 }

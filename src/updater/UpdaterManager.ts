@@ -65,7 +65,7 @@ export class UpdaterManager {
       private: false,
       token: ghToken
     })
-    console.log('Updater configured with GitHub provider')
+    console.info('Updater configured with GitHub provider')
 
     // 配置自动下载
     this.updater.autoDownload = config.autoDownload

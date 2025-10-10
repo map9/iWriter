@@ -64,8 +64,6 @@ export interface IconParserConfig {
   // 默认图标组件
   defaultIcon?: Component | null
 
-  // 是否显示调试信息
-  enableDebugLog?: boolean
 }
 
 // Icon name mappings from VSCode-style names to Tabler icon components
@@ -138,7 +136,6 @@ const iconNameMap: Record<string, Component> = {
 // 新增：外部解析器配置
 let externalIconResolver: IconResolver | null = null
 let defaultIconComponent: Component | null = IconPercentage0
-let debugLogEnabled = false
 
 /**
  * 设置图标解析配置
@@ -146,14 +143,11 @@ let debugLogEnabled = false
 export function setupIconResolver(config: IconParserConfig): void {
   externalIconResolver = config.externalResolver || null
   defaultIconComponent = config.defaultIcon || null
-  debugLogEnabled = config.enableDebugLog || false
 
-  if (debugLogEnabled) {
-    console.log('[IconParser] Icon resolver configured:', {
-      hasExternalResolver: !!externalIconResolver,
-      hasDefaultIcon: !!defaultIconComponent
-    })
-  }
+  console.debug('[IconParser] Icon resolver configured:', {
+    hasExternalResolver: !!externalIconResolver,
+    hasDefaultIcon: !!defaultIconComponent
+  })
 }
 
 /**
@@ -291,9 +285,7 @@ export function getTablerIcon(iconName: string): Component | null {
   // 1. 首先尝试内置映射（保持向后兼容）
   const builtinIcon = iconNameMap[iconName]
   if (builtinIcon) {
-    if (debugLogEnabled) {
-      console.log(`[IconParser] Icon '${iconName}' found in builtin map`)
-    }
+    console.debug(`[IconParser] Icon '${iconName}' found in builtin map`)
     return builtinIcon
   }
 
@@ -302,30 +294,22 @@ export function getTablerIcon(iconName: string): Component | null {
     try {
       const externalIcon = externalIconResolver(iconName)
       if (externalIcon) {
-        if (debugLogEnabled) {
-          console.log(`[IconParser] Icon '${iconName}' resolved by external resolver`)
-        }
+        console.debug(`[IconParser] Icon '${iconName}' resolved by external resolver`)
         return externalIcon
       }
     } catch (error) {
-      if (debugLogEnabled) {
-        console.warn(`[IconParser] External resolver failed for '${iconName}':`, error)
-      }
+      console.warn(`[IconParser] External resolver failed for '${iconName}':`, error)
     }
   }
 
   // 3. 返回默认图标
   if (defaultIconComponent) {
-    if (debugLogEnabled) {
-      console.log(`[IconParser] Using default icon for '${iconName}'`)
-    }
+    console.debug(`[IconParser] Using default icon for '${iconName}'`)
     return defaultIconComponent
   }
 
   // 4. 都没有找到
-  if (debugLogEnabled) {
-    console.warn(`[IconParser] No icon found for '${iconName}'`)
-  }
+  console.warn(`[IconParser] No icon found for '${iconName}'`)
   return null
 }
 
@@ -335,14 +319,10 @@ export function getTablerIcon(iconName: string): Component | null {
 export function setTablerIcon(iconName: string, icon: Component, forceOverride = false): boolean {
   if (!iconNameMap[iconName] || forceOverride) {
     iconNameMap[iconName] = icon
-    if (debugLogEnabled) {
-      console.log(`[IconParser] Icon '${iconName}' registered in builtin map`)
-    }
+    console.debug(`[IconParser] Icon '${iconName}' registered in builtin map`)
     return true
   } else {
-    if (debugLogEnabled) {
-      console.warn(`[IconParser] Icon '${iconName}' already exists in builtin map`)
-    }
+    console.warn(`[IconParser] Icon '${iconName}' already exists in builtin map`)
     return false
   }
 }
@@ -353,7 +333,6 @@ export function setTablerIcon(iconName: string, icon: Component, forceOverride =
 export function resetIconResolver(): void {
   externalIconResolver = null
   defaultIconComponent = null
-  debugLogEnabled = false
 }
 
 /**

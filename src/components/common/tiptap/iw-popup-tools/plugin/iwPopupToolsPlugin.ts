@@ -36,17 +36,6 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
           return { visible: prev.visible, shouldShowToolbar: false, feature: null, popupTool: null }
         }
 
-        /*
-        console.log('iwPopupToolsPlugins apply in', {
-          visible: prev.visible,
-          shouldShowToolbar: prev.shouldShowToolbar,
-          editMode: currentTool.editMode,
-          feature: prev.feature, 
-          selection: {from: newState.selection.$from.pos, to: newState.selection.$to.pos},
-          exitPopupTool: tr.getMeta('exitPopupTool'),
-        })
-        */
-        
         // 处理退出编辑的meta
         if (
           tr.getMeta('exitPopupTool') ||
@@ -92,15 +81,6 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
     props: {
       decorations: (state: EditorState): DecorationSet | null => {
         const pluginState = iwPopupToolsPluginKey.getState(state) as PopupToolsPluginState
-        /*
-        console.log('iwPopupToolsPlugins decorations', {
-          visible: pluginState.visible,
-          shouldShowToolbar: pluginState.shouldShowToolbar,
-          editMode: pluginState.popupTool?.editMode,
-          feature: pluginState.feature, 
-          exitPopupTool: state.tr.getMeta('exitPopupTool'),
-        })
-        */
         if (
           !pluginState.visible ||
           !pluginState.shouldShowToolbar ||

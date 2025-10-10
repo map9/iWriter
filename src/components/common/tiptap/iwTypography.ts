@@ -514,7 +514,6 @@ export const iwTypography = Extension.create<iwTypographyOptions>({
             status[name] = rule.getEnable()
           })
 
-          console.log('Typography rules status:', status)
           return true
         },
     }

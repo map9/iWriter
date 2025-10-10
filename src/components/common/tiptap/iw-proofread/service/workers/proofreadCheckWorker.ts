@@ -63,7 +63,7 @@ class TypoEngine implements ProofreadEngine {
     ])
 
     this.dictionary = new Typo(this.language, aff, dic)
-    console.log(`[TypoEngine] Dictionary loaded for ${this.language}`)
+    console.debug(`[TypoEngine] Dictionary loaded for ${this.language}`)
   }
 
   async check(text: string): Promise<ProofreadError[]> {
@@ -182,7 +182,7 @@ class LanguageToolEngine implements ProofreadEngine {
       this.timeout = options.timeout
     }
 
-    console.log(`[LanguageToolEngine] Initialized for ${this.language}, API: ${this.apiUrl}`)
+    console.debug(`[LanguageToolEngine] Initialized for ${this.language}, API: ${this.apiUrl}`)
   }
 
   async check(text: string): Promise<ProofreadError[]> {
@@ -286,7 +286,7 @@ let engine: ProofreadEngine | null = null
 async function initEngine(config: ProofreadEngineConfig): Promise<void> {
   engine = createEngine(config)
   await engine.init(config)
-  console.log(`[proofreadCheckWorker] Engine ready: ${config.type}, language: ${config.language}`)
+  console.debug(`[proofreadCheckWorker] Engine ready: ${config.type}, language: ${config.language}`)
 }
 
 async function proofread(id: string, text: string): Promise<NodeProofreadResult> {
@@ -298,7 +298,7 @@ async function proofread(id: string, text: string): Promise<NodeProofreadResult>
   const errors = await engine.check(text || '')
   const duration = performance.now() - start
 
-  console.log({
+  console.debug({
     function: 'proofreadCheckWorker.proofread',
     id: id,
     text: text.substring(0, 50),

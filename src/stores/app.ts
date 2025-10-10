@@ -131,7 +131,7 @@ export const useAppStore = defineStore('app', () => {
     function startSayHello(windowId: number) {
       sayHelloTimeout = setTimeout(() => {
         window.electronAPI.hello(windowId);
-        //console.log(`window ${windowId} say hello.`)
+        //console.debug(`window ${windowId} say hello.`)
         startSayHello(windowId)
       }, SAY_HELLO_TIMEOUT)
     }
@@ -562,7 +562,7 @@ export const useAppStore = defineStore('app', () => {
     node.id = generateId()
     node.label = filename
     node.path = `${dir}/${filename}`
-    //console.log(`updateFileTreeNodePath: ${sourcePath} -> ${node.path}`)
+    console.debug(`updateFileTreeNodePath: ${sourcePath} -> ${node.path}`)
 
     if (node.type === 'file') {
       const openTab = tabs.value.find(tab => tab.path === sourcePath)
@@ -1345,7 +1345,7 @@ export const useAppStore = defineStore('app', () => {
       if (result.success) {
         notify.success(`${activeTab.name} 打印成功`, '打印操作')
       } else if (result.cancelled) {
-        console.log('Print operation cancelled by user')
+        console.info('Print operation cancelled by user')
       } else {
         notify.error(result.error || 'Unknown error', '打印失败')
       }
@@ -1494,7 +1494,7 @@ export const useAppStore = defineStore('app', () => {
         return true
       
       default:
-        console.log('Unhandled menu action in app:', action)
+        console.warn('Unhandled menu action in app:', action)
         return false
     }
   }

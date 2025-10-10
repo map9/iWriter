@@ -61,7 +61,7 @@ export class WindowManager {
 
   // 开始窗口关闭超时检测
   private startWindowCloseCheck(wState: WindowState) {
-    console.log({
+    console.debug({
       function: 'startWindowCloseCheck',
       windowsSize: this._windows.length,
       wID: wState.id,
@@ -129,7 +129,7 @@ export class WindowManager {
     }
 
     const handleWindowClose = async (event: any) => {
-      console.log({
+      console.debug({
         function: 'close',
         windowsSize: this._windows.length,
         wID: window.id,
@@ -163,7 +163,7 @@ export class WindowManager {
     window.on('focus', handleFocus)
     window.on('close', handleWindowClose);
     window.on('closed', () => {
-      console.log({
+      console.debug({
         function: 'closed',
         windowsSize: this._windows.length,
         wID: window.id,
@@ -201,7 +201,7 @@ export class WindowManager {
 
     window.once('ready-to-show', () => {
       window.show()
-      //console.log(getSystemColors())
+      //console.debug(getSystemColors())
       window.on('enter-full-screen', handleEnterFullScreen)
       window.on('leave-full-screen', handleLeaveFullScreen)
     })
@@ -224,7 +224,7 @@ export class WindowManager {
       console.error(`Find a unkown window id: ${windowId} say hello`)
       return false
     }
-    //console.log(`窗口 ${wState.id} say hello。`);
+    //console.debug(`窗口 ${wState.id} say hello。`);
     
     wState.alive = true
     this.loopHeartbeatCheck(wState)
@@ -334,7 +334,7 @@ export class WindowManager {
         const windowIndex = this._windows.findIndex(w => w.id === window.id);
         
         /*
-        console.log({
+        console.debug({
           function: 'window-content-changed',
           wID: window.id,
           newWContentState: wContentState,

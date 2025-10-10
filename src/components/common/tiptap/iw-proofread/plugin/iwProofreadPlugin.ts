@@ -62,11 +62,11 @@ function updateIgnoredErrorPositions(tr: Transaction, storage: iwProofreadStorag
           ignoredMap.set(newIgnoredId, true)
         } else {
           // 如果内容不匹配，说明用户已修正该错误，自动清除ignore状态
-          console.log({function: 'updateIgnoredErrorPositions', info: 'mismatch content', from, to, word, type })
+          console.debug({function: 'updateIgnoredErrorPositions', info: 'mismatch content', from, to, word, type })
         }
       } else {
         // 如果位置无效，说明该区域被删除，自动清除ignore状态
-        console.log({function: 'updateIgnoredErrorPositions', info: `Can't find`, from, to, word, type })
+        console.debug({function: 'updateIgnoredErrorPositions', info: `Can't find`, from, to, word, type })
       }
     }
   })
@@ -96,7 +96,7 @@ const createNodeDecorations = (
               // 检查是否被忽略（线程安全）
               const ignoredId = createIgnoredErrorId(from, to, error.word, error.type)
               if (ignoredMap.has(ignoredId)) {
-                console.log({function: 'createNodeDecorations', info: 'ignored error', error })
+                console.debug({function: 'createNodeDecorations', info: 'ignored error', error })
                 return  // 跳过已忽略的错误
               }
 
@@ -249,24 +249,24 @@ export const performProofread = async (
 	let nodeProofreadRequests: NodeProofreadRequest[] = []
 	if (isAllDocument) {
 		collectAllNodes(editor, storage)
-		console.log({ function: 'collectAllNodes', nodeProofreadMap: await storage.nodeProofreadMap.size() })
+		console.info({ function: 'collectAllNodes', nodeProofreadMap: await storage.nodeProofreadMap.size() })
 	}
   
   nodeProofreadRequests = buildNodeProofreadRequests(storage)
-	console.log({ function: 'buildNodeProofreadRequests', nodeProofreadRequests, nodeProofreadMap: await storage.nodeProofreadMap.size() })
+	console.info({ function: 'buildNodeProofreadRequests', nodeProofreadRequests, nodeProofreadMap: await storage.nodeProofreadMap.size() })
 	
 	try {
 		let nodeProofreadResults: NodeProofreadResult[] = []
 		if (nodeProofreadRequests.length) {
 			nodeProofreadResults = await storage.proofreadService.checkNodes(nodeProofreadRequests)
-  		console.log({ function: 'checkNodes', nodeProofreadResults })
+  		console.info({ function: 'checkNodes', nodeProofreadResults })
     }
 
 		updateNodeProofreadResults(storage, nodeProofreadResults)
-		console.log({ function: 'updateNodeProofreadResults', nodeProofreadMap: await storage.nodeProofreadMap.size() })
+		console.debug({ function: 'updateNodeProofreadResults', nodeProofreadMap: await storage.nodeProofreadMap.size() })
 
 		const decorations = createNodeDecorations(editor.state.doc, storage)
-		console.log({ function: 'createNodeDecorations', nodeProofreadMap: await storage.nodeProofreadMap.size() })
+		console.debug({ function: 'createNodeDecorations', nodeProofreadMap: await storage.nodeProofreadMap.size() })
 		storage.decorationSet = decorations
 
 		if (editor.view?.dispatch) {
@@ -283,7 +283,7 @@ export const performProofread = async (
 }
 
 const dumpNode = (node: ProseMirrorNode) => {
-	console.log({
+	console.debug({
 		type: node.type.name,
 		content: node.textContent,
 		attrs: node.attrs,
@@ -326,7 +326,7 @@ const getChangedNodes2 = (transactions: Transaction[], state: EditorState, isNew
 				const to = isNew ? newEnd : oldEnd
 
         state.doc.nodesBetween(from, to, (node, pos) => {
-          console.log({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', node: node.textContent, pos})
+          console.debug({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', node: node.textContent, pos})
           if (shouldNotCheckNode(node)) return false
           if (!containsOnlyTextNodes(node)) return true
 
@@ -334,7 +334,7 @@ const getChangedNodes2 = (transactions: Transaction[], state: EditorState, isNew
           return false
         });
 
-        console.log({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', from, to})
+        console.debug({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', from, to})
 			})
 		})
 	}
@@ -360,7 +360,7 @@ const getChangedNodes1 = (transactions: Transaction[], state: EditorState, isNew
 		const end = isNew? change.toB : change.toA
 
 		state.doc.nodesBetween(start, end, (node, pos) => {
-			console.log({function: 'getChangedNodes1', state: isNew? 'NewChange' : 'OldChange', node: node.textContent, pos})
+			console.debug({function: 'getChangedNodes1', state: isNew? 'NewChange' : 'OldChange', node: node.textContent, pos})
 			if (shouldNotCheckNode(node)) return false
 			if (!containsOnlyTextNodes(node)) return true
 
@@ -377,17 +377,17 @@ const getChangedNodes = (transactions: Transaction[], oldEditorState: EditorStat
   newNodes: { node: ProseMirrorNode; pos: number }[]
 } => {
   const oldNodes1 = getChangedNodes1(transactions, oldEditorState, false)
-  console.log({function: 'getChangedNodes1', state: 'OldChange', size: oldNodes1.length})
+  console.debug({function: 'getChangedNodes1', state: 'OldChange', size: oldNodes1.length})
   const newNodes1 = getChangedNodes1(transactions, newEditorState, true)
-  console.log({function: 'getChangedNodes1', state: 'NewChange', size: newNodes1.length})
+  console.debug({function: 'getChangedNodes1', state: 'NewChange', size: newNodes1.length})
 
   // 发现变化为空时，检查是否是等长替换导致 getChangedNodes1 未能检测出来变化
   if (oldNodes1.length === 0 && newNodes1.length === 0) {
-    console.log({function: 'getChangedNodes', state: '等长替换检查开始'})
+    console.info({function: 'getChangedNodes', state: '等长替换检查开始'})
     const oldNodes2 = getChangedNodes2(transactions, oldEditorState, false)
-    console.log({function: 'getChangedNodes2', state: 'OldChange', size: oldNodes2.length})
+    console.debug({function: 'getChangedNodes2', state: 'OldChange', size: oldNodes2.length})
     const newNodes2 = getChangedNodes2(transactions, newEditorState, true)
-    console.log({function: 'getChangedNodes2', state: 'NewChange', size: newNodes2.length})
+    console.debug({function: 'getChangedNodes2', state: 'NewChange', size: newNodes2.length})
 
     if (oldNodes2.length === newNodes2.length && newNodes2.length > 0) {
       for(let i = 0; i < oldNodes2.length; i ++) {
@@ -396,12 +396,12 @@ const getChangedNodes = (transactions: Transaction[], oldEditorState: EditorStat
         if (oldNodes2[i]!.node.textContent !== newNodes2[i]!.node.textContent) {
           oldNodes1.push(oldNodes2[i]!)
           newNodes1.push(newNodes2[i]!)
-          console.log({function: 'getChangedNodes', state: '等长替换', oldContent: oldNodes2[i]!.node.textContent, newContent: newNodes2[i]!.node.textContent})
+          console.debug({function: 'getChangedNodes', state: '等长替换', oldContent: oldNodes2[i]!.node.textContent, newContent: newNodes2[i]!.node.textContent})
         }
       }
     }
 
-    console.log({function: 'getChangedNodes', state: '等长替换检查结束', oldSize: oldNodes1.length, newSize: newNodes1.length})
+    console.info({function: 'getChangedNodes', state: '等长替换检查结束', oldSize: oldNodes1.length, newSize: newNodes1.length})
     return {oldNodes: oldNodes1, newNodes: newNodes1}
   } else {
     return {oldNodes: oldNodes1, newNodes: newNodes1}
@@ -434,7 +434,7 @@ const collectAllNodes = (editor: Editor, storage: iwProofreadStorage) => {
           status: 'idle'
         })
       } else {
-        console.log('already has a checked node, maybe a same text.')
+        console.warn('already has a checked node, maybe a same text.')
       }
 
       //dumpNode(node.node)
@@ -466,11 +466,11 @@ const updateNodeProofreadResults = (storage: iwProofreadStorage, nodeProofreadRe
       const nodeProofread = map.get(value.id)
       if (nodeProofread) {
         if (nodeProofread.status === 'deleted') {
-          console.log({function: 'updateNodeProofreadResults', text: nodeProofread.node.textContent, status: 'deleted'})
+          console.debug({function: 'updateNodeProofreadResults', text: nodeProofread.node.textContent, status: 'deleted'})
           map.delete(nodeProofread.id)
         } else {
           nodeProofread.status = 'checked'
-          console.log({function: 'updateNodeProofreadResults', text: nodeProofread.node.textContent, status: 'checked'})
+          console.debug({function: 'updateNodeProofreadResults', text: nodeProofread.node.textContent, status: 'checked'})
           if (value.errors && value.errors.length > 0) {
             nodeProofread.result = value
             newNodeResults.push(value)
@@ -507,17 +507,17 @@ export const iwProofreadPlugin = (editor: Editor, options: iwProofreadOptions, s
           const { oldNodes, newNodes } = getChangedNodes([tr], oldEditorState, newEditorState)
           storage.nodeProofreadMap.withLock(async (map) => {
             // delete oldNodes from storage.nodeProofreadMap with lock
-            console.log(`delete oldNodes from storage.nodeProofreadMap with lock`)
+            console.debug(`delete oldNodes from storage.nodeProofreadMap with lock`)
             oldNodes.forEach((node) => {
               const id = generateNodeKey(node.node)
               const nodeProofread = map.get(id)
               if (nodeProofread) {
                 if (nodeProofread.status !== 'checking'){
-                  console.log({function: 'apply', text: nodeProofread.node.textContent, status: 'deleted'})
+                  console.debug({function: 'apply', text: nodeProofread.node.textContent, status: 'deleted'})
                   map.delete(id)
                 }
                 else {
-                  console.log({function: 'apply', text: nodeProofread.node.textContent, status: 'mark deleted'})
+                  console.debug({function: 'apply', text: nodeProofread.node.textContent, status: 'mark deleted'})
                   nodeProofread.status = 'deleted'
                 }
               } else {
@@ -529,7 +529,7 @@ export const iwProofreadPlugin = (editor: Editor, options: iwProofreadOptions, s
             });
 
             // add newNodes to storage.nodeProofreadMap with lock
-            console.log(`add newNodes to storage.nodeProofreadMap with lock`)
+            console.debug(`add newNodes to storage.nodeProofreadMap with lock`)
             newNodes.forEach((node) => {
               const id = generateNodeKey(node.node)
               const nodeProofread = map.get(id)
@@ -539,11 +539,11 @@ export const iwProofreadPlugin = (editor: Editor, options: iwProofreadOptions, s
                   node: node.node,
                   status: 'idle'
                 })
-                console.log({function: 'apply', text: node.node.textContent, status: 'idle'})
+                console.debug({function: 'apply', text: node.node.textContent, status: 'idle'})
               } else {
                 const oldStatus = nodeProofread.status
                 if (nodeProofread.status === 'deleted') nodeProofread.status = 'idle'
-                console.log({function: 'apply', text: node.node.textContent, status: nodeProofread.status, oldStatus})
+                console.debug({function: 'apply', text: node.node.textContent, status: nodeProofread.status, oldStatus})
               }
 
               dumpNode(node.node)

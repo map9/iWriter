@@ -36,7 +36,7 @@ export class App {
   }
 
   private startAppQuitCheck() {
-    console.log({
+    console.debug({
       function: 'startAppQuitCheck',
       windowsSize: this.windowManager.getWindowCount(),
       isAppQuitting: this._isAppQuitting,
@@ -82,7 +82,7 @@ export class App {
     })
 
     ipcMain.on('window-close-confirm', (_, windowId: number, canClose: boolean) => {
-      console.log({
+      console.debug({
         wId: windowId,
         canClose: canClose,
         isAppQuitting: this.isAppQuitting,
@@ -347,17 +347,17 @@ export class App {
       if (focusedWindow == null) return null
 
       try {
-        console.log('Moving file:', { sourcePath, targetDir })
+        console.debug('Moving file:', { sourcePath, targetDir })
         
         const fileName = path.basename(sourcePath)
         const sourceDir = path.dirname(sourcePath)
         const targetPath = path.join(targetDir, fileName)
         
-        console.log('Paths:', { fileName, sourceDir, targetPath })
+        console.debug('Paths:', { fileName, sourceDir, targetPath })
         
         // Check if trying to move to the same directory
         if (sourceDir === targetDir) {
-          console.log('Source and target directories are the same, skipping move')
+          console.debug('Source and target directories are the same, skipping move')
           return {
             success: false,
             conflictAction: 'skip'
@@ -391,7 +391,7 @@ export class App {
             }
             
             fs.renameSync(sourcePath, newTargetPath)
-            console.log('Move successful with new name:', newTargetPath)
+            console.debug('Move successful with new name:', newTargetPath)
             return {
               success: true,
               conflictAction: 'keepBoth',
@@ -408,7 +408,7 @@ export class App {
             }
 
             fs.renameSync(sourcePath, targetPath)
-            console.log('Move successful:', targetPath)
+            console.debug('Move successful:', targetPath)
             return {
               success: true,
               conflictAction: 'replace',
@@ -423,7 +423,7 @@ export class App {
         }
         
         fs.renameSync(sourcePath, targetPath)
-        console.log('Move successful:', targetPath)
+        console.debug('Move successful:', targetPath)
         return {
           success: true,
           newPath: targetPath,
@@ -509,7 +509,7 @@ export class App {
             });
           })
           .on('ready', () => {
-            console.log(`File watcher ready for: ${folderPath}`);
+            console.debug(`File watcher ready for: ${folderPath}`);
           });
 
         this.fileWatchers.set(folderPath, watcher);
@@ -526,7 +526,7 @@ export class App {
           const watcher = this.fileWatchers.get(folderPath);
           await watcher?.close();
           this.fileWatchers.delete(folderPath);
-          console.log(`File watcher stopped for: ${folderPath}`);
+          console.debug(`File watcher stopped for: ${folderPath}`);
           return { success: true, path: folderPath };
         }
         return { success: false, error: 'Watcher not found' };
@@ -541,7 +541,7 @@ export class App {
         const promises = Array.from(this.fileWatchers.values()).map(watcher => watcher.close());
         await Promise.all(promises);
         this.fileWatchers.clear();
-        console.log('All file watchers stopped');
+        console.debug('All file watchers stopped');
         return { success: true };
       } catch (error) {
         console.error('Error stopping all file watchers:', error);
@@ -681,7 +681,7 @@ export class App {
 
   run() {
     app.on('window-all-closed', () => {
-      console.log({
+      console.debug({
         function: 'window-all-closed',
       })
 
@@ -698,7 +698,7 @@ export class App {
     6.主进程：app.quit（应用完全退出）
     */
     app.on('before-quit', async (event) => {
-      console.log({
+      console.debug({
         function: 'before-quit',
         windowsSize: this.windowManager.getWindowCount(),
         isAppQuitting: this._isAppQuitting,
@@ -723,7 +723,7 @@ export class App {
     });
 
     app.on('will-quit', async (event) => {
-      console.log({
+      console.debug({
         function: 'will-quit',
         isAppQuitting: this._isAppQuitting,
         exitApp: this._exitApp
@@ -745,7 +745,7 @@ export class App {
         const promises = Array.from(this.fileWatchers.values()).map(watcher => watcher.close());
         await Promise.all(promises);
         this.fileWatchers.clear();
-        console.log('All file watchers stopped');
+        console.debug('All file watchers stopped');
       } catch (error) {
         console.error('Error stopping all file watchers:', error);
       }
@@ -785,7 +785,7 @@ export class App {
           console.error('Failed to initialize UpdaterManager:', error)
         }
       } else {
-        console.log('UpdaterManager disabled in development mode')
+        console.debug('UpdaterManager disabled in development mode')
       }
     })
   }
