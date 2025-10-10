@@ -1,0 +1,19 @@
+.tiptap {
+  .popup-tools-highlight {
+    background: rgba(59, 130, 246, 0.15);
+    border-radius: 0.25rem;
+    position: relative;
+    
+    &::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      border: 1px dashed var(--accent-primary, #3b82f6);
+      border-radius: 0.25rem;
+      pointer-events: none;
+    }
+  }
+}

@@ -158,6 +158,8 @@ class LanguageToolEngine implements ProofreadEngine {
     'PROPER_NOUNS',
     // 语义不明错误
     'SEMANTICS',
+    // 搭配错误：语言中词语之间固定或常用的组合关系错误
+    'COLLOCATIONS',
     'MISC',
   ]
 

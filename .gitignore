@@ -12,7 +12,7 @@ public/dictionaries
 *.tmp
 *.temp
 *.iwt
-assets
+/assets/
 
 # Mac OS --------------------------------------
 .DS_Store

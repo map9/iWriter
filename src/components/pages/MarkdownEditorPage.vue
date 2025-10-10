@@ -281,9 +281,12 @@
     <!-- TipTap Editor -->
     <div class="editor-content-wrapper">
         <EditorContent v-if="editor" :editor="editor" class="w-full max-w-3xl my-4 mx-auto"/>
+
+        <!-- Search & Replace Panel -->
+        <SearchReplacePanel v-if="editor" :editor="editor" />
     </div>
   </div>
-  
+
 </template>
 
 <script setup lang="ts">
@@ -339,6 +342,8 @@ import InvisibleCharacters from '@tiptap/extension-invisible-characters'
 import { iwCodeBlockView, iwImageView, iwTableView, iwMathBlockView, iwPopupTools, iwLinkPopupTool, iwMathPopupTool, iwTypography } from '@/components/common/tiptap'
 
 import { iwProofreadExtension } from '@/components/common/tiptap/iw-proofread'
+import { iwSearchReplaceExtension } from '@/components/common/tiptap/iw-search-replace'
+import SearchReplacePanel from '@/components/common/tiptap/iw-search-replace/components/SearchReplacePanel.vue'
 
 import {
   IconArrowBackUp,
@@ -632,6 +637,14 @@ const extensions = [
     showErrors: true,
     debounceTime: 2000,
     maxWorkers: 4
+  }),
+
+  // 搜索替换扩展
+  iwSearchReplaceExtension.configure({
+    maxMatches: 500,
+    debounceTime: 300,
+    currentMatchClass: 'search-result-current',
+    otherMatchClass: 'search-result'
   })
 ]
 
@@ -763,6 +776,18 @@ async function handleMenuAction(action: string): Promise<boolean> {
     case 'toggle-smart-punctuation':
       toggleSmartPunctuation()
       return true
+
+    case 'find':
+      if (editor.value) {
+        editor.value.commands.openSearch()
+      }
+      return true
+    case 'replace':
+      if (editor.value) {
+        editor.value.commands.openReplace()
+      }
+      return true
+
     case 'text-replace':
       notify.error(`${action}`, 'Not implemented')
       return true
@@ -930,4 +955,7 @@ defineExpose({
 </script>
 
 <style lang="scss">
+.editor-content-wrapper {
+  position: relative;
+}
 </style>

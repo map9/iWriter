@@ -333,12 +333,14 @@ export class WindowManager {
       if (window) {
         const windowIndex = this._windows.findIndex(w => w.id === window.id);
         
+        /*
         console.log({
           function: 'window-content-changed',
           wID: window.id,
           newWContentState: wContentState,
           oldWContentState: this._windows[windowIndex].wContentState,
         });
+        */
         
         if (windowIndex !== -1) {
           this._windows[windowIndex].wContentState = merge(
