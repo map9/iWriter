@@ -5,7 +5,6 @@ import type {
   ProofreadEngineConfig,
 } from './types'
 import { ProofreadWorkerPool } from './ProofreadWorkerPool'
-import { generateNodeKey } from './utils'
 
 export class ProofreadService {
   private workerPool: ProofreadWorkerPool
@@ -56,7 +55,7 @@ export class ProofreadService {
     // 为每个node生成nodeKey（如果还没有的话）
     const nodesWithKeys = nodes.map(node => ({
       ...node,
-      id: node.id || generateNodeKey(node.node)
+      id: node.id
     }))
 
     // 1. 分离缓存命中和未命中的nodes

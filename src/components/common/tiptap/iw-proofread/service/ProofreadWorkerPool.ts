@@ -74,7 +74,7 @@ export class ProofreadWorkerPool {
       // 准备数据
       const nodeData = nodes.map(node => ({
         id: node.id,
-        text: node.node.textContent
+        text: node.nodeContent
       }))
 
       // 使用 workerpool 批量处理

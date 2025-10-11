@@ -140,7 +140,7 @@ function createSuggestionContent(
 			// 使用 span 模拟按钮，采用 control-button 的蓝色样式
 			const suggestionButton = document.createElement('span')
 			suggestionButton.className = 'control-button inline-flex'
-			suggestionButton.textContent = replacement
+			suggestionButton.textContent = replacement.trim().length === 0? '␣' : replacement
 			suggestionButton.setAttribute('role', 'button')
 			suggestionButton.setAttribute('tabindex', '0')
 

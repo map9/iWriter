@@ -1,5 +1,3 @@
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
-
 // ===== 错误类型定义 =====
 export interface ProofreadError {
   offset: number // 相对于node开始位置的偏移
@@ -14,7 +12,7 @@ export interface ProofreadError {
 // ===== 检查请求和结果 =====
 export interface NodeProofreadRequest {
   id: string        // 唯一标识符
-  node: ProseMirrorNode
+  nodeContent: string
 }
 
 export interface NodeProofreadResult {

@@ -1,6 +1,7 @@
 export interface NodeProofread {
 	id: string
 	node: import('@tiptap/pm/model').Node
+	nodeContent: string
 	status: 'idle' | 'checking' | 'checked' | 'deleted'
 	result?: import('./service').NodeProofreadResult
 }
