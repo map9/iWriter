@@ -715,7 +715,7 @@ const getChangedNodes = (transactions: Transaction[], oldEditorState: EditorStat
 
   // 发现变化为空时，检查是否是等长替换导致 getChangedNodes1 未能检测出来变化
   if (oldNodes1.length === 0 && newNodes1.length === 0) {
-    console.info({function: 'getChangedNodes', state: '等长替换检查开始'})
+    //console.info({function: 'getChangedNodes', state: '等长替换检查开始'})
     const oldNodes2 = getChangedNodes2(transactions, oldEditorState, false)
     //console.debug({function: 'getChangedNodes2', state: 'OldChange', size: oldNodes2.length})
     const newNodes2 = getChangedNodes2(transactions, newEditorState, true)
@@ -733,7 +733,7 @@ const getChangedNodes = (transactions: Transaction[], oldEditorState: EditorStat
       }
     }
 
-    console.info({function: 'getChangedNodes', state: '等长替换检查结束', oldSize: oldNodes1.length, newSize: newNodes1.length})
+    //console.info({function: 'getChangedNodes', state: '等长替换检查结束', oldSize: oldNodes1.length, newSize: newNodes1.length})
     return {oldNodes: oldNodes1, newNodes: newNodes1}
   } else {
     return {oldNodes: oldNodes1, newNodes: newNodes1}
