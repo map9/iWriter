@@ -7,7 +7,7 @@ import { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { Transaction, EditorState } from '@tiptap/pm/state'
 import { ChangeSet } from '@tiptap/pm/changeset'
 
-import { debounce, generateNodeKey } from '../service'
+import { generateNodeKey } from '../service'
 import { createTipTapSuggestionBox } from '../adapters/suggestionBoxAdapter'
 import type {
 	NodeProofreadRequest,
@@ -581,20 +581,23 @@ export const performProofread = async (
 ) => {
 	if (!storage.proofreadService || !storage.isEnabled) return
 
+	// 检查 editor 是否已销毁
+	if (editor.isDestroyed) return
+
   while (storage.isProcessing) {
     await new Promise(resolve => setTimeout(resolve, 10));
   }
 	storage.isProcessing = true
-	
+
 	let nodeProofreadRequests: NodeProofreadRequest[] = []
 	if (isAllDocument) {
 		await collectAllNodes(editor, storage)
 		//console.info({ function: 'collectAllNodes', nodeProofreadMap: await storage.nodeProofreadMap.size() })
 	}
-  
+
   nodeProofreadRequests = await buildNodeProofreadRequests(storage)
 	//console.info({ function: 'buildNodeProofreadRequests', nodeProofreadRequests, nodeProofreadMap: await storage.nodeProofreadMap.size() })
-	
+
 	try {
 		let nodeProofreadResults: NodeProofreadResult[] = []
 		if (nodeProofreadRequests.length) {
@@ -602,6 +605,12 @@ export const performProofread = async (
       console.info(`[iwProofreadPlugin] checkNodes: ${nodeProofreadResults.length}.`)
   		//console.info({ function: 'checkNodes', nodeProofreadResults })
     }
+
+		// 异步操作后检查 editor 是否已销毁
+		if (editor.isDestroyed) {
+			console.debug('[iwProofreadPlugin] Editor destroyed, skipping decoration update')
+			return
+		}
 
     // 这里面还有一个问题，就是 createNodeDecorations 还是全量更新
     // 未来需要通过 updateNodeProofreadResults 只对变更后的 nodeProofreadResults 做 createNodeDecorations
@@ -612,7 +621,8 @@ export const performProofread = async (
 		//console.debug({ function: 'createNodeDecorations', nodeProofreadMap: await storage.nodeProofreadMap.size() })
 		storage.decorationSet = decorations
 
-		if (editor.view?.dispatch) {
+		// 最终 dispatch 前再次检查
+		if (!editor.isDestroyed && editor.view?.dispatch) {
 			editor.view.dispatch(
 				editor.view.state.tr.setMeta('forceUpdate', true)
 			)
@@ -807,10 +817,19 @@ const updateNodeProofreadResults = async (storage: iwProofreadStorage, nodeProof
 export const iwProofreadPluginKey = new PluginKey<ProofreadPluginState>('iwProofread')
   
 export const iwProofreadPlugin = (editor: Editor, options: iwProofreadOptions, storage: iwProofreadStorage) => {
-  
-  const debouncedIncrementalSpellCheck = debounce(() => {
+
+  // 使用 storage.debounceTimer 实现防抖
+  const debouncedIncrementalSpellCheck = () => {
+    // 清除之前的定时器
+    if (storage.debounceTimer) {
+      clearTimeout(storage.debounceTimer)
+    }
+
+    // 设置新的定时器
+    storage.debounceTimer = setTimeout(() => {
       performProofread(storage, editor)
     }, options.debounceTime || 1000)
+  }
 
   return new Plugin({
     key: iwProofreadPluginKey,
@@ -911,7 +930,7 @@ export const iwProofreadPlugin = (editor: Editor, options: iwProofreadOptions, s
 
           })
 
-          debouncedIncrementalSpellCheck(storage, editor)
+          debouncedIncrementalSpellCheck()
         }
 
         return oldState
