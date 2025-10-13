@@ -29,12 +29,11 @@ interface TextNodesWithPosition {
   to: number
 }
 
-// 判断是不是不需要进行 Proofread 的 node
-const shouldNotCheckNode = (node: ProseMirrorNode): boolean => {
-	const noTextNodeTypes = ['blockMath', 'codeBlock', 'horizontalRule', 'inlineMath']
-	return (noTextNodeTypes.includes(node.type.name)) ||
-		   !Boolean(node.textContent) ||
-		   (node.textContent.length == 0)
+interface ChangedNode {
+  node: ProseMirrorNode
+  pos: number
+  nodeContent: string
+  textNodesWithPosition?: import('../types').TextNodesWithPosition[]
 }
 
 // 检查 node 的 children, 判断 node 是否包含 inlineMath 或者 存在非 text 的 child
@@ -54,15 +53,21 @@ function detectNodeChildren(node: ProseMirrorNode) {
 	return { onlyText, hasInlineMath }
 }
 
+//const processNode = processNodeNormal
+//const processNode = processNodePlus
+const processNode = processNodeAdvanced
+
 // 遍历 node, 对 node 进行处理，这个处理比较简单，就是将 ProseMirror 中被隔断的文本送到 Proofread 中
 // 会有语义不清，空白字符，段落不清等问题，不利于后续 AI 的 Proofread 的使用
-function processNode(
+function processNodeNormal(
   doc: ProseMirrorNode, from: number, to: number, 
-  processFun: (node: ProseMirrorNode, pos: number, nodeContent: string)=>void
+  processFun: (node: ProseMirrorNode, pos: number, nodeContent: string, n?: TextNodesWithPosition[])=>void
 ) {
   let hasInlineMath = false
   const innerProcess = (node: ProseMirrorNode, pos: number) => {
-    if (shouldNotCheckNode(node)) return false
+	  if ((['blockMath', 'codeBlock', 'horizontalRule', 'inlineMath'].includes(node.type.name)) ||
+      !Boolean(node.textContent) ||
+		  (node.textContent.length == 0)) return false
     const d = detectNodeChildren(node)
     if (node.type.name === 'paragraph') hasInlineMath = d.hasInlineMath
     if (!d.onlyText) return true
@@ -80,12 +85,12 @@ function processNode(
 }
 
 const inlineMathText = '[Math Exp.]'
-//const inlineMathText = ' '
+const inlineEmojiText = '[Emoji]'
 
 // 后续需要将 inlineMath 拼装为一个完整的句子，送去进行 proofread，现在只是简单解决一下包含 inlineMath 的段落起点位置 pos + 1 的问题。
 // 具体拼装的方式为：将所有的 inlineMath 用 [Math Exp.] 来代替，在生成 Decorations 时，来进行处理
-// 用于替换 processNode 函数
-function processNodeAdvanced(
+// 用于替换 processNodeNormal 函数
+function processNodePlus(
   doc: ProseMirrorNode, from: number, to: number, 
   processFun: (node: ProseMirrorNode, pos: number, nodeContent: string, n?: TextNodesWithPosition[])=>void
 ) {
@@ -94,10 +99,10 @@ function processNodeAdvanced(
   let paraNode: ProseMirrorNode | null = null
   let paraPos: number = 0
 
+  let packagingCount = 0
   const packaging = () => {
-    if (paraNode) {
-      textNodesWithPosition = textNodesWithPosition.filter(Boolean)
-      
+    textNodesWithPosition = textNodesWithPosition.filter(Boolean)
+    if (paraNode && textNodesWithPosition.length > 0) {
       let finalText = ''
       let lastPos = paraPos
       for (const {from, to, text} of textNodesWithPosition) {
@@ -116,8 +121,16 @@ function processNodeAdvanced(
         lastPos = to
         finalText += text
       }
+
+      packagingCount ++
       if (finalText.trim().length !== 0) {
-        //console.log(`packaging text: ${finalText}`)
+        console.debug({
+          function: 'processNodePlus packaging',
+          node: paraNode.textContent,
+          finalText,
+          textNodesWithPosition
+        })
+        
         processFun(paraNode, paraPos, finalText, textNodesWithPosition)
       }
     }
@@ -128,7 +141,7 @@ function processNodeAdvanced(
   }
 
   const innerProcess = (node: ProseMirrorNode, pos: number) => {
-    if (shouldNotCheckNode(node)) return false
+	  if (['blockMath', 'codeBlock', 'horizontalRule'].includes(node.type.name)) return false
 
     // 如果是新的一行的开始，则将前面的打包
     if (node.type.name === 'paragraph' || node.type.name === 'heading') {
@@ -178,7 +191,87 @@ function processNodeAdvanced(
     packaging()
   } else {
     doc.nodesBetween(from, to, innerProcess)
+    // 在nodesBetween(from, to, callback)迭代中，当from = to且恰好位于段落（paragraph）的末尾位置时，
+    // nodesBetween只会遍历包含此位置的节点（即段落本身），不会深入到文本节点（因为位置8不在文本节点范围内）。
+    // 此时回调函数中只能获取到段落节点，看不到其内部的文本节点，容易误以为 "没有文本子节点"。
+    // 但实际上文本节点仍然存在，只是不在from = to的迭代范围内。
+    // 为了避免这个情况，需要手工增加
+    if (packagingCount === 0 && from === to && paraNode) {
+      textNodesWithPosition[0] = {
+        //@ts-expect-error don't report
+        text: paraNode.textContent,
+        from: paraPos,
+        to: -1
+      }
+    }
     packaging()
+  }
+}
+
+// 这个解决了在一行的头部和尾部进行修改时，出现只对修改后的 paragrap 的子结点（如果 paragraph 被 inlineMath 或者 emoji 分割了的话）进行 proofread。
+// 导致 proofread 的内容不是一个整体，同时，由于 pos 在行的头或者尾，不能解决。
+function processNodeAdvanced(
+  doc: ProseMirrorNode, from: number, to: number, 
+  processFun: (node: ProseMirrorNode, pos: number, nodeContent: string, n?: TextNodesWithPosition[])=>void
+) {
+    const innerProcess = (node: ProseMirrorNode, pos: number) => {
+    if ((['blockMath', 'codeBlock', 'horizontalRule'].includes(node.type.name)) ||
+      !Boolean(node.textContent) ||
+		  (node.textContent.length == 0)) return false
+
+    // 只处理'paragraph', 'heading'
+    if (['paragraph', 'heading'].includes(node.type.name)) {
+      let finalText = ''
+      let lastPos = pos + 1
+      const textNodesWithPosition: TextNodesWithPosition[] = []
+      node.forEach((child) => {
+        if (child.isText && child.text && child.text.length > 0) {
+          textNodesWithPosition.push({
+            text: child.text,
+            from: lastPos,
+            to: lastPos + child.nodeSize
+          }) 
+          finalText += child.text
+        } else {
+          if (child.nodeSize) {
+            let nodeText = Array(child.nodeSize + 1).join(' ')
+            if (child.type.name === 'inlineMath') {
+              nodeText = inlineMathText
+            } else if (child.type.name === 'emoji') {
+              nodeText = inlineEmojiText
+            }
+
+            textNodesWithPosition.push({
+              text: nodeText,
+              from: lastPos,
+              to: lastPos + child.nodeSize
+            })
+
+            finalText += nodeText
+          }
+        }
+
+        lastPos += child.nodeSize
+      })
+
+      /*
+      console.debug({
+        function: 'processNodeAdvanced',
+        node: node.textContent,
+        finalText,
+        textNodesWithPosition
+      })
+      */
+      processFun(node, pos, finalText, textNodesWithPosition)
+      return false
+    }    
+    return true
+  }
+
+  if (from === -1 && to === -1) {
+    doc.descendants(innerProcess)
+  } else {
+    doc.nodesBetween(from, to, innerProcess)
   }
 }
 
@@ -231,119 +324,137 @@ function updateIgnoredErrorPositions(tr: Transaction, storage: iwProofreadStorag
   })
 }
 
-const createNodeDecorations = (
+// 辅助函数：从缓存的位置信息计算 error 的准确位置
+// 我实在是比较烦这个逻辑，这一段用 TextNodesWithPosition 来解决精确匹配的代码由 Claude Code 生成
+// 如果存在 textNodesWithPosition，需要根据它来计算真实位置
+function calculateErrorPosition(
+  textNodesWithPosition: TextNodesWithPosition[],
+  error: ProofreadError
+): { from: number; to: number } | null {
+  let accumulatedLength = 0  // finalText 中的累计长度
+
+  for (let i = 0; i < textNodesWithPosition.length; i++) {
+    const textNode = textNodesWithPosition[i]!
+    const textLength = textNode.text.length
+
+    // 检查 error 是否在当前 textNode 范围内
+    if (error.offset >= accumulatedLength && error.offset < accumulatedLength + textLength) {
+      // error 起始位置在当前 textNode 内
+      const offsetInText = error.offset - accumulatedLength
+
+      if (textNode.to === -1) {
+        // 这是 inlineMath 占位符，错误不应该在这里
+        console.warn({function: 'calculateErrorPosition', info: 'error in inlineMath placeholder', error})
+        return null
+      }
+
+      // 计算真实文档位置
+      const from = textNode.from + offsetInText
+      let to: number
+
+      // 检查 error 是否跨越多个 textNode
+      const errorEnd = error.offset + error.length
+      if (errorEnd <= accumulatedLength + textLength) {
+        // error 完全在当前 textNode 内
+        to = from + error.length
+      } else {
+        // error 跨越多个 textNode，需要继续计算
+        let remainingLength = error.length - (textLength - offsetInText)
+        to = textNode.to
+
+        for (let j = i + 1; j < textNodesWithPosition.length && remainingLength > 0; j++) {
+          const nextNode = textNodesWithPosition[j]!
+          if (nextNode.to === -1) {
+            // 跳过 inlineMath 占位符
+            continue
+          }
+
+          const nextNodeLength = nextNode.to - nextNode.from
+          if (remainingLength <= nextNodeLength) {
+            to = nextNode.from + remainingLength
+            remainingLength = 0
+            break // 这个是否需要加？？
+          } else {
+            to = nextNode.to
+            remainingLength -= nextNodeLength
+          }
+        }
+      }
+
+      return { from, to }
+    }
+
+    accumulatedLength += textLength
+  }
+
+  return null
+}
+
+const createNodeDecorations = async (
 	doc: ProseMirrorNode,
 	storage: iwProofreadStorage
-): DecorationSet => {
+): Promise<DecorationSet> => {
 	const decorations: Decoration[] = []
 
-  storage.nodeProofreadMap.withLock((nodeMap)=>{
+  await storage.nodeProofreadMap.withLock((nodeMap)=>{
     storage.ignoredErrors.withLock((ignoredMap) => {
 
       for (const nodep of nodeMap.values()) {
         if (nodep.status !== 'checked' || !nodep.result || (nodep.result.errors.length === 0)) continue
 
-        processNodeAdvanced(doc, -1, -1, (node, pos, nodeContent, n) => {
-          if (generateNodeKey(node) === nodep.result!.id) {
+        // === 核心优化：直接使用缓存的位置，不再遍历整个文档 ===
+        const { pos, textNodesWithPosition } = nodep
 
-            nodep.result!.errors.forEach((error, errorIndex) => {
-              let from: number = -1
-              let to: number = -1
+        // 如果缺少位置信息，跳过（不应该发生）
+        if (pos === undefined) {
+          console.warn({function: 'createNodeDecorations', info: 'Missing position cache for node', id: nodep.id})
+          continue
+        }
 
-              // 我实在是比较烦这个逻辑，这一段用 TextNodesWithPosition 来解决精确匹配的代码由 Claude Code 生成
-              // 如果存在 textNodesWithPosition，需要根据它来计算真实位置
-              if (n && n.length > 0) {
-                // error.offset 是在 finalText 中的位置
-                // 需要找到对应的真实文档位置
+        // 为该节点的每个 error 创建 decoration
+        nodep.result.errors.forEach((error, errorIndex) => {
+          let from: number = -1
+          let to: number = -1
 
-                let accumulatedLength = 0  // finalText 中累计的长度
-                let found = false
+          // 使用缓存的位置信息计算 error 的准确位置
+          if (textNodesWithPosition && textNodesWithPosition.length > 0) {
+            const errorPosition = calculateErrorPosition(textNodesWithPosition, error)
+            if (!errorPosition) {
+              console.warn({function: 'createNodeDecorations', info: 'cannot find position', error, nodeContent: nodep.nodeContent})
+              return
+            }
 
-                for (let i = 0; i < n.length; i++) {
-                  const textNode = n[i]!
-                  const textLength = textNode.text.length
+            from = errorPosition.from
+            to = errorPosition.to
+          } else {
+            // 没有 textNodesWithPosition，使用简单计算（向后兼容）
+            from = pos + 1 + error.offset
+            to = from + error.length
+          }
 
-                  // 检查 error 是否在当前 textNode 范围内
-                  if (error.offset >= accumulatedLength && error.offset < accumulatedLength + textLength) {
-                    // error 起始位置在当前 textNode 内
-                    const offsetInText = error.offset - accumulatedLength
+          // 检查是否被忽略
+          const ignoredId = createIgnoredErrorId(from, to, error.word, error.type)
+          if (ignoredMap.has(ignoredId)) {
+            //console.debug({function: 'createNodeDecorations', info: 'ignored error', error })
+            return
+          }
 
-                    if (textNode.to === -1) {
-                      // 这是 inlineMath 占位符，错误不应该在这里
-                      console.warn({function: 'createNodeDecorations', info: 'error in inlineMath placeholder', error})
-                      found = false
-                      break
-                    }
-
-                    // 计算真实文档位置
-                    from = textNode.from + offsetInText
-
-                    // 检查 error 是否跨越多个 textNode
-                    const errorEnd = error.offset + error.length
-                    if (errorEnd <= accumulatedLength + textLength) {
-                      // error 完全在当前 textNode 内
-                      to = from + error.length
-                    } else {
-                      // error 跨越多个 textNode，需要继续计算
-                      let remainingLength = error.length - (textLength - offsetInText)
-                      to = textNode.to
-
-                      for (let j = i + 1; j < n.length && remainingLength > 0; j++) {
-                        const nextNode = n[j]!
-                        if (nextNode.to === -1) {
-                          // 跳过 inlineMath 占位符
-                          continue
-                        }
-
-                        const nextNodeLength = nextNode.to - nextNode.from
-                        if (remainingLength <= nextNodeLength) {
-                          to = nextNode.from + remainingLength
-                          remainingLength = 0
-                        } else {
-                          to = nextNode.to
-                          remainingLength -= nextNodeLength
-                        }
-                      }
-                    }
-
-                    found = true
-                    break
-                  }
-
-                  accumulatedLength += textLength
+          // 验证位置在文档范围内
+          if (from >= 0 && to <= doc.content.size && from < to) {
+            decorations.push(
+              Decoration.inline(
+                from,
+                to,
+                { class: getErrorClass(error.type) },
+                {
+                  error,
+                  index: errorIndex,
+                  id: nodep.result!.id,
                 }
-
-                if (!found) {
-                  console.warn({function: 'createNodeDecorations', info: 'cannot find position', error, nodeContent})
-                  return
-                }
-              } else {
-                // 没有 textNodesWithPosition，使用简单计算（向后兼容）
-                from = pos + 1 + error.offset
-                to = from + error.length
-              }
-
-              const ignoredId = createIgnoredErrorId(from, to, error.word, error.type)
-              if (ignoredMap.has(ignoredId)) {
-                console.debug({function: 'createNodeDecorations', info: 'ignored error', error })
-                return
-              }
-
-              if (from >= 0 && to <= doc.content.size && from < to) {
-                decorations.push(
-                  Decoration.inline(
-                    from,
-                    to,
-                    { class: getErrorClass(error.type) },
-                    {
-                      error,
-                      index: errorIndex,
-                      id: nodep.result!.id,
-                    }
-                  )
-                )
-              }
-            })
+              )
+            )
+          } else {
+            console.warn({function: 'createNodeDecorations', info: 'Error position out of range', from, to, error})
           }
         })
       }
@@ -477,25 +588,28 @@ export const performProofread = async (
 	
 	let nodeProofreadRequests: NodeProofreadRequest[] = []
 	if (isAllDocument) {
-		collectAllNodes(editor, storage)
-		console.info({ function: 'collectAllNodes', nodeProofreadMap: await storage.nodeProofreadMap.size() })
+		await collectAllNodes(editor, storage)
+		//console.info({ function: 'collectAllNodes', nodeProofreadMap: await storage.nodeProofreadMap.size() })
 	}
   
-  nodeProofreadRequests = buildNodeProofreadRequests(storage)
-	console.info({ function: 'buildNodeProofreadRequests', nodeProofreadRequests, nodeProofreadMap: await storage.nodeProofreadMap.size() })
+  nodeProofreadRequests = await buildNodeProofreadRequests(storage)
+	//console.info({ function: 'buildNodeProofreadRequests', nodeProofreadRequests, nodeProofreadMap: await storage.nodeProofreadMap.size() })
 	
 	try {
 		let nodeProofreadResults: NodeProofreadResult[] = []
 		if (nodeProofreadRequests.length) {
 			nodeProofreadResults = await storage.proofreadService.checkNodes(nodeProofreadRequests)
-  		console.info({ function: 'checkNodes', nodeProofreadResults })
+      console.info(`[iwProofreadPlugin] checkNodes: ${nodeProofreadResults.length}.`)
+  		//console.info({ function: 'checkNodes', nodeProofreadResults })
     }
 
-		updateNodeProofreadResults(storage, nodeProofreadResults)
-		console.debug({ function: 'updateNodeProofreadResults', nodeProofreadMap: await storage.nodeProofreadMap.size() })
+    // 这里面还有一个问题，就是 createNodeDecorations 还是全量更新
+    // 未来需要通过 updateNodeProofreadResults 只对变更后的 nodeProofreadResults 做 createNodeDecorations
+		await updateNodeProofreadResults(storage, nodeProofreadResults)
+		//console.debug({ function: 'updateNodeProofreadResults', nodeProofreadMap: await storage.nodeProofreadMap.size() })
 
-		const decorations = createNodeDecorations(editor.state.doc, storage)
-		console.debug({ function: 'createNodeDecorations', nodeProofreadMap: await storage.nodeProofreadMap.size() })
+		const decorations = await createNodeDecorations(editor.state.doc, storage)
+		//console.debug({ function: 'createNodeDecorations', nodeProofreadMap: await storage.nodeProofreadMap.size() })
 		storage.decorationSet = decorations
 
 		if (editor.view?.dispatch) {
@@ -511,17 +625,24 @@ export const performProofread = async (
 	}
 }
 
-const dumpNode = (node: ProseMirrorNode) => {
+const dumpChangedNode = (node: ChangedNode) => {
+  /*
 	console.debug({
-		type: node.type.name,
-		content: node.textContent,
-		attrs: node.attrs,
-		marks: node.marks?.map(mark => ({ type: mark.type.name, attrs: mark.attrs }))
+    function: 'dumpChangedNode',
+    pos: node.pos,
+    nodeContent: node.nodeContent,
+		node: {
+      type: node.node.type.name,
+		  content: node.node.textContent,
+		  attrs: node.node.attrs,
+		  marks: node.node.marks?.map(mark => ({ type: mark.type.name, attrs: mark.attrs }))
+    }
 	})
+  */
 }
 
 const getChangedNodes2 = (transactions: Transaction[], state: EditorState, isNew: boolean = false) => {
-	const changeNodes: { node: ProseMirrorNode; pos: number, nodeContent: string }[] = [];
+	const changeNodes: ChangedNode[] = [];
 
 	// 直接从Transaction的steps中提取变化范围
 	for (const txn of transactions.filter((txn) => txn.docChanged)) {
@@ -534,10 +655,10 @@ const getChangedNodes2 = (transactions: Transaction[], state: EditorState, isNew
         const from = isNew ? newStart : oldStart
 				const to = isNew ? newEnd : oldEnd
 
-        console.debug({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', from, to})
-        processNodeAdvanced(state.doc, from, to, (node, pos, nodeContent) => {
-          console.debug({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', node: nodeContent, pos})
-          changeNodes.push({node, pos, nodeContent})
+        //console.debug({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', from, to})
+        processNode(state.doc, from, to, (node, pos, nodeContent, textNodesWithPosition) => {
+          //console.debug({function: 'getChangedNodes2', state: isNew? 'NewChange' : 'OldChange', node: nodeContent, pos})
+          changeNodes.push({node, pos, nodeContent, textNodesWithPosition: textNodesWithPosition})
         })
 			})
 		})
@@ -557,16 +678,16 @@ const getChangedNodes1 = (transactions: Transaction[], state: EditorState, isNew
 		);
 	}
 
-	const changeNodes: { node: ProseMirrorNode; pos: number, nodeContent: string }[] = [];
+  const changeNodes: ChangedNode[] = [];
 
 	for (const change of changeSet.changes) {
 		const start = isNew? change.fromB : change.fromA
 		const end = isNew? change.toB : change.toA
 
-    console.debug({function: 'getChangedNodes1', state: isNew? 'NewChange' : 'OldChange', start, end})
-    processNodeAdvanced(state.doc, start, end, (node, pos, nodeContent) => {
-      console.debug({function: 'getChangedNodes1', state: isNew? 'NewChange' : 'OldChange', node: nodeContent, pos})
-      changeNodes.push({node, pos, nodeContent})
+    //console.debug({function: 'getChangedNodes1', state: isNew? 'NewChange' : 'OldChange', start, end})
+    processNode(state.doc, start, end, (node, pos, nodeContent, textNodesWithPosition) => {
+      //console.debug({function: 'getChangedNodes1', state: isNew? 'NewChange' : 'OldChange', node: nodeContent, pos})
+      changeNodes.push({node, pos, nodeContent, textNodesWithPosition: textNodesWithPosition})
     })
 	}
 
@@ -574,21 +695,21 @@ const getChangedNodes1 = (transactions: Transaction[], state: EditorState, isNew
 }
 
 const getChangedNodes = (transactions: Transaction[], oldEditorState: EditorState, newEditorState: EditorState): {
-  oldNodes: { node: ProseMirrorNode; pos: number, nodeContent: string }[],
-  newNodes: { node: ProseMirrorNode; pos: number, nodeContent: string }[]
+  oldNodes: ChangedNode[],
+  newNodes: ChangedNode[]
 } => {
   const oldNodes1 = getChangedNodes1(transactions, oldEditorState, false)
-  console.debug({function: 'getChangedNodes1', state: 'OldChange', size: oldNodes1.length})
+  //console.debug({function: 'getChangedNodes1', state: 'OldChange', size: oldNodes1.length})
   const newNodes1 = getChangedNodes1(transactions, newEditorState, true)
-  console.debug({function: 'getChangedNodes1', state: 'NewChange', size: newNodes1.length})
+  //console.debug({function: 'getChangedNodes1', state: 'NewChange', size: newNodes1.length})
 
   // 发现变化为空时，检查是否是等长替换导致 getChangedNodes1 未能检测出来变化
   if (oldNodes1.length === 0 && newNodes1.length === 0) {
     console.info({function: 'getChangedNodes', state: '等长替换检查开始'})
     const oldNodes2 = getChangedNodes2(transactions, oldEditorState, false)
-    console.debug({function: 'getChangedNodes2', state: 'OldChange', size: oldNodes2.length})
+    //console.debug({function: 'getChangedNodes2', state: 'OldChange', size: oldNodes2.length})
     const newNodes2 = getChangedNodes2(transactions, newEditorState, true)
-    console.debug({function: 'getChangedNodes2', state: 'NewChange', size: newNodes2.length})
+    //console.debug({function: 'getChangedNodes2', state: 'NewChange', size: newNodes2.length})
 
     if (oldNodes2.length === newNodes2.length && newNodes2.length > 0) {
       for(let i = 0; i < oldNodes2.length; i ++) {
@@ -597,7 +718,7 @@ const getChangedNodes = (transactions: Transaction[], oldEditorState: EditorStat
         if (oldNodes2[i]!.nodeContent !== newNodes2[i]!.nodeContent) {
           oldNodes1.push(oldNodes2[i]!)
           newNodes1.push(newNodes2[i]!)
-          console.debug({function: 'getChangedNodes', state: '等长替换', oldContent: oldNodes2[i]!.nodeContent, newContent: newNodes2[i]!.nodeContent})
+          //console.debug({function: 'getChangedNodes', state: '等长替换', oldContent: oldNodes2[i]!.nodeContent, newContent: newNodes2[i]!.nodeContent})
         }
       }
     }
@@ -613,13 +734,13 @@ const getChangedNodes = (transactions: Transaction[], oldEditorState: EditorStat
  * @param doc 文档根节点
  * @returns
  */
-const collectAllNodes = (editor: Editor, storage: iwProofreadStorage) => {
-  const newNodes: { node: ProseMirrorNode; pos: number, nodeContent: string }[] = [];
-  processNodeAdvanced(editor.state.doc, -1, -1, (node, pos, nodeContent) => {
-    newNodes.push({node, pos, nodeContent})
+const collectAllNodes = async (editor: Editor, storage: iwProofreadStorage) => {
+  const newNodes: ChangedNode[] = [];
+  processNode(editor.state.doc, -1, -1, (node, pos, nodeContent, textNodesWithPosition) => {
+    newNodes.push({node, pos, nodeContent, textNodesWithPosition: textNodesWithPosition})
   })
 
-  storage.nodeProofreadMap.withLock(async (map) => {
+  await storage.nodeProofreadMap.withLock(async (map) => {
     // add newNodes to storage.nodeProofreadMap with lock
     newNodes.forEach((node) => {
       const id = generateNodeKey(node.node)
@@ -629,21 +750,24 @@ const collectAllNodes = (editor: Editor, storage: iwProofreadStorage) => {
           id: id,
           node: node.node,
           nodeContent: node.nodeContent,
-          status: 'idle'
+          status: 'idle',
+          // 记录位置信息
+          pos: node.pos,
+          textNodesWithPosition: node.textNodesWithPosition
         })
       } else {
         console.warn('already has a checked node, maybe a same text.')
       }
 
-      //dumpNode(node.node)
+      //dumpChangedNode(node)
     });
-    
+
   })
 }
 
-const buildNodeProofreadRequests = (storage: iwProofreadStorage): NodeProofreadRequest[] => {
+const buildNodeProofreadRequests = async (storage: iwProofreadStorage): Promise<NodeProofreadRequest[]> => {
 	const nodeProofreadRequests: NodeProofreadRequest[] = []
-  storage.nodeProofreadMap.withLock((map)=>{
+  await storage.nodeProofreadMap.withLock((map)=>{
     map.forEach((value, key) => {
       if (value.status === 'idle') {
         value.status = 'checking'
@@ -657,18 +781,18 @@ const buildNodeProofreadRequests = (storage: iwProofreadStorage): NodeProofreadR
   return nodeProofreadRequests
 }
 
-const updateNodeProofreadResults = (storage: iwProofreadStorage, nodeProofreadResults: NodeProofreadResult[]) => {
+const updateNodeProofreadResults = async (storage: iwProofreadStorage, nodeProofreadResults: NodeProofreadResult[]) => {
   const newNodeResults: NodeProofreadResult[] = []
-  storage.nodeProofreadMap.withLock((map)=>{
+  await storage.nodeProofreadMap.withLock((map)=>{
     nodeProofreadResults.forEach((value) => {
       const nodeProofread = map.get(value.id)
       if (nodeProofread) {
         if (nodeProofread.status === 'deleted') {
-          console.debug({function: 'updateNodeProofreadResults', text: nodeProofread.nodeContent, status: 'deleted'})
+          //console.debug({function: 'updateNodeProofreadResults', text: nodeProofread.nodeContent, status: 'deleted'})
           map.delete(nodeProofread.id)
         } else {
           nodeProofread.status = 'checked'
-          console.debug({function: 'updateNodeProofreadResults', text: nodeProofread.nodeContent, status: 'checked', errors: value.errors})
+          //console.debug({function: 'updateNodeProofreadResults', text: nodeProofread.nodeContent, status: 'checked', errors: value.errors})
           if (value.errors && value.errors.length > 0) {
             nodeProofread.result = value
             newNodeResults.push(value)
@@ -699,35 +823,64 @@ export const iwProofreadPlugin = (editor: Editor, options: iwProofreadOptions, s
 
       apply: (tr, oldState, oldEditorState, newEditorState) => {
         if (tr.docChanged && storage.isEnabled) {
+          // 更新所有节点的位置缓存
+          storage.nodeProofreadMap.withLock((map) => {
+            map.forEach((nodep) => {
+              // 只更新有位置信息的节点
+              if (nodep.pos !== undefined && nodep.textNodesWithPosition) {
+                // 使用 tr.mapping 更新段落位置
+                nodep.pos = tr.mapping.map(nodep.pos)
+
+                // 更新文本片段位置
+                nodep.textNodesWithPosition = nodep.textNodesWithPosition.map(textNode => {
+                  if (textNode.to === -1) {
+                    // inlineMath 占位符，只更新 from
+                    return {
+                      ...textNode,
+                      from: tr.mapping.map(textNode.from)
+                    }
+                  } else {
+                    // 普通文本节点，更新 from 和 to
+                    return {
+                      ...textNode,
+                      from: tr.mapping.map(textNode.from),
+                      to: tr.mapping.map(textNode.to)
+                    }
+                  }
+                })
+              }
+            })
+          })
+
           // 更新ignored errors的位置
           updateIgnoredErrorPositions(tr, storage)
 
           const { oldNodes, newNodes } = getChangedNodes([tr], oldEditorState, newEditorState)
           storage.nodeProofreadMap.withLock(async (map) => {
             // delete oldNodes from storage.nodeProofreadMap with lock
-            console.debug(`delete oldNodes from storage.nodeProofreadMap with lock`)
+            //console.debug(`delete oldNodes from storage.nodeProofreadMap with lock, nodes count: ${oldNodes.length}`)
             oldNodes.forEach((node) => {
               const id = generateNodeKey(node.node)
               const nodeProofread = map.get(id)
               if (nodeProofread) {
                 if (nodeProofread.status !== 'checking'){
-                  console.debug({function: 'apply', text: nodeProofread.nodeContent, status: 'deleted'})
+                  //console.debug({function: 'apply', text: nodeProofread.nodeContent, status: 'deleted'})
                   map.delete(id)
                 }
                 else {
-                  console.debug({function: 'apply', text: nodeProofread.nodeContent, status: 'mark deleted'})
+                  //console.debug({function: 'apply', text: nodeProofread.nodeContent, status: 'mark deleted'})
                   nodeProofread.status = 'deleted'
                 }
               } else {
                 console.warn("find a nodeProofread is undefined, node info:")
-                dumpNode(node.node)
+                dumpChangedNode(node)
               }
 
-              dumpNode(node.node)
+              dumpChangedNode(node)
             });
 
             // add newNodes to storage.nodeProofreadMap with lock
-            console.debug(`add newNodes to storage.nodeProofreadMap with lock`)
+            //console.debug(`add newNodes to storage.nodeProofreadMap with lock, nodes count: ${newNodes.length}`)
             newNodes.forEach((node) => {
               const id = generateNodeKey(node.node)
               const nodeProofread = map.get(id)
@@ -736,16 +889,24 @@ export const iwProofreadPlugin = (editor: Editor, options: iwProofreadOptions, s
                   id: id,
                   node: node.node,
                   nodeContent: node.nodeContent,
-                  status: 'idle'
+                  status: 'idle',
+                  // 记录位置信息
+                  pos: node.pos,
+                  textNodesWithPosition: node.textNodesWithPosition
                 })
-                console.debug({function: 'apply', text: node.nodeContent, status: 'idle'})
+                //console.debug({function: 'apply', text: node.nodeContent, status: 'idle'})
               } else {
-                const oldStatus = nodeProofread.status
-                if (nodeProofread.status === 'deleted') nodeProofread.status = 'idle'
-                console.debug({function: 'apply', text: node.nodeContent, status: nodeProofread.status, oldStatus})
+                //const oldStatus = nodeProofread.status
+                if (nodeProofread.status === 'deleted') {
+                  nodeProofread.status = 'idle'
+                  // 节点复活时更新位置
+                  nodeProofread.pos = node.pos
+                  nodeProofread.textNodesWithPosition = node.textNodesWithPosition
+                }
+                //console.debug({function: 'apply', text: node.nodeContent, status: nodeProofread.status, oldStatus})
               }
 
-              dumpNode(node.node)
+              dumpChangedNode(node)
             });
 
           })

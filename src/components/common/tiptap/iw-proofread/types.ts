@@ -1,9 +1,19 @@
+export interface TextNodesWithPosition {
+	text: string
+	from: number
+	to: number  // -1 表示 inlineMath 占位符
+}
+
 export interface NodeProofread {
 	id: string
 	node: import('@tiptap/pm/model').Node
 	nodeContent: string
 	status: 'idle' | 'checking' | 'checked' | 'deleted'
 	result?: import('./service').NodeProofreadResult
+
+	// 位置缓存优化
+	pos?: number  // 节点在文档中的起始位置
+	textNodesWithPosition?: TextNodesWithPosition[]  // 文本节点的详细位置信息
 }
 
 export interface iwProofreadOptions {

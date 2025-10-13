@@ -37,7 +37,7 @@ export class ProofreadWorkerPool {
         throw err
       })
     } catch (error) {
-      console.error('ProofreadWorkerPool: Failed to create pool:', error)
+      console.error('[ProofreadWorkerPool] Failed to create pool:', error)
       throw error
     }
   }
@@ -46,9 +46,9 @@ export class ProofreadWorkerPool {
     try {
       // 在第一个 worker 中初始化引擎，直接传递完整的引擎配置
       await this.pool.exec('initEngine', [this.config.engineConfig])
-      console.info('ProofreadWorkerPool: Engine initialized successfully')
+      console.info('[ProofreadWorkerPool] Engine initialized successfully')
     } catch (error) {
-      console.error('ProofreadWorkerPool: Engine initialization failed:', error)
+      console.error('[ProofreadWorkerPool] Engine initialization failed:', error)
       throw error
     }
   }
@@ -80,11 +80,11 @@ export class ProofreadWorkerPool {
       // 使用 workerpool 批量处理
       const results = await this.pool.exec('batchProofread', [nodeData])
 
-      console.info(`ProofreadWorkerPool: Processed ${nodes.length} nodes`)
+      console.info(`[ProofreadWorkerPool] Processed ${nodes.length} nodes`)
       return results
 
     } catch (error) {
-      console.warn('ProofreadWorkerPool: Error processing nodes:', error)
+      console.warn('[ProofreadWorkerPool] Error processing nodes:', error)
 
       // 返回空结果而不是抛出异常
       return nodes.map(node => ({
@@ -103,9 +103,9 @@ export class ProofreadWorkerPool {
   async destroy(): Promise<void> {
     try {
       await this.pool.terminate()
-      console.debug('ProofreadWorkerPool: Pool terminated successfully')
+      console.debug('[ProofreadWorkerPool] Pool terminated successfully')
     } catch (error) {
-      console.warn('ProofreadWorkerPool: Error terminating pool:', error)
+      console.warn('[ProofreadWorkerPool] Error terminating pool:', error)
     }
 
     this.initPromise = null

@@ -294,17 +294,19 @@ async function proofread(id: string, text: string): Promise<NodeProofreadResult>
     throw new Error('Engine not initialized')
   }
 
-  const start = performance.now()
+  //const start = performance.now()
   const errors = await engine.check(text || '')
-  const duration = performance.now() - start
+  //const duration = performance.now() - start
 
+  /*
   console.debug({
     function: 'proofreadCheckWorker.proofread',
     id: id,
-    text: text.substring(0, 50),
+    text: text,
     errorCount: errors.length,
     duration
   })
+  */
 
   return {
     id,
