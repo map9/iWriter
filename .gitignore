@@ -22,7 +22,7 @@ public/dictionaries
 Thumbs.db
 
 # VS Code -------------------------------------
-.vscode/*
+.vscode
 .idea/
 *.swp
 *.swo

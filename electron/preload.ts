@@ -87,9 +87,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Context menu
-  showContextMenu: (menuItems: any[], position: { x: number; y: number }) => 
+  showContextMenu: (menuItems: any[], position: { x: number; y: number }) =>
     ipcRenderer.invoke('show-context-menu', menuItems, position),
-  
+
+  // Search in files
+  searchInFiles: (options: any) => ipcRenderer.invoke('search-in-files', options),
+
   // Menu actions
   onMenuAction: (callback: (action: string) => void) => {
     ipcRenderer.on('menu-action', (_, action) => callback(action))

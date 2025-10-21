@@ -35,6 +35,154 @@ export class App {
     this.setupIpcHandlers()
   }
 
+  /**
+   * HTML 转义辅助函数，防止 XSS 攻击
+   */
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;')
+  }
+
+  /**
+   * 智能提取上下文：结合固定长度和语义边界
+   * @param text 完整文本
+   * @param matchIndex 匹配位置
+   * @param matchLength 匹配长度
+   * @returns { beforeContext, afterContext, needPrefixEllipsis, needSuffixEllipsis }
+   */
+  private extractSmartContext(
+    text: string,
+    matchIndex: number,
+    matchLength: number
+  ): {
+    beforeContext: string
+    afterContext: string
+    needPrefixEllipsis: boolean
+    needSuffixEllipsis: boolean
+  } {
+    // 配置参数
+    const IDEAL_LENGTH = 15      // 理想长度（每侧）
+    const MAX_LENGTH = 20         // 最大长度（超过则强制截断）
+
+    // 语义边界字符（中英文标点、换行等）
+    const BOUNDARY_CHARS = new Set([
+      // 英文标点
+      '.', ',', ';', ':', '!', '?',
+      '(', ')', '[', ']', '{', '}',
+      '"', "'", '`',
+      // 中文标点
+      '\u3002', '\uFF0C', '\uFF1B', '\uFF1A', '\uFF01', '\uFF1F', // 。，；：！？
+      '\u3001', '\u300A', '\u300B', '\u201C', '\u201D', '\u2018', '\u2019', // 、《》""''
+      '\uFF08', '\uFF09', '\u3010', '\u3011', '\u300E', '\u300F', // （）【】『』
+      // 空白字符
+      ' ', '\t', '\n', '\r'
+    ])
+
+    // === 提取前置上下文 ===
+    let beforeContext = ''
+    let needPrefixEllipsis = false
+
+    if (matchIndex > 0) {
+      // 1. 先按理想长度提取
+      const idealStart = Math.max(0, matchIndex - IDEAL_LENGTH)
+      const beforeText = text.substring(idealStart, matchIndex)
+
+      // 2. 在理想范围内查找语义边界
+      let semanticBoundaryIndex = -1
+      for (let i = beforeText.length - 1; i >= 0; i--) {
+        if (BOUNDARY_CHARS.has(beforeText[i])) {
+          semanticBoundaryIndex = i
+          break
+        }
+      }
+
+      // 3. 决定最终截取位置
+      if (semanticBoundaryIndex !== -1) {
+        // 找到语义边界，使用边界后的内容
+        beforeContext = beforeText.substring(semanticBoundaryIndex + 1).trimStart()
+        needPrefixEllipsis = idealStart > 0
+      } else {
+        // 未找到语义边界，检查是否需要扩展到最大长度
+        const maxStart = Math.max(0, matchIndex - MAX_LENGTH)
+        const extendedText = text.substring(maxStart, matchIndex)
+
+        // 在扩展范围内再次查找边界
+        for (let i = extendedText.length - 1; i >= 0; i--) {
+          if (BOUNDARY_CHARS.has(extendedText[i])) {
+            beforeContext = extendedText.substring(i + 1).trimStart()
+            needPrefixEllipsis = maxStart > 0
+            semanticBoundaryIndex = i
+            break
+          }
+        }
+
+        // 仍未找到边界或超过最大长度，按固定长度截断
+        if (semanticBoundaryIndex === -1 || beforeContext.length > MAX_LENGTH) {
+          beforeContext = beforeText
+          needPrefixEllipsis = idealStart > 0
+        }
+      }
+    }
+
+    // === 提取后置上下文 ===
+    let afterContext = ''
+    let needSuffixEllipsis = false
+
+    const matchEnd = matchIndex + matchLength
+    if (matchEnd < text.length) {
+      // 1. 先按理想长度提取
+      const idealEnd = Math.min(text.length, matchEnd + IDEAL_LENGTH)
+      const afterText = text.substring(matchEnd, idealEnd)
+
+      // 2. 在理想范围内查找语义边界
+      let semanticBoundaryIndex = -1
+      for (let i = 0; i < afterText.length; i++) {
+        if (BOUNDARY_CHARS.has(afterText[i])) {
+          semanticBoundaryIndex = i
+          break
+        }
+      }
+
+      // 3. 决定最终截取位置
+      if (semanticBoundaryIndex !== -1) {
+        // 找到语义边界，使用边界前的内容（包含边界符号）
+        afterContext = afterText.substring(0, semanticBoundaryIndex + 1).trimEnd()
+        needSuffixEllipsis = idealEnd < text.length
+      } else {
+        // 未找到语义边界，检查是否需要扩展到最大长度
+        const maxEnd = Math.min(text.length, matchEnd + MAX_LENGTH)
+        const extendedText = text.substring(matchEnd, maxEnd)
+
+        // 在扩展范围内再次查找边界
+        for (let i = 0; i < extendedText.length; i++) {
+          if (BOUNDARY_CHARS.has(extendedText[i])) {
+            afterContext = extendedText.substring(0, i + 1).trimEnd()
+            needSuffixEllipsis = maxEnd < text.length
+            semanticBoundaryIndex = i
+            break
+          }
+        }
+
+        // 仍未找到边界或超过最大长度，按固定长度截断
+        if (semanticBoundaryIndex === -1 || afterContext.length > MAX_LENGTH) {
+          afterContext = afterText
+          needSuffixEllipsis = idealEnd < text.length
+        }
+      }
+    }
+
+    return {
+      beforeContext,
+      afterContext,
+      needPrefixEllipsis,
+      needSuffixEllipsis
+    }
+  }
+
   private startAppQuitCheck() {
     console.debug({
       function: 'startAppQuitCheck',
@@ -631,6 +779,171 @@ export class App {
       }
     })
 
+    // 跨文件搜索
+    ipcMain.handle('search-in-files', async (_, options: any) => {
+      try {
+        const {
+          folderPath,
+          searchTerm,
+          options: searchOptions,
+          includePattern,
+          excludePattern,
+          maxResults = 10000
+        } = options
+
+        if (!searchTerm || !folderPath) {
+          return []
+        }
+
+        // 默认排除的目录和文件模式
+        const defaultExcludePatterns = [
+          'node_modules/**',
+          '.git/**',
+          'dist/**',
+          'build/**',
+          '.vscode/**',
+          '.idea/**',
+          '*.min.js',
+          '*.min.css',
+          'package-lock.json',
+          'yarn.lock'
+        ]
+
+        // 二进制文件扩展名
+        const binaryExtensions = new Set([
+          '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.svg',
+          '.mp3', '.mp4', '.avi', '.mov', '.wmv',
+          '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+          '.zip', '.rar', '.7z', '.tar', '.gz',
+          '.exe', '.dll', '.so', '.dylib'
+        ])
+
+        const results: any[] = []
+        let totalMatches = 0
+
+        // 递归搜索文件
+        const searchInDirectory = (dir: string) => {
+          if (totalMatches >= maxResults) return
+
+          try {
+            const items = fs.readdirSync(dir, { withFileTypes: true })
+
+            for (const item of items) {
+              if (totalMatches >= maxResults) break
+
+              const fullPath = path.join(dir, item.name)
+              const relativePath = path.relative(folderPath, fullPath)
+
+              // 检查是否应该排除
+              const shouldExclude = defaultExcludePatterns.some(pattern => {
+                const regex = new RegExp(pattern.replace(/\*/g, '.*').replace(/\//g, '\\/'))
+                return regex.test(relativePath) || regex.test(item.name)
+              })
+
+              if (shouldExclude) continue
+
+              if (item.isDirectory()) {
+                searchInDirectory(fullPath)
+              } else if (item.isFile()) {
+                // 检查文件扩展名
+                const ext = path.extname(item.name).toLowerCase()
+                if (binaryExtensions.has(ext)) continue
+
+                // 检查文件大小（跳过大于 10MB 的文件）
+                try {
+                  const stats = fs.statSync(fullPath)
+                  if (stats.size > 10 * 1024 * 1024) continue
+                } catch (err) {
+                  continue
+                }
+
+                // 读取文件内容并搜索
+                try {
+                  const content = fs.readFileSync(fullPath, 'utf8')
+                  const lines = content.split('\n')
+                  const matches: any[] = []
+
+                  // 构建搜索正则表达式
+                  let pattern = searchTerm
+                  if (!searchOptions.regex) {
+                    pattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                  }
+                  if (searchOptions.wholeWord) {
+                    pattern = `\\b${pattern}\\b`
+                  }
+                  const flags = searchOptions.caseSensitive ? 'g' : 'gi'
+                  const regex = new RegExp(pattern, flags)
+
+                  // 在每一行中搜索
+                  lines.forEach((line, index) => {
+                    if (totalMatches >= maxResults) return
+
+                    // 获取一行中的所有匹配
+                    const lineMatches = Array.from(line.matchAll(new RegExp(regex.source, flags)))
+
+                    // 处理一行中的所有匹配
+                    for (const match of lineMatches) {
+                      if (totalMatches >= maxResults) break
+
+                      const matchIndex = match.index || 0
+                      const matchLength = match[0].length
+
+                      // 使用智能上下文提取（语义边界优先）
+                      const {
+                        beforeContext,
+                        afterContext,
+                        needPrefixEllipsis,
+                        needSuffixEllipsis
+                      } = this.extractSmartContext(line, matchIndex, matchLength)
+
+                      // 构建带高亮的 HTML
+                      const prefix = needPrefixEllipsis ? '...' : ''
+                      const suffix = needSuffixEllipsis ? '...' : ''
+
+                      const matchText = line.substring(matchIndex, matchIndex + matchLength)
+
+                      const contextHtml = `${prefix}${this.escapeHtml(beforeContext)}<mark>${this.escapeHtml(matchText)}</mark>${this.escapeHtml(afterContext)}${suffix}`
+
+                      matches.push({
+                        line: index + 1,
+                        column: matchIndex,
+                        text: match[0],
+                        contextHtml
+                      })
+                      totalMatches++
+                    }
+                  })
+
+                  if (matches.length > 0) {
+                    results.push({
+                      filePath: fullPath,
+                      fileName: item.name,
+                      relativePath,
+                      matches,
+                      totalMatches: matches.length
+                    })
+                  }
+                } catch (err) {
+                  // 跳过无法读取的文件
+                  console.error(`Error reading file ${fullPath}:`, err)
+                }
+              }
+            }
+          } catch (err) {
+            console.error(`Error reading directory ${dir}:`, err)
+          }
+        }
+
+        // 开始搜索
+        searchInDirectory(folderPath)
+
+        return results
+      } catch (error) {
+        console.error('Error searching in files:', error)
+        throw error
+      }
+    })
+
   }
 
   private removeAllHandler() {
@@ -654,6 +967,7 @@ export class App {
     ipcMain.removeHandler('stop-all-file-watching')
     ipcMain.removeHandler('get-file-watching-status')
     ipcMain.removeHandler('show-context-menu')
+    ipcMain.removeHandler('search-in-files')
 
     ipcMain.removeAllListeners('hello');
     ipcMain.removeAllListeners('window-close-confirm');
@@ -664,6 +978,13 @@ export class App {
     if (action === 'new-window') {
       this.windowManager.createWindow()
       return
+    }
+
+    if (
+      (this.windowManager.getWindowCount() === 0) &&
+      ((action === 'new-file') || (action === 'open-file') || action === 'open-folder')
+    ) {
+      this.windowManager.createWindow()      
     }
   
     BrowserWindow.getFocusedWindow()?.webContents.send('menu-action', action)

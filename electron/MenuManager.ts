@@ -786,6 +786,7 @@ export class MenuManager {
               this.sendMenuAction('insert-math-block')
             }
           },
+          /*
           {
             label: 'Alert',
             submenu: [
@@ -822,6 +823,7 @@ export class MenuManager {
             ]
           },
           { type: 'separator' },
+          */
           {
             label: 'Quote Block',
             accelerator: 'CmdOrCtrl+Shift+Q',
@@ -831,12 +833,14 @@ export class MenuManager {
               this.sendMenuAction('insert-quote-block')
             }
           },
+          /*
           {
             label: 'Caption',
             click: () => {
               this.sendMenuAction('toggle-caption')
             }
           },
+          */
           { type: 'separator' },
           {
             label: 'Ordered List',
@@ -944,6 +948,7 @@ export class MenuManager {
               this.sendMenuAction('insert-paragraph-below')
             }
           },
+          /*
           { type: 'separator' },
           {
             label: 'Reference Link',
@@ -959,6 +964,7 @@ export class MenuManager {
               this.sendMenuAction('footprint')
             }
           },
+          */
           { type: 'separator' },
           {
             label: 'Horizontal Rule',
@@ -1063,12 +1069,14 @@ export class MenuManager {
               }
             ]
           },
+          /*
           {
             label: 'Text Style',
             submenu: [
               // Text style options will be populated dynamically
             ]
           },
+          */
           { type: 'separator' },
           {
             id: 'format-code',

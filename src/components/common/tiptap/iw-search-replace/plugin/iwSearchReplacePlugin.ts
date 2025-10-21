@@ -67,7 +67,7 @@ export function createSearchReplacePlugin(
             storage.lastSelectionRange = null
           }
 
-          console.debug({function: 'apply', matches})
+          //console.debug({function: 'apply', matches})
 
           // 限制匹配数量
           storage.matches = matches.slice(0, options.maxMatches)
