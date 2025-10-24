@@ -165,12 +165,12 @@
           <div v-if="isFileExpanded(result.filePath)" class="match-lines">
             <div
               v-for="(match, index) in result.matches"
-              :key="`${result.filePath}-${match.line}-${index}`"
+              :key="`${result.filePath}-${match.position.from}-${index}`"
               class="match-line"
               @click="jumpToResult(result, index)"
             >
               <div class="match-line-content">
-                <span class="line-number">{{ match.line }}:</span>
+                <span class="line-number">{{ match.position.from }}:</span>
                 <span class="line-text" v-html="match.contextHtml"></span>
               </div>
               <button
@@ -202,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import {
   IconChevronRight,
@@ -214,9 +214,12 @@ import {
   IconReplace,
   IconReplaceFilled
 } from '@tabler/icons-vue'
-import { FileSearchService } from '@/utils/search/FileSearchService'
-import type { FileSearchResult } from '@/types/search'
+import { TipTapSearchService, type TipTapSearchResult } from '@/utils/search/TipTapSearchService'
+import type { Editor } from '@tiptap/core'
 import { notify } from '@/utils/notifications'
+import type { FileChange } from '@/types'
+import { TEXT_EXTENSIONS } from '@/types'
+import { pathUtils } from '@/utils/pathUtils'
 
 const appStore = useAppStore()
 
@@ -231,8 +234,9 @@ const options = ref({
   regex: false
 })
 
-const searchResults = ref<FileSearchResult[]>([])
+const searchResults = ref<TipTapSearchResult[]>([])
 const isSearching = ref(false)
+const isReplacing = ref(false)
 const expandedFiles = ref<Set<string>>(new Set())
 
 const fileCount = computed(() => {
@@ -287,20 +291,40 @@ function handleSearchEnter(event: KeyboardEvent) {
   }
 }
 
-async function jumpToResult(fileResult: FileSearchResult, matchIndex: number = 0) {
+async function jumpToResult(fileResult: TipTapSearchResult, matchIndex: number = 0) {
   try {
-    // 打开文件
+    // 1. 打开文件
     await appStore.openFile(fileResult.filePath)
+    await nextTick()
 
-    // TODO: 跳转到特定行号（需要在 app store 中实现）
-    const match = fileResult.matches[matchIndex]
-    if (match) {
-      console.log(`Jump to line ${match.line} in file ${fileResult.filePath}`)
-      // 这里需要在后续步骤中实现跳转到具体行的功能
+    // 2. 获取编辑器实例
+    const tab = appStore.tabs.find(t => t.path === fileResult.filePath)
+    if (!tab?.editorInstance) {
+      notify.error('Failed to open editor')
+      return
     }
+
+    const editor = tab.editorInstance as Editor
+    const match = fileResult.matches[matchIndex]
+    if (!match) {
+      notify.warning('Match not found')
+      return
+    }
+
+    // 3. 使用 TipTap 服务跳转并高亮
+    TipTapSearchService.jumpToMatch(
+      editor,
+      match,
+      searchQuery.value,
+      {
+        caseSensitive: options.value.matchCase,
+        wholeWord: options.value.wholeWord,
+        regex: options.value.regex
+      }
+    )
   } catch (error) {
     console.error('Error jumping to result:', error)
-    notify.error('Failed to open file')
+    notify.error('Failed to jump to result')
   }
 }
 
@@ -309,31 +333,148 @@ function replaceNext() {
   notify.info('Replace next - not yet implemented')
 }
 
-function replaceAll() {
-  // TODO: Implement replace all
+async function replaceAll() {
   if (totalMatches.value === 0) return
 
   const confirmMsg = `Replace ${totalMatches.value} occurrences across ${fileCount.value} files?`
-  if (confirm(confirmMsg)) {
-    notify.info('Replace all - not yet implemented')
+  if (!confirm(confirmMsg)) return
+
+  try {
+    // 执行跨文件替换（不再需要从编辑器获取 extensions）
+    isReplacing.value = true
+    const result = await TipTapSearchService.replaceInWorkspace(
+      searchResults.value,
+      searchQuery.value,
+      replaceQuery.value,
+      {
+        caseSensitive: options.value.matchCase,
+        wholeWord: options.value.wholeWord,
+        regex: options.value.regex
+      }
+    )
+
+    isReplacing.value = false
+
+    // 显示结果
+    if (result.success) {
+      notify.success(
+        `Replaced ${result.totalReplacements} occurrences in ${result.filesModified} files`
+      )
+      // 重新执行搜索以更新结果
+      await performSearch()
+    } else {
+      const errorMsg = result.errors
+        ? `Replaced ${result.totalReplacements} occurrences, but encountered ${result.errors.length} errors`
+        : 'Replacement completed with errors'
+      notify.warning(errorMsg)
+      // 仍然重新搜索以显示更新的结果
+      await performSearch()
+    }
+  } catch (error) {
+    isReplacing.value = false
+    console.error('Error in replaceAll:', error)
+    notify.error('Failed to replace: ' + String(error))
   }
 }
 
-function replaceSingle(fileResult: FileSearchResult, matchIndex: number) {
-  // TODO: Implement single replace
-  const match = fileResult.matches[matchIndex]
-  if (match) {
-    notify.info(`Replace in ${fileResult.fileName} at line ${match.line}`)
+async function replaceSingle(fileResult: TipTapSearchResult, matchIndex: number) {
+  try {
+    const match = fileResult.matches[matchIndex]
+    if (!match) {
+      notify.warning('Match not found')
+      return
+    }
+
+    // 1. 打开文件
+    await appStore.openFile(fileResult.filePath)
+    await nextTick()
+
+    // 2. 获取编辑器实例
+    const tab = appStore.tabs.find(t => t.path === fileResult.filePath)
+    if (!tab?.editorInstance) {
+      notify.error('Failed to open editor')
+      return
+    }
+
+    const editor = tab.editorInstance as Editor
+
+    // 3. 执行替换
+    editor.commands.insertContentAt(
+      { from: match.position.from, to: match.position.to },
+      replaceQuery.value
+    )
+
+    notify.success('Replaced 1 occurrence')
+
+    // 4. 重新执行搜索以更新结果
+    await performSearch()
+  } catch (error) {
+    console.error('Error in replaceSingle:', error)
+    notify.error('Failed to replace: ' + String(error))
   }
 }
 
-function replaceAllInFile(fileResult: FileSearchResult) {
-  // TODO: Implement replace all in file
+async function replaceAllInFile(fileResult: TipTapSearchResult) {
   const confirmMsg = `Replace all ${fileResult.totalMatches} occurrences in ${fileResult.fileName}?`
-  if (confirm(confirmMsg)) {
-    notify.info(`Replace all in ${fileResult.fileName}`)
+  if (!confirm(confirmMsg)) return
+
+  try {
+    // 执行单文件替换（不再需要从编辑器获取 extensions）
+    isReplacing.value = true
+    const result = await TipTapSearchService.replaceInWorkspace(
+      [fileResult],
+      searchQuery.value,
+      replaceQuery.value,
+      {
+        caseSensitive: options.value.matchCase,
+        wholeWord: options.value.wholeWord,
+        regex: options.value.regex
+      }
+    )
+
+    isReplacing.value = false
+
+    // 显示结果
+    if (result.success) {
+      notify.success(
+        `Replaced ${result.totalReplacements} occurrences in ${fileResult.fileName}`
+      )
+      // 重新执行搜索以更新结果
+      await performSearch()
+    } else {
+      const errorMsg = result.errors?.[0]?.error || 'Unknown error'
+      notify.error(`Failed to replace in ${fileResult.fileName}: ${errorMsg}`)
+    }
+  } catch (error) {
+    isReplacing.value = false
+    console.error('Error in replaceAllInFile:', error)
+    notify.error('Failed to replace: ' + String(error))
   }
 }
+
+// ========== highlightOnly 生命周期管理 ==========
+// 清除所有编辑器的高亮模式
+function clearAllHighlights() {
+  appStore.tabs.forEach(tab => {
+    if (tab.editorInstance) {
+      TipTapSearchService.clearHighlightMode(tab.editorInstance as Editor)
+    }
+  })
+}
+
+// 当搜索结果清空时，清除所有高亮
+watch(searchResults, (newResults) => {
+  if (newResults.length === 0) {
+    clearAllHighlights()
+  }
+})
+
+// 监听左侧边栏模式切换，当离开搜索模式时清除高亮
+watch(() => appStore.leftSidebarMode, (newMode) => {
+  if (newMode !== 'search') {
+    clearAllHighlights()
+  }
+})
 
 // Watch for search query changes
 let searchTimeout: number | undefined
@@ -366,6 +507,99 @@ watch([includePattern, excludePattern], () => {
   }
 })
 
+// ========== 编辑器内容变化监听（差分更新）==========
+const editorUpdateListeners = new Map<string, () => void>()
+
+watch(() => appStore.tabs, (newTabs) => {
+  // 清理旧的监听器
+  editorUpdateListeners.forEach(cleanup => cleanup())
+  editorUpdateListeners.clear()
+
+  // 为每个打开的 tab 添加监听
+  newTabs.forEach(tab => {
+    if (tab.editorInstance && tab.path) {
+      const editor = tab.editorInstance as Editor
+
+      // 监听编辑器更新事件（防抖处理）
+      let updateTimeout: number | undefined
+      const updateHandler = () => {
+        if (updateTimeout) clearTimeout(updateTimeout)
+        updateTimeout = window.setTimeout(() => {
+          handleEditorContentChange(tab.path!)
+        }, 1000) // 1秒防抖
+      }
+
+      editor.on('update', updateHandler)
+
+      // 保存清理函数
+      editorUpdateListeners.set(tab.id, () => {
+        if (updateTimeout) clearTimeout(updateTimeout)
+        editor.off('update', updateHandler)
+      })
+    }
+  })
+}, { deep: true })
+
+// 处理编辑器内容变化（差分更新）
+async function handleEditorContentChange(filePath: string) {
+  // 只有存在搜索条件时才处理
+  if (!searchQuery.value || !appStore.currentFolder) return
+
+  try {
+    // 重新搜索这一个文件
+    const updatedResult = await TipTapSearchService.searchInSingleFilePublic(
+      filePath,
+      appStore.currentFolder,
+      searchQuery.value,
+      {
+        caseSensitive: options.value.matchCase,
+        wholeWord: options.value.wholeWord,
+        regex: options.value.regex
+      },
+      10000,
+      appStore.tabs
+    )
+
+    // 差分更新结果
+    updateSingleFileResult(filePath, updatedResult)
+  } catch (error) {
+    console.error('Error updating search result for file:', filePath, error)
+  }
+}
+
+// 差分更新单个文件的搜索结果
+function updateSingleFileResult(
+  filePath: string,
+  newResult: TipTapSearchResult | null
+) {
+  const existingIndex = searchResults.value.findIndex(
+    r => r.filePath === filePath
+  )
+
+  if (newResult && newResult.totalMatches > 0) {
+    // 有匹配结果
+    if (existingIndex >= 0) {
+      // 更新现有结果
+      searchResults.value[existingIndex] = newResult
+    } else {
+      // 添加新结果（之前没有匹配，现在有了）
+      searchResults.value.push(newResult)
+      // 如果总文件数不多，自动展开
+      if (searchResults.value.length <= 20) {
+        expandedFiles.value.add(filePath)
+      }
+    }
+  } else {
+    // 没有匹配结果
+    if (existingIndex >= 0) {
+      // 移除现有结果（之前有匹配，现在没有了）
+      searchResults.value.splice(existingIndex, 1)
+      expandedFiles.value.delete(filePath)
+    }
+    // 如果之前也没有，什么都不做
+  }
+}
+
 async function performSearch() {
   if (!appStore.currentFolder) {
     notify.error('No folder opened')
@@ -381,18 +615,20 @@ async function performSearch() {
   try {
     isSearching.value = true
 
-    const results = await FileSearchService.searchInFolder({
-      folderPath: appStore.currentFolder,
-      searchTerm: searchQuery.value,
-      options: {
+    // 使用 TipTap 搜索服务，传递打开的 tabs 以优先搜索编辑器内容
+    const results = await TipTapSearchService.searchInWorkspace(
+      appStore.currentFolder,
+      searchQuery.value,
+      {
         caseSensitive: options.value.matchCase,
         wholeWord: options.value.wholeWord,
-        useRegex: options.value.regex
+        regex: options.value.regex
       },
-      includePattern: includePattern.value || undefined,
-      excludePattern: excludePattern.value || undefined,
-      maxResults: 10000
-    })
+      includePattern.value || undefined,
+      excludePattern.value || undefined,
+      10000,
+      appStore.tabs  // 传递 tabs
+    )
 
     searchResults.value = results
 
@@ -411,6 +647,234 @@ async function performSearch() {
     isSearching.value = false
   }
 }
+
+// ========== 文件系统变化监听（差分更新）==========
+const fileChangeDebounceMap = new Map<string, number>()
+
+// 监听左侧边栏模式切换
+watch(() => appStore.leftSidebarMode, (newMode, oldMode) => {
+  if (newMode === 'search' && oldMode !== 'search') {
+    // 进入搜索模式，开始监听文件系统变化
+    if (window.electronAPI) {
+      window.electronAPI.onFileChange(handleFileSystemChange)
+    }
+  } else if (oldMode === 'search' && newMode !== 'search') {
+    // 离开搜索模式，清理高亮
+    clearAllHighlights()
+  }
+})
+
+// 处理文件系统变化（差分更新）
+async function handleFileSystemChange(change: FileChange) {
+  // 只有存在搜索条件时才处理
+  if (!searchQuery.value || !appStore.currentFolder) return
+
+  // 检查文件是否在搜索范围内
+  if (!isFileInSearchScope(change.path)) return
+
+  try {
+    switch (change.type) {
+      case 'add':
+      case 'change':
+        // 文件添加或内容变化：重新搜索该文件
+        await handleFileAddedOrChanged(change.path)
+        break
+
+      case 'unlink':
+        // 文件删除：直接从结果中移除
+        handleFileDeleted(change.path)
+        break
+
+      case 'addDir':
+        // 目录添加：递归搜索新目录下的所有文件
+        await handleDirectoryAdded(change.path)
+        break
+
+      case 'unlinkDir':
+        // 目录删除：移除该目录下所有文件的结果
+        handleDirectoryDeleted(change.path)
+        break
+    }
+  } catch (error) {
+    console.error('Error handling file system change:', error)
+  }
+}
+
+// 检查文件是否在搜索范围内
+function isFileInSearchScope(filePath: string): boolean {
+  if (!appStore.currentFolder) return false
+
+  // 1. 检查是否在当前文件夹下
+  if (!filePath.startsWith(appStore.currentFolder)) return false
+
+  // 2. 检查是否是文本文件（目录也返回 true，后续会递归处理）
+  const ext = pathUtils.extension(filePath)
+  if (ext && !(TEXT_EXTENSIONS as readonly string[]).includes(ext)) {
+    return false
+  }
+
+  // 3. TODO: 应用 include/exclude 模式过滤
+
+  return true
+}
+
+// 处理文件添加或内容变化
+async function handleFileAddedOrChanged(filePath: string) {
+  // 防抖处理：同一个文件在 500ms 内多次变化只处理最后一次
+  const debounceKey = `file-change-${filePath}`
+  if (fileChangeDebounceMap.has(debounceKey)) {
+    clearTimeout(fileChangeDebounceMap.get(debounceKey))
+  }
+
+  const timeoutId = window.setTimeout(async () => {
+    fileChangeDebounceMap.delete(debounceKey)
+
+    try {
+      // 重新搜索这一个文件
+      const updatedResult = await TipTapSearchService.searchInSingleFilePublic(
+        filePath,
+        appStore.currentFolder!,
+        searchQuery.value,
+        {
+          caseSensitive: options.value.matchCase,
+          wholeWord: options.value.wholeWord,
+          regex: options.value.regex
+        },
+        10000,
+        appStore.tabs
+      )
+
+      // 差分更新结果
+      updateSingleFileResult(filePath, updatedResult)
+    } catch (error) {
+      console.error('Error searching in changed file:', filePath, error)
+    }
+  }, 500)
+
+  fileChangeDebounceMap.set(debounceKey, timeoutId)
+}
+
+// 处理文件删除
+function handleFileDeleted(filePath: string) {
+  const existingIndex = searchResults.value.findIndex(
+    r => r.filePath === filePath
+  )
+
+  if (existingIndex >= 0) {
+    searchResults.value.splice(existingIndex, 1)
+    expandedFiles.value.delete(filePath)
+  }
+}
+
+// 处理目录添加
+async function handleDirectoryAdded(dirPath: string) {
+  // 防抖处理：目录添加可能伴随大量文件添加事件
+  const debounceKey = `dir-add-${dirPath}`
+  if (fileChangeDebounceMap.has(debounceKey)) {
+    clearTimeout(fileChangeDebounceMap.get(debounceKey))
+  }
+
+  const timeoutId = window.setTimeout(async () => {
+    fileChangeDebounceMap.delete(debounceKey)
+
+    try {
+      // 递归获取目录下所有文件
+      const newFiles = await getFilesInDirectory(dirPath)
+
+      // 批量搜索新文件（复用 searchInWorkspace 的批处理逻辑）
+      const BATCH_SIZE = 20
+      for (let i = 0; i < newFiles.length; i += BATCH_SIZE) {
+        const batch = newFiles.slice(i, i + BATCH_SIZE)
+
+        const batchResults = await Promise.all(
+          batch.map(filePath =>
+            TipTapSearchService.searchInSingleFilePublic(
+              filePath,
+              appStore.currentFolder!,
+              searchQuery.value,
+              {
+                caseSensitive: options.value.matchCase,
+                wholeWord: options.value.wholeWord,
+                regex: options.value.regex
+              },
+              10000,
+              appStore.tabs
+            )
+          )
+        )
+
+        // 添加有结果的文件
+        batchResults.forEach(result => {
+          if (result && result.totalMatches > 0) {
+            updateSingleFileResult(result.filePath, result)
+          }
+        })
+
+        // 让出控制权
+        await new Promise(resolve => setTimeout(resolve, 0))
+      }
+    } catch (error) {
+      console.error('Error searching in added directory:', dirPath, error)
+    }
+  }, 1000) // 目录添加使用更长的防抖时间
+
+  fileChangeDebounceMap.set(debounceKey, timeoutId)
+}
+
+// 递归获取目录下所有文本文件
+async function getFilesInDirectory(dirPath: string): Promise<string[]> {
+  const result: string[] = []
+
+  async function traverse(path: string) {
+    if (!window.electronAPI) return
+
+    try {
+      const files = await window.electronAPI.getFiles(path)
+      if (!files || !Array.isArray(files)) return
+
+      await Promise.all(
+        files.map(async (file) => {
+          if (file.isDirectory) {
+            await traverse(file.path)
+          } else {
+            const ext = pathUtils.extension(file.path)
+            if ((TEXT_EXTENSIONS as readonly string[]).includes(ext)) {
+              result.push(file.path)
+            }
+          }
+        })
+      )
+    } catch (error) {
+      console.error('Error traversing directory:', path, error)
+    }
+  }
+
+  await traverse(dirPath)
+  return result
+}
+
+// 处理目录删除
+function handleDirectoryDeleted(dirPath: string) {
+  // 移除该目录下所有文件的结果
+  searchResults.value = searchResults.value.filter(result => {
+    const shouldRemove = result.filePath.startsWith(dirPath + '/')
+    if (shouldRemove) {
+      expandedFiles.value.delete(result.filePath)
+    }
+    return !shouldRemove
+  })
+}
+
+// 组件卸载时清理
+onUnmounted(() => {
+  // 清理编辑器监听器
+  editorUpdateListeners.forEach(cleanup => cleanup())
+  editorUpdateListeners.clear()
+
+  // 清理所有防抖定时器
+  fileChangeDebounceMap.forEach(timeoutId => clearTimeout(timeoutId))
+  fileChangeDebounceMap.clear()
+})
 </script>
 
 <style scoped>

@@ -37,6 +37,13 @@ export interface SearchReplaceStorage {
   isOpen: boolean
 
   /**
+   * 外部传入的匹配位置（用于外部高亮模式）
+   * 当非 null 时，插件只高亮这个位置，不进行内部搜索
+   * 由外部调用者（如 SearchPanel）维护
+   */
+  externalMatch: Range | null
+
+  /**
    * 当前模式
    */
   mode: 'search' | 'replace'

@@ -49,7 +49,7 @@
           <div 
             v-for="(tab, idx) in appStore.tabs" 
             :key="tab.id"
-            :ref="(el: any) => { if (tab.isActive) activeTabRef = el}"
+            :ref="(el: any) => { if (tab.isActive) setActivaeTabRef(el)}"
             :class="[
               idx === 0 ? 'border-l' : '',
               'flex items-center px-3 py-2 space-x-2 border-r border-border-separator min-w-32 max-w-48 flex-shrink-0',
@@ -143,6 +143,10 @@ const isMaximized = ref(false)
 const tabsContainer = ref<HTMLElement>()
 let activeTabRef: HTMLElement | null = null
 const { getIconByExtension } = useDocumentTypeDetector()
+
+function setActivaeTabRef(el: HTMLElement) {
+  activeTabRef = el
+}
 
 const canNavigateBack = computed(() => {
   const activeIndex = appStore.tabs.findIndex(tab => tab.isActive)

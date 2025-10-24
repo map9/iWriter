@@ -3,7 +3,7 @@ import { marked } from 'marked'
 import TurndownService from 'turndown'
 import { gfm } from '@guyplusplus/turndown-plugin-gfm'
 
-import { type FileTab, TEXT_MD_EXTENSIONS, TEXT_TXT_EXTENSIONS, TEXT_IWT_EXTENSIONS } from '@/types'
+import { type FileTab, TEXT_MD_EXTENSIONS, TEXT_TXT_EXTENSIONS, TEXT_IWT_EXTENSIONS, CODE_EXTENSIONS } from '@/types'
 
 const iwtVersion = '1.0.0'
 
@@ -44,8 +44,16 @@ export async function convertContentFrom(content: string, extension: string) {
     }
   // @ts-expect-error don't report error
   } else if (TEXT_TXT_EXTENSIONS.includes(extension)) {
+    // 纯文本文件：包裹在 <p> 标签中以便 TipTap 处理
     return {
-      content: content,
+      content: `<p>${content}</p>`,
+      lineEnding: detectLineEnding(content)
+    }
+  // @ts-expect-error don't report error
+  } else if (CODE_EXTENSIONS.includes(extension)) {
+    // 代码文件：按纯文本处理（包裹在 <p> 标签中）
+    return {
+      content: `<p>${content}</p>`,
       lineEnding: detectLineEnding(content)
     }
   } else {
@@ -53,7 +61,8 @@ export async function convertContentFrom(content: string, extension: string) {
   }
 }
 
-export function convertContentTo(tab: FileTab, extension: string, lineEnding?: 'LF' | 'CRLF'): string | null {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function convertContentTo(tab: FileTab, extension: string, _lineEnding?: 'LF' | 'CRLF'): string | null {
   if (!tab.editorInstance) return null
 
   const editor = tab.editorInstance as Editor
@@ -80,7 +89,11 @@ export function convertContentTo(tab: FileTab, extension: string, lineEnding?: '
     })
   // @ts-expect-error don't report error
   } else if (TEXT_TXT_EXTENSIONS.includes(extension)) {
-    // Plain text
+    // Plain text - 使用 getText() 保留换行符
+    return editor.getText()
+  // @ts-expect-error don't report error
+  } else if (CODE_EXTENSIONS.includes(extension)) {
+    // 代码文件 - 使用 getText() 保留原始格式
     return editor.getText()
   } else {
     return null

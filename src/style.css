@@ -354,3 +354,29 @@
     display: none !important;
   }
 }
+
+/* Search result temporary highlight animation */
+@keyframes search-flash {
+  0% {
+    background-color: transparent;
+  }
+  20% {
+    background-color: oklch(0.85 0.12 60 / 0.6);
+  }
+  40% {
+    background-color: transparent;
+  }
+  60% {
+    background-color: oklch(0.85 0.12 60 / 0.6);
+  }
+  80% {
+    background-color: transparent;
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.search-result-flash {
+  animation: search-flash 2s ease-in-out;
+}

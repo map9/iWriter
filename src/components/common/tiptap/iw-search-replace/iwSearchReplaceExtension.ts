@@ -90,6 +90,7 @@ export const iwSearchReplaceExtension = Extension.create<
   addStorage() {
     return {
       isOpen: false,
+      externalMatch: null, // 外部传入的匹配位置
       mode: 'search',
       searchTerm: '',
       replaceTerm: '',

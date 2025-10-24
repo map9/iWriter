@@ -28,7 +28,19 @@ export function createSearchReplacePlugin(
           return oldDecorationSet.map(tr.mapping, tr.doc)
         }
 
-        // 如果搜索框未打开或没有搜索词，清除装饰器
+        // === 外部高亮模式：只高亮外部传入的 match ===
+        if (storage.externalMatch) {
+          // 不进行内部搜索，只高亮外部传入的位置
+          const decoration = Decoration.inline(
+            storage.externalMatch.from,
+            storage.externalMatch.to,
+            { class: options.currentMatchClass }
+          )
+          return DecorationSet.create(tr.doc, [decoration])
+        }
+
+        // === 正常模式：搜索框打开时的逻辑 ===
+        // 如果搜索框未打开或者没有搜索词，清除装饰器
         if (!storage.isOpen || !storage.searchTerm) {
           storage.matches = []
           storage.currentMatchIndex = -1

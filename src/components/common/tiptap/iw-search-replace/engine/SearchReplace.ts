@@ -50,8 +50,8 @@ export function findMatchesInDocument(
   if (!searchTerm) return []
 
   const pattern: RegExp = buildSearchPattern(searchTerm, options)
-  let textNodesWithPosition: TextNodesWithPosition[] = [];
-  let index = 0;
+  let textNodesWithPosition: TextNodesWithPosition[] = []
+  let index = 0
   const results: Range[] = [];
 
   // 确定搜索范围
@@ -69,12 +69,12 @@ export function findMatchesInDocument(
         textNodesWithPosition[index] = {
           text: textNodesWithPosition[index]!.text + node.text,
           pos: textNodesWithPosition[index]!.pos,
-        };
+        }
       } else {
         textNodesWithPosition[index] = {
           text: `${node.text}`,
           pos,
-        };
+        }
       }
     } else {
       index += 1;
@@ -102,13 +102,13 @@ export function findMatchesInDocument(
             results.push({
               from: matchFrom,
               to: matchTo,
-            });
+            })
           }
         } else {
           results.push({
             from: matchFrom,
             to: matchTo,
-          });
+          })
         }
       }
     }
