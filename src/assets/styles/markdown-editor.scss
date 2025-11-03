@@ -194,9 +194,8 @@
   /* Highlight */
   mark {
     background-color: #fef08a;
-    border-radius: 0.25rem;
     box-decoration-break: clone;
-    padding: 0.125rem 0.25rem;
+    padding: 0rem 0.125rem;
   }
 
   /* Link styles */
@@ -286,11 +285,10 @@
   /* inline Code */
   code {
     background-color: #f1f5f9;
-    border-radius: 0.25rem;
     color: #e11d48;
     font-size: 0.875rem;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    padding: 0.125rem 0.25rem;
+    padding: 0rem 0.125rem;
   }
 
   /* Code block */
@@ -298,7 +296,7 @@
     background: #000000;
     border-radius: 0.5rem;
     color: #FFFFFF;
-    font-family: 'JetBrainsMono', monospace;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     padding: 0.75rem 1rem;
 
     code {

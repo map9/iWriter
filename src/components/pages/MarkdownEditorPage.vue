@@ -658,19 +658,25 @@ const editor = useEditor({
       spellcheck: 'false',
     },
   },
-  onUpdate: () => {
+  onUpdate: ({ editor, transaction }) => {
     // 当非加载状态下，内容发生变化，使用新的dirty判断逻辑
-    if (!isLoading.value && editor.value) {
-      const isDirty = !(props.tab.savedCheckPoint === undoDepth(editor.value.state))
-      appStore.updateTabState(props.tab.id, { isDirty })
+    if (!isLoading.value) {
+      const isDirty = !(props.tab.savedCheckPoint === undoDepth(editor.state))
+      if (transaction.docChanged) {
+        appStore.updateTabState(props.tab.id, { isDirty })
+      }
+    }
+
+    if (transaction.docChanged) {
+      updateEditorState()
     }
   },
   onSelectionUpdate: () => {
     updateEditorState()
   },
-  onCreate: (options) => {
-    migrateMathStrings(options.editor)
-    loadTabContent(options.editor).then(async () => {
+  onCreate: ({ editor }) => {
+    migrateMathStrings(editor)
+    loadTabContent(editor).then(async () => {
       updateEditorState()
       setFirstLineIndent(props.tab.editState?.firstLineIndent || true)
       setSmartPunctuation(props.tab.editState?.smartPunctuation || true)

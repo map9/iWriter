@@ -76,17 +76,13 @@ export function toggleMath(editor: Editor | undefined) {
         editor.state.selection.to
       )
       
-      const insertPos = editor.state.selection.from
-      
       if (isValidLatex(selectedText)) {
-        editor.chain().focus().deleteSelection().insertInlineMath({ latex: selectedText }).setNodeSelection(insertPos).run()
-      } else {
-        editor.chain().focus().deleteSelection().insertInlineMath({ latex: '\\LaTeX' }).setNodeSelection(insertPos).run()
+        editor.chain().focus().deleteSelection().insertInlineMath({ latex: selectedText }).setNodeSelection(editor.state.selection.from).run()
+        return
       }
-    } else {
-      const insertPos = editor.state.selection.from
-      editor.chain().focus().insertInlineMath({ latex: '\\LaTeX' }).setNodeSelection(insertPos).run()
     }
+    
+    editor.chain().focus().insertInlineMath({ latex: '\\LaTeX' }).setNodeSelection(editor.state.selection.from).run()
   }
 }
 
@@ -104,17 +100,15 @@ export function insertMathBlock(editor: Editor | undefined) {
     editor.chain().focus().deleteSelection().run()
 
     // Clean up the text for inline math (remove newlines, extra spaces)
-    const latex = selectedText.replace(/\s+/g, ' ').trim()
-
-    // If selection looks like LaTeX (contains backslashes or common math symbols), use it directly
-    const isLikelyLatex = /\\|[\{\}\^\\_]|\$\$?|\\[a-zA-Z]+/.test(latex)
-    if (isLikelyLatex) {
-      return editor.chain().focus().insertBlockMath({ latex: latex }).run()
+    //const latex = selectedText.replace(/\s+/g, ' ').trim()
+    if (isValidLatex(selectedText)) {
+      editor.chain().focus().insertBlockMath({ latex: selectedText }).run()
+      return
     }
   }
 
   // Insert a empty block math node
-  return editor.chain().focus().insertBlockMath({ latex: 'Pealse input Latex...' }).run()
+  editor.chain().focus().insertBlockMath({ latex: 'Please\\ input\\ \\LaTeX\\ expression...' }).run()
 }
 
 export function insertTable(editor: Editor | undefined) {

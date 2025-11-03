@@ -136,6 +136,15 @@
         "repo": "iWriter"
       }
     ],
+    "extraMetadata": {
+      "napi": {
+        "targets": [
+          "x86_64-apple-darwin",
+          "aarch64-apple-darwin"
+        ]
+      }
+    },
+    "npmRebuild": false,
     "mac": {
       "icon": "assets/icons/mac/icon.icns",
       "category": "public.app-category.productivity",

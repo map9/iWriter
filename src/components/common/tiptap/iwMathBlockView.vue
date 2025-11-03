@@ -133,6 +133,7 @@ const handleInput = (): void => {
   if (typeof pos !== 'number') return
   
   const newLatex = editableLatex.value
+  console.log('Updating LaTeX to:', newLatex)
   props.editor.chain()
     .setNodeSelection(pos)
     .updateBlockMath({ latex: newLatex })

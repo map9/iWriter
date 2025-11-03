@@ -497,23 +497,6 @@ export class MenuManager {
               this.sendMenuAction('replace')
             }
           },
-          { type: 'separator' },
-          {
-            label: 'Find in Files',
-            accelerator: 'CmdOrCtrl+Shift+F',
-            enabled: wState?.wContentState?.hasFolderOpen,
-            click: () => {
-              this.sendMenuAction('find-in-files')
-            }
-          },
-          {
-            label: 'Replace in Files',
-            accelerator: 'CmdOrCtrl+Shift+H',
-            enabled: wState?.wContentState?.hasFolderOpen,
-            click: () => {
-              this.sendMenuAction('replace-in-files')
-            }
-          }
         ]
       },
       {

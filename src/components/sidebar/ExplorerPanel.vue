@@ -603,6 +603,9 @@ const handleMenuAction = async (action: string) => {
     case 'explorer-reveal-in-folder':
       window.electronAPI.revealInFolder(node.path)
       break
+    case 'explorer-find-in-folder':
+      appStore.searchInFolder(node.path)
+      break
     case 'explorer-rename-file-or-folder':
       treeRef.value?.startRenameNode(node.id)
       break
