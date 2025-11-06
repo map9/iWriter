@@ -19,76 +19,69 @@ export function createSearchReplacePlugin(
 
     state: {
       init() {
-        return DecorationSet.empty
+        return {
+          // 两种独立的装饰器集（移除了 selectionDecorations）
+          matchDecorations: DecorationSet.empty,
+          externalDecorations: DecorationSet.empty,
+
+          // 用于判断是否需要更新的快照值
+          lastSearchTerm: null as string | null,
+          lastCaseSensitive: false,
+          lastWholeWord: false,
+          lastRegex: false,
+          lastSearchInSelection: false,
+          lastSelectionFrom: null as number | null,
+          lastSelectionTo: null as number | null,
+          lastExternalFrom: null as number | null,
+          lastExternalTo: null as number | null,
+
+          // 返回合并后的装饰器供 props.decorations 使用
+          _combined: DecorationSet.empty
+        }
       },
 
-      apply(tr, oldDecorationSet) {
-        // 如果文档未改变且没有搜索更新，保持原装饰器
-        if (!tr.docChanged && !tr.getMeta(searchReplacePluginKey)) {
-          return oldDecorationSet.map(tr.mapping, tr.doc)
-        }
+      apply(tr, oldState) {
+        let {
+          matchDecorations,
+          externalDecorations
+        } = oldState
 
-        // === 外部高亮模式：只高亮外部传入的 match ===
-        if (storage.externalMatch) {
-          // 不进行内部搜索，只高亮外部传入的位置
-          const decoration = Decoration.inline(
-            storage.externalMatch.from,
-            storage.externalMatch.to,
-            { class: options.currentMatchClass }
-          )
-          return DecorationSet.create(tr.doc, [decoration])
-        }
+        // ========== 1. 搜索匹配装饰器 ==========
+        const matchConditionsChanged =
+          storage.searchTerm !== oldState.lastSearchTerm ||
+          storage.options.caseSensitive !== oldState.lastCaseSensitive ||
+          storage.options.wholeWord !== oldState.lastWholeWord ||
+          storage.options.regex !== oldState.lastRegex ||
+          storage.searchInSelection !== oldState.lastSearchInSelection ||
+          storage.selectionRange?.from !== oldState.lastSelectionFrom ||
+          storage.selectionRange?.to !== oldState.lastSelectionTo
 
-        // === 正常模式：搜索框打开时的逻辑 ===
-        // 如果搜索框未打开或者没有搜索词，清除装饰器
         if (!storage.isOpen || !storage.searchTerm) {
+          // 清空搜索结果
+          matchDecorations = DecorationSet.empty
           storage.matches = []
           storage.currentMatchIndex = -1
-          return DecorationSet.empty
-        }
-
-        // 如果文档更新或者搜索条件变更，执行搜索
-        if (
-          tr.docChanged ||
-          storage.searchTerm !== storage.lastSearchTerm ||
-          !storage.lastOptions ||
-          storage.options.caseSensitive !== storage.lastOptions.caseSensitive ||
-          storage.options.regex !== storage.lastOptions.regex ||
-          storage.options.wholeWord !== storage.lastOptions.wholeWord ||
-          storage.searchInSelection !== storage.lastSearchInSelection ||
-          (storage.searchInSelection && !storage.lastSelectionRange) ||
-          (
-            storage.searchInSelection && storage.selectionRange && 
-            (
-              storage.selectionRange?.from !== storage.lastSelectionRange?.from || 
-              storage.selectionRange?.to !== storage.lastSelectionRange?.to
-            )) 
-        ) {
+        } else if (tr.docChanged || tr.getMeta(searchReplacePluginKey) || matchConditionsChanged) {
+          // 重新搜索并创建装饰器
           const matches = findMatchesInDocument(
             tr.doc,
             storage.searchTerm,
             storage.options,
             storage.searchInSelection ? storage.selectionRange ?? undefined : undefined
           )
-          storage.lastSearchTerm = storage.searchTerm
-          storage.lastOptions = storage.options
-          storage.lastSearchInSelection = storage.searchInSelection
-          if (storage.searchInSelection) {
-            storage.lastSelectionRange = storage.selectionRange
-          } else {
-            storage.lastSelectionRange = null
-          }
-
-          //console.debug({function: 'apply', matches})
-
-          // 限制匹配数量
           storage.matches = matches.slice(0, options.maxMatches)
-        }
 
-        // 如果没有匹配，重置当前索引
-        if (storage.matches.length === 0) {
-          storage.currentMatchIndex = -1
-          return DecorationSet.empty
+          const decorations = storage.matches.map((match, index) =>
+            Decoration.inline(match.from, match.to, {
+              class: index === storage.currentMatchIndex
+                ? options.currentMatchClass
+                : options.otherMatchClass
+            })
+          )
+          matchDecorations = DecorationSet.create(tr.doc, decorations)
+        } else {
+          // 只映射位置
+          matchDecorations = matchDecorations.map(tr.mapping, tr.doc)
         }
 
         // 确保当前索引有效
@@ -98,25 +91,60 @@ export function createSearchReplacePlugin(
           storage.currentMatchIndex = 0
         }
 
-        // 创建装饰器
-        const decorations = storage.matches.map((match, index) => {
-          const className =
-            index === storage.currentMatchIndex
-              ? options.currentMatchClass
-              : options.otherMatchClass
+        // ========== 2. 外部匹配装饰器 ==========
+        const externalMatchChanged =
+          storage.externalMatch?.from !== oldState.lastExternalFrom ||
+          storage.externalMatch?.to !== oldState.lastExternalTo
 
-          return Decoration.inline(match.from, match.to, {
-            class: className
-          })
-        })
+        if (!storage.externalMatch) {
+          // 清除外部高亮
+          externalDecorations = DecorationSet.empty
+        } else if (externalMatchChanged) {
+          // 创建外部匹配装饰器
+          const decoration = Decoration.inline(
+            storage.externalMatch.from,
+            storage.externalMatch.to,
+            { class: options.currentMatchClass }
+          )
+          externalDecorations = DecorationSet.create(tr.doc, [decoration])
+        } else if (tr.docChanged) {
+          // 只映射位置
+          externalDecorations = externalDecorations.map(tr.mapping, tr.doc)
+        }
 
-        return DecorationSet.create(tr.doc, decorations)
+        // ========== 合并装饰器 ==========
+        // 使用 find() 获取装饰器数组，按优先级合并
+        let combined = matchDecorations
+
+        // 添加外部匹配装饰器（优先级最高，最后添加）
+        const externalDecs = externalDecorations.find()
+        if (externalDecs.length > 0) {
+          combined = combined.add(tr.doc, externalDecs)
+        }
+
+        // ========== 更新状态快照 ==========
+        return {
+          matchDecorations,
+          externalDecorations,
+          lastSearchTerm: storage.searchTerm,
+          lastCaseSensitive: storage.options.caseSensitive,
+          lastWholeWord: storage.options.wholeWord,
+          lastRegex: storage.options.regex,
+          lastSearchInSelection: storage.searchInSelection,
+          lastSelectionFrom: storage.selectionRange?.from ?? null,
+          lastSelectionTo: storage.selectionRange?.to ?? null,
+          lastExternalFrom: storage.externalMatch?.from ?? null,
+          lastExternalTo: storage.externalMatch?.to ?? null,
+          // 返回合并后的装饰器供 props.decorations 使用
+          _combined: combined
+        }
       }
     },
 
     props: {
       decorations(state) {
-        return this.getState(state)
+        const pluginState = this.getState(state)
+        return pluginState?._combined || DecorationSet.empty
       }
     }
   })

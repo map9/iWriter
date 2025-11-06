@@ -280,7 +280,16 @@
     
     <!-- TipTap Editor -->
     <div class="editor-content-wrapper">
-        <EditorContent v-if="editor" :editor="editor" class="w-full max-w-3xl my-4 mx-auto"/>
+        <!-- Selection Highlight Layer (外部高亮层) -->
+        <SelectionHighlightLayer
+          v-if="editor"
+          :editor="editor"
+          :selection-range="editor.storage.iwSearchReplace.selectionRange"
+          :show="editor.storage.iwSearchReplace.searchInSelection"
+        />
+
+        <!-- Editor Content -->
+        <EditorContent v-if="editor" :editor="editor" class="editor-content w-full max-w-3xl my-4 mx-auto"/>
 
         <!-- Search & Replace Panel -->
         <SearchReplacePanel v-if="editor" :editor="editor" />
@@ -344,6 +353,7 @@ import { iwCodeBlockView, iwImageView, iwTableView, iwMathBlockView, iwPopupTool
 import { iwProofreadExtension } from '@/components/common/tiptap/iw-proofread'
 import { iwSearchReplaceExtension } from '@/components/common/tiptap/iw-search-replace'
 import SearchReplacePanel from '@/components/common/tiptap/iw-search-replace/components/SearchReplacePanel.vue'
+import SelectionHighlightLayer from '@/components/common/tiptap/iw-search-replace/components/SelectionHighlightLayer.vue'
 
 import {
   IconArrowBackUp,
@@ -844,7 +854,7 @@ function updateEditorState() {
       hasActiveDocument: true,
       undoRedo,
       hasSelection: !editor.value.state.selection.empty,
-      content: getContentState(editor.value),
+      content: !editor.value.state.selection.empty ? undefined : getContentState(editor.value),
       // @ts-expect-error - formatting types
       formatting
     }
@@ -963,5 +973,14 @@ defineExpose({
 <style lang="scss">
 .editor-content-wrapper {
   position: relative;
+  overflow: auto;
+}
+
+// Editor content 需要透明背景，让下层的高亮层透出来
+.editor-content {
+  position: relative;
+  z-index: 2;
+  // 移除背景色，让高亮层可见
+  // background: transparent;
 }
 </style>

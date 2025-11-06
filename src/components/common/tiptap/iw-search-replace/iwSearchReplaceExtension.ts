@@ -3,6 +3,7 @@ import { DecorationSet } from '@tiptap/pm/view'
 import type { SearchReplaceOptions, SearchReplaceStorage } from './types'
 import { createSearchReplacePlugin, updateSearch } from './plugin/iwSearchReplacePlugin'
 import { goToSelection } from './utils/gotoSelection'
+import { getActualSelectionRange } from '../utils/selectionUtils'
 
 // 声明命令类型和存储类型
 declare module '@tiptap/core' {
@@ -297,7 +298,7 @@ export const iwSearchReplaceExtension = Extension.create<
       toggleSearchInSelection:
         () =>
         ({ editor }) => {
-          const { from, to } = editor.state.selection
+          const selection = editor.state.selection
 
           if (this.storage.searchInSelection) {
             // 取消选区搜索
@@ -305,9 +306,10 @@ export const iwSearchReplaceExtension = Extension.create<
             this.storage.selectionRange = null
           } else {
             // 启用选区搜索
-            if (from !== to) {
+            if (!selection.empty) {
               this.storage.searchInSelection = true
-              this.storage.selectionRange = { from, to }
+              // 使用 getActualSelectionRange 正确处理 CellSelection
+              this.storage.selectionRange = getActualSelectionRange(selection)
             } else {
               // 如果当前没有选区，不执行操作
               return false

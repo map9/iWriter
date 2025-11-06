@@ -202,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import {
   IconChevronRight,
@@ -223,6 +223,10 @@ import { pathUtils } from '@/utils/pathUtils'
 
 const appStore = useAppStore()
 
+// LocalStorage key
+const SEARCH_IN_FILES_CONFIG_KEY = 'iwriter-search-in-files-config'
+
+// 组件内状态（使用 v-show 后不会被销毁）
 const searchQuery = ref('')
 const replaceQuery = ref('')
 const showReplace = ref(false)
@@ -234,10 +238,53 @@ const options = ref({
   regex: false
 })
 
+// 临时状态（不需要持久化）
 const searchResults = ref<TipTapSearchResult[]>([])
 const isSearching = ref(false)
 const isReplacing = ref(false)
 const expandedFiles = ref<Set<string>>(new Set())
+
+// 加载用户配置
+function loadConfig() {
+  try {
+    const saved = localStorage.getItem(SEARCH_IN_FILES_CONFIG_KEY)
+    if (saved) {
+      const config = JSON.parse(saved)
+      searchQuery.value = config.searchQuery || ''
+      replaceQuery.value = config.replaceQuery || ''
+      includePattern.value = config.includePattern || ''
+      excludePattern.value = config.excludePattern || ''
+      options.value = config.options || {
+        matchCase: false,
+        wholeWord: false,
+        regex: false
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load search config:', error)
+  }
+}
+
+// 保存用户配置
+function saveConfig() {
+  try {
+    const config = {
+      searchQuery: searchQuery.value,
+      replaceQuery: replaceQuery.value,
+      includePattern: includePattern.value,
+      excludePattern: excludePattern.value,
+      options: options.value
+    }
+    localStorage.setItem(SEARCH_IN_FILES_CONFIG_KEY, JSON.stringify(config))
+  } catch (error) {
+    console.error('Failed to save search config:', error)
+  }
+}
+
+// 组件挂载时加载配置
+onMounted(() => {
+  loadConfig()
+})
 
 const fileCount = computed(() => {
   return searchResults.value.length
@@ -295,16 +342,14 @@ async function jumpToResult(fileResult: TipTapSearchResult, matchIndex: number =
   try {
     // 1. 打开文件
     await appStore.openFile(fileResult.filePath)
-    await nextTick()
 
-    // 2. 获取编辑器实例
-    const tab = appStore.tabs.find(t => t.path === fileResult.filePath)
-    if (!tab?.editorInstance) {
+    // 2. 等待编辑器实例就绪（包括内容加载完成）
+    const editor = await waitForEditorReady(fileResult.filePath)
+    if (!editor) {
       notify.error('Failed to open editor')
       return
     }
 
-    const editor = tab.editorInstance as Editor
     const match = fileResult.matches[matchIndex]
     if (!match) {
       notify.warning('Match not found')
@@ -326,6 +371,45 @@ async function jumpToResult(fileResult: TipTapSearchResult, matchIndex: number =
     console.error('Error jumping to result:', error)
     notify.error('Failed to jump to result')
   }
+}
+
+/**
+ * 等待编辑器实例就绪
+ * 文件打开后，编辑器实例需要时间完成初始化和内容加载
+ *
+ * 检查条件：
+ * 1. tab 存在且有 editorInstance
+ * 2. editor.state 和 editor.view 已初始化
+ * 3. 文档内容已加载（doc.content.size > 2，空文档的 size 为 2）
+ *
+ * @param filePath 文件路径
+ * @param maxAttempts 最大尝试次数（默认 40 次，共 2 秒）
+ * @returns Editor 实例或 null
+ */
+async function waitForEditorReady(filePath: string, maxAttempts: number = 40): Promise<Editor | null> {
+  for (let i = 0; i < maxAttempts; i++) {
+    await nextTick()
+
+    const tab = appStore.tabs.find(t => t.path === filePath)
+    if (tab?.editorInstance) {
+      const editor = tab.editorInstance as Editor
+
+      // 确保编辑器已完全初始化
+      if (editor.state && editor.view && editor.view.dom) {
+        // 关键检查：文档内容已加载
+        // 空文档的 size 为 2（开始和结束标记）
+        // 有内容的文档 size > 2
+        if (editor.state.doc.content.size > 2) {
+          return editor
+        }
+      }
+    }
+
+    // 等待 50ms 后重试
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+
+  return null
 }
 
 function replaceNext() {
@@ -506,6 +590,11 @@ watch([includePattern, excludePattern], () => {
     performSearch()
   }
 })
+
+// 监听配置变化，自动保存到 localStorage
+watch([searchQuery, replaceQuery, includePattern, excludePattern, options], () => {
+  saveConfig()
+}, { deep: true })
 
 // ========== 编辑器内容变化监听（差分更新）==========
 const editorUpdateListeners = new Map<string, () => void>()

@@ -1,7 +1,8 @@
 import { type Editor } from '@tiptap/vue-3'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
-import { Selection } from '@tiptap/pm/state';
-import { getContentState } from './state' 
+import { Selection } from '@tiptap/pm/state'
+import { getContentState } from './state'
+import { getActualSelectionRange, getSelectionText } from '@/components/common/tiptap'
 
 function getCurrentLineFromPos(editor: Editor | undefined, pos: number): number {
   if (!editor) return 1
@@ -33,12 +34,13 @@ function getCurrentColumnFromPos(editor: Editor | undefined, pos: number): numbe
 
 function getSelectionCharCount(selection: Selection): number {
   if (selection.empty) return 0
-  return selection.to - selection.from
+  const { from, to } = getActualSelectionRange(selection)
+  return to - from
 }
 
 function getSelectionWordCount(editor: Editor | undefined, selection: Selection): number {
   if (selection.empty || !editor) return 0
-  const selectedText = editor.state.doc.textBetween(selection.from, selection.to)
+  const selectedText = getSelectionText(editor.state.doc, selection)
   return countWords(selectedText)
 }
 
@@ -76,13 +78,13 @@ export function calculateFileStats(editor: Editor | undefined): import('@/types'
   const selection = editor.state.selection
   const doc = editor.state.doc
   const content = doc.textContent
-  const hasSelection = !editor?.state.selection.empty || false
-  const { type } = hasSelection? getContentState(editor) : {type: 'unknown'}
+  const hasSelection = !editor.state.selection.empty
+  const { type } = hasSelection ? { type: 'unknown' } : getContentState(editor)
   
   return {
     currentLine: getCurrentLineFromPos(editor, selection.from),
     currentColumn: getCurrentColumnFromPos(editor, selection.from),
-    paragraphType: hasSelection? 'Selection' : (((typeof type === 'number')) ? `heading-${type}` : (type || 'unknown')),
+    paragraphType: hasSelection ? 'Selection' : (((typeof type === 'number')) ? `heading-${type}` : (type || 'unknown')),
     selectionCharCount: getSelectionCharCount(selection),
     selectionWordCount: getSelectionWordCount(editor, selection),
     totalCharCount: content.length,

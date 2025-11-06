@@ -21,7 +21,7 @@
           ref="searchInputRef"
           v-model="localSearchTerm"
           type="text"
-          placeholder="Find"
+          placeholder="Find (↑↓ for history)"
           class="search-input"
           @keydown.enter="handleSearchEnter"
           @keydown.esc="closePanel"
@@ -59,7 +59,7 @@
       <!-- Result Count 容器（输入框外部） -->
       <div class="result-count-container">
         <span v-if="matchCount > 0" class="result-count">
-          {{ currentIndex + 1 }}/{{ matchCount }}
+          {{ currentIndex + 1 }} of {{ matchCount }}
         </span>
         <span v-else-if="localSearchTerm && matchCount === 0" class="result-count error">
           No results
@@ -74,7 +74,7 @@
           class="nav-btn"
           title="Previous Match (Shift+Enter)"
         >
-          <IconChevronUp class="w-4 h-4" />
+          <IconArrowNarrowUp class="w-4 h-4" />
         </button>
         <button
           @click="findNext"
@@ -82,7 +82,7 @@
           class="nav-btn"
           title="Next Match (Enter)"
         >
-          <IconChevronDown class="w-4 h-4" />
+          <IconArrowNarrowDown class="w-4 h-4" />
         </button>
       </div>
 
@@ -94,7 +94,7 @@
         class="selection-btn"
         title="Find in Selection (Alt+L)"
       >
-        <IconBook class="w-4 h-4" />
+        <IconAlignLeft class="w-4 h-4" />
       </button>
 
       <!-- 关闭按钮 -->
@@ -117,9 +117,9 @@
         <input
           v-model="localReplaceTerm"
           type="text"
-          placeholder="Replace"
+          placeholder="Replace (↑↓ for history)"
           class="replace-input"
-          @keydown.enter="replaceNext"
+          @keydown.enter="handleReplaceEnter"
           @keydown.esc="closePanel"
         />
       </div>
@@ -133,7 +133,7 @@
           @click="replaceNext"
           :disabled="matchCount === 0"
           class="replace-btn"
-          title="Replace (Cmd+Shift+1)"
+          title="Replace (Enter)"
         >
           <IconReplace class="w-4 h-4" />
         </button>
@@ -141,7 +141,7 @@
           @click="replaceAll"
           :disabled="matchCount === 0"
           class="replace-btn"
-          title="Replace All (Cmd+Shift+Enter)"
+          title="Replace All (⌘+Enter)"
         >
           <IconReplaceFilled class="w-4 h-4" />
         </button>
@@ -154,14 +154,15 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import type { Editor } from '@tiptap/core'
 import {
-  IconChevronUp,
+  IconArrowNarrowUp,
   IconChevronDown,
+  IconArrowNarrowDown,
   IconChevronRight,
   IconX,
   IconLetterCase,
   IconReplace,
   IconReplaceFilled,
-  IconBook
+  IconAlignLeft
 } from '@tabler/icons-vue'
 
 interface Props {
@@ -186,7 +187,7 @@ const searchInSelection = computed(() => props.editor.storage.iwSearchReplace.se
 // 检查是否有有效选区
 const hasSelection = computed(() => {
   const { from, to } = props.editor.state.selection
-  return from !== to
+  return (from !== to) || !!props.editor.storage.iwSearchReplace.selectionRange
 })
 
 // 监听本地搜索词变化，更新到 editor
@@ -258,6 +259,14 @@ function handleSearchEnter(event: KeyboardEvent) {
     findPrevious()
   } else {
     findNext()
+  }
+}
+
+function handleReplaceEnter(event: KeyboardEvent) {
+  if (event.ctrlKey) {
+    replaceAll()
+  } else {
+    replaceNext()
   }
 }
 
@@ -420,7 +429,7 @@ onUnmounted(() => {
 /* Result Count 容器（输入框外部） */
 .result-count-container {
   min-width: 60px;
-  text-align: center;
+  text-align: left;
   flex-shrink: 0;
 }
 

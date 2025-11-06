@@ -47,28 +47,28 @@
     <!-- Sidebar Content -->
     <div class="sidebar-content flex-1 flex flex-col h-full">
       <!-- Start(No Folder) Opened -->
-      <NoFolderOpened 
-        v-if="appStore.leftSidebarMode === SidebarMode.START" 
+      <NoFolderOpened
+        v-show="appStore.leftSidebarMode === SidebarMode.START"
       />
-      
+
       <!-- Explorer -->
       <ExplorerPanel
-        v-else-if="appStore.leftSidebarMode === SidebarMode.EXPLORER"
+        v-show="appStore.leftSidebarMode === SidebarMode.EXPLORER"
       />
-      
+
       <!-- Search -->
       <SearchPanel
-        v-else-if="appStore.leftSidebarMode === SidebarMode.SEARCH"
+        v-show="appStore.leftSidebarMode === SidebarMode.SEARCH"
       />
-      
+
       <!-- By TAG -->
       <TagPanel
-        v-else-if="appStore.leftSidebarMode === SidebarMode.TAG"
+        v-show="appStore.leftSidebarMode === SidebarMode.TAG"
       />
-      
+
       <!-- Table of Contents -->
       <TocPanel
-        v-else-if="appStore.leftSidebarMode === SidebarMode.TOC"
+        v-show="appStore.leftSidebarMode === SidebarMode.TOC"
       />
     </div>
     

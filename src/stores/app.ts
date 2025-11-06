@@ -20,6 +20,9 @@ import {
 } from '@/types'
 import { convertContentTo } from '@/import-export/'
 
+// LocalStorage key
+const THEME_KEY = 'iwriter-theme'
+
 export const useAppStore = defineStore('app', () => {
   // 文件监听和类型检测
   const { detectFromPath } = useDocumentTypeDetector()
@@ -60,7 +63,7 @@ export const useAppStore = defineStore('app', () => {
   const tabs = ref<FileTab[]>([])
   const activeTabId = ref<string | null>(null)
   const untitledCounter = ref(1)
-  
+
   // Computed
   const activeTab = computed(() => {
     return tabs.value.find(tab => tab.id === activeTabId.value)
@@ -1272,7 +1275,7 @@ export const useAppStore = defineStore('app', () => {
   // Theme System Functions
   function initTheme() {
     // Load saved theme preference
-    const savedThemeId = localStorage.getItem('iwriter-theme') || 'system'
+    const savedThemeId = localStorage.getItem(THEME_KEY) || 'system'
     const theme = getThemeById(savedThemeId)
     
     if (theme) {
@@ -1305,7 +1308,7 @@ export const useAppStore = defineStore('app', () => {
     }
     
     currentThemeId.value = themeId
-    localStorage.setItem('iwriter-theme', themeId)
+    localStorage.setItem(THEME_KEY, themeId)
     applyCurrentTheme()
   }
   
@@ -1511,11 +1514,11 @@ export const useAppStore = defineStore('app', () => {
     currentFileTreeSortType,
     tabs,
     activeTabId,
-    
+
     // Computed
     activeTab,
     hasOpenFolder,
-    
+
     initial,
     destroy,
 
@@ -1527,7 +1530,7 @@ export const useAppStore = defineStore('app', () => {
     setLeftSidebarWidth,
     toggleAutoSave,
     updateWindowTitle,
-    
+
     // Theme actions
     initTheme,
     setTheme,

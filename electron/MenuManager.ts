@@ -133,7 +133,6 @@ export class MenuManager {
           {
             id: 'new-window',
             label: 'New Window',
-            accelerator: 'CmdOrCtrl+Alt+N',
             click: () => {
               this.sendMenuAction('new-window')              
             }
@@ -1078,6 +1077,7 @@ export class MenuManager {
               this.sendMenuAction('inline-math')
             }
           },
+          /*
           {
             label: 'Comment',
             accelerator: 'CmdOrCtrl+/',
@@ -1085,6 +1085,7 @@ export class MenuManager {
               this.sendMenuAction('comment')
             }
           },
+          */
           { type: 'separator' },
           {
             label: 'Superscript',
