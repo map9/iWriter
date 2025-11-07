@@ -220,11 +220,9 @@ import { notify } from '@/utils/notifications'
 import type { FileChange } from '@/types'
 import { TEXT_EXTENSIONS } from '@/types'
 import { pathUtils } from '@/utils/pathUtils'
+import { STORAGE_KEYS } from '@/utils/StateStorage'
 
 const appStore = useAppStore()
-
-// LocalStorage key
-const SEARCH_IN_FILES_CONFIG_KEY = 'iwriter-search-in-files-config'
 
 // 组件内状态（使用 v-show 后不会被销毁）
 const searchQuery = ref('')
@@ -247,7 +245,7 @@ const expandedFiles = ref<Set<string>>(new Set())
 // 加载用户配置
 function loadConfig() {
   try {
-    const saved = localStorage.getItem(SEARCH_IN_FILES_CONFIG_KEY)
+    const saved = localStorage.getItem(STORAGE_KEYS.SEARCH_CONFIG)
     if (saved) {
       const config = JSON.parse(saved)
       searchQuery.value = config.searchQuery || ''
@@ -275,7 +273,7 @@ function saveConfig() {
       excludePattern: excludePattern.value,
       options: options.value
     }
-    localStorage.setItem(SEARCH_IN_FILES_CONFIG_KEY, JSON.stringify(config))
+    localStorage.setItem(STORAGE_KEYS.SEARCH_CONFIG, JSON.stringify(config))
   } catch (error) {
     console.error('Failed to save search config:', error)
   }

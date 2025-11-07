@@ -1,4 +1,4 @@
-import { merge } from 'lodash'
+import { merge, debounce } from 'lodash'
 import { defineStore } from 'pinia'
 import { ref, computed, watch, reactive } from 'vue'
 import { undoDepth } from '@tiptap/pm/history'
@@ -19,9 +19,7 @@ import {
   PDF_EXTENSIONS,
 } from '@/types'
 import { convertContentTo } from '@/import-export/'
-
-// LocalStorage key
-const THEME_KEY = 'iwriter-theme'
+import { StateStorage, type WorkspaceState } from '@/utils/StateStorage'
 
 export const useAppStore = defineStore('app', () => {
   // 文件监听和类型检测
@@ -63,6 +61,9 @@ export const useAppStore = defineStore('app', () => {
   const tabs = ref<FileTab[]>([])
   const activeTabId = ref<string | null>(null)
   const untitledCounter = ref(1)
+
+  // 控制是否应该保存状态（在退出清理时设为 false）
+  const shouldPersistState = ref(true)
 
   // Computed
   const activeTab = computed(() => {
@@ -123,9 +124,122 @@ export const useAppStore = defineStore('app', () => {
     }
   }, { immediate: true })
 
+  // ===== 状态恢复 =====
+
+  /**
+   * 从 localStorage 恢复状态
+   */
+  function restoreState() {
+    // 1. 恢复 UI 状态
+    const uiState = StateStorage.loadUIState()
+    isLeftSidebarVisible.value = uiState.isLeftSidebarVisible
+    isRightSidebarVisible.value = uiState.isRightSidebarVisible
+    isStatusbarVisible.value = uiState.isStatusbarVisible
+    leftSidebarMode.value = uiState.leftSidebarMode
+    leftSidebarWidth.value = uiState.leftSidebarWidth
+
+    // 2. 恢复编辑设置
+    const editSetting = StateStorage.loadEditSetting()
+    Object.assign(globalEditSetting, editSetting)
+
+    // 3. 恢复主题
+    const savedThemeId = StateStorage.loadTheme()
+    currentThemeId.value = savedThemeId
+
+    // 4. 恢复工作区状态（在窗口完全加载后）
+    setTimeout(() => {
+      restoreWorkspace()
+    }, 100)
+  }
+
+  /**
+   * 恢复工作区（文件夹和标签页）
+   */
+  async function restoreWorkspace() {
+    const workspaceState = StateStorage.loadWorkspaceState()
+
+    // 恢复文件夹
+    if (workspaceState.currentFolder && window.electronAPI) {
+      try {
+        // 检查文件夹是否存在
+        const exists = await window.electronAPI.pathExists(workspaceState.currentFolder)
+        if (exists) {
+          currentFolder.value = workspaceState.currentFolder
+          await loadFileTree()
+          startAdvancedFileWatching()
+          leftSidebarMode.value = SidebarMode.EXPLORER
+        } else {
+          console.warn('Saved folder no longer exists:', workspaceState.currentFolder)
+        }
+      } catch (error) {
+        console.warn('Failed to restore folder:', error)
+      }
+    }
+
+    // 恢复标签页（只恢复有路径的文件）
+    if (workspaceState.tabs && workspaceState.tabs.length > 0) {
+      for (const tabData of workspaceState.tabs) {
+        try {
+          if (tabData.path && window.electronAPI) {
+            // 检查文件是否存在
+            const exists = await window.electronAPI.pathExists(tabData.path)
+            if (exists) {
+              await openFile(tabData.path)
+            } else {
+              console.warn('Saved file no longer exists:', tabData.path)
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to restore tab: ${tabData.path}`, error)
+        }
+      }
+
+      // 恢复激活的标签页（通过路径查找）
+      if (workspaceState.activeTabPath) {
+        const tab = tabs.value.find(t => t.path === workspaceState.activeTabPath)
+        if (tab) {
+          setActiveTab(tab.id)
+        }
+      }
+    }
+  }
+
+  // ===== 状态保存 =====
+
+  /**
+   * 保存 UI 状态（防抖）
+   */
+  const saveUIState = debounce(() => {
+    StateStorage.saveUIState({
+      isLeftSidebarVisible: isLeftSidebarVisible.value,
+      isRightSidebarVisible: isRightSidebarVisible.value,
+      isStatusbarVisible: isStatusbarVisible.value,
+      leftSidebarMode: leftSidebarMode.value,
+      leftSidebarWidth: leftSidebarWidth.value
+    })
+  }, 500)
+
+  /**
+   * 保存编辑设置（防抖）
+   */
+  const saveEditSettingDebounced = debounce(() => {
+    StateStorage.saveEditSetting(globalEditSetting)
+  }, 500)
+
+  /**
+   * 保存工作区状态（防抖）
+   */
+  const saveWorkspaceStateDebounced = debounce((state: WorkspaceState) => {
+    StateStorage.saveWorkspaceState(state)
+  }, 1000) // 1 秒防抖
+
   // Initial
   function initial() {
-    initTheme();
+    // 恢复状态
+    restoreState()
+
+    // 初始化主题系统
+    initTheme()
 
     function startSayHello(windowId: number) {
       sayHelloTimeout = setTimeout(() => {
@@ -142,6 +256,20 @@ export const useAppStore = defineStore('app', () => {
       })
 
       window.electronAPI.onRequestWindowClose(async (windowId: number)=>{
+        // 在关闭之前立即保存所有状态
+        if (saveWorkspaceStateDebounced.flush) {
+          saveWorkspaceStateDebounced.flush()
+        }
+        if (saveUIState.flush) {
+          saveUIState.flush()
+        }
+        if (saveEditSettingDebounced.flush) {
+          saveEditSettingDebounced.flush()
+        }
+
+        // 禁用状态持久化（避免在清理过程中触发保存）
+        shouldPersistState.value = false
+
         let resultClosed: boolean = false
 
         try {
@@ -151,7 +279,7 @@ export const useAppStore = defineStore('app', () => {
             resultClosed = await closeAllTab();
           }
 
-          console.log({
+          console.debug({
             function: 'onRequestWindowClose',
             wID: windowId,
             isClosing: resultClosed,
@@ -1274,17 +1402,8 @@ export const useAppStore = defineStore('app', () => {
 
   // Theme System Functions
   function initTheme() {
-    // Load saved theme preference
-    const savedThemeId = localStorage.getItem(THEME_KEY) || 'system'
-    const theme = getThemeById(savedThemeId)
-    
-    if (theme) {
-      currentThemeId.value = savedThemeId
-    } else {
-      // Fallback to system theme if saved theme is not found
-      currentThemeId.value = 'system'
-    }
-    
+    // currentThemeId 已经在 restoreState() 中恢复，这里不需要再读取
+
     // Detect system theme preference
     if (window.electronAPI) {
       window.electronAPI.onSystemColorsChanged((themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: ThemeColors }) => {
@@ -1295,20 +1414,20 @@ export const useAppStore = defineStore('app', () => {
         }
       })
     }
-    
+
     // Apply initial theme
     applyCurrentTheme()
   }
-  
+
   function setTheme(themeId: string) {
     const theme = getThemeById(themeId)
     if (!theme) {
       notify.error(`主题 ${themeId} 不存在`, '主题设置错误')
       return
     }
-    
+
     currentThemeId.value = themeId
-    localStorage.setItem(THEME_KEY, themeId)
+    // StateStorage 会通过 watch 自动保存，不需要手动保存
     applyCurrentTheme()
   }
   
@@ -1497,7 +1616,52 @@ export const useAppStore = defineStore('app', () => {
         return false
     }
   }
-  
+
+  // ===== 状态监听 =====
+
+  // 监听 UI 状态变化（除了 leftSidebarWidth）
+  watch([isLeftSidebarVisible, isRightSidebarVisible, isStatusbarVisible, leftSidebarMode],
+    () => saveUIState()
+  )
+
+  // leftSidebarWidth 单独监听（拖拽时频繁变化，需要防抖）
+  watch(leftSidebarWidth, () => saveUIState())
+
+  // 监听编辑设置变化
+  watch(globalEditSetting, () => saveEditSettingDebounced(), { deep: true })
+
+  // 监听主题变化
+  watch(currentThemeId, (themeId) => {
+    StateStorage.saveTheme(themeId)
+  })
+
+  // 监听工作区状态变化（使用计算属性）
+  const workspaceStateSnapshot = computed(() => {
+    const tabsData = tabs.value
+      .filter(tab => tab.path)
+      .map(tab => ({
+        path: tab.path!,
+        documentType: tab.documentType
+      }))
+
+    return {
+      currentFolder: currentFolder.value,
+      tabs: tabsData,
+      activeTabPath: activeTab.value?.path || null
+    }
+  })
+
+  watch(
+    workspaceStateSnapshot,
+    (newState) => {
+      // 只在允许持久化时才保存状态
+      if (shouldPersistState.value) {
+        saveWorkspaceStateDebounced(newState)
+      }
+    },
+    { deep: true }
+  )
+
   return {
     // State
     isLeftSidebarVisible,
