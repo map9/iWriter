@@ -121,6 +121,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import type { FileTreeNode, FileTreeCallbacks, FileTreeSortType } from '../common/tree'
 import type { ContextMenuItem } from '@/types'
+import { TEXT_IWT_EXTENSION } from '@/types'
 import Tree from '../common/tree/Tree.vue'
 import pathUtils from '@/utils/pathUtils'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
@@ -263,7 +264,7 @@ const fileCallbacks: FileTreeCallbacks = {
     if (currentCreateType.value === 'folder') {
       return generateUniqueFileSystemName('Untitled', fileParentNode, 'folder')
     }
-    return generateUniqueFileSystemName('Untitled', fileParentNode, 'txt')
+    return generateUniqueFileSystemName('Untitled', fileParentNode, TEXT_IWT_EXTENSION)
   },
   onExpand: (node) => {
   },

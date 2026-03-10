@@ -11,6 +11,7 @@ import type { FileTreeNode, FileTreeSortType } from '@/components/common/tree'
 import { availableThemes, getThemeById, applyThemeColors, type Theme, applySystemColors, type ThemeColors } from '@/utils/themes'
 import updaterService from '@/updater/UpdaterService'
 import {
+  TEXT_IWT_EXTENSION,
   TEXT_MD_EXTENSIONS,
   TEXT_TXT_EXTENSIONS,
   TEXT_IWT_EXTENSIONS,
@@ -30,6 +31,7 @@ export const useAppStore = defineStore('app', () => {
   const isRightSidebarVisible = ref(false)
   const isStatusbarVisible = ref(true)  
   const leftSidebarMode = ref<SidebarMode>(SidebarMode.START)
+  const searchFolderPath = ref<string | null>(null)
   const leftSidebarWidth = ref(288) // 默认宽度
   const minSidebarWidth = 256 // 最小宽度 - 对应TOC按钮右边缘
   const globalEditSetting = reactive<EditSetting>({
@@ -74,6 +76,18 @@ export const useAppStore = defineStore('app', () => {
     return currentFolder.value !== null
   })
   
+  const autoSave = computed(() => {
+    if (
+      activeTab.value && 
+      (activeTab.value.documentType === DocumentType.MARKDOWN_EDITOR) &&
+      activeTab.value.editState?.autoSave
+    ) {
+        return activeTab.value.editState.autoSave
+      } else {
+        return globalEditSetting.autoSave
+      }
+  })
+
   // Update menu when theme changes
   watch(() => currentThemeId.value, (themeId) => {
     if (window.electronAPI?.windowContentChange) {
@@ -92,7 +106,6 @@ export const useAppStore = defineStore('app', () => {
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI.windowContentChange({
         hasActiveDocument: hasActiveDocument,
-        autoSave: globalEditSetting.autoSave,
       })
     }
   })
@@ -106,7 +119,6 @@ export const useAppStore = defineStore('app', () => {
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI.windowContentChange({
         hasActiveDocument: hasActiveDocument,
-        autoSave: globalEditSetting.autoSave,
       })
     }
   }, { immediate: true })
@@ -124,6 +136,28 @@ export const useAppStore = defineStore('app', () => {
     }
   }, { immediate: true })
 
+  // update menu when left sidebar or right sidebar or statusbar visibility changes
+  watch(() => [isLeftSidebarVisible.value, isRightSidebarVisible.value, isStatusbarVisible.value], () => {
+    if (window.electronAPI?.windowContentChange) {
+      window.electronAPI?.windowContentChange?.({
+        view: {
+          leftSidebar: isLeftSidebarVisible.value,
+          rightSidebar: isRightSidebarVisible.value,
+          statusbar: isStatusbarVisible.value
+        },
+      })
+    }
+  }, { immediate: true })
+
+  // update menu when autoSave setting changes
+  watch(() => autoSave.value, (newAutoSave) => {
+    if (window.electronAPI?.windowContentChange) {
+      window.electronAPI.windowContentChange({
+        autoSave: newAutoSave,
+      })
+    }
+  }, { immediate: true })
+  
   // ===== 状态恢复 =====
 
   /**
@@ -330,11 +364,6 @@ export const useAppStore = defineStore('app', () => {
   function showLeftSidebar(show: boolean = true) {
     if (isLeftSidebarVisible.value === show) return
     isLeftSidebarVisible.value = show
-    window.electronAPI?.windowContentChange?.({
-      view: {
-        leftSidebar: isLeftSidebarVisible.value,
-      },
-    })
   }
 
   function toggleLeftSidebar() {
@@ -342,13 +371,8 @@ export const useAppStore = defineStore('app', () => {
   }
   
   function showRightSidebar(show: boolean = true) {
-    if (isLeftSidebarVisible.value === show) return
-    isLeftSidebarVisible.value = show
-    window.electronAPI?.windowContentChange?.({
-      view: {
-        rightSidebar: isRightSidebarVisible.value,
-      },
-    })
+    if (isRightSidebarVisible.value === show) return
+    isRightSidebarVisible.value = show
   }
 
   function toggleRightSidebar() {
@@ -356,13 +380,13 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function showStatusbar(show: boolean = true) {
-    if (isLeftSidebarVisible.value === show) return
-    isLeftSidebarVisible.value = show
-    window.electronAPI?.windowContentChange?.({
-      view: {
-        statusbar: isStatusbarVisible.value,
-      },
-    })
+    if (isStatusbarVisible.value === show) return
+    isStatusbarVisible.value = show
+  }
+
+  function searchInFolder(folderPath: string) {
+    searchFolderPath.value = folderPath
+    setLeftSidebarMode(SidebarMode.SEARCH)
   }
 
   function setLeftSidebarMode(mode: SidebarMode) {
@@ -421,16 +445,8 @@ export const useAppStore = defineStore('app', () => {
       activeTab.value.editState?.autoSave
     ) {
       activeTab.value.editState.autoSave = !activeTab.value.editState.autoSave
-      window.electronAPI.windowContentChange({autoSave: activeTab.value.editState.autoSave})
     } else {
       globalEditSetting.autoSave = !globalEditSetting.autoSave
-      window.electronAPI.windowContentChange(
-        {
-          edit: {
-            autoSave: globalEditSetting.autoSave
-          }
-        }
-      )
     }
   }
 
@@ -1194,7 +1210,7 @@ export const useAppStore = defineStore('app', () => {
     let tabName = name
     if (!tabName) {
       const formattedNumber = untitledCounter.value.toString().padStart(2, '0')
-      tabName = `Untitled-${formattedNumber}.iwt`
+      tabName = `Untitled-${formattedNumber}.${TEXT_IWT_EXTENSION}`
       
       // Increment counter and cycle back to 01 after 99
       untitledCounter.value = untitledCounter.value >= 99 ? 1 : untitledCounter.value + 1
@@ -1308,13 +1324,44 @@ export const useAppStore = defineStore('app', () => {
     activeTabId.value = tabId
   }
   
+  function getFileNameFromTabContent(tab: FileTab): string {
+    const defaultName = tab.name || `Untitled.${TEXT_IWT_EXTENSION}`
+
+    if (!tab.editorInstance) return defaultName
+
+    const editor = tab.editorInstance as import('@tiptap/core').Editor
+    const json = editor.getJSON()
+    const nodes = json.content ?? []
+
+    // Find first heading or paragraph with non-empty text
+    for (const node of nodes) {
+      if (node.type === 'heading' || node.type === 'paragraph') {
+        const text = (node.content ?? [])
+          .filter((n: Record<string, unknown>) => n['type'] === 'text')
+          .map((n: Record<string, unknown>) => (n['text'] as string | undefined) ?? '')
+          .join('')
+          .trim()
+        if (text) {
+          // Sanitize: remove characters not safe for filenames
+          const safe = text.replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 20)
+          if (safe) return safe + "." + pathUtils.extension(defaultName)
+        }
+      }
+    }
+
+    return defaultName
+  }
+
   async function saveTab(tab: FileTab, saveAs: boolean = false): Promise<boolean> {
     if (!tab || !window.electronAPI) return false
     
     try {
       let originalPath: string | undefined = tab.path
+      console.debug(`saveTab: originalPath=${originalPath}, saveAs=${saveAs}`)
       if (saveAs === true || !originalPath) {
+        const defaultPath = !originalPath ? (currentFolder.value ? currentFolder.value + '/' + getFileNameFromTabContent(tab) : '') : originalPath
         const result = await window.electronAPI.showSaveDialog({
+          defaultPath,
           filters: [
             { name: 'iWriter Files', extensions: [...TEXT_IWT_EXTENSIONS] },
             { name: 'Markdown Files', extensions: [...TEXT_MD_EXTENSIONS] },
@@ -1668,6 +1715,7 @@ export const useAppStore = defineStore('app', () => {
     isRightSidebarVisible,
     isStatusbarVisible,
     leftSidebarMode,
+    searchFolderPath,
     leftSidebarWidth,
     minSidebarWidth,
     currentThemeId,
@@ -1691,6 +1739,7 @@ export const useAppStore = defineStore('app', () => {
     toggleRightSidebar,
     toggleStatusbar,
     setLeftSidebarMode,
+    searchInFolder,
     setLeftSidebarWidth,
     toggleAutoSave,
     updateWindowTitle,

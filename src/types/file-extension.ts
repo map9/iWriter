@@ -1,6 +1,7 @@
+export const TEXT_IWT_EXTENSION = 'iwt' as const
 export const TEXT_MD_EXTENSIONS = ['md', 'markdown'] as const
 export const TEXT_TXT_EXTENSIONS = ['txt'] as const
-export const TEXT_IWT_EXTENSIONS = ['iwt'] as const
+export const TEXT_IWT_EXTENSIONS = [TEXT_IWT_EXTENSION] as const
 export const CODE_EXTENSIONS = ['js', 'mjs', 'ts', 'tsx', 'jsx', 'vue', 'html', 'htm', 'css', 'scss', 'sass', 'less', 'py', 'java', 'c', 'cpp', 'h', 'cs', 'php', 'rb', 'go', 'rs', 'swift', 'kt', 'json', 'yaml', 'yml', 'toml', 'xml', 'ini', 'sh', 'bash', 'sql', 'graphql'] as const
 // 可搜索的文本文件：包含 Markdown、纯文本、iWriter 格式和代码文件
 export const TEXT_EXTENSIONS = [...TEXT_MD_EXTENSIONS, ...TEXT_TXT_EXTENSIONS, ...TEXT_IWT_EXTENSIONS, ...CODE_EXTENSIONS] as const

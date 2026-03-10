@@ -8,6 +8,8 @@ import {
   insertFootnote,
   toggleTaskItemChecked,
   setTaskItemChecked,
+  insertImage,
+  insertLocalMedia,
 } from './insert'
 import {
   moveRowAbove,
@@ -34,6 +36,23 @@ export async function onEditorMenuAction(editor: Editor | undefined, action: str
       return true
     case 'redo':
       editor.chain().focus().redo().run()
+      return true
+
+    // Clipboard operations
+    case 'copy-as-plain-text':
+      await copyAsPlainText(editor)
+      return true
+
+    case 'copy-as-markdown':
+      await copyAsMarkdown(editor)
+      return true
+
+    case 'copy-as-html':
+      await copyAsHtml(editor)
+      return true
+
+    case 'paste-as-text':
+      await pasteAsText(editor)
       return true
       
     case 'heading-1':
@@ -135,29 +154,24 @@ export async function onEditorMenuAction(editor: Editor | undefined, action: str
     case 'table-delete':
       return deleteTable(editor)
     
-    case 'insert-media':
-      return true
-
     case 'insert-code-block':
       editor.chain().focus().toggleCodeBlock().run()
       return true
 
-    case 'toggle-caption':
-      //editor.chain().focus().setCaptionPosition('auto').run()
-      return true    
-
     case 'insert-math-block':
       insertMathBlock(editor)
       return true
+      
+    case 'insert-quote-block':
+      editor.chain().focus().toggleBlockquote().run()
+      return true
+
     case 'insert-alert-information':
     case 'insert-alert-suggestion':
     case 'insert-alert-important':
     case 'insert-alert-warning':
     case 'insert-alert-notification':
       console.info(`Unsupported menu command: ${action}`)
-      return true
-    case 'insert-quote-block':
-      editor.chain().focus().toggleBlockquote().run()
       return true
     
     // Lists
@@ -267,25 +281,15 @@ export async function onEditorMenuAction(editor: Editor | undefined, action: str
       toggleLink(editor)
       return true
 
+    case 'insert-media':
+      insertImage(editor)
+      return true
+    case 'insert-local-media':
+      insertLocalMedia(editor)
+      return true
+
     case 'clear-formatting':
       editor.chain().focus().unsetAllMarks().run()
-      return true
-
-    // Clipboard operations
-    case 'copy-as-plain-text':
-      await copyAsPlainText(editor)
-      return true
-
-    case 'copy-as-markdown':
-      await copyAsMarkdown(editor)
-      return true
-
-    case 'copy-as-html':
-      await copyAsHtml(editor)
-      return true
-
-    case 'paste-as-text':
-      await pasteAsText(editor)
       return true
 
     default:

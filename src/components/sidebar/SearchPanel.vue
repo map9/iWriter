@@ -558,6 +558,13 @@ watch(() => appStore.leftSidebarMode, (newMode) => {
   }
 })
 
+// 监听 searchFolderPath 变化，触发在指定文件夹内搜索
+watch(() => appStore.searchFolderPath, (newPath) => {
+  if (newPath && searchQuery.value.length > 0) {
+    performSearch()
+  }
+})
+
 // Watch for search query changes
 let searchTimeout: number | undefined
 watch(searchQuery, (newQuery) => {
@@ -704,7 +711,7 @@ async function performSearch() {
 
     // 使用 TipTap 搜索服务，传递打开的 tabs 以优先搜索编辑器内容
     const results = await TipTapSearchService.searchInWorkspace(
-      appStore.currentFolder,
+      appStore.searchFolderPath || appStore.currentFolder,
       searchQuery.value,
       {
         caseSensitive: options.value.matchCase,

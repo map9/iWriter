@@ -13,6 +13,7 @@ public/dictionaries
 *.temp
 *.iwt
 /assets/
+/cer/
 
 # Mac OS --------------------------------------
 .DS_Store

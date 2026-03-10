@@ -304,6 +304,20 @@ export class MenuManager {
         ]
       },
       {
+        id: 'editMenu-default',
+        label: 'Edit',
+        submenu: [
+          { role: 'undo' },
+          { role: 'redo' },
+          { type: 'separator' },
+          { role: 'cut' },
+          { role: 'copy' },
+          { role: 'paste' },
+          { type: 'separator' },
+          { role: 'selectAll' },
+        ]
+      },
+      {
         id: 'editMenu',
         label: 'Edit',
         submenu: [
@@ -1114,7 +1128,7 @@ export class MenuManager {
           },
           { type: 'separator' },
           {
-            label: 'Inline Link',
+            label: 'Link',
             accelerator: 'CmdOrCtrl+K',
             click: () => {
               this.sendMenuAction('inline-link')
@@ -1136,6 +1150,7 @@ export class MenuManager {
                   this.sendMenuAction('insert-local-media')
                 }
               },
+              /*
               { type: 'separator' },
               {
                 label: 'Open Media Location...',
@@ -1262,6 +1277,7 @@ export class MenuManager {
                   this.sendMenuAction('media-setting')
                 }
               }
+              */
             ]
           },
           {
@@ -1638,8 +1654,13 @@ export class MenuManager {
       
       // Filter out Edit, Paragraph and Format menus based on document state
       if (
-        (item.id === 'editMenu' || item.id === 'paragraphMenu' || item.id === 'formatMenu') &&
-        !wState?.wContentState?.hasActiveDocument
+        !wState?.wContentState?.hasActiveDocument &&
+        (item.id === 'editMenu' || item.id === 'paragraphMenu' || item.id === 'formatMenu')
+      ) {
+        return false
+      } else if (
+        wState?.wContentState?.hasActiveDocument &&
+        (item.id === 'editMenu-default')
       ) {
         return false
       }

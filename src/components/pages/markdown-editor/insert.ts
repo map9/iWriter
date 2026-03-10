@@ -1,6 +1,9 @@
 import { type Editor } from '@tiptap/vue-3'
 import { find } from 'linkifyjs'
 import { iwPopupTool } from '@/components/common/tiptap/iw-popup-tools'
+import path from 'path-browserify'
+import { IMAGE_EXTENSIONS } from '@/types/file-extension'
+import { notify } from '@/utils/notifications'
 
 function isValidUrl(text: string): boolean {
   if (!text?.trim()) return false
@@ -113,6 +116,37 @@ export function insertMathBlock(editor: Editor | undefined) {
 
 export function insertTable(editor: Editor | undefined) {
   editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+}
+
+export async function insertLocalMedia(editor: Editor | undefined) {
+    try {
+    // 打开文件选择对话框
+    if (window.electronAPI?.showOpenDialog) {
+      const result = await window.electronAPI.showOpenDialog({
+        properties: ['openFile'],
+        filters: [
+          { name: 'Image Files', extensions: [...IMAGE_EXTENSIONS] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      })
+
+      if (!result.canceled && result.filePaths.length > 0 && result.filePaths[0]) {
+        const selectedPath = result.filePaths[0]
+
+        // 更新图片的src属性（替换而不是添加）
+        editor?.chain().focus().setImage({
+          src: `file://${selectedPath}`,
+          alt: path.basename(selectedPath),
+          title: selectedPath
+        }).run()
+
+      }
+    } else {
+      throw new Error('This feature is only available in desktop app')
+    }
+  } catch (error) {
+    notify.error(`${error instanceof Error ? error.message : String(error)}`, 'File Selection Error')
+  }
 }
 
 export function insertImage(editor: Editor | undefined) {

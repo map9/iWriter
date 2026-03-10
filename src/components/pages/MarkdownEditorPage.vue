@@ -429,15 +429,6 @@ lowlight.register('js', js)
 lowlight.register('ts', ts)
 
 const extensions = [
-  TableOfContents.configure({
-    getIndex: getHierarchicalIndexes,
-    onUpdate: content => {
-      // Update the TOC provider with new data
-      if (props.tab.tocProvider) {
-        props.tab.tocProvider.updateFromTipTap?.(content)
-      }
-    },
-  }),
   UndoRedo, Dropcursor, Gapcursor, TrailingNode, 
   Focus.configure({
     mode: 'all',
@@ -655,6 +646,16 @@ const extensions = [
     debounceTime: 300,
     currentMatchClass: 'search-result-current',
     otherMatchClass: 'search-result'
+  }),
+  
+  TableOfContents.configure({
+    getIndex: getHierarchicalIndexes,
+    onUpdate: content => {
+      // Update the TOC provider with new data
+      if (props.tab.tocProvider) {
+        props.tab.tocProvider.updateFromTipTap?.(content)
+      }
+    },
   })
 ]
 

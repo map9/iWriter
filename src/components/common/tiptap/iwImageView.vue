@@ -354,12 +354,12 @@ const openWithShell = async (): Promise<void> => {
   }
 
   try {
-    const src = imageSrc.value
+    let src = imageSrc.value
 
     if (window.electronAPI?.openWithShell) {
-      /*if (src.startsWith('file://')) {
+      if (src.startsWith('file://')) {
         src = src.replace('file://', '')
-      }*/
+      }
 
       await window.electronAPI.openWithShell(src)
     } else {
