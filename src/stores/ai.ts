@@ -4,6 +4,9 @@ import type {
   AiThread,
   AiProviderConfig,
   AiSettings,
+  BlockEditProposal,
+  FileEditProposal,
+  FileCreateProposal,
   EditProposal,
   AiToolCall,
   AiToolResult,
@@ -18,10 +21,9 @@ import { buildSystemPrompt, getToolsForProfile } from '@/ai/thread/ContextBuilde
 import { providerRegistry } from '@/ai/providers/ProviderRegistry'
 import { AcpAgentSession } from '@/ai/acp/AcpAgentSession'
 import { AgentRunner } from '@/ai/agent/AgentRunner'
-import { PermissionGate } from '@/ai/tools/PermissionGate'
-import { FileTools } from '@/ai/tools/FileTools'
 import { createToolRegistry } from '@/ai/tools/registry'
-import { applyEditProposal } from '@/ai/edit-agent/EditApplier'
+import { applyBlockEditProposal } from '@/ai/edit-agent/BlockEditApplier'
+import { buildSnapshot } from '@/ai/thread/ContextBuilder'
 import { useAppStore } from '@/stores/app'
 import type { Editor } from '@tiptap/core'
 import type { AgentSession } from '@/ai/providers/types'
@@ -193,7 +195,21 @@ export const useAiStore = defineStore('ai', () => {
     return threads.value.find(t => t.id === activeThreadId.value) ?? null
   })
 
+  /** Remove threads that have no messages (empty sessions). */
+  function _purgeEmptyThreads() {
+    const empty = threads.value.filter(t => t.messages.length === 0)
+    if (!empty.length) return
+    for (const t of empty) ThreadStore.deleteThread(t.id)
+    threads.value = threads.value.filter(t => t.messages.length > 0)
+    // If active thread was purged, fall back to the first remaining one
+    if (!threads.value.find(t => t.id === activeThreadId.value)) {
+      activeThreadId.value = threads.value[0]?.id ?? null
+    }
+  }
+
   function createNewThread(): AiThread {
+    // Clean up empty sessions before creating a new one
+    _purgeEmptyThreads()
     const config = activeProviderConfig.value
     const thread = createThread(
       config?.id ?? '',
@@ -218,6 +234,12 @@ export const useAiStore = defineStore('ai', () => {
     }
   }
 
+  function clearAllThreads() {
+    threads.value = []
+    activeThreadId.value = null
+    ThreadStore.clearThreads()
+  }
+
   function updateThread(thread: AiThread) {
     const idx = threads.value.findIndex(t => t.id === thread.id)
     if (idx >= 0) {
@@ -231,6 +253,12 @@ export const useAiStore = defineStore('ai', () => {
   const streamingText = ref('')
   const streamingToolName = ref<string | null>(null)
   const pendingEditProposals = ref<EditProposal[]>([])
+
+  /**
+   * Resolvers for pending ACP fs/write_text_file requests.
+   * Key = FileEditProposal.id, Value = function(approved) that sends the JSON-RPC response.
+   */
+  const _pendingAcpFsResolvers = new Map<string, (approved: boolean) => Promise<void>>()
 
   // ── ACP Agent State ───────────────────────────────────────────────────────
   /** A permission request from the active ACP agent awaiting user decision. */
@@ -394,6 +422,105 @@ export const useAiStore = defineStore('ai', () => {
     }
   }
 
+  /**
+   * Wire all ACP session callbacks: onInit, onPermissionRequest, onFsReadRequest, onFsWriteRequest.
+   * Call this every time a new AcpAgentSession is created.
+   */
+  function setupAcpSessionCallbacks(session: AcpAgentSession, configId: string): void {
+    session.onInit = (models, modes, currentModelId, currentModeId) =>
+      updateAcpCapabilities(configId, models, modes, currentModelId, currentModeId)
+
+    session.onPermissionRequest = (requestId, permission, path, description, options) => {
+      acpPermissionPending.value = {
+        sessionId: session.sessionId,
+        requestId,
+        permission,
+        path,
+        description,
+        options,
+      }
+    }
+
+    session.onFsReadRequest = async (requestId, filePath) => {
+      const activeTab = appStore.activeTab
+      const editorInstance = activeTab?.editorInstance as import('@tiptap/core').Editor | undefined
+
+      if (editorInstance && activeTab?.path && filePath === activeTab.path) {
+        // Current editor file: return in-memory document view Markdown (latest unsaved state)
+        const snapshot = buildSnapshot(editorInstance)
+        await session.respondToFsRequest(requestId, { content: snapshot.view.viewMarkdown })
+      } else {
+        // Other files: read from disk
+        try {
+          const content = await window.electronAPI.readFile(filePath)
+          await session.respondToFsRequest(requestId, { content: content ?? '' })
+        } catch {
+          await session.respondToFsRequest(requestId, undefined, {
+            code: -32001,
+            message: `File not found: ${filePath}`,
+          })
+        }
+      }
+    }
+
+    session.onFsWriteRequest = async (requestId, filePath, newContent) => {
+      const activeTab = appStore.activeTab
+      const editorInstance = activeTab?.editorInstance as import('@tiptap/core').Editor | undefined
+
+      if (editorInstance && activeTab?.path && filePath === activeTab.path) {
+        // Current editor file: intercept → create FileEditProposal
+        const snapshot = buildSnapshot(editorInstance)
+        const oldContent = snapshot.view.viewMarkdown
+
+        const proposalId = `file-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        const proposal: FileEditProposal = {
+          id: proposalId,
+          kind: 'file',
+          status: 'pending',
+          description: `Agent wants to update ${filePath.split('/').pop()}`,
+          sessionId: session.sessionId,
+          filePath,
+          oldContent,
+          newContent,
+        }
+
+        // Store the resolver so approve/reject can respond to the agent
+        _pendingAcpFsResolvers.set(proposalId, async (approved) => {
+          if (approved) {
+            const saved = await window.electronAPI.saveFile(newContent, filePath)
+            if (saved) {
+              await session.respondToFsRequest(requestId, null)
+            } else {
+              await session.respondToFsRequest(requestId, undefined, {
+                code: -32002,
+                message: 'File write failed',
+              })
+            }
+          } else {
+            await session.respondToFsRequest(requestId, undefined, {
+              code: -32003,
+              message: 'User rejected the file write',
+            })
+          }
+        })
+
+        pendingEditProposals.value = [...pendingEditProposals.value, proposal]
+      } else {
+        // Non-current files: write to disk directly
+        try {
+          const saved = await window.electronAPI.saveFile(newContent, filePath)
+          await session.respondToFsRequest(requestId, saved ? null : undefined,
+            saved ? undefined : { code: -32002, message: 'File write failed' })
+        } catch {
+          await session.respondToFsRequest(requestId, undefined, {
+            code: -32002,
+            message: 'File write failed',
+          })
+        }
+      }
+    }
+  }
+
   /** Provider IDs currently being initialized — prevents concurrent re-entry. */
   const _initializingIds = new Set<string>()
 
@@ -433,18 +560,7 @@ export const useAiStore = defineStore('ai', () => {
     _agentInitStatusMap.set(config.id, 'initializing')
 
     const session = new AcpAgentSession(config)
-    const configId = config.id
-    session.onInit = (models, modes, currentModelId, currentModeId) => updateAcpCapabilities(configId, models, modes, currentModelId, currentModeId)
-    session.onPermissionRequest = (requestId, permission, path, description, options) => {
-      acpPermissionPending.value = {
-        sessionId: session.sessionId,
-        requestId,
-        permission,
-        path,
-        description,
-        options,
-      }
-    }
+    setupAcpSessionCallbacks(session, config.id)
     _acpSessionCache.set(config.id, session)
     _startProgressTracking(session, config.id)
 
@@ -477,34 +593,16 @@ export const useAiStore = defineStore('ai', () => {
     let session = _acpSessionCache.get(config.id)
     if (!session) {
       session = new AcpAgentSession(config)
-      session.onInit = (models, modes, currentModelId, currentModeId) => updateAcpCapabilities(config.id, models, modes, currentModelId, currentModeId)
-      session.onPermissionRequest = (requestId, permission, path, description, options) => {
-        acpPermissionPending.value = {
-          sessionId: (session as AcpAgentSession).sessionId,
-          requestId,
-          permission,
-          path,
-          description,
-          options,
-        }
-      }
+      setupAcpSessionCallbacks(session, config.id)
       _acpSessionCache.set(config.id, session)
     }
     return session
   }
 
   // ── Tools Infrastructure ──────────────────────────────────────────────────
-  const permissionGate = new PermissionGate(
-    () => settings.value,
-    () => appStore.currentFolder ?? null
-  )
-
-  const fileTools = new FileTools(
-    permissionGate,
-    () => appStore.currentFolder ?? null
-  )
-
-  const toolRegistry = createToolRegistry(fileTools)
+  // The snapshot is rebuilt each sendMessage call; the getter reads the latest one
+  let _currentSnapshot: ReturnType<typeof buildSnapshot> | null = null
+  const toolRegistry = createToolRegistry(() => _currentSnapshot)
 
   // ── Send Message ──────────────────────────────────────────────────────────
   async function sendMessage(userText: string): Promise<boolean> {
@@ -514,21 +612,28 @@ export const useAiStore = defineStore('ai', () => {
       return false
     }
 
+    // Auto-reject any proposals still waiting for user approval
+    _rejectAllPendingProposals()
+
     // Ensure there is an active thread
     let thread = activeThread.value
     if (!thread) {
       thread = createNewThread()
     }
 
-    // Append user message
+    // Append user message; clear any previous error flag
     const userMsg = createMessage('user', userText)
     thread = appendMessage(thread, userMsg)
+    if (thread.hasError) thread = { ...thread, hasError: false }
     updateThread(thread)
 
     // Get context from active editor
     const activeTab = appStore.activeTab
     const editorInstance = activeTab?.editorInstance as Editor | undefined
-    const documentText = editorInstance?.getText() ?? ''
+
+    // Build document view snapshot (used by both system prompt and tool registry)
+    _currentSnapshot = editorInstance ? buildSnapshot(editorInstance) : null
+
     const selectionText = editorInstance
       ? (() => {
           const { from, to } = editorInstance.state.selection
@@ -537,10 +642,11 @@ export const useAiStore = defineStore('ai', () => {
       : ''
 
     const systemPrompt = buildSystemPrompt(thread.profile, {
-      documentText,
+      editor:       editorInstance,
+      viewSnapshot: _currentSnapshot ?? undefined,
       selectionText: selectionText || undefined,
-      filePath: activeTab?.path ?? null,
-      folderPath: appStore.currentFolder ?? null,
+      filePath:      activeTab?.path ?? null,
+      folderPath:    appStore.currentFolder ?? null,
     })
 
     const tools = getToolsForProfile(thread.profile)
@@ -556,6 +662,9 @@ export const useAiStore = defineStore('ai', () => {
         workspacePath: appStore.currentFolder ?? null,
         filePath: activeTab?.path ?? null,
       })
+      // Pass in-memory document view so the agent sees unsaved changes
+      // (critical for .iwt files which are JSON on disk, not Markdown)
+      acpSession.setDocumentView(_currentSnapshot?.view.viewMarkdown ?? null)
       session = acpSession
     } else {
       // Native LLM: stateless HTTP call, create fresh session each time
@@ -592,13 +701,16 @@ export const useAiStore = defineStore('ai', () => {
     streamingToolName.value = null
     pendingEditProposals.value = []
 
-    const runner = new AgentRunner(session, toolRegistry)
+    const runner = new AgentRunner(session, toolRegistry, () => _currentSnapshot)
 
     runner.run(thread, systemPrompt, tools, {
       onText: delta => {
         streamingText.value += delta
       },
-      onToolCallStart: name => {
+      onThinkingText: _delta => {
+        // thinkingContent is accumulated in AgentRunner and stored in ThreadMessage
+      },
+      onToolCallStart: (name, _id) => {
         streamingToolName.value = name
       },
       onToolCallResult: (_tc: AiToolCall, result: AiToolResult) => {
@@ -607,13 +719,31 @@ export const useAiStore = defineStore('ai', () => {
           notify.warning(`工具调用失败: ${result.content}`)
         }
       },
-      onEditProposal: proposal => {
+      onEditProposal: (proposal: EditProposal) => {
         pendingEditProposals.value = [...pendingEditProposals.value, proposal]
+      },
+      onRoundComplete: (roundMsg) => {
+        // Persist intermediate round (read tools) as its own message bubble
+        const roundContent = streamingText.value
+        streamingText.value = ''
+        streamingToolName.value = null
+        const storedMsg: ThreadMessage = {
+          ...roundMsg,
+          content: roundContent || roundMsg.content,
+        }
+        let t = activeThread.value
+        if (t) {
+          t = appendMessage(t, storedMsg)
+          updateThread(t)
+        }
       },
       onDone: assistantMessage => {
         isStreaming.value = false
         streamingToolName.value = null
         _currentSession.value = null
+        // Block proposals are now in the stored message — clear from streaming list
+        // (keep file proposals which are waiting for ACP resolver)
+        pendingEditProposals.value = pendingEditProposals.value.filter(p => p.kind === 'file')
 
         // Save final assistant message to thread
         const finalText = streamingText.value
@@ -636,6 +766,19 @@ export const useAiStore = defineStore('ai', () => {
         streamingToolName.value = null
         _currentSession.value = null
         notify.error(`AI 错误: ${error}`)
+        // Append error as a message bubble in the chat, and mark thread as failed
+        let errThread = activeThread.value
+        if (errThread) {
+          const errMsg: ThreadMessage = {
+            id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            role: 'assistant',
+            content: error,
+            isError: true,
+            timestamp: Date.now(),
+          }
+          errThread = appendMessage({ ...errThread, hasError: true }, errMsg)
+          updateThread(errThread)
+        }
       },
     }, streamOptions)
 
@@ -643,20 +786,149 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   // ── Edit Proposal Actions ─────────────────────────────────────────────────
-  function approveEditProposal(proposalId: string) {
-    const proposal = pendingEditProposals.value.find(p => p.id === proposalId)
+
+  /**
+   * Reject all currently pending proposals (called when user sends a new message).
+   * - Proposals in thread messages are marked 'rejected' in place.
+   * - Pending ACP fs resolvers are resolved with false.
+   * - pendingEditProposals list is cleared.
+   */
+  function _rejectAllPendingProposals() {
+    // Reject in-thread proposals (block / create_file)
+    const thread = activeThread.value
+    if (thread) {
+      const updatedMessages = thread.messages.map(msg => {
+        if (!msg.editProposals?.some(p => p.status === 'pending')) return msg
+        return {
+          ...msg,
+          editProposals: msg.editProposals.map(p =>
+            p.status === 'pending' ? { ...p, status: 'rejected' as const } : p
+          ),
+        }
+      })
+      updateThread({ ...thread, messages: updatedMessages })
+    }
+
+    // Resolve any pending ACP fs resolvers as rejected
+    for (const [id, resolver] of _pendingAcpFsResolvers) {
+      resolver(false)
+      _pendingAcpFsResolvers.delete(id)
+    }
+
+    pendingEditProposals.value = []
+  }
+
+  /**
+   * Immutably update a proposal's status inside the stored thread messages.
+   * Using spread-based immutable update ensures Vue 3 detects the change and
+   * recomputes `pendingProposals` in AgentMessageBubble.
+   */
+  function _updateProposalInThread(proposalId: string, status: 'applied' | 'rejected') {
+    const thread = activeThread.value
+    if (!thread) return
+    const updatedMessages = thread.messages.map(msg => {
+      const targetProposal = msg.editProposals?.find(p => p.id === proposalId)
+      if (!targetProposal) return msg
+      // Sync the corresponding toolCall status so ToolCallView reflects the result
+      const toolCallStatus: 'completed' | 'failed' = status === 'applied' ? 'completed' : 'failed'
+      return {
+        ...msg,
+        editProposals: msg.editProposals!.map(p =>
+          p.id === proposalId ? { ...p, status } : p
+        ),
+        toolCalls: msg.toolCalls?.map(tc =>
+          tc.id === targetProposal.toolCallId ? { ...tc, status: toolCallStatus } : tc
+        ),
+      } as ThreadMessage
+    })
+    updateThread({ ...thread, messages: updatedMessages })
+  }
+
+  /**
+   * Find a proposal by ID — first in pendingEditProposals (active ACP file proposals
+   * or block proposals during streaming), then in stored thread messages (block
+   * proposals after onDone has committed them to the thread).
+   */
+  function _findProposal(proposalId: string): EditProposal | undefined {
+    const fromPending = pendingEditProposals.value.find(p => p.id === proposalId)
+    if (fromPending) return fromPending
+    for (const msg of activeThread.value?.messages ?? []) {
+      const found = msg.editProposals?.find(p => p.id === proposalId)
+      if (found) return found
+    }
+    return undefined
+  }
+
+  async function approveEditProposal(proposalId: string) {
+    const proposal = _findProposal(proposalId)
     if (!proposal) return
 
+    if (proposal.kind === 'create_file') {
+      const p = proposal as FileCreateProposal
+      // 1. Create a new in-memory tab with the desired filename
+      const { DocumentType } = await import('@/types/document-type')
+      appStore.createTab(p.filename, undefined, DocumentType.MARKDOWN_EDITOR)
+
+      // 2. Wait for MarkdownEditorPage to mount and set editorInstance
+      const getEditor = (): Editor | undefined =>
+        appStore.activeTab?.editorInstance as Editor | undefined
+
+      // Poll nextTick until editorInstance is ready (typically 1-2 frames after mount)
+      const { nextTick } = await import('vue')
+      for (let i = 0; i < 20; i++) {
+        await nextTick()
+        if (getEditor()) break
+      }
+
+      // 3. Inject content via the existing insert_block(0) path
+      const editor = getEditor()
+      if (editor) {
+        const insertProposal: BlockEditProposal = {
+          id:           proposalId,
+          kind:         'block',
+          type:         'insert',
+          status:       'pending',
+          afterNodeId:  '0',
+          newContent:   p.content,
+        }
+        const result = await applyBlockEditProposal(editor, insertProposal)
+        if (result.success) {
+          _updateProposalInThread(proposalId, 'applied')
+          notify.success(`文档"${p.filename}"已创建`)
+        } else {
+          notify.error(`内容注入失败: ${result.error}`)
+        }
+      } else {
+        notify.error('编辑器未就绪，请手动粘贴内容')
+      }
+      pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+      return
+    }
+
+    if (proposal.kind === 'file') {
+      // FileEditProposal: resolve via the pending ACP fs resolver
+      const resolver = _pendingAcpFsResolvers.get(proposalId)
+      if (resolver) {
+        _pendingAcpFsResolvers.delete(proposalId)
+        pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+        await resolver(true)
+        notify.success('文件编辑已应用')
+      }
+      return
+    }
+
+    // BlockEditProposal
     const editor = appStore.activeTab?.editorInstance as Editor | undefined
     if (!editor) {
       notify.error('没有活动的编辑器文档')
       return
     }
 
-    const result = applyEditProposal(editor, proposal)
+    const result = await applyBlockEditProposal(editor, proposal as BlockEditProposal)
     if (result.success) {
-      proposal.status = 'applied'
-      pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+      _updateProposalInThread(proposalId, 'applied')
+      // Rebuild snapshot after mutation so subsequent tool calls see the updated doc
+      _currentSnapshot = buildSnapshot(editor)
       notify.success('编辑已应用')
     } else {
       notify.error(`应用编辑失败: ${result.error}`)
@@ -664,11 +936,54 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   function rejectEditProposal(proposalId: string) {
-    const proposal = pendingEditProposals.value.find(p => p.id === proposalId)
-    if (proposal) {
-      proposal.status = 'rejected'
+    const proposal = _findProposal(proposalId)
+    if (!proposal) return
+
+    if (proposal.kind === 'create_file') {
+      pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+      _updateProposalInThread(proposalId, 'rejected')
+      return
     }
-    pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+
+    if (proposal.kind === 'file') {
+      // Notify the ACP agent that the write was rejected
+      const resolver = _pendingAcpFsResolvers.get(proposalId)
+      if (resolver) {
+        _pendingAcpFsResolvers.delete(proposalId)
+        resolver(false)
+      }
+      pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+      return
+    }
+
+    // BlockEditProposal: immutable update so Vue detects the status change
+    _updateProposalInThread(proposalId, 'rejected')
+  }
+
+  /** All pending proposals: from thread messages + any still in pendingEditProposals */
+  const allPendingProposals = computed<EditProposal[]>(() => {
+    const fromThread: EditProposal[] = []
+    for (const msg of activeThread.value?.messages ?? []) {
+      for (const p of msg.editProposals ?? []) {
+        if (p.status === 'pending') fromThread.push(p)
+      }
+    }
+    const fromPending = pendingEditProposals.value.filter(p => p.kind !== 'file')
+    return [...fromThread, ...fromPending]
+  })
+
+  async function approveAllProposals() {
+    const ids = allPendingProposals.value
+      .filter(p => p.kind === 'block' || p.kind === 'create_file')
+      .map(p => p.id)
+    for (const id of ids) await approveEditProposal(id)
+  }
+
+  function rejectAllProposals() {
+    const ids = allPendingProposals.value
+      .filter(p => p.kind === 'block' || p.kind === 'create_file')
+      .map(p => p.id)
+    for (const id of ids) rejectEditProposal(id)
   }
 
   function cancelStreaming() {
@@ -685,6 +1000,8 @@ export const useAiStore = defineStore('ai', () => {
     // Re-load settings and threads (in case store was accessed before mount)
     settings.value = ThreadStore.loadSettings()
     threads.value = ThreadStore.loadThreads()
+    // Remove any empty threads left over from previous sessions
+    _purgeEmptyThreads()
     if (!activeThreadId.value && threads.value.length) {
       activeThreadId.value = threads.value[0]!.id
     }
@@ -717,6 +1034,7 @@ export const useAiStore = defineStore('ai', () => {
     createNewThread,
     selectThread,
     deleteThread,
+    clearAllThreads,
     updateThread,
 
     // Streaming state
@@ -743,6 +1061,9 @@ export const useAiStore = defineStore('ai', () => {
     sendMessage,
     approveEditProposal,
     rejectEditProposal,
+    allPendingProposals,
+    approveAllProposals,
+    rejectAllProposals,
     cancelStreaming,
     init,
   }

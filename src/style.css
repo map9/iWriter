@@ -380,3 +380,11 @@
 .search-result-flash {
   animation: search-flash 2s ease-in-out;
 }
+
+/* AI proposal block highlight — Decoration.node overlay, no cursor change */
+.block-highlight-proposal {
+  outline: 2px solid #f59e0b;
+  outline-offset: 1px;
+  border-radius: 3px;
+  background: rgba(251, 191, 36, 0.07);
+}

@@ -5,7 +5,6 @@
  * Used by AgentRunner during streaming to track in-progress tool calls and
  * fire callbacks when a complete tool invocation is ready.
  */
-import type { EditProposal } from '@/types/ai'
 import type { AgentChunk } from '../providers/types'
 
 export interface PendingToolCall {
@@ -13,6 +12,8 @@ export interface PendingToolCall {
   name: string
   index: number
   argumentsRaw: string
+  /** True once a tool_call_end chunk has been received for this index. */
+  complete: boolean
 }
 
 export class EditParser {
@@ -30,13 +31,18 @@ export class EditParser {
         id: chunk.id,
         name: chunk.name,
         index: chunk.index,
-        argumentsRaw: '',
+        // Some providers (e.g. BigModel/GLM) send full arguments in the start chunk
+        argumentsRaw: chunk.initialArguments ?? '',
+        complete: false,
       })
     } else if (chunk.type === 'tool_call_delta') {
       const tc = this.pending.get(chunk.index)
       if (tc) {
         tc.argumentsRaw += chunk.argumentsDelta
       }
+    } else if (chunk.type === 'tool_call_end') {
+      const tc = this.pending.get(chunk.index)
+      if (tc) tc.complete = true
     }
   }
 
@@ -57,35 +63,3 @@ export class EditParser {
   }
 }
 
-// ── EditProposal Factory ──────────────────────────────────────────────────
-
-/**
- * Parse a completed edit_document tool call into an EditProposal.
- * Returns null if the arguments are malformed.
- */
-export function parseEditProposal(
-  toolCallId: string,
-  argumentsRaw: string
-): EditProposal | null {
-  let args: Record<string, unknown>
-  try {
-    args = JSON.parse(argumentsRaw)
-  } catch {
-    return null
-  }
-
-  const oldText = args.old_text
-  const newText = args.new_text
-  const description = args.description ?? 'AI edit proposal'
-
-  if (typeof oldText !== 'string' || typeof newText !== 'string') return null
-
-  return {
-    id: `edit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    toolCallId,
-    oldText,
-    newText,
-    description: String(description),
-    status: 'pending',
-  }
-}

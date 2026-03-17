@@ -300,59 +300,16 @@
 
 <script setup lang="ts">
 import { ref, toRef, watch, onBeforeUnmount, nextTick } from 'vue'
-import { EditorContent, useEditor, VueNodeViewRenderer } from '@tiptap/vue-3'
+import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { generateJSON, Editor } from '@tiptap/core'
 import { undoDepth } from '@tiptap/pm/history'
 import { Transaction } from '@tiptap/pm/state'
-import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
-import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus, Placeholder } from '@tiptap/extensions'
-
-import Document from '@tiptap/extension-document'
-import Heading from '@tiptap/extension-heading'
-import Paragraph from '@tiptap/extension-paragraph'
-import Text from '@tiptap/extension-text'
-import HardBreak from '@tiptap/extension-hard-break'
-import Emoji, { gitHubEmojis } from '@tiptap/extension-emoji'
-import HorizontalRule from '@tiptap/extension-horizontal-rule'
-
-import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
-import Image from '@tiptap/extension-image'
-import Youtube from '@tiptap/extension-youtube'
-import FileHandler from '@tiptap/extension-file-handler'
-
-import Blockquote from '@tiptap/extension-blockquote'
-
-import css from 'highlight.js/lib/languages/css'
-import js from 'highlight.js/lib/languages/javascript'
-import ts from 'highlight.js/lib/languages/typescript'
-import html from 'highlight.js/lib/languages/xml'
-import { all, createLowlight } from 'lowlight'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 
 import 'katex/dist/katex.min.css'
-import { InlineMath, BlockMath, migrateMathStrings } from '@tiptap/extension-mathematics'
+import { migrateMathStrings } from '@tiptap/extension-mathematics'
 
-import { ListItem, BulletList, OrderedList, ListKeymap, TaskItem, TaskList } from '@tiptap/extension-list'
-
-import Bold from '@tiptap/extension-bold'
-import Italic from '@tiptap/extension-italic'
-import Strike from '@tiptap/extension-strike'
-import Underline from '@tiptap/extension-underline'
-import TextAlign from '@tiptap/extension-text-align'
-import Code from '@tiptap/extension-code'
-import Link from '@tiptap/extension-link'
-import Highlight from '@tiptap/extension-highlight'
-import Subscript from '@tiptap/extension-subscript'
-import Superscript from '@tiptap/extension-superscript'
-import { TextStyleKit } from '@tiptap/extension-text-style'
-
-import InvisibleCharacters from '@tiptap/extension-invisible-characters'
-
-import { iwCodeBlockView, iwImageView, iwTableView, iwMathBlockView, iwPopupTools, iwLinkPopupTool, iwMathPopupTool, iwTypography } from '@/components/common/tiptap'
-
-import { iwProofreadExtension } from '@/components/common/tiptap/iw-proofread'
-import { iwSearchReplaceExtension } from '@/components/common/tiptap/iw-search-replace'
 import SearchReplacePanel from '@/components/common/tiptap/iw-search-replace/components/SearchReplacePanel.vue'
+import { createMarkdownEditorExtensions } from '@/utils/editorExtensions'
 import SelectionHighlightLayer from '@/components/common/tiptap/iw-search-replace/components/SelectionHighlightLayer.vue'
 
 import {
@@ -421,243 +378,30 @@ const isLoading = ref(false)
 const currentHeading = ref('paragraph')
 const isFullscreen = ref(false)
 
-// create a lowlight instance
-const lowlight = createLowlight(all)
-lowlight.register('html', html)
-lowlight.register('css', css)
-lowlight.register('js', js)
-lowlight.register('ts', ts)
-
-const extensions = [
-  UndoRedo, Dropcursor, Gapcursor, TrailingNode, 
-  Focus.configure({
-    mode: 'all',
-  }),
-
-  Document, Heading, Paragraph, Text, HardBreak,
-  Emoji.configure({
-    emojis: gitHubEmojis,
-    enableEmoticons: true,
-  }),
-  HorizontalRule,
-
-  TableCell, TableHeader, TableRow,
-  Table.configure({
-    resizable: true 
-  }).extend({
-    addNodeView() {
-      return VueNodeViewRenderer(iwTableView)
+const extensions = createMarkdownEditorExtensions({
+  tocUpdateCallback: content => {
+    if (props.tab.tocProvider) {
+      props.tab.tocProvider.updateFromTipTap?.(content)
     }
-  }),
-  
-  Image.configure({
-    allowBase64: true
-  }).extend({
-    addAttributes() {
-      return {
-        src: {
-          default: null,
-          parseHTML: (element: HTMLElement) => {
-            let src = element.getAttribute('src')
-            // 如果是相对路径且有当前文件夹，转换为绝对路径 
-            if (
-              src && (src.trim() !== '') &&
-              !src.startsWith('data:image/') &&
-              !src.startsWith('http') &&
-              !src.startsWith('file://') &&
-              pathUtils.isRelativePath(src) &&
-              props.tab.path
-            ) {
-              const localDir = pathUtils.parentDir(props.tab.path)
-              src = pathUtils.join(localDir, decodeURIComponent(src))
-              src = `file://${src}`
-            }
-            return src
-          },
-          renderHTML: (attributes: Record<string, string>) => ({ src: attributes.src })
-        },
-        alt: {
-          default: null,
-        },
-        title: {
-          default: null,
-        },
-        width: {
-          default: null,
-        },
-        height: {
-          default: null,
-        },
-        textAlign: {
-          default: 'left',
-          parseHTML: (element: HTMLElement) => {
-            const align = element.style.textAlign
-            return ['left', 'center', 'right', 'justify'].includes(align) ? align : 'left'
-          },
-          renderHTML: (attributes: Record<string, string>) => {
-            if (!attributes.textAlign || attributes.textAlign === 'left') {
-              return {}
-            }
-            return { style: `text-align: ${attributes.textAlign}` }
-          },
-        },
-      }
-    },
-    addPasteRules() {
-      return [
-        {
-          find: /(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?[^\s]*)?)/gi,
-          handler: ({ state, range, match }) => {
-            const url = match[1]
-            const { tr } = state
-            const { from, to } = range
-            
-            // 获取当前段落
-            const $from = tr.doc.resolve(from)
-            const paragraph = $from.parent
-            
-            // 如果当前段落只有这个 URL 文本（或为空），替换整个段落
-            if (paragraph.textContent.trim() === match[0].trim()) {
-              const paragraphStart = $from.before()
-              const paragraphEnd = $from.after()
-              tr.replaceWith(paragraphStart, paragraphEnd, this.type.create({ src: url }))
-            } else {
-              // 否则，在段落后插入新的图片块
-              tr.delete(from, to)
-              const imageNode = this.type.create({ src: url })
-              const insertPos = $from.after()
-              tr.insert(insertPos, imageNode)
-            }
-          }
-        }
-      ]
-    },
-    addNodeView() {
-      return VueNodeViewRenderer(iwImageView)
-    },
-  }),
-  Youtube.configure({
-    controls: false,
-    nocookie: true
-  }),
-  FileHandler.configure({
-    allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
-    onDrop: onFileHandlerDrop,
-    onPaste: onFileHandlerPaste,
-  }),
-
-  Blockquote,
-  CodeBlockLowlight.extend({
-    addNodeView() {
-      return VueNodeViewRenderer(iwCodeBlockView)
-    },
-  }).configure({ lowlight }),
-  
-  InlineMath.configure({
-    onClick: undefined, // 移除prompt，让PopupTools接管
-    // Options for the KaTeX renderer. See here: https://katex.org/docs/options.html
-    katexOptions: {
-      throwOnError: false, // don't throw an error if the LaTeX code is invalid
-      macros: {
-        '\\R': '\\mathbb{R}', // add a macro for the real numbers
-        '\\N': '\\mathbb{N}', // add a macro for the natural numbers
-      },
-    },
-  }),
-  BlockMath.extend({
-    draggable: true,
-    addNodeView() {
-      return VueNodeViewRenderer(iwMathBlockView)
-    },
-  }).configure({
-    katexOptions: {
-      throwOnError: false,
-      macros: {
-        '\\R': '\\mathbb{R}',
-        '\\N': '\\mathbb{N}',
-      },
-    },
-  }),
-
-  BulletList, OrderedList, ListItem, ListKeymap,
-  TaskList,
-  TaskItem.configure({
-    nested: true,
-  }),
-
-  
-  Bold, Italic, Strike, Underline,
-  TextAlign.configure({
-    types: ['heading', 'paragraph', 'image', 'caption'],
-  }),
-  Code, 
-  iwPopupTools.configure({
-    tools: [new iwLinkPopupTool(), new iwMathPopupTool()]
-  }),
-  Link.configure({
-    openOnClick: false,
-    HTMLAttributes: {
-      rel: 'noopener noreferrer nofollow'
+  },
+  filePathResolver: (src) => {
+    if (
+      src && (src.trim() !== '') &&
+      !src.startsWith('data:image/') &&
+      !src.startsWith('http') &&
+      !src.startsWith('file://') &&
+      pathUtils.isRelativePath(src) &&
+      props.tab.path
+    ) {
+      const localDir = pathUtils.parentDir(props.tab.path)
+      src = pathUtils.join(localDir, decodeURIComponent(src))
+      src = `file://${src}`
     }
-  }),
-  Subscript, Superscript, iwTypography,
-  Highlight,
-  
-  TextStyleKit,
-
-  /*
-  InvisibleCharacters和Placeholder不能一起存在
-  会导致回车换行时，内容逆向滚动
-  InvisibleCharacters和inline code不能一起存在，隔离了css的连续性
-  */
-  InvisibleCharacters,
-  //Placeholder.configure({
-  //  placeholder: onPlaceholder,
-  //}),
-
-  // 拼写检查扩展
-  iwProofreadExtension.configure({
-    /*
-    engineType: 'typo',
-    language: 'en',
-    engineOptions: {
-      dictionaryPath: '/dictionaries'
-    },
-    */
-   
-    engineType: 'languagetool',
-    language: 'en-US',
-    engineOptions: {
-      // 可选：自定义 API URL，默认为官方免费 API
-      apiUrl: 'https://api.languagetool.org/v2/check',
-      // 可选：请求超时时间，默认 5000ms
-      timeout: 8000
-    },
-
-    enabled: true,
-    showErrors: true,
-    debounceTime: 2000,
-    maxWorkers: 4
-  }),
-
-  // 搜索替换扩展
-  iwSearchReplaceExtension.configure({
-    maxMatches: 500,
-    debounceTime: 300,
-    currentMatchClass: 'search-result-current',
-    otherMatchClass: 'search-result'
-  }),
-  
-  TableOfContents.configure({
-    getIndex: getHierarchicalIndexes,
-    onUpdate: content => {
-      // Update the TOC provider with new data
-      if (props.tab.tocProvider) {
-        props.tab.tocProvider.updateFromTipTap?.(content)
-      }
-    },
-  })
-]
+    return src
+  },
+  onFileHandlerDrop,
+  onFileHandlerPaste,
+})
 
 // Create TipTap editor instance
 const editor = useEditor({

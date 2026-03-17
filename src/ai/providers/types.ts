@@ -25,8 +25,10 @@ export interface LMTool {
 // Streaming chunks emitted by provider parsing
 export type AgentChunk =
   | { type: 'text'; delta: string }
-  | { type: 'tool_call_start'; id: string; name: string; index: number }
+  | { type: 'thinking'; delta: string }
+  | { type: 'tool_call_start'; id: string; name: string; index: number; initialArguments?: string }
   | { type: 'tool_call_delta'; index: number; argumentsDelta: string }
+  | { type: 'tool_call_end'; index: number }
   | { type: 'done'; stopReason: string }
   | { type: 'usage'; inputTokens: number; outputTokens: number }
 

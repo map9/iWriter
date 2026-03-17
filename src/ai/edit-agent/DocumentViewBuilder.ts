@@ -1,0 +1,477 @@
+/**
+ * DocumentViewBuilder — converts TipTap editor state into a LLM-readable document view.
+ *
+ * Produces:
+ *   - A Markdown string annotated with {b:n} block markers (sequential display IDs)
+ *   - A BlockViewMapping[] table (displayId → nodeId / position)
+ *   - An outline (heading tree with block count + word count per section)
+ *
+ * Design:
+ *   - Only block types registered with UniqueID are included (have attrs.id).
+ *   - List containers (bulletList/orderedList/taskList) are pure structure; not included.
+ *   - table / blockquote / listItem each count as ONE block; their children are skipped.
+ *   - Paragraph inside a listItem / taskItem / blockquote is skipped (belongs to parent block).
+ */
+
+import type { Editor } from '@tiptap/core'
+import type { Node as PmNode } from '@tiptap/pm/model'
+
+// ── Types ─────────────────────────────────────────────────────────────────
+
+export interface BlockViewMapping {
+  displayId: number     // Sequential number shown to LLM as {b:n}
+  nodeId: string        // TipTap node.attrs.id (nanoid 8-char)
+  nodeType: string      // paragraph / heading / codeBlock / etc.
+  from: number          // ProseMirror position (start of node)
+  to: number            // ProseMirror position (end of node)
+}
+
+export interface OutlineEntry {
+  displayId: number
+  level: number         // Heading level 1–6
+  text: string          // Heading plain text
+  sectionBlocks: number // Blocks in this section (until next same/higher level heading)
+  wordCount: number     // Approximate word count in this section
+}
+
+export interface DocumentView {
+  /** Full document Markdown with {b:n} markers */
+  viewMarkdown: string
+  /** Compact outline-only text (for system prompt injection) */
+  outlineText: string
+  /** Block map: index is (displayId - 1) */
+  blockMap: BlockViewMapping[]
+  outline: OutlineEntry[]
+  totalBlocks: number
+  totalWords: number
+}
+
+// Block types that receive UniqueID attrs
+const BLOCK_TYPES = new Set([
+  'paragraph', 'heading', 'codeBlock', 'mathBlock',
+  'image', 'horizontalRule', 'blockquote', 'table',
+  'listItem', 'taskItem',
+])
+
+// Types whose children we do NOT descend into (whole node = 1 block)
+const OPAQUE_BLOCKS = new Set(['blockquote', 'table', 'image', 'horizontalRule', 'mathBlock'])
+
+// Types inside which we skip a `paragraph` child (paragraph belongs to parent block)
+const PARA_SKIP_PARENTS = new Set(['listItem', 'taskItem', 'blockquote'])
+
+// ── Builder ───────────────────────────────────────────────────────────────
+
+export class DocumentViewBuilder {
+  /**
+   * Build a full document view from the current editor state.
+   * The blockMap returned is valid for the rest of this "session" (until
+   * the LLM calls a mutating tool, after which the caller should rebuild).
+   */
+  build(editor: Editor): DocumentView {
+    const doc = editor.state.doc
+    const blockMap: BlockViewMapping[] = []
+    const viewParts: string[] = []
+    let displayId = 0
+
+    doc.descendants((node, pos, parent) => {
+      const typeName = node.type.name
+      const parentType = parent?.type.name ?? 'doc'
+
+      // Skip paragraph that lives inside a listItem, taskItem, or blockquote
+      // (it is rendered as part of its parent block).
+      if (typeName === 'paragraph' && PARA_SKIP_PARENTS.has(parentType)) {
+        return false
+      }
+
+      // List containers (no UniqueID): descend to find listItems
+      if (['bulletList', 'orderedList', 'taskList'].includes(typeName)) {
+        return true
+      }
+
+      // A tracked block type
+      if (BLOCK_TYPES.has(typeName)) {
+        const nodeId: string = node.attrs?.id ?? ''
+        if (!nodeId) {
+          // UniqueID not yet assigned (edge case during initial load); skip
+          return !OPAQUE_BLOCKS.has(typeName)
+        }
+
+        displayId++
+        blockMap.push({
+          displayId,
+          nodeId,
+          nodeType: typeName,
+          from: pos,
+          to: pos + node.nodeSize,
+        })
+
+        const md = nodeToMarkdown(node)
+        viewParts.push(`{b:${displayId}}\n${md}`)
+
+        // Opaque blocks and codeBlock/mathBlock: don't descend
+        if (OPAQUE_BLOCKS.has(typeName) || typeName === 'codeBlock') return false
+
+        // listItem / taskItem: descend to find nested list items (but not their paragraphs)
+        if (typeName === 'listItem' || typeName === 'taskItem') return true
+
+        // paragraph, heading: leaf, don't descend
+        return false
+      }
+
+      // All other nodes (tableRow, tableCell, doc, etc.): don't add, but allow traversal
+      // of the doc root (parent === null means we're at top-level children)
+      return parentType === 'doc' || false
+    })
+
+    const outline = buildOutline(blockMap, doc)
+    const totalWords = countWords(doc.textContent)
+
+    return {
+      viewMarkdown: viewParts.join('\n\n'),
+      outlineText: buildOutlineText(outline, blockMap, totalWords),
+      blockMap,
+      outline,
+      totalBlocks: displayId,
+      totalWords,
+    }
+  }
+
+  /**
+   * Build a section view: from the heading block to the next same/higher-level heading.
+   * Returns Markdown annotated with {b:n} markers.
+   */
+  buildSectionView(
+    editor: Editor,
+    headingDisplayId: number,
+    blockMap: BlockViewMapping[]
+  ): { content: string; blockIdRange: [number, number] } | null {
+    const headingEntry = blockMap.find(
+      b => b.displayId === headingDisplayId && b.nodeType === 'heading'
+    )
+    if (!headingEntry) return null
+
+    const doc = editor.state.doc
+    const headingNode = doc.nodeAt(headingEntry.from)
+    if (!headingNode) return null
+    const headingLevel = headingNode.attrs.level as number
+
+    // Find where the section ends (next heading of same or higher level)
+    let sectionEnd = blockMap[blockMap.length - 1]!.displayId
+    for (const entry of blockMap) {
+      if (entry.displayId <= headingDisplayId) continue
+      if (entry.nodeType === 'heading') {
+        const n = doc.nodeAt(entry.from)
+        if (n && (n.attrs.level as number) <= headingLevel) {
+          sectionEnd = entry.displayId - 1
+          break
+        }
+      }
+    }
+
+    const sectionBlocks = blockMap.filter(
+      b => b.displayId >= headingDisplayId && b.displayId <= sectionEnd
+    )
+
+    const parts = sectionBlocks.map(entry => {
+      const node = doc.nodeAt(entry.from)
+      if (!node) return `{b:${entry.displayId}}\n`
+      return `{b:${entry.displayId}}\n${nodeToMarkdown(node)}`
+    })
+
+    return {
+      content: parts.join('\n\n'),
+      blockIdRange: [headingDisplayId, sectionEnd],
+    }
+  }
+
+  /**
+   * Build a context view centered on a block: window blocks before and after.
+   */
+  buildBlockContext(
+    editor: Editor,
+    centerDisplayId: number,
+    blockMap: BlockViewMapping[],
+    window = 3
+  ): { blocks: Array<{ blockId: number; type: string; content: string }>; centerBlockId: number } {
+    const doc = editor.state.doc
+    const centerIndex = blockMap.findIndex(b => b.displayId === centerDisplayId)
+    if (centerIndex === -1) return { blocks: [], centerBlockId: centerDisplayId }
+
+    const start = Math.max(0, centerIndex - window)
+    const end   = Math.min(blockMap.length - 1, centerIndex + window)
+    const entries = blockMap.slice(start, end + 1)
+
+    const blocks = entries.map(entry => {
+      const node = doc.nodeAt(entry.from)
+      if (!node) return { blockId: entry.displayId, type: entry.nodeType, content: `{b:${entry.displayId}}\n` }
+      return {
+        blockId: entry.displayId,
+        type: entry.nodeType,
+        content: `{b:${entry.displayId}}\n${nodeToMarkdown(node)}`,
+      }
+    })
+
+    return { blocks, centerBlockId: centerDisplayId }
+  }
+
+  /**
+   * Build a view for a specific set of block display IDs.
+   */
+  buildBlocksView(
+    editor: Editor,
+    displayIds: number[],
+    blockMap: BlockViewMapping[]
+  ): { blocks: Array<{ blockId: number; type: string; content: string }> } {
+    const doc = editor.state.doc
+    const blocks = displayIds.map(id => {
+      const entry = blockMap.find(b => b.displayId === id)
+      if (!entry) return { blockId: id, type: 'unknown', content: '(block not found)' }
+      const node = doc.nodeAt(entry.from)
+      if (!node) return { blockId: id, type: entry.nodeType, content: '(node not found)' }
+      return {
+        blockId: id,
+        type: entry.nodeType,
+        content: `{b:${id}}\n${nodeToMarkdown(node)}`,
+      }
+    })
+    return { blocks }
+  }
+
+  /**
+   * Build a range view from fromDisplayId to toDisplayId (inclusive).
+   */
+  buildRangeView(
+    editor: Editor,
+    fromDisplayId: number,
+    toDisplayId: number,
+    blockMap: BlockViewMapping[]
+  ): string {
+    const doc = editor.state.doc
+    const entries = blockMap.filter(
+      b => b.displayId >= fromDisplayId && b.displayId <= toDisplayId
+    )
+    const parts = entries.map(entry => {
+      const node = doc.nodeAt(entry.from)
+      if (!node) return `{b:${entry.displayId}}\n`
+      return `{b:${entry.displayId}}\n${nodeToMarkdown(node)}`
+    })
+    return parts.join('\n\n')
+  }
+}
+
+// ── Node → Markdown ───────────────────────────────────────────────────────
+
+/**
+ * Render a single block node to Markdown.
+ * This is a lightweight renderer — it covers all types used in iWriter.
+ */
+export function nodeToMarkdown(node: PmNode): string {
+  const type = node.type.name
+
+  switch (type) {
+    case 'paragraph':
+      return inlineToMarkdown(node)
+
+    case 'heading': {
+      const prefix = '#'.repeat(node.attrs.level as number)
+      return `${prefix} ${inlineToMarkdown(node)}`
+    }
+
+    case 'codeBlock': {
+      const lang: string = node.attrs.language ?? ''
+      return '```' + lang + '\n' + node.textContent + '\n```'
+    }
+
+    case 'mathBlock': {
+      // BlockMath stores content as text content
+      const content = node.textContent ?? node.attrs.content ?? ''
+      return '$$\n' + content + '\n$$'
+    }
+
+    case 'image': {
+      const alt: string = node.attrs.alt ?? ''
+      const src: string = node.attrs.src ?? ''
+      return `![${alt}](${src})`
+    }
+
+    case 'horizontalRule':
+      return '---'
+
+    case 'blockquote': {
+      const lines: string[] = []
+      node.forEach(child => {
+        if (child.type.name === 'paragraph') {
+          lines.push('> ' + inlineToMarkdown(child))
+        }
+      })
+      return lines.join('\n>\n') || '> '
+    }
+
+    case 'table':
+      return tableToMarkdown(node)
+
+    case 'listItem': {
+      const firstPara = node.firstChild
+      const text = firstPara?.type.name === 'paragraph'
+        ? inlineToMarkdown(firstPara)
+        : node.textContent
+      return '- ' + text
+    }
+
+    case 'taskItem': {
+      const checked = node.attrs.checked ? '[x]' : '[ ]'
+      const firstPara = node.firstChild
+      const text = firstPara?.type.name === 'paragraph'
+        ? inlineToMarkdown(firstPara)
+        : node.textContent
+      return `- ${checked} ${text}`
+    }
+
+    default:
+      return node.textContent
+  }
+}
+
+// ── Inline content → Markdown ─────────────────────────────────────────────
+
+function inlineToMarkdown(node: PmNode): string {
+  let result = ''
+
+  node.forEach(child => {
+    if (child.type.name === 'hardBreak') {
+      result += '  \n'
+      return
+    }
+
+    if (child.type.name === 'inlineMath') {
+      // InlineMath stores formula in attrs.content or as text content
+      const formula: string = child.attrs.content ?? child.textContent ?? ''
+      result += `$${formula}$`
+      return
+    }
+
+    if (!child.isText) return
+
+    let text = child.text ?? ''
+    if (!text) return
+
+    // Apply marks. Order matters for nested syntax.
+    const marks = [...child.marks]
+    // Process link last so it wraps the already-formatted text
+    const linkMark = marks.find(m => m.type.name === 'link')
+    const otherMarks = marks.filter(m => m.type.name !== 'link')
+
+    for (const mark of otherMarks) {
+      switch (mark.type.name) {
+        case 'bold':        text = `**${text}**`; break
+        case 'italic':      text = `_${text}_`; break
+        case 'strike':      text = `~~${text}~~`; break
+        case 'code':        text = `\`${text}\``; break
+        case 'underline':   text = `<u>${text}</u>`; break
+        case 'highlight':   text = `==${text}==`; break
+        case 'subscript':   text = `~${text}~`; break
+        case 'superscript': text = `^${text}^`; break
+      }
+    }
+
+    if (linkMark) {
+      const href: string = linkMark.attrs.href ?? ''
+      text = `[${text}](${href})`
+    }
+
+    result += text
+  })
+
+  return result
+}
+
+// ── Table → GFM Markdown ──────────────────────────────────────────────────
+
+function tableToMarkdown(node: PmNode): string {
+  const rows: string[][] = []
+
+  node.forEach(row => {
+    if (row.type.name !== 'tableRow') return
+    const cells: string[] = []
+    row.forEach(cell => {
+      if (!['tableCell', 'tableHeader'].includes(cell.type.name)) return
+      // Extract text from the cell's paragraph child
+      let cellText = ''
+      cell.forEach(child => {
+        if (child.type.name === 'paragraph') {
+          cellText = inlineToMarkdown(child)
+        }
+      })
+      cells.push(cellText)
+    })
+    if (cells.length) rows.push(cells)
+  })
+
+  if (!rows.length) return ''
+
+  const header = rows[0]!
+  const separator = header.map(() => '---')
+  const body = rows.slice(1)
+
+  const fmt = (row: string[]) => '| ' + row.join(' | ') + ' |'
+
+  return [fmt(header), fmt(separator), ...body.map(fmt)].join('\n')
+}
+
+// ── Outline helpers ───────────────────────────────────────────────────────
+
+function buildOutline(blockMap: BlockViewMapping[], doc: PmNode): OutlineEntry[] {
+  const headings = blockMap.filter(b => b.nodeType === 'heading')
+  const outline: OutlineEntry[] = []
+
+  for (let i = 0; i < headings.length; i++) {
+    const h = headings[i]!
+    const node = doc.nodeAt(h.from)
+    if (!node) continue
+
+    const level = node.attrs.level as number
+    const text = node.textContent
+
+    // Section ends at the next heading of same or higher level, or end of doc
+    const nextHeading = headings.slice(i + 1).find(nh => {
+      const n = doc.nodeAt(nh.from)
+      return n && (n.attrs.level as number) <= level
+    })
+
+    const sectionEnd = nextHeading ? nextHeading.displayId - 1 : blockMap[blockMap.length - 1]!.displayId
+    const sectionBlocks = sectionEnd - h.displayId + 1
+
+    // Word count: collect text from section range
+    let wordCount = 0
+    const sectionEntries = blockMap.filter(b => b.displayId >= h.displayId && b.displayId <= sectionEnd)
+    for (const entry of sectionEntries) {
+      const n = doc.nodeAt(entry.from)
+      if (n) wordCount += countWords(n.textContent)
+    }
+
+    outline.push({ displayId: h.displayId, level, text, sectionBlocks, wordCount })
+  }
+
+  return outline
+}
+
+function buildOutlineText(outline: OutlineEntry[], blockMap: BlockViewMapping[], totalWords: number): string {
+  if (!outline.length) {
+    const total = blockMap.length
+    return `(no headings — ${total} blocks, ~${totalWords} words)`
+  }
+
+  const lines = outline.map(entry => {
+    const indent = '  '.repeat(entry.level - 1)
+    return `${indent}{b:${entry.displayId}} ${'#'.repeat(entry.level)} ${entry.text}  (~${entry.wordCount}字, ${entry.sectionBlocks}块)`
+  })
+  return lines.join('\n')
+}
+
+function countWords(text: string): number {
+  if (!text.trim()) return 0
+  // For CJK text, count characters; for Latin text, count words
+  const cjk = (text.match(/[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/g) ?? []).length
+  const latin = (text.match(/\b\w+\b/g) ?? []).length
+  return cjk + latin
+}

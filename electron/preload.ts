@@ -166,6 +166,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** Reply to an agent's session/request_permission with allow_once, allow_always, or deny. */
   acpPermissionRespond: (params: { sessionId: string; requestId: number; response: string }) =>
     ipcRenderer.invoke('acp:permission-respond', params),
+  /** Send a JSON-RPC response to the agent for an fs/read_text_file or fs/write_text_file request. */
+  acpFsRespond: (params: { sessionId: string; requestId: number; result?: unknown; error?: { code: number; message: string } }) =>
+    ipcRenderer.invoke('acp:fs-respond', params),
   onAcpChunk: (callback: (data: { sessionId: string; data: string }) => void) => {
     ipcRenderer.on('acp:chunk', (_, data) => callback(data))
   },

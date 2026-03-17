@@ -166,6 +166,6 @@ export function resolveToolCalls(
     } catch {
       args = { _raw: tc.argumentsRaw }
     }
-    return { id: tc.id, name: tc.name, arguments: args }
+    return { id: tc.id, name: tc.name, arguments: args, kind: 'other', title: tc.name, status: 'pending' }
   })
 }

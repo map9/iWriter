@@ -31,6 +31,8 @@ export class OpenAICompatProvider implements AiProviderDriver {
         : { Authorization: `Bearer ${apiKey}` }),
     }
 
+    console.log('OpenAICompatProvider.buildRequest', { url, headers, messages, modelId, tools })
+
     const body: Record<string, unknown> = {
       model: modelId,
       messages: messages.map(this.serializeMessage),
@@ -101,13 +103,16 @@ export class OpenAICompatProvider implements AiProviderDriver {
       const index = (tc.index as number) ?? 0
       const fn = tc.function as Record<string, string> | undefined
 
-      // First chunk for this tool call index carries id and name
+      // First chunk for this tool call index carries id and name.
+      // Some providers (e.g. BigModel/GLM) also include the full arguments here
+      // rather than streaming them separately — capture them to avoid data loss.
       if (typeof tc.id === 'string') {
         return {
           type: 'tool_call_start',
           id: tc.id,
           name: fn?.name ?? '',
           index,
+          initialArguments: fn?.arguments || undefined,
         }
       }
 

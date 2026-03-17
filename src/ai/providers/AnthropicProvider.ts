@@ -105,6 +105,13 @@ export class AnthropicProvider implements AiProviderDriver {
       }
     }
 
+    // Per-tool-call end signal (fires for both text and tool_use blocks;
+    // EditParser ignores indices that were never started)
+    if (type === 'content_block_stop') {
+      const index = (parsed.index as number) ?? 0
+      return { type: 'tool_call_end', index }
+    }
+
     // Stream end
     if (type === 'message_delta') {
       const delta = (parsed.delta ?? {}) as Record<string, unknown>

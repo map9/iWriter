@@ -76,39 +76,122 @@ export interface AiModel {
   supportsVision?: boolean
 }
 
-// A completed tool call (stored in ThreadMessage)
+// ── Tool Call ──────────────────────────────────────────────────────────────
+
+/** Semantic kind of a tool call — used for UI icon/color selection. */
+export type AiToolCallKind =
+  | 'read' | 'edit' | 'delete' | 'move' | 'search'
+  | 'execute' | 'think' | 'fetch' | 'other'
+
+/** A tool call produced by an LLM or ACP agent, stored in ThreadMessage. */
 export interface AiToolCall {
   id: string
   name: string
+
+  // ── Semantic display fields ──────────────────────────────────────────────
+  /** Semantic kind for UI icon/color selection */
+  kind: AiToolCallKind
+  /** Human-readable title shown in the UI (e.g. "读取 introduction.md") */
+  title: string
+  /** Lifecycle status */
+  status: 'pending' | 'in_progress' | 'completed' | 'failed'
+  /** File reference extracted from tool arguments (if applicable) */
+  file?: { path: string; startLine?: number; endLine?: number }
+
   arguments: Record<string, unknown>
+  /** Result summary shown in the UI (for read-type tools) */
+  result?: string
+  isError?: boolean
 }
 
-// A tool result (stored in ThreadMessage)
+// A tool result (stored in ThreadMessage for LLM context reconstruction)
 export interface AiToolResult {
   toolCallId: string
   content: string
   isError?: boolean
 }
 
-// An edit proposal produced by the edit_document tool
-export interface EditProposal {
+// ── Edit Proposals ─────────────────────────────────────────────────────────
+
+interface BaseEditProposal {
   id: string
-  toolCallId: string
-  oldText: string
-  newText: string
-  description: string
-  filePath?: string  // undefined = current editor document
+  description?: string
   status: 'pending' | 'applied' | 'rejected'
 }
 
-// A message stored in a thread
+/** Block-level edit proposal — produced by Native LLM block edit tools. */
+export interface BlockEditProposal extends BaseEditProposal {
+  kind: 'block'
+  /** Specific tool that generated this proposal */
+  type: 'edit' | 'insert' | 'delete' | 'replace_range'
+
+  // Single-block operations (edit, insert, delete)
+  displayBlockId?: number   // {b:n} display ID the LLM referenced
+  nodeId?: string           // TipTap node.attrs.id (nanoid)
+  nodeType?: string         // paragraph, heading, codeBlock, etc.
+  afterNodeId?: string      // for insert_block: insert after this node ('0' = document start)
+  oldContent?: string       // Markdown of original block (for diff display)
+  newContent?: string       // Markdown of replacement / inserted content
+
+  // Range operations (replace_range)
+  startDisplayBlockId?: number
+  endDisplayBlockId?: number
+  startNodeId?: string
+  endNodeId?: string
+
+  // Associated tool call ID
+  toolCallId?: string
+}
+
+/** File-level edit proposal — produced by ACP Agent fs/write_text_file interception. */
+export interface FileEditProposal extends BaseEditProposal {
+  kind: 'file'
+  sessionId: string         // ACP session that triggered the write
+  filePath: string
+  oldContent: string        // Current editor Markdown
+  newContent: string        // Agent's proposed Markdown
+  toolCallId?: string
+}
+
+/** File creation proposal — produced by create_document when no document is open. */
+export interface FileCreateProposal extends BaseEditProposal {
+  kind: 'create_file'
+  filename: string          // Desired tab name (without extension)
+  content: string           // Full Markdown to inject into the new tab's editor
+  toolCallId?: string
+}
+
+export type EditProposal = BlockEditProposal | FileEditProposal | FileCreateProposal
+
+// ── Plan Entry (ACP-only) ──────────────────────────────────────────────────
+
+export interface PlanEntry {
+  content: string
+  priority: 'high' | 'medium' | 'low'
+  status: 'pending' | 'in_progress' | 'completed'
+}
+
+// ── Thread Message ─────────────────────────────────────────────────────────
+
+/** A message stored in a thread. */
 export interface ThreadMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+
+  /** Set to true for error messages so the UI can render them with error styling. */
+  isError?: boolean
+
+  /** Extended-thinking / chain-of-thought content (collapsible in UI) */
+  thinkingContent?: string
+
+  /** ACP-only: execution plan entries from the agent's `plan` notification */
+  planEntries?: PlanEntry[]
+
   toolCalls?: AiToolCall[]
   toolResults?: AiToolResult[]
   editProposals?: EditProposal[]
+
   timestamp: number
   usage?: { inputTokens: number; outputTokens: number }
 }
@@ -127,6 +210,8 @@ export interface AiThread {
   agentMode?: string
   /** Current think mode for LLM providers that support it */
   thinkMode?: string
+  /** Set to true when the last run ended with an error (shown in history list) */
+  hasError?: boolean
 }
 
 // Persisted AI settings
@@ -143,10 +228,42 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   activeProviderConfigId: null,
   defaultProfile: 'write',
   toolPermissions: {
-    edit_document: 'allow',
-    read_file: 'allow',
-    list_directory: 'allow',
-    write_file: 'confirm',
-    create_document: 'confirm',
+    // Document access tools: always allowed (read-only)
+    get_document_outline: 'allow',
+    get_section:          'allow',
+    get_blocks:           'allow',
+    get_block_context:    'allow',
+    // Edit tools: require confirm
+    edit_block:           'allow',
+    insert_block:         'allow',
+    delete_block:         'allow',
+    replace_range:        'allow',
+    create_document:      'allow',
   }
 }
+
+// ── Tool kind inference for Native LLM ────────────────────────────────────
+
+export function inferToolKind(toolName: string): AiToolCallKind {
+  const mapping: Record<string, AiToolCallKind> = {
+    get_document_outline: 'read',
+    get_section:          'read',
+    get_blocks:           'read',
+    get_block_context:    'read',
+    edit_block:           'edit',
+    insert_block:         'edit',
+    delete_block:         'delete',
+    replace_range:        'edit',
+    create_document:      'edit',
+  }
+  return mapping[toolName] ?? 'other'
+}
+
+/** The set of tool names that produce edit proposals (user must approve before execution). */
+export const BLOCK_EDIT_TOOLS = new Set([
+  'edit_block',
+  'insert_block',
+  'delete_block',
+  'replace_range',
+  'create_document',
+])

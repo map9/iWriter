@@ -87,6 +87,10 @@ export type AcpEvent =
       description?: string
       options: string[]
     }
+  /** Agent requesting the client to read a file (JSON-RPC request from agent). */
+  | { type: 'fs_read_request'; requestId: number; path: string }
+  /** Agent requesting the client to write a file (JSON-RPC request from agent). */
+  | { type: 'fs_write_request'; requestId: number; path: string; content: string }
   | { type: 'unknown'; raw: string }
 
 // ── Parser ────────────────────────────────────────────────────────────────────
@@ -146,6 +150,19 @@ export function parseAcpLine(line: string, pendingIds?: Set<number>): AcpEvent {
         path: params.path != null ? String(params.path) : undefined,
         description: params.description != null ? String(params.description) : undefined,
         options,
+      }
+    }
+
+    if (method === 'fs/read_text_file') {
+      return { type: 'fs_read_request', requestId, path: String(params.path ?? '') }
+    }
+
+    if (method === 'fs/write_text_file') {
+      return {
+        type: 'fs_write_request',
+        requestId,
+        path: String(params.path ?? ''),
+        content: String(params.content ?? ''),
       }
     }
 

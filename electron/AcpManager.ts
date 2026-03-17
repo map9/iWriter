@@ -220,6 +220,27 @@ export class AcpManager {
         )
       }
     )
+
+    // ── Send a JSON-RPC response to the agent for an fs/read or fs/write request ──
+    ipcMain.handle(
+      'acp:fs-respond',
+      async (
+        _event,
+        params: {
+          sessionId: string
+          requestId: number
+          result?: unknown
+          error?: { code: number; message: string }
+        }
+      ) => {
+        return this.sendFsResponse(
+          params.sessionId,
+          params.requestId,
+          params.result,
+          params.error
+        )
+      }
+    )
   }
 
   private launchSession(
@@ -405,6 +426,23 @@ export class AcpManager {
     return { success: true }
   }
 
+  private sendFsResponse(
+    sessionId: string,
+    requestId: number,
+    result?: unknown,
+    error?: { code: number; message: string }
+  ): { success: boolean; error?: string } {
+    const session = this.sessions.get(sessionId)
+    if (!session) return { success: false, error: 'Session not found' }
+
+    const msg = error
+      ? { jsonrpc: '2.0', id: requestId, error }
+      : { jsonrpc: '2.0', id: requestId, result: result ?? null }
+
+    this.writeToProcess(session.process, msg)
+    return { success: true }
+  }
+
   private cancelSession(sessionId: string): { success: boolean } {
     const session = this.sessions.get(sessionId)
     if (!session) return { success: false }
@@ -441,5 +479,6 @@ export class AcpManager {
     ipcMain.removeHandler('acp:set-mode')
     ipcMain.removeHandler('acp:cancel')
     ipcMain.removeHandler('acp:permission-respond')
+    ipcMain.removeHandler('acp:fs-respond')
   }
 }

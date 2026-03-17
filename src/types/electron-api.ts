@@ -117,6 +117,8 @@ export interface ElectronAPI {
   acpCancel?: (sessionId: string) => Promise<{ success: boolean }>
   /** Reply to an agent's session/request_permission. response: 'allow_once' | 'allow_always' | 'deny' */
   acpPermissionRespond?: (params: { sessionId: string; requestId: number; response: string }) => Promise<{ success: boolean; error?: string }>
+  /** Send a JSON-RPC response to the agent for an fs/read_text_file or fs/write_text_file request. */
+  acpFsRespond?: (params: { sessionId: string; requestId: number; result?: unknown; error?: { code: number; message: string } }) => Promise<{ success: boolean; error?: string }>
   onAcpChunk?: (callback: (data: { sessionId: string; data: string }) => void) => void
   onAcpDone?: (callback: (data: { sessionId: string; exitCode?: number }) => void) => void
   onAcpError?: (callback: (data: { sessionId: string; message: string }) => void) => void

@@ -22,7 +22,11 @@ import FileHandler from '@tiptap/extension-file-handler'
 
 import Blockquote from '@tiptap/extension-blockquote'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import { common, createLowlight } from 'lowlight'
+import css from 'highlight.js/lib/languages/css'
+import js from 'highlight.js/lib/languages/javascript'
+import ts from 'highlight.js/lib/languages/typescript'
+import html from 'highlight.js/lib/languages/xml'
+import { all, common, createLowlight } from 'lowlight'
 
 import { InlineMath, BlockMath } from '@tiptap/extension-mathematics'
 
@@ -41,11 +45,14 @@ import Superscript from '@tiptap/extension-superscript'
 import { TextStyleKit } from '@tiptap/extension-text-style'
 
 import InvisibleCharacters from '@tiptap/extension-invisible-characters'
+import UniqueID from '@tiptap/extension-unique-id'
+import { nanoid } from 'nanoid'
 
 // 自定义扩展
 import { iwTypography, iwPopupTools, iwLinkPopupTool, iwMathPopupTool } from '@/components/common/tiptap'
 import { iwProofreadExtension } from '@/components/common/tiptap/iw-proofread'
 import { iwSearchReplaceExtension } from '@/components/common/tiptap/iw-search-replace'
+import { IwBlockHighlightExtension } from '@/ai/edit-agent/iwBlockHighlightExtension'
 
 // Custom node views (仅用于 MarkdownEditor，搜索服务不需要)
 import { iwTableView, iwImageView, iwCodeBlockView, iwMathBlockView } from '@/components/common/tiptap'
@@ -155,6 +162,13 @@ export function createMarkdownEditorExtensions(options: {
     onFileHandlerDrop,
     onFileHandlerPaste
   } = options
+
+  // 完整语言支持（编辑器用）
+  const lowlight = createLowlight(all)
+  lowlight.register('html', html)
+  lowlight.register('css', css)
+  lowlight.register('js', js)
+  lowlight.register('ts', ts)
 
   return [
     // Table of Contents（带 onUpdate 回调）
@@ -364,6 +378,16 @@ export function createMarkdownEditorExtensions(options: {
       debounceTime: 300,
       currentMatchClass: 'search-result-current',
       otherMatchClass: 'search-result'
-    })
+    }),
+
+    // Block ID — stable IDs for AI agentic editing
+    UniqueID.configure({
+      types: ['paragraph', 'heading', 'codeBlock', 'mathBlock', 'image',
+              'horizontalRule', 'blockquote', 'table', 'listItem', 'taskItem'],
+      generateID: () => nanoid(8),
+    }),
+
+    // AI proposal block highlight (Decoration.node, no cursor change)
+    IwBlockHighlightExtension,
   ]
 }

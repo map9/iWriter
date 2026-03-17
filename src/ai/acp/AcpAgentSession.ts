@@ -30,6 +30,8 @@ export type AcpPermissionCallback = (
   description: string | undefined,
   options: string[]
 ) => void
+export type AcpFsReadCallback = (requestId: number, path: string) => void
+export type AcpFsWriteCallback = (requestId: number, path: string, content: string) => void
 
 export class AcpAgentSession implements AgentSession {
   readonly sessionId: string
@@ -45,10 +47,16 @@ export class AcpAgentSession implements AgentSession {
   onInit?: AcpInitCallback
   /** Called when the agent requests user permission for a sensitive action. */
   onPermissionRequest?: AcpPermissionCallback
+  /** Called when the agent requests a file read from the client. */
+  onFsReadRequest?: AcpFsReadCallback
+  /** Called when the agent requests a file write from the client (intercepted for proposals). */
+  onFsWriteRequest?: AcpFsWriteCallback
 
   // ── Workspace context (injected by the store before first stream) ──────────
   private _workspacePath: string | null = null
   private _filePath: string | null = null
+  /** Document view Markdown — prepended to the prompt so the agent sees current in-memory state. */
+  private _documentViewMarkdown: string | null = null
 
   /** The ACP-internal sessionId returned by session/new — required in session/prompt params. */
   private _acpSessionId: string | null = null
@@ -92,6 +100,34 @@ export class AcpAgentSession implements AgentSession {
   setContext(ctx: { workspacePath: string | null; filePath: string | null }): void {
     this._workspacePath = ctx.workspacePath
     this._filePath = ctx.filePath
+  }
+
+  /**
+   * Set the current document view Markdown (with {b:n} markers).
+   * Prepended to the user prompt so the agent sees the latest in-memory document state.
+   * Important for .iwt files (stored as JSON on disk) — the agent reads Markdown via this.
+   */
+  setDocumentView(markdown: string | null): void {
+    this._documentViewMarkdown = markdown
+  }
+
+  /**
+   * Send a JSON-RPC response back to the agent process for a pending fs request.
+   * @param requestId  The JSON-RPC request ID received from the agent
+   * @param result     Success result (null for write operations, { content } for reads)
+   * @param error      Error object to reject the request (pass undefined for success)
+   */
+  async respondToFsRequest(
+    requestId: number,
+    result: unknown,
+    error?: { code: number; message: string }
+  ): Promise<void> {
+    await window.electronAPI.acpFsRespond?.({
+      sessionId: this.sessionId,
+      requestId,
+      result: error ? undefined : result,
+      error,
+    })
   }
 
   // ── Persistent listener bridge (aligned with acp-ui AcpClientBridge) ──────
@@ -352,7 +388,7 @@ export class AcpAgentSession implements AgentSession {
         }
 
         if (event.done) {
-          onDone('stop')
+          onDone('acp_done')
           this.activeStreamCallbacks = null
         }
         break
@@ -375,9 +411,19 @@ export class AcpAgentSession implements AgentSession {
         )
         break
 
+      // ── File read request from agent ──────────────────────────────────────
+      case 'fs_read_request':
+        this.onFsReadRequest?.(event.requestId, event.path)
+        break
+
+      // ── File write request from agent (intercepted for proposal) ─────────
+      case 'fs_write_request':
+        this.onFsWriteRequest?.(event.requestId, event.path, event.content)
+        break
+
       // ── Done ─────────────────────────────────────────────────────────────
       case 'done':
-        onDone(event.stopReason ?? 'stop')
+        onDone(event.stopReason ?? 'acp_done')
         this.activeStreamCallbacks = null
         break
 
@@ -387,7 +433,7 @@ export class AcpAgentSession implements AgentSession {
   }
 
   private handleProcessDone(): void {
-    this.activeStreamCallbacks?.onDone('stop')
+    this.activeStreamCallbacks?.onDone('acp_done')
     this.activeStreamCallbacks = null
   }
 
@@ -488,10 +534,18 @@ export class AcpAgentSession implements AgentSession {
       this._agentCurrentModeId = targetMode
     }
 
+    // Prepend the in-memory document view so the agent sees the latest unsaved state.
+    // This is especially important for .iwt files (stored as JSON on disk).
+    let promptContent = content
+    if (this._documentViewMarkdown) {
+      promptContent =
+        `<current_document_view>\n${this._documentViewMarkdown}\n</current_document_view>\n\n${content}`
+    }
+
     const sent = await window.electronAPI.acpSend?.({
       sessionId: this.sessionId,
       acpSessionId,
-      content,
+      content: promptContent,
     })
     if (!sent?.success) {
       this.activeStreamCallbacks = null
