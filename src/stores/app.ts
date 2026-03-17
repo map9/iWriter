@@ -34,6 +34,8 @@ export const useAppStore = defineStore('app', () => {
   const searchFolderPath = ref<string | null>(null)
   const leftSidebarWidth = ref(288) // 默认宽度
   const minSidebarWidth = 256 // 最小宽度 - 对应TOC按钮右边缘
+  const rightSidebarWidth = ref(288) // 默认宽度
+  const minRightSidebarWidth = 288 // 最小宽度
   const globalEditSetting = reactive<EditSetting>({
     autoSave: true,
     lineEnding: 'LF',
@@ -171,6 +173,7 @@ export const useAppStore = defineStore('app', () => {
     isStatusbarVisible.value = uiState.isStatusbarVisible
     leftSidebarMode.value = uiState.leftSidebarMode
     leftSidebarWidth.value = uiState.leftSidebarWidth
+    rightSidebarWidth.value = uiState.rightSidebarWidth ?? 288
 
     // 2. 恢复编辑设置
     const editSetting = StateStorage.loadEditSetting()
@@ -249,7 +252,8 @@ export const useAppStore = defineStore('app', () => {
       isRightSidebarVisible: isRightSidebarVisible.value,
       isStatusbarVisible: isStatusbarVisible.value,
       leftSidebarMode: leftSidebarMode.value,
-      leftSidebarWidth: leftSidebarWidth.value
+      leftSidebarWidth: leftSidebarWidth.value,
+      rightSidebarWidth: rightSidebarWidth.value
     })
   }, 500)
 
@@ -408,6 +412,15 @@ export const useAppStore = defineStore('app', () => {
     } else {
       leftSidebarWidth.value = width
       showLeftSidebar(true)
+    }
+  }
+
+  function setRightSidebarWidth(width: number) {
+    if (width < minRightSidebarWidth) {
+      showRightSidebar(false)
+    } else {
+      rightSidebarWidth.value = width
+      showRightSidebar(true)
     }
   }
   
@@ -1671,8 +1684,9 @@ export const useAppStore = defineStore('app', () => {
     () => saveUIState()
   )
 
-  // leftSidebarWidth 单独监听（拖拽时频繁变化，需要防抖）
+  // leftSidebarWidth / rightSidebarWidth 单独监听（拖拽时频繁变化，需要防抖）
   watch(leftSidebarWidth, () => saveUIState())
+  watch(rightSidebarWidth, () => saveUIState())
 
   // 监听编辑设置变化
   watch(globalEditSetting, () => saveEditSettingDebounced(), { deep: true })
@@ -1718,6 +1732,8 @@ export const useAppStore = defineStore('app', () => {
     searchFolderPath,
     leftSidebarWidth,
     minSidebarWidth,
+    rightSidebarWidth,
+    minRightSidebarWidth,
     currentThemeId,
     systemPrefersDark,
     currentFolder,
@@ -1741,6 +1757,7 @@ export const useAppStore = defineStore('app', () => {
     setLeftSidebarMode,
     searchInFolder,
     setLeftSidebarWidth,
+    setRightSidebarWidth,
     toggleAutoSave,
     updateWindowTitle,
 

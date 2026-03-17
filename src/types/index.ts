@@ -1,3 +1,4 @@
+export * from './ai'
 export * from './document-type'
 export * from './notification'
 export * from './menu'

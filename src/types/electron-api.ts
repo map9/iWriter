@@ -106,4 +106,21 @@ export interface ElectronAPI {
 
   // 打印 API
   print: (options?: Electron.WebContentsPrintOptions) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
+
+  // ACP (Agent Client Protocol) — external agent process management
+  acpLaunch?: (params: { sessionId: string; command: string; args?: string[]; env?: Record<string, string>; workspacePath: string | null; filePath: string | null }) => Promise<{ success: boolean; error?: string }>
+  acpInitialize?: (params: { sessionId: string; workspacePath: string | null; filePath: string | null }) => Promise<{ success: boolean; error?: string }>
+  acpNewSession?: (params: { sessionId: string; cwd: string | null }) => Promise<{ success: boolean; error?: string }>
+  acpSend?: (params: { sessionId: string; acpSessionId: string; content: string }) => Promise<{ success: boolean; error?: string }>
+  acpSetModel?: (params: { sessionId: string; acpSessionId: string; modelId: string }) => Promise<{ success: boolean; error?: string }>
+  acpSetMode?: (params: { sessionId: string; acpSessionId: string; modeId: string }) => Promise<{ success: boolean; error?: string }>
+  acpCancel?: (sessionId: string) => Promise<{ success: boolean }>
+  /** Reply to an agent's session/request_permission. response: 'allow_once' | 'allow_always' | 'deny' */
+  acpPermissionRespond?: (params: { sessionId: string; requestId: number; response: string }) => Promise<{ success: boolean; error?: string }>
+  onAcpChunk?: (callback: (data: { sessionId: string; data: string }) => void) => void
+  onAcpDone?: (callback: (data: { sessionId: string; exitCode?: number }) => void) => void
+  onAcpError?: (callback: (data: { sessionId: string; message: string }) => void) => void
+  onAcpStderr?: (callback: (data: { sessionId: string; line: string }) => void) => void
+  removeAcpListeners?: () => void
+  removeAcpStderrListeners?: () => void
 }

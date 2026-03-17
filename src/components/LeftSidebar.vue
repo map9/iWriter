@@ -45,7 +45,7 @@
     </div>
 
     <!-- Sidebar Content -->
-    <div class="sidebar-content flex-1 flex flex-col h-full">
+    <div class="sidebar-content flex flex-col h-full">
       <!-- Start(No Folder) Opened -->
       <NoFolderOpened
         v-show="appStore.leftSidebarMode === SidebarMode.START"

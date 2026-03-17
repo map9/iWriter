@@ -583,7 +583,7 @@ export class MenuManager {
           { type: 'separator' },
           {
             label: 'Promote Heading',
-            accelerator: 'CmdOrCtrl+=',
+            accelerator: 'CmdOrCtrl+]',
             enabled:
               wState?.wContentState?.content?.type !== 1 &&
               ((typeof wState?.wContentState?.content?.type === 'number' &&
@@ -596,7 +596,7 @@ export class MenuManager {
           },
           {
             label: 'Demote Heading',
-            accelerator: 'CmdOrCtrl+-',
+            accelerator: 'CmdOrCtrl+[',
             enabled: 
               wState?.wContentState?.content?.type !== 'paragraph' &&
               (typeof wState?.wContentState?.content?.type === 'number' &&

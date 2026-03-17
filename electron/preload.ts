@@ -142,4 +142,48 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Print API
   print: (options: any = {}) => ipcRenderer.invoke('print', options),
+
+  // ACP (Agent Client Protocol) — external agent process management
+  acpLaunch: (params: {
+    sessionId: string
+    command: string
+    args?: string[]
+    env?: Record<string, string>
+    workspacePath: string | null
+    filePath: string | null
+  }) => ipcRenderer.invoke('acp:launch', params),
+  acpInitialize: (params: { sessionId: string; workspacePath: string | null; filePath: string | null }) =>
+    ipcRenderer.invoke('acp:initialize', params),
+  acpNewSession: (params: { sessionId: string; cwd: string | null }) =>
+    ipcRenderer.invoke('acp:newSession', params),
+  acpSend: (params: { sessionId: string; acpSessionId: string; content: string }) =>
+    ipcRenderer.invoke('acp:send', params),
+  acpSetModel: (params: { sessionId: string; acpSessionId: string; modelId: string }) =>
+    ipcRenderer.invoke('acp:set-model', params),
+  acpSetMode: (params: { sessionId: string; acpSessionId: string; modeId: string }) =>
+    ipcRenderer.invoke('acp:set-mode', params),
+  acpCancel: (sessionId: string) => ipcRenderer.invoke('acp:cancel', sessionId),
+  /** Reply to an agent's session/request_permission with allow_once, allow_always, or deny. */
+  acpPermissionRespond: (params: { sessionId: string; requestId: number; response: string }) =>
+    ipcRenderer.invoke('acp:permission-respond', params),
+  onAcpChunk: (callback: (data: { sessionId: string; data: string }) => void) => {
+    ipcRenderer.on('acp:chunk', (_, data) => callback(data))
+  },
+  onAcpDone: (callback: (data: { sessionId: string; exitCode?: number }) => void) => {
+    ipcRenderer.on('acp:done', (_, data) => callback(data))
+  },
+  onAcpError: (callback: (data: { sessionId: string; message: string }) => void) => {
+    ipcRenderer.on('acp:error', (_, data) => callback(data))
+  },
+  onAcpStderr: (callback: (data: { sessionId: string; line: string }) => void) => {
+    ipcRenderer.on('acp:stderr', (_, data) => callback(data))
+  },
+  removeAcpListeners: () => {
+    ipcRenderer.removeAllListeners('acp:chunk')
+    ipcRenderer.removeAllListeners('acp:done')
+    ipcRenderer.removeAllListeners('acp:error')
+  },
+  removeAcpStderrListeners: () => {
+    ipcRenderer.removeAllListeners('acp:stderr')
+  },
 })

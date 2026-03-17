@@ -32,9 +32,10 @@ const FILE_CONFIG = {
 // ============================================================
 
 // 启用渲染进程日志捕获
+// spyRendererConsole 已禁用：渲染进程通过 IPC transport 主动发送日志，避免重复输出
 log.initialize({
   preload: true,
-  spyRendererConsole: true
+  spyRendererConsole: false
 })
 
 // ============================================================

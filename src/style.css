@@ -100,7 +100,7 @@
   }
 
   .right-sidebar {
-    @apply min-w-72 border-l;
+    @apply min-w-0 border-l overflow-hidden;
   }
 
  .workzone0 {

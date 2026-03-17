@@ -7,7 +7,9 @@ export const STORAGE_KEYS = {
   SEARCH_CONFIG: 'iwriter-search-in-files-config',
   UI_STATE: 'iwriter-ui-state',
   EDIT_SETTING: 'iwriter-edit-setting',
-  WORKSPACE_STATE: 'iwriter-workspace-state'
+  WORKSPACE_STATE: 'iwriter-workspace-state',
+  AI_SETTINGS: 'iwriter-ai-settings',
+  AI_THREADS: 'iwriter-ai-threads',
 } as const
 
 // 类型定义
@@ -17,6 +19,7 @@ export interface UIState {
   isStatusbarVisible: boolean
   leftSidebarMode: SidebarMode
   leftSidebarWidth: number
+  rightSidebarWidth: number
 }
 
 export interface WorkspaceState {
@@ -34,7 +37,8 @@ export const DEFAULT_UI_STATE: UIState = {
   isRightSidebarVisible: false,
   isStatusbarVisible: true,
   leftSidebarMode: SidebarMode.START,
-  leftSidebarWidth: 288
+  leftSidebarWidth: 288,
+  rightSidebarWidth: 288
 }
 
 export const DEFAULT_EDIT_SETTING: EditSetting = {
