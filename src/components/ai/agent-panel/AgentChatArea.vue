@@ -18,6 +18,7 @@
       v-for="msg in aiStore.activeThread?.messages ?? []"
       :key="msg.id"
       :message="msg"
+      @resend="handleResend"
     />
 
     <!-- Streaming message -->
@@ -145,5 +146,14 @@ watch(
 function renderMarkdown(text: string): string {
   try { return marked.parse(text, { async: false }) as string }
   catch { return text }
+}
+
+async function handleResend(messageId: string, newContent: string) {
+  const thread = aiStore.activeThread
+  if (!thread) return
+  const idx = thread.messages.findIndex(m => m.id === messageId)
+  if (idx < 0) return
+  aiStore.updateThread({ ...thread, messages: thread.messages.slice(0, idx) })
+  await aiStore.sendMessage(newContent)
 }
 </script>

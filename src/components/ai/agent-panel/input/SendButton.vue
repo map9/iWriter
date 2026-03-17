@@ -23,7 +23,7 @@
     @click="$emit('send')"
     :disabled="!canSend"
     class="p-1.5 rounded-md transition-colors flex-shrink-0"
-    :class="canSend ? 'bg-primary-500 text-white hover:bg-primary-600' : 'bg-gray-200 text-gray-400 cursor-not-allowed'"
+    :class="canSend ? 'bg-accent-primary text-white hover:bg-accent-primary/90 cursor-pointer' : 'bg-gray-200 text-gray-400 cursor-not-allowed'"
     title="发送"
   >
     <IconSend class="w-4 h-4" />

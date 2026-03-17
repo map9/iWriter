@@ -11,7 +11,7 @@
         v-model="inputText"
         ref="inputEl"
         placeholder="发消息… (Enter 发送，Shift+Enter 换行)"
-        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
         rows="3"
         @keydown="handleKeydown"
       />
