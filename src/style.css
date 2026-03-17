@@ -92,7 +92,7 @@
   }
 
   .sidebar {
-    @apply relative flex flex-col min-w-64 h-full shrink-0 border border-border-separator;
+    @apply relative flex flex-col min-w-64 h-full shrink-0 border-border-separator;
   }
 
   .left-sidebar {
