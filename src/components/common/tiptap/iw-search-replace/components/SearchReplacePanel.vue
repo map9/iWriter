@@ -17,14 +17,14 @@
 
       <!-- 搜索输入框容器 -->
       <div class="input-wrapper">
-        <input
+        <textarea
           ref="searchInputRef"
           v-model="localSearchTerm"
-          type="text"
+          rows="1"
           placeholder="Find (↑↓ for history)"
           class="search-input"
-          @keydown.enter="handleSearchEnter"
-          @keydown.esc="closePanel"
+          @keydown="handleSearchKeydown"
+          @input="autoResizeTextarea(searchInputRef)"
         />
 
         <!-- 选项按钮组（在输入框内部右侧） -->
@@ -114,13 +114,14 @@
 
       <!-- 替换输入框 -->
       <div class="input-wrapper">
-        <input
+        <textarea
+          ref="replaceInputRef"
           v-model="localReplaceTerm"
-          type="text"
+          rows="1"
           placeholder="Replace (↑↓ for history)"
           class="replace-input"
-          @keydown.enter="handleReplaceEnter"
-          @keydown.esc="closePanel"
+          @keydown="handleReplaceKeydown"
+          @input="autoResizeTextarea(replaceInputRef)"
         />
       </div>
 
@@ -174,7 +175,8 @@ const props = defineProps<Props>()
 // 本地状态（双向绑定）
 const localSearchTerm = ref('')
 const localReplaceTerm = ref('')
-const searchInputRef = ref<HTMLInputElement | null>(null)
+const searchInputRef = ref<HTMLTextAreaElement | null>(null)
+const replaceInputRef = ref<HTMLTextAreaElement | null>(null)
 
 // 计算属性从 editor storage 获取状态
 const isOpen = computed(() => props.editor.storage.iwSearchReplace.isOpen)
@@ -216,6 +218,7 @@ watch(isOpen, async (isNowOpen) => {
     await nextTick()
     searchInputRef.value?.focus()
     searchInputRef.value?.select()
+    autoResizeTextarea(searchInputRef.value)
   }
 })
 
@@ -254,19 +257,114 @@ function toggleRegex() {
   props.editor.commands.toggleRegex()
 }
 
-function handleSearchEnter(event: KeyboardEvent) {
-  if (event.shiftKey) {
-    findPrevious()
+// 搜索/替换历史
+const searchHistory = ref<string[]>([])
+const searchHistoryIndex = ref(-1)
+const replaceHistory = ref<string[]>([])
+const replaceHistoryIndex = ref(-1)
+
+function autoResizeTextarea(el: HTMLTextAreaElement | null) {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = el.scrollHeight + 'px'
+}
+
+function insertNewline(termRef: typeof localSearchTerm, inputRef: typeof searchInputRef) {
+  const el = inputRef.value
+  if (!el) return
+  const start = el.selectionStart ?? termRef.value.length
+  const end = el.selectionEnd ?? start
+  termRef.value = termRef.value.substring(0, start) + '\n' + termRef.value.substring(end)
+  nextTick(() => {
+    if (inputRef.value) {
+      inputRef.value.selectionStart = inputRef.value.selectionEnd = start + 1
+      autoResizeTextarea(inputRef.value)
+    }
+  })
+}
+
+function addToHistory(history: typeof searchHistory, value: string) {
+  if (!value) return
+  const idx = history.value.indexOf(value)
+  if (idx !== -1) history.value.splice(idx, 1)
+  history.value.unshift(value)
+  if (history.value.length > 50) history.value.pop()
+}
+
+function isOnFirstLine(el: HTMLTextAreaElement): boolean {
+  return !el.value.substring(0, el.selectionStart).includes('\n')
+}
+
+function isOnLastLine(el: HTMLTextAreaElement): boolean {
+  return !el.value.substring(el.selectionEnd).includes('\n')
+}
+
+function navigateHistory(
+  event: KeyboardEvent,
+  direction: 'up' | 'down',
+  termRef: typeof localSearchTerm,
+  inputRef: typeof searchInputRef,
+  history: typeof searchHistory,
+  historyIdx: typeof searchHistoryIndex
+) {
+  const el = inputRef.value
+  if (!el || history.value.length === 0) return
+  if (direction === 'up' && !isOnFirstLine(el)) return
+  if (direction === 'down' && !isOnLastLine(el)) return
+
+  event.preventDefault()
+  if (direction === 'up') {
+    if (historyIdx.value < history.value.length - 1) historyIdx.value++
   } else {
-    findNext()
+    historyIdx.value--
+  }
+
+  if (historyIdx.value < 0) {
+    historyIdx.value = -1
+    termRef.value = ''
+  } else {
+    termRef.value = history.value[historyIdx.value] ?? ''
+  }
+  nextTick(() => autoResizeTextarea(inputRef.value))
+}
+
+function handleSearchKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      insertNewline(localSearchTerm, searchInputRef)
+    } else {
+      addToHistory(searchHistory, localSearchTerm.value)
+      searchHistoryIndex.value = -1
+      findNext()
+    }
+  } else if (event.key === 'ArrowUp') {
+    navigateHistory(event, 'up', localSearchTerm, searchInputRef, searchHistory, searchHistoryIndex)
+  } else if (event.key === 'ArrowDown') {
+    navigateHistory(event, 'down', localSearchTerm, searchInputRef, searchHistory, searchHistoryIndex)
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    closePanel()
   }
 }
 
-function handleReplaceEnter(event: KeyboardEvent) {
-  if (event.ctrlKey) {
-    replaceAll()
-  } else {
-    replaceNext()
+function handleReplaceKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      insertNewline(localReplaceTerm, replaceInputRef)
+    } else {
+      addToHistory(replaceHistory, localReplaceTerm.value)
+      replaceHistoryIndex.value = -1
+      replaceNext()
+    }
+  } else if (event.key === 'ArrowUp') {
+    navigateHistory(event, 'up', localReplaceTerm, replaceInputRef, replaceHistory, replaceHistoryIndex)
+  } else if (event.key === 'ArrowDown') {
+    navigateHistory(event, 'down', localReplaceTerm, replaceInputRef, replaceHistory, replaceHistoryIndex)
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    closePanel()
   }
 }
 
@@ -338,7 +436,7 @@ onUnmounted(() => {
 /* ===== 第一行：搜索行 ===== */
 .search-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
 }
 
@@ -374,9 +472,12 @@ onUnmounted(() => {
 /* 搜索输入框 */
 .search-input {
   width: 100%;
-  height: 28px;
-  padding: 0 90px 0 8px;
+  min-height: 28px;
+  padding: 4px 90px 4px 8px;
   font-size: 13px;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.5;
   border: 1px solid var(--color-border-separator);
   border-radius: 4px;
   background: var(--color-background-content);
@@ -393,8 +494,7 @@ onUnmounted(() => {
 .input-options-group {
   position: absolute;
   right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 4px;
   display: flex;
   gap: 2px;
 }
@@ -527,7 +627,7 @@ onUnmounted(() => {
 /* ===== 第二行：替换行 ===== */
 .replace-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   margin-top: 6px;
   padding-top: 6px;
@@ -543,9 +643,12 @@ onUnmounted(() => {
 /* 替换输入框 */
 .replace-input {
   width: 100%;
-  height: 28px;
-  padding: 0 90px 0 8px;
+  min-height: 28px;
+  padding: 4px 8px;
   font-size: 13px;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.5;
   border: 1px solid var(--color-border-separator);
   border-radius: 4px;
   background: var(--color-background-content);

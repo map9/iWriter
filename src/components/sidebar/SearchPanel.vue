@@ -25,12 +25,14 @@
 
         <!-- 搜索输入框容器 -->
         <div class="input-wrapper">
-          <input
+          <textarea
+            ref="searchInputRef"
             v-model="searchQuery"
-            type="text"
+            rows="1"
             placeholder="Find"
             class="search-input"
-            @keydown.enter="handleSearchEnter"
+            @keydown="handleSearchKeydown"
+            @input="autoResizeTextarea(searchInputRef)"
           />
 
           <!-- 选项按钮组（在输入框内部右侧） -->
@@ -70,12 +72,14 @@
 
         <!-- 替换输入框容器 -->
         <div class="input-wrapper-with-action">
-          <input
+          <textarea
+            ref="replaceInputRef"
             v-model="replaceQuery"
-            type="text"
+            rows="1"
             placeholder="Replace"
             class="replace-input"
-            @keydown.enter="replaceNext"
+            @keydown="handleReplaceKeydown"
+            @input="autoResizeTextarea(replaceInputRef)"
           />
           <button
             @click="replaceAll"
@@ -227,6 +231,8 @@ const appStore = useAppStore()
 // 组件内状态（使用 v-show 后不会被销毁）
 const searchQuery = ref('')
 const replaceQuery = ref('')
+const searchInputRef = ref<HTMLTextAreaElement | null>(null)
+const replaceInputRef = ref<HTMLTextAreaElement | null>(null)
 const showReplace = ref(false)
 const includePattern = ref('')
 const excludePattern = ref('')
@@ -328,11 +334,111 @@ function getRelativeDir(relativePath: string): string {
   return relativePath.substring(0, lastSlashIndex)
 }
 
-function handleSearchEnter(event: KeyboardEvent) {
-  if (event.shiftKey) {
-    // TODO: Find previous
+// 搜索/替换历史
+const searchHistory = ref<string[]>([])
+const searchHistoryIndex = ref(-1)
+const replaceHistory = ref<string[]>([])
+const replaceHistoryIndex = ref(-1)
+
+function autoResizeTextarea(el: HTMLTextAreaElement | null) {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = el.scrollHeight + 'px'
+}
+
+function insertNewline(
+  queryRef: typeof searchQuery,
+  inputRef: typeof searchInputRef
+) {
+  const el = inputRef.value
+  if (!el) return
+  const start = el.selectionStart ?? queryRef.value.length
+  const end = el.selectionEnd ?? start
+  queryRef.value = queryRef.value.substring(0, start) + '\n' + queryRef.value.substring(end)
+  nextTick(() => {
+    if (inputRef.value) {
+      inputRef.value.selectionStart = inputRef.value.selectionEnd = start + 1
+      autoResizeTextarea(inputRef.value)
+    }
+  })
+}
+
+function addToHistory(history: typeof searchHistory, value: string) {
+  if (!value) return
+  const idx = history.value.indexOf(value)
+  if (idx !== -1) history.value.splice(idx, 1)
+  history.value.unshift(value)
+  if (history.value.length > 50) history.value.pop()
+}
+
+function isOnFirstLine(el: HTMLTextAreaElement): boolean {
+  return !el.value.substring(0, el.selectionStart).includes('\n')
+}
+
+function isOnLastLine(el: HTMLTextAreaElement): boolean {
+  return !el.value.substring(el.selectionEnd).includes('\n')
+}
+
+function navigateHistory(
+  event: KeyboardEvent,
+  direction: 'up' | 'down',
+  queryRef: typeof searchQuery,
+  inputRef: typeof searchInputRef,
+  history: typeof searchHistory,
+  historyIdx: typeof searchHistoryIndex
+) {
+  const el = inputRef.value
+  if (!el || history.value.length === 0) return
+  if (direction === 'up' && !isOnFirstLine(el)) return
+  if (direction === 'down' && !isOnLastLine(el)) return
+
+  event.preventDefault()
+  if (direction === 'up') {
+    if (historyIdx.value < history.value.length - 1) historyIdx.value++
   } else {
-    // TODO: Find next
+    historyIdx.value--
+  }
+
+  if (historyIdx.value < 0) {
+    historyIdx.value = -1
+    queryRef.value = ''
+  } else {
+    queryRef.value = history.value[historyIdx.value] ?? ''
+  }
+  nextTick(() => autoResizeTextarea(inputRef.value))
+}
+
+function handleSearchKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      insertNewline(searchQuery, searchInputRef)
+    } else {
+      addToHistory(searchHistory, searchQuery.value)
+      searchHistoryIndex.value = -1
+      // 搜索由 watch 驱动，Enter 仅记录历史
+    }
+  } else if (event.key === 'ArrowUp') {
+    navigateHistory(event, 'up', searchQuery, searchInputRef, searchHistory, searchHistoryIndex)
+  } else if (event.key === 'ArrowDown') {
+    navigateHistory(event, 'down', searchQuery, searchInputRef, searchHistory, searchHistoryIndex)
+  }
+}
+
+function handleReplaceKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      insertNewline(replaceQuery, replaceInputRef)
+    } else {
+      addToHistory(replaceHistory, replaceQuery.value)
+      replaceHistoryIndex.value = -1
+      replaceNext()
+    }
+  } else if (event.key === 'ArrowUp') {
+    navigateHistory(event, 'up', replaceQuery, replaceInputRef, replaceHistory, replaceHistoryIndex)
+  } else if (event.key === 'ArrowDown') {
+    navigateHistory(event, 'down', replaceQuery, replaceInputRef, replaceHistory, replaceHistoryIndex)
   }
 }
 
@@ -988,7 +1094,7 @@ onUnmounted(() => {
 /* ===== Search Row ===== */
 .search-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
 }
 
@@ -1024,9 +1130,12 @@ onUnmounted(() => {
 /* 搜索输入框 */
 .search-input {
   width: 100%;
-  height: 24px;
-  padding: 0 90px 0 6px;
+  min-height: 24px;
+  padding: 3px 90px 3px 6px;
   font-size: 13px;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.5;
   border: 1px solid var(--color-border-separator);
   border-radius: 3px;
   background: var(--color-background-content);
@@ -1043,8 +1152,7 @@ onUnmounted(() => {
 .input-options-group {
   position: absolute;
   right: 2px;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 3px;
   display: flex;
   gap: 1px;
 }
@@ -1079,7 +1187,7 @@ onUnmounted(() => {
 /* ===== Replace Row ===== */
 .replace-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
 }
 
@@ -1093,15 +1201,18 @@ onUnmounted(() => {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 2px;
 }
 
 .replace-input {
   flex: 1;
-  height: 24px;
-  padding: 0 6px;
+  min-height: 24px;
+  padding: 3px 6px;
   font-size: 13px;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.5;
   border: 1px solid var(--color-border-separator);
   border-radius: 3px;
   background: var(--color-background-content);

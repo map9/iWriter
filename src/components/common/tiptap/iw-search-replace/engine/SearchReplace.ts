@@ -33,13 +33,32 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { Range } from '@tiptap/core'
 import { buildSearchPattern } from '../utils/searchUtils';
 
-interface TextNodesWithPosition {
+interface TextSegment {
   text: string;
-  pos: number;
+  pmPos: number;
+}
+
+interface SegmentOffset {
+  textOffset: number;
+  pmPos: number;
+}
+
+/**
+ * 将合并文本中的偏移量映射回 ProseMirror 文档位置
+ */
+function textOffsetToPmPos(textOffset: number, segments: SegmentOffset[]): number {
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const seg = segments[i]!
+    if (textOffset >= seg.textOffset) {
+      return seg.pmPos + (textOffset - seg.textOffset)
+    }
+  }
+  return 0
 }
 
 /**
  * 在 ProseMirror 文档中查找所有匹配项
+ * 使用合并文本 + 位置映射的方式，支持跨段落的 \n 搜索
  */
 export function findMatchesInDocument(
   doc: ProseMirrorNode,
@@ -50,9 +69,8 @@ export function findMatchesInDocument(
   if (!searchTerm) return []
 
   const pattern: RegExp = buildSearchPattern(searchTerm, options)
-  let textNodesWithPosition: TextNodesWithPosition[] = []
-  let index = 0
-  const results: Range[] = [];
+  const segments: TextSegment[] = []
+  let currentSegment: TextSegment | null = null
 
   // 确定搜索范围
   const startPos = range?.from ?? 0
@@ -61,56 +79,50 @@ export function findMatchesInDocument(
   doc?.descendants((node, pos) => {
     // 跳过范围外的节点
     if (range && (pos + node.nodeSize <= startPos || pos >= endPos)) {
-      return false // 跳过此节点及其子节点
+      return false
     }
 
     if (node.isText) {
-      if (textNodesWithPosition[index]) {
-        textNodesWithPosition[index] = {
-          text: textNodesWithPosition[index]!.text + node.text,
-          pos: textNodesWithPosition[index]!.pos,
-        }
+      if (currentSegment) {
+        currentSegment.text += node.text
       } else {
-        textNodesWithPosition[index] = {
-          text: `${node.text}`,
-          pos,
-        }
+        currentSegment = { text: `${node.text}`, pmPos: pos }
       }
     } else {
-      index += 1;
-    }
-  });
-
-  textNodesWithPosition = textNodesWithPosition.filter(Boolean);
-
-  for (const element of textNodesWithPosition) {
-    const { text, pos } = element;
-    const matches = Array.from(text.matchAll(pattern)).filter(
-      ([matchText]) => matchText.trim(),
-    );
-
-    for (const m of matches) {
-      if (m[0] === "") break
-
-      if (m.index !== undefined) {
-        const matchFrom = pos + m.index
-        const matchTo = matchFrom + m[0].length
-
-        // 额外检查：确保匹配完全在范围内
-        if (range) {
-          if (matchFrom >= startPos && matchTo <= endPos) {
-            results.push({
-              from: matchFrom,
-              to: matchTo,
-            })
-          }
-        } else {
-          results.push({
-            from: matchFrom,
-            to: matchTo,
-          })
-        }
+      if (currentSegment) {
+        segments.push(currentSegment)
+        currentSegment = null
       }
+    }
+  })
+  if (currentSegment) segments.push(currentSegment)
+
+  if (segments.length === 0) return []
+
+  // 将所有段落用 \n 连接，并记录每段在合并字符串中的起始偏移
+  const segmentOffsets: SegmentOffset[] = []
+  let combined = ''
+  for (const seg of segments) {
+    if (combined.length > 0) combined += '\n'
+    segmentOffsets.push({ textOffset: combined.length, pmPos: seg.pmPos })
+    combined += seg.text
+  }
+
+  const results: Range[] = []
+  const allMatches = Array.from(combined.matchAll(pattern))
+
+  for (const m of allMatches) {
+    if (m[0].length === 0 || m.index === undefined) continue
+
+    const matchFrom = textOffsetToPmPos(m.index, segmentOffsets)
+    const matchTo = textOffsetToPmPos(m.index + m[0].length, segmentOffsets)
+
+    if (range) {
+      if (matchFrom >= startPos && matchTo <= endPos) {
+        results.push({ from: matchFrom, to: matchTo })
+      }
+    } else {
+      results.push({ from: matchFrom, to: matchTo })
     }
   }
 
