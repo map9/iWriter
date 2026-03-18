@@ -105,16 +105,10 @@
       <button
         @click="appStore.toggleRightSidebar()"
         class="toolbar-button flex-shrink-0"
+        :class="appStore.isRightSidebarVisible ? 'text-accent-primary' : ''"
         title="Toggle AI Chat"
       >
-        <IconLayoutSidebarRightCollapse
-          v-if="appStore.isRightSidebarVisible"
-          class="icon-base"
-        />
-        <IconLayoutSidebarRightExpand
-          v-else
-          class="icon-base"
-        />
+        <IconRobot class="icon-base" />
       </button>
     </div>
   </div>
@@ -130,8 +124,7 @@ import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
-  IconLayoutSidebarRightCollapse,
-  IconLayoutSidebarRightExpand,
+  IconRobot,
   IconChevronLeft,
   IconChevronRight,
   IconX,
