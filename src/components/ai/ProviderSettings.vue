@@ -1,25 +1,6 @@
 <template>
   <div class="flex flex-col h-full overflow-hidden">
 
-    <!-- ── Header ─────────────────────────────────────────────────────────── -->
-    <div class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-      <button
-        v-if="view !== 'main'"
-        @click="cancelForm"
-        class="p-1 rounded hover:bg-gray-200 transition-colors"
-      >
-        <IconArrowLeft class="w-4 h-4 text-gray-600" />
-      </button>
-      <span class="text-sm font-medium text-gray-900 flex-1 truncate">{{ headerTitle }}</span>
-      <button
-        v-if="view === 'main'"
-        @click="$emit('close')"
-        class="p-1 rounded hover:bg-gray-200 transition-colors"
-      >
-        <IconX class="w-4 h-4 text-gray-600" />
-      </button>
-    </div>
-
     <!-- ══════════════════════════════════════════════════════════════════════
          MAIN VIEW
     ═══════════════════════════════════════════════════════════════════════ -->
@@ -318,8 +299,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { IconX, IconArrowLeft, IconPencil, IconTrash, IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
+import { ref, computed, watch } from 'vue'
+import { IconPencil, IconTrash, IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
 import { useAiStore } from '@/stores/ai'
 import type { AiProviderConfig, AiProviderType } from '@/types/ai'
 import type { AiProviderKind } from '@/types/ai'
@@ -328,7 +309,9 @@ import {
   type ProviderPreset,
 } from '@/ai/providers/provider-presets'
 
-defineEmits<{ close: [] }>()
+const emit = defineEmits<{
+  'view-change': [info: { view: View; title: string }]
+}>()
 
 const aiStore = useAiStore()
 
@@ -496,4 +479,13 @@ function submitForm() {
 
   cancelForm()
 }
+
+// Notify parent of view/title changes
+watch(
+  [view, headerTitle],
+  () => emit('view-change', { view: view.value, title: headerTitle.value }),
+  { immediate: true }
+)
+
+defineExpose({ cancelForm })
 </script>

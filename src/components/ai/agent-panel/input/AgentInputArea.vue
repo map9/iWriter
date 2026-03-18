@@ -1,5 +1,5 @@
 <template>
-  <div class="border-t border-gray-200 bg-white flex-shrink-0">
+  <div class="border-2 border-accent-primary rounded-lg m-2 bg-white flex-shrink-0">
 
     <AgentContextChips
       :files="contextFiles"
@@ -11,17 +11,20 @@
         v-model="inputText"
         ref="inputEl"
         placeholder="发消息… (Enter 发送，Shift+Enter 换行)"
-        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent"
-        rows="3"
+        class="w-full text-sm border-none rounded-md resize-none focus:outline-none focus:border-transparent"
+        rows="1"
+        :style="{ maxHeight: maxTextareaHeight }"
         @keydown="handleKeydown"
+        @input="autoResize"
       />
     </div>
+
+    <div class="mx-2 border-t border-gray-200" />
 
     <AgentToolbar
       :is-pending-send="pendingSend"
       :is-streaming="aiStore.isStreaming"
       :can-send="!!inputText.trim()"
-      @attach-current="attachCurrentFile"
       @browse-files="browseFiles"
       @browse-folder="browseFolder"
       @send="sendMessage"
@@ -34,6 +37,7 @@
 </template>
 
 <script setup lang="ts">
+import { watch } from 'vue'
 import { useAiStore } from '@/stores/ai'
 import AgentContextChips from './AgentContextChips.vue'
 import AgentToolbar from './AgentToolbar.vue'
@@ -42,8 +46,24 @@ import { useChatSend } from '../composables/useChatSend'
 
 const aiStore = useAiStore()
 
-const { contextFiles, removeContextFile, attachCurrentFile, browseFiles, browseFolder } = useContextFiles()
+const { contextFiles, removeContextFile, browseFiles, browseFolder } = useContextFiles()
 const { inputText, inputEl, pendingSend, handleKeydown, sendMessage, cancelPendingSend } = useChatSend(contextFiles)
+
+// text-sm line-height is 1.25rem = 20px; 5 lines = 100px
+const maxTextareaHeight = '100px'
+
+function autoResize(e: Event) {
+  const el = e.target as HTMLTextAreaElement
+  el.style.height = 'auto'
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px'
+}
+
+// Reset height when input is cleared (e.g. after send)
+watch(inputText, (val) => {
+  if (!val && inputEl.value) {
+    inputEl.value.style.height = 'auto'
+  }
+})
 
 function clearThread() {
   if (aiStore.activeThread) {

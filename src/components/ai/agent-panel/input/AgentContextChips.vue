@@ -5,7 +5,8 @@
       :key="i"
       class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-blue-50 border border-blue-200 text-blue-700 rounded-full"
     >
-      <IconFile class="w-3 h-3 flex-shrink-0" />
+      <IconFolder v-if="isFolder(f)" class="w-3 h-3 flex-shrink-0" />
+      <IconFile v-else class="w-3 h-3 flex-shrink-0" />
       <span class="truncate max-w-[120px]">{{ fileName(f) }}</span>
       <button @click="$emit('remove', i)" class="flex-shrink-0 hover:text-red-500">
         <IconX class="w-3 h-3" />
@@ -15,12 +16,17 @@
 </template>
 
 <script setup lang="ts">
-import { IconFile, IconX } from '@tabler/icons-vue'
+import { IconFile, IconFolder, IconX } from '@tabler/icons-vue'
 
 defineProps<{ files: string[] }>()
 defineEmits<{ remove: [index: number] }>()
 
 function fileName(path: string): string {
   return path.split('/').pop() ?? path
+}
+
+function isFolder(path: string): boolean {
+  const name = path.split('/').pop() ?? path
+  return !name.includes('.')
 }
 </script>

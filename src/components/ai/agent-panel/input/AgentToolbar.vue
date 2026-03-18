@@ -1,8 +1,7 @@
 <template>
-  <div class="flex items-center gap-1 px-2 pb-2 min-w-0">
+  <div class="flex items-center gap-1 px-2 pb-2 pt-1 min-w-0">
 
     <AttachPicker
-      @attach-current="$emit('attach-current')"
       @browse-files="$emit('browse-files')"
       @browse-folder="$emit('browse-folder')"
     />
@@ -63,7 +62,6 @@ defineProps<{
 }>()
 
 defineEmits<{
-  'attach-current': []
   'browse-files': []
   'browse-folder': []
   send: []

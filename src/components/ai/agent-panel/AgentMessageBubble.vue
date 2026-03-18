@@ -87,11 +87,11 @@
         <!-- Expand overlay (shown on hover when content overflows) -->
         <div
           v-if="isOverflow && !isExpanded && isHovered"
-          class="absolute bottom-0 left-0 right-0 flex justify-center pb-1.5 rounded-b-lg"
+          class="absolute bottom-0 right-2 flex justify-center pb-1.5 rounded-b-lg"
           style="background: linear-gradient(to top, rgba(var(--color-accent-primary-rgb, 59 130 246), 0.9) 0%, transparent 100%)"
           @click.stop="isExpanded = true"
         >
-          <span class="text-white text-xs cursor-pointer select-none bg-white/20 rounded px-2 py-0.5 hover:bg-white/30">点击展开</span>
+          <span class="text-white text-xs cursor-pointer select-none bg-white/20 rounded px-2 py-1 hover:bg-white/30">点击展开</span>
         </div>
       </div>
 
@@ -122,11 +122,11 @@
       </div>
 
       <!-- Toolbar / Timestamp row -->
-      <div v-if="!isEditing" class="h-5 mt-0.5 flex items-center" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
+      <div v-if="!isEditing" class="h-5 mt-1 flex items-center" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
         <!-- Hover toolbar -->
         <div v-if="isHovered && !isEditing" class="flex items-center gap-1">
           <button
-            class="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            class="flex items-center gap-1 px-1 py-1 rounded text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
             title="复制"
             @click="handleCopy"
           >
@@ -134,7 +134,7 @@
           </button>
           <button
             v-if="message.role === 'user'"
-            class="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            class="flex items-center gap-1 px-1 py-1 rounded text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
             title="编辑"
             @click="startEdit"
           >
