@@ -802,7 +802,6 @@ function updateSingleFileResult(
 
 async function performSearch() {
   if (!appStore.currentFolder) {
-    notify.error('No folder opened')
     return
   }
 
