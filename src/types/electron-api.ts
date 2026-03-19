@@ -74,8 +74,8 @@ export interface ElectronAPI {
   // 原生上下文菜单
   showContextMenu: (menuItems: import('@/types').ContextMenuItem[], position: { x: number; y: number }) => Promise<string | null>
 
-  // 跨文件搜索
-  searchInFiles: (options: import('@/types/search').SearchInFolderOptions) => Promise<import('@/types/search').FileSearchResult[]>
+  // Shell execution (read-only commands, enforced in main process)
+  execShell: (command: string, cwd?: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>
 
   // 菜单操作
   onMenuAction: (callback: (action: string) => void) => void

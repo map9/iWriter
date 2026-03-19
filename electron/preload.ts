@@ -90,8 +90,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showContextMenu: (menuItems: any[], position: { x: number; y: number }) =>
     ipcRenderer.invoke('show-context-menu', menuItems, position),
 
-  // Search in files
-  searchInFiles: (options: any) => ipcRenderer.invoke('search-in-files', options),
+  // Shell execution (read-only commands only)
+  execShell: (command: string, cwd?: string) =>
+    ipcRenderer.invoke('exec-shell', command, cwd),
 
   // Menu actions
   onMenuAction: (callback: (action: string) => void) => {

@@ -589,17 +589,8 @@ export class TipTapSearchService {
 
         // 3. 转换回原始格式
         const extension = pathUtils.extension(fileResult.filePath)
-        const mockTab: FileTab = {
-          id: '',
-          path: fileResult.filePath,
-          name: fileResult.fileName,
-          documentType: detectFromPath(fileResult.filePath),
-          isActive: false,
-          isDirty: false,
-          editorInstance: tempEditor
-        }
         const newContent = convertContentTo(
-          mockTab,
+          tempEditor,
           extension,
           fileResult._lineEnding
         )
@@ -610,7 +601,7 @@ export class TipTapSearchService {
 
         // 4. 写回文件
         await window.electronAPI.saveFile(fileResult.filePath, newContent)
-        filesModified++
+        filesModified ++
 
       } catch (error) {
         errors.push({

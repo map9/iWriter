@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, shell, dialog } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
+import { exec } from 'child_process'
 import chokidar, { FSWatcher } from 'chokidar'
 
 import Timer from '../src/utils/Timer'
@@ -219,6 +220,7 @@ export class App {
   }
 
   private setupIpcHandlers() {
+    this.registerExecShellHandler()
     ipcMain.on('hello', (_, windowId: number) => {
       this.windowManager.handleHello(windowId)
       
@@ -949,7 +951,33 @@ export class App {
 
   }
 
+  private registerExecShellHandler() {
+    // Allowed read-only commands (prefix match)
+    const ALLOWED_PREFIXES = [
+      'ls', 'dir', 'find', 'cat', 'head', 'tail', 'grep',
+      'wc', 'pwd', 'echo', 'file', 'stat', 'type', 'findstr', 'where',
+    ]
+
+    ipcMain.handle('exec-shell', async (_, command: string, cwd?: string) => {
+      const cmdTrimmed = command.trim()
+      const firstWord = cmdTrimmed.split(/\s+/)[0]?.toLowerCase() ?? ''
+      if (!ALLOWED_PREFIXES.includes(firstWord)) {
+        return { stdout: '', stderr: `Command not permitted: "${firstWord}". Allowed: ${ALLOWED_PREFIXES.join(', ')}`, exitCode: 1 }
+      }
+      return new Promise<{ stdout: string; stderr: string; exitCode: number }>(resolve => {
+        exec(cmdTrimmed, { cwd: cwd || undefined, timeout: 5000 }, (error, stdout, stderr) => {
+          resolve({
+            stdout: stdout.slice(0, 20000),
+            stderr: stderr.slice(0, 2000),
+            exitCode: error?.code ?? 0,
+          })
+        })
+      })
+    })
+  }
+
   private removeAllHandler() {
+    ipcMain.removeHandler('exec-shell')
     ipcMain.removeHandler('hello')
     ipcMain.removeHandler('read-file')
     ipcMain.removeHandler('read-file-binary')
