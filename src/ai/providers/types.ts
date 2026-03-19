@@ -1,10 +1,39 @@
 // Internal types for the AI provider layer
 // These are implementation details — not exposed to the UI directly
 
+// ── Multimodal content blocks ───────────────────────────────────────────────
+
+/** A text block inside a multimodal user message. */
+export interface LMTextBlock {
+  type: 'text'
+  text: string
+}
+
+/** An uploaded file referenced by the provider's Files API file_id. */
+export interface LMFileRefBlock {
+  type: 'file_ref'
+  fileId: string          // Provider-specific file ID/URI
+  mimeType: string        // e.g. 'image/png', 'application/pdf'
+  fileName: string        // Original filename (for display)
+}
+
+/** Inline binary content (base64-encoded) — fallback when Files API is unavailable. */
+export interface LMInlineBinaryBlock {
+  type: 'inline_binary'
+  base64: string
+  mimeType: string
+  fileName: string
+}
+
+export type LMContentBlock = LMTextBlock | LMFileRefBlock | LMInlineBinaryBlock
+
+// ── Message format ─────────────────────────────────────────────────────────
+
 // Message format sent to LLM APIs (normalized across providers)
 export interface LMMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
-  content: string
+  /** String for simple text-only messages; block array for multimodal user messages. */
+  content: string | LMContentBlock[]
   // For role: 'tool' — links to the assistant tool call it answers
   toolCallId?: string
   // For role: 'assistant' — tool calls the model wants to make
@@ -13,6 +42,16 @@ export interface LMMessage {
     type: 'function'
     function: { name: string; arguments: string }
   }>
+}
+
+// ── Uploaded file reference ────────────────────────────────────────────────
+
+/** Result of uploading a file to a provider's Files API. */
+export interface UploadedFileRef {
+  fileId: string      // Provider-specific file ID or URI
+  mimeType: string
+  fileName: string
+  providerType: string  // 'anthropic' | 'openai-compat' | 'gemini' — for correct serialization
 }
 
 // Tool definition passed to LLM (JSON Schema based)
@@ -53,6 +92,17 @@ export interface AiProviderDriver {
   ): HttpRequest
   // Parse a single raw SSE line. Returns null to skip the line.
   parseRawLine(line: string): AgentChunk | null
+  /**
+   * Upload a file to the provider's Files API.
+   * Returns an UploadedFileRef on success, or null if the provider doesn't support file uploads.
+   */
+  uploadFile?(
+    base64: string,
+    mimeType: string,
+    fileName: string,
+    apiKey: string,
+    baseUrl?: string
+  ): Promise<UploadedFileRef | null>
 }
 
 // Options passed through to the underlying session (ACP model/mode selection)

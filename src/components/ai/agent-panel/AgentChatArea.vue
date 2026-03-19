@@ -1,5 +1,5 @@
 <template>
-  <div ref="messagesEl" class="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+  <div ref="messagesEl" class="flex-1 overflow-y-auto p-3 space-y-3 min-h-0" :style="{ paddingBottom: (bottomPadding ?? 0) + 24 + 'px' }">
 
     <AgentStartupProgress
       v-if="aiStore.isConnecting"
@@ -23,11 +23,6 @@
 
     <!-- Streaming message -->
     <div v-if="aiStore.isStreaming" class="flex gap-2.5">
-      <div class="flex-shrink-0 mt-0.5">
-        <div class="w-7 h-7 rounded-full flex items-center justify-center bg-gray-500">
-          <IconRobot class="w-4 h-4 text-white" />
-        </div>
-      </div>
       <div class="flex-1 min-w-0">
         <!-- Active tool call chip -->
         <div v-if="aiStore.streamingToolName" class="mb-1.5">
@@ -76,8 +71,9 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
+
+const props = defineProps<{ bottomPadding?: number }>()
 import { marked } from 'marked'
-import { IconRobot } from '@tabler/icons-vue'
 import { useAiStore } from '@/stores/ai'
 import { inferToolKind } from '@/types/ai'
 import type { AiToolCall } from '@/types/ai'

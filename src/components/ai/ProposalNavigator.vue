@@ -40,7 +40,9 @@
         </div>
         <div class="p-2 text-xs">
           <div class="text-green-600 font-medium mb-1">文档内容</div>
-          <pre class="whitespace-pre-wrap break-words text-green-700 bg-green-50 rounded p-1.5 max-h-48 overflow-auto font-mono leading-relaxed">{{ createProposal.content }}</pre>
+          <div class="text-green-800 bg-green-50 rounded p-1.5 max-h-48 overflow-auto">
+            <MarkdownContentView :content="createProposal.content" />
+          </div>
         </div>
       </template>
 
@@ -52,11 +54,15 @@
         <div class="grid grid-cols-2 divide-x divide-yellow-200 text-xs">
           <div class="p-2">
             <div class="text-red-600 font-medium mb-1">原文</div>
-            <pre class="whitespace-pre-wrap break-words text-red-700 bg-red-50 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ fileProposal.oldContent || '(空)' }}</pre>
+            <div class="text-red-800 bg-red-50 rounded p-1.5 max-h-40 overflow-auto">
+              <MarkdownContentView :content="fileProposal.oldContent || '(空)'" />
+            </div>
           </div>
           <div class="p-2">
             <div class="text-green-600 font-medium mb-1">修改后</div>
-            <pre class="whitespace-pre-wrap break-words text-green-700 bg-green-50 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ fileProposal.newContent }}</pre>
+            <div class="text-green-800 bg-green-50 rounded p-1.5 max-h-40 overflow-auto">
+              <MarkdownContentView :content="fileProposal.newContent" />
+            </div>
           </div>
         </div>
       </template>
@@ -66,11 +72,15 @@
         <div class="grid grid-cols-2 divide-x divide-yellow-200 text-xs">
           <div class="p-2">
             <div class="text-red-600 font-medium mb-1">原文</div>
-            <pre class="whitespace-pre-wrap break-words text-red-700 bg-red-50 rounded p-1.5 max-h-32 overflow-auto font-mono leading-relaxed">{{ blockProposal.oldContent || '(空)' }}</pre>
+            <div class="text-red-800 bg-red-50 rounded p-1.5 max-h-32 overflow-auto">
+              <MarkdownContentView :content="blockProposal.oldContent || '(空)'" />
+            </div>
           </div>
           <div class="p-2" v-if="blockProposal.type !== 'delete'">
             <div class="text-green-600 font-medium mb-1">修改后</div>
-            <pre class="whitespace-pre-wrap break-words text-green-700 bg-green-50 rounded p-1.5 max-h-32 overflow-auto font-mono leading-relaxed">{{ blockProposal.newContent }}</pre>
+            <div class="text-green-800 bg-green-50 rounded p-1.5 max-h-32 overflow-auto">
+              <MarkdownContentView :content="blockProposal.newContent || ''" />
+            </div>
           </div>
           <div class="p-2 flex items-center justify-center" v-else>
             <span class="text-xs text-red-500">此块将被删除</span>
@@ -82,7 +92,9 @@
       <template v-else-if="current.kind === 'block' && blockProposal.type === 'insert'">
         <div class="p-2 text-xs">
           <div class="text-green-600 font-medium mb-1">插入内容</div>
-          <pre class="whitespace-pre-wrap break-words text-green-700 bg-green-50 rounded p-1.5 max-h-32 overflow-auto font-mono leading-relaxed">{{ blockProposal.newContent }}</pre>
+          <div class="text-green-800 bg-green-50 rounded p-1.5 max-h-32 overflow-auto">
+            <MarkdownContentView :content="blockProposal.newContent || ''" />
+          </div>
         </div>
       </template>
 
@@ -91,11 +103,15 @@
         <div class="grid grid-cols-2 divide-x divide-yellow-200 text-xs">
           <div class="p-2">
             <div class="text-red-600 font-medium mb-1">原文 (块 {{ blockProposal.startDisplayBlockId }}–{{ blockProposal.endDisplayBlockId }})</div>
-            <pre class="whitespace-pre-wrap break-words text-red-700 bg-red-50 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ blockProposal.oldContent || '(空)' }}</pre>
+            <div class="text-red-800 bg-red-50 rounded p-1.5 max-h-40 overflow-auto">
+              <MarkdownContentView :content="blockProposal.oldContent || '(空)'" />
+            </div>
           </div>
           <div class="p-2">
             <div class="text-green-600 font-medium mb-1">修改后</div>
-            <pre class="whitespace-pre-wrap break-words text-green-700 bg-green-50 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ blockProposal.newContent }}</pre>
+            <div class="text-green-800 bg-green-50 rounded p-1.5 max-h-40 overflow-auto">
+              <MarkdownContentView :content="blockProposal.newContent || ''" />
+            </div>
           </div>
         </div>
       </template>
@@ -139,6 +155,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import MarkdownContentView from './MarkdownContentView.vue'
 import type { EditProposal, BlockEditProposal, FileEditProposal, FileCreateProposal } from '@/types/ai'
 import type { Editor } from '@tiptap/core'
 import { useAppStore } from '@/stores/app'

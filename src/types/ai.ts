@@ -141,6 +141,9 @@ export interface BlockEditProposal extends BaseEditProposal {
 
   // Associated tool call ID
   toolCallId?: string
+
+  /** If set, this edit targets a file on disk (not the active editor). Must be an .iwt file. */
+  filePath?: string
 }
 
 /** File-level edit proposal — produced by ACP Agent fs/write_text_file interception. */
@@ -196,6 +199,28 @@ export interface ThreadMessage {
   usage?: { inputTokens: number; outputTokens: number }
 }
 
+// ── Attach / Send Context ──────────────────────────────────────────────────
+
+/**
+ * All context attachments collected by the UI before a sendMessage call.
+ * Passed from useChatSend → aiStore.sendMessage.
+ */
+export interface SendContext {
+  /** Local text file paths (md/txt/iwt/code) — listed in <context_files> system prompt section. */
+  textFilePaths: string[]
+  /** Binary file paths (images, PDFs) — read by the store and embedded as inline base64 in the message. */
+  binaryFilePaths: string[]
+  /** Attached directory paths — listed in <environment> system prompt section. */
+  directories: string[]
+}
+
+/** Info about an open editor tab (for environment context in system prompt). */
+export interface OpenTabInfo {
+  path?: string        // absolute file path (undefined for unsaved new files)
+  name: string         // tab display name
+  isDirty: boolean     // has unsaved changes
+}
+
 // A thread (one conversation)
 export interface AiThread {
   id: string
@@ -212,6 +237,8 @@ export interface AiThread {
   thinkMode?: string
   /** Set to true when the last run ended with an error (shown in history list) */
   hasError?: boolean
+  /** File path this thread was started against (set on first user message). Null = no file was open. */
+  originFilePath?: string | null
 }
 
 // Persisted AI settings

@@ -508,7 +508,7 @@ export class AcpAgentSession implements AgentSession {
 
     // ── Send the message ───────────────────────────────────────────────────
     const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
-    const content = lastUserMsg?.content ?? ''
+    const content = this.extractText(lastUserMsg?.content ?? '')
 
     const acpSessionId = this._acpSessionId ?? ''
 

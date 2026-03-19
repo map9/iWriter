@@ -1,6 +1,30 @@
 import { ref, watch, nextTick } from 'vue'
 import type { Ref } from 'vue'
 import { useAiStore } from '@/stores/ai'
+import type { SendContext } from '@/types/ai'
+
+/** Binary file extensions that are sent as inline multimodal content. */
+const BINARY_EXTS = new Set([
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg',
+  'pdf',
+])
+
+/** Text file extensions that are listed in the system prompt <context_files> section. */
+const TEXT_EXTS = new Set([
+  'md', 'markdown', 'txt', 'iwt',
+  'ts', 'tsx', 'js', 'jsx', 'vue', 'py', 'rb', 'go', 'rs', 'java',
+  'c', 'cpp', 'h', 'hpp', 'cs', 'swift', 'kt', 'sh', 'bash', 'zsh',
+  'json', 'yaml', 'yml', 'toml', 'xml', 'html', 'css', 'scss', 'sql',
+])
+
+function classifyAttachment(path: string): 'binary' | 'text' | 'directory' {
+  const name = path.split('/').pop() ?? path
+  if (!name.includes('.')) return 'directory'
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  if (BINARY_EXTS.has(ext)) return 'binary'
+  if (TEXT_EXTS.has(ext)) return 'text'
+  return 'text' // default: treat unknown extensions as text
+}
 
 export function useChatSend(contextFiles: Ref<string[]>) {
   const aiStore = useAiStore()
@@ -19,14 +43,20 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     const text = inputText.value.trim()
     if (!text || aiStore.isStreaming) return
 
-    let fullText = text
-    const attachedFiles = [...contextFiles.value]
-    if (attachedFiles.length) {
-      const refs = attachedFiles.map(f => `- ${f}`).join('\n')
-      fullText = `[参考文件]\n${refs}\n\n${text}`
+    // Classify attached files into text / binary / directory
+    const sendContext: SendContext = { textFilePaths: [], binaryFilePaths: [], directories: [] }
+    for (const path of contextFiles.value) {
+      const kind = classifyAttachment(path)
+      if (kind === 'binary') sendContext.binaryFilePaths.push(path)
+      else if (kind === 'text') sendContext.textFilePaths.push(path)
+      else sendContext.directories.push(path)
     }
 
-    const started = await aiStore.sendMessage(fullText)
+    const hasContext = sendContext.textFilePaths.length > 0
+                    || sendContext.binaryFilePaths.length > 0
+                    || sendContext.directories.length > 0
+
+    const started = await aiStore.sendMessage(text, hasContext ? sendContext : undefined)
     if (started) {
       inputText.value = ''
       contextFiles.value.splice(0)

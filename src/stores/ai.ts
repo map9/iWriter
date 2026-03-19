@@ -12,7 +12,9 @@ import type {
   AiToolResult,
   ThreadMessage,
   AcpPermissionRequest,
+  SendContext,
 } from '@/types/ai'
+import type { LMContentBlock } from '@/ai/providers/types'
 import type { AcpModelInfo, AcpModeInfo } from '@/ai/acp/AcpProtocol'
 import { PROVIDER_PRESETS, type ProviderPreset } from '@/ai/providers/provider-presets'
 import { ThreadStore } from '@/ai/thread/ThreadStore'
@@ -28,6 +30,14 @@ import { useAppStore } from '@/stores/app'
 import type { Editor } from '@tiptap/core'
 import type { AgentSession } from '@/ai/providers/types'
 import { notify } from '@/utils/notifications'
+
+/** File extension → MIME type map for binary attachments. */
+const EXT_TO_MIME: Record<string, string> = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+  gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
+  svg: 'image/svg+xml',
+  pdf: 'application/pdf',
+}
 
 export const useAiStore = defineStore('ai', () => {
   const appStore = useAppStore()
@@ -602,10 +612,14 @@ export const useAiStore = defineStore('ai', () => {
   // ── Tools Infrastructure ──────────────────────────────────────────────────
   // The snapshot is rebuilt each sendMessage call; the getter reads the latest one
   let _currentSnapshot: ReturnType<typeof buildSnapshot> | null = null
-  const toolRegistry = createToolRegistry(() => _currentSnapshot)
+  const toolRegistry = createToolRegistry(
+    () => _currentSnapshot,
+    () => settings.value,
+    () => appStore.currentFolder ?? null
+  )
 
   // ── Send Message ──────────────────────────────────────────────────────────
-  async function sendMessage(userText: string): Promise<boolean> {
+  async function sendMessage(userText: string, sendContext?: SendContext): Promise<boolean> {
     if (isStreaming.value) return false
     if (!activeProviderConfig.value) {
       notify.error('请先配置 AI Provider（API Key 等）')
@@ -630,9 +644,18 @@ export const useAiStore = defineStore('ai', () => {
     // Get context from active editor
     const activeTab = appStore.activeTab
     const editorInstance = activeTab?.editorInstance as Editor | undefined
+    const currentFilePath = activeTab?.path ?? null
+
+    // File-switch detection
+    const fileChanged = thread.originFilePath !== undefined
+                     && thread.originFilePath !== currentFilePath
+    if (thread.originFilePath === undefined) {
+      thread = { ...thread, originFilePath: currentFilePath }
+      updateThread(thread)
+    }
 
     // Build document view snapshot (used by both system prompt and tool registry)
-    _currentSnapshot = editorInstance ? buildSnapshot(editorInstance) : null
+    _currentSnapshot = editorInstance ? buildSnapshot(editorInstance, undefined, currentFilePath ?? undefined) : null
 
     const selectionText = editorInstance
       ? (() => {
@@ -641,15 +664,39 @@ export const useAiStore = defineStore('ai', () => {
         })()
       : ''
 
+    // Collect other open tabs (exclude the active one)
+    const openTabs = appStore.tabs
+      .filter(t => t.id !== activeTab?.id)
+      .map(t => ({ path: t.path, name: t.name, isDirty: t.isDirty }))
+
+    // Build inline content blocks for binary attachments (images/PDFs)
+    const userContentBlocks: LMContentBlock[] = []
+    if (sendContext?.binaryFilePaths?.length) {
+      for (const filePath of sendContext.binaryFilePaths) {
+        const base64 = await window.electronAPI.readFileBinary(filePath)
+        if (!base64) continue
+        const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
+        const mimeType = EXT_TO_MIME[ext] ?? 'application/octet-stream'
+        const fileName = filePath.split('/').pop() ?? filePath
+        userContentBlocks.push({ type: 'inline_binary', base64, mimeType, fileName })
+      }
+    }
+
     const systemPrompt = buildSystemPrompt(thread.profile, {
-      editor:       editorInstance,
-      viewSnapshot: _currentSnapshot ?? undefined,
-      selectionText: selectionText || undefined,
-      filePath:      activeTab?.path ?? null,
-      folderPath:    appStore.currentFolder ?? null,
+      editor:              editorInstance,
+      viewSnapshot:        _currentSnapshot ?? undefined,
+      selectionText:       selectionText || undefined,
+      filePath:            currentFilePath,
+      folderPath:          appStore.currentFolder ?? null,
+      isDirty:             activeTab?.isDirty ?? false,
+      openTabs:            openTabs.length > 0 ? openTabs : undefined,
+      fileChanged:         fileChanged,
+      previousFilePath:    thread.originFilePath ?? null,
+      textFilePaths:       sendContext?.textFilePaths?.length ? sendContext.textFilePaths : undefined,
+      attachedDirectories: sendContext?.directories?.length ? sendContext.directories : undefined,
     })
 
-    const tools = getToolsForProfile(thread.profile)
+    const tools = getToolsForProfile(thread.profile, window.electronAPI?.platform)
 
     // ── Create or reuse session ──────────────────────────────────────────────
     let session: AgentSession | null
@@ -780,7 +827,7 @@ export const useAiStore = defineStore('ai', () => {
           updateThread(errThread)
         }
       },
-    }, streamOptions)
+    }, streamOptions, userContentBlocks.length > 0 ? userContentBlocks : undefined)
 
     return true
   }
@@ -917,7 +964,21 @@ export const useAiStore = defineStore('ai', () => {
       return
     }
 
-    // BlockEditProposal
+    // BlockEditProposal — file-based path (proposal.filePath targets a file on disk)
+    const blockProposal = proposal as BlockEditProposal
+    if (blockProposal.filePath) {
+      const { applyBlockEditToFile } = await import('@/ai/edit-agent/FileBlockEditApplier')
+      const result = await applyBlockEditToFile(blockProposal)
+      if (result.success) {
+        _updateProposalInThread(proposalId, 'applied')
+        notify.success('文件编辑已应用')
+      } else {
+        notify.error(`文件编辑失败: ${result.error}`)
+      }
+      return
+    }
+
+    // BlockEditProposal — active editor path
     const editor = appStore.activeTab?.editorInstance as Editor | undefined
     if (!editor) {
       notify.error('没有活动的编辑器文档')

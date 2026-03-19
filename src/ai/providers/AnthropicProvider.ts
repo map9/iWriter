@@ -1,4 +1,4 @@
-import type { AiProviderDriver, AgentChunk, HttpRequest, LMMessage, LMTool } from './types'
+import type { AiProviderDriver, AgentChunk, HttpRequest, LMMessage, LMTool, LMContentBlock } from './types'
 
 /**
  * Anthropic Claude provider driver.
@@ -162,6 +162,30 @@ export class AnthropicProvider implements AiProviderDriver {
       return { role: 'assistant', content }
     }
 
+    // User message with multimodal content blocks
+    if (Array.isArray(msg.content)) {
+      return { role: msg.role, content: msg.content.map(b => this.serializeContentBlock(b)) }
+    }
+
     return { role: msg.role, content: msg.content }
+  }
+
+  private serializeContentBlock(block: LMContentBlock): unknown {
+    if (block.type === 'text') {
+      return { type: 'text', text: block.text }
+    }
+    if (block.type === 'file_ref') {
+      const isImage = block.mimeType.startsWith('image/')
+      return {
+        type: isImage ? 'image' : 'document',
+        source: { type: 'file', file_id: block.fileId },
+      }
+    }
+    // inline_binary
+    const isImage = block.mimeType.startsWith('image/')
+    return {
+      type: isImage ? 'image' : 'document',
+      source: { type: 'base64', media_type: block.mimeType, data: block.base64 },
+    }
   }
 }

@@ -50,6 +50,13 @@ export class FileTools {
   }
 
   async writeFile(relativePath: string, content: string): Promise<string> {
+    if (relativePath.toLowerCase().endsWith('.iwt')) {
+      return (
+        'Error: .iwt files cannot be written with write_file — it would corrupt the JSON structure. ' +
+        'Use block edit tools (edit_block, insert_block, replace_range) with file_path parameter instead.'
+      )
+    }
+
     const absPath = this.resolvePath(relativePath)
     if (!absPath) return 'Error: No workspace folder is open.'
 

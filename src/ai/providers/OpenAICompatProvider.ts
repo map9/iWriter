@@ -1,4 +1,4 @@
-import type { AiProviderDriver, AgentChunk, HttpRequest, LMMessage, LMTool } from './types'
+import type { AiProviderDriver, AgentChunk, HttpRequest, LMMessage, LMTool, LMContentBlock } from './types'
 
 /**
  * OpenAI-compatible provider driver.
@@ -130,7 +130,12 @@ export class OpenAICompatProvider implements AiProviderDriver {
   }
 
   private serializeMessage(msg: LMMessage): Record<string, unknown> {
-    const out: Record<string, unknown> = { role: msg.role, content: msg.content }
+    const out: Record<string, unknown> = {
+      role: msg.role,
+      content: Array.isArray(msg.content)
+        ? msg.content.map(b => this.serializeContentBlock(b))
+        : msg.content,
+    }
 
     if (msg.toolCallId) {
       out.tool_call_id = msg.toolCallId
@@ -147,5 +152,23 @@ export class OpenAICompatProvider implements AiProviderDriver {
     }
 
     return out
+  }
+
+  private serializeContentBlock(block: LMContentBlock): unknown {
+    if (block.type === 'text') {
+      return { type: 'text', text: block.text }
+    }
+    if (block.type === 'file_ref') {
+      return { type: 'file', file: { file_id: block.fileId } }
+    }
+    // inline_binary — images as data URI, others unsupported
+    if (block.mimeType.startsWith('image/')) {
+      return {
+        type: 'image_url',
+        image_url: { url: `data:${block.mimeType};base64,${block.base64}` },
+      }
+    }
+    // Non-image inline binary: embed as text fallback
+    return { type: 'text', text: `[Attached file: ${block.fileName}]` }
   }
 }

@@ -1390,7 +1390,7 @@ export const useAppStore = defineStore('app', () => {
       }
 
       if (originalPath != null) {
-        const content = convertContentTo(tab, pathUtils.extension(originalPath))
+        const content = convertContentTo(tab.editorInstance as import('@tiptap/core').Editor, pathUtils.extension(originalPath))
         if (content === null) {
           throw new Error('Unsupport file format')
         }

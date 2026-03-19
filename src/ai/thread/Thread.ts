@@ -1,5 +1,5 @@
 import type { AiThread, AiToolCall, ThreadMessage } from '@/types/ai'
-import type { LMMessage } from '../providers/types'
+import type { LMMessage, LMContentBlock } from '../providers/types'
 
 // Maximum messages per thread kept in storage
 const MAX_MESSAGES_PER_THREAD = 200
@@ -71,16 +71,31 @@ export function appendMessage(thread: AiThread, message: ThreadMessage): AiThrea
  *
  * Tool calls and tool results are interleaved as required by the OpenAI/Anthropic API:
  *   assistant message (with tool_calls) → tool result messages (one per call)
+ *
+ * @param userContentBlocks  Optional extra content blocks (inline images/files) appended to
+ *                           the LAST user message only. Not persisted in the thread store.
  */
 export function threadToLMMessages(
   thread: AiThread,
-  systemPrompt: string
+  systemPrompt: string,
+  userContentBlocks?: LMContentBlock[]
 ): LMMessage[] {
   const result: LMMessage[] = [{ role: 'system', content: systemPrompt }]
 
-  for (const msg of thread.messages) {
+  const messages = thread.messages
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i]!
     if (msg.role === 'user') {
-      result.push({ role: 'user', content: msg.content })
+      // Attach content blocks to the last user message (current round's attachments)
+      const isLast = i === messages.length - 1
+      if (isLast && userContentBlocks?.length) {
+        result.push({
+          role: 'user',
+          content: [{ type: 'text', text: msg.content }, ...userContentBlocks],
+        })
+      } else {
+        result.push({ role: 'user', content: msg.content })
+      }
       continue
     }
 
@@ -124,7 +139,11 @@ export function threadToLMMessages(
  * Used for context window trimming.
  */
 export function estimateTokens(messages: LMMessage[]): number {
-  const totalChars = messages.reduce((sum, m) => sum + m.content.length, 0)
+  const totalChars = messages.reduce((sum, m) => {
+    if (typeof m.content === 'string') return sum + m.content.length
+    // Array content: sum text blocks only (binary blocks are excluded from text estimate)
+    return sum + m.content.reduce((s, b) => s + (b.type === 'text' ? b.text.length : 0), 0)
+  }, 0)
   return Math.ceil(totalChars / 3.5)
 }
 

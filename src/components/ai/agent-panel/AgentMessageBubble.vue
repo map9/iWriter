@@ -101,11 +101,7 @@
         class="inline-block rounded-lg text-sm max-w-full text-left break-words"
         :class="message.isError ? 'bg-red-50 border border-red-200 text-red-700 px-3 py-2' : 'text-gray-900'"
       >
-        <div
-          class="prose prose-sm max-w-none"
-          :class="message.isError ? 'prose-red' : ''"
-          v-html="renderMarkdown(message.content)"
-        />
+        <MarkdownContentView :content="message.content" mode="markdown" size="sm" />
       </div>
 
       <!-- Tool calls: read tools shown individually; edit tools collapsed into one summary -->
@@ -113,11 +109,27 @@
         <ToolCallView v-for="tc in readToolCalls" :key="tc.id" :tool-call="tc" />
         <div
           v-if="editToolCalls.length"
-          class="flex items-center gap-2 px-2 py-1.5 rounded text-xs bg-yellow-50 border border-yellow-200 text-yellow-800"
+          class="w-full border border-yellow-200 rounded overflow-hidden text-xs"
         >
-          <span>✓</span>
-          <span>✏️</span>
-          <span class="font-medium">已提案 {{ editToolCalls.length }} 处修改建议</span>
+          <div
+            class="flex items-center gap-2 px-2 py-1.5 bg-yellow-50 text-yellow-800 cursor-pointer select-none"
+            @click="editListExpanded = !editListExpanded"
+          >
+            <span>✓</span>
+            <span>✏️</span>
+            <span class="font-bold">已提案 {{ editToolCalls.length }} 处修改</span>
+            <span class="ml-auto opacity-60 text-[10px]">{{ editListExpanded ? '▲' : '▼' }}</span>
+          </div>
+          <div v-if="editListExpanded" class="bg-white border-t border-yellow-100 px-2 py-1.5 space-y-1">
+            <div
+              v-for="tc in editToolCalls"
+              :key="tc.id"
+              class="flex items-center gap-1.5 text-yellow-900"
+            >
+              <span class="flex-shrink-0">{{ editOpDisplay(tc).icon }}</span>
+              <span class="truncate font-mono">{{ editOpDisplay(tc).label }}</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -151,9 +163,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
-import { marked } from 'marked'
 import { IconCopy, IconPencil, IconX, IconSend } from '@tabler/icons-vue'
-import type { ThreadMessage } from '@/types/ai'
+import MarkdownContentView from '../MarkdownContentView.vue'
+import type { ThreadMessage, AiToolCall } from '@/types/ai'
 import { BLOCK_EDIT_TOOLS } from '@/types/ai'
 import ToolCallView from '../ToolCallView.vue'
 
@@ -175,6 +187,38 @@ const readToolCalls = computed(() =>
 const editToolCalls = computed(() =>
   (props.message.toolCalls ?? []).filter(tc => BLOCK_EDIT_TOOLS.has(tc.name))
 )
+
+const editListExpanded = ref(true)
+watch(
+  () => editToolCalls.value.length,
+  (len, oldLen) => { if (oldLen === 0 && len > 0) editListExpanded.value = len <= 5 }
+)
+
+function editOpDisplay(tc: AiToolCall): { icon: string; label: string } {
+  const args = tc.arguments
+  const bid  = (key: string) => `{b:${args[key]}}`
+  const fname = (fp: unknown) =>
+    typeof fp === 'string' && fp ? (fp.split('/').pop() ?? fp) : ''
+  switch (tc.name) {
+    case 'edit_block':
+      return { icon: '✏️', label: `编辑块 ${bid('block_id')}` }
+    case 'insert_block': {
+      const ref = args.after_block_id !== undefined ? `块 ${bid('after_block_id')} 之后`
+        : args.end_block_id !== undefined ? `尾部 ${bid('end_block_id')}` : ''
+      return { icon: '➕', label: `插入块${ref ? ` (${ref})` : ''}` }
+    }
+    case 'delete_block':
+      return { icon: '🗑️', label: `删除块 ${bid('block_id')}` }
+    case 'replace_range':
+      return { icon: '🔄', label: `替换块 {b:${args.start_block_id}}–{b:${args.end_block_id}}` }
+    case 'create_document': {
+      const name = fname(args.file_path) || (typeof args.filename === 'string' ? args.filename : '')
+      return { icon: '📄', label: `创建文档${name ? `: ${name}` : ''}` }
+    }
+    default:
+      return { icon: '✏️', label: tc.title || tc.name }
+  }
+}
 
 async function checkOverflow() {
   if (props.message.role !== 'user') return
@@ -223,10 +267,6 @@ function buildAssistantCopyText(): string {
   return result
 }
 
-function renderMarkdown(text: string): string {
-  try { return marked.parse(text, { async: false }) as string }
-  catch { return text }
-}
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })

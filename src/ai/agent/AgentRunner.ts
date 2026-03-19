@@ -18,7 +18,7 @@ import type {
   ThreadMessage,
 } from '@/types/ai'
 import { inferToolKind, BLOCK_EDIT_TOOLS } from '@/types/ai'
-import type { AgentSession, AgentChunk, AgentStreamOptions, LMTool } from '../providers/types'
+import type { AgentSession, AgentChunk, AgentStreamOptions, LMTool, LMContentBlock } from '../providers/types'
 import { EditParser } from '../edit-agent/EditParser'
 import { resolveToolCalls, type AccumulatedToolCall } from '../thread/Thread'
 import type { ToolRegistry } from '../tools/registry'
@@ -53,9 +53,10 @@ export class AgentRunner {
     systemPrompt: string,
     tools: LMTool[],
     callbacks: AgentRunCallbacks,
-    options?: AgentStreamOptions
+    options?: AgentStreamOptions,
+    userContentBlocks?: LMContentBlock[]
   ): void {
-    this.doRun(thread, systemPrompt, tools, callbacks, 0, 0, options).catch(err => {
+    this.doRun(thread, systemPrompt, tools, callbacks, 0, 0, options, userContentBlocks).catch(err => {
       callbacks.onError(err instanceof Error ? err.message : String(err))
     })
   }
@@ -67,7 +68,8 @@ export class AgentRunner {
     callbacks: AgentRunCallbacks,
     round: number,
     failedRounds: number,
-    options?: AgentStreamOptions
+    options?: AgentStreamOptions,
+    userContentBlocks?: LMContentBlock[]
   ): Promise<void> {
     if (round >= MAX_TOOL_ROUNDS) {
       callbacks.onError(`Reached maximum tool rounds (${MAX_TOOL_ROUNDS}). Stopping.`)
@@ -75,8 +77,20 @@ export class AgentRunner {
     }
 
     const { threadToLMMessages, trimToTokenBudget } = await import('../thread/Thread')
-    let messages = threadToLMMessages(thread, systemPrompt)
+    // Pass userContentBlocks only on round 0 (initial user message); subsequent rounds don't need them
+    let messages = threadToLMMessages(thread, systemPrompt, round === 0 ? userContentBlocks : undefined)
     messages = trimToTokenBudget(messages, 60000)
+
+    // ── Debug: print full message payload sent to LLM ─────────────────────
+    console.group(`[AgentRunner] round=${round} — ${messages.length} messages`)
+    for (const m of messages) {
+      const preview = typeof m.content === 'string'
+        ? m.content.slice(0, 300)
+        : JSON.stringify(m.content).slice(0, 300)
+      console.log(`  [${m.role}]`, preview)
+    }
+    console.groupEnd()
+    // ─────────────────────────────────────────────────────────────────────
 
     const parser = new EditParser()
     let textBuffer = ''
@@ -110,6 +124,7 @@ export class AgentRunner {
 
     // Assemble completed tool calls from parser
     const rawCalls = parser.resolvePending()
+    const snapshot = this.getSnapshot()
     const toolCalls: AiToolCall[] = resolveToolCalls(
       new Map(rawCalls.map((tc, i) => [i, tc as AccumulatedToolCall]))
     ).map(tc => ({
@@ -117,7 +132,7 @@ export class AgentRunner {
       kind:   inferToolKind(tc.name),
       title:  buildToolTitle(tc),
       status: 'pending' as const,   // will be updated after execution below
-      file:   extractFileRef(tc),
+      file:   extractFileRef(tc, snapshot),
     }))
 
     const assistantMsg: ThreadMessage = {
@@ -155,6 +170,7 @@ export class AgentRunner {
     for (const tc of toolCalls) {
       if (BLOCK_EDIT_TOOLS.has(tc.name)) {
         // Block edit tool → produce a proposal (not auto-executed)
+        console.log(`[tool] → ${tc.name} (edit proposal)`, tc.arguments)
         const proposal = this.buildBlockEditProposal(tc)
         if (proposal) {
           tc.status = 'pending'   // awaiting user approval
@@ -175,7 +191,9 @@ export class AgentRunner {
         }
       } else {
         // Regular tool (read-only or file write) → execute immediately
+        console.log(`[tool] → ${tc.name}`, tc.arguments)
         const result = await this.toolRegistry.execute(tc)
+        console.log(`[tool] ← ${tc.name}`, result.isError ? '❌' : '✓', result.content.slice(0, 500))
         // Augment toolCall with result and final status for UI display
         tc.result   = result.content.slice(0, 2000)
         tc.isError  = result.isError
@@ -243,6 +261,7 @@ export class AgentRunner {
 
   private buildBlockEditProposal(tc: AiToolCall): BlockEditProposal | FileCreateProposal | null {
     const args = tc.arguments
+    const filePath = typeof args.file_path === 'string' && args.file_path ? args.file_path : undefined
     const snapshot = this.getSnapshot()
     const blockMap = snapshot?.view.blockMap ?? []
 
@@ -262,8 +281,9 @@ export class AgentRunner {
           displayBlockId,
           nodeId:         entry?.nodeId,
           nodeType:       entry?.nodeType,
-          oldContent:     snapshot ? getOldContent(snapshot, displayBlockId) : undefined,
+          oldContent:     filePath ? undefined : (snapshot ? getOldContent(snapshot, displayBlockId) : undefined),
           newContent,
+          filePath,
         }
       }
 
@@ -280,6 +300,7 @@ export class AgentRunner {
           displayBlockId: afterDisplayId,
           afterNodeId:  afterEntry?.nodeId ?? (afterDisplayId === 0 ? '0' : undefined),
           newContent,
+          filePath,
         }
       }
 
@@ -294,7 +315,8 @@ export class AgentRunner {
           displayBlockId,
           nodeId:         entry?.nodeId,
           nodeType:       entry?.nodeType,
-          oldContent:     snapshot ? getOldContent(snapshot, displayBlockId) : undefined,
+          oldContent:     filePath ? undefined : (snapshot ? getOldContent(snapshot, displayBlockId) : undefined),
+          filePath,
         }
       }
 
@@ -306,8 +328,8 @@ export class AgentRunner {
         if (!newContent.trim()) return null
         const startEntry = blockMap.find(b => b.displayId === startDisplayId)
         const endEntry   = blockMap.find(b => b.displayId === endDisplayId)
-        // Collect old content from all blocks in range for diff display
-        const oldContent = snapshot
+        // Collect old content from all blocks in range for diff display (active editor only)
+        const oldContent = filePath ? undefined : snapshot
           ? blockMap
               .filter(b => b.displayId >= startDisplayId && b.displayId <= endDisplayId)
               .map(b => getOldContent(snapshot, b.displayId))
@@ -323,6 +345,7 @@ export class AgentRunner {
           endNodeId:           endEntry?.nodeId,
           oldContent,
           newContent,
+          filePath,
         }
       }
 
@@ -352,20 +375,29 @@ function buildToolTitle(tc: AiToolCall): string {
   switch (tc.name) {
     case 'create_document':      return `创建文档: ${args.filename ?? '?'}`
     case 'get_document_outline': return '读取文档目录'
-    case 'get_section':          return `读取章节 (块 ${args.heading_block_id})`
-    case 'get_blocks':           return `读取块 ${JSON.stringify(args.block_ids)}`
-    case 'get_block_context':    return `读取块 ${args.block_id} 上下文`
-    case 'edit_block':           return `编辑块 ${args.block_id ?? '?'}`
-    case 'insert_block':         return `插入块 (块 ${args.after_block_id ?? '?'} 之后)`
-    case 'delete_block':         return `删除块 ${args.block_id ?? '?'}`
-    case 'replace_range':        return `替换块 ${args.start_block_id ?? '?'}–${args.end_block_id ?? '?'}`
+    case 'get_section':          return `读取章节`
+    case 'get_blocks':           return `读取块`
+    case 'get_block_context':    return `读取块上下文`
+    case 'edit_block':           return `编辑块`
+    case 'insert_block':         return `插入块`
+    case 'delete_block':         return `删除块`
+    case 'replace_range':        return `替换块`
     default:                     return tc.name
   }
 }
 
+const DOC_ACCESS_TOOLS = new Set([
+  'get_document_outline', 'get_section', 'get_blocks', 'get_block_context',
+  'edit_block', 'insert_block', 'delete_block', 'replace_range',
+])
+
 function extractFileRef(
-  _tc: AiToolCall
+  tc: AiToolCall,
+  snapshot?: DocumentViewSnapshot | null
 ): AiToolCall['file'] | undefined {
+  const fp = tc.arguments.file_path
+  if (typeof fp === 'string' && fp) return { path: fp }
+  if (DOC_ACCESS_TOOLS.has(tc.name) && snapshot?.filePath) return { path: snapshot.filePath }
   return undefined
 }
 

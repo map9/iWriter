@@ -1,4 +1,4 @@
-import type { AiProviderDriver, AgentChunk, HttpRequest, LMMessage, LMTool } from './types'
+import type { AiProviderDriver, AgentChunk, HttpRequest, LMMessage, LMTool, LMContentBlock } from './types'
 
 /**
  * Google Gemini provider driver.
@@ -140,6 +140,22 @@ export class GeminiProvider implements AiProviderDriver {
       return { role, parts }
     }
 
+    // User message with multimodal content blocks
+    if (Array.isArray(msg.content)) {
+      return { role, parts: msg.content.map(b => this.serializeContentBlock(b)) }
+    }
+
     return { role, parts: [{ text: msg.content }] }
+  }
+
+  private serializeContentBlock(block: LMContentBlock): unknown {
+    if (block.type === 'text') {
+      return { text: block.text }
+    }
+    if (block.type === 'file_ref') {
+      return { fileData: { mimeType: block.mimeType, fileUri: block.fileId } }
+    }
+    // inline_binary
+    return { inlineData: { mimeType: block.mimeType, data: block.base64 } }
   }
 }

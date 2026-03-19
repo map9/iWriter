@@ -25,8 +25,10 @@
     />
 
     <template v-else>
-      <AgentChatArea />
-      <AgentInputArea />
+      <AgentChatArea class="flex-1" :bottom-padding="inputAreaHeight" />
+      <div ref="inputAreaRef" class="absolute bottom-0 left-0 right-0 z-10">
+        <AgentInputArea />
+      </div>
     </template>
 
     <AgentPermissionDialog />
@@ -35,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useAiStore } from '@/stores/ai'
 import AgentHeader from './agent-panel/AgentHeader.vue'
 import AgentHistoryPanel from './agent-panel/AgentHistoryPanel.vue'
@@ -48,6 +50,10 @@ const aiStore = useAiStore()
 
 const showHistory = ref(false)
 const showSettings = ref(!aiStore.settings.providerConfigs.length)
+
+const inputAreaRef = ref<HTMLElement | null>(null)
+const inputAreaHeight = ref(0)
+let resizeObserver: ResizeObserver | null = null
 
 const providerSettingsRef = ref<InstanceType<typeof ProviderSettings> | null>(null)
 const settingsSubView = ref<'main' | 'configure'>('main')
@@ -89,6 +95,19 @@ onMounted(() => {
   if (cfg?.kind === 'agent' && aiStore.currentAgentInitStatus === 'idle') {
     aiStore.initAgentProvider(cfg)
   }
+
+  resizeObserver = new ResizeObserver(entries => {
+    inputAreaHeight.value = entries[0]?.contentRect.height ?? 0
+  })
+})
+
+watch(inputAreaRef, el => {
+  resizeObserver?.disconnect()
+  if (el) resizeObserver?.observe(el)
+})
+
+onUnmounted(() => {
+  resizeObserver?.disconnect()
 })
 
 function selectThread(id: string) {

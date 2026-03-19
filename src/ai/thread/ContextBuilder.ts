@@ -7,7 +7,7 @@
  *  - DocumentContext carries the editor instance and cursor block info
  */
 
-import type { AiAgentProfile } from '@/types/ai'
+import type { AiAgentProfile, OpenTabInfo } from '@/types/ai'
 import type { LMTool } from '../providers/types'
 import type { Editor } from '@tiptap/core'
 import { DocumentViewBuilder, type DocumentView } from '../edit-agent/DocumentViewBuilder'
@@ -22,6 +22,7 @@ export interface DocumentViewSnapshot {
   view: DocumentView
   editor: Editor
   cursorBlockId: number | null   // displayId of the block containing the cursor
+  filePath?: string              // path of the active editing file (undefined when no file is open)
 }
 
 // ── Tool Schemas ───────────────────────────────────────────────────────────
@@ -33,31 +34,31 @@ const TOOL_GET_DOCUMENT_OUTLINE: LMTool = {
   description:
     'Get the document outline (heading structure with block count and word count per section). ' +
     'Always call this first to understand the document structure before editing or reading sections. ' +
-    'Use the returned block_ids to call get_section or get_blocks for detailed content.',
-  parameters: { type: 'object', properties: {}, required: [] },
+    'Use the returned block_ids to call get_section or get_blocks for detailed content. ' +
+    'Pass file_path to read a local file instead of the currently open editor document.',
+  parameters: {
+    type: 'object',
+    properties: {
+      file_path: { type: 'string', description: 'Absolute path to a local file (.md, .txt, or .iwt). Omit to use the open editor document.' },
+    },
+    required: [],
+  },
 }
 
 const TOOL_GET_SECTION: LMTool = {
   name: 'get_section',
   description:
     'Get the full content of a section (from a heading block to the next same/higher-level heading). ' +
-    'The returned content includes {b:n} block markers you can use in edit tools. ' +
-    'Use heading_block_id from get_document_outline. For long sections, use offset/limit to paginate.',
+    'The returned content includes {b:n} block markers. ' +
+    'Use heading_block_id from get_document_outline. For long sections, use offset/limit to paginate. ' +
+    'Pass file_path to read a local file instead of the open editor document.',
   parameters: {
     type: 'object',
     properties: {
-      heading_block_id: {
-        type: 'number',
-        description: 'The block_id of the section heading (from get_document_outline)',
-      },
-      offset: {
-        type: 'number',
-        description: 'Skip this many blocks from the start of the section (default 0)',
-      },
-      limit: {
-        type: 'number',
-        description: 'Maximum number of blocks to return (default 20)',
-      },
+      heading_block_id: { type: 'number', description: 'The block_id of the section heading (from get_document_outline)' },
+      offset:    { type: 'number', description: 'Skip this many blocks from the start of the section (default 0)' },
+      limit:     { type: 'number', description: 'Maximum number of blocks to return (default 20)' },
+      file_path: { type: 'string', description: 'Absolute path to a local file (.md, .txt, or .iwt). Omit to use the open editor document.' },
     },
     required: ['heading_block_id'],
   },
@@ -67,8 +68,7 @@ const TOOL_GET_BLOCKS: LMTool = {
   name: 'get_blocks',
   description:
     'Get the content of specific blocks by their IDs. ' +
-    'Use this to inspect the current content of blocks before editing them, ' +
-    'or to compare content at different positions in the document.',
+    'Pass file_path to read from a local file instead of the open editor document.',
   parameters: {
     type: 'object',
     properties: {
@@ -77,6 +77,7 @@ const TOOL_GET_BLOCKS: LMTool = {
         items: { type: 'number' },
         description: 'Array of block_ids to retrieve (from document outline or section view)',
       },
+      file_path: { type: 'string', description: 'Absolute path to a local file (.md, .txt, or .iwt). Omit to use the open editor document.' },
     },
     required: ['block_ids'],
   },
@@ -86,12 +87,13 @@ const TOOL_GET_BLOCK_CONTEXT: LMTool = {
   name: 'get_block_context',
   description:
     'Get the blocks surrounding a target block (window blocks before and after). ' +
-    'Use this to understand the context around a specific block before editing it.',
+    'Pass file_path to read from a local file instead of the open editor document.',
   parameters: {
     type: 'object',
     properties: {
-      block_id: { type: 'number', description: 'The center block_id (from {b:n} markers)' },
-      window:   { type: 'number', description: 'Number of blocks before and after to include (default 3)' },
+      block_id:  { type: 'number', description: 'The center block_id (from {b:n} markers)' },
+      window:    { type: 'number', description: 'Number of blocks before and after to include (default 3)' },
+      file_path: { type: 'string', description: 'Absolute path to a local file (.md, .txt, or .iwt). Omit to use the open editor document.' },
     },
     required: ['block_id'],
   },
@@ -118,6 +120,7 @@ const TOOL_EDIT_BLOCK: LMTool = {
       block_id:    { type: 'number', description: 'Target block ID (from {b:n} in document view)' },
       new_content: { type: 'string', description: 'New content in type-specific Markdown format (see rules above)' },
       reason:      { type: 'string', description: 'Brief reason for this edit (shown to user for review)' },
+      file_path:   { type: 'string', description: 'Absolute path of the .iwt file to edit. Omit to edit the active editor document.' },
     },
     required: ['block_id', 'new_content'],
   },
@@ -140,7 +143,8 @@ const TOOL_INSERT_BLOCK: LMTool = {
         type: 'string',
         description: 'Markdown content to insert (can contain multiple blocks separated by blank lines)',
       },
-      reason: { type: 'string', description: 'Brief reason for this insertion (shown to user for review)' },
+      reason:    { type: 'string', description: 'Brief reason for this insertion (shown to user for review)' },
+      file_path: { type: 'string', description: 'Absolute path of the .iwt file to edit. Omit to edit the active editor document.' },
     },
     required: ['after_block_id', 'new_blocks'],
   },
@@ -152,8 +156,9 @@ const TOOL_DELETE_BLOCK: LMTool = {
   parameters: {
     type: 'object',
     properties: {
-      block_id: { type: 'number', description: 'ID of the block to delete' },
-      reason:   { type: 'string', description: 'Reason for deletion (shown to user for review)' },
+      block_id:  { type: 'number', description: 'ID of the block to delete' },
+      reason:    { type: 'string', description: 'Reason for deletion (shown to user for review)' },
+      file_path: { type: 'string', description: 'Absolute path of the .iwt file to edit. Omit to edit the active editor document.' },
     },
     required: ['block_id'],
   },
@@ -172,6 +177,7 @@ const TOOL_REPLACE_RANGE: LMTool = {
       end_block_id:   { type: 'number', description: 'Last block_id of the range to replace (inclusive)' },
       new_content:    { type: 'string', description: 'Full Markdown replacement content' },
       reason:         { type: 'string', description: 'Brief reason for this replacement (shown to user for review)' },
+      file_path:      { type: 'string', description: 'Absolute path of the .iwt file to edit. Omit to edit the active editor document.' },
     },
     required: ['start_block_id', 'end_block_id', 'new_content'],
   },
@@ -203,6 +209,76 @@ const TOOL_CREATE_DOCUMENT: LMTool = {
   },
 }
 
+// ── File System Tools ──────────────────────────────────────────────────────
+
+const TOOL_READ_FILE: LMTool = {
+  name: 'read_file',
+  description:
+    'Read the content of a file. Path can be relative to the workspace folder or absolute. ' +
+    'Returns the file content as text.',
+  parameters: {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: 'File path (relative to workspace or absolute)' },
+    },
+    required: ['path'],
+  },
+}
+
+const TOOL_LIST_DIRECTORY: LMTool = {
+  name: 'list_directory',
+  description:
+    'List the files and folders in a directory. ' +
+    'Path can be relative to the workspace folder or absolute. Use "." for the workspace root.',
+  parameters: {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: 'Directory path (relative to workspace or absolute). Use "." for workspace root.' },
+    },
+    required: ['path'],
+  },
+}
+
+const TOOL_WRITE_FILE: LMTool = {
+  name: 'write_file',
+  description:
+    'Write content to a file. Path must be relative to the workspace folder. ' +
+    'Creates the file if it does not exist. Requires user approval.',
+  parameters: {
+    type: 'object',
+    properties: {
+      path:    { type: 'string', description: 'File path relative to workspace folder' },
+      content: { type: 'string', description: 'Full content to write (replaces entire file)' },
+    },
+    required: ['path', 'content'],
+  },
+}
+
+/** Build the exec_shell tool with OS-appropriate command examples. */
+export function buildExecShellTool(platform: string): LMTool {
+  const isWindows = platform === 'win32'
+  const examples = isWindows
+    ? 'dir, type, findstr, where, echo, stat'
+    : 'ls, cat, find, grep, head, tail, wc, stat, file, echo'
+  const osName = isWindows ? 'Windows' : platform === 'darwin' ? 'macOS' : 'Linux'
+  return {
+    name: 'exec_shell',
+    description:
+      `Run a read-only shell command to explore the file system (${osName}). ` +
+      `Allowed read-only commands: ${examples}. ` +
+      'Use this to list files, search content, or read file content. ' +
+      'To edit files, use write_file or the document block tools instead.',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', description: 'Shell command to run (read-only commands only)' },
+        cwd:     { type: 'string', description: 'Working directory (defaults to workspace folder)' },
+      },
+      required: ['command'],
+    },
+  }
+}
+
 // ── Profile → Tool Set ─────────────────────────────────────────────────────
 
 const DOC_ACCESS_TOOLS = [
@@ -219,14 +295,28 @@ const BLOCK_EDIT_TOOL_LIST = [
   TOOL_REPLACE_RANGE,
 ]
 
-const TOOL_SETS: Record<AiAgentProfile, LMTool[]> = {
-  write:   [...DOC_ACCESS_TOOLS, ...BLOCK_EDIT_TOOL_LIST, TOOL_CREATE_DOCUMENT],
-  ask:     [...DOC_ACCESS_TOOLS],
-  minimal: [],
-}
+const FILE_TOOLS = [
+  TOOL_READ_FILE,
+  TOOL_LIST_DIRECTORY,
+  TOOL_WRITE_FILE,
+]
 
-export function getToolsForProfile(profile: AiAgentProfile): LMTool[] {
-  return TOOL_SETS[profile]
+/**
+ * Get tools for a given profile.
+ * Pass platform string to include the OS-aware exec_shell tool.
+ */
+export function getToolsForProfile(profile: AiAgentProfile, platform?: string): LMTool[] {
+  const shellTool = platform ? [buildExecShellTool(platform)] : []
+  switch (profile) {
+    case 'write':
+      // exec_shell covers file discovery (ls, find) and reading — no need for separate list_directory/read_file
+      return [...DOC_ACCESS_TOOLS, ...BLOCK_EDIT_TOOL_LIST, TOOL_CREATE_DOCUMENT, TOOL_WRITE_FILE, ...shellTool]
+    case 'ask':
+      return [...DOC_ACCESS_TOOLS, ...shellTool]
+    case 'minimal':
+    default:
+      return []
+  }
 }
 
 // ── System Prompt Builder ──────────────────────────────────────────────────
@@ -239,6 +329,18 @@ export interface DocumentContext {
   selectionText?: string
   filePath?: string | null
   folderPath?: string | null
+  /** Whether the active editor file has unsaved changes */
+  isDirty?: boolean
+  /** Other open editor tabs (excluding the active tab) */
+  openTabs?: OpenTabInfo[]
+  /** True when the active file differs from the thread's originFilePath */
+  fileChanged?: boolean
+  /** The thread's originFilePath (for the warning message) */
+  previousFilePath?: string | null
+  /** Text file paths attached by the user (listed in <context_files> section) */
+  textFilePaths?: string[]
+  /** Directory paths attached by the user (listed in <environment> section) */
+  attachedDirectories?: string[]
 }
 
 const _builder = new DocumentViewBuilder()
@@ -262,93 +364,150 @@ export function buildSystemPrompt(
   )
 
   if (profile === 'write') {
-    if (!hasDocument) {
+    // ── 1. Context map ─────────────────────────────────────────────────────
+    // Always explain what the <environment> tags mean so the LLM can reason
+    // about ALL available context sources, not just the active document.
+    lines.push(
+      '## Available Context',
+      'Check the `<environment>` block at the end of this prompt to see what is available:',
+      '- `<editing_file path="...">` — document currently open in the editor.',
+      '  Block edit tools called WITHOUT `file_path` operate on THIS document.',
+      '  If absent: no document is open; block tools without `file_path` will fail.',
+      '- `<workspace_folder>` — root of the user\'s file system workspace.',
+      '  Contains .iwt / .md / .txt files. Access them with `file_path` or `exec_shell`.',
+      '- `<context_files>` — files the user explicitly attached. Read with doc tools (file_path) or exec_shell.',
+      '- `<attached_directories>` — attached directories. Explore with exec_shell.',
+      '- `<open_tabs>` — other open editor tabs (reference only; cannot be directly edited via block tools).',
+      '',
+    )
+
+    // ── 2. File Type Rules — always ────────────────────────────────────────
+    lines.push(
+      '## File Type Rules — CRITICAL',
+      '',
+      '### .iwt files (iWriter native format)',
+      '- .iwt files on disk are JSON: `{ version, content: "<html>...", metadata }`. NOT plain text.',
+      '- ⚠️ NEVER use `write_file` or `exec_shell` to write to a .iwt file — it will corrupt the JSON structure.',
+      '- For ALL .iwt files, use ONLY block tools:',
+      '  - Read:  `get_document_outline(file_path=...)`, `get_section(file_path=...)`, etc.',
+      '  - Write: `edit_block` / `insert_block` / `replace_range` / `delete_block` with `file_path=<abs path>`',
+      '    (omit `file_path` only when the .iwt file IS the currently active `<editing_file>`)',
+      '- Do NOT fall back to `write_file` even if a block tool call fails.',
+      '',
+      '### .md and .txt files',
+      '- Plain text. Use `exec_shell` (cat, grep) for reading, `write_file` for writing.',
+      '- Block tools also work when `file_path` is provided.',
+      '',
+      '### Block edit tools — file targeting rule',
+      '- WITHOUT `file_path` → edits the ACTIVE `<editing_file>`. Fails if no file is open.',
+      '- WITH `file_path` → edits that specific file on disk.',
+      '- ⚠️ Reading a file with `file_path` then editing WITHOUT `file_path` silently edits the WRONG document.',
+      '  Always set `file_path` to match your intended target.',
+      '',
+    )
+
+    // ── 3. Active document — only when editor has content ──────────────────
+    if (hasDocument) {
       lines.push(
-        '## 当前状态：没有打开的文档',
-        'No document is currently open.',
+        '## Active Document',
+        'Context is injected at the end of this prompt:',
+        '- `<document_outline>`: heading structure with `{b:N}` block IDs.',
+        '  Use N as `heading_block_id` in section tools and `block_id` in edit tools.',
+        '- `<current_section>`: Markdown of the section at cursor, with `{b:N}` markers.',
+        'Read these BEFORE calling any tool — the block IDs you need are already here.',
         '',
-        '## 创建新文档',
-        'If the user asks you to create or write a document:',
-        '1. Generate the full content as Markdown.',
-        '2. Call `create_document(filename, content, reason?)` once:',
-        '   - `filename`: concise name without extension (e.g. "苏州两日游")',
-        '   - `content`: complete Markdown document',
-        '   - `reason`: brief description for the user',
-        '',
-        'Do NOT call get_section, get_blocks, get_block_context, or get_document_outline.',
-        'These tools require an open document and will fail.',
-        ''
-      )
-    } else {
-      lines.push(
-        'You have tools to read and edit the current document.',
-        '',
-        '## Document Context',
-        'The document context is already injected at the end of this system prompt:',
-        '- `<document_outline>`: full heading structure with `{b:N}` block IDs, section block count, and word count.',
-        '  The number N is the exact value to use as `heading_block_id` in section tools and as `block_id` in edit tools.',
-        '- `<current_section>`: full Markdown content of the section containing the cursor, with `{b:N}` markers on every block.',
-        '  These N values are the `block_id` parameters for block edit tools.',
-        'Read these tags BEFORE calling any tool. The block IDs you need are already there.',
-        '',
-        '## Whole-Document Tasks (grammar check, proofreading, full rewrite, style review)',
-        'When the task requires processing the ENTIRE document (not just the current section):',
-        '',
+        '## Whole-Document Tasks (grammar check, proofreading, full rewrite)',
         '**Core rule: read and edit in an overlapping pattern — never read everything first.**',
         '',
-        'Basic pattern (sections ≤ 20 blocks each):',
+        'Basic pattern (sections ≤ 20 blocks):',
         '- Round 1: `get_section(section1_id)` → read section 1',
-        '- Round 2: `edit_block(A)` + `edit_block(B)` + `get_section(section2_id)` → submit edits for section 1 AND read section 2 in the same response',
-        '- Round N: `edit_block(X)` → submit edits for the last section (loop stops, user reviews proposals)',
+        '- Round 2: `edit_block(A)` + `edit_block(B)` + `get_section(section2_id)` → edit section 1 AND read section 2',
+        '- Round N: `edit_block(X)` → edit last section (loop stops, user reviews proposals)',
         '',
-        'Large-section pagination (when `has_more=true` in `get_section` response):',
-        '- `get_document_outline` shows `section_blocks` per section — use this to anticipate large sections',
-        '- `get_section` defaults to 20 blocks per page; check `has_more` in every response',
-        '- Apply the same overlap pattern across pages: submit edits for page K AND read page K+1 in the same response',
-        '- Example: `edit_block(A) + get_section(N, offset=20)` → edit page 1 AND read page 2',
+        'Pagination (when `has_more=true`):',
+        '- `get_section` defaults to 20 blocks per page; always check `has_more`',
+        '- `edit_block(A) + get_section(N, offset=20)` → edit page 1 AND read page 2 in one response',
         '',
-        'Key rules:',
-        '- Use `get_section` for whole-document reading — do NOT use `get_blocks` for large sequential reads',
-        '- Submit edits immediately after reading a page/section, not after reading the whole document',
-        '- Mixing read tools and edit tools in one response lets the loop continue; a response with ONLY edit tools stops the loop for user review',
+        'Rules:',
+        '- Use `get_section` for sequential reading — NOT `get_blocks`',
+        '- A response with ONLY edit tools stops the loop for user review',
         '',
-        '## Reading',
+        '## Reading the Active Document',
         'Use read tools only for content NOT already in the injected context:',
-        '- `get_section(heading_block_id=N)` — read a section other than `<current_section>`.',
-        '  N must come from `<document_outline>`. Example: outline shows `{b:5} ## Introduction` → call `get_section(heading_block_id=5)`.',
-        '  For long sections add `offset` and `limit` to paginate: `get_section(heading_block_id=5, offset=20, limit=20)`.',
-        '  Always check `has_more` in the response — if `true`, call again with `offset += limit`.',
-        '- `get_blocks(block_ids=[N, ...])` — fetch specific blocks by ID. Use for targeted lookups, not large sequential reads.',
-        '- `get_block_context(block_id=N, window=3)` — fetch the blocks surrounding block N (3 before and 3 after by default). Use to understand context before editing.',
-        '- `get_document_outline()` — call ONLY to refresh the outline after you have made edits. Do NOT call it at the start; the outline is already provided.',
-        'Never pass a block_id you have not yet seen in the injected context or a previous tool result.',
+        '- `get_section(heading_block_id=N)` — a section from `<document_outline>`. Paginate with offset/limit.',
+        '- `get_blocks(block_ids=[N, ...])` — targeted lookup of specific blocks.',
+        '- `get_block_context(block_id=N, window=3)` — blocks surrounding block N.',
+        '- `get_document_outline()` — refresh outline ONLY after making edits.',
+        'Never use a block_id not seen in context or a prior tool result.',
         '',
-        '## Editing',
-        'Choose the narrowest tool that fits the task:',
-        '- `edit_block(block_id, new_content, reason?)` — change CONTENT of one block, preserving its type and level. Use ONLY when the block type stays the same (e.g., paragraph stays paragraph, heading stays heading at same level).',
-        '- `insert_block(after_block_id, new_blocks, reason?)` — insert blocks after a given block. Use `after_block_id=0` for document start.',
-        '- `delete_block(block_id, reason?)` — delete a single block.',
-        '- `replace_range(start_block_id, end_block_id, new_content, reason?)` — replace a contiguous range of blocks with new content. Use for multi-block rewrites, section rewrites, OR **when you need to change a block\'s type** (e.g., paragraph → heading, or change heading level).',
-        'Content format: `edit_block` uses type-specific inline Markdown (no `#` prefix for headings, no fences for code). `insert_block`/`replace_range` use full Markdown syntax.',
-        '⚠️ Type-change rule: `edit_block` CANNOT change a block\'s type or heading level. To convert a paragraph to a heading, or to change `# Heading 1` to `## Heading 2`, always use `replace_range(N, N, "## new heading text")` instead of `edit_block`.',
-        '',
-        '## Error Recovery',
-        'If a tool returns an error:',
-        '1. Read the error message — it will list valid block IDs or explain what is wrong.',
-        '2. Check `<document_outline>` and `<current_section>` in this prompt for the correct block ID.',
-        '3. Correct the parameter and retry — do NOT repeat the same call with the same arguments.',
-        '4. Call `get_document_outline()` only if your edits may have changed the block structure.',
-        '5. If you cannot find a valid block ID, explain the problem to the user instead of guessing.',
-        '',
-        '## After Completing a Task',
-        'After all edits are submitted, reply with a brief summary in the document\'s language:',
-        '- What was done (e.g., "已在第 X 章之后插入第 Y 章，共 N 段")',
-        '- Any notable decisions or assumptions made during editing',
-        '- What the user should review or approve in the proposals above',
-        'Keep the summary concise (2–4 sentences). Do not repeat the full content you wrote.',
-        ''
       )
     }
+
+    // ── 4. Workspace / file operations — always ────────────────────────────
+    lines.push(
+      '## Working With Workspace Files',
+      'Use these steps to find, read, and edit any file in `<workspace_folder>` (or attached files):',
+      '',
+      '**Search:**',
+      '- `exec_shell(command="find . -iname \'*keyword*\' -type f")` — find by name',
+      '- `exec_shell(command="ls")` — list workspace root',
+      '',
+      '**Read:**',
+      '- .iwt: `get_document_outline(file_path="/abs/path/file.iwt")` for structure,',
+      '  then `get_section(heading_block_id=N, file_path="...")` for content',
+      '- .md/.txt: `exec_shell(command="cat /abs/path/file")` for quick read',
+      '',
+      '**Edit an .iwt file (not currently open in editor):**',
+      '1. `get_document_outline(file_path="/abs/path/file.iwt")` → note the `{b:N}` block IDs',
+      '2. Call block edit tool with BOTH the block ID AND `file_path`:',
+      '   `edit_block(block_id=N, new_content="...", file_path="/abs/path/file.iwt")`',
+      '   or `insert_block`, `replace_range`, `delete_block` — same pattern',
+      '- Build the absolute path: `<workspace_folder>` value + relative path from find/ls results.',
+      '- ⚠️ Block IDs from `get_document_outline(file_path=...)` are for THAT FILE only.',
+      '  Do not mix them with block IDs from the active document outline.',
+      '',
+    )
+
+    // ── 5. Creating new documents — always ─────────────────────────────────
+    lines.push(
+      '## Creating New Documents',
+      'To create a new document (opens as a new tab in the editor):',
+      '1. Generate the full content as Markdown.',
+      '2. Call `create_document(filename, content, reason?)`:',
+      '   - `filename`: name without extension (e.g. "苏州两日游")',
+      '   - `content`: complete Markdown document',
+      '',
+    )
+
+    // ── 6. Editing tools — always ──────────────────────────────────────────
+    lines.push(
+      '## Editing Tools',
+      'Choose the narrowest tool:',
+      '- `edit_block(block_id, new_content, reason?, file_path?)` — change content of one block, keeping type/level.',
+      '- `insert_block(after_block_id, new_blocks, reason?, file_path?)` — insert after a block (0 = doc start).',
+      '- `delete_block(block_id, reason?, file_path?)` — delete a block.',
+      '- `replace_range(start_block_id, end_block_id, new_content, reason?, file_path?)` — replace a range.',
+      '  Use for multi-block rewrites OR when changing block type / heading level.',
+      'Content: `edit_block` uses inline Markdown without type prefix (no `#` for headings, no fences for code).',
+      '`insert_block` / `replace_range` use full Markdown.',
+      '⚠️ `edit_block` CANNOT change block type or heading level — use `replace_range(N, N, "## text")` instead.',
+      '',
+    )
+
+    // ── 7. Error recovery — always ─────────────────────────────────────────
+    lines.push(
+      '## Error Recovery',
+      'If a tool returns an error:',
+      '1. Read the error message — it will name the problem.',
+      '2. For block ID errors: call `get_document_outline(file_path=...)` or check injected `<document_outline>`.',
+      '3. Correct and retry — do NOT repeat the same call unchanged.',
+      '4. If unresolvable, explain the problem to the user.',
+      '',
+      '## After Completing a Task',
+      'Reply with a brief summary in the document\'s language (2–4 sentences):',
+      '- What was done, notable decisions, what the user should review.',
+      '',
+    )
   } else if (profile === 'ask') {
     lines.push(
       'You can read the document to answer questions.',
@@ -366,9 +525,63 @@ export function buildSystemPrompt(
     ''
   )
 
-  // File and workspace context
-  if (ctx.filePath)   lines.push(`<current_file>${ctx.filePath}</current_file>`)
-  if (ctx.folderPath) lines.push(`<workspace_folder>${ctx.folderPath}</workspace_folder>`)
+  // Environment context block
+  const envLines: string[] = ['<environment>']
+  if (ctx.filePath) {
+    const status = ctx.isDirty ? 'unsaved' : 'saved'
+    envLines.push(`  <editing_file path="${ctx.filePath}" status="${status}" />`)
+  } else if (hasDocument) {
+    envLines.push('  <editing_file status="unsaved_new" />')
+  }
+  if (ctx.openTabs && ctx.openTabs.length > 0) {
+    envLines.push('  <open_tabs>')
+    for (const tab of ctx.openTabs) {
+      if (tab.path) {
+        envLines.push(`    <tab path="${tab.path}" status="${tab.isDirty ? 'unsaved' : 'saved'}" />`)
+      } else {
+        envLines.push(`    <tab name="${tab.name}" status="unsaved_new" />`)
+      }
+    }
+    envLines.push('  </open_tabs>')
+  }
+  if (ctx.folderPath) {
+    envLines.push(`  <workspace_folder>${ctx.folderPath}</workspace_folder>`)
+  }
+  if (ctx.attachedDirectories?.length) {
+    envLines.push('  <attached_directories>')
+    for (const dir of ctx.attachedDirectories) {
+      envLines.push(`    <directory path="${dir}" />`)
+    }
+    envLines.push('  </attached_directories>')
+  }
+  envLines.push('</environment>')
+  lines.push(...envLines)
+
+  // Attached text files — listed for tool-based access
+  if (ctx.textFilePaths?.length) {
+    lines.push(
+      '<context_files>',
+      'The user has attached the following local files for reference.',
+      'Use document tools with the file_path parameter to read them (e.g. get_document_outline, get_section, get_blocks).',
+      'Or use exec_shell (cat/head) for quick content inspection.',
+    )
+    for (const p of ctx.textFilePaths) {
+      lines.push(`<file path="${p}" />`)
+    }
+    lines.push('</context_files>')
+  }
+
+  // File-switch warning
+  if (ctx.fileChanged) {
+    lines.push(
+      '<file_context_warning>',
+      `This session was started while editing: ${ctx.previousFilePath ?? 'no file'}`,
+      `Currently editing: ${ctx.filePath ?? 'no file'}`,
+      'Block IDs from earlier in this conversation are invalid for the current file.',
+      'Document tools now operate on the CURRENT editing file.',
+      '</file_context_warning>'
+    )
+  }
 
   // Selection context
   if (ctx.selectionText) {
@@ -419,11 +632,11 @@ export function buildSystemPrompt(
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 /** Build a DocumentViewSnapshot from an editor instance. */
-export function buildSnapshot(editor: Editor, cursorPos?: number): DocumentViewSnapshot {
+export function buildSnapshot(editor: Editor, cursorPos?: number, filePath?: string): DocumentViewSnapshot {
   const view = _builder.build(editor)
   const pos = cursorPos ?? editor.state.selection.from
   const cursorBlockId = findBlockAtPos(pos, view.blockMap)
-  return { view, editor, cursorBlockId }
+  return { view, editor, cursorBlockId, filePath }
 }
 
 /** Find the displayId of the block that contains position `pos`. */
