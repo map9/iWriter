@@ -2,24 +2,31 @@
   <div class="border border-yellow-300 bg-yellow-50 rounded-lg overflow-hidden">
     <!-- Header: count + batch actions -->
     <div class="flex items-center justify-between px-3 py-2 bg-yellow-100 border-b border-yellow-200">
-      <span
-        class="text-xs font-medium text-yellow-800 cursor-pointer hover:text-yellow-600 transition-colors"
-        title="点击定位到此块"
-        @click="scrollToCurrentBlock"
-      >
-        <template v-if="proposals.length > 1">{{ currentIndex + 1 }} / {{ proposals.length }} 处修改建议</template>
-        <template v-else>1 处修改建议</template>
-      </span>
-      <div v-if="proposals.length > 1" class="flex gap-1.5">
-        <button
-          @click="$emit('approveAll')"
-          class="text-xs px-2 py-0.5 rounded bg-green-600 text-white hover:bg-green-700 transition-colors"
-        >全部接受</button>
-        <button
-          @click="$emit('rejectAll')"
-          class="text-xs px-2 py-0.5 rounded bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors"
-        >全部忽略</button>
-      </div>
+      <template v-if="isStreaming">
+        <span class="text-xs font-medium text-yellow-700 animate-pulse">
+          正在生成建议... (已有 {{ proposals.length }} 条)
+        </span>
+      </template>
+      <template v-else>
+        <span
+          class="text-xs font-medium text-yellow-800 cursor-pointer hover:text-yellow-600 transition-colors"
+          title="点击定位到此块"
+          @click="scrollToCurrentBlock"
+        >
+          <template v-if="proposals.length > 1">{{ currentIndex + 1 }} / {{ proposals.length }} 处修改建议</template>
+          <template v-else>1 处修改建议</template>
+        </span>
+        <div v-if="proposals.length > 1" class="flex gap-1.5">
+          <button
+            @click="$emit('approveAll')"
+            class="text-xs px-2 py-0.5 rounded bg-green-600 text-white hover:bg-green-700 transition-colors"
+          >全部接受</button>
+          <button
+            @click="$emit('rejectAll')"
+            class="text-xs px-2 py-0.5 rounded bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors"
+          >全部忽略</button>
+        </div>
+      </template>
     </div>
 
     <!-- Description row -->
@@ -51,41 +58,22 @@
         <div class="px-3 py-1.5 text-xs text-yellow-700 font-medium border-b border-yellow-100">
           📄 {{ fileProposal.filePath.split('/').pop() }}
         </div>
-        <div class="grid grid-cols-2 divide-x divide-yellow-200 text-xs">
-          <div class="p-2">
-            <div class="text-red-600 font-medium mb-1">原文</div>
-            <div class="text-red-800 bg-red-50 rounded p-1.5 max-h-40 overflow-auto">
-              <MarkdownContentView :content="fileProposal.oldContent || '(空)'" />
-            </div>
-          </div>
-          <div class="p-2">
-            <div class="text-green-600 font-medium mb-1">修改后</div>
-            <div class="text-green-800 bg-green-50 rounded p-1.5 max-h-40 overflow-auto">
-              <MarkdownContentView :content="fileProposal.newContent" />
-            </div>
-          </div>
-        </div>
+        <DiffSplitView :old-content="fileProposal.oldContent || ''" :new-content="fileProposal.newContent" />
       </template>
 
       <!-- BlockEditProposal: edit / delete -->
       <template v-else-if="isSingleBlock">
-        <div class="grid grid-cols-2 divide-x divide-yellow-200 text-xs">
-          <div class="p-2">
-            <div class="text-red-600 font-medium mb-1">原文</div>
+        <template v-if="blockProposal.type === 'delete'">
+          <div class="p-2 text-xs">
+            <div class="text-red-600 font-medium mb-1">原文（将被删除）</div>
             <div class="text-red-800 bg-red-50 rounded p-1.5 max-h-32 overflow-auto">
-              <MarkdownContentView :content="blockProposal.oldContent || '(空)'" />
+              <MarkdownContentView :content="blockProposal.oldContent || '(空)'" mode="markdown" />
             </div>
           </div>
-          <div class="p-2" v-if="blockProposal.type !== 'delete'">
-            <div class="text-green-600 font-medium mb-1">修改后</div>
-            <div class="text-green-800 bg-green-50 rounded p-1.5 max-h-32 overflow-auto">
-              <MarkdownContentView :content="blockProposal.newContent || ''" />
-            </div>
-          </div>
-          <div class="p-2 flex items-center justify-center" v-else>
-            <span class="text-xs text-red-500">此块将被删除</span>
-          </div>
-        </div>
+        </template>
+        <template v-else>
+          <DiffSplitView :old-content="blockProposal.oldContent || ''" :new-content="blockProposal.newContent || ''" />
+        </template>
       </template>
 
       <!-- BlockEditProposal: insert -->
@@ -100,20 +88,10 @@
 
       <!-- BlockEditProposal: replace_range -->
       <template v-else-if="current.kind === 'block' && blockProposal.type === 'replace_range'">
-        <div class="grid grid-cols-2 divide-x divide-yellow-200 text-xs">
-          <div class="p-2">
-            <div class="text-red-600 font-medium mb-1">原文 (块 {{ blockProposal.startDisplayBlockId }}–{{ blockProposal.endDisplayBlockId }})</div>
-            <div class="text-red-800 bg-red-50 rounded p-1.5 max-h-40 overflow-auto">
-              <MarkdownContentView :content="blockProposal.oldContent || '(空)'" />
-            </div>
-          </div>
-          <div class="p-2">
-            <div class="text-green-600 font-medium mb-1">修改后</div>
-            <div class="text-green-800 bg-green-50 rounded p-1.5 max-h-40 overflow-auto">
-              <MarkdownContentView :content="blockProposal.newContent || ''" />
-            </div>
-          </div>
+        <div class="px-3 py-1 text-xs text-yellow-700 border-b border-yellow-100">
+          块 {{ blockProposal.startDisplayBlockId }}–{{ blockProposal.endDisplayBlockId }}
         </div>
+        <DiffSplitView :old-content="blockProposal.oldContent || ''" :new-content="blockProposal.newContent || ''" />
       </template>
 
       <!-- Fallback -->
@@ -156,13 +134,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import MarkdownContentView from './MarkdownContentView.vue'
+import DiffSplitView from './DiffSplitView.vue'
 import type { EditProposal, BlockEditProposal, FileEditProposal, FileCreateProposal } from '@/types/ai'
 import type { Editor } from '@tiptap/core'
 import { useAppStore } from '@/stores/app'
 import { findNodeById } from '@/ai/edit-agent/BlockEditApplier'
 import { highlightBlock } from '@/ai/edit-agent/iwBlockHighlightExtension'
 
-const props = defineProps<{ proposals: EditProposal[] }>()
+const props = defineProps<{ proposals: EditProposal[]; isStreaming?: boolean }>()
 const emit = defineEmits<{
   approve:    [id: string]
   reject:     [id: string]

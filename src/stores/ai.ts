@@ -19,7 +19,7 @@ import type { AcpModelInfo, AcpModeInfo } from '@/ai/acp/AcpProtocol'
 import { PROVIDER_PRESETS, type ProviderPreset } from '@/ai/providers/provider-presets'
 import { ThreadStore } from '@/ai/thread/ThreadStore'
 import { createThread, appendMessage, createMessage } from '@/ai/thread/Thread'
-import { buildSystemPrompt, getToolsForProfile } from '@/ai/thread/ContextBuilder'
+import { getSystemPrompt, buildEditorStateBlock, getToolsForProfile } from '@/ai/thread/ContextBuilder'
 import { providerRegistry } from '@/ai/providers/ProviderRegistry'
 import { AcpAgentSession } from '@/ai/acp/AcpAgentSession'
 import { AgentRunner } from '@/ai/agent/AgentRunner'
@@ -615,7 +615,8 @@ export const useAiStore = defineStore('ai', () => {
   const toolRegistry = createToolRegistry(
     () => _currentSnapshot,
     () => settings.value,
-    () => appStore.currentFolder ?? null
+    () => appStore.currentFolder ?? null,
+    () => appStore.activeTab?.path ?? null
   )
 
   // ── Send Message ──────────────────────────────────────────────────────────
@@ -646,23 +647,14 @@ export const useAiStore = defineStore('ai', () => {
     const editorInstance = activeTab?.editorInstance as Editor | undefined
     const currentFilePath = activeTab?.path ?? null
 
-    // File-switch detection
-    const fileChanged = thread.originFilePath !== undefined
-                     && thread.originFilePath !== currentFilePath
+    // Record origin file on first message
     if (thread.originFilePath === undefined) {
       thread = { ...thread, originFilePath: currentFilePath }
       updateThread(thread)
     }
 
-    // Build document view snapshot (used by both system prompt and tool registry)
+    // Build document view snapshot (used by EditorState block and tool registry)
     _currentSnapshot = editorInstance ? buildSnapshot(editorInstance, undefined, currentFilePath ?? undefined) : null
-
-    const selectionText = editorInstance
-      ? (() => {
-          const { from, to } = editorInstance.state.selection
-          return from !== to ? editorInstance.state.doc.textBetween(from, to) : ''
-        })()
-      : ''
 
     // Collect other open tabs (exclude the active one)
     const openTabs = appStore.tabs
@@ -682,19 +674,33 @@ export const useAiStore = defineStore('ai', () => {
       }
     }
 
-    const systemPrompt = buildSystemPrompt(thread.profile, {
-      editor:              editorInstance,
-      viewSnapshot:        _currentSnapshot ?? undefined,
-      selectionText:       selectionText || undefined,
+    const systemPrompt = getSystemPrompt(thread.profile)
+
+    // Build EditorState delta block and prepend to user message
+    const editorStateResult = buildEditorStateBlock(thread, _currentSnapshot, {
       filePath:            currentFilePath,
-      folderPath:          appStore.currentFolder ?? null,
       isDirty:             activeTab?.isDirty ?? false,
-      openTabs:            openTabs.length > 0 ? openTabs : undefined,
-      fileChanged:         fileChanged,
-      previousFilePath:    thread.originFilePath ?? null,
-      textFilePaths:       sendContext?.textFilePaths?.length ? sendContext.textFilePaths : undefined,
-      attachedDirectories: sendContext?.directories?.length ? sendContext.directories : undefined,
+      folderPath:          appStore.currentFolder ?? null,
+      openTabs,
+      textFilePaths:       sendContext?.textFilePaths ?? [],
+      attachedDirectories: sendContext?.directories ?? [],
     })
+    // Apply delta tracking updates to thread (stored without EditorState XML)
+    if (Object.keys(editorStateResult.threadUpdate).length > 0) {
+      thread = { ...thread, ...editorStateResult.threadUpdate }
+      updateThread(thread)
+    }
+    // Build the thread sent to the LLM: last user message has EditorState prepended
+    const llmThread = editorStateResult.xml
+      ? {
+          ...thread,
+          messages: thread.messages.map((m, i) =>
+            i === thread.messages.length - 1
+              ? { ...m, content: `${editorStateResult.xml}\n\n${m.content}` }
+              : m
+          ),
+        }
+      : thread
 
     const tools = getToolsForProfile(thread.profile, window.electronAPI?.platform)
 
@@ -748,9 +754,14 @@ export const useAiStore = defineStore('ai', () => {
     streamingToolName.value = null
     pendingEditProposals.value = []
 
-    const runner = new AgentRunner(session, toolRegistry, () => _currentSnapshot)
+    const runner = new AgentRunner(
+      session,
+      toolRegistry,
+      () => _currentSnapshot,
+      () => appStore.activeTab?.path ?? null
+    )
 
-    runner.run(thread, systemPrompt, tools, {
+    runner.run(llmThread, systemPrompt, tools, {
       onText: delta => {
         streamingText.value += delta
       },
@@ -788,6 +799,7 @@ export const useAiStore = defineStore('ai', () => {
         isStreaming.value = false
         streamingToolName.value = null
         _currentSession.value = null
+        toolRegistry.disposeAll()
         // Block proposals are now in the stored message — clear from streaming list
         // (keep file proposals which are waiting for ACP resolver)
         pendingEditProposals.value = pendingEditProposals.value.filter(p => p.kind === 'file')
@@ -812,6 +824,7 @@ export const useAiStore = defineStore('ai', () => {
         streamingText.value = ''
         streamingToolName.value = null
         _currentSession.value = null
+        toolRegistry.disposeAll()
         notify.error(`AI 错误: ${error}`)
         // Append error as a message bubble in the chat, and mark thread as failed
         let errThread = activeThread.value
@@ -878,6 +891,12 @@ export const useAiStore = defineStore('ai', () => {
       if (!targetProposal) return msg
       // Sync the corresponding toolCall status so ToolCallView reflects the result
       const toolCallStatus: 'completed' | 'failed' = status === 'applied' ? 'completed' : 'failed'
+      // Also update the toolResult content so subsequent LLM turns see the correct outcome.
+      // Without this, the LLM's conversation history always shows "waiting for user approval"
+      // even after the edit was applied, leading to incorrect reasoning in follow-up turns.
+      const resultText = status === 'applied'
+        ? 'Edit was approved by the user and applied successfully.'
+        : 'Edit was rejected by the user and not applied.'
       return {
         ...msg,
         editProposals: msg.editProposals!.map(p =>
@@ -885,6 +904,9 @@ export const useAiStore = defineStore('ai', () => {
         ),
         toolCalls: msg.toolCalls?.map(tc =>
           tc.id === targetProposal.toolCallId ? { ...tc, status: toolCallStatus } : tc
+        ),
+        toolResults: msg.toolResults?.map(tr =>
+          tr.toolCallId === targetProposal.toolCallId ? { ...tr, content: resultText } : tr
         ),
       } as ThreadMessage
     })
@@ -967,15 +989,31 @@ export const useAiStore = defineStore('ai', () => {
     // BlockEditProposal — file-based path (proposal.filePath targets a file on disk)
     const blockProposal = proposal as BlockEditProposal
     if (blockProposal.filePath) {
-      const { applyBlockEditToFile } = await import('@/ai/edit-agent/FileBlockEditApplier')
-      const result = await applyBlockEditToFile(blockProposal)
-      if (result.success) {
-        _updateProposalInThread(proposalId, 'applied')
-        notify.success('文件编辑已应用')
-      } else {
-        notify.error(`文件编辑失败: ${result.error}`)
+      // If filePath == active editor file, nodeId was resolved against the active editor's
+      // blockMap — use the active editor path so unsaved changes are handled correctly.
+      const currentFilePath = appStore.activeTab?.path
+      const norm = (p: string) => p.replace(/\\/g, '/')
+      const isActiveFile = !!currentFilePath && norm(currentFilePath) === norm(blockProposal.filePath)
+
+      if (!isActiveFile) {
+        const { UnifiedDocumentAccess } = await import('@/ai/edit-agent/UnifiedDocumentAccess')
+        // Always create a fresh handle so we apply to the latest on-disk state
+        const handle = await UnifiedDocumentAccess.createFreshFromFile(blockProposal.filePath)
+        if ('error' in handle) {
+          notify.error(`文件编辑失败: ${handle.error}`)
+          return
+        }
+        const result = await handle.applyBlockProposal(blockProposal)
+        handle.dispose()
+        if (result.success) {
+          _updateProposalInThread(proposalId, 'applied')
+          notify.success('文件编辑已应用')
+        } else {
+          notify.error(`文件编辑失败: ${result.error}`)
+        }
+        return
       }
-      return
+      // isActiveFile → fall through to active editor path below
     }
 
     // BlockEditProposal — active editor path
@@ -985,7 +1023,12 @@ export const useAiStore = defineStore('ai', () => {
       return
     }
 
-    const result = await applyBlockEditProposal(editor, proposal as BlockEditProposal)
+    // Route through UnifiedDocumentAccess.fromEditor so nodeIds are resolved from the
+    // current editor state. This handles the case where the proposal was built while the
+    // file was not open (isNonActiveFile path) and the file was opened before approval.
+    const { UnifiedDocumentAccess } = await import('@/ai/edit-agent/UnifiedDocumentAccess')
+    const handle = UnifiedDocumentAccess.fromEditor(editor, appStore.activeTab?.path ?? undefined)
+    const result = await handle.applyBlockProposal(proposal as BlockEditProposal)
     if (result.success) {
       _updateProposalInThread(proposalId, 'applied')
       // Rebuild snapshot after mutation so subsequent tool calls see the updated doc

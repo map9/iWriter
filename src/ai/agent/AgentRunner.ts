@@ -25,6 +25,7 @@ import type { ToolRegistry } from '../tools/registry'
 import type { DocumentViewSnapshot } from '../thread/ContextBuilder'
 import { nodeToMarkdown } from '../edit-agent/DocumentViewBuilder'
 import { findNodeById } from '../edit-agent/BlockEditApplier'
+import { UnifiedDocumentAccess } from '../edit-agent/UnifiedDocumentAccess'
 
 const MAX_TOOL_ROUNDS = 20
 
@@ -45,7 +46,9 @@ export class AgentRunner {
     private session: AgentSession,
     private toolRegistry: ToolRegistry,
     /** Returns the current document view snapshot — used to resolve blockMap when building proposals */
-    private getSnapshot: () => DocumentViewSnapshot | null = () => null
+    private getSnapshot: () => DocumentViewSnapshot | null = () => null,
+    /** Returns the currently active editing file path — used to skip blockMap lookup for non-active files */
+    private getFilePath: () => string | null = () => null
   ) {}
 
   run(
@@ -173,6 +176,27 @@ export class AgentRunner {
         console.log(`[tool] → ${tc.name} (edit proposal)`, tc.arguments)
         const proposal = this.buildBlockEditProposal(tc)
         if (proposal) {
+          // Guard: block edit with no file_path requires an active editor snapshot.
+          // If neither is present the proposal would fail on approval — return an
+          // actionable error immediately so the LLM can retry with file_path.
+          const blockProposal = proposal.kind === 'block' ? (proposal as BlockEditProposal) : null
+          if (blockProposal && !blockProposal.filePath && !this.getSnapshot()) {
+            const cachedPaths = UnifiedDocumentAccess.getCachedPaths()
+            const hint = cachedPaths.length > 0
+              ? ` Files accessed in this session: ${cachedPaths.map(p => `"${p}"`).join(', ')}.`
+              : ''
+            tc.status  = 'failed'
+            tc.isError = true
+            toolResults.push({
+              toolCallId: tc.id,
+              content:
+                `Error: No document is currently open in the editor and no file_path was provided.` +
+                `${hint} Include file_path in the call. ` +
+                `Example: ${tc.name}(..., file_path="/absolute/path/to/file.iwt")`,
+              isError: true,
+            })
+            continue
+          }
           tc.status = 'pending'   // awaiting user approval
           editProposals.push(proposal)
           callbacks.onEditProposal(proposal)
@@ -236,9 +260,13 @@ export class AgentRunner {
     assistantMsg.toolResults   = toolResults
     assistantMsg.editProposals = editProposals.length ? editProposals : undefined
 
-    // Stop the loop if this round produced only edit proposals (wait for user approval)
+    // Stop the loop if this round produced only edit proposals (wait for user approval).
+    // Only stop when proposals were actually created — if all block edit tool calls were
+    // intercepted by the guard (e.g. missing file_path), editProposals is empty and the
+    // LLM should get a chance to retry with corrected arguments.
     const hasOnlyEdits = toolCalls.every(tc => BLOCK_EDIT_TOOLS.has(tc.name))
-    if (hasOnlyEdits) {
+    const hasAnyProposals = editProposals.length > 0
+    if (hasOnlyEdits && hasAnyProposals) {
       callbacks.onDone(assistantMsg)
       return
     }
@@ -265,15 +293,42 @@ export class AgentRunner {
     const snapshot = this.getSnapshot()
     const blockMap = snapshot?.view.blockMap ?? []
 
+    // When filePath targets a non-active file, skip blockMap lookup.
+    // nodeIds will be resolved at approval time via UnifiedDocumentAccess.createFreshFromFile().
+    const currentPath = this.getFilePath()
+    const norm = (p: string) => p.replace(/\\/g, '/')
+    const isNonActiveFile = !!filePath && !(currentPath && norm(currentPath) === norm(filePath))
+
+    // Always capture the effective file path at proposal-build time.
+    // When the LLM omits file_path (editing the active document), we store the active file
+    // path so that approveEditProposal() can detect if the file was closed before approval
+    // (Scenario 4) and fall back to the disk path instead of the wrong active editor.
+    // When there is no active file but exactly one disk file was accessed via file_path in
+    // this session, auto-infer it — handles the common LLM mistake of omitting file_path on
+    // edit tools after having correctly used it on read tools.
+    let effectiveFilePath: string | undefined = filePath ?? currentPath ?? undefined
+    if (!effectiveFilePath) {
+      const cachedPaths = UnifiedDocumentAccess.getCachedPaths()
+      if (cachedPaths.length === 1) effectiveFilePath = cachedPaths[0]
+    }
+
     const id = `proposal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    // Strip view-only {b:N} markers that LLMs sometimes include verbatim in new content
+    const stripMarkers = (s: string) => s.replace(/\{b:\d+\}\n?/g, '')
+    // oldContent (for diff display) is only meaningful when the proposal targets the active
+    // editor — not when effectiveFilePath was inferred from the cache for a disk file.
+    // Using filePath (original LLM arg) alone is wrong: when filePath=undefined but
+    // effectiveFilePath=cachedPath, we'd incorrectly read oldContent from the active editor.
+    const isActiveEditorTarget = !effectiveFilePath ||
+      (currentPath != null && norm(currentPath) === norm(effectiveFilePath))
 
     switch (tc.name) {
       case 'edit_block': {
         const displayBlockId = Number(args.block_id)
         if (isNaN(displayBlockId)) return null
-        const newContent = String(args.new_content ?? '')
+        const newContent = stripMarkers(String(args.new_content ?? ''))
         if (!newContent.trim()) return null
-        const entry = blockMap.find(b => b.displayId === displayBlockId)
+        const entry = isNonActiveFile ? undefined : blockMap.find(b => b.displayId === displayBlockId)
         return {
           id, kind: 'block', type: 'edit', status: 'pending',
           toolCallId:     tc.id,
@@ -281,33 +336,33 @@ export class AgentRunner {
           displayBlockId,
           nodeId:         entry?.nodeId,
           nodeType:       entry?.nodeType,
-          oldContent:     filePath ? undefined : (snapshot ? getOldContent(snapshot, displayBlockId) : undefined),
+          oldContent:     isActiveEditorTarget ? (snapshot ? getOldContent(snapshot, displayBlockId) : undefined) : undefined,
           newContent,
-          filePath,
+          filePath: effectiveFilePath,
         }
       }
 
       case 'insert_block': {
         const afterDisplayId = Number(args.after_block_id)
         if (isNaN(afterDisplayId)) return null
-        const newContent = String(args.new_blocks ?? '')
+        const newContent = stripMarkers(String(args.new_blocks ?? ''))
         if (!newContent.trim()) return null
-        const afterEntry = blockMap.find(b => b.displayId === afterDisplayId)
+        const afterEntry = isNonActiveFile ? undefined : blockMap.find(b => b.displayId === afterDisplayId)
         return {
           id, kind: 'block', type: 'insert', status: 'pending',
           toolCallId:   tc.id,
           description:  String(args.reason ?? `Insert after block ${afterDisplayId}`),
           displayBlockId: afterDisplayId,
-          afterNodeId:  afterEntry?.nodeId ?? (afterDisplayId === 0 ? '0' : undefined),
+          afterNodeId:  isNonActiveFile ? undefined : (afterEntry?.nodeId ?? (afterDisplayId === 0 ? '0' : undefined)),
           newContent,
-          filePath,
+          filePath: effectiveFilePath,
         }
       }
 
       case 'delete_block': {
         const displayBlockId = Number(args.block_id)
         if (isNaN(displayBlockId)) return null
-        const entry = blockMap.find(b => b.displayId === displayBlockId)
+        const entry = isNonActiveFile ? undefined : blockMap.find(b => b.displayId === displayBlockId)
         return {
           id, kind: 'block', type: 'delete', status: 'pending',
           toolCallId:     tc.id,
@@ -315,8 +370,8 @@ export class AgentRunner {
           displayBlockId,
           nodeId:         entry?.nodeId,
           nodeType:       entry?.nodeType,
-          oldContent:     filePath ? undefined : (snapshot ? getOldContent(snapshot, displayBlockId) : undefined),
-          filePath,
+          oldContent:     isActiveEditorTarget ? (snapshot ? getOldContent(snapshot, displayBlockId) : undefined) : undefined,
+          filePath: effectiveFilePath,
         }
       }
 
@@ -324,12 +379,12 @@ export class AgentRunner {
         const startDisplayId = Number(args.start_block_id)
         const endDisplayId   = Number(args.end_block_id)
         if (isNaN(startDisplayId) || isNaN(endDisplayId)) return null
-        const newContent = String(args.new_content ?? '')
+        const newContent = stripMarkers(String(args.new_content ?? ''))
         if (!newContent.trim()) return null
-        const startEntry = blockMap.find(b => b.displayId === startDisplayId)
-        const endEntry   = blockMap.find(b => b.displayId === endDisplayId)
+        const startEntry = isNonActiveFile ? undefined : blockMap.find(b => b.displayId === startDisplayId)
+        const endEntry   = isNonActiveFile ? undefined : blockMap.find(b => b.displayId === endDisplayId)
         // Collect old content from all blocks in range for diff display (active editor only)
-        const oldContent = filePath ? undefined : snapshot
+        const oldContent = isActiveEditorTarget && snapshot
           ? blockMap
               .filter(b => b.displayId >= startDisplayId && b.displayId <= endDisplayId)
               .map(b => getOldContent(snapshot, b.displayId))
@@ -345,7 +400,7 @@ export class AgentRunner {
           endNodeId:           endEntry?.nodeId,
           oldContent,
           newContent,
-          filePath,
+          filePath: effectiveFilePath,
         }
       }
 
@@ -370,20 +425,24 @@ export class AgentRunner {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+export const TOOL_DISPLAY_NAMES: Record<string, string> = {
+  create_document:      '创建文档',
+  get_document_outline: '读取文档目录',
+  get_section:          '读取章节',
+  get_blocks:           '读取块',
+  get_block_context:    '读取块上下文',
+  edit_block:           '编辑块',
+  insert_block:         '插入块',
+  delete_block:         '删除块',
+  replace_range:        '替换块',
+  write_file:           '写入文件',
+  exec_shell:           '执行命令',
+}
+
 function buildToolTitle(tc: AiToolCall): string {
   const args = tc.arguments
-  switch (tc.name) {
-    case 'create_document':      return `创建文档: ${args.filename ?? '?'}`
-    case 'get_document_outline': return '读取文档目录'
-    case 'get_section':          return `读取章节`
-    case 'get_blocks':           return `读取块`
-    case 'get_block_context':    return `读取块上下文`
-    case 'edit_block':           return `编辑块`
-    case 'insert_block':         return `插入块`
-    case 'delete_block':         return `删除块`
-    case 'replace_range':        return `替换块`
-    default:                     return tc.name
-  }
+  if (tc.name === 'create_document') return `创建文档: ${args.filename ?? '?'}`
+  return TOOL_DISPLAY_NAMES[tc.name] ?? tc.name
 }
 
 const DOC_ACCESS_TOOLS = new Set([

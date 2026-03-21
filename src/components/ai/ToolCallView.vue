@@ -91,6 +91,8 @@ const paramsDisplay = computed((): string => {
     if (!path) return ''
     return path.split('/').pop() ?? path
   }
+  // block id — returns empty string when value is undefined (e.g. during streaming)
+  const bid = (val: unknown): string => val !== undefined && val !== null ? `{b:${val}}` : ''
 
   switch (name) {
     case 'exec_shell': {
@@ -101,35 +103,29 @@ const paramsDisplay = computed((): string => {
     case 'get_document_outline':
       return fname(args.file_path)
     case 'get_section':
-      return [
-        fname(args.file_path),
-        `{b:${args.heading_block_id}}`
-      ].filter(Boolean).join(' ')
+      return [fname(args.file_path), bid(args.heading_block_id)].filter(Boolean).join(' ')
     case 'get_blocks': {
       const ids = Array.isArray(args.block_ids) ? args.block_ids : []
-      return [
-        fname(args.file_path),
-        ids.map((id: unknown) => `{b:${id}}`).join(', ')
-      ].filter(Boolean).join(' ')
+      return [fname(args.file_path), ids.map((id: unknown) => bid(id)).join(', ')].filter(Boolean).join(' ')
     }
     case 'get_block_context':
-      return [
-        fname(args.file_path),
-        `{b:${args.block_id}}`
-      ].filter(Boolean).join(' ')
+      return [fname(args.file_path), bid(args.block_id)].filter(Boolean).join(' ')
     case 'edit_block':
-      return [
-        fname(args.file_path),
-        `{b:${args.block_id}}`
-      ].filter(Boolean).join(' ')
+      return [fname(args.file_path), bid(args.block_id)].filter(Boolean).join(' ')
     case 'insert_block': {
       const f   = fname(args.file_path)
-      const ref = args.after_block_id !== undefined ? `after {b:${args.after_block_id}}`
-        : args.end_block_id !== undefined ? `end {b:${args.end_block_id}}` : ''
+      const ref = args.after_block_id !== undefined ? `after ${bid(args.after_block_id)}`
+        : args.end_block_id !== undefined ? `end ${bid(args.end_block_id)}` : ''
       return [f, ref].filter(Boolean).join(' ')
     }
-    case 'delete_block':   return [fname(args.file_path), `{b:${args.block_id}}`].filter(Boolean).join(' ')
-    case 'replace_range':  return [fname(args.file_path), `{b:${args.start_block_id}}–{b:${args.end_block_id}}`].filter(Boolean).join(' ')
+    case 'delete_block':
+      return [fname(args.file_path), bid(args.block_id)].filter(Boolean).join(' ')
+    case 'replace_range': {
+      const range = (args.start_block_id !== undefined && args.end_block_id !== undefined)
+        ? `${bid(args.start_block_id)}–${bid(args.end_block_id)}`
+        : ''
+      return [fname(args.file_path), range].filter(Boolean).join(' ')
+    }
     case 'create_document': return fname(args.file_path) || (typeof args.filename === 'string' ? args.filename : '')
     default: return ''
   }

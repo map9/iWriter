@@ -36,8 +36,12 @@
         >
           <div class="prose prose-sm max-w-none" v-html="renderMarkdown(aiStore.streamingText)" />
           <div class="flex items-center gap-2 mt-1">
-            <span class="inline-block w-0.5 h-3.5 bg-gray-500 animate-pulse align-middle" />
-            <span class="text-xs text-gray-400">已生成 {{ streamingCharCount }} 字</span>
+            <div class="flex items-center gap-0.5">
+              <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms" />
+              <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:150ms" />
+              <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:300ms" />
+            </div>
+            <span class="text-xs text-gray-500">{{ thinkingLabel }} · {{ elapsedSeconds }}s</span>
           </div>
         </div>
 
@@ -58,8 +62,9 @@
 
     <!-- Proposal navigator: shown after streaming ends when there are pending proposals -->
     <ProposalNavigator
-      v-if="!aiStore.isStreaming && aiStore.allPendingProposals.length"
+      v-if="aiStore.allPendingProposals.length"
       :proposals="aiStore.allPendingProposals"
+      :is-streaming="aiStore.isStreaming"
       @approve="aiStore.approveEditProposal"
       @reject="aiStore.rejectEditProposal"
       @approve-all="aiStore.approveAllProposals"
@@ -72,10 +77,11 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
 
-const props = defineProps<{ bottomPadding?: number }>()
+defineProps<{ bottomPadding?: number }>()
 import { marked } from 'marked'
 import { useAiStore } from '@/stores/ai'
 import { inferToolKind } from '@/types/ai'
+import { TOOL_DISPLAY_NAMES } from '@/ai/agent/AgentRunner'
 import type { AiToolCall } from '@/types/ai'
 import AgentStartupProgress from '../AgentStartupProgress.vue'
 import AgentEmptyState from './AgentEmptyState.vue'
@@ -89,7 +95,7 @@ const streamingToolCall = computed<AiToolCall>(() => ({
   id: 'streaming',
   name: aiStore.streamingToolName ?? '',
   kind: inferToolKind(aiStore.streamingToolName ?? ''),
-  title: aiStore.streamingToolName ?? '',
+  title: TOOL_DISPLAY_NAMES[aiStore.streamingToolName ?? ''] ?? aiStore.streamingToolName ?? '',
   status: 'in_progress',
   arguments: {},
 }))
@@ -118,14 +124,7 @@ const thinkingLabel = computed(() => {
   return '思考中'
 })
 
-// ── Character count for streaming text ────────────────────────────────────
-const streamingCharCount = computed(() => {
-  const text = aiStore.streamingText
-  if (!text) return 0
-  const cjk = (text.match(/[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/g) ?? []).length
-  const latin = (text.match(/\b\w+\b/g) ?? []).length
-  return cjk + latin
-})
+
 
 // ── Auto-scroll ────────────────────────────────────────────────────────────
 const messagesEl = ref<HTMLDivElement>()

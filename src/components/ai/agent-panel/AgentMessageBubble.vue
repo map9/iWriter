@@ -115,19 +115,27 @@
             class="flex items-center gap-2 px-2 py-1.5 bg-yellow-50 text-yellow-800 cursor-pointer select-none"
             @click="editListExpanded = !editListExpanded"
           >
-            <span>✓</span>
             <span>✏️</span>
             <span class="font-bold">已提案 {{ editToolCalls.length }} 处修改</span>
+            <span v-if="appliedCount"  class="text-green-600 text-[11px]">✓{{ appliedCount }}</span>
+            <span v-if="rejectedCount" class="text-red-500  text-[11px]">✗{{ rejectedCount }}</span>
             <span class="ml-auto opacity-60 text-[10px]">{{ editListExpanded ? '▲' : '▼' }}</span>
           </div>
           <div v-if="editListExpanded" class="bg-white border-t border-yellow-100 px-2 py-1.5 space-y-1">
             <div
               v-for="tc in editToolCalls"
               :key="tc.id"
-              class="flex items-center gap-1.5 text-yellow-900"
+              class="flex items-center gap-1.5"
+              :class="{
+                'text-green-700': tc.status === 'completed',
+                'text-red-400 line-through opacity-60': tc.status === 'failed',
+                'text-yellow-900': tc.status !== 'completed' && tc.status !== 'failed',
+              }"
             >
               <span class="flex-shrink-0">{{ editOpDisplay(tc).icon }}</span>
               <span class="truncate font-mono">{{ editOpDisplay(tc).label }}</span>
+              <span v-if="tc.status === 'completed'" class="ml-auto text-green-600 font-bold flex-shrink-0">✓</span>
+              <span v-if="tc.status === 'failed'"    class="ml-auto text-red-400  font-bold flex-shrink-0">✗</span>
             </div>
           </div>
         </div>
@@ -193,6 +201,9 @@ watch(
   () => editToolCalls.value.length,
   (len, oldLen) => { if (oldLen === 0 && len > 0) editListExpanded.value = len <= 5 }
 )
+
+const appliedCount  = computed(() => editToolCalls.value.filter(tc => tc.status === 'completed').length)
+const rejectedCount = computed(() => editToolCalls.value.filter(tc => tc.status === 'failed').length)
 
 function editOpDisplay(tc: AiToolCall): { icon: string; label: string } {
   const args = tc.arguments

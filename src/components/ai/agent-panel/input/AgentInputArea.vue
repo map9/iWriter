@@ -1,5 +1,5 @@
 <template>
-  <div class="border-2 border-accent-primary rounded-lg m-2 bg-white flex-shrink-0 shadow-lg">
+  <div class="border-2 border-accent-primary rounded-lg my-2 mx-3 bg-white flex-shrink-0 shadow-lg">
 
     <AgentContextChips
       :files="contextFiles"

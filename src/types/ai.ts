@@ -239,6 +239,15 @@ export interface AiThread {
   hasError?: boolean
   /** File path this thread was started against (set on first user message). Null = no file was open. */
   originFilePath?: string | null
+  // EditorState delta tracking (Phase C)
+  /** Hash of last injected editor state (filePath|outlineText|sectionHeading). */
+  editorStateHash?: string
+  /** File path from the last injected EditorState (to detect file switches). */
+  lastFilePath?: string | null
+  /** Section heading from the last injected EditorState (to detect cursor moves). */
+  lastSectionHeading?: string | null
+  /** Whether the workspace path has already been injected (only on first message). */
+  workspaceInjected?: boolean
 }
 
 // Persisted AI settings

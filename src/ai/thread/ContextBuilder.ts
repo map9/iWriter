@@ -1,16 +1,19 @@
 /**
- * ContextBuilder — system prompt assembly + tool schema definitions (V3).
+ * ContextBuilder — tool schema definitions + system prompt + EditorState injection.
  *
- * Changes from V1:
- *  - edit_document replaced by 4 document access tools + 7 block edit tools
- *  - System prompt injects document_outline (always) + current_section (cursor-first)
- *  - DocumentContext carries the editor instance and cursor block info
+ * getSystemPrompt(profile)          — pure static text from system-prompts/*.ts
+ * buildEditorStateBlock(...)        — delta-based XML prepended to each user message;
+ *                                     injects only what changed since the last message
+ * buildSnapshot(editor, pos?, path?) — DocumentViewSnapshot used by tools and EditorState
  */
 
-import type { AiAgentProfile, OpenTabInfo } from '@/types/ai'
+import type { AiAgentProfile, AiThread, OpenTabInfo } from '@/types/ai'
 import type { LMTool } from '../providers/types'
 import type { Editor } from '@tiptap/core'
 import { DocumentViewBuilder, type DocumentView } from '../edit-agent/DocumentViewBuilder'
+import { WRITE_SYSTEM_PROMPT } from './system-prompts/write'
+import { ASK_SYSTEM_PROMPT } from './system-prompts/ask'
+import { MINIMAL_SYSTEM_PROMPT } from './system-prompts/minimal'
 
 // ── Document View Cache ────────────────────────────────────────────────────
 
@@ -319,315 +322,268 @@ export function getToolsForProfile(profile: AiAgentProfile, platform?: string): 
   }
 }
 
-// ── System Prompt Builder ──────────────────────────────────────────────────
+// ── System Prompt ──────────────────────────────────────────────────────────
 
-export interface DocumentContext {
-  /** Optional TipTap editor instance for building the document view */
-  editor?: Editor
-  /** Pre-built document view snapshot (preferred over building from scratch) */
-  viewSnapshot?: DocumentViewSnapshot
-  selectionText?: string
-  filePath?: string | null
-  folderPath?: string | null
-  /** Whether the active editor file has unsaved changes */
-  isDirty?: boolean
-  /** Other open editor tabs (excluding the active tab) */
-  openTabs?: OpenTabInfo[]
-  /** True when the active file differs from the thread's originFilePath */
-  fileChanged?: boolean
-  /** The thread's originFilePath (for the warning message) */
-  previousFilePath?: string | null
-  /** Text file paths attached by the user (listed in <context_files> section) */
-  textFilePaths?: string[]
-  /** Directory paths attached by the user (listed in <environment> section) */
-  attachedDirectories?: string[]
+/**
+ * Return the static system prompt for a given profile.
+ * Contains only role/capability instructions — no dynamic context.
+ */
+export function getSystemPrompt(profile: AiAgentProfile): string {
+  switch (profile) {
+    case 'write':   return WRITE_SYSTEM_PROMPT
+    case 'ask':     return ASK_SYSTEM_PROMPT
+    case 'minimal':
+    default:        return MINIMAL_SYSTEM_PROMPT
+  }
+}
+
+// ── EditorState Block ──────────────────────────────────────────────────────
+
+/** Block count threshold: inline content when ≤ this, otherwise IDs only. */
+const INLINE_BLOCK_THRESHOLD = 5
+
+/** Lightweight hash for detecting document state changes across messages. */
+function hashEditorState(
+  filePath: string | null,
+  outlineText: string,
+  sectionHeading: string | null
+): string {
+  const input = `${filePath ?? 'none'}|${outlineText}|${sectionHeading ?? ''}`
+  let h = 0
+  for (let i = 0; i < input.length; i++) h = (Math.imul(31, h) + input.charCodeAt(i)) | 0
+  return h.toString(36)
+}
+
+/** Return block displayIds covered by the editor's current selection (empty if no selection). */
+function getSelectionBlockIds(snapshot: DocumentViewSnapshot): number[] {
+  const { from, to } = snapshot.editor.state.selection
+  if (from === to) return []
+  return snapshot.view.blockMap
+    .filter(b => b.from < to && b.to > from)
+    .map(b => b.displayId)
+}
+
+type CursorSectionNode = { heading: string | null; blockIds: number[]; inlineContent?: string }
+
+/** Build cursor section info from snapshot. Returns null if cursor position unknown. */
+function buildCursorSectionNode(
+  snapshot: DocumentViewSnapshot,
+  builder: DocumentViewBuilder
+): CursorSectionNode | null {
+  const { cursorBlockId, view, editor } = snapshot
+  if (cursorBlockId === null) return null
+
+  const sectionHeading = findContainingHeading(cursorBlockId, view)
+
+  if (sectionHeading) {
+    const sectionResult = builder.buildSectionView(editor, sectionHeading.displayId, view.blockMap)
+    if (!sectionResult) return null
+    const [start, end] = sectionResult.blockIdRange
+    const blockIds = view.blockMap
+      .filter(b => b.displayId >= start && b.displayId <= end)
+      .map(b => b.displayId)
+    return {
+      heading: sectionHeading.text,
+      blockIds,
+      inlineContent: blockIds.length <= INLINE_BLOCK_THRESHOLD ? sectionResult.content : undefined,
+    }
+  }
+
+  // No heading — use a small range around the cursor
+  const start = Math.max(1, cursorBlockId - 2)
+  const end   = Math.min(view.totalBlocks, cursorBlockId + 2)
+  const blockIds = view.blockMap
+    .filter(b => b.displayId >= start && b.displayId <= end)
+    .map(b => b.displayId)
+  return {
+    heading: null,
+    blockIds,
+    inlineContent: blockIds.length <= INLINE_BLOCK_THRESHOLD
+      ? builder.buildRangeView(editor, start, end, view.blockMap)
+      : undefined,
+  }
+}
+
+function appendCursorSectionXml(
+  lines: string[],
+  node: CursorSectionNode,
+  indent: string
+): void {
+  const headingAttr = node.heading ? ` heading="${node.heading}"` : ''
+  const idsAttr = ` block_ids="[${node.blockIds.join(',')}]"`
+  if (node.inlineContent) {
+    lines.push(`${indent}<cursor_section${headingAttr}${idsAttr}>`)
+    lines.push(node.inlineContent)
+    lines.push(`${indent}</cursor_section>`)
+  } else {
+    const countAttr = ` blocks_count="${node.blockIds.length}"`
+    const hint = ` hint="Use get_section or get_blocks to read this section."`
+    lines.push(`${indent}<cursor_section${headingAttr}${idsAttr}${countAttr}${hint} />`)
+  }
+}
+
+function appendSelectionXml(
+  lines: string[],
+  snapshot: DocumentViewSnapshot,
+  builder: DocumentViewBuilder,
+  indent: string
+): void {
+  const selIds = getSelectionBlockIds(snapshot)
+  if (!selIds.length) return
+  const idsAttr = ` block_ids="[${selIds.join(',')}]"`
+  if (selIds.length <= INLINE_BLOCK_THRESHOLD) {
+    const content = builder.buildRangeView(
+      snapshot.editor, selIds[0]!, selIds[selIds.length - 1]!, snapshot.view.blockMap
+    )
+    lines.push(`${indent}<selection${idsAttr}>`)
+    lines.push(content)
+    lines.push(`${indent}</selection>`)
+  } else {
+    const hint = ` hint="Use get_blocks([${selIds.join(',')}]) to read selected content."`
+    lines.push(`${indent}<selection${idsAttr}${hint} />`)
+  }
+}
+
+export interface EditorStateContext {
+  filePath: string | null
+  isDirty: boolean
+  folderPath: string | null
+  openTabs: OpenTabInfo[]
+  textFilePaths: string[]
+  attachedDirectories: string[]
+}
+
+export interface EditorStateResult {
+  /** The <editor_state> XML to prepend to the user message, or null if nothing changed. */
+  xml: string | null
+  /** Delta tracking fields to save back to the thread after injection. */
+  threadUpdate: {
+    editorStateHash?: string
+    lastFilePath?: string | null
+    lastSectionHeading?: string | null
+    workspaceInjected?: boolean
+  }
+}
+
+/**
+ * Build an <editor_state> XML block to prepend to a user message.
+ * Implements delta logic: only injects what has changed since the last message.
+ * Returns null xml when no context changed (and no attachments).
+ */
+export function buildEditorStateBlock(
+  thread: AiThread,
+  snapshot: DocumentViewSnapshot | null,
+  ctx: EditorStateContext
+): EditorStateResult {
+  const builder = _builder
+  const isFirstMsg = thread.messages.length <= 1
+  const hasAttachments = ctx.textFilePaths.length > 0 || ctx.attachedDirectories.length > 0
+
+  const sectionNode = snapshot ? buildCursorSectionNode(snapshot, builder) : null
+  const cursorHeading = sectionNode?.heading ?? null
+
+  const currentHash = snapshot
+    ? hashEditorState(ctx.filePath, snapshot.view.outlineText, cursorHeading)
+    : ''
+
+  const fileChanged =
+    !isFirstMsg &&
+    thread.lastFilePath !== undefined &&
+    thread.lastFilePath !== ctx.filePath
+  const hashChanged = currentHash !== (thread.editorStateHash ?? '')
+  const sectionChanged =
+    !isFirstMsg && !hashChanged && thread.lastSectionHeading !== cursorHeading
+
+  type ChangeType = 'full' | 'file_changed' | 'document_content' | 'cursor_section' | 'attachments_only'
+  let change: ChangeType | null
+
+  if (isFirstMsg) {
+    change = 'full'
+  } else if (fileChanged) {
+    change = 'file_changed'
+  } else if (hashChanged && snapshot) {
+    change = 'document_content'
+  } else if (sectionChanged && sectionNode) {
+    change = 'cursor_section'
+  } else if (hasAttachments) {
+    change = 'attachments_only'
+  } else {
+    change = null
+  }
+
+  // Compute thread update fields
+  const threadUpdate: EditorStateResult['threadUpdate'] = {}
+  if (change && change !== 'attachments_only') {
+    threadUpdate.editorStateHash = currentHash
+    threadUpdate.lastFilePath = ctx.filePath
+    threadUpdate.lastSectionHeading = cursorHeading
+    if (change === 'full') threadUpdate.workspaceInjected = true
+  }
+
+  if (!change) return { xml: null, threadUpdate }
+
+  // Build XML
+  const lines: string[] = []
+  const prevAttr = fileChanged ? ` previous_file="${thread.lastFilePath ?? 'none'}"` : ''
+  lines.push(`<editor_state change="${change}"${prevAttr}>`)
+
+  // Workspace — first message only
+  if (change === 'full' && ctx.folderPath) {
+    lines.push(`  <workspace>${ctx.folderPath}</workspace>`)
+  }
+
+  // Active document — full / file_changed / document_content
+  if (snapshot && (change === 'full' || change === 'file_changed' || change === 'document_content')) {
+    const pathAttr = ctx.filePath ? ` path="${ctx.filePath}"` : ''
+    const statusAttr = ctx.filePath
+      ? ` status="${ctx.isDirty ? 'unsaved' : 'saved'}"`
+      : ' status="unsaved_new"'
+    lines.push(`  <active_document${pathAttr}${statusAttr}>`)
+    lines.push('    <outline>')
+    lines.push(snapshot.view.outlineText)
+    lines.push('    </outline>')
+    if (sectionNode) appendCursorSectionXml(lines, sectionNode, '    ')
+    appendSelectionXml(lines, snapshot, builder, '    ')
+    lines.push('  </active_document>')
+  }
+
+  // Cursor section only — cursor_section change
+  if (change === 'cursor_section' && sectionNode) {
+    appendCursorSectionXml(lines, sectionNode, '  ')
+  }
+
+  // Open tabs — first message only
+  if (change === 'full' && ctx.openTabs.length > 0) {
+    lines.push('  <open_tabs>')
+    for (const tab of ctx.openTabs) {
+      if (tab.path) {
+        lines.push(`    <tab path="${tab.path}" status="${tab.isDirty ? 'unsaved' : 'saved'}" />`)
+      } else {
+        lines.push(`    <tab name="${tab.name}" status="unsaved_new" />`)
+      }
+    }
+    lines.push('  </open_tabs>')
+  }
+
+  // Attached files and directories
+  if (hasAttachments) {
+    if (ctx.textFilePaths.length > 0) {
+      lines.push('  <attached_files>')
+      for (const p of ctx.textFilePaths) lines.push(`    <file path="${p}" />`)
+      lines.push('  </attached_files>')
+    }
+    if (ctx.attachedDirectories.length > 0) {
+      lines.push('  <attached_dirs>')
+      for (const d of ctx.attachedDirectories) lines.push(`    <dir path="${d}" />`)
+      lines.push('  </attached_dirs>')
+    }
+  }
+
+  lines.push('</editor_state>')
+  return { xml: lines.join('\n'), threadUpdate }
 }
 
 const _builder = new DocumentViewBuilder()
-
-/**
- * Build the system prompt for a request.
- * Injects document outline (always) + cursor section content (when available).
- */
-export function buildSystemPrompt(
-  profile: AiAgentProfile,
-  ctx: DocumentContext
-): string {
-  const lines: string[] = []
-  const hasDocument = !!(ctx.viewSnapshot || ctx.editor)
-
-  lines.push(
-    'You are an intelligent writing assistant integrated into iWriter, a document editor.',
-    'Help the user write, edit, and improve their documents.',
-    '在回答用户问题或执行编辑任务时，请先认真思考，然后再行动。仔细阅读下面的文档上下文和工具说明，确保你完全理解后再进行下一步。',
-    ''
-  )
-
-  if (profile === 'write') {
-    // ── 1. Context map ─────────────────────────────────────────────────────
-    // Always explain what the <environment> tags mean so the LLM can reason
-    // about ALL available context sources, not just the active document.
-    lines.push(
-      '## Available Context',
-      'Check the `<environment>` block at the end of this prompt to see what is available:',
-      '- `<editing_file path="...">` — document currently open in the editor.',
-      '  Block edit tools called WITHOUT `file_path` operate on THIS document.',
-      '  If absent: no document is open; block tools without `file_path` will fail.',
-      '- `<workspace_folder>` — root of the user\'s file system workspace.',
-      '  Contains .iwt / .md / .txt files. Access them with `file_path` or `exec_shell`.',
-      '- `<context_files>` — files the user explicitly attached. Read with doc tools (file_path) or exec_shell.',
-      '- `<attached_directories>` — attached directories. Explore with exec_shell.',
-      '- `<open_tabs>` — other open editor tabs (reference only; cannot be directly edited via block tools).',
-      '',
-    )
-
-    // ── 2. File Type Rules — always ────────────────────────────────────────
-    lines.push(
-      '## File Type Rules — CRITICAL',
-      '',
-      '### .iwt files (iWriter native format)',
-      '- .iwt files on disk are JSON: `{ version, content: "<html>...", metadata }`. NOT plain text.',
-      '- ⚠️ NEVER use `write_file` or `exec_shell` to write to a .iwt file — it will corrupt the JSON structure.',
-      '- For ALL .iwt files, use ONLY block tools:',
-      '  - Read:  `get_document_outline(file_path=...)`, `get_section(file_path=...)`, etc.',
-      '  - Write: `edit_block` / `insert_block` / `replace_range` / `delete_block` with `file_path=<abs path>`',
-      '    (omit `file_path` only when the .iwt file IS the currently active `<editing_file>`)',
-      '- Do NOT fall back to `write_file` even if a block tool call fails.',
-      '',
-      '### .md and .txt files',
-      '- Plain text. Use `exec_shell` (cat, grep) for reading, `write_file` for writing.',
-      '- Block tools also work when `file_path` is provided.',
-      '',
-      '### Block edit tools — file targeting rule',
-      '- WITHOUT `file_path` → edits the ACTIVE `<editing_file>`. Fails if no file is open.',
-      '- WITH `file_path` → edits that specific file on disk.',
-      '- ⚠️ Reading a file with `file_path` then editing WITHOUT `file_path` silently edits the WRONG document.',
-      '  Always set `file_path` to match your intended target.',
-      '',
-    )
-
-    // ── 3. Active document — only when editor has content ──────────────────
-    if (hasDocument) {
-      lines.push(
-        '## Active Document',
-        'Context is injected at the end of this prompt:',
-        '- `<document_outline>`: heading structure with `{b:N}` block IDs.',
-        '  Use N as `heading_block_id` in section tools and `block_id` in edit tools.',
-        '- `<current_section>`: Markdown of the section at cursor, with `{b:N}` markers.',
-        'Read these BEFORE calling any tool — the block IDs you need are already here.',
-        '',
-        '## Whole-Document Tasks (grammar check, proofreading, full rewrite)',
-        '**Core rule: read and edit in an overlapping pattern — never read everything first.**',
-        '',
-        'Basic pattern (sections ≤ 20 blocks):',
-        '- Round 1: `get_section(section1_id)` → read section 1',
-        '- Round 2: `edit_block(A)` + `edit_block(B)` + `get_section(section2_id)` → edit section 1 AND read section 2',
-        '- Round N: `edit_block(X)` → edit last section (loop stops, user reviews proposals)',
-        '',
-        'Pagination (when `has_more=true`):',
-        '- `get_section` defaults to 20 blocks per page; always check `has_more`',
-        '- `edit_block(A) + get_section(N, offset=20)` → edit page 1 AND read page 2 in one response',
-        '',
-        'Rules:',
-        '- Use `get_section` for sequential reading — NOT `get_blocks`',
-        '- A response with ONLY edit tools stops the loop for user review',
-        '',
-        '## Reading the Active Document',
-        'Use read tools only for content NOT already in the injected context:',
-        '- `get_section(heading_block_id=N)` — a section from `<document_outline>`. Paginate with offset/limit.',
-        '- `get_blocks(block_ids=[N, ...])` — targeted lookup of specific blocks.',
-        '- `get_block_context(block_id=N, window=3)` — blocks surrounding block N.',
-        '- `get_document_outline()` — refresh outline ONLY after making edits.',
-        'Never use a block_id not seen in context or a prior tool result.',
-        '',
-      )
-    }
-
-    // ── 4. Workspace / file operations — always ────────────────────────────
-    lines.push(
-      '## Working With Workspace Files',
-      'Use these steps to find, read, and edit any file in `<workspace_folder>` (or attached files):',
-      '',
-      '**Search:**',
-      '- `exec_shell(command="find . -iname \'*keyword*\' -type f")` — find by name',
-      '- `exec_shell(command="ls")` — list workspace root',
-      '',
-      '**Read:**',
-      '- .iwt: `get_document_outline(file_path="/abs/path/file.iwt")` for structure,',
-      '  then `get_section(heading_block_id=N, file_path="...")` for content',
-      '- .md/.txt: `exec_shell(command="cat /abs/path/file")` for quick read',
-      '',
-      '**Edit an .iwt file (not currently open in editor):**',
-      '1. `get_document_outline(file_path="/abs/path/file.iwt")` → note the `{b:N}` block IDs',
-      '2. Call block edit tool with BOTH the block ID AND `file_path`:',
-      '   `edit_block(block_id=N, new_content="...", file_path="/abs/path/file.iwt")`',
-      '   or `insert_block`, `replace_range`, `delete_block` — same pattern',
-      '- Build the absolute path: `<workspace_folder>` value + relative path from find/ls results.',
-      '- ⚠️ Block IDs from `get_document_outline(file_path=...)` are for THAT FILE only.',
-      '  Do not mix them with block IDs from the active document outline.',
-      '',
-    )
-
-    // ── 5. Creating new documents — always ─────────────────────────────────
-    lines.push(
-      '## Creating New Documents',
-      'To create a new document (opens as a new tab in the editor):',
-      '1. Generate the full content as Markdown.',
-      '2. Call `create_document(filename, content, reason?)`:',
-      '   - `filename`: name without extension (e.g. "苏州两日游")',
-      '   - `content`: complete Markdown document',
-      '',
-    )
-
-    // ── 6. Editing tools — always ──────────────────────────────────────────
-    lines.push(
-      '## Editing Tools',
-      'Choose the narrowest tool:',
-      '- `edit_block(block_id, new_content, reason?, file_path?)` — change content of one block, keeping type/level.',
-      '- `insert_block(after_block_id, new_blocks, reason?, file_path?)` — insert after a block (0 = doc start).',
-      '- `delete_block(block_id, reason?, file_path?)` — delete a block.',
-      '- `replace_range(start_block_id, end_block_id, new_content, reason?, file_path?)` — replace a range.',
-      '  Use for multi-block rewrites OR when changing block type / heading level.',
-      'Content: `edit_block` uses inline Markdown without type prefix (no `#` for headings, no fences for code).',
-      '`insert_block` / `replace_range` use full Markdown.',
-      '⚠️ `edit_block` CANNOT change block type or heading level — use `replace_range(N, N, "## text")` instead.',
-      '',
-    )
-
-    // ── 7. Error recovery — always ─────────────────────────────────────────
-    lines.push(
-      '## Error Recovery',
-      'If a tool returns an error:',
-      '1. Read the error message — it will name the problem.',
-      '2. For block ID errors: call `get_document_outline(file_path=...)` or check injected `<document_outline>`.',
-      '3. Correct and retry — do NOT repeat the same call unchanged.',
-      '4. If unresolvable, explain the problem to the user.',
-      '',
-      '## After Completing a Task',
-      'Reply with a brief summary in the document\'s language (2–4 sentences):',
-      '- What was done, notable decisions, what the user should review.',
-      '',
-    )
-  } else if (profile === 'ask') {
-    lines.push(
-      'You can read the document to answer questions.',
-      'You cannot make edits — provide suggestions as text instead.',
-      ''
-    )
-  } else {
-    lines.push('Respond based on the document context. Do not use tools.', '')
-  }
-
-  lines.push(
-    'Output rules:',
-    '- Keep responses concise unless elaboration is requested.',
-    '- When producing document content (not tool calls), match the document\'s style and language.',
-    ''
-  )
-
-  // Environment context block
-  const envLines: string[] = ['<environment>']
-  if (ctx.filePath) {
-    const status = ctx.isDirty ? 'unsaved' : 'saved'
-    envLines.push(`  <editing_file path="${ctx.filePath}" status="${status}" />`)
-  } else if (hasDocument) {
-    envLines.push('  <editing_file status="unsaved_new" />')
-  }
-  if (ctx.openTabs && ctx.openTabs.length > 0) {
-    envLines.push('  <open_tabs>')
-    for (const tab of ctx.openTabs) {
-      if (tab.path) {
-        envLines.push(`    <tab path="${tab.path}" status="${tab.isDirty ? 'unsaved' : 'saved'}" />`)
-      } else {
-        envLines.push(`    <tab name="${tab.name}" status="unsaved_new" />`)
-      }
-    }
-    envLines.push('  </open_tabs>')
-  }
-  if (ctx.folderPath) {
-    envLines.push(`  <workspace_folder>${ctx.folderPath}</workspace_folder>`)
-  }
-  if (ctx.attachedDirectories?.length) {
-    envLines.push('  <attached_directories>')
-    for (const dir of ctx.attachedDirectories) {
-      envLines.push(`    <directory path="${dir}" />`)
-    }
-    envLines.push('  </attached_directories>')
-  }
-  envLines.push('</environment>')
-  lines.push(...envLines)
-
-  // Attached text files — listed for tool-based access
-  if (ctx.textFilePaths?.length) {
-    lines.push(
-      '<context_files>',
-      'The user has attached the following local files for reference.',
-      'Use document tools with the file_path parameter to read them (e.g. get_document_outline, get_section, get_blocks).',
-      'Or use exec_shell (cat/head) for quick content inspection.',
-    )
-    for (const p of ctx.textFilePaths) {
-      lines.push(`<file path="${p}" />`)
-    }
-    lines.push('</context_files>')
-  }
-
-  // File-switch warning
-  if (ctx.fileChanged) {
-    lines.push(
-      '<file_context_warning>',
-      `This session was started while editing: ${ctx.previousFilePath ?? 'no file'}`,
-      `Currently editing: ${ctx.filePath ?? 'no file'}`,
-      'Block IDs from earlier in this conversation are invalid for the current file.',
-      'Document tools now operate on the CURRENT editing file.',
-      '</file_context_warning>'
-    )
-  }
-
-  // Selection context
-  if (ctx.selectionText) {
-    lines.push('<selected_text>', ctx.selectionText, '</selected_text>')
-  }
-
-  // Document view: outline + cursor section
-  const snapshot = ctx.viewSnapshot ?? (ctx.editor ? buildSnapshot(ctx.editor) : null)
-
-  if (snapshot) {
-    const { view, cursorBlockId } = snapshot
-
-    // Always inject outline
-    lines.push('<document_outline>', view.outlineText, '</document_outline>')
-
-    // Inject cursor section (the section containing the cursor)
-    if (cursorBlockId !== null) {
-      const cursorBlock = view.blockMap.find(b => b.displayId === cursorBlockId)
-      if (cursorBlock) {
-        // Find the heading that contains this block
-        const sectionHeading = findContainingHeading(cursorBlockId, view)
-
-        if (sectionHeading) {
-          const sectionResult = _builder.buildSectionView(snapshot.editor, sectionHeading.displayId, view.blockMap)
-          if (sectionResult) {
-            lines.push(
-              `<current_section heading="${sectionHeading.text}">`,
-              sectionResult.content,
-              '</current_section>'
-            )
-          }
-        } else {
-          // No heading — inject the cursor block and a few neighbors
-          const start = Math.max(1, cursorBlockId - 2)
-          const end   = Math.min(view.totalBlocks, cursorBlockId + 3)
-          const rangeContent = _builder.buildRangeView(snapshot.editor, start, end, view.blockMap)
-          lines.push('<current_context>', rangeContent, '</current_context>')
-        }
-      }
-    }
-
-    lines.push(`<cursor_block_id>${cursorBlockId ?? 'unknown'}</cursor_block_id>`)
-  }
-
-  return lines.join('\n')
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 

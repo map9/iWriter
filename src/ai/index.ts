@@ -13,7 +13,7 @@ providerRegistry.register(new GeminiProvider())
 
 export { providerRegistry } from './providers/ProviderRegistry'
 export type { AgentSession, AgentChunk, LMMessage, LMTool } from './providers/types'
-export { buildSystemPrompt, getToolsForProfile } from './thread/ContextBuilder'
+export { getSystemPrompt, buildEditorStateBlock, getToolsForProfile } from './thread/ContextBuilder'
 export { ThreadStore } from './thread/ThreadStore'
 export {
   createThread,
