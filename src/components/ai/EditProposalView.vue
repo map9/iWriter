@@ -110,6 +110,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { EditProposal, BlockEditProposal, FileEditProposal, FileCreateProposal } from '@/types/ai'
+import { PROPOSAL_TYPE_LABELS } from '@/types/ai'
 
 const props = defineProps<{ proposal: EditProposal; disabled?: boolean }>()
 defineEmits<{ approve: [id: string]; reject: [id: string] }>()
@@ -118,17 +119,10 @@ const blockProposal  = computed(() => props.proposal as BlockEditProposal)
 const fileProposal   = computed(() => props.proposal as FileEditProposal)
 const createProposal = computed(() => props.proposal as FileCreateProposal)
 
-const TYPE_LABELS: Record<string, string> = {
-  edit:          '编辑块',
-  insert:        '插入块',
-  delete:        '删除块',
-  replace_range: '替换范围',
-}
-
 const typeLabel = computed(() => {
   if (props.proposal.kind === 'create_file') return '创建文档'
   if (props.proposal.kind === 'file')        return '文件修改'
-  return TYPE_LABELS[blockProposal.value.type] ?? '编辑建议'
+  return PROPOSAL_TYPE_LABELS[blockProposal.value.type] ?? '编辑建议'
 })
 
 const isSingleBlock = computed(() =>

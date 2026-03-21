@@ -147,6 +147,11 @@ export function estimateTokens(messages: LMMessage[]): number {
   return Math.ceil(totalChars / 3.5)
 }
 
+function estimateMessageTokens(m: LMMessage): number {
+  if (typeof m.content === 'string') return Math.ceil(m.content.length / 3.5)
+  return Math.ceil(m.content.reduce((s, b) => s + (b.type === 'text' ? b.text.length : 0), 0) / 3.5)
+}
+
 /**
  * Trim older messages from a message array to stay within a token budget.
  * Always preserves the system message (index 0) and the most recent messages.
@@ -159,8 +164,10 @@ export function trimToTokenBudget(
 
   // Keep system + trim from the oldest non-system messages
   const [system, ...rest] = messages
-  while (rest.length > 1 && estimateTokens([system!, ...rest]) > maxTokens) {
-    rest.shift()
+  let currentTokens = estimateTokens([system!, ...rest])
+  while (rest.length > 1 && currentTokens > maxTokens) {
+    const removed = rest.shift()!
+    currentTokens -= estimateMessageTokens(removed)
   }
   return [system!, ...rest]
 }

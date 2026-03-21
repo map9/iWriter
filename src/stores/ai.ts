@@ -30,6 +30,8 @@ import { useAppStore } from '@/stores/app'
 import type { Editor } from '@tiptap/core'
 import type { AgentSession } from '@/ai/providers/types'
 import { notify } from '@/utils/notifications'
+import { nanoid } from 'nanoid'
+import { pathUtils } from '@/utils/pathUtils'
 
 /** File extension → MIME type map for binary attachments. */
 const EXT_TO_MIME: Record<string, string> = {
@@ -482,12 +484,12 @@ export const useAiStore = defineStore('ai', () => {
         const snapshot = buildSnapshot(editorInstance)
         const oldContent = snapshot.view.viewMarkdown
 
-        const proposalId = `file-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        const proposalId = `file-${nanoid(8)}`
         const proposal: FileEditProposal = {
           id: proposalId,
           kind: 'file',
           status: 'pending',
-          description: `Agent wants to update ${filePath.split('/').pop()}`,
+          description: `Agent wants to update ${pathUtils.basename(filePath)}`,
           sessionId: session.sessionId,
           filePath,
           oldContent,
@@ -667,9 +669,9 @@ export const useAiStore = defineStore('ai', () => {
       for (const filePath of sendContext.binaryFilePaths) {
         const base64 = await window.electronAPI.readFileBinary(filePath)
         if (!base64) continue
-        const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
+        const ext = pathUtils.extension(filePath)
         const mimeType = EXT_TO_MIME[ext] ?? 'application/octet-stream'
-        const fileName = filePath.split('/').pop() ?? filePath
+        const fileName = pathUtils.basename(filePath) || filePath
         userContentBlocks.push({ type: 'inline_binary', base64, mimeType, fileName })
       }
     }
@@ -765,9 +767,6 @@ export const useAiStore = defineStore('ai', () => {
       onText: delta => {
         streamingText.value += delta
       },
-      onThinkingText: _delta => {
-        // thinkingContent is accumulated in AgentRunner and stored in ThreadMessage
-      },
       onToolCallStart: (name, _id) => {
         streamingToolName.value = name
       },
@@ -830,7 +829,7 @@ export const useAiStore = defineStore('ai', () => {
         let errThread = activeThread.value
         if (errThread) {
           const errMsg: ThreadMessage = {
-            id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            id: `msg-${nanoid(8)}`,
             role: 'assistant',
             content: error,
             isError: true,
@@ -854,9 +853,15 @@ export const useAiStore = defineStore('ai', () => {
    * - pendingEditProposals list is cleared.
    */
   function _rejectAllPendingProposals() {
+    if (
+      pendingEditProposals.value.length === 0 &&
+      _pendingAcpFsResolvers.size === 0 &&
+      !activeThread.value?.messages.some(m => m.editProposals?.some(p => p.status === 'pending'))
+    ) return
+
     // Reject in-thread proposals (block / create_file)
     const thread = activeThread.value
-    if (thread) {
+    if (thread?.messages.some(m => m.editProposals?.some(p => p.status === 'pending'))) {
       const updatedMessages = thread.messages.map(msg => {
         if (!msg.editProposals?.some(p => p.status === 'pending')) return msg
         return {
@@ -992,8 +997,7 @@ export const useAiStore = defineStore('ai', () => {
       // If filePath == active editor file, nodeId was resolved against the active editor's
       // blockMap — use the active editor path so unsaved changes are handled correctly.
       const currentFilePath = appStore.activeTab?.path
-      const norm = (p: string) => p.replace(/\\/g, '/')
-      const isActiveFile = !!currentFilePath && norm(currentFilePath) === norm(blockProposal.filePath)
+      const isActiveFile = !!currentFilePath && pathUtils.normalize(currentFilePath) === pathUtils.normalize(blockProposal.filePath)
 
       if (!isActiveFile) {
         const { UnifiedDocumentAccess } = await import('@/ai/edit-agent/UnifiedDocumentAccess')

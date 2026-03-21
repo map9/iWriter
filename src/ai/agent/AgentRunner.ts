@@ -1,13 +1,3 @@
-/**
- * AgentRunner — orchestrates a full agentic turn (V3).
- *
- * Changes from V1:
- *  - edit_document replaced by block edit tools (BLOCK_EDIT_TOOLS set)
- *  - Block edit tool calls → BlockEditProposal (user must approve before execution)
- *  - AiToolCall now carries kind, title, status, file fields
- *  - thinkingContent accumulation support
- */
-
 import type {
   AiThread,
   AiToolCall,
@@ -20,12 +10,14 @@ import type {
 import { inferToolKind, BLOCK_EDIT_TOOLS } from '@/types/ai'
 import type { AgentSession, AgentChunk, AgentStreamOptions, LMTool, LMContentBlock } from '../providers/types'
 import { EditParser } from '../edit-agent/EditParser'
-import { resolveToolCalls, type AccumulatedToolCall } from '../thread/Thread'
+import { resolveToolCalls, type AccumulatedToolCall, threadToLMMessages, trimToTokenBudget, appendMessage } from '../thread/Thread'
 import type { ToolRegistry } from '../tools/registry'
 import type { DocumentViewSnapshot } from '../thread/ContextBuilder'
 import { nodeToMarkdown } from '../edit-agent/DocumentViewBuilder'
 import { findNodeById } from '../edit-agent/BlockEditApplier'
 import { UnifiedDocumentAccess } from '../edit-agent/UnifiedDocumentAccess'
+import { nanoid } from 'nanoid'
+import { pathUtils } from '@/utils/pathUtils'
 
 const MAX_TOOL_ROUNDS = 20
 
@@ -79,21 +71,9 @@ export class AgentRunner {
       return
     }
 
-    const { threadToLMMessages, trimToTokenBudget } = await import('../thread/Thread')
     // Pass userContentBlocks only on round 0 (initial user message); subsequent rounds don't need them
     let messages = threadToLMMessages(thread, systemPrompt, round === 0 ? userContentBlocks : undefined)
     messages = trimToTokenBudget(messages, 60000)
-
-    // ── Debug: print full message payload sent to LLM ─────────────────────
-    console.group(`[AgentRunner] round=${round} — ${messages.length} messages`)
-    for (const m of messages) {
-      const preview = typeof m.content === 'string'
-        ? m.content.slice(0, 300)
-        : JSON.stringify(m.content).slice(0, 300)
-      console.log(`  [${m.role}]`, preview)
-    }
-    console.groupEnd()
-    // ─────────────────────────────────────────────────────────────────────
 
     const parser = new EditParser()
     let textBuffer = ''
@@ -139,7 +119,7 @@ export class AgentRunner {
     }))
 
     const assistantMsg: ThreadMessage = {
-      id:              `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id:              `msg-${nanoid(8)}`,
       role:            'assistant',
       content:         textBuffer,
       thinkingContent: thinkingBuffer || undefined,
@@ -173,7 +153,6 @@ export class AgentRunner {
     for (const tc of toolCalls) {
       if (BLOCK_EDIT_TOOLS.has(tc.name)) {
         // Block edit tool → produce a proposal (not auto-executed)
-        console.log(`[tool] → ${tc.name} (edit proposal)`, tc.arguments)
         const proposal = this.buildBlockEditProposal(tc)
         if (proposal) {
           // Guard: block edit with no file_path requires an active editor snapshot.
@@ -215,9 +194,7 @@ export class AgentRunner {
         }
       } else {
         // Regular tool (read-only or file write) → execute immediately
-        console.log(`[tool] → ${tc.name}`, tc.arguments)
         const result = await this.toolRegistry.execute(tc)
-        console.log(`[tool] ← ${tc.name}`, result.isError ? '❌' : '✓', result.content.slice(0, 500))
         // Augment toolCall with result and final status for UI display
         tc.result   = result.content.slice(0, 2000)
         tc.isError  = result.isError
@@ -277,7 +254,6 @@ export class AgentRunner {
     // Build updated thread and continue agentic loop
     // assistantMsg already carries toolResults; threadToLMMessages converts them to
     // role:'tool' messages automatically — no need for separate result messages.
-    const { appendMessage } = await import('../thread/Thread')
     const updatedThread = appendMessage(thread, assistantMsg)
 
     this.doRun(updatedThread, systemPrompt, tools, callbacks, round + 1, allFailed ? failedRounds + 1 : 0, options).catch(err => {
@@ -292,12 +268,12 @@ export class AgentRunner {
     const filePath = typeof args.file_path === 'string' && args.file_path ? args.file_path : undefined
     const snapshot = this.getSnapshot()
     const blockMap = snapshot?.view.blockMap ?? []
+    const blockMapById = new Map(blockMap.map(b => [b.displayId, b]))
 
     // When filePath targets a non-active file, skip blockMap lookup.
     // nodeIds will be resolved at approval time via UnifiedDocumentAccess.createFreshFromFile().
     const currentPath = this.getFilePath()
-    const norm = (p: string) => p.replace(/\\/g, '/')
-    const isNonActiveFile = !!filePath && !(currentPath && norm(currentPath) === norm(filePath))
+    const isNonActiveFile = !!filePath && !(currentPath && pathUtils.normalize(currentPath) === pathUtils.normalize(filePath))
 
     // Always capture the effective file path at proposal-build time.
     // When the LLM omits file_path (editing the active document), we store the active file
@@ -312,7 +288,7 @@ export class AgentRunner {
       if (cachedPaths.length === 1) effectiveFilePath = cachedPaths[0]
     }
 
-    const id = `proposal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const id = `proposal-${nanoid(8)}`
     // Strip view-only {b:N} markers that LLMs sometimes include verbatim in new content
     const stripMarkers = (s: string) => s.replace(/\{b:\d+\}\n?/g, '')
     // oldContent (for diff display) is only meaningful when the proposal targets the active
@@ -320,7 +296,7 @@ export class AgentRunner {
     // Using filePath (original LLM arg) alone is wrong: when filePath=undefined but
     // effectiveFilePath=cachedPath, we'd incorrectly read oldContent from the active editor.
     const isActiveEditorTarget = !effectiveFilePath ||
-      (currentPath != null && norm(currentPath) === norm(effectiveFilePath))
+      (currentPath != null && pathUtils.normalize(currentPath) === pathUtils.normalize(effectiveFilePath))
 
     switch (tc.name) {
       case 'edit_block': {
@@ -328,7 +304,7 @@ export class AgentRunner {
         if (isNaN(displayBlockId)) return null
         const newContent = stripMarkers(String(args.new_content ?? ''))
         if (!newContent.trim()) return null
-        const entry = isNonActiveFile ? undefined : blockMap.find(b => b.displayId === displayBlockId)
+        const entry = isNonActiveFile ? undefined : blockMapById.get(displayBlockId)
         return {
           id, kind: 'block', type: 'edit', status: 'pending',
           toolCallId:     tc.id,
@@ -336,7 +312,7 @@ export class AgentRunner {
           displayBlockId,
           nodeId:         entry?.nodeId,
           nodeType:       entry?.nodeType,
-          oldContent:     isActiveEditorTarget ? (snapshot ? getOldContent(snapshot, displayBlockId) : undefined) : undefined,
+          oldContent:     isActiveEditorTarget ? (snapshot ? getOldContent(snapshot, displayBlockId, blockMapById) : undefined) : undefined,
           newContent,
           filePath: effectiveFilePath,
         }
@@ -347,7 +323,7 @@ export class AgentRunner {
         if (isNaN(afterDisplayId)) return null
         const newContent = stripMarkers(String(args.new_blocks ?? ''))
         if (!newContent.trim()) return null
-        const afterEntry = isNonActiveFile ? undefined : blockMap.find(b => b.displayId === afterDisplayId)
+        const afterEntry = isNonActiveFile ? undefined : blockMapById.get(afterDisplayId)
         return {
           id, kind: 'block', type: 'insert', status: 'pending',
           toolCallId:   tc.id,
@@ -362,7 +338,7 @@ export class AgentRunner {
       case 'delete_block': {
         const displayBlockId = Number(args.block_id)
         if (isNaN(displayBlockId)) return null
-        const entry = isNonActiveFile ? undefined : blockMap.find(b => b.displayId === displayBlockId)
+        const entry = isNonActiveFile ? undefined : blockMapById.get(displayBlockId)
         return {
           id, kind: 'block', type: 'delete', status: 'pending',
           toolCallId:     tc.id,
@@ -370,7 +346,7 @@ export class AgentRunner {
           displayBlockId,
           nodeId:         entry?.nodeId,
           nodeType:       entry?.nodeType,
-          oldContent:     isActiveEditorTarget ? (snapshot ? getOldContent(snapshot, displayBlockId) : undefined) : undefined,
+          oldContent:     isActiveEditorTarget ? (snapshot ? getOldContent(snapshot, displayBlockId, blockMapById) : undefined) : undefined,
           filePath: effectiveFilePath,
         }
       }
@@ -381,13 +357,13 @@ export class AgentRunner {
         if (isNaN(startDisplayId) || isNaN(endDisplayId)) return null
         const newContent = stripMarkers(String(args.new_content ?? ''))
         if (!newContent.trim()) return null
-        const startEntry = isNonActiveFile ? undefined : blockMap.find(b => b.displayId === startDisplayId)
-        const endEntry   = isNonActiveFile ? undefined : blockMap.find(b => b.displayId === endDisplayId)
+        const startEntry = isNonActiveFile ? undefined : blockMapById.get(startDisplayId)
+        const endEntry   = isNonActiveFile ? undefined : blockMapById.get(endDisplayId)
         // Collect old content from all blocks in range for diff display (active editor only)
         const oldContent = isActiveEditorTarget && snapshot
           ? blockMap
               .filter(b => b.displayId >= startDisplayId && b.displayId <= endDisplayId)
-              .map(b => getOldContent(snapshot, b.displayId))
+              .map(b => getOldContent(snapshot, b.displayId, blockMapById))
               .join('\n\n')
           : undefined
         return {
@@ -460,8 +436,17 @@ function extractFileRef(
   return undefined
 }
 
-function getOldContent(snapshot: DocumentViewSnapshot, displayBlockId: number): string {
-  const entry = snapshot.view.blockMap.find(b => b.displayId === displayBlockId)
+type BlockMap = DocumentViewSnapshot['view']['blockMap']
+type BlockMapByIdLookup = Map<number, BlockMap[number]>
+
+function getOldContent(
+  snapshot: DocumentViewSnapshot,
+  displayBlockId: number,
+  blockMapById?: BlockMapByIdLookup
+): string {
+  const entry = blockMapById
+    ? blockMapById.get(displayBlockId)
+    : snapshot.view.blockMap.find(b => b.displayId === displayBlockId)
   if (!entry?.nodeId) return ''
   // Use stable UniqueID lookup rather than position-based nodeAt(from).
   // Positions shift after prior edits; nodeId remains stable throughout the session.

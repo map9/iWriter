@@ -303,3 +303,11 @@ export const BLOCK_EDIT_TOOLS = new Set([
   'replace_range',
   'create_document',
 ])
+
+/** Human-readable labels for BlockEditProposal types. */
+export const PROPOSAL_TYPE_LABELS: Record<string, string> = {
+  edit:          '编辑块',
+  insert:        '插入块',
+  delete:        '删除块',
+  replace_range: '替换范围',
+}

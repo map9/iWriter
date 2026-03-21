@@ -6,19 +6,7 @@
  */
 
 import type { PermissionGate } from './PermissionGate'
-
-// Simple path utilities for renderer (avoids external path polyfill dependency)
-function joinPath(...parts: string[]): string {
-  return parts.join('/').replace(/\/+/g, '/').replace(/\/$/, '') || '/'
-}
-function basename(p: string): string {
-  return p.split('/').pop() ?? p
-}
-function dirname(p: string): string {
-  const parts = p.split('/')
-  parts.pop()
-  return parts.join('/') || '/'
-}
+import { pathUtils } from '@/utils/pathUtils'
 
 export class FileTools {
   constructor(
@@ -80,7 +68,7 @@ export class FileTools {
       return 'Error: File name must not contain path separators.'
     }
 
-    const absPath = joinPath(workspace, fileName)
+    const absPath = pathUtils.join(workspace, fileName)
     const { allowed, error } = await this.gate.check('create_document', absPath, true)
     if (!allowed) return `Error: ${error}`
 
@@ -88,8 +76,8 @@ export class FileTools {
     const exists = await window.electronAPI.pathExists(absPath)
     if (exists) return `Error: File "${fileName}" already exists.`
 
-    const folder = dirname(absPath)
-    const name = basename(absPath)
+    const folder = pathUtils.dirname(absPath)
+    const name = pathUtils.basename(absPath)
     const createdPath = await window.electronAPI.createFile(folder, name)
     if (!createdPath) return `Error: Failed to create "${fileName}".`
 
@@ -104,6 +92,6 @@ export class FileTools {
     const workspace = this.getWorkspacePath()
     if (!workspace) return null
     if (relativePath === '.' || relativePath === '') return workspace
-    return joinPath(workspace, relativePath)
+    return pathUtils.join(workspace, relativePath)
   }
 }

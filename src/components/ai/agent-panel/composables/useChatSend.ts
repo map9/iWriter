@@ -2,6 +2,7 @@ import { ref, watch, nextTick } from 'vue'
 import type { Ref } from 'vue'
 import { useAiStore } from '@/stores/ai'
 import type { SendContext } from '@/types/ai'
+import { pathUtils } from '@/utils/pathUtils'
 
 /** Binary file extensions that are sent as inline multimodal content. */
 const BINARY_EXTS = new Set([
@@ -18,9 +19,9 @@ const TEXT_EXTS = new Set([
 ])
 
 function classifyAttachment(path: string): 'binary' | 'text' | 'directory' {
-  const name = path.split('/').pop() ?? path
+  const name = pathUtils.basename(path)
   if (!name.includes('.')) return 'directory'
-  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  const ext = pathUtils.extension(path)
   if (BINARY_EXTS.has(ext)) return 'binary'
   if (TEXT_EXTS.has(ext)) return 'text'
   return 'text' // default: treat unknown extensions as text

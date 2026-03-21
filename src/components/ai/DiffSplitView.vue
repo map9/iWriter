@@ -56,8 +56,10 @@ interface DiffRow {
   right: string
 }
 
+const diffChunks = computed(() => diffLines(props.oldContent ?? '', props.newContent ?? ''))
+
 const rows = computed<DiffRow[]>(() => {
-  const chunks = diffLines(props.oldContent ?? '', props.newContent ?? '')
+  const chunks = diffChunks.value
   const result: DiffRow[] = []
   let i = 0
   while (i < chunks.length) {
@@ -84,15 +86,11 @@ const rows = computed<DiffRow[]>(() => {
 })
 
 const addedLines = computed(() =>
-  diffLines(props.oldContent ?? '', props.newContent ?? '')
-    .filter(c => c.added)
-    .reduce((s, c) => s + (c.count ?? 0), 0)
+  diffChunks.value.filter(c => c.added).reduce((s, c) => s + (c.count ?? 0), 0)
 )
 
 const removedLines = computed(() =>
-  diffLines(props.oldContent ?? '', props.newContent ?? '')
-    .filter(c => c.removed)
-    .reduce((s, c) => s + (c.count ?? 0), 0)
+  diffChunks.value.filter(c => c.removed).reduce((s, c) => s + (c.count ?? 0), 0)
 )
 
 function renderMd(text: string): string {

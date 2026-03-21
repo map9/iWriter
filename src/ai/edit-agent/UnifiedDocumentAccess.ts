@@ -18,6 +18,7 @@ import { nanoid } from 'nanoid'
 
 import { createBaseExtensions } from '@/utils/editorExtensions'
 import { convertContentFrom, convertContentTo } from '@/import-export/formatConverter'
+import { pathUtils } from '@/utils/pathUtils'
 import { DocumentViewBuilder } from './DocumentViewBuilder'
 import { applyBlockEditProposal } from './BlockEditApplier'
 import type { BlockEditProposal } from '@/types/ai'
@@ -171,7 +172,7 @@ export class UnifiedDocumentAccess {
     const raw = await window.electronAPI.readFile(filePath)
     if (raw === null) return { error: `File not found or unreadable: "${filePath}"` }
 
-    const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
+    const ext = pathUtils.extension(filePath)
     const converted = await convertContentFrom(raw, ext)
     if (!converted) return { error: `Unsupported file type: ".${ext}". Use exec_shell to read this file.` }
 

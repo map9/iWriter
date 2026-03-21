@@ -121,22 +121,17 @@
             <span v-if="rejectedCount" class="text-red-500  text-[11px]">✗{{ rejectedCount }}</span>
             <span class="ml-auto opacity-60 text-[10px]">{{ editListExpanded ? '▲' : '▼' }}</span>
           </div>
-          <div v-if="editListExpanded" class="bg-white border-t border-yellow-100 px-2 py-1.5 space-y-1">
-            <div
-              v-for="tc in editToolCalls"
+          <div v-if="editListExpanded" class="bg-white border-t border-yellow-100 px-2 py-1.5">
+            <span
+              v-for="(tc, idx) in editToolCalls"
               :key="tc.id"
-              class="flex items-center gap-1.5"
+              class="font-mono"
               :class="{
                 'text-green-700': tc.status === 'completed',
                 'text-red-400 line-through opacity-60': tc.status === 'failed',
                 'text-yellow-900': tc.status !== 'completed' && tc.status !== 'failed',
               }"
-            >
-              <span class="flex-shrink-0">{{ editOpDisplay(tc).icon }}</span>
-              <span class="truncate font-mono">{{ editOpDisplay(tc).label }}</span>
-              <span v-if="tc.status === 'completed'" class="ml-auto text-green-600 font-bold flex-shrink-0">✓</span>
-              <span v-if="tc.status === 'failed'"    class="ml-auto text-red-400  font-bold flex-shrink-0">✗</span>
-            </div>
+            >{{ editOpDisplay(tc).label }} <span v-if="tc.status === 'completed'" class="text-green-600 font-bold">✓</span><span v-if="tc.status === 'failed'" class="text-red-400 font-bold">✗</span><template v-if="idx < editToolCalls.length - 1">；</template></span>
           </div>
         </div>
       </div>

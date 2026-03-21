@@ -17,6 +17,9 @@ import { FileTools } from './FileTools'
 import { PermissionGate } from './PermissionGate'
 import { registerShellTools } from './ShellTools'
 import type { AiSettings } from '@/types/ai'
+import { pathUtils } from '@/utils/pathUtils'
+
+const _docViewBuilder = new DocumentViewBuilder()
 
 export type ToolExecutorFn = (args: Record<string, unknown>) => Promise<string>
 
@@ -122,8 +125,7 @@ export function createToolRegistry(
     // file_path matches active editor → use in-memory snapshot (includes unsaved changes)
     const currentPath = getFilePath()
     if (currentPath) {
-      const norm = (p: string) => p.replace(/\\/g, '/')
-      if (norm(currentPath) === norm(filePath)) {
+      if (pathUtils.normalize(currentPath) === pathUtils.normalize(filePath)) {
         const snapshot = getSnapshot()
         if (!snapshot) return { error: 'No document is currently open.' }
         return UnifiedDocumentAccess.fromEditor(snapshot.editor, snapshot.filePath)
@@ -131,7 +133,7 @@ export function createToolRegistry(
     }
 
     // Different file → virtual editor (cached per sendMessage)
-    const ext = filePath.toLowerCase().split('.').pop() ?? ''
+    const ext = pathUtils.extension(filePath)
     if (!SUPPORTED_DOC_EXTS.has(ext)) {
       return {
         error:
@@ -179,8 +181,7 @@ export function createToolRegistry(
       return `Error: heading_block_id is required. Available: ${available || '(no headings)'}.`
     }
 
-    const builder = new DocumentViewBuilder()
-    const sectionResult = builder.buildSectionView(editor, headingBlockId, view.blockMap)
+    const sectionResult = _docViewBuilder.buildSectionView(editor, headingBlockId, view.blockMap)
 
     if (!sectionResult) {
       const available = view.outline.map(h => `${h.displayId} ("${h.text}")`).join(', ')
@@ -219,8 +220,7 @@ export function createToolRegistry(
     }
 
     const numIds = ids.map(Number).filter(n => !isNaN(n))
-    const builder = new DocumentViewBuilder()
-    const blocks = builder.buildBlocksView(editor, numIds, view.blockMap)
+    const blocks = _docViewBuilder.buildBlocksView(editor, numIds, view.blockMap)
     return JSON.stringify(blocks, null, 2)
   })
 
@@ -239,8 +239,7 @@ export function createToolRegistry(
     }
 
     const window_ = args.window !== undefined ? Math.max(1, Number(args.window)) : 3
-    const builder = new DocumentViewBuilder()
-    const contextResult = builder.buildBlockContext(editor, blockId, view.blockMap, window_)
+    const contextResult = _docViewBuilder.buildBlockContext(editor, blockId, view.blockMap, window_)
 
     if (!contextResult.blocks.length) {
       return `Error: No block found with block_id ${blockId}. Valid range: 1 to ${view.totalBlocks}.`

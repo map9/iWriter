@@ -136,6 +136,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import MarkdownContentView from './MarkdownContentView.vue'
 import DiffSplitView from './DiffSplitView.vue'
 import type { EditProposal, BlockEditProposal, FileEditProposal, FileCreateProposal } from '@/types/ai'
+import { PROPOSAL_TYPE_LABELS } from '@/types/ai'
 import type { Editor } from '@tiptap/core'
 import { useAppStore } from '@/stores/app'
 import { findNodeById } from '@/ai/edit-agent/BlockEditApplier'
@@ -169,18 +170,11 @@ const isSingleBlock = computed(() =>
   ['edit', 'delete'].includes(blockProposal.value?.type ?? '')
 )
 
-const TYPE_LABELS: Record<string, string> = {
-  edit:          '编辑块',
-  insert:        '插入块',
-  delete:        '删除块',
-  replace_range: '替换范围',
-}
-
 const typeLabel = computed(() => {
   if (!current.value) return ''
   if (current.value.kind === 'create_file') return '创建文档'
   if (current.value.kind === 'file')        return '文件修改'
-  return TYPE_LABELS[blockProposal.value?.type ?? ''] ?? '编辑建议'
+  return PROPOSAL_TYPE_LABELS[blockProposal.value?.type ?? ''] ?? '编辑建议'
 })
 
 function approve() {
