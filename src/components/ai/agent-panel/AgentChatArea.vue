@@ -1,17 +1,6 @@
 <template>
   <div ref="messagesEl" class="flex-1 overflow-y-auto p-3 space-y-3 min-h-0" :style="{ paddingBottom: (bottomPadding ?? 0) + 24 + 'px' }">
 
-    <AgentStartupProgress
-      v-if="aiStore.isConnecting"
-      :agent-name="aiStore.activeProviderConfig?.label ?? 'Agent'"
-      :phase="aiStore.startupPhase"
-      :logs="aiStore.startupLogs"
-      :elapsed-seconds="aiStore.startupElapsed"
-      :show-details="aiStore.startupShowDetails"
-      @cancel="aiStore.cancelConnection()"
-      @toggle-details="aiStore.startupShowDetails = !aiStore.startupShowDetails"
-    />
-
     <AgentEmptyState />
 
     <AgentMessageBubble
@@ -83,7 +72,6 @@ import { useAiStore } from '@/stores/ai'
 import { inferToolKind } from '@/types/ai'
 import { TOOL_DISPLAY_NAMES } from '@/ai/agent/AgentRunner'
 import type { AiToolCall } from '@/types/ai'
-import AgentStartupProgress from '../AgentStartupProgress.vue'
 import AgentEmptyState from './AgentEmptyState.vue'
 import AgentMessageBubble from './AgentMessageBubble.vue'
 import ToolCallView from '../ToolCallView.vue'

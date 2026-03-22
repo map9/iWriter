@@ -70,7 +70,7 @@ export function htmlToMarkdown(html: string): string {
   return turndownService.turndown(html)
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export function convertContentTo(editorInstance: Editor, extension: string, _lineEnding?: 'LF' | 'CRLF'): string | null {
   if (!editorInstance) return null
 

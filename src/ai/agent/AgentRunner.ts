@@ -132,13 +132,6 @@ export class AgentRunner {
       return
     }
 
-    // ACP agents emit 'acp_done' — tool calls are display-only, not executable
-    if (stopReason === 'acp_done') {
-      for (const tc of toolCalls) tc.status = 'completed'
-      callbacks.onDone(assistantMsg)
-      return
-    }
-
     // For LLM providers: OpenAI='tool_calls', Anthropic='tool_use', Gemini='stop'
     // Any other stopReason means the model finished without requesting tool execution
     if (stopReason !== 'tool_calls' && stopReason !== 'tool_use' && stopReason !== 'stop') {

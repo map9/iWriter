@@ -1,25 +1,16 @@
 /**
  * Built-in provider presets.
  *
- * These define the defaults for well-known LLM APIs and ACP agents.
+ * These define the defaults for well-known LLM APIs.
  * Users select a preset and only need to fill in required fields
  * (API key, etc.); all other values come from here.
- *
- * ACP agent launch convention:
- *  - acpCommand: the binary to invoke (e.g. 'claude', 'npx', 'gh')
- *  - acpArgs: arguments forwarded to that binary
- *  - Many agents expose an --acp flag to enter protocol mode;
- *    npm-distributed agents are invoked via npx.
  */
 
 import type { AiProviderType } from '@/types/ai'
 
-export type AiProviderKind = 'llm' | 'agent'
-
 export interface ProviderPreset {
   id: string
   label: string
-  kind: AiProviderKind
   type: AiProviderType
   description: string
   /** For openai-compat providers */
@@ -27,16 +18,9 @@ export interface ProviderPreset {
   defaultModelId: string
   /** Selectable model IDs shown in the model picker */
   models?: string[]
-  /** For agent providers: available modes (e.g. Plan / Agent / AutoPilot) */
-  agentModes?: string[]
   requiresApiKey: boolean
   /** If true, user can/should customise baseUrl (e.g. Ollama) */
   editableBaseUrl?: boolean
-  /** ACP command to spawn (binary name or 'npx') */
-  acpCommand?: string
-  /** Arguments passed to acpCommand */
-  acpArgs?: string[]
-  acpEnv?: Record<string, string>
 }
 
 /**
@@ -57,20 +41,20 @@ export interface ProviderPreset {
  * glm-ocr:latest		            text	image		    tools
  * kimi-k2.5:cloud		          text	image	think	tools
  * glm-4.7-flash:latest		      text    		think	tools
- * translategemma:4b		        text  image		
- * translategemma:12b		        text	image		
- * translategemma:27b		        text	image		
+ * translategemma:4b		        text  image
+ * translategemma:12b		        text	image
+ * translategemma:27b		        text	image
  * glm-4.7:cloud		            code    		think	tools
  * gemini-3-flash-preview:cloud text	image	think	tools
  * nemotron-3-nano:latest		    text    		think	tools
  * nemotron-3-nano:30b-cloud		text		    think	tools
- * deepseek-ocr:3b		          text	image		
+ * deepseek-ocr:3b		          text	image
  * gpt-oss:20b		              text	    	think	tools
  * gpt-oss:120b-cloud		        text    		think	tools
- * gemma3:1b		                text			
- * gemma3:4b		                text	image		
- * gemma3:12b		                text	image		
- * gemma3:27b		                text	image		
+ * gemma3:1b		                text
+ * gemma3:4b		                text	image
+ * gemma3:12b		                text	image
+ * gemma3:27b		                text	image
  * deepseek-r1:8b		            text		    think	tools
  * deepseek-r1:14b		          text		    think	tools
  * deepseek-r1:32b		          text		    think	tools
@@ -83,12 +67,9 @@ export interface ProviderPreset {
  * llama3.1:70b		              text        			tools
  */
 export const PROVIDER_PRESETS: ProviderPreset[] = [
-  // ── LLM Providers ─────────────────────────────────────────────────────────
-
   {
     id: 'ollama',
     label: 'Ollama',
-    kind: 'llm',
     type: 'openai-compat',
     description: '本地运行的开源模型',
     baseUrl: 'http://localhost:11434/v1',
@@ -120,7 +101,6 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'deepseek',
     label: 'DeepSeek',
-    kind: 'llm',
     type: 'openai-compat',
     description: '深度求索 API',
     baseUrl: 'https://api.deepseek.com/v1',
@@ -132,7 +112,6 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'glm',
     label: 'GLM (智谱)',
-    kind: 'llm',
     type: 'openai-compat',
     description: '智谱 AI GLM 系列',
     baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
@@ -148,7 +127,6 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'openai',
     label: 'OpenAI',
-    kind: 'llm',
     type: 'openai-compat',
     description: 'OpenAI GPT / o 系列',
     baseUrl: 'https://api.openai.com/v1',
@@ -164,7 +142,6 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'anthropic',
     label: 'Anthropic',
-    kind: 'llm',
     type: 'anthropic',
     description: 'Anthropic Claude 系列',
     defaultModelId: '',
@@ -178,7 +155,6 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'gemini',
     label: 'Gemini API',
-    kind: 'llm',
     type: 'gemini',
     description: 'Google Gemini API',
     defaultModelId: '',
@@ -189,138 +165,4 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     requiresApiKey: true,
   },
-
-  // ── ACP Agent Providers ────────────────────────────────────────────────────
-  //
-  // Agents are invoked as child processes over JSON-RPC 2.0 stdin/stdout (ACP).
-  // acpCommand + acpArgs must produce a process that speaks the ACP protocol.
-  //
-  // 在 agent 中，models 通过 session/new 获取 jsonrpc 中的 models 字段，动态填充
-  //             agentModes 通过 session/new 获取 jsonrpc 中的 modes 字段，动态填充
-  // Common patterns:
-  //   • npm package via npx:       acpCommand='npx', acpArgs=['@pkg/name@latest', '--acp']
-
-  {
-    id: 'claude-code',
-    label: 'Claude Code',
-    kind: 'agent',
-    type: 'acp',
-    description: 'Anthropic Claude Code CLI',
-    acpCommand: 'npx',
-    acpArgs: ['@zed-industries/claude-code-acp@latest'],
-    defaultModelId: '',
-    models: [],
-    agentModes: [],
-    acpEnv: {
-      "ANTHROPIC_API_KEY": "sk-ant-..."
-    },
-    requiresApiKey: false,
-  },
-  {
-    id: 'gemini-cli',
-    label: 'Gemini CLI',
-    kind: 'agent',
-    type: 'acp',
-    description: 'Google Gemini CLI',
-    acpCommand: 'npx',
-    acpArgs: ["@google/gemini-cli@latest", "--experimental-acp"],
-    defaultModelId: '',
-    models: [],
-    agentModes: [],
-    requiresApiKey: false,
-  },
-  {
-    id: 'github-copilot',
-    label: 'GitHub Copilot',
-    kind: 'agent',
-    type: 'acp',
-    description: 'GitHub Copilot ACP agent (via npx)',
-    acpCommand: 'npx',
-    acpArgs: ["@github/copilot-language-server@latest", "--acp"],
-    defaultModelId: '',
-    models: [],
-    agentModes: [],
-    requiresApiKey: false,
-  },
-  {
-    id: 'qwen-code',
-    label: 'Qwen Code',
-    kind: 'agent',
-    type: 'acp',
-    description: '阿里云 Qwen Code CLI',
-    acpCommand: 'npx',
-    acpArgs: ["@qwen-code/qwen-code@latest", "--acp", "--experimental-skills"],
-    defaultModelId: '',
-    models: [],
-    agentModes: [],
-    requiresApiKey: false,
-  },
-  {
-    id: 'auggie-cli',
-    label: 'Auggie CLI',
-    kind: 'agent',
-    type: 'acp',
-    description: 'Augment Code CLI',
-    acpCommand: 'npx',
-    acpArgs: ["@augmentcode/auggie@latest", "--acp"],
-    defaultModelId: 'augment',
-    models: [],
-    agentModes: [],
-    acpEnv: { "AUGMENT_DISABLE_AUTO_UPDATE": "1" },
-    requiresApiKey: false,
-  },
-  {
-    id: 'qoder-cli',
-    label: 'Qoder CLI',
-    kind: 'agent',
-    type: 'acp',
-    description: 'Qoder AI CLI',
-    acpCommand: 'npx',
-    acpArgs: ["@qoder-ai/qodercli@latest", "--acp"],
-    defaultModelId: '',
-    agentModes: [],
-    requiresApiKey: false,
-  },
-  {
-    id: 'codex-cli',
-    label: 'Codex CLI',
-    kind: 'agent',
-    type: 'acp',
-    description: 'OpenAI Codex CLI',
-    acpCommand: 'npx',
-    acpArgs: ["@zed-industries/codex-acp@latest"],
-    defaultModelId: '',
-    models: [],
-    agentModes: [],
-    requiresApiKey: true,
-  },
-  {
-    id: 'opencode',
-    label: 'OpenCode',
-    kind: 'agent',
-    type: 'acp',
-    description: 'OpenCode CLI',
-    acpCommand: 'npx',
-    acpArgs: ["opencode-ai@latest", "acp"],
-    defaultModelId: '',
-    models: [],
-    agentModes: [],
-    requiresApiKey: false,
-  },
-  {
-    id: 'openclaw',
-    label: 'OpenClaw',
-    kind: 'agent',
-    type: 'acp',
-    description: 'OpenClaw CLI',
-    acpCommand: 'npx',
-    acpArgs: ["openclaw", "acp"],
-    defaultModelId: '',
-    models: [],
-    agentModes: [],
-    requiresApiKey: false,
-  },
 ]
-
-export const LLM_PRESETS = PROVIDER_PRESETS.filter(p => p.kind === 'llm')
-export const AGENT_PRESETS = PROVIDER_PRESETS.filter(p => p.kind === 'agent')

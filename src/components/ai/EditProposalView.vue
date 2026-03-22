@@ -22,23 +22,6 @@
       </div>
     </template>
 
-    <!-- FileEditProposal (kind === 'file') -->
-    <template v-else-if="proposal.kind === 'file'">
-      <div class="px-3 py-1.5 text-xs text-yellow-700 font-medium border-b border-yellow-100">
-        📄 {{ fileProposal.filePath.split('/').pop() }}
-      </div>
-      <div class="grid grid-cols-2 divide-x divide-yellow-200 text-xs">
-        <div class="p-2">
-          <div class="text-red-600 font-medium mb-1">原文</div>
-          <pre class="whitespace-pre-wrap break-words text-red-700 bg-red-50 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ fileProposal.oldContent || '(空)' }}</pre>
-        </div>
-        <div class="p-2">
-          <div class="text-green-600 font-medium mb-1">修改后</div>
-          <pre class="whitespace-pre-wrap break-words text-green-700 bg-green-50 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ fileProposal.newContent }}</pre>
-        </div>
-      </div>
-    </template>
-
     <!-- BlockEditProposal — single-block diff (edit / delete) -->
     <template v-else-if="isSingleBlock">
       <div class="grid grid-cols-2 divide-x divide-yellow-200 text-xs">
@@ -109,19 +92,17 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { EditProposal, BlockEditProposal, FileEditProposal, FileCreateProposal } from '@/types/ai'
+import type { EditProposal, BlockEditProposal, FileCreateProposal } from '@/types/ai'
 import { PROPOSAL_TYPE_LABELS } from '@/types/ai'
 
 const props = defineProps<{ proposal: EditProposal; disabled?: boolean }>()
 defineEmits<{ approve: [id: string]; reject: [id: string] }>()
 
 const blockProposal  = computed(() => props.proposal as BlockEditProposal)
-const fileProposal   = computed(() => props.proposal as FileEditProposal)
 const createProposal = computed(() => props.proposal as FileCreateProposal)
 
 const typeLabel = computed(() => {
   if (props.proposal.kind === 'create_file') return '创建文档'
-  if (props.proposal.kind === 'file')        return '文件修改'
   return PROPOSAL_TYPE_LABELS[blockProposal.value.type] ?? '编辑建议'
 })
 

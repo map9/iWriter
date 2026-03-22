@@ -1,6 +1,5 @@
 import type { AiProviderConfig } from '@/types/ai'
 import type { AgentChunk, AgentSession, AiProviderDriver, LMMessage, LMTool } from './types'
-import { AcpAgentSession } from '../acp/AcpAgentSession'
 
 /**
  * NativeAgentSession — executes streaming LLM calls directly from the renderer
@@ -114,9 +113,6 @@ class NativeAgentSession implements AgentSession {
 /**
  * ProviderRegistry — maps provider type IDs to their driver implementations.
  * Creating a session returns a unified AgentSession regardless of provider type.
- *
- * ACP sessions (type: 'acp') are handled separately by AcpAgentSession (Phase 7)
- * and are not registered here.
  */
 export class ProviderRegistry {
   private drivers = new Map<string, AiProviderDriver>()
@@ -131,13 +127,9 @@ export class ProviderRegistry {
 
   /**
    * Create an AgentSession for the given provider config.
-   * Returns null for unsupported or ACP provider types.
+   * Returns null for unsupported provider types.
    */
   createSession(config: AiProviderConfig, modelId: string): AgentSession | null {
-    if (config.type === 'acp') {
-      return new AcpAgentSession(config)
-    }
-
     const driver = this.drivers.get(config.type)
     if (!driver) {
       console.warn(`[ProviderRegistry] No driver registered for type: ${config.type}`)

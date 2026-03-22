@@ -51,7 +51,6 @@ export function useModelPicker() {
   })
 
   const showModelPicker = computed(() => {
-    if (aiStore.isAgentProvider) return allModelItems.value.length > 0
     return allModelItems.value.length > 1 || isOllamaProvider.value
   })
 

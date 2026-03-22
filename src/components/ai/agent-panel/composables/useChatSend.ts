@@ -69,34 +69,13 @@ export function useChatSend(contextFiles: Ref<string[]>) {
 
   async function sendMessage() {
     const text = inputText.value.trim()
-    if (!text) return
-
-    if (aiStore.isAgentProvider && aiStore.currentAgentInitStatus === 'initializing') {
-      pendingSend.value = true
-      return
-    }
-
-    if (aiStore.isStreaming) return
+    if (!text || aiStore.isStreaming) return
     await executeSend()
   }
 
   function cancelPendingSend() {
     pendingSend.value = false
   }
-
-  watch(
-    () => aiStore.currentAgentInitStatus,
-    (status) => {
-      if (pendingSend.value) {
-        if (status === 'success') {
-          pendingSend.value = false
-          executeSend()
-        } else if (status === 'failed') {
-          pendingSend.value = false
-        }
-      }
-    }
-  )
 
   return { inputText, inputEl, pendingSend, handleKeydown, executeSend, sendMessage, cancelPendingSend }
 }

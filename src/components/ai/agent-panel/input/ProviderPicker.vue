@@ -6,15 +6,7 @@
       :class="aiStore.activeProviderConfig ? 'text-gray-700 hover:bg-gray-100' : 'text-red-500 hover:bg-gray-100'"
       title="切换 Provider"
     >
-      <span
-        v-if="aiStore.currentAgentInitStatus === 'initializing'"
-        class="w-3 h-3 border border-gray-300 border-t-primary-500 rounded-full animate-spin flex-shrink-0"
-      />
-      <span
-        v-else
-        class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-        :class="(aiStore.activeProviderConfig?.kind ?? 'llm') === 'agent' ? 'bg-purple-500' : 'bg-blue-500'"
-      />
+      <span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
       <span class="truncate">{{ aiStore.activeProviderConfig?.label ?? '未配置' }}</span>
       <IconChevronDown class="w-3 h-3 flex-shrink-0 text-gray-400" />
     </button>
@@ -33,10 +25,9 @@
       </div>
 
       <div class="max-h-56 overflow-y-auto pb-1">
-        <template v-if="filteredLlmProviders.length">
-          <div class="px-3 py-1 text-[10px] text-gray-400 font-medium">— 模型 —</div>
+        <template v-if="filteredProviders.length">
           <button
-            v-for="cfg in filteredLlmProviders"
+            v-for="cfg in filteredProviders"
             :key="cfg.id"
             @click="isLlmProviderUsable(cfg) && doSelect(cfg.id)"
             class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left"
@@ -53,33 +44,8 @@
           </button>
         </template>
 
-        <template v-if="filteredAgentProviders.length">
-          <div class="px-3 py-1 text-[10px] text-gray-400 font-medium" :class="filteredLlmProviders.length ? 'mt-1' : ''">— Agent —</div>
-          <button
-            v-for="cfg in filteredAgentProviders"
-            :key="cfg.id"
-            @click="doSelect(cfg.id)"
-            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 text-left"
-          >
-            <span
-              v-if="aiStore.getAgentInitStatus(cfg.id) === 'initializing'"
-              class="w-3 h-3 border border-gray-300 border-t-primary-500 rounded-full animate-spin flex-shrink-0"
-            />
-            <span v-else class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              :class="cfg.id === aiStore.settings.activeProviderConfigId ? 'bg-primary-500' : 'bg-transparent'"
-            />
-            <span class="truncate flex-1"
-              :class="cfg.id === aiStore.settings.activeProviderConfigId ? 'font-semibold text-gray-900' : ''"
-            >{{ cfg.label }}</span>
-            <span
-              v-if="aiStore.getAgentInitStatus(cfg.id) === 'initializing'"
-              class="text-[10px] text-primary-500 flex-shrink-0"
-            >初始化中…</span>
-          </button>
-        </template>
-
         <div
-          v-if="!filteredLlmProviders.length && !filteredAgentProviders.length"
+          v-if="!filteredProviders.length"
           class="px-3 py-2 text-xs text-gray-400 text-center"
         >
           暂无配置
@@ -100,7 +66,7 @@ const props = defineProps<{ isOpen: boolean }>()
 const emit = defineEmits<{ open: []; close: [] }>()
 
 const aiStore = useAiStore()
-const { providerSearch, providerSearchEl, isLlmProviderUsable, filteredLlmProviders, filteredAgentProviders, onMenuOpen, selectProvider } = useProviderPicker()
+const { providerSearch, providerSearchEl, isLlmProviderUsable, filteredProviders, onMenuOpen, selectProvider } = useProviderPicker()
 
 function onToggle() {
   if (props.isOpen) emit('close')

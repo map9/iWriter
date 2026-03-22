@@ -26,9 +26,6 @@ export function useModePicker() {
   })
 
   const availableModes = computed<ModeOption[]>(() => {
-    if (aiStore.isAgentProvider) {
-      return aiStore.activeAgentModes.map(m => ({ value: m.id, label: m.name }))
-    }
     if (aiStore.availableThinkModes.length) {
       return aiStore.availableThinkModes
     }
@@ -38,11 +35,6 @@ export function useModePicker() {
   const hasModes = computed(() => availableModes.value.length > 0)
 
   const currentMode = computed(() => {
-    if (aiStore.isAgentProvider) {
-      return aiStore.activeThread?.agentMode ||
-        aiStore.activeProviderConfig?.lastSelectedMode ||
-        aiStore.activeAgentModes[0]?.id || ''
-    }
     if (aiStore.availableThinkModes.length) {
       return aiStore.activeThread?.thinkMode ||
         aiStore.activeProviderConfig?.lastSelectedMode ||
@@ -53,18 +45,15 @@ export function useModePicker() {
 
   const modeLabel = computed(() => {
     const mode = currentMode.value
-    if (!aiStore.isAgentProvider && !aiStore.availableThinkModes.length) {
+    if (!aiStore.availableThinkModes.length) {
       const map: Record<string, string> = { write: 'Write', ask: 'Ask', minimal: 'Minimal' }
       return map[mode] || mode
-    }
-    if (aiStore.isAgentProvider) {
-      return aiStore.activeAgentModes.find(m => m.id === mode)?.name || mode || 'Mode'
     }
     return mode || 'Mode'
   })
 
   function selectMode(mode: string) {
-    if (!aiStore.isAgentProvider && !aiStore.availableThinkModes.length) {
+    if (!aiStore.availableThinkModes.length) {
       currentProfile.value = mode as AiAgentProfile
       aiStore.updateProviderConfig(aiStore.activeProviderConfig!.id, { lastSelectedMode: mode })
     } else {

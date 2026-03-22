@@ -1,9 +1,6 @@
 // AI Provider Types
 
-export type AiProviderType = 'openai-compat' | 'anthropic' | 'gemini' | 'acp'
-
-/** 'llm' = native LLM API,  'agent' = external ACP agent process */
-export type AiProviderKind = 'llm' | 'agent'
+export type AiProviderType = 'openai-compat' | 'anthropic' | 'gemini'
 
 export type AiAgentProfile = 'write' | 'ask' | 'minimal'
 
@@ -13,8 +10,6 @@ export type AiToolPermission = 'confirm' | 'allow' | 'deny'
 export interface AiProviderConfig {
   id: string
   type: AiProviderType
-  /** Distinguishes direct LLM API from an external ACP agent. Defaults to 'llm'. */
-  kind?: AiProviderKind
   label: string           // user display name
   apiKey: string
   baseUrl?: string        // for openai-compat: endpoint override
@@ -24,47 +19,12 @@ export interface AiProviderConfig {
   presetId?: string
   /** Available model IDs for this provider (shown in model picker) */
   models?: string[]
-  /** Agent operation modes, e.g. ['Plan', 'Agent', 'AutoPilot'] */
-  agentModes?: string[]
   /** Think modes for LLM providers that support extended thinking, e.g. ['Normal', 'Think'] */
   thinkModes?: string[]
   /** Last selected model ID for this provider (restored when switching back) */
   lastSelectedModelId?: string
-  /** Last selected mode (agent mode or think mode) for this provider */
+  /** Last selected mode (think mode) for this provider */
   lastSelectedMode?: string
-  // ACP-specific: command to spawn the agent process
-  acpCommand?: string
-  acpArgs?: string[]
-  /** Extra environment variables injected when spawning the agent process */
-  acpEnv?: Record<string, string>
-  /** Models dynamically discovered from the ACP agent's initialize response */
-  acpDynamicModels?: AcpModelInfo[]
-  /** Modes dynamically discovered from the ACP agent's initialize response */
-  acpDynamicModes?: AcpModeInfo[]
-}
-
-/** Model info reported by an ACP agent in its initialize response. */
-export interface AcpModelInfo {
-  id: string
-  name: string
-  description?: string
-}
-
-/** Mode info reported by an ACP agent in its initialize response. */
-export interface AcpModeInfo {
-  id: string
-  name: string
-  description?: string
-}
-
-/** A pending permission request from an ACP agent. */
-export interface AcpPermissionRequest {
-  sessionId: string
-  requestId: number
-  permission: string
-  path?: string
-  description?: string
-  options: string[]
 }
 
 // Model information
@@ -146,16 +106,6 @@ export interface BlockEditProposal extends BaseEditProposal {
   filePath?: string
 }
 
-/** File-level edit proposal — produced by ACP Agent fs/write_text_file interception. */
-export interface FileEditProposal extends BaseEditProposal {
-  kind: 'file'
-  sessionId: string         // ACP session that triggered the write
-  filePath: string
-  oldContent: string        // Current editor Markdown
-  newContent: string        // Agent's proposed Markdown
-  toolCallId?: string
-}
-
 /** File creation proposal — produced by create_document when no document is open. */
 export interface FileCreateProposal extends BaseEditProposal {
   kind: 'create_file'
@@ -164,15 +114,7 @@ export interface FileCreateProposal extends BaseEditProposal {
   toolCallId?: string
 }
 
-export type EditProposal = BlockEditProposal | FileEditProposal | FileCreateProposal
-
-// ── Plan Entry (ACP-only) ──────────────────────────────────────────────────
-
-export interface PlanEntry {
-  content: string
-  priority: 'high' | 'medium' | 'low'
-  status: 'pending' | 'in_progress' | 'completed'
-}
+export type EditProposal = BlockEditProposal | FileCreateProposal
 
 // ── Thread Message ─────────────────────────────────────────────────────────
 
@@ -187,9 +129,6 @@ export interface ThreadMessage {
 
   /** Extended-thinking / chain-of-thought content (collapsible in UI) */
   thinkingContent?: string
-
-  /** ACP-only: execution plan entries from the agent's `plan` notification */
-  planEntries?: PlanEntry[]
 
   toolCalls?: AiToolCall[]
   toolResults?: AiToolResult[]
@@ -231,8 +170,6 @@ export interface AiThread {
   providerConfigId: string
   modelId: string
   profile: AiAgentProfile
-  /** Current agent mode for agent-type providers (e.g. 'Plan', 'Agent') */
-  agentMode?: string
   /** Current think mode for LLM providers that support it */
   thinkMode?: string
   /** Set to true when the last run ended with an error (shown in history list) */

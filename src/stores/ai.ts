@@ -1,27 +1,23 @@
 import { defineStore } from 'pinia'
-import { ref, computed, reactive } from 'vue'
+import { ref, computed } from 'vue'
 import type {
   AiThread,
   AiProviderConfig,
   AiSettings,
   BlockEditProposal,
-  FileEditProposal,
   FileCreateProposal,
   EditProposal,
   AiToolCall,
   AiToolResult,
   ThreadMessage,
-  AcpPermissionRequest,
   SendContext,
 } from '@/types/ai'
 import type { LMContentBlock } from '@/ai/providers/types'
-import type { AcpModelInfo, AcpModeInfo } from '@/ai/acp/AcpProtocol'
 import { PROVIDER_PRESETS, type ProviderPreset } from '@/ai/providers/provider-presets'
 import { ThreadStore } from '@/ai/thread/ThreadStore'
 import { createThread, appendMessage, createMessage } from '@/ai/thread/Thread'
 import { getSystemPrompt, buildEditorStateBlock, getToolsForProfile } from '@/ai/thread/ContextBuilder'
 import { providerRegistry } from '@/ai/providers/ProviderRegistry'
-import { AcpAgentSession } from '@/ai/acp/AcpAgentSession'
 import { AgentRunner } from '@/ai/agent/AgentRunner'
 import { createToolRegistry } from '@/ai/tools/registry'
 import { applyBlockEditProposal } from '@/ai/edit-agent/BlockEditApplier'
@@ -52,7 +48,6 @@ export const useAiStore = defineStore('ai', () => {
       .map((p: ProviderPreset) => ({
         id: `preset-${p.id}`,
         enabled: true,
-        kind: p.kind,
         type: p.type,
         label: p.label,
         apiKey: '',
@@ -60,26 +55,10 @@ export const useAiStore = defineStore('ai', () => {
         defaultModelId: p.defaultModelId,
         presetId: p.id,
         models: p.models,
-        agentModes: p.agentModes,
-        acpCommand: p.acpCommand,
-        acpArgs: p.acpArgs,
       }))
     _initialSettings.activeProviderConfigId = _initialSettings.providerConfigs[0]?.id ?? null
     ThreadStore.saveSettings(_initialSettings)
   }
-  // Migration: backfill acpArgs/acpCommand for existing configs that were saved without them
-  let _migrated = false
-  for (const cfg of _initialSettings.providerConfigs) {
-    if (cfg.kind === 'agent' && cfg.presetId && !cfg.acpArgs) {
-      const preset = PROVIDER_PRESETS.find(p => p.id === cfg.presetId)
-      if (preset) {
-        if (!cfg.acpCommand) cfg.acpCommand = preset.acpCommand
-        cfg.acpArgs = preset.acpArgs
-        _migrated = true
-      }
-    }
-  }
-  if (_migrated) ThreadStore.saveSettings(_initialSettings)
 
   const settings = ref<AiSettings>(_initialSettings)
 
@@ -94,31 +73,16 @@ export const useAiStore = defineStore('ai', () => {
   const availableModels = computed<string[]>(() => {
     const config = activeProviderConfig.value
     if (!config) return []
-    // For ACP agents: use in-memory capabilities only (not persisted)
-    if (config.kind === 'agent') {
-      const caps = _acpCapabilities.value[config.id]
-      return caps?.models.map((m: AcpModelInfo) => m.id) ?? []
-    }
     if (config.models?.length) return config.models
     const preset = PROVIDER_PRESETS.find(p => p.id === config.presetId)
     const presetModels = preset?.models ?? []
     return presetModels.length ? presetModels : [config.defaultModelId].filter(Boolean)
   })
 
-  /** Whether the current provider is an external agent (ACP) */
-  const isAgentProvider = computed(() => activeProviderConfig.value?.kind === 'agent')
-
-  /** Agent modes for the current provider (in-memory only, not persisted) */
-  const activeAgentModes = computed<AcpModeInfo[]>(() => {
-    const config = activeProviderConfig.value
-    if (!config || config.kind !== 'agent') return []
-    return _acpCapabilities.value[config.id]?.modes ?? []
-  })
-
-  /** Think modes for the current LLM provider (empty for agent providers) */
+  /** Think modes for the current LLM provider */
   const availableThinkModes = computed<string[]>(() => {
     const config = activeProviderConfig.value
-    if (!config || config.kind === 'agent') return []
+    if (!config) return []
     return config.thinkModes ?? []
   })
 
@@ -146,21 +110,9 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   function removeProviderConfig(id: string) {
-    // Kill and remove any cached ACP session for this provider
-    const cachedSession = _acpSessionCache.get(id)
-    if (cachedSession) {
-      cachedSession.cancel()
-      _acpSessionCache.delete(id)
-    }
-
-    const removed = settings.value.providerConfigs.find(c => c.id === id)
     settings.value.providerConfigs = settings.value.providerConfigs.filter(c => c.id !== id)
     if (settings.value.activeProviderConfigId === id) {
-      const sameKind = settings.value.providerConfigs.filter(
-        c => (c.kind ?? 'llm') === (removed?.kind ?? 'llm')
-      )
-      settings.value.activeProviderConfigId =
-        sameKind[0]?.id ?? settings.value.providerConfigs[0]?.id ?? null
+      settings.value.activeProviderConfigId = settings.value.providerConfigs[0]?.id ?? null
     }
     saveSettings()
   }
@@ -171,8 +123,8 @@ export const useAiStore = defineStore('ai', () => {
     // Clear mode on the active thread so stale values from the previous provider
     // are not carried over to the new one. (Model is provider-level, not thread-level.)
     const thread = activeThread.value
-    if (thread && (thread.agentMode || thread.thinkMode)) {
-      updateThread({ ...thread, agentMode: undefined, thinkMode: undefined })
+    if (thread?.thinkMode) {
+      updateThread({ ...thread, thinkMode: undefined })
     }
   }
 
@@ -191,11 +143,7 @@ export const useAiStore = defineStore('ai', () => {
       updateProviderConfig(config.id, { lastSelectedMode: mode })
     }
     if (activeThread.value) {
-      if (isAgentProvider.value) {
-        updateThread({ ...activeThread.value, agentMode: mode })
-      } else {
-        updateThread({ ...activeThread.value, thinkMode: mode })
-      }
+      updateThread({ ...activeThread.value, thinkMode: mode })
     }
   }
 
@@ -267,401 +215,8 @@ export const useAiStore = defineStore('ai', () => {
   const streamingToolName = ref<string | null>(null)
   const pendingEditProposals = ref<EditProposal[]>([])
 
-  /**
-   * Resolvers for pending ACP fs/write_text_file requests.
-   * Key = FileEditProposal.id, Value = function(approved) that sends the JSON-RPC response.
-   */
-  const _pendingAcpFsResolvers = new Map<string, (approved: boolean) => Promise<void>>()
-
-  // ── ACP Agent State ───────────────────────────────────────────────────────
-  /** A permission request from the active ACP agent awaiting user decision. */
-  const acpPermissionPending = ref<AcpPermissionRequest | null>(null)
-
-  /**
-   * Per-provider ACP session cache.
-   * ACP agents keep a persistent process alive across multiple messages.
-   * Key = providerConfigId, Value = the live AcpAgentSession.
-   */
-  const _acpSessionCache = new Map<string, AcpAgentSession>()
-
-  /**
-   * In-memory capabilities discovered from ACP init_result.
-   * NOT persisted to localStorage — must be re-fetched each session.
-   * Key = providerConfigId. Uses ref<Record> for guaranteed Vue 3 reactivity.
-   */
-  const _acpCapabilities = ref<Record<string, {
-    models: AcpModelInfo[]
-    modes: AcpModeInfo[]
-    currentModelId: string | null
-    currentModeId: string | null
-  }>>({})
-
-  function _deleteAcpCapabilities(configId: string) {
-    const next = { ..._acpCapabilities.value }
-    delete next[configId]
-    _acpCapabilities.value = next
-  }
-
-  /** Per-agent initialization status. Key = providerConfigId. */
-  const _agentInitStatusMap = reactive(new Map<string, 'idle' | 'initializing' | 'success' | 'failed'>())
-
-  /** Init status for the currently active agent provider. */
-  const currentAgentInitStatus = computed<'idle' | 'initializing' | 'success' | 'failed'>(() => {
-    const config = activeProviderConfig.value
-    if (!config || config.kind !== 'agent') return 'idle'
-    return _agentInitStatusMap.get(config.id) ?? 'idle'
-  })
-
-  // ── Startup progress (aligned with acp-ui session.ts) ────────────────────
-  /** Whether a connection attempt is currently in progress. */
-  const isConnecting = ref(false)
-  /** Current startup phase label. */
-  const startupPhase = ref<string>('starting')
-  /** Captured stderr lines from the agent process during startup. */
-  const startupLogs = ref<string[]>([])
-  /** Elapsed seconds since the connection attempt started. */
-  const startupElapsed = ref<number>(0)
-  /** Show/hide the startup log details panel. */
-  const startupShowDetails = ref(false)
-
-  let _startupTimer: ReturnType<typeof setInterval> | null = null
-  /** The session currently being initialised — used by cancelConnection. */
-  let _connectingSession: AcpAgentSession | null = null
-  /** Provider config ID that is currently connecting — used to cancel it when switching. */
-  let _connectingConfigId: string | null = null
-  /** Incremented each time a new init is started; stale inits exit early in their finally block. */
-  let _initGenCounter = 0
-
-  /** Detect startup phase from a stderr line (ported from acp-ui). */
-  function detectStartupPhase(line: string): string | null {
-    const lower = line.toLowerCase()
-    if (lower.includes('download') || lower.includes('fetch') || lower.includes('get ')) return 'downloading'
-    if (lower.includes('install') || lower.includes('added') || lower.includes('packages')) return 'installing'
-    if (lower.includes('build') || lower.includes('compil')) return 'building'
-    if (lower.includes('start') || lower.includes('spawn')) return 'starting'
-    return null
-  }
-
-  function _startProgressTracking(session: AcpAgentSession, configId: string) {
-    isConnecting.value = true
-    startupPhase.value = 'starting'
-    startupLogs.value = []
-    startupElapsed.value = 0
-    startupShowDetails.value = false
-    _connectingSession = session
-    _connectingConfigId = configId
-
-    _startupTimer = setInterval(() => {
-      startupElapsed.value++
-    }, 1000)
-
-    window.electronAPI.onAcpStderr?.((data: { sessionId: string; line: string }) => {
-      if (data.sessionId !== session.sessionId) return
-      startupLogs.value = [...startupLogs.value, data.line]
-      const phase = detectStartupPhase(data.line)
-      if (phase) startupPhase.value = phase
-    })
-  }
-
-  function _stopProgressTracking() {
-    isConnecting.value = false
-    if (_startupTimer !== null) {
-      clearInterval(_startupTimer)
-      _startupTimer = null
-    }
-    _connectingSession = null
-    _connectingConfigId = null
-    window.electronAPI.removeAcpStderrListeners?.()
-  }
-
-  /** Get the init status for any provider config by ID. */
-  function getAgentInitStatus(configId: string): 'idle' | 'initializing' | 'success' | 'failed' {
-    return _agentInitStatusMap.get(configId) ?? 'idle'
-  }
-
-  /** Cancel an ongoing connection attempt. */
-  function cancelConnection() {
-    const prevConfigId = _connectingConfigId
-    const prevSession = _connectingSession
-    _stopProgressTracking()
-    if (prevSession) prevSession.cancel()
-    if (prevConfigId) {
-      _initializingIds.delete(prevConfigId)
-      _agentInitStatusMap.set(prevConfigId, 'idle')
-    }
-    notify.info('已取消连接')
-  }
-
   /** The session used by the current streaming request (for cancel). */
   const _currentSession = ref<AgentSession | null>(null)
-
-  /** Timeout handle for auto-denying a stale permission request after 60 seconds. */
-  let _permissionTimeoutId: ReturnType<typeof setTimeout> | null = null
-
-  /** Reply to a pending ACP permission request. */
-  function resolveAcpPermission(response: string) {
-    if (_permissionTimeoutId) {
-      clearTimeout(_permissionTimeoutId)
-      _permissionTimeoutId = null
-    }
-    const req = acpPermissionPending.value
-    if (!req) return
-    window.electronAPI.acpPermissionRespond?.({
-      sessionId: req.sessionId,
-      requestId: req.requestId,
-      response,
-    })
-    acpPermissionPending.value = null
-  }
-
-  /**
-   * Store ACP agent capabilities in memory (NOT persisted).
-   * Also auto-corrects defaultModelId if it's missing or not in the returned models.
-   */
-  function updateAcpCapabilities(
-    configId: string,
-    models: AcpModelInfo[],
-    modes: AcpModeInfo[],
-    currentModelId: string | null,
-    currentModeId: string | null
-  ) {
-    _acpCapabilities.value = {
-      ..._acpCapabilities.value,
-      [configId]: { models, modes, currentModelId, currentModeId },
-    }
-    // Sync defaultModelId with the agent's actual current model
-    if (models.length) {
-      const cfg = settings.value.providerConfigs.find(c => c.id === configId)
-      if (cfg) {
-        const ids = models.map(m => m.id)
-        const preferred = currentModelId && ids.includes(currentModelId) ? currentModelId : ids[0]!
-        if (!cfg.defaultModelId || !ids.includes(cfg.defaultModelId)) {
-          updateProviderConfig(configId, { defaultModelId: preferred })
-        }
-      }
-    }
-  }
-
-  /**
-   * Wire all ACP session callbacks: onInit, onPermissionRequest, onFsReadRequest, onFsWriteRequest.
-   * Call this every time a new AcpAgentSession is created.
-   */
-  function setupAcpSessionCallbacks(session: AcpAgentSession, configId: string): void {
-    session.onInit = (models, modes, currentModelId, currentModeId) =>
-      updateAcpCapabilities(configId, models, modes, currentModelId, currentModeId)
-
-    session.onPermissionRequest = (requestId, permission, path, description, options) => {
-      if (_permissionTimeoutId) {
-        clearTimeout(_permissionTimeoutId)
-        _permissionTimeoutId = null
-      }
-      acpPermissionPending.value = {
-        sessionId: session.sessionId,
-        requestId,
-        permission,
-        path,
-        description,
-        options,
-      }
-      // Auto-deny after 60 s if the user does not respond
-      _permissionTimeoutId = setTimeout(() => {
-        _permissionTimeoutId = null
-        if (acpPermissionPending.value?.requestId === requestId) {
-          resolveAcpPermission('deny')
-        }
-      }, 60_000)
-    }
-
-    session.onFsReadRequest = async (requestId, filePath) => {
-      let responded = false
-      const timeout = setTimeout(async () => {
-        if (responded) return
-        responded = true
-        await session.respondToFsRequest(requestId, undefined, {
-          code: -32001,
-          message: `fs read timeout (30s): ${filePath}`,
-        })
-      }, 30_000)
-
-      try {
-        const activeTab = appStore.activeTab
-        const editorInstance = activeTab?.editorInstance as import('@tiptap/core').Editor | undefined
-
-        if (editorInstance && activeTab?.path && filePath === activeTab.path) {
-          // Current editor file: return in-memory document view Markdown (latest unsaved state)
-          const snapshot = buildSnapshot(editorInstance)
-          responded = true
-          clearTimeout(timeout)
-          await session.respondToFsRequest(requestId, { content: snapshot.view.viewMarkdown })
-        } else {
-          // Other files: read from disk
-          try {
-            const content = await window.electronAPI.readFile(filePath)
-            responded = true
-            clearTimeout(timeout)
-            await session.respondToFsRequest(requestId, { content: content ?? '' })
-          } catch {
-            responded = true
-            clearTimeout(timeout)
-            await session.respondToFsRequest(requestId, undefined, {
-              code: -32001,
-              message: `File not found: ${filePath}`,
-            })
-          }
-        }
-      } catch {
-        if (!responded) {
-          responded = true
-          clearTimeout(timeout)
-          await session.respondToFsRequest(requestId, undefined, {
-            code: -32001,
-            message: `fs read error: ${filePath}`,
-          })
-        }
-      }
-    }
-
-    session.onFsWriteRequest = async (requestId, filePath, newContent) => {
-      const activeTab = appStore.activeTab
-      const editorInstance = activeTab?.editorInstance as import('@tiptap/core').Editor | undefined
-
-      if (editorInstance && activeTab?.path && filePath === activeTab.path) {
-        // Current editor file: intercept → create FileEditProposal
-        const snapshot = buildSnapshot(editorInstance)
-        const oldContent = snapshot.view.viewMarkdown
-
-        const proposalId = `file-${nanoid(8)}`
-        const proposal: FileEditProposal = {
-          id: proposalId,
-          kind: 'file',
-          status: 'pending',
-          description: `Agent wants to update ${pathUtils.basename(filePath)}`,
-          sessionId: session.sessionId,
-          filePath,
-          oldContent,
-          newContent,
-        }
-
-        // Store the resolver so approve/reject can respond to the agent
-        _pendingAcpFsResolvers.set(proposalId, async (approved) => {
-          if (approved) {
-            const saved = await window.electronAPI.saveFile(newContent, filePath)
-            if (saved) {
-              await session.respondToFsRequest(requestId, null)
-            } else {
-              await session.respondToFsRequest(requestId, undefined, {
-                code: -32002,
-                message: 'File write failed',
-              })
-            }
-          } else {
-            await session.respondToFsRequest(requestId, undefined, {
-              code: -32003,
-              message: 'User rejected the file write',
-            })
-          }
-        })
-
-        pendingEditProposals.value = [...pendingEditProposals.value, proposal]
-      } else {
-        // Non-current files: write to disk directly
-        try {
-          const saved = await window.electronAPI.saveFile(newContent, filePath)
-          await session.respondToFsRequest(requestId, saved ? null : undefined,
-            saved ? undefined : { code: -32002, message: 'File write failed' })
-        } catch {
-          await session.respondToFsRequest(requestId, undefined, {
-            code: -32002,
-            message: 'File write failed',
-          })
-        }
-      }
-    }
-  }
-
-  /** Provider IDs currently being initialized — prevents concurrent re-entry. */
-  const _initializingIds = new Set<string>()
-
-  /**
-   * Proactively initialize an ACP agent when it is selected.
-   * Cancels any existing session, creates a fresh one, and awaits init_result.
-   */
-  async function initAgentProvider(config: AiProviderConfig): Promise<void> {
-    if (config.kind !== 'agent') return
-
-    // ── Cancel any OTHER provider currently connecting ─────────────────────
-    if (_connectingSession && _connectingConfigId !== config.id) {
-      const prevConfigId = _connectingConfigId
-      const prevSession = _connectingSession
-      _stopProgressTracking()               // clears _connectingSession / _connectingConfigId
-      if (prevConfigId) {
-        _initializingIds.delete(prevConfigId)
-        _agentInitStatusMap.set(prevConfigId, 'idle')
-      }
-      prevSession.cancel()                  // fixed disconnect() resolves its initialize() promise
-    }
-
-    // Prevent re-entry for the same provider
-    if (_initializingIds.has(config.id)) return
-    _initializingIds.add(config.id)
-
-    // Generation stamp — stale completions skip stop/update when superseded
-    const myGen = ++_initGenCounter
-
-    // Cancel and evict any existing session for THIS provider
-    const existing = _acpSessionCache.get(config.id)
-    if (existing) {
-      existing.cancel()
-      _acpSessionCache.delete(config.id)
-    }
-    _deleteAcpCapabilities(config.id)
-    _agentInitStatusMap.set(config.id, 'initializing')
-
-    const session = new AcpAgentSession(config)
-    setupAcpSessionCallbacks(session, config.id)
-    // Set workspace context BEFORE initialize() so session/new receives the correct cwd.
-    // acp-ui passes cwd explicitly at createSession() time; we must mirror that here.
-    session.setContext({
-      workspacePath: appStore.currentFolder ?? null,
-      filePath: appStore.activeTab?.path ?? null,
-    })
-    _acpSessionCache.set(config.id, session)
-    _startProgressTracking(session, config.id)
-
-    try {
-      const success = await session.initialize()
-      if (myGen !== _initGenCounter) {
-        // Superseded by a newer init; mark idle if still stuck in 'initializing'
-        if (_agentInitStatusMap.get(config.id) === 'initializing') {
-          _agentInitStatusMap.set(config.id, 'idle')
-        }
-        return
-      }
-      _agentInitStatusMap.set(config.id, success ? 'success' : 'failed')
-      if (!success) {
-        notify.error(`${config.label} 初始化失败，请检查命令配置`)
-      }
-    } finally {
-      _initializingIds.delete(config.id)
-      if (myGen === _initGenCounter) {
-        _stopProgressTracking()
-      }
-    }
-  }
-
-  /**
-   * Get or create the ACP session for the given provider config.
-   * ACP sessions are reused across messages to maintain the agent's process.
-   */
-  function getOrCreateAcpSession(config: AiProviderConfig): AcpAgentSession {
-    let session = _acpSessionCache.get(config.id)
-    if (!session) {
-      session = new AcpAgentSession(config)
-      setupAcpSessionCallbacks(session, config.id)
-      _acpSessionCache.set(config.id, session)
-    }
-    return session
-  }
 
   // ── Tools Infrastructure ──────────────────────────────────────────────────
   // The snapshot is rebuilt each sendMessage call; the getter reads the latest one
@@ -758,27 +313,9 @@ export const useAiStore = defineStore('ai', () => {
 
     const tools = getToolsForProfile(thread.profile, window.electronAPI?.platform)
 
-    // ── Create or reuse session ──────────────────────────────────────────────
-    let session: AgentSession | null
-
-    if (activeProviderConfig.value.kind === 'agent') {
-      // ACP agents: reuse the persistent session process
-      const acpSession = getOrCreateAcpSession(activeProviderConfig.value)
-      // Always update context (workspace/file may have changed)
-      const snap = _currentSnapshot
-      acpSession.setContext({
-        workspacePath: appStore.currentFolder ?? null,
-        filePath: activeTab?.path ?? null,
-      })
-      // Pass in-memory document view so the agent sees unsaved changes
-      // (critical for .iwt files which are JSON on disk, not Markdown)
-      acpSession.setDocumentView(snap?.view.viewMarkdown ?? null)
-      session = acpSession
-    } else {
-      // Native LLM: stateless HTTP call, create fresh session each time
-      const llmModel = activeProviderConfig.value.defaultModelId
-      session = providerRegistry.createSession(activeProviderConfig.value, llmModel)
-    }
+    // ── Create session ───────────────────────────────────────────────────────
+    const llmModel = activeProviderConfig.value.defaultModelId
+    const session = providerRegistry.createSession(activeProviderConfig.value, llmModel)
 
     if (!session) {
       notify.error('无法创建 AI 会话：Provider 配置无效')
@@ -786,22 +323,6 @@ export const useAiStore = defineStore('ai', () => {
     }
 
     _currentSession.value = session
-
-    // ── Stream options (model/mode for ACP agents) ───────────────────────────
-    const streamOptions = activeProviderConfig.value.kind === 'agent'
-      ? (() => {
-          // Model is provider-level: use defaultModelId, validated against available list
-          const rawModel = activeProviderConfig.value.defaultModelId || ''
-          const agentModels = availableModels.value
-          const model = rawModel && (agentModels.length === 0 || agentModels.includes(rawModel))
-            ? rawModel
-            : (agentModels[0] ?? undefined)
-          return {
-            model: model || undefined,
-            mode: thread.agentMode || activeProviderConfig.value.lastSelectedMode || undefined,
-          }
-        })()
-      : undefined
 
     // Start streaming
     isStreaming.value = true
@@ -858,8 +379,7 @@ export const useAiStore = defineStore('ai', () => {
         _currentSession.value = null
         toolRegistry.disposeAll()
         // Block proposals are now in the stored message — clear from streaming list
-        // (keep file proposals which are waiting for ACP resolver)
-        pendingEditProposals.value = pendingEditProposals.value.filter(p => p.kind === 'file')
+        pendingEditProposals.value = []
 
         // Save final assistant message to thread
         const finalText = streamingText.value
@@ -898,7 +418,7 @@ export const useAiStore = defineStore('ai', () => {
           updateThread(errThread)
         }
       },
-    }, streamOptions, userContentBlocks.length > 0 ? userContentBlocks : undefined)
+    }, undefined, userContentBlocks.length > 0 ? userContentBlocks : undefined)
 
     return true
   }
@@ -914,7 +434,6 @@ export const useAiStore = defineStore('ai', () => {
   function _rejectAllPendingProposals() {
     if (
       pendingEditProposals.value.length === 0 &&
-      _pendingAcpFsResolvers.size === 0 &&
       !activeThread.value?.messages.some(m => m.editProposals?.some(p => p.status === 'pending'))
     ) return
 
@@ -931,12 +450,6 @@ export const useAiStore = defineStore('ai', () => {
         }
       })
       updateThread({ ...thread, messages: updatedMessages })
-    }
-
-    // Resolve any pending ACP fs resolvers as rejected
-    for (const [id, resolver] of _pendingAcpFsResolvers) {
-      resolver(false)
-      _pendingAcpFsResolvers.delete(id)
     }
 
     pendingEditProposals.value = []
@@ -1038,18 +551,6 @@ export const useAiStore = defineStore('ai', () => {
       return
     }
 
-    if (proposal.kind === 'file') {
-      // FileEditProposal: resolve via the pending ACP fs resolver
-      const resolver = _pendingAcpFsResolvers.get(proposalId)
-      if (resolver) {
-        _pendingAcpFsResolvers.delete(proposalId)
-        pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
-        await resolver(true)
-        notify.success('文件编辑已应用')
-      }
-      return
-    }
-
     // BlockEditProposal — file-based path (proposal.filePath targets a file on disk)
     const blockProposal = proposal as BlockEditProposal
     if (blockProposal.filePath) {
@@ -1112,17 +613,6 @@ export const useAiStore = defineStore('ai', () => {
       return
     }
 
-    if (proposal.kind === 'file') {
-      // Notify the ACP agent that the write was rejected
-      const resolver = _pendingAcpFsResolvers.get(proposalId)
-      if (resolver) {
-        _pendingAcpFsResolvers.delete(proposalId)
-        resolver(false)
-      }
-      pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
-      return
-    }
-
     // BlockEditProposal: immutable update so Vue detects the status change
     _updateProposalInThread(proposalId, 'rejected')
   }
@@ -1135,8 +625,7 @@ export const useAiStore = defineStore('ai', () => {
         if (p.status === 'pending') fromThread.push(p)
       }
     }
-    const fromPending = pendingEditProposals.value.filter(p => p.kind !== 'file')
-    return [...fromThread, ...fromPending]
+    return [...fromThread, ...pendingEditProposals.value]
   })
 
   async function approveAllProposals() {
@@ -1175,17 +664,11 @@ export const useAiStore = defineStore('ai', () => {
     }
   }
 
-  // ── Watch: clear cached ACP session when provider switches ────────────────
-  // (The old session process stays alive until its provider config is removed.)
-  // We do NOT auto-kill on switch — user may switch back and want to resume.
-
   return {
     // Settings
     settings,
     activeProviderConfig,
     availableModels,
-    isAgentProvider,
-    activeAgentModes,
     availableThinkModes,
     addProviderConfig,
     updateProviderConfig,
@@ -1211,20 +694,6 @@ export const useAiStore = defineStore('ai', () => {
     streamingThinkingText,
     streamingToolName,
     pendingEditProposals,
-
-    // ACP agent state
-    acpPermissionPending,
-    resolveAcpPermission,
-    currentAgentInitStatus,
-    getAgentInitStatus,
-    initAgentProvider,
-    // Startup progress (aligned with acp-ui)
-    isConnecting,
-    startupPhase,
-    startupLogs,
-    startupElapsed,
-    startupShowDetails,
-    cancelConnection,
 
     // Actions
     sendMessage,

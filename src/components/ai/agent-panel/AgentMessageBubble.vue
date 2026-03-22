@@ -26,24 +26,6 @@
         </div>
       </div>
 
-      <!-- Plan entries (ACP-only, collapsible) -->
-      <div
-        v-if="message.planEntries?.length"
-        class="mb-1.5 w-full border border-blue-200 bg-blue-50 rounded-lg overflow-hidden text-xs"
-      >
-        <div class="px-3 py-1.5 text-blue-700 font-medium">📋 执行计划</div>
-        <div class="px-3 pb-2 space-y-1">
-          <div
-            v-for="(plan, idx) in message.planEntries"
-            :key="idx"
-            class="flex items-start gap-1.5 text-blue-800"
-          >
-            <span class="mt-0.5">{{ plan.status === 'completed' ? '✓' : plan.status === 'in_progress' ? '⟳' : '○' }}</span>
-            <span>{{ plan.content }}</span>
-          </div>
-        </div>
-      </div>
-
       <!-- ── USER MESSAGE BUBBLE ── -->
 
       <!-- Edit mode: input-area style row -->

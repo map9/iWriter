@@ -188,10 +188,10 @@ export function createToolRegistry(
       return `Error: No heading found with block_id ${headingBlockId}. Available headings: ${available}.`
     }
 
-    const heading = view.outline.find(h => h.displayId === headingBlockId)
+    const heading  = view.outline.find(h => h.displayId === headingBlockId)
+    const allLines = sectionResult.content.split('\n\n')
     const offset   = args.offset !== undefined ? Math.max(0, Number(args.offset)) : 0
     const limit    = args.limit  !== undefined ? Math.max(1, Number(args.limit))  : 20
-    const allLines = sectionResult.content.split('\n\n')
     const paged    = allLines.slice(offset, offset + limit)
     const hasMore  = offset + limit < allLines.length
 
@@ -202,6 +202,8 @@ export function createToolRegistry(
       has_more:       hasMore,
       offset,
       limit,
+      total_lines:    allLines.length,
+      word_count:     heading?.wordCount ?? 0,
     }, null, 2)
   })
 

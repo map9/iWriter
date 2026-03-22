@@ -97,15 +97,20 @@ Read these BEFORE calling any tool — the block IDs you need are already here.
 ## Whole-Document Tasks (grammar check, proofreading, full rewrite)
 **Core rule: read and edit in an overlapping pattern — never read everything first.**
 
-Basic pattern (sections ≤ 20 blocks):
-- Round 1: \`get_section(section1_id)\` → read section 1
-- Round 2: \`edit_block(A)\` + \`edit_block(B)\` + \`get_section(section2_id)\` → edit section 1 AND read section 2
+Before calling \`get_section\`, compute \`limit\` from the outline entry:
+\`\`\`
+limit = ceil(500 × section_blocks / word_count)  // if word_count = 0, use section_blocks
+limit = min(limit, section_blocks)                // cap at section size
+\`\`\`
+This targets ~500 words per page. When \`limit = section_blocks\`, fetch the entire section in one call (no pagination). When \`limit < section_blocks\`, use this limit for each page.
+
+Basic pattern:
+- Round 1: \`get_section(section1_id, limit=L)\` → read section 1
+- Round 2: \`edit_block(A)\` + \`edit_block(B)\` + \`get_section(section2_id, limit=L)\` → edit section 1 AND read section 2
 - Round N: \`edit_block(X)\` → edit last section (loop stops, user reviews proposals)
 
 Pagination (when \`has_more=true\`):
-- \`get_section\` defaults to 20 blocks per page; always check \`has_more\`
-- \`edit_block(A) + get_section(N, offset=20)\` → edit page 1 AND read page 2 in one response
-- used \`get_document_outline(file_path=...)\` result to get section \`word_count\` to estimate OFFSET number of blocks for next page
+- \`edit_block(A) + get_section(id, offset=prev_offset+prev_limit, limit=L)\` → edit page 1 AND read next page
 
 Rules:
 - Use \`get_section\` for sequential reading — NOT \`get_blocks\`
@@ -113,7 +118,7 @@ Rules:
 
 ## Reading the Active Document
 Use read tools only for content NOT already in the injected context:
-- \`get_section(heading_block_id=N)\` — a section from the outline. Paginate with offset/limit.
+- \`get_section(heading_block_id=N, limit=L)\` — compute L = min(ceil(500×section_blocks/word_count), section_blocks); paginate with \`offset\` when \`has_more=true\`.
 - \`get_blocks(block_ids=[N, ...])\` — targeted lookup of specific blocks.
 - \`get_block_context(block_id=N, window=3)\` — blocks surrounding block N.
 - \`get_document_outline()\` — refresh outline ONLY after making edits.

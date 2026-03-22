@@ -9,24 +9,15 @@ export function useProviderPicker() {
   const providerSearchEl = ref<HTMLInputElement>()
 
   function isLlmProviderUsable(cfg: AiProviderConfig): boolean {
-    if ((cfg.kind ?? 'llm') !== 'llm') return true
     const models = cfg.models ?? []
     if (models.length) return true
     const preset = PROVIDER_PRESETS.find(p => p.id === cfg.presetId)
     return (preset?.models ?? []).length > 0
   }
 
-  const filteredLlmProviders = computed(() => {
+  const filteredProviders = computed(() => {
     const search = providerSearch.value.toLowerCase()
     return aiStore.settings.providerConfigs
-      .filter(c => (c.kind ?? 'llm') === 'llm')
-      .filter(c => !search || c.label.toLowerCase().includes(search))
-  })
-
-  const filteredAgentProviders = computed(() => {
-    const search = providerSearch.value.toLowerCase()
-    return aiStore.settings.providerConfigs
-      .filter(c => c.kind === 'agent')
       .filter(c => !search || c.label.toLowerCase().includes(search))
   })
 
@@ -38,15 +29,11 @@ export function useProviderPicker() {
   function selectProvider(id: string) {
     providerSearch.value = ''
     aiStore.setActiveProvider(id)
-    const cfg = aiStore.settings.providerConfigs.find(c => c.id === id)
-    if (cfg?.kind === 'agent') {
-      aiStore.initAgentProvider(cfg)
-    }
   }
 
   return {
     providerSearch, providerSearchEl,
-    isLlmProviderUsable, filteredLlmProviders, filteredAgentProviders,
+    isLlmProviderUsable, filteredProviders,
     onMenuOpen, selectProvider,
   }
 }

@@ -406,9 +406,9 @@ export class TipTapSearchService {
    */
   private static async getSearchableFiles(
     folderPath: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     _includePattern?: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     _excludePattern?: string
   ): Promise<string[]> {
     return this.getSearchableFilesRecursive(folderPath, _includePattern, _excludePattern, [])
@@ -420,9 +420,9 @@ export class TipTapSearchService {
    */
   private static async getSearchableFilesRecursive(
     dirPath: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     _includePattern?: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     _excludePattern?: string,
     result: string[] = []
   ): Promise<string[]> {
@@ -534,7 +534,7 @@ export class TipTapSearchService {
      
     _searchTerm: string,
     replaceTerm: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     _options: SearchOptions
   ): Promise<{
     success: boolean

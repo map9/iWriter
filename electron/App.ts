@@ -13,15 +13,12 @@ import { MenuManager } from './MenuManager'
 import { WindowManager } from './WindowManager'
 import { ThemeManager } from './ThemeManager'
 import { UpdaterManager } from '../src/updater/UpdaterManager'
-import { AcpManager } from './AcpManager'
-
 export class App {
   private fileWatchers: Map<string, FSWatcher>
   private menuManager: MenuManager
   private windowManager: WindowManager
   private themeManager: ThemeManager
   private updaterManager: UpdaterManager | null
-  private acpManager: AcpManager
   private appQuitTimer: Timer | null = null
   private _isAppQuitting: boolean
   private _exitApp: boolean
@@ -32,7 +29,6 @@ export class App {
     this.windowManager = new WindowManager(this)
     this.themeManager = new ThemeManager()
     this.updaterManager = null
-    this.acpManager = new AcpManager()
     this._isAppQuitting = false
     this._exitApp = false
 

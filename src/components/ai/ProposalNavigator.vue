@@ -53,14 +53,6 @@
         </div>
       </template>
 
-      <!-- FileEditProposal -->
-      <template v-else-if="current.kind === 'file'">
-        <div class="px-3 py-1.5 text-xs text-yellow-700 font-medium border-b border-yellow-100">
-          📄 {{ fileProposal.filePath.split('/').pop() }}
-        </div>
-        <DiffSplitView :old-content="fileProposal.oldContent || ''" :new-content="fileProposal.newContent" />
-      </template>
-
       <!-- BlockEditProposal: edit / delete -->
       <template v-else-if="isSingleBlock">
         <template v-if="blockProposal.type === 'delete'">
@@ -135,7 +127,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import MarkdownContentView from './MarkdownContentView.vue'
 import DiffSplitView from './DiffSplitView.vue'
-import type { EditProposal, BlockEditProposal, FileEditProposal, FileCreateProposal } from '@/types/ai'
+import type { EditProposal, BlockEditProposal, FileCreateProposal } from '@/types/ai'
 import { PROPOSAL_TYPE_LABELS } from '@/types/ai'
 import type { Editor } from '@tiptap/core'
 import { useAppStore } from '@/stores/app'
@@ -162,7 +154,6 @@ watch(() => props.proposals.length, len => {
 const current = computed(() => props.proposals[currentIndex.value] ?? null)
 
 const blockProposal  = computed(() => current.value as BlockEditProposal)
-const fileProposal   = computed(() => current.value as FileEditProposal)
 const createProposal = computed(() => current.value as FileCreateProposal)
 
 const isSingleBlock = computed(() =>
@@ -173,7 +164,6 @@ const isSingleBlock = computed(() =>
 const typeLabel = computed(() => {
   if (!current.value) return ''
   if (current.value.kind === 'create_file') return '创建文档'
-  if (current.value.kind === 'file')        return '文件修改'
   return PROPOSAL_TYPE_LABELS[blockProposal.value?.type ?? ''] ?? '编辑建议'
 })
 

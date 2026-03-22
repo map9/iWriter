@@ -18,12 +18,6 @@
       @close="closeMenu()"
     />
 
-    <ModePicker
-      :is-open="activeMenu === 'mode'"
-      @open="openMenu('mode')"
-      @close="closeMenu()"
-    />
-
     <div class="flex-1" />
 
     <button
@@ -52,7 +46,6 @@ import { IconTrash } from '@tabler/icons-vue'
 import AttachPicker from './AttachPicker.vue'
 import ProviderPicker from './ProviderPicker.vue'
 import ModelPicker from './ModelPicker.vue'
-import ModePicker from './ModePicker.vue'
 import SendButton from './SendButton.vue'
 
 defineProps<{
@@ -70,7 +63,7 @@ defineEmits<{
   'clear-thread': []
 }>()
 
-type MenuName = 'provider' | 'model' | 'mode'
+type MenuName = 'provider' | 'model'
 const activeMenu = ref<MenuName | null>(null)
 
 function openMenu(name: MenuName) {

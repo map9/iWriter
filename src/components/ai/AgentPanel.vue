@@ -31,8 +31,6 @@
       </div>
     </template>
 
-    <AgentPermissionDialog />
-
   </div>
 </template>
 
@@ -42,7 +40,6 @@ import { useAiStore } from '@/stores/ai'
 import AgentHeader from './agent-panel/AgentHeader.vue'
 import AgentHistoryPanel from './agent-panel/AgentHistoryPanel.vue'
 import AgentChatArea from './agent-panel/AgentChatArea.vue'
-import AgentPermissionDialog from './agent-panel/AgentPermissionDialog.vue'
 import AgentInputArea from './agent-panel/input/AgentInputArea.vue'
 import ProviderSettings from './ProviderSettings.vue'
 
@@ -91,11 +88,6 @@ function handleHeaderBack() {
 }
 
 onMounted(() => {
-  const cfg = aiStore.activeProviderConfig
-  if (cfg?.kind === 'agent' && aiStore.currentAgentInitStatus === 'idle') {
-    aiStore.initAgentProvider(cfg)
-  }
-
   resizeObserver = new ResizeObserver(entries => {
     inputAreaHeight.value = entries[0]?.contentRect.height ?? 0
   })
