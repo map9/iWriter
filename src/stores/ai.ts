@@ -263,6 +263,7 @@ export const useAiStore = defineStore('ai', () => {
   // ── Streaming State ───────────────────────────────────────────────────────
   const isStreaming = ref(false)
   const streamingText = ref('')
+  const streamingThinkingText = ref('')
   const streamingToolName = ref<string | null>(null)
   const pendingEditProposals = ref<EditProposal[]>([])
 
@@ -394,8 +395,15 @@ export const useAiStore = defineStore('ai', () => {
   /** The session used by the current streaming request (for cancel). */
   const _currentSession = ref<AgentSession | null>(null)
 
+  /** Timeout handle for auto-denying a stale permission request after 60 seconds. */
+  let _permissionTimeoutId: ReturnType<typeof setTimeout> | null = null
+
   /** Reply to a pending ACP permission request. */
   function resolveAcpPermission(response: string) {
+    if (_permissionTimeoutId) {
+      clearTimeout(_permissionTimeoutId)
+      _permissionTimeoutId = null
+    }
     const req = acpPermissionPending.value
     if (!req) return
     window.electronAPI.acpPermissionRespond?.({
@@ -443,6 +451,10 @@ export const useAiStore = defineStore('ai', () => {
       updateAcpCapabilities(configId, models, modes, currentModelId, currentModeId)
 
     session.onPermissionRequest = (requestId, permission, path, description, options) => {
+      if (_permissionTimeoutId) {
+        clearTimeout(_permissionTimeoutId)
+        _permissionTimeoutId = null
+      }
       acpPermissionPending.value = {
         sessionId: session.sessionId,
         requestId,
@@ -451,25 +463,59 @@ export const useAiStore = defineStore('ai', () => {
         description,
         options,
       }
+      // Auto-deny after 60 s if the user does not respond
+      _permissionTimeoutId = setTimeout(() => {
+        _permissionTimeoutId = null
+        if (acpPermissionPending.value?.requestId === requestId) {
+          resolveAcpPermission('deny')
+        }
+      }, 60_000)
     }
 
     session.onFsReadRequest = async (requestId, filePath) => {
-      const activeTab = appStore.activeTab
-      const editorInstance = activeTab?.editorInstance as import('@tiptap/core').Editor | undefined
+      let responded = false
+      const timeout = setTimeout(async () => {
+        if (responded) return
+        responded = true
+        await session.respondToFsRequest(requestId, undefined, {
+          code: -32001,
+          message: `fs read timeout (30s): ${filePath}`,
+        })
+      }, 30_000)
 
-      if (editorInstance && activeTab?.path && filePath === activeTab.path) {
-        // Current editor file: return in-memory document view Markdown (latest unsaved state)
-        const snapshot = buildSnapshot(editorInstance)
-        await session.respondToFsRequest(requestId, { content: snapshot.view.viewMarkdown })
-      } else {
-        // Other files: read from disk
-        try {
-          const content = await window.electronAPI.readFile(filePath)
-          await session.respondToFsRequest(requestId, { content: content ?? '' })
-        } catch {
+      try {
+        const activeTab = appStore.activeTab
+        const editorInstance = activeTab?.editorInstance as import('@tiptap/core').Editor | undefined
+
+        if (editorInstance && activeTab?.path && filePath === activeTab.path) {
+          // Current editor file: return in-memory document view Markdown (latest unsaved state)
+          const snapshot = buildSnapshot(editorInstance)
+          responded = true
+          clearTimeout(timeout)
+          await session.respondToFsRequest(requestId, { content: snapshot.view.viewMarkdown })
+        } else {
+          // Other files: read from disk
+          try {
+            const content = await window.electronAPI.readFile(filePath)
+            responded = true
+            clearTimeout(timeout)
+            await session.respondToFsRequest(requestId, { content: content ?? '' })
+          } catch {
+            responded = true
+            clearTimeout(timeout)
+            await session.respondToFsRequest(requestId, undefined, {
+              code: -32001,
+              message: `File not found: ${filePath}`,
+            })
+          }
+        }
+      } catch {
+        if (!responded) {
+          responded = true
+          clearTimeout(timeout)
           await session.respondToFsRequest(requestId, undefined, {
             code: -32001,
-            message: `File not found: ${filePath}`,
+            message: `fs read error: ${filePath}`,
           })
         }
       }
@@ -573,6 +619,12 @@ export const useAiStore = defineStore('ai', () => {
 
     const session = new AcpAgentSession(config)
     setupAcpSessionCallbacks(session, config.id)
+    // Set workspace context BEFORE initialize() so session/new receives the correct cwd.
+    // acp-ui passes cwd explicitly at createSession() time; we must mirror that here.
+    session.setContext({
+      workspacePath: appStore.currentFolder ?? null,
+      filePath: appStore.activeTab?.path ?? null,
+    })
     _acpSessionCache.set(config.id, session)
     _startProgressTracking(session, config.id)
 
@@ -713,13 +765,14 @@ export const useAiStore = defineStore('ai', () => {
       // ACP agents: reuse the persistent session process
       const acpSession = getOrCreateAcpSession(activeProviderConfig.value)
       // Always update context (workspace/file may have changed)
+      const snap = _currentSnapshot
       acpSession.setContext({
         workspacePath: appStore.currentFolder ?? null,
         filePath: activeTab?.path ?? null,
       })
       // Pass in-memory document view so the agent sees unsaved changes
       // (critical for .iwt files which are JSON on disk, not Markdown)
-      acpSession.setDocumentView(_currentSnapshot?.view.viewMarkdown ?? null)
+      acpSession.setDocumentView(snap?.view.viewMarkdown ?? null)
       session = acpSession
     } else {
       // Native LLM: stateless HTTP call, create fresh session each time
@@ -753,6 +806,7 @@ export const useAiStore = defineStore('ai', () => {
     // Start streaming
     isStreaming.value = true
     streamingText.value = ''
+    streamingThinkingText.value = ''
     streamingToolName.value = null
     pendingEditProposals.value = []
 
@@ -766,6 +820,9 @@ export const useAiStore = defineStore('ai', () => {
     runner.run(llmThread, systemPrompt, tools, {
       onText: delta => {
         streamingText.value += delta
+      },
+      onThinkingText: delta => {
+        streamingThinkingText.value += delta
       },
       onToolCallStart: (name, _id) => {
         streamingToolName.value = name
@@ -797,6 +854,7 @@ export const useAiStore = defineStore('ai', () => {
       onDone: assistantMessage => {
         isStreaming.value = false
         streamingToolName.value = null
+        streamingThinkingText.value = ''
         _currentSession.value = null
         toolRegistry.disposeAll()
         // Block proposals are now in the stored message — clear from streaming list
@@ -821,6 +879,7 @@ export const useAiStore = defineStore('ai', () => {
       onError: error => {
         isStreaming.value = false
         streamingText.value = ''
+        streamingThinkingText.value = ''
         streamingToolName.value = null
         _currentSession.value = null
         toolRegistry.disposeAll()
@@ -1098,6 +1157,7 @@ export const useAiStore = defineStore('ai', () => {
     _currentSession.value?.cancel()
     _currentSession.value = null
     isStreaming.value = false
+    streamingThinkingText.value = ''
     streamingText.value = ''
     streamingToolName.value = null
     notify.info('已停止生成')
@@ -1148,6 +1208,7 @@ export const useAiStore = defineStore('ai', () => {
     // Streaming state
     isStreaming,
     streamingText,
+    streamingThinkingText,
     streamingToolName,
     pendingEditProposals,
 

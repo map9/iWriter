@@ -62,7 +62,10 @@ interface AcpPermissionResponse {
   jsonrpc: '2.0'
   id: number
   result: {
-    response: string   // 'allow_once' | 'allow_always' | 'deny'
+    outcome: {
+      outcome: 'selected' | 'cancelled'
+      optionId?: string
+    }
   }
 }
 
@@ -420,7 +423,12 @@ export class AcpManager {
     const msg: AcpPermissionResponse = {
       jsonrpc: '2.0',
       id: requestId,
-      result: { response },
+      result: {
+        outcome: {
+          outcome: response === 'deny' ? 'cancelled' : 'selected',
+          optionId: response !== 'deny' ? response : undefined,
+        },
+      },
     }
     this.writeToProcess(session.process, msg)
     return { success: true }
@@ -453,7 +461,17 @@ export class AcpManager {
 
   private writeToProcess(proc: ChildProcess, msg: unknown): void {
     try {
-      proc.stdin?.write(JSON.stringify(msg) + '\n')
+      const line = JSON.stringify(msg)
+      // For session/prompt, log the full prompt text separately for readability
+      const m = msg as Record<string, unknown>
+      if (m.method === 'session/prompt') {
+        const params = m.params as Record<string, unknown>
+        const promptText = (params?.prompt as Array<{ text?: string }>)?.[0]?.text ?? ''
+        console.log(`[AcpManager] stdin (session/prompt) sessionId=${params?.sessionId} promptLen=${promptText.length}:\n${promptText.slice(0, 1000)}${promptText.length > 1000 ? '\n...(truncated)' : ''}`)
+      } else {
+        console.log(`[AcpManager] stdin:`, line.slice(0, 500))
+      }
+      proc.stdin?.write(line + '\n')
     } catch {
       // Process may have already exited
     }

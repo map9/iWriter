@@ -97,7 +97,10 @@ export class AcpAgentSession implements AgentSession {
    * Inject the workspace and file context to be sent in the ACP `initialize` message.
    * Should be called before the first `stream()` call (and updated when context changes).
    */
-  setContext(ctx: { workspacePath: string | null; filePath: string | null }): void {
+  setContext(ctx: {
+    workspacePath: string | null
+    filePath: string | null
+  }): void {
     this._workspacePath = ctx.workspacePath
     this._filePath = ctx.filePath
   }
@@ -342,6 +345,11 @@ export class AcpAgentSession implements AgentSession {
         onChunk({ type: 'text', delta: event.content })
         break
 
+      // ── Thinking / chain-of-thought delta ────────────────────────────────
+      case 'thinking':
+        onChunk({ type: 'thinking', delta: event.content })
+        break
+
       // ── Full session state update ────────────────────────────────────────
       case 'session_update': {
         // Extract text delta from the last assistant message
@@ -506,10 +514,7 @@ export class AcpAgentSession implements AgentSession {
     // Set active stream callbacks — persistent listener routes events here
     this.activeStreamCallbacks = { onChunk, onDone, onError }
 
-    // ── Send the message ───────────────────────────────────────────────────
-    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
-    const content = this.extractText(lastUserMsg?.content ?? '')
-
+    // ── Build prompt content ───────────────────────────────────────────────
     const acpSessionId = this._acpSessionId ?? ''
 
     // Only call set_model/set_mode when the value has changed from what
@@ -534,12 +539,27 @@ export class AcpAgentSession implements AgentSession {
       this._agentCurrentModeId = targetMode
     }
 
+    // The last user message already contains the <editor_state> block built by
+    // buildEditorStateBlock() in ai.ts — reuse it directly instead of re-building.
+    const systemMsg = messages.find(m => m.role === 'system')
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
+    let promptContent = this.extractText(lastUserMsg?.content ?? '')
+
     // Prepend the in-memory document view so the agent sees the latest unsaved state.
     // This is especially important for .iwt files (stored as JSON on disk).
-    let promptContent = content
     if (this._documentViewMarkdown) {
       promptContent =
-        `<current_document_view>\n${this._documentViewMarkdown}\n</current_document_view>\n\n${content}`
+        `<current_document_view>\n${this._documentViewMarkdown}\n</current_document_view>\n\n${promptContent}`
+    }
+
+    // On the first user turn, prepend the system prompt so the CLI agent has full context.
+    // ACP sessions are stateful — the agent remembers subsequent turns on its own.
+    const isFirstTurn = messages.filter(m => m.role === 'user').length === 1
+    if (isFirstTurn && systemMsg) {
+      const sysText = this.extractText(systemMsg.content)
+      if (sysText) {
+        promptContent = `${sysText}\n\n${promptContent}`
+      }
     }
 
     const sent = await window.electronAPI.acpSend?.({

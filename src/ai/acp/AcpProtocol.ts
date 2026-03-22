@@ -63,6 +63,7 @@ export interface AcpSessionUpdateParams {
 
 export type AcpEvent =
   | { type: 'text'; content: string }
+  | { type: 'thinking'; content: string }
   | { type: 'tool_call'; id: string; name: string; arguments: string }
   | { type: 'tool_result'; id: string; content: string; isError?: boolean }
   | { type: 'done'; stopReason?: string }
@@ -140,15 +141,24 @@ export function parseAcpLine(line: string, pendingIds?: Set<number>): AcpEvent {
     const params = ((obj.params ?? {}) as Record<string, unknown>)
 
     if (method === 'session/request_permission' || method === 'permission/request') {
+      // ACP SDK options are objects { kind, name, optionId } — extract optionId for UI
       const options: string[] = Array.isArray(params.options)
-        ? (params.options as unknown[]).map(String)
+        ? (params.options as Array<Record<string, unknown>>).map(o =>
+            typeof o?.optionId === 'string' ? o.optionId : String(o)
+          )
         : ['allow_once', 'allow_always', 'deny']
+      // ACP SDK permission info is in toolCall: { kind, title, locations }
+      const toolCall = params.toolCall as Record<string, unknown> | undefined
       return {
         type: 'permission_request',
         requestId,
-        permission: String(params.permission ?? params.type ?? 'unknown'),
-        path: params.path != null ? String(params.path) : undefined,
-        description: params.description != null ? String(params.description) : undefined,
+        permission: String(
+          toolCall?.kind ?? params.permission ?? params.type ?? 'unknown'
+        ),
+        path: (toolCall?.locations as Array<Record<string,unknown>> | undefined)?.[0]?.path != null
+          ? String((toolCall!.locations as Array<Record<string,unknown>>)[0].path)
+          : params.path != null ? String(params.path) : undefined,
+        description: String(toolCall?.title ?? params.description ?? ''),
         options,
       }
     }
@@ -186,6 +196,12 @@ export function parseAcpLine(line: string, pendingIds?: Set<number>): AcpEvent {
         if (sessionUpdate === 'agent_message_chunk') {
           return {
             type: 'text',
+            content: typeof content?.text === 'string' ? content.text : '',
+          }
+        }
+        if (sessionUpdate === 'agent_thought_chunk') {
+          return {
+            type: 'thinking',
             content: typeof content?.text === 'string' ? content.text : '',
           }
         }
