@@ -54,5 +54,32 @@ function updateIconConfig() {
   console.log('\n📦 package.json图标配置已更新');
 }
 
+// Create stub package.json files for missing @napi-rs/canvas platform packages.
+// electron-builder scans all optional dependencies listed in @napi-rs/canvas/package.json,
+// but only the current platform's package is installed by npm. Without stubs, the scandir
+// call throws ENOENT and the build fails.
+function createNapiCanvasStubs() {
+  const canvasPkgPath = path.join(process.cwd(), 'node_modules', '@napi-rs', 'canvas', 'package.json');
+  if (!fs.existsSync(canvasPkgPath)) return;
+
+  const canvasPkg = JSON.parse(fs.readFileSync(canvasPkgPath, 'utf8'));
+  const optionalDeps = canvasPkg.optionalDependencies || {};
+  const nodeModulesPath = path.join(process.cwd(), 'node_modules');
+
+  for (const [name, version] of Object.entries(optionalDeps)) {
+    const pkgDir = path.join(nodeModulesPath, name);
+    if (!fs.existsSync(pkgDir)) {
+      fs.mkdirSync(pkgDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(pkgDir, 'package.json'),
+        JSON.stringify({ name, version }, null, 2) + '\n'
+      );
+      console.log(`  stub: ${name}`);
+    }
+  }
+  console.log('✅ @napi-rs/canvas platform stubs ready\n');
+}
+
 console.log('🔧 准备构建配置...\n');
+createNapiCanvasStubs();
 updateIconConfig();
