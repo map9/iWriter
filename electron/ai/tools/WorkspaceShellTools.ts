@@ -1,4 +1,5 @@
 import { exec } from 'child_process'
+import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 
@@ -9,6 +10,29 @@ const ALLOWED_PREFIXES = new Set([
 
 function getRuntimeConfigurable(runtime: unknown): Record<string, unknown> {
   return ((runtime as { config?: { configurable?: Record<string, unknown> } })?.config?.configurable) ?? {}
+}
+
+function isWithinWorkspace(workspacePath: string, candidatePath: string): boolean {
+  const workspace = path.resolve(workspacePath)
+  const candidate = path.resolve(candidatePath)
+  return candidate === workspace || candidate.startsWith(`${workspace}${path.sep}`)
+}
+
+function extractAbsolutePaths(command: string): string[] {
+  const matches = new Set<string>()
+  const quoted = /(["'])(\/[^"'`]+)\1/g
+  const unquoted = /(^|[\s(])(?:\.?\.?\/)?(\/[^\s"'`|&;()<>]+)/g
+
+  let match: RegExpExecArray | null = null
+  while ((match = quoted.exec(command)) !== null) {
+    matches.add(match[2])
+  }
+  while ((match = unquoted.exec(command)) !== null) {
+    const value = match[2]
+    if (value.startsWith('/')) matches.add(value)
+  }
+
+  return Array.from(matches)
 }
 
 export function buildWorkspaceShellTools() {
@@ -26,7 +50,20 @@ export function buildWorkspaceShellTools() {
 
       const configurable = getRuntimeConfigurable(runtime)
       const runtimeWorkspace = typeof configurable.workspace_path === 'string' ? configurable.workspace_path : ''
-      const resolvedCwd = cwd?.trim() || runtimeWorkspace || undefined
+      if (!runtimeWorkspace) {
+        return 'Error: No workspace is available for exec_shell.'
+      }
+
+      const resolvedCwd = path.resolve(cwd?.trim() || runtimeWorkspace)
+      if (!isWithinWorkspace(runtimeWorkspace, resolvedCwd)) {
+        return `Error: cwd must stay inside the workspace: "${runtimeWorkspace}".`
+      }
+
+      const absolutePaths = extractAbsolutePaths(trimmed)
+      const outsidePath = absolutePaths.find(candidate => !isWithinWorkspace(runtimeWorkspace, candidate))
+      if (outsidePath) {
+        return `Error: command references a path outside the workspace: "${outsidePath}".`
+      }
 
       return new Promise<string>(resolve => {
         exec(trimmed, { cwd: resolvedCwd, timeout: 5000 }, (error, stdout, stderr) => {

@@ -276,6 +276,9 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     get_section:          'read',
     get_blocks:           'read',
     get_block_context:    'read',
+    search_document_blocks: 'search',
+    search_document_sections: 'search',
+    search_workspace_documents: 'search',
     edit_block:           'edit',
     insert_block:         'edit',
     delete_block:         'delete',
@@ -287,6 +290,7 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     // deepagents built-in tools
     execute:              'execute',
     read_file:            'read',
+    list_directory:       'read',
     write_file:           'edit',
     edit_file:            'edit',
     ls:                   'read',

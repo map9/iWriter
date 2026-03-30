@@ -4,6 +4,12 @@ import electron from 'vite-plugin-electron'
 import renderer from 'vite-plugin-electron-renderer'
 import { resolve } from 'path'
 
+const electronMainExternal = [
+  'electron',
+  '@langchain/langgraph-checkpoint-sqlite',
+  'better-sqlite3',
+]
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -23,7 +29,11 @@ export default defineConfig({
             minify: false,
             outDir: 'dist-electron',
             rollupOptions: {
-              external: ['electron']
+              // Native addons like better-sqlite3 must stay in node_modules.
+              // If Vite bundles them into dist-electron, bindings() resolves the
+              // .node binary from the wrong module root and SqliteSaver falls
+              // back to MemorySaver at runtime.
+              external: electronMainExternal
             }
           }
         }
@@ -36,7 +46,7 @@ export default defineConfig({
             minify: false,
             outDir: 'dist-electron',
             rollupOptions: {
-              external: ['electron']
+              external: electronMainExternal
             }
           }
         }

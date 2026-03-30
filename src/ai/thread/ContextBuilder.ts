@@ -14,7 +14,7 @@ import { DocumentViewBuilder, type DocumentView } from '../edit-agent/DocumentVi
 
 /**
  * A per-request snapshot of the document view (built once per sendMessage call).
- * Shared between ContextBuilder (for system prompt) and ToolRegistry (for tool execution).
+ * Shared between ContextBuilder, document tooling, and EditorState injection.
  */
 export interface DocumentViewSnapshot {
   view: DocumentView

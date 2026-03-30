@@ -5,12 +5,13 @@
  * in a `thread_metadata` table in the same SQLite DB file as the checkpoints.
  * This avoids maintaining a separate electron-store.
  *
- * When backend === 'memory', falls back to an in-memory Map plus electron-store
- * for cross-session durability (same approach as the old ThreadPersistence but
- * metadata-only — no messages).
+ * When backend === 'memory', metadata is kept in-memory only.
+ * We intentionally do NOT persist thread metadata across app restarts in this
+ * mode, because the checkpointer messages themselves are not durable either.
+ * Persisting only the thread list creates "ghost sessions" that reopen with
+ * 0 messages after restart.
  */
 
-import Store from 'electron-store'
 import type { CheckpointerInstance } from '../checkpoint/CheckpointerFactory'
 import type { AiThread, AiAgentProfile, AiAgentDomain } from '../../../src/types/ai'
 import { normalizeLegacyProfile } from '../../../src/types/ai'
@@ -29,10 +30,6 @@ export interface ThreadMeta {
   updatedAt: number
   hasError?: boolean
   thinkMode?: string
-}
-
-interface FallbackSchema {
-  threads: ThreadMeta[]
 }
 
 // ─── SQLite helpers ──────────────────────────────────────────────────────────
@@ -83,25 +80,12 @@ function rowToMeta(row: any): ThreadMeta {
   }
 }
 
-// ─── Fallback (electron-store) helpers ───────────────────────────────────────
-
-let _fallbackStore: Store<FallbackSchema> | null = null
-
-function getFallbackStore(): Store<FallbackSchema> {
-  if (!_fallbackStore) {
-    _fallbackStore = new Store<FallbackSchema>({
-      name: 'ai-thread-meta',
-      defaults: { threads: [] },
-    })
-  }
-  return _fallbackStore
-}
-
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export class ThreadListQuery {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private db: any | null
+  private memoryMetas = new Map<string, ThreadMeta>()
 
   constructor(ci: CheckpointerInstance) {
     if (ci.backend === 'sqlite' && ci.db) {
@@ -120,10 +104,7 @@ export class ThreadListQuery {
           .all(MAX_THREADS)
         return rows.map(rowToMeta)
       }
-      const store = getFallbackStore()
-      const threads = store.get('threads') as ThreadMeta[] | undefined
-      if (!Array.isArray(threads)) return []
-      return threads.sort((a, b) => b.updatedAt - a.updatedAt)
+      return Array.from(this.memoryMetas.values()).sort((a, b) => b.updatedAt - a.updatedAt)
     } catch (err) {
       console.error('[ThreadListQuery] Failed to load metas:', err)
       return []
@@ -138,7 +119,7 @@ export class ThreadListQuery {
           .get(id)
         return row ? rowToMeta(row) : null
       }
-      return getFallbackStore().get('threads', []).find((t: ThreadMeta) => t.id === id) ?? null
+      return this.memoryMetas.get(id) ?? null
     } catch {
       return null
     }
@@ -193,9 +174,7 @@ export class ThreadListQuery {
         this.db.prepare('DELETE FROM thread_metadata WHERE thread_id = ?').run(id)
         return
       }
-      const store = getFallbackStore()
-      const threads = (store.get('threads', []) as ThreadMeta[]).filter(t => t.id !== id)
-      store.set('threads', threads)
+      this.memoryMetas.delete(id)
     } catch (err) {
       console.error('[ThreadListQuery] Failed to delete meta:', err)
     }
@@ -207,7 +186,7 @@ export class ThreadListQuery {
         this.db.prepare('DELETE FROM thread_metadata').run()
         return
       }
-      getFallbackStore().set('threads', [])
+      this.memoryMetas.clear()
     } catch (err) {
       console.error('[ThreadListQuery] Failed to clear metas:', err)
     }
@@ -237,15 +216,11 @@ export class ThreadListQuery {
       )
       return
     }
-    const store = getFallbackStore()
-    const threads = store.get('threads', []) as ThreadMeta[]
-    const idx = threads.findIndex(t => t.id === meta.id)
-    if (idx >= 0) {
-      threads[idx] = meta
-    } else {
-      threads.unshift(meta)
-    }
-    store.set('threads', threads.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_THREADS))
+    this.memoryMetas.set(meta.id, meta)
+    const metas = Array.from(this.memoryMetas.values())
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, MAX_THREADS)
+    this.memoryMetas = new Map(metas.map(item => [item.id, item]))
   }
 }
 
