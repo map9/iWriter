@@ -9,10 +9,11 @@
 
 import type { Editor } from '@tiptap/core'
 import { UnifiedDocumentAccess } from '@/ai/edit-agent/UnifiedDocumentAccess'
+import { nodeToMarkdown } from '@/ai/edit-agent/DocumentViewBuilder'
 import type {
   SerializedSnapshot,
   SerializedBlockEntry,
-} from '@/types/ai-ipc'
+} from '@/ai/ipc'
 
 // Re-export for convenience
 export type { SerializedSnapshot, SerializedBlockEntry }
@@ -51,12 +52,12 @@ export async function buildSerializedSnapshot(
       return null
     }
 
-    const view = handle.snapshot.view
+    const { view, editor: sourceEditor } = handle.snapshot
 
     // Build serialized block map with content for each block
     const blockMap: SerializedBlockEntry[] = view.blockMap.map(entry => {
-      // Import nodeToMarkdown dynamically to avoid circular deps
-      const content = extractBlockContent(view.viewMarkdown, entry.displayId)
+      const node = sourceEditor.state.doc.nodeAt(entry.from)
+      const content = node ? nodeToMarkdown(node) : ''
       const headingMatch = entry.nodeType === 'heading'
         ? extractHeadingLevel(content)
         : undefined
@@ -86,34 +87,15 @@ export async function buildSerializedSnapshot(
       cursorBlockId,
     }
 
+    if (editor === null && targetPath !== null) {
+      handle.dispose()
+    }
+
     return snapshot
   } catch (err) {
     console.error('[SnapshotSerializer] Failed to build snapshot:', err)
     return null
   }
-}
-
-/**
- * Extract the Markdown content of a specific block from the full viewMarkdown.
- * The viewMarkdown format is: "{b:1}\ncontent\n\n{b:2}\ncontent\n\n..."
- */
-function extractBlockContent(viewMarkdown: string, displayId: number): string {
-  const marker = `{b:${displayId}}`
-  const nextMarker = `{b:${displayId + 1}}`
-
-  const startIdx = viewMarkdown.indexOf(marker)
-  if (startIdx === -1) return ''
-
-  // Skip the marker line itself
-  const contentStart = viewMarkdown.indexOf('\n', startIdx)
-  if (contentStart === -1) return ''
-
-  const endIdx = viewMarkdown.indexOf(nextMarker, contentStart)
-  const rawContent = endIdx === -1
-    ? viewMarkdown.slice(contentStart + 1)
-    : viewMarkdown.slice(contentStart + 1, endIdx)
-
-  return rawContent.trim()
 }
 
 /**

@@ -1,7 +1,7 @@
 import { ref, watch, nextTick } from 'vue'
 import type { Ref } from 'vue'
-import { useAiStore } from '@/stores/ai'
-import type { SendContext } from '@/types/ai'
+import { useAiStore } from '@/ai/store/ai'
+import type { SendContext } from '@/ai/types'
 import { pathUtils } from '@/utils/pathUtils'
 
 /** Binary file extensions that are sent as inline multimodal content. */

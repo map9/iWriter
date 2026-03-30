@@ -4,6 +4,7 @@ dist-electron
 # AI
 .claude
 *.md
+!electron/ai/builtin-skills/**/SKILL.md
 
 # dictionaries files
 public/dictionaries

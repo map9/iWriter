@@ -12,7 +12,7 @@ import type { Editor } from '@tiptap/core'
 import type { Node as PmNode, Schema } from '@tiptap/pm/model'
 import type { JSONContent } from '@tiptap/core'
 import { marked } from 'marked'
-import type { BlockEditProposal } from '@/types/ai'
+import type { BlockEditProposal } from '@/ai/types'
 
 export interface ApplyResult {
   success: boolean

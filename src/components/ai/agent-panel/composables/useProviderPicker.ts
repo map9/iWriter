@@ -1,6 +1,6 @@
 import { ref, computed, nextTick } from 'vue'
-import { useAiStore } from '@/stores/ai'
-import type { AiProviderConfig } from '@/types/ai'
+import { useAiStore } from '@/ai/store/ai'
+import type { AiProviderConfig } from '@/ai/types'
 import { PROVIDER_PRESETS } from '@/ai/providers/provider-presets'
 
 export function useProviderPicker() {

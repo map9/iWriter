@@ -1,9 +1,16 @@
-import type { AiAgentProfile, AiProviderConfig, AiSettings } from '../../../src/types/ai'
+import type { AiAgentDomain, AiAgentProfile, AiProviderConfig, AiSettings } from '../../../src/types/ai'
+import {
+  getDefaultProfileForDomain,
+  normalizeLegacyProfile,
+  normalizeProfileForDomain,
+  resolveAgentDomain,
+} from '../../../src/types/ai'
 import type { SendMessageRequest } from '../ipc/protocol'
 import type { ThreadMeta } from '../thread/ThreadListQuery'
 
 export interface ResolvedThreadRuntime {
   providerConfig: AiProviderConfig
+  domain: AiAgentDomain
   profile: AiAgentProfile
   modelId: string
   thinkMode?: string
@@ -25,7 +32,16 @@ export function resolveThreadRuntime(
     throw new Error('No active AI provider configured. Please add a provider in settings.')
   }
 
-  const profile = meta?.profile ?? req?.profile ?? 'write'
+  const requestedProfile = req?.profile
+  const fallbackProfile = normalizeLegacyProfile(settings.defaultProfile)
+  const domain =
+    meta?.domain
+    ?? req?.domain
+    ?? resolveAgentDomain(normalizeLegacyProfile(meta?.profile ?? requestedProfile ?? fallbackProfile))
+  const profile = normalizeProfileForDomain(
+    normalizeLegacyProfile(meta?.profile ?? requestedProfile ?? getDefaultProfileForDomain(domain)),
+    domain,
+  )
   const modelId =
     req?.threadRuntime?.modelId
     || meta?.modelId
@@ -35,5 +51,5 @@ export function resolveThreadRuntime(
     || ''
   const thinkMode = req?.threadRuntime?.thinkMode ?? meta?.thinkMode
 
-  return { providerConfig, profile, modelId, thinkMode }
+  return { providerConfig, domain, profile, modelId, thinkMode }
 }

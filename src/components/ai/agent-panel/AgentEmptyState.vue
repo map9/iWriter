@@ -13,7 +13,7 @@
 
 <script setup lang="ts">
 import { IconBrain } from '@tabler/icons-vue'
-import { useAiStore } from '@/stores/ai'
+import { useAiStore } from '@/ai/store/ai'
 
 const aiStore = useAiStore()
 </script>

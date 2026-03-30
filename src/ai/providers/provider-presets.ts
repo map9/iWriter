@@ -6,7 +6,7 @@
  * (API key, etc.); all other values come from here.
  */
 
-import type { AiProviderType } from '@/types/ai'
+import type { AiProviderType } from '@/ai/types'
 
 export interface ProviderPreset {
   id: string

@@ -21,7 +21,7 @@ import { convertContentFrom, convertContentTo } from '@/import-export/formatConv
 import { pathUtils } from '@/utils/pathUtils'
 import { DocumentViewBuilder } from './DocumentViewBuilder'
 import { applyBlockEditProposal } from './BlockEditApplier'
-import type { BlockEditProposal } from '@/types/ai'
+import type { BlockEditProposal } from '@/ai/types'
 import type { DocumentViewSnapshot } from '../thread/ContextBuilder'
 
 export type { ApplyResult } from './BlockEditApplier'
@@ -89,9 +89,6 @@ export interface DocumentHandle {
 // ── UnifiedDocumentAccess ─────────────────────────────────────────────────────
 
 export class UnifiedDocumentAccess {
-  /** Per-sendMessage cache — populated by fromFile(), cleared by disposeAll(). */
-  private static _cache = new Map<string, DocumentHandle>()
-
   /**
    * Wrap the active TipTap editor as a DocumentHandle (zero overhead).
    * The caller owns the editor lifetime; dispose() is a no-op.
@@ -128,16 +125,12 @@ export class UnifiedDocumentAccess {
   }
 
   /**
-   * Load a disk file into a virtual Editor and return a DocumentHandle.
-   * Results are cached by filePath for the current sendMessage() call so that
-   * multiple read tools on the same file share one virtual editor.
+   * Load a disk file into a virtual Editor and return a fresh DocumentHandle.
+   * The DeepAgents runtime now owns session lifecycle explicitly, so we avoid
+   * keeping any global static editor cache here.
    */
   static async fromFile(filePath: string): Promise<DocumentHandle | { error: string }> {
-    if (this._cache.has(filePath)) return this._cache.get(filePath)!
-    const result = await this._createFromFile(filePath)
-    if ('error' in result) return result
-    this._cache.set(filePath, result)
-    return result
+    return this._createFromFile(filePath)
   }
 
   /**
@@ -149,21 +142,14 @@ export class UnifiedDocumentAccess {
     return this._createFromFile(filePath)
   }
 
-  /**
-   * Returns the file paths of all disk files cached in the current sendMessage() session.
-   * Used by AgentRunner to infer the target file when the LLM omits file_path on an edit tool.
-   */
+  /** Legacy no-op. The document session cache was removed from this class. */
   static getCachedPaths(): string[] {
-    return Array.from(this._cache.keys())
+    return []
   }
 
-  /**
-   * Destroy all cached virtual editors and clear the cache.
-   * Must be called after each sendMessage() completes (success or error).
-   */
+  /** Legacy no-op. The document session cache was removed from this class. */
   static disposeAll(): void {
-    for (const handle of this._cache.values()) handle.dispose()
-    this._cache.clear()
+    // no-op
   }
 
   // ── private ──────────────────────────────────────────────────────────────

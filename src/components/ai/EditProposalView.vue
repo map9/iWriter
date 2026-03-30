@@ -92,8 +92,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { EditProposal, BlockEditProposal, FileCreateProposal } from '@/types/ai'
-import { PROPOSAL_TYPE_LABELS } from '@/types/ai'
+import type { EditProposal, BlockEditProposal, FileCreateProposal } from '@/ai/types'
+import { PROPOSAL_TYPE_LABELS } from '@/ai/types'
 
 const props = defineProps<{ proposal: EditProposal; disabled?: boolean }>()
 defineEmits<{ approve: [id: string]; reject: [id: string] }>()

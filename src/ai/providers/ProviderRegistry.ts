@@ -1,4 +1,4 @@
-import type { AiProviderConfig } from '@/types/ai'
+import type { AiProviderConfig } from '@/ai/types'
 import type { AgentChunk, AgentSession, AiProviderDriver, LMMessage, LMTool } from './types'
 
 /**

@@ -1,5 +1,5 @@
 import { ref, computed, watch, nextTick } from 'vue'
-import { useAiStore } from '@/stores/ai'
+import { useAiStore } from '@/ai/store/ai'
 
 export type ModelStatus = 'local' | 'cloud' | 'remote'
 

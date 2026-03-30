@@ -13,53 +13,14 @@
     <!-- Streaming message -->
     <div v-if="aiStore.isStreaming" class="flex gap-2.5">
       <div class="flex-1 min-w-0 space-y-1.5">
+        <AgentMessageBubble
+          v-if="streamingPreviewMessage"
+          :message="streamingPreviewMessage"
+          :is-preview="true"
+          :preview-status-text="`${thinkingLabel} · ${elapsedSeconds}s`"
+          :show-preview-pulse="true"
+        />
 
-        <!-- Thinking content (collapsible, shown when model is reasoning) -->
-        <div
-          v-if="aiStore.streamingThinkingText"
-          class="w-full border border-purple-200 bg-purple-50 rounded-lg overflow-hidden text-xs"
-        >
-          <button
-            class="w-full flex items-center gap-1.5 px-3 py-1.5 text-purple-700 font-medium text-left hover:bg-purple-100 transition-colors"
-            @click="thinkingExpanded = !thinkingExpanded"
-          >
-            <span>💭</span>
-            <span>思考过程</span>
-            <span class="ml-auto">{{ thinkingExpanded ? '▲' : '▼' }}</span>
-          </button>
-          <div v-if="thinkingExpanded" class="px-3 py-2 text-purple-800 whitespace-pre-wrap leading-relaxed border-t border-purple-200">
-            {{ aiStore.streamingThinkingText }}
-          </div>
-        </div>
-
-        <!-- Committed streaming blocks: interleaved text segments and tool calls -->
-        <template v-for="(block, idx) in aiStore.streamingBlocks" :key="idx">
-          <div
-            v-if="block.type === 'text'"
-            class="inline-block px-3 py-2 rounded-lg text-sm bg-gray-100 text-gray-900 break-words max-w-full"
-          >
-            <div class="prose prose-sm max-w-none" v-html="renderMarkdown(block.text)" />
-          </div>
-          <ToolCallView v-else-if="block.type === 'tool_call'" :tool-call="block.toolCall" />
-        </template>
-
-        <!-- Currently streaming text (not yet committed to a block) -->
-        <div
-          v-if="aiStore.streamingCurrentText"
-          class="inline-block px-3 py-2 rounded-lg text-sm bg-gray-100 text-gray-900 break-words max-w-full"
-        >
-          <div class="prose prose-sm max-w-none" v-html="renderMarkdown(aiStore.streamingCurrentText)" />
-          <div class="flex items-center gap-2 mt-1">
-            <div class="flex items-center gap-0.5">
-              <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms" />
-              <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:150ms" />
-              <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:300ms" />
-            </div>
-            <span class="text-xs text-gray-500">{{ thinkingLabel }} · {{ elapsedSeconds }}s</span>
-          </div>
-        </div>
-
-        <!-- Waiting state: no current text (tool running or waiting for first response) -->
         <div
           v-else
           class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100"
@@ -91,18 +52,15 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
+import type { ThreadMessage, MessageContentBlock, AiToolCall } from '@/ai/types'
 
 defineProps<{ bottomPadding?: number }>()
-import { marked } from 'marked'
-import { useAiStore } from '@/stores/ai'
+import { useAiStore } from '@/ai/store/ai'
 import AgentEmptyState from './AgentEmptyState.vue'
 import AgentMessageBubble from './AgentMessageBubble.vue'
-import ToolCallView from '../ToolCallView.vue'
 import ProposalNavigator from '../ProposalNavigator.vue'
 
 const aiStore = useAiStore()
-
-const thinkingExpanded = ref(false)
 
 // ── Elapsed timer ─────────────────────────────────────────────────────────
 const elapsedSeconds = ref(0)
@@ -128,6 +86,43 @@ const thinkingLabel = computed(() => {
   return '思考中'
 })
 
+const streamingPreviewMessage = computed<ThreadMessage | null>(() => {
+  const contentBlocks: MessageContentBlock[] = []
+  const toolCalls: AiToolCall[] = []
+  let content = ''
+
+  for (const block of aiStore.streamingBlocks) {
+    if (block.type === 'text' && block.text) {
+      contentBlocks.push({ type: 'text', text: block.text })
+      content += block.text
+      continue
+    }
+    if (block.type === 'tool_call') {
+      contentBlocks.push({ type: 'tool_call', toolCallId: block.toolCall.id })
+      toolCalls.push(block.toolCall)
+    }
+  }
+
+  if (aiStore.streamingCurrentText) {
+    contentBlocks.push({ type: 'text', text: aiStore.streamingCurrentText })
+    content += aiStore.streamingCurrentText
+  }
+
+  if (!contentBlocks.length && !aiStore.streamingThinkingText) {
+    return null
+  }
+
+  return {
+    id: 'streaming-preview',
+    role: 'assistant',
+    content,
+    timestamp: Date.now(),
+    thinkingContent: aiStore.streamingThinkingText || undefined,
+    toolCalls: toolCalls.length ? toolCalls : undefined,
+    contentBlocks: contentBlocks.length ? contentBlocks : undefined,
+  }
+})
+
 
 
 // ── Auto-scroll ────────────────────────────────────────────────────────────
@@ -141,11 +136,6 @@ watch(
     })
   }
 )
-
-function renderMarkdown(text: string): string {
-  try { return marked.parse(text, { async: false }) as string }
-  catch { return text }
-}
 
 async function handleResend(messageId: string, newContent: string) {
   const thread = aiStore.activeThread

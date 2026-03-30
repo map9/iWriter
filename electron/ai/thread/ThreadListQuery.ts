@@ -12,13 +12,15 @@
 
 import Store from 'electron-store'
 import type { CheckpointerInstance } from '../checkpoint/CheckpointerFactory'
-import type { AiThread, AiAgentProfile } from '../../../src/types/ai'
+import type { AiThread, AiAgentProfile, AiAgentDomain } from '../../../src/types/ai'
+import { normalizeLegacyProfile } from '../../../src/types/ai'
 
 const MAX_THREADS = 100
 
 export interface ThreadMeta {
   id: string
   title: string
+  domain: AiAgentDomain
   profile: AiAgentProfile
   modelId: string
   providerConfigId: string
@@ -41,6 +43,7 @@ function ensureTable(db: any): void {
     CREATE TABLE IF NOT EXISTS thread_metadata (
       thread_id         TEXT PRIMARY KEY,
       title             TEXT NOT NULL DEFAULT 'New conversation',
+      domain            TEXT NOT NULL DEFAULT 'editing',
       profile           TEXT NOT NULL,
       model_id          TEXT NOT NULL,
       provider_config_id TEXT NOT NULL,
@@ -51,6 +54,16 @@ function ensureTable(db: any): void {
       think_mode        TEXT
     )
   `)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cols = (db.prepare('PRAGMA table_info(thread_metadata)').all() as any[])
+      .map(col => String(col.name))
+    if (!cols.includes('domain')) {
+      db.exec(`ALTER TABLE thread_metadata ADD COLUMN domain TEXT NOT NULL DEFAULT 'editing'`)
+    }
+  } catch {
+    // ignore migration errors; CREATE TABLE path already covers new installs
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,7 +71,8 @@ function rowToMeta(row: any): ThreadMeta {
   return {
     id: row.thread_id,
     title: row.title,
-    profile: row.profile as AiAgentProfile,
+    domain: (row.domain ?? 'editing') as AiAgentDomain,
+    profile: normalizeLegacyProfile(row.profile) as AiAgentProfile,
     modelId: row.model_id,
     providerConfigId: row.provider_config_id,
     originFilePath: row.origin_file_path ?? null,
@@ -132,6 +146,7 @@ export class ThreadListQuery {
 
   createMeta(params: {
     id?: string
+    domain: AiAgentDomain
     profile: AiAgentProfile
     modelId: string
     providerConfigId: string
@@ -142,6 +157,7 @@ export class ThreadListQuery {
     const meta: ThreadMeta = {
       id: params.id ?? `thread-${now}-${Math.random().toString(36).slice(2, 8)}`,
       title: 'New conversation',
+      domain: params.domain,
       profile: params.profile,
       modelId: params.modelId,
       providerConfigId: params.providerConfigId,
@@ -158,7 +174,7 @@ export class ThreadListQuery {
     id: string,
     updates: Partial<Pick<
       ThreadMeta,
-      'title' | 'hasError' | 'updatedAt' | 'profile' | 'modelId' | 'providerConfigId' | 'thinkMode' | 'originFilePath'
+      'title' | 'hasError' | 'updatedAt' | 'domain' | 'profile' | 'modelId' | 'providerConfigId' | 'thinkMode' | 'originFilePath'
     >>,
   ): void {
     const meta = this.getMeta(id)
@@ -203,12 +219,13 @@ export class ThreadListQuery {
     if (this.db) {
       this.db.prepare(`
         INSERT OR REPLACE INTO thread_metadata
-          (thread_id, title, profile, model_id, provider_config_id,
+          (thread_id, title, domain, profile, model_id, provider_config_id,
            origin_file_path, created_at, updated_at, has_error, think_mode)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         meta.id,
         meta.title,
+        meta.domain,
         meta.profile,
         meta.modelId,
         meta.providerConfigId,
@@ -245,6 +262,7 @@ export function metaToAiThread(meta: ThreadMeta): AiThread {
     messages: [],           // messages live in checkpointer now
     providerConfigId: meta.providerConfigId,
     modelId: meta.modelId,
+    domain: meta.domain,
     profile: meta.profile,
     thinkMode: meta.thinkMode,
     hasError: meta.hasError,

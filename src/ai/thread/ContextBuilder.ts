@@ -6,7 +6,7 @@
  * buildSnapshot(editor, pos?, path?) — DocumentViewSnapshot used by tools and EditorState
  */
 
-import type { AiThread, OpenTabInfo } from '@/types/ai'
+import type { AiThread, OpenTabInfo } from '@/ai/types'
 import type { Editor } from '@tiptap/core'
 import { DocumentViewBuilder, type DocumentView } from '../edit-agent/DocumentViewBuilder'
 

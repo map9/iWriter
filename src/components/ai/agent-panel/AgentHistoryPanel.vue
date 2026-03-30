@@ -123,8 +123,8 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import { IconTrash, IconSearch, IconPencil } from '@tabler/icons-vue'
-import { useAiStore } from '@/stores/ai'
-import type { AiThread } from '@/types/ai'
+import { useAiStore } from '@/ai/store/ai'
+import type { AiThread } from '@/ai/types'
 
 const aiStore = useAiStore()
 const emit = defineEmits<{ select: [id: string] }>()

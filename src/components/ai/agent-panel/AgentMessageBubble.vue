@@ -170,8 +170,20 @@
         </div>
       </div>
 
+      <div
+        v-if="isPreview && previewStatusText"
+        class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100"
+      >
+        <div v-if="showPreviewPulse" class="flex items-center gap-0.5">
+          <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms" />
+          <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:150ms" />
+          <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:300ms" />
+        </div>
+        <span class="text-xs text-gray-500">{{ previewStatusText }}</span>
+      </div>
+
       <!-- Toolbar / Timestamp row -->
-      <div v-if="!isEditing" class="h-5 mt-1 flex items-center" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
+      <div v-if="!isEditing && !isPreview" class="h-5 mt-1 flex items-center" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
         <!-- Hover toolbar -->
         <div v-if="isHovered && !isEditing" class="flex items-center gap-1">
           <button
@@ -202,11 +214,20 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { IconCopy, IconPencil, IconX, IconSend } from '@tabler/icons-vue'
 import MarkdownContentView from '../MarkdownContentView.vue'
-import type { ThreadMessage, AiToolCall } from '@/types/ai'
-import { BLOCK_EDIT_TOOLS } from '@/types/ai'
+import type { ThreadMessage, AiToolCall } from '@/ai/types'
+import { BLOCK_EDIT_TOOLS } from '@/ai/types'
 import ToolCallView from '../ToolCallView.vue'
 
-const props = defineProps<{ message: ThreadMessage }>()
+const props = withDefaults(defineProps<{
+  message: ThreadMessage
+  isPreview?: boolean
+  previewStatusText?: string
+  showPreviewPulse?: boolean
+}>(), {
+  isPreview: false,
+  previewStatusText: '',
+  showPreviewPulse: false,
+})
 const emit = defineEmits<{ resend: [messageId: string, newContent: string] }>()
 
 const thinkingExpanded = ref(false)

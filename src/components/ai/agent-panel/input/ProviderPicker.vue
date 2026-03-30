@@ -58,7 +58,7 @@
 <script setup lang="ts">
 import { watch } from 'vue'
 import { IconChevronDown } from '@tabler/icons-vue'
-import { useAiStore } from '@/stores/ai'
+import { useAiStore } from '@/ai/store/ai'
 import { vClickOutside } from '@/utils/directives'
 import { useProviderPicker } from '../composables/useProviderPicker'
 

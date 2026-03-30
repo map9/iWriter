@@ -20,6 +20,7 @@
 - **前端**: Vue 3 + TypeScript + Tailwind CSS
 - **桌面**: Electron
 - **编辑器**: TipTap v3.x
+- **AI Runtime**: DeepAgents + LangGraph Checkpointer
 - **状态管理**: Pinia
 - **数学公式**: KaTeX
 - **图标**: Tabler Icons
@@ -68,6 +69,27 @@ MainView
 - **一个Tab一个页面**: 简洁的标签页管理
 - **模块化设计**: 组件间清晰解耦
 - **响应式界面**: 支持动态布局调整
+
+## AI Assistant
+
+iWriter 当前的 AI 侧栏已经采用分域设计：
+
+- `Edit`
+  先读后改的文档编辑模式。使用 block-aware 文档工具、只读 shell 工具和 proposal 审批流。
+- `Creative`
+  用于小说脑暴、世界观、人设、故事线等创作资产生成。通过 skill 和 story asset 工具工作。
+- `Minimal`
+  最小对话模式，不挂业务工具。
+
+说明：
+
+- 不再有独立 `Ask` 模式，`Edit` 本身就是 ask-then-edit workflow。
+- 文档正文编辑统一走 proposal/HITL，不应绕过 block edit 直接写文件。
+- 前端 AI 主实现位于 `src/ai/`，主进程 AI runtime 位于 `electron/ai/`。
+
+更多说明见：
+
+- `docs/AGENTIC_EDITING.md`
 
 ## 文档类型支持
 

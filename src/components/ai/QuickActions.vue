@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { useAiStore } from '@/stores/ai'
+import { useAiStore } from '@/ai/store/ai'
 import { useAppStore } from '@/stores/app'
 import type { Editor } from '@tiptap/core'
 

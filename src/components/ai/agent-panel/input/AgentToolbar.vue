@@ -18,6 +18,12 @@
       @close="closeMenu()"
     />
 
+    <ProfilePicker
+      :is-open="activeMenu === 'profile'"
+      @open="openMenu('profile')"
+      @close="closeMenu()"
+    />
+
     <div class="flex-1" />
 
     <button
@@ -46,6 +52,7 @@ import { IconTrash } from '@tabler/icons-vue'
 import AttachPicker from './AttachPicker.vue'
 import ProviderPicker from './ProviderPicker.vue'
 import ModelPicker from './ModelPicker.vue'
+import ProfilePicker from './ProfilePicker.vue'
 import SendButton from './SendButton.vue'
 
 defineProps<{
@@ -63,7 +70,7 @@ defineEmits<{
   'clear-thread': []
 }>()
 
-type MenuName = 'provider' | 'model'
+type MenuName = 'provider' | 'model' | 'profile'
 const activeMenu = ref<MenuName | null>(null)
 
 function openMenu(name: MenuName) {

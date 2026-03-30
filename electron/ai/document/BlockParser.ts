@@ -149,9 +149,15 @@ export class BlockParser {
    */
   static resolveFilePath(
     argFilePath: string | null | undefined,
-    _activeFilePath: string | null
+    activeFilePath: string | null
   ): string | null {
-    return (argFilePath && argFilePath.trim()) ? argFilePath : null
+    if (!argFilePath || !argFilePath.trim()) {
+      return null
+    }
+    if (activeFilePath && normalizePath(argFilePath) === normalizePath(activeFilePath)) {
+      return null
+    }
+    return argFilePath
   }
 }
 

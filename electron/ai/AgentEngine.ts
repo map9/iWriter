@@ -15,14 +15,17 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { app } from 'electron'
 import type { WebContents } from 'electron'
+import type { StructuredTool } from '@langchain/core/tools'
 import { createDeepAgent, LocalShellBackend } from 'deepagents'
 import { Command } from '@langchain/langgraph'
 import { HumanMessage } from '@langchain/core/messages'
 
-import type { AiProviderConfig, AiAgentProfile, ThreadMessage, EditProposal } from '../../src/types/ai'
+import type { AiProviderConfig, AiAgentDomain, AiAgentProfile, ThreadMessage, EditProposal } from '../../src/types/ai'
 import { createChatModel } from './providers/ModelFactory'
 import { buildDocumentTools } from './tools/DocumentTools'
 import { buildEditProposalTools } from './tools/EditProposalTools'
+import { buildCreativeArtifactTools } from './tools/CreativeArtifactTools'
+import { buildWorkspaceShellTools } from './tools/WorkspaceShellTools'
 import { SnapshotBroker } from './document/SnapshotBroker'
 import type { CheckpointerInstance } from './checkpoint/CheckpointerFactory'
 import { getCheckpointer } from './checkpoint/CheckpointerFactory'
@@ -43,9 +46,9 @@ import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore } from './runtime/ThreadRuntimeStore'
 
 // Import system prompts from src (shared)
-import { WRITE_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/write'
-import { ASK_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/ask'
+import { EDIT_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/edit'
 import { MINIMAL_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/minimal'
+import { CREATIVE_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/creative'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -55,6 +58,7 @@ export class AgentEngine {
   private snapshotBroker: SnapshotBroker
   private rendererBridge: RendererEventBridge
   private aiRootPath: string
+  private bundledSkillsPath: string
 
   /** One AbortController per active streaming threadId */
   private activeRuns = new Map<string, AbortController>()
@@ -72,6 +76,7 @@ export class AgentEngine {
     this.snapshotBroker = new SnapshotBroker(getWebContents)
     this.rendererBridge = new RendererEventBridge(getWebContents)
     this.aiRootPath = path.join(app.getPath('home'), '.iwriter', 'ai')
+    this.bundledSkillsPath = path.join(app.getAppPath(), 'electron', 'ai', 'builtin-skills')
     this.ensureAiDirectories()
   }
 
@@ -154,6 +159,7 @@ export class AgentEngine {
     if (isNewThread) {
       this.threadListQuery!.createMeta({
         id: threadId,
+        domain: runtime.domain,
         profile: runtime.profile,
         modelId: runtime.modelId,
         providerConfigId: runtime.providerConfig.id,
@@ -162,6 +168,7 @@ export class AgentEngine {
       })
     } else {
       this.threadListQuery!.updateMeta(threadId, {
+        domain: runtime.domain,
         profile: runtime.profile,
         modelId: runtime.modelId,
         providerConfigId: runtime.providerConfig.id,
@@ -191,7 +198,7 @@ export class AgentEngine {
     }
 
     // Run agent in background
-    this._runSession(threadId, runtime.providerConfig, runtime.profile, runtime.modelId, runtime.thinkMode, userContent).catch(err => {
+    this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.profile, runtime.modelId, runtime.thinkMode, userContent).catch(err => {
       console.error('[AgentEngine] _runSession error:', err)
     })
 
@@ -251,7 +258,7 @@ export class AgentEngine {
 
     const hiResp = { decisions: lgDecisions }
 
-    this._continueSession(threadId, runtime.providerConfig, runtime.profile, runtime.modelId, runtime.thinkMode, new Command({ resume: hiResp }))
+    this._continueSession(threadId, runtime.providerConfig, runtime.domain, runtime.profile, runtime.modelId, runtime.thinkMode, new Command({ resume: hiResp }))
       .catch(err => console.error('[AgentEngine] _continueSession error:', err))
   }
 
@@ -260,17 +267,18 @@ export class AgentEngine {
   private async _runSession(
     threadId: string,
     config: AiProviderConfig,
+    domain: AiAgentDomain,
     profile: AiAgentProfile,
     modelId: string,
     thinkMode: string | undefined,
     userContent: string,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(config, profile, modelId, thinkMode)
+    const agent = this._getOrCreateAgent(config, domain, profile, modelId, thinkMode)
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
     const runConfig = {
-      configurable: this._buildRunConfigurable(threadId),
+      configurable: this._buildRunConfigurable(threadId, domain),
       version: 'v2' as const,
       signal: abortController.signal,
       recursionLimit: 100,
@@ -282,17 +290,18 @@ export class AgentEngine {
   private async _continueSession(
     threadId: string,
     config: AiProviderConfig,
+    domain: AiAgentDomain,
     profile: AiAgentProfile,
     modelId: string,
     thinkMode: string | undefined,
     command: typeof Command.prototype,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(config, profile, modelId, thinkMode)
+    const agent = this._getOrCreateAgent(config, domain, profile, modelId, thinkMode)
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
     const runConfig = {
-      configurable: this._buildRunConfigurable(threadId),
+      configurable: this._buildRunConfigurable(threadId, domain),
       version: 'v2' as const,
       signal: abortController.signal,
       recursionLimit: 100,
@@ -419,6 +428,7 @@ export class AgentEngine {
 
   private _getOrCreateAgent(
     config: AiProviderConfig,
+    domain: AiAgentDomain,
     profile: AiAgentProfile,
     modelId: string,
     thinkMode?: string,
@@ -426,36 +436,29 @@ export class AgentEngine {
     // Include apiKey and baseUrl in the key so that credential updates immediately
     // produce a new agent instance rather than reusing a stale one.
     const keyFingerprint = config.apiKey ? config.apiKey.slice(-8) : ''
-    const cacheKey = `${config.id}:${profile}:${modelId}:${thinkMode ?? ''}:${keyFingerprint}:${config.baseUrl ?? ''}`
+    const cacheKey = `${config.id}:${domain}:${profile}:${modelId}:${thinkMode ?? ''}:${keyFingerprint}:${config.baseUrl ?? ''}`
     if (this.agentCache.has(cacheKey)) return this.agentCache.get(cacheKey)!
 
     const model = createChatModel(config, { modelId, thinkMode })
-    const docTools = buildDocumentTools(this.snapshotBroker)
-    const editTools = buildEditProposalTools()
+    const capabilities = this._buildAgentCapabilities(domain, profile)
 
     const agent = createDeepAgent({
       model,
-      systemPrompt: getSystemPrompt(profile),
-      tools: [...docTools, ...editTools],
-      backend: new LocalShellBackend({ rootDir: this.aiRootPath }),
-      skills: ['/skills/'],
+      systemPrompt: getSystemPrompt(domain, profile),
+      tools: capabilities.tools,
+      backend: capabilities.backend,
+      skills: capabilities.skills,
       memory: [path.join(this.aiRootPath, 'memory', 'AGENTS.md')].filter(fs.existsSync),
       checkpointer: this.checkpointerInstance?.checkpointer,
-      interruptOn: {
-        edit_block:      { allowedDecisions: ['approve', 'edit', 'reject'] },
-        insert_block:    { allowedDecisions: ['approve', 'edit', 'reject'] },
-        delete_block:    { allowedDecisions: ['approve', 'reject'] },
-        replace_range:   { allowedDecisions: ['approve', 'edit', 'reject'] },
-        create_document: { allowedDecisions: ['approve', 'edit', 'reject'] },
-      },
+      interruptOn: capabilities.interruptOn,
     })
 
     this.agentCache.set(cacheKey, agent)
     return agent
   }
 
-  private _buildRunConfigurable(threadId: string): Record<string, string> {
-    return this.runtimeStore.buildConfigurable(threadId)
+  private _buildRunConfigurable(threadId: string, domain: AiAgentDomain): Record<string, string> {
+    return this.runtimeStore.buildConfigurable(threadId, domain)
   }
 
   // ── Private: init ─────────────────────────────────────────────────────────
@@ -474,16 +477,70 @@ export class AgentEngine {
     for (const dir of dirs) {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
     }
+    this.syncBundledSkills()
+  }
+
+  private syncBundledSkills(): void {
+    if (!fs.existsSync(this.bundledSkillsPath)) return
+    const targetRoot = path.join(this.aiRootPath, 'skills')
+    const entries = fs.readdirSync(this.bundledSkillsPath, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const sourceDir = path.join(this.bundledSkillsPath, entry.name)
+      const targetDir = path.join(targetRoot, entry.name)
+      fs.mkdirSync(targetDir, { recursive: true })
+      const files = fs.readdirSync(sourceDir, { withFileTypes: true })
+      for (const file of files) {
+        if (!file.isFile()) continue
+        fs.copyFileSync(path.join(sourceDir, file.name), path.join(targetDir, file.name))
+      }
+    }
+  }
+
+  private _buildAgentCapabilities(domain: AiAgentDomain, profile: AiAgentProfile): {
+    tools: StructuredTool[]
+    skills: string[]
+    backend?: LocalShellBackend
+    interruptOn?: Record<string, { allowedDecisions: string[] }>
+  } {
+    if (domain === 'creative') {
+      return {
+        tools: [...buildCreativeArtifactTools(this.aiRootPath)],
+        skills: ['/skills/'],
+        backend: new LocalShellBackend({ rootDir: this.aiRootPath }),
+      }
+    }
+
+    const docTools = buildDocumentTools(this.snapshotBroker)
+    if (profile === 'minimal') {
+      return { tools: [], skills: [] }
+    }
+
+    const editTools = buildEditProposalTools()
+    const shellTools = buildWorkspaceShellTools()
+    return {
+      tools: [...docTools, ...shellTools, ...editTools],
+      skills: [],
+      interruptOn: {
+        edit_block:      { allowedDecisions: ['approve', 'edit', 'reject'] },
+        insert_block:    { allowedDecisions: ['approve', 'edit', 'reject'] },
+        delete_block:    { allowedDecisions: ['approve', 'reject'] },
+        replace_range:   { allowedDecisions: ['approve', 'edit', 'reject'] },
+        create_document: { allowedDecisions: ['approve', 'edit', 'reject'] },
+      },
+    }
   }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function getSystemPrompt(profile: AiAgentProfile): string {
+function getSystemPrompt(domain: AiAgentDomain, profile: AiAgentProfile): string {
+  if (domain === 'creative') {
+    return CREATIVE_SYSTEM_PROMPT
+  }
   switch (profile) {
-    case 'write': return WRITE_SYSTEM_PROMPT
-    case 'ask': return ASK_SYSTEM_PROMPT
     case 'minimal': return MINIMAL_SYSTEM_PROMPT
-    default: return WRITE_SYSTEM_PROMPT
+    case 'edit': return EDIT_SYSTEM_PROMPT
+    default: return EDIT_SYSTEM_PROMPT
   }
 }

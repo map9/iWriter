@@ -11,7 +11,7 @@
  * workspace are also blocked by default.
  */
 
-import type { AiToolPermission, AiSettings } from '@/types/ai'
+import type { AiToolPermission, AiSettings } from '@/ai/types'
 
 export interface GateResult {
   allowed: boolean

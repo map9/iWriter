@@ -9,14 +9,14 @@
  * user must approve before the edit is applied.
  */
 
-import type { AiToolCall, AiToolResult } from '@/types/ai'
+import type { AiToolCall, AiToolResult } from '@/ai/types'
 import type { DocumentViewSnapshot } from '../thread/ContextBuilder'
 import { UnifiedDocumentAccess, type DocumentHandle } from '../edit-agent/UnifiedDocumentAccess'
 import { DocumentViewBuilder } from '../edit-agent/DocumentViewBuilder'
 import { FileTools } from './FileTools'
 import { PermissionGate } from './PermissionGate'
 import { registerShellTools } from './ShellTools'
-import type { AiSettings } from '@/types/ai'
+import type { AiSettings } from '@/ai/types'
 import { pathUtils } from '@/utils/pathUtils'
 
 const _docViewBuilder = new DocumentViewBuilder()

@@ -170,8 +170,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { IconPencil, IconTrash, IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
-import { useAiStore } from '@/stores/ai'
-import type { AiProviderConfig, AiProviderType } from '@/types/ai'
+import { useAiStore } from '@/ai/store/ai'
+import type { AiProviderConfig, AiProviderType } from '@/ai/types'
 import {
   PROVIDER_PRESETS,
   type ProviderPreset,

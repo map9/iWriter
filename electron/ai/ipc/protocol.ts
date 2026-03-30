@@ -13,6 +13,7 @@ import type {
   AiToolCall,
   ThreadMessage,
   AiAgentProfile,
+  AiAgentDomain,
   OpenTabInfo,
 } from '../../../src/types/ai'
 
@@ -21,6 +22,7 @@ import type {
 export interface SendMessageRequest {
   threadId?: string            // Omit to start a new thread
   userText: string
+  domain: AiAgentDomain
   profile: AiAgentProfile
   /** Runtime configuration chosen by the renderer for this thread/run. */
   threadRuntime?: {

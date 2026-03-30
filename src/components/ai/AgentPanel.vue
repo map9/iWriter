@@ -36,14 +36,14 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
-import { useAiStore } from '@/stores/ai'
+import { useAiStore } from '@/ai/store/ai'
 import { useAppStore } from '@/stores/app'
 import AgentHeader from './agent-panel/AgentHeader.vue'
 import AgentHistoryPanel from './agent-panel/AgentHistoryPanel.vue'
 import AgentChatArea from './agent-panel/AgentChatArea.vue'
 import AgentInputArea from './agent-panel/input/AgentInputArea.vue'
 import ProviderSettings from './ProviderSettings.vue'
-import type { SnapshotRequestEvent } from '@/types/ai-ipc'
+import type { SnapshotRequestEvent } from '@/ai/ipc'
 import { buildSerializedSnapshot } from '@/ai/snapshot/SnapshotSerializer'
 
 const aiStore = useAiStore()

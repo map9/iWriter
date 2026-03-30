@@ -34,7 +34,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { IconLoader2 } from '@tabler/icons-vue'
-import type { AiToolCall } from '@/types/ai'
+import type { AiToolCall } from '@/ai/types'
 import MarkdownContentView from './MarkdownContentView.vue'
 
 const props = defineProps<{

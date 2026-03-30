@@ -1,6 +1,7 @@
 import { computed } from 'vue'
-import { useAiStore } from '@/stores/ai'
-import type { AiAgentProfile } from '@/types/ai'
+import { useAiStore } from '@/ai/store/ai'
+import type { AiAgentProfile } from '@/ai/types'
+import { normalizeProfileForDomain, resolveAgentDomain } from '@/ai/types'
 
 export type ModeOption = string | { value: string; label: string }
 
@@ -8,18 +9,20 @@ export function useModePicker() {
   const aiStore = useAiStore()
 
   const profileOptions: ModeOption[] = [
-    { value: 'write' as AiAgentProfile, label: 'Write — 完全访问' },
-    { value: 'ask' as AiAgentProfile, label: 'Ask — 只读' },
+    { value: 'edit' as AiAgentProfile, label: 'Edit — 先读后改' },
     { value: 'minimal' as AiAgentProfile, label: 'Minimal — 无工具' },
+    { value: 'creative' as AiAgentProfile, label: 'Creative — 小说创作' },
   ]
 
   const currentProfile = computed<AiAgentProfile>({
     get() { return aiStore.activeThread?.profile ?? aiStore.settings.defaultProfile },
     set(value) {
+      const domain = resolveAgentDomain(value)
+      const profile = normalizeProfileForDomain(value, domain)
       if (aiStore.activeThread) {
-        aiStore.updateThread({ ...aiStore.activeThread, profile: value })
+        aiStore.updateThread({ ...aiStore.activeThread, domain, profile })
       } else {
-        aiStore.settings.defaultProfile = value
+        aiStore.settings.defaultProfile = profile
         aiStore.saveSettings()
       }
     },
@@ -46,7 +49,11 @@ export function useModePicker() {
   const modeLabel = computed(() => {
     const mode = currentMode.value
     if (!aiStore.availableThinkModes.length) {
-      const map: Record<string, string> = { write: 'Write', ask: 'Ask', minimal: 'Minimal' }
+      const map: Record<string, string> = {
+        edit: 'Edit',
+        minimal: 'Minimal',
+        creative: 'Creative',
+      }
       return map[mode] || mode
     }
     return mode || 'Mode'

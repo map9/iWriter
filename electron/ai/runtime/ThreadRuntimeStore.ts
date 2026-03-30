@@ -1,3 +1,5 @@
+import type { AiAgentDomain } from '../../../src/types/ai'
+
 interface InterruptedRun {
   actionRequestCount: number
   actionNames: string[]
@@ -20,10 +22,11 @@ export class ThreadRuntimeStore {
     return this.threadContexts.get(threadId) ?? null
   }
 
-  buildConfigurable(threadId: string): Record<string, string> {
+  buildConfigurable(threadId: string, domain?: AiAgentDomain): Record<string, string> {
     const ctx = this.getContext(threadId)
     return {
       thread_id: threadId,
+      agent_domain: domain ?? 'editing',
       active_file_path: ctx?.activeFilePath ?? '',
       workspace_path: ctx?.workspacePath ?? '',
     }

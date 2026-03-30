@@ -5,7 +5,15 @@
  * Centralises all conversion logic that was previously scattered through AgentEngine.ts.
  */
 
-import type { AiToolCall, AiToolResult, ThreadMessage, BlockEditProposal, FileCreateProposal, EditProposal } from '../../../src/types/ai'
+import type {
+  AiToolCall,
+  AiToolResult,
+  ThreadMessage,
+  BlockEditProposal,
+  FileCreateProposal,
+  EditProposal,
+  MessageContentBlock,
+} from '../../../src/types/ai'
 import { inferToolKind } from '../../../src/types/ai'
 import type { SerializedSnapshot } from './protocol'
 
@@ -116,6 +124,13 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
 
       // Consume following tool messages and attach results
       const toolResults: AiToolResult[] = []
+      const contentBlocks: MessageContentBlock[] = []
+      if (content) {
+        contentBlocks.push({ type: 'text', text: content })
+      }
+      for (const toolCall of toolCalls) {
+        contentBlocks.push({ type: 'tool_call', toolCallId: toolCall.id })
+      }
       let j = i + 1
       while (j < rawMessages.length && lcMsgType(rawMessages[j]) === 'tool') {
         const toolMsg = rawMessages[j]
@@ -134,6 +149,7 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
         timestamp: Date.now(),
         toolCalls: toolCalls.length ? toolCalls : undefined,
         toolResults: toolResults.length ? toolResults : undefined,
+        contentBlocks: contentBlocks.length ? contentBlocks : undefined,
       })
       i = j
       continue
