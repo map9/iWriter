@@ -16,7 +16,7 @@ import { z } from 'zod'
 
 export function buildEditProposalTools() {
   const editBlock = tool(
-    async ({ block_id }: { block_id: number; new_content: string; description?: string; file_path?: string }) => {
+    async ({ block_id }: { block_id: number; new_content: string; reason?: string; file_path?: string }) => {
       return `Block {b:${block_id}} edited successfully.`
     },
     {
@@ -28,7 +28,7 @@ export function buildEditProposalTools() {
       schema: z.object({
         block_id: z.number().describe('The {b:n} block ID to edit.'),
         new_content: z.string().describe('The new Markdown content to replace the block with.'),
-        description: z.string().optional().describe('Brief reason for the edit.'),
+        reason: z.string().optional().describe('Brief reason for the edit.'),
         file_path: z.string().optional().describe(
           'Absolute path to a disk file. Omit to edit the active editor document.'
         ),
@@ -37,7 +37,7 @@ export function buildEditProposalTools() {
   )
 
   const insertBlock = tool(
-    async ({ after_block_id }: { after_block_id: number; content: string; description?: string; file_path?: string }) => {
+    async ({ after_block_id }: { after_block_id: number; new_blocks: string; reason?: string; file_path?: string }) => {
       return `Block inserted after {b:${after_block_id}} successfully.`
     },
     {
@@ -48,15 +48,15 @@ export function buildEditProposalTools() {
         'The user must approve before the change is applied.',
       schema: z.object({
         after_block_id: z.number().describe('Insert after this block ID. Use 0 to insert at document start.'),
-        content: z.string().describe('The Markdown content of the new block(s) to insert.'),
-        description: z.string().optional().describe('Brief reason for the insertion.'),
+        new_blocks: z.string().describe('Markdown content of the new block(s) to insert.'),
+        reason: z.string().optional().describe('Brief reason for the insertion.'),
         file_path: z.string().optional().describe('Absolute path to a disk file. Omit for the active editor.'),
       }),
     }
   )
 
   const deleteBlock = tool(
-    async ({ block_id }: { block_id: number; description?: string; file_path?: string }) => {
+    async ({ block_id }: { block_id: number; reason?: string; file_path?: string }) => {
       return `Block {b:${block_id}} deleted successfully.`
     },
     {
@@ -64,14 +64,14 @@ export function buildEditProposalTools() {
       description: 'Delete an existing block. The user must approve before the change is applied.',
       schema: z.object({
         block_id: z.number().describe('The {b:n} block ID to delete.'),
-        description: z.string().optional().describe('Brief reason for the deletion.'),
+        reason: z.string().optional().describe('Brief reason for the deletion.'),
         file_path: z.string().optional().describe('Absolute path to a disk file. Omit for the active editor.'),
       }),
     }
   )
 
   const replaceRange = tool(
-    async ({ start_block_id, end_block_id }: { start_block_id: number; end_block_id: number; new_content: string; description?: string; file_path?: string }) => {
+    async ({ start_block_id, end_block_id }: { start_block_id: number; end_block_id: number; new_content: string; reason?: string; file_path?: string }) => {
       return `Blocks {b:${start_block_id}}–{b:${end_block_id}} replaced successfully.`
     },
     {
@@ -83,14 +83,14 @@ export function buildEditProposalTools() {
         start_block_id: z.number().describe('First block ID in the range to replace.'),
         end_block_id: z.number().describe('Last block ID in the range to replace (inclusive).'),
         new_content: z.string().describe('New Markdown content to replace the range with.'),
-        description: z.string().optional().describe('Brief reason for the replacement.'),
+        reason: z.string().optional().describe('Brief reason for the replacement.'),
         file_path: z.string().optional().describe('Absolute path to a disk file. Omit for the active editor.'),
       }),
     }
   )
 
   const createDocument = tool(
-    async ({ filename }: { filename: string; content: string; description?: string }) => {
+    async ({ filename }: { filename: string; content: string; reason?: string }) => {
       return `Document "${filename}" created successfully.`
     },
     {
@@ -100,9 +100,9 @@ export function buildEditProposalTools() {
         'The user must approve before the file is created. ' +
         'Use when asked to write a new document or create a new file.',
       schema: z.object({
-        filename: z.string().describe('Desired filename with extension (e.g., "notes.md"). No path separators.'),
+        filename: z.string().describe('Desired filename. Extension is optional; .md will be used when omitted.'),
         content: z.string().describe('Full Markdown content for the new document.'),
-        description: z.string().optional().describe('Brief description of the document.'),
+        reason: z.string().optional().describe('Brief description of the document.'),
       }),
     }
   )

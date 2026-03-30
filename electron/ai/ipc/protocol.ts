@@ -22,6 +22,12 @@ export interface SendMessageRequest {
   threadId?: string            // Omit to start a new thread
   userText: string
   profile: AiAgentProfile
+  /** Runtime configuration chosen by the renderer for this thread/run. */
+  threadRuntime?: {
+    providerConfigId?: string
+    modelId?: string
+    thinkMode?: string
+  }
   /** Context from the renderer at send time */
   editorContext: EditorContext
   /** Attachments: file paths, binary paths, directories */
@@ -40,18 +46,6 @@ export interface EditorContext {
   cursorBlockId?: number       // Display block ID of cursor position
   /** Pre-built <editor_state> XML from renderer (built at send time using ContextBuilder). */
   editorStateXml?: string | null
-}
-
-/** @deprecated Use ResumeRunRequest instead */
-export interface ApproveProposalRequest {
-  sessionId: string
-  proposalId: string
-}
-
-/** @deprecated Use ResumeRunRequest instead */
-export interface RejectProposalRequest {
-  sessionId: string
-  proposalId: string
 }
 
 // ── LangGraph HITL — interrupt / resume ────────────────────────────────────
@@ -96,8 +90,6 @@ export interface StreamChunkEvent {
 }
 
 /**
- * Replaces the old two-event sequence (ai:run-done(isPartial) + ai:interrupt-ready).
- *
  * Emitted when the agent hits a HITL interrupt. Contains:
  * - partialMessage: assistant content accumulated before the interrupt (may be absent)
  * - proposals: ALL proposals from ALL actionRequests in this interrupt batch, in order (UI display)
@@ -120,17 +112,6 @@ export interface RunInterruptedEvent {
    * Used by the renderer to align decisions by index.
    */
   actionRequests: Array<{ name: string; args: Record<string, unknown> }>
-}
-
-/** @deprecated Use RunInterruptedEvent instead */
-export interface ProposalReadyEvent {
-  sessionId: string
-  proposal: EditProposal
-}
-
-export interface RoundCompleteEvent {
-  sessionId: string
-  message: ThreadMessage
 }
 
 export interface RunDoneEvent {
@@ -218,8 +199,4 @@ export type AiIpcInvokeMap = {
   'ai:delete-thread': [{ threadId: string }, void]
   'ai:clear-threads': [void, void]
   'ai:get-thread-messages': [{ threadId: string }, ThreadMessage[]]
-  /** @deprecated Use ai:resume */
-  'ai:approve-proposal': [ApproveProposalRequest, void]
-  /** @deprecated Use ai:resume */
-  'ai:reject-proposal': [RejectProposalRequest, void]
 }

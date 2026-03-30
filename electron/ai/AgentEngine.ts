@@ -5,8 +5,8 @@
  * - threadId IS the sessionId (no separate ephemeral sessionId)
  * - Checkpointer manages all conversation history
  * - interruptOn replaces EditProposalManager's Promise-based HITL
- * - One atomic ai:run-interrupted event replaces the old two-event sequence
- *   (ai:run-done(isPartial) + ai:interrupt-ready)
+ * - Interrupts are emitted as a single ai:run-interrupted event with
+ *   proposal payload + partial assistant message
  * - Resume accepts a batch decisions[] array matching actionRequests[] in order
  * - decisions support three types: approve / edit / reject
  */
@@ -19,8 +19,7 @@ import { createDeepAgent, LocalShellBackend } from 'deepagents'
 import { Command } from '@langchain/langgraph'
 import { HumanMessage } from '@langchain/core/messages'
 
-import type { AiProviderConfig, AiAgentProfile, AiToolCall, ThreadMessage, EditProposal } from '../../src/types/ai'
-import { inferToolKind } from '../../src/types/ai'
+import type { AiProviderConfig, AiAgentProfile, ThreadMessage, EditProposal } from '../../src/types/ai'
 import { createChatModel } from './providers/ModelFactory'
 import { buildDocumentTools } from './tools/DocumentTools'
 import { buildEditProposalTools } from './tools/EditProposalTools'
@@ -30,19 +29,18 @@ import { getCheckpointer } from './checkpoint/CheckpointerFactory'
 import { ThreadListQuery, metaToAiThread } from './thread/ThreadListQuery'
 import type {
   SendMessageRequest,
-  StreamChunkEvent,
-  RunDoneEvent,
-  RunErrorEvent,
-  RunInterruptedEvent,
   ResumeDecision,
   SerializedSnapshot,
 } from './ipc/protocol'
 import {
-  parseToolArguments,
-  extractToolResult,
   convertLcMessages,
   buildProposalFromAction,
 } from './ipc/MessageAdapter'
+import { StreamEventAdapter } from './ipc/StreamEventAdapter'
+import { RendererEventBridge } from './ipc/RendererEventBridge'
+import { buildUserMessage } from './ipc/UserMessageBuilder'
+import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
+import { ThreadRuntimeStore } from './runtime/ThreadRuntimeStore'
 
 // Import system prompts from src (shared)
 import { WRITE_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/write'
@@ -51,28 +49,17 @@ import { MINIMAL_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/minima
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-interface InterruptedRun {
-  /** Number of actionRequests — used to validate decisions count on resume. */
-  actionRequestCount: number
-  /** Tool names in order — used to reconstruct editedAction for 'edit' decisions. */
-  actionNames: string[]
-}
-
 type DeepAgentInstance = ReturnType<typeof createDeepAgent>
 
 export class AgentEngine {
   private snapshotBroker: SnapshotBroker
+  private rendererBridge: RendererEventBridge
   private aiRootPath: string
-
-  /** Current workspace folder path */
-  private workspacePath: string | null = null
-  /** Current active file path */
-  private activeFilePath: string | null = null
 
   /** One AbortController per active streaming threadId */
   private activeRuns = new Map<string, AbortController>()
-  /** Interrupted runs waiting for user decisions */
-  private interruptedRuns = new Map<string, InterruptedRun>()
+  /** Thread-scoped runtime data: editor context + pending interrupts. */
+  private runtimeStore = new ThreadRuntimeStore()
 
   /** Agent cache keyed by "configId:profile:modelId" */
   private agentCache = new Map<string, DeepAgentInstance>()
@@ -83,6 +70,7 @@ export class AgentEngine {
 
   constructor(private getWebContents: () => WebContents | null) {
     this.snapshotBroker = new SnapshotBroker(getWebContents)
+    this.rendererBridge = new RendererEventBridge(getWebContents)
     this.aiRootPath = path.join(app.getPath('home'), '.iwriter', 'ai')
     this.ensureAiDirectories()
   }
@@ -94,9 +82,6 @@ export class AgentEngine {
     this.checkpointerInstance = ci
     this.threadListQuery = new ThreadListQuery(ci)
   }
-
-  setWorkspacePath(p: string | null): void { this.workspacePath = p }
-  setActiveFilePath(p: string | null): void { this.activeFilePath = p }
 
   // ── Public: thread list (IPC ai:get-threads) ──────────────────────────────
 
@@ -125,6 +110,8 @@ export class AgentEngine {
 
   deleteThread(threadId: string): void {
     this.threadListQuery?.deleteMeta(threadId)
+    this.runtimeStore.deleteThread(threadId)
+    this.activeRuns.delete(threadId)
     if (this.checkpointerInstance?.backend === 'sqlite' && this.checkpointerInstance.db) {
       try {
         this.checkpointerInstance.db
@@ -139,6 +126,8 @@ export class AgentEngine {
 
   clearThreads(): void {
     this.threadListQuery?.clearMetas()
+    this.runtimeStore.clear()
+    this.activeRuns.clear()
     if (this.checkpointerInstance?.backend === 'sqlite' && this.checkpointerInstance.db) {
       try {
         this.checkpointerInstance.db.prepare('DELETE FROM checkpoints').run()
@@ -154,33 +143,38 @@ export class AgentEngine {
 
     const { AiConfigStore } = await import('./config/AiConfigStore')
     const settings = AiConfigStore.loadSettings()
-    const config = settings.providerConfigs.find(
-      c => c.id === settings.activeProviderConfigId && c.enabled
-    )
-    if (!config) {
-      throw new Error('No active AI provider configured. Please add a provider in settings.')
-    }
-
-    const modelId = config.lastSelectedModelId || config.defaultModelId || config.models?.[0] || ''
 
     // Resolve or create thread
     const threadId = req.threadId
       ?? `thread-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const existingMeta = req.threadId ? this.threadListQuery?.getMeta(req.threadId) : null
+    const runtime = resolveThreadRuntime(settings, req, existingMeta)
 
-    const isNewThread = !req.threadId || !this.threadListQuery?.getMeta(req.threadId)
+    const isNewThread = !existingMeta
     if (isNewThread) {
       this.threadListQuery!.createMeta({
         id: threadId,
-        profile: req.profile,
-        modelId,
-        providerConfigId: config.id,
+        profile: runtime.profile,
+        modelId: runtime.modelId,
+        providerConfigId: runtime.providerConfig.id,
         originFilePath: req.editorContext.filePath,
+        thinkMode: runtime.thinkMode,
+      })
+    } else {
+      this.threadListQuery!.updateMeta(threadId, {
+        profile: runtime.profile,
+        modelId: runtime.modelId,
+        providerConfigId: runtime.providerConfig.id,
+        thinkMode: runtime.thinkMode,
+        originFilePath: existingMeta?.originFilePath ?? req.editorContext.filePath,
       })
     }
 
-    // Update context from request
-    if (req.editorContext.filePath !== undefined) this.activeFilePath = req.editorContext.filePath
-    if (req.editorContext.folderPath !== undefined) this.workspacePath = req.editorContext.folderPath
+    // Update thread-scoped context from request
+    this.runtimeStore.setContext(threadId, {
+      activeFilePath: req.editorContext.filePath ?? null,
+      workspacePath: req.editorContext.folderPath ?? null,
+    })
 
     // Auto-title from first message
     if (isNewThread) {
@@ -191,13 +185,13 @@ export class AgentEngine {
 
     // If this thread was left in an interrupted state (e.g., app restart during HITL),
     // clear the stale in-memory entry so the new message starts a fresh run.
-    if (this.interruptedRuns.has(threadId)) {
+    if (this.runtimeStore.getInterrupted(threadId)) {
       console.warn('[AgentEngine] sendMessage: clearing stale interrupted state for threadId:', threadId)
-      this.interruptedRuns.delete(threadId)
+      this.runtimeStore.clearInterrupted(threadId)
     }
 
     // Run agent in background
-    this._runSession(threadId, config, req.profile, modelId, userContent).catch(err => {
+    this._runSession(threadId, runtime.providerConfig, runtime.profile, runtime.modelId, runtime.thinkMode, userContent).catch(err => {
       console.error('[AgentEngine] _runSession error:', err)
     })
 
@@ -212,32 +206,27 @@ export class AgentEngine {
       ac.abort()
       this.activeRuns.delete(threadId)
     }
-    this.interruptedRuns.delete(threadId)
+    this.runtimeStore.clearInterrupted(threadId)
   }
 
   // ── Public: resume (LangGraph HITL batch decisions) ───────────────────────
 
   async resumeRun(threadId: string, decisions: ResumeDecision[]): Promise<void> {
-    const interrupted = this.interruptedRuns.get(threadId)
+    const interrupted = this.runtimeStore.getInterrupted(threadId)
     if (!interrupted) {
       console.warn('[AgentEngine] resumeRun: no interrupted run for threadId:', threadId)
       return
     }
-    this.interruptedRuns.delete(threadId)
+    this.runtimeStore.clearInterrupted(threadId)
 
     const { AiConfigStore } = await import('./config/AiConfigStore')
     const settings = AiConfigStore.loadSettings()
-    const providerConfig = settings.providerConfigs.find(
-      c => c.id === settings.activeProviderConfigId && c.enabled
-    )
-    if (!providerConfig) {
-      console.error('[AgentEngine] resumeRun: no active provider')
+    const meta = this.threadListQuery?.getMeta(threadId)
+    const runtime = resolveThreadRuntime(settings, undefined, meta)
+    if (!runtime) {
+      console.error('[AgentEngine] resumeRun: could not resolve thread runtime')
       return
     }
-
-    const meta = this.threadListQuery?.getMeta(threadId)
-    const profile = meta?.profile ?? 'write'
-    const modelId = meta?.modelId ?? (providerConfig.lastSelectedModelId || providerConfig.defaultModelId || '')
 
     // Map decisions[] → LangGraph HITLResponse decisions.
     // decisions[i] corresponds to actionRequests[i] — array position is the contract.
@@ -262,7 +251,7 @@ export class AgentEngine {
 
     const hiResp = { decisions: lgDecisions }
 
-    this._continueSession(threadId, providerConfig, profile, modelId, new Command({ resume: hiResp }))
+    this._continueSession(threadId, runtime.providerConfig, runtime.profile, runtime.modelId, runtime.thinkMode, new Command({ resume: hiResp }))
       .catch(err => console.error('[AgentEngine] _continueSession error:', err))
   }
 
@@ -273,14 +262,15 @@ export class AgentEngine {
     config: AiProviderConfig,
     profile: AiAgentProfile,
     modelId: string,
+    thinkMode: string | undefined,
     userContent: string,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(config, profile, modelId)
+    const agent = this._getOrCreateAgent(config, profile, modelId, thinkMode)
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
     const runConfig = {
-      configurable: { thread_id: threadId },
+      configurable: this._buildRunConfigurable(threadId),
       version: 'v2' as const,
       signal: abortController.signal,
       recursionLimit: 100,
@@ -294,14 +284,15 @@ export class AgentEngine {
     config: AiProviderConfig,
     profile: AiAgentProfile,
     modelId: string,
+    thinkMode: string | undefined,
     command: typeof Command.prototype,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(config, profile, modelId)
+    const agent = this._getOrCreateAgent(config, profile, modelId, thinkMode)
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
     const runConfig = {
-      configurable: { thread_id: threadId },
+      configurable: this._buildRunConfigurable(threadId),
       version: 'v2' as const,
       signal: abortController.signal,
       recursionLimit: 100,
@@ -318,95 +309,16 @@ export class AgentEngine {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     runConfig: any,
   ): Promise<void> {
-    const webContents = this.getWebContents()
     const abortController = this.activeRuns.get(threadId)
-
-    let assistantContent = ''
-    let thinkingContent = ''
-    const toolCalls: AiToolCall[] = []
-    const contentBlocks: import('../../src/types/ai').MessageContentBlock[] = []
-    let pendingText = ''
-    let interrupted = false
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let interruptPayload: any = null
+    const adapter = new StreamEventAdapter()
 
     try {
       for await (const event of await agent.streamEvents(input, runConfig)) {
         if (abortController?.signal.aborted) break
-
-        if (event.event === 'on_chat_model_stream') {
-          const chunk = event.data?.chunk
-          const content = chunk?.content
-          if (typeof content === 'string' && content) {
-            assistantContent += content
-            pendingText += content
-            const chunkEvent: StreamChunkEvent = {
-              threadId, type: 'text', delta: content,
-            }
-            webContents?.send('ai:stream-chunk', chunkEvent)
-          } else if (Array.isArray(content)) {
-            for (const part of content) {
-              if (part.type === 'text' && part.text) {
-                assistantContent += part.text
-                pendingText += part.text
-                webContents?.send('ai:stream-chunk', {
-                  threadId, type: 'text', delta: part.text,
-                } satisfies StreamChunkEvent)
-              } else if (part.type === 'thinking' && part.thinking) {
-                thinkingContent += part.thinking
-                webContents?.send('ai:stream-chunk', {
-                  threadId, type: 'thinking', delta: part.thinking,
-                } satisfies StreamChunkEvent)
-              }
-            }
-          }
-        } else if (event.event === 'on_tool_start') {
-          if (pendingText) {
-            contentBlocks.push({ type: 'text', text: pendingText })
-            pendingText = ''
-          }
-          const tc: AiToolCall = {
-            id: event.run_id ?? `tool-${Date.now()}`,
-            name: event.name,
-            kind: inferToolKind(event.name),
-            title: event.name,
-            status: 'in_progress',
-            arguments: parseToolArguments(event.data?.input),
-          }
-          toolCalls.push(tc)
-          contentBlocks.push({ type: 'tool_call', toolCallId: tc.id })
-          webContents?.send('ai:stream-chunk', {
-            threadId,
-            type: 'tool_call_start', toolName: event.name, toolCallId: tc.id, toolCall: tc,
-          } satisfies StreamChunkEvent)
-        } else if (event.event === 'on_tool_end') {
-          const tc = toolCalls.find(t => t.id === event.run_id)
-          if (tc) {
-            tc.status = 'completed'
-            tc.result = extractToolResult(event.name, event.data?.output)
-            webContents?.send('ai:stream-chunk', {
-              threadId,
-              type: 'tool_call_end', toolCallId: tc.id, toolCall: { ...tc },
-            } satisfies StreamChunkEvent)
-          }
-        } else if (
-          // Detect interrupt: LangGraph emits __interrupt__ in on_chain_stream chunk
-          event.event === 'on_chain_stream' &&
-          event.data?.chunk?.__interrupt__
-        ) {
-          interrupted = true
-          const interruptValues = event.data.chunk.__interrupt__
-          interruptPayload = Array.isArray(interruptValues)
-            ? interruptValues[0]?.value
-            : interruptValues?.value ?? interruptValues
-          break
-        } else if (
-          // Fallback: some versions emit __interrupt__ in on_chain_end output
-          event.event === 'on_chain_end' &&
-          event.data?.output?.__interrupt__
-        ) {
-          interrupted = true
-          interruptPayload = event.data.output.__interrupt__[0]?.value
+        for (const chunk of adapter.consume(threadId, event)) {
+          this.rendererBridge.sendStreamChunk(chunk)
+        }
+        if (adapter.interrupted) {
           break
         }
       }
@@ -416,28 +328,15 @@ export class AgentEngine {
         return
       }
 
-      if (interrupted) {
-        // Build partial message from content accumulated before the interrupt
-        if (pendingText) contentBlocks.push({ type: 'text', text: pendingText })
-        const partialMessage: ThreadMessage | undefined =
-          (assistantContent || toolCalls.length)
-            ? {
-                id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                role: 'assistant',
-                content: assistantContent,
-                timestamp: Date.now(),
-                toolCalls: toolCalls.length ? toolCalls : undefined,
-                thinkingContent: thinkingContent || undefined,
-                contentBlocks: contentBlocks.length ? contentBlocks : undefined,
-              }
-            : undefined
+      if (adapter.interrupted) {
+        const partialMessage: ThreadMessage | undefined = adapter.buildPartialMessage()
 
         if (partialMessage) {
           this.threadListQuery?.updateMeta(threadId, { updatedAt: Date.now() })
         }
 
-        if (interruptPayload) {
-          await this._handleInterrupt(threadId, interruptPayload, partialMessage)
+        if (adapter.interruptPayload) {
+          await this._handleInterrupt(threadId, adapter.interruptPayload, partialMessage)
         }
 
         this.activeRuns.delete(threadId)
@@ -446,9 +345,7 @@ export class AgentEngine {
 
       this.threadListQuery?.updateMeta(threadId, { updatedAt: Date.now() })
 
-      // Renderer reloads messages from checkpointer — no message payload needed
-      const doneEvent: RunDoneEvent = { threadId }
-      webContents?.send('ai:run-done', doneEvent)
+      this.rendererBridge.sendRunDone({ threadId })
     } catch (err) {
       if (abortController?.signal.aborted) {
         this.activeRuns.delete(threadId)
@@ -463,8 +360,8 @@ export class AgentEngine {
       // ai:run-done (no message payload) signals completion so the renderer clears streaming UI.
       // Do NOT include a message in ai:run-done — the renderer's onAiRunError handler already
       // creates the chat message, and a second message here causes duplicate error display.
-      webContents?.send('ai:run-error', { threadId, error: errorMsg } satisfies RunErrorEvent)
-      webContents?.send('ai:run-done', { threadId } satisfies RunDoneEvent)
+      this.rendererBridge.sendRunError({ threadId, error: errorMsg })
+      this.rendererBridge.sendRunDone({ threadId })
     } finally {
       this.activeRuns.delete(threadId)
     }
@@ -491,7 +388,8 @@ export class AgentEngine {
     // All proposals in one interrupt batch share the same snapshot (block IDs are stable).
     const firstArgs = actionRequests[0].args ?? {}
     const argFilePath = typeof firstArgs.file_path === 'string' ? firstArgs.file_path : null
-    const snapshotTargetPath = (argFilePath && argFilePath !== this.activeFilePath)
+    const activeFilePath = this.runtimeStore.getContext(threadId)?.activeFilePath ?? null
+    const snapshotTargetPath = (argFilePath && argFilePath !== activeFilePath)
       ? argFilePath
       : null
 
@@ -507,15 +405,14 @@ export class AgentEngine {
       buildProposalFromAction(ar.name, ar.args ?? {}, snapshot)
     )
 
-    this.interruptedRuns.set(threadId, {
+    this.runtimeStore.setInterrupted(threadId, {
       actionRequestCount: actionRequests.length,
       actionNames: actionRequests.map(ar => ar.name),
     })
 
     // Emit single atomic event (replaces old two-event sequence)
     // actionRequests are included so the renderer can align decisions by index
-    const event: RunInterruptedEvent = { threadId, proposals, partialMessage, actionRequests }
-    this.getWebContents()?.send('ai:run-interrupted', event)
+    this.rendererBridge.sendRunInterrupted({ threadId, proposals, partialMessage, actionRequests })
   }
 
   // ── Private: agent cache ──────────────────────────────────────────────────
@@ -524,15 +421,16 @@ export class AgentEngine {
     config: AiProviderConfig,
     profile: AiAgentProfile,
     modelId: string,
+    thinkMode?: string,
   ): DeepAgentInstance {
     // Include apiKey and baseUrl in the key so that credential updates immediately
     // produce a new agent instance rather than reusing a stale one.
     const keyFingerprint = config.apiKey ? config.apiKey.slice(-8) : ''
-    const cacheKey = `${config.id}:${profile}:${modelId}:${keyFingerprint}:${config.baseUrl ?? ''}`
+    const cacheKey = `${config.id}:${profile}:${modelId}:${thinkMode ?? ''}:${keyFingerprint}:${config.baseUrl ?? ''}`
     if (this.agentCache.has(cacheKey)) return this.agentCache.get(cacheKey)!
 
-    const model = createChatModel(config)
-    const docTools = buildDocumentTools(this.snapshotBroker, () => this.activeFilePath)
+    const model = createChatModel(config, { modelId, thinkMode })
+    const docTools = buildDocumentTools(this.snapshotBroker)
     const editTools = buildEditProposalTools()
 
     const agent = createDeepAgent({
@@ -554,6 +452,10 @@ export class AgentEngine {
 
     this.agentCache.set(cacheKey, agent)
     return agent
+  }
+
+  private _buildRunConfigurable(threadId: string): Record<string, string> {
+    return this.runtimeStore.buildConfigurable(threadId)
   }
 
   // ── Private: init ─────────────────────────────────────────────────────────
@@ -584,30 +486,4 @@ function getSystemPrompt(profile: AiAgentProfile): string {
     case 'minimal': return MINIMAL_SYSTEM_PROMPT
     default: return WRITE_SYSTEM_PROMPT
   }
-}
-
-// ── Build user message from request ──────────────────────────────────────
-
-function buildUserMessage(req: SendMessageRequest): string {
-  const parts: string[] = []
-  const ctx = req.editorContext
-
-  if (ctx.editorStateXml) {
-    parts.push(ctx.editorStateXml)
-  } else if (ctx.filePath || ctx.folderPath) {
-    const stateLines: string[] = []
-    if (ctx.filePath) stateLines.push(`<file path="${ctx.filePath}" dirty="${ctx.isDirty}" />`)
-    if (ctx.folderPath) stateLines.push(`<workspace path="${ctx.folderPath}" />`)
-    if (stateLines.length) {
-      parts.push(`<editor_state change="full">\n${stateLines.join('\n')}\n</editor_state>`)
-    }
-  }
-
-  // Append text file attachments
-  if (req.attachments?.textFilePaths?.length) {
-    parts.push(`<context_files>${req.attachments.textFilePaths.join('\n')}</context_files>`)
-  }
-
-  parts.push(req.userText)
-  return parts.join('\n\n')
 }

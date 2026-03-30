@@ -8,8 +8,16 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import type { AiProviderConfig } from '../../../src/types/ai'
 
-export function createChatModel(config: AiProviderConfig): BaseChatModel {
-  const modelId = config.lastSelectedModelId || config.defaultModelId
+export interface ChatModelRuntimeOptions {
+  modelId?: string
+  thinkMode?: string
+}
+
+export function createChatModel(
+  config: AiProviderConfig,
+  runtime: ChatModelRuntimeOptions = {},
+): BaseChatModel {
+  const modelId = runtime.modelId || config.lastSelectedModelId || config.defaultModelId
 
   switch (config.type) {
     case 'openai-compat': {

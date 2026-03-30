@@ -16,15 +16,18 @@ function getExt(filePath: string): string {
   return filePath.split('.').pop()?.toLowerCase() ?? ''
 }
 
-export function buildDocumentTools(
-  snapshotBroker: SnapshotBroker,
-  getActiveFilePath: () => string | null
-) {
+function getRuntimeActiveFilePath(runtime: unknown): string | null {
+  const configurable = (runtime as { config?: { configurable?: Record<string, unknown> } })?.config?.configurable
+  const value = configurable?.active_file_path
+  return typeof value === 'string' ? value : null
+}
+
+export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
   // ── get_document_outline ──────────────────────────────────────────────────
 
   const getDocumentOutline = tool(
-    async ({ file_path }: { file_path?: string }) => {
-      const resolvedPath = BlockParser.resolveFilePath(file_path, getActiveFilePath())
+    async ({ file_path }: { file_path?: string }, runtime) => {
+      const resolvedPath = BlockParser.resolveFilePath(file_path, getRuntimeActiveFilePath(runtime))
 
       if (resolvedPath !== null) {
         const ext = getExt(resolvedPath)
@@ -76,8 +79,8 @@ export function buildDocumentTools(
       offset?: number
       limit?: number
       file_path?: string
-    }) => {
-      const resolvedPath = BlockParser.resolveFilePath(file_path, getActiveFilePath())
+    }, runtime) => {
+      const resolvedPath = BlockParser.resolveFilePath(file_path, getRuntimeActiveFilePath(runtime))
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
         return resolvedPath
@@ -121,8 +124,8 @@ export function buildDocumentTools(
     }: {
       block_ids: number[]
       file_path?: string
-    }) => {
-      const resolvedPath = BlockParser.resolveFilePath(file_path, getActiveFilePath())
+    }, runtime) => {
+      const resolvedPath = BlockParser.resolveFilePath(file_path, getRuntimeActiveFilePath(runtime))
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
         return resolvedPath
@@ -161,8 +164,8 @@ export function buildDocumentTools(
       block_id: number
       window?: number
       file_path?: string
-    }) => {
-      const resolvedPath = BlockParser.resolveFilePath(file_path, getActiveFilePath())
+    }, runtime) => {
+      const resolvedPath = BlockParser.resolveFilePath(file_path, getRuntimeActiveFilePath(runtime))
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
         return resolvedPath

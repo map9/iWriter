@@ -154,7 +154,13 @@ export class ThreadListQuery {
     return meta
   }
 
-  updateMeta(id: string, updates: Partial<Pick<ThreadMeta, 'title' | 'hasError' | 'updatedAt'>>): void {
+  updateMeta(
+    id: string,
+    updates: Partial<Pick<
+      ThreadMeta,
+      'title' | 'hasError' | 'updatedAt' | 'profile' | 'modelId' | 'providerConfigId' | 'thinkMode' | 'originFilePath'
+    >>,
+  ): void {
     const meta = this.getMeta(id)
     if (!meta) return
     Object.assign(meta, updates, { updatedAt: updates.updatedAt ?? Date.now() })

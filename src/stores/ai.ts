@@ -133,11 +133,15 @@ export const useAiStore = defineStore('ai', () => {
   function setActiveProvider(id: string) {
     settings.value.activeProviderConfigId = id
     saveSettings()
-    // Clear mode on the active thread so stale values from the previous provider
-    // are not carried over to the new one.
+    const nextProvider = settings.value.providerConfigs.find(c => c.id === id) ?? null
     const thread = activeThread.value
-    if (thread?.thinkMode) {
-      updateThread({ ...thread, thinkMode: undefined })
+    if (thread) {
+      updateThread({
+        ...thread,
+        providerConfigId: id,
+        modelId: nextProvider?.lastSelectedModelId || nextProvider?.defaultModelId || thread.modelId,
+        thinkMode: undefined,
+      })
     }
   }
 
@@ -146,6 +150,9 @@ export const useAiStore = defineStore('ai', () => {
     const config = activeProviderConfig.value
     if (config) {
       updateProviderConfig(config.id, { defaultModelId: modelId })
+    }
+    if (activeThread.value) {
+      updateThread({ ...activeThread.value, modelId })
     }
   }
 
@@ -388,6 +395,11 @@ export const useAiStore = defineStore('ai', () => {
         threadId: thread.id,
         userText,
         profile: thread.profile,
+        threadRuntime: {
+          providerConfigId: thread.providerConfigId || activeProviderConfig.value?.id,
+          modelId: thread.modelId || activeProviderConfig.value?.defaultModelId,
+          thinkMode: thread.thinkMode,
+        },
         editorContext: {
           filePath: currentFilePath,
           isDirty: activeTab?.isDirty ?? false,
@@ -429,6 +441,39 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   // ── Edit Proposal Actions ─────────────────────────────────────────────────
+
+  async function _applyBlockProposalToTarget(proposal: BlockEditProposal) {
+    if (proposal.filePath) {
+      const currentFilePath = appStore.activeTab?.path
+      const isActiveFile = !!currentFilePath &&
+        pathUtils.normalize(currentFilePath) === pathUtils.normalize(proposal.filePath)
+
+      if (!isActiveFile) {
+        const { UnifiedDocumentAccess } = await import('@/ai/edit-agent/UnifiedDocumentAccess')
+        const handle = await UnifiedDocumentAccess.createFreshFromFile(proposal.filePath)
+        if ('error' in handle) {
+          return { success: false as const, error: handle.error }
+        }
+        const result = await handle.applyBlockProposal(proposal)
+        handle.dispose()
+        return result.success
+          ? { success: true as const }
+          : { success: false as const, error: result.error }
+      }
+    }
+
+    const editor = appStore.activeTab?.editorInstance as Editor | undefined
+    if (!editor) {
+      return { success: false as const, error: '没有活动的编辑器文档' }
+    }
+
+    const { UnifiedDocumentAccess } = await import('@/ai/edit-agent/UnifiedDocumentAccess')
+    const handle = UnifiedDocumentAccess.fromEditor(editor, appStore.activeTab?.path ?? undefined)
+    const result = await handle.applyBlockProposal(proposal)
+    return result.success
+      ? { success: true as const }
+      : { success: false as const, error: result.error }
+  }
 
   /**
    * Reject all currently pending proposals.
@@ -544,50 +589,14 @@ export const useAiStore = defineStore('ai', () => {
       return
     }
 
-    // BlockEditProposal — file-based path
     const blockProposal = proposal as BlockEditProposal
-    if (blockProposal.filePath) {
-      const currentFilePath = appStore.activeTab?.path
-      const isActiveFile = !!currentFilePath &&
-        pathUtils.normalize(currentFilePath) === pathUtils.normalize(blockProposal.filePath)
-
-      if (!isActiveFile) {
-        const { UnifiedDocumentAccess } = await import('@/ai/edit-agent/UnifiedDocumentAccess')
-        const handle = await UnifiedDocumentAccess.createFreshFromFile(blockProposal.filePath)
-        if ('error' in handle) {
-          notify.error(`文件编辑失败: ${handle.error}`)
-          return
-        }
-        const result = await handle.applyBlockProposal(blockProposal)
-        handle.dispose()
-        if (result.success) {
-          if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
-          pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
-          notify.success('文件编辑已应用')
-        } else {
-          notify.error(`文件编辑失败: ${result.error}`)
-        }
-        _maybeFlushResume()
-        return
-      }
-    }
-
-    // BlockEditProposal — active editor path
-    const editor = appStore.activeTab?.editorInstance as Editor | undefined
-    if (!editor) {
-      notify.error('没有活动的编辑器文档')
-      return
-    }
-
-    const { UnifiedDocumentAccess } = await import('@/ai/edit-agent/UnifiedDocumentAccess')
-    const handle = UnifiedDocumentAccess.fromEditor(editor, appStore.activeTab?.path ?? undefined)
-    const result = await handle.applyBlockProposal(proposal as BlockEditProposal)
+    const result = await _applyBlockProposalToTarget(blockProposal)
     if (result.success) {
       if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
       pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
-      notify.success('编辑已应用')
+      notify.success(blockProposal.filePath ? '文件编辑已应用' : '编辑已应用')
     } else {
-      notify.error(`应用编辑失败: ${result.error}`)
+      notify.error(`${blockProposal.filePath ? '文件编辑失败' : '应用编辑失败'}: ${result.error}`)
       return
     }
 
@@ -611,9 +620,8 @@ export const useAiStore = defineStore('ai', () => {
     if (typeof editedArgs.new_content === 'string') {
       blockProposal.newContent = editedArgs.new_content
     }
-    if (typeof editedArgs.content === 'string') {
-      // insert_block uses 'content' not 'new_content'
-      blockProposal.newContent = editedArgs.content
+    if (typeof editedArgs.new_blocks === 'string') {
+      blockProposal.newContent = editedArgs.new_blocks
     }
 
     // Update the displayed proposal content in pending list
@@ -621,21 +629,13 @@ export const useAiStore = defineStore('ai', () => {
       p.id === proposalId ? { ...blockProposal, wasEdited: true } : p
     )
 
-    const editor = appStore.activeTab?.editorInstance as Editor | undefined
-    if (!editor) {
-      notify.error('没有活动的编辑器文档')
-      return
-    }
-
-    const { UnifiedDocumentAccess } = await import('@/ai/edit-agent/UnifiedDocumentAccess')
-    const handle = UnifiedDocumentAccess.fromEditor(editor, appStore.activeTab?.path ?? undefined)
-    const result = await handle.applyBlockProposal(blockProposal)
+    const result = await _applyBlockProposalToTarget(blockProposal)
     if (result.success) {
       if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'edited', editedArgs })
       pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
-      notify.success('编辑（已修改）已应用')
+      notify.success(blockProposal.filePath ? '文件编辑（已修改）已应用' : '编辑（已修改）已应用')
     } else {
-      notify.error(`应用编辑失败: ${result.error}`)
+      notify.error(`${blockProposal.filePath ? '文件编辑失败' : '应用编辑失败'}: ${result.error}`)
       return
     }
 

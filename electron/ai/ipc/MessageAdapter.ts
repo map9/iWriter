@@ -159,14 +159,20 @@ export function buildProposalFromAction(
   const id = `proposal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const filePath = typeof args.file_path === 'string' ? args.file_path : undefined
 
+  const description = typeof args.reason === 'string' ? args.reason : undefined
+
   if (toolName === 'create_document') {
+    const rawFilename = String(args.filename ?? '')
+    const filename = rawFilename && !/\.[^./\\]+$/.test(rawFilename)
+      ? `${rawFilename}.md`
+      : rawFilename
     return {
       id,
       kind: 'create_file',
       status: 'pending',
-      filename: String(args.filename ?? ''),
+      filename,
       content: String(args.content ?? ''),
-      description: String(args.description ?? `Create document: ${args.filename}`),
+      description: description ?? `Create document: ${filename || args.filename}`,
     } satisfies FileCreateProposal
   }
 
@@ -189,7 +195,7 @@ export function buildProposalFromAction(
       nodeType: entry?.nodeType,
       oldContent: entry?.content,
       newContent: String(args.new_content ?? ''),
-      description: String(args.description ?? `Edit block {b:${blockId}}`),
+      description: description ?? `Edit block {b:${blockId}}`,
     } as BlockEditProposal
   }
 
@@ -201,8 +207,8 @@ export function buildProposalFromAction(
       type: 'insert',
       displayBlockId: afterId,
       afterNodeId: entry?.nodeId ?? (afterId === 0 ? '0' : undefined),
-      newContent: String(args.content ?? ''),
-      description: String(args.description ?? `Insert block after {b:${afterId}}`),
+      newContent: String(args.new_blocks ?? ''),
+      description: description ?? `Insert block after {b:${afterId}}`,
     } as BlockEditProposal
   }
 
@@ -216,7 +222,7 @@ export function buildProposalFromAction(
       nodeId: entry?.nodeId,
       nodeType: entry?.nodeType,
       oldContent: entry?.content,
-      description: String(args.description ?? `Delete block {b:${blockId}}`),
+      description: description ?? `Delete block {b:${blockId}}`,
     } as BlockEditProposal
   }
 
@@ -233,7 +239,7 @@ export function buildProposalFromAction(
       startNodeId: startEntry?.nodeId,
       endNodeId: endEntry?.nodeId,
       newContent: String(args.new_content ?? ''),
-      description: String(args.description ?? `Replace {b:${startId}}–{b:${endId}}`),
+      description: description ?? `Replace {b:${startId}}–{b:${endId}}`,
     } as BlockEditProposal
   }
 

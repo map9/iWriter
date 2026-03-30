@@ -138,7 +138,7 @@ Use these steps to find, read, and edit any file in the workspace (or attached f
   then \`get_section(heading_block_id=N, file_path="...")\` for content.
   If outline returns \`total_blocks: 0\`, fall back to \`execute(command="cat /abs/path/file.iwt")\`
   to read the raw JSON (content field is HTML). Note: no block IDs available via this path.
-- other text files: \`read_file(file_path="/abs/path/file")\` for quick read
+- other text files: \`read_file(path="/abs/path/file")\` for quick read
 
 **Edit an .iwt/.md/.txt file (not currently open in editor):**
 1. \`get_document_outline(file_path="/abs/path/file.iwt")\` → note the \`{b:N}\` block IDs
@@ -153,7 +153,7 @@ Use these steps to find, read, and edit any file in the workspace (or attached f
 To create a new document (opens as a new tab in the editor):
 1. Generate the full content as Markdown.
 2. Call \`create_document(filename, content, reason?)\`:
-   - \`filename\`: name without extension (e.g. "苏州两日游")
+   - \`filename\`: filename or title (extension optional; e.g. "苏州两日游" or "notes.md")
    - \`content\`: complete Markdown document
 
 ## Editing Tools

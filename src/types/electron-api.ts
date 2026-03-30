@@ -111,10 +111,6 @@ export interface ElectronAPI {
   aiSendMessage?: (req: import('./ai-ipc').SendMessageRequest) => Promise<{ threadId: string }>
   aiCancel?: (threadId: string) => Promise<void>
   aiResume?: (req: import('./ai-ipc').ResumeRunRequest) => Promise<void>
-  /** @deprecated Use aiResume instead */
-  aiApproveProposal?: (req: { sessionId: string; proposalId: string }) => Promise<void>
-  /** @deprecated Use aiResume instead */
-  aiRejectProposal?: (req: { sessionId: string; proposalId: string }) => Promise<void>
   aiGetConfig?: () => Promise<import('./ai').AiSettings>
   aiUpdateConfig?: (patch: Partial<import('./ai').AiSettings>) => Promise<void>
   aiGetThreads?: () => Promise<import('./ai').AiThread[]>

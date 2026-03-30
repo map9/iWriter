@@ -148,10 +148,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiSendMessage: (req: any) => ipcRenderer.invoke('ai:send-message', req),
   aiCancel: (threadId: string) => ipcRenderer.invoke('ai:cancel', { threadId }),
   aiResume: (req: any) => ipcRenderer.invoke('ai:resume', req),
-  /** @deprecated Use aiResume instead */
-  aiApproveProposal: (req: any) => ipcRenderer.invoke('ai:approve-proposal', req),
-  /** @deprecated Use aiResume instead */
-  aiRejectProposal: (req: any) => ipcRenderer.invoke('ai:reject-proposal', req),
   aiGetConfig: () => ipcRenderer.invoke('ai:get-config'),
   aiUpdateConfig: (patch: any) => ipcRenderer.invoke('ai:update-config', patch),
   aiGetThreads: () => ipcRenderer.invoke('ai:get-threads'),
@@ -168,14 +164,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** New atomic interrupt event (replaces onAiInterruptReady). */
   onAiRunInterrupted: (cb: (e: any) => void) => {
     ipcRenderer.on('ai:run-interrupted', (_, e) => cb(e))
-  },
-  /** @deprecated Use onAiRunInterrupted instead */
-  onAiInterruptReady: (cb: (e: any) => void) => {
-    ipcRenderer.on('ai:interrupt-ready', (_, e) => cb(e))
-  },
-  /** @deprecated Use onAiInterruptReady instead */
-  onAiProposalReady: (cb: (e: any) => void) => {
-    ipcRenderer.on('ai:proposal-ready', (_, e) => cb(e))
   },
   onAiRunDone: (cb: (e: any) => void) => {
     ipcRenderer.on('ai:run-done', (_, e) => cb(e))
