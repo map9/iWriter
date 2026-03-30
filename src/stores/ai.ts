@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, toRaw } from 'vue'
 import type {
   AiThread,
   AiProviderConfig,
@@ -7,41 +7,52 @@ import type {
   BlockEditProposal,
   FileCreateProposal,
   EditProposal,
-  AiToolCall,
-  AiToolResult,
   ThreadMessage,
   SendContext,
+  AiToolCall,
 } from '@/types/ai'
-import type { LMContentBlock } from '@/ai/providers/types'
+import { inferToolKind, DEFAULT_AI_SETTINGS } from '@/types/ai'
 import { PROVIDER_PRESETS, type ProviderPreset } from '@/ai/providers/provider-presets'
-import { ThreadStore } from '@/ai/thread/ThreadStore'
 import { createThread, appendMessage, createMessage } from '@/ai/thread/Thread'
-import { getSystemPrompt, buildEditorStateBlock, getToolsForProfile } from '@/ai/thread/ContextBuilder'
-import { providerRegistry } from '@/ai/providers/ProviderRegistry'
-import { AgentRunner } from '@/ai/agent/AgentRunner'
-import { createToolRegistry } from '@/ai/tools/registry'
 import { applyBlockEditProposal } from '@/ai/edit-agent/BlockEditApplier'
-import { buildSnapshot } from '@/ai/thread/ContextBuilder'
+import { buildSnapshot, buildEditorStateBlock } from '@/ai/thread/ContextBuilder'
 import { useAppStore } from '@/stores/app'
 import type { Editor } from '@tiptap/core'
-import type { AgentSession } from '@/ai/providers/types'
 import { notify } from '@/utils/notifications'
 import { nanoid } from 'nanoid'
 import { pathUtils } from '@/utils/pathUtils'
+import type {
+  StreamChunkEvent,
+  RunInterruptedEvent,
+  RunDoneEvent,
+  RunErrorEvent,
+  ResumeDecision,
+} from '@/types/ai-ipc'
 
-/** File extension → MIME type map for binary attachments. */
-const EXT_TO_MIME: Record<string, string> = {
-  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-  gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
-  svg: 'image/svg+xml',
-  pdf: 'application/pdf',
+// ── Settings localStorage helpers ──────────────────────────────────────────
+const _STORAGE_KEY_SETTINGS = 'iwriter-ai-settings'
+function _loadSettings(): AiSettings {
+  try {
+    const raw = localStorage.getItem(_STORAGE_KEY_SETTINGS)
+    if (!raw) return { ...DEFAULT_AI_SETTINGS }
+    return { ...DEFAULT_AI_SETTINGS, ...JSON.parse(raw) }
+  } catch {
+    return { ...DEFAULT_AI_SETTINGS }
+  }
+}
+function _saveSettingsToStorage(s: AiSettings): void {
+  try {
+    localStorage.setItem(_STORAGE_KEY_SETTINGS, JSON.stringify(s))
+  } catch (err) {
+    console.error('[ai store] Failed to save settings:', err)
+  }
 }
 
 export const useAiStore = defineStore('ai', () => {
   const appStore = useAppStore()
 
   // ── Settings & Provider Config ────────────────────────────────────────────
-  const _initialSettings = ThreadStore.loadSettings()
+  const _initialSettings = _loadSettings()
   // Seed all presets on first run
   if (_initialSettings.providerConfigs.length === 0) {
     _initialSettings.providerConfigs = PROVIDER_PRESETS
@@ -57,7 +68,7 @@ export const useAiStore = defineStore('ai', () => {
         models: p.models,
       }))
     _initialSettings.activeProviderConfigId = _initialSettings.providerConfigs[0]?.id ?? null
-    ThreadStore.saveSettings(_initialSettings)
+    _saveSettingsToStorage(_initialSettings)
   }
 
   const settings = ref<AiSettings>(_initialSettings)
@@ -87,7 +98,9 @@ export const useAiStore = defineStore('ai', () => {
   })
 
   function saveSettings() {
-    ThreadStore.saveSettings(settings.value)
+    _saveSettingsToStorage(settings.value)
+    // Keep main-process AgentEngine in sync whenever settings change
+    window.electronAPI?.aiUpdateConfig?.(JSON.parse(JSON.stringify(toRaw(settings.value))))
   }
 
   function addProviderConfig(config: AiProviderConfig) {
@@ -121,14 +134,14 @@ export const useAiStore = defineStore('ai', () => {
     settings.value.activeProviderConfigId = id
     saveSettings()
     // Clear mode on the active thread so stale values from the previous provider
-    // are not carried over to the new one. (Model is provider-level, not thread-level.)
+    // are not carried over to the new one.
     const thread = activeThread.value
     if (thread?.thinkMode) {
       updateThread({ ...thread, thinkMode: undefined })
     }
   }
 
-  /** Persist selected model to provider config (model is provider-level, not thread-level) */
+  /** Persist selected model to provider config */
   function setCurrentModelId(modelId: string) {
     const config = activeProviderConfig.value
     if (config) {
@@ -136,7 +149,7 @@ export const useAiStore = defineStore('ai', () => {
     }
   }
 
-  /** Persist selected mode (agent mode / think mode) to provider config and current thread */
+  /** Persist selected mode (think mode) to provider config and current thread */
   function setCurrentMode(mode: string) {
     const config = activeProviderConfig.value
     if (config) {
@@ -148,27 +161,34 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   // ── Threads ───────────────────────────────────────────────────────────────
-  const threads = ref<AiThread[]>(ThreadStore.loadThreads())
-  const activeThreadId = ref<string | null>(threads.value[0]?.id ?? null)
+  const threads = ref<AiThread[]>([])
+  const activeThreadId = ref<string | null>(null)
 
   const activeThread = computed<AiThread | null>(() => {
     return threads.value.find(t => t.id === activeThreadId.value) ?? null
   })
 
-  /** Remove threads that have no messages (empty sessions). */
+  /**
+   * Track threads that were created locally (via createNewThread) but have never
+   * had a message sent to the backend. These are safe to discard.
+   */
+  const _localOnlyThreadIds = new Set<string>()
+
+  /** Remove threads that were created locally but never used (no message sent). */
   function _purgeEmptyThreads() {
-    const empty = threads.value.filter(t => t.messages.length === 0)
-    if (!empty.length) return
-    for (const t of empty) ThreadStore.deleteThread(t.id)
-    threads.value = threads.value.filter(t => t.messages.length > 0)
-    // If active thread was purged, fall back to the first remaining one
+    const toRemove = threads.value.filter(t => _localOnlyThreadIds.has(t.id))
+    if (!toRemove.length) return
+    for (const t of toRemove) {
+      _localOnlyThreadIds.delete(t.id)
+      window.electronAPI.aiDeleteThread?.(t.id)
+    }
+    threads.value = threads.value.filter(t => !toRemove.some(r => r.id === t.id))
     if (!threads.value.find(t => t.id === activeThreadId.value)) {
       activeThreadId.value = threads.value[0]?.id ?? null
     }
   }
 
   function createNewThread(): AiThread {
-    // Clean up empty sessions before creating a new one
     _purgeEmptyThreads()
     const config = activeProviderConfig.value
     const thread = createThread(
@@ -178,17 +198,33 @@ export const useAiStore = defineStore('ai', () => {
     )
     threads.value.unshift(thread)
     activeThreadId.value = thread.id
-    ThreadStore.saveThread(thread)
+    _localOnlyThreadIds.add(thread.id)
     return thread
   }
 
-  function selectThread(id: string) {
+  async function selectThread(id: string) {
+    // Clean up any local-only empty threads before switching
+    if (activeThreadId.value !== id) {
+      _purgeEmptyThreads()
+    }
     activeThreadId.value = id
+    const thread = threads.value.find(t => t.id === id)
+    if (thread && !thread.messagesLoaded) {
+      try {
+        const messages = await window.electronAPI.aiGetThreadMessages?.(id)
+        if (messages?.length) {
+          updateThread({ ...thread, messages, messagesLoaded: true })
+        } else {
+          // No messages yet (or empty thread) — mark loaded to avoid repeated fetches
+          updateThread({ ...thread, messages: messages ?? [], messagesLoaded: true })
+        }
+      } catch { /* ignore — messages are display-only */ }
+    }
   }
 
   function deleteThread(id: string) {
     threads.value = threads.value.filter(t => t.id !== id)
-    ThreadStore.deleteThread(id)
+    window.electronAPI.aiDeleteThread?.(id)
     if (activeThreadId.value === id) {
       activeThreadId.value = threads.value[0]?.id ?? null
     }
@@ -197,7 +233,7 @@ export const useAiStore = defineStore('ai', () => {
   function clearAllThreads() {
     threads.value = []
     activeThreadId.value = null
-    ThreadStore.clearThreads()
+    window.electronAPI.aiClearThreads?.()
   }
 
   function updateThread(thread: AiThread) {
@@ -205,32 +241,76 @@ export const useAiStore = defineStore('ai', () => {
     if (idx >= 0) {
       threads.value[idx] = thread
     }
-    ThreadStore.saveThread(thread)
   }
 
-  // ── Streaming State ───────────────────────────────────────────────────────
-  const isStreaming = ref(false)
+  // ── Thread Run State Machine ───────────────────────────────────────────────
+  // Three states:
+  //   idle:        no active run
+  //   streaming:   actively streaming from agent
+  //   interrupted: paused at HITL, waiting for user decisions
+  type ThreadRunState = 'idle' | 'streaming' | 'interrupted'
+  const _threadRunState = ref<ThreadRunState>('idle')
+
+  /** True while the agent is actively streaming. Computed for backward compat with components. */
+  const isStreaming = computed(() => _threadRunState.value === 'streaming')
+  /** True while the agent is paused at a HITL interrupt, waiting for user decisions. */
+  const isInterrupted = computed(() => _threadRunState.value === 'interrupted')
+
+  // ── Streaming Display State ────────────────────────────────────────────────
+  type StreamingBlock =
+    | { type: 'text'; text: string }
+    | { type: 'tool_call'; toolCall: AiToolCall }
+
   const streamingText = ref('')
+  const streamingCurrentText = ref('')
+  const streamingBlocks = ref<StreamingBlock[]>([])
   const streamingThinkingText = ref('')
   const streamingToolName = ref<string | null>(null)
   const pendingEditProposals = ref<EditProposal[]>([])
 
-  /** The session used by the current streaming request (for cancel). */
-  const _currentSession = ref<AgentSession | null>(null)
+  /** Thread ID of the currently active (streaming or interrupted) run. */
+  const _currentThreadId = ref<string | null>(null)
 
-  // ── Tools Infrastructure ──────────────────────────────────────────────────
-  // The snapshot is rebuilt each sendMessage call; the getter reads the latest one
-  let _currentSnapshot: ReturnType<typeof buildSnapshot> | null = null
-  const toolRegistry = createToolRegistry(
-    () => _currentSnapshot,
-    () => settings.value,
-    () => appStore.currentFolder ?? null,
-    () => appStore.activeTab?.path ?? null
-  )
+  // ── HITL Interrupt State ───────────────────────────────────────────────────
+
+  /** ThreadId currently in 'interrupted' state. */
+  const _interruptedThreadId = ref<string | null>(null)
+
+  /**
+   * Number of actionRequests in the current interrupt batch.
+   * Decisions are keyed by 0-based index (matches actionRequests order).
+   * This aligns with LangGraph's HITLResponse.decisions[] contract.
+   */
+  const _interruptActionCount = ref<number>(0)
+
+  /**
+   * Per-action decision records keyed by 0-based index.
+   * Flushed once all actions are resolved (see _maybeFlushResume).
+   */
+  const _decisionRecord = new Map<number, {
+    type: 'approved' | 'edited' | 'rejected'
+    editedArgs?: Record<string, unknown>
+  }>()
+
+  /**
+   * Stable index map: proposalId → 0-based index in the original interrupt batch.
+   * Populated at interrupt time and cleared after flush/cancel.
+   * Guards against index shifts caused by removing proposals from pendingEditProposals.
+   */
+  const _proposalIndexMap = new Map<string, number>()
+
+  /**
+   * Set to true by onAiRunError for the current run; cleared when a new run starts.
+   * Used by onAiRunDone to skip the checkpointer reload when the run already errored
+   * (onAiRunError already added the error message to the thread).
+   */
+  let _currentRunHasError = false
 
   // ── Send Message ──────────────────────────────────────────────────────────
   async function sendMessage(userText: string, sendContext?: SendContext): Promise<boolean> {
-    if (isStreaming.value) return false
+    // Block new messages while actively streaming
+    if (_threadRunState.value === 'streaming') return false
+
     if (!activeProviderConfig.value) {
       notify.error('请先配置 AI Provider（API Key 等）')
       return false
@@ -245,15 +325,20 @@ export const useAiStore = defineStore('ai', () => {
       thread = createNewThread()
     }
 
-    // Append user message; clear any previous error flag
+    // Append user message locally for immediate display; clear any previous error flag.
+    // Note: the authoritative message store is the checkpointer. This local append
+    // is overwritten when messages are reloaded from checkpointer after RunDone.
     const userMsg = createMessage('user', userText)
     thread = appendMessage(thread, userMsg)
     if (thread.hasError) thread = { ...thread, hasError: false }
+    // messagesLoaded = false so the next selectThread re-fetches from checkpointer
+    thread = { ...thread, messagesLoaded: false }
     updateThread(thread)
+    // Mark as no longer local-only once a message is being sent
+    _localOnlyThreadIds.delete(thread.id)
 
     // Get context from active editor
     const activeTab = appStore.activeTab
-    const editorInstance = activeTab?.editorInstance as Editor | undefined
     const currentFilePath = activeTab?.path ?? null
 
     // Record origin file on first message
@@ -262,163 +347,83 @@ export const useAiStore = defineStore('ai', () => {
       updateThread(thread)
     }
 
-    // Build document view snapshot (used by EditorState block and tool registry)
-    _currentSnapshot = editorInstance ? buildSnapshot(editorInstance, undefined, currentFilePath ?? undefined) : null
-
-    // Collect other open tabs (exclude the active one)
+    // Collect open tabs (exclude active one)
     const openTabs = appStore.tabs
       .filter(t => t.id !== activeTab?.id)
-      .map(t => ({ path: t.path, name: t.name, isDirty: t.isDirty }))
+      .map(t => ({ path: t.path ?? undefined, name: t.name, isDirty: t.isDirty ?? false }))
 
-    // Build inline content blocks for binary attachments (images/PDFs)
-    const userContentBlocks: LMContentBlock[] = []
-    if (sendContext?.binaryFilePaths?.length) {
-      for (const filePath of sendContext.binaryFilePaths) {
-        const base64 = await window.electronAPI.readFileBinary(filePath)
-        if (!base64) continue
-        const ext = pathUtils.extension(filePath)
-        const mimeType = EXT_TO_MIME[ext] ?? 'application/octet-stream'
-        const fileName = pathUtils.basename(filePath) || filePath
-        userContentBlocks.push({ type: 'inline_binary', base64, mimeType, fileName })
-      }
-    }
+    // Build rich <editor_state> XML at send time using the active editor snapshot
+    const activeEditor = activeTab?.editorInstance as Editor | null ?? null
+    const snapshot = activeEditor
+      ? buildSnapshot(activeEditor, undefined, currentFilePath ?? undefined)
+      : null
 
-    const systemPrompt = getSystemPrompt(thread.profile)
-
-    // Build EditorState delta block and prepend to user message
-    const editorStateResult = buildEditorStateBlock(thread, _currentSnapshot, {
-      filePath:            currentFilePath,
-      isDirty:             activeTab?.isDirty ?? false,
-      folderPath:          appStore.currentFolder ?? null,
+    const editorStateResult = buildEditorStateBlock(thread, snapshot, {
+      filePath: currentFilePath,
+      isDirty: activeTab?.isDirty ?? false,
+      folderPath: appStore.currentFolder ?? null,
       openTabs,
-      textFilePaths:       sendContext?.textFilePaths ?? [],
+      textFilePaths: sendContext?.textFilePaths ?? [],
       attachedDirectories: sendContext?.directories ?? [],
     })
-    // Apply delta tracking updates to thread (stored without EditorState XML)
+
+    // Persist delta tracking fields back to the thread
     if (Object.keys(editorStateResult.threadUpdate).length > 0) {
       thread = { ...thread, ...editorStateResult.threadUpdate }
       updateThread(thread)
     }
-    // Build the thread sent to the LLM: last user message has EditorState prepended
-    const llmThread = editorStateResult.xml
-      ? {
-          ...thread,
-          messages: thread.messages.map((m, i) =>
-            i === thread.messages.length - 1
-              ? { ...m, content: `${editorStateResult.xml}\n\n${m.content}` }
-              : m
-          ),
-        }
-      : thread
 
-    const tools = getToolsForProfile(thread.profile, window.electronAPI?.platform)
-
-    // ── Create session ───────────────────────────────────────────────────────
-    const llmModel = activeProviderConfig.value.defaultModelId
-    const session = providerRegistry.createSession(activeProviderConfig.value, llmModel)
-
-    if (!session) {
-      notify.error('无法创建 AI 会话：Provider 配置无效')
-      return false
-    }
-
-    _currentSession.value = session
-
-    // Start streaming
-    isStreaming.value = true
+    // Start streaming state
+    _currentRunHasError = false
+    _threadRunState.value = 'streaming'
     streamingText.value = ''
+    streamingCurrentText.value = ''
+    streamingBlocks.value = []
     streamingThinkingText.value = ''
     streamingToolName.value = null
     pendingEditProposals.value = []
 
-    const runner = new AgentRunner(
-      session,
-      toolRegistry,
-      () => _currentSnapshot,
-      () => appStore.activeTab?.path ?? null
-    )
+    try {
+      const result = await window.electronAPI.aiSendMessage?.({
+        threadId: thread.id,
+        userText,
+        profile: thread.profile,
+        editorContext: {
+          filePath: currentFilePath,
+          isDirty: activeTab?.isDirty ?? false,
+          folderPath: appStore.currentFolder ?? null,
+          openTabs,
+          cursorBlockId: snapshot?.cursorBlockId ?? undefined,
+          editorStateXml: editorStateResult.xml ?? null,
+        },
+        attachments: {
+          textFilePaths: sendContext?.textFilePaths ?? [],
+          binaryFilePaths: sendContext?.binaryFilePaths ?? [],
+          directories: sendContext?.directories ?? [],
+        },
+      })
 
-    runner.run(llmThread, systemPrompt, tools, {
-      onText: delta => {
-        streamingText.value += delta
-      },
-      onThinkingText: delta => {
-        streamingThinkingText.value += delta
-      },
-      onToolCallStart: (name, _id) => {
-        streamingToolName.value = name
-      },
-      onToolCallResult: (_tc: AiToolCall, result: AiToolResult) => {
-        streamingToolName.value = null
-        if (result.isError) {
-          notify.warning(`工具调用失败: ${result.content}`)
+      if (result) {
+        _currentThreadId.value = result.threadId
+      }
+    } catch (err) {
+      _threadRunState.value = 'idle'
+      _currentThreadId.value = null
+      const msg = err instanceof Error ? err.message : String(err)
+      notify.error(`AI 错误: ${msg}`)
+      let errThread = activeThread.value
+      if (errThread) {
+        const errMsg: ThreadMessage = {
+          id: `msg-${nanoid(8)}`,
+          role: 'assistant',
+          content: msg,
+          isError: true,
+          timestamp: Date.now(),
         }
-      },
-      onEditProposal: (proposal: EditProposal) => {
-        pendingEditProposals.value = [...pendingEditProposals.value, proposal]
-      },
-      onRoundComplete: (roundMsg) => {
-        // Persist intermediate round (read tools) as its own message bubble
-        const roundContent = streamingText.value
-        streamingText.value = ''
-        streamingToolName.value = null
-        const storedMsg: ThreadMessage = {
-          ...roundMsg,
-          content: roundContent || roundMsg.content,
-        }
-        let t = activeThread.value
-        if (t) {
-          t = appendMessage(t, storedMsg)
-          updateThread(t)
-        }
-      },
-      onDone: assistantMessage => {
-        isStreaming.value = false
-        streamingToolName.value = null
-        streamingThinkingText.value = ''
-        _currentSession.value = null
-        toolRegistry.disposeAll()
-        // Block proposals are now in the stored message — clear from streaming list
-        pendingEditProposals.value = []
-
-        // Save final assistant message to thread
-        const finalText = streamingText.value
-        streamingText.value = ''
-
-        const finalMsg: ThreadMessage = {
-          ...assistantMessage,
-          content: finalText || assistantMessage.content,
-        }
-
-        let updatedThread = activeThread.value
-        if (updatedThread) {
-          updatedThread = appendMessage(updatedThread, finalMsg)
-          updateThread(updatedThread)
-        }
-      },
-      onError: error => {
-        isStreaming.value = false
-        streamingText.value = ''
-        streamingThinkingText.value = ''
-        streamingToolName.value = null
-        _currentSession.value = null
-        toolRegistry.disposeAll()
-        notify.error(`AI 错误: ${error}`)
-        // Append error as a message bubble in the chat, and mark thread as failed
-        let errThread = activeThread.value
-        if (errThread) {
-          const errMsg: ThreadMessage = {
-            id: `msg-${nanoid(8)}`,
-            role: 'assistant',
-            content: error,
-            isError: true,
-            timestamp: Date.now(),
-          }
-          errThread = appendMessage({ ...errThread, hasError: true }, errMsg)
-          updateThread(errThread)
-        }
-      },
-    }, undefined, userContentBlocks.length > 0 ? userContentBlocks : undefined)
+        errThread = appendMessage({ ...errThread, hasError: true }, errMsg)
+        updateThread(errThread)
+      }
+    }
 
     return true
   }
@@ -426,107 +431,94 @@ export const useAiStore = defineStore('ai', () => {
   // ── Edit Proposal Actions ─────────────────────────────────────────────────
 
   /**
-   * Reject all currently pending proposals (called when user sends a new message).
-   * - Proposals in thread messages are marked 'rejected' in place.
-   * - Pending ACP fs resolvers are resolved with false.
-   * - pendingEditProposals list is cleared.
+   * Reject all currently pending proposals.
+   * Sends a single batch rejection to the backend if currently interrupted.
+   * Called when the user sends a new message or explicitly cancels.
    */
   function _rejectAllPendingProposals() {
-    if (
-      pendingEditProposals.value.length === 0 &&
-      !activeThread.value?.messages.some(m => m.editProposals?.some(p => p.status === 'pending'))
-    ) return
+    if (!pendingEditProposals.value.length && !_interruptActionCount.value) return
 
-    // Reject in-thread proposals (block / create_file)
-    const thread = activeThread.value
-    if (thread?.messages.some(m => m.editProposals?.some(p => p.status === 'pending'))) {
-      const updatedMessages = thread.messages.map(msg => {
-        if (!msg.editProposals?.some(p => p.status === 'pending')) return msg
-        return {
-          ...msg,
-          editProposals: msg.editProposals.map(p =>
-            p.status === 'pending' ? { ...p, status: 'rejected' as const } : p
-          ),
-        }
-      })
-      updateThread({ ...thread, messages: updatedMessages })
+    // Send batch rejection to backend (index-based, matches actionRequests order)
+    const threadId = _interruptedThreadId.value
+    if (threadId && _interruptActionCount.value > 0) {
+      const decisions: ResumeDecision[] = Array.from(
+        { length: _interruptActionCount.value },
+        () => ({ type: 'rejected' as const, message: 'User sent a new message' })
+      )
+      window.electronAPI.aiResume?.({ threadId, decisions })
     }
 
+    _threadRunState.value = 'idle'
+    _interruptedThreadId.value = null
+    _interruptActionCount.value = 0
+    _decisionRecord.clear()
+    _proposalIndexMap.clear()
     pendingEditProposals.value = []
   }
 
   /**
-   * Immutably update a proposal's status inside the stored thread messages.
-   * Using spread-based immutable update ensures Vue 3 detects the change and
-   * recomputes `pendingProposals` in AgentMessageBubble.
+   * Find a proposal by ID — searches pendingEditProposals.
+   * (thread.messages no longer carry editProposals as they come from the checkpointer)
    */
-  function _updateProposalInThread(proposalId: string, status: 'applied' | 'rejected') {
-    const thread = activeThread.value
-    if (!thread) return
-    const updatedMessages = thread.messages.map(msg => {
-      const targetProposal = msg.editProposals?.find(p => p.id === proposalId)
-      if (!targetProposal) return msg
-      // Sync the corresponding toolCall status so ToolCallView reflects the result
-      const toolCallStatus: 'completed' | 'failed' = status === 'applied' ? 'completed' : 'failed'
-      // Also update the toolResult content so subsequent LLM turns see the correct outcome.
-      // Without this, the LLM's conversation history always shows "waiting for user approval"
-      // even after the edit was applied, leading to incorrect reasoning in follow-up turns.
-      const resultText = status === 'applied'
-        ? 'Edit was approved by the user and applied successfully.'
-        : 'Edit was rejected by the user and not applied.'
-      return {
-        ...msg,
-        editProposals: msg.editProposals!.map(p =>
-          p.id === proposalId ? { ...p, status } : p
-        ),
-        toolCalls: msg.toolCalls?.map(tc =>
-          tc.id === targetProposal.toolCallId ? { ...tc, status: toolCallStatus } : tc
-        ),
-        toolResults: msg.toolResults?.map(tr =>
-          tr.toolCallId === targetProposal.toolCallId ? { ...tr, content: resultText } : tr
-        ),
-      } as ThreadMessage
-    })
-    updateThread({ ...thread, messages: updatedMessages })
+  function _findProposal(proposalId: string): EditProposal | undefined {
+    return pendingEditProposals.value.find(p => p.id === proposalId)
   }
 
   /**
-   * Find a proposal by ID — first in pendingEditProposals (active ACP file proposals
-   * or block proposals during streaming), then in stored thread messages (block
-   * proposals after onDone has committed them to the thread).
+   * Check if all actions in the current interrupt batch are resolved.
+   * If so, build the ordered decisions array and send a single ai:resume call.
+   * decisions[i] corresponds to actionRequests[i] — no proposalId needed.
    */
-  function _findProposal(proposalId: string): EditProposal | undefined {
-    const fromPending = pendingEditProposals.value.find(p => p.id === proposalId)
-    if (fromPending) return fromPending
-    for (const msg of activeThread.value?.messages ?? []) {
-      const found = msg.editProposals?.find(p => p.id === proposalId)
-      if (found) return found
-    }
-    return undefined
+  function _maybeFlushResume() {
+    const threadId = _interruptedThreadId.value
+    const count = _interruptActionCount.value
+    if (!threadId || count === 0) return
+
+    // Check if every action index has a decision record
+    if (_decisionRecord.size < count) return
+
+    // Build ordered decisions array by index (aligns with LangGraph HITLResponse.decisions[])
+    const decisions: ResumeDecision[] = Array.from({ length: count }, (_, i) => {
+      const rec = _decisionRecord.get(i)!
+      return {
+        type: rec.type,
+        editedArgs: rec.editedArgs,
+        message: rec.type === 'rejected' ? 'User rejected.' : undefined,
+      }
+    })
+
+    _threadRunState.value = 'streaming'
+    _currentThreadId.value = threadId
+    _interruptedThreadId.value = null
+    _interruptActionCount.value = 0
+    _decisionRecord.clear()
+    _proposalIndexMap.clear()
+
+    window.electronAPI.aiResume?.({ threadId, decisions })
+
+    pendingEditProposals.value = []
   }
 
   async function approveEditProposal(proposalId: string) {
     const proposal = _findProposal(proposalId)
     if (!proposal) return
+    // Resolve 0-based index via stable map (findIndex would shift after prior removals)
+    const proposalIndex = _proposalIndexMap.get(proposalId) ?? -1
 
     if (proposal.kind === 'create_file') {
       const p = proposal as FileCreateProposal
-      // 1. Create a new in-memory tab with the desired filename
       const { DocumentType } = await import('@/types/document-type')
       appStore.createTab(p.filename, undefined, DocumentType.MARKDOWN_EDITOR)
 
-      // 2. Wait for MarkdownEditorPage to mount and set editorInstance
       const getEditor = (): Editor | undefined =>
         appStore.activeTab?.editorInstance as Editor | undefined
 
-      // Poll nextTick until editorInstance is ready (typically 1-2 frames after mount)
       const { nextTick } = await import('vue')
       for (let i = 0; i < 20; i++) {
         await nextTick()
         if (getEditor()) break
       }
 
-      // 3. Inject content via the existing insert_block(0) path
       const editor = getEditor()
       if (editor) {
         const insertProposal: BlockEditProposal = {
@@ -539,7 +531,8 @@ export const useAiStore = defineStore('ai', () => {
         }
         const result = await applyBlockEditProposal(editor, insertProposal)
         if (result.success) {
-          _updateProposalInThread(proposalId, 'applied')
+          if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
+          pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
           notify.success(`文档"${p.filename}"已创建`)
         } else {
           notify.error(`内容注入失败: ${result.error}`)
@@ -547,21 +540,19 @@ export const useAiStore = defineStore('ai', () => {
       } else {
         notify.error('编辑器未就绪，请手动粘贴内容')
       }
-      pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+      _maybeFlushResume()
       return
     }
 
-    // BlockEditProposal — file-based path (proposal.filePath targets a file on disk)
+    // BlockEditProposal — file-based path
     const blockProposal = proposal as BlockEditProposal
     if (blockProposal.filePath) {
-      // If filePath == active editor file, nodeId was resolved against the active editor's
-      // blockMap — use the active editor path so unsaved changes are handled correctly.
       const currentFilePath = appStore.activeTab?.path
-      const isActiveFile = !!currentFilePath && pathUtils.normalize(currentFilePath) === pathUtils.normalize(blockProposal.filePath)
+      const isActiveFile = !!currentFilePath &&
+        pathUtils.normalize(currentFilePath) === pathUtils.normalize(blockProposal.filePath)
 
       if (!isActiveFile) {
         const { UnifiedDocumentAccess } = await import('@/ai/edit-agent/UnifiedDocumentAccess')
-        // Always create a fresh handle so we apply to the latest on-disk state
         const handle = await UnifiedDocumentAccess.createFreshFromFile(blockProposal.filePath)
         if ('error' in handle) {
           notify.error(`文件编辑失败: ${handle.error}`)
@@ -570,14 +561,15 @@ export const useAiStore = defineStore('ai', () => {
         const result = await handle.applyBlockProposal(blockProposal)
         handle.dispose()
         if (result.success) {
-          _updateProposalInThread(proposalId, 'applied')
+          if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
+          pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
           notify.success('文件编辑已应用')
         } else {
           notify.error(`文件编辑失败: ${result.error}`)
         }
+        _maybeFlushResume()
         return
       }
-      // isActiveFile → fall through to active editor path below
     }
 
     // BlockEditProposal — active editor path
@@ -587,81 +579,305 @@ export const useAiStore = defineStore('ai', () => {
       return
     }
 
-    // Route through UnifiedDocumentAccess.fromEditor so nodeIds are resolved from the
-    // current editor state. This handles the case where the proposal was built while the
-    // file was not open (isNonActiveFile path) and the file was opened before approval.
     const { UnifiedDocumentAccess } = await import('@/ai/edit-agent/UnifiedDocumentAccess')
     const handle = UnifiedDocumentAccess.fromEditor(editor, appStore.activeTab?.path ?? undefined)
     const result = await handle.applyBlockProposal(proposal as BlockEditProposal)
     if (result.success) {
-      _updateProposalInThread(proposalId, 'applied')
-      // Rebuild snapshot after mutation so subsequent tool calls see the updated doc
-      _currentSnapshot = buildSnapshot(editor)
+      if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
+      pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
       notify.success('编辑已应用')
     } else {
       notify.error(`应用编辑失败: ${result.error}`)
-    }
-  }
-
-  function rejectEditProposal(proposalId: string) {
-    const proposal = _findProposal(proposalId)
-    if (!proposal) return
-
-    if (proposal.kind === 'create_file') {
-      pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
-      _updateProposalInThread(proposalId, 'rejected')
       return
     }
 
-    // BlockEditProposal: immutable update so Vue detects the status change
-    _updateProposalInThread(proposalId, 'rejected')
+    _maybeFlushResume()
   }
 
-  /** All pending proposals: from thread messages + any still in pendingEditProposals */
-  const allPendingProposals = computed<EditProposal[]>(() => {
-    const fromThread: EditProposal[] = []
-    for (const msg of activeThread.value?.messages ?? []) {
-      for (const p of msg.editProposals ?? []) {
-        if (p.status === 'pending') fromThread.push(p)
-      }
+  /**
+   * Edit decision: apply user-modified content to the editor, then resume with edited args.
+   * The editedArgs must be the full modified tool arguments (e.g. { block_id, new_content }).
+   */
+  async function editAndApproveProposal(
+    proposalId: string,
+    editedArgs: Record<string, unknown>,
+  ) {
+    const proposal = _findProposal(proposalId)
+    if (!proposal || proposal.kind !== 'block') return
+    const proposalIndex = _proposalIndexMap.get(proposalId) ?? -1
+
+    // Build a modified proposal from editedArgs and apply it
+    const blockProposal = { ...proposal } as BlockEditProposal
+    if (typeof editedArgs.new_content === 'string') {
+      blockProposal.newContent = editedArgs.new_content
     }
-    return [...fromThread, ...pendingEditProposals.value]
-  })
+    if (typeof editedArgs.content === 'string') {
+      // insert_block uses 'content' not 'new_content'
+      blockProposal.newContent = editedArgs.content
+    }
+
+    // Update the displayed proposal content in pending list
+    pendingEditProposals.value = pendingEditProposals.value.map(p =>
+      p.id === proposalId ? { ...blockProposal, wasEdited: true } : p
+    )
+
+    const editor = appStore.activeTab?.editorInstance as Editor | undefined
+    if (!editor) {
+      notify.error('没有活动的编辑器文档')
+      return
+    }
+
+    const { UnifiedDocumentAccess } = await import('@/ai/edit-agent/UnifiedDocumentAccess')
+    const handle = UnifiedDocumentAccess.fromEditor(editor, appStore.activeTab?.path ?? undefined)
+    const result = await handle.applyBlockProposal(blockProposal)
+    if (result.success) {
+      if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'edited', editedArgs })
+      pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+      notify.success('编辑（已修改）已应用')
+    } else {
+      notify.error(`应用编辑失败: ${result.error}`)
+      return
+    }
+
+    _maybeFlushResume()
+  }
+
+  function rejectEditProposal(proposalId: string) {
+    // Record the rejection decision for this specific proposal, then let
+    // _maybeFlushResume decide whether all decisions are collected (consistent
+    // with the approve path). The system prompt instructs the LLM not to retry
+    // rejected proposals, preventing the infinite-loop concern that motivated
+    // the previous aiCancel approach.
+    const proposalIndex = _proposalIndexMap.get(proposalId) ?? -1
+    if (proposalIndex >= 0) {
+      _decisionRecord.set(proposalIndex, { type: 'rejected' })
+    }
+    pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+
+    // If some proposals in the same batch were already approved, inform the user
+    // that those applied edits are preserved even though this one was skipped.
+    const hasApproved = Array.from(_decisionRecord.values()).some(
+      r => r.type === 'approved' || r.type === 'edited'
+    )
+    if (hasApproved) {
+      notify.info('已跳过此修改，已应用的修改保留在文档中')
+    }
+
+    _maybeFlushResume()
+  }
+
+  /** All currently pending proposals (source of truth is pendingEditProposals) */
+  const allPendingProposals = computed<EditProposal[]>(() => pendingEditProposals.value)
 
   async function approveAllProposals() {
-    const ids = allPendingProposals.value
-      .filter(p => p.kind === 'block' || p.kind === 'create_file')
-      .map(p => p.id)
+    const ids = [...pendingEditProposals.value].map(p => p.id)
     for (const id of ids) await approveEditProposal(id)
   }
 
   function rejectAllProposals() {
-    const ids = allPendingProposals.value
-      .filter(p => p.kind === 'block' || p.kind === 'create_file')
-      .map(p => p.id)
-    for (const id of ids) rejectEditProposal(id)
+    // Record rejected decisions for all remaining undecided proposals, then flush.
+    for (const proposal of pendingEditProposals.value) {
+      const index = _proposalIndexMap.get(proposal.id) ?? -1
+      if (index >= 0 && !_decisionRecord.has(index)) {
+        _decisionRecord.set(index, { type: 'rejected' })
+      }
+    }
+    pendingEditProposals.value = []
+    _maybeFlushResume()
   }
 
   function cancelStreaming() {
-    _currentSession.value?.cancel()
-    _currentSession.value = null
-    isStreaming.value = false
+    const tid = _currentThreadId.value ?? _interruptedThreadId.value
+    if (tid) {
+      window.electronAPI.aiCancel?.(tid)
+    }
+    _threadRunState.value = 'idle'
+    _currentThreadId.value = null
+    _interruptedThreadId.value = null
+    _interruptActionCount.value = 0
+    _decisionRecord.clear()
+    _proposalIndexMap.clear()
     streamingThinkingText.value = ''
     streamingText.value = ''
+    streamingCurrentText.value = ''
+    streamingBlocks.value = []
     streamingToolName.value = null
+    pendingEditProposals.value = []
     notify.info('已停止生成')
   }
 
   // ── Initialization ────────────────────────────────────────────────────────
   function init() {
-    // Re-load settings and threads (in case store was accessed before mount)
-    settings.value = ThreadStore.loadSettings()
-    threads.value = ThreadStore.loadThreads()
-    // Remove any empty threads left over from previous sessions
-    _purgeEmptyThreads()
-    if (!activeThreadId.value && threads.value.length) {
-      activeThreadId.value = threads.value[0]!.id
-    }
+    settings.value = _loadSettings()
+    // Push current settings to main process on init (handles first-launch and
+    // cases where renderer localStorage has newer values than the main-process store)
+    window.electronAPI?.aiUpdateConfig?.(JSON.parse(JSON.stringify(toRaw(settings.value))))
+
+    window.electronAPI.aiGetThreads?.().then(async mainThreads => {
+      if (mainThreads?.length) {
+        // Merge: preserve any local-only threads not yet in the backend list
+        const localOnly = threads.value.filter(t => _localOnlyThreadIds.has(t.id))
+        const merged = [
+          ...localOnly,
+          ...mainThreads.filter(m => !localOnly.some(l => l.id === m.id)),
+        ]
+        threads.value = merged
+        // Keep active thread if still valid, otherwise default to first backend thread
+        if (!activeThreadId.value || !merged.some(t => t.id === activeThreadId.value)) {
+          const firstId = mainThreads[0]!.id
+          activeThreadId.value = firstId
+          try {
+            const messages = await window.electronAPI.aiGetThreadMessages?.(firstId)
+            if (messages?.length) {
+              updateThread({ ...mainThreads[0]!, messages, messagesLoaded: true })
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    }).catch(() => {/* ignore — main process may not be ready yet */})
+
+    // Stream chunks: text, thinking, tool call start/end
+    window.electronAPI.onAiStreamChunk?.((chunk: StreamChunkEvent) => {
+      if (chunk.type === 'text' && chunk.delta) {
+        streamingText.value += chunk.delta
+        streamingCurrentText.value += chunk.delta
+      } else if (chunk.type === 'thinking' && chunk.delta) {
+        streamingThinkingText.value += chunk.delta
+      } else if (chunk.type === 'tool_call_start' && chunk.toolCall) {
+        if (streamingCurrentText.value) {
+          streamingBlocks.value = [...streamingBlocks.value, { type: 'text', text: streamingCurrentText.value }]
+          streamingCurrentText.value = ''
+        }
+        const enriched: AiToolCall = {
+          ...chunk.toolCall,
+          kind: inferToolKind(chunk.toolCall.name),
+        }
+        streamingBlocks.value = [...streamingBlocks.value, { type: 'tool_call', toolCall: enriched }]
+        streamingToolName.value = chunk.toolName ?? null
+      } else if (chunk.type === 'tool_call_end' && chunk.toolCallId && chunk.toolCall) {
+        streamingBlocks.value = streamingBlocks.value.map(b =>
+          b.type === 'tool_call' && b.toolCall.id === chunk.toolCallId
+            ? { type: 'tool_call', toolCall: { ...b.toolCall, status: chunk.toolCall!.status, result: chunk.toolCall!.result, isError: chunk.toolCall!.isError } }
+            : b
+        )
+        streamingToolName.value = null
+      }
+    })
+
+    // New atomic interrupt event — replaces the old two-event sequence
+    window.electronAPI.onAiRunInterrupted?.((e: RunInterruptedEvent) => {
+      _threadRunState.value = 'interrupted'
+      _interruptedThreadId.value = e.threadId
+      _interruptActionCount.value = e.proposals.length
+      _decisionRecord.clear()
+      _proposalIndexMap.clear()
+
+      streamingText.value = ''
+
+      // Clear streaming display state
+      streamingToolName.value = null
+      streamingThinkingText.value = ''
+      streamingBlocks.value = []
+      streamingCurrentText.value = ''
+
+      // Register proposals as pending (replace, not append — HITL is serial)
+      pendingEditProposals.value = e.proposals
+      // Build stable index map so approve/reject can find the original index
+      // even after earlier proposals have been removed from pendingEditProposals.
+      e.proposals.forEach((p, i) => _proposalIndexMap.set(p.id, i))
+
+      // Preserve partialMessage locally before checkpointer reload —
+      // at interrupt time the checkpointer may not yet have committed the
+      // in-progress assistant message, so we keep the local copy.
+      const t = activeThread.value
+      if (t && t.id === e.threadId) {
+        let updated = t
+        if (e.partialMessage) {
+          const alreadyPresent = (updated.messages ?? []).some(m => m.id === e.partialMessage!.id)
+          if (!alreadyPresent) {
+            updated = appendMessage(updated, e.partialMessage)
+          }
+        }
+        updateThread({ ...updated, messagesLoaded: false })
+
+        // Sync from checkpointer in background; skip replacement if it returns empty
+        // (means the checkpoint hasn't been committed yet — keep local state).
+        window.electronAPI.aiGetThreadMessages?.(e.threadId)
+          .then(messages => {
+            if (!messages?.length) return
+            const current = activeThread.value
+            if (current && current.id === e.threadId) {
+              updateThread({ ...current, messages, messagesLoaded: true })
+            }
+          })
+          .catch(() => {/* ignore */ })
+      }
+    })
+
+    // Run completed (always a full completion — no more isPartial)
+    window.electronAPI.onAiRunDone?.((e: RunDoneEvent) => {
+      streamingText.value = ''
+
+      _threadRunState.value = 'idle'
+      streamingToolName.value = null
+      streamingThinkingText.value = ''
+      streamingBlocks.value = []
+      streamingCurrentText.value = ''
+      _currentThreadId.value = null
+      _interruptedThreadId.value = null
+      _interruptActionCount.value = 0
+      _decisionRecord.clear()
+      _proposalIndexMap.clear()
+      pendingEditProposals.value = []
+
+      // Reload messages from checkpointer (single source of truth).
+      // Skip reload if onAiRunError already handled this run's error —
+      // the checkpointer won't have the error message and would overwrite it.
+      const t = activeThread.value
+      if (t && t.id === e.threadId && !_currentRunHasError) {
+        window.electronAPI.aiGetThreadMessages?.(e.threadId)
+          .then(messages => {
+            if (!messages?.length) return  // guard: keep local messages if checkpointer returns empty
+            const current = activeThread.value
+            if (current && current.id === e.threadId) {
+              updateThread({ ...current, messages, messagesLoaded: true })
+            }
+          })
+          .catch(() => {/* ignore */ })
+      }
+    })
+
+    window.electronAPI.onAiRunError?.((e: RunErrorEvent) => {
+      _currentRunHasError = true
+      _threadRunState.value = 'idle'
+      streamingText.value = ''
+      streamingCurrentText.value = ''
+      streamingBlocks.value = []
+      streamingThinkingText.value = ''
+      streamingToolName.value = null
+      _currentThreadId.value = null
+      _interruptedThreadId.value = null
+      _interruptActionCount.value = 0
+      _decisionRecord.clear()
+
+      notify.error(`AI 错误: ${e.error}`)
+
+      const errThread = activeThread.value
+      if (errThread && errThread.id === e.threadId) {
+        const errMsg: ThreadMessage = {
+          id: `msg-${nanoid(8)}`,
+          role: 'assistant',
+          content: e.error,
+          isError: true,
+          timestamp: Date.now(),
+        }
+        updateThread(appendMessage({ ...errThread, hasError: true }, errMsg))
+      }
+    })
+  }
+
+  function teardown() {
+    window.electronAPI.removeAiListeners?.()
   }
 
   return {
@@ -688,9 +904,14 @@ export const useAiStore = defineStore('ai', () => {
     clearAllThreads,
     updateThread,
 
-    // Streaming state
+    // Run state
     isStreaming,
+    isInterrupted,
+
+    // Streaming display state
     streamingText,
+    streamingCurrentText,
+    streamingBlocks,
     streamingThinkingText,
     streamingToolName,
     pendingEditProposals,
@@ -698,11 +919,13 @@ export const useAiStore = defineStore('ai', () => {
     // Actions
     sendMessage,
     approveEditProposal,
+    editAndApproveProposal,
     rejectEditProposal,
     allPendingProposals,
     approveAllProposals,
     rejectAllProposals,
     cancelStreaming,
     init,
+    teardown,
   }
 })

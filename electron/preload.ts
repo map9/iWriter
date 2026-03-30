@@ -144,4 +144,56 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Print API
   print: (options: any = {}) => ipcRenderer.invoke('print', options),
 
+  // ── AI Agent (main-process deepagents) ────────────────────────────────────
+  aiSendMessage: (req: any) => ipcRenderer.invoke('ai:send-message', req),
+  aiCancel: (threadId: string) => ipcRenderer.invoke('ai:cancel', { threadId }),
+  aiResume: (req: any) => ipcRenderer.invoke('ai:resume', req),
+  /** @deprecated Use aiResume instead */
+  aiApproveProposal: (req: any) => ipcRenderer.invoke('ai:approve-proposal', req),
+  /** @deprecated Use aiResume instead */
+  aiRejectProposal: (req: any) => ipcRenderer.invoke('ai:reject-proposal', req),
+  aiGetConfig: () => ipcRenderer.invoke('ai:get-config'),
+  aiUpdateConfig: (patch: any) => ipcRenderer.invoke('ai:update-config', patch),
+  aiGetThreads: () => ipcRenderer.invoke('ai:get-threads'),
+  aiDeleteThread: (threadId: string) => ipcRenderer.invoke('ai:delete-thread', { threadId }),
+  aiClearThreads: () => ipcRenderer.invoke('ai:clear-threads'),
+  aiGetThreadMessages: (threadId: string) => ipcRenderer.invoke('ai:get-thread-messages', { threadId }),
+  // Renderer sends snapshot back to main (not an invoke — fire-and-forget)
+  aiSnapshotResponse: (resp: any) => ipcRenderer.send('ai:snapshot-response', resp),
+
+  // Incoming events from main process
+  onAiStreamChunk: (cb: (chunk: any) => void) => {
+    ipcRenderer.on('ai:stream-chunk', (_, c) => cb(c))
+  },
+  /** New atomic interrupt event (replaces onAiInterruptReady). */
+  onAiRunInterrupted: (cb: (e: any) => void) => {
+    ipcRenderer.on('ai:run-interrupted', (_, e) => cb(e))
+  },
+  /** @deprecated Use onAiRunInterrupted instead */
+  onAiInterruptReady: (cb: (e: any) => void) => {
+    ipcRenderer.on('ai:interrupt-ready', (_, e) => cb(e))
+  },
+  /** @deprecated Use onAiInterruptReady instead */
+  onAiProposalReady: (cb: (e: any) => void) => {
+    ipcRenderer.on('ai:proposal-ready', (_, e) => cb(e))
+  },
+  onAiRunDone: (cb: (e: any) => void) => {
+    ipcRenderer.on('ai:run-done', (_, e) => cb(e))
+  },
+  onAiRunError: (cb: (e: any) => void) => {
+    ipcRenderer.on('ai:run-error', (_, e) => cb(e))
+  },
+  onAiRequestSnapshot: (cb: (req: any) => void) => {
+    ipcRenderer.on('ai:request-snapshot', (_, r) => cb(r))
+  },
+  removeAiListeners: () => {
+    ;[
+      'ai:stream-chunk',
+      'ai:run-interrupted',
+      'ai:run-done',
+      'ai:run-error',
+      'ai:request-snapshot',
+    ].forEach(ch => ipcRenderer.removeAllListeners(ch))
+  },
+
 })

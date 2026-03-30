@@ -107,6 +107,29 @@ export interface ElectronAPI {
   // 打印 API
   print: (options?: Electron.WebContentsPrintOptions) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
 
+  // ── AI Agent (main-process deepagents) ──────────────────────────────────────
+  aiSendMessage?: (req: import('./ai-ipc').SendMessageRequest) => Promise<{ threadId: string }>
+  aiCancel?: (threadId: string) => Promise<void>
+  aiResume?: (req: import('./ai-ipc').ResumeRunRequest) => Promise<void>
+  /** @deprecated Use aiResume instead */
+  aiApproveProposal?: (req: { sessionId: string; proposalId: string }) => Promise<void>
+  /** @deprecated Use aiResume instead */
+  aiRejectProposal?: (req: { sessionId: string; proposalId: string }) => Promise<void>
+  aiGetConfig?: () => Promise<import('./ai').AiSettings>
+  aiUpdateConfig?: (patch: Partial<import('./ai').AiSettings>) => Promise<void>
+  aiGetThreads?: () => Promise<import('./ai').AiThread[]>
+  aiDeleteThread?: (threadId: string) => Promise<void>
+  aiClearThreads?: () => Promise<void>
+  aiGetThreadMessages?: (threadId: string) => Promise<import('./ai').ThreadMessage[]>
+  aiSnapshotResponse?: (resp: import('./ai-ipc').SnapshotResponse) => void
+
+  onAiStreamChunk?: (cb: (chunk: import('./ai-ipc').StreamChunkEvent) => void) => void
+  onAiRunInterrupted?: (cb: (e: import('./ai-ipc').RunInterruptedEvent) => void) => void
+  onAiRunDone?: (cb: (e: import('./ai-ipc').RunDoneEvent) => void) => void
+  onAiRunError?: (cb: (e: import('./ai-ipc').RunErrorEvent) => void) => void
+  onAiRequestSnapshot?: (cb: (req: import('./ai-ipc').SnapshotRequestEvent) => void) => void
+  removeAiListeners?: () => void
+
   // ACP (Agent Client Protocol) — external agent process management
   acpLaunch?: (params: { sessionId: string; command: string; args?: string[]; env?: Record<string, string>; workspacePath: string | null; filePath: string | null }) => Promise<{ success: boolean; error?: string }>
   acpInitialize?: (params: { sessionId: string; workspacePath: string | null; filePath: string | null }) => Promise<{ success: boolean; error?: string }>

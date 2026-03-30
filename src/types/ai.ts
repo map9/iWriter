@@ -71,12 +71,21 @@ export interface AiToolResult {
   isError?: boolean
 }
 
+/** Ordered content block for interleaved text + tool call rendering. */
+export interface MessageContentBlock {
+  type: 'text' | 'tool_call'
+  text?: string        // for type === 'text'
+  toolCallId?: string  // for type === 'tool_call'
+}
+
 // ── Edit Proposals ─────────────────────────────────────────────────────────
 
 interface BaseEditProposal {
   id: string
   description?: string
   status: 'pending' | 'applied' | 'rejected'
+  /** True if the user modified the proposal args before approving (edit decision). */
+  wasEdited?: boolean
 }
 
 /** Block-level edit proposal — produced by Native LLM block edit tools. */
@@ -133,6 +142,8 @@ export interface ThreadMessage {
   toolCalls?: AiToolCall[]
   toolResults?: AiToolResult[]
   editProposals?: EditProposal[]
+  /** Ordered content blocks for interleaved text + tool call rendering. */
+  contentBlocks?: MessageContentBlock[]
 
   timestamp: number
   usage?: { inputTokens: number; outputTokens: number }
@@ -166,7 +177,18 @@ export interface AiThread {
   title: string
   createdAt: number
   updatedAt: number
-  messages: ThreadMessage[]
+  /**
+   * Messages cache in the renderer process.
+   * NOT the authoritative source — the LangGraph checkpointer is.
+   * Undefined means "not yet loaded from checkpointer".
+   * An empty array means "loaded, but no messages" (e.g. a fresh local thread).
+   */
+  messages?: ThreadMessage[]
+  /**
+   * True once messages have been fetched from the checkpointer at least once.
+   * Used by selectThread() to avoid redundant requests.
+   */
+  messagesLoaded?: boolean
   providerConfigId: string
   modelId: string
   profile: AiAgentProfile
@@ -228,6 +250,14 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     delete_block:         'delete',
     replace_range:        'edit',
     create_document:      'edit',
+    // deepagents built-in tools
+    execute:              'execute',
+    read_file:            'read',
+    write_file:           'edit',
+    edit_file:            'edit',
+    ls:                   'read',
+    glob:                 'search',
+    grep:                 'search',
   }
   return mapping[toolName] ?? 'other'
 }

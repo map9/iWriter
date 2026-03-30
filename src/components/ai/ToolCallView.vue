@@ -70,12 +70,12 @@ const containerClass = computed(() => {
 
 const kindIcon     = computed(() => KIND_ICONS[props.toolCall.kind] ?? '🔧')
 const displayTitle = computed(() => {
-  if (props.toolCall.name === 'exec_shell') {
+  if (props.toolCall.name === 'exec_shell' || props.toolCall.name === 'execute') {
     const cmd = props.toolCall.arguments.command
     if (typeof cmd === 'string' && cmd) {
       return cmd.trimStart().split(/\s+/)[0]
     }
-    return 'exec_shell'
+    return props.toolCall.name
   }
   return props.toolCall.title || props.toolCall.name
 })
@@ -95,7 +95,8 @@ const paramsDisplay = computed((): string => {
   const bid = (val: unknown): string => val !== undefined && val !== null ? `{b:${val}}` : ''
 
   switch (name) {
-    case 'exec_shell': {
+    case 'exec_shell':
+    case 'execute': {
       const cmd = typeof args.command === 'string' ? args.command.trim() : ''
       const spaceIdx = cmd.search(/\s/)
       return spaceIdx >= 0 ? cmd.slice(spaceIdx + 1) : ''

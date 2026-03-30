@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="!aiStore.activeThread?.messages.length && !aiStore.isStreaming"
+    v-if="!aiStore.activeThread?.messages?.length && !aiStore.isStreaming"
     class="flex flex-col items-center justify-center h-full text-center text-gray-400 py-8"
   >
     <IconBrain class="w-10 h-10 mb-3 text-gray-300" />

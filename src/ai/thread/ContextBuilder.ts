@@ -363,44 +363,35 @@ function getSelectionBlockIds(snapshot: DocumentViewSnapshot): number[] {
     .map(b => b.displayId)
 }
 
-type CursorSectionNode = { heading: string | null; blockIds: number[]; inlineContent?: string }
+type CursorSectionNode = {
+  heading: string | null
+  sectionStartBlockId: number | null
+  cursorBlockId: number
+}
 
 /** Build cursor section info from snapshot. Returns null if cursor position unknown. */
 function buildCursorSectionNode(
   snapshot: DocumentViewSnapshot,
-  builder: DocumentViewBuilder
+  _builder: DocumentViewBuilder
 ): CursorSectionNode | null {
-  const { cursorBlockId, view, editor } = snapshot
+  const { cursorBlockId, view } = snapshot
   if (cursorBlockId === null) return null
 
   const sectionHeading = findContainingHeading(cursorBlockId, view)
 
   if (sectionHeading) {
-    const sectionResult = builder.buildSectionView(editor, sectionHeading.displayId, view.blockMap)
-    if (!sectionResult) return null
-    const [start, end] = sectionResult.blockIdRange
-    const blockIds = view.blockMap
-      .filter(b => b.displayId >= start && b.displayId <= end)
-      .map(b => b.displayId)
     return {
       heading: sectionHeading.text,
-      blockIds,
-      inlineContent: blockIds.length <= INLINE_BLOCK_THRESHOLD ? sectionResult.content : undefined,
+      sectionStartBlockId: sectionHeading.displayId,
+      cursorBlockId,
     }
   }
 
-  // No heading — use a small range around the cursor
-  const start = Math.max(1, cursorBlockId - 2)
-  const end   = Math.min(view.totalBlocks, cursorBlockId + 2)
-  const blockIds = view.blockMap
-    .filter(b => b.displayId >= start && b.displayId <= end)
-    .map(b => b.displayId)
+  // No heading — cursor is at doc start or before first heading
   return {
     heading: null,
-    blockIds,
-    inlineContent: blockIds.length <= INLINE_BLOCK_THRESHOLD
-      ? builder.buildRangeView(editor, start, end, view.blockMap)
-      : undefined,
+    sectionStartBlockId: null,
+    cursorBlockId,
   }
 }
 
@@ -410,16 +401,9 @@ function appendCursorSectionXml(
   indent: string
 ): void {
   const headingAttr = node.heading ? ` heading="${node.heading}"` : ''
-  const idsAttr = ` block_ids="[${node.blockIds.join(',')}]"`
-  if (node.inlineContent) {
-    lines.push(`${indent}<cursor_section${headingAttr}${idsAttr}>`)
-    lines.push(node.inlineContent)
-    lines.push(`${indent}</cursor_section>`)
-  } else {
-    const countAttr = ` blocks_count="${node.blockIds.length}"`
-    const hint = ` hint="Use get_section or get_blocks to read this section."`
-    lines.push(`${indent}<cursor_section${headingAttr}${idsAttr}${countAttr}${hint} />`)
-  }
+  const startAttr = node.sectionStartBlockId !== null ? ` section_start="{b:${node.sectionStartBlockId}}"` : ''
+  const cursorAttr = ` cursor="{b:${node.cursorBlockId}}"`
+  lines.push(`${indent}<cursor_section${headingAttr}${startAttr}${cursorAttr} />`)
 }
 
 function appendSelectionXml(
@@ -476,7 +460,7 @@ export function buildEditorStateBlock(
   ctx: EditorStateContext
 ): EditorStateResult {
   const builder = _builder
-  const isFirstMsg = thread.messages.length <= 1
+  const isFirstMsg = (thread.messages?.length ?? 0) <= 1
   const hasAttachments = ctx.textFilePaths.length > 0 || ctx.attachedDirectories.length > 0
 
   const sectionNode = snapshot ? buildCursorSectionNode(snapshot, builder) : null

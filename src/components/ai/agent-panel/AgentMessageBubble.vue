@@ -78,6 +78,54 @@
       </div>
 
       <!-- ── ASSISTANT MESSAGE BUBBLE ── -->
+
+      <!-- Interleaved content blocks (text + read tool calls in correct order) -->
+      <template v-if="message.role === 'assistant' && message.contentBlocks?.length">
+        <template v-for="(block, idx) in message.contentBlocks" :key="idx">
+          <div
+            v-if="block.type === 'text' && block.text"
+            class="inline-block rounded-lg text-sm max-w-full text-left break-words"
+            :class="[message.isError ? 'bg-red-50 border border-red-200 text-red-700 px-3 py-2' : 'text-gray-900', idx > 0 ? 'mt-1.5' : '']"
+          >
+            <MarkdownContentView :content="block.text" mode="markdown" size="sm" />
+          </div>
+          <ToolCallView
+            v-else-if="block.type === 'tool_call' && block.toolCallId && isReadToolById(block.toolCallId)"
+            :tool-call="toolCallById(block.toolCallId)!"
+            class="mt-1.5 w-full"
+          />
+        </template>
+        <!-- Edit tool calls summary (shown at bottom even in contentBlocks mode) -->
+        <div
+          v-if="editToolCalls.length"
+          class="mt-1.5 w-full border border-yellow-200 rounded overflow-hidden text-xs"
+        >
+          <div
+            class="flex items-center gap-2 px-2 py-1.5 bg-yellow-50 text-yellow-800 cursor-pointer select-none"
+            @click="editListExpanded = !editListExpanded"
+          >
+            <span>✏️</span>
+            <span class="font-bold">已提案 {{ editToolCalls.length }} 处修改</span>
+            <span v-if="appliedCount"  class="text-green-600 text-[11px]">✓{{ appliedCount }}</span>
+            <span v-if="rejectedCount" class="text-red-500  text-[11px]">✗{{ rejectedCount }}</span>
+            <span class="ml-auto opacity-60 text-[10px]">{{ editListExpanded ? '▲' : '▼' }}</span>
+          </div>
+          <div v-if="editListExpanded" class="bg-white border-t border-yellow-100 px-2 py-1.5">
+            <span
+              v-for="(tc, idx) in editToolCalls"
+              :key="tc.id"
+              class="font-mono"
+              :class="{
+                'text-green-700': tc.status === 'completed',
+                'text-red-400 line-through opacity-60': tc.status === 'failed',
+                'text-yellow-900': tc.status !== 'completed' && tc.status !== 'failed',
+              }"
+            >{{ editOpDisplay(tc).label }} <span v-if="tc.status === 'completed'" class="text-green-600 font-bold">✓</span><span v-if="tc.status === 'failed'" class="text-red-400 font-bold">✗</span><template v-if="idx < editToolCalls.length - 1">；</template></span>
+          </div>
+        </div>
+      </template>
+
+      <!-- Fallback: legacy messages without contentBlocks -->
       <div
         v-else-if="message.role === 'assistant' && message.content"
         class="inline-block rounded-lg text-sm max-w-full text-left break-words"
@@ -87,7 +135,11 @@
       </div>
 
       <!-- Tool calls: read tools shown individually; edit tools collapsed into one summary -->
-      <div v-if="message.toolCalls?.length" class="space-y-1.5 w-full" :class="message.content ? 'mt-1.5' : ''">
+      <div
+        v-if="!message.contentBlocks?.length && message.toolCalls?.length"
+        class="space-y-1.5 w-full"
+        :class="message.content ? 'mt-1.5' : ''"
+      >
         <ToolCallView v-for="tc in readToolCalls" :key="tc.id" :tool-call="tc" />
         <div
           v-if="editToolCalls.length"
@@ -173,6 +225,14 @@ const editToolCalls = computed(() =>
   (props.message.toolCalls ?? []).filter(tc => BLOCK_EDIT_TOOLS.has(tc.name))
 )
 
+function toolCallById(id: string): AiToolCall | undefined {
+  return props.message.toolCalls?.find(tc => tc.id === id)
+}
+function isReadToolById(id: string): boolean {
+  const tc = toolCallById(id)
+  return !!tc && !BLOCK_EDIT_TOOLS.has(tc.name)
+}
+
 const editListExpanded = ref(true)
 watch(
   () => editToolCalls.value.length,
@@ -184,21 +244,21 @@ const rejectedCount = computed(() => editToolCalls.value.filter(tc => tc.status 
 
 function editOpDisplay(tc: AiToolCall): { icon: string; label: string } {
   const args = tc.arguments
-  const bid  = (key: string) => `{b:${args[key]}}`
+  const bid  = (v: unknown) => v !== undefined && v !== null ? `{b:${v}}` : '?'
   const fname = (fp: unknown) =>
     typeof fp === 'string' && fp ? (fp.split('/').pop() ?? fp) : ''
   switch (tc.name) {
     case 'edit_block':
-      return { icon: '✏️', label: `编辑块 ${bid('block_id')}` }
+      return { icon: '✏️', label: `编辑块 ${bid(args.block_id)}` }
     case 'insert_block': {
-      const ref = args.after_block_id !== undefined ? `块 ${bid('after_block_id')} 之后`
-        : args.end_block_id !== undefined ? `尾部 ${bid('end_block_id')}` : ''
+      const ref = args.after_block_id !== undefined ? `块 ${bid(args.after_block_id)} 之后`
+        : args.end_block_id !== undefined ? `尾部 ${bid(args.end_block_id)}` : ''
       return { icon: '➕', label: `插入块${ref ? ` (${ref})` : ''}` }
     }
     case 'delete_block':
-      return { icon: '🗑️', label: `删除块 ${bid('block_id')}` }
+      return { icon: '🗑️', label: `删除块 ${bid(args.block_id)}` }
     case 'replace_range':
-      return { icon: '🔄', label: `替换块 {b:${args.start_block_id}}–{b:${args.end_block_id}}` }
+      return { icon: '🔄', label: `替换块 ${bid(args.start_block_id)}–${bid(args.end_block_id)}` }
     case 'create_document': {
       const name = fname(args.file_path) || (typeof args.filename === 'string' ? args.filename : '')
       return { icon: '📄', label: `创建文档${name ? `: ${name}` : ''}` }

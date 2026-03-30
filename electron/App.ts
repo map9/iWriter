@@ -13,12 +13,16 @@ import { MenuManager } from './MenuManager'
 import { WindowManager } from './WindowManager'
 import { ThemeManager } from './ThemeManager'
 import { UpdaterManager } from '../src/updater/UpdaterManager'
+import { AgentEngine } from './ai/AgentEngine'
+import { AiConfigStore } from './ai/config/AiConfigStore'
+import type { AiSettings } from '../src/types/ai'
 export class App {
   private fileWatchers: Map<string, FSWatcher>
   private menuManager: MenuManager
   private windowManager: WindowManager
   private themeManager: ThemeManager
   private updaterManager: UpdaterManager | null
+  private agentEngine: AgentEngine
   private appQuitTimer: Timer | null = null
   private _isAppQuitting: boolean
   private _exitApp: boolean
@@ -31,6 +35,9 @@ export class App {
     this.updaterManager = null
     this._isAppQuitting = false
     this._exitApp = false
+    this.agentEngine = new AgentEngine(
+      () => BrowserWindow.getAllWindows()[0]?.webContents ?? null
+    )
 
     this.setupIpcHandlers()
   }
@@ -217,6 +224,7 @@ export class App {
 
   private setupIpcHandlers() {
     this.registerExecShellHandler()
+    this.registerAgentIpcHandlers()
     ipcMain.on('hello', (_, windowId: number) => {
       this.windowManager.handleHello(windowId)
       
@@ -972,6 +980,49 @@ export class App {
     })
   }
 
+  private registerAgentIpcHandlers() {
+    ipcMain.handle('ai:send-message', async (_, req) => {
+      return this.agentEngine.sendMessage(req)
+    })
+
+    ipcMain.handle('ai:cancel', async (_, { threadId }: { threadId: string }) => {
+      this.agentEngine.cancel(threadId)
+    })
+
+    // HITL resume — batch decisions array (approve / edit / reject)
+    ipcMain.handle('ai:resume', async (_, req: import('./ai/ipc/protocol').ResumeRunRequest) => {
+      await this.agentEngine.resumeRun(req.threadId, req.decisions)
+    })
+
+    ipcMain.handle('ai:get-config', async () => {
+      return AiConfigStore.loadSettings()
+    })
+
+    ipcMain.handle('ai:update-config', async (_, settings: AiSettings) => {
+      console.log('[ai:update-config] activeProviderConfigId:', settings.activeProviderConfigId)
+      ;(settings.providerConfigs ?? []).forEach(c => {
+        console.log(`  provider id=${c.id} type=${c.type} enabled=${c.enabled} defaultModelId="${c.defaultModelId}" models=${JSON.stringify(c.models ?? [])} apiKey=${c.apiKey ? c.apiKey.slice(0, 4) + '...' + c.apiKey.slice(-4) : '(empty)'}`)
+      })
+      AiConfigStore.saveSettings(settings)
+    })
+
+    ipcMain.handle('ai:get-threads', async () => {
+      return this.agentEngine.getThreads()
+    })
+
+    ipcMain.handle('ai:delete-thread', async (_, { threadId }: { threadId: string }) => {
+      this.agentEngine.deleteThread(threadId)
+    })
+
+    ipcMain.handle('ai:clear-threads', async () => {
+      this.agentEngine.clearThreads()
+    })
+
+    ipcMain.handle('ai:get-thread-messages', async (_, { threadId }: { threadId: string }) => {
+      return this.agentEngine.getThreadMessages(threadId)
+    })
+  }
+
   private removeAllHandler() {
     ipcMain.removeHandler('exec-shell')
     ipcMain.removeHandler('hello')
@@ -998,6 +1049,16 @@ export class App {
 
     ipcMain.removeAllListeners('hello');
     ipcMain.removeAllListeners('window-close-confirm');
+
+    ipcMain.removeHandler('ai:send-message')
+    ipcMain.removeHandler('ai:cancel')
+    ipcMain.removeHandler('ai:resume')
+    ipcMain.removeHandler('ai:get-config')
+    ipcMain.removeHandler('ai:update-config')
+    ipcMain.removeHandler('ai:get-threads')
+    ipcMain.removeHandler('ai:delete-thread')
+    ipcMain.removeHandler('ai:clear-threads')
+    ipcMain.removeHandler('ai:get-thread-messages')
   }
 
   // Send menu action to the focused window

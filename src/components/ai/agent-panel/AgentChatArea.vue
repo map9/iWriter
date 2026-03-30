@@ -12,18 +12,43 @@
 
     <!-- Streaming message -->
     <div v-if="aiStore.isStreaming" class="flex gap-2.5">
-      <div class="flex-1 min-w-0">
-        <!-- Active tool call chip -->
-        <div v-if="aiStore.streamingToolName" class="mb-1.5">
-          <ToolCallView :tool-call="streamingToolCall" />
+      <div class="flex-1 min-w-0 space-y-1.5">
+
+        <!-- Thinking content (collapsible, shown when model is reasoning) -->
+        <div
+          v-if="aiStore.streamingThinkingText"
+          class="w-full border border-purple-200 bg-purple-50 rounded-lg overflow-hidden text-xs"
+        >
+          <button
+            class="w-full flex items-center gap-1.5 px-3 py-1.5 text-purple-700 font-medium text-left hover:bg-purple-100 transition-colors"
+            @click="thinkingExpanded = !thinkingExpanded"
+          >
+            <span>💭</span>
+            <span>思考过程</span>
+            <span class="ml-auto">{{ thinkingExpanded ? '▲' : '▼' }}</span>
+          </button>
+          <div v-if="thinkingExpanded" class="px-3 py-2 text-purple-800 whitespace-pre-wrap leading-relaxed border-t border-purple-200">
+            {{ aiStore.streamingThinkingText }}
+          </div>
         </div>
 
-        <!-- Streaming text with character count -->
+        <!-- Committed streaming blocks: interleaved text segments and tool calls -->
+        <template v-for="(block, idx) in aiStore.streamingBlocks" :key="idx">
+          <div
+            v-if="block.type === 'text'"
+            class="inline-block px-3 py-2 rounded-lg text-sm bg-gray-100 text-gray-900 break-words max-w-full"
+          >
+            <div class="prose prose-sm max-w-none" v-html="renderMarkdown(block.text)" />
+          </div>
+          <ToolCallView v-else-if="block.type === 'tool_call'" :tool-call="block.toolCall" />
+        </template>
+
+        <!-- Currently streaming text (not yet committed to a block) -->
         <div
-          v-if="aiStore.streamingText"
+          v-if="aiStore.streamingCurrentText"
           class="inline-block px-3 py-2 rounded-lg text-sm bg-gray-100 text-gray-900 break-words max-w-full"
         >
-          <div class="prose prose-sm max-w-none" v-html="renderMarkdown(aiStore.streamingText)" />
+          <div class="prose prose-sm max-w-none" v-html="renderMarkdown(aiStore.streamingCurrentText)" />
           <div class="flex items-center gap-2 mt-1">
             <div class="flex items-center gap-0.5">
               <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms" />
@@ -34,9 +59,9 @@
           </div>
         </div>
 
-        <!-- Thinking / waiting state with elapsed timer -->
+        <!-- Waiting state: no current text (tool running or waiting for first response) -->
         <div
-          v-else-if="!aiStore.streamingToolName"
+          v-else
           class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100"
         >
           <div class="flex items-center gap-0.5">
@@ -46,6 +71,7 @@
           </div>
           <span class="text-xs text-gray-500">{{ thinkingLabel }} · {{ elapsedSeconds }}s</span>
         </div>
+
       </div>
     </div>
 
@@ -69,9 +95,6 @@ import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
 defineProps<{ bottomPadding?: number }>()
 import { marked } from 'marked'
 import { useAiStore } from '@/stores/ai'
-import { inferToolKind } from '@/types/ai'
-import { TOOL_DISPLAY_NAMES } from '@/ai/agent/AgentRunner'
-import type { AiToolCall } from '@/types/ai'
 import AgentEmptyState from './AgentEmptyState.vue'
 import AgentMessageBubble from './AgentMessageBubble.vue'
 import ToolCallView from '../ToolCallView.vue'
@@ -79,14 +102,7 @@ import ProposalNavigator from '../ProposalNavigator.vue'
 
 const aiStore = useAiStore()
 
-const streamingToolCall = computed<AiToolCall>(() => ({
-  id: 'streaming',
-  name: aiStore.streamingToolName ?? '',
-  kind: inferToolKind(aiStore.streamingToolName ?? ''),
-  title: TOOL_DISPLAY_NAMES[aiStore.streamingToolName ?? ''] ?? aiStore.streamingToolName ?? '',
-  status: 'in_progress',
-  arguments: {},
-}))
+const thinkingExpanded = ref(false)
 
 // ── Elapsed timer ─────────────────────────────────────────────────────────
 const elapsedSeconds = ref(0)
@@ -108,7 +124,7 @@ onUnmounted(() => {
 // ── Status label: changes when a tool round completes ─────────────────────
 const thinkingLabel = computed(() => {
   // If LLM had already called tools in this session, it's "processing results"
-  if ((aiStore.activeThread?.messages.length ?? 0) > 0) return '正在处理'
+  if ((aiStore.activeThread?.messages?.length ?? 0) > 0) return '正在处理'
   return '思考中'
 })
 
@@ -118,7 +134,7 @@ const thinkingLabel = computed(() => {
 const messagesEl = ref<HTMLDivElement>()
 
 watch(
-  () => [aiStore.streamingText, aiStore.activeThread?.messages.length],
+  () => [aiStore.streamingText, aiStore.activeThread?.messages?.length],
   () => {
     nextTick(() => {
       if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight
@@ -134,9 +150,9 @@ function renderMarkdown(text: string): string {
 async function handleResend(messageId: string, newContent: string) {
   const thread = aiStore.activeThread
   if (!thread) return
-  const idx = thread.messages.findIndex(m => m.id === messageId)
+  const idx = (thread.messages ?? []).findIndex(m => m.id === messageId)
   if (idx < 0) return
-  aiStore.updateThread({ ...thread, messages: thread.messages.slice(0, idx) })
+  aiStore.updateThread({ ...thread, messages: (thread.messages ?? []).slice(0, idx) })
   await aiStore.sendMessage(newContent)
 }
 </script>

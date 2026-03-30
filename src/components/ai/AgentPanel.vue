@@ -37,13 +37,17 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useAiStore } from '@/stores/ai'
+import { useAppStore } from '@/stores/app'
 import AgentHeader from './agent-panel/AgentHeader.vue'
 import AgentHistoryPanel from './agent-panel/AgentHistoryPanel.vue'
 import AgentChatArea from './agent-panel/AgentChatArea.vue'
 import AgentInputArea from './agent-panel/input/AgentInputArea.vue'
 import ProviderSettings from './ProviderSettings.vue'
+import type { SnapshotRequestEvent } from '@/types/ai-ipc'
+import { buildSerializedSnapshot } from '@/ai/snapshot/SnapshotSerializer'
 
 const aiStore = useAiStore()
+const appStore = useAppStore()
 
 const showHistory = ref(false)
 const showSettings = ref(!aiStore.settings.providerConfigs.length)
@@ -72,7 +76,7 @@ const headerTitle = computed(() => {
   if (showHistory.value) return '历史会话'
   if (showSettings.value) return settingsSubTitle.value
   const thread = aiStore.activeThread
-  if (!thread || thread.messages.length === 0) return '新会话'
+  if (!thread || !thread.messages?.length) return '新会话'
   return thread.title
 })
 
@@ -91,6 +95,47 @@ onMounted(() => {
   resizeObserver = new ResizeObserver(entries => {
     inputAreaHeight.value = entries[0]?.contentRect.height ?? 0
   })
+
+  // Register IPC listeners for main-process AgentEngine
+  aiStore.init()
+
+  // Handle snapshot requests from main process document tools
+  window.electronAPI.onAiRequestSnapshot?.(async (req: SnapshotRequestEvent) => {
+    type TipTapEditor = import('@tiptap/core').Editor
+    let editor: TipTapEditor | null = null
+    let editorFilePath: string | null = null
+
+    if (!req.filePath) {
+      // No file_path → use active tab
+      const activeTab = appStore.activeTab
+      editor = activeTab?.editorInstance as TipTapEditor | null ?? null
+      editorFilePath = activeTab?.path ?? null
+    } else {
+      // file_path provided → look for it across all open tabs
+      const target = req.filePath.replace(/\\/g, '/').toLowerCase()
+      const matchingTab = appStore.tabs.find(tab => {
+        const tabPath = tab.path?.replace(/\\/g, '/').toLowerCase()
+        return tabPath === target
+      })
+      if (matchingTab) {
+        editor = matchingTab.editorInstance as TipTapEditor | null ?? null
+        editorFilePath = matchingTab.path ?? null
+      }
+      // If no matching tab, editor stays null → buildSerializedSnapshot loads from disk
+    }
+
+    const snapshot = await buildSerializedSnapshot(
+      req.filePath,
+      editor,
+      editorFilePath,
+      null
+    )
+    window.electronAPI.aiSnapshotResponse?.({
+      requestId: req.requestId,
+      filePath: req.filePath,
+      snapshot,
+    })
+  })
 })
 
 watch(inputAreaRef, el => {
@@ -100,6 +145,7 @@ watch(inputAreaRef, el => {
 
 onUnmounted(() => {
   resizeObserver?.disconnect()
+  aiStore.teardown()
 })
 
 function selectThread(id: string) {

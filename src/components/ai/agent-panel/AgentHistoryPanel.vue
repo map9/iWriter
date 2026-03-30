@@ -178,7 +178,7 @@ function formatBytes(bytes: number): string {
 }
 
 function threadSubtitle(thread: AiThread): string {
-  const msgCount = thread.messages.length
+  const msgCount = thread.messages?.length ?? 0
   const size = formatBytes(JSON.stringify(thread).length)
   return `${msgCount} messages · ${size}`
 }
