@@ -55,8 +55,10 @@ export interface AiToolCall {
   kind: AiToolCallKind
   /** Human-readable title shown in the UI (e.g. "读取 introduction.md") */
   title: string
+  /** Compact parameter summary shown beside the title */
+  paramsText?: string
   /** Lifecycle status */
-  status: 'pending' | 'in_progress' | 'completed' | 'failed'
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'rejected'
   /** File reference extracted from tool arguments (if applicable) */
   file?: { path: string; startLine?: number; endLine?: number }
 
@@ -73,12 +75,35 @@ export interface AiToolResult {
   isError?: boolean
 }
 
-/** Ordered content block for interleaved text + tool call rendering. */
-export interface MessageContentBlock {
-  type: 'text' | 'tool_call'
-  text?: string        // for type === 'text'
-  toolCallId?: string  // for type === 'tool_call'
+export interface MessageTextBlock {
+  type: 'text'
+  text: string
 }
+
+export interface MessageToolCallBlock {
+  type: 'tool_call'
+  toolCallId: string
+}
+
+export interface MessageThinkingBlock {
+  type: 'thinking'
+  text: string
+}
+
+export interface MessageAgentEventBlock {
+  type: 'agent_event'
+  text?: string
+  agentId?: string
+  agentName?: string
+  status?: 'started' | 'running' | 'completed' | 'failed'
+}
+
+/** Ordered content block for interleaved text + tool call rendering. */
+export type MessageContentBlock =
+  | MessageTextBlock
+  | MessageToolCallBlock
+  | MessageThinkingBlock
+  | MessageAgentEventBlock
 
 // ── Edit Proposals ─────────────────────────────────────────────────────────
 
@@ -86,6 +111,7 @@ interface BaseEditProposal {
   id: string
   description?: string
   status: 'pending' | 'applied' | 'rejected'
+  sourceMessageId?: string
   /** True if the user modified the proposal args before approving (edit decision). */
   wasEdited?: boolean
 }

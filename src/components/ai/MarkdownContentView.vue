@@ -29,9 +29,10 @@ const props = defineProps<{
 }>()
 
 const MD_PATTERN = /^#{1,6}\s|\*\*[^*]+\*\*|^[-*]\s|^>\s|^```|^\d+\.\s|\[.+\]\(.+\)/m
+const HTML_PATTERN = /<\/?[a-z][\s\S]*>/i
 
 function looksLikeMarkdown(text: string): boolean {
-  return MD_PATTERN.test(text)
+  return MD_PATTERN.test(text) || HTML_PATTERN.test(text)
 }
 
 const isText = computed(() => {
@@ -147,6 +148,104 @@ function escapeHtml(s: string) {
 }
 .mcv-md :deep(li > p) {
   margin: 0;
+}
+
+/* GFM task lists */
+.mcv-md :deep(ul.contains-task-list) {
+  list-style: none;
+  padding-left: 0;
+}
+.mcv-md :deep(ul:has(> li > input[type='checkbox'])) {
+  list-style: none;
+  padding-left: 0;
+}
+.mcv-md :deep(li.task-list-item) {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0.2em 0;
+  list-style: none;
+}
+.mcv-md :deep(li:has(> input[type='checkbox'])) {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0.2em 0;
+  list-style: none;
+}
+.mcv-md :deep(li.task-list-item input[type='checkbox']) {
+  margin: 0.18em 0 0;
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: 0 0 auto;
+  accent-color: #22c55e;
+  pointer-events: none;
+}
+.mcv-md :deep(li > input[type='checkbox']) {
+  margin: 0.18em 0 0;
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: 0 0 auto;
+  accent-color: #22c55e;
+  pointer-events: none;
+}
+.mcv-md :deep(li.task-list-item p) {
+  margin: 0;
+}
+.mcv-md :deep(.mcv-todo-status) {
+  margin-left: 0.35rem;
+  font-size: 0.92em;
+  white-space: nowrap;
+}
+.mcv-md :deep(.mcv-todo-status--progress) {
+  color: #b45309;
+  font-weight: 600;
+}
+
+/* Custom todo UI emitted by write_todos formatter */
+.mcv-md :deep(ul.mcv-todo-list) {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.25em 0;
+}
+.mcv-md :deep(li.mcv-todo-item) {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.22em 0;
+  list-style: none;
+}
+.mcv-md :deep(.mcv-todo-box) {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.22rem;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  font-size: 0.72rem;
+  line-height: 1;
+  margin-top: 0.12rem;
+}
+.mcv-md :deep(.mcv-todo-box--done) {
+  border-color: #22c55e;
+  background: #dcfce7;
+  color: #15803d;
+}
+.mcv-md :deep(.mcv-todo-box--progress) {
+  border-color: #f59e0b;
+  background: #fef3c7;
+  color: #b45309;
+}
+.mcv-md :deep(.mcv-todo-box--pending) {
+  border-color: #cbd5e1;
+  background: #fff;
+  color: transparent;
+}
+.mcv-md :deep(.mcv-todo-label) {
+  flex: 1 1 auto;
 }
 
 /* Inline code */

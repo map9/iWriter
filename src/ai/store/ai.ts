@@ -11,6 +11,7 @@ import type {
   ThreadMessage,
   SendContext,
   AiToolCall,
+  MessageContentBlock,
 } from '@/ai/types'
 import {
   inferToolKind,
@@ -21,6 +22,12 @@ import {
 } from '@/ai/types'
 import { PROVIDER_PRESETS, type ProviderPreset } from '@/ai/providers/provider-presets'
 import { createThread, appendMessage, createMessage } from '@/ai/thread/Thread'
+import {
+  normalizeThreadMessageForDisplay,
+  normalizeThreadMessagesForDisplay,
+  stableStringify,
+  type ToolCallStatusOverrides,
+} from '@/ai/message/display-normalizer'
 import { applyBlockEditProposal } from '@/ai/edit-agent/BlockEditApplier'
 import { buildSnapshot, buildEditorStateBlock } from '@/ai/thread/ContextBuilder'
 import { useAppStore } from '@/stores/app'
@@ -240,7 +247,7 @@ export const useAiStore = defineStore('ai', () => {
       try {
         const messages = await window.electronAPI.aiGetThreadMessages?.(id)
         if (messages?.length) {
-          updateThread({ ...thread, messages, messagesLoaded: true })
+          updateThread({ ...thread, messages: _normalizeMessagesForDisplay(messages), messagesLoaded: true })
         } else {
           // No messages yet (or empty thread) — mark loaded to avoid repeated fetches
           updateThread({ ...thread, messages: messages ?? [], messagesLoaded: true })
@@ -300,6 +307,9 @@ export const useAiStore = defineStore('ai', () => {
   const streamingThinkingText = ref('')
   const streamingToolName = ref<string | null>(null)
   const pendingEditProposals = ref<EditProposal[]>([])
+  const isResumingReviewedEdits = ref(false)
+  const reviewedToolCallStatuses = ref<Record<string, AiToolCall['status']>>({})
+  const reviewedEditSignatures = ref<Record<string, AiToolCall['status']>>({})
 
   /** Thread ID of the currently active (streaming or interrupted) run. */
   const _currentThreadId = ref<string | null>(null)
@@ -338,6 +348,129 @@ export const useAiStore = defineStore('ai', () => {
    * (onAiRunError already added the error message to the thread).
    */
   let _currentRunHasError = false
+
+  function _displayOverrides(): ToolCallStatusOverrides {
+    return {
+      byId: reviewedToolCallStatuses.value,
+      bySignature: reviewedEditSignatures.value,
+    }
+  }
+
+  function _proposalToolSignature(proposal: EditProposal): string {
+    if (proposal.kind === 'create_file') {
+      return `create_document:${stableStringify({
+        filename: proposal.filename,
+        content: proposal.content,
+      })}`
+    }
+    switch (proposal.type) {
+      case 'edit':
+        return `edit_block:${stableStringify({
+          block_id: proposal.displayBlockId,
+          file_path: proposal.filePath,
+        })}`
+      case 'insert':
+        return `insert_block:${stableStringify({
+          after_block_id: proposal.displayBlockId ?? 0,
+          file_path: proposal.filePath,
+        })}`
+      case 'delete':
+        return `delete_block:${stableStringify({
+          block_id: proposal.displayBlockId,
+          file_path: proposal.filePath,
+        })}`
+      case 'replace_range':
+        return `replace_range:${stableStringify({
+          start_block_id: proposal.startDisplayBlockId,
+          end_block_id: proposal.endDisplayBlockId,
+          file_path: proposal.filePath,
+        })}`
+    }
+  }
+
+  function _proposalMatchesToolCall(proposal: EditProposal, toolCall: AiToolCall): boolean {
+    if (toolCall.id === proposal.toolCallId) return true
+
+    const args = toolCall.arguments
+
+    if (proposal.kind === 'create_file') {
+      return toolCall.name === 'create_document'
+        && String(args.filename ?? '') === String(proposal.filename ?? '')
+    }
+
+    const sameFilePath = String(args.file_path ?? '') === String(proposal.filePath ?? '')
+
+    switch (proposal.type) {
+      case 'edit':
+        return toolCall.name === 'edit_block'
+          && String(args.block_id ?? '') === String(proposal.displayBlockId ?? '')
+          && sameFilePath
+      case 'insert':
+        return toolCall.name === 'insert_block'
+          && String(args.after_block_id ?? 0) === String(proposal.displayBlockId ?? 0)
+          && sameFilePath
+      case 'delete':
+        return toolCall.name === 'delete_block'
+          && String(args.block_id ?? '') === String(proposal.displayBlockId ?? '')
+          && sameFilePath
+      case 'replace_range':
+        return toolCall.name === 'replace_range'
+          && String(args.start_block_id ?? '') === String(proposal.startDisplayBlockId ?? '')
+          && String(args.end_block_id ?? '') === String(proposal.endDisplayBlockId ?? '')
+          && sameFilePath
+    }
+  }
+
+  function _normalizeMessagesForDisplay(messages: ThreadMessage[]): ThreadMessage[] {
+    return normalizeThreadMessagesForDisplay(messages, _displayOverrides())
+  }
+
+  function _normalizeMessageForDisplay(message: ThreadMessage): ThreadMessage {
+    return normalizeThreadMessageForDisplay(message, _displayOverrides())
+  }
+
+  function _updateLocalProposalToolCall(
+    proposalId: string,
+    status: AiToolCall['status'],
+  ) {
+    const proposal = _findProposal(proposalId)
+    if (!proposal) return
+    const proposalSignature = _proposalToolSignature(proposal)
+    const toolCallId = proposal.toolCallId
+    if (toolCallId) {
+      reviewedToolCallStatuses.value = {
+        ...reviewedToolCallStatuses.value,
+        [toolCallId]: status,
+      }
+    }
+    reviewedEditSignatures.value = {
+      ...reviewedEditSignatures.value,
+      [_proposalToolSignature(proposal)]: status,
+    }
+
+    const thread = activeThread.value
+    if (!thread?.messages?.length) return
+    const hasSourceMessage = !!proposal.sourceMessageId
+      && thread.messages.some(message => message.id === proposal.sourceMessageId)
+
+    const messages = thread.messages.map(message => {
+      if (hasSourceMessage && message.id !== proposal.sourceMessageId) return message
+      if (!message.toolCalls?.length) return message
+      return {
+        ...message,
+        toolCalls: message.toolCalls.map(tc =>
+          {
+            const isMatch =
+              tc.id === toolCallId
+              || `${tc.name}:${stableStringify(tc.arguments)}` === proposalSignature
+              || _proposalMatchesToolCall(proposal, tc)
+            return isMatch ? { ...tc, status } : tc
+          }
+        ),
+      }
+    })
+    updateThread({ ...thread, messages: _normalizeMessagesForDisplay(messages) })
+  }
 
   // ── Send Message ──────────────────────────────────────────────────────────
   async function sendMessage(userText: string, sendContext?: SendContext): Promise<boolean> {
@@ -525,6 +658,7 @@ export const useAiStore = defineStore('ai', () => {
     _threadRunState.value = 'idle'
     _interruptedThreadId.value = null
     _interruptActionCount.value = 0
+    isResumingReviewedEdits.value = false
     _decisionRecord.clear()
     _proposalIndexMap.clear()
     pendingEditProposals.value = []
@@ -562,6 +696,7 @@ export const useAiStore = defineStore('ai', () => {
     })
 
     _threadRunState.value = 'streaming'
+    isResumingReviewedEdits.value = true
     _currentThreadId.value = threadId
     _interruptedThreadId.value = null
     _interruptActionCount.value = 0
@@ -605,6 +740,7 @@ export const useAiStore = defineStore('ai', () => {
         }
         const result = await applyBlockEditProposal(editor, insertProposal)
         if (result.success) {
+          _updateLocalProposalToolCall(proposalId, 'completed')
           if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
           pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
           notify.success(`文档"${p.filename}"已创建`)
@@ -621,6 +757,7 @@ export const useAiStore = defineStore('ai', () => {
     const blockProposal = proposal as BlockEditProposal
     const result = await _applyBlockProposalToTarget(blockProposal)
     if (result.success) {
+      _updateLocalProposalToolCall(proposalId, 'completed')
       if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
       pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
       notify.success(blockProposal.filePath ? '文件编辑已应用' : '编辑已应用')
@@ -660,6 +797,7 @@ export const useAiStore = defineStore('ai', () => {
 
     const result = await _applyBlockProposalToTarget(blockProposal)
     if (result.success) {
+      _updateLocalProposalToolCall(proposalId, 'completed')
       if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'edited', editedArgs })
       pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
       notify.success(blockProposal.filePath ? '文件编辑（已修改）已应用' : '编辑（已修改）已应用')
@@ -681,6 +819,7 @@ export const useAiStore = defineStore('ai', () => {
     if (proposalIndex >= 0) {
       _decisionRecord.set(proposalIndex, { type: 'rejected' })
     }
+    _updateLocalProposalToolCall(proposalId, 'rejected')
     pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
 
     // If some proposals in the same batch were already approved, inform the user
@@ -697,6 +836,46 @@ export const useAiStore = defineStore('ai', () => {
 
   /** All currently pending proposals (source of truth is pendingEditProposals) */
   const allPendingProposals = computed<EditProposal[]>(() => pendingEditProposals.value)
+
+  const streamingPreviewMessage = computed<ThreadMessage | null>(() => {
+    const contentBlocks: MessageContentBlock[] = []
+    const toolCalls: AiToolCall[] = []
+    let content = ''
+
+    for (const block of streamingBlocks.value) {
+      if (block.type === 'text' && block.text) {
+        contentBlocks.push({ type: 'text', text: block.text })
+        content += block.text
+        continue
+      }
+      if (block.type === 'tool_call') {
+        if (isResumingReviewedEdits.value && block.toolCall.kind === 'edit') {
+          continue
+        }
+        contentBlocks.push({ type: 'tool_call', toolCallId: block.toolCall.id })
+        toolCalls.push(block.toolCall)
+      }
+    }
+
+    if (streamingCurrentText.value) {
+      contentBlocks.push({ type: 'text', text: streamingCurrentText.value })
+      content += streamingCurrentText.value
+    }
+
+    if (!contentBlocks.length && !streamingThinkingText.value) {
+      return null
+    }
+
+    return _normalizeMessageForDisplay({
+      id: 'streaming-preview',
+      role: 'assistant',
+      content,
+      timestamp: Date.now(),
+      thinkingContent: streamingThinkingText.value || undefined,
+      toolCalls: toolCalls.length ? toolCalls : undefined,
+      contentBlocks: contentBlocks.length ? contentBlocks : undefined,
+    })
+  })
 
   async function approveAllProposals() {
     const ids = [...pendingEditProposals.value].map(p => p.id)
@@ -724,6 +903,7 @@ export const useAiStore = defineStore('ai', () => {
     _currentThreadId.value = null
     _interruptedThreadId.value = null
     _interruptActionCount.value = 0
+    isResumingReviewedEdits.value = false
     _decisionRecord.clear()
     _proposalIndexMap.clear()
     streamingThinkingText.value = ''
@@ -758,7 +938,7 @@ export const useAiStore = defineStore('ai', () => {
           try {
             const messages = await window.electronAPI.aiGetThreadMessages?.(firstId)
             if (messages?.length) {
-              updateThread({ ...mainThreads[0]!, messages, messagesLoaded: true })
+              updateThread({ ...mainThreads[0]!, messages: _normalizeMessagesForDisplay(messages), messagesLoaded: true })
             }
           } catch { /* ignore */ }
         }
@@ -798,6 +978,7 @@ export const useAiStore = defineStore('ai', () => {
       _threadRunState.value = 'interrupted'
       _interruptedThreadId.value = e.threadId
       _interruptActionCount.value = e.proposals.length
+      isResumingReviewedEdits.value = false
       _decisionRecord.clear()
       _proposalIndexMap.clear()
 
@@ -824,7 +1005,7 @@ export const useAiStore = defineStore('ai', () => {
         if (e.partialMessage) {
           const alreadyPresent = (updated.messages ?? []).some(m => m.id === e.partialMessage!.id)
           if (!alreadyPresent) {
-            updated = appendMessage(updated, e.partialMessage)
+            updated = appendMessage(updated, _normalizeMessageForDisplay(e.partialMessage))
           }
         }
         updateThread({ ...updated, messagesLoaded: false })
@@ -835,9 +1016,12 @@ export const useAiStore = defineStore('ai', () => {
           .then(messages => {
             if (!messages?.length) return
             const current = activeThread.value
-            if (current && current.id === e.threadId) {
-              updateThread({ ...current, messages, messagesLoaded: true })
-            }
+            if (current && current.id !== e.threadId) return
+            // Guard: checkpoint reload must not reduce local message count.
+            // A stale async reload (from an earlier interrupt) could wipe partialMessages
+            // appended by a later interrupt. Messages only grow within a run.
+            if (messages.length < (current?.messages?.length ?? 0)) return
+            updateThread({ ...current!, messages: _normalizeMessagesForDisplay(messages), messagesLoaded: true })
           })
           .catch(() => {/* ignore */ })
       }
@@ -855,6 +1039,7 @@ export const useAiStore = defineStore('ai', () => {
       _currentThreadId.value = null
       _interruptedThreadId.value = null
       _interruptActionCount.value = 0
+      isResumingReviewedEdits.value = false
       _decisionRecord.clear()
       _proposalIndexMap.clear()
       pendingEditProposals.value = []
@@ -869,7 +1054,7 @@ export const useAiStore = defineStore('ai', () => {
             if (!messages?.length) return  // guard: keep local messages if checkpointer returns empty
             const current = activeThread.value
             if (current && current.id === e.threadId) {
-              updateThread({ ...current, messages, messagesLoaded: true })
+              updateThread({ ...current, messages: _normalizeMessagesForDisplay(messages), messagesLoaded: true })
             }
           })
           .catch(() => {/* ignore */ })
@@ -887,6 +1072,7 @@ export const useAiStore = defineStore('ai', () => {
       _currentThreadId.value = null
       _interruptedThreadId.value = null
       _interruptActionCount.value = 0
+      isResumingReviewedEdits.value = false
       _decisionRecord.clear()
 
       notify.error(`AI 错误: ${e.error}`)
@@ -944,7 +1130,11 @@ export const useAiStore = defineStore('ai', () => {
     streamingBlocks,
     streamingThinkingText,
     streamingToolName,
+    streamingPreviewMessage,
     pendingEditProposals,
+    isResumingReviewedEdits,
+    reviewedToolCallStatuses,
+    reviewedEditSignatures,
 
     // Actions
     sendMessage,

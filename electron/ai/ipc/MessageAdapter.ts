@@ -14,7 +14,7 @@ import type {
   EditProposal,
   MessageContentBlock,
 } from '../../../src/types/ai'
-import { inferToolKind } from '../../../src/types/ai'
+import { BLOCK_EDIT_TOOLS, inferToolKind } from '../../../src/types/ai'
 import type { SerializedSnapshot } from './protocol'
 
 // ── Tool argument parsing ────────────────────────────────────────────────────
@@ -31,15 +31,22 @@ export function parseToolArguments(raw: unknown): Record<string, unknown> {
 // ── Tool result extraction ───────────────────────────────────────────────────
 
 export function extractToolResult(toolName: string, output: unknown): string {
+  output = normalizeToolOutput(output)
+
   if (toolName === 'write_todos') {
     type Todo = { content?: unknown; status?: unknown }
 
     const formatTodos = (items: Todo[]): string =>
-      items.map(t => {
+      `<ul class="mcv-todo-list">${items.map(t => {
         const status = String(t.status ?? '')
-        const mark = status === 'completed' ? 'x' : status === 'in_progress' ? '-' : ' '
-        return `- [${mark}] ${String(t.content ?? '')}`
-      }).join('\n')
+        const icon = status === 'completed' ? '✓' : status === 'in_progress' ? '▶' : ''
+        const boxClass = status === 'completed'
+          ? 'mcv-todo-box mcv-todo-box--done'
+          : status === 'in_progress'
+            ? 'mcv-todo-box mcv-todo-box--progress'
+            : 'mcv-todo-box mcv-todo-box--pending'
+        return `<li class="mcv-todo-item"><span class="${boxClass}">${icon}</span><span class="mcv-todo-label">${escapeHtml(String(t.content ?? ''))}</span></li>`
+      }).join('')}</ul>`
 
     // Format 1: {update: {todos: [...]}}
     const todos: Todo[] | undefined =
@@ -48,6 +55,20 @@ export function extractToolResult(toolName: string, output: unknown): string {
         : undefined
     if (Array.isArray(todos) && todos.length > 0) {
       return formatTodos(todos)
+    }
+
+    // Format 0: top-level string, e.g. "Updated todo list to [...]"
+    if (typeof output === 'string') {
+      const match = output.match(/\[[\s\S]*\]/)
+      if (match) {
+        try {
+          const parsed: Todo[] = JSON.parse(match[0])
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].content !== undefined) {
+            return formatTodos(parsed)
+          }
+        } catch { /* fall through */ }
+      }
+      return output.slice(0, 500)
     }
 
     // Format 2: {update: {messages: [{content: "Updated todo list to [...]"}]}}
@@ -97,6 +118,31 @@ function lcMsgText(content: unknown): string {
   return String(content ?? '')
 }
 
+function parseMaybeJson(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return raw
+  }
+}
+
+function normalizeToolOutput(raw: unknown): unknown {
+  if (raw == null) return raw
+  if (typeof raw === 'string') return parseMaybeJson(raw)
+  if (Array.isArray(raw)) return parseMaybeJson(lcMsgText(raw))
+  return raw
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 /**
  * Convert raw LangChain messages from the checkpointer into renderer-friendly ThreadMessage[].
  * This is the single place responsible for the LangChain → ThreadMessage transformation.
@@ -114,8 +160,12 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
 
     if (type === 'human') {
       const raw = lcMsgText(msg.content)
-      // Strip <editor_state>...</editor_state> XML prefix injected at send time
-      const content = raw.replace(/<editor_state[\s\S]*?<\/editor_state>\s*/g, '').trim()
+      // Strip system-injected XML blocks added at send time (editor_state, context_files, filesystem_roots)
+      const content = raw
+        .replace(/<editor_state[\s\S]*?<\/editor_state>\s*/g, '')
+        .replace(/<context_files>[\s\S]*?<\/context_files>\s*/g, '')
+        .replace(/<filesystem_roots>[\s\S]*?<\/filesystem_roots>\s*/g, '')
+        .trim()
       result.push({
         id: `msg-h-${i}`,
         role: 'user',
@@ -135,7 +185,9 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
         name: tc.name,
         kind: inferToolKind(tc.name),
         title: tc.name,
-        status: 'completed' as const,
+        // In LangGraph HITL, an AI message can contain proposed tool calls that
+        // have not executed yet because the run interrupted for review.
+        status: 'pending' as const,
         arguments: tc.args ?? {},
       }))
 
@@ -152,11 +204,28 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
       while (j < rawMessages.length && lcMsgType(rawMessages[j]) === 'tool') {
         const toolMsg = rawMessages[j]
         const tcId: string = toolMsg.tool_call_id ?? ''
-        const resultText = lcMsgText(toolMsg.content)
         const tc = toolCalls.find(t => t.id === tcId)
-        if (tc) tc.result = resultText.slice(0, 500)
+        const resultText = extractToolResult(tc?.name ?? '', toolMsg.content)
+        if (tc) {
+          tc.status = 'completed'
+          tc.result = tc.name === 'write_todos'
+            ? resultText
+            : resultText.slice(0, 500)
+        }
         toolResults.push({ toolCallId: tcId, content: resultText })
         j++
+      }
+
+      const hasLaterConversation = rawMessages.slice(j).some(nextMsg => {
+        const nextType = lcMsgType(nextMsg)
+        return nextType !== 'tool' && nextType !== 'system' && nextType !== 'remove'
+      })
+      if (hasLaterConversation) {
+        for (const toolCall of toolCalls) {
+          if (toolCall.status === 'pending' && BLOCK_EDIT_TOOLS.has(toolCall.name)) {
+            toolCall.status = 'rejected'
+          }
+        }
       }
 
       result.push({
@@ -188,6 +257,8 @@ export function buildProposalFromAction(
   toolName: string,
   args: Record<string, unknown>,
   snapshot: SerializedSnapshot | null,
+  toolCallId?: string,
+  sourceMessageId?: string,
 ): EditProposal {
   const id = `proposal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const filePath = typeof args.file_path === 'string' ? args.file_path : undefined
@@ -203,8 +274,10 @@ export function buildProposalFromAction(
       id,
       kind: 'create_file',
       status: 'pending',
+      sourceMessageId,
       filename,
       content: String(args.content ?? ''),
+      toolCallId,
       description: description ?? `Create document: ${filename || args.filename}`,
     } satisfies FileCreateProposal
   }
@@ -214,7 +287,9 @@ export function buildProposalFromAction(
     id,
     kind: 'block',
     status: 'pending',
+    sourceMessageId,
     filePath,
+    toolCallId,
   }
 
   if (toolName === 'edit_block') {
@@ -264,6 +339,12 @@ export function buildProposalFromAction(
     const endId = Number(args.end_block_id)
     const startEntry = snapshot?.blockMap.find(b => b.displayId === startId)
     const endEntry = snapshot?.blockMap.find(b => b.displayId === endId)
+    const rangeStart = Math.min(startId, endId)
+    const rangeEnd = Math.max(startId, endId)
+    const oldContent = snapshot?.blockMap
+      .filter(b => b.displayId >= rangeStart && b.displayId <= rangeEnd)
+      .map(b => b.content)
+      .join('\n\n')
     return {
       ...blockProposal,
       type: 'replace_range',
@@ -271,6 +352,7 @@ export function buildProposalFromAction(
       endDisplayBlockId: endId,
       startNodeId: startEntry?.nodeId,
       endNodeId: endEntry?.nodeId,
+      oldContent,
       newContent: String(args.new_content ?? ''),
       description: description ?? `Replace {b:${startId}}–{b:${endId}}`,
     } as BlockEditProposal

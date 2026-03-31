@@ -21,6 +21,7 @@ import { Command } from '@langchain/langgraph'
 import { HumanMessage } from '@langchain/core/messages'
 
 import type { AiProviderConfig, AiAgentDomain, AiAgentProfile, ThreadMessage, EditProposal } from '../../src/types/ai'
+import { BLOCK_EDIT_TOOLS } from '../../src/types/ai'
 import { createChatModel } from './providers/ModelFactory'
 import { buildDocumentTools } from './tools/DocumentTools'
 import { buildEditProposalTools } from './tools/EditProposalTools'
@@ -414,8 +415,17 @@ export class AgentEngine {
     }
 
     // Build one proposal per actionRequest, preserving order
-    const proposals: EditProposal[] = actionRequests.map(ar =>
-      buildProposalFromAction(ar.name, ar.args ?? {}, snapshot)
+    const pendingEditToolCalls = (partialMessage?.toolCalls ?? []).filter(tc =>
+      BLOCK_EDIT_TOOLS.has(tc.name) && tc.status !== 'completed'
+    )
+    const proposals: EditProposal[] = actionRequests.map((ar, index) =>
+      buildProposalFromAction(
+        ar.name,
+        ar.args ?? {},
+        snapshot,
+        pendingEditToolCalls[index]?.id,
+        partialMessage?.id,
+      )
     )
 
     this.runtimeStore.setInterrupted(threadId, {

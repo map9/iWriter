@@ -14,8 +14,8 @@
     <div v-if="aiStore.isStreaming" class="flex gap-2.5">
       <div class="flex-1 min-w-0 space-y-1.5">
         <AgentMessageBubble
-          v-if="streamingPreviewMessage"
-          :message="streamingPreviewMessage"
+          v-if="aiStore.streamingPreviewMessage"
+          :message="aiStore.streamingPreviewMessage"
           :is-preview="true"
           :preview-status-text="`${thinkingLabel} · ${elapsedSeconds}s`"
           :show-preview-pulse="true"
@@ -52,7 +52,6 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
-import type { ThreadMessage, MessageContentBlock, AiToolCall } from '@/ai/types'
 
 defineProps<{ bottomPadding?: number }>()
 import { useAiStore } from '@/ai/store/ai'
@@ -85,45 +84,6 @@ const thinkingLabel = computed(() => {
   if ((aiStore.activeThread?.messages?.length ?? 0) > 0) return '正在处理'
   return '思考中'
 })
-
-const streamingPreviewMessage = computed<ThreadMessage | null>(() => {
-  const contentBlocks: MessageContentBlock[] = []
-  const toolCalls: AiToolCall[] = []
-  let content = ''
-
-  for (const block of aiStore.streamingBlocks) {
-    if (block.type === 'text' && block.text) {
-      contentBlocks.push({ type: 'text', text: block.text })
-      content += block.text
-      continue
-    }
-    if (block.type === 'tool_call') {
-      contentBlocks.push({ type: 'tool_call', toolCallId: block.toolCall.id })
-      toolCalls.push(block.toolCall)
-    }
-  }
-
-  if (aiStore.streamingCurrentText) {
-    contentBlocks.push({ type: 'text', text: aiStore.streamingCurrentText })
-    content += aiStore.streamingCurrentText
-  }
-
-  if (!contentBlocks.length && !aiStore.streamingThinkingText) {
-    return null
-  }
-
-  return {
-    id: 'streaming-preview',
-    role: 'assistant',
-    content,
-    timestamp: Date.now(),
-    thinkingContent: aiStore.streamingThinkingText || undefined,
-    toolCalls: toolCalls.length ? toolCalls : undefined,
-    contentBlocks: contentBlocks.length ? contentBlocks : undefined,
-  }
-})
-
-
 
 // ── Auto-scroll ────────────────────────────────────────────────────────────
 const messagesEl = ref<HTMLDivElement>()

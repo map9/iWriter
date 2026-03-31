@@ -110,17 +110,20 @@ export async function applyEditBlock(
   }
 
   // For listItem/taskItem, markdownToContent wraps the result in a bulletList/taskList.
-  // We need the inner listItem node, not the outer list container.
+  // We need the inner listItem/taskItem nodes, not the outer list container.
   const nodeTypeName = found.node.type.name
-  let insertNode: JSONContent = nodes[0]!
-  if ((nodeTypeName === 'listItem' || nodeTypeName === 'taskItem') && nodes[0]?.content?.[0]) {
-    insertNode = nodes[0].content[0]
+  let insertContent: JSONContent | JSONContent[] = nodes
+  if (nodeTypeName === 'listItem' || nodeTypeName === 'taskItem') {
+    const innerItems = nodes[0]?.content
+    if (Array.isArray(innerItems) && innerItems.length > 0) {
+      insertContent = innerItems
+    }
   }
 
   editor.chain()
     .focus()
     .deleteRange({ from: found.from, to: found.to })
-    .insertContentAt(found.from, insertNode)
+    .insertContentAt(found.from, insertContent)
     .run()
 
   return { success: true }

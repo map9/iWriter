@@ -63,9 +63,27 @@ function resolveDocumentPathForRuntime(argFilePath: string | undefined, runtime:
   }
 
   const workspacePath = getRuntimeWorkspacePath(runtime)
-  if (workspacePath && !path.isAbsolute(requested)) {
-    const workspaceResolved = path.join(workspacePath, requested)
+  if (workspacePath) {
+    const workspaceRelative = requested.replace(/^\/+/, '')
+    const workspaceResolved = path.join(workspacePath, workspaceRelative)
     if (fs.existsSync(workspaceResolved)) return workspaceResolved
+
+    if (!path.isAbsolute(requested)) {
+      const relativeResolved = path.join(workspacePath, requested)
+      if (fs.existsSync(relativeResolved)) return relativeResolved
+    }
+
+    const workspaceDocs = listWorkspaceDocumentPaths(workspacePath)
+    const normalizedRequested = normalizePath(requested)
+    const byRelativePath = workspaceDocs.filter(filePath =>
+      normalizePath(path.relative(workspacePath, filePath)) === normalizedRequested.replace(/^\/+/, '')
+    )
+    if (byRelativePath.length === 1) return byRelativePath[0]!
+
+    const byBaseName = workspaceDocs.filter(filePath =>
+      path.basename(filePath).toLowerCase() === path.basename(requested).toLowerCase()
+    )
+    if (byBaseName.length === 1) return byBaseName[0]!
   }
 
   return requested
@@ -121,7 +139,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           .string()
           .optional()
           .describe(
-            'Absolute path to a local file (.md, .txt, or .iwt). Omit to use the open editor document.'
+            'Path to a local .md/.txt/.iwt file. Prefer an absolute host path; workspace-relative paths and root-style paths copied from ls (for example "/foo.iwt") are also accepted.'
           ),
       }),
     }
@@ -171,7 +189,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Absolute path to a local file. Omit to use the open editor.'),
+          .describe('Path to a local file. Prefer an absolute host path; workspace-relative/root-style workspace paths are also accepted. Omit to use the open editor.'),
       }),
     }
   )
@@ -209,7 +227,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Absolute path to a local file. Omit to use the open editor.'),
+          .describe('Path to a local file. Prefer an absolute host path; workspace-relative/root-style workspace paths are also accepted. Omit to use the open editor.'),
       }),
     }
   )
@@ -254,7 +272,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Absolute path to a local file. Omit to use the open editor.'),
+          .describe('Path to a local file. Prefer an absolute host path; workspace-relative/root-style workspace paths are also accepted. Omit to use the open editor.'),
       }),
     }
   )
@@ -301,7 +319,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Absolute path to a local file. Omit to use the open editor document.'),
+          .describe('Path to a local file. Prefer an absolute host path; workspace-relative/root-style workspace paths are also accepted. Omit to use the open editor document.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Match whole words only.'),
         regex: z.boolean().optional().describe('Treat query as a regular expression.'),
@@ -355,7 +373,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Absolute path to a local file. Omit to use the open editor document.'),
+          .describe('Path to a local file. Prefer an absolute host path; workspace-relative/root-style workspace paths are also accepted. Omit to use the open editor document.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Match whole words only.'),
         regex: z.boolean().optional().describe('Treat query as a regular expression.'),
