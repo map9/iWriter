@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
+import { getRuntimeConfigurable } from './runtimeHelpers'
 
 const STORY_SECTIONS = [
   'brainstorms',
@@ -14,9 +15,6 @@ const STORY_SECTIONS = [
 
 type StorySection = typeof STORY_SECTIONS[number]
 
-function getRuntimeConfigurable(runtime: unknown): Record<string, unknown> {
-  return ((runtime as { config?: { configurable?: Record<string, unknown> } })?.config?.configurable) ?? {}
-}
 
 function normalizeSlug(slug: string): string {
   return slug

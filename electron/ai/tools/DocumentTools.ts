@@ -5,28 +5,70 @@
  * query them using BlockParser. Supports both the active editor and disk files.
  */
 
+import * as fs from 'fs'
+import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import type { SnapshotBroker } from '../document/SnapshotBroker'
 import { BlockParser } from '../document/BlockParser'
-import { DocumentSearch, listWorkspaceDocumentPaths, type DocumentSearchOptions } from '../document/DocumentSearch'
-
-const SUPPORTED_DOC_EXTS = new Set(['md', 'txt', 'iwt'])
+import { DocumentSearch, listWorkspaceDocumentPaths, SUPPORTED_DOC_EXTS, type DocumentSearchOptions } from '../document/DocumentSearch'
+import { getRuntimeString } from './runtimeHelpers'
 
 function getExt(filePath: string): string {
   return filePath.split('.').pop()?.toLowerCase() ?? ''
 }
 
 function getRuntimeActiveFilePath(runtime: unknown): string | null {
-  const configurable = (runtime as { config?: { configurable?: Record<string, unknown> } })?.config?.configurable
-  const value = configurable?.active_file_path
-  return typeof value === 'string' ? value : null
+  return getRuntimeString(runtime, 'active_file_path')
 }
 
 function getRuntimeWorkspacePath(runtime: unknown): string | null {
-  const configurable = (runtime as { config?: { configurable?: Record<string, unknown> } })?.config?.configurable
-  const value = configurable?.workspace_path
-  return typeof value === 'string' && value.trim() ? value : null
+  const value = getRuntimeString(runtime, 'workspace_path')
+  return value?.trim() ? value : null
+}
+
+function getRuntimeStringList(runtime: unknown, key: string): string[] {
+  const raw = getRuntimeString(runtime, key)
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string' && !!item) : []
+  } catch {
+    return []
+  }
+}
+
+function normalizePath(p: string): string {
+  return p.replace(/\\/g, '/').toLowerCase()
+}
+
+function resolveDocumentPathForRuntime(argFilePath: string | undefined, runtime: unknown): string | null {
+  const activeFilePath = getRuntimeActiveFilePath(runtime)
+  const requested = BlockParser.resolveFilePath(argFilePath, activeFilePath)
+  if (requested === null) return null
+  if (fs.existsSync(requested)) return requested
+
+  const candidates = [
+    activeFilePath,
+    ...getRuntimeStringList(runtime, 'attached_text_file_paths'),
+  ].filter((value): value is string => typeof value === 'string' && !!value)
+
+  const direct = candidates.find(candidate => normalizePath(candidate) === normalizePath(requested))
+  if (direct) return direct
+
+  const base = path.basename(requested).toLowerCase()
+  if (base) {
+    const sameName = candidates.filter(candidate => path.basename(candidate).toLowerCase() === base)
+    if (sameName.length === 1) return sameName[0]!
+  }
+
+  const workspacePath = getRuntimeWorkspacePath(runtime)
+  if (workspacePath && !path.isAbsolute(requested)) {
+    const workspaceResolved = path.join(workspacePath, requested)
+    if (fs.existsSync(workspaceResolved)) return workspaceResolved
+  }
+
+  return requested
 }
 
 function toSearchOptions(input: {
@@ -46,7 +88,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
 
   const getDocumentOutline = tool(
     async ({ file_path }: { file_path?: string }, runtime) => {
-      const resolvedPath = BlockParser.resolveFilePath(file_path, getRuntimeActiveFilePath(runtime))
+      const resolvedPath = resolveDocumentPathForRuntime(file_path, runtime)
 
       if (resolvedPath !== null) {
         const ext = getExt(resolvedPath)
@@ -99,7 +141,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       limit?: number
       file_path?: string
     }, runtime) => {
-      const resolvedPath = BlockParser.resolveFilePath(file_path, getRuntimeActiveFilePath(runtime))
+      const resolvedPath = resolveDocumentPathForRuntime(file_path, runtime)
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
         return resolvedPath
@@ -144,7 +186,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       block_ids: number[]
       file_path?: string
     }, runtime) => {
-      const resolvedPath = BlockParser.resolveFilePath(file_path, getRuntimeActiveFilePath(runtime))
+      const resolvedPath = resolveDocumentPathForRuntime(file_path, runtime)
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
         return resolvedPath
@@ -184,7 +226,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       window?: number
       file_path?: string
     }, runtime) => {
-      const resolvedPath = BlockParser.resolveFilePath(file_path, getRuntimeActiveFilePath(runtime))
+      const resolvedPath = resolveDocumentPathForRuntime(file_path, runtime)
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
         return resolvedPath
@@ -233,7 +275,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       regex?: boolean
       max_matches?: number
     }, runtime) => {
-      const resolvedPath = BlockParser.resolveFilePath(file_path, getRuntimeActiveFilePath(runtime))
+      const resolvedPath = resolveDocumentPathForRuntime(file_path, runtime)
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
         return resolvedPath
@@ -286,7 +328,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       max_matches?: number
       max_sections?: number
     }, runtime) => {
-      const resolvedPath = BlockParser.resolveFilePath(file_path, getRuntimeActiveFilePath(runtime))
+      const resolvedPath = resolveDocumentPathForRuntime(file_path, runtime)
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
         return resolvedPath
@@ -358,55 +400,22 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       const options = toSearchOptions({ case_sensitive, whole_word, regex })
       const maxTotalMatches = max_matches !== undefined ? Math.max(1, max_matches) : 200
       let remainingMatches = maxTotalMatches
-      const files: Array<{
-        file_path: string
-        file_name: string
-        document_type: string
-        total_matches: number
-        matches: Array<{
-          block_id: number
-          heading_block_id: number | null
-          heading: string | null
-          node_type: string
-          match_count: number
-          match_texts: string[]
-          preview: string
-        }>
-      }> = []
+      const files: Parameters<typeof DocumentSearch.formatWorkspaceSearchResult>[1] = []
 
       for (const filePath of filePaths) {
         if (remainingMatches <= 0) break
         const snapshot = await snapshotBroker.requestSnapshot(filePath)
         if (!snapshot) continue
-        const raw = DocumentSearch.searchDocumentBlocks(snapshot, query, options, remainingMatches)
-        if (raw.startsWith('Error:')) continue
-        const parsed = JSON.parse(raw) as {
-          total_matches?: number
-          matches?: Array<{
-            block_id: number
-            heading_block_id: number | null
-            heading: string | null
-            node_type: string
-            match_count: number
-            match_texts: string[]
-            preview: string
-          }>
-        }
-        if (!parsed.matches?.length) continue
-        remainingMatches -= parsed.total_matches ?? parsed.matches.length
+        const result = DocumentSearch.searchDocumentBlocksRaw(snapshot, query, options, remainingMatches)
+        if (!result?.matches?.length) continue
+        remainingMatches -= result.total_matches
         files.push({
           file_path: filePath,
           file_name: filePath.split(/[\\/]/).pop() ?? filePath,
           document_type: getExt(filePath),
-          total_matches: parsed.total_matches ?? parsed.matches.length,
-          matches: parsed.matches.map(match => ({
-            block_id: match.block_id,
-            heading_block_id: match.heading_block_id,
-            heading: match.heading,
-            node_type: match.node_type,
-            match_count: match.match_count,
-            match_texts: match.match_texts,
-            preview: match.preview,
+          total_matches: result.total_matches,
+          matches: result.matches.map(({ block_id, heading_block_id, heading, node_type, match_count, match_texts, preview }) => ({
+            block_id, heading_block_id, heading, node_type, match_count, match_texts, preview,
           })),
         })
       }

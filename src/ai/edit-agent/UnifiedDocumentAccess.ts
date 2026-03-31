@@ -160,7 +160,7 @@ export class UnifiedDocumentAccess {
 
     const ext = pathUtils.extension(filePath)
     const converted = await convertContentFrom(raw, ext)
-    if (!converted) return { error: `Unsupported file type: ".${ext}". Use exec_shell to read this file.` }
+    if (!converted) return { error: `Unsupported file type: ".${ext}". Use execute command to read this file.` }
 
     const extensions = buildVirtualEditorExtensions()
     const json = generateJSON(converted.content, extensions)

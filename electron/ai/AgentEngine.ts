@@ -16,7 +16,7 @@ import * as fs from 'fs'
 import { app } from 'electron'
 import type { WebContents } from 'electron'
 import type { StructuredTool } from '@langchain/core/tools'
-import { createDeepAgent, LocalShellBackend } from 'deepagents'
+import { CompositeBackend, createDeepAgent, FilesystemBackend, LocalShellBackend } from 'deepagents'
 import { Command } from '@langchain/langgraph'
 import { HumanMessage } from '@langchain/core/messages'
 
@@ -25,7 +25,6 @@ import { createChatModel } from './providers/ModelFactory'
 import { buildDocumentTools } from './tools/DocumentTools'
 import { buildEditProposalTools } from './tools/EditProposalTools'
 import { buildCreativeArtifactTools } from './tools/CreativeArtifactTools'
-import { buildWorkspaceShellTools } from './tools/WorkspaceShellTools'
 import { SnapshotBroker } from './document/SnapshotBroker'
 import type { CheckpointerInstance } from './checkpoint/CheckpointerFactory'
 import { getCheckpointer } from './checkpoint/CheckpointerFactory'
@@ -42,6 +41,8 @@ import {
 import { StreamEventAdapter } from './ipc/StreamEventAdapter'
 import { RendererEventBridge } from './ipc/RendererEventBridge'
 import { buildUserMessage } from './ipc/UserMessageBuilder'
+import { AttachedFileBackend } from './runtime/AttachedFileBackend'
+import { buildFilesystemMounts, type FilesystemMount } from './runtime/FilesystemMounts'
 import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore } from './runtime/ThreadRuntimeStore'
 
@@ -181,6 +182,9 @@ export class AgentEngine {
     this.runtimeStore.setContext(threadId, {
       activeFilePath: req.editorContext.filePath ?? null,
       workspacePath: req.editorContext.folderPath ?? null,
+      attachmentTextFilePaths: req.attachments?.textFilePaths ?? [],
+      attachmentBinaryFilePaths: req.attachments?.binaryFilePaths ?? [],
+      attachmentDirectories: req.attachments?.directories ?? [],
     })
 
     // Auto-title from first message
@@ -273,7 +277,7 @@ export class AgentEngine {
     thinkMode: string | undefined,
     userContent: string,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(config, domain, profile, modelId, thinkMode)
+    const agent = this._getOrCreateAgent(threadId, config, domain, profile, modelId, thinkMode)
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
@@ -296,7 +300,7 @@ export class AgentEngine {
     thinkMode: string | undefined,
     command: typeof Command.prototype,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(config, domain, profile, modelId, thinkMode)
+    const agent = this._getOrCreateAgent(threadId, config, domain, profile, modelId, thinkMode)
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
@@ -427,20 +431,23 @@ export class AgentEngine {
   // ── Private: agent cache ──────────────────────────────────────────────────
 
   private _getOrCreateAgent(
+    threadId: string,
     config: AiProviderConfig,
     domain: AiAgentDomain,
     profile: AiAgentProfile,
     modelId: string,
     thinkMode?: string,
   ): DeepAgentInstance {
+    const mounts = this._getFilesystemMounts(threadId)
     // Include apiKey and baseUrl in the key so that credential updates immediately
     // produce a new agent instance rather than reusing a stale one.
     const keyFingerprint = config.apiKey ? config.apiKey.slice(-8) : ''
-    const cacheKey = `${config.id}:${domain}:${profile}:${modelId}:${thinkMode ?? ''}:${keyFingerprint}:${config.baseUrl ?? ''}`
+    const mountKey = mounts.map(mount => `${mount.virtualPath}:${mount.hostPath}:${mount.kind}`).join('|')
+    const cacheKey = `${threadId}:${config.id}:${domain}:${profile}:${modelId}:${thinkMode ?? ''}:${keyFingerprint}:${config.baseUrl ?? ''}:${mountKey}`
     if (this.agentCache.has(cacheKey)) return this.agentCache.get(cacheKey)!
 
     const model = createChatModel(config, { modelId, thinkMode })
-    const capabilities = this._buildAgentCapabilities(domain, profile)
+    const capabilities = this._buildAgentCapabilities(domain, profile, mounts)
 
     const agent = createDeepAgent({
       model,
@@ -459,6 +466,15 @@ export class AgentEngine {
 
   private _buildRunConfigurable(threadId: string, domain: AiAgentDomain): Record<string, string> {
     return this.runtimeStore.buildConfigurable(threadId, domain)
+  }
+
+  private _getFilesystemMounts(threadId: string): FilesystemMount[] {
+    const ctx = this.runtimeStore.getContext(threadId)
+    return buildFilesystemMounts(ctx?.workspacePath ?? null, {
+      textFilePaths: ctx?.attachmentTextFilePaths ?? [],
+      binaryFilePaths: ctx?.attachmentBinaryFilePaths ?? [],
+      directories: ctx?.attachmentDirectories ?? [],
+    })
   }
 
   // ── Private: init ─────────────────────────────────────────────────────────
@@ -497,10 +513,14 @@ export class AgentEngine {
     }
   }
 
-  private _buildAgentCapabilities(domain: AiAgentDomain, profile: AiAgentProfile): {
+  private _buildAgentCapabilities(
+    domain: AiAgentDomain,
+    profile: AiAgentProfile,
+    mounts: FilesystemMount[]
+  ): {
     tools: StructuredTool[]
     skills: string[]
-    backend?: LocalShellBackend
+    backend?: CompositeBackend | FilesystemBackend | LocalShellBackend
     interruptOn?: Record<string, { allowedDecisions: string[] }>
   } {
     if (domain === 'creative') {
@@ -511,15 +531,30 @@ export class AgentEngine {
       }
     }
 
-    const docTools = buildDocumentTools(this.snapshotBroker)
     if (profile === 'minimal') {
       return { tools: [], skills: [] }
     }
 
+    const docTools = buildDocumentTools(this.snapshotBroker)
     const editTools = buildEditProposalTools()
-    const shellTools = buildWorkspaceShellTools()
+    const workspaceMount = mounts.find(mount => mount.virtualPath === '/')
+    const defaultBackend = new FilesystemBackend({
+      rootDir: workspaceMount?.hostPath ?? path.join(this.aiRootPath, 'empty-fs'),
+      virtualMode: true,
+    })
+    const routes = Object.fromEntries(
+      mounts
+        .filter(mount => mount.virtualPath !== '/')
+        .map(mount => [
+          mount.virtualPath,
+          mount.kind === 'attached_file'
+            ? new AttachedFileBackend(mount.hostPath)
+            : new FilesystemBackend({ rootDir: mount.hostPath, virtualMode: true }),
+        ])
+    )
     return {
-      tools: [...docTools, ...shellTools, ...editTools],
+      tools: [...docTools, ...editTools],
+      backend: new CompositeBackend(defaultBackend, routes),
       skills: [],
       interruptOn: {
         edit_block:      { allowedDecisions: ['approve', 'edit', 'reject'] },

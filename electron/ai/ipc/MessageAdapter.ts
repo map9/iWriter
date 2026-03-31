@@ -33,21 +33,38 @@ export function parseToolArguments(raw: unknown): Record<string, unknown> {
 export function extractToolResult(toolName: string, output: unknown): string {
   if (toolName === 'write_todos') {
     type Todo = { content?: unknown; status?: unknown }
+
+    const formatTodos = (items: Todo[]): string =>
+      items.map(t => {
+        const status = String(t.status ?? '')
+        const mark = status === 'completed' ? 'x' : status === 'in_progress' ? '-' : ' '
+        return `- [${mark}] ${String(t.content ?? '')}`
+      }).join('\n')
+
+    // Format 1: {update: {todos: [...]}}
     const todos: Todo[] | undefined =
       output != null && typeof output === 'object' && 'update' in output
         ? ((output as { update?: { todos?: Todo[] } }).update?.todos)
         : undefined
     if (Array.isArray(todos) && todos.length > 0) {
-      return todos
-        .map(t => {
-          const status = String(t.status ?? '')
-          const mark = status === 'completed' ? 'x' : status === 'in_progress' ? '→' : ' '
-          return `- [${mark}] ${String(t.content ?? '')}`
-        })
-        .join('\n')
+      return formatTodos(todos)
     }
+
+    // Format 2: {update: {messages: [{content: "Updated todo list to [...]"}]}}
     const msg = (output as { update?: { messages?: Array<{ content?: unknown }> } })?.update?.messages?.[0]
-    if (msg?.content != null) return String(msg.content).slice(0, 500)
+    if (msg?.content != null) {
+      const msgStr = String(msg.content)
+      const match = msgStr.match(/\[[\s\S]*\]/)
+      if (match) {
+        try {
+          const parsed: Todo[] = JSON.parse(match[0])
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].content !== undefined) {
+            return formatTodos(parsed)
+          }
+        } catch { /* fall through */ }
+      }
+      return msgStr.slice(0, 500)
+    }
     return JSON.stringify(output).slice(0, 500)
   }
   if (output == null) return ''

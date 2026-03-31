@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import type { SerializedBlockEntry, SerializedSnapshot } from '../ipc/protocol'
 
-const SUPPORTED_DOC_EXTS = new Set(['md', 'txt', 'iwt'])
+export const SUPPORTED_DOC_EXTS = new Set(['md', 'txt', 'iwt'])
 
 export interface DocumentSearchOptions {
   caseSensitive?: boolean
@@ -17,7 +17,7 @@ export interface WorkspaceSearchOptions extends DocumentSearchOptions {
   maxMatches?: number
 }
 
-interface BlockMatch {
+export interface BlockMatch {
   block_id: number
   heading_block_id: number | null
   heading: string | null
@@ -54,7 +54,7 @@ function buildSearchRegex(query: string, options: DocumentSearchOptions): RegExp
 
 function findAllMatches(text: string, regex: RegExp): Array<{ index: number; text: string }> {
   const matches: Array<{ index: number; text: string }> = []
-  const local = new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : `${regex.flags}g`)
+  const local = regex.flags.includes('g') ? regex : new RegExp(regex.source, `${regex.flags}g`)
   for (const match of text.matchAll(local)) {
     const value = match[0]
     if (!value) continue
@@ -157,8 +157,9 @@ function wildcardToRegex(glob: string): RegExp {
 
 function matchesGlob(filePath: string, workspacePath: string, glob?: string): boolean {
   if (!glob?.trim()) return true
+  const re = wildcardToRegex(glob)
   const relative = path.relative(workspacePath, filePath).replace(/\\/g, '/')
-  return wildcardToRegex(glob).test(relative) || wildcardToRegex(glob).test(path.basename(filePath))
+  return re.test(relative) || re.test(path.basename(filePath))
 }
 
 function shouldIncludeFile(
@@ -212,21 +213,32 @@ export function listWorkspaceDocumentPaths(
 }
 
 export class DocumentSearch {
+  static searchDocumentBlocksRaw(
+    snapshot: SerializedSnapshot,
+    query: string,
+    options: DocumentSearchOptions = {},
+    maxMatches = 200
+  ): { file_path: string | null; total_matches: number; matches: BlockMatch[] } | null {
+    const matches = searchBlocksInSnapshot(snapshot, query, options, maxMatches)
+    if (!matches) return null
+    return {
+      file_path: snapshot.filePath ?? null,
+      total_matches: matches.reduce((sum, item) => sum + item.match_count, 0),
+      matches,
+    }
+  }
+
   static searchDocumentBlocks(
     snapshot: SerializedSnapshot,
     query: string,
     options: DocumentSearchOptions = {},
     maxMatches = 200
   ): string {
-    const matches = searchBlocksInSnapshot(snapshot, query, options, maxMatches)
-    if (!matches) {
+    const result = DocumentSearch.searchDocumentBlocksRaw(snapshot, query, options, maxMatches)
+    if (!result) {
       return 'Error: Invalid search query or regex.'
     }
-    return JSON.stringify({
-      file_path: snapshot.filePath ?? null,
-      total_matches: matches.reduce((sum, item) => sum + item.match_count, 0),
-      matches,
-    }, null, 2)
+    return JSON.stringify(result, null, 2)
   }
 
   static searchDocumentSections(

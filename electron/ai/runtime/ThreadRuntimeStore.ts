@@ -8,6 +8,9 @@ interface InterruptedRun {
 interface ThreadExecutionContext {
   activeFilePath: string | null
   workspacePath: string | null
+  attachmentTextFilePaths: string[]
+  attachmentBinaryFilePaths: string[]
+  attachmentDirectories: string[]
 }
 
 export class ThreadRuntimeStore {
@@ -29,6 +32,9 @@ export class ThreadRuntimeStore {
       agent_domain: domain ?? 'editing',
       active_file_path: ctx?.activeFilePath ?? '',
       workspace_path: ctx?.workspacePath ?? '',
+      attached_text_file_paths: JSON.stringify(ctx?.attachmentTextFilePaths ?? []),
+      attached_binary_file_paths: JSON.stringify(ctx?.attachmentBinaryFilePaths ?? []),
+      attached_directories: JSON.stringify(ctx?.attachmentDirectories ?? []),
     }
   }
 
