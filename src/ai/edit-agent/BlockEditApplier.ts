@@ -28,6 +28,22 @@ function normalizeExpectedMarkdown(markdown: string): string {
     .replace(/^\s+|\s+$/g, '')
 }
 
+function sanitizeContentForNodeType(content: string, node: PmNode): string {
+  const trimmed = content.replace(/\r\n/g, '\n').trim()
+  const type = node.type.name
+
+  switch (type) {
+    case 'heading':
+      return trimmed.replace(/^#{1,6}\s+/, '')
+    case 'listItem':
+      return trimmed.replace(/^[-*+]\s+/, '')
+    case 'taskItem':
+      return trimmed.replace(/^[-*+]\s+\[[ xX]\]\s+/, '')
+    default:
+      return trimmed
+  }
+}
+
 function contentMismatchError(kind: string, blockLabel: string): string {
   return `${kind}: current content for ${blockLabel} no longer matches the expected content. Re-read the latest document blocks before editing again.`
 }
@@ -117,20 +133,21 @@ async function markdownToContent(
  * (e.g., heading content without '##'), so we restore them here.
  */
 function wrapForNodeType(content: string, node: PmNode): string {
+  const sanitized = sanitizeContentForNodeType(content, node)
   const type = node.type.name
   switch (type) {
     case 'heading':
-      return '#'.repeat(node.attrs.level as number) + ' ' + content
+      return '#'.repeat(node.attrs.level as number) + ' ' + sanitized
     case 'codeBlock':
-      return '```' + (node.attrs.language ?? '') + '\n' + content + '\n```'
+      return '```' + (node.attrs.language ?? '') + '\n' + sanitized + '\n```'
     case 'mathBlock':
-      return '$$\n' + content + '\n$$'
+      return '$$\n' + sanitized + '\n$$'
     case 'listItem':
-      return '- ' + content
+      return '- ' + sanitized
     case 'taskItem':
-      return `- ${(node.attrs.checked as boolean) ? '[x]' : '[ ]'} ` + content
+      return `- ${(node.attrs.checked as boolean) ? '[x]' : '[ ]'} ` + sanitized
     default:
-      return content // paragraph, image, etc.
+      return sanitized // paragraph, image, etc.
   }
 }
 

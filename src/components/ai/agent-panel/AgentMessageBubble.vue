@@ -118,10 +118,15 @@
       </div>
 
       <!-- Edit summary: single instance, applies to both Path A and Path B -->
-      <EditSummaryCard
-        v-if="message.role === 'assistant' && editToolCalls.length"
-        :tool-calls="editToolCalls"
+      <EditSessionCard
+        v-if="editSession"
+        :session="editSession"
+        :is-streaming="aiStore.isStreaming"
         class="mt-1.5"
+        @approve="aiStore.approveEditProposal"
+        @reject="aiStore.rejectEditProposal"
+        @approve-all="aiStore.approveAllProposals"
+        @reject-all="aiStore.rejectAllProposals"
       />
 
       <TaskPlanCard
@@ -217,9 +222,11 @@ import { IconCopy, IconPencil, IconX, IconSend } from '@tabler/icons-vue'
 import MarkdownContentView from '../MarkdownContentView.vue'
 import type { ThreadMessage, AiToolCall } from '@/ai/types'
 import { BLOCK_EDIT_TOOLS } from '@/ai/types'
+import { useAiStore } from '@/ai/store/ai'
+import { buildEditSessionForMessage } from '@/ai/edit-session'
 import ToolCallView from '../ToolCallView.vue'
-import EditSummaryCard from './EditSummaryCard.vue'
 import TaskPlanCard from './TaskPlanCard.vue'
+import EditSessionCard from './EditSessionCard.vue'
 
 const props = withDefaults(defineProps<{
   message: ThreadMessage
@@ -233,6 +240,7 @@ const props = withDefaults(defineProps<{
 })
 const emit = defineEmits<{ resend: [messageId: string, newContent: string] }>()
 
+const aiStore = useAiStore()
 const thinkingExpanded = ref(false)
 const isHovered = ref(false)
 const isEditing = ref(false)
@@ -249,6 +257,34 @@ const readToolCalls = computed(() =>
 )
 const editToolCalls = computed(() =>
   effectiveToolCalls.value.filter(tc => BLOCK_EDIT_TOOLS.has(tc.name))
+)
+
+const isLatestAssistantMessage = computed(() => {
+  const messages = aiStore.activeThread?.messages ?? []
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'assistant') {
+      return messages[i]!.id === props.message.id
+    }
+  }
+  return false
+})
+
+const assistantMessageIds = computed(() =>
+  (aiStore.activeThread?.messages ?? [])
+    .filter(message => message.role === 'assistant')
+    .map(message => message.id)
+)
+
+const editSession = computed(() =>
+  buildEditSessionForMessage({
+    message: props.message,
+    mode: aiStore.activeThread?.mode,
+    pendingProposals: aiStore.allPendingProposals,
+    isInterrupted: aiStore.isInterrupted,
+    isLatestAssistantMessage: isLatestAssistantMessage.value,
+    assistantMessageIds: assistantMessageIds.value,
+    editToolCalls: editToolCalls.value,
+  })
 )
 
 function toolCallById(id: string): AiToolCall | undefined {
@@ -300,6 +336,7 @@ const shouldRenderMessage = computed(() => {
   if (!visibleContentBlocks.value.length && !!props.message.content?.trim()) return true
   if (readToolCalls.value.length > 0) return true
   if (editToolCalls.value.length > 0) return true
+  if (editSession.value) return true
   if (props.message.taskPlan?.items?.length && props.isPreview) return true
   if (shouldShowThinkingToggle.value) return true
   if (props.isPreview && !!props.previewStatusText) return true

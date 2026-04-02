@@ -14,6 +14,35 @@ interface AgentStreamState {
   interruptPayload: unknown
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function findInterruptMarker(value: unknown, seen = new Set<unknown>()): unknown {
+  if (!isRecord(value) && !Array.isArray(value)) return null
+  if (seen.has(value)) return null
+  seen.add(value)
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findInterruptMarker(item, seen)
+      if (found) return found
+    }
+    return null
+  }
+
+  if ('__interrupt__' in value) {
+    return value.__interrupt__
+  }
+
+  for (const nestedValue of Object.values(value)) {
+    const found = findInterruptMarker(nestedValue, seen)
+    if (found) return found
+  }
+
+  return null
+}
+
 export class StreamEventAdapter {
   private state: AgentStreamState = {
     assistantContent: '',
@@ -131,18 +160,36 @@ export class StreamEventAdapter {
       return chunks
     }
 
+    const interruptMarker = findInterruptMarker(event)
+    if (interruptMarker) {
+      console.debug('[StreamEventAdapter] interrupt marker detected', {
+        threadId,
+        event: event.event,
+        runId: event.run_id ?? null,
+        markerPreview: safeJsonPreview(interruptMarker),
+      })
+    }
+
     if (event.event === 'on_chain_stream' && event.data?.chunk?.__interrupt__) {
       this.state.interrupted = true
       const interruptValues = event.data.chunk.__interrupt__
       this.state.interruptPayload = Array.isArray(interruptValues)
         ? interruptValues[0]?.value
         : interruptValues?.value ?? interruptValues
+      console.debug('[StreamEventAdapter] recognized interrupt from on_chain_stream', {
+        threadId,
+        payloadPreview: safeJsonPreview(this.state.interruptPayload),
+      })
       return chunks
     }
 
     if (event.event === 'on_chain_end' && event.data?.output?.__interrupt__) {
       this.state.interrupted = true
       this.state.interruptPayload = event.data.output.__interrupt__[0]?.value
+      console.debug('[StreamEventAdapter] recognized interrupt from on_chain_end', {
+        threadId,
+        payloadPreview: safeJsonPreview(this.state.interruptPayload),
+      })
     }
 
     return chunks
@@ -241,5 +288,13 @@ export class StreamEventAdapter {
           : {}),
       })
     }
+  }
+}
+
+function safeJsonPreview(value: unknown): string {
+  try {
+    return JSON.stringify(value).slice(0, 500)
+  } catch {
+    return String(value)
   }
 }

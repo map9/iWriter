@@ -36,17 +36,6 @@
       </div>
     </div>
 
-    <!-- Proposal navigator: shown after streaming ends when there are pending proposals -->
-    <ProposalNavigator
-      v-if="aiStore.allPendingProposals.length"
-      :proposals="aiStore.allPendingProposals"
-      :is-streaming="aiStore.isStreaming"
-      @approve="aiStore.approveEditProposal"
-      @reject="aiStore.rejectEditProposal"
-      @approve-all="aiStore.approveAllProposals"
-      @reject-all="aiStore.rejectAllProposals"
-    />
-
   </div>
 </template>
 
@@ -57,7 +46,6 @@ defineProps<{ bottomPadding?: number }>()
 import { useAiStore } from '@/ai/store/ai'
 import AgentEmptyState from './AgentEmptyState.vue'
 import AgentMessageBubble from './AgentMessageBubble.vue'
-import ProposalNavigator from '../ProposalNavigator.vue'
 
 const aiStore = useAiStore()
 

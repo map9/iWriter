@@ -453,6 +453,12 @@ export class AgentEngine {
           this.rendererBridge.sendStreamChunk(chunk)
         }
         if (adapter.interrupted) {
+          console.debug('[AgentEngine] adapter entered interrupted state', {
+            threadId,
+            event: event.event,
+            runId: event.run_id ?? null,
+            interruptPayloadPreview: safeJsonPreview(adapter.interruptPayload),
+          })
           break
         }
       }
@@ -470,7 +476,19 @@ export class AgentEngine {
         }
 
         if (adapter.interruptPayload) {
+          console.debug('[AgentEngine] handling interrupt', {
+            threadId,
+            hasPartialMessage: !!partialMessage,
+            partialToolCalls: partialMessage?.toolCalls?.map(tc => ({
+              id: tc.id,
+              name: tc.name,
+              status: tc.status,
+            })) ?? [],
+            interruptPayloadPreview: safeJsonPreview(adapter.interruptPayload),
+          })
           await this._handleInterrupt(threadId, adapter.interruptPayload, partialMessage)
+        } else {
+          console.warn('[AgentEngine] adapter interrupted without interruptPayload', { threadId })
         }
 
         this.activeRuns.delete(threadId)
@@ -479,6 +497,9 @@ export class AgentEngine {
 
       this.threadListQuery?.updateMeta(threadId, { updatedAt: Date.now() })
 
+      console.debug('[AgentEngine] stream completed without interrupt', {
+        threadId,
+      })
       this.rendererBridge.sendRunDone({ threadId })
     } catch (err) {
       if (abortController?.signal.aborted) {
@@ -518,6 +539,13 @@ export class AgentEngine {
       return
     }
 
+    console.debug('[AgentEngine] interrupt payload parsed', {
+      threadId,
+      actionRequestCount: actionRequests.length,
+      actionNames: actionRequests.map(ar => ar.name),
+      partialMessageId: partialMessage?.id ?? null,
+    })
+
     // Request snapshot using the first action's file path as the primary target.
     // All proposals in one interrupt batch share the same snapshot (block IDs are stable).
     const firstArgs = actionRequests[0].args ?? {}
@@ -555,6 +583,12 @@ export class AgentEngine {
 
     // Emit single atomic event (replaces old two-event sequence)
     // actionRequests are included so the renderer can align decisions by index
+    console.debug('[AgentEngine] sending runInterrupted event', {
+      threadId,
+      proposalCount: proposals.length,
+      proposalTypes: proposals.map(proposal => proposal.type),
+      partialMessageId: partialMessage?.id ?? null,
+    })
     this.rendererBridge.sendRunInterrupted({ threadId, proposals, partialMessage, actionRequests })
   }
 
@@ -746,6 +780,14 @@ export class AgentEngine {
     throw new Error(
       `当前请求预计约 ${inputTokens} tokens，已超过摘要触发预算 ${allowedBudget}。请先点击 Compact 压缩输入，或减少附件与上下文。`
     )
+  }
+}
+
+function safeJsonPreview(value: unknown): string {
+  try {
+    return JSON.stringify(value).slice(0, 500)
+  } catch {
+    return String(value)
   }
 }
 
