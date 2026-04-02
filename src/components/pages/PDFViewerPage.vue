@@ -162,6 +162,31 @@ let pdfDocumentInstance: pdfjsLib.PDFDocumentProxy | null = null
 const canvasRefs = ref<Map<number, HTMLCanvasElement>>(new Map())
 const renderedPages = ref<number[]>([])
 const renderScale = ref(window.devicePixelRatio || 1)
+const activeRenderTasks = new Map<number, pdfjsLib.RenderTask>()
+let isUnmounted = false
+
+function isRenderCancelled(error: unknown): boolean {
+  return error instanceof Error && (
+    error.name === 'RenderingCancelledException' ||
+    error.message.includes('Rendering cancelled')
+  )
+}
+
+async function cancelRenderTask(pageNum: number) {
+  const existingTask = activeRenderTasks.get(pageNum)
+  if (!existingTask) return
+
+  existingTask.cancel()
+  activeRenderTasks.delete(pageNum)
+
+  try {
+    await existingTask.promise
+  } catch (err) {
+    if (!isRenderCancelled(err)) {
+      console.warn(`Unexpected error while cancelling page ${pageNum} render:`, err)
+    }
+  }
+}
 
 // Helper function to set canvas ref
 function setCanvasRef(el: Element | null, pageNum: number) {
@@ -335,7 +360,7 @@ async function loadPDF() {
 }
 
 async function renderPage(pageNum: number) {
-  if (!pdfDocumentInstance) {
+  if (!pdfDocumentInstance || isUnmounted) {
     console.warn('PDF document not available')
     return
   }
@@ -347,7 +372,11 @@ async function renderPage(pageNum: number) {
   }
   
   try {
+    await cancelRenderTask(pageNum)
+
     const page = await pdfDocumentInstance.getPage(pageNum)
+    if (isUnmounted) return
+
     const canvas = canvasRefs.value.get(pageNum)
     
     if (!canvas) {
@@ -382,6 +411,7 @@ async function renderPage(pageNum: number) {
     
     // 使用 Promise 方式渲染，增加错误处理
     const renderTask = page.render(renderContext)
+    activeRenderTasks.set(pageNum, renderTask)
     
     // 添加渲染超时机制
     const timeoutPromise = new Promise((_, reject) => {
@@ -389,9 +419,17 @@ async function renderPage(pageNum: number) {
     })
     
     await Promise.race([renderTask.promise, timeoutPromise])
+    page.cleanup()
     
   } catch (err) {
-    console.error(`Error rendering page ${pageNum}:`, err)
+    if (!isRenderCancelled(err)) {
+      console.error(`Error rendering page ${pageNum}:`, err)
+    }
+  } finally {
+    const activeTask = activeRenderTasks.get(pageNum)
+    if (activeTask) {
+      activeRenderTasks.delete(pageNum)
+    }
   }
 }
 
@@ -538,14 +576,19 @@ function handleWheel(event: WheelEvent) {
 }
 
 onMounted(() => {
+  isUnmounted = false
   if (pdfUrl.value) {
     loadPDF()
   }
   document.addEventListener('keydown', handleKeydown)
 })
 
-onBeforeUnmount(() => {
+onBeforeUnmount(async () => {
+  isUnmounted = true
   document.removeEventListener('keydown', handleKeydown)
+
+  const pendingPages = Array.from(activeRenderTasks.keys())
+  await Promise.allSettled(pendingPages.map(cancelRenderTask))
   
   // 清理PDF文档资源
   if (pdfDocumentInstance) {

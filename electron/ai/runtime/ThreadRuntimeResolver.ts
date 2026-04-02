@@ -1,8 +1,8 @@
-import type { AiAgentDomain, AiAgentProfile, AiProviderConfig, AiSettings } from '../../../src/types/ai'
+import type { AiAgentDomain, AiAgentMode, AiProviderConfig, AiSettings } from '../../../src/types/ai'
 import {
-  getDefaultProfileForDomain,
-  normalizeLegacyProfile,
-  normalizeProfileForDomain,
+  getDefaultModeForDomain,
+  normalizeAgentMode,
+  normalizeModeForDomain,
   resolveAgentDomain,
 } from '../../../src/types/ai'
 import type { SendMessageRequest } from '../ipc/protocol'
@@ -11,7 +11,7 @@ import type { ThreadMeta } from '../thread/ThreadListQuery'
 export interface ResolvedThreadRuntime {
   providerConfig: AiProviderConfig
   domain: AiAgentDomain
-  profile: AiAgentProfile
+  mode: AiAgentMode
   modelId: string
   thinkMode?: string
 }
@@ -32,14 +32,17 @@ export function resolveThreadRuntime(
     throw new Error('No active AI provider configured. Please add a provider in settings.')
   }
 
-  const requestedProfile = req?.profile
-  const fallbackProfile = normalizeLegacyProfile(settings.defaultProfile)
+  const requestedMode = normalizeAgentMode(req?.mode)
+  const fallbackMode = normalizeAgentMode(settings.defaultMode)
   const domain =
-    meta?.domain
-    ?? req?.domain
-    ?? resolveAgentDomain(normalizeLegacyProfile(meta?.profile ?? requestedProfile ?? fallbackProfile))
-  const profile = normalizeProfileForDomain(
-    normalizeLegacyProfile(meta?.profile ?? requestedProfile ?? getDefaultProfileForDomain(domain)),
+    req?.domain
+    ?? (requestedMode ? resolveAgentDomain(requestedMode) : undefined)
+    ?? meta?.domain
+    ?? resolveAgentDomain(normalizeAgentMode(meta?.mode ?? fallbackMode))
+  const mode = normalizeModeForDomain(
+    requestedMode
+      ?? normalizeAgentMode(meta?.mode)
+      ?? getDefaultModeForDomain(domain),
     domain,
   )
   const modelId =
@@ -51,5 +54,5 @@ export function resolveThreadRuntime(
     || ''
   const thinkMode = req?.threadRuntime?.thinkMode ?? meta?.thinkMode
 
-  return { providerConfig, domain, profile, modelId, thinkMode }
+  return { providerConfig, domain, mode, modelId, thinkMode }
 }

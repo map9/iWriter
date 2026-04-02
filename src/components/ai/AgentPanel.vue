@@ -58,7 +58,7 @@ let resizeObserver: ResizeObserver | null = null
 
 const providerSettingsRef = ref<InstanceType<typeof ProviderSettings> | null>(null)
 const settingsSubView = ref<'main' | 'configure'>('main')
-const settingsSubTitle = ref('AI Provider 配置')
+const settingsSubTitle = ref('AI 配置')
 
 function onSettingsViewChange(info: { view: 'main' | 'configure'; title: string }) {
   settingsSubView.value = info.view
@@ -68,7 +68,7 @@ function onSettingsViewChange(info: { view: 'main' | 'configure'; title: string 
 watch(showSettings, (val) => {
   if (!val) {
     settingsSubView.value = 'main'
-    settingsSubTitle.value = 'AI Provider 配置'
+    settingsSubTitle.value = 'AI 配置'
   }
 })
 

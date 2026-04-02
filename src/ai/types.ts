@@ -1,12 +1,31 @@
 // AI Provider Types
 
-export type AiProviderType = 'openai-compat' | 'anthropic' | 'gemini'
+export type AiProviderType = 'openai-compat' | 'deepseek' | 'anthropic' | 'gemini'
 
 export type AiAgentDomain = 'editing' | 'creative'
 
-export type AiAgentProfile = 'edit' | 'minimal' | 'creative'
+export type AiAgentMode = 'edit' | 'minimal' | 'creative'
 
 export type AiToolPermission = 'confirm' | 'allow' | 'deny'
+
+export interface AiModelProfile {
+  maxInputTokens?: number
+  maxOutputTokens?: number
+  imageInputs?: boolean
+  imageUrlInputs?: boolean
+  pdfInputs?: boolean
+  audioInputs?: boolean
+  videoInputs?: boolean
+  imageToolMessage?: boolean
+  pdfToolMessage?: boolean
+  reasoningOutput?: boolean
+  imageOutputs?: boolean
+  audioOutputs?: boolean
+  videoOutputs?: boolean
+  toolCalling?: boolean
+  toolChoice?: boolean
+  structuredOutput?: boolean
+}
 
 // Provider configuration (stored by user)
 export interface AiProviderConfig {
@@ -14,13 +33,15 @@ export interface AiProviderConfig {
   type: AiProviderType
   label: string           // user display name
   apiKey: string
-  baseUrl?: string        // for openai-compat: endpoint override
+  baseUrl?: string        // for openai-compat / deepseek: endpoint override
   defaultModelId: string
   enabled: boolean
   /** Which built-in preset this config was created from */
   presetId?: string
   /** Available model IDs for this provider (shown in model picker) */
   models?: string[]
+  /** Per-model profile overrides used when LangChain does not know the model family. */
+  modelProfiles?: Record<string, AiModelProfile>
   /** Think modes for LLM providers that support extended thinking, e.g. ['Normal', 'Think'] */
   thinkModes?: string[]
   /** Last selected model ID for this provider (restored when switching back) */
@@ -45,6 +66,28 @@ export type AiToolCallKind =
   | 'read' | 'edit' | 'delete' | 'move' | 'search'
   | 'execute' | 'think' | 'fetch' | 'other'
 
+export type AiToolDetailType =
+  | 'outline'
+  | 'section'
+  | 'blocks'
+  | 'block_context'
+  | 'search_sections'
+  | 'workspace_search'
+  | 'todo_list'
+  | 'text'
+  | 'json'
+
+export interface AiToolDisplayMeta {
+  actionLabel?: string
+  targetLabel?: string
+  targetPath?: string
+  contextLabel?: string
+  summaryLabel?: string
+  detailType?: AiToolDetailType
+  parsedResult?: Record<string, unknown> | null
+  rawResult?: string
+}
+
 /** A tool call produced by an LLM or ACP agent, stored in ThreadMessage. */
 export interface AiToolCall {
   id: string
@@ -66,6 +109,7 @@ export interface AiToolCall {
   /** Result summary shown in the UI (for read-type tools) */
   result?: string
   isError?: boolean
+  display?: AiToolDisplayMeta
 }
 
 // A tool result (stored in ThreadMessage for LLM context reconstruction)
@@ -98,6 +142,11 @@ export interface MessageAgentEventBlock {
   status?: 'started' | 'running' | 'completed' | 'failed'
 }
 
+export interface TaskPlanItem {
+  content: string
+  status: 'pending' | 'in_progress' | 'completed'
+}
+
 /** Ordered content block for interleaved text + tool call rendering. */
 export type MessageContentBlock =
   | MessageTextBlock
@@ -128,7 +177,11 @@ export interface BlockEditProposal extends BaseEditProposal {
   nodeType?: string         // paragraph, heading, codeBlock, etc.
   afterNodeId?: string      // for insert_block: insert after this node ('0' = document start)
   oldContent?: string       // Markdown of original block (for diff display)
+  anchorContent?: string    // Markdown of the anchor block from the proposal snapshot
   newContent?: string       // Markdown of replacement / inserted content
+  expectedCurrentContent?: string // Expected current Markdown of the target block
+  expectedAnchorContent?: string  // Expected current Markdown of the anchor block for insert
+  expectedOldContent?: string     // Expected current Markdown of the replaced block range
 
   // Range operations (replace_range)
   startDisplayBlockId?: number
@@ -170,6 +223,10 @@ export interface ThreadMessage {
   toolCalls?: AiToolCall[]
   toolResults?: AiToolResult[]
   editProposals?: EditProposal[]
+  taskPlan?: {
+    toolCallId?: string
+    items: TaskPlanItem[]
+  }
   /** Ordered content blocks for interleaved text + tool call rendering. */
   contentBlocks?: MessageContentBlock[]
 
@@ -220,7 +277,7 @@ export interface AiThread {
   providerConfigId: string
   modelId: string
   domain: AiAgentDomain
-  profile: AiAgentProfile
+  mode: AiAgentMode
   /** Current think mode for LLM providers that support it */
   thinkMode?: string
   /** Set to true when the last run ended with an error (shown in history list) */
@@ -242,7 +299,7 @@ export interface AiThread {
 export interface AiSettings {
   providerConfigs: AiProviderConfig[]
   activeProviderConfigId: string | null
-  defaultProfile: AiAgentProfile
+  defaultMode: AiAgentMode
   toolPermissions: Record<string, AiToolPermission>
 }
 
@@ -250,7 +307,7 @@ export interface AiSettings {
 export const DEFAULT_AI_SETTINGS: AiSettings = {
   providerConfigs: [],
   activeProviderConfigId: null,
-  defaultProfile: 'edit',
+  defaultMode: 'edit',
   toolPermissions: {
     // Document access tools: always allowed (read-only)
     get_document_outline: 'allow',
@@ -266,30 +323,30 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   }
 }
 
-export function resolveAgentDomain(profile: AiAgentProfile): AiAgentDomain {
-  return profile === 'creative' ? 'creative' : 'editing'
+export function resolveAgentDomain(mode: AiAgentMode): AiAgentDomain {
+  return mode === 'creative' ? 'creative' : 'editing'
 }
 
-export function getDefaultProfileForDomain(domain: AiAgentDomain): AiAgentProfile {
+export function getDefaultModeForDomain(domain: AiAgentDomain): AiAgentMode {
   return domain === 'creative' ? 'creative' : 'edit'
 }
 
-export function normalizeLegacyProfile(profile: string | undefined): AiAgentProfile {
-  if (profile === 'creative') return 'creative'
-  if (profile === 'minimal') return 'minimal'
-  if (profile === 'edit' || profile === 'write' || profile === 'ask') return 'edit'
+export function normalizeAgentMode(mode: string | undefined): AiAgentMode {
+  if (mode === 'creative') return 'creative'
+  if (mode === 'minimal') return 'minimal'
+  if (mode === 'edit') return 'edit'
   return 'edit'
 }
 
-export function normalizeProfileForDomain(
-  profile: AiAgentProfile | undefined,
+export function normalizeModeForDomain(
+  mode: AiAgentMode | undefined,
   domain: AiAgentDomain,
-): AiAgentProfile {
+): AiAgentMode {
   if (domain === 'creative') {
     return 'creative'
   }
-  if (profile === 'minimal' || profile === 'edit') {
-    return profile
+  if (mode === 'minimal' || mode === 'edit') {
+    return mode
   }
   return 'edit'
 }

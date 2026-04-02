@@ -1,5 +1,6 @@
 <template>
   <div
+    v-if="shouldRenderMessage"
     class="flex min-w-0"
     :class="{ 'flex-row-reverse': message.role === 'user' }"
     @mouseenter="isHovered = true"
@@ -7,24 +8,6 @@
   >
     <!-- Content -->
     <div class="flex-1 min-w-0" :class="{ 'items-end flex flex-col': message.role === 'user' }">
-
-      <!-- Thinking content (collapsible, assistant only) -->
-      <div
-        v-if="message.thinkingContent"
-        class="mb-1.5 w-full border border-purple-200 bg-purple-50 rounded-lg overflow-hidden text-xs"
-      >
-        <button
-          class="w-full flex items-center gap-1.5 px-3 py-1.5 text-purple-700 font-medium text-left hover:bg-purple-100 transition-colors"
-          @click="thinkingExpanded = !thinkingExpanded"
-        >
-          <span>💭</span>
-          <span>思考过程</span>
-          <span class="ml-auto">{{ thinkingExpanded ? '▲' : '▼' }}</span>
-        </button>
-        <div v-if="thinkingExpanded" class="px-3 py-2 text-purple-800 whitespace-pre-wrap leading-relaxed border-t border-purple-200">
-          {{ message.thinkingContent }}
-        </div>
-      </div>
 
       <!-- ── USER MESSAGE BUBBLE ── -->
 
@@ -80,8 +63,8 @@
       <!-- ── ASSISTANT MESSAGE BUBBLE ── -->
 
       <!-- Path A: Interleaved content blocks (text + read tool calls in correct order) -->
-      <template v-if="message.role === 'assistant' && message.contentBlocks?.length">
-        <template v-for="(block, idx) in message.contentBlocks" :key="idx">
+      <template v-if="message.role === 'assistant' && visibleContentBlocks.length">
+        <template v-for="(block, idx) in visibleContentBlocks" :key="idx">
           <div
             v-if="block.type === 'thinking' && block.text"
             class="hidden"
@@ -96,7 +79,9 @@
           <ToolCallView
             v-else-if="block.type === 'tool_call' && block.toolCallId && isReadToolById(block.toolCallId)"
             :tool-call="toolCallById(block.toolCallId)!"
-            class="mt-1.5 w-full"
+            :group-position="contentBlockToolPosition(idx)"
+            class="w-full"
+            :class="contentBlockToolMarginClass(idx)"
           />
           <div
             v-else-if="block.type === 'agent_event' && (block.text || block.agentName)"
@@ -119,11 +104,17 @@
 
       <!-- Legacy read tool calls (only when no contentBlocks) -->
       <div
-        v-if="!message.contentBlocks?.length && readToolCalls.length"
-        class="space-y-1.5 w-full"
+        v-if="!visibleContentBlocks.length && readToolCalls.length"
+        class="w-full"
         :class="message.content ? 'mt-1.5' : ''"
       >
-        <ToolCallView v-for="tc in readToolCalls" :key="tc.id" :tool-call="tc" />
+        <ToolCallView
+          v-for="(tc, idx) in readToolCalls"
+          :key="tc.id"
+          :tool-call="tc"
+          :group-position="readToolPosition(idx)"
+          :class="idx > 0 ? 'mt-0' : ''"
+        />
       </div>
 
       <!-- Edit summary: single instance, applies to both Path A and Path B -->
@@ -132,6 +123,32 @@
         :tool-calls="editToolCalls"
         class="mt-1.5"
       />
+
+      <TaskPlanCard
+        v-if="message.role === 'assistant' && message.taskPlan?.items?.length && isPreview"
+        :items="message.taskPlan.items"
+        :is-preview="isPreview"
+        class="mt-1.5"
+      />
+
+      <div
+        v-if="shouldShowThinkingToggle"
+        class="mt-1 inline-flex max-w-full flex-col items-start gap-1"
+      >
+        <button
+          class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+          @click="thinkingExpanded = !thinkingExpanded"
+        >
+          <span>💭</span>
+          <span>{{ thinkingExpanded ? '隐藏思考过程' : '查看思考过程' }}</span>
+        </button>
+        <div
+          v-if="thinkingExpanded"
+          class="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] leading-relaxed text-gray-600 whitespace-pre-wrap"
+        >
+          {{ thinkingContent }}
+        </div>
+      </div>
 
       <div
         v-if="isPreview && previewStatusText"
@@ -146,27 +163,48 @@
       </div>
 
       <!-- Toolbar / Timestamp row -->
-      <div v-if="!isEditing && !isPreview" class="h-5 mt-1 flex items-center" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
-        <!-- Hover toolbar -->
-        <div v-if="isHovered && !isEditing" class="flex items-center gap-1">
-          <button
-            class="flex items-center gap-1 px-1 py-1 rounded text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-            title="复制"
-            @click="handleCopy"
+      <div
+        v-if="!isEditing && !isPreview"
+        class="h-5 mt-1 flex items-center"
+        :class="message.role === 'user' ? 'justify-end' : 'justify-start'"
+      >
+        <div class="relative h-5 min-w-[2.5rem]">
+          <div
+            class="absolute inset-0 flex items-center"
+            :class="message.role === 'user' ? 'justify-end' : 'justify-start'"
           >
-            <IconCopy class="w-3.5 h-3.5" />
-          </button>
-          <button
-            v-if="message.role === 'user'"
-            class="flex items-center gap-1 px-1 py-1 rounded text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-            title="编辑"
-            @click="startEdit"
+            <div
+              class="text-xs text-gray-400 transition-opacity"
+              :class="showHoverToolbar && isHovered ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+            >
+              {{ formatTime(message.timestamp) }}
+            </div>
+          </div>
+          <div
+            v-if="showHoverToolbar"
+            class="absolute inset-0 flex items-center gap-1 transition-opacity"
+            :class="[
+              message.role === 'user' ? 'justify-end' : 'justify-start',
+              isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none',
+            ]"
           >
-            <IconPencil class="w-3.5 h-3.5" />
-          </button>
+            <button
+              class="flex items-center gap-1 px-1 py-1 rounded text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              title="复制"
+              @click="handleCopy"
+            >
+              <IconCopy class="w-3.5 h-3.5" />
+            </button>
+            <button
+              v-if="message.role === 'user'"
+              class="flex items-center gap-1 px-1 py-1 rounded text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              title="编辑"
+              @click="startEdit"
+            >
+              <IconPencil class="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-        <!-- Timestamp (shown when not hovering or when editing) -->
-        <div v-else class="text-xs text-gray-400">{{ formatTime(message.timestamp) }}</div>
       </div>
 
     </div>
@@ -181,6 +219,7 @@ import type { ThreadMessage, AiToolCall } from '@/ai/types'
 import { BLOCK_EDIT_TOOLS } from '@/ai/types'
 import ToolCallView from '../ToolCallView.vue'
 import EditSummaryCard from './EditSummaryCard.vue'
+import TaskPlanCard from './TaskPlanCard.vue'
 
 const props = withDefaults(defineProps<{
   message: ThreadMessage
@@ -204,8 +243,9 @@ const contentEl = ref<HTMLDivElement>()
 const editTextareaEl = ref<HTMLTextAreaElement>()
 
 const effectiveToolCalls = computed<AiToolCall[]>(() => props.message.toolCalls ?? [])
+const thinkingContent = computed(() => props.message.thinkingContent?.trim() ?? '')
 const readToolCalls = computed(() =>
-  effectiveToolCalls.value.filter(tc => !BLOCK_EDIT_TOOLS.has(tc.name))
+  effectiveToolCalls.value.filter(tc => !BLOCK_EDIT_TOOLS.has(tc.name) && tc.name !== 'write_todos')
 )
 const editToolCalls = computed(() =>
   effectiveToolCalls.value.filter(tc => BLOCK_EDIT_TOOLS.has(tc.name))
@@ -216,7 +256,79 @@ function toolCallById(id: string): AiToolCall | undefined {
 }
 function isReadToolById(id: string): boolean {
   const tc = toolCallById(id)
-  return !!tc && !BLOCK_EDIT_TOOLS.has(tc.name)
+  return !!tc && !BLOCK_EDIT_TOOLS.has(tc.name) && tc.name !== 'write_todos'
+}
+
+const visibleContentBlocks = computed(() =>
+  (props.message.contentBlocks ?? []).filter(block => {
+    if (block.type === 'text') return !!block.text?.trim()
+    if (block.type === 'thinking') return false
+    if (block.type === 'tool_call') return !!(block.toolCallId && isReadToolById(block.toolCallId))
+    if (block.type === 'agent_event') return !!(block.text?.trim() || block.agentName)
+    return false
+  })
+)
+
+const hasAssistantTextOutput = computed(() => {
+  if (props.message.role !== 'assistant') return false
+  if (visibleContentBlocks.value.length) {
+    return visibleContentBlocks.value.some(block => block.type === 'text' && !!block.text?.trim())
+  }
+  return !!props.message.content?.trim()
+})
+
+const showHoverToolbar = computed(() => {
+  if (props.message.role === 'user') return !!props.message.content?.trim()
+  if (hasToolDrivenOutput.value || props.message.taskPlan?.items?.length) return false
+  return hasAssistantTextOutput.value
+})
+
+const hasToolDrivenOutput = computed(() => readToolCalls.value.length > 0 || editToolCalls.value.length > 0)
+
+const shouldShowThinkingToggle = computed(() => {
+  if (props.message.role !== 'assistant' || props.isPreview) return false
+  if (!thinkingContent.value) return false
+  if (props.message.isError) return true
+  if (import.meta.env.DEV) return thinkingContent.value.length >= 80
+  if (hasToolDrivenOutput.value) return false
+  return thinkingContent.value.length >= 160
+})
+
+const shouldRenderMessage = computed(() => {
+  if (props.message.role === 'user') return !!props.message.content || isEditing.value
+  if (visibleContentBlocks.value.length > 0) return true
+  if (!visibleContentBlocks.value.length && !!props.message.content?.trim()) return true
+  if (readToolCalls.value.length > 0) return true
+  if (editToolCalls.value.length > 0) return true
+  if (props.message.taskPlan?.items?.length && props.isPreview) return true
+  if (shouldShowThinkingToggle.value) return true
+  if (props.isPreview && !!props.previewStatusText) return true
+  return false
+})
+
+function isReadToolBlockAt(index: number): boolean {
+  const block = visibleContentBlocks.value[index]
+  return !!(block?.type === 'tool_call' && block.toolCallId && isReadToolById(block.toolCallId))
+}
+
+function toolGroupPosition(prevIsTool: boolean, nextIsTool: boolean): 'single' | 'start' | 'middle' | 'end' {
+  if (prevIsTool && nextIsTool) return 'middle'
+  if (prevIsTool) return 'end'
+  if (nextIsTool) return 'start'
+  return 'single'
+}
+
+function contentBlockToolPosition(index: number): 'single' | 'start' | 'middle' | 'end' {
+  return toolGroupPosition(isReadToolBlockAt(index - 1), isReadToolBlockAt(index + 1))
+}
+
+function contentBlockToolMarginClass(index: number): string {
+  const prevIsTool = isReadToolBlockAt(index - 1)
+  return prevIsTool ? 'mt-0' : 'mt-1'
+}
+
+function readToolPosition(index: number): 'single' | 'start' | 'middle' | 'end' {
+  return toolGroupPosition(index > 0, index < readToolCalls.value.length - 1)
 }
 
 
@@ -259,7 +371,7 @@ function handleCopy() {
 
 function buildAssistantCopyText(): string {
   let result = props.message.content
-  const calls = effectiveToolCalls.value
+  const calls = effectiveToolCalls.value.filter(tc => tc.name !== 'write_todos')
   if (calls?.length) {
     const lines = calls.map(tc => `- ${tc.name}: ${tc.title}`).join('\n')
     result += `\n\n<details>\n<summary>🔧 工具调用 (${calls.length})</summary>\n\n${lines}\n\n</details>`

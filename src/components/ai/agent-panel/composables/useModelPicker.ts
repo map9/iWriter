@@ -21,7 +21,7 @@ export function useModelPicker() {
   const isLoadingOllamaModels = ref(false)
 
   const isOllamaProvider = computed(() => {
-    const config = aiStore.activeProviderConfig
+    const config = aiStore.effectiveProviderConfig
     return config?.presetId === 'ollama' || (config?.baseUrl?.includes(':11434') ?? false)
   })
 
@@ -55,7 +55,7 @@ export function useModelPicker() {
   })
 
   const currentModelId = computed(() => {
-    const candidate = aiStore.activeProviderConfig?.defaultModelId || ''
+    const candidate = aiStore.activeThread?.modelId || aiStore.effectiveProviderConfig?.defaultModelId || ''
     const models = aiStore.availableModels
     if (models.length && (!candidate || !models.includes(candidate))) {
       return models[0]!
@@ -64,7 +64,7 @@ export function useModelPicker() {
   })
 
   async function fetchOllamaModels() {
-    const config = aiStore.activeProviderConfig
+    const config = aiStore.effectiveProviderConfig
     if (!config) return
     isLoadingOllamaModels.value = true
     try {
@@ -97,7 +97,7 @@ export function useModelPicker() {
   }
 
   watch(
-    () => aiStore.activeProviderConfig?.id,
+    () => aiStore.effectiveProviderConfig?.id,
     () => { ollamaFetchedModels.value = [] }
   )
 

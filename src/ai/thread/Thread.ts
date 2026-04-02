@@ -1,5 +1,5 @@
 import type { AiThread, AiToolCall, ThreadMessage } from '@/ai/types'
-import { normalizeLegacyProfile, resolveAgentDomain } from '@/ai/types'
+import { normalizeAgentMode, resolveAgentDomain } from '@/ai/types'
 
 /**
  * Create a new thread with the given provider and model.
@@ -8,9 +8,9 @@ import { normalizeLegacyProfile, resolveAgentDomain } from '@/ai/types'
 export function createThread(
   providerConfigId: string,
   modelId: string,
-  profile: AiThread['profile']
+  mode: AiThread['mode']
 ): AiThread {
-  const normalizedProfile = normalizeLegacyProfile(profile)
+  const normalizedMode = normalizeAgentMode(mode)
   const now = Date.now()
   return {
     id: `thread-${now}-${Math.random().toString(36).slice(2, 8)}`,
@@ -21,8 +21,8 @@ export function createThread(
     messagesLoaded: false,
     providerConfigId,
     modelId,
-    domain: resolveAgentDomain(normalizedProfile),
-    profile: normalizedProfile,
+    domain: resolveAgentDomain(normalizedMode),
+    mode: normalizedMode,
   }
 }
 

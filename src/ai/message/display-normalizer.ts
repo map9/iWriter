@@ -1,4 +1,4 @@
-import type { AiToolCall, AiToolResult, MessageContentBlock, ThreadMessage } from '@/ai/types'
+import type { AiToolCall, AiToolDisplayMeta, AiToolResult, MessageContentBlock, TaskPlanItem, ThreadMessage } from '@/ai/types'
 
 export interface ToolCallStatusOverrides {
   byId?: Record<string, AiToolCall['status']>
@@ -25,7 +25,53 @@ function basename(path: string): string {
   return path.split('/').pop() ?? path
 }
 
+function buildStoryAssetLabel(section: unknown, slug: unknown): string | undefined {
+  const sectionText = toStringValue(section)
+  const slugText = toStringValue(slug)
+  if (!sectionText || !slugText) return undefined
+  return `${sectionText}/${slugText}.md`
+}
+
+function parseJsonObject(text: string | undefined): Record<string, unknown> | null {
+  if (typeof text !== 'string' || !text.trim()) return null
+  try {
+    const parsed = JSON.parse(text)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null
+  } catch {
+    return null
+  }
+}
+
+function toNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function toStringValue(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function formatBlockId(value: unknown): string | null {
+  return value !== undefined && value !== null ? `{b:${value}}` : null
+}
+
+function formatBlockRange(range: unknown): string | null {
+  if (!Array.isArray(range) || range.length < 2) return null
+  const start = formatBlockId(range[0])
+  const end = formatBlockId(range[1])
+  return start && end ? `${start}-${end}` : null
+}
+
+function countBlockMarkers(text: string | null): number | null {
+  if (!text) return null
+  const matches = text.match(/\{b:\d+\}/g)
+  return matches?.length ?? 0
+}
+
 function toolDisplayTitle(toolCall: AiToolCall): string {
+  const actionLabel = toolCall.display?.actionLabel
+  if (actionLabel) return actionLabel
   if (toolCall.name === 'execute') {
     const cmd = toolCall.arguments.command
     if (typeof cmd === 'string' && cmd) {
@@ -84,6 +130,352 @@ function toolParamsText(toolCall: AiToolCall): string {
   }
 }
 
+function summarizeOutline(parsedResult: Record<string, unknown> | null): string | undefined {
+  if (!parsedResult) return undefined
+  const outline = Array.isArray(parsedResult.outline) ? parsedResult.outline : []
+  const totalBlocks = toNumber(parsedResult.total_blocks)
+  const totalWords = toNumber(parsedResult.total_words)
+  const parts = [`${outline.length} 个章节`]
+  if (totalBlocks !== null) parts.push(`${totalBlocks} blocks`)
+  if (totalWords !== null) parts.push(`${totalWords} 字`)
+  return parts.join(' · ')
+}
+
+function summarizeSection(parsedResult: Record<string, unknown> | null): string | undefined {
+  if (!parsedResult) return undefined
+  const range = formatBlockRange(parsedResult.block_id_range)
+  const totalLines = toNumber(parsedResult.total_lines)
+  const wordCount = toNumber(parsedResult.word_count)
+  const content = toStringValue(parsedResult.content)
+  const blockCount = countBlockMarkers(content)
+  const parts: string[] = []
+  if (blockCount !== null && blockCount > 0) parts.push(`${blockCount} blocks`)
+  else if (totalLines !== null) parts.push(`${totalLines} 段`)
+  if (range) parts.push(range)
+  if (wordCount !== null) parts.push(`${wordCount} 字`)
+  if (parsedResult.has_more === true) parts.push('还有更多内容')
+  return parts.join(' · ') || undefined
+}
+
+function summarizeBlocks(parsedResult: Record<string, unknown> | null): string | undefined {
+  if (!parsedResult) return undefined
+  const blocks = Array.isArray(parsedResult.blocks) ? parsedResult.blocks : []
+  if (!blocks.length) return undefined
+  return `${blocks.length} 个 blocks`
+}
+
+function summarizeBlockContext(parsedResult: Record<string, unknown> | null): string | undefined {
+  if (!parsedResult) return undefined
+  const center = formatBlockId(parsedResult.centerBlockId)
+  const blocks = Array.isArray(parsedResult.blocks) ? parsedResult.blocks : []
+  if (center && blocks.length) return `目标 ${center} · 共 ${blocks.length} 个上下文 blocks`
+  return center ? `目标 ${center}` : undefined
+}
+
+function summarizeSearchSections(parsedResult: Record<string, unknown> | null): string | undefined {
+  if (!parsedResult) return undefined
+  const totalSections = toNumber(parsedResult.total_sections)
+  const totalMatches = toNumber(parsedResult.total_matches)
+  const parts: string[] = []
+  if (totalSections !== null) parts.push(`${totalSections} 个章节`)
+  if (totalMatches !== null) parts.push(`${totalMatches} 个命中`)
+  return parts.join(' · ') || undefined
+}
+
+function summarizeWorkspaceSearch(parsedResult: Record<string, unknown> | null): string | undefined {
+  if (!parsedResult) return undefined
+  const matchedFiles = toNumber(parsedResult.matched_files)
+  const totalMatches = toNumber(parsedResult.total_matches)
+  const scannedFiles = toNumber(parsedResult.scanned_files)
+  const parts: string[] = []
+  if (matchedFiles !== null) parts.push(`${matchedFiles} 个文件`)
+  if (totalMatches !== null) parts.push(`${totalMatches} 个命中`)
+  if (scannedFiles !== null) parts.push(`扫描 ${scannedFiles} 个文件`)
+  return parts.join(' · ') || undefined
+}
+
+function summarizeTodoList(parsedResult: Record<string, unknown> | null): string | undefined {
+  if (!parsedResult) return undefined
+  const todos = Array.isArray(parsedResult.todos) ? parsedResult.todos : []
+  if (!todos.length) return undefined
+  let completed = 0
+  let inProgress = 0
+  for (const item of todos) {
+    const status = typeof (item as Record<string, unknown>).status === 'string'
+      ? String((item as Record<string, unknown>).status)
+      : ''
+    if (status === 'completed') completed += 1
+    else if (status === 'in_progress') inProgress += 1
+  }
+  const pending = todos.length - completed - inProgress
+  const parts = [`${todos.length} 项任务`]
+  if (completed > 0) parts.push(`${completed} 已完成`)
+  if (inProgress > 0) parts.push(`${inProgress} 进行中`)
+  if (pending > 0) parts.push(`${pending} 待办`)
+  return parts.join(' · ')
+}
+
+function buildRunningSummary(toolCall: AiToolCall, fallback?: string): string | undefined {
+  if (toolCall.status !== 'pending' && toolCall.status !== 'in_progress') return fallback
+
+  switch (toolCall.name) {
+    case 'get_document_outline':
+      return '正在读取文档大纲'
+    case 'get_section':
+      return '正在读取章节内容'
+    case 'get_blocks':
+      return '正在读取指定段落'
+    case 'get_block_context':
+      return '正在读取上下文'
+    case 'search_document_sections':
+      return '正在搜索相关章节'
+    case 'search_workspace_documents':
+      return '正在搜索工作区文档'
+    case 'write_todos':
+      return '正在更新任务列表'
+    case 'read_file':
+      return '正在读取文件'
+    case 'list_directory':
+    case 'ls':
+      return '正在查看目录'
+    case 'glob':
+      return '正在匹配文件'
+    case 'grep':
+      return '正在搜索内容'
+    case 'execute':
+      return '正在执行命令'
+    case 'write_file':
+      return '正在写入文件'
+    case 'edit_file':
+      return '正在编辑文件'
+    default:
+      return fallback ?? '正在处理'
+  }
+}
+
+function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
+  const args = toolCall.arguments
+  const pathArg =
+    (typeof args.file_path === 'string' && args.file_path)
+    || (typeof args.path === 'string' && args.path)
+    || ''
+  const fileLabel = (() => {
+    const fromArg = pathArg ? basename(pathArg) : ''
+    const fromFile = toolCall.file?.path ? basename(toolCall.file.path) : ''
+    return fromArg || fromFile || undefined
+  })()
+  const rawResult = typeof toolCall.result === 'string' ? toolCall.result : undefined
+  const parsedResult = parseJsonObject(rawResult)
+
+  switch (toolCall.name) {
+    case 'get_document_outline':
+      return {
+        actionLabel: '读取文档大纲',
+        targetLabel: fileLabel,
+        targetPath: pathArg || toolCall.file?.path,
+        summaryLabel: buildRunningSummary(toolCall, summarizeOutline(parsedResult)),
+        detailType: parsedResult ? 'outline' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'get_section': {
+      const heading = parsedResult ? toStringValue(parsedResult.heading) : null
+      const range = parsedResult ? formatBlockRange(parsedResult.block_id_range) : null
+      return {
+        actionLabel: '读取章节',
+        targetLabel: fileLabel,
+        targetPath: pathArg || toolCall.file?.path,
+        contextLabel: heading ? `章节 · ${heading}` : (formatBlockId(args.heading_block_id) ?? undefined),
+        summaryLabel: buildRunningSummary(toolCall, summarizeSection(parsedResult) ?? range ?? undefined),
+        detailType: parsedResult ? 'section' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    }
+    case 'get_blocks':
+      return {
+        actionLabel: '读取指定段落',
+        targetLabel: fileLabel,
+        targetPath: pathArg || toolCall.file?.path,
+        contextLabel: Array.isArray(args.block_ids)
+          ? args.block_ids.slice(0, 4).map(id => formatBlockId(id)).filter((id): id is string => !!id).join(', ')
+          : undefined,
+        summaryLabel: buildRunningSummary(toolCall, summarizeBlocks(parsedResult)),
+        detailType: parsedResult ? 'blocks' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'get_block_context':
+      return {
+        actionLabel: '读取上下文',
+        targetLabel: fileLabel,
+        targetPath: pathArg || toolCall.file?.path,
+        contextLabel: formatBlockId(args.block_id) ?? undefined,
+        summaryLabel: buildRunningSummary(toolCall, summarizeBlockContext(parsedResult)),
+        detailType: parsedResult ? 'block_context' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'search_document_sections':
+      return {
+        actionLabel: '搜索相关章节',
+        targetLabel: fileLabel,
+        targetPath: pathArg || toolCall.file?.path,
+        contextLabel: toStringValue(args.query) ?? undefined,
+        summaryLabel: buildRunningSummary(toolCall, summarizeSearchSections(parsedResult)),
+        detailType: parsedResult ? 'search_sections' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'search_workspace_documents':
+      return {
+        actionLabel: '搜索工作区文档',
+        targetLabel: toStringValue(args.query) ?? undefined,
+        contextLabel: (() => {
+          const include = toStringValue(args.include_glob)
+          const exclude = toStringValue(args.exclude_glob)
+          return [include ? `包含 ${include}` : '', exclude ? `排除 ${exclude}` : ''].filter(Boolean).join(' · ') || undefined
+        })(),
+        summaryLabel: buildRunningSummary(toolCall, summarizeWorkspaceSearch(parsedResult)),
+        detailType: parsedResult ? 'workspace_search' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'write_todos':
+      return {
+        actionLabel: '任务列表',
+        summaryLabel: buildRunningSummary(toolCall, summarizeTodoList(parsedResult)),
+        detailType: parsedResult ? 'todo_list' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'read_file':
+      return {
+        actionLabel: '读取文件',
+        targetLabel: fileLabel || pathArg || undefined,
+        targetPath: pathArg || toolCall.file?.path,
+        summaryLabel: buildRunningSummary(toolCall, rawResult ? `${rawResult.split('\n').length} 行结果` : undefined),
+        detailType: 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'list_directory':
+    case 'ls':
+      return {
+        actionLabel: '查看目录',
+        targetLabel: pathArg || undefined,
+        summaryLabel: buildRunningSummary(toolCall, rawResult ? `${rawResult.split('\n').filter(Boolean).length} 个条目` : undefined),
+        detailType: 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'glob':
+      return {
+        actionLabel: '匹配文件',
+        targetLabel: toStringValue(args.pattern) ?? undefined,
+        contextLabel: pathArg || undefined,
+        summaryLabel: buildRunningSummary(toolCall, rawResult ? `${rawResult.split('\n').filter(Boolean).length} 个结果` : undefined),
+        detailType: 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'grep':
+      return {
+        actionLabel: '搜索内容',
+        targetLabel: toStringValue(args.pattern) ?? toStringValue(args.query) ?? undefined,
+        contextLabel: pathArg || undefined,
+        summaryLabel: buildRunningSummary(toolCall, rawResult ? `${rawResult.split('\n').filter(Boolean).length} 个结果` : undefined),
+        detailType: 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'execute': {
+      const command = typeof args.command === 'string' ? args.command.trim() : ''
+      return {
+        actionLabel: '执行命令',
+        targetLabel: command || undefined,
+        summaryLabel: buildRunningSummary(toolCall, toolCall.status === 'completed' ? '命令执行完成' : undefined),
+        detailType: 'text',
+        parsedResult,
+        rawResult,
+      }
+    }
+    case 'write_file':
+      return {
+        actionLabel: '写入文件',
+        targetLabel: fileLabel || pathArg || undefined,
+        targetPath: pathArg || toolCall.file?.path,
+        summaryLabel: buildRunningSummary(toolCall, toolCall.status === 'completed' ? '文件写入完成' : undefined),
+        detailType: 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'edit_file':
+      return {
+        actionLabel: '编辑文件',
+        targetLabel: fileLabel || pathArg || undefined,
+        targetPath: pathArg || toolCall.file?.path,
+        summaryLabel: buildRunningSummary(toolCall, toolCall.status === 'completed' ? '文件编辑完成' : undefined),
+        detailType: 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'list_story_assets': {
+      const sections = parsedResult && Array.isArray(parsedResult.sections) ? parsedResult.sections : []
+      const sectionCount = sections.length
+      const fileCount = sections.reduce((total, item) => {
+        const entry = item as Record<string, unknown>
+        return total + (Array.isArray(entry.files) ? entry.files.length : 0)
+      }, 0)
+      return {
+        actionLabel: '列出故事资产',
+        targetLabel: toStringValue(args.section) ?? 'story workspace',
+        contextLabel: sectionCount ? `${sectionCount} 个分区` : undefined,
+        summaryLabel: buildRunningSummary(toolCall, fileCount ? `${fileCount} 个文件` : '暂无文件'),
+        detailType: parsedResult ? 'json' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    }
+    case 'read_story_asset':
+      return {
+        actionLabel: '读取故事资产',
+        targetLabel: buildStoryAssetLabel(args.section, args.slug) ?? toStringValue(args.slug) ?? undefined,
+        contextLabel: toStringValue(args.section) ?? undefined,
+        summaryLabel: buildRunningSummary(
+          toolCall,
+          rawResult ? `${rawResult.split('\n').length} 行 · ${rawResult.length} 字符` : undefined
+        ),
+        detailType: 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'save_story_asset': {
+      const savedPath = parsedResult ? toStringValue(parsedResult.path) : null
+      return {
+        actionLabel: '保存故事资产',
+        targetLabel: savedPath ? basename(savedPath) : (buildStoryAssetLabel(args.section, args.slug) ?? toStringValue(args.slug) ?? undefined),
+        targetPath: savedPath ?? undefined,
+        contextLabel: [toStringValue(args.section), toStringValue(args.slug)].filter(Boolean).join(' · ') || undefined,
+        summaryLabel: buildRunningSummary(toolCall, toolCall.status === 'completed' ? '已保存' : undefined),
+        detailType: parsedResult ? 'json' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    }
+    default:
+      return {
+        actionLabel: toolCall.title || toolCall.name,
+        targetLabel: fileLabel,
+        targetPath: pathArg || toolCall.file?.path,
+        summaryLabel: buildRunningSummary(toolCall, undefined),
+        detailType: parsedResult ? 'json' : 'text',
+        parsedResult,
+        rawResult,
+      }
+  }
+}
+
 export function normalizeToolCallForDisplay(
   toolCall: AiToolCall,
   overrides?: ToolCallStatusOverrides,
@@ -97,6 +489,10 @@ export function normalizeToolCallForDisplay(
     title: toolDisplayTitle(toolCall),
     paramsText: toolParamsText(toolCall),
     status: overriddenStatus ?? toolCall.status,
+    display: buildToolDisplayMeta({
+      ...toolCall,
+      status: overriddenStatus ?? toolCall.status,
+    }),
   }
 }
 
@@ -118,6 +514,25 @@ function normalizeToolResults(
       content: String(result.content ?? ''),
     }))
   return normalized.length ? normalized : undefined
+}
+
+function parseTaskPlanFromToolCall(toolCall: AiToolCall): { toolCallId?: string; items: TaskPlanItem[] } | undefined {
+  if (toolCall.name !== 'write_todos') return undefined
+  const parsed = toolCall.display?.parsedResult
+  const todos = Array.isArray(parsed?.todos) ? parsed.todos : []
+  const items = todos
+    .map(item => {
+      const entry = item as Record<string, unknown>
+      const content = typeof entry.content === 'string' ? entry.content.trim() : ''
+      const rawStatus = typeof entry.status === 'string' ? entry.status : 'pending'
+      const status: TaskPlanItem['status'] =
+        rawStatus === 'completed' || rawStatus === 'in_progress' ? rawStatus : 'pending'
+      if (!content) return null
+      return { content, status }
+    })
+    .filter((item): item is TaskPlanItem => !!item)
+  if (!items.length) return undefined
+  return { toolCallId: toolCall.id, items }
 }
 
 function synthesizeContentBlocks(message: ThreadMessage, toolCalls: AiToolCall[] | undefined): MessageContentBlock[] | undefined {
@@ -190,6 +605,10 @@ export function normalizeThreadMessageForDisplay(
   const normalizedToolCalls = message.toolCalls?.map(toolCall =>
     normalizeToolCallForDisplay(toolCall, overrides)
   )
+  const taskPlans = normalizedToolCalls
+    ?.map(parseTaskPlanFromToolCall)
+    .filter((plan): plan is { toolCallId?: string; items: TaskPlanItem[] } => !!plan)
+  const taskPlan = taskPlans?.length ? taskPlans[taskPlans.length - 1] : undefined
 
   return {
     ...message,
@@ -197,6 +616,7 @@ export function normalizeThreadMessageForDisplay(
     thinkingContent: normalizeText(message.thinkingContent),
     toolCalls: normalizedToolCalls?.length ? normalizedToolCalls : undefined,
     toolResults: normalizeToolResults(message.toolResults, normalizedToolCalls),
+    taskPlan,
     contentBlocks: normalizeContentBlocks(message, normalizedToolCalls),
   }
 }

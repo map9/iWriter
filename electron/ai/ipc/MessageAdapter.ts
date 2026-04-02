@@ -36,17 +36,12 @@ export function extractToolResult(toolName: string, output: unknown): string {
   if (toolName === 'write_todos') {
     type Todo = { content?: unknown; status?: unknown }
 
-    const formatTodos = (items: Todo[]): string =>
-      `<ul class="mcv-todo-list">${items.map(t => {
-        const status = String(t.status ?? '')
-        const icon = status === 'completed' ? '✓' : status === 'in_progress' ? '▶' : ''
-        const boxClass = status === 'completed'
-          ? 'mcv-todo-box mcv-todo-box--done'
-          : status === 'in_progress'
-            ? 'mcv-todo-box mcv-todo-box--progress'
-            : 'mcv-todo-box mcv-todo-box--pending'
-        return `<li class="mcv-todo-item"><span class="${boxClass}">${icon}</span><span class="mcv-todo-label">${escapeHtml(String(t.content ?? ''))}</span></li>`
-      }).join('')}</ul>`
+    const formatTodos = (items: Todo[]): string => JSON.stringify({
+      todos: items.map(t => ({
+        content: String(t.content ?? ''),
+        status: String(t.status ?? ''),
+      })),
+    })
 
     // Format 1: {update: {todos: [...]}}
     const todos: Todo[] | undefined =
@@ -68,7 +63,7 @@ export function extractToolResult(toolName: string, output: unknown): string {
           }
         } catch { /* fall through */ }
       }
-      return output.slice(0, 500)
+      return output
     }
 
     // Format 2: {update: {messages: [{content: "Updated todo list to [...]"}]}}
@@ -84,21 +79,48 @@ export function extractToolResult(toolName: string, output: unknown): string {
           }
         } catch { /* fall through */ }
       }
-      return msgStr.slice(0, 500)
+      return msgStr
     }
-    return JSON.stringify(output).slice(0, 500)
+    return safeStringify(output)
   }
   if (output == null) return ''
-  if (typeof output === 'string') return output.slice(0, 500)
+  if (typeof output === 'string') return output
   if (typeof output === 'object') {
+    if (shouldPreserveStructuredToolResult(toolName, output)) {
+      return safeStringify(output)
+    }
     if ('content' in output && typeof (output as { content: unknown }).content === 'string') {
-      return ((output as { content: string }).content).slice(0, 500)
+      return (output as { content: string }).content
     }
     const msg = (output as { update?: { messages?: Array<{ content?: unknown }> } })?.update?.messages?.[0]
-    if (msg?.content != null) return String(msg.content).slice(0, 500)
-    return JSON.stringify(output).slice(0, 500)
+    if (msg?.content != null) return String(msg.content)
+    return safeStringify(output)
   }
-  return String(output).slice(0, 500)
+  return String(output)
+}
+
+function shouldPreserveStructuredToolResult(toolName: string, output: unknown): boolean {
+  if (!output || typeof output !== 'object' || Array.isArray(output)) return false
+
+  const plainTextTools = new Set([
+    'read_file',
+    'read_story_asset',
+    'execute',
+  ])
+  if (plainTextTools.has(toolName)) return false
+
+  const entries = Object.entries(output as Record<string, unknown>)
+  if (!entries.length) return false
+
+  // Any structured object with multiple keys should be preserved as JSON so
+  // replayed messages keep the same metadata the streaming UI had access to.
+  if (entries.length > 1) return true
+
+  // Even single-key objects should stay structured unless they are explicitly
+  // text-first tools. This avoids losing shape for future tools that return
+  // JSON payloads such as { content, ... } through LangChain ToolMessages.
+  const [onlyKey] = entries[0]
+  return onlyKey !== 'content'
 }
 
 // ── LangChain message → ThreadMessage conversion ────────────────────────────
@@ -118,6 +140,35 @@ function lcMsgText(content: unknown): string {
   return String(content ?? '')
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function lcMsgThinking(content: unknown, additionalKwargs?: any): string {
+  const fromContent = Array.isArray(content)
+    ? content
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((b: any) => b?.type === 'reasoning' || b?.type === 'thinking')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((b: any) => String(b.reasoning ?? b.thinking ?? b.text ?? ''))
+      .join('')
+    : ''
+
+  if (fromContent) return fromContent
+
+  const summary = additionalKwargs?.reasoning?.summary
+  if (Array.isArray(summary)) {
+    return summary
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((item: any) => String(item?.text ?? ''))
+      .join('')
+  }
+
+  return String(
+    additionalKwargs?.reasoning_content
+    ?? additionalKwargs?.reasoning?.text
+    ?? additionalKwargs?.reasoning?.reasoning
+    ?? ''
+  )
+}
+
 function parseMaybeJson(raw: unknown): unknown {
   if (typeof raw !== 'string') return raw
   try {
@@ -134,13 +185,12 @@ function normalizeToolOutput(raw: unknown): unknown {
   return raw
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
 }
 
 /**
@@ -178,6 +228,18 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
 
     if (type === 'ai') {
       const content = lcMsgText(msg.content)
+      const thinkingContent = lcMsgThinking(
+        msg.content,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (msg as any).additional_kwargs
+      )
+      if (thinkingContent) {
+        console.debug('[MessageAdapter] extracted thinking content', {
+          messageIndex: i,
+          thinkingLength: thinkingContent.length,
+          preview: thinkingContent.slice(0, 200),
+        })
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const lcToolCalls: any[] = msg.tool_calls ?? []
       const toolCalls: AiToolCall[] = lcToolCalls.map((tc, idx) => ({
@@ -208,9 +270,7 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
         const resultText = extractToolResult(tc?.name ?? '', toolMsg.content)
         if (tc) {
           tc.status = 'completed'
-          tc.result = tc.name === 'write_todos'
-            ? resultText
-            : resultText.slice(0, 500)
+          tc.result = resultText
         }
         toolResults.push({ toolCallId: tcId, content: resultText })
         j++
@@ -232,6 +292,7 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
         id: `msg-a-${i}`,
         role: 'assistant',
         content,
+        thinkingContent: thinkingContent || undefined,
         timestamp: Date.now(),
         toolCalls: toolCalls.length ? toolCalls : undefined,
         toolResults: toolResults.length ? toolResults : undefined,
@@ -303,6 +364,9 @@ export function buildProposalFromAction(
       nodeType: entry?.nodeType,
       oldContent: entry?.content,
       newContent: String(args.new_content ?? ''),
+      expectedCurrentContent: typeof args.expected_current_content === 'string'
+        ? args.expected_current_content
+        : undefined,
       description: description ?? `Edit block {b:${blockId}}`,
     } as BlockEditProposal
   }
@@ -315,7 +379,11 @@ export function buildProposalFromAction(
       type: 'insert',
       displayBlockId: afterId,
       afterNodeId: entry?.nodeId ?? (afterId === 0 ? '0' : undefined),
+      anchorContent: entry?.content,
       newContent: String(args.new_blocks ?? ''),
+      expectedAnchorContent: typeof args.expected_anchor_content === 'string'
+        ? args.expected_anchor_content
+        : undefined,
       description: description ?? `Insert block after {b:${afterId}}`,
     } as BlockEditProposal
   }
@@ -330,6 +398,9 @@ export function buildProposalFromAction(
       nodeId: entry?.nodeId,
       nodeType: entry?.nodeType,
       oldContent: entry?.content,
+      expectedCurrentContent: typeof args.expected_current_content === 'string'
+        ? args.expected_current_content
+        : undefined,
       description: description ?? `Delete block {b:${blockId}}`,
     } as BlockEditProposal
   }
@@ -354,6 +425,9 @@ export function buildProposalFromAction(
       endNodeId: endEntry?.nodeId,
       oldContent,
       newContent: String(args.new_content ?? ''),
+      expectedOldContent: typeof args.expected_old_content === 'string'
+        ? args.expected_old_content
+        : undefined,
       description: description ?? `Replace {b:${startId}}–{b:${endId}}`,
     } as BlockEditProposal
   }

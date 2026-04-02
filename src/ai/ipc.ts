@@ -4,6 +4,9 @@
  */
 
 export type {
+  CompactInputRequest,
+  CompactInputResponse,
+  SessionContextStatsResponse,
   SendMessageRequest,
   EditorContext,
   ResumeDecision,

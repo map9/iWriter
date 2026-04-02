@@ -12,7 +12,7 @@ import type {
   EditProposal,
   AiToolCall,
   ThreadMessage,
-  AiAgentProfile,
+  AiAgentMode,
   AiAgentDomain,
   OpenTabInfo,
 } from '../../../src/types/ai'
@@ -23,7 +23,7 @@ export interface SendMessageRequest {
   threadId?: string            // Omit to start a new thread
   userText: string
   domain: AiAgentDomain
-  profile: AiAgentProfile
+  mode: AiAgentMode
   /** Runtime configuration chosen by the renderer for this thread/run. */
   threadRuntime?: {
     providerConfigId?: string
@@ -38,6 +38,31 @@ export interface SendMessageRequest {
     binaryFilePaths: string[]
     directories: string[]
   }
+}
+
+export interface CompactInputRequest {
+  text: string
+  domain: AiAgentDomain
+  mode: AiAgentMode
+  threadId?: string
+  threadRuntime?: {
+    providerConfigId?: string
+    modelId?: string
+    thinkMode?: string
+  }
+}
+
+export interface CompactInputResponse {
+  text: string
+  originalTokens: number
+  compactedTokens: number
+}
+
+export interface SessionContextStatsResponse {
+  visible: boolean
+  currentTokens: number
+  triggerTokens: number
+  maxInputTokens?: number
 }
 
 export interface EditorContext {
@@ -193,6 +218,8 @@ export interface SerializedOutlineEntry {
 
 export type AiIpcInvokeMap = {
   'ai:send-message': [SendMessageRequest, { threadId: string }]
+  'ai:compact-input': [CompactInputRequest, CompactInputResponse]
+  'ai:get-session-context-stats': [CompactInputRequest, SessionContextStatsResponse]
   'ai:cancel': [{ threadId: string }, void]
   'ai:resume': [ResumeRunRequest, void]
   'ai:get-config': [void, AiSettings]

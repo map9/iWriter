@@ -6,18 +6,23 @@
  * (API key, etc.); all other values come from here.
  */
 
-import type { AiProviderType } from '@/ai/types'
+import type { AiModelProfile, AiProviderType } from '@/ai/types'
+import {
+  DEFAULT_DEEPSEEK_MODEL_PROFILES,
+  DEFAULT_OPENAI_MODEL_PROFILES,
+} from '@/ai/model-profiles'
 
 export interface ProviderPreset {
   id: string
   label: string
   type: AiProviderType
   description: string
-  /** For openai-compat providers */
+  /** For openai-compat / deepseek providers */
   baseUrl?: string
   defaultModelId: string
   /** Selectable model IDs shown in the model picker */
   models?: string[]
+  modelProfiles?: Record<string, AiModelProfile>
   requiresApiKey: boolean
   /** If true, user can/should customise baseUrl (e.g. Ollama) */
   editableBaseUrl?: boolean
@@ -101,11 +106,12 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'deepseek',
     label: 'DeepSeek',
-    type: 'openai-compat',
+    type: 'deepseek',
     description: '深度求索 API',
     baseUrl: 'https://api.deepseek.com/v1',
     defaultModelId: 'deepseek-chat',
     models: ['deepseek-chat', 'deepseek-reasoner'],
+    modelProfiles: DEFAULT_DEEPSEEK_MODEL_PROFILES,
     requiresApiKey: true,
     editableBaseUrl: true,
   },
@@ -136,6 +142,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
       'gpt-5-mini-2025-08-07', 'gpt-5-nano-2025-08-07', 'gpt-5-2025-08-07',
       'gpt-4.1-2025-04-14'
     ],
+    modelProfiles: DEFAULT_OPENAI_MODEL_PROFILES,
     requiresApiKey: true,
     editableBaseUrl: true,
   },

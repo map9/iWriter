@@ -13,10 +13,61 @@ import type { Node as PmNode, Schema } from '@tiptap/pm/model'
 import type { JSONContent } from '@tiptap/core'
 import { marked } from 'marked'
 import type { BlockEditProposal } from '@/ai/types'
+import { DocumentViewBuilder, nodeToMarkdown } from './DocumentViewBuilder'
 
 export interface ApplyResult {
   success: boolean
   error?: string
+}
+
+function normalizeExpectedMarkdown(markdown: string): string {
+  return markdown
+    .replace(/\r\n/g, '\n')
+    .replace(/^\{b:\d+\}\n?/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\s+|\s+$/g, '')
+}
+
+function contentMismatchError(kind: string, blockLabel: string): string {
+  return `${kind}: current content for ${blockLabel} no longer matches the expected content. Re-read the latest document blocks before editing again.`
+}
+
+function logContentMismatch(blockLabel: string, currentContent: string, expectedContent: string): void {
+  console.warn('[BlockEditApplier] content mismatch', {
+    blockLabel,
+    currentContent,
+    expectedContent,
+    normalizedCurrentContent: normalizeExpectedMarkdown(currentContent),
+    normalizedExpectedContent: normalizeExpectedMarkdown(expectedContent),
+  })
+}
+
+function resolveExpectedContent(preferred: string | undefined, fallback: string | undefined): string | undefined {
+  const normalizedPreferred = preferred ? normalizeExpectedMarkdown(preferred) : ''
+  if (normalizedPreferred) return preferred
+
+  const normalizedFallback = fallback ? normalizeExpectedMarkdown(fallback) : ''
+  return normalizedFallback ? fallback : undefined
+}
+
+function getRangeMarkdown(editor: Editor, startNodeId: string, endNodeId: string): string {
+  const doc = editor.state.doc
+  const view = new DocumentViewBuilder().build(editor)
+  const startEntry = view.blockMap.find(entry => entry.nodeId === startNodeId)
+  const endEntry = view.blockMap.find(entry => entry.nodeId === endNodeId)
+  if (!startEntry || !endEntry) return ''
+
+  const from = Math.min(startEntry.from, endEntry.from)
+  const to = Math.max(startEntry.to, endEntry.to)
+
+  return view.blockMap
+    .filter(entry => entry.from >= from && entry.to <= to)
+    .map(entry => {
+      const node = doc.nodeAt(entry.from)
+      return node ? nodeToMarkdown(node) : ''
+    })
+    .filter(Boolean)
+    .join('\n\n')
 }
 
 // ── Node Lookup ────────────────────────────────────────────────────────────
@@ -103,6 +154,18 @@ export async function applyEditBlock(
     return { success: false, error: `Block ${nodeId} not found in document` }
   }
 
+  const expectedCurrentContent = resolveExpectedContent(
+    proposal.oldContent,
+    proposal.expectedCurrentContent
+  )
+  if (expectedCurrentContent !== undefined) {
+    const currentContent = nodeToMarkdown(found.node)
+    if (normalizeExpectedMarkdown(currentContent) !== normalizeExpectedMarkdown(expectedCurrentContent)) {
+      logContentMismatch(`block ${nodeId}`, currentContent, expectedCurrentContent)
+      return { success: false, error: contentMismatchError('content_mismatch', `block ${nodeId}`) }
+    }
+  }
+
   const wrapped = wrapForNodeType(newContent, found.node)
   const nodes = await markdownToContent(editor, wrapped)
   if (!nodes.length) {
@@ -157,6 +220,17 @@ export async function applyInsertBlock(
     if (!found) {
       return { success: false, error: `Block ${afterNodeId} not found in document` }
     }
+    const expectedAnchorContent = resolveExpectedContent(
+      proposal.anchorContent,
+      proposal.expectedAnchorContent
+    )
+    if (expectedAnchorContent !== undefined) {
+      const currentContent = nodeToMarkdown(found.node)
+      if (normalizeExpectedMarkdown(currentContent) !== normalizeExpectedMarkdown(expectedAnchorContent)) {
+        logContentMismatch(`anchor block ${afterNodeId}`, currentContent, expectedAnchorContent)
+        return { success: false, error: contentMismatchError('content_mismatch', `anchor block ${afterNodeId}`) }
+      }
+    }
     insertPos = found.to
   }
 
@@ -181,6 +255,18 @@ export function applyDeleteBlock(
   const found = findNodeById(editor.state.doc, nodeId)
   if (!found) {
     return { success: false, error: `Block ${nodeId} not found in document` }
+  }
+
+  const expectedCurrentContent = resolveExpectedContent(
+    proposal.oldContent,
+    proposal.expectedCurrentContent
+  )
+  if (expectedCurrentContent !== undefined) {
+    const currentContent = nodeToMarkdown(found.node)
+    if (normalizeExpectedMarkdown(currentContent) !== normalizeExpectedMarkdown(expectedCurrentContent)) {
+      logContentMismatch(`block ${nodeId}`, currentContent, expectedCurrentContent)
+      return { success: false, error: contentMismatchError('content_mismatch', `block ${nodeId}`) }
+    }
   }
 
   editor.chain()
@@ -213,6 +299,18 @@ export async function applyReplaceRange(
 
   const from = Math.min(startFound.from, endFound.from)
   const to   = Math.max(startFound.to,   endFound.to)
+
+  const expectedOldContent = resolveExpectedContent(
+    proposal.oldContent,
+    proposal.expectedOldContent
+  )
+  if (expectedOldContent !== undefined) {
+    const currentContent = getRangeMarkdown(editor, startNodeId, endNodeId)
+    if (normalizeExpectedMarkdown(currentContent) !== normalizeExpectedMarkdown(expectedOldContent)) {
+      logContentMismatch(`range ${startNodeId}-${endNodeId}`, currentContent, expectedOldContent)
+      return { success: false, error: contentMismatchError('content_mismatch', `range ${startNodeId}-${endNodeId}`) }
+    }
+  }
 
   const nodes = await markdownToContent(editor, newContent)
   if (!nodes.length) {

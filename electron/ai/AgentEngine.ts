@@ -15,13 +15,18 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { app } from 'electron'
 import type { WebContents } from 'electron'
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import type { StructuredTool } from '@langchain/core/tools'
+import type { ModelProfile } from '@langchain/core/language_models/profile'
 import { CompositeBackend, createDeepAgent, FilesystemBackend, LocalShellBackend } from 'deepagents'
 import { Command } from '@langchain/langgraph'
-import { HumanMessage } from '@langchain/core/messages'
+import { HumanMessage, SystemMessage } from '@langchain/core/messages'
+import { countTokensApproximately } from 'langchain'
 
-import type { AiProviderConfig, AiAgentDomain, AiAgentProfile, ThreadMessage, EditProposal } from '../../src/types/ai'
+import type { AiProviderConfig, AiAgentDomain, AiAgentMode, ThreadMessage, EditProposal } from '../../src/types/ai'
 import { BLOCK_EDIT_TOOLS } from '../../src/types/ai'
+import { getModelBudgetInfo } from '../../src/ai/model-budget'
+import { estimateTextTokens } from '../../src/ai/token-estimation'
 import { createChatModel } from './providers/ModelFactory'
 import { buildDocumentTools } from './tools/DocumentTools'
 import { buildEditProposalTools } from './tools/EditProposalTools'
@@ -34,6 +39,9 @@ import type {
   SendMessageRequest,
   ResumeDecision,
   SerializedSnapshot,
+  CompactInputRequest,
+  CompactInputResponse,
+  SessionContextStatsResponse,
 } from './ipc/protocol'
 import {
   convertLcMessages,
@@ -67,7 +75,7 @@ export class AgentEngine {
   /** Thread-scoped runtime data: editor context + pending interrupts. */
   private runtimeStore = new ThreadRuntimeStore()
 
-  /** Agent cache keyed by "configId:profile:modelId" */
+  /** Agent cache keyed by "configId:mode:modelId" */
   private agentCache = new Map<string, DeepAgentInstance>()
 
   /** Initialized once on first use */
@@ -162,7 +170,7 @@ export class AgentEngine {
       this.threadListQuery!.createMeta({
         id: threadId,
         domain: runtime.domain,
-        profile: runtime.profile,
+        mode: runtime.mode,
         modelId: runtime.modelId,
         providerConfigId: runtime.providerConfig.id,
         originFilePath: req.editorContext.filePath,
@@ -171,7 +179,7 @@ export class AgentEngine {
     } else {
       this.threadListQuery!.updateMeta(threadId, {
         domain: runtime.domain,
-        profile: runtime.profile,
+        mode: runtime.mode,
         modelId: runtime.modelId,
         providerConfigId: runtime.providerConfig.id,
         thinkMode: runtime.thinkMode,
@@ -194,6 +202,7 @@ export class AgentEngine {
     }
 
     const userContent = buildUserMessage(req)
+    this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkMode, userContent)
 
     // If this thread was left in an interrupted state (e.g., app restart during HITL),
     // clear the stale in-memory entry so the new message starts a fresh run.
@@ -203,11 +212,122 @@ export class AgentEngine {
     }
 
     // Run agent in background
-    this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.profile, runtime.modelId, runtime.thinkMode, userContent).catch(err => {
+    this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkMode, userContent).catch(err => {
       console.error('[AgentEngine] _runSession error:', err)
     })
 
     return { threadId }
+  }
+
+  async compactInput(req: CompactInputRequest): Promise<CompactInputResponse> {
+    await this._ensureInitialized()
+
+    const { AiConfigStore } = await import('./config/AiConfigStore')
+    const settings = AiConfigStore.loadSettings()
+    const meta = req.threadId ? this.threadListQuery?.getMeta(req.threadId) : null
+    const runtime = resolveThreadRuntime(settings, {
+      userText: req.text,
+      domain: req.domain,
+      mode: req.mode,
+      threadId: req.threadId,
+      threadRuntime: req.threadRuntime,
+      editorContext: {
+        filePath: null,
+        isDirty: false,
+        folderPath: null,
+        openTabs: [],
+      },
+    }, meta)
+
+    const original = req.text.trim()
+    const originalTokens = estimateTextTokens(original)
+    if (!original) {
+      return { text: '', originalTokens: 0, compactedTokens: 0 }
+    }
+
+    const model = createChatModel(runtime.providerConfig, {
+      modelId: runtime.modelId,
+      thinkMode: runtime.thinkMode,
+    })
+
+    const systemPrompt = [
+      '你负责压缩用户输入，而不是回答问题。',
+      '保留所有明确要求、约束、文件名、数字、步骤、风格偏好和验收标准。',
+      '删除寒暄、重复、冗余解释和不影响执行的背景描述。',
+      '输出语言保持和原文一致。',
+      '只返回压缩后的文本，不要解释。',
+    ].join('\n')
+
+    const humanPrompt = [
+      '请压缩下面这段用户输入，目标是在不丢失关键执行信息的前提下尽量减少 token。',
+      '',
+      original,
+    ].join('\n')
+
+    const response = await model.invoke([
+      new SystemMessage(systemPrompt),
+      new HumanMessage(humanPrompt),
+    ])
+
+    const compacted = typeof response.content === 'string'
+      ? response.content.trim()
+      : Array.isArray(response.content)
+        ? response.content
+            .filter((part: any) => part?.type === 'text')
+            .map((part: any) => String(part?.text ?? ''))
+            .join('')
+            .trim()
+        : ''
+
+    const nextText = compacted && compacted.length < original.length ? compacted : original
+    return {
+      text: nextText,
+      originalTokens,
+      compactedTokens: estimateTextTokens(nextText),
+    }
+  }
+
+  async getSessionContextStats(req: CompactInputRequest): Promise<SessionContextStatsResponse> {
+    await this._ensureInitialized()
+
+    const { AiConfigStore } = await import('./config/AiConfigStore')
+    const settings = AiConfigStore.loadSettings()
+    const meta = req.threadId ? this.threadListQuery?.getMeta(req.threadId) : null
+    const runtime = resolveThreadRuntime(settings, {
+      userText: req.text ?? '',
+      domain: req.domain,
+      mode: req.mode,
+      threadId: req.threadId,
+      threadRuntime: req.threadRuntime,
+      editorContext: {
+        filePath: null,
+        isDirty: false,
+        folderPath: null,
+        openTabs: [],
+      },
+    }, meta)
+
+    const model = createChatModel(runtime.providerConfig, {
+      modelId: runtime.modelId,
+      thinkMode: runtime.thinkMode,
+    })
+    const profile = (model as BaseChatModel & { profile?: ModelProfile }).profile
+    const budget = getModelBudgetInfo(profile)
+    if (!budget.maxInputTokens) {
+      return {
+        visible: false,
+        currentTokens: 0,
+        triggerTokens: 0,
+      }
+    }
+
+    const currentTokens = await this._getCurrentSessionTokens(req.threadId, runtime.domain, runtime.mode)
+    return {
+      visible: true,
+      currentTokens,
+      triggerTokens: budget.triggerTokens,
+      maxInputTokens: budget.maxInputTokens,
+    }
   }
 
   // ── Public: cancel ────────────────────────────────────────────────────────
@@ -263,7 +383,7 @@ export class AgentEngine {
 
     const hiResp = { decisions: lgDecisions }
 
-    this._continueSession(threadId, runtime.providerConfig, runtime.domain, runtime.profile, runtime.modelId, runtime.thinkMode, new Command({ resume: hiResp }))
+    this._continueSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkMode, new Command({ resume: hiResp }))
       .catch(err => console.error('[AgentEngine] _continueSession error:', err))
   }
 
@@ -273,12 +393,12 @@ export class AgentEngine {
     threadId: string,
     config: AiProviderConfig,
     domain: AiAgentDomain,
-    profile: AiAgentProfile,
+    mode: AiAgentMode,
     modelId: string,
     thinkMode: string | undefined,
     userContent: string,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(threadId, config, domain, profile, modelId, thinkMode)
+    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkMode)
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
@@ -296,12 +416,12 @@ export class AgentEngine {
     threadId: string,
     config: AiProviderConfig,
     domain: AiAgentDomain,
-    profile: AiAgentProfile,
+    mode: AiAgentMode,
     modelId: string,
     thinkMode: string | undefined,
     command: typeof Command.prototype,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(threadId, config, domain, profile, modelId, thinkMode)
+    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkMode)
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
@@ -444,7 +564,7 @@ export class AgentEngine {
     threadId: string,
     config: AiProviderConfig,
     domain: AiAgentDomain,
-    profile: AiAgentProfile,
+    mode: AiAgentMode,
     modelId: string,
     thinkMode?: string,
   ): DeepAgentInstance {
@@ -453,15 +573,14 @@ export class AgentEngine {
     // produce a new agent instance rather than reusing a stale one.
     const keyFingerprint = config.apiKey ? config.apiKey.slice(-8) : ''
     const mountKey = mounts.map(mount => `${mount.virtualPath}:${mount.hostPath}:${mount.kind}`).join('|')
-    const cacheKey = `${threadId}:${config.id}:${domain}:${profile}:${modelId}:${thinkMode ?? ''}:${keyFingerprint}:${config.baseUrl ?? ''}:${mountKey}`
+    const cacheKey = `${threadId}:${config.id}:${domain}:${mode}:${modelId}:${thinkMode ?? ''}:${keyFingerprint}:${config.baseUrl ?? ''}:${mountKey}`
     if (this.agentCache.has(cacheKey)) return this.agentCache.get(cacheKey)!
 
     const model = createChatModel(config, { modelId, thinkMode })
-    const capabilities = this._buildAgentCapabilities(domain, profile, mounts)
-
+    const capabilities = this._buildAgentCapabilities(domain, mode, mounts)
     const agent = createDeepAgent({
       model,
-      systemPrompt: getSystemPrompt(domain, profile),
+      systemPrompt: getSystemPrompt(domain, mode),
       tools: capabilities.tools,
       backend: capabilities.backend,
       skills: capabilities.skills,
@@ -485,6 +604,38 @@ export class AgentEngine {
       binaryFilePaths: ctx?.attachmentBinaryFilePaths ?? [],
       directories: ctx?.attachmentDirectories ?? [],
     })
+  }
+
+  private async _getCurrentSessionTokens(
+    threadId: string | undefined,
+    domain: AiAgentDomain,
+    mode: AiAgentMode,
+  ): Promise<number> {
+    if (!threadId) return 0
+
+    try {
+      const tuple = await this.checkpointerInstance!.checkpointer.get({
+        configurable: { thread_id: threadId },
+      })
+      if (!tuple) return 0
+      const t = tuple as any
+      const channelValues = t.channel_values ?? {}
+      const rawMessages = Array.isArray(channelValues.messages) ? channelValues.messages : []
+      const summarizationEvent = channelValues._summarizationEvent
+      const effectiveMessages = summarizationEvent?.summaryMessage
+        ? [summarizationEvent.summaryMessage, ...rawMessages.slice(summarizationEvent.cutoffIndex ?? 0)]
+        : rawMessages
+      const mounts = this._getFilesystemMounts(threadId)
+      const capabilities = this._buildAgentCapabilities(domain, mode, mounts)
+      const systemPrompt = new SystemMessage(getSystemPrompt(domain, mode))
+      return countTokensApproximately(
+        [systemPrompt, ...effectiveMessages],
+        capabilities.tools as unknown as Array<Record<string, any>>
+      )
+    } catch (err) {
+      console.warn('[AgentEngine] Failed to compute current session tokens:', err)
+      return 0
+    }
   }
 
   // ── Private: init ─────────────────────────────────────────────────────────
@@ -525,7 +676,7 @@ export class AgentEngine {
 
   private _buildAgentCapabilities(
     domain: AiAgentDomain,
-    profile: AiAgentProfile,
+    mode: AiAgentMode,
     mounts: FilesystemMount[]
   ): {
     tools: StructuredTool[]
@@ -541,7 +692,7 @@ export class AgentEngine {
       }
     }
 
-    if (profile === 'minimal') {
+    if (mode === 'minimal') {
       return { tools: [], skills: [] }
     }
 
@@ -575,15 +726,36 @@ export class AgentEngine {
       },
     }
   }
+
+  private _assertWithinBudget(
+    config: AiProviderConfig,
+    domain: AiAgentDomain,
+    mode: AiAgentMode,
+    modelId: string,
+    thinkMode: string | undefined,
+    userContent: string,
+  ): void {
+    const systemPrompt = getSystemPrompt(domain, mode)
+    const inputTokens = estimateTextTokens(systemPrompt) + estimateTextTokens(userContent)
+    const model = createChatModel(config, { modelId, thinkMode })
+    const budgetInfo = getModelBudgetInfo((model as BaseChatModel & { profile?: ModelProfile }).profile)
+    const allowedBudget = budgetInfo.triggerTokens
+
+    if (inputTokens <= allowedBudget) return
+
+    throw new Error(
+      `当前请求预计约 ${inputTokens} tokens，已超过摘要触发预算 ${allowedBudget}。请先点击 Compact 压缩输入，或减少附件与上下文。`
+    )
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function getSystemPrompt(domain: AiAgentDomain, profile: AiAgentProfile): string {
+function getSystemPrompt(domain: AiAgentDomain, mode: AiAgentMode): string {
   if (domain === 'creative') {
     return CREATIVE_SYSTEM_PROMPT
   }
-  switch (profile) {
+  switch (mode) {
     case 'minimal': return MINIMAL_SYSTEM_PROMPT
     case 'edit': return EDIT_SYSTEM_PROMPT
     default: return EDIT_SYSTEM_PROMPT

@@ -1,34 +1,71 @@
 <template>
-  <div class="relative flex-shrink-0" v-click-outside="() => showMenu = false">
+  <div ref="triggerEl" class="relative flex-shrink-0">
     <button
       @click="showMenu = !showMenu"
       class="p-1.5 rounded hover:bg-gray-100 transition-colors text-gray-500"
       title="添加文件 / 文件夹"
     >
-      <IconPaperclip class="w-4 h-4" />
+      <IconPlus class="w-4 h-4" />
     </button>
-    <div
-      v-if="showMenu"
-      class="absolute bottom-full left-0 mb-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1"
-    >
-      <button @click="emit('browse-files'); showMenu = false" class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
-        <IconFile class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />浏览文件…
-      </button>
-      <button @click="emit('browse-folder'); showMenu = false" class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
-        <IconFolder class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />浏览文件夹…
-      </button>
-    </div>
+    <Teleport to="body">
+      <div
+        v-if="showMenu"
+        ref="menuEl"
+        class="fixed w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-[1200] py-1"
+        :style="menuStyle"
+      >
+        <button @click="emit('browse-files'); showMenu = false" class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
+          <IconFile class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />浏览文件…
+        </button>
+        <button @click="emit('browse-folder'); showMenu = false" class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
+          <IconFolder class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />浏览文件夹…
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { IconPaperclip, IconFile, IconFolder } from '@tabler/icons-vue'
-import { vClickOutside } from '@/utils/directives'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { IconPlus, IconFile, IconFolder } from '@tabler/icons-vue'
 
 const showMenu = ref(false)
+const triggerEl = ref<HTMLElement | null>(null)
+const menuEl = ref<HTMLElement | null>(null)
+const menuWidth = 160
 const emit = defineEmits<{
   'browse-files': []
   'browse-folder': []
 }>()
+
+const menuStyle = computed(() => {
+  if (!triggerEl.value) return {}
+  const rect = triggerEl.value.getBoundingClientRect()
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8))
+  const bottom = Math.max(8, window.innerHeight - rect.top + 4)
+  return {
+    left: `${left}px`,
+    bottom: `${bottom}px`,
+  }
+})
+
+function handlePointerDown(event: MouseEvent) {
+  const target = event.target as Node | null
+  if (!target) return
+  if (triggerEl.value?.contains(target)) return
+  if (menuEl.value?.contains(target)) return
+  showMenu.value = false
+}
+
+watch(showMenu, open => {
+  if (open) {
+    document.addEventListener('mousedown', handlePointerDown)
+  } else {
+    document.removeEventListener('mousedown', handlePointerDown)
+  }
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handlePointerDown)
+})
 </script>

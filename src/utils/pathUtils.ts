@@ -97,6 +97,11 @@ export const pathUtils = {
     );
   },
 
+  isAbsolutePath(path: string): boolean {
+    if (!path) return false
+    return path.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('\\\\')
+  },
+
   parentDir: (path: string): string => {
     if (!path) return '/';
 

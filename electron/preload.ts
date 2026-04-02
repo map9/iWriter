@@ -146,6 +146,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── AI Agent (main-process deepagents) ────────────────────────────────────
   aiSendMessage: (req: any) => ipcRenderer.invoke('ai:send-message', req),
+  aiCompactInput: (req: any) => ipcRenderer.invoke('ai:compact-input', req),
+  aiGetSessionContextStats: (req: any) => ipcRenderer.invoke('ai:get-session-context-stats', req),
   aiCancel: (threadId: string) => ipcRenderer.invoke('ai:cancel', { threadId }),
   aiResume: (req: any) => ipcRenderer.invoke('ai:resume', req),
   aiGetConfig: () => ipcRenderer.invoke('ai:get-config'),

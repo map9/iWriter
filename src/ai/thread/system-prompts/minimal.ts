@@ -1,5 +1,5 @@
 /**
- * System prompt for the 'minimal' profile.
+ * System prompt for the 'minimal' mode.
  * No tools available — respond based on context only.
  */
 

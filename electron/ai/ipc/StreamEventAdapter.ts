@@ -9,6 +9,7 @@ interface AgentStreamState {
   toolCalls: AiToolCall[]
   contentBlocks: MessageContentBlock[]
   pendingText: string
+  pendingReasoningLogText: string
   interrupted: boolean
   interruptPayload: unknown
 }
@@ -20,6 +21,7 @@ export class StreamEventAdapter {
     toolCalls: [],
     contentBlocks: [],
     pendingText: '',
+    pendingReasoningLogText: '',
     interrupted: false,
     interruptPayload: null,
   }
@@ -28,7 +30,10 @@ export class StreamEventAdapter {
     const chunks: StreamChunkEvent[] = []
 
     if (event.event === 'on_chat_model_stream') {
-      const content = event.data?.chunk?.content
+      const chunk = event.data?.chunk
+      const content = chunk?.content
+      let sawReasoningInContent = false
+      let reasoningDeltaFromContent = ''
       if (typeof content === 'string' && content) {
         this.state.assistantContent += content
         this.state.pendingText += content
@@ -42,8 +47,49 @@ export class StreamEventAdapter {
           } else if (part.type === 'thinking' && part.thinking) {
             this.state.thinkingContent += part.thinking
             chunks.push({ threadId, type: 'thinking', delta: part.thinking })
+          } else if (part.type === 'reasoning' && part.reasoning) {
+            sawReasoningInContent = true
+            reasoningDeltaFromContent += part.reasoning
+            this.state.thinkingContent += part.reasoning
+            chunks.push({ threadId, type: 'thinking', delta: part.reasoning })
+          } else if (part.type === 'reasoning' && part.text) {
+            sawReasoningInContent = true
+            reasoningDeltaFromContent += part.text
+            this.state.thinkingContent += part.text
+            chunks.push({ threadId, type: 'thinking', delta: part.text })
           }
         }
+      }
+
+      const reasoningSummary = chunk?.additional_kwargs?.reasoning?.summary
+      const directReasoningContent = typeof chunk?.additional_kwargs?.reasoning_content === 'string'
+        ? chunk.additional_kwargs.reasoning_content
+        : ''
+      if (!sawReasoningInContent && directReasoningContent) {
+        this.state.thinkingContent += directReasoningContent
+        chunks.push({ threadId, type: 'thinking', delta: directReasoningContent })
+      }
+      if (!sawReasoningInContent && Array.isArray(reasoningSummary)) {
+        const reasoningText = reasoningSummary
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((part: any) => String(part?.text ?? ''))
+          .join('')
+        if (reasoningText) {
+          this.state.thinkingContent += reasoningText
+          chunks.push({ threadId, type: 'thinking', delta: reasoningText })
+        }
+      }
+
+      if (sawReasoningInContent || directReasoningContent || Array.isArray(reasoningSummary)) {
+        this.logReasoningDebug(
+          threadId,
+          {
+            sawReasoningInContent,
+            directReasoningContent,
+            reasoningDeltaFromContent,
+            reasoningSummary,
+          },
+        )
       }
       return chunks
     }
@@ -129,5 +175,71 @@ export class StreamEventAdapter {
     if (!this.state.pendingText) return
     this.state.contentBlocks.push({ type: 'text', text: this.state.pendingText })
     this.state.pendingText = ''
+  }
+
+  // DeepSeek streams reasoning in tiny 1-2 char fragments very frequently.
+  // Aggregate those fragments so debug output reflects meaningful progress.
+  private logReasoningDebug(
+    threadId: string,
+    params: {
+      sawReasoningInContent: boolean
+      directReasoningContent: string
+      reasoningDeltaFromContent: string
+      reasoningSummary: unknown
+    },
+  ): void {
+    const {
+      sawReasoningInContent,
+      directReasoningContent,
+      reasoningDeltaFromContent,
+      reasoningSummary,
+    } = params
+
+    if (directReasoningContent) {
+      this.state.pendingReasoningLogText += directReasoningContent
+    }
+
+    const summaryPreview = Array.isArray(reasoningSummary)
+      ? reasoningSummary
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((part: any) => String(part?.text ?? ''))
+        .join('')
+        .slice(0, 200)
+      : ''
+
+    const shouldFlushDirectReasoning =
+      this.state.pendingReasoningLogText.length >= 24
+      || /[\n。！？.!?：:，,；;]$/.test(this.state.pendingReasoningLogText)
+      || (!directReasoningContent && this.state.pendingReasoningLogText.length > 0)
+
+    if (shouldFlushDirectReasoning) {
+      console.debug('[StreamEventAdapter] reasoning chunk', {
+        threadId,
+        source: 'additional_kwargs.reasoning_content',
+        accumulatedLength: this.state.pendingReasoningLogText.length,
+        preview: this.state.pendingReasoningLogText.slice(0, 200),
+      })
+      this.state.pendingReasoningLogText = ''
+    }
+
+    if (sawReasoningInContent || summaryPreview) {
+      console.debug('[StreamEventAdapter] reasoning chunk', {
+        threadId,
+        ...(sawReasoningInContent
+          ? {
+              source: 'content.reasoning',
+              contentReasoningLength: reasoningDeltaFromContent.length,
+              preview: reasoningDeltaFromContent.slice(0, 200),
+            }
+          : {}),
+        ...(summaryPreview
+          ? {
+              source: sawReasoningInContent ? 'mixed' : 'additional_kwargs.reasoning.summary',
+              summaryParts: Array.isArray(reasoningSummary) ? reasoningSummary.length : 0,
+              summaryPreview,
+            }
+          : {}),
+      })
+    }
   }
 }

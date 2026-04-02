@@ -155,7 +155,17 @@ export class UnifiedDocumentAccess {
   // ── private ──────────────────────────────────────────────────────────────
 
   private static async _createFromFile(filePath: string): Promise<DocumentHandle | { error: string }> {
-    const raw = await window.electronAPI.readFile(filePath)
+    if (!pathUtils.isAbsolutePath(filePath)) {
+      return { error: `file_path must be an absolute path: "${filePath}"` }
+    }
+
+    let raw: string | null
+    try {
+      raw = await window.electronAPI.readFile(filePath)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { error: `Failed to read file "${filePath}": ${message}` }
+    }
     if (raw === null) return { error: `File not found or unreadable: "${filePath}"` }
 
     const ext = pathUtils.extension(filePath)

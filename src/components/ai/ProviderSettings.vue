@@ -98,8 +98,24 @@
             <p class="text-xs text-gray-400 mt-1">支持 <code class="bg-gray-100 px-1 rounded">$ENV_VAR_NAME</code> 格式引用系统环境变量</p>
           </div>
 
+          <!-- Interface type -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Interface Type</label>
+            <select
+              v-model="form.type"
+              :disabled="isPreset"
+              class="w-full h-9 text-sm px-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              :class="isPreset ? 'bg-gray-50 text-gray-500 cursor-default' : ''"
+            >
+              <option value="openai-compat">OpenAI 兼容</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="gemini">Google Gemini</option>
+            </select>
+          </div>
+
           <!-- Base URL -->
-          <div v-if="form.type === 'openai-compat'">
+          <div v-if="form.type === 'openai-compat' || form.type === 'deepseek'">
             <label class="block text-sm font-medium text-gray-700 mb-1">Base URL</label>
             <input
               v-model="form.baseUrl"
@@ -127,17 +143,19 @@
             </p>
           </div>
 
-          <!-- Interface type (custom only) -->
           <div v-if="!isPreset">
-            <label class="block text-sm font-medium text-gray-700 mb-1">接口类型</label>
-            <select
-              v-model="form.type"
-              class="w-full h-9 text-sm px-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="openai-compat">OpenAI 兼容</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="gemini">Google Gemini</option>
-            </select>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Model Profiles (JSON)</label>
+            <textarea
+              v-model="form.modelProfilesStr"
+              rows="8"
+              placeholder='{
+  "deepseek-chat": { "maxInputTokens": 128000, "toolCalling": true }
+}'
+              class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono resize-y"
+            />
+            <p class="text-xs mt-1" :class="modelProfilesError ? 'text-red-500' : 'text-gray-400'">
+              {{ modelProfilesError || '仅自定义 Provider 可编辑。按 modelId 配置 profile 覆盖，用于兼容模型和自定义模型。' }}
+            </p>
           </div>
 
       </div>
@@ -171,7 +189,7 @@
 import { ref, computed, watch } from 'vue'
 import { IconPencil, IconTrash, IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/store/ai'
-import type { AiProviderConfig, AiProviderType } from '@/ai/types'
+import type { AiModelProfile, AiProviderConfig, AiProviderType } from '@/ai/types'
 import {
   PROVIDER_PRESETS,
   type ProviderPreset,
@@ -214,6 +232,7 @@ interface FormState {
   apiKey: string
   baseUrl: string
   modelsStr: string       // comma-separated model IDs
+  modelProfilesStr: string
 }
 
 const form = ref<FormState>({
@@ -222,12 +241,26 @@ const form = ref<FormState>({
   apiKey: '',
   baseUrl: '',
   modelsStr: '',
+  modelProfilesStr: '',
 })
 
-const canSave = computed(() => !!form.value.label.trim())
+const modelProfilesError = computed(() => {
+  if (isPreset.value || !form.value.modelProfilesStr.trim()) return ''
+  try {
+    const parsed = JSON.parse(form.value.modelProfilesStr) as Record<string, AiModelProfile>
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return 'Model Profiles 必须是 JSON 对象'
+    }
+    return ''
+  } catch {
+    return 'Model Profiles 不是合法 JSON'
+  }
+})
+
+const canSave = computed(() => !!form.value.label.trim() && !modelProfilesError.value)
 
 const headerTitle = computed(() => {
-  if (view.value === 'main') return 'AI Provider 配置'
+  if (view.value === 'main') return 'AI 配置'
   if (editingId.value) return `编辑 ${form.value.label || '…'}`
   return '新增自定义 Model'
 })
@@ -242,6 +275,7 @@ function selectCustom() {
     apiKey: '',
     baseUrl: '',
     modelsStr: '',
+    modelProfilesStr: '',
   }
   showKey.value = false
   view.value = 'configure'
@@ -258,6 +292,7 @@ function startEdit(cfg: AiProviderConfig) {
     apiKey: cfg.apiKey,
     baseUrl: cfg.baseUrl ?? '',
     modelsStr: (cfg.models ?? []).join(', '),
+    modelProfilesStr: cfg.modelProfiles ? JSON.stringify(cfg.modelProfiles, null, 2) : '',
   }
   showKey.value = false
   view.value = 'configure'
@@ -276,6 +311,9 @@ function submitForm() {
     .split(',')
     .map(s => s.trim())
     .filter(Boolean)
+  const modelProfiles = !isPreset.value && form.value.modelProfilesStr.trim()
+    ? JSON.parse(form.value.modelProfilesStr) as Record<string, AiModelProfile>
+    : undefined
 
   const patch: Omit<AiProviderConfig, 'id' | 'enabled'> = {
     type: form.value.type,
@@ -285,6 +323,7 @@ function submitForm() {
     defaultModelId: modelsArr[0] ?? selectedPreset.value?.defaultModelId ?? '',
     presetId: selectedPreset.value?.id,
     models: modelsArr.length ? modelsArr : (selectedPreset.value?.models),
+    modelProfiles: isPreset.value ? selectedPreset.value?.modelProfiles : modelProfiles,
   }
 
   if (editingId.value) {

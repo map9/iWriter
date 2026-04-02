@@ -25,12 +25,18 @@
       :is-pending-send="pendingSend"
       :is-streaming="aiStore.isStreaming"
       :can-send="!!inputText.trim()"
+      :show-compact="showCompact"
+      :is-compacting="isCompacting"
+      :current-session-tokens="currentSessionTokens"
+      :compact-progress-ratio="compactProgressRatio"
+      :compact-trigger-tokens="compactTriggerTokens"
+      :max-input-tokens="maxInputTokens"
       @browse-files="browseFiles"
       @browse-folder="browseFolder"
+      @compact="compactInput"
       @send="sendMessage"
       @stop="aiStore.cancelStreaming()"
       @cancel-queued="cancelPendingSend"
-      @clear-thread="clearThread"
     />
 
   </div>
@@ -47,7 +53,21 @@ import { useChatSend } from '../composables/useChatSend'
 const aiStore = useAiStore()
 
 const { contextFiles, removeContextFile, browseFiles, browseFolder } = useContextFiles()
-const { inputText, inputEl, pendingSend, handleKeydown, sendMessage, cancelPendingSend } = useChatSend(contextFiles)
+const {
+  inputText,
+  inputEl,
+  pendingSend,
+  isCompacting,
+  showCompact,
+  currentSessionTokens,
+  compactTriggerTokens,
+  compactProgressRatio,
+  maxInputTokens,
+  handleKeydown,
+  sendMessage,
+  compactInput,
+  cancelPendingSend,
+} = useChatSend(contextFiles)
 
 // text-sm line-height is 1.25rem = 20px; 5 lines = 100px
 const maxTextareaHeight = '100px'
@@ -64,10 +84,4 @@ watch(inputText, (val) => {
     inputEl.value.style.height = 'auto'
   }
 })
-
-function clearThread() {
-  if (aiStore.activeThread) {
-    aiStore.updateThread({ ...aiStore.activeThread, messages: [] })
-  }
-}
 </script>

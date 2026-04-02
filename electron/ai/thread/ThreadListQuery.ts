@@ -13,8 +13,8 @@
  */
 
 import type { CheckpointerInstance } from '../checkpoint/CheckpointerFactory'
-import type { AiThread, AiAgentProfile, AiAgentDomain } from '../../../src/types/ai'
-import { normalizeLegacyProfile } from '../../../src/types/ai'
+import type { AiThread, AiAgentMode, AiAgentDomain } from '../../../src/types/ai'
+import { normalizeAgentMode } from '../../../src/types/ai'
 
 const MAX_THREADS = 100
 
@@ -22,7 +22,7 @@ export interface ThreadMeta {
   id: string
   title: string
   domain: AiAgentDomain
-  profile: AiAgentProfile
+  mode: AiAgentMode
   modelId: string
   providerConfigId: string
   originFilePath: string | null
@@ -41,7 +41,7 @@ function ensureTable(db: any): void {
       thread_id         TEXT PRIMARY KEY,
       title             TEXT NOT NULL DEFAULT 'New conversation',
       domain            TEXT NOT NULL DEFAULT 'editing',
-      profile           TEXT NOT NULL,
+      mode              TEXT NOT NULL,
       model_id          TEXT NOT NULL,
       provider_config_id TEXT NOT NULL,
       origin_file_path  TEXT,
@@ -69,7 +69,7 @@ function rowToMeta(row: any): ThreadMeta {
     id: row.thread_id,
     title: row.title,
     domain: (row.domain ?? 'editing') as AiAgentDomain,
-    profile: normalizeLegacyProfile(row.profile) as AiAgentProfile,
+    mode: normalizeAgentMode(row.mode) as AiAgentMode,
     modelId: row.model_id,
     providerConfigId: row.provider_config_id,
     originFilePath: row.origin_file_path ?? null,
@@ -128,7 +128,7 @@ export class ThreadListQuery {
   createMeta(params: {
     id?: string
     domain: AiAgentDomain
-    profile: AiAgentProfile
+    mode: AiAgentMode
     modelId: string
     providerConfigId: string
     originFilePath?: string | null
@@ -139,7 +139,7 @@ export class ThreadListQuery {
       id: params.id ?? `thread-${now}-${Math.random().toString(36).slice(2, 8)}`,
       title: 'New conversation',
       domain: params.domain,
-      profile: params.profile,
+      mode: params.mode,
       modelId: params.modelId,
       providerConfigId: params.providerConfigId,
       originFilePath: params.originFilePath ?? null,
@@ -155,7 +155,7 @@ export class ThreadListQuery {
     id: string,
     updates: Partial<Pick<
       ThreadMeta,
-      'title' | 'hasError' | 'updatedAt' | 'domain' | 'profile' | 'modelId' | 'providerConfigId' | 'thinkMode' | 'originFilePath'
+      'title' | 'hasError' | 'updatedAt' | 'domain' | 'mode' | 'modelId' | 'providerConfigId' | 'thinkMode' | 'originFilePath'
     >>,
   ): void {
     const meta = this.getMeta(id)
@@ -198,14 +198,14 @@ export class ThreadListQuery {
     if (this.db) {
       this.db.prepare(`
         INSERT OR REPLACE INTO thread_metadata
-          (thread_id, title, domain, profile, model_id, provider_config_id,
+          (thread_id, title, domain, mode, model_id, provider_config_id,
            origin_file_path, created_at, updated_at, has_error, think_mode)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         meta.id,
         meta.title,
         meta.domain,
-        meta.profile,
+        meta.mode,
         meta.modelId,
         meta.providerConfigId,
         meta.originFilePath,
@@ -238,7 +238,7 @@ export function metaToAiThread(meta: ThreadMeta): AiThread {
     providerConfigId: meta.providerConfigId,
     modelId: meta.modelId,
     domain: meta.domain,
-    profile: meta.profile,
+    mode: meta.mode,
     thinkMode: meta.thinkMode,
     hasError: meta.hasError,
     originFilePath: meta.originFilePath,

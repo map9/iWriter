@@ -1,7 +1,8 @@
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 import type { Ref } from 'vue'
 import { useAiStore } from '@/ai/store/ai'
 import type { SendContext } from '@/ai/types'
+import { resolveAgentDomain } from '@/ai/types'
 import { pathUtils } from '@/utils/pathUtils'
 
 /** Binary file extensions that are sent as inline multimodal content. */
@@ -32,6 +33,39 @@ export function useChatSend(contextFiles: Ref<string[]>) {
   const inputText = ref('')
   const inputEl = ref<HTMLTextAreaElement>()
   const pendingSend = ref(false)
+  const isCompacting = ref(false)
+  const showCompact = ref(false)
+  const currentSessionTokens = ref(0)
+  const compactTriggerTokens = ref(0)
+  const maxInputTokens = ref<number | null>(null)
+  const compactProgressRatio = computed(() => {
+    if (compactTriggerTokens.value <= 0) return 0
+    return Math.max(0, Math.min(1, currentSessionTokens.value / compactTriggerTokens.value))
+  })
+
+  async function refreshSessionContextStats() {
+    const thread = aiStore.activeThread
+    const domain = thread?.domain ?? resolveAgentDomain(aiStore.settings.defaultMode)
+    const mode = thread?.mode ?? aiStore.settings.defaultMode
+    const providerId = thread?.providerConfigId || aiStore.effectiveProviderConfig?.id
+    const modelId = thread?.modelId || aiStore.effectiveProviderConfig?.defaultModelId
+    const result = await window.electronAPI.aiGetSessionContextStats?.({
+      text: '',
+      threadId: thread?.id,
+      domain,
+      mode,
+      threadRuntime: {
+        providerConfigId: providerId,
+        modelId,
+        thinkMode: thread?.thinkMode,
+      },
+    })
+    if (!result) return
+    showCompact.value = result.visible
+    currentSessionTokens.value = result.currentTokens
+    compactTriggerTokens.value = result.triggerTokens
+    maxInputTokens.value = result.maxInputTokens ?? null
+  }
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -73,9 +107,74 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     await executeSend()
   }
 
+  async function compactInput() {
+    const text = inputText.value.trim()
+    if (!text || aiStore.isStreaming || isCompacting.value) return
+
+    const thread = aiStore.activeThread
+    const domain = thread?.domain ?? resolveAgentDomain(aiStore.settings.defaultMode)
+    const mode = thread?.mode ?? aiStore.settings.defaultMode
+    const providerId = thread?.providerConfigId || aiStore.effectiveProviderConfig?.id
+    const modelId = thread?.modelId || aiStore.effectiveProviderConfig?.defaultModelId
+
+    isCompacting.value = true
+    try {
+      const result = await window.electronAPI.aiCompactInput?.({
+        text,
+        threadId: thread?.id,
+        domain,
+        mode,
+        threadRuntime: {
+          providerConfigId: providerId,
+          modelId,
+          thinkMode: thread?.thinkMode,
+        },
+      })
+      if (!result) return
+      inputText.value = result.text
+      await nextTick()
+      if (inputEl.value) {
+        inputEl.value.style.height = 'auto'
+        inputEl.value.style.height = Math.min(inputEl.value.scrollHeight, 100) + 'px'
+      }
+    } finally {
+      isCompacting.value = false
+    }
+  }
+
   function cancelPendingSend() {
     pendingSend.value = false
   }
 
-  return { inputText, inputEl, pendingSend, handleKeydown, executeSend, sendMessage, cancelPendingSend }
+  watch(
+    [
+      () => aiStore.activeThread?.id ?? '',
+      () => aiStore.activeThread?.providerConfigId ?? aiStore.effectiveProviderConfig?.id ?? '',
+      () => aiStore.activeThread?.modelId ?? aiStore.effectiveProviderConfig?.defaultModelId ?? '',
+      () => aiStore.activeThread?.thinkMode ?? '',
+      () => aiStore.activeThread?.domain ?? resolveAgentDomain(aiStore.settings.defaultMode),
+      () => aiStore.activeThread?.mode ?? aiStore.settings.defaultMode,
+      () => aiStore.activeThread?.updatedAt ?? 0,
+      () => aiStore.activeThread?.messages?.length ?? 0,
+    ],
+    () => { void refreshSessionContextStats() },
+    { immediate: true }
+  )
+
+  return {
+    inputText,
+    inputEl,
+    pendingSend,
+    isCompacting,
+    showCompact,
+    currentSessionTokens,
+    compactTriggerTokens,
+    compactProgressRatio,
+    maxInputTokens,
+    handleKeydown,
+    executeSend,
+    sendMessage,
+    compactInput,
+    cancelPendingSend,
+  }
 }

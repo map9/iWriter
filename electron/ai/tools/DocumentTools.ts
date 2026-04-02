@@ -27,66 +27,56 @@ function getRuntimeWorkspacePath(runtime: unknown): string | null {
   return value?.trim() ? value : null
 }
 
-function getRuntimeStringList(runtime: unknown, key: string): string[] {
-  const raw = getRuntimeString(runtime, key)
-  if (!raw) return []
-  try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string' && !!item) : []
-  } catch {
-    return []
-  }
-}
-
 function normalizePath(p: string): string {
   return p.replace(/\\/g, '/').toLowerCase()
 }
 
-function resolveDocumentPathForRuntime(argFilePath: string | undefined, runtime: unknown): string | null {
+function isVirtualDocumentPath(requested: string): boolean {
+  const normalized = requested.replace(/\\/g, '/')
+  return normalized === '/attached_dirs' ||
+    normalized === '/attached_files' ||
+    normalized.startsWith('/attached_dirs/') ||
+    normalized.startsWith('/attached_files/')
+}
+
+type DocumentPathResolution =
+  | { ok: true; filePath: string | null }
+  | { ok: false; error: string }
+
+function resolveDocumentPathForRuntime(argFilePath: string | undefined, runtime: unknown): DocumentPathResolution {
   const activeFilePath = getRuntimeActiveFilePath(runtime)
   const requested = BlockParser.resolveFilePath(argFilePath, activeFilePath)
-  if (requested === null) return null
-  if (fs.existsSync(requested)) return requested
+  if (requested === null) return { ok: true, filePath: null }
 
-  const candidates = [
-    activeFilePath,
-    ...getRuntimeStringList(runtime, 'attached_text_file_paths'),
-  ].filter((value): value is string => typeof value === 'string' && !!value)
-
-  const direct = candidates.find(candidate => normalizePath(candidate) === normalizePath(requested))
-  if (direct) return direct
-
-  const base = path.basename(requested).toLowerCase()
-  if (base) {
-    const sameName = candidates.filter(candidate => path.basename(candidate).toLowerCase() === base)
-    if (sameName.length === 1) return sameName[0]!
+  if (activeFilePath && normalizePath(activeFilePath) === normalizePath(requested)) {
+    return { ok: true, filePath: activeFilePath }
   }
 
-  const workspacePath = getRuntimeWorkspacePath(runtime)
-  if (workspacePath) {
-    const workspaceRelative = requested.replace(/^\/+/, '')
-    const workspaceResolved = path.join(workspacePath, workspaceRelative)
-    if (fs.existsSync(workspaceResolved)) return workspaceResolved
-
-    if (!path.isAbsolute(requested)) {
-      const relativeResolved = path.join(workspacePath, requested)
-      if (fs.existsSync(relativeResolved)) return relativeResolved
+  if (isVirtualDocumentPath(requested)) {
+    return {
+      ok: false,
+      error:
+        `Error: file_path must be a real absolute host path, not a virtual mount path like "${requested}". ` +
+        'Use the absolute path shown in <workspace>, <attached_files>, or the user message.',
     }
-
-    const workspaceDocs = listWorkspaceDocumentPaths(workspacePath)
-    const normalizedRequested = normalizePath(requested)
-    const byRelativePath = workspaceDocs.filter(filePath =>
-      normalizePath(path.relative(workspacePath, filePath)) === normalizedRequested.replace(/^\/+/, '')
-    )
-    if (byRelativePath.length === 1) return byRelativePath[0]!
-
-    const byBaseName = workspaceDocs.filter(filePath =>
-      path.basename(filePath).toLowerCase() === path.basename(requested).toLowerCase()
-    )
-    if (byBaseName.length === 1) return byBaseName[0]!
   }
 
-  return requested
+  if (!path.isAbsolute(requested)) {
+    return {
+      ok: false,
+      error:
+        `Error: file_path must be an absolute host path. Relative, basename-only, and workspace-root paths are not allowed: "${requested}".`,
+    }
+  }
+
+  if (!fs.existsSync(requested)) {
+    return {
+      ok: false,
+      error: `Error: file_path does not exist on disk: "${requested}".`,
+    }
+  }
+
+  return { ok: true, filePath: requested }
 }
 
 function toSearchOptions(input: {
@@ -106,7 +96,9 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
 
   const getDocumentOutline = tool(
     async ({ file_path }: { file_path?: string }, runtime) => {
-      const resolvedPath = resolveDocumentPathForRuntime(file_path, runtime)
+      const resolved = resolveDocumentPathForRuntime(file_path, runtime)
+      if (!resolved.ok) return resolved.error
+      const resolvedPath = resolved.filePath
 
       if (resolvedPath !== null) {
         const ext = getExt(resolvedPath)
@@ -139,7 +131,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           .string()
           .optional()
           .describe(
-            'Path to a local .md/.txt/.iwt file. Prefer an absolute host path; workspace-relative paths and root-style paths copied from ls (for example "/foo.iwt") are also accepted.'
+            'Real absolute host path to a local .md/.txt/.iwt file. Never pass a basename, workspace-relative path, workspace-root virtual path like "/foo.iwt", or virtual mount path like "/attached_dirs/...". Omit to use the active editor document.'
           ),
       }),
     }
@@ -159,7 +151,9 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       limit?: number
       file_path?: string
     }, runtime) => {
-      const resolvedPath = resolveDocumentPathForRuntime(file_path, runtime)
+      const resolved = resolveDocumentPathForRuntime(file_path, runtime)
+      if (!resolved.ok) return resolved.error
+      const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
         return resolvedPath
@@ -189,7 +183,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Path to a local file. Prefer an absolute host path; workspace-relative/root-style workspace paths are also accepted. Omit to use the open editor.'),
+          .describe('Real absolute host path to the target document file. Omit to use the active editor document.'),
       }),
     }
   )
@@ -204,7 +198,9 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       block_ids: number[]
       file_path?: string
     }, runtime) => {
-      const resolvedPath = resolveDocumentPathForRuntime(file_path, runtime)
+      const resolved = resolveDocumentPathForRuntime(file_path, runtime)
+      if (!resolved.ok) return resolved.error
+      const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
         return resolvedPath
@@ -227,7 +223,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Path to a local file. Prefer an absolute host path; workspace-relative/root-style workspace paths are also accepted. Omit to use the open editor.'),
+          .describe('Real absolute host path to the target document file. Omit to use the active editor document.'),
       }),
     }
   )
@@ -244,7 +240,9 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       window?: number
       file_path?: string
     }, runtime) => {
-      const resolvedPath = resolveDocumentPathForRuntime(file_path, runtime)
+      const resolved = resolveDocumentPathForRuntime(file_path, runtime)
+      if (!resolved.ok) return resolved.error
+      const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
         return resolvedPath
@@ -272,7 +270,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Path to a local file. Prefer an absolute host path; workspace-relative/root-style workspace paths are also accepted. Omit to use the open editor.'),
+          .describe('Real absolute host path to the target document file. Omit to use the active editor document.'),
       }),
     }
   )
@@ -293,7 +291,9 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       regex?: boolean
       max_matches?: number
     }, runtime) => {
-      const resolvedPath = resolveDocumentPathForRuntime(file_path, runtime)
+      const resolved = resolveDocumentPathForRuntime(file_path, runtime)
+      if (!resolved.ok) return resolved.error
+      const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
         return resolvedPath
@@ -319,7 +319,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Path to a local file. Prefer an absolute host path; workspace-relative/root-style workspace paths are also accepted. Omit to use the open editor document.'),
+          .describe('Real absolute host path to the target document file. Omit to use the active editor document.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Match whole words only.'),
         regex: z.boolean().optional().describe('Treat query as a regular expression.'),
@@ -346,7 +346,9 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       max_matches?: number
       max_sections?: number
     }, runtime) => {
-      const resolvedPath = resolveDocumentPathForRuntime(file_path, runtime)
+      const resolved = resolveDocumentPathForRuntime(file_path, runtime)
+      if (!resolved.ok) return resolved.error
+      const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
         return resolvedPath
@@ -373,7 +375,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Path to a local file. Prefer an absolute host path; workspace-relative/root-style workspace paths are also accepted. Omit to use the open editor document.'),
+          .describe('Real absolute host path to the target document file. Omit to use the active editor document.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Match whole words only.'),
         regex: z.boolean().optional().describe('Treat query as a regular expression.'),
@@ -445,7 +447,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       description:
         'Search all .md/.txt/.iwt documents in the current workspace using block-aware matching. ' +
         'Returns matching files plus block IDs, section headings, and previews. ' +
-        'Use this first when the relevant file is not yet known.',
+        'Use this only for searching document content, not for locating filenames or folder paths. ' +
+        'For file/path discovery, use shell file tools such as ls/glob/grep instead.',
       schema: z.object({
         query: z.string().describe('Search query text or regex pattern.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),

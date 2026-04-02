@@ -5,6 +5,7 @@ import type {
   AiProviderConfig,
   AiSettings,
   AiAgentDomain,
+  AiAgentMode,
   BlockEditProposal,
   FileCreateProposal,
   EditProposal,
@@ -16,8 +17,8 @@ import type {
 import {
   inferToolKind,
   DEFAULT_AI_SETTINGS,
-  normalizeLegacyProfile,
-  normalizeProfileForDomain,
+  normalizeAgentMode,
+  normalizeModeForDomain,
   resolveAgentDomain,
 } from '@/ai/types'
 import { PROVIDER_PRESETS, type ProviderPreset } from '@/ai/providers/provider-presets'
@@ -50,7 +51,14 @@ function _loadSettings(): AiSettings {
     const raw = localStorage.getItem(_STORAGE_KEY_SETTINGS)
     if (!raw) return { ...DEFAULT_AI_SETTINGS }
     const merged = { ...DEFAULT_AI_SETTINGS, ...JSON.parse(raw) } as AiSettings
-    merged.defaultProfile = normalizeLegacyProfile(merged.defaultProfile)
+    merged.defaultMode = normalizeAgentMode(merged.defaultMode)
+    merged.providerConfigs = (merged.providerConfigs ?? []).map(cfg => {
+      const preset = PROVIDER_PRESETS.find(p => p.id === cfg.presetId)
+      return {
+        ...cfg,
+        modelProfiles: cfg.modelProfiles ?? preset?.modelProfiles,
+      }
+    })
     return merged
   } catch {
     return { ...DEFAULT_AI_SETTINGS }
@@ -82,6 +90,7 @@ export const useAiStore = defineStore('ai', () => {
         defaultModelId: p.defaultModelId,
         presetId: p.id,
         models: p.models,
+        modelProfiles: p.modelProfiles,
       }))
     _initialSettings.activeProviderConfigId = _initialSettings.providerConfigs[0]?.id ?? null
     _saveSettingsToStorage(_initialSettings)
@@ -96,9 +105,17 @@ export const useAiStore = defineStore('ai', () => {
     return configs.find(c => c.id === settings.value.activeProviderConfigId) ?? configs[0] ?? null
   })
 
+  const effectiveProviderConfig = computed<AiProviderConfig | null>(() => {
+    const threadProviderId = activeThread.value?.providerConfigId
+    if (threadProviderId) {
+      return settings.value.providerConfigs.find(c => c.id === threadProviderId) ?? activeProviderConfig.value
+    }
+    return activeProviderConfig.value
+  })
+
   /** Models available for the current provider (for model picker) */
   const availableModels = computed<string[]>(() => {
-    const config = activeProviderConfig.value
+    const config = effectiveProviderConfig.value
     if (!config) return []
     if (config.models?.length) return config.models
     const preset = PROVIDER_PRESETS.find(p => p.id === config.presetId)
@@ -108,7 +125,7 @@ export const useAiStore = defineStore('ai', () => {
 
   /** Think modes for the current LLM provider */
   const availableThinkModes = computed<string[]>(() => {
-    const config = activeProviderConfig.value
+    const config = effectiveProviderConfig.value
     if (!config) return []
     return config.thinkModes ?? []
   })
@@ -163,7 +180,7 @@ export const useAiStore = defineStore('ai', () => {
 
   /** Persist selected model to provider config */
   function setCurrentModelId(modelId: string) {
-    const config = activeProviderConfig.value
+    const config = effectiveProviderConfig.value
     if (config) {
       updateProviderConfig(config.id, { defaultModelId: modelId })
     }
@@ -172,9 +189,9 @@ export const useAiStore = defineStore('ai', () => {
     }
   }
 
-  /** Persist selected mode (think mode) to provider config and current thread */
-  function setCurrentMode(mode: string) {
-    const config = activeProviderConfig.value
+  /** Persist selected think mode to provider config and current thread */
+  function setCurrentThinkMode(mode: string) {
+    const config = effectiveProviderConfig.value
     if (config) {
       updateProviderConfig(config.id, { lastSelectedMode: mode })
     }
@@ -183,14 +200,14 @@ export const useAiStore = defineStore('ai', () => {
     }
   }
 
-  function setCurrentProfile(profile: AiThread['profile']) {
-    const domain = resolveAgentDomain(profile)
-    const normalizedProfile = normalizeProfileForDomain(profile, domain)
+  function setCurrentMode(mode: AiAgentMode) {
+    const domain = resolveAgentDomain(mode)
+    const normalizedMode = normalizeModeForDomain(mode, domain)
     if (activeThread.value) {
-      updateThread({ ...activeThread.value, domain, profile: normalizedProfile })
+      updateThread({ ...activeThread.value, domain, mode: normalizedMode })
       return
     }
-    settings.value.defaultProfile = normalizedProfile
+    settings.value.defaultMode = normalizedMode
     saveSettings()
   }
 
@@ -228,7 +245,7 @@ export const useAiStore = defineStore('ai', () => {
     const thread = createThread(
       config?.id ?? '',
       config?.defaultModelId ?? '',
-      settings.value.defaultProfile
+      settings.value.defaultMode
     )
     threads.value.unshift(thread)
     activeThreadId.value = thread.id
@@ -271,11 +288,11 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   function updateThread(thread: AiThread) {
-    const domain: AiAgentDomain = thread.domain ?? resolveAgentDomain(thread.profile)
+    const domain: AiAgentDomain = thread.domain ?? resolveAgentDomain(thread.mode)
     const normalizedThread: AiThread = {
       ...thread,
       domain,
-      profile: normalizeProfileForDomain(thread.profile, domain),
+      mode: normalizeModeForDomain(thread.mode, domain),
     }
     const idx = threads.value.findIndex(t => t.id === thread.id)
     if (idx >= 0) {
@@ -333,6 +350,7 @@ export const useAiStore = defineStore('ai', () => {
   const _decisionRecord = new Map<number, {
     type: 'approved' | 'edited' | 'rejected'
     editedArgs?: Record<string, unknown>
+    message?: string
   }>()
 
   /**
@@ -472,6 +490,27 @@ export const useAiStore = defineStore('ai', () => {
     updateThread({ ...thread, messages: _normalizeMessagesForDisplay(messages) })
   }
 
+  function _buildProposalFailureMessage(
+    proposal: BlockEditProposal,
+    error: string,
+  ): string {
+    const target = proposal.filePath
+      ? `file "${proposal.filePath}"`
+      : 'the active document'
+
+    switch (proposal.type) {
+      case 'edit':
+      case 'delete':
+        return `Edit failed on ${target} for block_id=${proposal.displayBlockId ?? 'unknown'}: ${error} Re-read the latest document content with get_blocks or get_section before deciding whether to retry.`
+      case 'insert':
+        return `Insert failed on ${target} after block_id=${proposal.displayBlockId ?? 0}: ${error} Re-read the latest document content with get_blocks or get_section before deciding whether to retry.`
+      case 'replace_range':
+        return `Replace failed on ${target} for block_ids=${proposal.startDisplayBlockId ?? 'unknown'}-${proposal.endDisplayBlockId ?? 'unknown'}: ${error} Re-read the latest document content with get_blocks or get_section before deciding whether to retry.`
+      default:
+        return `Edit failed on ${target}: ${error} Re-read the latest document content before deciding whether to retry.`
+    }
+  }
+
   // ── Send Message ──────────────────────────────────────────────────────────
   async function sendMessage(userText: string, sendContext?: SendContext): Promise<boolean> {
     // Block new messages while actively streaming
@@ -556,7 +595,7 @@ export const useAiStore = defineStore('ai', () => {
         threadId: thread.id,
         userText,
         domain: thread.domain,
-        profile: thread.profile,
+        mode: thread.mode,
         threadRuntime: {
           providerConfigId: thread.providerConfigId || activeProviderConfig.value?.id,
           modelId: thread.modelId || activeProviderConfig.value?.defaultModelId,
@@ -606,6 +645,21 @@ export const useAiStore = defineStore('ai', () => {
 
   async function _applyBlockProposalToTarget(proposal: BlockEditProposal) {
     if (proposal.filePath) {
+      if (!pathUtils.isAbsolutePath(proposal.filePath)) {
+        return {
+          success: false as const,
+          error: `file_path 必须是绝对路径，当前收到: ${proposal.filePath}`,
+        }
+      }
+
+      const fileExists = await window.electronAPI.pathExists(proposal.filePath)
+      if (!fileExists) {
+        return {
+          success: false as const,
+          error: `目标文件不存在: ${proposal.filePath}`,
+        }
+      }
+
       const currentFilePath = appStore.activeTab?.path
       const isActiveFile = !!currentFilePath &&
         pathUtils.normalize(currentFilePath) === pathUtils.normalize(proposal.filePath)
@@ -691,7 +745,7 @@ export const useAiStore = defineStore('ai', () => {
       return {
         type: rec.type,
         editedArgs: rec.editedArgs,
-        message: rec.type === 'rejected' ? 'User rejected.' : undefined,
+        message: rec.type === 'rejected' ? (rec.message ?? 'User rejected.') : undefined,
       }
     })
 
@@ -714,55 +768,94 @@ export const useAiStore = defineStore('ai', () => {
     // Resolve 0-based index via stable map (findIndex would shift after prior removals)
     const proposalIndex = _proposalIndexMap.get(proposalId) ?? -1
 
-    if (proposal.kind === 'create_file') {
-      const p = proposal as FileCreateProposal
-      const { DocumentType } = await import('@/types/document-type')
-      appStore.createTab(p.filename, undefined, DocumentType.MARKDOWN_EDITOR)
+    try {
+      if (proposal.kind === 'create_file') {
+        const p = proposal as FileCreateProposal
+        const { DocumentType } = await import('@/types/document-type')
+        appStore.createTab(p.filename, undefined, DocumentType.MARKDOWN_EDITOR)
 
-      const getEditor = (): Editor | undefined =>
-        appStore.activeTab?.editorInstance as Editor | undefined
+        const getEditor = (): Editor | undefined =>
+          appStore.activeTab?.editorInstance as Editor | undefined
 
-      const { nextTick } = await import('vue')
-      for (let i = 0; i < 20; i++) {
-        await nextTick()
-        if (getEditor()) break
-      }
-
-      const editor = getEditor()
-      if (editor) {
-        const insertProposal: BlockEditProposal = {
-          id:           proposalId,
-          kind:         'block',
-          type:         'insert',
-          status:       'pending',
-          afterNodeId:  '0',
-          newContent:   p.content,
+        const { nextTick } = await import('vue')
+        for (let i = 0; i < 20; i++) {
+          await nextTick()
+          if (getEditor()) break
         }
-        const result = await applyBlockEditProposal(editor, insertProposal)
-        if (result.success) {
-          _updateLocalProposalToolCall(proposalId, 'completed')
-          if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
-          pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
-          notify.success(`文档"${p.filename}"已创建`)
+
+        const editor = getEditor()
+        if (editor) {
+          const insertProposal: BlockEditProposal = {
+            id:           proposalId,
+            kind:         'block',
+            type:         'insert',
+            status:       'pending',
+            afterNodeId:  '0',
+            newContent:   p.content,
+          }
+          const result = await applyBlockEditProposal(editor, insertProposal)
+          if (result.success) {
+            _updateLocalProposalToolCall(proposalId, 'completed')
+            if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
+            pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+            notify.success(`文档"${p.filename}"已创建`)
+          } else {
+            _updateLocalProposalToolCall(proposalId, 'failed')
+            if (proposalIndex >= 0) {
+              _decisionRecord.set(proposalIndex, {
+                type: 'rejected',
+                message: `Document creation failed: ${result.error}`,
+              })
+            }
+            pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+            notify.error(`内容注入失败: ${result.error}`)
+          }
         } else {
-          notify.error(`内容注入失败: ${result.error}`)
+          _updateLocalProposalToolCall(proposalId, 'failed')
+          if (proposalIndex >= 0) {
+            _decisionRecord.set(proposalIndex, {
+              type: 'rejected',
+              message: 'Document creation failed: editor not ready.',
+            })
+          }
+          pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+          notify.error('编辑器未就绪，请手动粘贴内容')
         }
-      } else {
-        notify.error('编辑器未就绪，请手动粘贴内容')
+        _maybeFlushResume()
+        return
       }
-      _maybeFlushResume()
-      return
-    }
 
-    const blockProposal = proposal as BlockEditProposal
-    const result = await _applyBlockProposalToTarget(blockProposal)
-    if (result.success) {
-      _updateLocalProposalToolCall(proposalId, 'completed')
-      if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
+      const blockProposal = proposal as BlockEditProposal
+      const result = await _applyBlockProposalToTarget(blockProposal)
+      if (result.success) {
+        _updateLocalProposalToolCall(proposalId, 'completed')
+        if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
+        pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+        notify.success(blockProposal.filePath ? '文件编辑已应用' : '编辑已应用')
+      } else {
+        _updateLocalProposalToolCall(proposalId, 'failed')
+        if (proposalIndex >= 0) {
+          _decisionRecord.set(proposalIndex, {
+            type: 'rejected',
+            message: _buildProposalFailureMessage(blockProposal, result.error ?? 'Unknown apply error.'),
+          })
+        }
+        pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+        notify.error(`${blockProposal.filePath ? '文件编辑失败' : '应用编辑失败'}: ${result.error}`)
+        _maybeFlushResume()
+        return
+      }
+    } catch (error) {
+      _updateLocalProposalToolCall(proposalId, 'failed')
+      if (proposalIndex >= 0) {
+        _decisionRecord.set(proposalIndex, {
+          type: 'rejected',
+          message: `Edit apply failed: ${error instanceof Error ? error.message : String(error)}`,
+        })
+      }
       pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
-      notify.success(blockProposal.filePath ? '文件编辑已应用' : '编辑已应用')
-    } else {
-      notify.error(`${blockProposal.filePath ? '文件编辑失败' : '应用编辑失败'}: ${result.error}`)
+      notify.error(`应用编辑失败: ${error instanceof Error ? error.message : String(error)}`)
+      _maybeFlushResume()
       return
     }
 
@@ -795,14 +888,37 @@ export const useAiStore = defineStore('ai', () => {
       p.id === proposalId ? { ...blockProposal, wasEdited: true } : p
     )
 
-    const result = await _applyBlockProposalToTarget(blockProposal)
-    if (result.success) {
-      _updateLocalProposalToolCall(proposalId, 'completed')
-      if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'edited', editedArgs })
+    try {
+      const result = await _applyBlockProposalToTarget(blockProposal)
+      if (result.success) {
+        _updateLocalProposalToolCall(proposalId, 'completed')
+        if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'edited', editedArgs })
+        pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+        notify.success(blockProposal.filePath ? '文件编辑（已修改）已应用' : '编辑（已修改）已应用')
+      } else {
+        _updateLocalProposalToolCall(proposalId, 'failed')
+        if (proposalIndex >= 0) {
+          _decisionRecord.set(proposalIndex, {
+            type: 'rejected',
+            message: _buildProposalFailureMessage(blockProposal, result.error ?? 'Unknown apply error.'),
+          })
+        }
+        pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+        notify.error(`${blockProposal.filePath ? '文件编辑失败' : '应用编辑失败'}: ${result.error}`)
+        _maybeFlushResume()
+        return
+      }
+    } catch (error) {
+      _updateLocalProposalToolCall(proposalId, 'failed')
+      if (proposalIndex >= 0) {
+        _decisionRecord.set(proposalIndex, {
+          type: 'rejected',
+          message: `Edited apply failed: ${error instanceof Error ? error.message : String(error)}`,
+        })
+      }
       pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
-      notify.success(blockProposal.filePath ? '文件编辑（已修改）已应用' : '编辑（已修改）已应用')
-    } else {
-      notify.error(`${blockProposal.filePath ? '文件编辑失败' : '应用编辑失败'}: ${result.error}`)
+      notify.error(`应用编辑失败: ${error instanceof Error ? error.message : String(error)}`)
+      _maybeFlushResume()
       return
     }
 
@@ -1099,6 +1215,7 @@ export const useAiStore = defineStore('ai', () => {
     // Settings
     settings,
     activeProviderConfig,
+    effectiveProviderConfig,
     availableModels,
     availableThinkModes,
     addProviderConfig,
@@ -1106,8 +1223,8 @@ export const useAiStore = defineStore('ai', () => {
     removeProviderConfig,
     setActiveProvider,
     setCurrentModelId,
+    setCurrentThinkMode,
     setCurrentMode,
-    setCurrentProfile,
     saveSettings,
 
     // Threads
