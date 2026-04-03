@@ -25,7 +25,18 @@
     />
 
     <template v-else>
-      <AgentChatArea class="flex-1" :bottom-padding="inputAreaHeight" />
+      <AgentChatArea class="flex-1" :bottom-padding="chatBottomPadding" />
+      <div
+        v-if="aiStore.isStreaming && streamingTaskPlan?.items?.length"
+        ref="taskPlanRef"
+        class="absolute left-3 right-3 z-10"
+        :style="{ bottom: `${inputAreaHeight + 2}px` }"
+      >
+        <TaskPlanCard
+          :items="streamingTaskPlan.items"
+          :is-preview="true"
+        />
+      </div>
       <div ref="inputAreaRef" class="absolute bottom-0 left-0 right-0 z-10">
         <AgentInputArea />
       </div>
@@ -40,6 +51,7 @@ import { useAiStore } from '@/ai/store/ai'
 import AgentHeader from './agent-panel/AgentHeader.vue'
 import AgentHistoryPanel from './agent-panel/AgentHistoryPanel.vue'
 import AgentChatArea from './agent-panel/AgentChatArea.vue'
+import TaskPlanCard from './agent-panel/TaskPlanCard.vue'
 import AgentInputArea from './agent-panel/input/AgentInputArea.vue'
 import ProviderSettings from './ProviderSettings.vue'
 
@@ -80,7 +92,10 @@ if (!aiStore.settings.providerConfigs.length) {
 
 const inputAreaRef = ref<HTMLElement | null>(null)
 const inputAreaHeight = ref(0)
+const taskPlanRef = ref<HTMLElement | null>(null)
+const taskPlanHeight = ref(0)
 let resizeObserver: ResizeObserver | null = null
+let taskPlanResizeObserver: ResizeObserver | null = null
 
 const providerSettingsRef = ref<InstanceType<typeof ProviderSettings> | null>(null)
 const showHistory = computed(() => persistedPanelUi.view === 'history')
@@ -99,7 +114,10 @@ const headerTitle = computed(() => {
   return thread.title
 })
 
+const streamingTaskPlan = computed(() => aiStore.streamingPreviewMessage?.taskPlan)
+
 const showBackButton = computed(() => showHistory.value || showSettings.value)
+const chatBottomPadding = computed(() => inputAreaHeight.value + taskPlanHeight.value)
 
 function handleHeaderBack() {
   if (showSettings.value && persistedPanelUi.settingsSubView === 'configure') {
@@ -149,9 +167,22 @@ resizeObserver = new ResizeObserver(entries => {
   inputAreaHeight.value = entries[0]?.contentRect.height ?? 0
 })
 
+taskPlanResizeObserver = new ResizeObserver(entries => {
+  taskPlanHeight.value = entries[0]?.contentRect.height ?? 0
+})
+
 watch(inputAreaRef, el => {
   resizeObserver?.disconnect()
   if (el) resizeObserver?.observe(el)
+})
+
+watch(taskPlanRef, el => {
+  taskPlanResizeObserver?.disconnect()
+  if (el) {
+    taskPlanResizeObserver?.observe(el)
+  } else {
+    taskPlanHeight.value = 0
+  }
 })
 
 async function selectThread(id: string) {
@@ -182,5 +213,6 @@ watch(
 
 onUnmounted(() => {
   resizeObserver?.disconnect()
+  taskPlanResizeObserver?.disconnect()
 })
 </script>

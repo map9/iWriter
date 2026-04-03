@@ -132,13 +132,6 @@
         @end-round="payload => aiStore.endReviewRound(payload?.id)"
       />
 
-      <TaskPlanCard
-        v-if="message.role === 'assistant' && message.taskPlan?.items?.length && isPreview"
-        :items="message.taskPlan.items"
-        :is-preview="isPreview"
-        class="mt-1.5"
-      />
-
       <div
         v-if="shouldShowThinkingToggle"
         class="mt-1 inline-flex max-w-full flex-col items-start gap-1"
@@ -228,7 +221,6 @@ import { BLOCK_EDIT_TOOLS } from '@/ai/types'
 import { useAiStore } from '@/ai/store/ai'
 import { buildEditSessionForMessage } from '@/ai/edit-session'
 import ToolCallView from '../ToolCallView.vue'
-import TaskPlanCard from './TaskPlanCard.vue'
 import EditSessionCard from './EditSessionCard.vue'
 
 const props = withDefaults(defineProps<{
@@ -329,7 +321,6 @@ const shouldRenderMessage = computed(() => {
   if (readToolCalls.value.length > 0) return true
   if (editToolCalls.value.length > 0) return true
   if (editSession.value) return true
-  if (props.message.taskPlan?.items?.length && props.isPreview) return true
   if (shouldShowThinkingToggle.value) return true
   if (props.isPreview && !!props.previewStatusText) return true
   return false

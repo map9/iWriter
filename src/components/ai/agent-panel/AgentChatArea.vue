@@ -30,7 +30,7 @@
       @resend="handleResend"
     />
 
-    <!-- Streaming message -->
+    <!-- Streaming fallback when no preview message is available -->
     <div v-if="aiStore.isStreaming && !aiStore.streamingPreviewMessage" class="flex gap-2.5">
       <div class="flex-1 min-w-0 space-y-1.5">
         <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100">
