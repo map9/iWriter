@@ -1,4 +1,4 @@
-import { ref, watch, nextTick, computed } from 'vue'
+import { watch, nextTick, computed, ref } from 'vue'
 import type { Ref } from 'vue'
 import { useAiStore } from '@/ai/store/ai'
 import type { SendContext } from '@/ai/types'
@@ -30,7 +30,10 @@ function classifyAttachment(path: string): 'binary' | 'text' | 'directory' {
 
 export function useChatSend(contextFiles: Ref<string[]>) {
   const aiStore = useAiStore()
-  const inputText = ref('')
+  const inputText = computed({
+    get: () => aiStore.draftInput,
+    set: (value: string) => aiStore.setDraftInput(value),
+  })
   const inputEl = ref<HTMLTextAreaElement>()
   const pendingSend = ref(false)
   const isCompacting = ref(false)
@@ -49,22 +52,37 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     const mode = thread?.mode ?? aiStore.settings.defaultMode
     const providerId = thread?.providerConfigId || aiStore.effectiveProviderConfig?.id
     const modelId = thread?.modelId || aiStore.effectiveProviderConfig?.defaultModelId
-    const result = await window.electronAPI.aiGetSessionContextStats?.({
-      text: '',
-      threadId: thread?.id,
-      domain,
-      mode,
-      threadRuntime: {
-        providerConfigId: providerId,
-        modelId,
-        thinkMode: thread?.thinkMode,
-      },
-    })
-    if (!result) return
-    showCompact.value = result.visible
-    currentSessionTokens.value = result.currentTokens
-    compactTriggerTokens.value = result.triggerTokens
-    maxInputTokens.value = result.maxInputTokens ?? null
+    if (!providerId || !modelId) {
+      showCompact.value = false
+      currentSessionTokens.value = 0
+      compactTriggerTokens.value = 0
+      maxInputTokens.value = null
+      return
+    }
+
+    try {
+      const result = await window.electronAPI.aiGetSessionContextStats?.({
+        text: '',
+        threadId: thread?.id,
+        domain,
+        mode,
+        threadRuntime: {
+          providerConfigId: providerId,
+          modelId,
+          thinkMode: thread?.thinkMode,
+        },
+      })
+      if (!result) return
+      showCompact.value = result.visible
+      currentSessionTokens.value = result.currentTokens
+      compactTriggerTokens.value = result.triggerTokens
+      maxInputTokens.value = result.maxInputTokens ?? null
+    } catch {
+      showCompact.value = false
+      currentSessionTokens.value = 0
+      compactTriggerTokens.value = 0
+      maxInputTokens.value = null
+    }
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -155,7 +173,7 @@ export function useChatSend(contextFiles: Ref<string[]>) {
       () => aiStore.activeThread?.domain ?? resolveAgentDomain(aiStore.settings.defaultMode),
       () => aiStore.activeThread?.mode ?? aiStore.settings.defaultMode,
       () => aiStore.activeThread?.updatedAt ?? 0,
-      () => aiStore.activeThread?.messages?.length ?? 0,
+      () => aiStore.displayMessages.length,
     ],
     () => { void refreshSessionContextStats() },
     { immediate: true }

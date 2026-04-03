@@ -16,6 +16,7 @@ interface BuildEditSessionOptions {
   mode?: AiAgentMode
   pendingProposals?: EditProposal[]
   isInterrupted?: boolean
+  interruptedTurnId?: string | null
   isLatestAssistantMessage?: boolean
   assistantMessageIds?: string[]
   editToolCalls?: AiToolCall[]
@@ -29,6 +30,7 @@ export function buildEditSessionForMessage(
     mode,
     pendingProposals = [],
     isInterrupted = false,
+    interruptedTurnId = null,
     isLatestAssistantMessage = false,
     assistantMessageIds = [],
     editToolCalls = [],
@@ -37,6 +39,18 @@ export function buildEditSessionForMessage(
   if (mode !== 'edit') return null
   if (message.role !== 'assistant') return null
   if (isInterrupted && pendingProposals.length) {
+    const turnMatches = interruptedTurnId
+      && pendingProposals.some(proposal => proposal.sourceTurnId === interruptedTurnId)
+      && message.turnId === interruptedTurnId
+    if (turnMatches && isLatestAssistantMessage) {
+      return {
+        messageId: message.id,
+        mode: inferEditSessionMode({ proposals: pendingProposals }),
+        phase: 'review_ready',
+        proposals: pendingProposals,
+      }
+    }
+
     const directMatches = pendingProposals.filter(proposal => proposal.sourceMessageId === message.id)
     if (directMatches.length) {
       return {

@@ -69,6 +69,11 @@
               <span v-else class="flex-1 min-w-0 text-xs font-medium truncate text-text-primary">
                 {{ thread.title }}
               </span>
+              <span
+                v-if="aiStore.isSwitchingThread && aiStore.switchingThreadId === thread.id && renamingId !== thread.id"
+                class="inline-block w-3 h-3 border border-gray-300 border-t-blue-500 rounded-full animate-spin flex-shrink-0"
+                title="正在载入会话"
+              />
               <span v-if="thread.hasError && renamingId !== thread.id" class="flex-shrink-0 text-red-400 text-xs" title="上次对话出现错误">⚠</span>
               <!-- Time (hide when renaming) -->
               <span v-if="renamingId !== thread.id" class="flex-shrink-0 text-[10px] text-gray-400">{{ relativeTime(thread.updatedAt) }}</span>
@@ -211,7 +216,7 @@ function cancelRename() {
 
 // ── Select ────────────────────────────────────────────────────────────────────
 function handleSelect(id: string) {
-  if (renamingId.value) return
+  if (renamingId.value || aiStore.isSwitchingThread) return
   emit('select', id)
 }
 

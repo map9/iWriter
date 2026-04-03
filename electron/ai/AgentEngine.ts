@@ -164,6 +164,7 @@ export class AgentEngine {
       ?? `thread-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const existingMeta = req.threadId ? this.threadListQuery?.getMeta(req.threadId) : null
     const runtime = resolveThreadRuntime(settings, req, existingMeta)
+    const turnId = req.turnId ?? `turn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
     const isNewThread = !existingMeta
     if (isNewThread) {
@@ -195,6 +196,7 @@ export class AgentEngine {
       attachmentBinaryFilePaths: req.attachments?.binaryFilePaths ?? [],
       attachmentDirectories: req.attachments?.directories ?? [],
     })
+    this.runtimeStore.setCurrentTurnId(threadId, turnId)
 
     // Auto-title from first message
     if (isNewThread) {
@@ -292,6 +294,15 @@ export class AgentEngine {
 
     const { AiConfigStore } = await import('./config/AiConfigStore')
     const settings = AiConfigStore.loadSettings()
+    const hasEnabledProvider = settings.providerConfigs.some(config => config.enabled)
+    if (!hasEnabledProvider) {
+      return {
+        visible: false,
+        currentTokens: 0,
+        triggerTokens: 0,
+      }
+    }
+
     const meta = req.threadId ? this.threadListQuery?.getMeta(req.threadId) : null
     const runtime = resolveThreadRuntime(settings, {
       userText: req.text ?? '',
@@ -339,6 +350,7 @@ export class AgentEngine {
       this.activeRuns.delete(threadId)
     }
     this.runtimeStore.clearInterrupted(threadId)
+    this.runtimeStore.clearCurrentTurnId(threadId)
   }
 
   // ── Public: resume (LangGraph HITL batch decisions) ───────────────────────
@@ -453,12 +465,6 @@ export class AgentEngine {
           this.rendererBridge.sendStreamChunk(chunk)
         }
         if (adapter.interrupted) {
-          console.debug('[AgentEngine] adapter entered interrupted state', {
-            threadId,
-            event: event.event,
-            runId: event.run_id ?? null,
-            interruptPayloadPreview: safeJsonPreview(adapter.interruptPayload),
-          })
           break
         }
       }
@@ -469,23 +475,14 @@ export class AgentEngine {
       }
 
       if (adapter.interrupted) {
-        const partialMessage: ThreadMessage | undefined = adapter.buildPartialMessage()
+        const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
+        const partialMessage: ThreadMessage | undefined = adapter.buildPartialMessage(turnId)
 
         if (partialMessage) {
           this.threadListQuery?.updateMeta(threadId, { updatedAt: Date.now() })
         }
 
         if (adapter.interruptPayload) {
-          console.debug('[AgentEngine] handling interrupt', {
-            threadId,
-            hasPartialMessage: !!partialMessage,
-            partialToolCalls: partialMessage?.toolCalls?.map(tc => ({
-              id: tc.id,
-              name: tc.name,
-              status: tc.status,
-            })) ?? [],
-            interruptPayloadPreview: safeJsonPreview(adapter.interruptPayload),
-          })
           await this._handleInterrupt(threadId, adapter.interruptPayload, partialMessage)
         } else {
           console.warn('[AgentEngine] adapter interrupted without interruptPayload', { threadId })
@@ -496,11 +493,10 @@ export class AgentEngine {
       }
 
       this.threadListQuery?.updateMeta(threadId, { updatedAt: Date.now() })
-
-      console.debug('[AgentEngine] stream completed without interrupt', {
+      this.rendererBridge.sendRunDone({
         threadId,
+        turnId: this.runtimeStore.getCurrentTurnId(threadId) ?? undefined,
       })
-      this.rendererBridge.sendRunDone({ threadId })
     } catch (err) {
       if (abortController?.signal.aborted) {
         this.activeRuns.delete(threadId)
@@ -515,9 +511,13 @@ export class AgentEngine {
       // ai:run-done (no message payload) signals completion so the renderer clears streaming UI.
       // Do NOT include a message in ai:run-done — the renderer's onAiRunError handler already
       // creates the chat message, and a second message here causes duplicate error display.
-      this.rendererBridge.sendRunError({ threadId, error: errorMsg })
-      this.rendererBridge.sendRunDone({ threadId })
+      const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
+      this.rendererBridge.sendRunError({ threadId, turnId, error: errorMsg })
+      this.rendererBridge.sendRunDone({ threadId, turnId })
     } finally {
+      if (!this.runtimeStore.getInterrupted(threadId)) {
+        this.runtimeStore.clearCurrentTurnId(threadId)
+      }
       this.activeRuns.delete(threadId)
     }
   }
@@ -533,18 +533,12 @@ export class AgentEngine {
     // interruptValue: HITLRequest { actionRequests: [{ name, args }], reviewConfigs: [...] }
     const actionRequests: Array<{ name: string; args: Record<string, unknown> }> =
       interruptValue?.actionRequests ?? []
+    const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
 
     if (!actionRequests.length) {
       console.warn('[AgentEngine] Interrupt with no actionRequests:', interruptValue)
       return
     }
-
-    console.debug('[AgentEngine] interrupt payload parsed', {
-      threadId,
-      actionRequestCount: actionRequests.length,
-      actionNames: actionRequests.map(ar => ar.name),
-      partialMessageId: partialMessage?.id ?? null,
-    })
 
     // Request snapshot using the first action's file path as the primary target.
     // All proposals in one interrupt batch share the same snapshot (block IDs are stable).
@@ -573,23 +567,19 @@ export class AgentEngine {
         snapshot,
         pendingEditToolCalls[index]?.id,
         partialMessage?.id,
+        turnId,
       )
     )
 
     this.runtimeStore.setInterrupted(threadId, {
       actionRequestCount: actionRequests.length,
       actionNames: actionRequests.map(ar => ar.name),
+      turnId,
     })
 
     // Emit single atomic event (replaces old two-event sequence)
     // actionRequests are included so the renderer can align decisions by index
-    console.debug('[AgentEngine] sending runInterrupted event', {
-      threadId,
-      proposalCount: proposals.length,
-      proposalTypes: proposals.map(proposal => proposal.type),
-      partialMessageId: partialMessage?.id ?? null,
-    })
-    this.rendererBridge.sendRunInterrupted({ threadId, proposals, partialMessage, actionRequests })
+    this.rendererBridge.sendRunInterrupted({ threadId, turnId, proposals, partialMessage, actionRequests })
   }
 
   // ── Private: agent cache ──────────────────────────────────────────────────
@@ -780,14 +770,6 @@ export class AgentEngine {
     throw new Error(
       `当前请求预计约 ${inputTokens} tokens，已超过摘要触发预算 ${allowedBudget}。请先点击 Compact 压缩输入，或减少附件与上下文。`
     )
-  }
-}
-
-function safeJsonPreview(value: unknown): string {
-  try {
-    return JSON.stringify(value).slice(0, 500)
-  } catch {
-    return String(value)
   }
 }
 

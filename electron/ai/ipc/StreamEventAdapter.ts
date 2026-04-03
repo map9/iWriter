@@ -9,38 +9,8 @@ interface AgentStreamState {
   toolCalls: AiToolCall[]
   contentBlocks: MessageContentBlock[]
   pendingText: string
-  pendingReasoningLogText: string
   interrupted: boolean
   interruptPayload: unknown
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function findInterruptMarker(value: unknown, seen = new Set<unknown>()): unknown {
-  if (!isRecord(value) && !Array.isArray(value)) return null
-  if (seen.has(value)) return null
-  seen.add(value)
-
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findInterruptMarker(item, seen)
-      if (found) return found
-    }
-    return null
-  }
-
-  if ('__interrupt__' in value) {
-    return value.__interrupt__
-  }
-
-  for (const nestedValue of Object.values(value)) {
-    const found = findInterruptMarker(nestedValue, seen)
-    if (found) return found
-  }
-
-  return null
 }
 
 export class StreamEventAdapter {
@@ -50,7 +20,6 @@ export class StreamEventAdapter {
     toolCalls: [],
     contentBlocks: [],
     pendingText: '',
-    pendingReasoningLogText: '',
     interrupted: false,
     interruptPayload: null,
   }
@@ -109,17 +78,6 @@ export class StreamEventAdapter {
         }
       }
 
-      if (sawReasoningInContent || directReasoningContent || Array.isArray(reasoningSummary)) {
-        this.logReasoningDebug(
-          threadId,
-          {
-            sawReasoningInContent,
-            directReasoningContent,
-            reasoningDeltaFromContent,
-            reasoningSummary,
-          },
-        )
-      }
       return chunks
     }
 
@@ -160,36 +118,18 @@ export class StreamEventAdapter {
       return chunks
     }
 
-    const interruptMarker = findInterruptMarker(event)
-    if (interruptMarker) {
-      console.debug('[StreamEventAdapter] interrupt marker detected', {
-        threadId,
-        event: event.event,
-        runId: event.run_id ?? null,
-        markerPreview: safeJsonPreview(interruptMarker),
-      })
-    }
-
     if (event.event === 'on_chain_stream' && event.data?.chunk?.__interrupt__) {
       this.state.interrupted = true
       const interruptValues = event.data.chunk.__interrupt__
       this.state.interruptPayload = Array.isArray(interruptValues)
         ? interruptValues[0]?.value
         : interruptValues?.value ?? interruptValues
-      console.debug('[StreamEventAdapter] recognized interrupt from on_chain_stream', {
-        threadId,
-        payloadPreview: safeJsonPreview(this.state.interruptPayload),
-      })
       return chunks
     }
 
     if (event.event === 'on_chain_end' && event.data?.output?.__interrupt__) {
       this.state.interrupted = true
       this.state.interruptPayload = event.data.output.__interrupt__[0]?.value
-      console.debug('[StreamEventAdapter] recognized interrupt from on_chain_end', {
-        threadId,
-        payloadPreview: safeJsonPreview(this.state.interruptPayload),
-      })
     }
 
     return chunks
@@ -203,13 +143,14 @@ export class StreamEventAdapter {
     return this.state.interruptPayload
   }
 
-  buildPartialMessage(): ThreadMessage | undefined {
+  buildPartialMessage(turnId?: string): ThreadMessage | undefined {
     this.flushPendingText()
     if (!this.state.assistantContent && !this.state.toolCalls.length) return undefined
 
     return {
       id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       role: 'assistant',
+      turnId,
       content: this.state.assistantContent,
       timestamp: Date.now(),
       toolCalls: this.state.toolCalls.length ? this.state.toolCalls : undefined,
@@ -222,79 +163,5 @@ export class StreamEventAdapter {
     if (!this.state.pendingText) return
     this.state.contentBlocks.push({ type: 'text', text: this.state.pendingText })
     this.state.pendingText = ''
-  }
-
-  // DeepSeek streams reasoning in tiny 1-2 char fragments very frequently.
-  // Aggregate those fragments so debug output reflects meaningful progress.
-  private logReasoningDebug(
-    threadId: string,
-    params: {
-      sawReasoningInContent: boolean
-      directReasoningContent: string
-      reasoningDeltaFromContent: string
-      reasoningSummary: unknown
-    },
-  ): void {
-    const {
-      sawReasoningInContent,
-      directReasoningContent,
-      reasoningDeltaFromContent,
-      reasoningSummary,
-    } = params
-
-    if (directReasoningContent) {
-      this.state.pendingReasoningLogText += directReasoningContent
-    }
-
-    const summaryPreview = Array.isArray(reasoningSummary)
-      ? reasoningSummary
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((part: any) => String(part?.text ?? ''))
-        .join('')
-        .slice(0, 200)
-      : ''
-
-    const shouldFlushDirectReasoning =
-      this.state.pendingReasoningLogText.length >= 24
-      || /[\n。！？.!?：:，,；;]$/.test(this.state.pendingReasoningLogText)
-      || (!directReasoningContent && this.state.pendingReasoningLogText.length > 0)
-
-    if (shouldFlushDirectReasoning) {
-      console.debug('[StreamEventAdapter] reasoning chunk', {
-        threadId,
-        source: 'additional_kwargs.reasoning_content',
-        accumulatedLength: this.state.pendingReasoningLogText.length,
-        preview: this.state.pendingReasoningLogText.slice(0, 200),
-      })
-      this.state.pendingReasoningLogText = ''
-    }
-
-    if (sawReasoningInContent || summaryPreview) {
-      console.debug('[StreamEventAdapter] reasoning chunk', {
-        threadId,
-        ...(sawReasoningInContent
-          ? {
-              source: 'content.reasoning',
-              contentReasoningLength: reasoningDeltaFromContent.length,
-              preview: reasoningDeltaFromContent.slice(0, 200),
-            }
-          : {}),
-        ...(summaryPreview
-          ? {
-              source: sawReasoningInContent ? 'mixed' : 'additional_kwargs.reasoning.summary',
-              summaryParts: Array.isArray(reasoningSummary) ? reasoningSummary.length : 0,
-              summaryPreview,
-            }
-          : {}),
-      })
-    }
-  }
-}
-
-function safeJsonPreview(value: unknown): string {
-  try {
-    return JSON.stringify(value).slice(0, 500)
-  } catch {
-    return String(value)
   }
 }

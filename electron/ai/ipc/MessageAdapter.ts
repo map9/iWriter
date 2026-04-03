@@ -31,7 +31,8 @@ export function parseToolArguments(raw: unknown): Record<string, unknown> {
 // ── Tool result extraction ───────────────────────────────────────────────────
 
 export function extractToolResult(toolName: string, output: unknown): string {
-  output = normalizeToolOutput(output)
+  const normalizedOutput = normalizeToolOutput(output)
+  output = normalizedOutput
 
   if (toolName === 'write_todos') {
     type Todo = { content?: unknown; status?: unknown }
@@ -178,8 +179,94 @@ function parseMaybeJson(raw: unknown): unknown {
   }
 }
 
+function isLangChainToolMessageLike(raw: unknown): raw is {
+  content?: unknown
+  tool_call_id?: unknown
+  lc_direct_tool_output?: unknown
+  type?: unknown
+  _getType?: () => string
+  getType?: () => string
+} {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
+  const record = raw as Record<string, unknown>
+  const type =
+    typeof record._getType === 'function' ? record._getType()
+      : typeof record.getType === 'function' ? record.getType()
+      : typeof record.type === 'string' ? record.type
+      : null
+
+  return (
+    type === 'tool'
+    || 'tool_call_id' in record
+    || record.lc_direct_tool_output === true
+    || (typeof record.content !== 'undefined' && record.constructor?.name === 'ToolMessage')
+  )
+}
+
+function unwrapSerializedLangChainMessage(raw: unknown): unknown {
+  let current = raw
+
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (current == null) return current
+
+    if (typeof current === 'string') {
+      try {
+        current = JSON.parse(current)
+        continue
+      } catch {
+        return current
+      }
+    }
+
+    if (Array.isArray(current)) return current
+    if (typeof current !== 'object') return current
+
+    const record = current as Record<string, unknown>
+    if (typeof (record as { toJSON?: unknown }).toJSON === 'function') {
+      try {
+        const serialized = (record as { toJSON: () => unknown }).toJSON()
+        if (serialized && serialized !== current) {
+          current = serialized
+          continue
+        }
+      } catch {
+        // Ignore toJSON failures and continue unwrapping using other shapes.
+      }
+    }
+
+    if (isLangChainToolMessageLike(record) && 'content' in record) {
+      current = record.content
+      continue
+    }
+
+    const lcKwargs = record.lc_kwargs
+    if (lcKwargs && typeof lcKwargs === 'object' && !Array.isArray(lcKwargs)) {
+      const content = (lcKwargs as Record<string, unknown>).content
+      if (content != null) {
+        current = content
+        continue
+      }
+    }
+
+    const kwargs = record.kwargs
+    if (!kwargs || typeof kwargs !== 'object' || Array.isArray(kwargs)) {
+      return current
+    }
+
+    const content = (kwargs as Record<string, unknown>).content
+    if (content == null) {
+      return current
+    }
+
+    current = content
+  }
+
+  return current
+}
+
 function normalizeToolOutput(raw: unknown): unknown {
   if (raw == null) return raw
+  raw = unwrapSerializedLangChainMessage(raw)
   if (typeof raw === 'string') return parseMaybeJson(raw)
   if (Array.isArray(raw)) return parseMaybeJson(lcMsgText(raw))
   return raw
@@ -233,13 +320,6 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (msg as any).additional_kwargs
       )
-      if (thinkingContent) {
-        console.debug('[MessageAdapter] extracted thinking content', {
-          messageIndex: i,
-          thinkingLength: thinkingContent.length,
-          preview: thinkingContent.slice(0, 200),
-        })
-      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const lcToolCalls: any[] = msg.tool_calls ?? []
       const toolCalls: AiToolCall[] = lcToolCalls.map((tc, idx) => ({
@@ -320,6 +400,7 @@ export function buildProposalFromAction(
   snapshot: SerializedSnapshot | null,
   toolCallId?: string,
   sourceMessageId?: string,
+  sourceTurnId?: string,
 ): EditProposal {
   const id = `proposal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const filePath = typeof args.file_path === 'string' ? args.file_path : undefined
@@ -334,9 +415,10 @@ export function buildProposalFromAction(
     return {
       id,
       kind: 'create_file',
-      status: 'pending',
-      sourceMessageId,
-      filename,
+    status: 'pending',
+    sourceMessageId,
+    sourceTurnId,
+    filename,
       content: String(args.content ?? ''),
       toolCallId,
       description: description ?? `Create document: ${filename || args.filename}`,
@@ -349,6 +431,7 @@ export function buildProposalFromAction(
     kind: 'block',
     status: 'pending',
     sourceMessageId,
+    sourceTurnId,
     filePath,
     toolCallId,
   }

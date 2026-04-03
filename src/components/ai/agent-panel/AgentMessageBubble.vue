@@ -260,20 +260,8 @@ const editToolCalls = computed(() =>
 )
 
 const isLatestAssistantMessage = computed(() => {
-  const messages = aiStore.activeThread?.messages ?? []
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i]?.role === 'assistant') {
-      return messages[i]!.id === props.message.id
-    }
-  }
-  return false
+  return aiStore.latestPersistedAssistantMessageId === props.message.id
 })
-
-const assistantMessageIds = computed(() =>
-  (aiStore.activeThread?.messages ?? [])
-    .filter(message => message.role === 'assistant')
-    .map(message => message.id)
-)
 
 const editSession = computed(() =>
   buildEditSessionForMessage({
@@ -281,8 +269,9 @@ const editSession = computed(() =>
     mode: aiStore.activeThread?.mode,
     pendingProposals: aiStore.allPendingProposals,
     isInterrupted: aiStore.isInterrupted,
+    interruptedTurnId: aiStore.interruptedTurnId,
     isLatestAssistantMessage: isLatestAssistantMessage.value,
-    assistantMessageIds: assistantMessageIds.value,
+    assistantMessageIds: aiStore.persistedAssistantMessageIds,
     editToolCalls: editToolCalls.value,
   })
 )

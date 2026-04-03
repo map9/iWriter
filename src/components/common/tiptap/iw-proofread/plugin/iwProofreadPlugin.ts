@@ -602,13 +602,10 @@ export const performProofread = async (
 		let nodeProofreadResults: NodeProofreadResult[] = []
 		if (nodeProofreadRequests.length) {
 			nodeProofreadResults = await storage.proofreadService.checkNodes(nodeProofreadRequests)
-      console.info(`[iwProofreadPlugin] checkNodes: ${nodeProofreadResults.length}.`)
-  		//console.info({ function: 'checkNodes', nodeProofreadResults })
     }
 
 		// 异步操作后检查 editor 是否已销毁
 		if (editor.isDestroyed) {
-			console.debug('[iwProofreadPlugin] Editor destroyed, skipping decoration update')
 			return
 		}
 

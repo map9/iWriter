@@ -161,6 +161,7 @@ interface BaseEditProposal {
   description?: string
   status: 'pending' | 'applied' | 'rejected'
   sourceMessageId?: string
+  sourceTurnId?: string
   /** True if the user modified the proposal args before approving (edit decision). */
   wasEdited?: boolean
 }
@@ -213,6 +214,8 @@ export interface ThreadMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  /** Stable renderer/main-process turn identity for one user->assistant cycle. */
+  turnId?: string
 
   /** Set to true for error messages so the UI can render them with error styling. */
   isError?: boolean

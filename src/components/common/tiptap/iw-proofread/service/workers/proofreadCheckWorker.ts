@@ -181,8 +181,6 @@ class LanguageToolEngine implements ProofreadEngine {
     if (options?.timeout) {
       this.timeout = options.timeout
     }
-
-    console.debug(`[LanguageToolEngine] Initialized for ${this.language}, API: ${this.apiUrl}`)
   }
 
   async check(text: string): Promise<ProofreadError[]> {
@@ -286,7 +284,6 @@ let engine: ProofreadEngine | null = null
 async function initEngine(config: ProofreadEngineConfig): Promise<void> {
   engine = createEngine(config)
   await engine.init(config)
-  console.debug(`[proofreadCheckWorker] Engine ready: ${config.type}, language: ${config.language}`)
 }
 
 async function proofread(id: string, text: string): Promise<NodeProofreadResult> {

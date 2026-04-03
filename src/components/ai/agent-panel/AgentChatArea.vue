@@ -1,30 +1,39 @@
 <template>
   <div ref="messagesEl" class="flex-1 overflow-y-auto p-3 space-y-3 min-h-0" :style="{ paddingBottom: (bottomPadding ?? 0) + 24 + 'px' }">
+    <ChatContextPill />
 
-    <AgentEmptyState />
+    <AgentEmptyState @suggest="handleSuggestPrompt" />
+
+    <div
+      v-if="aiStore.isSwitchingThread && !aiStore.displayMessages.length"
+      class="flex gap-2.5"
+    >
+      <div class="flex-1 min-w-0 space-y-1.5">
+        <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100">
+          <div class="flex items-center gap-0.5">
+            <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms" />
+            <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:150ms" />
+            <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:300ms" />
+          </div>
+          <span class="text-xs text-gray-500">正在载入会话…</span>
+        </div>
+      </div>
+    </div>
 
     <AgentMessageBubble
-      v-for="msg in aiStore.activeThread?.messages ?? []"
-      :key="msg.id"
-      :message="msg"
+      v-for="entry in aiStore.displayMessages"
+      :key="entry.key"
+      :message="entry.message"
+      :is-preview="entry.isPreview"
+      :preview-status-text="entry.isPreview ? `${streamingStatusLabel} · ${formattedElapsed}` : ''"
+      :show-preview-pulse="!!entry.isPreview"
       @resend="handleResend"
     />
 
     <!-- Streaming message -->
-    <div v-if="aiStore.isStreaming" class="flex gap-2.5">
+    <div v-if="aiStore.isStreaming && !aiStore.streamingPreviewMessage" class="flex gap-2.5">
       <div class="flex-1 min-w-0 space-y-1.5">
-        <AgentMessageBubble
-          v-if="aiStore.streamingPreviewMessage"
-          :message="aiStore.streamingPreviewMessage"
-          :is-preview="true"
-          :preview-status-text="`${streamingStatusLabel} · ${formattedElapsed}`"
-          :show-preview-pulse="true"
-        />
-
-        <div
-          v-else
-          class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100"
-        >
+        <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100">
           <div class="flex items-center gap-0.5">
             <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms" />
             <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:150ms" />
@@ -32,9 +41,18 @@
           </div>
           <span class="text-xs text-gray-500">{{ streamingStatusLabel }} · {{ formattedElapsed }}</span>
         </div>
-
       </div>
     </div>
+
+    <ProposalNavigator
+      v-if="showFallbackProposalNavigator"
+      :proposals="aiStore.allPendingProposals"
+      :is-streaming="aiStore.isStreaming"
+      @approve="aiStore.approveEditProposal"
+      @reject="aiStore.rejectEditProposal"
+      @approve-all="aiStore.approveAllProposals"
+      @reject-all="aiStore.rejectAllProposals"
+    />
 
   </div>
 </template>
@@ -44,8 +62,11 @@ import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
 
 defineProps<{ bottomPadding?: number }>()
 import { useAiStore } from '@/ai/store/ai'
+import { buildEditSessionForMessage } from '@/ai/edit-session'
+import ChatContextPill from './ChatContextPill.vue'
 import AgentEmptyState from './AgentEmptyState.vue'
 import AgentMessageBubble from './AgentMessageBubble.vue'
+import ProposalNavigator from '../ProposalNavigator.vue'
 
 const aiStore = useAiStore()
 
@@ -54,12 +75,14 @@ const elapsedMs = ref(0)
 let elapsedInterval: ReturnType<typeof setInterval> | null = null
 let runStartedAt = 0
 
-const isSessionActive = computed(() => aiStore.isStreaming || aiStore.isInterrupted)
+const isSessionActive = computed(() =>
+  !!aiStore.liveTurnState || aiStore.isStreaming || aiStore.isInterrupted
+)
 
 watch(isSessionActive, active => {
   if (active) {
     if (!runStartedAt) {
-      runStartedAt = Date.now()
+      runStartedAt = aiStore.liveTurnStartedAt ?? Date.now()
       elapsedMs.value = 0
     }
     if (!elapsedInterval) {
@@ -76,6 +99,15 @@ watch(isSessionActive, active => {
     elapsedMs.value = 0
   }
 })
+
+watch(
+  () => aiStore.liveTurnStartedAt,
+  startedAt => {
+    if (!startedAt) return
+    runStartedAt = startedAt
+    elapsedMs.value = Math.max(0, Date.now() - startedAt)
+  }
+)
 
 onUnmounted(() => {
   if (elapsedInterval) clearInterval(elapsedInterval)
@@ -122,6 +154,9 @@ function humanizeToolName(toolName: string | null | undefined): string {
 }
 
 const streamingStatusLabel = computed(() => {
+  if (aiStore.liveTurnState === 'resuming') {
+    return '正在继续处理已确认修改'
+  }
   if (aiStore.streamingToolName) {
     return `正在调用工具 · ${humanizeToolName(aiStore.streamingToolName)}`
   }
@@ -134,11 +169,38 @@ const streamingStatusLabel = computed(() => {
   return '正在处理'
 })
 
+const showFallbackProposalNavigator = computed(() => {
+  if (!aiStore.allPendingProposals.length) return false
+
+  const hasInlineReviewSurface = aiStore.displayMessages.some(entry => {
+    if (entry.message.role !== 'assistant') return false
+    const session = buildEditSessionForMessage({
+      message: entry.message,
+      mode: aiStore.activeThread?.mode,
+      pendingProposals: aiStore.allPendingProposals,
+      isInterrupted: aiStore.isInterrupted,
+      interruptedTurnId: aiStore.interruptedTurnId,
+      isLatestAssistantMessage: aiStore.latestPersistedAssistantMessageId === entry.message.id,
+      assistantMessageIds: aiStore.persistedAssistantMessageIds,
+      editToolCalls: entry.message.toolCalls?.filter(toolCall => toolCall.kind === 'edit') ?? [],
+    })
+    return session?.phase === 'review_ready'
+  })
+
+  return !hasInlineReviewSurface
+})
+
 // ── Auto-scroll ────────────────────────────────────────────────────────────
 const messagesEl = ref<HTMLDivElement>()
 
 watch(
-  () => [aiStore.streamingText, aiStore.activeThread?.messages?.length],
+  () => [
+    aiStore.streamingText,
+    aiStore.streamingCurrentText,
+    aiStore.streamingBlocks.length,
+    aiStore.liveTurnState,
+    aiStore.displayMessages.length,
+  ],
   () => {
     nextTick(() => {
       if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight
@@ -147,11 +209,12 @@ watch(
 )
 
 async function handleResend(messageId: string, newContent: string) {
-  const thread = aiStore.activeThread
-  if (!thread) return
-  const idx = (thread.messages ?? []).findIndex(m => m.id === messageId)
-  if (idx < 0) return
-  aiStore.updateThread({ ...thread, messages: (thread.messages ?? []).slice(0, idx) })
+  const truncated = aiStore.truncateActiveThreadBeforeMessage(messageId)
+  if (!truncated) return
   await aiStore.sendMessage(newContent)
+}
+
+function handleSuggestPrompt(prompt: string) {
+  aiStore.setDraftInput(prompt)
 }
 </script>

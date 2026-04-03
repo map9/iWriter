@@ -1296,6 +1296,7 @@ export class MenuManager {
           }
         ]
       },
+      /*
       {
         id: 'aiMenu',
         label: 'AI',
@@ -1430,6 +1431,7 @@ export class MenuManager {
           }
         ]
       },
+      */
       {
         id: 'viewMenu',
         label: 'View',
@@ -1485,18 +1487,19 @@ export class MenuManager {
           },
           { type: 'separator' },
           {
-            label: 'Chat',
-            accelerator: 'CmdOrCtrl+Shift+5',
-            click: () => {
-              this.sendMenuAction('view-chat')
-            }
-          },
-          {
             label: 'Clean Mode',
-            accelerator: 'CmdOrCtrl+Shift+L',
+            accelerator: 'CmdOrCtrl+Shift+5',
             enabled: wState != null,
             click: () => {
               this.sendMenuAction('view-toggle-clean-mode')
+            }
+          },
+          {
+            label: 'AI StoryMate',
+            accelerator: 'CmdOrCtrl+Shift+R',
+            checked: wState?.wContentState?.view?.rightSidebar? true : false,
+            click: () => {
+              this.sendMenuAction('view-toggle-right-sidebar')
             }
           },
           { type: 'separator' },
@@ -1510,15 +1513,6 @@ export class MenuManager {
                 checked: wState?.wContentState?.view?.leftSidebar? true : false,
                 click: () => {
                   this.sendMenuAction('view-toggle-left-sidebar')
-                }
-              },
-              {
-                label: 'Right Side Bar',
-                accelerator: 'CmdOrCtrl+Shift+R',
-                type: 'checkbox',
-                checked: wState?.wContentState?.view?.rightSidebar? true : false,
-                click: () => {
-                  this.sendMenuAction('view-toggle-right-sidebar')
                 }
               },
               {

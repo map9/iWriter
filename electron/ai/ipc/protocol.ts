@@ -21,6 +21,7 @@ import type {
 
 export interface SendMessageRequest {
   threadId?: string            // Omit to start a new thread
+  turnId?: string              // Stable renderer-generated turn identity
   userText: string
   domain: AiAgentDomain
   mode: AiAgentMode
@@ -127,6 +128,7 @@ export interface StreamChunkEvent {
  */
 export interface RunInterruptedEvent {
   threadId: string
+  turnId?: string
   /**
    * Assistant message (text + tool calls) accumulated before the interrupt.
    * Absent when the LLM called an edit tool as its very first action.
@@ -143,6 +145,7 @@ export interface RunInterruptedEvent {
 
 export interface RunDoneEvent {
   threadId: string
+  turnId?: string
   /**
    * Optional error message for fallback display.
    * Normal completions omit this — the renderer reloads messages from the checkpointer.
@@ -152,6 +155,7 @@ export interface RunDoneEvent {
 
 export interface RunErrorEvent {
   threadId: string
+  turnId?: string
   error: string
 }
 

@@ -100,17 +100,7 @@
     <!-- Flexible drag area - 填充剩余空间，可被完全压缩 -->
     <div class="flex-1 h-full cursor-move drag-region min-w-44"></div>
     
-    <!-- Right Sidebar Toggle -->
-    <div class="flex items-center px-2 flex-shrink-0 no-drag">
-      <button
-        @click="appStore.toggleRightSidebar()"
-        class="toolbar-button flex-shrink-0"
-        :class="appStore.isRightSidebarVisible ? 'text-accent-primary' : ''"
-        title="Toggle AI Chat"
-      >
-        <IconRobot class="icon-base" />
-      </button>
-    </div>
+    <AiStatusButton />
   </div>
 </template>
 
@@ -121,10 +111,10 @@ import type { FileTab } from '@/types'
 import { SidebarMode } from '@/types'
 import pathUtils from '@/utils/pathUtils'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
+import AiStatusButton from './AiStatusButton.vue'
 import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
-  IconRobot,
   IconChevronLeft,
   IconChevronRight,
   IconX,

@@ -78,7 +78,6 @@ export function createChatModel(
       const isTrueOpenAI = isOpenAIHostedBaseUrl(config.baseUrl)
       const useOpenAIReasoning = isTrueOpenAI && isOpenAIReasoningModel(modelId)
       const reasoningEffort = mapThinkModeToReasoningEffort(runtime.thinkMode)
-      console.log('[ModelFactory] openai-compat key:', key.slice(0, 4) + '...' + key.slice(-4), 'baseUrl:', config.baseUrl)
       const model = new ChatOpenAI({
         model: modelId,
         apiKey: key,
@@ -101,7 +100,6 @@ export function createChatModel(
 
     case 'deepseek': {
       const key = config.apiKey || 'no-key'
-      console.log('[ModelFactory] deepseek key:', key.slice(0, 4) + '...' + key.slice(-4), 'baseUrl:', config.baseUrl)
       return new ChatDeepSeek({
         model: modelId,
         apiKey: key,

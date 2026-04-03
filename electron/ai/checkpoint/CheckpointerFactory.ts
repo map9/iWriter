@@ -45,7 +45,6 @@ export async function getCheckpointer(): Promise<CheckpointerInstance> {
     const db = (saver as any).db ?? (saver as any).conn
 
     _instance = { checkpointer: saver, backend: 'sqlite', db }
-    console.log('[CheckpointerFactory] Using SqliteSaver at', dbPath)
   } catch (err) {
     const details = formatSqliteInitError(err)
     const payload = {

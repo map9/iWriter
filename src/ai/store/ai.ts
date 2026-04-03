@@ -44,6 +44,17 @@ import type {
   ResumeDecision,
 } from '@/ai/ipc'
 
+export interface AiDisplayMessageEntry {
+  key: string
+  message: ThreadMessage
+  isPreview?: boolean
+}
+
+export interface AiDisplayThread {
+  persistedMessages: ThreadMessage[]
+  messages: AiDisplayMessageEntry[]
+}
+
 // ── Settings localStorage helpers ──────────────────────────────────────────
 const _STORAGE_KEY_SETTINGS = 'iwriter-ai-settings'
 function _loadSettings(): AiSettings {
@@ -74,6 +85,10 @@ function _saveSettingsToStorage(s: AiSettings): void {
 
 export const useAiStore = defineStore('ai', () => {
   const appStore = useAppStore()
+
+  const isSwitchingThread = ref(false)
+  const switchingThreadId = ref<string | null>(null)
+  const draftInput = ref('')
 
   // ── Settings & Provider Config ────────────────────────────────────────────
   const _initialSettings = _loadSettings()
@@ -253,24 +268,50 @@ export const useAiStore = defineStore('ai', () => {
     return thread
   }
 
-  async function selectThread(id: string) {
+  async function selectThread(id: string): Promise<boolean> {
     // Clean up any local-only empty threads before switching
     if (activeThreadId.value !== id) {
       _purgeEmptyThreads()
     }
-    activeThreadId.value = id
     const thread = threads.value.find(t => t.id === id)
-    if (thread && !thread.messagesLoaded) {
-      try {
-        const messages = await window.electronAPI.aiGetThreadMessages?.(id)
-        if (messages?.length) {
-          updateThread({ ...thread, messages: _normalizeMessagesForDisplay(messages), messagesLoaded: true })
-        } else {
-          // No messages yet (or empty thread) — mark loaded to avoid repeated fetches
-          updateThread({ ...thread, messages: messages ?? [], messagesLoaded: true })
-        }
-      } catch { /* ignore — messages are display-only */ }
+    if (!thread) return false
+
+    const previousActiveThreadId = activeThreadId.value
+
+    if (thread.messagesLoaded) {
+      activeThreadId.value = id
+      isSwitchingThread.value = false
+      switchingThreadId.value = null
+      return true
     }
+
+    isSwitchingThread.value = true
+    switchingThreadId.value = id
+
+    try {
+      const messages = await window.electronAPI.aiGetThreadMessages?.(id)
+      const normalizedThread: AiThread = {
+        ...thread,
+        messages: messages?.length ? _normalizeMessagesForDisplay(messages) : (messages ?? []),
+        messagesLoaded: true,
+      }
+      updateThread(normalizedThread)
+      activeThreadId.value = id
+      return true
+    } catch (error) {
+      activeThreadId.value = previousActiveThreadId
+      notify.error(`载入会话失败: ${error instanceof Error ? error.message : String(error)}`)
+      return false
+    } finally {
+      if (switchingThreadId.value === id) {
+        isSwitchingThread.value = false
+        switchingThreadId.value = null
+      }
+    }
+  }
+
+  function setDraftInput(value: string) {
+    draftInput.value = value
   }
 
   function deleteThread(id: string) {
@@ -300,6 +341,17 @@ export const useAiStore = defineStore('ai', () => {
     }
   }
 
+  function truncateActiveThreadBeforeMessage(messageId: string): boolean {
+    const thread = activeThread.value
+    if (!thread) return false
+
+    const idx = persistedMessages.value.findIndex(message => message.id === messageId)
+    if (idx < 0) return false
+
+    updateThread({ ...thread, messages: persistedMessages.value.slice(0, idx) })
+    return true
+  }
+
   // ── Thread Run State Machine ───────────────────────────────────────────────
   // Three states:
   //   idle:        no active run
@@ -318,23 +370,97 @@ export const useAiStore = defineStore('ai', () => {
     | { type: 'text'; text: string }
     | { type: 'tool_call'; toolCall: AiToolCall }
 
-  const streamingText = ref('')
-  const streamingCurrentText = ref('')
-  const streamingBlocks = ref<StreamingBlock[]>([])
-  const streamingThinkingText = ref('')
-  const streamingToolName = ref<string | null>(null)
-  const pendingEditProposals = ref<EditProposal[]>([])
+  type LiveTurnState = 'streaming' | 'interrupted' | 'resuming'
+  interface LiveTurn {
+    threadId: string
+    turnId: string | null
+    state: LiveTurnState
+    startedAt: number
+    text: string
+    currentText: string
+    blocks: StreamingBlock[]
+    thinkingText: string
+    toolName: string | null
+    proposals: EditProposal[]
+  }
+
+  const _liveTurn = ref<LiveTurn | null>(null)
   const isResumingReviewedEdits = ref(false)
   const reviewedToolCallStatuses = ref<Record<string, AiToolCall['status']>>({})
   const reviewedEditSignatures = ref<Record<string, AiToolCall['status']>>({})
 
   /** Thread ID of the currently active (streaming or interrupted) run. */
   const _currentThreadId = ref<string | null>(null)
+  /** Stable turn identity for the currently active run. */
+  const _currentTurnId = ref<string | null>(null)
 
   // ── HITL Interrupt State ───────────────────────────────────────────────────
 
   /** ThreadId currently in 'interrupted' state. */
   const _interruptedThreadId = ref<string | null>(null)
+  /** TurnId currently in 'interrupted' state. */
+  const _interruptedTurnId = ref<string | null>(null)
+
+  const streamingText = computed(() => _liveTurn.value?.text ?? '')
+  const streamingCurrentText = computed(() => _liveTurn.value?.currentText ?? '')
+  const streamingBlocks = computed(() => _liveTurn.value?.blocks ?? [])
+  const streamingThinkingText = computed(() => _liveTurn.value?.thinkingText ?? '')
+  const streamingToolName = computed(() => _liveTurn.value?.toolName ?? null)
+  const pendingEditProposals = computed(() => _liveTurn.value?.proposals ?? [])
+  const liveTurnState = computed<LiveTurnState | null>(() => _liveTurn.value?.state ?? null)
+  const liveTurnThreadId = computed(() => _liveTurn.value?.threadId ?? null)
+  const liveTurnTurnId = computed(() => _liveTurn.value?.turnId ?? null)
+  const liveTurnStartedAt = computed(() => _liveTurn.value?.startedAt ?? null)
+
+  function _startLiveTurn(params: {
+    threadId: string
+    turnId: string | null
+    state: LiveTurnState
+    startedAt?: number
+  }) {
+    _liveTurn.value = {
+      threadId: params.threadId,
+      turnId: params.turnId,
+      state: params.state,
+      startedAt: params.startedAt ?? Date.now(),
+      text: '',
+      currentText: '',
+      blocks: [],
+      thinkingText: '',
+      toolName: null,
+      proposals: [],
+    }
+  }
+
+  function _ensureLiveTurn(params?: {
+    threadId?: string | null
+    turnId?: string | null
+    state?: LiveTurnState
+    startedAt?: number
+  }): LiveTurn | null {
+    if (!_liveTurn.value) {
+      const threadId = params?.threadId ?? _currentThreadId.value ?? _interruptedThreadId.value
+      if (!threadId) return null
+      _startLiveTurn({
+        threadId,
+        turnId: params?.turnId ?? _currentTurnId.value ?? _interruptedTurnId.value ?? null,
+        state: params?.state ?? (_threadRunState.value === 'interrupted' ? 'interrupted' : 'streaming'),
+        startedAt: params?.startedAt,
+      })
+    } else if (params) {
+      _liveTurn.value = {
+        ..._liveTurn.value,
+        threadId: params.threadId ?? _liveTurn.value.threadId,
+        turnId: params.turnId ?? _liveTurn.value.turnId,
+        state: params.state ?? _liveTurn.value.state,
+      }
+    }
+    return _liveTurn.value
+  }
+
+  function _clearLiveTurn() {
+    _liveTurn.value = null
+  }
 
   /**
    * Number of actionRequests in the current interrupt batch.
@@ -583,16 +709,18 @@ export const useAiStore = defineStore('ai', () => {
     // Start streaming state
     _currentRunHasError = false
     _threadRunState.value = 'streaming'
-    streamingText.value = ''
-    streamingCurrentText.value = ''
-    streamingBlocks.value = []
-    streamingThinkingText.value = ''
-    streamingToolName.value = null
-    pendingEditProposals.value = []
+    const turnId = `turn-${nanoid(8)}`
+    _currentTurnId.value = turnId
+    _startLiveTurn({
+      threadId: thread.id,
+      turnId,
+      state: 'streaming',
+    })
 
     try {
       const result = await window.electronAPI.aiSendMessage?.({
         threadId: thread.id,
+        turnId,
         userText,
         domain: thread.domain,
         mode: thread.mode,
@@ -622,6 +750,8 @@ export const useAiStore = defineStore('ai', () => {
     } catch (err) {
       _threadRunState.value = 'idle'
       _currentThreadId.value = null
+      _currentTurnId.value = null
+      _clearLiveTurn()
       const msg = err instanceof Error ? err.message : String(err)
       notify.error(`AI 错误: ${msg}`)
       let errThread = activeThread.value
@@ -629,6 +759,7 @@ export const useAiStore = defineStore('ai', () => {
         const errMsg: ThreadMessage = {
           id: `msg-${nanoid(8)}`,
           role: 'assistant',
+          turnId,
           content: msg,
           isError: true,
           timestamp: Date.now(),
@@ -711,11 +842,14 @@ export const useAiStore = defineStore('ai', () => {
 
     _threadRunState.value = 'idle'
     _interruptedThreadId.value = null
+    _interruptedTurnId.value = null
     _interruptActionCount.value = 0
     isResumingReviewedEdits.value = false
     _decisionRecord.clear()
     _proposalIndexMap.clear()
-    pendingEditProposals.value = []
+    if (_liveTurn.value) {
+      _liveTurn.value = { ..._liveTurn.value, proposals: [] }
+    }
   }
 
   /**
@@ -752,14 +886,26 @@ export const useAiStore = defineStore('ai', () => {
     _threadRunState.value = 'streaming'
     isResumingReviewedEdits.value = true
     _currentThreadId.value = threadId
+    _currentTurnId.value = _interruptedTurnId.value
+    _ensureLiveTurn({
+      threadId,
+      turnId: _interruptedTurnId.value,
+      state: 'resuming',
+      startedAt: _liveTurn.value?.startedAt,
+    })
     _interruptedThreadId.value = null
+    _interruptedTurnId.value = null
     _interruptActionCount.value = 0
     _decisionRecord.clear()
     _proposalIndexMap.clear()
 
     window.electronAPI.aiResume?.({ threadId, decisions })
 
-    pendingEditProposals.value = []
+    const liveTurn = _ensureLiveTurn({ threadId, state: 'resuming' })
+    if (liveTurn) {
+      liveTurn.proposals = []
+      _liveTurn.value = { ...liveTurn }
+    }
   }
 
   async function approveEditProposal(proposalId: string) {
@@ -797,7 +943,11 @@ export const useAiStore = defineStore('ai', () => {
           if (result.success) {
             _updateLocalProposalToolCall(proposalId, 'completed')
             if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
-            pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+            const liveTurn = _ensureLiveTurn()
+            if (liveTurn) {
+              liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
+              _liveTurn.value = { ...liveTurn }
+            }
             notify.success(`文档"${p.filename}"已创建`)
           } else {
             _updateLocalProposalToolCall(proposalId, 'failed')
@@ -807,7 +957,11 @@ export const useAiStore = defineStore('ai', () => {
                 message: `Document creation failed: ${result.error}`,
               })
             }
-            pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+            const liveTurn = _ensureLiveTurn()
+            if (liveTurn) {
+              liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
+              _liveTurn.value = { ...liveTurn }
+            }
             notify.error(`内容注入失败: ${result.error}`)
           }
         } else {
@@ -818,7 +972,11 @@ export const useAiStore = defineStore('ai', () => {
               message: 'Document creation failed: editor not ready.',
             })
           }
-          pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+          const liveTurn = _ensureLiveTurn()
+          if (liveTurn) {
+            liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
+            _liveTurn.value = { ...liveTurn }
+          }
           notify.error('编辑器未就绪，请手动粘贴内容')
         }
         _maybeFlushResume()
@@ -830,7 +988,11 @@ export const useAiStore = defineStore('ai', () => {
       if (result.success) {
         _updateLocalProposalToolCall(proposalId, 'completed')
         if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
-        pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+        const liveTurn = _ensureLiveTurn()
+        if (liveTurn) {
+          liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
+          _liveTurn.value = { ...liveTurn }
+        }
         notify.success(blockProposal.filePath ? '文件编辑已应用' : '编辑已应用')
       } else {
         _updateLocalProposalToolCall(proposalId, 'failed')
@@ -840,7 +1002,11 @@ export const useAiStore = defineStore('ai', () => {
             message: _buildProposalFailureMessage(blockProposal, result.error ?? 'Unknown apply error.'),
           })
         }
-        pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+        const liveTurn = _ensureLiveTurn()
+        if (liveTurn) {
+          liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
+          _liveTurn.value = { ...liveTurn }
+        }
         notify.error(`${blockProposal.filePath ? '文件编辑失败' : '应用编辑失败'}: ${result.error}`)
         _maybeFlushResume()
         return
@@ -853,7 +1019,11 @@ export const useAiStore = defineStore('ai', () => {
           message: `Edit apply failed: ${error instanceof Error ? error.message : String(error)}`,
         })
       }
-      pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+      const liveTurn = _ensureLiveTurn()
+      if (liveTurn) {
+        liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
+        _liveTurn.value = { ...liveTurn }
+      }
       notify.error(`应用编辑失败: ${error instanceof Error ? error.message : String(error)}`)
       _maybeFlushResume()
       return
@@ -884,16 +1054,26 @@ export const useAiStore = defineStore('ai', () => {
     }
 
     // Update the displayed proposal content in pending list
-    pendingEditProposals.value = pendingEditProposals.value.map(p =>
-      p.id === proposalId ? { ...blockProposal, wasEdited: true } : p
-    )
+    {
+      const liveTurn = _ensureLiveTurn()
+      if (liveTurn) {
+        liveTurn.proposals = liveTurn.proposals.map(p =>
+          p.id === proposalId ? { ...blockProposal, wasEdited: true } : p
+        )
+        _liveTurn.value = { ...liveTurn }
+      }
+    }
 
     try {
       const result = await _applyBlockProposalToTarget(blockProposal)
       if (result.success) {
         _updateLocalProposalToolCall(proposalId, 'completed')
         if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'edited', editedArgs })
-        pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+        const liveTurn = _ensureLiveTurn()
+        if (liveTurn) {
+          liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
+          _liveTurn.value = { ...liveTurn }
+        }
         notify.success(blockProposal.filePath ? '文件编辑（已修改）已应用' : '编辑（已修改）已应用')
       } else {
         _updateLocalProposalToolCall(proposalId, 'failed')
@@ -903,7 +1083,11 @@ export const useAiStore = defineStore('ai', () => {
             message: _buildProposalFailureMessage(blockProposal, result.error ?? 'Unknown apply error.'),
           })
         }
-        pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+        const liveTurn = _ensureLiveTurn()
+        if (liveTurn) {
+          liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
+          _liveTurn.value = { ...liveTurn }
+        }
         notify.error(`${blockProposal.filePath ? '文件编辑失败' : '应用编辑失败'}: ${result.error}`)
         _maybeFlushResume()
         return
@@ -916,7 +1100,11 @@ export const useAiStore = defineStore('ai', () => {
           message: `Edited apply failed: ${error instanceof Error ? error.message : String(error)}`,
         })
       }
-      pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+      const liveTurn = _ensureLiveTurn()
+      if (liveTurn) {
+        liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
+        _liveTurn.value = { ...liveTurn }
+      }
       notify.error(`应用编辑失败: ${error instanceof Error ? error.message : String(error)}`)
       _maybeFlushResume()
       return
@@ -936,7 +1124,13 @@ export const useAiStore = defineStore('ai', () => {
       _decisionRecord.set(proposalIndex, { type: 'rejected' })
     }
     _updateLocalProposalToolCall(proposalId, 'rejected')
-    pendingEditProposals.value = pendingEditProposals.value.filter(p => p.id !== proposalId)
+    {
+      const liveTurn = _ensureLiveTurn()
+      if (liveTurn) {
+        liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
+        _liveTurn.value = { ...liveTurn }
+      }
+    }
 
     // If some proposals in the same batch were already approved, inform the user
     // that those applied edits are preserved even though this one was skipped.
@@ -954,11 +1148,13 @@ export const useAiStore = defineStore('ai', () => {
   const allPendingProposals = computed<EditProposal[]>(() => pendingEditProposals.value)
 
   const streamingPreviewMessage = computed<ThreadMessage | null>(() => {
+    const liveTurn = _liveTurn.value
+    if (!liveTurn) return null
     const contentBlocks: MessageContentBlock[] = []
     const toolCalls: AiToolCall[] = []
     let content = ''
 
-    for (const block of streamingBlocks.value) {
+    for (const block of liveTurn.blocks) {
       if (block.type === 'text' && block.text) {
         contentBlocks.push({ type: 'text', text: block.text })
         content += block.text
@@ -973,24 +1169,60 @@ export const useAiStore = defineStore('ai', () => {
       }
     }
 
-    if (streamingCurrentText.value) {
-      contentBlocks.push({ type: 'text', text: streamingCurrentText.value })
-      content += streamingCurrentText.value
+    if (liveTurn.currentText) {
+      contentBlocks.push({ type: 'text', text: liveTurn.currentText })
+      content += liveTurn.currentText
     }
 
-    if (!contentBlocks.length && !streamingThinkingText.value) {
+    if (!contentBlocks.length && !liveTurn.thinkingText) {
       return null
     }
 
     return _normalizeMessageForDisplay({
       id: 'streaming-preview',
       role: 'assistant',
+      turnId: liveTurn.turnId ?? undefined,
       content,
       timestamp: Date.now(),
-      thinkingContent: streamingThinkingText.value || undefined,
+      thinkingContent: liveTurn.thinkingText || undefined,
       toolCalls: toolCalls.length ? toolCalls : undefined,
       contentBlocks: contentBlocks.length ? contentBlocks : undefined,
     })
+  })
+
+  const persistedMessages = computed<ThreadMessage[]>(() => activeThread.value?.messages ?? [])
+
+  const displayThread = computed<AiDisplayThread>(() => {
+    const entries: AiDisplayMessageEntry[] = persistedMessages.value.map(message => ({
+      key: message.id,
+      message,
+    }))
+
+    if (_threadRunState.value === 'streaming' && streamingPreviewMessage.value) {
+      entries.push({
+        key: `preview:${streamingPreviewMessage.value.id}:${streamingPreviewMessage.value.turnId ?? 'live'}`,
+        message: streamingPreviewMessage.value,
+        isPreview: true,
+      })
+    }
+
+    return {
+      persistedMessages: persistedMessages.value,
+      messages: entries,
+    }
+  })
+
+  const displayMessages = computed<AiDisplayMessageEntry[]>(() => displayThread.value.messages)
+
+  const persistedAssistantMessageIds = computed<string[]>(() =>
+    persistedMessages.value
+      .filter(message => message.role === 'assistant')
+      .map(message => message.id)
+  )
+
+  const latestPersistedAssistantMessageId = computed<string | null>(() => {
+    const ids = persistedAssistantMessageIds.value
+    return ids.length ? ids[ids.length - 1]! : null
   })
 
   async function approveAllProposals() {
@@ -1006,7 +1238,11 @@ export const useAiStore = defineStore('ai', () => {
         _decisionRecord.set(index, { type: 'rejected' })
       }
     }
-    pendingEditProposals.value = []
+    const liveTurn = _ensureLiveTurn()
+    if (liveTurn) {
+      liveTurn.proposals = []
+      _liveTurn.value = { ...liveTurn }
+    }
     _maybeFlushResume()
   }
 
@@ -1017,17 +1253,14 @@ export const useAiStore = defineStore('ai', () => {
     }
     _threadRunState.value = 'idle'
     _currentThreadId.value = null
+    _currentTurnId.value = null
     _interruptedThreadId.value = null
+    _interruptedTurnId.value = null
     _interruptActionCount.value = 0
     isResumingReviewedEdits.value = false
     _decisionRecord.clear()
     _proposalIndexMap.clear()
-    streamingThinkingText.value = ''
-    streamingText.value = ''
-    streamingCurrentText.value = ''
-    streamingBlocks.value = []
-    streamingToolName.value = null
-    pendingEditProposals.value = []
+    _clearLiveTurn()
     notify.info('已停止生成')
   }
 
@@ -1063,29 +1296,36 @@ export const useAiStore = defineStore('ai', () => {
 
     // Stream chunks: text, thinking, tool call start/end
     window.electronAPI.onAiStreamChunk?.((chunk: StreamChunkEvent) => {
+      const liveTurn = _ensureLiveTurn({ state: _threadRunState.value === 'interrupted' ? 'interrupted' : 'streaming' })
+      if (!liveTurn) return
+
       if (chunk.type === 'text' && chunk.delta) {
-        streamingText.value += chunk.delta
-        streamingCurrentText.value += chunk.delta
+        liveTurn.text += chunk.delta
+        liveTurn.currentText += chunk.delta
+        _liveTurn.value = { ...liveTurn }
       } else if (chunk.type === 'thinking' && chunk.delta) {
-        streamingThinkingText.value += chunk.delta
+        liveTurn.thinkingText += chunk.delta
+        _liveTurn.value = { ...liveTurn }
       } else if (chunk.type === 'tool_call_start' && chunk.toolCall) {
-        if (streamingCurrentText.value) {
-          streamingBlocks.value = [...streamingBlocks.value, { type: 'text', text: streamingCurrentText.value }]
-          streamingCurrentText.value = ''
+        if (liveTurn.currentText) {
+          liveTurn.blocks = [...liveTurn.blocks, { type: 'text', text: liveTurn.currentText }]
+          liveTurn.currentText = ''
         }
         const enriched: AiToolCall = {
           ...chunk.toolCall,
           kind: inferToolKind(chunk.toolCall.name),
         }
-        streamingBlocks.value = [...streamingBlocks.value, { type: 'tool_call', toolCall: enriched }]
-        streamingToolName.value = chunk.toolName ?? null
+        liveTurn.blocks = [...liveTurn.blocks, { type: 'tool_call', toolCall: enriched }]
+        liveTurn.toolName = chunk.toolName ?? null
+        _liveTurn.value = { ...liveTurn }
       } else if (chunk.type === 'tool_call_end' && chunk.toolCallId && chunk.toolCall) {
-        streamingBlocks.value = streamingBlocks.value.map(b =>
+        liveTurn.blocks = liveTurn.blocks.map(b =>
           b.type === 'tool_call' && b.toolCall.id === chunk.toolCallId
             ? { type: 'tool_call', toolCall: { ...b.toolCall, status: chunk.toolCall!.status, result: chunk.toolCall!.result, isError: chunk.toolCall!.isError } }
             : b
         )
-        streamingToolName.value = null
+        liveTurn.toolName = null
+        _liveTurn.value = { ...liveTurn }
       }
     })
 
@@ -1093,21 +1333,28 @@ export const useAiStore = defineStore('ai', () => {
     window.electronAPI.onAiRunInterrupted?.((e: RunInterruptedEvent) => {
       _threadRunState.value = 'interrupted'
       _interruptedThreadId.value = e.threadId
+      _interruptedTurnId.value = e.turnId ?? _currentTurnId.value
       _interruptActionCount.value = e.proposals.length
       isResumingReviewedEdits.value = false
       _decisionRecord.clear()
       _proposalIndexMap.clear()
 
-      streamingText.value = ''
-
-      // Clear streaming display state
-      streamingToolName.value = null
-      streamingThinkingText.value = ''
-      streamingBlocks.value = []
-      streamingCurrentText.value = ''
+      _startLiveTurn({
+        threadId: e.threadId,
+        turnId: e.turnId ?? _currentTurnId.value,
+        state: 'interrupted',
+        startedAt: _liveTurn.value?.turnId === (e.turnId ?? _currentTurnId.value)
+          ? _liveTurn.value.startedAt
+          : undefined,
+      })
 
       // Register proposals as pending (replace, not append — HITL is serial)
-      pendingEditProposals.value = e.proposals
+      if (_liveTurn.value) {
+        _liveTurn.value = {
+          ..._liveTurn.value,
+          proposals: e.proposals,
+        }
+      }
       // Build stable index map so approve/reject can find the original index
       // even after earlier proposals have been removed from pendingEditProposals.
       e.proposals.forEach((p, i) => _proposalIndexMap.set(p.id, i))
@@ -1137,7 +1384,17 @@ export const useAiStore = defineStore('ai', () => {
             // A stale async reload (from an earlier interrupt) could wipe partialMessages
             // appended by a later interrupt. Messages only grow within a run.
             if (messages.length < (current?.messages?.length ?? 0)) return
-            updateThread({ ...current!, messages: _normalizeMessagesForDisplay(messages), messagesLoaded: true })
+            const normalizedMessages = _normalizeMessagesForDisplay(messages)
+            if (e.turnId) {
+              for (let i = normalizedMessages.length - 1; i >= 0; i--) {
+                const message = normalizedMessages[i]
+                if (message?.role === 'assistant') {
+                  normalizedMessages[i] = { ...message, turnId: message.turnId ?? e.turnId }
+                  break
+                }
+              }
+            }
+            updateThread({ ...current!, messages: normalizedMessages, messagesLoaded: true })
           })
           .catch(() => {/* ignore */ })
       }
@@ -1145,20 +1402,16 @@ export const useAiStore = defineStore('ai', () => {
 
     // Run completed (always a full completion — no more isPartial)
     window.electronAPI.onAiRunDone?.((e: RunDoneEvent) => {
-      streamingText.value = ''
-
       _threadRunState.value = 'idle'
-      streamingToolName.value = null
-      streamingThinkingText.value = ''
-      streamingBlocks.value = []
-      streamingCurrentText.value = ''
+      _clearLiveTurn()
       _currentThreadId.value = null
+      _currentTurnId.value = null
       _interruptedThreadId.value = null
+      _interruptedTurnId.value = null
       _interruptActionCount.value = 0
       isResumingReviewedEdits.value = false
       _decisionRecord.clear()
       _proposalIndexMap.clear()
-      pendingEditProposals.value = []
 
       // Reload messages from checkpointer (single source of truth).
       // Skip reload if onAiRunError already handled this run's error —
@@ -1180,13 +1433,11 @@ export const useAiStore = defineStore('ai', () => {
     window.electronAPI.onAiRunError?.((e: RunErrorEvent) => {
       _currentRunHasError = true
       _threadRunState.value = 'idle'
-      streamingText.value = ''
-      streamingCurrentText.value = ''
-      streamingBlocks.value = []
-      streamingThinkingText.value = ''
-      streamingToolName.value = null
+      _clearLiveTurn()
       _currentThreadId.value = null
+      _currentTurnId.value = null
       _interruptedThreadId.value = null
+      _interruptedTurnId.value = null
       _interruptActionCount.value = 0
       isResumingReviewedEdits.value = false
       _decisionRecord.clear()
@@ -1198,6 +1449,7 @@ export const useAiStore = defineStore('ai', () => {
         const errMsg: ThreadMessage = {
           id: `msg-${nanoid(8)}`,
           role: 'assistant',
+          turnId: e.turnId,
           content: e.error,
           isError: true,
           timestamp: Date.now(),
@@ -1236,10 +1488,18 @@ export const useAiStore = defineStore('ai', () => {
     deleteThread,
     clearAllThreads,
     updateThread,
+    truncateActiveThreadBeforeMessage,
 
     // Run state
     isStreaming,
     isInterrupted,
+    isSwitchingThread,
+    switchingThreadId,
+    interruptedTurnId: computed(() => _interruptedTurnId.value),
+    liveTurnState,
+    liveTurnThreadId,
+    liveTurnTurnId,
+    liveTurnStartedAt,
 
     // Streaming display state
     streamingText,
@@ -1248,10 +1508,16 @@ export const useAiStore = defineStore('ai', () => {
     streamingThinkingText,
     streamingToolName,
     streamingPreviewMessage,
+    persistedMessages,
+    displayThread,
+    displayMessages,
+    persistedAssistantMessageIds,
+    latestPersistedAssistantMessageId,
     pendingEditProposals,
     isResumingReviewedEdits,
     reviewedToolCallStatuses,
     reviewedEditSignatures,
+    draftInput,
 
     // Actions
     sendMessage,
@@ -1262,6 +1528,7 @@ export const useAiStore = defineStore('ai', () => {
     approveAllProposals,
     rejectAllProposals,
     cancelStreaming,
+    setDraftInput,
     init,
     teardown,
   }

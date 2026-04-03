@@ -67,7 +67,7 @@
         </div>
         
         <!-- Right Sidebar (AI Chat) -->
-        <RightSidebar v-if="appStore.isRightSidebarVisible" />
+        <RightSidebar v-show="appStore.isRightSidebarVisible" />
       </div>
     </div>
   </div>
@@ -91,10 +91,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '@/stores/app'
+import { useAiStore } from '@/ai/store/ai'
 import { DocumentType } from '@/types'
 import type { UpdateInfo } from '@/updater/types'
+import type { SnapshotRequestEvent } from '@/ai/ipc'
 import { notify } from '@/utils/notifications'
 import updaterService from '@/updater/UpdaterService'
+import { buildSerializedSnapshot } from '@/ai/snapshot/SnapshotSerializer'
 import TitleBar from '@/components/TitleBar.vue'
 import LeftSidebar from '@/components/LeftSidebar.vue'
 import RightSidebar from '@/components/RightSidebar.vue'
@@ -110,6 +113,7 @@ import {
 } from '@tabler/icons-vue'
 
 const appStore = useAppStore()
+const aiStore = useAiStore()
 
 // Refs for different page types
 const markdownEditorRefs = ref<InstanceType<typeof MarkdownEditorPage>[]>([])
@@ -182,6 +186,43 @@ function handleViewUpdateDetails() {
 
 // Lifecycle
 onMounted(() => {
+  aiStore.init()
+
+  window.electronAPI.onAiRequestSnapshot?.(async (req: SnapshotRequestEvent) => {
+    type TipTapEditor = import('@tiptap/core').Editor
+    let editor: TipTapEditor | null = null
+    let editorFilePath: string | null = null
+
+    if (!req.filePath) {
+      const activeTab = appStore.activeTab
+      editor = activeTab?.editorInstance as TipTapEditor | null ?? null
+      editorFilePath = activeTab?.path ?? null
+    } else {
+      const target = req.filePath.replace(/\\/g, '/').toLowerCase()
+      const matchingTab = appStore.tabs.find(tab => {
+        const tabPath = tab.path?.replace(/\\/g, '/').toLowerCase()
+        return tabPath === target
+      })
+      if (matchingTab) {
+        editor = matchingTab.editorInstance as TipTapEditor | null ?? null
+        editorFilePath = matchingTab.path ?? null
+      }
+    }
+
+    const snapshot = await buildSerializedSnapshot(
+      req.filePath,
+      editor,
+      editorFilePath,
+      null
+    )
+
+    window.electronAPI.aiSnapshotResponse?.({
+      requestId: req.requestId,
+      filePath: req.filePath,
+      snapshot,
+    })
+  })
+
   // 监听更新可用状态
   watch(() => updaterService.isUpdateAvailable.value, (isAvailable) => {
     if (isAvailable && updaterService.updateInfo.value) {
@@ -192,7 +233,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  // 响应式状态会自动清理，不需要手动清理
+  aiStore.teardown()
 })
 
 // Expose methods to parent component (App.vue)

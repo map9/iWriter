@@ -46,7 +46,6 @@ export class ProofreadWorkerPool {
     try {
       // 在第一个 worker 中初始化引擎，直接传递完整的引擎配置
       await this.pool.exec('initEngine', [this.config.engineConfig])
-      console.info('[ProofreadWorkerPool] Engine initialized successfully')
     } catch (error) {
       console.error('[ProofreadWorkerPool] Engine initialization failed:', error)
       throw error
@@ -80,9 +79,7 @@ export class ProofreadWorkerPool {
       // 使用 workerpool 批量处理
       const results = await this.pool.exec('batchProofread', [nodeData])
 
-      console.info(`[ProofreadWorkerPool] Processed ${nodes.length} nodes`)
       return results
-
     } catch (error) {
       console.warn('[ProofreadWorkerPool] Error processing nodes:', error)
 
@@ -103,7 +100,6 @@ export class ProofreadWorkerPool {
   async destroy(): Promise<void> {
     try {
       await this.pool.terminate()
-      console.debug('[ProofreadWorkerPool] Pool terminated successfully')
     } catch (error) {
       console.warn('[ProofreadWorkerPool] Error terminating pool:', error)
     }

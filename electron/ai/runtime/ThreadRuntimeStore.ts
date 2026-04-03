@@ -3,6 +3,7 @@ import type { AiAgentDomain } from '../../../src/types/ai'
 interface InterruptedRun {
   actionRequestCount: number
   actionNames: string[]
+  turnId?: string
 }
 
 interface ThreadExecutionContext {
@@ -16,6 +17,7 @@ interface ThreadExecutionContext {
 export class ThreadRuntimeStore {
   private interruptedRuns = new Map<string, InterruptedRun>()
   private threadContexts = new Map<string, ThreadExecutionContext>()
+  private currentTurnIds = new Map<string, string>()
 
   setContext(threadId: string, context: ThreadExecutionContext): void {
     this.threadContexts.set(threadId, context)
@@ -50,14 +52,28 @@ export class ThreadRuntimeStore {
     this.interruptedRuns.delete(threadId)
   }
 
+  setCurrentTurnId(threadId: string, turnId: string): void {
+    this.currentTurnIds.set(threadId, turnId)
+  }
+
+  getCurrentTurnId(threadId: string): string | null {
+    return this.currentTurnIds.get(threadId) ?? null
+  }
+
+  clearCurrentTurnId(threadId: string): void {
+    this.currentTurnIds.delete(threadId)
+  }
+
   deleteThread(threadId: string): void {
     this.threadContexts.delete(threadId)
     this.interruptedRuns.delete(threadId)
+    this.currentTurnIds.delete(threadId)
   }
 
   clear(): void {
     this.threadContexts.clear()
     this.interruptedRuns.clear()
+    this.currentTurnIds.clear()
   }
 }
 

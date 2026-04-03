@@ -1007,10 +1007,6 @@ export class App {
     })
 
     ipcMain.handle('ai:update-config', async (_, settings: AiSettings) => {
-      console.log('[ai:update-config] activeProviderConfigId:', settings.activeProviderConfigId)
-      ;(settings.providerConfigs ?? []).forEach(c => {
-        console.log(`  provider id=${c.id} type=${c.type} enabled=${c.enabled} defaultModelId="${c.defaultModelId}" models=${JSON.stringify(c.models ?? [])} apiKey=${c.apiKey ? c.apiKey.slice(0, 4) + '...' + c.apiKey.slice(-4) : '(empty)'}`)
-      })
       AiConfigStore.saveSettings(settings)
     })
 

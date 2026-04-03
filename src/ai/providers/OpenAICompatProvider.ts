@@ -31,8 +31,6 @@ export class OpenAICompatProvider implements AiProviderDriver {
         : { Authorization: `Bearer ${apiKey}` }),
     }
 
-    console.log('OpenAICompatProvider.buildRequest', { url, headers, messages, modelId, tools })
-
     const body: Record<string, unknown> = {
       model: modelId,
       messages: messages.map(this.serializeMessage),
