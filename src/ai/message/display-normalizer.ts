@@ -228,9 +228,15 @@ function buildRunningSummary(toolCall: AiToolCall, fallback?: string): string | 
     case 'get_block_context':
       return '正在读取上下文'
     case 'search_document_sections':
+    case 'search_in_document':
+    case 'search_sections_in_document':
       return '正在搜索相关章节'
     case 'search_workspace_documents':
-      return '正在搜索工作区文档'
+    case 'search_in_directory':
+      return '正在搜索目录下文档内容'
+    case 'search_document_blocks':
+    case 'search_blocks_in_document':
+      return '正在搜索相关段落'
     case 'write_todos':
       return '正在更新任务列表'
     case 'read_file':
@@ -316,9 +322,23 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         parsedResult,
         rawResult,
       }
-    case 'search_document_sections':
+    case 'search_document_blocks':
+    case 'search_blocks_in_document':
       return {
-        actionLabel: '搜索相关章节',
+        actionLabel: '在文档中搜索段落',
+        targetLabel: fileLabel,
+        targetPath: pathArg || toolCall.file?.path,
+        contextLabel: toStringValue(args.query) ?? undefined,
+        summaryLabel: buildRunningSummary(toolCall, summarizeBlocks(parsedResult)),
+        detailType: parsedResult ? 'blocks' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'search_document_sections':
+    case 'search_in_document':
+    case 'search_sections_in_document':
+      return {
+        actionLabel: '在文档中搜索章节',
         targetLabel: fileLabel,
         targetPath: pathArg || toolCall.file?.path,
         contextLabel: toStringValue(args.query) ?? undefined,
@@ -328,13 +348,19 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         rawResult,
       }
     case 'search_workspace_documents':
+    case 'search_in_directory':
       return {
-        actionLabel: '搜索工作区文档',
+        actionLabel: '在目录中搜索文档内容',
         targetLabel: toStringValue(args.query) ?? undefined,
         contextLabel: (() => {
+          const dir = toStringValue(args.directory_path)
           const include = toStringValue(args.include_glob)
           const exclude = toStringValue(args.exclude_glob)
-          return [include ? `包含 ${include}` : '', exclude ? `排除 ${exclude}` : ''].filter(Boolean).join(' · ') || undefined
+          return [
+            dir ? `目录 ${basename(dir)}` : '',
+            include ? `包含 ${include}` : '',
+            exclude ? `排除 ${exclude}` : '',
+          ].filter(Boolean).join(' · ') || undefined
         })(),
         summaryLabel: buildRunningSummary(toolCall, summarizeWorkspaceSearch(parsedResult)),
         detailType: parsedResult ? 'workspace_search' : 'text',

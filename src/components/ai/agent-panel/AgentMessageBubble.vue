@@ -122,11 +122,14 @@
         v-if="editSession"
         :session="editSession"
         :is-streaming="aiStore.isStreaming"
+        :reviewed-entries="aiStore.reviewedBatchEntries"
+        :review-summary="aiStore.reviewBatchSummary"
         class="mt-1.5"
         @approve="aiStore.approveEditProposal"
-        @reject="aiStore.rejectEditProposal"
+        @edit-approve="({ id, editedArgs }) => aiStore.editAndApproveProposal(id, editedArgs)"
         @approve-all="aiStore.approveAllProposals"
-        @reject-all="aiStore.rejectAllProposals"
+        @rework="({ id, reason }) => aiStore.requestProposalRework(id, reason)"
+        @end-round="payload => aiStore.endReviewRound(payload?.id)"
       />
 
       <TaskPlanCard

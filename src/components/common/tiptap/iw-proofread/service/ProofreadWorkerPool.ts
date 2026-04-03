@@ -13,6 +13,7 @@ export class ProofreadWorkerPool {
   private initPromise: Promise<void> | null = null
   private initState: 'idle' | 'pending' | 'success' | 'failed' = 'pending'
   private initError: Error | null = null
+  private hasLoggedInitFailure = false
 
   constructor(config: WorkerPoolConfig) {
     this.config = config
@@ -30,12 +31,13 @@ export class ProofreadWorkerPool {
 
       // 初始化引擎
       this.initPromise = this.initializeEngine()
-      .then(() => { this.initState = 'success' })
-      .catch(err => {
-        this.initState = 'failed'
-        this.initError = err
-        throw err
-      })
+        .then(() => {
+          this.initState = 'success'
+        })
+        .catch(err => {
+          this.initState = 'failed'
+          this.initError = err instanceof Error ? err : new Error(String(err))
+        })
     } catch (error) {
       console.error('[ProofreadWorkerPool] Failed to create pool:', error)
       throw error
@@ -51,25 +53,35 @@ export class ProofreadWorkerPool {
       throw error
     }
   }
+
+  private isInitializationFailed(): boolean {
+    return this.initState === 'failed'
+  }
   
   private async ensureInitialized(): Promise<void> {
-    switch (this.initState) {
-      case 'success':
-        return
-      case 'failed':
-        throw this.initError!
-      case 'pending':
-        await this.initPromise
-        break
+    if (this.initState === 'success') {
+      return
+    }
+
+    if (this.isInitializationFailed()) {
+      throw this.initError!
+    }
+
+    if (this.initState === 'pending') {
+      await this.initPromise
+    }
+
+    if (this.isInitializationFailed()) {
+      throw this.initError!
     }
   }
 
   async processNodesInParallel(nodes: NodeProofreadRequest[]): Promise<NodeProofreadResult[]> {
-    await this.ensureInitialized()
-
     if (nodes.length === 0) return []
 
     try {
+      await this.ensureInitialized()
+
       // 准备数据
       const nodeData = nodes.map(node => ({
         id: node.id,
@@ -81,7 +93,14 @@ export class ProofreadWorkerPool {
 
       return results
     } catch (error) {
-      console.warn('[ProofreadWorkerPool] Error processing nodes:', error)
+      if (this.initState === 'failed') {
+        if (!this.hasLoggedInitFailure) {
+          console.warn('[ProofreadWorkerPool] Proofread disabled after initialization failed:', this.initError)
+          this.hasLoggedInitFailure = true
+        }
+      } else {
+        console.warn('[ProofreadWorkerPool] Error processing nodes:', error)
+      }
 
       // 返回空结果而不是抛出异常
       return nodes.map(node => ({

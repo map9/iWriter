@@ -9,97 +9,310 @@
     <!-- Column headers -->
     <div class="dsv-headers">
       <div class="dsv-header dsv-header--left">原文</div>
-      <div class="dsv-header dsv-header--right">修改后</div>
+      <div class="dsv-header dsv-header--right">{{ editableRight ? '修改后（可编辑）' : '修改后' }}</div>
     </div>
 
     <!-- Diff rows -->
-    <div class="dsv-body">
-      <template v-for="(row, i) in rows" :key="i">
-        <!-- Unchanged: show same content in both columns -->
-        <template v-if="row.type === 'unchanged'">
-          <div class="dsv-cell dsv-cell--unchanged" v-html="renderMd(row.left)" />
-          <div class="dsv-cell dsv-cell--unchanged" v-html="renderMd(row.left)" />
-        </template>
-        <!-- Changed pair: removed on left, added on right -->
-        <template v-else-if="row.type === 'changed'">
-          <div class="dsv-cell dsv-cell--removed" v-html="renderMd(row.left)" />
-          <div class="dsv-cell dsv-cell--added" v-html="renderMd(row.right)" />
-        </template>
-        <!-- Only removed (no corresponding add) -->
-        <template v-else-if="row.type === 'removed-only'">
-          <div class="dsv-cell dsv-cell--removed" v-html="renderMd(row.left)" />
-          <div class="dsv-cell dsv-cell--placeholder" />
-        </template>
-        <!-- Only added (no corresponding remove) -->
-        <template v-else-if="row.type === 'added-only'">
-          <div class="dsv-cell dsv-cell--placeholder" />
-          <div class="dsv-cell dsv-cell--added" v-html="renderMd(row.right)" />
-        </template>
+    <div v-if="editableRight && isEditing" class="dsv-body dsv-body--editable">
+      <div class="dsv-cell dsv-cell--removed dsv-cell--full">
+        <pre class="dsv-pre">{{ oldContent }}</pre>
+      </div>
+      <div
+        class="dsv-cell dsv-cell--full dsv-cell--editor"
+      >
+        <textarea
+          ref="editorRef"
+          :value="editableContent"
+          class="dsv-editor"
+          @input="onEditorInput"
+          @blur="deactivateEditing"
+        />
+      </div>
+    </div>
+    <div v-else class="dsv-rendered">
+      <template v-for="(row, i) in renderedRows" :key="i">
+        <div
+          class="dsv-rendered-pane"
+          :class="renderedOldPaneClass(row.type)"
+        >
+          <MarkdownContentView
+            v-if="row.left"
+            :content="row.left"
+            mode="markdown"
+          />
+        </div>
+        <div
+          class="dsv-rendered-pane"
+          :class="[renderedNewPaneClass(row.type), editableRight ? 'dsv-cell--clickable' : '']"
+          @click="activateEditing"
+        >
+          <MarkdownContentView
+            v-if="row.right"
+            :content="row.right"
+            mode="markdown"
+          />
+        </div>
       </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { diffLines } from 'diff'
-import { marked } from 'marked'
+import { computed, nextTick, ref } from 'vue'
+import { diffArrays } from 'diff'
+import MarkdownContentView from './MarkdownContentView.vue'
 
 const props = defineProps<{
   oldContent: string
   newContent: string
+  editableRight?: boolean
+  modelValue?: string
 }>()
 
-interface DiffRow {
+const emit = defineEmits<{
+  'update:modelValue': [value: string]
+}>()
+const isEditing = ref(false)
+const editorRef = ref<HTMLTextAreaElement | null>(null)
+
+const effectiveNewContent = computed(() => props.editableRight ? editableContent.value : (props.newContent ?? ''))
+
+const oldLines = computed(() => splitLines(props.oldContent ?? ''))
+const newLines = computed(() => splitLines(effectiveNewContent.value))
+const oldBlocks = computed(() => splitMarkdownBlocks(props.oldContent ?? ''))
+const newBlocks = computed(() => splitMarkdownBlocks(effectiveNewContent.value))
+
+const diffChunks = computed(() => diffArrays(oldLines.value, newLines.value))
+const renderedDiffChunks = computed(() => diffArrays(oldBlocks.value, newBlocks.value))
+
+const addedLines = computed(() =>
+  diffChunks.value.filter(c => c.added).reduce((s, c) => s + ((c.value as string[]).length ?? 0), 0)
+)
+
+const removedLines = computed(() =>
+  diffChunks.value.filter(c => c.removed).reduce((s, c) => s + ((c.value as string[]).length ?? 0), 0)
+)
+
+const editableContent = computed(() => props.modelValue ?? props.newContent ?? '')
+
+type RenderedRow = {
   type: 'unchanged' | 'changed' | 'removed-only' | 'added-only'
   left: string
   right: string
 }
 
-const diffChunks = computed(() => diffLines(props.oldContent ?? '', props.newContent ?? ''))
-
-const rows = computed<DiffRow[]>(() => {
-  const chunks = diffChunks.value
-  const result: DiffRow[] = []
+const renderedRows = computed<RenderedRow[]>(() => {
+  const chunks = renderedDiffChunks.value
+  const result: RenderedRow[] = []
   let i = 0
   while (i < chunks.length) {
     const chunk = chunks[i]!
+    const values = chunk.value as string[]
     if (!chunk.added && !chunk.removed) {
-      result.push({ type: 'unchanged', left: chunk.value, right: chunk.value })
+      for (const block of values) {
+        result.push({ type: 'unchanged', left: block, right: block })
+      }
       i++
-    } else if (chunk.removed) {
+      continue
+    }
+
+    if (chunk.removed) {
       const next = chunks[i + 1]
       if (next?.added) {
-        result.push({ type: 'changed', left: chunk.value, right: next.value })
+        const leftBlocks = values
+        const rightBlocks = next.value as string[]
+        const count = Math.max(leftBlocks.length, rightBlocks.length)
+        for (let index = 0; index < count; index++) {
+          const left = leftBlocks[index] ?? ''
+          const right = rightBlocks[index] ?? ''
+          if (left && right) {
+            result.push({ type: 'changed', left, right })
+          } else if (left) {
+            result.push({ type: 'removed-only', left, right: '' })
+          } else {
+            result.push({ type: 'added-only', left: '', right })
+          }
+        }
         i += 2
-      } else {
-        result.push({ type: 'removed-only', left: chunk.value, right: '' })
-        i++
+        continue
       }
-    } else {
-      // added only
-      result.push({ type: 'added-only', left: '', right: chunk.value })
+
+      for (const block of values) {
+        result.push({ type: 'removed-only', left: block, right: '' })
+      }
       i++
+      continue
     }
+
+    for (const block of values) {
+      result.push({ type: 'added-only', left: '', right: block })
+    }
+    i++
   }
   return result
 })
 
-const addedLines = computed(() =>
-  diffChunks.value.filter(c => c.added).reduce((s, c) => s + (c.count ?? 0), 0)
-)
+function onEditorInput(event: Event) {
+  emit('update:modelValue', (event.target as HTMLTextAreaElement).value)
+}
 
-const removedLines = computed(() =>
-  diffChunks.value.filter(c => c.removed).reduce((s, c) => s + (c.count ?? 0), 0)
-)
+function activateEditing() {
+  if (!props.editableRight || isEditing.value) return
+  isEditing.value = true
+  nextTick(() => {
+    editorRef.value?.focus()
+  })
+}
 
-function renderMd(text: string): string {
-  if (!text) return ''
-  try {
-    return marked.parse(text, { async: false }) as string
-  } catch {
-    return `<pre>${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
+function deactivateEditing() {
+  isEditing.value = false
+}
+
+function splitLines(text: string): string[] {
+  if (text === '') return ['']
+  return text.match(/[^\n]*\n|[^\n]+$/g) ?? ['']
+}
+
+function splitMarkdownBlocks(text: string): string[] {
+  if (!text.trim()) return ['']
+
+  const lines = text.split('\n')
+  const blocks: string[] = []
+  let buffer: string[] = []
+  let inFence = false
+  let currentKind: 'paragraph' | 'heading' | 'list' | 'quote' | 'table' | 'code' | null = null
+  let currentListIndent: number | null = null
+
+  const flush = () => {
+    if (!buffer.length) return
+    blocks.push(buffer.join('\n').trimEnd())
+    buffer = []
+    currentKind = null
+    currentListIndent = null
   }
+
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      if (!inFence && buffer.length) flush()
+      inFence = !inFence
+      currentKind = 'code'
+      buffer.push(line)
+      if (!inFence) flush()
+      continue
+    }
+
+    if (inFence) {
+      buffer.push(line)
+      continue
+    }
+
+    if (line.trim() === '') {
+      flush()
+      continue
+    }
+
+    const nextKind = classifyMarkdownLine(line)
+    const nextListIndent = nextKind === 'list' ? getListIndent(line) : null
+
+    if (!buffer.length) {
+      currentKind = nextKind
+      currentListIndent = nextListIndent
+      buffer.push(line)
+      continue
+    }
+
+    if (
+      currentKind === 'list'
+      && nextKind === 'list'
+      && currentListIndent !== null
+      && nextListIndent === currentListIndent
+      && isListItemStart(line)
+    ) {
+      flush()
+      currentKind = nextKind
+      currentListIndent = nextListIndent
+      buffer.push(line)
+      continue
+    }
+
+    if (shouldContinueBlock(
+      currentKind,
+      nextKind,
+      line,
+      buffer[buffer.length - 1] ?? '',
+      currentListIndent,
+      nextListIndent,
+    )) {
+      buffer.push(line)
+      continue
+    }
+
+    flush()
+    currentKind = nextKind
+    currentListIndent = nextListIndent
+    buffer.push(line)
+  }
+
+  flush()
+  return blocks.length ? blocks : ['']
+}
+
+function classifyMarkdownLine(line: string): 'paragraph' | 'heading' | 'list' | 'quote' | 'table' | 'code' {
+  if (/^\s{0,3}#{1,6}\s/.test(line)) return 'heading'
+  if (/^\s*>/.test(line)) return 'quote'
+  if (/^\s*(?:[-+*]|\d+\.)\s+/.test(line) || /^\s{2,}(?:[-+*]|\d+\.)\s+/.test(line)) return 'list'
+  if (/^\s*\|.*\|\s*$/.test(line) || /^\s*[:\-]+\s*(?:\|\s*[:\-]+\s*)+$/.test(line)) return 'table'
+  return 'paragraph'
+}
+
+function shouldContinueBlock(
+  currentKind: 'paragraph' | 'heading' | 'list' | 'quote' | 'table' | 'code' | null,
+  nextKind: 'paragraph' | 'heading' | 'list' | 'quote' | 'table' | 'code',
+  line: string,
+  previousLine: string,
+  currentListIndent: number | null,
+  nextListIndent: number | null,
+): boolean {
+  if (!currentKind) return false
+  if (currentKind === 'code') return true
+  if (currentKind === 'heading') return false
+  if (currentKind === 'table') return nextKind === 'table'
+  if (currentKind === 'quote') return nextKind === 'quote' || (nextKind === 'paragraph' && /^\s{2,}/.test(line))
+  if (currentKind === 'list') {
+    return (nextKind === 'list' && (
+      !isListItemStart(line)
+      || currentListIndent === null
+      || nextListIndent === null
+      || nextListIndent > currentListIndent
+    ))
+      || /^\s{2,}\S/.test(line)
+      || (/^\s*$/.test(previousLine) && /^\s{2,}\S/.test(line))
+  }
+  if (currentKind === 'paragraph') {
+    return nextKind === 'paragraph'
+  }
+  return false
+}
+
+function isListItemStart(line: string): boolean {
+  return /^\s*(?:[-+*]|\d+\.)\s+/.test(line)
+}
+
+function getListIndent(line: string): number {
+  const match = line.match(/^(\s*)/)
+  return match?.[1]?.length ?? 0
+}
+
+function renderedOldPaneClass(type: RenderedRow['type']): string {
+  if (type === 'changed' || type === 'removed-only') return 'dsv-rendered-pane--old-strong'
+  if (type === 'added-only') return 'dsv-rendered-pane--placeholder'
+  return 'dsv-rendered-pane--old-soft'
+}
+
+function renderedNewPaneClass(type: RenderedRow['type']): string {
+  if (type === 'changed' || type === 'added-only') return 'dsv-rendered-pane--new-strong'
+  if (type === 'removed-only') return 'dsv-rendered-pane--placeholder'
+  return 'dsv-rendered-pane--new-soft'
 }
 </script>
 
@@ -148,12 +361,52 @@ function renderMd(text: string): string {
   max-height: 14rem;
   overflow-y: auto;
 }
+.dsv-body--editable {
+  align-items: stretch;
+}
+
+.dsv-rendered {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  max-height: 22rem;
+  overflow: auto;
+}
+
+.dsv-rendered-pane {
+  min-height: 4rem;
+  overflow: auto;
+  padding: 0.6rem 0.75rem;
+  border-top: 1px solid #f3e7a2;
+}
+
+.dsv-rendered-pane + .dsv-rendered-pane {
+  border-left: 1px solid #fde68a;
+}
+
+.dsv-rendered-pane--old-soft { background: #fffdfa; color: #6b5b40; }
+.dsv-rendered-pane--new-soft { background: #fbfefb; color: #45624f; }
+.dsv-rendered-pane--old-strong {
+  background: #fef2f2;
+  color: #7f1d1d;
+  border-left: 2px solid #f87171;
+}
+.dsv-rendered-pane--new-strong {
+  background: #f0fdf4;
+  color: #14532d;
+  border-left: 2px solid #4ade80;
+}
+.dsv-rendered-pane--placeholder {
+  background: #fafafa;
+}
 
 /* Cells */
 .dsv-cell {
   padding: 0.375rem 0.5rem;
-  word-break: break-word;
   min-height: 1.75rem;
+  overflow: hidden;
+}
+.dsv-cell--full {
+  min-height: 14rem;
 }
 .dsv-cell + .dsv-cell {
   border-left: 1px solid #fde68a;
@@ -173,60 +426,35 @@ function renderMd(text: string): string {
   border-top-color: #f3f4f6;
 }
 
-.dsv-cell--unchanged  { background: #fff; color: #374151; }
-.dsv-cell--removed    { background: #fef2f2; border-left: 2px solid #f87171 !important; color: #7f1d1d; }
-.dsv-cell--added      { background: #f0fdf4; border-left: 2px solid #4ade80 !important; color: #14532d; }
-.dsv-cell--placeholder { background: #f9fafb; }
+.dsv-cell--editor {
+  background: #f0fdf4;
+  border-left: 2px solid #4ade80 !important;
+  padding: 0;
+}
+.dsv-cell--clickable {
+  cursor: text;
+}
 
-/* Markdown styles inside cells */
-.dsv-cell :deep(p)          { margin: 0 0 0.3em; }
-.dsv-cell :deep(p:last-child) { margin-bottom: 0; }
-.dsv-cell :deep(h1),
-.dsv-cell :deep(h2),
-.dsv-cell :deep(h3),
-.dsv-cell :deep(h4),
-.dsv-cell :deep(h5),
-.dsv-cell :deep(h6) {
-  font-weight: 600;
-  line-height: 1.3;
-  margin: 0.4em 0 0.15em;
-}
-.dsv-cell :deep(h1):first-child,
-.dsv-cell :deep(h2):first-child,
-.dsv-cell :deep(h3):first-child { margin-top: 0; }
-.dsv-cell :deep(h1) { font-size: 0.875rem; }
-.dsv-cell :deep(h2) { font-size: 0.8125rem; }
-.dsv-cell :deep(h3),
-.dsv-cell :deep(h4),
-.dsv-cell :deep(h5),
-.dsv-cell :deep(h6) { font-size: 0.75rem; }
-.dsv-cell :deep(ul),
-.dsv-cell :deep(ol) { padding-left: 1.2rem; margin: 0.2em 0; }
-.dsv-cell :deep(ul)    { list-style-type: disc; }
-.dsv-cell :deep(ol)    { list-style-type: decimal; }
-.dsv-cell :deep(li)    { display: list-item; margin: 0.1em 0; }
-.dsv-cell :deep(code)  {
+.dsv-editor {
+  width: 100%;
+  min-height: 14rem;
+  border: 0;
+  resize: vertical;
+  background: transparent;
+  color: #14532d;
+  padding: 0.75rem 0.85rem;
+  font-size: 0.75rem;
+  line-height: 1.6;
   font-family: ui-monospace, Menlo, monospace;
-  font-size: 0.7rem;
-  background: rgba(0,0,0,0.06);
-  border-radius: 0.2rem;
-  padding: 0.1em 0.3em;
+  outline: none;
 }
-.dsv-cell :deep(pre)   {
-  margin: 0.3em 0;
-  border-radius: 0.25rem;
-  background: rgba(0,0,0,0.05);
-  padding: 0.4rem 0.6rem;
-  overflow-x: auto;
-  white-space: pre-wrap;
-}
-.dsv-cell :deep(pre code) { background: none; padding: 0; }
-.dsv-cell :deep(strong) { font-weight: 600; }
-.dsv-cell :deep(em)     { font-style: italic; }
-.dsv-cell :deep(blockquote) {
-  margin: 0.25em 0;
-  padding: 0 0 0 0.5rem;
-  border-left: 3px solid #d1d5db;
-  opacity: 0.75;
+.dsv-pre {
+  margin: 0;
+  min-height: 1.6em;
+  white-space: break-spaces;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.72rem;
+  line-height: 1.6;
 }
 </style>

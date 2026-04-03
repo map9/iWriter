@@ -123,7 +123,7 @@ async function markdownToContent(
   const html = await marked.parse(markdown, { async: true })
   // Use TipTap's built-in HTML parser via a temporary content parse
   const { generateJSON } = await import('@tiptap/core')
-  const doc = generateJSON(html, editor.extensionManager.extensions)
+  const doc = generateJSON(html, editor.extensionManager.baseExtensions)
   return doc.content ?? []
 }
 

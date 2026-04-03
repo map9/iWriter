@@ -55,6 +55,25 @@ export interface AiDisplayThread {
   messages: AiDisplayMessageEntry[]
 }
 
+export interface ProposalReviewEntry {
+  proposal: EditProposal
+  state: 'approved' | 'edited' | 'rework' | 'paused' | 'ended' | 'rejected'
+  label: string
+  tone: 'green' | 'blue' | 'amber' | 'gray'
+}
+
+export interface ProposalReviewSummary {
+  total: number
+  resolved: number
+  pending: number
+  approved: number
+  edited: number
+  rework: number
+  paused: number
+  ended: number
+  rejected: number
+}
+
 // ── Settings localStorage helpers ──────────────────────────────────────────
 const _STORAGE_KEY_SETTINGS = 'iwriter-ai-settings'
 function _loadSettings(): AiSettings {
@@ -485,6 +504,7 @@ export const useAiStore = defineStore('ai', () => {
    * Guards against index shifts caused by removing proposals from pendingEditProposals.
    */
   const _proposalIndexMap = new Map<string, number>()
+  const _proposalBatch = new Map<number, EditProposal>()
 
   /**
    * Set to true by onAiRunError for the current run; cleared when a new run starts.
@@ -574,10 +594,12 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   function _updateLocalProposalToolCall(
-    proposalId: string,
+    proposalOrId: EditProposal | string,
     status: AiToolCall['status'],
   ) {
-    const proposal = _findProposal(proposalId)
+    const proposal = typeof proposalOrId === 'string'
+      ? _findProposal(proposalOrId)
+      : proposalOrId
     if (!proposal) return
     const proposalSignature = _proposalToolSignature(proposal)
     const toolCallId = proposal.toolCallId
@@ -847,6 +869,7 @@ export const useAiStore = defineStore('ai', () => {
     isResumingReviewedEdits.value = false
     _decisionRecord.clear()
     _proposalIndexMap.clear()
+    _proposalBatch.clear()
     if (_liveTurn.value) {
       _liveTurn.value = { ..._liveTurn.value, proposals: [] }
     }
@@ -857,7 +880,180 @@ export const useAiStore = defineStore('ai', () => {
    * (thread.messages no longer carry editProposals as they come from the checkpointer)
    */
   function _findProposal(proposalId: string): EditProposal | undefined {
-    return pendingEditProposals.value.find(p => p.id === proposalId)
+    const pendingProposal = pendingEditProposals.value.find(p => p.id === proposalId)
+    if (pendingProposal) return pendingProposal
+    for (const proposal of _proposalBatch.values()) {
+      if (proposal.id === proposalId) return proposal
+    }
+    return undefined
+  }
+
+  function _removePendingProposal(proposalId: string) {
+    const liveTurn = _ensureLiveTurn()
+    if (liveTurn) {
+      liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
+      _liveTurn.value = { ...liveTurn }
+    }
+  }
+
+  function _normalizeEditedArgsForProposal(
+    proposal: BlockEditProposal,
+    editedArgs: Record<string, unknown>,
+  ): Record<string, unknown> {
+    switch (proposal.type) {
+      case 'edit':
+        return {
+          block_id: proposal.displayBlockId,
+          new_content: editedArgs.new_content ?? proposal.newContent ?? '',
+          expected_current_content: proposal.expectedCurrentContent,
+          reason: proposal.description,
+          file_path: proposal.filePath,
+          ...editedArgs,
+        }
+      case 'insert':
+        return {
+          after_block_id: proposal.displayBlockId ?? 0,
+          new_blocks: editedArgs.new_blocks ?? editedArgs.new_content ?? proposal.newContent ?? '',
+          expected_anchor_content: proposal.expectedAnchorContent,
+          reason: proposal.description,
+          file_path: proposal.filePath,
+          ...editedArgs,
+        }
+      case 'replace_range':
+        return {
+          start_block_id: proposal.startDisplayBlockId,
+          end_block_id: proposal.endDisplayBlockId,
+          new_content: editedArgs.new_content ?? proposal.newContent ?? '',
+          expected_old_content: proposal.expectedOldContent,
+          reason: proposal.description,
+          file_path: proposal.filePath,
+          ...editedArgs,
+        }
+      case 'delete':
+        return {
+          block_id: proposal.displayBlockId,
+          expected_current_content: proposal.expectedCurrentContent,
+          reason: proposal.description,
+          file_path: proposal.filePath,
+          ...editedArgs,
+        }
+    }
+  }
+
+  function _proposalSortKey(proposal: EditProposal): { fileKey: string; position: number; priority: number } {
+    if (proposal.kind === 'create_file') {
+      return { fileKey: `create:${proposal.filename}`, position: Number.NEGATIVE_INFINITY, priority: 99 }
+    }
+    const position = proposal.type === 'replace_range'
+      ? (proposal.startDisplayBlockId ?? -1)
+      : (proposal.displayBlockId ?? -1)
+    const priority = proposal.type === 'delete'
+      ? 0
+      : proposal.type === 'replace_range'
+        ? 1
+        : proposal.type === 'edit'
+          ? 2
+          : 3
+    return { fileKey: proposal.filePath ?? '__active__', position, priority }
+  }
+
+  function _sortedDecisionIndexes(): number[] {
+    return Array.from(_decisionRecord.entries())
+      .filter(([, record]) => record.type === 'approved' || record.type === 'edited')
+      .map(([index]) => index)
+      .sort((a, b) => {
+        const proposalA = _proposalBatch.get(a)
+        const proposalB = _proposalBatch.get(b)
+        if (!proposalA || !proposalB) return a - b
+        const keyA = _proposalSortKey(proposalA)
+        const keyB = _proposalSortKey(proposalB)
+        if (keyA.fileKey !== keyB.fileKey) return keyA.fileKey.localeCompare(keyB.fileKey)
+        if (keyA.position !== keyB.position) return keyB.position - keyA.position
+        if (keyA.priority !== keyB.priority) return keyA.priority - keyB.priority
+        return a - b
+      })
+  }
+
+  async function _applyRecordedDecision(index: number): Promise<void> {
+    const decision = _decisionRecord.get(index)
+    const proposal = _proposalBatch.get(index)
+    if (!decision || !proposal || decision.type === 'rejected') return
+
+    if (proposal.kind === 'create_file') {
+      const p = proposal as FileCreateProposal
+      const { DocumentType } = await import('@/types/document-type')
+      appStore.createTab(p.filename, undefined, DocumentType.MARKDOWN_EDITOR)
+
+      const getEditor = (): Editor | undefined =>
+        appStore.activeTab?.editorInstance as Editor | undefined
+
+      const { nextTick } = await import('vue')
+      for (let i = 0; i < 20; i++) {
+        await nextTick()
+        if (getEditor()) break
+      }
+
+      const editor = getEditor()
+      if (!editor) {
+        _updateLocalProposalToolCall(proposal, 'failed')
+        _decisionRecord.set(index, {
+          type: 'rejected',
+          message: 'Document creation failed: editor not ready.',
+        })
+        return
+      }
+
+      const insertProposal: BlockEditProposal = {
+        id: proposal.id,
+        kind: 'block',
+        type: 'insert',
+        status: 'pending',
+        afterNodeId: '0',
+        newContent: p.content,
+      }
+      const result = await applyBlockEditProposal(editor, insertProposal)
+      if (!result.success) {
+        _updateLocalProposalToolCall(proposal, 'failed')
+        _decisionRecord.set(index, {
+          type: 'rejected',
+          message: `Document creation failed: ${result.error}`,
+        })
+        return
+      }
+
+      _updateLocalProposalToolCall(proposal, 'completed')
+      return
+    }
+
+    const blockProposal = { ...proposal } as BlockEditProposal
+    if (decision.type === 'edited' && decision.editedArgs) {
+      const normalizedEditedArgs = _normalizeEditedArgsForProposal(blockProposal, decision.editedArgs)
+      decision.editedArgs = normalizedEditedArgs
+      if (typeof normalizedEditedArgs.new_content === 'string') {
+        blockProposal.newContent = normalizedEditedArgs.new_content
+      }
+      if (typeof normalizedEditedArgs.new_blocks === 'string') {
+        blockProposal.newContent = normalizedEditedArgs.new_blocks
+      }
+    }
+
+    const result = await _applyBlockProposalToTarget(blockProposal)
+    if (!result.success) {
+      _updateLocalProposalToolCall(proposal, 'failed')
+      _decisionRecord.set(index, {
+        type: 'rejected',
+        message: _buildProposalFailureMessage(blockProposal, result.error ?? 'Unknown apply error.'),
+      })
+      return
+    }
+
+    _updateLocalProposalToolCall(proposal, 'completed')
+  }
+
+  async function _flushReviewedBatch() {
+    for (const index of _sortedDecisionIndexes()) {
+      await _applyRecordedDecision(index)
+    }
   }
 
   /**
@@ -865,13 +1061,15 @@ export const useAiStore = defineStore('ai', () => {
    * If so, build the ordered decisions array and send a single ai:resume call.
    * decisions[i] corresponds to actionRequests[i] — no proposalId needed.
    */
-  function _maybeFlushResume() {
+  async function _maybeFlushResume() {
     const threadId = _interruptedThreadId.value
     const count = _interruptActionCount.value
     if (!threadId || count === 0) return
 
     // Check if every action index has a decision record
     if (_decisionRecord.size < count) return
+
+    await _flushReviewedBatch()
 
     // Build ordered decisions array by index (aligns with LangGraph HITLResponse.decisions[])
     const decisions: ResumeDecision[] = Array.from({ length: count }, (_, i) => {
@@ -898,6 +1096,7 @@ export const useAiStore = defineStore('ai', () => {
     _interruptActionCount.value = 0
     _decisionRecord.clear()
     _proposalIndexMap.clear()
+    _proposalBatch.clear()
 
     window.electronAPI.aiResume?.({ threadId, decisions })
 
@@ -913,123 +1112,11 @@ export const useAiStore = defineStore('ai', () => {
     if (!proposal) return
     // Resolve 0-based index via stable map (findIndex would shift after prior removals)
     const proposalIndex = _proposalIndexMap.get(proposalId) ?? -1
-
-    try {
-      if (proposal.kind === 'create_file') {
-        const p = proposal as FileCreateProposal
-        const { DocumentType } = await import('@/types/document-type')
-        appStore.createTab(p.filename, undefined, DocumentType.MARKDOWN_EDITOR)
-
-        const getEditor = (): Editor | undefined =>
-          appStore.activeTab?.editorInstance as Editor | undefined
-
-        const { nextTick } = await import('vue')
-        for (let i = 0; i < 20; i++) {
-          await nextTick()
-          if (getEditor()) break
-        }
-
-        const editor = getEditor()
-        if (editor) {
-          const insertProposal: BlockEditProposal = {
-            id:           proposalId,
-            kind:         'block',
-            type:         'insert',
-            status:       'pending',
-            afterNodeId:  '0',
-            newContent:   p.content,
-          }
-          const result = await applyBlockEditProposal(editor, insertProposal)
-          if (result.success) {
-            _updateLocalProposalToolCall(proposalId, 'completed')
-            if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
-            const liveTurn = _ensureLiveTurn()
-            if (liveTurn) {
-              liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
-              _liveTurn.value = { ...liveTurn }
-            }
-            notify.success(`文档"${p.filename}"已创建`)
-          } else {
-            _updateLocalProposalToolCall(proposalId, 'failed')
-            if (proposalIndex >= 0) {
-              _decisionRecord.set(proposalIndex, {
-                type: 'rejected',
-                message: `Document creation failed: ${result.error}`,
-              })
-            }
-            const liveTurn = _ensureLiveTurn()
-            if (liveTurn) {
-              liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
-              _liveTurn.value = { ...liveTurn }
-            }
-            notify.error(`内容注入失败: ${result.error}`)
-          }
-        } else {
-          _updateLocalProposalToolCall(proposalId, 'failed')
-          if (proposalIndex >= 0) {
-            _decisionRecord.set(proposalIndex, {
-              type: 'rejected',
-              message: 'Document creation failed: editor not ready.',
-            })
-          }
-          const liveTurn = _ensureLiveTurn()
-          if (liveTurn) {
-            liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
-            _liveTurn.value = { ...liveTurn }
-          }
-          notify.error('编辑器未就绪，请手动粘贴内容')
-        }
-        _maybeFlushResume()
-        return
-      }
-
-      const blockProposal = proposal as BlockEditProposal
-      const result = await _applyBlockProposalToTarget(blockProposal)
-      if (result.success) {
-        _updateLocalProposalToolCall(proposalId, 'completed')
-        if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'approved' })
-        const liveTurn = _ensureLiveTurn()
-        if (liveTurn) {
-          liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
-          _liveTurn.value = { ...liveTurn }
-        }
-        notify.success(blockProposal.filePath ? '文件编辑已应用' : '编辑已应用')
-      } else {
-        _updateLocalProposalToolCall(proposalId, 'failed')
-        if (proposalIndex >= 0) {
-          _decisionRecord.set(proposalIndex, {
-            type: 'rejected',
-            message: _buildProposalFailureMessage(blockProposal, result.error ?? 'Unknown apply error.'),
-          })
-        }
-        const liveTurn = _ensureLiveTurn()
-        if (liveTurn) {
-          liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
-          _liveTurn.value = { ...liveTurn }
-        }
-        notify.error(`${blockProposal.filePath ? '文件编辑失败' : '应用编辑失败'}: ${result.error}`)
-        _maybeFlushResume()
-        return
-      }
-    } catch (error) {
-      _updateLocalProposalToolCall(proposalId, 'failed')
-      if (proposalIndex >= 0) {
-        _decisionRecord.set(proposalIndex, {
-          type: 'rejected',
-          message: `Edit apply failed: ${error instanceof Error ? error.message : String(error)}`,
-        })
-      }
-      const liveTurn = _ensureLiveTurn()
-      if (liveTurn) {
-        liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
-        _liveTurn.value = { ...liveTurn }
-      }
-      notify.error(`应用编辑失败: ${error instanceof Error ? error.message : String(error)}`)
-      _maybeFlushResume()
-      return
+    if (proposalIndex >= 0) {
+      _decisionRecord.set(proposalIndex, { type: 'approved' })
     }
-
-    _maybeFlushResume()
+    _removePendingProposal(proposalId)
+    await _maybeFlushResume()
   }
 
   /**
@@ -1043,14 +1130,15 @@ export const useAiStore = defineStore('ai', () => {
     const proposal = _findProposal(proposalId)
     if (!proposal || proposal.kind !== 'block') return
     const proposalIndex = _proposalIndexMap.get(proposalId) ?? -1
+    const normalizedEditedArgs = _normalizeEditedArgsForProposal(proposal, editedArgs)
 
     // Build a modified proposal from editedArgs and apply it
     const blockProposal = { ...proposal } as BlockEditProposal
-    if (typeof editedArgs.new_content === 'string') {
-      blockProposal.newContent = editedArgs.new_content
+    if (typeof normalizedEditedArgs.new_content === 'string') {
+      blockProposal.newContent = normalizedEditedArgs.new_content
     }
-    if (typeof editedArgs.new_blocks === 'string') {
-      blockProposal.newContent = editedArgs.new_blocks
+    if (typeof normalizedEditedArgs.new_blocks === 'string') {
+      blockProposal.newContent = normalizedEditedArgs.new_blocks
     }
 
     // Update the displayed proposal content in pending list
@@ -1064,88 +1152,137 @@ export const useAiStore = defineStore('ai', () => {
       }
     }
 
-    try {
-      const result = await _applyBlockProposalToTarget(blockProposal)
-      if (result.success) {
-        _updateLocalProposalToolCall(proposalId, 'completed')
-        if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'edited', editedArgs })
-        const liveTurn = _ensureLiveTurn()
-        if (liveTurn) {
-          liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
-          _liveTurn.value = { ...liveTurn }
-        }
-        notify.success(blockProposal.filePath ? '文件编辑（已修改）已应用' : '编辑（已修改）已应用')
-      } else {
-        _updateLocalProposalToolCall(proposalId, 'failed')
-        if (proposalIndex >= 0) {
-          _decisionRecord.set(proposalIndex, {
-            type: 'rejected',
-            message: _buildProposalFailureMessage(blockProposal, result.error ?? 'Unknown apply error.'),
-          })
-        }
-        const liveTurn = _ensureLiveTurn()
-        if (liveTurn) {
-          liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
-          _liveTurn.value = { ...liveTurn }
-        }
-        notify.error(`${blockProposal.filePath ? '文件编辑失败' : '应用编辑失败'}: ${result.error}`)
-        _maybeFlushResume()
-        return
-      }
-    } catch (error) {
-      _updateLocalProposalToolCall(proposalId, 'failed')
-      if (proposalIndex >= 0) {
-        _decisionRecord.set(proposalIndex, {
-          type: 'rejected',
-          message: `Edited apply failed: ${error instanceof Error ? error.message : String(error)}`,
-        })
-      }
-      const liveTurn = _ensureLiveTurn()
-      if (liveTurn) {
-        liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
-        _liveTurn.value = { ...liveTurn }
-      }
-      notify.error(`应用编辑失败: ${error instanceof Error ? error.message : String(error)}`)
-      _maybeFlushResume()
-      return
-    }
-
-    _maybeFlushResume()
+    if (proposalIndex >= 0) _decisionRecord.set(proposalIndex, { type: 'edited', editedArgs: normalizedEditedArgs })
+    _removePendingProposal(proposalId)
+    await _maybeFlushResume()
   }
 
-  function rejectEditProposal(proposalId: string) {
-    // Record the rejection decision for this specific proposal, then let
-    // _maybeFlushResume decide whether all decisions are collected (consistent
-    // with the approve path). The system prompt instructs the LLM not to retry
-    // rejected proposals, preventing the infinite-loop concern that motivated
-    // the previous aiCancel approach.
+  async function rejectEditProposal(proposalId: string, message?: string) {
     const proposalIndex = _proposalIndexMap.get(proposalId) ?? -1
     if (proposalIndex >= 0) {
-      _decisionRecord.set(proposalIndex, { type: 'rejected' })
+      _decisionRecord.set(proposalIndex, { type: 'rejected', message })
     }
     _updateLocalProposalToolCall(proposalId, 'rejected')
-    {
-      const liveTurn = _ensureLiveTurn()
-      if (liveTurn) {
-        liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
-        _liveTurn.value = { ...liveTurn }
+    _removePendingProposal(proposalId)
+    await _maybeFlushResume()
+  }
+
+  async function requestProposalRework(proposalId: string, reason: string) {
+    const currentIndex = _proposalIndexMap.get(proposalId) ?? -1
+    if (currentIndex >= 0) {
+      _decisionRecord.set(currentIndex, {
+        type: 'rejected',
+        message: `User requested a revision for this edit. Follow this feedback and propose an updated change: ${reason}`,
+      })
+    }
+    _updateLocalProposalToolCall(proposalId, 'rejected')
+
+    for (const proposal of pendingEditProposals.value) {
+      if (proposal.id === proposalId) continue
+      const index = _proposalIndexMap.get(proposal.id) ?? -1
+      if (index >= 0 && !_decisionRecord.has(index)) {
+        _decisionRecord.set(index, {
+          type: 'rejected',
+          message: 'Stop the current edit batch after addressing the user feedback and propose the next revision in a new round.',
+        })
+      }
+      _updateLocalProposalToolCall(proposal.id, 'rejected')
+    }
+
+    const liveTurn = _ensureLiveTurn()
+    if (liveTurn) {
+      liveTurn.proposals = []
+      _liveTurn.value = { ...liveTurn }
+    }
+
+    await _maybeFlushResume()
+  }
+
+  async function endReviewRound(fromProposalId?: string) {
+    const endMessage = 'The user ended this review round. Do not make further edits in this batch. Briefly summarize the outcome and finish.'
+    for (const proposal of pendingEditProposals.value) {
+      const index = _proposalIndexMap.get(proposal.id) ?? -1
+      if (index >= 0 && !_decisionRecord.has(index)) {
+        _decisionRecord.set(index, { type: 'rejected', message: endMessage })
+      }
+      _updateLocalProposalToolCall(proposal.id, 'rejected')
+    }
+
+    if (fromProposalId && !pendingEditProposals.value.some(proposal => proposal.id === fromProposalId)) {
+      const index = _proposalIndexMap.get(fromProposalId) ?? -1
+      if (index >= 0 && !_decisionRecord.has(index)) {
+        _decisionRecord.set(index, { type: 'rejected', message: endMessage })
       }
     }
 
-    // If some proposals in the same batch were already approved, inform the user
-    // that those applied edits are preserved even though this one was skipped.
-    const hasApproved = Array.from(_decisionRecord.values()).some(
-      r => r.type === 'approved' || r.type === 'edited'
-    )
-    if (hasApproved) {
-      notify.info('已跳过此修改，已应用的修改保留在文档中')
+    const liveTurn = _ensureLiveTurn()
+    if (liveTurn) {
+      liveTurn.proposals = []
+      _liveTurn.value = { ...liveTurn }
     }
 
-    _maybeFlushResume()
+    await _maybeFlushResume()
   }
 
   /** All currently pending proposals (source of truth is pendingEditProposals) */
   const allPendingProposals = computed<EditProposal[]>(() => pendingEditProposals.value)
+
+  function _reviewEntryForDecision(
+    proposal: EditProposal,
+    decision: { type: 'approved' | 'edited' | 'rejected'; editedArgs?: Record<string, unknown>; message?: string },
+  ): ProposalReviewEntry {
+    if (decision.type === 'approved') {
+      return { proposal, state: 'approved', label: '已确认应用', tone: 'green' }
+    }
+    if (decision.type === 'edited') {
+      return { proposal, state: 'edited', label: '已确认编辑后应用', tone: 'blue' }
+    }
+
+    const message = decision.message ?? ''
+    if (message.includes('requested a revision')) {
+      return { proposal, state: 'rework', label: '已退回重做', tone: 'amber' }
+    }
+    if (message.includes('Stop the current edit batch')) {
+      return { proposal, state: 'paused', label: '后续已暂停', tone: 'gray' }
+    }
+    if (message.includes('ended this review round')) {
+      return { proposal, state: 'ended', label: '本轮已结束', tone: 'gray' }
+    }
+    return { proposal, state: 'rejected', label: '已跳过', tone: 'gray' }
+  }
+
+  const reviewedBatchEntries = computed<ProposalReviewEntry[]>(() => {
+    return Array.from(_decisionRecord.entries())
+      .sort((a, b) => a[0] - b[0])
+      .flatMap(([index, decision]) => {
+        const proposal = _proposalBatch.get(index)
+        if (!proposal) return []
+        return [_reviewEntryForDecision(proposal, decision)]
+      })
+  })
+
+  const reviewBatchSummary = computed<ProposalReviewSummary | null>(() => {
+    const total = _proposalBatch.size
+    if (!total) return null
+
+    const summary: ProposalReviewSummary = {
+      total,
+      resolved: _decisionRecord.size,
+      pending: total - _decisionRecord.size,
+      approved: 0,
+      edited: 0,
+      rework: 0,
+      paused: 0,
+      ended: 0,
+      rejected: 0,
+    }
+
+    for (const entry of reviewedBatchEntries.value) {
+      summary[entry.state] += 1
+    }
+
+    return summary
+  })
 
   const streamingPreviewMessage = computed<ThreadMessage | null>(() => {
     const liveTurn = _liveTurn.value
@@ -1230,20 +1367,8 @@ export const useAiStore = defineStore('ai', () => {
     for (const id of ids) await approveEditProposal(id)
   }
 
-  function rejectAllProposals() {
-    // Record rejected decisions for all remaining undecided proposals, then flush.
-    for (const proposal of pendingEditProposals.value) {
-      const index = _proposalIndexMap.get(proposal.id) ?? -1
-      if (index >= 0 && !_decisionRecord.has(index)) {
-        _decisionRecord.set(index, { type: 'rejected' })
-      }
-    }
-    const liveTurn = _ensureLiveTurn()
-    if (liveTurn) {
-      liveTurn.proposals = []
-      _liveTurn.value = { ...liveTurn }
-    }
-    _maybeFlushResume()
+  async function rejectAllProposals() {
+    await endReviewRound()
   }
 
   function cancelStreaming() {
@@ -1260,6 +1385,7 @@ export const useAiStore = defineStore('ai', () => {
     isResumingReviewedEdits.value = false
     _decisionRecord.clear()
     _proposalIndexMap.clear()
+    _proposalBatch.clear()
     _clearLiveTurn()
     notify.info('已停止生成')
   }
@@ -1338,6 +1464,7 @@ export const useAiStore = defineStore('ai', () => {
       isResumingReviewedEdits.value = false
       _decisionRecord.clear()
       _proposalIndexMap.clear()
+      _proposalBatch.clear()
 
       _startLiveTurn({
         threadId: e.threadId,
@@ -1357,7 +1484,10 @@ export const useAiStore = defineStore('ai', () => {
       }
       // Build stable index map so approve/reject can find the original index
       // even after earlier proposals have been removed from pendingEditProposals.
-      e.proposals.forEach((p, i) => _proposalIndexMap.set(p.id, i))
+      e.proposals.forEach((p, i) => {
+        _proposalIndexMap.set(p.id, i)
+        _proposalBatch.set(i, p)
+      })
 
       // Preserve partialMessage locally before checkpointer reload —
       // at interrupt time the checkpointer may not yet have committed the
@@ -1412,6 +1542,7 @@ export const useAiStore = defineStore('ai', () => {
       isResumingReviewedEdits.value = false
       _decisionRecord.clear()
       _proposalIndexMap.clear()
+      _proposalBatch.clear()
 
       // Reload messages from checkpointer (single source of truth).
       // Skip reload if onAiRunError already handled this run's error —
@@ -1441,6 +1572,8 @@ export const useAiStore = defineStore('ai', () => {
       _interruptActionCount.value = 0
       isResumingReviewedEdits.value = false
       _decisionRecord.clear()
+      _proposalIndexMap.clear()
+      _proposalBatch.clear()
 
       notify.error(`AI 错误: ${e.error}`)
 
@@ -1517,6 +1650,8 @@ export const useAiStore = defineStore('ai', () => {
     isResumingReviewedEdits,
     reviewedToolCallStatuses,
     reviewedEditSignatures,
+    reviewedBatchEntries,
+    reviewBatchSummary,
     draftInput,
 
     // Actions
@@ -1524,9 +1659,11 @@ export const useAiStore = defineStore('ai', () => {
     approveEditProposal,
     editAndApproveProposal,
     rejectEditProposal,
+    requestProposalRework,
     allPendingProposals,
     approveAllProposals,
     rejectAllProposals,
+    endReviewRound,
     cancelStreaming,
     setDraftInput,
     init,

@@ -117,7 +117,30 @@ function toggleSettings() {
   persistedPanelUi.view = showSettings.value ? 'chat' : 'settings'
 }
 
+function confirmThreadTermination(actionLabel: string): boolean {
+  const activeThread = aiStore.activeThread
+  if (!activeThread || aiStore.liveTurnThreadId !== activeThread.id) return true
+
+  const statusText = aiStore.isInterrupted
+    ? '当前线程正在等待你批准修改'
+    : aiStore.isStreaming
+      ? '当前线程正在运行'
+      : ''
+
+  if (!statusText) return true
+
+  return confirm(`${statusText}，${actionLabel}会终止当前线程执行。是否继续？`)
+}
+
+function stopActiveThreadIfNeeded() {
+  if (aiStore.isStreaming || aiStore.isInterrupted) {
+    aiStore.cancelStreaming()
+  }
+}
+
 function createNewThread() {
+  if (!confirmThreadTermination('新建线程')) return
+  stopActiveThreadIfNeeded()
   persistedPanelUi.view = 'chat'
   aiStore.createNewThread()
 }
@@ -132,6 +155,12 @@ watch(inputAreaRef, el => {
 })
 
 async function selectThread(id: string) {
+  if (id === aiStore.activeThreadId) {
+    persistedPanelUi.view = 'chat'
+    return
+  }
+  if (!confirmThreadTermination('切换线程')) return
+  stopActiveThreadIfNeeded()
   const switched = await aiStore.selectThread(id)
   if (switched) {
     persistedPanelUi.view = 'chat'

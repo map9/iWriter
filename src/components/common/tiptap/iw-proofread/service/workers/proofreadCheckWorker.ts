@@ -35,6 +35,23 @@ interface ProofreadEngineConfig {
   engineOptions?: TypoEngineOptions | LanguageToolEngineOptions | Record<string, unknown>
 }
 
+async function fetchTextOrThrow(url: string, resourceLabel: string): Promise<string> {
+  let response: Response
+
+  try {
+    response = await fetch(url)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`${resourceLabel} load failed: network error (${message})`)
+  }
+
+  if (!response.ok) {
+    throw new Error(`${resourceLabel} load failed: ${response.status} ${response.statusText}`)
+  }
+
+  return response.text()
+}
+
 // ===== 引擎抽象接口 =====
 interface ProofreadEngine {
   init(config: ProofreadEngineConfig): Promise<void>
@@ -58,8 +75,8 @@ class TypoEngine implements ProofreadEngine {
     const dicUrl = `${options.dictionaryPath}/${this.language}/index.dic`
 
     const [aff, dic] = await Promise.all([
-      fetch(affUrl).then(r => r.text()),
-      fetch(dicUrl).then(r => r.text())
+      fetchTextOrThrow(affUrl, `Dictionary ${this.language}.aff`),
+      fetchTextOrThrow(dicUrl, `Dictionary ${this.language}.dic`)
     ])
 
     this.dictionary = new Typo(this.language, aff, dic)
@@ -186,9 +203,11 @@ class LanguageToolEngine implements ProofreadEngine {
   async check(text: string): Promise<ProofreadError[]> {
     if (!text || text.trim().length === 0) return []
 
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout)
+      timeoutId = setTimeout(() => controller.abort(), this.timeout)
 
       const formData = new URLSearchParams({
         text: text,
@@ -227,6 +246,10 @@ class LanguageToolEngine implements ProofreadEngine {
         console.error('[LanguageToolEngine] Check failed:', error)
       }
       return []
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
     }
   }
 

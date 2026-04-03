@@ -37,9 +37,9 @@
             class="text-xs px-2 py-0.5 rounded bg-green-600 text-white hover:bg-green-700 transition-colors"
           >{{ hasDeleteProposal ? '全部删除' : '全部应用' }}</button>
           <button
-            @click="$emit('rejectAll')"
+            @click="$emit('endRound')"
             class="text-xs px-2 py-0.5 rounded bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors"
-          >全部忽略</button>
+          >结束本轮</button>
         </div>
       </div>
 
@@ -63,6 +63,39 @@
             {{ operationSummaryLine }}
           </div>
         </template>
+      </div>
+
+      <div
+        v-if="proposals.length > 1 && !isStreaming"
+        class="text-[11px]"
+        :class="headerTextClass"
+      >
+        逐条审核后统一应用，避免前面的修改影响后续块定位。
+      </div>
+
+      <div
+        v-if="reviewSummary && reviewSummary.total > 1"
+        class="flex flex-wrap items-center gap-1.5 text-[11px]"
+      >
+        <span class="font-medium" :class="headerTextClass">
+          已审核 {{ reviewSummary.resolved }} / {{ reviewSummary.total }}
+        </span>
+        <span
+          v-if="reviewSummary.approved > 0"
+          class="rounded-full bg-green-100 px-1.5 py-0.5 text-green-700"
+        >{{ reviewSummary.approved }} 条待应用</span>
+        <span
+          v-if="reviewSummary.edited > 0"
+          class="rounded-full bg-blue-100 px-1.5 py-0.5 text-blue-700"
+        >{{ reviewSummary.edited }} 条编辑后应用</span>
+        <span
+          v-if="reviewSummary.rework > 0"
+          class="rounded-full bg-amber-100 px-1.5 py-0.5 text-amber-700"
+        >{{ reviewSummary.rework }} 条退回重做</span>
+        <span
+          v-if="reviewSummary.paused > 0"
+          class="rounded-full bg-gray-100 px-1.5 py-0.5 text-gray-600"
+        >{{ reviewSummary.paused }} 条已暂停</span>
       </div>
     </div>
 
@@ -117,6 +150,30 @@
           >当前</span>
         </button>
       </div>
+
+      <div v-if="reviewedEntriesToShow.length" class="mt-2 border-t border-gray-100 pt-2">
+        <div class="mb-1.5 text-[11px] font-medium text-gray-600">已审核</div>
+        <div class="space-y-1">
+          <button
+            v-for="entry in reviewedEntriesToShow"
+            :key="entry.proposal.id"
+            type="button"
+            class="flex w-full items-center gap-2 rounded-md border border-gray-100 bg-gray-50 px-2 py-1.5 text-left transition-colors hover:border-gray-200 hover:bg-gray-100/80"
+            title="点击定位到这处修改"
+            @click="focusReviewedProposal(entry.proposal)"
+          >
+            <span
+              class="inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+              :class="reviewedBadgeClass(entry)"
+            >
+              {{ entry.label }}
+            </span>
+            <div class="min-w-0 flex-1 truncate text-[11px] text-gray-700">
+              {{ proposalListLabel(entry.proposal) }}
+            </div>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Diff content -->
@@ -151,7 +208,12 @@
         </template>
         <template v-else>
           <div class="p-2 pb-0 text-[11px] font-medium" :class="hasDeleteProposal ? 'text-red-800' : 'text-yellow-800'">修改详情</div>
-          <DiffSplitView :old-content="blockProposal.oldContent || ''" :new-content="blockProposal.newContent || ''" />
+          <DiffSplitView
+            :old-content="blockProposal.oldContent || ''"
+            :new-content="blockProposal.newContent || ''"
+            editable-right
+            v-model="editedContent"
+          />
         </template>
       </template>
 
@@ -160,8 +222,24 @@
         <div class="p-2 text-xs">
           <div class="text-[11px] font-medium mb-1" :class="hasDeleteProposal ? 'text-red-800' : 'text-yellow-800'">修改详情</div>
           <div class="text-green-600 font-medium mb-1">插入内容</div>
-          <div class="text-green-800 bg-green-50 rounded p-1.5 max-h-32 overflow-auto">
-            <MarkdownContentView :content="blockProposal.newContent || ''" />
+          <div
+            class="rounded border border-green-200 bg-green-50 p-1.5"
+            :class="isInsertEditing ? 'ring-2 ring-green-200' : 'cursor-text'"
+            @click="activateInsertEditing"
+          >
+            <textarea
+              v-if="isInsertEditing"
+              ref="insertEditorRef"
+              v-model="editedContent"
+              rows="10"
+              class="w-full resize-y border-0 bg-transparent px-2 py-1 text-xs leading-relaxed text-green-900 outline-none"
+              placeholder="按 Markdown 编辑将要插入的内容"
+              @blur="deactivateInsertEditing"
+            />
+            <pre
+              v-else
+              class="whitespace-pre-wrap break-word px-2 py-1 text-xs leading-relaxed text-green-900 font-mono"
+            >{{ editedContent }}</pre>
           </div>
         </div>
       </template>
@@ -172,7 +250,12 @@
           <span class="font-medium mr-2" :class="hasDeleteProposal ? 'text-red-800' : 'text-yellow-800'">修改详情</span>
           块 {{ blockProposal.startDisplayBlockId }}–{{ blockProposal.endDisplayBlockId }}
         </div>
-        <DiffSplitView :old-content="blockProposal.oldContent || ''" :new-content="blockProposal.newContent || ''" />
+        <DiffSplitView
+          :old-content="blockProposal.oldContent || ''"
+          :new-content="blockProposal.newContent || ''"
+          editable-right
+          v-model="editedContent"
+        />
       </template>
 
       <!-- Fallback -->
@@ -190,16 +273,54 @@
       class="flex items-center justify-between px-3 py-2 border-t"
       :class="footerContainerClass"
     >
-      <div class="flex gap-1.5">
-        <button
-          @click="approve"
-          :class="approveButtonClass"
-          class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded text-white transition-colors"
-        >{{ approveButtonLabel }}</button>
-        <button
-          @click="reject"
-          class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
-        >✗ 忽略</button>
+      <div class="flex flex-col gap-2 min-w-0 flex-1">
+        <div class="flex gap-1.5 flex-wrap">
+          <button
+            @click="approve"
+            :class="approveButtonClass"
+            class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded text-white transition-colors"
+          >{{ approveButtonLabel }}</button>
+          <button
+            @click="openReworkComposer"
+            class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded bg-white text-amber-700 border border-amber-300 hover:bg-amber-50 transition-colors"
+          >↻ 重新修改</button>
+          <button
+            @click="$emit('endRound', current ? { id: current.id } : undefined)"
+            class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
+          >⏹ 结束本轮</button>
+        </div>
+
+        <div v-if="showReworkComposer" class="rounded-md border border-amber-200 bg-white/80 p-2">
+          <div class="text-[11px] font-medium text-amber-800">告诉 AI 这次应该怎么调整</div>
+          <div class="mt-1 text-[11px] text-amber-700">
+            提交后会暂停这一批后续修改，先让 AI 重做当前这处。
+          </div>
+          <textarea
+            v-model="reworkReason"
+            rows="3"
+            class="mt-1 w-full resize-y rounded border border-amber-200 bg-white px-2 py-1.5 text-xs leading-relaxed text-gray-800 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+            placeholder="例如：保留原文事实，只调整文风；不要再压缩句子。"
+          />
+          <div class="mt-2 flex gap-1.5">
+            <button
+              @click="submitRework"
+              :disabled="!reworkReason.trim() || !current"
+              class="px-2.5 py-1 text-xs rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >提交并重改</button>
+            <button
+              @click="cancelReworkComposer"
+              class="px-2.5 py-1 text-xs rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+            >取消</button>
+          </div>
+        </div>
+
+        <div
+          v-if="proposals.length > 1"
+          class="text-[11px]"
+          :class="hasDeleteProposal ? 'text-red-700' : isQuickFixBatch ? 'text-blue-700' : 'text-yellow-700'"
+        >
+          当前确认只会暂存，等本批都审核完后再统一执行。
+        </div>
       </div>
       <div v-if="proposals.length > 1" class="flex gap-1">
         <button
@@ -218,25 +339,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import MarkdownContentView from './MarkdownContentView.vue'
 import DiffSplitView from './DiffSplitView.vue'
 import type { EditProposal, BlockEditProposal, FileCreateProposal } from '@/ai/types'
+import type { ProposalReviewEntry, ProposalReviewSummary } from '@/ai/store/ai'
 import { PROPOSAL_TYPE_LABELS } from '@/ai/types'
 import type { Editor } from '@tiptap/core'
 import { useAppStore } from '@/stores/app'
 import { findNodeById } from '@/ai/edit-agent/BlockEditApplier'
 import { highlightBlock } from '@/ai/edit-agent/iwBlockHighlightExtension'
 
-const props = defineProps<{ proposals: EditProposal[]; isStreaming?: boolean; sessionMode?: 'quick_fix' | 'standard' | 'delete_review' }>()
+const props = defineProps<{
+  proposals: EditProposal[]
+  isStreaming?: boolean
+  sessionMode?: 'quick_fix' | 'standard' | 'delete_review'
+  reviewedEntries?: ProposalReviewEntry[]
+  reviewSummary?: ProposalReviewSummary | null
+}>()
 const emit = defineEmits<{
   approve:    [id: string]
-  reject:     [id: string]
+  editApprove: [payload: { id: string; editedArgs: Record<string, unknown> }]
   approveAll: []
-  rejectAll:  []
+  rework: [payload: { id: string; reason: string }]
+  endRound: [payload?: { id?: string }]
 }>()
 
 const currentIndex = ref(0)
+const editedContent = ref('')
+const isInsertEditing = ref(false)
+const insertEditorRef = ref<HTMLTextAreaElement | null>(null)
+const showReworkComposer = ref(false)
+const reworkReason = ref('')
 
 // Keep index in bounds when list shrinks (after approve/reject)
 watch(() => props.proposals.length, len => {
@@ -246,6 +380,7 @@ watch(() => props.proposals.length, len => {
 })
 
 const current = computed(() => props.proposals[currentIndex.value] ?? null)
+const reviewedEntriesToShow = computed(() => props.reviewedEntries ?? [])
 
 const blockProposal  = computed(() => current.value as BlockEditProposal)
 const createProposal = computed(() => current.value as FileCreateProposal)
@@ -253,6 +388,16 @@ const createProposal = computed(() => current.value as FileCreateProposal)
 const isSingleBlock = computed(() =>
   current.value?.kind === 'block' &&
   ['edit', 'delete'].includes(blockProposal.value?.type ?? '')
+)
+
+const isEditableProposal = computed(() =>
+  current.value?.kind === 'block' &&
+  ['edit', 'insert', 'replace_range'].includes(blockProposal.value?.type ?? '')
+)
+
+const hasEditedContent = computed(() =>
+  isEditableProposal.value
+  && editedContent.value !== (blockProposal.value?.newContent || '')
 )
 
 const typeLabel = computed(() => {
@@ -286,6 +431,7 @@ const overviewTitle = computed(() => {
 
 const approveButtonLabel = computed(() => {
   if (current.value && isDeleteProposal(current.value)) return '⚠ 删除这处'
+  if (hasEditedContent.value) return '✓ 编辑后应用'
   if (isQuickFixBatch.value) return '✓ 应用修正'
   return '✓ 应用'
 })
@@ -469,15 +615,48 @@ function proposalIndexBadgeClass(proposal: EditProposal, index: number): string 
     : 'bg-yellow-100 text-yellow-700'
 }
 
+function reviewedBadgeClass(entry: ProposalReviewEntry): string {
+  switch (entry.tone) {
+    case 'green':
+      return 'bg-green-100 text-green-700'
+    case 'blue':
+      return 'bg-blue-100 text-blue-700'
+    case 'amber':
+      return 'bg-amber-100 text-amber-700'
+    default:
+      return 'bg-gray-100 text-gray-600'
+  }
+}
+
 function approve() {
   if (!current.value) return
+  if (hasEditedContent.value && current.value.kind === 'block') {
+    const editedArgs = current.value.type === 'insert'
+      ? { new_blocks: editedContent.value }
+      : { new_content: editedContent.value }
+    emit('editApprove', { id: current.value.id, editedArgs })
+    return
+  }
   emit('approve', current.value.id)
   // index adjusts via watcher after list shrinks
 }
 
-function reject() {
-  if (!current.value) return
-  emit('reject', current.value.id)
+function openReworkComposer() {
+  showReworkComposer.value = true
+}
+
+function cancelReworkComposer() {
+  showReworkComposer.value = false
+  reworkReason.value = ''
+}
+
+function submitRework() {
+  if (!current.value || !reworkReason.value.trim()) return
+  emit('rework', {
+    id: current.value.id,
+    reason: reworkReason.value.trim(),
+  })
+  cancelReworkComposer()
 }
 
 function prev() {
@@ -488,8 +667,7 @@ function next() {
   if (currentIndex.value < props.proposals.length - 1) currentIndex.value++
 }
 
-function scrollToCurrentBlock() {
-  const proposal = current.value
+function scrollToProposal(proposal: EditProposal | null | undefined) {
   if (!proposal || proposal.kind !== 'block') return
 
   const block = proposal as BlockEditProposal
@@ -517,13 +695,52 @@ function scrollToCurrentBlock() {
   element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
+function scrollToCurrentBlock() {
+  scrollToProposal(current.value)
+}
+
+function focusReviewedProposal(proposal: EditProposal) {
+  const pendingIndex = props.proposals.findIndex(item => item.id === proposal.id)
+  if (pendingIndex >= 0) {
+    currentIndex.value = pendingIndex
+    return
+  }
+  scrollToProposal(proposal)
+}
+
 function clearHighlight() {
   const appStore = useAppStore()
   const editor = appStore.activeTab?.editorInstance as Editor | undefined
   if (editor) highlightBlock(editor, null)
 }
 
+function activateInsertEditing() {
+  if (!(current.value?.kind === 'block' && current.value.type === 'insert') || isInsertEditing.value) return
+  isInsertEditing.value = true
+  nextTick(() => {
+    insertEditorRef.value?.focus()
+  })
+}
+
+function deactivateInsertEditing() {
+  isInsertEditing.value = false
+}
+
 watch(currentIndex, scrollToCurrentBlock)
+watch(
+  current,
+  proposal => {
+    isInsertEditing.value = false
+    showReworkComposer.value = false
+    reworkReason.value = ''
+    if (!proposal || proposal.kind !== 'block') {
+      editedContent.value = ''
+      return
+    }
+    editedContent.value = proposal.newContent || ''
+  },
+  { immediate: true }
+)
 onMounted(scrollToCurrentBlock)
 onUnmounted(clearHighlight)
 </script>

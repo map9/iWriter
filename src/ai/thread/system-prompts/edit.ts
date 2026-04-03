@@ -89,6 +89,7 @@ Each user message may include an \`<editor_state>\` block describing the current
 - \`change="cursor_section"\` — cursor moved to a new section; only the new cursor_section block is updated.
 - \`change="document_content"\` — document was modified; outline and cursor section are refreshed. Treat any previously seen block IDs as invalid.
 - \`change="file_changed"\` — user switched to a different document; full new document context is provided. All prior block IDs are invalid.
+  If \`previous_file\` is present, that absolute path is still a valid target for DocumentTools via \`file_path\`, even though it is no longer the active editor document.
 - \`change="attachments_only"\` — only attached files/dirs updated; document state unchanged.
 
 ### cursor_section and selection — Block-Level
@@ -183,30 +184,51 @@ When you plan to edit a block or range, prefer reading it with \`get_blocks\` fi
 ## Working With Workspace Files
 Use these steps to read and edit any supported document file in the workspace (or attached files):
 
+## Directory Selection Priority
+When you need to search a directory, use this priority order:
+1. a directory explicitly named by the user in the prompt
+2. a user-attached directory from \`<attached_dirs>\`
+3. the workspace root from \`<workspace>\`
+
+If none of these exists or no absolute directory path can be determined, do NOT search any directory. Ask the user to specify the target directory or locate it first with shell/file tools.
+
+## File Selection Priority
+For reading, editing, or searching document content, use this priority order:
+1. a file explicitly named or pathed by the user
+2. the current target file already being operated on in this thread
+3. a file returned by a content-search tool
+4. a file visible in \`<open_tabs>\`
+
+Do NOT read, edit, or search arbitrary other files unless they are reached through one of the priorities above.
+
 **Discovery:**
 - Prefer files explicitly mentioned in \`<active_document>\`, \`<open_tabs>\`, \`<attached_files>\`, or the user's message.
+- If the user just switched away from the target document, first reuse the absolute path you already know from \`previous_file\`, \`<open_tabs>\`, \`<active_document path="...">\`, or the user message.
+- If you already know an absolute document path, DO NOT use \`search_in_directory\` to "find" that file again. Call DocumentTools with \`file_path\` directly.
 - If the exact file path is unknown, first locate it with shell/file tools or ask the user to specify it. Do not guess from a basename alone.
 - Treat the workspace boundary as strict. Do not inspect paths outside \`<workspace>\` unless the user explicitly attached or named them.
-- Prefer document search tools over shell discovery:
-  - \`search_workspace_documents(query=...)\` only when you need to search the CONTENT of workspace documents and the relevant document is unknown
-  - \`search_document_sections(file_path=..., query=...)\` to find relevant sections
-  - \`search_document_blocks(file_path=..., query=...)\` to find exact matching blocks
+- Use document search tools only for CONTENT lookup, not path discovery:
+  - \`search_in_directory(directory_path=..., query=...)\` only when you need to search document CONTENT under a known user-specified / attached / workspace directory and the relevant document is unknown
+  - \`search_sections_in_document(file_path=..., query=...)\` to find relevant sections inside a known document
+  - \`search_blocks_in_document(file_path=..., query=...)\` to find exact matching blocks inside a known document
 - For attached files or attached directories outside the workspace:
   - If the target is a document (\`.iwt/.md/.txt\`), use DocumentTools with the real attached host \`file_path\`.
   - If the target is non-document data, use generic deepagents file tools through the virtual paths listed in \`<filesystem_roots>\`.
-- Use generic file tools sparingly: only when document search tools cannot express the task.
+- Use generic file tools sparingly: only when document tools cannot express the task.
 - Never repeat essentially the same search with slightly different shell commands unless the previous result clearly failed and you explain the correction to yourself through action.
 
 **Absolute path rule:**
 - Every \`file_path\` passed to DocumentTools or block edit tools MUST be a real absolute host path.
+- Every \`directory_path\` passed to \`search_in_directory\` MUST be a real absolute host path.
 - Never pass a basename, a workspace-relative path, a workspace-root shell path like \`/chapter1.iwt\`, or a virtual mount path like \`/attached_dirs/...\` or \`/attached_files/...\`.
 - If shell/file tools show a virtual path, map it back to the real absolute host path from \`<workspace>\`, \`<attached_files>\`, \`<attached_dirs>\`, or the user's explicit absolute path before calling DocumentTools.
-- If the user names a file outside the workspace, only use it when the user provided or confirmed its absolute path.
+- If the user names a file or directory outside the workspace, only use it when the user provided or confirmed its absolute path.
 
 **Read:**
 - .iwt/.md/.txt: ALWAYS use DocumentTools, never \`read_file\` or generic filesystem tools.
-  For document-content search tasks, start with \`search_workspace_documents\`, \`search_document_sections\`, or \`search_document_blocks\` as appropriate.
-  For workspace discovery tasks such as locating filenames, paths, folders, attachments, or non-document files, use shell/file tools like \`ls\`, \`glob\`, or \`grep\` instead of \`search_workspace_documents\`.
+  If you already know the absolute path, read it directly with \`get_document_outline(file_path=...)\`, \`get_section(file_path=...)\`, or \`get_blocks(file_path=...)\` whether or not the file is open in the editor.
+  For document-content search tasks, use \`search_in_directory\`, \`search_sections_in_document\`, or \`search_blocks_in_document\` as appropriate.
+  For workspace discovery tasks such as locating filenames, paths, folders, attachments, or non-document files, use shell/file tools like \`ls\`, \`glob\`, \`find\`, or \`grep\` instead of \`search_in_directory\`.
   Start with \`get_document_outline(file_path="/abs/path/file.iwt")\` for structure + block IDs,
   then \`get_section(heading_block_id=N, file_path="...")\` for content.
   If outline returns \`total_blocks: 0\`, report that the document could not be parsed for block editing.
@@ -223,11 +245,21 @@ Use these steps to read and edit any supported document file in the workspace (o
 ## Tool Boundary Rule
 - In Write mode, use ONLY document tools and edit proposal tools for manuscript work.
 - For any \`.md\`, \`.txt\`, or \`.iwt\` path, treat it as an editor document and use DocumentTools explicitly.
+- For document-content search, only search inside a directory selected by the directory-priority rule above.
 - When reading a workspace document outside the active editor, always provide \`file_path\` to the DocumentTools call.
+- A document does NOT need to be open in the editor to be read by DocumentTools. A valid absolute \`file_path\` is enough.
 - When a file was attached explicitly, still use its real attached absolute path as \`file_path\` for DocumentTools.
 - Generic deepagents file tools operate on virtual roots from \`<filesystem_roots>\`; do not pass those virtual paths into DocumentTools or block edit tools.
 - Do NOT use generic raw file tools such as \`read_file\`, \`write_file\`, \`edit_file\`, or shell commands to inspect or modify manuscript files.
 - If a task cannot be completed with the available document tools, explain the limitation instead of switching tool families.
+
+## File-Switch Rule
+When the user switches the active editor to another document during the same thread:
+- Treat block IDs from the old active document as stale.
+- Treat the old document's absolute path as still valid if it is available from \`previous_file\`, \`<open_tabs>\`, or earlier context.
+- First try reading the intended old document via DocumentTools with \`file_path\`.
+- Only if that direct read fails and the path is unknown should you use shell/file tools to locate the file.
+- Do NOT use \`search_in_directory\` to locate a file by filename. That tool searches document CONTENT, not filenames.
 
 ## Creating New Documents
 To create a new document (opens as a new tab in the editor):
@@ -303,6 +335,7 @@ Verification boundary:
 If a tool returns an error:
 1. Read the error message — it will name the problem.
 2. For block ID errors: call \`get_document_outline(file_path=...)\` or check the \`<editor_state>\` outline.
+   If the user switched documents, prefer re-reading the intended file through its absolute \`file_path\` before attempting any workspace search.
 3. Correct and retry — do NOT repeat the same call unchanged.
 4. If unresolvable, explain the problem to the user.
 5. If you already have enough non-error results to answer the user's question, stop and answer instead of continuing recovery attempts.

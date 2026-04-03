@@ -1,5 +1,5 @@
 <template>
-  <div ref="messagesEl" class="flex-1 overflow-y-auto p-3 space-y-3 min-h-0" :style="{ paddingBottom: (bottomPadding ?? 0) + 24 + 'px' }">
+  <div ref="messagesEl" class="flex-1 overflow-y-auto px-3 pb-3 pt-1 space-y-3 min-h-0" :style="{ paddingBottom: (bottomPadding ?? 0) + 24 + 'px' }">
     <ChatContextPill />
 
     <AgentEmptyState @suggest="handleSuggestPrompt" />
@@ -47,11 +47,14 @@
     <ProposalNavigator
       v-if="showFallbackProposalNavigator"
       :proposals="aiStore.allPendingProposals"
+      :reviewed-entries="aiStore.reviewedBatchEntries"
+      :review-summary="aiStore.reviewBatchSummary"
       :is-streaming="aiStore.isStreaming"
       @approve="aiStore.approveEditProposal"
-      @reject="aiStore.rejectEditProposal"
+      @edit-approve="({ id, editedArgs }) => aiStore.editAndApproveProposal(id, editedArgs)"
       @approve-all="aiStore.approveAllProposals"
-      @reject-all="aiStore.rejectAllProposals"
+      @rework="({ id, reason }) => aiStore.requestProposalRework(id, reason)"
+      @end-round="payload => aiStore.endReviewRound(payload?.id)"
     />
 
   </div>
@@ -136,8 +139,13 @@ function humanizeToolName(toolName: string | null | undefined): string {
     get_section: '读取章节',
     get_blocks: '读取段落',
     get_block_context: '读取上下文',
-    search_document_sections: '搜索章节',
-    search_workspace_documents: '搜索工作区',
+    search_document_blocks: '在文档中搜索段落',
+    search_document_sections: '在文档中搜索章节',
+    search_workspace_documents: '在目录中搜索文档内容',
+    search_in_document: '在文档中搜索章节',
+    search_in_directory: '在目录中搜索文档内容',
+    search_blocks_in_document: '在文档中搜索段落',
+    search_sections_in_document: '在文档中搜索章节',
     read_file: '读取文件',
     list_directory: '查看目录',
     ls: '查看目录',

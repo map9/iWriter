@@ -12,12 +12,15 @@
     <ProposalNavigator
       v-if="session.phase === 'review_ready' && session.proposals?.length"
       :proposals="session.proposals"
+      :reviewed-entries="reviewedEntries"
+      :review-summary="reviewSummary"
       :is-streaming="isStreaming"
       :session-mode="session.mode"
       @approve="$emit('approve', $event)"
-      @reject="$emit('reject', $event)"
+      @edit-approve="$emit('editApprove', $event)"
       @approve-all="$emit('approveAll')"
-      @reject-all="$emit('rejectAll')"
+      @rework="$emit('rework', $event)"
+      @end-round="$emit('endRound', $event)"
     />
 
     <EditSummaryCard
@@ -30,19 +33,23 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { EditSessionViewModel } from '@/ai/edit-session'
+import type { ProposalReviewEntry, ProposalReviewSummary } from '@/ai/store/ai'
 import EditSummaryCard from './EditSummaryCard.vue'
 import ProposalNavigator from '../ProposalNavigator.vue'
 
 const props = defineProps<{
   session: EditSessionViewModel
   isStreaming?: boolean
+  reviewedEntries?: ProposalReviewEntry[]
+  reviewSummary?: ProposalReviewSummary | null
 }>()
 
 defineEmits<{
   approve: [id: string]
-  reject: [id: string]
+  editApprove: [payload: { id: string; editedArgs: Record<string, unknown> }]
   approveAll: []
-  rejectAll: []
+  rework: [payload: { id: string; reason: string }]
+  endRound: [payload?: { id?: string }]
 }>()
 
 const phaseTitle = computed(() => {

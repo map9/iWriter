@@ -96,14 +96,20 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 	},
 
 	onCreate() {
-		this.storage.proofreadService = new ProofreadService({
-			engineType: this.options.engineType,
-			language: this.options.language,
-			engineOptions: this.options.engineOptions,
-			maxWorkers: this.options.maxWorkers,
-			cacheSize: this.options.cacheSize,
-			cacheExpiry: this.options.cacheExpiry
-		})
+		try {
+			this.storage.proofreadService = new ProofreadService({
+				engineType: this.options.engineType,
+				language: this.options.language,
+				engineOptions: this.options.engineOptions,
+				maxWorkers: this.options.maxWorkers,
+				cacheSize: this.options.cacheSize,
+				cacheExpiry: this.options.cacheExpiry
+			})
+		} catch (error) {
+			this.storage.proofreadService = null
+			this.storage.isEnabled = false
+			console.warn('[iwProofreadExtension] Proofread initialization skipped:', error)
+		}
 	},
 
 	onDestroy() {

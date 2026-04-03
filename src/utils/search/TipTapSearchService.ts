@@ -192,8 +192,8 @@ export class TipTapSearchService {
         const converted = await convertContentFrom(content, extension)
         if (!converted) return null
 
-        // 获取搜索引擎的 extensions
-        const extensions = this.getSearchEngine().extensionManager.extensions
+        // Use the original extension set to avoid re-resolving already flattened kits.
+        const extensions = this.getSearchEngine().extensionManager.baseExtensions
 
         // 生成 ProseMirror JSON，然后创建 Doc
         const json = generateJSON(converted.content, extensions)
@@ -546,8 +546,8 @@ export class TipTapSearchService {
     let totalReplacements = 0
     const errors: Array<{ file: string; error: string }> = []
 
-    // 获取搜索引擎的 extensions
-    const extensions = this.getSearchEngine().extensionManager.extensions
+    // Use the original extension set to avoid re-resolving already flattened kits.
+    const extensions = this.getSearchEngine().extensionManager.baseExtensions
 
     for (const fileResult of results) {
       try {

@@ -30,7 +30,7 @@ function getSelectedHTML(editor: Editor): string | null {
 
   try {
     // 使用TipTap的generateHTML方法来生成选中内容的HTML
-    const extensions = editor.extensionManager.extensions
+    const extensions = editor.extensionManager.baseExtensions
     const selectedContent = { type: 'doc', content: slice.content.toJSON() }
     return generateHTML(selectedContent, extensions)
   } catch (error) {

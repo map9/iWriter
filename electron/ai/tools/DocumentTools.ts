@@ -91,6 +91,51 @@ function toSearchOptions(input: {
   }
 }
 
+type DirectoryResolution =
+  | { ok: true; directoryPath: string }
+  | { ok: false; error: string }
+
+function resolveDirectoryPathForRuntime(argDirectoryPath: string | undefined, runtime: unknown): DirectoryResolution {
+  const requested = argDirectoryPath?.trim()
+  if (!requested) {
+    return { ok: false, error: 'Error: directory_path is required and must be an absolute host directory path.' }
+  }
+
+  if (isVirtualDocumentPath(requested)) {
+    return {
+      ok: false,
+      error:
+        `Error: directory_path must be a real absolute host path, not a virtual mount path like "${requested}". ` +
+        'Use the absolute path shown in <workspace> or <attached_dirs>.',
+    }
+  }
+
+  if (!path.isAbsolute(requested)) {
+    return {
+      ok: false,
+      error:
+        `Error: directory_path must be an absolute host path. Relative, basename-only, and workspace-root virtual paths are not allowed: "${requested}".`,
+    }
+  }
+
+  if (!fs.existsSync(requested)) {
+    return { ok: false, error: `Error: directory_path does not exist on disk: "${requested}".` }
+  }
+
+  let stats: fs.Stats
+  try {
+    stats = fs.statSync(requested)
+  } catch {
+    return { ok: false, error: `Error: Could not stat directory_path: "${requested}".` }
+  }
+
+  if (!stats.isDirectory()) {
+    return { ok: false, error: `Error: directory_path must point to a directory: "${requested}".` }
+  }
+
+  return { ok: true, directoryPath: requested }
+}
+
 export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
   // ── get_document_outline ──────────────────────────────────────────────────
 
@@ -125,7 +170,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         'Get the document outline (heading structure with block count and word count per section). ' +
         'Always call this first to understand the document structure before editing or reading sections. ' +
         'Use the returned block_ids to call get_section or get_blocks for detailed content. ' +
-        'Pass file_path to read a local file instead of the currently open editor document.',
+        'Pass file_path to read a specific local file by absolute path, whether or not it is currently open in the editor. ' +
+        'Omit file_path only when you intentionally want the active editor document.',
       schema: z.object({
         file_path: z
           .string()
@@ -173,7 +219,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       description:
         'Get the content of a document section starting from a heading block. ' +
         'Returns the heading and all blocks until the next same/higher-level heading, ' +
-        'with block IDs ({b:n}) for targeted editing. Supports pagination.',
+        'with block IDs ({b:n}) for targeted editing. Supports pagination. ' +
+        'With file_path, this reads that exact file on disk even if it is not open in the editor.',
       schema: z.object({
         heading_block_id: z
           .number()
@@ -215,7 +262,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       description:
         'Get the content of specific blocks by their block IDs. ' +
         'Use when you need the exact content of known blocks (e.g., before editing them). ' +
-        'Returns each block\'s content with its {b:n} marker.',
+        'Returns each block\'s content with its {b:n} marker. ' +
+        'With file_path, this reads that exact file on disk even if it is not open in the editor.',
       schema: z.object({
         block_ids: z
           .array(z.number())
@@ -260,7 +308,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       name: 'get_block_context',
       description:
         'Get the surrounding context of a specific block (blocks before and after). ' +
-        'Useful for understanding the local structure around a block you want to edit.',
+        'Useful for understanding the local structure around a block you want to edit. ' +
+        'With file_path, this reads that exact file on disk even if it is not open in the editor.',
       schema: z.object({
         block_id: z.number().describe('The block display ID to center the context around.'),
         window: z
@@ -275,7 +324,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
     }
   )
 
-  const searchDocumentBlocks = tool(
+  const searchBlocksInDocument = tool(
     async ({
       query,
       file_path,
@@ -309,7 +358,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       )
     },
     {
-      name: 'search_document_blocks',
+      name: 'search_blocks_in_document',
       description:
         'Search a single .md/.txt/.iwt document using block-aware matching. ' +
         'Returns matching block IDs, their containing section heading, and short previews. ' +
@@ -328,7 +377,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
     }
   )
 
-  const searchDocumentSections = tool(
+  const searchSectionsInDocument = tool(
     async ({
       query,
       file_path,
@@ -365,11 +414,11 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       )
     },
     {
-      name: 'search_document_sections',
+      name: 'search_sections_in_document',
       description:
-        'Search a single .md/.txt/.iwt document and group results by section heading. ' +
+        'Search the CONTENT of one specific .md/.txt/.iwt document and group results by section heading. ' +
         'Returns heading_block_id, heading title, matched block IDs, and previews. ' +
-        'Use this to quickly locate relevant sections before calling get_section.',
+        'Use this when you already know the target file path and need to find relevant content inside that document before calling get_section.',
       schema: z.object({
         query: z.string().describe('Search query text or regex pattern.'),
         file_path: z
@@ -385,9 +434,10 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
     }
   )
 
-  const searchWorkspaceDocuments = tool(
+  const searchInDirectory = tool(
     async ({
       query,
+      directory_path,
       case_sensitive,
       whole_word,
       regex,
@@ -397,6 +447,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       max_matches,
     }: {
       query: string
+      directory_path: string
       case_sensitive?: boolean
       whole_word?: boolean
       regex?: boolean
@@ -405,13 +456,12 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       max_files?: number
       max_matches?: number
     }, runtime) => {
-      const workspacePath = getRuntimeWorkspacePath(runtime)
-      if (!workspacePath) {
-        return 'Error: No workspace is currently open.'
-      }
+      const resolved = resolveDirectoryPathForRuntime(directory_path, runtime)
+      if (!resolved.ok) return resolved.error
+      const rootDirectoryPath = resolved.directoryPath
 
       const filePaths = listWorkspaceDocumentPaths(
-        workspacePath,
+        rootDirectoryPath,
         include_glob,
         exclude_glob,
         max_files !== undefined ? Math.max(1, max_files) : 200
@@ -443,14 +493,19 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       return DocumentSearch.formatWorkspaceSearchResult(query, files, filePaths.length)
     },
     {
-      name: 'search_workspace_documents',
+      name: 'search_in_directory',
       description:
-        'Search all .md/.txt/.iwt documents in the current workspace using block-aware matching. ' +
-        'Returns matching files plus block IDs, section headings, and previews. ' +
-        'Use this only for searching document content, not for locating filenames or folder paths. ' +
-        'For file/path discovery, use shell file tools such as ls/glob/grep instead.',
+        'Search the CONTENT of .md/.txt/.iwt documents under one specific directory using block-aware matching. ' +
+        'Returns only files whose document content matches the query, plus block IDs, section headings, and previews. ' +
+        'This works for the workspace root, a user-attached directory, or any directory the user explicitly named by absolute path. ' +
+        'Do NOT use this to locate filenames, folder paths, tabs, or documents you already know by absolute path. ' +
+        'If you know the path, call get_document_outline/get_section/get_blocks with file_path directly. ' +
+        'For file/path discovery, use shell file tools such as ls/glob/find/grep instead.',
       schema: z.object({
         query: z.string().describe('Search query text or regex pattern.'),
+        directory_path: z
+          .string()
+          .describe('Real absolute host path to the directory whose document contents should be searched. Prefer a user-specified directory, an attached directory, or the workspace root.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Match whole words only.'),
         regex: z.boolean().optional().describe('Treat query as a regular expression.'),
@@ -467,8 +522,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
     getSection,
     getBlocks,
     getBlockContext,
-    searchDocumentBlocks,
-    searchDocumentSections,
-    searchWorkspaceDocuments,
+    searchBlocksInDocument,
+    searchSectionsInDocument,
+    searchInDirectory,
   ] as const
 }
