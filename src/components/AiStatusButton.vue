@@ -1,11 +1,10 @@
 <template>
-  <div class="flex items-center px-1 flex-shrink-0 no-drag">
+  <div class="flex items-center pl-2 pr-3 flex-shrink-0 no-drag">
     <button
       @click="appStore.toggleRightSidebar()"
-      class="toolbar-button relative"
+      class="toolbar-button relative group"
       :title="robotButtonTitle"
     >
-      <!-- ✅ 独立Blob动画层，不影响图标 -->
       <div
         v-if="displayMode === 'running'"
         class="blob absolute left-1/2 top-1/2"
@@ -14,6 +13,7 @@
       <IconRobot class="icon-base relative z-10" :class="{
         'text-accent-primary': displayMode === 'open',
         'text-white/70': displayMode === 'running',
+        'group-hover:text-accent-primary': displayMode === 'running',
         'text-status-warning': displayMode === 'waiting',
         'animate-bounce': displayMode === 'waiting',
       }" />
@@ -73,5 +73,12 @@ const robotButtonTitle = computed(() => {
   33% { background: linear-gradient(30deg, oklch(0.4 0.4 330) 10%, oklch(0.7 0.4 300)); }
   66% { background: linear-gradient(30deg, oklch(0.4 0.4 360) 10%, oklch(0.7 0.4 270)); }
   100%{ background: linear-gradient(30deg, oklch(0.4 0.4 390) 10%, oklch(0.7 0.4 240)); }
+}
+
+.group:hover .blob {
+  animation: none;
+  background: none;
+  opacity: 1;
+  filter: none;
 }
 </style>
