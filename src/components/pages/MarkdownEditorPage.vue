@@ -279,7 +279,7 @@
     </div>
     
     <!-- TipTap Editor -->
-    <div class="editor-content-wrapper">
+    <div ref="editorScrollRef" class="editor-content-wrapper">
         <!-- Selection Highlight Layer (外部高亮层) -->
         <SelectionHighlightLayer
           v-if="editor"
@@ -289,7 +289,11 @@
         />
 
         <!-- Editor Content -->
-        <EditorContent v-if="editor" :editor="editor" class="editor-content w-full max-w-3xl my-4 mx-auto"/>
+        <EditorContent
+          v-if="editor"
+          :editor="editor"
+          class="editor-content w-full max-w-3xl my-4 mx-auto"
+        />
 
         <!-- Search & Replace Panel -->
         <SearchReplacePanel v-if="editor" :editor="editor" />
@@ -370,9 +374,13 @@ interface Props {
 const props = defineProps<Props>()
 
 const appStore = useAppStore()
+const TYPEWRITER_ANCHOR_RATIO = 0.38
+const EDITOR_BASE_CLASS = 'flex-1 flex-shrink-0 p-[3rem] pb-[30vh] focus:outline-none'
 
 // Loading flag for this editor
 const isLoading = ref(false)
+const editorScrollRef = ref<HTMLElement | null>(null)
+let typewriterSyncFrame = 0
 
 // Toolbar state
 const currentHeading = ref('paragraph')
@@ -409,7 +417,7 @@ const editor = useEditor({
   content: '',
   editorProps: {
     attributes: {
-      class: 'flex-1 flex-shrink-0 p-[3rem] pb-[30vh] focus:outline-none',
+      class: EDITOR_BASE_CLASS,
       spellcheck: 'false',
     },
   },
@@ -425,9 +433,12 @@ const editor = useEditor({
     if (transaction.docChanged) {
       updateEditorState()
     }
+
+    scheduleTypewriterSync()
   },
   onSelectionUpdate: () => {
     updateEditorState()
+    scheduleTypewriterSync()
   },
   onCreate: ({ editor }) => {
     migrateMathStrings(editor)
@@ -438,7 +449,11 @@ const editor = useEditor({
       setInvisibleCharacters(props.tab.editState?.invisibleCharacters || true)
       setProofreadErrorsDisplay(props.tab.editState?.showProofreadErrors || true)
       setProofread(props.tab.editState?.proofread || true)
+      scheduleTypewriterSync()
     })
+  },
+  onFocus: () => {
+    scheduleTypewriterSync()
   }
 })
 
@@ -450,8 +465,42 @@ watch(() => editor.value, (newEditor) => {
   }
 }, { immediate: true })
 
+watch(() => appStore.isTypewriterMode, (enabled) => {
+  if (!enabled && typewriterSyncFrame !== 0) {
+    cancelAnimationFrame(typewriterSyncFrame)
+    typewriterSyncFrame = 0
+    return
+  }
+
+  nextTick(() => {
+    scheduleTypewriterSync()
+  })
+})
+
+watch(() => appStore.isFocusMode, (enabled) => {
+  const currentEditor = editor.value
+  if (!currentEditor) return
+
+  currentEditor.setOptions({
+    editorProps: {
+      ...currentEditor.options.editorProps,
+      attributes: {
+        ...currentEditor.options.editorProps?.attributes,
+        class: enabled
+          ? `${EDITOR_BASE_CLASS} editor-focus-mode`
+          : EDITOR_BASE_CLASS,
+        spellcheck: 'false',
+      },
+    },
+  })
+}, { immediate: true })
+
 // Cleanup
 onBeforeUnmount(() => {
+  if (typewriterSyncFrame !== 0) {
+    cancelAnimationFrame(typewriterSyncFrame)
+  }
+
   appStore.cleanTab(props.tab.id)
   
   // 等待下一帧后再销毁编辑器
@@ -504,6 +553,41 @@ async function loadTabContent(editorInstance: Editor) {
     notify.error(`加载文档内容失败: ${error instanceof Error ? error.message : String(error)}`, '编辑器错误')
   } finally {
     isLoading.value = false
+  }
+}
+
+function scheduleTypewriterSync() {
+  if (!appStore.isTypewriterMode || !editor.value || !editorScrollRef.value) return
+
+  if (typewriterSyncFrame !== 0) {
+    cancelAnimationFrame(typewriterSyncFrame)
+  }
+
+  typewriterSyncFrame = requestAnimationFrame(() => {
+    typewriterSyncFrame = 0
+    syncTypewriterScroll()
+  })
+}
+
+function syncTypewriterScroll() {
+  const currentEditor = editor.value
+  const scrollContainer = editorScrollRef.value
+
+  if (!appStore.isTypewriterMode || !currentEditor || !scrollContainer) return
+  if (!currentEditor.view.hasFocus() || currentEditor.view.composing) return
+  if (!currentEditor.state.selection.empty) return
+
+  try {
+    const caretCoords = currentEditor.view.coordsAtPos(currentEditor.state.selection.head)
+    const containerRect = scrollContainer.getBoundingClientRect()
+    const targetTop = containerRect.top + containerRect.height * TYPEWRITER_ANCHOR_RATIO
+    const delta = caretCoords.top - targetTop
+
+    if (Math.abs(delta) > 1) {
+      scrollContainer.scrollTop += delta
+    }
+  } catch (error) {
+    console.warn('Failed to sync typewriter mode:', error)
   }
 }
 

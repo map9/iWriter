@@ -180,7 +180,7 @@ export function createMarkdownEditorExtensions(options: {
     // 编辑器核心功能
     UndoRedo, Dropcursor, Gapcursor, TrailingNode,
     Focus.configure({
-      mode: 'all',
+      mode: 'deepest',
     }),
 
     // 基础节点

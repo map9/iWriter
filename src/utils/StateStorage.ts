@@ -17,6 +17,8 @@ export interface UIState {
   isLeftSidebarVisible: boolean
   isRightSidebarVisible: boolean
   isStatusbarVisible: boolean
+  isFocusMode: boolean
+  isTypewriterMode: boolean
   leftSidebarMode: SidebarMode
   leftSidebarWidth: number
   rightSidebarWidth: number
@@ -36,6 +38,8 @@ export const DEFAULT_UI_STATE: UIState = {
   isLeftSidebarVisible: true,
   isRightSidebarVisible: false,
   isStatusbarVisible: true,
+  isFocusMode: false,
+  isTypewriterMode: false,
   leftSidebarMode: SidebarMode.START,
   leftSidebarWidth: 288,
   rightSidebarWidth: 288

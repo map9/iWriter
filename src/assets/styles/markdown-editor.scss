@@ -29,6 +29,20 @@
     margin-top: 0;
   }
 
+  &.editor-focus-mode {
+    :where(p, h1, h2, h3, h4, h5, h6, pre, blockquote, li, hr, .tableWrapper, .toolbar-warpper) {
+      transition: opacity 160ms ease;
+    }
+
+    :where(p, h1, h2, h3, h4, h5, h6, pre, blockquote, li, hr, .tableWrapper, .toolbar-warpper):not(.has-focus):not(:has(.has-focus)) {
+      opacity: 0.28;
+    }
+
+    :where(.has-focus, .has-focus p, .has-focus h1, .has-focus h2, .has-focus h3, .has-focus h4, .has-focus h5, .has-focus h6, .has-focus pre, .has-focus blockquote, .has-focus li, .has-focus hr, .has-focus.tableWrapper, .has-focus.toolbar-warpper) {
+      opacity: 1;
+    }
+  }
+
   // Focus styles
   .has-focus {
     color: inherit;

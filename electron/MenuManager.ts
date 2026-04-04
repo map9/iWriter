@@ -1439,17 +1439,21 @@ export class MenuManager {
           {
             label: 'Focus Mode',
             accelerator: 'CmdOrCtrl+Shift+F',
+            type: 'checkbox',
+            checked: wState?.wContentState?.view?.focusMode ? true : false,
             enabled: wState != null,
             click: () => {
-              this.sendMenuAction('view-focus-mode')
+              this.sendMenuAction('view-toggle-focus-mode')
             }
           },
           {
-            label: 'Typewrite Mode',
+            label: 'Typewriter Mode',
             accelerator: 'CmdOrCtrl+Shift+T',
+            type: 'checkbox',
+            checked: wState?.wContentState?.view?.typewriterMode ? true : false,
             enabled: wState != null,
             click: () => {
-              this.sendMenuAction('view-typewrite-mode')
+              this.sendMenuAction('view-toggle-typewriter-mode')
             }
           },
           { type: 'separator' },

@@ -31,6 +31,8 @@ export const useAppStore = defineStore('app', () => {
   const isRightSidebarVisible = ref(false)
   const isStatusbarVisible = ref(true)  
   const isCleanMode = ref(false)
+  const isFocusMode = ref(false)
+  const isTypewriterMode = ref(false)
   const leftSidebarMode = ref<SidebarMode>(SidebarMode.START)
   const searchFolderPath = ref<string | null>(null)
   const leftSidebarWidth = ref(288) // 默认宽度
@@ -140,7 +142,7 @@ export const useAppStore = defineStore('app', () => {
   }, { immediate: true })
 
   // update menu when left sidebar or right sidebar or statusbar visibility changes
-  watch(() => [isLeftSidebarVisible.value, isRightSidebarVisible.value, isStatusbarVisible.value, isCleanMode.value], () => {
+  watch(() => [isLeftSidebarVisible.value, isRightSidebarVisible.value, isStatusbarVisible.value, isCleanMode.value, isFocusMode.value, isTypewriterMode.value], () => {
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI?.windowContentChange?.({
         view: {
@@ -148,6 +150,8 @@ export const useAppStore = defineStore('app', () => {
           rightSidebar: isRightSidebarVisible.value,
           statusbar: isStatusbarVisible.value,
           cleanMode: isCleanMode.value,
+          focusMode: isFocusMode.value,
+          typewriterMode: isTypewriterMode.value,
         },
       })
     }
@@ -173,6 +177,8 @@ export const useAppStore = defineStore('app', () => {
     isLeftSidebarVisible.value = uiState.isLeftSidebarVisible
     isRightSidebarVisible.value = uiState.isRightSidebarVisible
     isStatusbarVisible.value = uiState.isStatusbarVisible
+    isFocusMode.value = uiState.isFocusMode
+    isTypewriterMode.value = uiState.isTypewriterMode
     leftSidebarMode.value = uiState.leftSidebarMode
     leftSidebarWidth.value = uiState.leftSidebarWidth
     rightSidebarWidth.value = uiState.rightSidebarWidth ?? 288
@@ -253,6 +259,8 @@ export const useAppStore = defineStore('app', () => {
       isLeftSidebarVisible: isLeftSidebarVisible.value,
       isRightSidebarVisible: isRightSidebarVisible.value,
       isStatusbarVisible: isStatusbarVisible.value,
+      isFocusMode: isFocusMode.value,
+      isTypewriterMode: isTypewriterMode.value,
       leftSidebarMode: leftSidebarMode.value,
       leftSidebarWidth: leftSidebarWidth.value,
       rightSidebarWidth: rightSidebarWidth.value
@@ -437,6 +445,24 @@ export const useAppStore = defineStore('app', () => {
 
   function toggleCleanMode() {
     setCleanMode(!isCleanMode.value)
+  }
+
+  function setFocusMode(enabled: boolean) {
+    if (isFocusMode.value === enabled) return
+    isFocusMode.value = enabled
+  }
+
+  function toggleFocusMode() {
+    setFocusMode(!isFocusMode.value)
+  }
+
+  function setTypewriterMode(enabled: boolean) {
+    if (isTypewriterMode.value === enabled) return
+    isTypewriterMode.value = enabled
+  }
+
+  function toggleTypewriterMode() {
+    setTypewriterMode(!isTypewriterMode.value)
   }
 
   // Update window title based on current state
@@ -1622,17 +1648,11 @@ export const useAppStore = defineStore('app', () => {
       // Edit Menu Actions
 
       // View Menu Actions
-      case 'view-toggle-left-sidebar':
-        toggleLeftSidebar()
+      case 'view-toggle-focus-mode':
+        toggleFocusMode()
         return true
-      case 'view-toggle-right-sidebar':
-        toggleRightSidebar()
-        return true
-      case 'view-toggle-statusbar':
-        toggleStatusbar()
-        return true
-      case 'view-toggle-clean-mode':
-        toggleCleanMode()
+      case 'view-toggle-typewriter-mode':
+        toggleTypewriterMode()
         return true
       case 'view-explorer':
       case 'view-search':
@@ -1641,7 +1661,19 @@ export const useAppStore = defineStore('app', () => {
         const mode = action.replace('view-', '') as keyof typeof SidebarMode
         setLeftSidebarMode(SidebarMode[mode.toUpperCase() as keyof typeof SidebarMode])
         return true
-      
+      case 'view-toggle-clean-mode':
+        toggleCleanMode()
+        return true
+      case 'view-toggle-right-sidebar':
+        toggleRightSidebar()
+        return true
+
+      case 'view-toggle-left-sidebar':
+        toggleLeftSidebar()
+        return true
+      case 'view-toggle-statusbar':
+        toggleStatusbar()
+        return true
       case 'view-theme-follow-system':
         setTheme('system')
         return true
@@ -1703,6 +1735,8 @@ export const useAppStore = defineStore('app', () => {
     }
   )
 
+  watch([isFocusMode, isTypewriterMode], () => saveUIState())
+
   // leftSidebarWidth / rightSidebarWidth 单独监听（拖拽时频繁变化，需要防抖）
   watch(leftSidebarWidth, () => saveUIState())
   watch(rightSidebarWidth, () => saveUIState())
@@ -1748,6 +1782,8 @@ export const useAppStore = defineStore('app', () => {
     isRightSidebarVisible,
     isStatusbarVisible,
     isCleanMode,
+    isFocusMode,
+    isTypewriterMode,
     leftSidebarMode,
     searchFolderPath,
     leftSidebarWidth,
@@ -1776,6 +1812,10 @@ export const useAppStore = defineStore('app', () => {
     toggleStatusbar,
     setCleanMode,
     toggleCleanMode,
+    setFocusMode,
+    toggleFocusMode,
+    setTypewriterMode,
+    toggleTypewriterMode,
     setLeftSidebarMode,
     searchInFolder,
     setLeftSidebarWidth,
