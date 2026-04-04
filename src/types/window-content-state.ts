@@ -21,6 +21,7 @@ export interface ViewState {
   leftSidebar?: boolean
   rightSidebar?: boolean
   statusbar?: boolean
+  cleanMode?: boolean
   isFullscreen?: boolean
   theme?: string // 支持任意主题ID
   themeType?: 'light' | 'dark' | 'system' // 主题类型

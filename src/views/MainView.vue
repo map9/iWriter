@@ -1,14 +1,49 @@
 <template>
+  <div
+    v-if="appStore.isCleanMode"
+    class="fixed inset-x-0 top-0 z-40 h-3"
+    @mouseenter="revealCleanModeChrome()"
+  />
+
+  <transition
+    enter-active-class="transition-all duration-300 ease-out"
+    enter-from-class="opacity-0 -translate-y-3 scale-[0.985]"
+    enter-to-class="opacity-100 translate-y-0"
+    leave-active-class="transition-all duration-500 ease-out"
+    leave-from-class="opacity-100 translate-y-0"
+    leave-to-class="opacity-0 -translate-y-3 scale-[0.985]"
+  >
+    <div
+      v-if="appStore.isCleanMode && showCleanModeChrome"
+      class="fixed left-1/2 top-3 z-50 -translate-x-1/2"
+      @mouseenter="lockCleanModeChrome"
+      @mouseleave="scheduleCleanModeChromeHide(500)"
+    >
+      <div class="no-drag flex items-center gap-3 rounded-full border border-border-separator bg-background-window/92 px-3 py-1.5 shadow-lg backdrop-blur-md">
+        <div class="max-w-80 truncate text-sm text-text-secondary">
+          {{ activeDocumentTitle }}
+        </div>
+        <div class="h-4 w-px bg-border-separator" />
+        <button
+          class="toolbar-button text-sm"
+          @click="appStore.setCleanMode(false)"
+        >
+          Exit Clean Mode
+        </button>
+      </div>
+    </div>
+  </transition>
+
   <!-- Workzone Wrapper -->
   <div class="mainview">
   
     <!-- Left Sidebar -->
-    <LeftSidebar v-if="appStore.isLeftSidebarVisible" />
+    <LeftSidebar v-if="appStore.isLeftSidebarVisible && !appStore.isCleanMode" />
     
     <!-- Workzone -->
     <div class="workzone0">
       <!-- Title Bar -->
-      <TitleBar />
+      <TitleBar v-if="!appStore.isCleanMode" />
 
       <!-- Document Workarea -->
       <div class="workzone1">
@@ -67,13 +102,13 @@
         </div>
         
         <!-- Right Sidebar (AI Chat) -->
-        <RightSidebar v-show="appStore.isRightSidebarVisible" />
+        <RightSidebar v-show="appStore.isRightSidebarVisible && !appStore.isCleanMode" />
       </div>
     </div>
   </div>
   
   <!-- Status Bar -->
-  <StatusBar v-if="appStore.isStatusbarVisible"/>
+  <StatusBar v-if="appStore.isStatusbarVisible && !appStore.isCleanMode"/>
   
   <!-- Update Dialog -->
   <UpdateDialog
@@ -123,11 +158,60 @@ const pdfViewerRefs = ref<InstanceType<typeof PDFViewerPage>[]>([])
 // Update dialog state
 const showUpdateDialog = ref(false)
 const updateDialogData = ref<UpdateInfo | null>(null)
+const showCleanModeChrome = ref(false)
+const isCleanModeChromeHovered = ref(false)
+let cleanModeChromeTimer: ReturnType<typeof setTimeout> | null = null
+const handleWindowEscape = (event: KeyboardEvent) => {
+  if (event.key !== 'Escape' || event.defaultPrevented || !appStore.isCleanMode) return
+  appStore.setCleanMode(false)
+}
 
 // Computed
 const activeTab = computed(() => appStore.activeTab)
+const activeDocumentTitle = computed(() => activeTab.value?.name || 'Writing')
 
 // Methods
+function clearCleanModeChromeTimer() {
+  if (cleanModeChromeTimer) {
+    clearTimeout(cleanModeChromeTimer)
+    cleanModeChromeTimer = null
+  }
+}
+
+function lockCleanModeChrome() {
+  isCleanModeChromeHovered.value = true
+  clearCleanModeChromeTimer()
+}
+
+function scheduleCleanModeChromeHide(delay = 2200) {
+  clearCleanModeChromeTimer()
+  if (!appStore.isCleanMode) return
+
+  isCleanModeChromeHovered.value = false
+
+  cleanModeChromeTimer = setTimeout(() => {
+    if (isCleanModeChromeHovered.value) {
+      scheduleCleanModeChromeHide(700)
+      return
+    }
+    showCleanModeChrome.value = false
+    cleanModeChromeTimer = null
+  }, delay)
+}
+
+function revealCleanModeChrome(delay = 2200) {
+  if (!appStore.isCleanMode) return
+  showCleanModeChrome.value = true
+  scheduleCleanModeChromeHide(delay)
+}
+
+function handleWindowMouseMove(event: MouseEvent) {
+  if (!appStore.isCleanMode) return
+  if (event.clientY <= 16) {
+    revealCleanModeChrome()
+  }
+}
+
 function getActivePageRef() {
   if (!activeTab.value) return null
 
@@ -188,6 +272,9 @@ function handleViewUpdateDetails() {
 onMounted(() => {
   aiStore.init()
 
+  document.addEventListener('keydown', handleWindowEscape, true)
+  document.addEventListener('mousemove', handleWindowMouseMove, true)
+
   window.electronAPI.onAiRequestSnapshot?.(async (req: SnapshotRequestEvent) => {
     type TipTapEditor = import('@tiptap/core').Editor
     let editor: TipTapEditor | null = null
@@ -233,8 +320,22 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  clearCleanModeChromeTimer()
+  document.removeEventListener('keydown', handleWindowEscape, true)
+  document.removeEventListener('mousemove', handleWindowMouseMove, true)
   aiStore.teardown()
 })
+
+watch(() => appStore.isCleanMode, (enabled) => {
+  if (enabled) {
+    revealCleanModeChrome(2600)
+    return
+  }
+
+  clearCleanModeChromeTimer()
+  isCleanModeChromeHovered.value = false
+  showCleanModeChrome.value = false
+}, { immediate: true })
 
 // Expose methods to parent component (App.vue)
 defineExpose({

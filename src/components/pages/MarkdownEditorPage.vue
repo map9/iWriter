@@ -1,7 +1,7 @@
 <template>
   <div class="document-editor-wrapper">
     <!-- Editor Toolbar -->
-    <div class="toolbar">
+    <div v-if="!appStore.isCleanMode" class="toolbar">
       <!-- Undo/Redo Group -->
       <div class="toolbar-group">
         <button

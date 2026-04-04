@@ -30,6 +30,7 @@ export const useAppStore = defineStore('app', () => {
   const isLeftSidebarVisible = ref(true)
   const isRightSidebarVisible = ref(false)
   const isStatusbarVisible = ref(true)  
+  const isCleanMode = ref(false)
   const leftSidebarMode = ref<SidebarMode>(SidebarMode.START)
   const searchFolderPath = ref<string | null>(null)
   const leftSidebarWidth = ref(288) // 默认宽度
@@ -139,13 +140,14 @@ export const useAppStore = defineStore('app', () => {
   }, { immediate: true })
 
   // update menu when left sidebar or right sidebar or statusbar visibility changes
-  watch(() => [isLeftSidebarVisible.value, isRightSidebarVisible.value, isStatusbarVisible.value], () => {
+  watch(() => [isLeftSidebarVisible.value, isRightSidebarVisible.value, isStatusbarVisible.value, isCleanMode.value], () => {
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI?.windowContentChange?.({
         view: {
           leftSidebar: isLeftSidebarVisible.value,
           rightSidebar: isRightSidebarVisible.value,
-          statusbar: isStatusbarVisible.value
+          statusbar: isStatusbarVisible.value,
+          cleanMode: isCleanMode.value,
         },
       })
     }
@@ -426,6 +428,15 @@ export const useAppStore = defineStore('app', () => {
   
   function toggleStatusbar() {
     showStatusbar(!isStatusbarVisible.value)
+  }
+
+  function setCleanMode(enabled: boolean) {
+    if (isCleanMode.value === enabled) return
+    isCleanMode.value = enabled
+  }
+
+  function toggleCleanMode() {
+    setCleanMode(!isCleanMode.value)
   }
 
   // Update window title based on current state
@@ -1620,6 +1631,9 @@ export const useAppStore = defineStore('app', () => {
       case 'view-toggle-statusbar':
         toggleStatusbar()
         return true
+      case 'view-toggle-clean-mode':
+        toggleCleanMode()
+        return true
       case 'view-explorer':
       case 'view-search':
       case 'view-tag':
@@ -1680,8 +1694,13 @@ export const useAppStore = defineStore('app', () => {
   // ===== 状态监听 =====
 
   // 监听 UI 状态变化（除了 leftSidebarWidth）
-  watch([isLeftSidebarVisible, isRightSidebarVisible, isStatusbarVisible, leftSidebarMode],
-    () => saveUIState()
+  watch(
+    [isLeftSidebarVisible, isRightSidebarVisible, isStatusbarVisible, leftSidebarMode, isCleanMode],
+    () => {
+      if (!isCleanMode.value) {
+        saveUIState()
+      }
+    }
   )
 
   // leftSidebarWidth / rightSidebarWidth 单独监听（拖拽时频繁变化，需要防抖）
@@ -1728,6 +1747,7 @@ export const useAppStore = defineStore('app', () => {
     isLeftSidebarVisible,
     isRightSidebarVisible,
     isStatusbarVisible,
+    isCleanMode,
     leftSidebarMode,
     searchFolderPath,
     leftSidebarWidth,
@@ -1754,6 +1774,8 @@ export const useAppStore = defineStore('app', () => {
     toggleLeftSidebar,
     toggleRightSidebar,
     toggleStatusbar,
+    setCleanMode,
+    toggleCleanMode,
     setLeftSidebarMode,
     searchInFolder,
     setLeftSidebarWidth,

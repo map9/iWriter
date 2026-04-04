@@ -1489,6 +1489,8 @@ export class MenuManager {
           {
             label: 'Clean Mode',
             accelerator: 'CmdOrCtrl+Shift+5',
+            type: 'checkbox',
+            checked: wState?.wContentState?.view?.cleanMode ? true : false,
             enabled: wState != null,
             click: () => {
               this.sendMenuAction('view-toggle-clean-mode')
