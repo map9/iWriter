@@ -1572,8 +1572,6 @@ export class MenuManager {
           { type: 'separator' },
           { role: 'forceReload' },
           { role: 'toggleDevTools' },
-          { type: 'separator' },
-          { role: 'togglefullscreen' },
         ]
       },
       { role: 'windowMenu' },

@@ -265,13 +265,14 @@
       <!-- Spacer -->
       <div class="toolbar-spacer"></div>
       
-      <!-- Fullscreen Button -->
+      <!-- Clean Mode Button -->
       <div class="toolbar-group">
         <button
-          @click="toggleFullscreen"
+          @click="appStore.toggleCleanMode()"
           :disabled="!editor"
+          :class="{ 'bg-gray-200': appStore.isCleanMode }"
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Toggle Fullscreen"
+          title="Toggle Clean Mode"
         >
           <IconMaximize class="w-5 h-5" />
         </button>
@@ -384,7 +385,6 @@ let typewriterSyncFrame = 0
 
 // Toolbar state
 const currentHeading = ref('paragraph')
-const isFullscreen = ref(false)
 
 function getEditorClass(focusModeEnabled: boolean): string {
   return focusModeEnabled
@@ -608,16 +608,6 @@ function syncTypewriterScroll(force = false) {
   } catch (error) {
     console.warn('Failed to sync typewriter mode:', error)
   }
-}
-
-function toggleFullscreen() {
-  isFullscreen.value = !isFullscreen.value
-  
-  // Emit event to parent component to handle fullscreen
-  const event = new CustomEvent('toggle-fullscreen', {
-    detail: { isFullscreen: isFullscreen.value }
-  })
-  document.dispatchEvent(event)
 }
 
 // Handle menu actions
