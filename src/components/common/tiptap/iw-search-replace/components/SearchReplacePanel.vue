@@ -2,6 +2,7 @@
   <div
     v-if="isOpen"
     class="search-replace-panel"
+    :class="{ compact: isCompact }"
   >
     <!-- 第一行：搜索框 -->
     <div class="search-row">
@@ -177,6 +178,7 @@ const localSearchTerm = ref('')
 const localReplaceTerm = ref('')
 const searchInputRef = ref<HTMLTextAreaElement | null>(null)
 const replaceInputRef = ref<HTMLTextAreaElement | null>(null)
+const containerWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
 
 // 计算属性从 editor storage 获取状态
 const isOpen = computed(() => props.editor.storage.iwSearchReplace.isOpen)
@@ -185,6 +187,7 @@ const options = computed(() => props.editor.storage.iwSearchReplace.options)
 const matchCount = computed(() => props.editor.storage.iwSearchReplace.matches.length)
 const currentIndex = computed(() => props.editor.storage.iwSearchReplace.currentMatchIndex)
 const searchInSelection = computed(() => props.editor.storage.iwSearchReplace.searchInSelection)
+const isCompact = computed(() => containerWidth.value < 720)
 
 // 检查是否有有效选区
 const hasSelection = computed(() => {
@@ -216,11 +219,19 @@ watch(
 watch(isOpen, async (isNowOpen) => {
   if (isNowOpen) {
     await nextTick()
+    syncCompactMode()
     searchInputRef.value?.focus()
     searchInputRef.value?.select()
     autoResizeTextarea(searchInputRef.value)
   }
 })
+
+function syncCompactMode() {
+  const editorContainer = props.editor.view.dom.closest('.editor-content-wrapper') as HTMLElement | null
+  if (!editorContainer) return
+
+  containerWidth.value = editorContainer.clientWidth
+}
 
 // 事件处理函数
 function closePanel() {
@@ -412,25 +423,30 @@ function handleKeyDown(event: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown)
+  window.addEventListener('resize', syncCompactMode)
+  nextTick(syncCompactMode)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
+  window.removeEventListener('resize', syncCompactMode)
 })
 </script>
 
 <style scoped>
 .search-replace-panel {
-  position: fixed;
-  top: 4.75rem;
+  position: absolute;
+  top: 0.75rem;
   right: 1rem;
   z-index: 100;
   background: var(--color-background-window);
   border: 1px solid var(--color-border-separator);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  min-width: 450px;
   padding: 0.5rem;
+  box-sizing: border-box;
+  width: min(560px, calc(100% - 2rem));
+  max-width: calc(100% - 2rem);
 }
 
 /* ===== 第一行：搜索行 ===== */
@@ -697,5 +713,57 @@ onUnmounted(() => {
 .replace-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.search-replace-panel.compact .search-row,
+.search-replace-panel.compact .replace-row {
+  flex-wrap: wrap;
+}
+
+.search-replace-panel.compact .toggle-btn {
+  order: 1;
+}
+
+.search-replace-panel.compact .input-wrapper {
+  order: 2;
+  flex: 1 1 220px;
+}
+
+.search-replace-panel.compact .close-btn {
+  order: 3;
+  margin-left: auto;
+}
+
+.search-replace-panel.compact .result-count-container {
+  order: 4;
+  min-width: 0;
+  margin-left: 26px;
+}
+
+.search-replace-panel.compact .nav-group {
+  order: 5;
+  margin-left: auto;
+}
+
+.search-replace-panel.compact .selection-btn {
+  order: 6;
+}
+
+.search-replace-panel.compact .toggle-placeholder {
+  order: 1;
+}
+
+.search-replace-panel.compact .replace-row .input-wrapper {
+  order: 2;
+  flex-basis: calc(100% - 26px);
+}
+
+.search-replace-panel.compact .result-count-placeholder {
+  display: none;
+}
+
+.search-replace-panel.compact .replace-actions {
+  order: 3;
+  margin-left: auto;
 }
 </style>

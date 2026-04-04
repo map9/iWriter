@@ -128,7 +128,7 @@
   }
 
   .editor-content-wrapper {
-    @apply flex-1 overflow-y-auto;
+    @apply relative flex-1 overflow-y-auto;
   }
 
   .sidebar-header {
