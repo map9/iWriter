@@ -386,6 +386,27 @@ let typewriterSyncFrame = 0
 const currentHeading = ref('paragraph')
 const isFullscreen = ref(false)
 
+function getEditorClass(focusModeEnabled: boolean): string {
+  return focusModeEnabled
+    ? `${EDITOR_BASE_CLASS} editor-focus-mode`
+    : EDITOR_BASE_CLASS
+}
+
+function applyEditorModeClasses(currentEditor: Editor | null | undefined, focusModeEnabled: boolean) {
+  if (!currentEditor) return
+
+  currentEditor.setOptions({
+    editorProps: {
+      ...currentEditor.options.editorProps,
+      attributes: {
+        ...currentEditor.options.editorProps?.attributes,
+        class: getEditorClass(focusModeEnabled),
+        spellcheck: 'false',
+      },
+    },
+  })
+}
+
 const extensions = createMarkdownEditorExtensions({
   tocUpdateCallback: content => {
     if (props.tab.tocProvider) {
@@ -417,7 +438,7 @@ const editor = useEditor({
   content: '',
   editorProps: {
     attributes: {
-      class: EDITOR_BASE_CLASS,
+      class: getEditorClass(appStore.isFocusMode),
       spellcheck: 'false',
     },
   },
@@ -449,7 +470,7 @@ const editor = useEditor({
       setInvisibleCharacters(props.tab.editState?.invisibleCharacters || true)
       setProofreadErrorsDisplay(props.tab.editState?.showProofreadErrors || true)
       setProofread(props.tab.editState?.proofread || true)
-      scheduleTypewriterSync()
+      scheduleTypewriterSync(true)
     })
   },
   onFocus: () => {
@@ -461,6 +482,10 @@ const editor = useEditor({
 // Watch for editor state changes and update toolbar
 watch(() => editor.value, (newEditor) => {
   if (newEditor) {
+    applyEditorModeClasses(newEditor, appStore.isFocusMode)
+    nextTick(() => {
+      scheduleTypewriterSync(true)
+    })
     appStore.updateTabState(props.tab.id, { editorInstance: newEditor, tocProvider: new MarkdownTocProvider(newEditor)})
   }
 }, { immediate: true })
@@ -473,26 +498,20 @@ watch(() => appStore.isTypewriterMode, (enabled) => {
   }
 
   nextTick(() => {
-    scheduleTypewriterSync()
+    scheduleTypewriterSync(true)
   })
 })
 
-watch(() => appStore.isFocusMode, (enabled) => {
-  const currentEditor = editor.value
-  if (!currentEditor) return
+watch(() => props.tab.isActive, (isActive) => {
+  if (!isActive) return
 
-  currentEditor.setOptions({
-    editorProps: {
-      ...currentEditor.options.editorProps,
-      attributes: {
-        ...currentEditor.options.editorProps?.attributes,
-        class: enabled
-          ? `${EDITOR_BASE_CLASS} editor-focus-mode`
-          : EDITOR_BASE_CLASS,
-        spellcheck: 'false',
-      },
-    },
+  nextTick(() => {
+    scheduleTypewriterSync(true)
   })
+}, { immediate: true })
+
+watch(() => appStore.isFocusMode, (enabled) => {
+  applyEditorModeClasses(editor.value, enabled)
 }, { immediate: true })
 
 // Cleanup
@@ -556,7 +575,7 @@ async function loadTabContent(editorInstance: Editor) {
   }
 }
 
-function scheduleTypewriterSync() {
+function scheduleTypewriterSync(force = false) {
   if (!appStore.isTypewriterMode || !editor.value || !editorScrollRef.value) return
 
   if (typewriterSyncFrame !== 0) {
@@ -565,16 +584,16 @@ function scheduleTypewriterSync() {
 
   typewriterSyncFrame = requestAnimationFrame(() => {
     typewriterSyncFrame = 0
-    syncTypewriterScroll()
+    syncTypewriterScroll(force)
   })
 }
 
-function syncTypewriterScroll() {
+function syncTypewriterScroll(force = false) {
   const currentEditor = editor.value
   const scrollContainer = editorScrollRef.value
 
   if (!appStore.isTypewriterMode || !currentEditor || !scrollContainer) return
-  if (!currentEditor.view.hasFocus() || currentEditor.view.composing) return
+  if ((!force && !currentEditor.view.hasFocus()) || currentEditor.view.composing) return
   if (!currentEditor.state.selection.empty) return
 
   try {
