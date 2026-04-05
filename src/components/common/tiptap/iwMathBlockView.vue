@@ -1,7 +1,7 @@
 <template>
   <node-view-wrapper 
     ref="mathBlockRef"
-    class="toolbar-warpper"
+    class="toolbar-wrapper"
     :class="{ editing: isEditing }"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
@@ -220,7 +220,7 @@ onUnmounted(() => {
 <style lang="scss" scoped>
 
 //.tiptap {
-  .toolbar-warpper {
+  .toolbar-wrapper {
     &.editing {
       border: 1px solid rgba(0, 0, 0, 0.2);
       border-radius: 0.5rem;

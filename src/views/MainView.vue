@@ -16,7 +16,7 @@
     <div
       v-if="appStore.isCleanMode && showCleanModeChrome"
       class="fixed left-1/2 top-3 z-50 -translate-x-1/2"
-      @mouseenter="lockCleanModeChrome"
+      @mouseenter="clearCleanModeChromeTimer"
       @mouseleave="scheduleCleanModeChromeHide(500)"
     >
       <div class="no-drag flex items-center gap-3 rounded-full border border-border-separator bg-background-window/92 px-3 py-1.5 shadow-lg backdrop-blur-md">
@@ -159,7 +159,6 @@ const pdfViewerRefs = ref<InstanceType<typeof PDFViewerPage>[]>([])
 const showUpdateDialog = ref(false)
 const updateDialogData = ref<UpdateInfo | null>(null)
 const showCleanModeChrome = ref(false)
-const isCleanModeChromeHovered = ref(false)
 let cleanModeChromeTimer: ReturnType<typeof setTimeout> | null = null
 const handleWindowEscape = (event: KeyboardEvent) => {
   if (event.key !== 'Escape' || event.defaultPrevented || !appStore.isCleanMode) return
@@ -178,22 +177,11 @@ function clearCleanModeChromeTimer() {
   }
 }
 
-function lockCleanModeChrome() {
-  isCleanModeChromeHovered.value = true
-  clearCleanModeChromeTimer()
-}
-
 function scheduleCleanModeChromeHide(delay = 2200) {
   clearCleanModeChromeTimer()
   if (!appStore.isCleanMode) return
 
-  isCleanModeChromeHovered.value = false
-
   cleanModeChromeTimer = setTimeout(() => {
-    if (isCleanModeChromeHovered.value) {
-      scheduleCleanModeChromeHide(700)
-      return
-    }
     showCleanModeChrome.value = false
     cleanModeChromeTimer = null
   }, delay)
@@ -206,7 +194,7 @@ function revealCleanModeChrome(delay = 2200) {
 }
 
 function handleWindowMouseMove(event: MouseEvent) {
-  if (!appStore.isCleanMode) return
+  if (!appStore.isCleanMode || showCleanModeChrome.value) return
   if (event.clientY <= 16) {
     revealCleanModeChrome()
   }
@@ -333,7 +321,6 @@ watch(() => appStore.isCleanMode, (enabled) => {
   }
 
   clearCleanModeChromeTimer()
-  isCleanModeChromeHovered.value = false
   showCleanModeChrome.value = false
 }, { immediate: true })
 

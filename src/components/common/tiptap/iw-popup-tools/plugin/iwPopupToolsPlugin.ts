@@ -103,7 +103,7 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
           
           const target = event.target as Element
           // 检查点击是否在popup工具外部
-          if (!target.closest('.toolbar-warpper')) {
+          if (!target.closest('.toolbar-wrapper')) {
             // 强制退出编辑模式
             const tr = view.state.tr.setMeta('exitPopupTool', true)
             view.dispatch(tr)

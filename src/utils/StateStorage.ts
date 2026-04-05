@@ -19,6 +19,8 @@ export interface UIState {
   isStatusbarVisible: boolean
   isFocusMode: boolean
   isTypewriterMode: boolean
+  // clean mode is deliberately not persisted; it is treated as a temporary
+  // distraction-free overlay state instead of a restored workspace preference.
   leftSidebarMode: SidebarMode
   leftSidebarWidth: number
   rightSidebarWidth: number

@@ -24,7 +24,7 @@ export class EditWidget {
 
   constructor() {
     this.editWidget = document.createElement('span')
-    this.editWidget.className = 'toolbar-warpper inline-block'
+    this.editWidget.className = 'toolbar-wrapper inline-block'
     this.editWidget.contentEditable = 'false'
 
     this.floatingPanel = document.createElement('div')

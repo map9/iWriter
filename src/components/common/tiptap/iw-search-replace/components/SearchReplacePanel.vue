@@ -178,7 +178,7 @@ const localSearchTerm = ref('')
 const localReplaceTerm = ref('')
 const searchInputRef = ref<HTMLTextAreaElement | null>(null)
 const replaceInputRef = ref<HTMLTextAreaElement | null>(null)
-const containerWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
+const containerWidth = ref<number | null>(null)
 
 // 计算属性从 editor storage 获取状态
 const isOpen = computed(() => props.editor.storage.iwSearchReplace.isOpen)
@@ -187,7 +187,7 @@ const options = computed(() => props.editor.storage.iwSearchReplace.options)
 const matchCount = computed(() => props.editor.storage.iwSearchReplace.matches.length)
 const currentIndex = computed(() => props.editor.storage.iwSearchReplace.currentMatchIndex)
 const searchInSelection = computed(() => props.editor.storage.iwSearchReplace.searchInSelection)
-const isCompact = computed(() => containerWidth.value < 720)
+const isCompact = computed(() => containerWidth.value !== null && containerWidth.value < 720)
 
 // 检查是否有有效选区
 const hasSelection = computed(() => {

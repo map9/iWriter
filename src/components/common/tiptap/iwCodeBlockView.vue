@@ -1,6 +1,6 @@
 <template>
   <node-view-wrapper 
-    class="toolbar-warpper"
+    class="toolbar-wrapper"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
   >

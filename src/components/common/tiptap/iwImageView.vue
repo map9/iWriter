@@ -1,5 +1,5 @@
 <template>
-  <node-view-wrapper class="toolbar-warpper" :style="{ 'text-align': textAlign }" @mouseenter="handleMouseEnter"
+  <node-view-wrapper class="toolbar-wrapper" :style="{ 'text-align': textAlign }" @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave">
     <!-- 图片工具栏：在图片内部 -->
     <div class="toolbar-controls inside-top" v-show="shouldShowToolbar">
@@ -634,7 +634,7 @@ const updateImageFromInput = async (): Promise<void> => {
 <style lang="scss" scoped>
 
 //.tiptap {
-  .toolbar-warpper {
+  .toolbar-wrapper {
     .toolbar-controls {
       border-radius: 0.5rem 0.5rem 0 0;
     }

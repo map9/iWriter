@@ -270,7 +270,6 @@
         <button
           @click="appStore.toggleCleanMode()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': appStore.isCleanMode }"
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Toggle Clean Mode"
         >

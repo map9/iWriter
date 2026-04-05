@@ -42,7 +42,7 @@ export function createTipTapSuggestionBox(
 	return ({ error, position, onReplace, onIgnore, onClose }) => {
 		// 创建建议框容器 - 使用统一的样式类
 		const suggestionWidget = document.createElement('div')
-		suggestionWidget.className = 'proofread-suggestion toolbar-warpper'
+		suggestionWidget.className = 'proofread-suggestion toolbar-wrapper'
 		
 		const suggestionPanel = document.createElement('div')
 		suggestionPanel.className = 'toolbar-controls fixed'

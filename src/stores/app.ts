@@ -253,6 +253,8 @@ export const useAppStore = defineStore('app', () => {
 
   /**
    * 保存 UI 状态（防抖）
+   * clean mode is intentionally excluded here so it always behaves like
+   * a transient "hide chrome for now" view, rather than a persisted layout.
    */
   const saveUIState = debounce(() => {
     StateStorage.saveUIState({
@@ -1729,9 +1731,7 @@ export const useAppStore = defineStore('app', () => {
   watch(
     [isLeftSidebarVisible, isRightSidebarVisible, isStatusbarVisible, leftSidebarMode, isCleanMode],
     () => {
-      if (!isCleanMode.value) {
-        saveUIState()
-      }
+      saveUIState()
     }
   )
 

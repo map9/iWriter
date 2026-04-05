@@ -1,6 +1,6 @@
 <template>
   <node-view-wrapper 
-    class="toolbar-warpper"
+    class="toolbar-wrapper"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
   >
@@ -625,7 +625,7 @@ const deleteRow = (): void => {
 
 <style lang="scss" scoped>
 /*
-.toolbar-warpper {
+.toolbar-wrapper {
   &.has-focus {
    .tableWrapper, .tableWrapper:hover {
       border: 2px solid transparent !important;
