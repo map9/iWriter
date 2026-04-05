@@ -39,8 +39,8 @@ export const useAppStore = defineStore('app', () => {
   const minSidebarWidth = 256 // 最小宽度 - 对应TOC按钮右边缘
   const rightSidebarWidth = ref(288) // 默认宽度
   const minRightSidebarWidth = 288 // 最小宽度
+  const autoSaveEnabled = ref(true)
   const globalEditSetting = reactive<EditSetting>({
-    autoSave: true,
     lineEnding: 'LF',
     invisibleCharacters: true,
     firstLineIndent: true,
@@ -80,18 +80,8 @@ export const useAppStore = defineStore('app', () => {
   const hasOpenFolder = computed(() => {
     return currentFolder.value !== null
   })
-  
-  const autoSave = computed(() => {
-    if (
-      activeTab.value && 
-      (activeTab.value.documentType === DocumentType.MARKDOWN_EDITOR) &&
-      activeTab.value.editState?.autoSave
-    ) {
-        return activeTab.value.editState.autoSave
-      } else {
-        return globalEditSetting.autoSave
-      }
-  })
+
+  const autoSave = computed(() => autoSaveEnabled.value)
 
   // Update menu when theme changes
   watch(() => currentThemeId.value, (themeId) => {
@@ -162,6 +152,7 @@ export const useAppStore = defineStore('app', () => {
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI.windowContentChange({
         autoSave: newAutoSave,
+        edit: { autoSave: newAutoSave },
       })
     }
   }, { immediate: true })
@@ -186,6 +177,7 @@ export const useAppStore = defineStore('app', () => {
     // 2. 恢复编辑设置
     const editSetting = StateStorage.loadEditSetting()
     Object.assign(globalEditSetting, editSetting)
+    autoSaveEnabled.value = StateStorage.loadAutoSave()
 
     // 3. 恢复主题
     const savedThemeId = StateStorage.loadTheme()
@@ -276,6 +268,10 @@ export const useAppStore = defineStore('app', () => {
     StateStorage.saveEditSetting(globalEditSetting)
   }, 500)
 
+  const saveAutoSaveDebounced = debounce(() => {
+    StateStorage.saveAutoSave(autoSaveEnabled.value)
+  }, 500)
+
   /**
    * 保存工作区状态（防抖）
    */
@@ -315,6 +311,9 @@ export const useAppStore = defineStore('app', () => {
         }
         if (saveEditSettingDebounced.flush) {
           saveEditSettingDebounced.flush()
+        }
+        if (saveAutoSaveDebounced.flush) {
+          saveAutoSaveDebounced.flush()
         }
 
         // 禁用状态持久化（避免在清理过程中触发保存）
@@ -490,16 +489,7 @@ export const useAppStore = defineStore('app', () => {
 
   function toggleAutoSave() {
     if (!window.electronAPI?.windowContentChange) return
-
-    if (
-      activeTab.value && 
-      (activeTab.value.documentType === DocumentType.MARKDOWN_EDITOR) &&
-      activeTab.value.editState?.autoSave
-    ) {
-      activeTab.value.editState.autoSave = !activeTab.value.editState.autoSave
-    } else {
-      globalEditSetting.autoSave = !globalEditSetting.autoSave
-    }
+    autoSaveEnabled.value = !autoSave.value
   }
 
   async function openFile(filePath: string) {
@@ -1275,7 +1265,7 @@ export const useAppStore = defineStore('app', () => {
       isDirty: false,
       isActive: true,
       documentType: documentType || (path ? detectFromPath(path) : DocumentType.MARKDOWN_EDITOR),
-      editState: globalEditSetting
+      editState: { ...globalEditSetting }
     }
     
     // Deactivate all other tabs
@@ -1370,6 +1360,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function setActiveTab(tabId: string) {
+    if (autoSaveEnabled.value && activeTab.value?.isDirty && activeTab.value?.path) {
+      saveTab(activeTab.value, false, true)
+    }
     tabs.value.forEach(tab => {
       tab.isActive = tab.id === tabId
     })
@@ -1404,7 +1397,7 @@ export const useAppStore = defineStore('app', () => {
     return defaultName
   }
 
-  async function saveTab(tab: FileTab, saveAs: boolean = false): Promise<boolean> {
+  async function saveTab(tab: FileTab, saveAs: boolean = false, silent: boolean = false): Promise<boolean> {
     if (!tab || !window.electronAPI) return false
     
     try {
@@ -1440,8 +1433,10 @@ export const useAppStore = defineStore('app', () => {
           tab.isDirty = false
           tab.name = pathUtils.basename(originalPath)
           tab.savedCheckPoint = undoDepth((tab.editorInstance as import('@tiptap/core').Editor).state)
-          
-          notify.success(`${originalPath} 保存成功`, '文件操作')
+
+          if (!silent) {
+            notify.success(`${originalPath} 保存成功`, '文件操作')
+          }
           return true
         }
       }
@@ -1743,6 +1738,7 @@ export const useAppStore = defineStore('app', () => {
 
   // 监听编辑设置变化
   watch(globalEditSetting, () => saveEditSettingDebounced(), { deep: true })
+  watch(autoSaveEnabled, () => saveAutoSaveDebounced())
 
   // 监听主题变化
   watch(currentThemeId, (themeId) => {
@@ -1802,6 +1798,7 @@ export const useAppStore = defineStore('app', () => {
     // Computed
     activeTab,
     hasOpenFolder,
+    autoSave,
 
     initial,
     destroy,

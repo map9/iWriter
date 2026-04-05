@@ -303,7 +303,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, toRef, watch, onBeforeUnmount, nextTick } from 'vue'
+import { ref, toRef, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { generateJSON, Editor } from '@tiptap/core'
 import { undoDepth } from '@tiptap/pm/history'
@@ -381,6 +381,8 @@ const EDITOR_BASE_CLASS = 'flex-1 flex-shrink-0 p-[3rem] pb-[30vh] focus:outline
 const isLoading = ref(false)
 const editorScrollRef = ref<HTMLElement | null>(null)
 let typewriterSyncFrame = 0
+const AUTO_SAVE_DELAY = 2000
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 // Toolbar state
 const currentHeading = ref('paragraph')
@@ -447,6 +449,7 @@ const editor = useEditor({
       const isDirty = !(props.tab.savedCheckPoint === undoDepth(editor.state))
       if (transaction.docChanged) {
         appStore.updateTabState(props.tab.id, { isDirty })
+        scheduleAutoSave()
       }
     }
 
@@ -502,7 +505,10 @@ watch(() => appStore.isTypewriterMode, (enabled) => {
 })
 
 watch(() => props.tab.isActive, (isActive) => {
-  if (!isActive) return
+  if (!isActive) {
+    void flushAutoSave(true)
+    return
+  }
 
   nextTick(() => {
     scheduleTypewriterSync(true)
@@ -513,8 +519,26 @@ watch(() => appStore.isFocusMode, (enabled) => {
   applyEditorModeClasses(editor.value, enabled)
 }, { immediate: true })
 
+watch(() => appStore.autoSave, (enabled) => {
+  if (!enabled && autoSaveTimer !== null) {
+    clearTimeout(autoSaveTimer)
+    autoSaveTimer = null
+  }
+})
+
+onMounted(() => {
+  window.addEventListener('blur', handleWindowBlur)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+})
+
 // Cleanup
 onBeforeUnmount(() => {
+  window.removeEventListener('blur', handleWindowBlur)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  if (autoSaveTimer !== null) {
+    clearTimeout(autoSaveTimer)
+    autoSaveTimer = null
+  }
   if (typewriterSyncFrame !== 0) {
     cancelAnimationFrame(typewriterSyncFrame)
   }
@@ -606,6 +630,40 @@ function syncTypewriterScroll(force = false) {
     }
   } catch (error) {
     console.warn('Failed to sync typewriter mode:', error)
+  }
+}
+
+function scheduleAutoSave() {
+  if (!appStore.autoSave) return
+  if (!props.tab.path) return
+
+  if (autoSaveTimer !== null) clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(() => {
+    autoSaveTimer = null
+    void flushAutoSave()
+  }, AUTO_SAVE_DELAY)
+}
+
+async function flushAutoSave(allowInactive: boolean = false) {
+  if (autoSaveTimer !== null) {
+    clearTimeout(autoSaveTimer)
+    autoSaveTimer = null
+  }
+
+  if (!appStore.autoSave) return
+  if (!allowInactive && !props.tab.isActive) return
+  if (!props.tab.isDirty || !props.tab.path) return
+
+  await appStore.saveTab(props.tab, false, true)
+}
+
+function handleWindowBlur() {
+  void flushAutoSave()
+}
+
+function handleVisibilityChange() {
+  if (document.hidden) {
+    void flushAutoSave()
   }
 }
 

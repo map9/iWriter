@@ -4,6 +4,7 @@ import { SidebarMode, DocumentType } from '@/types'
 // Storage Keys
 export const STORAGE_KEYS = {
   THEME: 'iwriter-theme',
+  AUTO_SAVE: 'iwriter-auto-save',
   SEARCH_CONFIG: 'iwriter-search-in-files-config',
   UI_STATE: 'iwriter-ui-state',
   EDIT_SETTING: 'iwriter-edit-setting',
@@ -48,7 +49,6 @@ export const DEFAULT_UI_STATE: UIState = {
 }
 
 export const DEFAULT_EDIT_SETTING: EditSetting = {
-  autoSave: true,
   lineEnding: 'LF',
   invisibleCharacters: true,
   firstLineIndent: true,
@@ -172,6 +172,32 @@ export class StateStorage {
       console.error('Failed to load theme:', error)
       return 'system'
     }
+  }
+
+  /**
+   * 保存自动保存设置
+   */
+  static saveAutoSave(enabled: boolean): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.AUTO_SAVE, JSON.stringify(enabled))
+    } catch (error) {
+      console.error('Failed to save auto-save state:', error)
+    }
+  }
+
+  /**
+   * 加载自动保存设置
+   */
+  static loadAutoSave(): boolean {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.AUTO_SAVE)
+      if (saved !== null) {
+        return JSON.parse(saved)
+      }
+    } catch (error) {
+      console.error('Failed to load auto-save state:', error)
+    }
+    return true
   }
 
   /**
