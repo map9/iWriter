@@ -1,8 +1,8 @@
 <template>
-  <div class="h-full flex flex-col bg-gray-100">
+  <div class="document-viewer-wrapper">
     <!-- PDF Toolbar -->
-    <div class="flex items-center gap-2 p-2 bg-white border-b border-gray-200">
-      <div class="flex items-center gap-1">
+    <div class="toolbar">
+      <div class="toolbar-group">
         <button
           @click="zoomOut"
           :disabled="zoom <= 0.25"
@@ -34,9 +34,9 @@
         </button>
       </div>
       
-      <div class="w-px h-6 bg-gray-300 mx-2" />
+      <div class="toolbar-separator" />
       
-      <div class="flex items-center gap-1">
+      <div class="toolbar-group">
         <button
           @click="previousPage"
           :disabled="currentPage <= 1"
@@ -69,7 +69,7 @@
         </button>
       </div>
       
-      <div class="flex-1" />
+      <div class="toolbar-spacer" />
       
       <div class="text-sm text-gray-600">
         PDF 文档
@@ -77,25 +77,28 @@
     </div>
     
     <!-- PDF Display Area -->
-    <div 
+    <div
       ref="pdfContainer"
-      class="flex-1 overflow-auto bg-gray-200 p-4"
+      class="flex-1 overflow-auto bg-gray-200"
       tabindex="0"
       @wheel="handleWheel"
+      @scroll.passive="handleScroll"
     >
-      <!-- PDF.js will render here -->
-      <div 
-        ref="pdfViewer"
-        class="flex flex-col items-center space-y-4"
-      >
-        <!-- PDF Pages will be rendered here -->
-        <canvas
-          v-for="pageNum in renderedPages"
-          :key="pageNum"
-          :ref="el => setCanvasRef(el as Element, pageNum)"
-          class="shadow-lg bg-white"
-          :class="{ 'ring-2 ring-blue-500': pageNum === currentPage }"
-        />
+      <div class="min-h-full w-max min-w-full px-4 py-4">
+        <!-- PDF.js will render here -->
+        <div
+          ref="pdfViewer"
+          class="flex w-max min-w-full flex-col items-center space-y-4"
+        >
+          <!-- PDF Pages will be rendered here -->
+          <canvas
+            v-for="pageNum in renderedPages"
+            :key="pageNum"
+            :ref="el => setCanvasRef(el as Element, pageNum)"
+            class="shadow-lg bg-white"
+            :class="{ 'ring-2 ring-blue-500': pageNum === currentPage }"
+          />
+        </div>
       </div>
     </div>
     
@@ -128,6 +131,7 @@
 import { ref, toRef, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import type { FileTab } from '@/types'
 import * as pdfjsLib from 'pdfjs-dist'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { 
   IconZoomIn, 
   IconZoomOut, 
@@ -138,7 +142,7 @@ import {
 } from '@tabler/icons-vue'
 
 // 设置PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf-worker/pdf.worker.min.js'
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 // Props
 interface Props {
@@ -164,6 +168,9 @@ const renderedPages = ref<number[]>([])
 const renderScale = ref(window.devicePixelRatio || 1)
 const activeRenderTasks = new Map<number, pdfjsLib.RenderTask>()
 let isUnmounted = false
+let preloadInFlight: Promise<void> | null = null
+const PAGE_PRELOAD_RANGE = 2
+const PAGE_UNLOAD_RANGE = 6
 
 function isRenderCancelled(error: unknown): boolean {
   return error instanceof Error && (
@@ -218,8 +225,11 @@ function zoomToFit() {
   if (!pdfContainer.value || !pdfDocumentInstance) return
   
   // 计算适合的缩放比例
-  const containerWidth = pdfContainer.value.clientWidth - 40 // 减去内边距
-  const containerHeight = pdfContainer.value.clientHeight - 40
+  const viewerWidth = pdfViewer.value?.clientWidth ?? pdfContainer.value.clientWidth
+  const horizontalPadding = 32
+  const verticalPadding = 48
+  const containerWidth = Math.max(viewerWidth - horizontalPadding, 200)
+  const containerHeight = Math.max(pdfContainer.value.clientHeight - verticalPadding, 200)
   
   // 获取第一页的尺寸作为参考
   pdfDocumentInstance.getPage(1).then(page => {
@@ -237,6 +247,63 @@ async function rerenderAllPages() {
   for (const pageNum of renderedPages.value) {
     await renderPage(pageNum)
   }
+}
+
+function getSortedRenderedPages(): number[] {
+  return [...renderedPages.value].sort((a, b) => a - b)
+}
+
+async function ensurePagesRendered(pageNums: number[]) {
+  const uniquePageNums = [...new Set(pageNums)]
+    .filter(pageNum => pageNum >= 1 && pageNum <= totalPages.value)
+    .sort((a, b) => a - b)
+
+  if (uniquePageNums.length === 0) return
+
+  const pagesToAdd = uniquePageNums.filter(pageNum => !renderedPages.value.includes(pageNum))
+  if (pagesToAdd.length > 0) {
+    renderedPages.value = [...getSortedRenderedPages(), ...pagesToAdd].sort((a, b) => a - b)
+    await nextTick()
+  }
+
+  for (const pageNum of uniquePageNums) {
+    await renderPage(pageNum)
+  }
+}
+
+function unloadRenderedPages(keepPages: number[]) {
+  const keepSet = new Set(keepPages)
+  const pagesToRemove = renderedPages.value.filter(pageNum => !keepSet.has(pageNum))
+
+  if (pagesToRemove.length === 0) return
+
+  for (const pageNum of pagesToRemove) {
+    const canvas = canvasRefs.value.get(pageNum)
+    if (canvas) {
+      const context = canvas.getContext('2d')
+      context?.clearRect(0, 0, canvas.width, canvas.height)
+      canvas.width = 0
+      canvas.height = 0
+      canvas.style.width = '0px'
+      canvas.style.height = '0px'
+    }
+    canvasRefs.value.delete(pageNum)
+  }
+
+  renderedPages.value = renderedPages.value.filter(pageNum => keepSet.has(pageNum))
+}
+
+function trimRenderedPages(anchorPage = currentPage.value) {
+  if (renderedPages.value.length === 0) return
+
+  const keepPages: number[] = []
+  const start = Math.max(1, anchorPage - PAGE_UNLOAD_RANGE)
+  const end = Math.min(totalPages.value, anchorPage + PAGE_UNLOAD_RANGE)
+
+  for (let pageNum = start; pageNum <= end; pageNum++) {
+    keepPages.push(pageNum)
+  }
+  unloadRenderedPages(keepPages)
 }
 
 function previousPage() {
@@ -434,11 +501,7 @@ async function renderPage(pageNum: number) {
 }
 
 async function renderCurrentPage() {
-  if (!renderedPages.value.includes(currentPage.value)) {
-    renderedPages.value.push(currentPage.value)
-    await nextTick()
-  }
-  await renderPage(currentPage.value)
+  await ensurePagesRendered([currentPage.value])
 }
 
 // 预加载附近页面
@@ -448,38 +511,98 @@ async function preloadNearbyPages() {
     return
   }
   
-  const preloadRange = 2 // 预加载前后2页
-  const start = Math.max(1, currentPage.value - preloadRange)
-  const end = Math.min(totalPages.value, currentPage.value + preloadRange)
-  
-  // 添加需要渲染的页面到列表
-  const pagesToAdd = []
+  const start = Math.max(1, currentPage.value - PAGE_PRELOAD_RANGE)
+  const end = Math.min(totalPages.value, currentPage.value + PAGE_PRELOAD_RANGE)
+
+  const pageNums: number[] = []
   for (let pageNum = start; pageNum <= end; pageNum++) {
-    if (!renderedPages.value.includes(pageNum)) {
-      pagesToAdd.push(pageNum)
-      renderedPages.value.push(pageNum)
+    pageNums.push(pageNum)
+  }
+
+  try {
+    await ensurePagesRendered(pageNums)
+    trimRenderedPages(currentPage.value)
+  } catch (err) {
+    console.error('Failed to preload nearby PDF pages:', err)
+  }
+}
+
+function updateCurrentPageFromScroll() {
+  if (!pdfContainer.value) return
+
+  const containerRect = pdfContainer.value.getBoundingClientRect()
+  const viewportCenterY = containerRect.top + containerRect.height / 2
+  let nearestPage = currentPage.value
+  let nearestDistance = Number.POSITIVE_INFINITY
+
+  for (const pageNum of getSortedRenderedPages()) {
+    const canvas = canvasRefs.value.get(pageNum)
+    if (!canvas) continue
+
+    const rect = canvas.getBoundingClientRect()
+    const pageCenterY = rect.top + rect.height / 2
+    const distance = Math.abs(pageCenterY - viewportCenterY)
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance
+      nearestPage = pageNum
     }
   }
-  
-  if (pagesToAdd.length === 0) {
-    return // 没有新页面需要加载
+
+  if (nearestPage !== currentPage.value) {
+    currentPage.value = nearestPage
+    pageInput.value = nearestPage
   }
-  
-  await nextTick()
-  
-  // 渲染新页面（一次一个，避免并发问题）
-  for (const pageNum of pagesToAdd) {
-    try {
-      await renderPage(pageNum)
-    } catch (err) {
-      console.error(`Failed to preload page ${pageNum}:`, err)
-      // 从已渲染页面列表中移除失败的页面
-      const index = renderedPages.value.indexOf(pageNum)
-      if (index !== -1) {
-        renderedPages.value.splice(index, 1)
+}
+
+function queueScrollPreload() {
+  if (preloadInFlight) return
+
+  const task = (async () => {
+    const sortedPages = getSortedRenderedPages()
+    if (!pdfContainer.value || sortedPages.length === 0 || totalPages.value === 0) return
+
+    const firstPage = sortedPages[0]
+    const lastPage = sortedPages[sortedPages.length - 1]
+    if (firstPage == null || lastPage == null) return
+
+    const container = pdfContainer.value
+    const threshold = Math.max(container.clientHeight * 0.75, 400)
+    const pagesToLoad: number[] = []
+    const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+    const distanceToTop = container.scrollTop
+
+    if (distanceToBottom < threshold) {
+      for (let pageNum = lastPage + 1; pageNum <= Math.min(lastPage + PAGE_PRELOAD_RANGE, totalPages.value); pageNum++) {
+        pagesToLoad.push(pageNum)
       }
     }
-  }
+
+    if (distanceToTop < threshold) {
+      for (let pageNum = Math.max(1, firstPage - PAGE_PRELOAD_RANGE); pageNum < firstPage; pageNum++) {
+        pagesToLoad.push(pageNum)
+      }
+    }
+
+    if (pagesToLoad.length > 0) {
+      await ensurePagesRendered(pagesToLoad)
+    }
+
+    trimRenderedPages(currentPage.value)
+  })()
+
+  preloadInFlight = task
+  task.finally(() => {
+    if (preloadInFlight === task) {
+      preloadInFlight = null
+    }
+  })
+}
+
+function handleScroll() {
+  if (!pdfContainer.value) return
+  updateCurrentPageFromScroll()
+  queueScrollPreload()
 }
 
 // Handle menu actions

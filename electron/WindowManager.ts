@@ -250,7 +250,7 @@ export class WindowManager {
     wState.closeTimer?.end()
     // 根据回复决定是否关闭
     if (canClose) {
-      if ( wState.isClosing) {
+      if (wState.isClosing && wState.window && !wState.window.isDestroyed()) {
         wState.window.destroy();
       }
     } else {

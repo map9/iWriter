@@ -53,6 +53,9 @@ export const createFileStatsStatusBarGroup = () => {
   })
 
   const lineEnding = computed((): string => {
+    if (appStore.activeTab?.documentType !== DocumentType.MARKDOWN_EDITOR) {
+      return ''
+    }
     const lineEnding = appStore.activeTab?.editState?.lineEnding
     return lineEnding ? lineEnding : ''
   })

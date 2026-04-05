@@ -1165,7 +1165,6 @@ export class App {
         this.updaterManager.destroy()
         this.updaterManager = null
       }
-      this.acpManager.destroy()
       this.themeManager.destroy()
       this.windowManager.destroy()
       this.menuManager.destroy()

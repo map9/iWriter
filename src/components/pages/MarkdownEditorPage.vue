@@ -1,5 +1,5 @@
 <template>
-  <div class="document-editor-wrapper">
+  <div class="document-viewer-wrapper">
     <!-- Editor Toolbar -->
     <fieldset v-if="!appStore.isCleanMode" class="toolbar" :disabled="isReadonly">
       <!-- Undo/Redo Group -->

@@ -1,8 +1,8 @@
 <template>
-  <div class="h-full flex flex-col bg-gray-100">
+  <div class="document-viewer-wrapper">
     <!-- Image Toolbar -->
-    <div class="flex items-center gap-2 p-2 bg-white border-b border-gray-200">
-      <div class="flex items-center gap-1">
+    <div class="toolbar">
+      <div class="toolbar-group">
         <button
           @click="zoomOut"
           :disabled="zoom <= 0.1"
@@ -34,15 +34,15 @@
         </button>
       </div>
       
-      <div class="w-px h-6 bg-gray-300 mx-2" />
+      <div class="toolbar-separator" />
       
-      <div class="flex items-center gap-1">
+      <div class="toolbar-group">
         <button
           @click="rotateLeft"
           class="p-1.5 rounded hover:bg-gray-200 transition-colors"
           title="向左旋转"
         >
-          <IconRotate class="w-5 h-5 transform scale-x-[-1]" />
+          <IconRotate class="w-5 h-5" />
         </button>
         
         <button
@@ -54,7 +54,7 @@
         </button>
       </div>
       
-      <div class="flex-1" />
+      <div class="toolbar-spacer" />
       
       <div class="text-sm text-gray-600">
         <span v-if="imageDimensions.width && imageDimensions.height">
@@ -66,21 +66,33 @@
     <!-- Image Display Area -->
     <div 
       ref="imageContainer"
-      class="flex-1 overflow-auto flex items-center justify-center p-4"
-      @wheel.prevent="handleWheel"
+      class="flex-1 bg-gray-100 p-4 outline-none"
+      :class="containerInteractionClass"
+      :style="{ overflow: shouldShowScrollbars ? 'auto' : 'hidden' }"
+      tabindex="0"
+      @wheel="handleWheel"
+      @mousedown="startDrag"
+      @keydown="handleKeydown"
     >
-      <div 
-        class="relative inline-block"
-        :style="{ transform: `scale(${zoom}) rotate(${rotation}deg)` }"
+      <div
+        class="flex min-h-full min-w-full"
+        :class="imageViewportClass"
       >
-        <img
-          ref="imageElement"
-          :src="imageUrl"
-          @load="onImageLoad"
-          @error="onImageError"
-          class="max-w-none transition-transform duration-200"
-          :alt="tab.name"
-        />
+        <div 
+          class="relative shrink-0"
+          :style="imageWrapperStyle"
+        >
+          <img
+            ref="imageElement"
+            :src="imageUrl"
+            @load="onImageLoad"
+            @error="onImageError"
+            class="absolute left-1/2 top-1/2 max-w-none select-none transition-transform duration-200"
+            :style="imageTransformStyle"
+            :alt="tab.name"
+            draggable="false"
+          />
+        </div>
       </div>
     </div>
     
@@ -134,8 +146,16 @@ const imageContainer = ref<HTMLElement>()
 const zoom = ref(1)
 const rotation = ref(0)
 const imageDimensions = ref({ width: 0, height: 0 })
+const containerSize = ref({ width: 0, height: 0 })
 const loading = ref(false)
 const error = ref<string | null>(null)
+const isDragging = ref(false)
+
+let resizeObserver: ResizeObserver | null = null
+let dragStartX = 0
+let dragStartY = 0
+let dragStartScrollLeft = 0
+let dragStartScrollTop = 0
 
 // Computed
 const imageUrl = computed(() => {
@@ -144,6 +164,68 @@ const imageUrl = computed(() => {
   }
   return ''
 })
+
+const normalizedRotation = computed(() => {
+  const value = rotation.value % 360
+  return value < 0 ? value + 360 : value
+})
+
+const isQuarterTurn = computed(() => normalizedRotation.value % 180 !== 0)
+
+const transformedImageSize = computed(() => {
+  const baseWidth = imageDimensions.value.width * zoom.value
+  const baseHeight = imageDimensions.value.height * zoom.value
+
+  return isQuarterTurn.value
+    ? { width: baseHeight, height: baseWidth }
+    : { width: baseWidth, height: baseHeight }
+})
+
+const shouldShowScrollbars = computed(() => {
+  if (!containerSize.value.width || !containerSize.value.height) return false
+
+  return (
+    transformedImageSize.value.width > containerSize.value.width ||
+    transformedImageSize.value.height > containerSize.value.height
+  )
+})
+
+const hasHorizontalOverflow = computed(() => (
+  !!containerSize.value.width &&
+  transformedImageSize.value.width > containerSize.value.width
+))
+
+const hasVerticalOverflow = computed(() => (
+  !!containerSize.value.height &&
+  transformedImageSize.value.height > containerSize.value.height
+))
+
+const canPan = computed(() => shouldShowScrollbars.value)
+
+const imageWrapperStyle = computed(() => ({
+  width: `${transformedImageSize.value.width}px`,
+  height: `${transformedImageSize.value.height}px`
+}))
+
+const imageTransformStyle = computed(() => ({
+  width: `${imageDimensions.value.width}px`,
+  height: `${imageDimensions.value.height}px`,
+  transform: `translate(-50%, -50%) scale(${zoom.value}) rotate(${rotation.value}deg)`,
+  transformOrigin: 'center center'
+}))
+
+const containerInteractionClass = computed(() => {
+  if (isDragging.value) return 'cursor-grabbing'
+  if (canPan.value) return 'cursor-grab'
+  return 'cursor-default'
+})
+
+const imageViewportClass = computed(() => ({
+  'items-center': !hasVerticalOverflow.value,
+  'items-start': hasVerticalOverflow.value,
+  'justify-center': !hasHorizontalOverflow.value,
+  'justify-start': hasHorizontalOverflow.value
+}))
 
 // Methods
 function zoomIn() {
@@ -155,17 +237,17 @@ function zoomOut() {
 }
 
 function zoomToFit() {
-  if (!imageElement.value || !imageContainer.value) return
-  
+  if (!imageElement.value || !imageContainer.value || !imageDimensions.value.width || !imageDimensions.value.height) return
+
   const containerRect = imageContainer.value.getBoundingClientRect()
-  
-  const containerWidth = containerRect.width - 32 // padding
-  const containerHeight = containerRect.height - 32 // padding
-  
-  const scaleX = containerWidth / imageDimensions.value.width
-  const scaleY = containerHeight / imageDimensions.value.height
-  
-  zoom.value = Math.min(scaleX, scaleY, 1) // Don't zoom beyond 100%
+  const containerWidth = containerRect.width - 32
+  const containerHeight = containerRect.height - 32
+  const rotatedWidth = isQuarterTurn.value ? imageDimensions.value.height : imageDimensions.value.width
+  const rotatedHeight = isQuarterTurn.value ? imageDimensions.value.width : imageDimensions.value.height
+  const scaleX = containerWidth / rotatedWidth
+  const scaleY = containerHeight / rotatedHeight
+
+  zoom.value = Math.min(scaleX, scaleY, 1)
 }
 
 function rotateLeft() {
@@ -178,13 +260,49 @@ function rotateRight() {
 
 function handleWheel(event: WheelEvent) {
   if (event.ctrlKey || event.metaKey) {
-    // Zoom with Ctrl+scroll
+    event.preventDefault()
     if (event.deltaY < 0) {
       zoomIn()
     } else {
       zoomOut()
     }
   }
+}
+
+function updateContainerSize() {
+  if (!imageContainer.value) return
+
+  containerSize.value = {
+    width: Math.max(imageContainer.value.clientWidth - 32, 0),
+    height: Math.max(imageContainer.value.clientHeight - 32, 0)
+  }
+}
+
+function startDrag(event: MouseEvent) {
+  if (!imageContainer.value || !canPan.value) return
+  if (event.button !== 0) return
+
+  isDragging.value = true
+  dragStartX = event.clientX
+  dragStartY = event.clientY
+  dragStartScrollLeft = imageContainer.value.scrollLeft
+  dragStartScrollTop = imageContainer.value.scrollTop
+  imageContainer.value.focus()
+  event.preventDefault()
+}
+
+function handleDrag(event: MouseEvent) {
+  if (!imageContainer.value || !isDragging.value) return
+
+  const deltaX = event.clientX - dragStartX
+  const deltaY = event.clientY - dragStartY
+
+  imageContainer.value.scrollLeft = dragStartScrollLeft - deltaX
+  imageContainer.value.scrollTop = dragStartScrollTop - deltaY
+}
+
+function stopDrag() {
+  isDragging.value = false
 }
 
 function onImageLoad() {
@@ -199,6 +317,7 @@ function onImageLoad() {
     
     // Auto-fit on first load
     nextTick(() => {
+      updateContainerSize()
       zoomToFit()
     })
   }
@@ -239,8 +358,6 @@ function focusViewer() {
 
 // Keyboard shortcuts
 function handleKeydown(event: KeyboardEvent) {
-  if (event.target !== imageContainer.value) return
-  
   switch (event.key) {
     case '+':
     case '=':
@@ -261,16 +378,57 @@ function handleKeydown(event: KeyboardEvent) {
         zoomToFit()
       }
       break
+    case 'ArrowLeft':
+      if (canPan.value && imageContainer.value) {
+        event.preventDefault()
+        imageContainer.value.scrollLeft -= 40
+      }
+      break
+    case 'ArrowRight':
+      if (canPan.value && imageContainer.value) {
+        event.preventDefault()
+        imageContainer.value.scrollLeft += 40
+      }
+      break
+    case 'ArrowUp':
+      if (imageContainer.value) {
+        event.preventDefault()
+        imageContainer.value.scrollTop -= 40
+      }
+      break
+    case 'ArrowDown':
+      if (imageContainer.value) {
+        event.preventDefault()
+        imageContainer.value.scrollTop += 40
+      }
+      break
   }
 }
 
 onMounted(() => {
   loading.value = true
-  document.addEventListener('keydown', handleKeydown)
+  nextTick(() => {
+    updateContainerSize()
+  })
+
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => {
+      updateContainerSize()
+    })
+
+    if (imageContainer.value) {
+      resizeObserver.observe(imageContainer.value)
+    }
+  }
+
+  window.addEventListener('mousemove', handleDrag)
+  window.addEventListener('mouseup', stopDrag)
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('keydown', handleKeydown)
+  resizeObserver?.disconnect()
+  window.removeEventListener('mousemove', handleDrag)
+  window.removeEventListener('mouseup', stopDrag)
 })
 
 // Expose methods to parent
