@@ -308,7 +308,8 @@ export class App {
           return files.map(file => {
             const filePath = path.join(folderPath, file.name)
             stats = fs.statSync(filePath)
-            
+            let isWritable = true
+            try { fs.accessSync(filePath, fs.constants.W_OK) } catch { isWritable = false }
             return {
               name: file.name,
               isDirectory: file.isDirectory(),
@@ -317,11 +318,14 @@ export class App {
               created: stats?.birthtime,
               modified: stats?.mtime,
               accessed: stats?.atime,
-              changed: stats?.ctime
+              changed: stats?.ctime,
+              isWritable
             }
           })
         } else {
           stats = fs.statSync(folderPath)
+          let isWritable = true
+          try { fs.accessSync(folderPath, fs.constants.W_OK) } catch { isWritable = false }
           return [{
             name: path.basename(folderPath),
             isDirectory: stats?.isDirectory(),
@@ -330,7 +334,8 @@ export class App {
             created: stats?.birthtime,
             modified: stats?.mtime,
             accessed: stats?.atime,
-            changed: stats?.ctime
+            changed: stats?.ctime,
+            isWritable
           }]
         }
       } catch (error) {

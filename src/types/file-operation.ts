@@ -20,6 +20,7 @@ export interface FileOperationResult {
 export interface FileInfo {
   name: string
   isDirectory: boolean
+  isWritable?: boolean
   path: string
   size?: number
   created?: Date

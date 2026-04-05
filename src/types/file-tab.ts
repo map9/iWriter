@@ -22,4 +22,6 @@ export interface FileTab {
   tocProvider?: import('@/types/toc').TocProvider
   fileStats?: import('@/types/file-stats').FileStats
   editState?: import('@/types/edit-setting').EditSetting
+  fileReadonly?: boolean
+  editReadonly?: boolean
 }

@@ -66,13 +66,49 @@ export const createFileStatsStatusBarGroup = () => {
   })
 
   const editable = computed((): string => {
-    const docType = appStore.activeTab?.documentType
-    if (docType) {
-      return isEditable(docType) ? "Editable" : "Readonly"
-    }
-    else {
+    const tab = appStore.activeTab
+    const docType = tab?.documentType
+
+    if (!docType) {
       return ''
     }
+
+    if (!isEditable(docType)) {
+      return 'Viewer'
+    }
+
+    if (tab?.fileReadonly) {
+      return 'File Read-Only'
+    }
+
+    if (tab?.editReadonly) {
+      return 'Read-Only Mode'
+    }
+
+    return 'Editable'
+  })
+
+  const editableTooltip = computed((): string => {
+    const tab = appStore.activeTab
+    const docType = tab?.documentType
+
+    if (!docType) {
+      return ''
+    }
+
+    if (!isEditable(docType)) {
+      return 'Viewer. This document type is not editable.'
+    }
+
+    if (tab?.fileReadonly) {
+      return 'File Read-Only. This file is read-only on disk. Use Save As to create an editable copy.'
+    }
+
+    if (tab?.editReadonly) {
+      return 'Read-Only Mode. Click to disable it.'
+    }
+
+    return 'Editable. Click to enable read-only mode.'
   })
 
   const fileType = computed((): string => {
@@ -145,7 +181,8 @@ export const createFileStatsStatusBarGroup = () => {
     //const editableItem = editorStatusBarGroup.createStatusBarItem(`editable`)
     const editableItem = statusBar.createStatusBarItem({id: `editable`, alignment: StatusBarAlignment.Right, priority: 96})
     editableItem.text = editable.value
-    editableItem.tooltip = 'Switch Editable/Readonly Status'
+    editableItem.tooltip = editableTooltip.value
+    editableItem.command = 'toggleReadonlyMode'
     editableItem.show()
 
     // fileType
@@ -172,6 +209,8 @@ export const createFileStatsStatusBarGroup = () => {
       lineEndingItem.text = lineEnding.value
       autoSaveItem.text = autoSaveText.value
       editableItem.text = editable.value
+      editableItem.tooltip = editableTooltip.value
+      editableItem.command = appStore.activeTab?.documentType && isEditable(appStore.activeTab.documentType) ? 'toggleReadonlyMode' : undefined
       if (fileType.value.length > 0) {
         const icon = getIconByExtension(fileType.value)
         const extension = fileType.value.toUpperCase()

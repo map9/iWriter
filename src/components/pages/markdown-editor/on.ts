@@ -2,6 +2,7 @@ import { type Editor } from '@tiptap/core'
 import type { Node as ProsemirrorNode } from '@tiptap/pm/model'
 
 export function onFileHandlerDrop(editor: Editor, files: File[], pos: number): void {
+  if (!editor.isEditable) return
   files.forEach(file => {
     const fileReader = new FileReader()
 
@@ -23,11 +24,12 @@ export function onFileHandlerDrop(editor: Editor, files: File[], pos: number): v
   })
 }
 
-export function onFileHandlerPaste(editor: Editor, files: File[], pasteContent?: string): void {
+export function onFileHandlerPaste(editor: Editor, files: File[], pasteContent?: string): boolean {
+  if (!editor.isEditable) return true
   // 如果剪贴板包含 HTML 内容但没有图片标签，忽略文件
   // 这通常意味着是从 Word/富文本编辑器复制的文字（Word 会额外添加文字的 PNG 截图）
   if (pasteContent && pasteContent.length > 0 && !/<img\s+[^>]*src=/i.test(pasteContent)) {
-    return
+    return false
   }
   
   // 如果 HTML 包含图片标签，提取 URL
@@ -40,7 +42,7 @@ export function onFileHandlerPaste(editor: Editor, files: File[], pasteContent?:
         type: 'image',
         attrs: { src: imgUrl }
       }).focus().run()
-      return  // ← 提前返回，避免 TipTap 再次插入
+      return true  // ← 提前返回，避免 TipTap 再次插入
     }
   }
   
@@ -63,6 +65,7 @@ export function onFileHandlerPaste(editor: Editor, files: File[], pasteContent?:
         .run()
     }
   })
+  return files.length > 0
 }
 
 export function onPlaceholder(option: { editor: Editor; node: ProsemirrorNode; pos: number; hasAnchor: boolean }): string {

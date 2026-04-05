@@ -67,9 +67,16 @@
             <!-- 标签名称（伸缩部分） -->
             <span class="flex-1 text-sm whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-text-primary">{{ tab.name }}</span>
             
+            <!-- 只读指示器 -->
+            <span
+              v-if="tab.fileReadonly || tab.editReadonly"
+              class="text-xs text-text-secondary flex-shrink-0 mr-1 select-none"
+              :title="tab.fileReadonly ? '文件只读' : '只读模式'"
+            >🔒</span>
+
             <!-- 未保存指示器（固定宽度） -->
-            <div 
-              v-if="tab.isDirty" 
+            <div
+              v-if="tab.isDirty"
               class="icon-dot flex-shrink-0"
             />
             

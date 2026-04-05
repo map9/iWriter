@@ -29,6 +29,9 @@ import {
 // Handle menu actions
 export async function onEditorMenuAction(editor: Editor | undefined, action: string): Promise<boolean> {
   if (!editor) return false
+  if (!editor.isEditable && action !== 'copy-as-plain-text' && action !== 'copy-as-markdown' && action !== 'copy-as-html') {
+    return false
+  }
         
   switch (action) {
     case 'undo':

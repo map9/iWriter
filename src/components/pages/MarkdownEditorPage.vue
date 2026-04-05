@@ -1,7 +1,7 @@
 <template>
   <div class="document-editor-wrapper">
     <!-- Editor Toolbar -->
-    <div v-if="!appStore.isCleanMode" class="toolbar">
+    <fieldset v-if="!appStore.isCleanMode" class="toolbar" :disabled="isReadonly">
       <!-- Undo/Redo Group -->
       <div class="toolbar-group">
         <button
@@ -276,7 +276,7 @@
           <IconMaximize class="w-5 h-5" />
         </button>
       </div>
-    </div>
+    </fieldset>
     
     <!-- TipTap Editor -->
     <div ref="editorScrollRef" class="editor-content-wrapper">
@@ -303,7 +303,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, toRef, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, toRef, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { generateJSON, Editor } from '@tiptap/core'
 import { undoDepth } from '@tiptap/pm/history'
@@ -386,6 +386,25 @@ let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 // Toolbar state
 const currentHeading = ref('paragraph')
+const isReadonly = computed(() => appStore.isTabReadonly(props.tab))
+
+function syncProofreadRuntime() {
+  const currentEditor = editor.value
+  if (!currentEditor) return
+
+  if (!appStore.canRunProofread(props.tab)) {
+    currentEditor.commands.showProofreadErrors(false)
+    currentEditor.commands.disableProofread()
+    return
+  }
+
+  currentEditor.commands.showProofreadErrors(!!props.tab.editState?.showProofreadErrors)
+  if (props.tab.editState?.proofread !== false) {
+    currentEditor.commands.enableProofread()
+  } else {
+    currentEditor.commands.disableProofread()
+  }
+}
 
 function getEditorClass(focusModeEnabled: boolean): string {
   return focusModeEnabled
@@ -429,8 +448,15 @@ const extensions = createMarkdownEditorExtensions({
     }
     return src
   },
-  onFileHandlerDrop,
-  onFileHandlerPaste,
+  onFileHandlerDrop: (currentEditor, files, pos) => {
+    if (isReadonly.value) return true
+    onFileHandlerDrop(currentEditor, files, pos)
+    return true
+  },
+  onFileHandlerPaste: (currentEditor, files, pasteContent) => {
+    if (isReadonly.value) return true
+    return onFileHandlerPaste(currentEditor, files, pasteContent)
+  },
 })
 
 // Create TipTap editor instance
@@ -445,7 +471,7 @@ const editor = useEditor({
   },
   onUpdate: ({ editor, transaction }) => {
     // 当非加载状态下，内容发生变化，使用新的dirty判断逻辑
-    if (!isLoading.value) {
+    if (!isLoading.value && !isReadonly.value) {
       const isDirty = !(props.tab.savedCheckPoint === undoDepth(editor.state))
       if (transaction.docChanged) {
         appStore.updateTabState(props.tab.id, { isDirty })
@@ -470,8 +496,7 @@ const editor = useEditor({
       setFirstLineIndent(props.tab.editState?.firstLineIndent || true)
       setSmartPunctuation(props.tab.editState?.smartPunctuation || true)
       setInvisibleCharacters(props.tab.editState?.invisibleCharacters || true)
-      setProofreadErrorsDisplay(props.tab.editState?.showProofreadErrors || true)
-      setProofread(props.tab.editState?.proofread || true)
+      syncProofreadRuntime()
       scheduleTypewriterSync(true)
     })
   },
@@ -484,13 +509,24 @@ const editor = useEditor({
 // Watch for editor state changes and update toolbar
 watch(() => editor.value, (newEditor) => {
   if (newEditor) {
+    newEditor.setEditable(!isReadonly.value)
     applyEditorModeClasses(newEditor, appStore.isFocusMode)
+    syncProofreadRuntime()
     nextTick(() => {
       scheduleTypewriterSync(true)
     })
     appStore.updateTabState(props.tab.id, { editorInstance: newEditor, tocProvider: new MarkdownTocProvider(newEditor)})
   }
 }, { immediate: true })
+
+watch(isReadonly, (readonly) => {
+  editor.value?.setEditable(!readonly)
+  if (readonly && autoSaveTimer !== null) {
+    clearTimeout(autoSaveTimer)
+    autoSaveTimer = null
+  }
+  syncProofreadRuntime()
+})
 
 watch(() => appStore.isTypewriterMode, (enabled) => {
   if (!enabled && typewriterSyncFrame !== 0) {
@@ -509,6 +545,15 @@ watch(() => props.tab.isActive, (isActive) => {
     void flushAutoSave(true)
     return
   }
+
+  window.electronAPI?.windowContentChange?.({
+    edit: {
+      readonly: isReadonly.value,
+      fileReadonly: !!props.tab.fileReadonly,
+      editReadonly: !!props.tab.editReadonly,
+    }
+  })
+  syncProofreadRuntime()
 
   nextTick(() => {
     scheduleTypewriterSync(true)
@@ -634,8 +679,7 @@ function syncTypewriterScroll(force = false) {
 }
 
 function scheduleAutoSave() {
-  if (!appStore.autoSave) return
-  if (!props.tab.path) return
+  if (!appStore.canRunAutoSave(props.tab)) return
 
   if (autoSaveTimer !== null) clearTimeout(autoSaveTimer)
   autoSaveTimer = setTimeout(() => {
@@ -650,9 +694,8 @@ async function flushAutoSave(allowInactive: boolean = false) {
     autoSaveTimer = null
   }
 
-  if (!appStore.autoSave) return
+  if (!appStore.canRunAutoSave(props.tab)) return
   if (!allowInactive && !props.tab.isActive) return
-  if (!props.tab.isDirty || !props.tab.path) return
 
   await appStore.saveTab(props.tab, false, true)
 }
@@ -710,7 +753,7 @@ async function handleMenuAction(action: string): Promise<boolean> {
       toggleProofreadErrorsDisplay()
       return true
     case 'check-whole-document':
-      if (editor.value) {
+      if (editor.value && appStore.canRunProofread(props.tab)) {
         editor.value.commands.proofreadWhole()
       }
       return true
@@ -830,7 +873,9 @@ function toggleProofreadErrorsDisplay() {
 function setProofreadErrorsDisplay(visible: boolean) {
   const showProofreadErrors = !!visible
 
-  editor.value?.commands.showProofreadErrors(showProofreadErrors)
+  if (appStore.canRunProofread(props.tab)) {
+    editor.value?.commands.showProofreadErrors(showProofreadErrors)
+  }
   
   appStore.updateTabState(props.tab.id, { editState: { showProofreadErrors } })
   window.electronAPI?.windowContentChange?.({
@@ -845,10 +890,13 @@ function toggleProofread() {
 function setProofread(enable: boolean) {
   const proofread = !!enable
 
-  if (proofread === true) {
-      editor.value?.commands.enableProofread()
+  if (!appStore.canRunProofread(props.tab)) {
+    editor.value?.commands.showProofreadErrors(false)
+    editor.value?.commands.disableProofread()
+  } else if (proofread === true) {
+    editor.value?.commands.enableProofread()
   } else {
-      editor.value?.commands.disableProofread()
+    editor.value?.commands.disableProofread()
   }
 
   appStore.updateTabState(props.tab.id, { editState: { proofread } })

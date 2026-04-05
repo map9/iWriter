@@ -16,7 +16,7 @@ function isValidUrl(text: string): boolean {
 }
 
 export function toggleLink(editor: Editor | undefined) {
-  if (!editor) return
+  if (!editor || !editor.isEditable) return
   if (editor?.isActive('link')) {
     editor?.chain().focus().unsetLink().run()
   } else {
@@ -59,7 +59,7 @@ function isValidLatex(text: string): boolean {
 }
 
 export function toggleMath(editor: Editor | undefined) {
-  if (!editor) return
+  if (!editor || !editor.isEditable) return
   
   if (editor?.isActive('inlineMath')) {
     // 如果当前在 inlineMath node 内，删除该 node
@@ -90,7 +90,7 @@ export function toggleMath(editor: Editor | undefined) {
 }
 
 export function insertMathBlock(editor: Editor | undefined) {
-  if (!editor) return
+  if (!editor || !editor.isEditable) return
 
   const hasSelection = !editor.state.selection.empty
   if (hasSelection) {
@@ -115,10 +115,12 @@ export function insertMathBlock(editor: Editor | undefined) {
 }
 
 export function insertTable(editor: Editor | undefined) {
+  if (!editor?.isEditable) return
   editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
 }
 
 export async function insertLocalMedia(editor: Editor | undefined) {
+    if (!editor?.isEditable) return
     try {
     // 打开文件选择对话框
     if (window.electronAPI?.showOpenDialog) {
@@ -150,6 +152,7 @@ export async function insertLocalMedia(editor: Editor | undefined) {
 }
 
 export function insertImage(editor: Editor | undefined) {
+  if (!editor?.isEditable) return
   editor?.chain().focus().setImage({ 
     src: "", 
     alt: '',
@@ -158,6 +161,7 @@ export function insertImage(editor: Editor | undefined) {
 }
 
 export function insertAudio(editor: Editor | undefined) {
+  if (!editor?.isEditable) return
   const url = prompt('Enter audio URL:')
   if (url) {
     const audioHtml = `<audio controls><source src="${url}" type="audio/mpeg">Your browser does not support the audio element.</audio>`
@@ -166,6 +170,7 @@ export function insertAudio(editor: Editor | undefined) {
 }
 
 export function insertVideo(editor: Editor | undefined) {
+  if (!editor?.isEditable) return
   const url = prompt('Enter YouTube video URL:')
   if (url) {
     // Extract video ID from YouTube URL
@@ -183,6 +188,7 @@ export function insertVideo(editor: Editor | undefined) {
 }
 
 export function insertReferenceLink(editor: Editor | undefined) {
+  if (!editor?.isEditable) return
   const refLinkText = prompt('Enter link text:', '')
   const refLinkUrl = prompt('Enter link URL:', '')
   if (refLinkText && refLinkUrl && editor) {
@@ -200,6 +206,7 @@ export function insertReferenceLink(editor: Editor | undefined) {
 }
 
 export function insertFootnote(editor: Editor | undefined) {
+  if (!editor?.isEditable) return
   const footnoteText = prompt('Enter footnote text:', '')
   if (footnoteText && editor) {
     const footnoteId = Date.now().toString()
@@ -216,6 +223,7 @@ export function insertFootnote(editor: Editor | undefined) {
 }
 
 export function toggleTaskItemChecked(editor: Editor | undefined) {
+  if (!editor?.isEditable) return false
   return editor?.chain().focus().command(({ tr, state }) => {
     const { selection } = state
     const { $from } = selection
@@ -239,6 +247,7 @@ export function toggleTaskItemChecked(editor: Editor | undefined) {
 }
 
 export function setTaskItemChecked(editor: Editor | undefined, checked: boolean) {
+  if (!editor?.isEditable) return false
   return editor?.chain().focus().command(({ tr, state }) => {
     const { selection } = state
     const { $from } = selection

@@ -17,9 +17,11 @@ import { StatusBar, tooltipManager } from '@/components/common/statusbar'
 import { useNotification, NotificationOverlay } from '@/components/common/statusbar'
 import { createFileStatsStatusBarGroup } from './statusbar-items/file-stats'
 import { createUpdateStatusStatusBarItem } from './statusbar-items/update-status'
+import { useAppStore } from '@/stores/app'
 
 const { state: notificationState, dismiss: hideNotification } = useNotification()
 import updaterService from '@/updater/UpdaterService'
+const appStore = useAppStore()
 
 const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args?: unknown[]) => {
   console.debug('StatusBar command executed:', { command, item: { id: item.id, name: (item as StatusBarItem).name }, args })
@@ -35,6 +37,9 @@ const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args
         updaterService.checkForUpdates().catch(console.error)
       }
       console.debug('Checking for updates...')
+      break
+    case 'toggleReadonlyMode':
+      void appStore.toggleReadonlyMode()
       break
     // Handle other commands as needed
     default:

@@ -83,6 +83,44 @@ export const useAppStore = defineStore('app', () => {
 
   const autoSave = computed(() => autoSaveEnabled.value)
 
+  function isFileReadonly(tab: FileTab | null | undefined): boolean {
+    return tab?.fileReadonly === true
+  }
+
+  function isEditReadonly(tab: FileTab | null | undefined): boolean {
+    return tab?.editReadonly === true
+  }
+
+  function isTabReadonly(tab: FileTab | null | undefined): boolean {
+    return isFileReadonly(tab) || isEditReadonly(tab)
+  }
+
+  function canEditTab(tab: FileTab | null | undefined): boolean {
+    return !!tab && tab.documentType === DocumentType.MARKDOWN_EDITOR && !isTabReadonly(tab)
+  }
+
+  function canSaveTab(tab: FileTab | null | undefined): boolean {
+    return !!tab && isFileReadonly(tab) === false && isEditReadonly(tab) === false
+  }
+
+  function canRunAutoSave(tab: FileTab | null | undefined): boolean {
+    return !!tab && autoSave.value && !!tab.path && !!tab.isDirty && canSaveTab(tab)
+  }
+
+  function canRunProofread(tab: FileTab | null | undefined): boolean {
+    return canEditTab(tab)
+  }
+
+  function syncReadonlyWindowState(tab: FileTab | null | undefined) {
+    window.electronAPI?.windowContentChange?.({
+      edit: {
+        readonly: isTabReadonly(tab),
+        fileReadonly: isFileReadonly(tab),
+        editReadonly: isEditReadonly(tab),
+      }
+    })
+  }
+
   // Update menu when theme changes
   watch(() => currentThemeId.value, (themeId) => {
     if (window.electronAPI?.windowContentChange) {
@@ -114,6 +152,12 @@ export const useAppStore = defineStore('app', () => {
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI.windowContentChange({
         hasActiveDocument: hasActiveDocument,
+        type: newTab?.documentType,
+        edit: {
+          readonly: isTabReadonly(newTab),
+          fileReadonly: isFileReadonly(newTab),
+          editReadonly: isEditReadonly(newTab),
+        }
       })
     }
   }, { immediate: true })
@@ -457,6 +501,40 @@ export const useAppStore = defineStore('app', () => {
     setFocusMode(!isFocusMode.value)
   }
 
+  async function toggleReadonlyMode() {
+    const tab = activeTab.value
+    if (!tab) return
+    if (tab.documentType !== DocumentType.MARKDOWN_EDITOR) return
+
+    if (isFileReadonly(tab)) {
+      notify.warning('该文件因权限为只读，不能直接编辑或保存，可通过 Save As 另存为新文件。', '文件只读')
+      return
+    }
+
+    const nextEditReadonly = !isEditReadonly(tab)
+
+    if (nextEditReadonly && tab.isDirty && window.electronAPI?.showMessageBox) {
+      const result = await window.electronAPI.showMessageBox({
+        message: `Enable read-only mode for "${tab.name}"?`,
+        type: 'question',
+        buttons: ['Save Then Enable', 'Enable Read Only', 'Cancel'],
+        defaultId: 0,
+        cancelId: 2,
+        title: 'Enable Read Only',
+        detail: 'This file has unsaved changes. Read-only mode will stop editing and auto save.'
+      })
+
+      if (result.response === 2) return
+      if (result.response === 0) {
+        const saved = await saveTab(tab, false, true)
+        if (!saved) return
+      }
+    }
+
+    updateTabState(tab.id, { editReadonly: nextEditReadonly })
+    syncReadonlyWindowState({ ...tab, editReadonly: nextEditReadonly })
+  }
+
   function setTypewriterMode(enabled: boolean) {
     if (isTypewriterMode.value === enabled) return
     isTypewriterMode.value = enabled
@@ -509,7 +587,8 @@ export const useAppStore = defineStore('app', () => {
     }
     
     const documentType = detectFromPath(filePath)
-    createTab(pathUtils.basename(filePath), filePath, documentType)
+    const fileReadonly = files[0].isWritable === false
+    createTab(pathUtils.basename(filePath), filePath, documentType, fileReadonly)
   }
 
   /* for debug
@@ -1245,7 +1324,7 @@ export const useAppStore = defineStore('app', () => {
     }
   }
   
-  function createTab(name?: string, path?: string, documentType?: DocumentType) {
+  function createTab(name?: string, path?: string, documentType?: DocumentType, fileReadonly?: boolean) {
     const id = Date.now().toString()
     
     // Generate untitled name if not provided
@@ -1265,7 +1344,9 @@ export const useAppStore = defineStore('app', () => {
       isDirty: false,
       isActive: true,
       documentType: documentType || (path ? detectFromPath(path) : DocumentType.MARKDOWN_EDITOR),
-      editState: { ...globalEditSetting }
+      editState: { ...globalEditSetting },
+      fileReadonly: fileReadonly ?? false,
+      editReadonly: false
     }
     
     // Deactivate all other tabs
@@ -1293,22 +1374,31 @@ export const useAppStore = defineStore('app', () => {
         console.warn('showMessageBox not available')
         return false
       }
-      
+
+      const isReadonlyDirty = isTabReadonly(tab)
+      const isFileReadonlyDirty = isFileReadonly(tab)
       const result = await window.electronAPI.showMessageBox({
         message: `Do you want to save the changes you made to "${tab.name}"?`,
         type: 'question',
-        buttons: ['Save', 'Don\'t Save', 'Cancel'],
+        buttons: [isFileReadonlyDirty ? 'Save As...' : isReadonlyDirty ? 'Disable Read Only & Save' : 'Save', 'Don\'t Save', 'Cancel'],
         defaultId: 0,
         title: 'Save Changes',
-        detail: 'Your changes will be lost if you don\'t save them.',
+        detail: isReadonlyDirty
+          ? isFileReadonlyDirty
+            ? 'This file is read-only on disk. Use Save As to save your changes to a new file, or choose Don\'t Save to discard them.'
+            : 'This tab is in read-only mode. Disable read-only to save, or choose Don\'t Save to discard the changes.'
+          : 'Your changes will be lost if you don\'t save them.',
         cancelId: 2
       })
-      
+
       switch (result.response) {
-        //'save'
+        //'save' or 'save as'
         case 0:
-          // Save the file first
-          if (await saveTab(tab) === false) {
+          if (isReadonlyDirty && !isFileReadonlyDirty) {
+            tab.editReadonly = false
+            syncReadonlyWindowState(tab)
+          }
+          if (await saveTab(tab, isFileReadonlyDirty) === false) {
             return false // If save failed, don't close the tab
           }
           break
@@ -1360,8 +1450,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function setActiveTab(tabId: string) {
-    if (autoSaveEnabled.value && activeTab.value?.isDirty && activeTab.value?.path) {
-      saveTab(activeTab.value, false, true)
+    const currentActiveTab = activeTab.value
+    if (currentActiveTab && canRunAutoSave(currentActiveTab)) {
+      saveTab(currentActiveTab, false, true)
     }
     tabs.value.forEach(tab => {
       tab.isActive = tab.id === tabId
@@ -1399,6 +1490,18 @@ export const useAppStore = defineStore('app', () => {
 
   async function saveTab(tab: FileTab, saveAs: boolean = false, silent: boolean = false): Promise<boolean> {
     if (!tab || !window.electronAPI) return false
+    if (isFileReadonly(tab) && !saveAs) {
+      if (!silent) {
+        notify.warning('该文件为只读文件，不能直接保存，请使用 Save As 另存为新文件。', '文件只读')
+      }
+      return false
+    }
+    if (isEditReadonly(tab) && !saveAs) {
+      if (!silent) {
+        notify.warning('当前标签处于只读模式，请先关闭只读模式后再保存。', '只读模式')
+      }
+      return false
+    }
     
     try {
       let originalPath: string | undefined = tab.path
@@ -1431,6 +1534,9 @@ export const useAppStore = defineStore('app', () => {
         if (result === true) {
           tab.path = originalPath
           tab.isDirty = false
+          tab.fileReadonly = false
+          tab.editReadonly = false
+          syncReadonlyWindowState(tab)
           tab.name = pathUtils.basename(originalPath)
           tab.savedCheckPoint = undoDepth((tab.editorInstance as import('@tiptap/core').Editor).state)
 
@@ -1462,17 +1568,35 @@ export const useAppStore = defineStore('app', () => {
   // 或者使用 Promise.all（但要处理对话框冲突）
   async function saveAllTabs() {
     const dirtyTabs = tabs.value.filter(tab => tab.isDirty)
+    let blockedReadonlyCount = 0
+    let savedCount = 0
 
     // 分别处理有路径和无路径的文件
     const tabsWithPath = dirtyTabs.filter(tab => tab.path)
     const tabsWithoutPath = dirtyTabs.filter(tab => !tab.path)
 
     // 先保存有路径的文件（不需要对话框）
-    await Promise.all(tabsWithPath.map(tab => saveTab(tab)))
+    const saveResults = await Promise.all(tabsWithPath.map(tab => saveTab(tab)))
+    saveResults.forEach((saved, index) => {
+      if (saved) {
+        savedCount += 1
+      } else if (isTabReadonly(tabsWithPath[index])) {
+        blockedReadonlyCount += 1
+      }
+    })
 
     // 然后顺序保存无路径的文件（需要对话框）
     for (const tab of tabsWithoutPath) {
-      await saveTab(tab)
+      const saved = await saveTab(tab)
+      if (saved) {
+        savedCount += 1
+      } else if (isTabReadonly(tab)) {
+        blockedReadonlyCount += 1
+      }
+    }
+
+    if (blockedReadonlyCount > 0) {
+      notify.warning(`已保存 ${savedCount} 个文件，另有 ${blockedReadonlyCount} 个只读文件未保存。`, 'Save All')
     }
   }
 
@@ -1645,6 +1769,9 @@ export const useAppStore = defineStore('app', () => {
       // Edit Menu Actions
 
       // View Menu Actions
+      case 'view-toggle-readonly':
+        await toggleReadonlyMode()
+        return true
       case 'view-toggle-focus-mode':
         toggleFocusMode()
         return true
@@ -1799,6 +1926,13 @@ export const useAppStore = defineStore('app', () => {
     activeTab,
     hasOpenFolder,
     autoSave,
+    isFileReadonly,
+    isEditReadonly,
+    isTabReadonly,
+    canEditTab,
+    canSaveTab,
+    canRunAutoSave,
+    canRunProofread,
 
     initial,
     destroy,
@@ -1811,6 +1945,7 @@ export const useAppStore = defineStore('app', () => {
     toggleCleanMode,
     setFocusMode,
     toggleFocusMode,
+    toggleReadonlyMode,
     setTypewriterMode,
     toggleTypewriterMode,
     setLeftSidebarMode,

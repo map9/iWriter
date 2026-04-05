@@ -4,6 +4,7 @@ import type {
   ParagraphStateTaskListData,
   ParagraphStateTableData
 } from '../src/types/windowContentState'
+import { DocumentType } from '../src/types'
 import { isMac } from './utils'
 import type { WindowState, GlobalParameters } from './types'
 
@@ -199,6 +200,21 @@ export class MenuManager {
             enabled: wState?.wContentState?.hasActiveDocument,
             click: () => {
               this.sendMenuAction('save-all')
+            }
+          },
+          { type: 'separator' },
+          {
+            id: 'toggle-readonly',
+            label: 'Read Only',
+            accelerator: 'CmdOrCtrl+Shift+L',
+            type: 'checkbox',
+            checked: wState?.wContentState?.edit?.readonly ? true : false,
+            enabled:
+              wState?.wContentState?.hasActiveDocument === true &&
+              wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR &&
+              wState?.wContentState?.edit?.fileReadonly !== true,
+            click: () => {
+              this.sendMenuAction('view-toggle-readonly')
             }
           },
           /*

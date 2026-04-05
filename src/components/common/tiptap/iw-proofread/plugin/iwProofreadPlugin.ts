@@ -484,6 +484,7 @@ const handleErrorClick = (
 	event: MouseEvent,
 	storage: iwProofreadStorage
 ): boolean => {
+	if (!view.editable) return false
 	if (!storage.showErrors || !storage.isEnabled) return false
 
 	const decorations = storage.decorationSet.find(pos, pos)
@@ -531,7 +532,11 @@ const showSuggestionPopup = (
 			replacements: error.suggestions
 		},
 		position: { x: rect.left, y: rect.bottom },
-		onReplace: (value: string) => {
+	onReplace: (value: string) => {
+			if (!view.editable) {
+				app.destroy()
+				return
+			}
 			const { from, to } = decoration
 			const tr = view.state.tr
 
@@ -580,6 +585,7 @@ export const performProofread = async (
 	isAllDocument: boolean = false
 ) => {
 	if (!storage.proofreadService || !storage.isEnabled) return
+	if (!editor.isEditable) return
 
 	// 检查 editor 是否已销毁
 	if (editor.isDestroyed) return
