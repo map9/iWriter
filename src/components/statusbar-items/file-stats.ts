@@ -57,6 +57,14 @@ export const createFileStatsStatusBarGroup = () => {
     return lineEnding ? lineEnding : ''
   })
 
+  const autoSaveText = computed((): string => {
+    const docType = appStore.activeTab?.documentType
+    if (docType && isEditable(docType)) {
+      return appStore.autoSave ? 'Auto Save' : ''
+    }
+    return ''
+  })
+
   const editable = computed((): string => {
     const docType = appStore.activeTab?.documentType
     if (docType) {
@@ -127,23 +135,29 @@ export const createFileStatsStatusBarGroup = () => {
     }
     statsItem.show()
 
+    // autoSave
+    const autoSaveItem = statusBar.createStatusBarItem({id: `auto-save`, alignment: StatusBarAlignment.Right, priority: 97})
+    autoSaveItem.text = autoSaveText.value
+    autoSaveItem.tooltip = 'Auto Save'
+    autoSaveItem.show()
+
     // editable
     //const editableItem = editorStatusBarGroup.createStatusBarItem(`editable`)
-    const editableItem = statusBar.createStatusBarItem({id: `editable`, alignment: StatusBarAlignment.Right, priority: 97})
+    const editableItem = statusBar.createStatusBarItem({id: `editable`, alignment: StatusBarAlignment.Right, priority: 96})
     editableItem.text = editable.value
     editableItem.tooltip = 'Switch Editable/Readonly Status'
     editableItem.show()
 
     // fileType
     //const fileTypeItem = editorStatusBarGroup.createStatusBarItem(`file-type`)
-    const fileTypeItem = statusBar.createStatusBarItem({id: `file-type`, alignment: StatusBarAlignment.Right, priority: 96})
+    const fileTypeItem = statusBar.createStatusBarItem({id: `file-type`, alignment: StatusBarAlignment.Right, priority: 95})
     fileTypeItem.text = fileType.value
     fileTypeItem.tooltip = 'File Type: ' + (appStore.activeTab?.documentType ?? '')
     fileTypeItem.show()
 
     // fileSize
     //const fileSizeItem = editorStatusBarGroup.createStatusBarItem(`file-size`)
-    const fileSizeItem = statusBar.createStatusBarItem({id: `file-size`, alignment: StatusBarAlignment.Right, priority: 95})
+    const fileSizeItem = statusBar.createStatusBarItem({id: `file-size`, alignment: StatusBarAlignment.Right, priority: 94})
     fileSizeItem.text = fileSize.value
     fileSizeItem.tooltip = 'File Size'
     fileSizeItem.show()
@@ -156,6 +170,7 @@ export const createFileStatsStatusBarGroup = () => {
         content: statsTooltip.value
       }
       lineEndingItem.text = lineEnding.value
+      autoSaveItem.text = autoSaveText.value
       editableItem.text = editable.value
       if (fileType.value.length > 0) {
         const icon = getIconByExtension(fileType.value)
