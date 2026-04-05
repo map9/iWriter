@@ -16,6 +16,7 @@ import { UpdaterManager } from '../src/updater/UpdaterManager'
 import { AgentEngine } from './ai/AgentEngine'
 import { AiConfigStore } from './ai/config/AiConfigStore'
 import type { AiSettings } from '../src/types/ai'
+import { formatCodeInMain } from './CodeFormatService'
 export class App {
   private fileWatchers: Map<string, FSWatcher>
   private menuManager: MenuManager
@@ -224,6 +225,7 @@ export class App {
 
   private setupIpcHandlers() {
     this.registerExecShellHandler()
+    this.registerCodeFormatHandler()
     this.registerAgentIpcHandlers()
     ipcMain.on('hello', (_, windowId: number) => {
       this.windowManager.handleHello(windowId)
@@ -985,6 +987,12 @@ export class App {
     })
   }
 
+  private registerCodeFormatHandler() {
+    ipcMain.handle('format-code', async (_, { code, language }: { code: string; language?: string | null }) => {
+      return formatCodeInMain(code, language)
+    })
+  }
+
   private registerAgentIpcHandlers() {
     ipcMain.handle('ai:send-message', async (_, req) => {
       return this.agentEngine.sendMessage(req)
@@ -1034,6 +1042,7 @@ export class App {
 
   private removeAllHandler() {
     ipcMain.removeHandler('exec-shell')
+    ipcMain.removeHandler('format-code')
     ipcMain.removeHandler('hello')
     ipcMain.removeHandler('read-file')
     ipcMain.removeHandler('read-file-binary')

@@ -93,6 +93,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Shell execution (read-only commands only)
   execShell: (command: string, cwd?: string) =>
     ipcRenderer.invoke('exec-shell', command, cwd),
+  formatCode: (code: string, language?: string | null) =>
+    ipcRenderer.invoke('format-code', { code, language }),
 
   // Menu actions
   onMenuAction: (callback: (action: string) => void) => {

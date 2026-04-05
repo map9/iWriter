@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, toRaw } from 'vue'
+import { ref, computed, toRaw, nextTick } from 'vue'
 import type {
   AiThread,
   AiProviderConfig,
@@ -30,12 +30,14 @@ import {
   type ToolCallStatusOverrides,
 } from '@/ai/message/display-normalizer'
 import { applyBlockEditProposal } from '@/ai/edit-agent/BlockEditApplier'
+import { UnifiedDocumentAccess } from '@/ai/edit-agent/UnifiedDocumentAccess'
 import { buildSnapshot, buildEditorStateBlock } from '@/ai/thread/ContextBuilder'
 import { useAppStore } from '@/stores/app'
 import type { Editor } from '@tiptap/core'
 import { notify } from '@/utils/notifications'
 import { nanoid } from 'nanoid'
 import { pathUtils } from '@/utils/pathUtils'
+import { DocumentType } from '@/types/document-type'
 import type {
   StreamChunkEvent,
   RunInterruptedEvent,
@@ -818,7 +820,6 @@ export const useAiStore = defineStore('ai', () => {
         pathUtils.normalize(currentFilePath) === pathUtils.normalize(proposal.filePath)
 
       if (!isActiveFile) {
-        const { UnifiedDocumentAccess } = await import('@/ai/edit-agent/UnifiedDocumentAccess')
         const handle = await UnifiedDocumentAccess.createFreshFromFile(proposal.filePath)
         if ('error' in handle) {
           return { success: false as const, error: handle.error }
@@ -836,7 +837,6 @@ export const useAiStore = defineStore('ai', () => {
       return { success: false as const, error: '没有活动的编辑器文档' }
     }
 
-    const { UnifiedDocumentAccess } = await import('@/ai/edit-agent/UnifiedDocumentAccess')
     const handle = UnifiedDocumentAccess.fromEditor(editor, appStore.activeTab?.path ?? undefined)
     const result = await handle.applyBlockProposal(proposal)
     return result.success
@@ -981,13 +981,11 @@ export const useAiStore = defineStore('ai', () => {
 
     if (proposal.kind === 'create_file') {
       const p = proposal as FileCreateProposal
-      const { DocumentType } = await import('@/types/document-type')
       appStore.createTab(p.filename, undefined, DocumentType.MARKDOWN_EDITOR)
 
       const getEditor = (): Editor | undefined =>
         appStore.activeTab?.editorInstance as Editor | undefined
 
-      const { nextTick } = await import('vue')
       for (let i = 0; i < 20; i++) {
         await nextTick()
         if (getEditor()) break

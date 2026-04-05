@@ -76,6 +76,7 @@ export interface ElectronAPI {
 
   // Shell execution (read-only commands, enforced in main process)
   execShell: (command: string, cwd?: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>
+  formatCode: (code: string, language?: string | null) => Promise<import('@/types/code-format').CodeFormatResult>
 
   // 菜单操作
   onMenuAction: (callback: (action: string) => void) => void

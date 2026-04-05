@@ -10,6 +10,20 @@ const electronMainExternal = [
   'better-sqlite3',
 ]
 
+function getVendorChunkName(id: string): string | undefined {
+  if (!id.includes('node_modules')) return undefined
+
+  if (id.includes('/highlight.js/')) return 'highlight'
+  if (id.includes('/pdfjs-dist/')) return 'pdfjs'
+  if (id.includes('/katex/')) return 'katex'
+  if (id.includes('/@tiptap/') || id.includes('/prosemirror-')) return 'tiptap'
+  if (id.includes('/vue/') || id.includes('/@vue/')) return 'vue'
+  if (id.includes('/vue-router/')) return 'vue-router'
+  if (id.includes('/pinia/')) return 'pinia'
+
+  return 'vendor'
+}
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -75,10 +89,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // 优化代码分块
-          if (id.includes('node_modules')) {
-            return id.toString().split('node_modules/')[1].split('/')[0].toString();
-          }
+          return getVendorChunkName(id)
         },
         chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',

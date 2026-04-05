@@ -372,7 +372,6 @@ export async function applyBlockEditProposal(
 export async function getBlockMarkdown(editor: Editor, nodeId: string): Promise<string> {
   const found = findNodeById(editor.state.doc, nodeId)
   if (!found) return ''
-  const { nodeToMarkdown } = await import('./DocumentViewBuilder')
   return nodeToMarkdown(found.node)
 }
 

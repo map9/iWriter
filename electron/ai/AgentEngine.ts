@@ -54,6 +54,7 @@ import { AttachedFileBackend } from './runtime/AttachedFileBackend'
 import { buildFilesystemMounts, type FilesystemMount } from './runtime/FilesystemMounts'
 import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore } from './runtime/ThreadRuntimeStore'
+import { AiConfigStore } from './config/AiConfigStore'
 
 // Import system prompts from src (shared)
 import { EDIT_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/edit'
@@ -156,7 +157,6 @@ export class AgentEngine {
   async sendMessage(req: SendMessageRequest): Promise<{ threadId: string }> {
     await this._ensureInitialized()
 
-    const { AiConfigStore } = await import('./config/AiConfigStore')
     const settings = AiConfigStore.loadSettings()
 
     // Resolve or create thread
@@ -224,7 +224,6 @@ export class AgentEngine {
   async compactInput(req: CompactInputRequest): Promise<CompactInputResponse> {
     await this._ensureInitialized()
 
-    const { AiConfigStore } = await import('./config/AiConfigStore')
     const settings = AiConfigStore.loadSettings()
     const meta = req.threadId ? this.threadListQuery?.getMeta(req.threadId) : null
     const runtime = resolveThreadRuntime(settings, {
@@ -292,7 +291,6 @@ export class AgentEngine {
   async getSessionContextStats(req: CompactInputRequest): Promise<SessionContextStatsResponse> {
     await this._ensureInitialized()
 
-    const { AiConfigStore } = await import('./config/AiConfigStore')
     const settings = AiConfigStore.loadSettings()
     const hasEnabledProvider = settings.providerConfigs.some(config => config.enabled)
     if (!hasEnabledProvider) {
@@ -363,7 +361,6 @@ export class AgentEngine {
     }
     this.runtimeStore.clearInterrupted(threadId)
 
-    const { AiConfigStore } = await import('./config/AiConfigStore')
     const settings = AiConfigStore.loadSettings()
     const meta = this.threadListQuery?.getMeta(threadId)
     const runtime = resolveThreadRuntime(settings, undefined, meta)
