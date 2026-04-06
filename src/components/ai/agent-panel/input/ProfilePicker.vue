@@ -2,7 +2,7 @@
   <div ref="triggerEl" class="relative flex-shrink-0">
     <button
       @click="onToggle"
-      class="flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-600 hover:bg-gray-100 transition-colors max-w-[120px]"
+      class="flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-600 hover:bg-gray-100 transition-colors max-w-25"
       title="切换 Agent Mode"
     >
       <span class="truncate">{{ currentLabel }}</span>

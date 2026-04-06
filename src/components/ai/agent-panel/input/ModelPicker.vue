@@ -6,7 +6,7 @@
   >
     <button
       @click="onToggle"
-      class="flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-600 hover:bg-gray-100 transition-colors max-w-[120px]"
+      class="flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-600 hover:bg-gray-100 transition-colors max-w-25"
       title="切换模型"
     >
       <span class="truncate">{{ currentModelId || '选择模型' }}</span>

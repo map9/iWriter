@@ -135,9 +135,9 @@ const toolbarEl = ref<HTMLElement | null>(null)
 const toolbarWidth = ref(0)
 let resizeObserver: ResizeObserver | null = null
 
-const showProviderPicker = computed(() => toolbarWidth.value >= 180)
-const showModelPickerResponsive = computed(() => toolbarWidth.value >= 280)
-const showModePicker = computed(() => toolbarWidth.value >= 380)
+const showProviderPicker = computed(() => toolbarWidth.value >= 140)
+const showModelPickerResponsive = computed(() => toolbarWidth.value >= 240)
+const showModePicker = computed(() => toolbarWidth.value >= 340)
 const showCompactButton = computed(() => props.showCompact)
 
 const compactTooltip = computed<TooltipContent>(() => ({

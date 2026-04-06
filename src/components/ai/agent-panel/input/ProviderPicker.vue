@@ -2,7 +2,7 @@
   <div ref="triggerEl" class="relative flex-shrink-0">
     <button
       @click="onToggle"
-      class="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors min-w-0 max-w-[120px]"
+      class="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors min-w-0 max-w-25"
       :class="currentProvider ? 'text-gray-700 hover:bg-gray-100' : 'text-red-500 hover:bg-gray-100'"
       title="切换 Provider"
     >
