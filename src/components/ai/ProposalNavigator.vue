@@ -16,17 +16,17 @@
             </div>
             <span
               v-if="hasDeleteProposal"
-              class="inline-flex items-center rounded-full bg-red-200 px-1.5 py-0.5 text-[10px] font-medium text-red-800"
+              class="inline-flex items-center rounded-full bg-status-error/20 px-1.5 py-0.5 text-2xs font-medium text-status-error"
             >
               高风险
             </span>
           </div>
-          <div class="mt-0.5 text-[11px] truncate" :class="headerTextClass" :title="batchSummaryLine">
+          <div class="mt-0.5 text-xs truncate" :class="headerTextClass" :title="batchSummaryLine">
             {{ batchSummaryLine }}
           </div>
           <div
             v-if="hasDeleteProposal"
-            class="mt-1 text-[11px] text-red-700"
+            class="mt-1 text-xs text-status-error"
           >
             删除操作会直接移除相关内容，应用前请先确认命中范围和上下文。
           </div>
@@ -34,11 +34,11 @@
         <div v-if="proposals.length > 1" class="flex gap-1.5">
           <button
             @click="$emit('approveAll')"
-            class="text-xs px-2 py-0.5 rounded bg-green-600 text-white hover:bg-green-700 transition-colors"
+            class="text-xs px-2 py-0.5 rounded bg-status-success text-white hover:bg-status-success/90 transition-colors"
           >{{ hasDeleteProposal ? '全部删除' : '全部应用' }}</button>
           <button
             @click="$emit('endRound')"
-            class="text-xs px-2 py-0.5 rounded bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors"
+            class="text-xs px-2 py-0.5 rounded bg-background-content text-text-primary border border-border-separator hover:bg-interactive-hover transition-colors"
           >结束本轮</button>
         </div>
       </div>
@@ -59,7 +59,7 @@
             <template v-if="proposals.length > 1">{{ currentIndex + 1 }} / {{ proposals.length }} 处修改</template>
             <template v-else>当前修改</template>
           </button>
-          <div class="text-[11px] truncate" :class="headerTextClass" :title="operationSummaryLine">
+          <div class="text-xs truncate" :class="headerTextClass" :title="operationSummaryLine">
             {{ operationSummaryLine }}
           </div>
         </template>
@@ -67,7 +67,7 @@
 
       <div
         v-if="proposals.length > 1 && !isStreaming"
-        class="text-[11px]"
+        class="text-xs"
         :class="headerTextClass"
       >
         逐条审核后统一应用，避免前面的修改影响后续块定位。
@@ -75,26 +75,26 @@
 
       <div
         v-if="reviewSummary && reviewSummary.total > 1"
-        class="flex flex-wrap items-center gap-1.5 text-[11px]"
+        class="flex flex-wrap items-center gap-1.5 text-xs"
       >
         <span class="font-medium" :class="headerTextClass">
           已审核 {{ reviewSummary.resolved }} / {{ reviewSummary.total }}
         </span>
         <span
           v-if="reviewSummary.approved > 0"
-          class="rounded-full bg-green-100 px-1.5 py-0.5 text-green-700"
+          class="rounded-full bg-status-success/10 px-1.5 py-0.5 text-status-success"
         >{{ reviewSummary.approved }} 条待应用</span>
         <span
           v-if="reviewSummary.edited > 0"
-          class="rounded-full bg-blue-100 px-1.5 py-0.5 text-blue-700"
+          class="rounded-full bg-status-info/10 px-1.5 py-0.5 text-status-info"
         >{{ reviewSummary.edited }} 条编辑后应用</span>
         <span
           v-if="reviewSummary.rework > 0"
-          class="rounded-full bg-amber-100 px-1.5 py-0.5 text-amber-700"
+          class="rounded-full bg-status-warning/10 px-1.5 py-0.5 text-status-warning"
         >{{ reviewSummary.rework }} 条退回重做</span>
         <span
           v-if="reviewSummary.paused > 0"
-          class="rounded-full bg-gray-100 px-1.5 py-0.5 text-gray-600"
+          class="rounded-full bg-interactive-hover px-1.5 py-0.5 text-text-secondary"
         >{{ reviewSummary.paused }} 条已暂停</span>
       </div>
     </div>
@@ -113,10 +113,10 @@
 
     <div
       v-if="proposals.length > 1"
-      class="px-3 py-2 bg-white border-b"
+      class="px-3 py-2 bg-background-content border-b"
       :class="overviewBorderClass"
     >
-      <div class="text-[11px] font-medium mb-1.5" :class="overviewTitleClass">{{ overviewTitle }}</div>
+      <div class="text-xs font-medium mb-1.5" :class="overviewTitleClass">{{ overviewTitle }}</div>
       <div class="space-y-1">
         <button
           v-for="(proposal, idx) in proposals"
@@ -126,18 +126,18 @@
           @click="currentIndex = idx"
         >
           <span
-            class="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-medium"
+            class="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-2xs font-medium"
             :class="proposalIndexBadgeClass(proposal, idx)"
           >
             {{ idx + 1 }}
           </span>
           <div class="min-w-0 flex-1">
-            <div class="truncate text-xs font-medium text-gray-900">
+            <div class="truncate text-xs font-medium text-text-primary">
               {{ proposalListLabel(proposal) }}
             </div>
             <div
               v-if="proposal.description"
-              class="mt-0.5 truncate text-[11px] text-gray-500"
+              class="mt-0.5 truncate text-xs text-text-secondary"
               :title="proposal.description"
             >
               {{ proposal.description }}
@@ -145,30 +145,30 @@
           </div>
           <span
             v-if="idx === currentIndex"
-            class="flex-shrink-0 text-[10px]"
-            :class="isDeleteProposal(proposal) ? 'text-red-700' : 'text-yellow-700'"
+            class="flex-shrink-0 text-2xs"
+            :class="isDeleteProposal(proposal) ? 'text-status-error' : 'text-status-warning'"
           >当前</span>
         </button>
       </div>
 
-      <div v-if="reviewedEntriesToShow.length" class="mt-2 border-t border-gray-100 pt-2">
-        <div class="mb-1.5 text-[11px] font-medium text-gray-600">已审核</div>
+      <div v-if="reviewedEntriesToShow.length" class="mt-2 border-t border-border-separator pt-2">
+        <div class="mb-1.5 text-xs font-medium text-text-secondary">已审核</div>
         <div class="space-y-1">
           <button
             v-for="entry in reviewedEntriesToShow"
             :key="entry.proposal.id"
             type="button"
-            class="flex w-full items-center gap-2 rounded-md border border-gray-100 bg-gray-50 px-2 py-1.5 text-left transition-colors hover:border-gray-200 hover:bg-gray-100/80"
+            class="flex w-full items-center gap-2 rounded-md border border-border-separator bg-background-window px-2 py-1.5 text-left transition-colors hover:border-text-tertiary hover:bg-interactive-hover"
             title="点击定位到这处修改"
             @click="focusReviewedProposal(entry.proposal)"
           >
             <span
-              class="inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+              class="inline-flex rounded-full px-1.5 py-0.5 text-2xs font-medium"
               :class="reviewedBadgeClass(entry)"
             >
               {{ entry.label }}
             </span>
-            <div class="min-w-0 flex-1 truncate text-[11px] text-gray-700">
+            <div class="min-w-0 flex-1 truncate text-xs text-text-primary">
               {{ proposalListLabel(entry.proposal) }}
             </div>
           </button>
@@ -180,13 +180,13 @@
     <template v-if="current">
       <!-- FileCreateProposal -->
       <template v-if="current.kind === 'create_file'">
-        <div class="px-3 py-1.5 text-xs font-medium border-b" :class="hasDeleteProposal ? 'text-red-700 border-red-100' : 'text-yellow-700 border-yellow-100'">
+        <div class="px-3 py-1.5 text-xs font-medium border-b" :class="hasDeleteProposal ? 'text-status-error border-status-error/20' : 'text-status-warning border-status-warning/20'">
           📄 {{ createProposal.filename }}.md
         </div>
         <div class="p-2 text-xs">
-          <div class="text-[11px] font-medium mb-1" :class="hasDeleteProposal ? 'text-red-800' : 'text-yellow-800'">修改详情</div>
-          <div class="text-green-600 font-medium mb-1">文档内容</div>
-          <div class="text-green-800 bg-green-50 rounded p-1.5 max-h-48 overflow-auto">
+          <div class="text-xs font-medium mb-1" :class="hasDeleteProposal ? 'text-status-error' : 'text-status-warning'">修改详情</div>
+          <div class="text-status-success font-medium mb-1">文档内容</div>
+          <div class="text-status-success bg-status-success/10 rounded p-1.5 max-h-48 overflow-auto">
             <MarkdownContentView :content="createProposal.content" />
           </div>
         </div>
@@ -196,18 +196,18 @@
       <template v-else-if="isSingleBlock">
         <template v-if="blockProposal.type === 'delete'">
           <div class="p-2 text-xs">
-            <div class="text-[11px] font-medium text-red-800 mb-1">删除详情</div>
-            <div class="mb-1 rounded bg-red-100 px-2 py-1 text-[11px] text-red-700">
+            <div class="text-xs font-medium text-status-error mb-1">删除详情</div>
+            <div class="mb-1 rounded bg-status-error/10 px-2 py-1 text-xs text-status-error">
               应用后将直接删除以下内容，且不会自动保留替代文本。
             </div>
-            <div class="text-red-600 font-medium mb-1">原文（将被删除）</div>
-            <div class="text-red-800 bg-red-50 rounded p-1.5 max-h-32 overflow-auto">
+            <div class="text-status-error font-medium mb-1">原文（将被删除）</div>
+            <div class="text-status-error bg-status-error/10 rounded p-1.5 max-h-32 overflow-auto">
               <MarkdownContentView :content="blockProposal.oldContent || '(空)'" mode="markdown" />
             </div>
           </div>
         </template>
         <template v-else>
-          <div class="p-2 pb-0 text-[11px] font-medium" :class="hasDeleteProposal ? 'text-red-800' : 'text-yellow-800'">修改详情</div>
+          <div class="p-2 pb-0 text-xs font-medium" :class="hasDeleteProposal ? 'text-status-error' : 'text-status-warning'">修改详情</div>
           <DiffSplitView
             :old-content="blockProposal.oldContent || ''"
             :new-content="blockProposal.newContent || ''"
@@ -220,10 +220,10 @@
       <!-- BlockEditProposal: insert -->
       <template v-else-if="current.kind === 'block' && blockProposal.type === 'insert'">
         <div class="p-2 text-xs">
-          <div class="text-[11px] font-medium mb-1" :class="hasDeleteProposal ? 'text-red-800' : 'text-yellow-800'">修改详情</div>
-          <div class="text-green-600 font-medium mb-1">插入内容</div>
+          <div class="text-xs font-medium mb-1" :class="hasDeleteProposal ? 'text-status-error' : 'text-status-warning'">修改详情</div>
+          <div class="text-status-success font-medium mb-1">插入内容</div>
           <div
-            class="rounded border border-green-200 bg-green-50 p-1.5"
+            class="rounded border border-status-success/30 bg-status-success/10 p-1.5"
             :class="isInsertEditing ? 'ring-2 ring-green-200' : 'cursor-text'"
             @click="activateInsertEditing"
           >
@@ -232,13 +232,13 @@
               ref="insertEditorRef"
               v-model="editedContent"
               rows="10"
-              class="w-full resize-y border-0 bg-transparent px-2 py-1 text-xs leading-relaxed text-green-900 outline-none"
+              class="w-full resize-y border-0 bg-transparent px-2 py-1 text-xs leading-relaxed text-status-success outline-none"
               placeholder="按 Markdown 编辑将要插入的内容"
               @blur="deactivateInsertEditing"
             />
             <pre
               v-else
-              class="whitespace-pre-wrap break-word px-2 py-1 text-xs leading-relaxed text-green-900 font-mono"
+              class="whitespace-pre-wrap break-word px-2 py-1 text-xs leading-relaxed text-status-success font-mono"
             >{{ editedContent }}</pre>
           </div>
         </div>
@@ -246,8 +246,8 @@
 
       <!-- BlockEditProposal: replace_range -->
       <template v-else-if="current.kind === 'block' && blockProposal.type === 'replace_range'">
-        <div class="px-3 py-1 text-xs border-b" :class="hasDeleteProposal ? 'text-red-700 border-red-100' : 'text-yellow-700 border-yellow-100'">
-          <span class="font-medium mr-2" :class="hasDeleteProposal ? 'text-red-800' : 'text-yellow-800'">修改详情</span>
+        <div class="px-3 py-1 text-xs border-b" :class="hasDeleteProposal ? 'text-status-error border-status-error/20' : 'text-status-warning border-status-warning/20'">
+          <span class="font-medium mr-2" :class="hasDeleteProposal ? 'text-status-error' : 'text-status-warning'">修改详情</span>
           块 {{ blockProposal.startDisplayBlockId }}–{{ blockProposal.endDisplayBlockId }}
         </div>
         <DiffSplitView
@@ -261,9 +261,9 @@
       <!-- Fallback -->
       <template v-else>
         <div class="p-2 text-xs">
-          <div class="text-[11px] font-medium mb-1" :class="hasDeleteProposal ? 'text-red-800' : 'text-yellow-800'">修改详情</div>
-          <div class="text-green-600 font-medium mb-1">新内容预览</div>
-          <pre class="whitespace-pre-wrap break-words text-green-700 bg-green-50 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ current.kind === 'block' ? blockProposal.newContent : '' }}</pre>
+          <div class="text-xs font-medium mb-1" :class="hasDeleteProposal ? 'text-status-error' : 'text-status-warning'">修改详情</div>
+          <div class="text-status-success font-medium mb-1">新内容预览</div>
+          <pre class="whitespace-pre-wrap break-words text-status-success bg-status-success/10 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ current.kind === 'block' ? blockProposal.newContent : '' }}</pre>
         </div>
       </template>
     </template>
@@ -282,42 +282,42 @@
           >{{ approveButtonLabel }}</button>
           <button
             @click="openReworkComposer"
-            class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded bg-white text-amber-700 border border-amber-300 hover:bg-amber-50 transition-colors"
+            class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded bg-background-content text-status-warning border border-status-warning/30 hover:bg-status-warning/10 transition-colors"
           >↻ 重新修改</button>
           <button
             @click="$emit('endRound', current ? { id: current.id } : undefined)"
-            class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
+            class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded bg-background-content text-text-primary border border-border-separator hover:bg-interactive-hover transition-colors"
           >⏹ 结束本轮</button>
         </div>
 
-        <div v-if="showReworkComposer" class="rounded-md border border-amber-200 bg-white/80 p-2">
-          <div class="text-[11px] font-medium text-amber-800">告诉 AI 这次应该怎么调整</div>
-          <div class="mt-1 text-[11px] text-amber-700">
+        <div v-if="showReworkComposer" class="rounded-md border border-status-warning/30 bg-background-content/80 p-2">
+          <div class="text-xs font-medium text-status-warning">告诉 AI 这次应该怎么调整</div>
+          <div class="mt-1 text-xs text-status-warning/80">
             提交后会暂停这一批后续修改，先让 AI 重做当前这处。
           </div>
           <textarea
             v-model="reworkReason"
             rows="3"
-            class="mt-1 w-full resize-y rounded border border-amber-200 bg-white px-2 py-1.5 text-xs leading-relaxed text-gray-800 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+            class="mt-1 w-full resize-y rounded border border-status-warning/30 bg-background-content px-2 py-1.5 text-xs leading-relaxed text-text-primary outline-none focus:border-status-warning focus:ring-2 focus:ring-status-warning/20"
             placeholder="例如：保留原文事实，只调整文风；不要再压缩句子。"
           />
           <div class="mt-2 flex gap-1.5">
             <button
               @click="submitRework"
               :disabled="!reworkReason.trim() || !current"
-              class="px-2.5 py-1 text-xs rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              class="px-2.5 py-1 text-xs rounded bg-status-warning text-white hover:bg-status-warning/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >提交并重改</button>
             <button
               @click="cancelReworkComposer"
-              class="px-2.5 py-1 text-xs rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+              class="px-2.5 py-1 text-xs rounded border border-border-separator bg-background-content text-text-primary hover:bg-interactive-hover transition-colors"
             >取消</button>
           </div>
         </div>
 
         <div
           v-if="proposals.length > 1"
-          class="text-[11px]"
-          :class="hasDeleteProposal ? 'text-red-700' : isQuickFixBatch ? 'text-blue-700' : 'text-yellow-700'"
+          class="text-xs"
+          :class="hasDeleteProposal ? 'text-status-error' : isQuickFixBatch ? 'text-status-info' : 'text-status-warning'"
         >
           当前确认只会暂存，等本批都审核完后再统一执行。
         </div>
@@ -326,12 +326,12 @@
         <button
           @click="prev"
           :disabled="currentIndex === 0"
-          class="px-2 py-1 text-xs rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          class="px-2 py-1 text-xs rounded border border-border-separator bg-background-content text-text-primary hover:bg-interactive-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >← 上一个</button>
         <button
           @click="next"
           :disabled="currentIndex >= proposals.length - 1"
-          class="px-2 py-1 text-xs rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          class="px-2 py-1 text-xs rounded border border-border-separator bg-background-content text-text-primary hover:bg-interactive-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >下一个 →</button>
       </div>
     </div>
@@ -438,76 +438,76 @@ const approveButtonLabel = computed(() => {
 
 const approveButtonClass = computed(() =>
   current.value && isDeleteProposal(current.value)
-    ? 'bg-red-600 hover:bg-red-700'
+    ? 'bg-status-error hover:bg-status-error/90'
     : isQuickFixBatch.value
-      ? 'bg-blue-600 hover:bg-blue-700'
-      : 'bg-green-600 hover:bg-green-700'
+      ? 'bg-status-info hover:bg-status-info/90'
+      : 'bg-status-success hover:bg-status-success/90'
 )
 
 const containerClass = computed(() => {
-  if (hasDeleteProposal.value) return 'border border-red-300 bg-red-50'
-  if (isQuickFixBatch.value) return 'border border-blue-300 bg-blue-50'
-  return 'border border-yellow-300 bg-yellow-50'
+  if (hasDeleteProposal.value) return 'border border-status-error/30 bg-status-error/10'
+  if (isQuickFixBatch.value) return 'border border-status-info/30 bg-status-info/10'
+  return 'border border-status-warning/30 bg-status-warning/10'
 })
 
 const headerContainerClass = computed(() => {
-  if (hasDeleteProposal.value) return 'bg-red-100 border-red-200'
-  if (isQuickFixBatch.value) return 'bg-blue-100 border-blue-200'
-  return 'bg-yellow-100 border-yellow-200'
+  if (hasDeleteProposal.value) return 'bg-status-error/20 border-status-error/20'
+  if (isQuickFixBatch.value) return 'bg-status-info/20 border-status-info/20'
+  return 'bg-status-warning/20 border-status-warning/20'
 })
 
 const headerTitleClass = computed(() => {
-  if (hasDeleteProposal.value) return 'text-red-900'
-  if (isQuickFixBatch.value) return 'text-blue-900'
-  return 'text-yellow-900'
+  if (hasDeleteProposal.value) return 'text-status-error'
+  if (isQuickFixBatch.value) return 'text-status-info'
+  return 'text-status-warning'
 })
 
 const headerTextClass = computed(() => {
-  if (hasDeleteProposal.value) return 'text-red-700'
-  if (isQuickFixBatch.value) return 'text-blue-700'
-  return 'text-yellow-700'
+  if (hasDeleteProposal.value) return 'text-status-error'
+  if (isQuickFixBatch.value) return 'text-status-info'
+  return 'text-status-warning'
 })
 
 const headerButtonClass = computed(() => {
-  if (hasDeleteProposal.value) return 'text-red-800 hover:text-red-600'
-  if (isQuickFixBatch.value) return 'text-blue-800 hover:text-blue-600'
-  return 'text-yellow-800 hover:text-yellow-600'
+  if (hasDeleteProposal.value) return 'text-status-error hover:text-status-error/70'
+  if (isQuickFixBatch.value) return 'text-status-info hover:text-status-info/70'
+  return 'text-status-warning hover:text-status-warning/70'
 })
 
 const descriptionRowClass = computed(() => {
-  if (hasDeleteProposal.value) return 'bg-red-50 border-red-100'
-  if (isQuickFixBatch.value) return 'bg-blue-50 border-blue-100'
-  return 'bg-yellow-50 border-yellow-100'
+  if (hasDeleteProposal.value) return 'bg-status-error/10 border-status-error/20'
+  if (isQuickFixBatch.value) return 'bg-status-info/10 border-status-info/20'
+  return 'bg-status-warning/10 border-status-warning/20'
 })
 
 const descriptionTitleClass = computed(() => {
-  if (hasDeleteProposal.value) return 'text-red-800'
-  if (isQuickFixBatch.value) return 'text-blue-800'
-  return 'text-yellow-800'
+  if (hasDeleteProposal.value) return 'text-status-error'
+  if (isQuickFixBatch.value) return 'text-status-info'
+  return 'text-status-warning'
 })
 
 const descriptionTextClass = computed(() => {
-  if (hasDeleteProposal.value) return 'text-red-600'
-  if (isQuickFixBatch.value) return 'text-blue-600'
-  return 'text-yellow-600'
+  if (hasDeleteProposal.value) return 'text-status-error/80'
+  if (isQuickFixBatch.value) return 'text-status-info/80'
+  return 'text-status-warning/80'
 })
 
 const overviewBorderClass = computed(() => {
-  if (hasDeleteProposal.value) return 'border-red-100'
-  if (isQuickFixBatch.value) return 'border-blue-100'
-  return 'border-yellow-100'
+  if (hasDeleteProposal.value) return 'border-status-error/20'
+  if (isQuickFixBatch.value) return 'border-status-info/20'
+  return 'border-status-warning/20'
 })
 
 const overviewTitleClass = computed(() => {
-  if (hasDeleteProposal.value) return 'text-red-800'
-  if (isQuickFixBatch.value) return 'text-blue-800'
-  return 'text-yellow-800'
+  if (hasDeleteProposal.value) return 'text-status-error'
+  if (isQuickFixBatch.value) return 'text-status-info'
+  return 'text-status-warning'
 })
 
 const footerContainerClass = computed(() => {
-  if (hasDeleteProposal.value) return 'bg-red-50 border-red-200'
-  if (isQuickFixBatch.value) return 'bg-blue-50 border-blue-200'
-  return 'bg-yellow-50 border-yellow-200'
+  if (hasDeleteProposal.value) return 'bg-status-error/10 border-status-error/20'
+  if (isQuickFixBatch.value) return 'bg-status-info/10 border-status-info/20'
+  return 'bg-status-warning/10 border-status-warning/20'
 })
 
 function basename(filePath: string): string {
@@ -596,35 +596,35 @@ function proposalListLabel(proposal: EditProposal): string {
 function proposalItemClass(proposal: EditProposal, index: number): string {
   if (isDeleteProposal(proposal)) {
     return index === currentIndex.value
-      ? 'border-red-300 bg-red-50'
-      : 'border-red-100 bg-white hover:bg-red-50/50'
+      ? 'border-status-error/30 bg-status-error/10'
+      : 'border-status-error/20 bg-background-content hover:bg-status-error/5'
   }
   return index === currentIndex.value
-    ? 'border-yellow-300 bg-yellow-50'
-    : 'border-yellow-100 bg-white hover:bg-yellow-50/50'
+    ? 'border-status-warning/30 bg-status-warning/10'
+    : 'border-status-warning/20 bg-background-content hover:bg-status-warning/5'
 }
 
 function proposalIndexBadgeClass(proposal: EditProposal, index: number): string {
   if (isDeleteProposal(proposal)) {
     return index === currentIndex.value
-      ? 'bg-red-200 text-red-900'
-      : 'bg-red-100 text-red-700'
+      ? 'bg-status-error/20 text-status-error'
+      : 'bg-status-error/10 text-status-error'
   }
   return index === currentIndex.value
-    ? 'bg-yellow-200 text-yellow-900'
-    : 'bg-yellow-100 text-yellow-700'
+    ? 'bg-status-warning/20 text-status-warning'
+    : 'bg-status-warning/10 text-status-warning'
 }
 
 function reviewedBadgeClass(entry: ProposalReviewEntry): string {
   switch (entry.tone) {
     case 'green':
-      return 'bg-green-100 text-green-700'
+      return 'bg-status-success/10 text-status-success'
     case 'blue':
-      return 'bg-blue-100 text-blue-700'
+      return 'bg-status-info/10 text-status-info'
     case 'amber':
-      return 'bg-amber-100 text-amber-700'
+      return 'bg-status-warning/10 text-status-warning'
     default:
-      return 'bg-gray-100 text-gray-600'
+      return 'bg-interactive-hover text-text-secondary'
   }
 }
 

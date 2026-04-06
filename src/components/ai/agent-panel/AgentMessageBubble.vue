@@ -14,14 +14,14 @@
       <!-- Edit mode: input-area style row -->
       <div v-if="message.role === 'user' && message.content && isEditing" class="flex items-center gap-2 w-full">
         <button
-          class="flex-shrink-0 self-end p-1.5 flex items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 transition-colors"
+          class="flex-shrink-0 self-end p-1.5 flex items-center justify-center rounded-md text-text-secondary hover:bg-interactive-hover transition-colors"
           title="取消"
           @click="isEditing = false"
         ><IconX class="w-4 h-4" /></button>
         <textarea
           ref="editTextareaEl"
           v-model="editText"
-          class="flex-1 px-2 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent overflow-hidden"
+          class="flex-1 px-2 py-1.5 text-sm text-text-primary bg-background-content border border-border-separator rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent overflow-hidden"
           rows="3"
           @keydown.enter.exact.prevent="submitEdit"
           @keydown.shift.enter.exact="() => {}"
@@ -40,7 +40,7 @@
         v-else-if="message.role === 'user' && message.content"
         class="inline-block rounded-lg text-sm max-w-full text-left break-words relative"
         :class="message.isError
-          ? 'bg-red-50 border border-red-200 text-red-700'
+          ? 'bg-status-error/10 border border-status-error/30 text-status-error'
           : 'px-3 py-2 bg-accent-primary text-white'"
       >
         <div
@@ -72,7 +72,7 @@
           <div
             v-else-if="block.type === 'text' && block.text"
             class="inline-block rounded-lg text-sm max-w-full text-left break-words"
-            :class="[message.isError ? 'bg-red-50 border border-red-200 text-red-700 px-3 py-2' : 'text-gray-900', idx > 0 ? 'mt-1.5' : '']"
+            :class="[message.isError ? 'bg-status-error/10 border border-status-error/30 text-status-error px-3 py-2' : 'text-text-primary', idx > 0 ? 'mt-1.5' : '']"
           >
             <MarkdownContentView :content="block.text" mode="markdown" size="sm" />
           </div>
@@ -85,7 +85,7 @@
           />
           <div
             v-else-if="block.type === 'agent_event' && (block.text || block.agentName)"
-            class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 text-xs"
+            class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-background-window border border-border-separator text-text-secondary text-xs"
           >
             <span>🧩</span>
             <span>{{ block.text || `${block.agentName} ${block.status ?? ''}`.trim() }}</span>
@@ -97,7 +97,7 @@
       <div
         v-else-if="message.role === 'assistant' && message.content"
         class="inline-block rounded-lg text-sm max-w-full text-left break-words"
-        :class="message.isError ? 'bg-red-50 border border-red-200 text-red-700 px-3 py-2' : 'text-gray-900'"
+        :class="message.isError ? 'bg-status-error/10 border border-status-error/30 text-status-error px-3 py-2' : 'text-text-primary'"
       >
         <MarkdownContentView :content="message.content" mode="markdown" size="sm" />
       </div>
@@ -137,7 +137,7 @@
         class="mt-1 inline-flex max-w-full flex-col items-start gap-1"
       >
         <button
-          class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+          class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-text-secondary hover:bg-interactive-hover hover:text-text-primary transition-colors"
           @click="thinkingExpanded = !thinkingExpanded"
         >
           <span>💭</span>
@@ -145,7 +145,7 @@
         </button>
         <div
           v-if="thinkingExpanded"
-          class="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] leading-relaxed text-gray-600 whitespace-pre-wrap"
+          class="w-full rounded-md border border-border-separator bg-background-window px-3 py-2 text-xs leading-relaxed text-text-secondary whitespace-pre-wrap"
         >
           {{ thinkingContent }}
         </div>
@@ -153,14 +153,14 @@
 
       <div
         v-if="isPreview && previewStatusText"
-        class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100"
+        class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-interactive-hover"
       >
         <div v-if="showPreviewPulse" class="flex items-center gap-0.5">
-          <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms" />
-          <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:150ms" />
-          <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:300ms" />
+          <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:0ms" />
+          <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:150ms" />
+          <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:300ms" />
         </div>
-        <span class="text-xs text-gray-500">{{ previewStatusText }}</span>
+        <span class="text-xs text-text-secondary">{{ previewStatusText }}</span>
       </div>
 
       <!-- Toolbar / Timestamp row -->
@@ -175,7 +175,7 @@
             :class="message.role === 'user' ? 'justify-end' : 'justify-start'"
           >
             <div
-              class="text-xs text-gray-400 transition-opacity"
+              class="text-xs text-text-tertiary transition-opacity"
               :class="showHoverToolbar && isHovered ? 'opacity-0 pointer-events-none' : 'opacity-100'"
             >
               {{ formatTime(message.timestamp) }}
@@ -190,7 +190,7 @@
             ]"
           >
             <button
-              class="flex items-center gap-1 px-1 py-1 rounded text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              class="flex items-center gap-1 px-1 py-1 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-interactive-hover transition-colors"
               title="复制"
               @click="handleCopy"
             >
@@ -198,7 +198,7 @@
             </button>
             <button
               v-if="message.role === 'user'"
-              class="flex items-center gap-1 px-1 py-1 rounded text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              class="flex items-center gap-1 px-1 py-1 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-interactive-hover transition-colors"
               title="编辑"
               @click="startEdit"
             >

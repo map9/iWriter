@@ -1,24 +1,24 @@
 <template>
-  <div class="border border-yellow-300 bg-yellow-50 rounded-lg overflow-hidden">
+  <div class="border border-status-warning/30 bg-status-warning/10 rounded-lg overflow-hidden">
     <!-- Header -->
-    <div class="flex items-center justify-between px-3 py-2 bg-yellow-100 border-b border-yellow-200">
+    <div class="flex items-center justify-between px-3 py-2 bg-status-warning/20 border-b border-status-warning/20">
       <div class="flex items-center gap-2">
         <span class="text-sm leading-none">✏️</span>
-        <span class="text-xs font-medium text-yellow-800">{{ typeLabel }}</span>
+        <span class="text-xs font-medium text-status-warning">{{ typeLabel }}</span>
       </div>
-      <span class="text-xs text-yellow-600 max-w-[200px] truncate" :title="proposal.description">
+      <span class="text-xs text-status-warning/80 max-w-[200px] truncate" :title="proposal.description">
         {{ proposal.description }}
       </span>
     </div>
 
     <!-- FileCreateProposal (kind === 'create_file') -->
     <template v-if="proposal.kind === 'create_file'">
-      <div class="px-3 py-1.5 text-xs text-yellow-700 font-medium border-b border-yellow-100">
+      <div class="px-3 py-1.5 text-xs text-status-warning font-medium border-b border-status-warning/20">
         📄 {{ createProposal.filename }}.md
       </div>
       <div class="p-2 text-xs">
-        <div class="text-green-600 font-medium mb-1">文档内容</div>
-        <pre class="whitespace-pre-wrap break-words text-green-700 bg-green-50 rounded p-1.5 max-h-48 overflow-auto font-mono leading-relaxed">{{ createProposal.content }}</pre>
+        <div class="text-status-success font-medium mb-1">文档内容</div>
+        <pre class="whitespace-pre-wrap break-words text-status-success bg-status-success/10 rounded p-1.5 max-h-48 overflow-auto font-mono leading-relaxed">{{ createProposal.content }}</pre>
       </div>
     </template>
 
@@ -26,15 +26,15 @@
     <template v-else-if="isSingleBlock">
       <div class="grid grid-cols-2 divide-x divide-yellow-200 text-xs">
         <div class="p-2">
-          <div class="text-red-600 font-medium mb-1">原文</div>
-          <pre class="whitespace-pre-wrap break-words text-red-700 bg-red-50 rounded p-1.5 max-h-32 overflow-auto font-mono leading-relaxed">{{ blockProposal.oldContent || '(空)' }}</pre>
+          <div class="text-status-error font-medium mb-1">原文</div>
+          <pre class="whitespace-pre-wrap break-words text-status-error bg-status-error/10 rounded p-1.5 max-h-32 overflow-auto font-mono leading-relaxed">{{ blockProposal.oldContent || '(空)' }}</pre>
         </div>
         <div class="p-2" v-if="blockProposal.type !== 'delete'">
-          <div class="text-green-600 font-medium mb-1">修改后</div>
-          <pre class="whitespace-pre-wrap break-words text-green-700 bg-green-50 rounded p-1.5 max-h-32 overflow-auto font-mono leading-relaxed">{{ blockProposal.newContent }}</pre>
+          <div class="text-status-success font-medium mb-1">修改后</div>
+          <pre class="whitespace-pre-wrap break-words text-status-success bg-status-success/10 rounded p-1.5 max-h-32 overflow-auto font-mono leading-relaxed">{{ blockProposal.newContent }}</pre>
         </div>
         <div class="p-2 flex items-center justify-center" v-else>
-          <span class="text-xs text-red-500">此块将被删除</span>
+          <span class="text-xs text-status-error">此块将被删除</span>
         </div>
       </div>
     </template>
@@ -42,8 +42,8 @@
     <!-- Insert block -->
     <template v-else-if="proposal.kind === 'block' && blockProposal.type === 'insert'">
       <div class="p-2 text-xs">
-        <div class="text-green-600 font-medium mb-1">插入内容</div>
-        <pre class="whitespace-pre-wrap break-words text-green-700 bg-green-50 rounded p-1.5 max-h-32 overflow-auto font-mono leading-relaxed">{{ blockProposal.newContent }}</pre>
+        <div class="text-status-success font-medium mb-1">插入内容</div>
+        <pre class="whitespace-pre-wrap break-words text-status-success bg-status-success/10 rounded p-1.5 max-h-32 overflow-auto font-mono leading-relaxed">{{ blockProposal.newContent }}</pre>
       </div>
     </template>
 
@@ -51,12 +51,12 @@
     <template v-else-if="proposal.kind === 'block' && blockProposal.type === 'replace_range'">
       <div class="grid grid-cols-2 divide-x divide-yellow-200 text-xs">
         <div class="p-2">
-          <div class="text-red-600 font-medium mb-1">原文 (块 {{ blockProposal.startDisplayBlockId }}–{{ blockProposal.endDisplayBlockId }})</div>
-          <pre class="whitespace-pre-wrap break-words text-red-700 bg-red-50 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ blockProposal.oldContent || '(空)' }}</pre>
+          <div class="text-status-error font-medium mb-1">原文 (块 {{ blockProposal.startDisplayBlockId }}–{{ blockProposal.endDisplayBlockId }})</div>
+          <pre class="whitespace-pre-wrap break-words text-status-error bg-status-error/10 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ blockProposal.oldContent || '(空)' }}</pre>
         </div>
         <div class="p-2">
-          <div class="text-green-600 font-medium mb-1">修改后</div>
-          <pre class="whitespace-pre-wrap break-words text-green-700 bg-green-50 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ blockProposal.newContent }}</pre>
+          <div class="text-status-success font-medium mb-1">修改后</div>
+          <pre class="whitespace-pre-wrap break-words text-status-success bg-status-success/10 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ blockProposal.newContent }}</pre>
         </div>
       </div>
     </template>
@@ -64,27 +64,27 @@
     <!-- Fallback -->
     <template v-else>
       <div class="p-2 text-xs">
-        <div class="text-green-600 font-medium mb-1">新内容预览</div>
-        <pre class="whitespace-pre-wrap break-words text-green-700 bg-green-50 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ proposal.kind === 'block' ? blockProposal.newContent : '' }}</pre>
+        <div class="text-status-success font-medium mb-1">新内容预览</div>
+        <pre class="whitespace-pre-wrap break-words text-status-success bg-status-success/10 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ proposal.kind === 'block' ? blockProposal.newContent : '' }}</pre>
       </div>
     </template>
 
     <!-- Actions -->
-    <div v-if="!disabled" class="flex items-center gap-2 px-3 py-2 bg-yellow-50 border-t border-yellow-200">
+    <div v-if="!disabled" class="flex items-center gap-2 px-3 py-2 bg-status-warning/10 border-t border-status-warning/20">
       <button
         @click="$emit('approve', proposal.id)"
-        class="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 transition-colors"
+        class="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded bg-status-success text-white hover:bg-status-success/90 transition-colors"
       >
         ✓ 应用
       </button>
       <button
         @click="$emit('reject', proposal.id)"
-        class="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
+        class="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded bg-background-content text-text-primary border border-border-separator hover:bg-interactive-hover transition-colors"
       >
         ✗ 忽略
       </button>
     </div>
-    <div v-else class="px-3 py-1.5 text-xs text-yellow-600 bg-yellow-50 border-t border-yellow-200">
+    <div v-else class="px-3 py-1.5 text-xs text-status-warning bg-status-warning/10 border-t border-status-warning/20">
       处理完成后可审核
     </div>
   </div>

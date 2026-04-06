@@ -3,12 +3,12 @@
     <span
       v-for="(f, i) in files"
       :key="i"
-      class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-blue-50 border border-blue-200 text-blue-700 rounded-full"
+      class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-status-info/10 border border-status-info/30 text-status-info rounded-full"
     >
       <IconFolder v-if="isFolder(f)" class="w-3 h-3 flex-shrink-0" />
       <IconFile v-else class="w-3 h-3 flex-shrink-0" />
       <span class="truncate max-w-[120px]">{{ fileName(f) }}</span>
-      <button @click="$emit('remove', i)" class="flex-shrink-0 hover:text-red-500">
+      <button @click="$emit('remove', i)" class="flex-shrink-0 hover:text-status-error">
         <IconX class="w-3 h-3" />
       </button>
     </span>

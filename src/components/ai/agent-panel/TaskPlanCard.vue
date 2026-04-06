@@ -1,32 +1,32 @@
 <template>
   <div
-    class="w-full rounded-lg overflow-hidden text-xs border border-stone-300 bg-stone-50"
+    class="w-full rounded-lg overflow-hidden text-xs border border-border-separator bg-background-window"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
   >
     <div
-      class="flex items-center gap-2.5 px-2.5 py-1.5 select-none text-stone-800 transition-colors"
-      :class="canToggle ? 'cursor-pointer hover:bg-stone-100' : ''"
+      class="flex items-center gap-2.5 px-2.5 py-1.5 select-none text-text-primary transition-colors"
+      :class="canToggle ? 'cursor-pointer hover:bg-interactive-hover' : ''"
       @click="toggleExpanded"
     >
       <div class="w-3.5 flex-shrink-0 flex items-center justify-center">
         <span class="leading-none">✓</span>
       </div>
 
-      <div class="flex-shrink-0 font-semibold text-[12px] leading-4 whitespace-nowrap">
+      <div class="flex-shrink-0 font-semibold text-xs leading-4 whitespace-nowrap">
         任务列表
       </div>
 
       <div class="min-w-0 flex-1 flex flex-col justify-center">
         <div
           v-if="currentTaskLine"
-          class="min-w-0 text-[10.5px] leading-4 text-stone-900 truncate"
+          class="min-w-0 text-2xs leading-4 text-text-primary truncate"
           :title="currentTaskLine"
         >
           {{ currentTaskLine }}
         </div>
         <div
-          class="min-w-0 text-[10px] leading-4 text-stone-500 truncate whitespace-nowrap"
+          class="min-w-0 text-2xs leading-4 text-text-secondary truncate whitespace-nowrap"
           :class="currentTaskLine ? 'mt-[1px]' : ''"
           :title="summaryLine"
         >
@@ -36,7 +36,7 @@
 
       <button
         v-if="canToggle"
-        class="flex-shrink-0 w-4.5 h-4.5 flex items-center justify-center rounded text-[9px] text-stone-500 hover:bg-black/5"
+        class="flex-shrink-0 w-4.5 h-4.5 flex items-center justify-center rounded text-2xs text-text-secondary hover:bg-interactive-hover"
         :title="expanded ? '收起' : '展开'"
         @click.stop="toggleExpanded"
       >
@@ -44,7 +44,7 @@
       </button>
     </div>
 
-    <div v-if="expanded" class="bg-white px-2.5 py-1.5 border-t border-stone-200 space-y-0.5">
+    <div v-if="expanded" class="bg-background-content px-2.5 py-1.5 border-t border-border-separator space-y-0.5">
       <div
         v-for="(item, idx) in items"
         :key="`${idx}-${item.content}`"
@@ -52,10 +52,10 @@
         :class="itemRowClass(item.status)"
       >
         <span
-          class="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm border text-[10px] leading-none"
+          class="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm border text-2xs leading-none"
           :class="itemBadgeClass(item.status)"
         >{{ itemIcon(item.status) }}</span>
-        <div class="min-w-0 flex-1 truncate text-gray-900 leading-4" :title="item.content">{{ item.content }}</div>
+        <div class="min-w-0 flex-1 truncate text-text-primary leading-4" :title="item.content">{{ item.content }}</div>
       </div>
     </div>
   </div>
@@ -140,14 +140,14 @@ function itemIcon(status: TaskPlanItem['status']): string {
 }
 
 function itemBadgeClass(status: TaskPlanItem['status']): string {
-  if (status === 'completed') return 'border-emerald-300 bg-emerald-50 text-emerald-700'
-  if (status === 'in_progress') return 'border-amber-300 bg-amber-50 text-amber-700'
-  return 'border-stone-300 bg-white text-transparent'
+  if (status === 'completed') return 'border-status-success/40 bg-status-success/10 text-status-success'
+  if (status === 'in_progress') return 'border-status-warning/40 bg-status-warning/10 text-status-warning'
+  return 'border-border-separator bg-background-content text-transparent'
 }
 
 function itemRowClass(status: TaskPlanItem['status']): string {
   if (status === 'completed') return 'bg-transparent'
-  if (status === 'in_progress') return 'bg-amber-50/60'
+  if (status === 'in_progress') return 'bg-status-warning/5'
   return 'bg-transparent'
 }
 

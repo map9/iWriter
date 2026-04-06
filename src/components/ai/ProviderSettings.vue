@@ -8,7 +8,7 @@
 
       <!-- Select Model section -->
       <div class="p-3">
-        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Select Model</p>
+        <p class="text-xs font-semibold text-text-tertiary uppercase tracking-wide mb-2">Select Model</p>
 
         <!-- Configured LLMs: preset-based (A-Z) then custom (A-Z) -->
         <div v-if="sortedLlmConfigs.length" class="space-y-1 mb-2">
@@ -19,31 +19,31 @@
             class="flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-pointer"
             :class="[
               cfg.id === aiStore.settings.activeProviderConfigId
-                ? 'border-blue-400 bg-blue-50'
-                : 'border-gray-200 bg-white hover:border-gray-300',
+                ? 'border-accent-primary bg-accent-primary/10'
+                : 'border-border-separator bg-background-content hover:border-text-tertiary',
               !isLlmUsable(cfg) ? 'opacity-50' : ''
             ]"
           >
             <span
               class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              :class="cfg.id === aiStore.settings.activeProviderConfigId ? 'bg-blue-500' : 'bg-transparent'"
+              :class="cfg.id === aiStore.settings.activeProviderConfigId ? 'bg-accent-primary' : 'bg-transparent'"
             />
             <span class="flex-1 text-sm font-medium truncate"
-              :class="isLlmUsable(cfg) ? 'text-gray-800' : 'text-gray-400'"
+              :class="isLlmUsable(cfg) ? 'text-text-primary' : 'text-text-tertiary'"
             >{{ cfg.label }}</span>
-            <span class="text-xs text-gray-400 truncate max-w-[80px] hidden sm:block">
+            <span class="text-xs text-text-tertiary truncate max-w-[80px] hidden sm:block">
               {{ isLlmUsable(cfg) ? cfg.defaultModelId : '需要配置' }}
             </span>
-            <button @click.stop="startEdit(cfg)" class="p-0.5 rounded hover:bg-gray-100 flex-shrink-0">
-              <IconPencil class="w-3.5 h-3.5 text-gray-500" />
+            <button @click.stop="startEdit(cfg)" class="p-0.5 rounded hover:bg-interactive-hover flex-shrink-0">
+              <IconPencil class="w-3.5 h-3.5 text-text-secondary" />
             </button>
             <!-- Delete only for custom (no presetId) -->
             <button
               v-if="!cfg.presetId"
               @click.stop="aiStore.removeProviderConfig(cfg.id)"
-              class="p-0.5 rounded hover:bg-red-50 flex-shrink-0"
+              class="p-0.5 rounded hover:bg-status-error/10 flex-shrink-0"
             >
-              <IconTrash class="w-3.5 h-3.5 text-red-400" />
+              <IconTrash class="w-3.5 h-3.5 text-status-error" />
             </button>
           </div>
         </div>
@@ -51,11 +51,11 @@
         <!-- Add custom LLM -->
         <button
           @click="selectCustom()"
-          class="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-colors text-left"
+          class="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-dashed border-border-separator hover:border-accent-primary hover:bg-accent-primary/10 transition-colors text-left"
         >
-          <IconPlus class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-          <span class="text-xs font-medium text-gray-500">添加自定义 Model</span>
-          <span class="text-xs text-gray-400">OpenAI / Anthropic / Gemini</span>
+          <IconPlus class="w-3.5 h-3.5 text-text-tertiary flex-shrink-0" />
+          <span class="text-xs font-medium text-text-secondary">添加自定义 Model</span>
+          <span class="text-xs text-text-tertiary">OpenAI / Anthropic / Gemini</span>
         </button>
       </div>
 
@@ -69,43 +69,43 @@
 
           <!-- Name -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <label class="block text-sm font-medium text-text-primary mb-1">Name</label>
             <input
               v-model="form.label"
               type="text"
               :readonly="isPreset"
               :placeholder="selectedPreset?.label ?? '自定义名称'"
-              class="w-full h-9 text-sm px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              :class="isPreset ? 'bg-gray-50 text-gray-500 cursor-default' : ''"
+              class="w-full h-9 text-sm px-3 border border-border-separator rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-background-content text-text-primary"
+              :class="isPreset ? 'bg-background-window text-text-secondary cursor-default' : ''"
             />
           </div>
 
           <!-- API Key -->
           <div v-if="selectedPreset?.requiresApiKey !== false">
-            <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+            <label class="block text-sm font-medium text-text-primary mb-1">API Key</label>
             <div class="relative">
               <input
                 v-model="form.apiKey"
                 :type="showKey ? 'text' : 'password'"
                 placeholder="sk-... 或 $ENV_VAR_NAME"
-                class="w-full h-9 text-sm px-3 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                class="w-full h-9 text-sm px-3 pr-10 border border-border-separator rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary font-mono bg-background-content text-text-primary"
               />
               <button type="button" @click="showKey = !showKey" class="absolute right-2.5 top-2">
-                <IconEye v-if="!showKey" class="w-4 h-4 text-gray-400" />
-                <IconEyeOff v-else class="w-4 h-4 text-gray-400" />
+                <IconEye v-if="!showKey" class="w-4 h-4 text-text-tertiary" />
+                <IconEyeOff v-else class="w-4 h-4 text-text-tertiary" />
               </button>
             </div>
-            <p class="text-xs text-gray-400 mt-1">支持 <code class="bg-gray-100 px-1 rounded">$ENV_VAR_NAME</code> 格式引用系统环境变量</p>
+            <p class="text-xs text-text-tertiary mt-1">支持 <code class="bg-background-window px-1 rounded">$ENV_VAR_NAME</code> 格式引用系统环境变量</p>
           </div>
 
           <!-- Interface type -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Interface Type</label>
+            <label class="block text-sm font-medium text-text-primary mb-1">Interface Type</label>
             <select
               v-model="form.type"
               :disabled="isPreset"
-              class="w-full h-9 text-sm px-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              :class="isPreset ? 'bg-gray-50 text-gray-500 cursor-default' : ''"
+              class="w-full h-9 text-sm px-3 border border-border-separator rounded-lg bg-background-content text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              :class="isPreset ? 'bg-background-window text-text-secondary cursor-default' : ''"
             >
               <option value="openai-compat">OpenAI 兼容</option>
               <option value="deepseek">DeepSeek</option>
@@ -116,44 +116,44 @@
 
           <!-- Base URL -->
           <div v-if="form.type === 'openai-compat' || form.type === 'deepseek'">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Base URL</label>
+            <label class="block text-sm font-medium text-text-primary mb-1">Base URL</label>
             <input
               v-model="form.baseUrl"
               type="text"
               :placeholder="selectedPreset?.baseUrl ?? 'https://api.openai.com/v1'"
-              class="w-full h-9 text-sm px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              class="w-full h-9 text-sm px-3 border border-border-separator rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary font-mono bg-background-content text-text-primary"
             />
           </div>
 
           <!-- Models -->
           <div v-if="selectedPreset?.id !== 'ollama'">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Models</label>
+            <label class="block text-sm font-medium text-text-primary mb-1">Models</label>
             <input
               v-model="form.modelsStr"
               type="text"
               :placeholder="(selectedPreset?.models ?? []).join(', ') || 'gpt-4o, gpt-4o-mini'"
-              class="w-full h-9 text-sm px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              class="w-full h-9 text-sm px-3 border border-border-separator rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary font-mono bg-background-content text-text-primary"
             />
-            <p class="text-xs text-gray-400 mt-1">逗号分隔，第一个为默认模型</p>
+            <p class="text-xs text-text-tertiary mt-1">逗号分隔，第一个为默认模型</p>
           </div>
           <div v-else>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Models</label>
-            <p class="text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            <label class="block text-sm font-medium text-text-primary mb-1">Models</label>
+            <p class="text-xs text-text-tertiary bg-background-window border border-border-separator rounded-lg px-3 py-2">
               Ollama 模型列表通过本地 Ollama 服务自动读取，无需手动配置
             </p>
           </div>
 
           <div v-if="!isPreset">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Model Profiles (JSON)</label>
+            <label class="block text-sm font-medium text-text-primary mb-1">Model Profiles (JSON)</label>
             <textarea
               v-model="form.modelProfilesStr"
               rows="8"
               placeholder='{
   "deepseek-chat": { "maxInputTokens": 128000, "toolCalling": true }
 }'
-              class="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono resize-y"
+              class="w-full text-sm px-3 py-2 border border-border-separator rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary font-mono resize-y bg-background-content text-text-primary"
             />
-            <p class="text-xs mt-1" :class="modelProfilesError ? 'text-red-500' : 'text-gray-400'">
+            <p class="text-xs mt-1" :class="modelProfilesError ? 'text-status-error' : 'text-text-tertiary'">
               {{ modelProfilesError || '仅自定义 Provider 可编辑。按 modelId 配置 profile 覆盖，用于兼容模型和自定义模型。' }}
             </p>
           </div>
@@ -161,21 +161,21 @@
       </div>
 
       <!-- ── Save / Cancel ─────────────────────────────────────────────── -->
-      <div class="flex gap-2 px-4 py-3 border-t border-gray-200 flex-shrink-0">
+      <div class="flex gap-2 px-4 py-3 border-t border-border-separator flex-shrink-0">
         <button
           @click="submitForm"
           :disabled="!canSave"
           :title="!canSave ? '请填写 Name' : ''"
           class="flex-1 py-2 text-sm font-medium rounded-lg transition-colors"
           :class="canSave
-            ? 'bg-blue-600 text-white hover:bg-blue-700'
-            : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'"
+            ? 'bg-accent-primary text-white hover:bg-accent-primary/90'
+            : 'bg-interactive-hover text-text-tertiary cursor-not-allowed border border-border-separator'"
         >
           {{ editingId ? '保存修改' : '确认添加' }}
         </button>
         <button
           @click="cancelForm"
-          class="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+          class="px-4 py-2 text-sm rounded-lg border border-border-separator text-text-secondary hover:bg-interactive-hover transition-colors"
         >
           取消
         </button>

@@ -7,9 +7,9 @@
     >
       <span>✏️</span>
       <span class="font-bold">{{ summaryLabel }}</span>
-      <span class="ml-auto opacity-60 text-[10px]">{{ expanded ? '▲' : '▼' }}</span>
+      <span class="ml-auto opacity-60 text-2xs">{{ expanded ? '▲' : '▼' }}</span>
     </div>
-    <div v-if="expanded" class="bg-white px-2 py-1.5" :class="bodyClass">
+    <div v-if="expanded" class="bg-background-content px-2 py-1.5" :class="bodyClass">
       <span
         v-for="(tc, idx) in toolCalls"
         :key="tc.id"
@@ -55,34 +55,34 @@ const summaryLabel = computed(() => {
 })
 
 const containerClass = computed(() => {
-  if (pendingCount.value > 0) return 'border border-yellow-200'
-  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return 'border border-gray-200'
-  if (completedCount.value > 0 && failedCount.value === 0) return 'border border-green-200'
-  if (failedCount.value > 0 && completedCount.value === 0) return 'border border-red-200'
-  return 'border border-gray-200'
+  if (pendingCount.value > 0) return 'border border-status-warning/30'
+  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return 'border border-border-separator'
+  if (completedCount.value > 0 && failedCount.value === 0) return 'border border-status-success/30'
+  if (failedCount.value > 0 && completedCount.value === 0) return 'border border-status-error/30'
+  return 'border border-border-separator'
 })
 
 const headerClass = computed(() => {
-  if (pendingCount.value > 0) return 'bg-yellow-50 text-yellow-800'
-  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return 'bg-gray-50 text-gray-700'
-  if (completedCount.value > 0 && failedCount.value === 0) return 'bg-green-50 text-green-800'
-  if (failedCount.value > 0 && completedCount.value === 0) return 'bg-red-50 text-red-700'
-  return 'bg-gray-50 text-gray-700'
+  if (pendingCount.value > 0) return 'bg-status-warning/10 text-status-warning'
+  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return 'bg-background-window text-text-primary'
+  if (completedCount.value > 0 && failedCount.value === 0) return 'bg-status-success/10 text-status-success'
+  if (failedCount.value > 0 && completedCount.value === 0) return 'bg-status-error/10 text-status-error'
+  return 'bg-background-window text-text-primary'
 })
 
 const bodyClass = computed(() => {
-  if (pendingCount.value > 0) return 'border-t border-yellow-100'
-  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return 'border-t border-gray-100'
-  if (completedCount.value > 0 && failedCount.value === 0) return 'border-t border-green-100'
-  if (failedCount.value > 0 && completedCount.value === 0) return 'border-t border-red-100'
-  return 'border-t border-gray-100'
+  if (pendingCount.value > 0) return 'border-t border-status-warning/20'
+  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return 'border-t border-border-separator'
+  if (completedCount.value > 0 && failedCount.value === 0) return 'border-t border-status-success/20'
+  if (failedCount.value > 0 && completedCount.value === 0) return 'border-t border-status-error/20'
+  return 'border-t border-border-separator'
 })
 
 function itemClass(tc: AiToolCall): string {
-  if (tc.status === 'rejected') return 'text-gray-500 line-through opacity-75'
-  if (tc.status === 'failed' || tc.isError) return 'text-red-500 line-through opacity-70'
-  if (tc.status === 'completed') return 'text-green-700'
-  return 'text-yellow-900'
+  if (tc.status === 'rejected') return 'text-text-secondary line-through opacity-75'
+  if (tc.status === 'failed' || tc.isError) return 'text-status-error line-through opacity-70'
+  if (tc.status === 'completed') return 'text-status-success'
+  return 'text-status-warning'
 }
 
 function editOpDisplay(tc: AiToolCall): { label: string } {

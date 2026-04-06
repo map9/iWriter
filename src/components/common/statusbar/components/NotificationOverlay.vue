@@ -10,7 +10,7 @@
   >
     <div
       v-if="state.isVisible && state.currentNotification"
-      class="absolute inset-0 px-4 z-50 flex items-center gap-2 text-[13px] font-medium text-white"
+      class="absolute inset-0 px-4 z-50 flex items-center gap-2 text-sm font-medium text-white"
       :class="[
         notificationClasses,
         state.displayOptions.flash ? 'animate-pulse' : ''

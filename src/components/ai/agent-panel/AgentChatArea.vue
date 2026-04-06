@@ -9,13 +9,13 @@
       class="flex gap-2.5"
     >
       <div class="flex-1 min-w-0 space-y-1.5">
-        <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100">
+        <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-interactive-hover">
           <div class="flex items-center gap-0.5">
-            <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms" />
-            <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:150ms" />
-            <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:300ms" />
+            <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:0ms" />
+            <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:150ms" />
+            <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:300ms" />
           </div>
-          <span class="text-xs text-gray-500">正在载入会话…</span>
+          <span class="text-xs text-text-secondary">正在载入会话…</span>
         </div>
       </div>
     </div>
@@ -33,13 +33,13 @@
     <!-- Streaming fallback when no preview message is available -->
     <div v-if="aiStore.isStreaming && !aiStore.streamingPreviewMessage" class="flex gap-2.5">
       <div class="flex-1 min-w-0 space-y-1.5">
-        <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100">
+        <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-interactive-hover">
           <div class="flex items-center gap-0.5">
-            <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms" />
-            <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:150ms" />
-            <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:300ms" />
+            <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:0ms" />
+            <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:150ms" />
+            <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:300ms" />
           </div>
-          <span class="text-xs text-gray-500">{{ streamingStatusLabel }} · {{ formattedElapsed }}</span>
+          <span class="text-xs text-text-secondary">{{ streamingStatusLabel }} · {{ formattedElapsed }}</span>
         </div>
       </div>
     </div>

@@ -4,18 +4,18 @@
     class="flex flex-col items-center justify-center h-full text-center px-4 py-8"
   >
     <div class="mt-2 flex flex-col items-center">
-      <div class="w-12 h-12 rounded-full border border-gray-200 bg-white shadow-sm flex items-center justify-center">
-        <IconBrain class="w-6 h-6 text-gray-400" />
+      <div class="w-12 h-12 rounded-full border border-border-separator bg-background-content shadow-sm flex items-center justify-center">
+        <IconBrain class="w-6 h-6 text-text-tertiary" />
       </div>
-      <p class="mt-3 text-sm font-medium text-gray-700">AI StoryMate</p>
-      <p class="mt-2 max-w-xs text-xs leading-5 text-gray-500">
+      <p class="mt-3 text-sm font-medium text-text-primary">AI StoryMate</p>
+      <p class="mt-2 max-w-xs text-xs leading-5 text-text-secondary">
         选择一种编辑类型，再从下面的示例开始。
       </p>
     </div>
 
     <div class="mt-7 w-full max-w-md">
       <div class="min-h-5">
-        <p class="text-sm font-semibold text-gray-700">
+        <p class="text-sm font-semibold text-text-primary">
           {{ currentGroup.title }}
         </p>
       </div>
@@ -25,7 +25,7 @@
           v-for="prompt in currentGroup.prompts"
           :key="prompt"
           type="button"
-          class="h-14 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-xs leading-4 text-gray-600 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 overflow-hidden"
+          class="h-14 rounded-lg border border-border-separator bg-background-content px-3 py-2 text-left text-xs leading-4 text-text-secondary shadow-sm transition-colors hover:border-accent-primary/50 hover:bg-accent-primary/10 hover:text-accent-primary overflow-hidden"
           @click="emit('suggest', prompt)"
         >
           <span class="block">
@@ -40,7 +40,7 @@
           :key="group.title"
           type="button"
           class="w-2 h-2 rounded-full transition-all"
-          :class="index === activeGroupIndex ? 'bg-gray-700 scale-110' : 'bg-gray-300 hover:bg-gray-400'"
+          :class="index === activeGroupIndex ? 'bg-text-primary scale-110' : 'bg-border-separator hover:bg-text-tertiary'"
           :title="group.title"
           @click="activeGroupIndex = index"
         />

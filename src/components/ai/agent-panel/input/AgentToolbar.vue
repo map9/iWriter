@@ -37,7 +37,7 @@
         @mouseenter="handleCompactMouseEnter"
         @mouseleave="handleCompactMouseLeave"
         :disabled="isCompacting"
-        class="p-1.5 rounded hover:bg-gray-100 transition-colors text-gray-500 flex-shrink-0"
+        class="p-1.5 rounded hover:bg-interactive-hover transition-colors text-text-secondary flex-shrink-0"
         :class="isCompacting ? 'opacity-40 cursor-not-allowed' : ''"
       >
         <svg viewBox="0 0 20 20" class="w-4 h-4">
@@ -46,7 +46,7 @@
             cy="10"
             r="7"
             fill="none"
-            class="text-gray-200"
+            class="text-border-separator"
             stroke="currentColor"
             stroke-width="2"
           />
@@ -55,7 +55,7 @@
             cy="10"
             r="7"
             fill="none"
-            class="text-blue-500"
+            class="text-accent-primary"
             stroke="currentColor"
             stroke-width="2"
             stroke-linecap="round"
@@ -68,7 +68,7 @@
             cx="10"
             cy="10"
             r="3"
-            class="text-blue-500 animate-pulse"
+            class="text-accent-primary animate-pulse"
             fill="currentColor"
           />
           <circle
@@ -76,7 +76,7 @@
             cx="10"
             cy="10"
             r="2"
-            :class="compactProgressRatio >= 1 ? 'text-red-500' : 'text-gray-400'"
+            :class="compactProgressRatio >= 1 ? 'text-status-error' : 'text-text-tertiary'"
             fill="currentColor"
           />
         </svg>

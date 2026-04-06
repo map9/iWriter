@@ -8,6 +8,8 @@ declare module '*.vue' {
 
 import type { ElectronAPI } from './src/types/index'
 
-interface Window {
-  electronAPI: ElectronAPI
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI
+  }
 }

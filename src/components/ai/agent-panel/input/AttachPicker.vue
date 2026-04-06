@@ -2,7 +2,7 @@
   <div ref="triggerEl" class="relative flex-shrink-0">
     <button
       @click="showMenu = !showMenu"
-      class="p-1.5 rounded hover:bg-gray-100 transition-colors text-gray-500"
+      class="p-1.5 rounded hover:bg-interactive-hover transition-colors text-text-secondary"
       title="添加文件 / 文件夹"
     >
       <IconPlus class="w-4 h-4" />
@@ -11,14 +11,14 @@
       <div
         v-if="showMenu"
         ref="menuEl"
-        class="fixed w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-[1200] py-1"
+        class="fixed w-40 bg-background-content border border-border-separator rounded-lg shadow-lg z-[1200] py-1"
         :style="menuStyle"
       >
-        <button @click="emit('browse-files'); showMenu = false" class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
-          <IconFile class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />浏览文件…
+        <button @click="emit('browse-files'); showMenu = false" class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text-primary hover:bg-interactive-hover">
+          <IconFile class="w-3.5 h-3.5 text-text-tertiary flex-shrink-0" />浏览文件…
         </button>
-        <button @click="emit('browse-folder'); showMenu = false" class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
-          <IconFolder class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />浏览文件夹…
+        <button @click="emit('browse-folder'); showMenu = false" class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text-primary hover:bg-interactive-hover">
+          <IconFolder class="w-3.5 h-3.5 text-text-tertiary flex-shrink-0" />浏览文件夹…
         </button>
       </div>
     </Teleport>

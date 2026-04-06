@@ -2,6 +2,12 @@
 @import "tailwindcss/utilities";
 
 @theme {
+  --text-2xs: 0.625rem;
+  --text-3xs: 0.5rem;
+
+  --font-sans: 'SF Pro Display', system-ui, sans-serif;
+  --font-mono: 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace;
+
   --color-accent-primary: oklch(0.7 0.15 230);
   --color-background-window: oklch(0.98 0.002 230);
   --color-background-content: oklch(1 0 0);

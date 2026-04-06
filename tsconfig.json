@@ -3,19 +3,15 @@
   "include": [
     "env.d.ts",
     "src/**/*",
-    "src/**/**/*",
-    "src/**/*.vue",
     "electron/ai/ipc/protocol.ts"
   ],
   "exclude": [
     "src/**/__tests__/*"
   ],
   "compilerOptions": {
-    "composite": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "turndown": ["node_modules/@types/turndown/index.d.ts"],
+      "turndown": ["./node_modules/@types/turndown/index.d.ts"],
       "turndown-plugin-gfm": ["./src/types/@guyplusplus/turndown-plugin-gfm.d.ts"]
     }
   }

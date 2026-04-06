@@ -3,12 +3,12 @@
     <!-- Search Bar -->
     <div class="px-3 py-2 flex-shrink-0">
       <div class="relative">
-        <IconSearch class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+        <IconSearch class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary pointer-events-none" />
         <input
           v-model="searchQuery"
           type="text"
           placeholder="Search sessions..."
-          class="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-border-default bg-background-content text-text-primary placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-interactive-highlight"
+          class="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-border-separator bg-background-content text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent-primary"
         />
       </div>
     </div>
@@ -16,16 +16,16 @@
     <!-- Thread List -->
     <div class="flex-1 overflow-y-auto px-2 pb-2 min-h-0">
       <!-- Empty States -->
-      <div v-if="!aiStore.threads.length" class="text-center py-8 text-xs text-gray-400">
+      <div v-if="!aiStore.threads.length" class="text-center py-8 text-xs text-text-tertiary">
         暂无历史对话
       </div>
-      <div v-else-if="!groupedThreads.length" class="text-center py-8 text-xs text-gray-400">
+      <div v-else-if="!groupedThreads.length" class="text-center py-8 text-xs text-text-tertiary">
         无匹配结果
       </div>
 
       <!-- Grouped Threads -->
       <template v-for="group in groupedThreads" :key="group.label">
-        <div class="px-1 pt-3 pb-1 text-[10px] font-medium text-gray-400 uppercase tracking-wide">
+        <div class="px-1 pt-3 pb-1 text-2xs font-medium text-text-tertiary uppercase tracking-wide">
           {{ group.label }}
         </div>
 
@@ -35,8 +35,8 @@
           @click="handleSelect(thread.id)"
           class="group relative flex items-start gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors mb-0.5"
           :class="thread.id === aiStore.activeThreadId
-            ? 'bg-interactive-highlight'
-            : 'hover:bg-gray-100 dark:hover:bg-gray-800'"
+            ? 'bg-interactive-hover'
+            : 'hover:bg-interactive-hover'"
         >
           <!-- Dot Indicator -->
           <div class="flex-shrink-0 mt-1.5">
@@ -46,7 +46,7 @@
             />
             <div
               v-else
-              class="w-2 h-2 rounded-full border border-gray-400"
+              class="w-2 h-2 rounded-full border border-border-separator"
             />
           </div>
 
@@ -71,17 +71,17 @@
               </span>
               <span
                 v-if="aiStore.isSwitchingThread && aiStore.switchingThreadId === thread.id && renamingId !== thread.id"
-                class="inline-block w-3 h-3 border border-gray-300 border-t-blue-500 rounded-full animate-spin flex-shrink-0"
+                class="inline-block w-3 h-3 border border-border-separator border-t-accent-primary rounded-full animate-spin flex-shrink-0"
                 title="正在载入会话"
               />
-              <span v-if="thread.hasError && renamingId !== thread.id" class="flex-shrink-0 text-red-400 text-xs" title="上次对话出现错误">⚠</span>
+              <span v-if="thread.hasError && renamingId !== thread.id" class="flex-shrink-0 text-status-error text-xs" title="上次对话出现错误">⚠</span>
               <!-- Time (hide when renaming) -->
-              <span v-if="renamingId !== thread.id" class="flex-shrink-0 text-[10px] text-gray-400">{{ relativeTime(thread.updatedAt) }}</span>
+              <span v-if="renamingId !== thread.id" class="flex-shrink-0 text-2xs text-text-tertiary">{{ relativeTime(thread.updatedAt) }}</span>
             </div>
 
             <!-- Sub Row: message count + size + action buttons -->
             <div class="flex items-center justify-between mt-0.5">
-              <span class="text-[10px] text-gray-400">{{ threadSubtitle(thread) }}</span>
+              <span class="text-2xs text-text-tertiary">{{ threadSubtitle(thread) }}</span>
               <!-- Action Buttons (hover) -->
               <div
                 v-if="renamingId !== thread.id"
@@ -90,17 +90,17 @@
               >
                 <button
                   @click.stop="startRename(thread)"
-                  class="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                  class="p-0.5 rounded hover:bg-interactive-hover"
                   title="重命名"
                 >
-                  <IconPencil class="w-3 h-3 text-gray-500" />
+                  <IconPencil class="w-3 h-3 text-text-secondary" />
                 </button>
                 <button
                   @click.stop="aiStore.deleteThread(thread.id)"
-                  class="p-0.5 rounded hover:bg-red-100"
+                  class="p-0.5 rounded hover:bg-status-error/10"
                   title="删除"
                 >
-                  <IconTrash class="w-3 h-3 text-red-400" />
+                  <IconTrash class="w-3 h-3 text-status-error" />
                 </button>
               </div>
             </div>
@@ -110,14 +110,14 @@
     </div>
 
     <!-- Clear All Button -->
-    <div class="flex-shrink-0 px-3 py-2 border-t border-border-default">
+    <div class="flex-shrink-0 px-3 py-2 border-t border-border-separator">
       <button
         @click="handleClearAll"
         :disabled="!aiStore.threads.length"
         class="w-full text-xs py-1.5 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         :class="confirmClear
-          ? 'text-red-500 hover:bg-red-50 font-medium'
-          : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'"
+          ? 'text-status-error hover:bg-status-error/10 font-medium'
+          : 'text-text-secondary hover:bg-interactive-hover'"
       >
         {{ confirmClear ? '确认清除？点击确认' : '清除所有会话记录' }}
       </button>

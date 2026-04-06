@@ -1,10 +1,10 @@
 <template>
   <div class="space-y-1.5">
     <div class="px-0.5">
-      <div class="text-[11px] font-medium" :class="phaseTextClass">
+      <div class="text-xs font-medium" :class="phaseTextClass">
         {{ phaseTitle }}
       </div>
-      <div v-if="phaseSubtitle" class="mt-0.5 text-[11px] text-gray-500">
+      <div v-if="phaseSubtitle" class="mt-0.5 text-xs text-text-secondary">
         {{ phaseSubtitle }}
       </div>
     </div>
@@ -107,15 +107,15 @@ const phaseSubtitle = computed(() => {
 const phaseTextClass = computed(() => {
   switch (props.session.phase) {
     case 'review_ready':
-      return 'text-yellow-800'
+      return 'text-status-warning'
     case 'completed':
-      return 'text-green-800'
+      return 'text-status-success'
     case 'cancelled':
-      return 'text-gray-700'
+      return 'text-text-primary'
     case 'failed':
-      return 'text-red-700'
+      return 'text-status-error'
     default:
-      return 'text-gray-700'
+      return 'text-text-primary'
   }
 })
 </script>

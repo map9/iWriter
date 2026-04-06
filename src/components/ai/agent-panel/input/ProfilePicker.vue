@@ -2,33 +2,33 @@
   <div ref="triggerEl" class="relative flex-shrink-0">
     <button
       @click="onToggle"
-      class="flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-600 hover:bg-gray-100 transition-colors max-w-25"
+      class="flex items-center gap-1 px-2 py-1 rounded text-xs text-text-secondary hover:bg-interactive-hover transition-colors max-w-25"
       title="切换 Agent Mode"
     >
       <span class="truncate">{{ currentLabel }}</span>
-      <IconChevronDown class="w-3 h-3 flex-shrink-0 text-gray-400" />
+      <IconChevronDown class="w-3 h-3 flex-shrink-0 text-text-tertiary" />
     </button>
 
     <Teleport to="body">
       <div
         v-if="isOpen"
         ref="menuEl"
-        class="fixed w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-[1200] py-1"
+        class="fixed w-48 bg-background-content border border-border-separator rounded-lg shadow-lg z-[1200] py-1"
         :style="menuStyle"
       >
         <button
           v-for="option in modeOptions"
           :key="option.value"
           @click="select(option.value)"
-          class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-50"
+          class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-text-primary hover:bg-interactive-hover"
         >
           <span
             class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-            :class="option.value === currentMode ? 'bg-primary-500' : 'bg-transparent'"
+            :class="option.value === currentMode ? 'bg-accent-primary' : 'bg-transparent'"
           />
           <span
             class="truncate flex-1"
-            :class="option.value === currentMode ? 'font-semibold text-gray-900' : ''"
+            :class="option.value === currentMode ? 'font-semibold text-text-primary' : ''"
           >
             {{ option.label }}
           </span>

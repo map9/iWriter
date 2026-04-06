@@ -15,18 +15,18 @@
         <span v-else class="leading-none">{{ statusIcon }}</span>
       </div>
 
-      <div class="flex-shrink-0 font-semibold text-[12px] leading-4 whitespace-nowrap">
+      <div class="flex-shrink-0 font-semibold text-xs leading-4 whitespace-nowrap">
         {{ actionLabel }}
       </div>
 
       <div class="min-w-0 flex-1 flex flex-col justify-center">
         <div
           v-if="inputLine"
-          class="min-w-0 text-[10.5px] leading-4 text-gray-700 truncate"
+          class="min-w-0 text-2xs leading-4 text-text-primary truncate"
         >
           <button
             v-if="targetPath && targetLabel"
-            class="inline max-w-full truncate text-left underline decoration-gray-300 underline-offset-2 hover:text-gray-900 hover:decoration-gray-500"
+            class="inline max-w-full truncate text-left underline decoration-border-separator underline-offset-2 hover:text-text-primary hover:decoration-text-tertiary"
             :title="targetPath"
             @click.stop="openTargetFile"
           >
@@ -37,7 +37,7 @@
 
         <div
           v-if="contextSummaryLine"
-          class="min-w-0 text-[10px] leading-4 text-gray-500 truncate whitespace-nowrap"
+          class="min-w-0 text-2xs leading-4 text-text-secondary truncate whitespace-nowrap"
           :class="inputLine ? 'mt-[1px]' : ''"
           :title="contextSummaryLine"
         >
@@ -47,7 +47,7 @@
 
       <button
         v-if="showExpandableDetail"
-        class="flex-shrink-0 w-4.5 h-4.5 flex items-center justify-center rounded text-[9px] text-gray-500 transition-opacity hover:bg-black/5"
+        class="flex-shrink-0 w-4.5 h-4.5 flex items-center justify-center rounded text-2xs text-text-secondary transition-opacity hover:bg-interactive-hover"
         :class="expanded || isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'"
         :title="expanded ? '收起' : '展开'"
         @click.stop="toggleExpanded"
@@ -58,22 +58,22 @@
 
     <div
       v-if="showDetail"
-      class="border-t bg-white px-2.5 py-2 space-y-2"
+      class="border-t bg-background-content px-2.5 py-2 space-y-2"
       :class="[detailBorderClass, groupDetailClass]"
     >
       <div v-if="detailType === 'outline' && outlineItems.length" class="space-y-1.5">
-        <div class="text-[11px] font-medium text-gray-500">文档结构</div>
+        <div class="text-xs font-medium text-text-secondary">文档结构</div>
         <div
           v-for="item in outlineItems"
           :key="`${item.blockId}-${item.text}`"
-          class="flex items-start justify-between gap-2 rounded-md bg-gray-50 px-2 py-1.5"
+          class="flex items-start justify-between gap-2 rounded-md bg-background-window px-2 py-1.5"
           :style="{ paddingLeft: `${0.5 + (item.level - 1) * 0.75}rem` }"
         >
           <div class="min-w-0">
-            <div class="truncate text-gray-900">{{ item.text || `未命名标题 ${item.blockId}` }}</div>
-            <div class="text-[10px] text-gray-500">H{{ item.level }} · {b:{{ item.blockId }}}</div>
+            <div class="truncate text-text-primary">{{ item.text || `未命名标题 ${item.blockId}` }}</div>
+            <div class="text-2xs text-text-secondary">H{{ item.level }} · {b:{{ item.blockId }}}</div>
           </div>
-          <div class="flex-shrink-0 text-[10px] text-gray-500 text-right">
+          <div class="flex-shrink-0 text-2xs text-text-secondary text-right">
             <div>{{ item.sectionBlocks }} blocks</div>
             <div>{{ item.wordCount }} 字</div>
           </div>
@@ -81,7 +81,7 @@
       </div>
 
       <div v-else-if="detailType === 'section' && parsedResult" class="space-y-2">
-        <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500">
+        <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-secondary">
           <span v-if="sectionHeading">章节：{{ sectionHeading }}</span>
           <span v-if="sectionRange">范围：{{ sectionRange }}</span>
           <span v-if="sectionPagination">{{ sectionPagination }}</span>
@@ -93,11 +93,11 @@
         <div
           v-for="item in blockItems"
           :key="item.blockId"
-          class="rounded-md bg-gray-50 px-2 py-1.5"
+          class="rounded-md bg-background-window px-2 py-1.5"
         >
-          <div class="flex items-center justify-between gap-2 text-[11px]">
-            <span class="font-medium text-gray-700">{b:{{ item.blockId }}}</span>
-            <span class="text-gray-500">{{ item.type }}</span>
+          <div class="flex items-center justify-between gap-2 text-xs">
+            <span class="font-medium text-text-primary">{b:{{ item.blockId }}}</span>
+            <span class="text-text-secondary">{{ item.type }}</span>
           </div>
           <div class="mt-1">
             <MarkdownContentView :content="item.content" mode="text" size="xs" />
@@ -106,16 +106,16 @@
       </div>
 
       <div v-else-if="detailType === 'block_context' && blockItems.length" class="space-y-1.5">
-        <div class="text-[11px] font-medium text-gray-500">上下文块</div>
+        <div class="text-xs font-medium text-text-secondary">上下文块</div>
         <div
           v-for="item in blockItems"
           :key="item.blockId"
           class="rounded-md px-2 py-1.5"
-          :class="item.blockId === centerBlockId ? 'bg-blue-50 border border-blue-100' : 'bg-gray-50'"
+          :class="item.blockId === centerBlockId ? 'bg-status-info/10 border border-status-info/20' : 'bg-background-window'"
         >
-          <div class="flex items-center justify-between gap-2 text-[11px]">
-            <span class="font-medium text-gray-700">{b:{{ item.blockId }}}</span>
-            <span class="text-gray-500">{{ item.type }}</span>
+          <div class="flex items-center justify-between gap-2 text-xs">
+            <span class="font-medium text-text-primary">{b:{{ item.blockId }}}</span>
+            <span class="text-text-secondary">{{ item.type }}</span>
           </div>
           <div class="mt-1">
             <MarkdownContentView :content="item.content" mode="text" size="xs" />
@@ -127,14 +127,14 @@
         <div
           v-for="section in searchSections"
           :key="`${section.headingBlockId}-${section.heading}`"
-          class="rounded-md bg-gray-50 px-2 py-1.5"
+          class="rounded-md bg-background-window px-2 py-1.5"
         >
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0">
-              <div class="truncate text-gray-900">{{ section.heading || '未命名章节' }}</div>
-              <div class="text-[10px] text-gray-500">heading {b:{{ section.headingBlockId }}}</div>
+              <div class="truncate text-text-primary">{{ section.heading || '未命名章节' }}</div>
+              <div class="text-2xs text-text-secondary">heading {b:{{ section.headingBlockId }}}</div>
             </div>
-            <div class="flex-shrink-0 text-[10px] text-gray-500">{{ section.matchCount }} 个命中</div>
+            <div class="flex-shrink-0 text-2xs text-text-secondary">{{ section.matchCount }} 个命中</div>
           </div>
           <div v-if="section.preview" class="mt-1">
             <MarkdownContentView :content="section.preview" mode="text" size="xs" />
@@ -146,20 +146,20 @@
         <div
           v-for="file in workspaceFiles"
           :key="file.filePath"
-          class="rounded-md bg-gray-50 px-2 py-1.5"
+          class="rounded-md bg-background-window px-2 py-1.5"
         >
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0">
               <button
-                class="truncate text-gray-900 underline decoration-gray-300 underline-offset-2 hover:text-gray-950 hover:decoration-gray-500"
+                class="truncate text-text-primary underline decoration-border-separator underline-offset-2 hover:text-text-primary hover:decoration-text-tertiary"
                 :title="file.filePath"
                 @click.stop="openFilePath(file.filePath)"
               >
                 {{ file.fileName }}
               </button>
-              <div class="text-[10px] text-gray-500 truncate">{{ file.filePath }}</div>
+              <div class="text-2xs text-text-secondary truncate">{{ file.filePath }}</div>
             </div>
-            <div class="flex-shrink-0 text-[10px] text-gray-500 text-right">
+            <div class="flex-shrink-0 text-2xs text-text-secondary text-right">
               <div>{{ file.totalMatches }} 个命中</div>
               <div>{{ file.documentType }}</div>
             </div>
@@ -168,9 +168,9 @@
             <div
               v-for="preview in file.previews"
               :key="`${file.filePath}-${preview.blockId}`"
-              class="rounded bg-white px-2 py-1 border border-gray-100"
+              class="rounded bg-background-content px-2 py-1 border border-border-separator"
             >
-              <div class="text-[10px] text-gray-500 mb-1">
+              <div class="text-2xs text-text-secondary mb-1">
                 <span v-if="preview.heading">{{ preview.heading }}</span>
                 <span v-else>未命名章节</span>
                 <span> · {b:{{ preview.blockId }}}</span>
@@ -185,29 +185,29 @@
         <div
           v-for="(item, idx) in todoItems"
           :key="`${idx}-${item.content}`"
-          class="flex items-start gap-2 rounded-md bg-gray-50 px-2 py-1.5"
+          class="flex items-start gap-2 rounded-md bg-background-window px-2 py-1.5"
         >
           <span
-            class="mt-[1px] inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border text-[10px] leading-none"
+            class="mt-[1px] inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border text-2xs leading-none"
             :class="item.statusClass"
           >
             {{ item.icon }}
           </span>
           <div class="min-w-0 flex-1">
-            <div class="text-gray-900 break-words">{{ item.content }}</div>
-            <div v-if="item.statusLabel" class="mt-0.5 text-[10px] text-gray-500">{{ item.statusLabel }}</div>
+            <div class="text-text-primary break-words">{{ item.content }}</div>
+            <div v-if="item.statusLabel" class="mt-0.5 text-2xs text-text-secondary">{{ item.statusLabel }}</div>
           </div>
         </div>
       </div>
 
       <div v-else-if="resultText" class="space-y-1">
-        <div class="text-[11px] font-medium text-gray-500">结果详情</div>
+        <div class="text-xs font-medium text-text-secondary">结果详情</div>
         <MarkdownContentView :content="resultText" mode="text" size="xs" />
       </div>
 
       <details v-if="showRawResult" class="group">
-        <summary class="cursor-pointer text-[11px] text-gray-500 hover:text-gray-700">查看原始结果</summary>
-        <div class="mt-2 rounded-md bg-gray-50 px-2 py-1.5">
+        <summary class="cursor-pointer text-xs text-text-secondary hover:text-text-primary">查看原始结果</summary>
+        <div class="mt-2 rounded-md bg-background-window px-2 py-1.5">
           <MarkdownContentView :content="rawResult" mode="text" size="xs" />
         </div>
       </details>
@@ -247,13 +247,13 @@ const containerClass = computed(() => {
   const isRunning = props.toolCall.status === 'in_progress' || props.toolCall.status === 'pending'
   const isRejected = props.toolCall.status === 'rejected'
   const isError = props.toolCall.isError || props.toolCall.status === 'failed'
-  if (isError) return 'border-red-200 bg-red-50 text-red-700'
-  if (isRejected) return 'border-gray-200 bg-gray-50 text-gray-600'
-  if (isRunning) return 'border-blue-200 bg-blue-50 text-blue-700'
+  if (isError) return 'border-status-error/30 bg-status-error/10 text-status-error'
+  if (isRejected) return 'border-border-separator bg-background-window text-text-secondary'
+  if (isRunning) return 'border-status-info/30 bg-status-info/10 text-status-info'
   if (props.toolCall.kind === 'edit' || props.toolCall.kind === 'delete') {
-    return 'border-yellow-200 bg-yellow-50 text-yellow-800'
+    return 'border-status-warning/30 bg-status-warning/10 text-status-warning'
   }
-  return 'border-green-200 bg-green-50 text-green-700'
+  return 'border-status-success/30 bg-status-success/10 text-status-success'
 })
 
 const groupContainerClass = computed(() => {
@@ -282,11 +282,11 @@ const groupDividerClass = computed(() => {
 const headerHoverClass = computed(() => {
   const base = showExpandableDetail.value ? 'cursor-pointer select-none' : ''
   if (!isHovered.value || expanded.value) return base
-  if (props.toolCall.isError || props.toolCall.status === 'failed') return `${base} bg-red-100/40`.trim()
-  if (props.toolCall.status === 'rejected') return `${base} bg-gray-100/60`.trim()
-  if (props.toolCall.status === 'pending' || props.toolCall.status === 'in_progress') return `${base} bg-blue-100/45`.trim()
-  if (props.toolCall.kind === 'edit' || props.toolCall.kind === 'delete') return `${base} bg-yellow-100/45`.trim()
-  return `${base} bg-green-100/45`.trim()
+  if (props.toolCall.isError || props.toolCall.status === 'failed') return `${base} bg-status-error/15`.trim()
+  if (props.toolCall.status === 'rejected') return `${base} bg-interactive-hover`.trim()
+  if (props.toolCall.status === 'pending' || props.toolCall.status === 'in_progress') return `${base} bg-status-info/15`.trim()
+  if (props.toolCall.kind === 'edit' || props.toolCall.kind === 'delete') return `${base} bg-status-warning/15`.trim()
+  return `${base} bg-status-success/15`.trim()
 })
 
 const groupDetailClass = computed(() => {
@@ -295,11 +295,11 @@ const groupDetailClass = computed(() => {
 })
 
 const detailBorderClass = computed(() => {
-  if (props.toolCall.isError || props.toolCall.status === 'failed') return 'border-red-100'
-  if (props.toolCall.status === 'rejected') return 'border-gray-100'
-  if (props.toolCall.status === 'pending' || props.toolCall.status === 'in_progress') return 'border-blue-100'
-  if (props.toolCall.kind === 'edit' || props.toolCall.kind === 'delete') return 'border-yellow-100'
-  return 'border-green-100'
+  if (props.toolCall.isError || props.toolCall.status === 'failed') return 'border-status-error/20'
+  if (props.toolCall.status === 'rejected') return 'border-border-separator'
+  if (props.toolCall.status === 'pending' || props.toolCall.status === 'in_progress') return 'border-status-info/20'
+  if (props.toolCall.kind === 'edit' || props.toolCall.kind === 'delete') return 'border-status-warning/20'
+  return 'border-status-success/20'
 })
 
 const display = computed(() => props.toolCall.display ?? {})
@@ -457,7 +457,7 @@ const todoItems = computed(() => {
         content,
         icon: '✓',
         statusLabel: '已完成',
-        statusClass: 'border-green-300 bg-green-100 text-green-700',
+        statusClass: 'border-status-success/40 bg-status-success/10 text-status-success',
       }
     }
     if (status === 'in_progress') {
@@ -465,14 +465,14 @@ const todoItems = computed(() => {
         content,
         icon: '•',
         statusLabel: '进行中',
-        statusClass: 'border-amber-300 bg-amber-100 text-amber-700',
+        statusClass: 'border-status-warning/40 bg-status-warning/10 text-status-warning',
       }
     }
     return {
       content,
       icon: '',
       statusLabel: '待办',
-      statusClass: 'border-slate-300 bg-white text-transparent',
+      statusClass: 'border-border-separator bg-background-content text-transparent',
     }
   })
 })

@@ -1,5 +1,5 @@
 <template>
-  <div class="border-2 border-accent-primary rounded-lg my-2 mx-3 bg-white flex-shrink-0 shadow-lg">
+  <div class="border-2 border-accent-primary rounded-lg my-2 mx-3 bg-background-content flex-shrink-0 shadow-lg">
 
     <AgentContextChips
       :files="contextFiles"
@@ -19,7 +19,7 @@
       />
     </div>
 
-    <div class="mx-2 border-t border-gray-200" />
+    <div class="mx-2 border-t border-border-separator" />
 
     <AgentToolbar
       :is-pending-send="pendingSend"

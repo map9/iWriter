@@ -1,6 +1,6 @@
 <template>
   <div v-if="text" class="sticky top-1 z-10 flex justify-center pointer-events-none">
-    <div class="px-3 py-1 rounded-full bg-white/90 shadow-md ring-1 ring-black/5 text-[10px] leading-4 text-gray-500 backdrop-blur-sm max-w-[85%] truncate">
+    <div class="px-3 py-1 rounded-full bg-background-content/90 shadow-md ring-1 ring-border-separator text-2xs leading-4 text-text-secondary backdrop-blur-sm max-w-[85%] truncate">
       {{ text }}
     </div>
   </div>
