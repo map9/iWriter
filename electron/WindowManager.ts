@@ -61,13 +61,6 @@ export class WindowManager {
 
   // 开始窗口关闭超时检测
   private startWindowCloseCheck(wState: WindowState) {
-    console.debug({
-      function: 'startWindowCloseCheck',
-      windowsSize: this._windows.length,
-      wID: wState.id,
-      isClosing: wState.isClosing,
-    })
-
     if (!wState.closeTimer) {
       wState.closeTimer = new Timer(() => {
         console.warn(`窗口 ${wState.id} 关闭确认超时，强制关闭`);
@@ -129,15 +122,6 @@ export class WindowManager {
     }
 
     const handleWindowClose = async (event: any) => {
-      console.debug({
-        function: 'close',
-        windowsSize: this._windows.length,
-        wID: window.id,
-        isClosing: windowState.isClosing,
-        isAppQuitting: this.appInstance.isAppQuitting,
-        exitApp: this.appInstance.exitApp
-      })
-
       const wState = this.getWindowStateById(window.id)
       if (!wState) {
         console.error(`Find a unkown window id: ${window.id} request close`)
@@ -163,15 +147,6 @@ export class WindowManager {
     window.on('focus', handleFocus)
     window.on('close', handleWindowClose);
     window.on('closed', () => {
-      console.debug({
-        function: 'closed',
-        windowsSize: this._windows.length,
-        wID: window.id,
-        isClosing: windowState.isClosing,
-        isAppQuitting: this.appInstance.isAppQuitting,
-        exitApp: this.appInstance.exitApp
-      })
-
       windowState.aliveTimer?.end()
       windowState.closeTimer?.end()
 
@@ -201,7 +176,6 @@ export class WindowManager {
 
     window.once('ready-to-show', () => {
       window.show()
-      //console.debug(getSystemColors())
       window.on('enter-full-screen', handleEnterFullScreen)
       window.on('leave-full-screen', handleLeaveFullScreen)
     })
@@ -224,7 +198,6 @@ export class WindowManager {
       console.error(`Find a unkown window id: ${windowId} say hello`)
       return false
     }
-    //console.debug(`窗口 ${wState.id} say hello。`);
     
     wState.alive = true
     this.loopHeartbeatCheck(wState)

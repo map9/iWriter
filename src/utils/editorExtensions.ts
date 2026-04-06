@@ -4,6 +4,7 @@
  */
 
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
+import type { EditSetting } from '@/types'
 import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
 import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus } from '@tiptap/extensions'
 
@@ -155,12 +156,14 @@ export function createMarkdownEditorExtensions(options: {
   onFileHandlerDrop?: (currentEditor: any, files: File[], pos: number) => void | boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onFileHandlerPaste?: (currentEditor: any, files: File[], pasteContent?: string) => void | boolean
+  editSetting?: EditSetting
 }) {
   const {
     tocUpdateCallback,
     filePathResolver,
     onFileHandlerDrop,
-    onFileHandlerPaste
+    onFileHandlerPaste,
+    editSetting
   } = options
 
   // 完整语言支持（编辑器用）
@@ -360,12 +363,15 @@ export function createMarkdownEditorExtensions(options: {
 
     // 拼写检查扩展
     iwProofreadExtension.configure({
-      engineType: 'languagetool',
-      language: 'en-US',
-      engineOptions: {
-        apiUrl: 'https://api.languagetool.org/v2/check',
-        timeout: 8000
-      },
+      engineType: editSetting?.proofreadEngineType ?? 'languagetool',
+      language: editSetting?.proofreadLanguage ?? 'en-US',
+      engineOptions: (editSetting?.proofreadEngineType ?? 'languagetool') === 'languagetool'
+        ? {
+            apiUrl: editSetting?.proofreadApiUrl ?? 'https://api.languagetool.org/v2/check',
+            apiKey: editSetting?.proofreadApiKey || undefined,
+            timeout: 8000
+          }
+        : { dictionaryPath: '/dictionaries' },
       enabled: true,
       showErrors: true,
       debounceTime: 2000,

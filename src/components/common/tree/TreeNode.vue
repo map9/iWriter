@@ -352,10 +352,8 @@ const finishRename = async () => {
         // If no error thrown, update the label
         props.node.label = newName
         emit('node-rename', { node: props.node, newName })
-      } catch (error) {
+      } catch {
         // If rename failed, keep the old name - error is already handled by the callback
-        // Don't update the label, keep the old one
-        console.debug(`Rename tree item label failed:`, error)
       }
     } else {
       // No callback, just update directly

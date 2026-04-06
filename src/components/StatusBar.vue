@@ -24,8 +24,6 @@ import updaterService from '@/updater/UpdaterService'
 const appStore = useAppStore()
 
 const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args?: unknown[]) => {
-  console.debug('StatusBar command executed:', { command, item: { id: item.id, name: (item as StatusBarItem).name }, args })
-
   switch(command) {
     case 'checkForUpdates':
       const type = updaterService.status.value.type
@@ -36,7 +34,6 @@ const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args
         // 显示错误详情或重试
         updaterService.checkForUpdates().catch(console.error)
       }
-      console.debug('Checking for updates...')
       break
     case 'toggleReadonlyMode':
       void appStore.toggleReadonlyMode()
@@ -50,7 +47,6 @@ const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args
 
 // Set up tooltip command handler to use the same logic as StatusBar commands
 const handleTooltipCommand = (protocol: string, command: string, args?: unknown[]) => {
-  console.debug('Tooltip command executed:', { protocol, command, args })
 
 }
 

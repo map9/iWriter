@@ -334,7 +334,6 @@ export const useAppStore = defineStore('app', () => {
     function startSayHello(windowId: number) {
       sayHelloTimeout = setTimeout(() => {
         window.electronAPI.hello(windowId);
-        //console.debug(`window ${windowId} say hello.`)
         startSayHello(windowId)
       }, SAY_HELLO_TIMEOUT)
     }
@@ -372,11 +371,6 @@ export const useAppStore = defineStore('app', () => {
             resultClosed = await closeAllTab();
           }
 
-          console.debug({
-            function: 'onRequestWindowClose',
-            wID: windowId,
-            isClosing: resultClosed,
-          })
           window.electronAPI.windowCloseConfirm(windowId, resultClosed);
         } catch(error) {
           console.error(`窗口${windowId}任务失败:`, error);
@@ -826,8 +820,6 @@ export const useAppStore = defineStore('app', () => {
     node.id = generateId()
     node.label = filename
     node.path = `${dir}/${filename}`
-    console.debug(`updateFileTreeNodePath: ${sourcePath} -> ${node.path}`)
-
     if (node.type === 'file') {
       const openTab = tabs.value.find(tab => tab.path === sourcePath)
       if (openTab) {
@@ -1505,7 +1497,6 @@ export const useAppStore = defineStore('app', () => {
     
     try {
       let originalPath: string | undefined = tab.path
-      console.debug(`saveTab: originalPath=${originalPath}, saveAs=${saveAs}`)
       if (saveAs === true || !originalPath) {
         const defaultPath = !originalPath ? (currentFolder.value ? currentFolder.value + '/' + getFileNameFromTabContent(tab) : '') : originalPath
         const result = await window.electronAPI.showSaveDialog({
@@ -1816,10 +1807,6 @@ export const useAppStore = defineStore('app', () => {
       case 'view-theme-sunset':
         setTheme('sunset')
         return true
-      case 'view-theme-settings':
-        notify.error(`${action}`, 'Not implemented')
-        return true
-      
       case 'check-update':
         try {
           await updaterService.checkForUpdates()
@@ -1829,8 +1816,8 @@ export const useAppStore = defineStore('app', () => {
         return true
       
       case 'auto-update-settings':
-        notify.info('自动更新设置', '此功能正在开发中')
-        return true
+        // handled by MainView (opens PreferencesDialog → Updates tab)
+        return false
       
       case 'help-changelog':
         try {
@@ -1915,6 +1902,8 @@ export const useAppStore = defineStore('app', () => {
     minRightSidebarWidth,
     currentThemeId,
     systemPrefersDark,
+    globalEditSetting,
+    autoSaveEnabled,
     currentFolder,
     fileTree,
     selectedItem,

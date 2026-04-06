@@ -144,10 +144,6 @@ export function setupIconResolver(config: IconParserConfig): void {
   externalIconResolver = config.externalResolver || null
   defaultIconComponent = config.defaultIcon || null
 
-  console.debug('[IconParser] Icon resolver configured:', {
-    hasExternalResolver: !!externalIconResolver,
-    hasDefaultIcon: !!defaultIconComponent
-  })
 }
 
 /**

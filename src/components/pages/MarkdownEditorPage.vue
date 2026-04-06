@@ -457,6 +457,7 @@ const extensions = createMarkdownEditorExtensions({
     if (isReadonly.value) return true
     return onFileHandlerPaste(currentEditor, files, pasteContent)
   },
+  editSetting: appStore.globalEditSetting,
 })
 
 // Create TipTap editor instance
@@ -570,6 +571,31 @@ watch(() => appStore.autoSave, (enabled) => {
     autoSaveTimer = null
   }
 })
+
+// 当 Proofread 引擎配置变更时，清除旧 decorations 并用新引擎重新检查
+watch(
+  () => ({
+    engineType: appStore.globalEditSetting.proofreadEngineType,
+    language: appStore.globalEditSetting.proofreadLanguage,
+    apiUrl: appStore.globalEditSetting.proofreadApiUrl,
+    apiKey: appStore.globalEditSetting.proofreadApiKey,
+  }),
+  (newVal) => {
+    if (!editor.value || !appStore.canRunProofread(props.tab)) return
+    const engineOptions = newVal.engineType === 'typo'
+      ? { dictionaryPath: '/dictionaries' }
+      : {
+          apiUrl: newVal.apiUrl ?? 'https://api.languagetool.org/v2/check',
+          apiKey: newVal.apiKey || undefined,
+          timeout: 8000
+        }
+    editor.value.commands.reinitializeEngine({
+      engineType: newVal.engineType ?? 'languagetool',
+      language: newVal.language ?? 'en-US',
+      engineOptions,
+    })
+  }
+)
 
 onMounted(() => {
   window.addEventListener('blur', handleWindowBlur)
@@ -745,10 +771,6 @@ async function handleMenuAction(action: string): Promise<boolean> {
     case 'text-replace':
       notify.error(`${action}`, 'Not implemented')
       return true
-    case 'preferences-text-replacement':
-      notify.error(`${action}`, 'Not implemented')
-      return true
-
     case 'toggle-spelling-grammar-errors':
       toggleProofreadErrorsDisplay()
       return true
@@ -759,9 +781,6 @@ async function handleMenuAction(action: string): Promise<boolean> {
       return true
     case 'check-spelling-grammar-while-typing':
       toggleProofread()
-      return true
-    case 'preferences-spelling-grammar':
-      notify.error(`${action}`, 'Not implemented')
       return true
   }
 

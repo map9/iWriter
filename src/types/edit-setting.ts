@@ -10,4 +10,8 @@ export interface EditSetting {
   readonly?: boolean
   fileReadonly?: boolean
   editReadonly?: boolean
+  proofreadEngineType?: 'typo' | 'languagetool'
+  proofreadLanguage?: string
+  proofreadApiUrl?: string
+  proofreadApiKey?: string
 }

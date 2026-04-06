@@ -121,6 +121,13 @@
     @close="handleUpdateDialogClose"
     @view-details="handleViewUpdateDetails"
   />
+
+  <!-- Preferences Dialog -->
+  <PreferencesDialog
+    :visible="showPreferencesDialog"
+    :initialTab="preferencesInitialTab"
+    @close="showPreferencesDialog = false"
+  />
 </template>
 
 <script setup lang="ts">
@@ -142,6 +149,7 @@ import MarkdownEditorPage from '@/components/pages/MarkdownEditorPage.vue'
 import ImageViewerPage from '@/components/pages/ImageViewerPage.vue'
 import PDFViewerPage from '@/components/pages/PDFViewerPage.vue'
 import UpdateDialog from '@/components/updater/UpdateDialog.vue'
+import PreferencesDialog from '@/components/preferences/PreferencesDialog.vue'
 import { 
   IconAlertTriangle,
   IconFolderOpen, 
@@ -158,6 +166,10 @@ const pdfViewerRefs = ref<InstanceType<typeof PDFViewerPage>[]>([])
 // Update dialog state
 const showUpdateDialog = ref(false)
 const updateDialogData = ref<UpdateInfo | null>(null)
+
+// Preferences dialog state
+const showPreferencesDialog = ref(false)
+const preferencesInitialTab = ref<'editor' | 'spelling' | 'themes' | 'ai' | 'updates'>('editor')
 const showCleanModeChrome = ref(false)
 let cleanModeChromeTimer: ReturnType<typeof setTimeout> | null = null
 const handleWindowEscape = (event: KeyboardEvent) => {
@@ -327,7 +339,30 @@ watch(() => appStore.isCleanMode, (enabled) => {
 // Expose methods to parent component (App.vue)
 defineExpose({
   handleMenuAction: async (action: string): Promise<boolean> => {
-    // First try to handle through the active page
+    // Preferences actions — intercepted before page delegation
+    switch (action) {
+      case 'preferences':
+        preferencesInitialTab.value = 'editor'
+        showPreferencesDialog.value = true
+        return true
+      case 'preferences-text-replacement':
+        preferencesInitialTab.value = 'editor'
+        showPreferencesDialog.value = true
+        return true
+      case 'preferences-spelling-grammar':
+        preferencesInitialTab.value = 'spelling'
+        showPreferencesDialog.value = true
+        return true
+      case 'view-theme-settings':
+        preferencesInitialTab.value = 'themes'
+        showPreferencesDialog.value = true
+        return true
+      case 'auto-update-settings':
+        preferencesInitialTab.value = 'updates'
+        showPreferencesDialog.value = true
+        return true
+    }
+    // Delegate to active page
     const activePageRef = getActivePageRef()
     if (activePageRef?.handleMenuAction) {
       return await activePageRef.handleMenuAction(action)

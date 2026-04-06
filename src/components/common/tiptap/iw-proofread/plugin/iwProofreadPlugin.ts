@@ -124,13 +124,6 @@ function processNodePlus(
 
       packagingCount ++
       if (finalText.trim().length !== 0) {
-        console.debug({
-          function: 'processNodePlus packaging',
-          node: paraNode.textContent,
-          finalText,
-          textNodesWithPosition
-        })
-        
         processFun(paraNode, paraPos, finalText, textNodesWithPosition)
       }
     }
@@ -254,14 +247,6 @@ function processNodeAdvanced(
         lastPos += child.nodeSize
       })
 
-      /*
-      console.debug({
-        function: 'processNodeAdvanced',
-        node: node.textContent,
-        finalText,
-        textNodesWithPosition
-      })
-      */
       processFun(node, pos, finalText, textNodesWithPosition)
       return false
     }    
@@ -312,14 +297,8 @@ function updateIgnoredErrorPositions(tr: Transaction, storage: iwProofreadStorag
         if (newText === word) {
           const newIgnoredId = createIgnoredErrorId(newFrom, newTo, word, type)
           ignoredMap.set(newIgnoredId, true)
-        } else {
-          // 如果内容不匹配，说明用户已修正该错误，自动清除ignore状态
-          console.debug({function: 'updateIgnoredErrorPositions', info: 'mismatch content', from, to, word, type })
-        }
-      } else {
-        // 如果位置无效，说明该区域被删除，自动清除ignore状态
-        console.debug({function: 'updateIgnoredErrorPositions', info: `Can't find`, from, to, word, type })
-      }
+        } // else: content mismatch, user already fixed the error, ignore state cleared automatically
+      } // else: position invalid, area deleted, ignore state cleared automatically
     }
   })
 }

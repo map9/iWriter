@@ -71,16 +71,17 @@ class TypoEngine implements ProofreadEngine {
       throw new Error('TypoEngine: dictionaryPath is required')
     }
 
-    const affUrl = `${options.dictionaryPath}/${this.language}/index.aff`
-    const dicUrl = `${options.dictionaryPath}/${this.language}/index.dic`
+    // 规范化语言代码：typo.js 字典按基础语言存放（如 en），不含区域后缀（如 en-US）
+    const baseLanguage = this.language.split('-')[0] || this.language
+    const affUrl = `${options.dictionaryPath}/${baseLanguage}/index.aff`
+    const dicUrl = `${options.dictionaryPath}/${baseLanguage}/index.dic`
 
     const [aff, dic] = await Promise.all([
-      fetchTextOrThrow(affUrl, `Dictionary ${this.language}.aff`),
-      fetchTextOrThrow(dicUrl, `Dictionary ${this.language}.dic`)
+      fetchTextOrThrow(affUrl, `Dictionary ${baseLanguage}.aff`),
+      fetchTextOrThrow(dicUrl, `Dictionary ${baseLanguage}.dic`)
     ])
 
-    this.dictionary = new Typo(this.language, aff, dic)
-    console.debug(`[TypoEngine] Dictionary loaded for ${this.language}`)
+    this.dictionary = new Typo(baseLanguage, aff, dic)
   }
 
   async check(text: string): Promise<ProofreadError[]> {

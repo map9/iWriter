@@ -15,6 +15,11 @@ declare module '@tiptap/core' {
 			proofreadWhole: () => ReturnType
 			showProofreadErrors: (show: boolean) => ReturnType
 			toggleProofreadErrorDisplay: () => ReturnType
+			reinitializeEngine: (config: {
+				engineType: import('./service').ProofreadEngineType
+				language: string
+				engineOptions?: import('./service').TypoEngineOptions | import('./service').LanguageToolEngineOptions
+			}) => ReturnType
 		}
 	}
 }
@@ -91,6 +96,45 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 			},
 			toggleProofreadErrorDisplay: () => ({ commands }) => {
 				return commands.showProofreadErrors(!this.storage.showErrors)
+			},
+			reinitializeEngine: (config) => () => {
+				// 1. 清理防抖定时器
+				if (this.storage.debounceTimer) {
+					clearTimeout(this.storage.debounceTimer)
+					this.storage.debounceTimer = null
+				}
+				// 2. 销毁旧的 ProofreadService
+				if (this.storage.proofreadService) {
+					this.storage.proofreadService.destroy()
+					this.storage.proofreadService = null
+				}
+				// 3. 清空所有缓存状态
+				this.storage.nodeProofreadMap.clear()
+				this.storage.decorationSet = DecorationSet.empty
+				this.storage.ignoredErrors.clear()
+				this.storage.isProcessing = false
+				// 4. dispatch 空事务让视图立即清除 decorations
+				if (this.editor.view?.dispatch) {
+					this.editor.view.dispatch(this.editor.view.state.tr.setMeta('forceUpdate', true))
+				}
+				// 5. 若 proofread 未启用则无需重建
+				if (!this.storage.isEnabled) return true
+				// 6. 用新配置创建 ProofreadService 并全文重新检查
+				try {
+					this.storage.proofreadService = new ProofreadService({
+						engineType: config.engineType,
+						language: config.language,
+						engineOptions: config.engineOptions,
+						maxWorkers: this.options.maxWorkers,
+						cacheSize: this.options.cacheSize,
+						cacheExpiry: this.options.cacheExpiry
+					})
+					performProofread(this.storage, this.editor, true)
+				} catch (error) {
+					console.warn('[iwProofreadExtension] Engine reinitialization failed:', error)
+					this.storage.isEnabled = false
+				}
+				return true
 			}
 		}
 	},

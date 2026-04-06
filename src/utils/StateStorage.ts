@@ -54,7 +54,11 @@ export const DEFAULT_EDIT_SETTING: EditSetting = {
   firstLineIndent: true,
   smartPunctuation: true,
   showProofreadErrors: true,
-  proofread: true
+  proofread: true,
+  proofreadEngineType: 'languagetool',
+  proofreadLanguage: 'en-US',
+  proofreadApiUrl: 'https://api.languagetool.org/v2/check',
+  proofreadApiKey: '',
 }
 
 export const DEFAULT_WORKSPACE_STATE: WorkspaceState = {

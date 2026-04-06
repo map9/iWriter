@@ -192,13 +192,6 @@ export class App {
   }
 
   private startAppQuitCheck() {
-    console.debug({
-      function: 'startAppQuitCheck',
-      windowsSize: this.windowManager.getWindowCount(),
-      isAppQuitting: this._isAppQuitting,
-      exitApp: this._exitApp
-    })
-  
     if (!this.appQuitTimer) {
       this.appQuitTimer = new Timer(() => {
         console.warn(`应用程序关闭确认超时，强制关闭`);
@@ -241,13 +234,6 @@ export class App {
     })
 
     ipcMain.on('window-close-confirm', (_, windowId: number, canClose: boolean) => {
-      console.debug({
-        wId: windowId,
-        canClose: canClose,
-        isAppQuitting: this.isAppQuitting,
-        exitApp: this.exitApp
-      })
-
       this.windowManager.handleWindowCloseConfirm(windowId, canClose)
       // 只要有一个窗口坚持不退出，整个应用就不退出
       if (
@@ -511,17 +497,12 @@ export class App {
       if (focusedWindow == null) return null
 
       try {
-        console.debug('Moving file:', { sourcePath, targetDir })
-        
         const fileName = path.basename(sourcePath)
         const sourceDir = path.dirname(sourcePath)
         const targetPath = path.join(targetDir, fileName)
-        
-        console.debug('Paths:', { fileName, sourceDir, targetPath })
-        
+                
         // Check if trying to move to the same directory
         if (sourceDir === targetDir) {
-          console.debug('Source and target directories are the same, skipping move')
           return {
             success: false,
             conflictAction: 'skip'
@@ -555,7 +536,6 @@ export class App {
             }
             
             fs.renameSync(sourcePath, newTargetPath)
-            console.debug('Move successful with new name:', newTargetPath)
             return {
               success: true,
               conflictAction: 'keepBoth',
@@ -572,7 +552,6 @@ export class App {
             }
 
             fs.renameSync(sourcePath, targetPath)
-            console.debug('Move successful:', targetPath)
             return {
               success: true,
               conflictAction: 'replace',
@@ -587,7 +566,6 @@ export class App {
         }
         
         fs.renameSync(sourcePath, targetPath)
-        console.debug('Move successful:', targetPath)
         return {
           success: true,
           newPath: targetPath,
@@ -1110,10 +1088,6 @@ export class App {
 
   run() {
     app.on('window-all-closed', () => {
-      console.debug({
-        function: 'window-all-closed',
-      })
-
       if (!isMac) app.quit()
     });
 
@@ -1127,12 +1101,6 @@ export class App {
     6.主进程：app.quit（应用完全退出）
     */
     app.on('before-quit', async (event) => {
-      console.debug({
-        function: 'before-quit',
-        windowsSize: this.windowManager.getWindowCount(),
-        isAppQuitting: this._isAppQuitting,
-        exitApp: this._exitApp
-      })
       if (this.windowManager.getWindowCount() === 0) return
 
       // 如果不是坚决要退出，先阻止，并通知所有的window
@@ -1152,12 +1120,6 @@ export class App {
     });
 
     app.on('will-quit', async (event) => {
-      console.debug({
-        function: 'will-quit',
-        isAppQuitting: this._isAppQuitting,
-        exitApp: this._exitApp
-      })
-      
       // 清理应用强制退出定时器
       this.appQuitTimer?.end()
 

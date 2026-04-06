@@ -197,21 +197,6 @@ export function getThemeById(id: string): Theme | undefined {
 export function applySystemColors(themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: ThemeColors }) {
   const root = document.documentElement
 
-  // console.debug(newColors)
-  // 实际上 Electron 应用获取的系统颜色只有在应用第一次获取时有效，后续获取的系统颜色都是缓存，没有及时更新；主题是每次都更新。
-  // 在 MacOS 中，经过测试 Accent color会发生变化，其他都不会发生变化
-  // 因此，这个部分的代码，不能达到实际效果
-  /*
-  if (themeAndColors.theme === 'dark') {
-    newColors = !newColors? darkTheme.colors : mergeDeep({}, darkTheme.colors, newColors)
-  } else if (themeAndColors.theme === 'light') {
-    newColors = !newColors? lightTheme.colors : mergeDeep({}, lightTheme.colors, newColors)
-  } else {
-    newColors = lightTheme.colors
-    console.warn('Unknown system theme, falling back to light theme colors.')
-  }
-  */
- 
   let newColors: ThemeColors | null = null
   if (themeAndColors.theme === 'dark') {
     newColors = darkTheme.colors
@@ -259,9 +244,5 @@ export function applyThemeColors(theme: Theme) {
     Object.entries(categoryColors as Record<string, string>).forEach(([colorName, colorValue]) => {
       root.style.setProperty(`--color-${category}-${colorName}`, hex8ToRGBA(colorValue))
     })
-  })
-  
-  // Apply theme class ???
-  //root.classList.remove('light', 'dark', 'system')
-  //root.classList.add(theme.type === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme.type)
+  })  
 }
