@@ -1296,12 +1296,14 @@ export class MenuManager {
               */
             ]
           },
+          /*
           {
             label: 'Insert from iPhone or iPad',
             submenu: [
               // Will be populated dynamically based on available devices
             ]
           },
+          */
           { type: 'separator' },
           {
             label: 'Clear Formatting',
