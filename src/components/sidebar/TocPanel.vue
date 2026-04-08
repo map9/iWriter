@@ -148,6 +148,10 @@ const tocItemsState = ref<TocItem[]>([])
 const isLoadingState = ref(false)
 let unsubscribeTocUpdate: UnsubscribeFn | null = null
 
+const normalizeTocItems = (items: TocItem[] | undefined | null): TocItem[] => {
+  return Array.isArray(items) ? items : []
+}
+
 const tocItems = computed(() => tocItemsState.value)
 const isLoading = computed(() => isLoadingState.value)
 const hasItems = computed(() => tocItems.value.length > 0)
@@ -162,10 +166,10 @@ watch(tocProvider, provider => {
     return
   }
 
-  tocItemsState.value = provider.getTocItems()
+  tocItemsState.value = normalizeTocItems(provider.getTocItems())
   isLoadingState.value = provider.isLoading
   unsubscribeTocUpdate = provider.onTocUpdate(items => {
-    tocItemsState.value = items
+    tocItemsState.value = normalizeTocItems(items)
     isLoadingState.value = provider.isLoading
   })
 }, { immediate: true })

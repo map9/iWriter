@@ -1,4 +1,4 @@
-import { merge, debounce } from 'lodash'
+import { debounce } from 'lodash'
 import { defineStore } from 'pinia'
 import { ref, computed, watch, reactive } from 'vue'
 import { undoDepth } from '@tiptap/pm/history'
@@ -1594,7 +1594,22 @@ export const useAppStore = defineStore('app', () => {
   function updateTabState(tabId: string, updates: Partial<FileTab>) {
     const tab = tabs.value.find(t => t.id === tabId)
     if (tab) {
-      merge(tab, updates)
+      // Toc providers are class instances. Deep-merging them corrupts their internal shape
+      // when switching between provider implementations (for example PDF -> Markdown).
+      if (Object.prototype.hasOwnProperty.call(updates, 'tocProvider') && tab.tocProvider !== updates.tocProvider) {
+        tab.tocProvider?.destroy()
+      }
+
+      const { editState, ...otherUpdates } = updates
+
+      if (editState) {
+        tab.editState = {
+          ...tab.editState,
+          ...editState
+        }
+      }
+
+      Object.assign(tab, otherUpdates)
     }
   }
 
