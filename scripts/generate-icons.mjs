@@ -187,9 +187,7 @@ async function generateLinuxIcons() {
   const sizes = [16, 24, 32, 48, 64, 128, 256, 512];
 
   for (const size of sizes) {
-    const sizeDir = path.join(linuxDir, `${size}x${size}`);
-    ensureDir(sizeDir);
-    const iconPath = path.join(sizeDir, 'icon.png');
+    const iconPath = path.join(linuxDir, `${size}x${size}.png`);
     await generatePngFromSvg(size, iconPath);
   }
   console.log(`Linux图标生成完成: ${linuxDir}`);
