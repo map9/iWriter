@@ -105,11 +105,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, toRefs, watch } from 'vue'
+import { computed, ref, reactive, toRefs, watch, onBeforeUnmount } from 'vue'
 import { useAppStore } from '@/stores/app'
 import Tree from '@/components/common/tree/Tree.vue'
 import type { TreeNode, TreeCallbacks } from '@/components/common/tree'
-import type { TocItem } from '@/types/toc'
+import type { TocItem, UnsubscribeFn } from '@/types/toc'
 import {
   IconList,
   IconArrowUp,
@@ -144,9 +144,36 @@ const { treeNodes } = toRefs(state)
 // 计算属性 - 获取当前活跃tab的TOC相关数据
 const activeTab = computed(() => appStore.activeTab)
 const tocProvider = computed(() => activeTab.value?.tocProvider)
-const tocItems = computed(() => tocProvider.value?.getTocItems() || [])
-const isLoading = computed(() => tocProvider.value?.isLoading || false)
+const tocItemsState = ref<TocItem[]>([])
+const isLoadingState = ref(false)
+let unsubscribeTocUpdate: UnsubscribeFn | null = null
+
+const tocItems = computed(() => tocItemsState.value)
+const isLoading = computed(() => isLoadingState.value)
 const hasItems = computed(() => tocItems.value.length > 0)
+
+watch(tocProvider, provider => {
+  unsubscribeTocUpdate?.()
+  unsubscribeTocUpdate = null
+
+  if (!provider) {
+    tocItemsState.value = []
+    isLoadingState.value = false
+    return
+  }
+
+  tocItemsState.value = provider.getTocItems()
+  isLoadingState.value = provider.isLoading
+  unsubscribeTocUpdate = provider.onTocUpdate(items => {
+    tocItemsState.value = items
+    isLoadingState.value = provider.isLoading
+  })
+}, { immediate: true })
+
+onBeforeUnmount(() => {
+  unsubscribeTocUpdate?.()
+  unsubscribeTocUpdate = null
+})
 
 // 生成层级序号的函数
 const generateHierarchicalNumbers = (nodes: TreeNode[], parentNumber = ''): void => {

@@ -192,7 +192,7 @@
   }
 
   .toolbar-group {
-    @apply flex items-center gap-1;
+    @apply flex items-center gap-1 shrink-0 whitespace-nowrap;
   }
 
   .toolbar-separator {

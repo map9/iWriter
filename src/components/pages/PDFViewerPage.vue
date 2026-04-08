@@ -1,7 +1,7 @@
 <template>
   <div class="document-viewer-wrapper">
     <!-- PDF Toolbar -->
-    <div class="toolbar">
+    <div class="toolbar" @click.capture="handleToolbarClick">
       <div class="toolbar-group">
         <button
           @click="zoomOut"
@@ -38,6 +38,35 @@
       
       <div class="toolbar-group">
         <button
+          @click="setDisplayMode('continuous')"
+          class="px-2.5 py-1 text-sm rounded hover:bg-gray-200 transition-colors shrink-0 whitespace-nowrap leading-none"
+          :class="{ 'bg-gray-200 font-medium': displayMode === 'continuous' }"
+          title="连续滚动"
+        >
+          连续
+        </button>
+        <button
+          @click="setDisplayMode('single')"
+          class="px-2.5 py-1 text-sm rounded hover:bg-gray-200 transition-colors shrink-0 whitespace-nowrap leading-none"
+          :class="{ 'bg-gray-200 font-medium': displayMode === 'single' }"
+          title="单页显示"
+        >
+          单页
+        </button>
+        <button
+          @click="setDisplayMode('double')"
+          class="px-2.5 py-1 text-sm rounded hover:bg-gray-200 transition-colors shrink-0 whitespace-nowrap leading-none"
+          :class="{ 'bg-gray-200 font-medium': displayMode === 'double' }"
+          title="双页显示"
+        >
+          双页
+        </button>
+      </div>
+
+      <div class="toolbar-separator" />
+
+      <div class="toolbar-group">
+        <button
           @click="previousPage"
           :disabled="currentPage <= 1"
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -70,34 +99,69 @@
       </div>
       
       <div class="toolbar-spacer" />
-      
-      <div class="text-sm text-gray-600">
-        PDF 文档
-      </div>
     </div>
     
     <!-- PDF Display Area -->
     <div
       ref="pdfContainer"
-      class="flex-1 overflow-auto bg-gray-200"
+      class="flex-1 overflow-auto bg-gray-200 outline-none focus:outline-none"
       tabindex="0"
       @wheel="handleWheel"
       @scroll.passive="handleScroll"
+      @keydown="handleKeydown"
+      @mousedown="focusViewer"
     >
-      <div class="min-h-full w-max min-w-full px-4 py-4">
-        <!-- PDF.js will render here -->
+      <div
+        v-if="displayMode === 'continuous'"
+        class="min-h-full w-max min-w-full px-4 py-4"
+      >
         <div
           ref="pdfViewer"
-          class="flex w-max min-w-full flex-col items-center space-y-4"
+          class="flex flex-col gap-4"
         >
-          <!-- PDF Pages will be rendered here -->
-          <canvas
-            v-for="pageNum in renderedPages"
-            :key="pageNum"
-            :ref="el => setCanvasRef(el as Element, pageNum)"
-            class="shadow-lg bg-white"
-            :class="{ 'ring-2 ring-blue-500': pageNum === currentPage }"
-          />
+          <div
+            v-for="row in displayRows"
+            :key="row.key"
+            class="flex w-full items-center justify-center gap-4"
+          >
+            <canvas
+              v-for="pageNum in row.pages"
+              :key="pageNum"
+              :ref="el => setCanvasRef(el as Element, pageNum)"
+              class="shadow-lg bg-white"
+              :class="{ 'ring-2 ring-blue-500': highlightedPages.has(pageNum) }"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-else
+        class="min-h-full w-max min-w-full px-4 py-4"
+      >
+        <div
+          class="flex items-center justify-center"
+          :style="pagedStageStyle"
+        >
+          <div
+            ref="pdfViewer"
+            class="flex flex-col gap-4"
+            :style="pagedViewerStyle"
+          >
+            <div
+              v-for="row in displayRows"
+              :key="row.key"
+              class="flex items-center justify-center gap-4"
+            >
+              <canvas
+                v-for="pageNum in row.pages"
+                :key="pageNum"
+                :ref="el => setCanvasRef(el as Element, pageNum)"
+                class="shadow-lg bg-white"
+                :class="{ 'ring-2 ring-blue-500': highlightedPages.has(pageNum) }"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -132,6 +196,8 @@ import { ref, toRef, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import type { FileTab } from '@/types'
 import * as pdfjsLib from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { useAppStore } from '@/stores/app'
+import { PDFTocProvider } from '@/services/toc/PDFTocProvider'
 import { 
   IconZoomIn, 
   IconZoomOut, 
@@ -150,6 +216,9 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const appStore = useAppStore()
+
+type DisplayMode = 'continuous' | 'single' | 'double'
 
 // State
 const pdfContainer = ref<HTMLElement>()
@@ -160,17 +229,96 @@ const totalPages = ref(1)
 const pageInput = ref(1)
 const loading = ref(false)
 const error = ref<string | null>(null)
+const displayMode = ref<DisplayMode>('continuous')
+const containerSize = ref({ width: 0, height: 0 })
+const referencePageSize = ref({ width: 0, height: 0 })
 
 // PDF.js references (use non-reactive to avoid proxy issues)
 let pdfDocumentInstance: pdfjsLib.PDFDocumentProxy | null = null
+let pdfTocProvider: PDFTocProvider | null = null
 const canvasRefs = ref<Map<number, HTMLCanvasElement>>(new Map())
+const renderedCanvasCache = new Map<number, HTMLCanvasElement>()
 const renderedPages = ref<number[]>([])
 const renderScale = ref(window.devicePixelRatio || 1)
 const activeRenderTasks = new Map<number, pdfjsLib.RenderTask>()
 let isUnmounted = false
 let preloadInFlight: Promise<void> | null = null
+let resizeObserver: ResizeObserver | null = null
+let resizeRaf = 0
+let lastContainerSize: { width: number, height: number } | null = null
+let lastPagedBoundaryNavigationAt = 0
 const PAGE_PRELOAD_RANGE = 2
 const PAGE_UNLOAD_RANGE = 6
+const PAGED_GAP = 16
+const VIEWER_PADDING = 32
+const PAGED_KEYBOARD_SCROLL_STEP = 48
+const PAGED_BOUNDARY_NAV_COOLDOWN = 220
+
+const pageDisplaySize = computed(() => ({
+  width: referencePageSize.value.width * zoom.value,
+  height: referencePageSize.value.height * zoom.value
+}))
+
+const pagedContentSize = computed(() => {
+  if (displayMode.value === 'double') {
+    return {
+      width: pageDisplaySize.value.width * 2 + PAGED_GAP,
+      height: pageDisplaySize.value.height
+    }
+  }
+
+  return {
+    width: pageDisplaySize.value.width,
+    height: pageDisplaySize.value.height
+  }
+})
+
+const pagedStageStyle = computed(() => {
+  const availableWidth = Math.max(containerSize.value.width - VIEWER_PADDING, 0)
+  const availableHeight = Math.max(containerSize.value.height - VIEWER_PADDING, 0)
+
+  return {
+    width: `${Math.max(availableWidth, pagedContentSize.value.width)}px`,
+    height: `${Math.max(availableHeight, pagedContentSize.value.height)}px`
+  }
+})
+
+const pagedViewerStyle = computed(() => {
+  return {
+    width: `${pagedContentSize.value.width}px`,
+    minHeight: `${pagedContentSize.value.height}px`,
+    justifyContent: 'center'
+  }
+})
+
+const highlightedPages = computed(() => {
+  if (displayMode.value === 'double') {
+    const start = getSpreadStart(currentPage.value)
+    return new Set([start, Math.min(start + 1, totalPages.value)].filter(page => page >= 1 && page <= totalPages.value))
+  }
+  return new Set([currentPage.value])
+})
+
+const displayRows = computed(() => {
+  const pages = getSortedRenderedPages()
+
+  if (displayMode.value !== 'double') {
+    return pages.map(pageNum => ({
+      key: `page-${pageNum}`,
+      pages: [pageNum]
+    }))
+  }
+
+  const rows: Array<{ key: string, pages: number[] }> = []
+  for (let index = 0; index < pages.length; index += 2) {
+    const rowPages = pages.slice(index, index + 2)
+    rows.push({
+      key: `spread-${rowPages.join('-')}`,
+      pages: rowPages
+    })
+  }
+  return rows
+})
 
 function isRenderCancelled(error: unknown): boolean {
   return error instanceof Error && (
@@ -199,6 +347,7 @@ async function cancelRenderTask(pageNum: number) {
 function setCanvasRef(el: Element | null, pageNum: number) {
   if (el instanceof HTMLCanvasElement) {
     canvasRefs.value.set(pageNum, el)
+    copyCachedCanvasToVisible(pageNum, el)
   }
 }
 
@@ -213,37 +362,21 @@ const pdfUrl = computed(() => {
 // Methods
 function zoomIn() {
   zoom.value = Math.min(zoom.value * 1.2, 5)
-  rerenderAllPages()
+  void rerenderAllPages()
 }
 
 function zoomOut() {
   zoom.value = Math.max(zoom.value / 1.2, 0.25)
-  rerenderAllPages()
+  void rerenderAllPages()
 }
 
 function zoomToFit() {
-  if (!pdfContainer.value || !pdfDocumentInstance) return
-  
-  // 计算适合的缩放比例
-  const viewerWidth = pdfViewer.value?.clientWidth ?? pdfContainer.value.clientWidth
-  const horizontalPadding = 32
-  const verticalPadding = 48
-  const containerWidth = Math.max(viewerWidth - horizontalPadding, 200)
-  const containerHeight = Math.max(pdfContainer.value.clientHeight - verticalPadding, 200)
-  
-  // 获取第一页的尺寸作为参考
-  pdfDocumentInstance.getPage(1).then(page => {
-    const viewport = page.getViewport({ scale: 1 })
-    const widthScale = containerWidth / viewport.width
-    const heightScale = containerHeight / viewport.height
-    zoom.value = Math.min(widthScale, heightScale, 2) // 最大不超过200%
-    
-    rerenderAllPages()
-  })
+  void applyDefaultZoomForDisplayMode(displayMode.value)
 }
 
 // 重新渲染所有已加载的页面
 async function rerenderAllPages() {
+  await nextTick()
   for (const pageNum of renderedPages.value) {
     await renderPage(pageNum)
   }
@@ -294,6 +427,7 @@ function unloadRenderedPages(keepPages: number[]) {
 }
 
 function trimRenderedPages(anchorPage = currentPage.value) {
+  if (displayMode.value !== 'continuous') return
   if (renderedPages.value.length === 0) return
 
   const keepPages: number[] = []
@@ -307,37 +441,142 @@ function trimRenderedPages(anchorPage = currentPage.value) {
 }
 
 function previousPage() {
-  if (currentPage.value > 1) {
-    currentPage.value--
-    pageInput.value = currentPage.value
-    scrollToPage(currentPage.value)
-    preloadNearbyPages()
-  }
+  const step = displayMode.value === 'double' ? 2 : 1
+  const nextPageNum = displayMode.value === 'double'
+    ? Math.max(1, getSpreadStart(currentPage.value) - step)
+    : Math.max(1, currentPage.value - step)
+
+  if (nextPageNum === currentPage.value) return
+  setCurrentPage(nextPageNum)
 }
 
 function nextPage() {
-  if (currentPage.value < totalPages.value) {
-    currentPage.value++
-    pageInput.value = currentPage.value
-    scrollToPage(currentPage.value)
-    preloadNearbyPages()
-  }
+  const step = displayMode.value === 'double' ? 2 : 1
+  const nextPageNum = displayMode.value === 'double'
+    ? Math.min(totalPages.value, getSpreadStart(currentPage.value) + step)
+    : Math.min(totalPages.value, currentPage.value + step)
+
+  if (nextPageNum === currentPage.value) return
+  setCurrentPage(nextPageNum)
 }
 
 function goToPage() {
   const page = Math.max(1, Math.min(pageInput.value, totalPages.value))
-  currentPage.value = page
-  pageInput.value = page
-  scrollToPage(currentPage.value)
-  preloadNearbyPages()
+  setCurrentPage(page)
 }
 
 // 滚动到指定页面
-function scrollToPage(pageNum: number) {
+function scrollToPage(pageNum: number, behavior: ScrollBehavior = 'auto') {
   const canvas = canvasRefs.value.get(pageNum)
   if (canvas && pdfContainer.value) {
-    canvas.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    canvas.scrollIntoView({
+      behavior,
+      block: displayMode.value === 'continuous' ? 'start' : 'center',
+      inline: 'center'
+    })
+  } else if (pdfContainer.value) {
+    pdfContainer.value.scrollTop = 0
+    pdfContainer.value.scrollLeft = 0
   }
+}
+
+function getSpreadStart(pageNum: number): number {
+  if (pageNum <= 1) return 1
+  return pageNum % 2 === 0 ? pageNum - 1 : pageNum
+}
+
+function getDisplayPageSet(pageNum = currentPage.value): number[] {
+  if (displayMode.value === 'single') {
+    return [pageNum]
+  }
+
+  if (displayMode.value === 'double') {
+    const start = getSpreadStart(pageNum)
+    return [start, start + 1].filter(page => page >= 1 && page <= totalPages.value)
+  }
+
+  const pages: number[] = []
+  const start = Math.max(1, pageNum - PAGE_PRELOAD_RANGE)
+  const end = Math.min(totalPages.value, pageNum + PAGE_PRELOAD_RANGE)
+  for (let page = start; page <= end; page++) {
+    pages.push(page)
+  }
+  return pages
+}
+
+function getPreloadPageSet(pageNum = currentPage.value): number[] {
+  if (displayMode.value === 'continuous') {
+    return getDisplayPageSet(pageNum)
+  }
+
+  const pages = new Set<number>(getDisplayPageSet(pageNum))
+
+  if (displayMode.value === 'single') {
+    for (const page of [pageNum - 1, pageNum + 1]) {
+      if (page >= 1 && page <= totalPages.value) {
+        pages.add(page)
+      }
+    }
+  } else {
+    const spreadStart = getSpreadStart(pageNum)
+    for (const adjacentStart of [spreadStart - 2, spreadStart + 2]) {
+      for (const page of [adjacentStart, adjacentStart + 1]) {
+        if (page >= 1 && page <= totalPages.value) {
+          pages.add(page)
+        }
+      }
+    }
+  }
+
+  return [...pages].sort((a, b) => a - b)
+}
+
+async function syncDisplayPages(options?: { preserveScroll?: boolean, behavior?: ScrollBehavior, targetPage?: number }) {
+  const pages = getDisplayPageSet(currentPage.value)
+  await ensurePagesRendered(pages)
+  const targetPage = options?.targetPage ?? currentPage.value
+
+  if (displayMode.value === 'continuous') {
+    trimRenderedPages(currentPage.value)
+    if (!options?.preserveScroll) {
+      scrollToPage(targetPage, options?.behavior ?? 'auto')
+    }
+  } else {
+    unloadRenderedPages(pages)
+    if (!options?.preserveScroll) {
+      await nextTick()
+      scrollToPage(targetPage, options?.behavior ?? 'auto')
+    }
+  }
+}
+
+function setCurrentPage(pageNum: number, options?: { behavior?: ScrollBehavior }) {
+  currentPage.value = pageNum
+  pageInput.value = pageNum
+  pdfTocProvider?.updateActivePage(pageNum)
+
+  void syncDisplayPages({
+    behavior: options?.behavior,
+    targetPage: pageNum
+  }).then(() => {
+    void preloadNearbyPages()
+  })
+}
+
+async function setDisplayMode(mode: DisplayMode) {
+  if (displayMode.value === mode) return
+
+  displayMode.value = mode
+  await nextTick()
+
+  if (mode === 'double') {
+    currentPage.value = getSpreadStart(currentPage.value)
+    pageInput.value = currentPage.value
+  }
+
+  await applyDefaultZoomForDisplayMode(mode)
+  await syncDisplayPages()
+  void preloadNearbyPages()
 }
 
 async function loadPDF() {
@@ -397,26 +636,26 @@ async function loadPDF() {
     totalPages.value = pdf.numPages
     currentPage.value = 1
     pageInput.value = 1
-    
-    // 初始化可见页面列表
-    renderedPages.value = [1]
-    
-    // 等待DOM更新后渲染页面
-    await nextTick()
-    
-    // 渲染第一页
-    try {
-      await renderPage(1)
-    } catch (err) {
-      console.error('Failed to render first page:', err)
-      error.value = '无法渲染PDF页面'
-      return
+    const referenceViewport = await getReferenceViewport()
+    if (referenceViewport) {
+      referencePageSize.value = {
+        width: referenceViewport.width,
+        height: referenceViewport.height
+      }
     }
-    
-    // 预加载附近页面（延迟执行，避免阻塞首页渲染）
-    setTimeout(() => {
-      preloadNearbyPages()
-    }, 100)
+
+    pdfTocProvider?.destroy()
+    pdfTocProvider = new PDFTocProvider(pdf, pageNumber => {
+      setCurrentPage(pageNumber, { behavior: 'smooth' })
+      focusViewer()
+    })
+    appStore.updateTabState(props.tab.id, { tocProvider: pdfTocProvider })
+    void pdfTocProvider.load()
+
+    await applyDefaultZoomForDisplayMode(displayMode.value)
+    await syncDisplayPages()
+    pdfTocProvider.updateActivePage(1)
+    focusViewer()
     
   } catch (err) {
     error.value = `PDF文件加载失败: ${err instanceof Error ? err.message : String(err)}`
@@ -443,36 +682,21 @@ async function renderPage(pageNum: number) {
 
     const page = await pdfDocumentInstance.getPage(pageNum)
     if (isUnmounted) return
-
-    const canvas = canvasRefs.value.get(pageNum)
-    
-    if (!canvas) {
-      console.warn(`Canvas for page ${pageNum} not found`)
-      return
-    }
-    
-    const context = canvas.getContext('2d', { willReadFrequently: true })
-    if (!context) {
-      console.warn(`Canvas context not available for page ${pageNum}`)
-      return
-    }
     
     // 计算视口
     const viewport = page.getViewport({ scale: zoom.value * renderScale.value })
-    
-    // 设置canvas尺寸
-    canvas.height = viewport.height
-    canvas.width = viewport.width
-    canvas.style.width = `${viewport.width / renderScale.value}px`
-    canvas.style.height = `${viewport.height / renderScale.value}px`
-    
-    // 清除之前的内容
-    context.clearRect(0, 0, canvas.width, canvas.height)
-    
-    // 渲染页面
+
+    const bufferCanvas = document.createElement('canvas')
+    bufferCanvas.width = viewport.width
+    bufferCanvas.height = viewport.height
+    const bufferContext = bufferCanvas.getContext('2d', { willReadFrequently: true })
+    if (!bufferContext) {
+      return
+    }
+
     const renderContext = {
-      canvasContext: context,
-      canvas: canvas,
+      canvasContext: bufferContext,
+      canvas: bufferCanvas,
       viewport: viewport
     }
     
@@ -486,6 +710,8 @@ async function renderPage(pageNum: number) {
     })
     
     await Promise.race([renderTask.promise, timeoutPromise])
+    renderedCanvasCache.set(pageNum, bufferCanvas)
+    copyCachedCanvasToVisible(pageNum)
     page.cleanup()
     
   } catch (err) {
@@ -501,7 +727,7 @@ async function renderPage(pageNum: number) {
 }
 
 async function renderCurrentPage() {
-  await ensurePagesRendered([currentPage.value])
+  await syncDisplayPages({ preserveScroll: true })
 }
 
 // 预加载附近页面
@@ -510,24 +736,24 @@ async function preloadNearbyPages() {
     console.warn('PDF document not ready for preloading')
     return
   }
-  
-  const start = Math.max(1, currentPage.value - PAGE_PRELOAD_RANGE)
-  const end = Math.min(totalPages.value, currentPage.value + PAGE_PRELOAD_RANGE)
-
-  const pageNums: number[] = []
-  for (let pageNum = start; pageNum <= end; pageNum++) {
-    pageNums.push(pageNum)
-  }
 
   try {
-    await ensurePagesRendered(pageNums)
-    trimRenderedPages(currentPage.value)
+    const pageNums = getPreloadPageSet(currentPage.value)
+    if (displayMode.value === 'continuous') {
+      await ensurePagesRendered(pageNums)
+      trimRenderedPages(currentPage.value)
+    } else {
+      for (const pageNum of pageNums) {
+        await renderPage(pageNum)
+      }
+    }
   } catch (err) {
     console.error('Failed to preload nearby PDF pages:', err)
   }
 }
 
 function updateCurrentPageFromScroll() {
+  if (displayMode.value !== 'continuous') return
   if (!pdfContainer.value) return
 
   const containerRect = pdfContainer.value.getBoundingClientRect()
@@ -552,10 +778,12 @@ function updateCurrentPageFromScroll() {
   if (nearestPage !== currentPage.value) {
     currentPage.value = nearestPage
     pageInput.value = nearestPage
+    pdfTocProvider?.updateActivePage(nearestPage)
   }
 }
 
 function queueScrollPreload() {
+  if (displayMode.value !== 'continuous') return
   if (preloadInFlight) return
 
   const task = (async () => {
@@ -601,6 +829,7 @@ function queueScrollPreload() {
 
 function handleScroll() {
   if (!pdfContainer.value) return
+  if (displayMode.value !== 'continuous') return
   updateCurrentPageFromScroll()
   queueScrollPreload()
 }
@@ -636,17 +865,207 @@ function focusViewer() {
   pdfContainer.value?.focus()
 }
 
+function handleToolbarClick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null
+  if (!target?.closest('button')) return
+  focusViewer()
+}
+
+function canTriggerPagedBoundaryNavigation() {
+  const now = Date.now()
+  if (now - lastPagedBoundaryNavigationAt < PAGED_BOUNDARY_NAV_COOLDOWN) {
+    return false
+  }
+  lastPagedBoundaryNavigationAt = now
+  return true
+}
+
+function handlePagedBoundaryNavigation(deltaX: number, deltaY: number): boolean {
+  if (displayMode.value === 'continuous' || !pdfContainer.value) {
+    return false
+  }
+
+  const container = pdfContainer.value
+  const maxScrollLeft = Math.max(container.scrollWidth - container.clientWidth, 0)
+  const maxScrollTop = Math.max(container.scrollHeight - container.clientHeight, 0)
+
+  const horizontalIntent = Math.abs(deltaX) > Math.abs(deltaY)
+  if (horizontalIntent && deltaX !== 0) {
+    if (deltaX < 0) {
+      if (container.scrollLeft > 0) {
+        container.scrollLeft = Math.max(0, container.scrollLeft + deltaX)
+        return true
+      }
+      if (canTriggerPagedBoundaryNavigation()) {
+        previousPage()
+      }
+      return true
+    }
+
+    if (container.scrollLeft < maxScrollLeft) {
+      container.scrollLeft = Math.min(maxScrollLeft, container.scrollLeft + deltaX)
+      return true
+    }
+    if (canTriggerPagedBoundaryNavigation()) {
+      nextPage()
+    }
+    return true
+  }
+
+  if (deltaY !== 0) {
+    if (deltaY < 0) {
+      if (container.scrollTop > 0) {
+        container.scrollTop = Math.max(0, container.scrollTop + deltaY)
+        return true
+      }
+      if (canTriggerPagedBoundaryNavigation()) {
+        previousPage()
+      }
+      return true
+    }
+
+    if (container.scrollTop < maxScrollTop) {
+      container.scrollTop = Math.min(maxScrollTop, container.scrollTop + deltaY)
+      return true
+    }
+    if (canTriggerPagedBoundaryNavigation()) {
+      nextPage()
+    }
+    return true
+  }
+
+  return false
+}
+
+function copyCachedCanvasToVisible(pageNum: number, explicitCanvas?: HTMLCanvasElement) {
+  const source = renderedCanvasCache.get(pageNum)
+  const target = explicitCanvas ?? canvasRefs.value.get(pageNum)
+  if (!source || !target) return
+
+  target.width = source.width
+  target.height = source.height
+  target.style.width = `${source.width / renderScale.value}px`
+  target.style.height = `${source.height / renderScale.value}px`
+
+  const targetContext = target.getContext('2d', { willReadFrequently: true })
+  if (!targetContext) return
+  targetContext.clearRect(0, 0, target.width, target.height)
+  targetContext.drawImage(source, 0, 0)
+}
+
+function scheduleResizeHandling() {
+  if (resizeRaf) {
+    cancelAnimationFrame(resizeRaf)
+  }
+
+  resizeRaf = requestAnimationFrame(() => {
+    resizeRaf = 0
+    handleContainerResize()
+  })
+}
+
+function handleContainerResize() {
+  if (!pdfContainer.value) return
+
+  const nextSize = {
+    width: pdfContainer.value.clientWidth,
+    height: pdfContainer.value.clientHeight
+  }
+  containerSize.value = nextSize
+
+  if (nextSize.width <= 0 || nextSize.height <= 0) return
+
+  if (!lastContainerSize) {
+    lastContainerSize = nextSize
+    return
+  }
+
+  const widthRatio = nextSize.width / lastContainerSize.width
+  const heightRatio = nextSize.height / lastContainerSize.height
+  const prevSize = lastContainerSize
+  lastContainerSize = nextSize
+
+  if (!Number.isFinite(widthRatio) || !Number.isFinite(heightRatio)) return
+  if (!referencePageSize.value.width || !referencePageSize.value.height) return
+
+  const prevAvailableWidth = Math.max(prevSize.width - 48, 200)
+  const prevAvailableHeight = Math.max(prevSize.height - 48, 200)
+  const nextAvailableWidth = Math.max(nextSize.width - 48, 200)
+  const nextAvailableHeight = Math.max(nextSize.height - 48, 200)
+
+  let prevFit = 1
+  let nextFit = 1
+
+  if (displayMode.value === 'continuous') {
+    prevFit = prevAvailableWidth / referencePageSize.value.width
+    nextFit = nextAvailableWidth / referencePageSize.value.width
+  } else if (displayMode.value === 'single') {
+    prevFit = Math.min(
+      prevAvailableWidth / referencePageSize.value.width,
+      prevAvailableHeight / referencePageSize.value.height
+    )
+    nextFit = Math.min(
+      nextAvailableWidth / referencePageSize.value.width,
+      nextAvailableHeight / referencePageSize.value.height
+    )
+  } else {
+    prevFit = Math.min(
+      (prevAvailableWidth - PAGED_GAP) / (referencePageSize.value.width * 2),
+      prevAvailableHeight / referencePageSize.value.height
+    )
+    nextFit = Math.min(
+      (nextAvailableWidth - PAGED_GAP) / (referencePageSize.value.width * 2),
+      nextAvailableHeight / referencePageSize.value.height
+    )
+  }
+
+  if (!Number.isFinite(prevFit) || !Number.isFinite(nextFit) || prevFit <= 0 || nextFit <= 0) return
+
+  const ratio = nextFit / prevFit
+
+  if (Math.abs(ratio - 1) < 0.01) return
+
+  zoom.value = Math.min(Math.max(zoom.value * ratio, 0.25), 5)
+  renderedCanvasCache.clear()
+  void rerenderAllPages().then(() => {
+    void preloadNearbyPages()
+  })
+}
+
 // Keyboard shortcuts
 function handleKeydown(event: KeyboardEvent) {
-  if (event.target !== pdfContainer.value) return
+  const target = event.target as HTMLElement | null
+  if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
   
   switch (event.key) {
     case 'ArrowLeft':
+      event.preventDefault()
+      if (!handlePagedBoundaryNavigation(-PAGED_KEYBOARD_SCROLL_STEP, 0)) {
+        previousPage()
+      }
+      break
+    case 'ArrowUp':
+      event.preventDefault()
+      if (!handlePagedBoundaryNavigation(0, -PAGED_KEYBOARD_SCROLL_STEP)) {
+        previousPage()
+      }
+      break
+    case 'ArrowRight':
+      event.preventDefault()
+      if (!handlePagedBoundaryNavigation(PAGED_KEYBOARD_SCROLL_STEP, 0)) {
+        nextPage()
+      }
+      break
+    case 'ArrowDown':
+      event.preventDefault()
+      if (!handlePagedBoundaryNavigation(0, PAGED_KEYBOARD_SCROLL_STEP)) {
+        nextPage()
+      }
+      break
     case 'PageUp':
       event.preventDefault()
       previousPage()
       break
-    case 'ArrowRight':
     case 'PageDown':
     case ' ':
       event.preventDefault()
@@ -654,15 +1073,11 @@ function handleKeydown(event: KeyboardEvent) {
       break
     case 'Home':
       event.preventDefault()
-      currentPage.value = 1
-      pageInput.value = 1
-      renderCurrentPage()
+      setCurrentPage(1)
       break
     case 'End':
       event.preventDefault()
-      currentPage.value = totalPages.value
-      pageInput.value = totalPages.value
-      renderCurrentPage()
+      setCurrentPage(displayMode.value === 'double' ? getSpreadStart(totalPages.value) : totalPages.value)
       break
     case '+':
     case '=':
@@ -695,20 +1110,48 @@ function handleWheel(event: WheelEvent) {
     } else {
       zoomOut()
     }
+    return
+  }
+
+  if (displayMode.value !== 'continuous') {
+    const handled = handlePagedBoundaryNavigation(event.deltaX, event.deltaY)
+    if (handled) {
+      event.preventDefault()
+    }
   }
 }
 
 onMounted(() => {
   isUnmounted = false
   if (pdfUrl.value) {
-    loadPDF()
+    void loadPDF()
   }
-  document.addEventListener('keydown', handleKeydown)
+
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => {
+      scheduleResizeHandling()
+    })
+
+    if (pdfContainer.value) {
+      resizeObserver.observe(pdfContainer.value)
+      const initialSize = {
+        width: pdfContainer.value.clientWidth,
+        height: pdfContainer.value.clientHeight
+      }
+      containerSize.value = initialSize
+      lastContainerSize = initialSize
+    }
+  }
 })
 
 onBeforeUnmount(async () => {
   isUnmounted = true
-  document.removeEventListener('keydown', handleKeydown)
+  if (resizeRaf) {
+    cancelAnimationFrame(resizeRaf)
+    resizeRaf = 0
+  }
+  resizeObserver?.disconnect()
+  resizeObserver = null
 
   const pendingPages = Array.from(activeRenderTasks.keys())
   await Promise.allSettled(pendingPages.map(cancelRenderTask))
@@ -726,8 +1169,47 @@ onBeforeUnmount(async () => {
   
   // 清理canvas引用
   canvasRefs.value.clear()
+  renderedCanvasCache.clear()
   renderedPages.value = []
+
+  if (pdfTocProvider && props.tab.tocProvider === pdfTocProvider) {
+    appStore.updateTabState(props.tab.id, { tocProvider: undefined })
+  }
+  pdfTocProvider?.destroy()
+  pdfTocProvider = null
 })
+
+async function getReferenceViewport() {
+  if (!pdfDocumentInstance || !pdfContainer.value) return null
+  const page = await pdfDocumentInstance.getPage(1)
+  const viewport = page.getViewport({ scale: 1 })
+  return viewport
+}
+
+async function applyDefaultZoomForDisplayMode(mode: DisplayMode) {
+  const viewport = await getReferenceViewport()
+  if (!viewport || !pdfContainer.value) return
+  referencePageSize.value = {
+    width: viewport.width,
+    height: viewport.height
+  }
+
+  const horizontalPadding = 48
+  const verticalPadding = 48
+  const availableWidth = Math.max((containerSize.value.width || pdfContainer.value.clientWidth) - horizontalPadding, 200)
+  const availableHeight = Math.max((containerSize.value.height || pdfContainer.value.clientHeight) - verticalPadding, 200)
+
+  if (mode === 'continuous') {
+    zoom.value = Math.min(availableWidth / viewport.width, 4)
+  } else if (mode === 'single') {
+    zoom.value = Math.min(availableWidth / viewport.width, availableHeight / viewport.height, 4)
+  } else {
+    const spreadGap = 16
+    zoom.value = Math.min((availableWidth - spreadGap) / (viewport.width * 2), availableHeight / viewport.height, 4)
+  }
+
+  await rerenderAllPages()
+}
 
 // Expose methods to parent
 defineExpose({
