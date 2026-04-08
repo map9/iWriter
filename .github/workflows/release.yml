@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+        # postinstall runs electron-rebuild for macOS automatically
+
+      - name: Build and package
+        run: npm run dist:mac
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+        # postinstall runs electron-rebuild for Windows x64 automatically
+
+      - name: Rebuild native modules for ia32
+        run: npx electron-rebuild -f -w better-sqlite3 --arch ia32
+
+      - name: Build and package
+        run: npm run dist:win
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm fakeroot dpkg
+
+      - name: Install dependencies
+        run: npm install
+        # postinstall runs electron-rebuild for Linux automatically
+
+      - name: Build and package
+        run: npm run dist:linux
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}

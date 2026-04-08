@@ -67,7 +67,7 @@
 
       <div class="toolbar-group">
         <button
-          @click="previousPage"
+          @click="previousPageCommand"
           :disabled="currentPage <= 1"
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="上一页"
@@ -89,7 +89,7 @@
         </div>
         
         <button
-          @click="nextPage"
+          @click="nextPageCommand"
           :disabled="currentPage >= totalPages"
           class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="下一页"
@@ -194,10 +194,9 @@
 <script setup lang="ts">
 import { ref, toRef, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import type { FileTab } from '@/types'
-import * as pdfjsLib from 'pdfjs-dist'
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { useAppStore } from '@/stores/app'
-import { PDFTocProvider } from '@/services/toc/PDFTocProvider'
+import { PdfJsPageRenderProvider } from '@/services/pdf-render/PdfJsPageRenderProvider'
+import type { PageRenderProvider } from '@/services/pdf-render/types'
 import { 
   IconZoomIn, 
   IconZoomOut, 
@@ -206,9 +205,6 @@ import {
   IconChevronRight,
   IconAlertCircle
 } from '@tabler/icons-vue'
-
-// 设置PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 // Props
 interface Props {
@@ -234,25 +230,32 @@ const containerSize = ref({ width: 0, height: 0 })
 const referencePageSize = ref({ width: 0, height: 0 })
 
 // PDF.js references (use non-reactive to avoid proxy issues)
-let pdfDocumentInstance: pdfjsLib.PDFDocumentProxy | null = null
-let pdfTocProvider: PDFTocProvider | null = null
+let renderProvider: PageRenderProvider | null = null
 const canvasRefs = ref<Map<number, HTMLCanvasElement>>(new Map())
-const renderedCanvasCache = new Map<number, HTMLCanvasElement>()
+const visiblePageCache = new Map<number, HTMLCanvasElement>()
 const renderedPages = ref<number[]>([])
 const renderScale = ref(window.devicePixelRatio || 1)
-const activeRenderTasks = new Map<number, pdfjsLib.RenderTask>()
 let isUnmounted = false
 let preloadInFlight: Promise<void> | null = null
 let resizeObserver: ResizeObserver | null = null
 let resizeRaf = 0
 let lastContainerSize: { width: number, height: number } | null = null
-let lastPagedBoundaryNavigationAt = 0
+let pagedGestureAxis: 'x' | 'y' | null = null
+let pagedGestureAccumX = 0
+let pagedGestureAccumY = 0
+let pagedGestureOverscroll = 0
+let pagedGestureNavigated = false
+let pagedGestureNavigatedAt = 0
+let pagedGestureResetTimer: ReturnType<typeof setTimeout> | null = null
 const PAGE_PRELOAD_RANGE = 2
 const PAGE_UNLOAD_RANGE = 6
 const PAGED_GAP = 16
 const VIEWER_PADDING = 32
 const PAGED_KEYBOARD_SCROLL_STEP = 48
-const PAGED_BOUNDARY_NAV_COOLDOWN = 220
+const PAGED_GESTURE_IDLE_MS = 120
+const PAGED_GESTURE_AXIS_THRESHOLD = 10
+const PAGED_GESTURE_NAV_THRESHOLD = 72
+const PAGED_GESTURE_POST_NAV_LOCK_MS = 90
 
 const pageDisplaySize = computed(() => ({
   width: referencePageSize.value.width * zoom.value,
@@ -320,35 +323,17 @@ const displayRows = computed(() => {
   return rows
 })
 
-function isRenderCancelled(error: unknown): boolean {
-  return error instanceof Error && (
-    error.name === 'RenderingCancelledException' ||
-    error.message.includes('Rendering cancelled')
-  )
-}
-
-async function cancelRenderTask(pageNum: number) {
-  const existingTask = activeRenderTasks.get(pageNum)
-  if (!existingTask) return
-
-  existingTask.cancel()
-  activeRenderTasks.delete(pageNum)
-
-  try {
-    await existingTask.promise
-  } catch (err) {
-    if (!isRenderCancelled(err)) {
-      console.warn(`Unexpected error while cancelling page ${pageNum} render:`, err)
-    }
-  }
-}
-
 // Helper function to set canvas ref
 function setCanvasRef(el: Element | null, pageNum: number) {
   if (el instanceof HTMLCanvasElement) {
     canvasRefs.value.set(pageNum, el)
     copyCachedCanvasToVisible(pageNum, el)
   }
+}
+
+function syncTocActivePage(pageNum: number) {
+  const provider = props.tab.tocProvider as { updateActivePage?: (page: number) => void } | undefined
+  provider?.updateActivePage?.(pageNum)
 }
 
 // Computed
@@ -421,6 +406,7 @@ function unloadRenderedPages(keepPages: number[]) {
       canvas.style.height = '0px'
     }
     canvasRefs.value.delete(pageNum)
+    visiblePageCache.delete(pageNum)
   }
 
   renderedPages.value = renderedPages.value.filter(pageNum => keepSet.has(pageNum))
@@ -440,24 +426,32 @@ function trimRenderedPages(anchorPage = currentPage.value) {
   unloadRenderedPages(keepPages)
 }
 
-function previousPage() {
+function previousPage(options?: { preservePagedGesture?: boolean }) {
   const step = displayMode.value === 'double' ? 2 : 1
   const nextPageNum = displayMode.value === 'double'
     ? Math.max(1, getSpreadStart(currentPage.value) - step)
     : Math.max(1, currentPage.value - step)
 
   if (nextPageNum === currentPage.value) return
-  setCurrentPage(nextPageNum)
+  setCurrentPage(nextPageNum, { preservePagedGesture: options?.preservePagedGesture })
 }
 
-function nextPage() {
+function nextPage(options?: { preservePagedGesture?: boolean }) {
   const step = displayMode.value === 'double' ? 2 : 1
   const nextPageNum = displayMode.value === 'double'
     ? Math.min(totalPages.value, getSpreadStart(currentPage.value) + step)
     : Math.min(totalPages.value, currentPage.value + step)
 
   if (nextPageNum === currentPage.value) return
-  setCurrentPage(nextPageNum)
+  setCurrentPage(nextPageNum, { preservePagedGesture: options?.preservePagedGesture })
+}
+
+function previousPageCommand() {
+  previousPage()
+}
+
+function nextPageCommand() {
+  nextPage()
 }
 
 function goToPage() {
@@ -550,10 +544,13 @@ async function syncDisplayPages(options?: { preserveScroll?: boolean, behavior?:
   }
 }
 
-function setCurrentPage(pageNum: number, options?: { behavior?: ScrollBehavior }) {
+function setCurrentPage(pageNum: number, options?: { behavior?: ScrollBehavior, preservePagedGesture?: boolean }) {
+  if (!options?.preservePagedGesture) {
+    resetPagedGesture()
+  }
   currentPage.value = pageNum
   pageInput.value = pageNum
-  pdfTocProvider?.updateActivePage(pageNum)
+  syncTocActivePage(pageNum)
 
   void syncDisplayPages({
     behavior: options?.behavior,
@@ -589,54 +586,12 @@ async function loadPDF() {
   error.value = null
   
   try {
-    let pdfData: ArrayBuffer
-    
-    // 检查是否是本地文件路径
-    if (pdfUrl.value.startsWith('/') || pdfUrl.value.match(/^[A-Z]:\\/)) {
-      // 本地文件路径，通过Electron读取文件
-      if (window.electronAPI) {
-        const base64Content = await window.electronAPI.readFileBinary(pdfUrl.value)
-        if (!base64Content) {
-          throw new Error('无法读取PDF文件')
-        }
-        // 将base64字符串转换为ArrayBuffer
-        const binaryString = atob(base64Content)
-        const bytes = new Uint8Array(binaryString.length)
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i)
-        }
-        pdfData = bytes.buffer
-      } else {
-        throw new Error('Electron API 不可用')
-      }
-    } else {
-      // 网络URL，直接获取
-      const response = await fetch(pdfUrl.value)
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      pdfData = await response.arrayBuffer()
-    }
-    
-    // 加载PDF文档
-    const loadingTask = pdfjsLib.getDocument({
-      data: pdfData,
-      cMapUrl: '/cmaps/',
-      cMapPacked: true
-    })
-    
-    const pdf = await loadingTask.promise
-    
-    // 验证PDF文档
-    if (!pdf || pdf.numPages === 0) {
-      throw new Error('无效的PDF文档')
-    }
-    
-    pdfDocumentInstance = pdf
-    totalPages.value = pdf.numPages
+    renderProvider = new PdfJsPageRenderProvider()
+    await renderProvider.load(pdfUrl.value)
+    totalPages.value = renderProvider.getPageCount()
     currentPage.value = 1
     pageInput.value = 1
-    const referenceViewport = await getReferenceViewport()
+    const referenceViewport = await renderProvider.getReferencePageSize()
     if (referenceViewport) {
       referencePageSize.value = {
         width: referenceViewport.width,
@@ -644,17 +599,16 @@ async function loadPDF() {
       }
     }
 
-    pdfTocProvider?.destroy()
-    pdfTocProvider = new PDFTocProvider(pdf, pageNumber => {
+    const tocProvider = renderProvider.createTocProvider?.(pageNumber => {
       setCurrentPage(pageNumber, { behavior: 'smooth' })
       focusViewer()
-    })
-    appStore.updateTabState(props.tab.id, { tocProvider: pdfTocProvider })
-    void pdfTocProvider.load()
+    }) ?? undefined
+    appStore.updateTabState(props.tab.id, { tocProvider })
+    void (tocProvider as { load?: () => Promise<void> })?.load?.()
 
     await applyDefaultZoomForDisplayMode(displayMode.value)
     await syncDisplayPages()
-    pdfTocProvider.updateActivePage(1)
+    syncTocActivePage(1)
     focusViewer()
     
   } catch (err) {
@@ -666,64 +620,14 @@ async function loadPDF() {
 }
 
 async function renderPage(pageNum: number) {
-  if (!pdfDocumentInstance || isUnmounted) {
-    console.warn('PDF document not available')
-    return
-  }
-  
-  // Check if page number is valid
-  if (pageNum < 1 || pageNum > totalPages.value) {
-    console.warn(`Invalid page number: ${pageNum}`)
-    return
-  }
-  
-  try {
-    await cancelRenderTask(pageNum)
+  if (!renderProvider || isUnmounted) return
+  if (pageNum < 1 || pageNum > totalPages.value) return
 
-    const page = await pdfDocumentInstance.getPage(pageNum)
-    if (isUnmounted) return
-    
-    // 计算视口
-    const viewport = page.getViewport({ scale: zoom.value * renderScale.value })
+  const renderedCanvas = await renderProvider.renderPage(pageNum, zoom.value, renderScale.value)
+  if (!renderedCanvas) return
 
-    const bufferCanvas = document.createElement('canvas')
-    bufferCanvas.width = viewport.width
-    bufferCanvas.height = viewport.height
-    const bufferContext = bufferCanvas.getContext('2d', { willReadFrequently: true })
-    if (!bufferContext) {
-      return
-    }
-
-    const renderContext = {
-      canvasContext: bufferContext,
-      canvas: bufferCanvas,
-      viewport: viewport
-    }
-    
-    // 使用 Promise 方式渲染，增加错误处理
-    const renderTask = page.render(renderContext)
-    activeRenderTasks.set(pageNum, renderTask)
-    
-    // 添加渲染超时机制
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Page render timeout')), 10000)
-    })
-    
-    await Promise.race([renderTask.promise, timeoutPromise])
-    renderedCanvasCache.set(pageNum, bufferCanvas)
-    copyCachedCanvasToVisible(pageNum)
-    page.cleanup()
-    
-  } catch (err) {
-    if (!isRenderCancelled(err)) {
-      console.error(`Error rendering page ${pageNum}:`, err)
-    }
-  } finally {
-    const activeTask = activeRenderTasks.get(pageNum)
-    if (activeTask) {
-      activeRenderTasks.delete(pageNum)
-    }
-  }
+  visiblePageCache.set(pageNum, renderedCanvas)
+  copyCachedCanvasToVisible(pageNum)
 }
 
 async function renderCurrentPage() {
@@ -732,7 +636,7 @@ async function renderCurrentPage() {
 
 // 预加载附近页面
 async function preloadNearbyPages() {
-  if (!pdfDocumentInstance || totalPages.value === 0) {
+  if (!renderProvider || totalPages.value === 0) {
     console.warn('PDF document not ready for preloading')
     return
   }
@@ -778,7 +682,7 @@ function updateCurrentPageFromScroll() {
   if (nearestPage !== currentPage.value) {
     currentPage.value = nearestPage
     pageInput.value = nearestPage
-    pdfTocProvider?.updateActivePage(nearestPage)
+    syncTocActivePage(nearestPage)
   }
 }
 
@@ -829,7 +733,9 @@ function queueScrollPreload() {
 
 function handleScroll() {
   if (!pdfContainer.value) return
-  if (displayMode.value !== 'continuous') return
+  if (displayMode.value !== 'continuous') {
+    return
+  }
   updateCurrentPageFromScroll()
   queueScrollPreload()
 }
@@ -871,16 +777,119 @@ function handleToolbarClick(event: MouseEvent) {
   focusViewer()
 }
 
-function canTriggerPagedBoundaryNavigation() {
-  const now = Date.now()
-  if (now - lastPagedBoundaryNavigationAt < PAGED_BOUNDARY_NAV_COOLDOWN) {
+function resetPagedGesture() {
+  pagedGestureAxis = null
+  pagedGestureAccumX = 0
+  pagedGestureAccumY = 0
+  pagedGestureOverscroll = 0
+  pagedGestureNavigated = false
+  pagedGestureNavigatedAt = 0
+  if (pagedGestureResetTimer) {
+    clearTimeout(pagedGestureResetTimer)
+    pagedGestureResetTimer = null
+  }
+}
+
+function schedulePagedGestureReset() {
+  if (pagedGestureResetTimer) {
+    clearTimeout(pagedGestureResetTimer)
+  }
+
+  pagedGestureResetTimer = setTimeout(() => {
+    resetPagedGesture()
+  }, PAGED_GESTURE_IDLE_MS)
+}
+
+function clampScroll(value: number, max: number) {
+  return Math.max(0, Math.min(max, value))
+}
+
+function handlePagedWheelGesture(deltaX: number, deltaY: number): boolean {
+  if (displayMode.value === 'continuous' || !pdfContainer.value) {
     return false
   }
-  lastPagedBoundaryNavigationAt = now
+
+  schedulePagedGestureReset()
+  const now = Date.now()
+
+  if (pagedGestureNavigated) {
+    const sameDirectionAsAccumulated = (
+      (Math.abs(deltaX) >= Math.abs(deltaY) && Math.sign(deltaX) === Math.sign(pagedGestureAccumX)) ||
+      (Math.abs(deltaY) > Math.abs(deltaX) && Math.sign(deltaY) === Math.sign(pagedGestureAccumY))
+    )
+
+    if (!sameDirectionAsAccumulated || now - pagedGestureNavigatedAt > PAGED_GESTURE_POST_NAV_LOCK_MS) {
+      resetPagedGesture()
+      schedulePagedGestureReset()
+    }
+  }
+
+  const container = pdfContainer.value
+  const maxScrollLeft = Math.max(container.scrollWidth - container.clientWidth, 0)
+  const maxScrollTop = Math.max(container.scrollHeight - container.clientHeight, 0)
+  pagedGestureAccumX += deltaX
+  pagedGestureAccumY += deltaY
+
+  if (!pagedGestureAxis) {
+    const absX = Math.abs(pagedGestureAccumX)
+    const absY = Math.abs(pagedGestureAccumY)
+    if (Math.max(absX, absY) < PAGED_GESTURE_AXIS_THRESHOLD) {
+      return true
+    }
+
+    pagedGestureAxis = absX > absY ? 'x' : 'y'
+  }
+
+  if (pagedGestureNavigated) {
+    return true
+  }
+
+  const axis = pagedGestureAxis
+  const delta = axis === 'x' ? deltaX : deltaY
+  if (delta === 0) {
+    return true
+  }
+
+  const isBackward = delta < 0
+  const currentScroll = axis === 'x' ? container.scrollLeft : container.scrollTop
+  const maxScroll = axis === 'x' ? maxScrollLeft : maxScrollTop
+  const nextScroll = clampScroll(currentScroll + delta, maxScroll)
+  const moved = nextScroll !== currentScroll
+
+  if (axis === 'x') {
+    container.scrollLeft = nextScroll
+  } else {
+    container.scrollTop = nextScroll
+  }
+
+  if (moved) {
+    pagedGestureOverscroll = 0
+    return true
+  }
+
+  const atBoundary = isBackward ? currentScroll <= 0 : currentScroll >= maxScroll
+  if (!atBoundary) {
+    pagedGestureOverscroll = 0
+    return true
+  }
+
+  pagedGestureOverscroll += Math.abs(delta)
+  if (pagedGestureOverscroll < PAGED_GESTURE_NAV_THRESHOLD) {
+    return true
+  }
+
+  pagedGestureNavigated = true
+  pagedGestureNavigatedAt = now
+  pagedGestureOverscroll = 0
+  if (isBackward) {
+    previousPage({ preservePagedGesture: true })
+  } else {
+    nextPage({ preservePagedGesture: true })
+  }
   return true
 }
 
-function handlePagedBoundaryNavigation(deltaX: number, deltaY: number): boolean {
+function handlePagedKeyboardNavigation(direction: 'left' | 'right' | 'up' | 'down'): boolean {
   if (displayMode.value === 'continuous' || !pdfContainer.value) {
     return false
   }
@@ -889,56 +898,44 @@ function handlePagedBoundaryNavigation(deltaX: number, deltaY: number): boolean 
   const maxScrollLeft = Math.max(container.scrollWidth - container.clientWidth, 0)
   const maxScrollTop = Math.max(container.scrollHeight - container.clientHeight, 0)
 
-  const horizontalIntent = Math.abs(deltaX) > Math.abs(deltaY)
-  if (horizontalIntent && deltaX !== 0) {
-    if (deltaX < 0) {
+  switch (direction) {
+    case 'left': {
       if (container.scrollLeft > 0) {
-        container.scrollLeft = Math.max(0, container.scrollLeft + deltaX)
-        return true
-      }
-      if (canTriggerPagedBoundaryNavigation()) {
+        container.scrollLeft = clampScroll(container.scrollLeft - PAGED_KEYBOARD_SCROLL_STEP, maxScrollLeft)
+      } else {
         previousPage()
       }
       return true
     }
-
-    if (container.scrollLeft < maxScrollLeft) {
-      container.scrollLeft = Math.min(maxScrollLeft, container.scrollLeft + deltaX)
+    case 'right': {
+      if (container.scrollLeft < maxScrollLeft) {
+        container.scrollLeft = clampScroll(container.scrollLeft + PAGED_KEYBOARD_SCROLL_STEP, maxScrollLeft)
+      } else {
+        nextPage()
+      }
       return true
     }
-    if (canTriggerPagedBoundaryNavigation()) {
-      nextPage()
-    }
-    return true
-  }
-
-  if (deltaY !== 0) {
-    if (deltaY < 0) {
+    case 'up': {
       if (container.scrollTop > 0) {
-        container.scrollTop = Math.max(0, container.scrollTop + deltaY)
-        return true
-      }
-      if (canTriggerPagedBoundaryNavigation()) {
+        container.scrollTop = clampScroll(container.scrollTop - PAGED_KEYBOARD_SCROLL_STEP, maxScrollTop)
+      } else {
         previousPage()
       }
       return true
     }
-
-    if (container.scrollTop < maxScrollTop) {
-      container.scrollTop = Math.min(maxScrollTop, container.scrollTop + deltaY)
+    case 'down': {
+      if (container.scrollTop < maxScrollTop) {
+        container.scrollTop = clampScroll(container.scrollTop + PAGED_KEYBOARD_SCROLL_STEP, maxScrollTop)
+      } else {
+        nextPage()
+      }
       return true
     }
-    if (canTriggerPagedBoundaryNavigation()) {
-      nextPage()
-    }
-    return true
   }
-
-  return false
 }
 
 function copyCachedCanvasToVisible(pageNum: number, explicitCanvas?: HTMLCanvasElement) {
-  const source = renderedCanvasCache.get(pageNum)
+  const source = visiblePageCache.get(pageNum)
   const target = explicitCanvas ?? canvasRefs.value.get(pageNum)
   if (!source || !target) return
 
@@ -1026,7 +1023,7 @@ function handleContainerResize() {
   if (Math.abs(ratio - 1) < 0.01) return
 
   zoom.value = Math.min(Math.max(zoom.value * ratio, 0.25), 5)
-  renderedCanvasCache.clear()
+  visiblePageCache.clear()
   void rerenderAllPages().then(() => {
     void preloadNearbyPages()
   })
@@ -1040,25 +1037,25 @@ function handleKeydown(event: KeyboardEvent) {
   switch (event.key) {
     case 'ArrowLeft':
       event.preventDefault()
-      if (!handlePagedBoundaryNavigation(-PAGED_KEYBOARD_SCROLL_STEP, 0)) {
+      if (!handlePagedKeyboardNavigation('left')) {
         previousPage()
       }
       break
     case 'ArrowUp':
       event.preventDefault()
-      if (!handlePagedBoundaryNavigation(0, -PAGED_KEYBOARD_SCROLL_STEP)) {
+      if (!handlePagedKeyboardNavigation('up')) {
         previousPage()
       }
       break
     case 'ArrowRight':
       event.preventDefault()
-      if (!handlePagedBoundaryNavigation(PAGED_KEYBOARD_SCROLL_STEP, 0)) {
+      if (!handlePagedKeyboardNavigation('right')) {
         nextPage()
       }
       break
     case 'ArrowDown':
       event.preventDefault()
-      if (!handlePagedBoundaryNavigation(0, PAGED_KEYBOARD_SCROLL_STEP)) {
+      if (!handlePagedKeyboardNavigation('down')) {
         nextPage()
       }
       break
@@ -1114,7 +1111,7 @@ function handleWheel(event: WheelEvent) {
   }
 
   if (displayMode.value !== 'continuous') {
-    const handled = handlePagedBoundaryNavigation(event.deltaX, event.deltaY)
+    const handled = handlePagedWheelGesture(event.deltaX, event.deltaY)
     if (handled) {
       event.preventDefault()
     }
@@ -1146,48 +1143,28 @@ onMounted(() => {
 
 onBeforeUnmount(async () => {
   isUnmounted = true
+  resetPagedGesture()
   if (resizeRaf) {
     cancelAnimationFrame(resizeRaf)
     resizeRaf = 0
   }
   resizeObserver?.disconnect()
   resizeObserver = null
-
-  const pendingPages = Array.from(activeRenderTasks.keys())
-  await Promise.allSettled(pendingPages.map(cancelRenderTask))
-  
-  // 清理PDF文档资源
-  if (pdfDocumentInstance) {
-    try {
-      pdfDocumentInstance.destroy()
-    } catch (err) {
-      console.warn('Error destroying PDF document:', err)
-    } finally {
-      pdfDocumentInstance = null
-    }
-  }
+  await renderProvider?.destroy()
+  renderProvider = null
   
   // 清理canvas引用
   canvasRefs.value.clear()
-  renderedCanvasCache.clear()
+  visiblePageCache.clear()
   renderedPages.value = []
 
-  if (pdfTocProvider && props.tab.tocProvider === pdfTocProvider) {
+  if (props.tab.tocProvider) {
     appStore.updateTabState(props.tab.id, { tocProvider: undefined })
   }
-  pdfTocProvider?.destroy()
-  pdfTocProvider = null
 })
 
-async function getReferenceViewport() {
-  if (!pdfDocumentInstance || !pdfContainer.value) return null
-  const page = await pdfDocumentInstance.getPage(1)
-  const viewport = page.getViewport({ scale: 1 })
-  return viewport
-}
-
 async function applyDefaultZoomForDisplayMode(mode: DisplayMode) {
-  const viewport = await getReferenceViewport()
+  const viewport = await renderProvider?.getReferencePageSize()
   if (!viewport || !pdfContainer.value) return
   referencePageSize.value = {
     width: viewport.width,
