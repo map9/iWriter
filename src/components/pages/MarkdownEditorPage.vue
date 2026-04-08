@@ -344,7 +344,7 @@ import {
   IconMaximize
 } from '@tabler/icons-vue'
 
-import type { FileTab } from '@/types'
+import type { EditSetting, FileTab } from '@/types'
 import { notify } from '@/utils/notifications'
 import pathUtils from '@/utils/pathUtils'
 import { MarkdownTocProvider } from '@/services/toc/MarkdownTocProvider'
@@ -387,6 +387,18 @@ let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 // Toolbar state
 const currentHeading = ref('paragraph')
 const isReadonly = computed(() => appStore.isTabReadonly(props.tab))
+
+function syncEditMenuState(overrides: Partial<EditSetting> = {}) {
+  window.electronAPI?.windowContentChange?.({
+    edit: {
+      ...props.tab.editState,
+      ...overrides,
+      readonly: isReadonly.value,
+      fileReadonly: !!props.tab.fileReadonly,
+      editReadonly: !!props.tab.editReadonly,
+    }
+  })
+}
 
 function syncProofreadRuntime() {
   const currentEditor = editor.value
@@ -494,10 +506,13 @@ const editor = useEditor({
     migrateMathStrings(editor)
     loadTabContent(editor).then(async () => {
       updateEditorState()
-      setFirstLineIndent(props.tab.editState?.firstLineIndent || true)
-      setSmartPunctuation(props.tab.editState?.smartPunctuation || true)
-      setInvisibleCharacters(props.tab.editState?.invisibleCharacters || true)
+      setFirstLineIndent(props.tab.editState?.firstLineIndent ?? true)
+      setSmartPunctuation(props.tab.editState?.smartPunctuation ?? true)
+      setInvisibleCharacters(props.tab.editState?.invisibleCharacters ?? true)
       syncProofreadRuntime()
+      if (props.tab.isActive) {
+        syncEditMenuState()
+      }
       scheduleTypewriterSync(true)
     })
   },
@@ -547,13 +562,7 @@ watch(() => props.tab.isActive, (isActive) => {
     return
   }
 
-  window.electronAPI?.windowContentChange?.({
-    edit: {
-      readonly: isReadonly.value,
-      fileReadonly: !!props.tab.fileReadonly,
-      editReadonly: !!props.tab.editReadonly,
-    }
-  })
+  syncEditMenuState()
   syncProofreadRuntime()
 
   nextTick(() => {
@@ -811,6 +820,12 @@ function updateEditorState() {
       hasActiveDocument: true,
       undoRedo,
       hasSelection: !editor.value.state.selection.empty,
+      edit: {
+        ...props.tab.editState,
+        readonly: isReadonly.value,
+        fileReadonly: !!props.tab.fileReadonly,
+        editReadonly: !!props.tab.editReadonly,
+      },
       content: !editor.value.state.selection.empty ? undefined : getContentState(editor.value),
       // @ts-expect-error - formatting types
       formatting
@@ -826,7 +841,7 @@ function updateEditorState() {
 
 function setLineEnding(lineEnding: 'CRLF' | 'LF') {
   appStore.updateTabState(props.tab.id, { editState: { lineEnding } })
-  window.electronAPI.windowContentChange({ edit: { lineEnding } })
+  syncEditMenuState({ lineEnding })
 }
 
 function toggleFirstLineIndent() {
@@ -846,9 +861,7 @@ function setFirstLineIndent(has: boolean) {
   }
  
   appStore.updateTabState(props.tab.id, { editState: { firstLineIndent } })
-  window.electronAPI?.windowContentChange?.({
-    edit: { firstLineIndent }
-  })
+  syncEditMenuState({ firstLineIndent })
 }
 
 function toggleInvisibleCharacters() {
@@ -865,9 +878,7 @@ function setInvisibleCharacters(visible: boolean) {
   }
 
   appStore.updateTabState(props.tab.id, { editState: { invisibleCharacters } })
-  window.electronAPI?.windowContentChange?.({
-    edit: { invisibleCharacters }
-  })
+  syncEditMenuState({ invisibleCharacters })
 }
 
 function toggleSmartPunctuation() {
@@ -880,9 +891,7 @@ function setSmartPunctuation(has: boolean) {
   editor.value?.commands.setSmartPunctuation(has)
   
   appStore.updateTabState(props.tab.id, { editState: { smartPunctuation } })
-  window.electronAPI?.windowContentChange?.({
-    edit: { smartPunctuation }
-  })
+  syncEditMenuState({ smartPunctuation })
 }
 
 function toggleProofreadErrorsDisplay() {
@@ -897,9 +906,7 @@ function setProofreadErrorsDisplay(visible: boolean) {
   }
   
   appStore.updateTabState(props.tab.id, { editState: { showProofreadErrors } })
-  window.electronAPI?.windowContentChange?.({
-    edit: { showProofreadErrors }
-  })
+  syncEditMenuState({ showProofreadErrors })
 }
 
 function toggleProofread() {
@@ -919,9 +926,7 @@ function setProofread(enable: boolean) {
   }
 
   appStore.updateTabState(props.tab.id, { editState: { proofread } })
-  window.electronAPI?.windowContentChange?.({
-    edit: { proofread }
-  })
+  syncEditMenuState({ proofread })
 
 }
 
