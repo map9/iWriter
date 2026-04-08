@@ -25,6 +25,9 @@ jobs:
         run: npm install
         # postinstall runs electron-rebuild for macOS automatically
 
+      - name: Generate icons
+        run: node scripts/generate-icons.mjs && node scripts/prepare-build.mjs
+
       - name: Build and package
         run: npm run dist:mac
         env:
@@ -51,6 +54,12 @@ jobs:
         run: npm install
         # postinstall runs electron-rebuild for Windows x64 automatically
 
+      - name: Install ImageMagick
+        run: choco install imagemagick --no-progress
+
+      - name: Generate icons
+        run: node scripts/generate-icons.mjs && node scripts/prepare-build.mjs
+
       - name: Build and package
         run: npm run dist:win
         env:
@@ -71,11 +80,14 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y rpm fakeroot dpkg
+          sudo apt-get install -y rpm fakeroot dpkg imagemagick
 
       - name: Install dependencies
         run: npm install
         # postinstall runs electron-rebuild for Linux automatically
+
+      - name: Generate icons
+        run: node scripts/generate-icons.mjs && node scripts/prepare-build.mjs
 
       - name: Build and package
         run: npm run dist:linux
