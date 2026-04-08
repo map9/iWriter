@@ -2,7 +2,7 @@
   <div
     v-if="isOpen"
     class="search-replace-panel"
-    :class="{ compact: isCompact }"
+    :class="{ compact: isCompact, 'with-toolbar': !appStore.isCleanMode }"
   >
     <!-- 第一行：搜索框 -->
     <div class="search-row">
@@ -155,6 +155,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import type { Editor } from '@tiptap/core'
+import { useAppStore } from '@/stores/app'
 import {
   IconArrowNarrowUp,
   IconChevronDown,
@@ -172,6 +173,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const appStore = useAppStore()
 
 // 本地状态（双向绑定）
 const localSearchTerm = ref('')
@@ -447,6 +449,10 @@ onUnmounted(() => {
   box-sizing: border-box;
   width: min(560px, calc(100% - 2rem));
   max-width: calc(100% - 2rem);
+}
+
+.search-replace-panel.with-toolbar {
+  top: calc(2.25rem + 0.75rem);
 }
 
 /* ===== 第一行：搜索行 ===== */

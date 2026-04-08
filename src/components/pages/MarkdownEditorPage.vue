@@ -1,5 +1,5 @@
 <template>
-  <div class="document-viewer-wrapper">
+  <div class="document-viewer-wrapper markdown-editor-page">
     <!-- Editor Toolbar -->
     <fieldset v-if="!appStore.isCleanMode" class="toolbar" :disabled="isReadonly">
       <!-- Undo/Redo Group -->
@@ -294,10 +294,10 @@
           :editor="editor"
           class="editor-content w-full max-w-3xl my-4 mx-auto"
         />
-
-        <!-- Search & Replace Panel -->
-        <SearchReplacePanel v-if="editor" :editor="editor" />
     </div>
+
+    <!-- Search & Replace Panel -->
+    <SearchReplacePanel v-if="editor" :editor="editor" />
   </div>
 
 </template>
@@ -938,6 +938,10 @@ defineExpose({
 </script>
 
 <style lang="scss">
+.markdown-editor-page {
+  position: relative;
+}
+
 .editor-content-wrapper {
   position: relative;
   overflow: auto;
