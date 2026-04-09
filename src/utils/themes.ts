@@ -1,3 +1,5 @@
+import { StateStorage } from '@/utils/StateStorage'
+
 // Theme System for iWriter
 // selected-menu-item-text = white
 export interface ThemeColors {
@@ -194,9 +196,44 @@ export function getThemeById(id: string): Theme | undefined {
   return availableThemes.find(theme => theme.id === id)
 }
 
-export function applySystemColors(themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: ThemeColors }) {
+function applyThemeState(themeId: string, resolvedThemeId: string) {
   const root = document.documentElement
+  root.dataset.theme = themeId
+  root.dataset.resolvedTheme = resolvedThemeId
+  root.style.colorScheme = resolvedThemeId === 'dark' ? 'dark' : 'light'
+}
 
+function themeColorsToCssVars(colors: ThemeColors): Record<string, string> {
+  const vars: Record<string, string> = {}
+  Object.entries(colors).forEach(([category, categoryColors]) => {
+    Object.entries(categoryColors as Record<string, string>).forEach(([colorName, colorValue]) => {
+      vars[`--color-${category}-${colorName}`] = hex8ToRGBA(colorValue)
+    })
+  })
+
+  return vars
+}
+
+function applyResolvedColors(colors: ThemeColors) {
+  const root = document.documentElement
+  const vars = themeColorsToCssVars(colors)
+
+  Object.entries(vars).forEach(([name, value]) => {
+    root.style.setProperty(name, value)
+  })
+
+  return vars
+}
+
+function persistThemeSnapshot(themeId: string, resolvedThemeId: string, colors: ThemeColors) {
+  StateStorage.saveThemeSnapshot({
+    themeId,
+    resolvedThemeId,
+    vars: themeColorsToCssVars(colors),
+  })
+}
+
+export function applySystemColors(themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: ThemeColors }) {
   let newColors: ThemeColors | null = null
   if (themeAndColors.theme === 'dark') {
     newColors = darkTheme.colors
@@ -205,11 +242,9 @@ export function applySystemColors(themeAndColors: { theme: 'light' | 'dark' | 'u
   }
 
   if (newColors) {
-    Object.entries(newColors).forEach(([category, categoryColors]) => {
-      Object.entries(categoryColors as Record<string, string>).forEach(([colorName, colorValue]) => {
-        root.style.setProperty(`--color-${category}-${colorName}`, hex8ToRGBA(colorValue))
-      })
-    })
+    applyResolvedColors(newColors)
+    applyThemeState('system', themeAndColors.theme)
+    persistThemeSnapshot('system', themeAndColors.theme, newColors)
   }
 }
 
@@ -239,10 +274,7 @@ export function applyThemeColors(theme: Theme) {
     return
   }
 
-  const root = document.documentElement
-  Object.entries(theme.colors).forEach(([category, categoryColors]) => {
-    Object.entries(categoryColors as Record<string, string>).forEach(([colorName, colorValue]) => {
-      root.style.setProperty(`--color-${category}-${colorName}`, hex8ToRGBA(colorValue))
-    })
-  })  
+  applyResolvedColors(theme.colors)
+  applyThemeState(theme.id, theme.type)
+  persistThemeSnapshot(theme.id, theme.type, theme.colors)
 }

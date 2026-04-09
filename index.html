@@ -5,6 +5,45 @@
     <link rel="icon" type="image/svg+xml" href="/iWriter.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>iWriter</title>
+    <style>
+      html[data-theme-bootstrapping="true"] *,
+      html[data-theme-bootstrapping="true"] *::before,
+      html[data-theme-bootstrapping="true"] *::after {
+        transition: none !important;
+      }
+    </style>
+    <script>
+      (() => {
+        const SNAPSHOT_KEY = 'iwriter-theme-snapshot'
+        const root = document.documentElement
+
+        try {
+          const rawSnapshot = localStorage.getItem(SNAPSHOT_KEY)
+          if (!rawSnapshot) return
+
+          const snapshot = JSON.parse(rawSnapshot)
+          if (
+            !snapshot ||
+            typeof snapshot.themeId !== 'string' ||
+            typeof snapshot.resolvedThemeId !== 'string' ||
+            !snapshot.vars ||
+            typeof snapshot.vars !== 'object'
+          ) {
+            return
+          }
+
+          root.setAttribute('data-theme-bootstrapping', 'true')
+          Object.entries(snapshot.vars).forEach(([name, value]) => {
+            if (typeof value === 'string') {
+              root.style.setProperty(name, value)
+            }
+          })
+          root.dataset.theme = snapshot.themeId
+          root.dataset.resolvedTheme = snapshot.resolvedThemeId
+          root.style.colorScheme = snapshot.resolvedThemeId === 'dark' ? 'dark' : 'light'
+        } catch (error) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

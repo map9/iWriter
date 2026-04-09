@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "tailwindcss/utilities";
 
 @theme {
   --text-2xs: 0.625rem;
@@ -181,8 +180,6 @@
     @apply w-px h-4 mx-0.5 border border-border-separator;
   }
 
-
-  
   .toolbar {
     @apply flex items-center gap-1 p-2 h-9 px-4 bg-background-content w-full overflow-x-auto overflow-y-hidden scrollbar-hide border-b border-border-separator;
   }
