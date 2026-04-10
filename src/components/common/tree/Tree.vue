@@ -1030,8 +1030,6 @@ defineExpose({
 .tree-root {
   height: 100%;
   overflow-y: auto;
-  scrollbar-width: thin;
-  transition: scrollbar-color 0.2s ease;
   background: var(--tree-container-background, transparent);
   border: var(--tree-container-border, none);
   border-radius: var(--tree-container-border-radius, 0px);

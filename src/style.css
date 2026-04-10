@@ -50,6 +50,16 @@
 }
 
 @layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-interactive-control) var(--color-background-underpage);
+    transition: scrollbar-color 0.2s ease;
+  }
+
+  *:hover {
+    scrollbar-color: var(--color-interactive-hover) var(--color-background-underpage);
+  }
+
   html {
     font-feature-settings: "cv11", "ss01";
     font-variation-settings: "opsz" 850;
@@ -68,23 +78,6 @@
     @apply flex flex-col w-screen h-screen overflow-hidden;
   }
 
-  /* Custom scrollbar styling */
-  ::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
-  }
-  
-  ::-webkit-scrollbar-track {
-    @apply bg-background-underpage;
-  }
-  
-  ::-webkit-scrollbar-thumb {
-    @apply bg-interactive-control border-r-4;
-  }
-  
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-interactive-hover;
-  }
 }
 
 @layer components {
