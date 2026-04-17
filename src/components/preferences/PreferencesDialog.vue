@@ -345,7 +345,7 @@
               <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
                 <div class="min-w-0">
                   <div class="text-sm font-medium text-base-content">Enable Automatic Updates</div>
-                  <div class="text-xs text-base-content/65">Keep iWriter up to date automatically</div>
+                  <div class="text-xs text-base-content/65">Allow background download and install behavior for updates</div>
                 </div>
                 <label class="label cursor-pointer gap-3">
                   <input
@@ -359,7 +359,7 @@
               <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
                 <div class="min-w-0">
                   <div class="text-sm font-medium text-base-content">Check for Updates on Startup</div>
-                  <div class="text-xs text-base-content/65">Check for new versions when iWriter launches</div>
+                  <div class="text-xs text-base-content/65">Automatically check whether a new update package is available when iWriter launches</div>
                 </div>
                 <label class="label cursor-pointer gap-3">
                   <input
@@ -380,6 +380,7 @@
                     type="checkbox"
                     class="toggle toggle-primary toggle-xs"
                     :checked="updaterConfig.autoDownload"
+                    :disabled="!updaterConfig.enabled"
                     @change="patchUpdaterConfig({ autoDownload: ($event.target as HTMLInputElement).checked })"
                   />
                 </label>
@@ -394,6 +395,7 @@
                     type="checkbox"
                     class="toggle toggle-primary toggle-xs"
                     :checked="updaterConfig.autoInstall"
+                    :disabled="!updaterConfig.enabled"
                     @change="patchUpdaterConfig({ autoInstall: ($event.target as HTMLInputElement).checked })"
                   />
                 </label>
@@ -438,6 +440,7 @@
                   max="168"
                   class="input input-sm w-28"
                   :value="updaterConfig.checkInterval"
+                  :disabled="!updaterConfig.enabled"
                   @change="patchUpdaterConfig({ checkInterval: Number(($event.target as HTMLInputElement).value) })"
                 />
               </div>

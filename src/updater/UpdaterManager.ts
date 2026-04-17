@@ -72,9 +72,9 @@ export class UpdaterManager {
     })
     console.info('Updater configured with GitHub provider')
 
-    // 配置自动下载
-    this.updater.autoDownload = config.autoDownload
-    this.updater.autoInstallOnAppQuit = config.autoInstall
+    // 关闭自动更新时，仍允许手动检查，但不再自动下载/自动安装
+    this.updater.autoDownload = config.enabled && config.autoDownload
+    this.updater.autoInstallOnAppQuit = config.enabled && config.autoInstall
 
     // 设置定时检查
     if (config.enabled && config.checkInterval > 0) {
@@ -286,7 +286,7 @@ export class UpdaterManager {
   // 启动时检查更新
   async checkOnStartup(): Promise<void> {
     const config = this.getConfig()
-    if (config.enabled && config.checkOnStartup) {
+    if (config.checkOnStartup) {
       // 延迟几秒钟再检查，让应用完全启动
       setTimeout(() => {
         this.checkForUpdates()
