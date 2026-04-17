@@ -8,7 +8,8 @@ import type {
   UpdateStatus,
   UpdateInfo,
   UpdateCheckResult,
-  UpdaterStateMessage
+  UpdaterStateMessage,
+  UpdaterStateSnapshot,
 } from './types'
 import {
   DEFAULT_UPDATER_CONFIG,
@@ -50,20 +51,24 @@ export class UpdaterManager {
 
   private configure() {
     const config = this.getConfig()
-    
+
+    if (this.checkTimer) {
+      clearInterval(this.checkTimer)
+      this.checkTimer = null
+    }
+
     // 设置更新服务器
     const ghToken = process.env.GH_TOKEN
     if (!ghToken) {
-      console.warn('GH_TOKEN not set, auto-updates may not work')
-      return
+      console.warn('GH_TOKEN not set, using GitHub updater without token')
     }
-    
+
     this.updater.setFeedURL({
       provider: 'github',
       owner: 'map9',
       repo: 'iWriter',
       private: false,
-      token: ghToken
+      ...(ghToken ? { token: ghToken } : {})
     })
     console.info('Updater configured with GitHub provider')
 
@@ -90,7 +95,13 @@ export class UpdaterManager {
         releaseDate: info.releaseDate,
         files: info.files || []
       }
-      
+
+      if (this.isSkippedVersion(updateInfo.version)) {
+        this.updateInfo = null
+        this.updateStatus('idle', '')
+        return
+      }
+
       this.updateInfo = updateInfo
       this.updateStatus('available', UPDATE_STATUS_MESSAGES.available, {
         updateInfo
@@ -98,6 +109,7 @@ export class UpdaterManager {
     })
 
     this.updater.on('update-not-available', () => {
+      this.updateInfo = null
       this.updateStatus('idle', '')
     })
 
@@ -114,14 +126,16 @@ export class UpdaterManager {
     })
 
     this.updater.on('update-downloaded', (info: UpdateDownloadedEvent) => {
-      this.updateStatus('installing', UPDATE_STATUS_MESSAGES.installing, {
-        updateInfo: {
-          version: info.version,
-          currentVersion: app.getVersion(),
-          releaseNotes: info.releaseNotes as string || '',
-          releaseDate: info.releaseDate,
-          files: info.files || []
-        }
+      const updateInfo: UpdateInfo = {
+        version: info.version,
+        currentVersion: app.getVersion(),
+        releaseNotes: info.releaseNotes as string || '',
+        releaseDate: info.releaseDate,
+        files: info.files || []
+      }
+      this.updateInfo = updateInfo
+      this.updateStatus('downloaded', UPDATE_STATUS_MESSAGES.downloaded, {
+        updateInfo
       })
     })
 
@@ -139,7 +153,7 @@ export class UpdaterManager {
     // 检查更新
     ipcMain.handle(UPDATE_IPC_EVENTS.CHECK_FOR_UPDATES, async (): Promise<UpdateCheckResult> => {
       try {
-        const result = await this.checkForUpdates()
+        const result = await this.checkForUpdates(true)
         return result
       } catch (error) {
         console.error('Check for updates failed:', error)
@@ -150,6 +164,10 @@ export class UpdaterManager {
       }
     })
 
+    ipcMain.handle(UPDATE_IPC_EVENTS.DOWNLOAD_UPDATE, async () => {
+      await this.downloadUpdate()
+    })
+
     // 安装更新
     ipcMain.handle(UPDATE_IPC_EVENTS.INSTALL_UPDATE, () => {
       this.quitAndInstall()
@@ -158,6 +176,13 @@ export class UpdaterManager {
     // 获取更新状态
     ipcMain.handle(UPDATE_IPC_EVENTS.GET_UPDATE_STATUS, (): UpdateStatus => {
       return this.currentStatus
+    })
+
+    ipcMain.handle(UPDATE_IPC_EVENTS.GET_UPDATE_STATE, (): UpdaterStateSnapshot => {
+      return {
+        status: this.currentStatus,
+        updateInfo: this.updateInfo ?? undefined,
+      }
     })
 
     // 获取配置
@@ -190,14 +215,15 @@ export class UpdaterManager {
   }
 
   private scheduleUpdateCheck(intervalHours: number) {
-    if (this.checkTimer) {
-      clearInterval(this.checkTimer)
-    }
-
     const interval = intervalHours * 60 * 60 * 1000 // 转换为毫秒
     this.checkTimer = setInterval(() => {
       this.checkForUpdates()
     }, interval)
+  }
+
+  private isSkippedVersion(version: string | null | undefined): boolean {
+    if (!version) return false
+    return this.getConfig().skipVersion === version
   }
 
   // 公共方法
@@ -210,6 +236,9 @@ export class UpdaterManager {
     try {
       const result = await this.updater.checkForUpdates()
       if (result && result.updateInfo) {
+        if (this.isSkippedVersion(result.updateInfo.version)) {
+          return { available: false }
+        }
         return {
           available: true,
           updateInfo: {
@@ -236,6 +265,10 @@ export class UpdaterManager {
   }
 
   quitAndInstall(): void {
+    // 先广播 installing 状态，让 UI 有机会在 quit 前反馈
+    this.updateStatus('installing', UPDATE_STATUS_MESSAGES.installing, {
+      updateInfo: this.updateInfo ?? undefined
+    })
     this.updater.quitAndInstall()
   }
 
@@ -269,8 +302,10 @@ export class UpdaterManager {
     
     // 移除所有 IPC 处理器
     ipcMain.removeHandler(UPDATE_IPC_EVENTS.CHECK_FOR_UPDATES)
+    ipcMain.removeHandler(UPDATE_IPC_EVENTS.DOWNLOAD_UPDATE)
     ipcMain.removeHandler(UPDATE_IPC_EVENTS.INSTALL_UPDATE)
     ipcMain.removeHandler(UPDATE_IPC_EVENTS.GET_UPDATE_STATUS)
+    ipcMain.removeHandler(UPDATE_IPC_EVENTS.GET_UPDATE_STATE)
     ipcMain.removeHandler(UPDATE_IPC_EVENTS.GET_UPDATE_CONFIG)
     ipcMain.removeHandler(UPDATE_IPC_EVENTS.SET_UPDATE_CONFIG)
   }

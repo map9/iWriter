@@ -4,7 +4,6 @@ import { SidebarMode, DocumentType } from '@/types'
 // Storage Keys
 export const STORAGE_KEYS = {
   THEME: 'iwriter-theme',
-  THEME_SNAPSHOT: 'iwriter-theme-snapshot',
   AUTO_SAVE: 'iwriter-auto-save',
   SEARCH_CONFIG: 'iwriter-search-in-files-config',
   UI_STATE: 'iwriter-ui-state',
@@ -35,12 +34,6 @@ export interface WorkspaceState {
     documentType?: DocumentType
   }>
   activeTabPath: string | null  // 使用路径而不是 ID
-}
-
-export interface ThemeSnapshot {
-  themeId: string
-  resolvedThemeId: string
-  vars: Record<string, string>
 }
 
 // 默认值
@@ -183,40 +176,6 @@ export class StateStorage {
       console.error('Failed to load theme:', error)
       return 'system'
     }
-  }
-
-  /**
-   * 保存主题快照，供冷启动时首屏直接恢复
-   */
-  static saveThemeSnapshot(snapshot: ThemeSnapshot): void {
-    try {
-      localStorage.setItem(STORAGE_KEYS.THEME_SNAPSHOT, JSON.stringify(snapshot))
-    } catch (error) {
-      console.error('Failed to save theme snapshot:', error)
-    }
-  }
-
-  /**
-   * 加载主题快照
-   */
-  static loadThemeSnapshot(): ThemeSnapshot | null {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.THEME_SNAPSHOT)
-      if (!saved) return null
-      const parsed = JSON.parse(saved)
-      if (
-        parsed &&
-        typeof parsed.themeId === 'string' &&
-        typeof parsed.resolvedThemeId === 'string' &&
-        parsed.vars &&
-        typeof parsed.vars === 'object'
-      ) {
-        return parsed as ThemeSnapshot
-      }
-    } catch (error) {
-      console.error('Failed to load theme snapshot:', error)
-    }
-    return null
   }
 
   /**

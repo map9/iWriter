@@ -1,4 +1,4 @@
-//.tiptap {
+.tiptap {
   .toolbar-wrapper {
     position: relative;
 
@@ -11,6 +11,17 @@
     }
 
     .toolbar-controls {
+      --tiptap-toolbar-bg: var(--color-base-100);
+      --tiptap-toolbar-surface: var(--color-base-100);
+      --tiptap-toolbar-surface-hover: var(--color-base-300);
+      --tiptap-toolbar-border: var(--color-base-300);
+      --tiptap-toolbar-text: var(--color-base-content);
+      --tiptap-toolbar-text-muted: color-mix(in oklab, var(--color-base-content) 82%, transparent);
+      --tiptap-toolbar-placeholder: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+      --tiptap-toolbar-shadow: var(--shadow-sm);
+      --tiptap-toolbar-disabled-bg: var(--color-base-200);
+      --tiptap-toolbar-group-bg: var(--color-base-200);
+
       position: absolute;
       width: auto;
       height: auto;
@@ -19,16 +30,15 @@
       display: flex;
       align-items: center;
       flex-direction: row;
-      background: rgba(0, 0, 0, 0.8);
+      background: var(--tiptap-toolbar-bg);
       backdrop-filter: blur(8px);
-      border-radius: 0.5rem;
+      border: var(--border) solid var(--tiptap-toolbar-border);
+      border-radius: var(--radius-box);
       font-size: 13px;
       transition: all 0.2s ease;
       transform: translateX(0px);
       transform: translateY(0px);
-      box-shadow: 
-        0 4px 6px -1px rgba(0, 0, 0, 0.1),
-        0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      box-shadow: var(--tiptap-toolbar-shadow);
       z-index: 1000;
       
       &.inside-top-left {
@@ -84,7 +94,7 @@
           height: 0;
           border-style: solid;
           border-width: 6px;
-          border-color: transparent transparent rgba(0, 0, 0, 0.1) transparent;
+          border-color: transparent transparent var(--tiptap-toolbar-border) transparent;
         }
         
         &::after {
@@ -96,7 +106,7 @@
           height: 0;
           border-style: solid;
           border-width: 5px;
-          border-color: transparent transparent rgba(0, 0, 0, 0.8) transparent;
+          border-color: transparent transparent var(--tiptap-toolbar-bg) transparent;
         }
       }
 
@@ -134,38 +144,37 @@
       }
 
       .control-selector {
-        background-color: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 0.25rem;
+        background-color: var(--tiptap-toolbar-surface);
+        border: var(--border) solid var(--tiptap-toolbar-border);
+        border-radius: var(--radius-field);
         padding: 4px 8px;
-        color: #fff;
+        color: var(--tiptap-toolbar-text);
         font-size: 13px;
         backdrop-filter: blur(8px);
         height: 26px;
 
         &:hover {
-          background-color: rgba(255, 255, 255, 0.15);
-          border-color: rgba(255, 255, 255, 0.3);
+          background-color: var(--tiptap-toolbar-surface-hover);
+          border-color: color-mix(in oklab, var(--color-neutral) 35%, var(--tiptap-toolbar-border));
         }
         
         &:focus {
           outline: none;
-          border-color: rgba(59, 130, 246, 0.8);
-          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+          border-color: var(--color-primary);
         }
         
         option {
-          background-color: #2a2a2a;
-          color: white;
+          background-color: var(--color-base-100);
+          color: var(--color-base-content);
         }
       }
 
       .control-button {
-        background-color: rgba(59, 130, 246, 0.8);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 0.25rem;
+        background-color: var(--color-neutral);
+        border: var(--border) solid var(--tiptap-toolbar-border);
+        border-radius: var(--radius-field);
         padding: 4px;
-        color: white;
+        color: var(--color-neutral-content);
         cursor: pointer;
         transition: all 0.2s ease;
         display: flex;
@@ -178,50 +187,57 @@
         }
 
         &:focus {
-          outline: 2px solid rgba(59, 130, 246, 0.5);
+          outline: 2px solid color-mix(in oklab, var(--color-neutral) 55%, transparent);
           outline-offset: 2px;
         }
         
         &:hover:not(.disabled) {
-          background-color: rgba(59, 130, 246, 1);
+          background-color: color-mix(in oklab, var(--color-neutral) 88%, var(--color-base-content));
           transform: scale(1.05);
         }
         
         &.disabled {
-          background-color: rgba(107, 114, 128, 0.5);
+          background-color: var(--tiptap-toolbar-disabled-bg);
+          border-color: var(--tiptap-toolbar-border);
+          color: var(--tiptap-toolbar-placeholder);
           cursor: not-allowed;
           opacity: 0.6;
         }
         
         &.active {
-          background-color: rgba(34, 197, 94, 0.8);
+          background-color: var(--color-primary);
+          color: var(--color-primary-content);
           
           &:hover {
-            background-color: rgba(34, 197, 94, 1);
+            background-color: color-mix(in oklab, var(--color-primary) 88%, var(--color-base-content));
           }
         }
 
         &.delete-button {
-          background-color: rgba(239, 68, 68, 0.8);
+          background-color: var(--color-error);
+          color: var(--color-error-content);
           
           &:hover {
-            background-color: rgba(239, 68, 68, 1);
+            background-color: color-mix(in oklab, var(--color-error) 88%, var(--color-base-content));
           }
         }
 
         &.confirm-button {
-          background-color: rgba(34, 197, 94, 0.8);
+          background-color: var(--color-primary);
+          color: var(--color-primary-content);
           
           &:hover {
-            background-color: rgba(34, 197, 94, 1);
+            background-color: color-mix(in oklab, var(--color-primary) 88%, var(--color-base-content));
           }
         }
 
         &.cancel-button {
-          background-color: rgba(107, 114, 128, 0.5);
+          background-color: var(--tiptap-toolbar-disabled-bg);
+          color: var(--tiptap-toolbar-text);
+          border-color: var(--tiptap-toolbar-border);
           
           &:hover {
-            background-color: rgba(255, 255, 255, 0.2);
+            background-color: var(--tiptap-toolbar-surface-hover);
           }
         }
 
@@ -235,25 +251,27 @@
       .control-button-group {
         display: flex;
         align-items: center;
-        background-color: rgba(107, 114, 128, 0.5);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 0.25rem;
+        background-color: var(--tiptap-toolbar-group-bg);
+        border: var(--border) solid var(--tiptap-toolbar-border);
+        border-radius: var(--radius-field);
         height: 26px;
         flex-shrink: 0;
 
         .control-button {
           background-color: transparent;
-          border: 1px solid transparent;
+          border: var(--border) solid transparent;
+          color: var(--color-base-content);
           
           &:hover:not(.disabled) {
-            background-color: rgba(107, 114, 128, 1);
+            background-color: var(--tiptap-toolbar-surface-hover);
           }
 
           &.active {
-            background-color: rgba(34, 197, 94, 0.8);
+            background-color: var(--color-primary);
+            color: var(--color-primary-content);
             
             &:hover {
-              background-color: rgba(34, 197, 94, 1);
+              background-color: color-mix(in oklab, var(--color-primary) 88%, var(--color-base-content));
             }
           }
         }
@@ -263,23 +281,27 @@
         flex: 1;
         min-width: 0;
         padding: 4px 8px;
-        color: rgba(255, 255, 255, 0.8);
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 0.25rem;
+        color: var(--tiptap-toolbar-text-muted);
+        background: var(--tiptap-toolbar-surface);
+        border: var(--border) solid var(--tiptap-toolbar-border);
+        border-radius: var(--radius-field);
         font-size: 13px;
         outline: none;
         transition: all 0.2s ease;
         height: 26px;
 
         &::placeholder {
-          color: rgba(255, 255, 255, 0.6);
+          color: var(--tiptap-toolbar-placeholder);
         }
         
+        &:hover {
+          background-color: var(--tiptap-toolbar-surface-hover);
+          border-color: color-mix(in oklab, var(--color-neutral) 35%, var(--tiptap-toolbar-border));
+        }
+
         &:focus {
-          background: rgba(255, 255, 255, 0.15);
-          border-color: rgba(59, 130, 246, 0.8);
-          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+          background: var(--tiptap-toolbar-surface-hover);
+          border-color: var(--color-primary);
         }
       }
 
@@ -287,9 +309,9 @@
         flex: 1;
         min-width: 0;
         padding: 4px 8px;
-        color: rgba(255, 255, 255, 0.8);
+        color: var(--tiptap-toolbar-text-muted);
         //background: rgba(255, 255, 255, 0.1);
-        border-radius: 0.25rem;
+        border-radius: var(--radius-field);
         font-size: 13px;
         outline: none;
         transition: all 0.2s ease;
@@ -297,7 +319,7 @@
 
         &.warning {
           font-style: italic;
-          color: rgba(255, 255, 255, 0.5);
+          color: color-mix(in oklab, var(--color-base-content) 65%, transparent);
           text-align: center;
           padding: 12px;
           font-size: 13px;
@@ -306,4 +328,4 @@
       }
     }
   }
-//}
+}

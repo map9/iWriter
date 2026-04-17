@@ -5,14 +5,13 @@
     :key="item.id"
     class="statusbar-item"
     :class="[
-      'flex items-center gap-1 px-1 py-1 h-6 min-h-6',
-      'hover:bg-blue-500 dark:hover:bg-gray-700',
-      'transition-colors duration-150 rounded-none',
-      'border-none bg-transparent cursor-pointer',
+      'flex h-6 min-h-6 items-center gap-1 rounded-none border-none bg-transparent px-1 py-1',
+      'transition-colors duration-150 hover:bg-neutral-content/30',
+      'cursor-pointer',
       'whitespace-nowrap',
       {
-        'text-white': !props.item.color,
-        'cursor-default': !!(props.item.command)
+        'text-neutral-content': !props.item.color,
+        'cursor-default': !props.item.command
       }
     ]"
     :style="itemStyle"
@@ -27,7 +26,7 @@
         v-if="segment.type === 'icon' && getTablerIcon(segment.value)"
         :is="getTablerIcon(segment.value)"
         :class="[
-          'w-4 h-4 flex-shrink-0',
+          'icon-xs shrink-0',
           {
             'animate-spin': segment.animation === 'spin',
             'animate-ping': segment.animation === 'ping',

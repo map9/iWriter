@@ -1,9 +1,9 @@
 <template>
   <div
-    class="flex items-center hover:bg-blue-600 dark:hover:bg-gray-600 transition-colors duration-150 rounded-none bg-transparent"
+    class="flex items-center rounded-none bg-transparent transition-colors duration-150 hover:bg-neutral-content/30"
     :class="[
       {
-        'text-white': !props.group.color,
+        'text-neutral-content': !props.group.color,
       }
     ]"
     :style="groupStyle"
@@ -11,7 +11,7 @@
     <template v-for="(item, index) in group.items" :key="item.id">
       <span
         v-if="index > 0 && group.separator && group.separator.length > 0 && item.text && item.text.trim()"
-        class="text-blue-200 px-0"
+        class="px-0 text-neutral-content/50"
       >{{ group.separator }}</span>
 
       <StatusBarItem

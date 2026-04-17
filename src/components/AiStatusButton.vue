@@ -1,8 +1,8 @@
 <template>
-  <div class="flex items-center pl-2 pr-3 flex-shrink-0 no-drag">
+  <div class="no-drag flex shrink-0 items-center">
     <button
       @click="appStore.toggleRightSidebar()"
-      class="toolbar-button relative group"
+      class="iw-toolbar-btn btn-sm relative group"
       :title="robotButtonTitle"
     >
       <div
@@ -10,11 +10,11 @@
         class="blob absolute left-1/2 top-1/2"
       />
 
-      <IconRobot class="icon-base relative z-10" :class="{
-        'text-accent-primary': displayMode === 'open',
-        'text-white/70': displayMode === 'running',
-        'group-hover:text-accent-primary': displayMode === 'running',
-        'text-status-warning': displayMode === 'waiting',
+      <IconRobot class="relative z-10 icon-sm" :class="{
+        'text-primary': displayMode === 'open',
+        'text-base-content/70': displayMode === 'running',
+        'group-hover:text-primary': displayMode === 'running',
+        'text-warning': displayMode === 'waiting',
         'animate-bounce': displayMode === 'waiting',
       }" />
     </button>
@@ -42,10 +42,10 @@ const displayMode = computed<'open' | 'idle' | 'running' | 'waiting'>(() => {
 })
 
 const robotButtonTitle = computed(() => {
-  if (appStore.isRightSidebarVisible) return '关闭 AI StoryMate Chat'
-  if (closedStatus.value === 'waiting') return 'AI StoryMate Chat：等待你确认修改，点击打开'
-  if (closedStatus.value === 'running') return 'AI StoryMate Chat：正在处理，点击打开'
-  return '打开 AI StoryMate Chat'
+  if (appStore.isRightSidebarVisible) return 'Close AI StoryMate Chat'
+  if (closedStatus.value === 'waiting') return 'AI StoryMate Chat：Waiting for your confirmation, click to open'
+  if (closedStatus.value === 'running') return 'AI StoryMate Chat：Processing, click to open'
+  return 'Open AI StoryMate Chat'
 })
 </script>
 

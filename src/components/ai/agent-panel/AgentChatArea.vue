@@ -1,5 +1,5 @@
 <template>
-  <div ref="messagesEl" class="flex-1 overflow-y-auto px-3 pb-3 pt-1 space-y-3 min-h-0" :style="{ paddingBottom: (bottomPadding ?? 0) + 24 + 'px' }">
+  <div ref="messagesEl" class="min-h-0 flex-1 space-y-3 overflow-y-auto bg-base-100 px-3 pb-2 pt-1" :style="{ paddingBottom: (bottomPadding ?? 0) + 24 + 'px' }">
     <ChatContextPill />
 
     <AgentEmptyState @suggest="handleSuggestPrompt" />
@@ -9,13 +9,13 @@
       class="flex gap-2.5"
     >
       <div class="flex-1 min-w-0 space-y-1.5">
-        <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-interactive-hover">
+        <div class="inline-flex items-center gap-2 rounded-field bg-base-200 px-3 py-2">
           <div class="flex items-center gap-0.5">
-            <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:0ms" />
-            <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:150ms" />
-            <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:300ms" />
+            <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:0ms" />
+            <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:150ms" />
+            <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:300ms" />
           </div>
-          <span class="text-xs text-text-secondary">正在载入会话…</span>
+          <span class="text-xs text-base-content opacity-50">Loading session...</span>
         </div>
       </div>
     </div>
@@ -33,13 +33,13 @@
     <!-- Streaming fallback when no preview message is available -->
     <div v-if="aiStore.isStreaming && !aiStore.streamingPreviewMessage" class="flex gap-2.5">
       <div class="flex-1 min-w-0 space-y-1.5">
-        <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-interactive-hover">
+        <div class="inline-flex items-center gap-2 rounded-field bg-base-200 px-3 py-2">
           <div class="flex items-center gap-0.5">
-            <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:0ms" />
-            <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:150ms" />
-            <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:300ms" />
+            <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:0ms" />
+            <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:150ms" />
+            <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:300ms" />
           </div>
-          <span class="text-xs text-text-secondary">{{ streamingStatusLabel }} · {{ formattedElapsed }}</span>
+          <span class="text-xs text-base-content opacity-50">{{ streamingStatusLabel }} · {{ formattedElapsed }}</span>
         </div>
       </div>
     </div>
@@ -66,10 +66,10 @@ import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
 defineProps<{ bottomPadding?: number }>()
 import { useAiStore } from '@/ai/store/ai'
 import { buildEditSessionForMessage } from '@/ai/edit-session'
-import ChatContextPill from './ChatContextPill.vue'
-import AgentEmptyState from './AgentEmptyState.vue'
-import AgentMessageBubble from './AgentMessageBubble.vue'
-import ProposalNavigator from '../ProposalNavigator.vue'
+import ChatContextPill from './chat-area/ChatContextPill.vue'
+import AgentEmptyState from './chat-area/AgentEmptyState.vue'
+import AgentMessageBubble from './chat-area/AgentMessageBubble.vue'
+import ProposalNavigator from './chat-area/ProposalNavigator.vue'
 
 const aiStore = useAiStore()
 
@@ -139,13 +139,9 @@ function humanizeToolName(toolName: string | null | undefined): string {
     get_section: '读取章节',
     get_blocks: '读取段落',
     get_block_context: '读取上下文',
-    search_document_blocks: '在文档中搜索段落',
-    search_document_sections: '在文档中搜索章节',
-    search_workspace_documents: '在目录中搜索文档内容',
-    search_in_document: '在文档中搜索章节',
-    search_in_directory: '在目录中搜索文档内容',
     search_blocks_in_document: '在文档中搜索段落',
     search_sections_in_document: '在文档中搜索章节',
+    search_in_directory: '在目录中搜索文档内容',
     read_file: '读取文件',
     list_directory: '查看目录',
     ls: '查看目录',

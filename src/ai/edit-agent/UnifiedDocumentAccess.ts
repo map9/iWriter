@@ -5,7 +5,7 @@
  *   DocumentViewBuilder → BlockEditApplier
  *
  * For disk files a virtual TipTap Editor is created in memory (no DOM rendering),
- * following the same pattern as TipTapSearchService workspace replacement.
+ * following the same pattern as iwSearchReplaceInFilesService workspace replacement.
  * This gives us real nodeIds via UniqueID, consistent block-type coverage,
  * and the exact same edit code path as the active editor.
  *

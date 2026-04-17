@@ -137,12 +137,12 @@ export class TooltipManager {
         z-index: 10000;
         max-width: 400px;
         min-width: 100px;
-        background: rgba(30, 30, 30, 0.95);
+        background: var(--color-base-100, rgba(30, 30, 30, 0.95));
         color: #cccccc;
-        border: 1px solid #454545;
-        border-radius: 4px;
+        border: var(--border, 1px) solid var(--color-base-300, #454545);
+        border-radius: var(--radius-field, 4px);
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 500;
         line-height: 1.5;
         pointer-events: auto;
@@ -168,7 +168,7 @@ export class TooltipManager {
         transform: translateX(-50%);
         border-left: 6px solid transparent;
         border-right: 6px solid transparent;
-        border-top: 6px solid rgba(30, 30, 30, 0.95);
+        border-top: 6px solid var(--color-base-100, rgba(30, 30, 30, 0.95));
       }
 
       /* Bottom placement: tooltip below target, arrow points up */
@@ -178,7 +178,7 @@ export class TooltipManager {
         transform: translateX(-50%);
         border-left: 6px solid transparent;
         border-right: 6px solid transparent;
-        border-bottom: 6px solid rgba(30, 30, 30, 0.95);
+        border-bottom: 6px solid var(--color-base-100, rgba(30, 30, 30, 0.95));
       }
 
       /* Left placement: tooltip left of target, arrow points right */
@@ -188,7 +188,7 @@ export class TooltipManager {
         transform: translateY(-50%);
         border-top: 6px solid transparent;
         border-bottom: 6px solid transparent;
-        border-left: 6px solid rgba(30, 30, 30, 0.95);
+        border-left: 6px solid var(--color-base-100, rgba(30, 30, 30, 0.95));
       }
 
       /* Right placement: tooltip right of target, arrow points left */
@@ -198,7 +198,7 @@ export class TooltipManager {
         transform: translateY(-50%);
         border-top: 6px solid transparent;
         border-bottom: 6px solid transparent;
-        border-right: 6px solid rgba(30, 30, 30, 0.95);
+        border-right: 6px solid var(--color-base-100, rgba(30, 30, 30, 0.95));
       }
 
       /* Markdown content styles */
@@ -213,7 +213,7 @@ export class TooltipManager {
       }
 
       .iw-tooltip-content a {
-        color: #4fc3f7;
+        color: var(--color-base-content, #4fc3f7);
         text-decoration: none;
       }
 
@@ -234,8 +234,8 @@ export class TooltipManager {
         border: 1px solid #454545;
         border-radius: 3px;
         padding: 1px 4px;
-        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-        font-size: 11px;
+        font-family: var(--font-mono, Consolas, "Courier New", monospace);
+        font-size: 10px;
       }
 
       .iw-tooltip-content .codicon {

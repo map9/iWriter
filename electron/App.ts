@@ -11,7 +11,6 @@ import { USE_CONFIRMATION_TIMEOUT, QUIT_APP_CONFIRMATION_TIMEOUT } from './types
 import type { WindowState } from './types'
 import { MenuManager } from './MenuManager'
 import { WindowManager } from './WindowManager'
-import { ThemeManager } from './ThemeManager'
 import { UpdaterManager } from '../src/updater/UpdaterManager'
 import { AgentEngine } from './ai/AgentEngine'
 import { AiConfigStore } from './ai/config/AiConfigStore'
@@ -21,7 +20,6 @@ export class App {
   private fileWatchers: Map<string, FSWatcher>
   private menuManager: MenuManager
   private windowManager: WindowManager
-  private themeManager: ThemeManager
   private updaterManager: UpdaterManager | null
   private agentEngine: AgentEngine
   private appQuitTimer: Timer | null = null
@@ -32,7 +30,6 @@ export class App {
     this.fileWatchers = new Map()
     this.menuManager = new MenuManager()
     this.windowManager = new WindowManager(this)
-    this.themeManager = new ThemeManager()
     this.updaterManager = null
     this._isAppQuitting = false
     this._exitApp = false
@@ -1127,7 +1124,6 @@ export class App {
         this.updaterManager.destroy()
         this.updaterManager = null
       }
-      this.themeManager.destroy()
       this.windowManager.destroy()
       this.menuManager.destroy()
 
@@ -1157,9 +1153,6 @@ export class App {
         this.handleMenuAction(action)
       })
       this.windowManager.createWindow()
-      this.themeManager.setSendSystemColorsChanged((colors: any) => {
-        this.windowManager.handleSystemColorsChanged(colors)
-      })
       this.windowManager.setUpdateMenu(() => {
         this.handleUpdateMenu()
       })

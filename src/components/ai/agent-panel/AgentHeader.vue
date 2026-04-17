@@ -1,38 +1,42 @@
 <template>
-  <div class="sidebar-header bg-background-window flex-shrink-0 min-w-0">
-    <div class="flex items-center gap-2 min-w-0 flex-1">
-      <span class="font-medium text-text-primary text-sm truncate w-60 flex-shrink-0">{{ title }}</span>
+  <!-- Explorer Header -->
+  <div class="iw-sidebar-section border-b border-base-300">
+    <div class="flex flex-1 items-center gap-2">
+      <span class="iw-sidebar-section-header truncate">
+        {{ title }}
+      </span>
     </div>
-    <div class="flex items-center gap-1 flex-shrink-0">
+    
+    <!-- Actions -->
+    <div class="flex items-center gap-1">
       <!-- 返回模式：仅显示返回按钮 -->
       <button
         v-if="showBackButton"
         @click="$emit('back')"
-        class="p-1 rounded hover:bg-interactive-hover transition-colors"
-        title="返回"
+        class="iw-toolbar-btn btn-xs"
+        title="Back"
       >
-        <IconArrowLeft class="w-4 h-4 text-text-secondary" />
+        <IconArrowLeft class="icon-xs" />
       </button>
       <!-- 正常模式：新对话 + 历史 + 设置 -->
       <template v-else>
-        <button @click="$emit('new-thread')" class="p-1 rounded hover:bg-interactive-hover transition-colors" title="新对话">
-          <IconPlus class="w-4 h-4 text-text-secondary" />
+        <button @click="$emit('new-thread')" class="iw-toolbar-btn btn-xs" title="New Thread">
+          <IconPlus class="icon-xs" />
         </button>
         <button
           @click="$emit('toggle-history')"
-          class="p-1 rounded hover:bg-interactive-hover transition-colors"
-          :class="historyActive ? 'bg-interactive-hover' : ''"
-          title="历史对话"
+          class="iw-toolbar-btn btn-xs"
+          :class="historyActive ? 'iw-toolbar-btn-active' : ''"
+          title="History"
         >
-          <IconHistory class="w-4 h-4 text-text-secondary" />
+          <IconHistory class="icon-xs" />
         </button>
         <button
-          @click="$emit('toggle-settings')"
-          class="p-1 rounded hover:bg-interactive-hover transition-colors"
-          :class="settingsActive ? 'bg-interactive-hover' : ''"
-          title="AI 设置"
+          @click="$emit('open-settings')"
+          class="iw-toolbar-btn btn-xs"
+          title="AI Settings"
         >
-          <IconSettings class="w-4 h-4 text-text-secondary" />
+          <IconSettings class="icon-xs" />
         </button>
       </template>
     </div>
@@ -44,7 +48,6 @@ import { IconArrowLeft, IconPlus, IconHistory, IconSettings } from '@tabler/icon
 
 defineProps<{
   historyActive: boolean
-  settingsActive: boolean
   title: string
   showBackButton?: boolean
 }>()
@@ -52,7 +55,7 @@ defineProps<{
 defineEmits<{
   'new-thread': []
   'toggle-history': []
-  'toggle-settings': []
+  'open-settings': []
   'back': []
 }>()
 </script>

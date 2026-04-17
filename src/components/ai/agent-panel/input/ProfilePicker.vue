@@ -1,34 +1,34 @@
 <template>
-  <div ref="triggerEl" class="relative flex-shrink-0">
+  <div ref="triggerEl" class="relative shrink-0">
     <button
       @click="onToggle"
-      class="flex items-center gap-1 px-2 py-1 rounded text-xs text-text-secondary hover:bg-interactive-hover transition-colors max-w-25"
-      title="切换 Agent Mode"
+      class="flex items-center gap-1 px-2 py-1 rounded text-xs text-base-content hover:bg-base-300 transition-colors max-w-25"
+      title="Switch Agent Mode"
     >
       <span class="truncate">{{ currentLabel }}</span>
-      <IconChevronDown class="w-3 h-3 flex-shrink-0 text-text-tertiary" />
+      <IconChevronDown class="icon-2xs shrink-0 text-base-content" />
     </button>
 
     <Teleport to="body">
       <div
         v-if="isOpen"
         ref="menuEl"
-        class="fixed w-48 bg-background-content border border-border-separator rounded-lg shadow-lg z-[1200] py-1"
+        class="fixed w-40 bg-base-100 border border-base-300 rounded-field shadow-sm z-1200 py-1.5 px-1.5"
         :style="menuStyle"
       >
         <button
           v-for="option in modeOptions"
           :key="option.value"
           @click="select(option.value)"
-          class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-text-primary hover:bg-interactive-hover"
+          class="w-full flex items-center gap-2 px-1.5 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300 text-left"
         >
           <span
-            class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-            :class="option.value === currentMode ? 'bg-accent-primary' : 'bg-transparent'"
+            class="icon-dot shrink-0"
+            :class="option.value === currentMode ? 'bg-primary' : 'bg-transparent'"
           />
           <span
             class="truncate flex-1"
-            :class="option.value === currentMode ? 'font-semibold text-text-primary' : ''"
+            :class="option.value === currentMode ? 'font-semibold text-base-content' : ''"
           >
             {{ option.label }}
           </span>

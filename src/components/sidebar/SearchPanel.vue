@@ -1,204 +1,212 @@
 <template>
-  <div class="h-full flex flex-col search-panel-container">
+  <div class="h-full flex flex-col">
     <!-- Search Header -->
-    <div class="sidebar-header h-9">
+    <div class="iw-sidebar-section">
       <div class="flex items-center gap-2">
-        <span class="text-xs font-medium uppercase tracking-wide" style="color: var(--color-text-secondary);">
-          SEARCH
+        <span class="iw-sidebar-section-header">
+          Search
         </span>
       </div>
     </div>
 
     <!-- Search Form -->
-    <div class="search-form-container">
-      <!-- 第一行：搜索框 -->
-      <div class="search-row">
+    <div class="flex flex-col bg-base-200 gap-1 p-2">
+      <div class="flex flex-row items-stretch">
         <!-- Toggle 按钮 -->
         <button
           @click="toggleReplaceMode"
-          class="toggle-btn"
+          class="iw-toolbar-btn w-4 h-auto"
           :title="showReplace ? 'Hide Replace' : 'Show Replace'"
         >
-          <IconChevronDown v-if="showReplace" class="w-4 h-4" />
-          <IconChevronRight v-else class="w-4 h-4" />
+          <IconChevronDown v-if="showReplace" class="icon-xs" />
+          <IconChevronRight v-else class="icon-xs" />
         </button>
 
-        <!-- 搜索输入框容器 -->
-        <div class="input-wrapper">
-          <textarea
-            ref="searchInputRef"
-            v-model="searchQuery"
-            rows="1"
-            placeholder="Find"
-            class="search-input"
-            @keydown="handleSearchKeydown"
-            @input="autoResizeTextarea(searchInputRef)"
-          />
+        <div class="flex flex-1 flex-col gap-1 pl-1">
+          <!-- 第一行：搜索框 -->
+          <div class="flex items-start gap-1">
+            <!-- 搜索输入框容器 -->
+            <div class="flex flex-1 relative min-w-0">
+              <textarea
+                ref="searchInputRef"
+                v-model="searchQuery"
+                rows="1"
+                placeholder="Find"
+                class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 pr-22 pl-2 text-sm focus:border-primary rounded-field"
+                @keydown="handleSearchKeydown"
+                @input="autoResizeTextarea(searchInputRef)"
+              />
 
-          <!-- 选项按钮组（在输入框内部右侧） -->
-          <div class="input-options-group">
+              <!-- 选项按钮组（在输入框内部右侧） -->
+              <div class="flex absolute right-2 top-0.5 gap-0.5">
+                <button
+                  @click="toggleOption('matchCase')"
+                  :class="{ 'iw-toolbar-btn-active': options.matchCase }"
+                  class="iw-toolbar-btn btn-xs"
+                  title="Match Case (Alt+C)"
+                >
+                  <IconLetterCase class="icon-2xs" />
+                </button>
+                <button
+                  @click="toggleOption('wholeWord')"
+                  :class="{ 'iw-toolbar-btn-active': options.wholeWord }"
+                  class="iw-toolbar-btn btn-xs"
+                  title="Match Whole Word (Alt+W)"
+                >
+                  <IconAbc class="icon-2xs" />
+                </button>
+                <button
+                  @click="toggleOption('regex')"
+                  :class="{ 'iw-toolbar-btn-active': options.regex }"
+                  class="iw-toolbar-btn btn-xs"
+                  title="Use Regular Expression (Alt+R)"
+                >
+                  <IconRegex class="icon-2xs" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 第二行：替换框（仅在 replace 模式显示） -->
+          <div v-if="showReplace" class="flex flex-row items-start gap-1">
+            <!-- 替换输入框容器 -->
+            <div class="flex flex-1 relative min-w-0 gap-1">
+              <textarea
+                ref="replaceInputRef"
+                v-model="replaceQuery"
+                rows="1"
+                placeholder="Replace"
+                class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 px-2 text-sm focus:border-primary rounded-field"
+                @keydown="handleReplaceKeydown"
+                @input="autoResizeTextarea(replaceInputRef)"
+              />
+            </div>
             <button
-              @click="toggleOption('matchCase')"
-              :class="{ active: options.matchCase }"
-              class="input-option-btn"
-              title="Match Case (Alt+C)"
+              @click="replaceAll"
+              :disabled="totalMatches === 0"
+              class="iw-toolbar-btn btn-xs mt-0.5"
+              title="Replace All"
             >
-              Aa
-            </button>
-            <button
-              @click="toggleOption('wholeWord')"
-              :class="{ active: options.wholeWord }"
-              class="input-option-btn"
-              title="Match Whole Word (Alt+W)"
-            >
-              <IconLetterCase class="w-3.5 h-3.5" />
-            </button>
-            <button
-              @click="toggleOption('regex')"
-              :class="{ active: options.regex }"
-              class="input-option-btn"
-              title="Use Regular Expression (Alt+R)"
-            >
-              .*
+              <IconReplaceFilled class="icon-xs" />
             </button>
           </div>
         </div>
       </div>
 
-      <!-- 第二行：替换框（仅在 replace 模式显示） -->
-      <div v-if="showReplace" class="replace-row">
-        <!-- 占位对齐 -->
-        <div class="toggle-placeholder"></div>
-
-        <!-- 替换输入框容器 -->
-        <div class="input-wrapper-with-action">
-          <textarea
-            ref="replaceInputRef"
-            v-model="replaceQuery"
-            rows="1"
-            placeholder="Replace"
-            class="replace-input"
-            @keydown="handleReplaceKeydown"
-            @input="autoResizeTextarea(replaceInputRef)"
-          />
-          <button
-            @click="replaceAll"
-            :disabled="totalMatches === 0"
-            class="replace-all-btn-inline"
-            title="Replace All"
-          >
-            <IconReplaceFilled class="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
       <!-- Files to include -->
-      <div class="filter-section">
-        <label class="filter-label">files to include</label>
-        <input
+      <div class="flex flex-col gap-1">
+        <label class="text-xs text-base-content">files to include</label>
+        <input 
           v-model="includePattern"
           type="text"
           placeholder="e.g. *.ts, src/**/*.js"
-          class="filter-input"
+          class="iw-input"
         />
       </div>
 
       <!-- Files to exclude -->
-      <div class="filter-section">
-        <label class="filter-label">files to exclude</label>
+      <div class="flex flex-col gap-1">
+        <label class="text-xs text-base-content">files to exclude</label>
         <input
           v-model="excludePattern"
           type="text"
           placeholder="e.g. node_modules/**, *.min.js"
-          class="filter-input"
+          class="iw-input"
         />
       </div>
     </div>
 
     <!-- Results Summary -->
-    <div class="results-summary">
-      <span v-if="isSearching" class="summary-text">Searching...</span>
-      <span v-else-if="totalMatches > 0" class="summary-text">
+    <div class="flex flex-col bg-base-200 gap-1 p-2 border-b border-base-300 text-xs text-base-content">
+      <span v-if="isSearching">Searching...</span>
+      <span v-else-if="totalMatches > 0">
         {{ totalMatches }} results in {{ fileCount }} files
       </span>
-      <span v-else-if="searchQuery" class="summary-text">No results</span>
-      <span v-else class="summary-text">Search to find results</span>
+      <span v-else-if="searchQuery">No results</span>
+      <span v-else>Search to find results</span>
     </div>
 
     <!-- Search Results Tree -->
-    <div class="flex-1 overflow-auto search-results-container">
+    <div class="flex-1 overflow-auto bg-base-100">
       <!-- Loading State -->
-      <div v-if="isSearching" class="empty-state">
+      <div v-if="isSearching" class="empty-panel">
         <p class="text-sm">Searching files...</p>
       </div>
 
       <!-- Results Tree -->
-      <div v-else-if="searchResults.length > 0" class="results-tree">
+      <div v-else-if="searchResults.length > 0" class="py-1">
         <div
           v-for="result in searchResults"
           :key="result.filePath"
-          class="result-file-group"
         >
           <!-- File Header -->
           <div
-            class="file-header"
+            class="group flex items-center justify-between px-2 py-1 h-7 cursor-pointer transition-colors duration-150 hover:bg-base-200"
             @click="toggleFileExpanded(result.filePath)"
           >
-            <div class="file-header-content">
-              <IconChevronRight v-if="!isFileExpanded(result.filePath)" class="expand-icon" />
-              <IconChevronDown v-else class="expand-icon" />
-              <IconFileText class="file-icon" />
-              <div class="file-path-container">
-                <span class="file-name">{{ result.fileName }}</span>
-                <span v-if="getRelativeDir(result.relativePath)" class="file-dir">{{ getRelativeDir(result.relativePath) }}</span>
+            <div class="flex flex-1 min-w-0 items-center gap-1">
+              <IconChevronRight v-if="!isFileExpanded(result.filePath)" class="icon-2xs text-base-content shrink-0" />
+              <IconChevronDown v-else class="icon-2xs text-base-content shrink-0" />
+              <IconFileText class="icon-xs text-base-content shrink-0" />
+              <div class="flex flex-1 min-w-0 items-baseline gap-1 overflow-hidden">
+                <span class="text-xs text-base-content font-medium shrink-0">{{ result.fileName }}</span>
+                <span v-if="getRelativeDir(result.relativePath)" class="text-xs text-base-content opacity-50 overflow-hidden text-ellipsis whitespace-nowrap shrink">{{ getRelativeDir(result.relativePath) }}</span>
               </div>
-              <span class="match-count-badge">{{ result.totalMatches }}</span>
+              <span class="text-2xs text-base-content bg-base-100 border border-base-300 py-0.5 px-2 rounded-selector shrink-0 ml-auto mr-1.5">{{ result.totalMatches }}</span>
             </div>
-            <button
+            <div
               v-if="showReplace"
-              class="file-replace-btn"
-              @click.stop="replaceAllInFile(result)"
-              :disabled="!result.totalMatches"
-              title="Replace All in File"
+              class="flex w-5 shrink-0 justify-end opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto"
             >
-              <IconReplaceFilled class="w-3.5 h-3.5" />
-            </button>
+              <button
+                class="iw-toolbar-btn btn-xs"
+                @click.stop="replaceAllInFile(result)"
+                :disabled="!result.totalMatches"
+                title="Replace All in File"
+              >
+                <IconReplaceFilled class="icon-2xs" />
+              </button>
+            </div>
           </div>
 
           <!-- Match Lines (Expandable) -->
-          <div v-if="isFileExpanded(result.filePath)" class="match-lines">
+          <div v-if="isFileExpanded(result.filePath)">
             <div
               v-for="(match, index) in result.matches"
               :key="`${result.filePath}-${match.position.from}-${index}`"
-              class="match-line"
+              class="group flex items-center justify-between pl-7 pr-2 py-1 cursor-pointer transition-colors duration-150 h-7 hover:bg-base-200"
               @click="jumpToResult(result, index)"
             >
-              <div class="match-line-content">
-                <span class="line-number">{{ match.position.from }}:</span>
-                <span class="line-text" v-html="match.contextHtml"></span>
+              <div class="flex items-baseline gap-2 flex-1 min-w-0">
+                <span class="text-2xs text-base-content opacity-50 font-mono shrink-0">{{ match.position.from }}:</span>
+                <span class="text-xs text-base-content font-mono overflow-hidden text-ellipsis whitespace-nowrap" v-html="match.contextHtml"></span>
               </div>
-              <button
+              <div
                 v-if="showReplace"
-                class="match-replace-btn"
-                @click.stop="replaceSingle(result, index)"
-                title="Replace"
+                class="flex w-5 shrink-0 justify-end opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto"
               >
-                <IconReplace class="w-3.5 h-3.5" />
-              </button>
+                <button
+                  class="iw-toolbar-btn btn-xs"
+                  @click.stop="replaceSingle(result, index)"
+                  title="Replace"
+                >
+                  <IconReplace class="icon-2xs" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="!isSearching && searchQuery" class="empty-state">
-        <IconSearchOff :size="48" class="empty-icon" />
+      <div v-else-if="!isSearching && searchQuery" class="empty-panel">
+        <IconSearchOff class="empty-panel-icon mb-3" />
         <p class="text-sm">No results found</p>
       </div>
 
       <!-- Initial State -->
-      <div v-else class="empty-state">
-        <IconSearch :size="48" class="empty-icon" />
+      <div v-else class="empty-panel">
+        <IconSearch class="empty-panel-icon mb-3" />
         <p class="text-sm">Search across files in your workspace</p>
       </div>
     </div>
@@ -212,13 +220,15 @@ import {
   IconChevronRight,
   IconChevronDown,
   IconLetterCase,
+  IconAbc,
+  IconRegex,
   IconFileText,
   IconSearch,
   IconSearchOff,
   IconReplace,
   IconReplaceFilled
 } from '@tabler/icons-vue'
-import { TipTapSearchService, type TipTapSearchResult } from '@/utils/search/TipTapSearchService'
+import { iwSearchReplaceInFilesService, type SearchReplaceInFilesSearchResult } from '@/components/common/tiptap/iw-search-replace'
 import type { Editor } from '@tiptap/core'
 import { notify } from '@/utils/notifications'
 import type { FileChange } from '@/types'
@@ -243,7 +253,7 @@ const options = ref({
 })
 
 // 临时状态（不需要持久化）
-const searchResults = ref<TipTapSearchResult[]>([])
+const searchResults = ref<SearchReplaceInFilesSearchResult[]>([])
 const isSearching = ref(false)
 const isReplacing = ref(false)
 const expandedFiles = ref<Set<string>>(new Set())
@@ -442,7 +452,7 @@ function handleReplaceKeydown(event: KeyboardEvent) {
   }
 }
 
-async function jumpToResult(fileResult: TipTapSearchResult, matchIndex: number = 0) {
+async function jumpToResult(fileResult: SearchReplaceInFilesSearchResult, matchIndex: number = 0) {
   try {
     // 1. 打开文件
     await appStore.openFile(fileResult.filePath)
@@ -461,7 +471,7 @@ async function jumpToResult(fileResult: TipTapSearchResult, matchIndex: number =
     }
 
     // 3. 使用 TipTap 服务跳转并高亮
-    TipTapSearchService.jumpToMatch(
+    iwSearchReplaceInFilesService.jumpToMatch(
       editor,
       match,
       searchQuery.value,
@@ -530,7 +540,7 @@ async function replaceAll() {
   try {
     // 执行跨文件替换（不再需要从编辑器获取 extensions）
     isReplacing.value = true
-    const result = await TipTapSearchService.replaceInWorkspace(
+    const result = await iwSearchReplaceInFilesService.replaceInWorkspace(
       searchResults.value,
       searchQuery.value,
       replaceQuery.value,
@@ -565,7 +575,7 @@ async function replaceAll() {
   }
 }
 
-async function replaceSingle(fileResult: TipTapSearchResult, matchIndex: number) {
+async function replaceSingle(fileResult: SearchReplaceInFilesSearchResult, matchIndex: number) {
   try {
     const match = fileResult.matches[matchIndex]
     if (!match) {
@@ -602,14 +612,14 @@ async function replaceSingle(fileResult: TipTapSearchResult, matchIndex: number)
   }
 }
 
-async function replaceAllInFile(fileResult: TipTapSearchResult) {
+async function replaceAllInFile(fileResult: SearchReplaceInFilesSearchResult) {
   const confirmMsg = `Replace all ${fileResult.totalMatches} occurrences in ${fileResult.fileName}?`
   if (!confirm(confirmMsg)) return
 
   try {
     // 执行单文件替换（不再需要从编辑器获取 extensions）
     isReplacing.value = true
-    const result = await TipTapSearchService.replaceInWorkspace(
+    const result = await iwSearchReplaceInFilesService.replaceInWorkspace(
       [fileResult],
       searchQuery.value,
       replaceQuery.value,
@@ -645,7 +655,7 @@ async function replaceAllInFile(fileResult: TipTapSearchResult) {
 function clearAllHighlights() {
   appStore.tabs.forEach(tab => {
     if (tab.editorInstance) {
-      TipTapSearchService.clearHighlightMode(tab.editorInstance as Editor)
+      iwSearchReplaceInFilesService.clearHighlightMode(tab.editorInstance as Editor)
     }
   })
 }
@@ -747,7 +757,7 @@ async function handleEditorContentChange(filePath: string) {
 
   try {
     // 重新搜索这一个文件
-    const updatedResult = await TipTapSearchService.searchInSingleFilePublic(
+    const updatedResult = await iwSearchReplaceInFilesService.searchInSingleFilePublic(
       filePath,
       appStore.currentFolder,
       searchQuery.value,
@@ -770,7 +780,7 @@ async function handleEditorContentChange(filePath: string) {
 // 差分更新单个文件的搜索结果
 function updateSingleFileResult(
   filePath: string,
-  newResult: TipTapSearchResult | null
+  newResult: SearchReplaceInFilesSearchResult | null
 ) {
   const existingIndex = searchResults.value.findIndex(
     r => r.filePath === filePath
@@ -815,7 +825,7 @@ async function performSearch() {
     isSearching.value = true
 
     // 使用 TipTap 搜索服务，传递打开的 tabs 以优先搜索编辑器内容
-    const results = await TipTapSearchService.searchInWorkspace(
+    const results = await iwSearchReplaceInFilesService.searchInWorkspace(
       appStore.searchFolderPath || appStore.currentFolder,
       searchQuery.value,
       {
@@ -930,7 +940,7 @@ async function handleFileAddedOrChanged(filePath: string) {
 
     try {
       // 重新搜索这一个文件
-      const updatedResult = await TipTapSearchService.searchInSingleFilePublic(
+      const updatedResult = await iwSearchReplaceInFilesService.searchInSingleFilePublic(
         filePath,
         appStore.currentFolder!,
         searchQuery.value,
@@ -987,7 +997,7 @@ async function handleDirectoryAdded(dirPath: string) {
 
         const batchResults = await Promise.all(
           batch.map(filePath =>
-            TipTapSearchService.searchInSingleFilePublic(
+            iwSearchReplaceInFilesService.searchInSingleFilePublic(
               filePath,
               appStore.currentFolder!,
               searchQuery.value,
@@ -1077,435 +1087,12 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.search-panel-container {
-  background: var(--color-background-window);
-}
-
-/* ===== Search Form Container ===== */
-.search-form-container {
-  padding: 8px;
-  border-bottom: 1px solid var(--color-border-separator);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-/* ===== Search Row ===== */
-.search-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-}
-
-/* Toggle 按钮 */
-.toggle-btn {
-  width: 20px;
-  height: 24px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-radius: 3px;
-  cursor: pointer;
-  transition: all 0.15s;
-  padding: 0;
-}
-
-.toggle-btn:hover {
-  background: var(--color-interactive-hover);
-  color: var(--color-text-primary);
-}
-
-/* 输入框容器 */
-.input-wrapper {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-}
-
-/* 搜索输入框 */
-.search-input {
-  width: 100%;
-  min-height: 24px;
-  padding: 3px 90px 3px 6px;
-  font-size: 13px;
-  resize: none;
-  overflow: hidden;
-  line-height: 1.5;
-  border: 1px solid var(--color-border-separator);
-  border-radius: 3px;
-  background: var(--color-background-content);
-  color: var(--color-text-base);
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.search-input:focus {
-  border-color: var(--color-accent-primary);
-}
-
-/* 输入框内部的选项按钮组 */
-.input-options-group {
-  position: absolute;
-  right: 2px;
-  top: 3px;
-  display: flex;
-  gap: 1px;
-}
-
-.input-option-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-radius: 2px;
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 600;
-  transition: all 0.15s;
-}
-
-.input-option-btn:hover {
-  background: var(--color-interactive-hover);
-  color: var(--color-text-primary);
-}
-
-.input-option-btn.active {
-  background: var(--color-accent-primary);
-  color: white;
-}
-
-/* ===== Replace Row ===== */
-.replace-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-}
-
-.toggle-placeholder {
-  width: 20px;
-  flex-shrink: 0;
-}
-
-.input-wrapper-with-action {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 2px;
-}
-
-.replace-input {
-  flex: 1;
-  min-height: 24px;
-  padding: 3px 6px;
-  font-size: 13px;
-  resize: none;
-  overflow: hidden;
-  line-height: 1.5;
-  border: 1px solid var(--color-border-separator);
-  border-radius: 3px;
-  background: var(--color-background-content);
-  color: var(--color-text-base);
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.replace-input:focus {
-  border-color: var(--color-accent-primary);
-}
-
-.replace-all-btn-inline {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-radius: 3px;
-  cursor: pointer;
-  transition: all 0.15s;
-  flex-shrink: 0;
-}
-
-.replace-all-btn-inline:hover:not(:disabled) {
-  background: var(--color-interactive-hover);
-  color: var(--color-accent-primary);
-}
-
-.replace-all-btn-inline:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-/* ===== Filter Section ===== */
-.filter-section {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.filter-label {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  font-weight: 500;
-}
-
-.filter-input {
-  width: 100%;
-  height: 22px;
-  padding: 0 6px;
-  font-size: 12px;
-  border: 1px solid var(--color-border-separator);
-  border-radius: 3px;
-  background: var(--color-background-content);
-  color: var(--color-text-base);
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.filter-input:focus {
-  border-color: var(--color-accent-primary);
-}
-
-.filter-input::placeholder {
-  color: var(--color-text-tertiary);
-  font-size: 11px;
-}
-
-/* ===== Results Summary ===== */
-.results-summary {
-  padding: 6px 12px;
-  background: var(--color-background-window);
-  border-bottom: 1px solid var(--color-border-separator);
-}
-
-.summary-text {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-
-/* ===== Search Results Container ===== */
-.search-results-container {
-  background: var(--color-background-content);
-}
-
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  color: var(--color-text-secondary);
-  text-align: center;
-}
-
-.empty-icon {
-  opacity: 0.3;
-  margin-bottom: 12px;
-}
-
-/* ===== Results Tree ===== */
-.results-tree {
-  padding: 4px 0;
-}
-
-.result-file-group {
-  /* No border, seamless tree structure */
-}
-
-/* File Header */
-.file-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 8px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.file-header:hover {
-  background: var(--color-interactive-hover);
-}
-
-.file-header-content {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-}
-
-.expand-icon {
-  width: 16px;
-  height: 16px;
-  color: var(--color-text-secondary);
-  flex-shrink: 0;
-}
-
-.file-icon {
-  width: 16px;
-  height: 16px;
-  color: var(--color-text-secondary);
-  flex-shrink: 0;
-}
-
-.file-path-container {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  overflow: hidden;
-  flex: 1;
-  min-width: 0;
-}
-
-.file-name {
-  font-size: 13px;
-  color: var(--color-text-primary);
-  font-weight: 500;
-  flex-shrink: 0;
-}
-
-.file-dir {
-  font-size: 11px;
-  color: var(--color-text-tertiary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex-shrink: 1;
-}
-
-.match-count-badge {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  background: var(--color-background-secondary);
-  padding: 1px 6px;
-  border-radius: 10px;
-  flex-shrink: 0;
-  margin-left: auto;
-  margin-right: 4px;
-}
-
-.file-replace-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-radius: 3px;
-  cursor: pointer;
-  transition: all 0.15s;
-  flex-shrink: 0;
-  opacity: 0;
-}
-
-.file-header:hover .file-replace-btn {
-  opacity: 1;
-}
-
-.file-replace-btn:hover:not(:disabled) {
-  background: var(--color-interactive-hover);
-  color: var(--color-accent-primary);
-}
-
-.file-replace-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-/* Match Lines */
-.match-lines {
-  background: var(--color-background-content);
-}
-
-.match-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 3px 8px 3px 28px;
-  cursor: pointer;
-  transition: background 0.15s;
-  min-height: 22px;
-}
-
-.match-line:hover {
-  background: var(--color-interactive-hover);
-}
-
-.match-line-content {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-}
-
-.line-number {
-  font-size: 11px;
-  color: var(--color-text-tertiary);
-  font-family: 'SF Mono', 'Monaco', 'Consolas', 'Menlo', monospace;
-  flex-shrink: 0;
-}
-
-.line-text {
-  font-size: 12px;
-  color: var(--color-text-base);
-  font-family: 'SF Mono', 'Monaco', 'Consolas', 'Menlo', monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 1.4;
-}
-
-.match-replace-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-radius: 3px;
-  cursor: pointer;
-  transition: all 0.15s;
-  opacity: 0;
-  flex-shrink: 0;
-}
-
-.match-line:hover .match-replace-btn {
-  opacity: 1;
-}
-
-.match-replace-btn:hover {
-  background: var(--color-interactive-hover);
-  color: var(--color-accent-primary);
-}
-
 /* 高亮样式 */
 :deep(mark) {
-  background-color: var(--color-accent-secondary);
-  color: var(--color-text-base);
-  padding: 0 1px;
+  background-color: color-mix(in oklab, var(--color-warning, #fbbf24) 30%, transparent);
+  color: var(--color-warning-content, #92400e);
+  padding: 0 2px;
   border-radius: 2px;
-  font-weight: 600;
+  font-weight: 500;
 }
 </style>

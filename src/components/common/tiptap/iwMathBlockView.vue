@@ -217,41 +217,62 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
-
-//.tiptap {
+.tiptap {
   .toolbar-wrapper {
+    --math-block-surface: var(--color-base-100);
+    --math-block-surface-muted: var(--color-base-200);
+    --math-block-surface-hover: var(--color-base-300);
+    --math-block-border: var(--color-base-300);
+    --math-block-text: var(--color-base-content);
+    --math-block-text-muted: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+    --math-block-shadow: var(--shadow-sm);
+
     &.editing {
-      border: 1px solid rgba(0, 0, 0, 0.2);
-      border-radius: 0.5rem;
+      border: var(--border) solid var(--math-block-border);
+      border-radius: var(--radius-box);
+      background: var(--math-block-surface);
+      box-shadow: var(--math-block-shadow);
+      overflow: hidden;
     }
 
     .latex-input-area {
       width: 100%;
       cursor: default;
+      border-bottom: var(--border) solid var(--math-block-border);
       
       .latex-input {
+        display: block;
+        box-sizing: border-box;
         width: 100%;
-        min-height: 30px;
-        padding: 0.75rem 1rem;
+        min-height: 84px;
+        padding: 12px 14px;
         border: none;
-        border-radius: 0.5rem 0.5rem 0 0;
-        background: rgba(0, 0, 0, 0.8);
-        color: #fff;
-        font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+        border-radius: 0;
+        background: var(--math-block-surface-muted);
+        color: var(--math-block-text);
+        font-family: var(--font-mono);
         font-size: 14px;
         line-height: 1.5;
         outline: none;
-        transition: all 0.2s ease;
+        transition: background-color 0.2s ease, color 0.2s ease;
         cursor: text;
-        resize: none;
+        resize: vertical;
         vertical-align: middle;
+
+        &:hover {
+          background: var(--math-block-surface-hover);
+        }
+
+        &:focus {
+          background: var(--math-block-surface);
+        }
 
         &::placeholder {
           line-height: 1.5;
-          color: rgba(255, 255, 255, 0.6);
+          color: var(--math-block-text-muted);
         }
       }
     }
   }
-//}
+}
 </style>

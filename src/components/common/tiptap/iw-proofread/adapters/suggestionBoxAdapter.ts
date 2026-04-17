@@ -20,6 +20,7 @@ type OnCloseCallback = () => void
 interface SuggestionBoxOptions {
 	error: Problem
 	position: Position
+	scrollContainer?: HTMLElement | null
 	onReplace: OnReplaceCallback
 	onIgnore: OnIgnoreCallback
 	onClose: OnCloseCallback
@@ -39,11 +40,14 @@ export type CreateSuggestionBox = (options: SuggestionBoxOptions) => Destroy
 export function createTipTapSuggestionBox(
 	uiStrings?: { noSuggestions?: string }
 ): CreateSuggestionBox {
-	return ({ error, position, onReplace, onIgnore, onClose }) => {
+	return ({ error, position, scrollContainer, onReplace, onIgnore, onClose }) => {
 		// 创建建议框容器 - 使用统一的样式类
 		const suggestionWidget = document.createElement('div')
-		suggestionWidget.className = 'proofread-suggestion toolbar-wrapper'
-		
+		suggestionWidget.className = 'tiptap proofread-suggestion'
+		const suggestionWidgetWrapper = document.createElement('div')
+		suggestionWidgetWrapper.className = 'toolbar-wrapper'
+		suggestionWidget.appendChild(suggestionWidgetWrapper)
+
 		const suggestionPanel = document.createElement('div')
 		suggestionPanel.className = 'toolbar-controls fixed'
 		suggestionPanel.style.cssText = `
@@ -76,33 +80,31 @@ export function createTipTapSuggestionBox(
 			}
 		}
 
-		setTimeout(() => {
-			document.addEventListener('click', handleOutsideClick)
-			document.addEventListener('keydown', handleKeyDown)
-			
-			const editorContent = document.querySelector('.ProseMirror')
-      if (editorContent) {
-        editorContent.addEventListener('scroll', handleScroll)
-      }
-      window.addEventListener('scroll', handleScroll, true)
-		}, 0)
+			setTimeout(() => {
+				document.addEventListener('click', handleOutsideClick)
+				document.addEventListener('keydown', handleKeyDown)
+				
+				if (scrollContainer) {
+	        scrollContainer.addEventListener('scroll', handleScroll)
+	      }
+	      window.addEventListener('scroll', handleScroll, true)
+			}, 0)
 
 		function destroy() {
-			document.removeEventListener('click', handleOutsideClick)
-			document.removeEventListener('keydown', handleKeyDown)
-			
-			const editorContent = document.querySelector('.ProseMirror')
-      if (editorContent) {
-        editorContent.removeEventListener('scroll', handleScroll)
-      }
-      window.removeEventListener('scroll', handleScroll, true)
+				document.removeEventListener('click', handleOutsideClick)
+				document.removeEventListener('keydown', handleKeyDown)
+				
+				if (scrollContainer) {
+	        scrollContainer.removeEventListener('scroll', handleScroll)
+	      }
+	      window.removeEventListener('scroll', handleScroll, true)
 
 			if (suggestionWidget.parentNode) {
 				suggestionWidget.parentNode.removeChild(suggestionWidget)
 			}
 		}
 
-		suggestionWidget.appendChild(suggestionPanel)
+		suggestionWidgetWrapper.appendChild(suggestionPanel)
 		document.body.appendChild(suggestionWidget)
 
 		return { destroy }

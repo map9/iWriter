@@ -1,0 +1,49 @@
+.tiptap {
+  // 拼写错误 - 红色波浪下划线
+  .iw-proofread-spelling-error {
+    background-color: color-mix(in oklab, var(--color-error, #ef4444) 30%, transparent);
+    text-decoration: underline wavy var(--color-error, #ef4444);
+    text-decoration-thickness: 1.2px;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    border-radius: 0.25rem;
+    padding: 2px 0px;
+    transition: background-color 0.2s;
+  }
+
+  // 语法错误 - 黄色点状下划线
+  .iw-proofread-grammar-error {
+    background-color: color-mix(in oklab, var(--color-warning, #f59e0b) 30%, transparent);
+    text-decoration: underline solid var(--color-warning, #f59e0b);
+    text-decoration-thickness: 1.2px;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    border-radius: 0.25rem;
+    padding: 2px 0px;
+    transition: background-color 0.2s;
+  }
+
+  // 风格错误 - 蓝色实线下划线
+  .iw-proofread-style-error {
+    background-color: color-mix(in oklab, var(--color-info, #3b82f6) 30%, transparent);
+    text-decoration: underline solid var(--color-info, #3b82f6);
+    text-decoration-thickness: 1.2px;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    border-radius: 0.25rem;
+    padding: 2px 0px;
+    transition: background-color 0.2s;
+  }
+
+  // 默认错误 - 橙色实线下划线
+  .iw-proofread-misc-error {
+    background-color: color-mix(in oklab, var(--color-neutral, #333) 30%, transparent);
+    text-decoration: underline dotted var(--color-neutral, #333);
+    text-decoration-thickness: 1.2px;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    border-radius: 0.25rem;
+    padding: 2px 0px;
+    transition: background-color 0.2s;
+  }
+}

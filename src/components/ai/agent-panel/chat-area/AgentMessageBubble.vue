@@ -14,49 +14,51 @@
       <!-- Edit mode: input-area style row -->
       <div v-if="message.role === 'user' && message.content && isEditing" class="flex items-center gap-2 w-full">
         <button
-          class="flex-shrink-0 self-end p-1.5 flex items-center justify-center rounded-md text-text-secondary hover:bg-interactive-hover transition-colors"
-          title="取消"
+          class="btn btn-square border-none rounded-field btn-sm shrink-0 self-end disabled:cursor-not-allowed"
+          title="Cancel"
           @click="isEditing = false"
-        ><IconX class="w-4 h-4" /></button>
+        ><IconX class="icon-xs" /></button>
         <textarea
-          ref="editTextareaEl"
+          ref="editEl"
           v-model="editText"
-          class="flex-1 px-2 py-1.5 text-sm text-text-primary bg-background-content border border-border-separator rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent overflow-hidden"
-          rows="3"
+          placeholder="Send message..."
+          class="flex-1 px-2 py-1.5 text-sm text-base-content border border-base-300 bg-base-100 rounded-field resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent overflow-hidden"
+          rows="1"
+          :style="{ maxHeight: maxTextareaHeight }"
+          @input="autoResize"
           @keydown.enter.exact.prevent="submitEdit"
           @keydown.shift.enter.exact="() => {}"
           @keydown.escape="isEditing = false"
         />
         <button
           :disabled="!editText.trim()"
-          class="flex-shrink-0 self-end p-1.5 flex items-center justify-center rounded-md bg-accent-primary text-white hover:bg-accent-primary/90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
-          title="发送"
+          class="btn btn-square border-none btn-primary rounded-field btn-sm shrink-0 self-end disabled:cursor-not-allowed"
+          title="Send"
           @click="submitEdit"
-        ><IconSend class="w-4 h-4" /></button>
+        ><IconSend class="icon-xs" /></button>
       </div>
 
       <!-- Normal display mode -->
       <div
         v-else-if="message.role === 'user' && message.content"
-        class="inline-block rounded-lg text-sm max-w-full text-left break-words relative"
+        class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word relative"
         :class="message.isError
-          ? 'bg-status-error/10 border border-status-error/30 text-status-error'
-          : 'px-3 py-2 bg-accent-primary text-white'"
+          ? 'bg-error/20 border border-error/30 '
+          : 'px-3 py-2 bg-primary text-primary-content'"
       >
         <div
           ref="contentEl"
           class="whitespace-pre-wrap transition-all"
-          :class="{ 'overflow-hidden': !isExpanded, 'max-h-[7.5rem]': !isExpanded }"
+          :class="{ 'overflow-hidden': !isExpanded, 'max-h-30': !isExpanded }"
         >{{ message.content }}</div>
 
         <!-- Expand overlay (shown on hover when content overflows) -->
         <div
           v-if="isOverflow && !isExpanded && isHovered"
-          class="absolute bottom-0 right-2 flex justify-center pb-1.5 rounded-b-lg"
-          style="background: linear-gradient(to top, rgba(var(--color-accent-primary-rgb, 59 130 246), 0.9) 0%, transparent 100%)"
+          class="absolute bottom-2 right-2 btn border-none btn-neutral rounded-field btn-sm opacity-50 shrink-0"
           @click.stop="isExpanded = true"
         >
-          <span class="text-white text-xs cursor-pointer select-none bg-white/20 rounded px-2 py-1 hover:bg-white/30">点击展开</span>
+          Expand
         </div>
       </div>
 
@@ -71,12 +73,12 @@
           />
           <div
             v-else-if="block.type === 'text' && block.text"
-            class="inline-block rounded-lg text-sm max-w-full text-left break-words"
-            :class="[message.isError ? 'bg-status-error/10 border border-status-error/30 text-status-error px-3 py-2' : 'text-text-primary', idx > 0 ? 'mt-1.5' : '']"
+            class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word"
+            :class="[message.isError ? 'bg-error/20 border border-error/30  px-3 py-2' : 'text-base-content', idx > 0 ? 'mt-1.5' : '']"
           >
             <MarkdownContentView :content="block.text" mode="markdown" size="sm" />
           </div>
-          <ToolCallView
+          <ToolCallCard
             v-else-if="block.type === 'tool_call' && block.toolCallId && isReadToolById(block.toolCallId)"
             :tool-call="toolCallById(block.toolCallId)!"
             :group-position="contentBlockToolPosition(idx)"
@@ -85,7 +87,7 @@
           />
           <div
             v-else-if="block.type === 'agent_event' && (block.text || block.agentName)"
-            class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-background-window border border-border-separator text-text-secondary text-xs"
+            class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-field bg-base-100 border border-base-300 text-base-content text-xs"
           >
             <span>🧩</span>
             <span>{{ block.text || `${block.agentName} ${block.status ?? ''}`.trim() }}</span>
@@ -96,8 +98,8 @@
       <!-- Path B: Legacy messages without contentBlocks -->
       <div
         v-else-if="message.role === 'assistant' && message.content"
-        class="inline-block rounded-lg text-sm max-w-full text-left break-words"
-        :class="message.isError ? 'bg-status-error/10 border border-status-error/30 text-status-error px-3 py-2' : 'text-text-primary'"
+        class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word"
+        :class="message.isError ? 'bg-error/20 border border-error/30  px-3 py-2' : 'text-base-content'"
       >
         <MarkdownContentView :content="message.content" mode="markdown" size="sm" />
       </div>
@@ -108,7 +110,7 @@
         class="w-full"
         :class="message.content ? 'mt-1.5' : ''"
       >
-        <ToolCallView
+        <ToolCallCard
           v-for="(tc, idx) in readToolCalls"
           :key="tc.id"
           :tool-call="tc"
@@ -137,15 +139,15 @@
         class="mt-1 inline-flex max-w-full flex-col items-start gap-1"
       >
         <button
-          class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-text-secondary hover:bg-interactive-hover hover:text-text-primary transition-colors"
+          class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-base-content hover:bg-base-300 hover:text-base-content/50 transition-colors"
           @click="thinkingExpanded = !thinkingExpanded"
         >
           <span>💭</span>
-          <span>{{ thinkingExpanded ? '隐藏思考过程' : '查看思考过程' }}</span>
+          <span>{{ thinkingExpanded ? 'Hide Thinking' : 'Show Thinking' }}</span>
         </button>
         <div
           v-if="thinkingExpanded"
-          class="w-full rounded-md border border-border-separator bg-background-window px-3 py-2 text-xs leading-relaxed text-text-secondary whitespace-pre-wrap"
+          class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-xs leading-relaxed text-base-content whitespace-pre-wrap"
         >
           {{ thinkingContent }}
         </div>
@@ -153,14 +155,14 @@
 
       <div
         v-if="isPreview && previewStatusText"
-        class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-interactive-hover"
+        class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-field text-base-300"
       >
         <div v-if="showPreviewPulse" class="flex items-center gap-0.5">
-          <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:0ms" />
-          <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:150ms" />
-          <div class="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style="animation-delay:300ms" />
+          <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:0ms" />
+          <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:150ms" />
+          <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:300ms" />
         </div>
-        <span class="text-xs text-text-secondary">{{ previewStatusText }}</span>
+        <span class="text-xs text-base-content">{{ previewStatusText }}</span>
       </div>
 
       <!-- Toolbar / Timestamp row -->
@@ -169,13 +171,13 @@
         class="h-5 mt-1 flex items-center"
         :class="message.role === 'user' ? 'justify-end' : 'justify-start'"
       >
-        <div class="relative h-5 min-w-[2.5rem]">
+        <div class="relative h-5 min-w-10">
           <div
             class="absolute inset-0 flex items-center"
             :class="message.role === 'user' ? 'justify-end' : 'justify-start'"
           >
             <div
-              class="text-xs text-text-tertiary transition-opacity"
+              class="text-xs text-base-content transition-opacity"
               :class="showHoverToolbar && isHovered ? 'opacity-0 pointer-events-none' : 'opacity-100'"
             >
               {{ formatTime(message.timestamp) }}
@@ -190,19 +192,19 @@
             ]"
           >
             <button
-              class="flex items-center gap-1 px-1 py-1 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-interactive-hover transition-colors"
-              title="复制"
+              class="iw-toolbar-btn btn-xs"
+              title="Copy"
               @click="handleCopy"
             >
-              <IconCopy class="w-3.5 h-3.5" />
+              <IconCopy class="icon-xs" />
             </button>
             <button
               v-if="message.role === 'user'"
-              class="flex items-center gap-1 px-1 py-1 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-interactive-hover transition-colors"
-              title="编辑"
+              class="iw-toolbar-btn btn-xs"
+              title="Edit"
               @click="startEdit"
             >
-              <IconPencil class="w-3.5 h-3.5" />
+              <IconPencil class="icon-xs" />
             </button>
           </div>
         </div>
@@ -215,13 +217,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { IconCopy, IconPencil, IconX, IconSend } from '@tabler/icons-vue'
-import MarkdownContentView from '../MarkdownContentView.vue'
 import type { ThreadMessage, AiToolCall } from '@/ai/types'
 import { BLOCK_EDIT_TOOLS } from '@/ai/types'
 import { useAiStore } from '@/ai/store/ai'
 import { buildEditSessionForMessage } from '@/ai/edit-session'
-import ToolCallView from '../ToolCallView.vue'
-import EditSessionCard from './EditSessionCard.vue'
+import MarkdownContentView from './views/MarkdownContentView.vue'
+import ToolCallCard from './views/ToolCallCard.vue'
+import EditSessionCard from './views/EditSessionCard.vue'
 
 const props = withDefaults(defineProps<{
   message: ThreadMessage
@@ -243,7 +245,27 @@ const editText = ref('')
 const isExpanded = ref(false)
 const isOverflow = ref(false)
 const contentEl = ref<HTMLDivElement>()
-const editTextareaEl = ref<HTMLTextAreaElement>()
+const editEl = ref<HTMLTextAreaElement>()
+
+// text-sm line-height is 1.25rem = 20px; 5 lines = 100px
+const maxTextareaHeight = '100px'
+
+function resizeTextarea(el?: HTMLTextAreaElement) {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px'
+}
+
+function autoResize(e: Event) {
+  resizeTextarea(e.target as HTMLTextAreaElement)
+}
+
+// Reset height when input is cleared (e.g. after send)
+watch(editText, (val) => {
+  if (!val && editEl.value) {
+    editEl.value.style.height = 'auto'
+  }
+})
 
 const effectiveToolCalls = computed<AiToolCall[]>(() => props.message.toolCalls ?? [])
 const thinkingContent = computed(() => props.message.thinkingContent?.trim() ?? '')
@@ -367,8 +389,9 @@ function startEdit() {
   editText.value = props.message.content
   isEditing.value = true
   nextTick(() => {
-    const el = editTextareaEl.value
+    const el = editEl.value
     if (el) {
+      resizeTextarea(el)
       el.focus()
       el.setSelectionRange(el.value.length, el.value.length)
     }

@@ -1,2 +1,5 @@
+import './style.scss'
+
 export { iwSearchReplaceExtension } from './iwSearchReplaceExtension'
-export type { SearchReplaceOptions, SearchReplaceStorage } from './types'
+export { iwSearchReplaceInFilesService } from './iwSearchReplaceInFilesService'
+export type { SearchReplaceOptions, SearchReplaceStorage, SearchReplaceInFilesSearchResult } from './types'

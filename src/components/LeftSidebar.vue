@@ -1,51 +1,53 @@
 <template>
   <div 
-    class="sidebar left-sidebar"
+    class="iw-sidebar iw-left-sidebar"
     :style="{ width: `${appStore.leftSidebarWidth}px` }"
   >
-    <div class="flex items-center h-9 bg-background-window border-b border-border-separator select-none drag-region">
+    <div class="drag-region flex h-10 items-center border-b border-base-300 bg-base-200 px-2">
       <!-- Window Controls - handled by system traffic lights -->
       <div v-if="!isMaximized" class="flex items-center pl-20"></div>
       
       <!-- Sidebar Mode Navigation - only show when sidebar is visible -->
-      <div class="flex items-center flex-1">
-        <div v-if="appStore.isLeftSidebarVisible" class="flex items-center gap-1 px-2 ml-auto no-drag">
+      <div class="flex flex-1 items-center">
+        <div v-if="appStore.isLeftSidebarVisible" class="no-drag ml-auto flex h-full items-center gap-2 pl-2">
           <!-- Main navigation group: folder, search, tags -->
-          <button
-            v-for="mode in mainSidebarModes"
-            :key="mode.key"
-            @click="handleModeClick(mode.key)"
-            :disabled="!appStore.hasOpenFolder"
-            class="toolbar-button"
-            :class="{
-              'toolbar-button-primary': appStore.leftSidebarMode === mode.key && appStore.hasOpenFolder,
-            }"
-            :title="mode.title"
-          >
-            <component :is="mode.icon" class="icon-base" />
-          </button>
-          
-          <!-- Separator -->
-          <div class="toolbar-separator" />
-          
-          <!-- TOC navigation -->
-          <button
-            @click="handleModeClick(SidebarMode.TOC)"
-            :disabled="appStore.tabs.length === 0"
-            class="toolbar-button"
-            :class="{
-              'toolbar-button-primary': appStore.leftSidebarMode === SidebarMode.TOC && appStore.tabs.length > 0,
-            }"
-            title="Table of Contents"
-          >
-            <IconList class="icon-base" />
-          </button>
+          <div class="join flex items-center">
+            <button
+              v-for="mode in mainSidebarModes"
+              :key="mode.key"
+              @click="handleModeClick(mode.key)"
+              :disabled="!appStore.hasOpenFolder"
+              class="iw-toolbar-btn btn-sm join-item"
+              :class="{
+                'iw-toolbar-btn-active': appStore.leftSidebarMode === mode.key && appStore.hasOpenFolder,
+              }"
+              :title="mode.title"
+            >
+              <component :is="mode.icon" class="icon-sm" />
+            </button>
+
+            <div class="join-item flex h-9 w-4 items-center justify-center">
+              <div class="h-1/2 w-px bg-base-300"></div>
+            </div>
+            
+            <button
+              @click="handleModeClick(SidebarMode.TOC)"
+              :disabled="appStore.tabs.length === 0"
+              class="iw-toolbar-btn btn-sm join-item"
+              :class="{
+                'iw-toolbar-btn-active': appStore.leftSidebarMode === SidebarMode.TOC && appStore.tabs.length > 0,
+              }"
+              title="Table of Contents"
+            >
+              <IconList class="icon-sm" />
+            </button>
+            </div>
         </div>
       </div>
     </div>
 
     <!-- Sidebar Content -->
-    <div class="sidebar-content flex flex-col h-full">
+    <div class="iw-sidebar-content">
       <!-- Start(No Folder) Opened -->
       <NoFolderOpened
         v-show="appStore.leftSidebarMode === SidebarMode.START"
@@ -74,7 +76,7 @@
     
     <!-- Resizable handle -->
     <div 
-      class="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-background-selected hover:opacity-50 transition-all bg-transparent"
+      class="iw-resize-handle right-0"
       @mousedown="startResize"
     ></div>
   </div>

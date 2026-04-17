@@ -1,193 +1,200 @@
 <template>
-  <div class="flex flex-col h-full overflow-hidden">
-
-    <!-- ══════════════════════════════════════════════════════════════════════
-         MAIN VIEW
-    ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="flex h-full min-h-0 flex-col overflow-hidden">
     <div v-if="view === 'main'" class="flex-1 overflow-y-auto">
-
-      <!-- Select Model section -->
-      <div class="p-3">
-        <p class="text-xs font-semibold text-text-tertiary uppercase tracking-wide mb-2">Select Model</p>
-
-        <!-- Configured LLMs: preset-based (A-Z) then custom (A-Z) -->
-        <div v-if="sortedLlmConfigs.length" class="space-y-1 mb-2">
+      <div class="px-7 py-6">
+        <section class="flex flex-col gap-3">
+          <h3 class="text-xs font-semibold uppercase text-base-content/60">Providers</h3>
+        <div v-if="sortedLlmConfigs.length" class="flex flex-col gap-2">
           <div
             v-for="cfg in sortedLlmConfigs"
             :key="cfg.id"
             @click="startEdit(cfg)"
-            class="flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-pointer"
+            class="group flex cursor-pointer items-center gap-3 rounded-box border px-4 py-3 transition-colors"
             :class="[
               cfg.id === aiStore.settings.activeProviderConfigId
-                ? 'border-accent-primary bg-accent-primary/10'
-                : 'border-border-separator bg-background-content hover:border-text-tertiary',
-              !isLlmUsable(cfg) ? 'opacity-50' : ''
-            ]"
-          >
-            <span
-              class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              :class="cfg.id === aiStore.settings.activeProviderConfigId ? 'bg-accent-primary' : 'bg-transparent'"
-            />
-            <span class="flex-1 text-sm font-medium truncate"
-              :class="isLlmUsable(cfg) ? 'text-text-primary' : 'text-text-tertiary'"
-            >{{ cfg.label }}</span>
-            <span class="text-xs text-text-tertiary truncate max-w-[80px] hidden sm:block">
-              {{ isLlmUsable(cfg) ? cfg.defaultModelId : '需要配置' }}
-            </span>
-            <button @click.stop="startEdit(cfg)" class="p-0.5 rounded hover:bg-interactive-hover flex-shrink-0">
-              <IconPencil class="w-3.5 h-3.5 text-text-secondary" />
-            </button>
-            <!-- Delete only for custom (no presetId) -->
-            <button
-              v-if="!cfg.presetId"
-              @click.stop="aiStore.removeProviderConfig(cfg.id)"
-              class="p-0.5 rounded hover:bg-status-error/10 flex-shrink-0"
+                ? 'border-primary bg-primary/8 ring-1 ring-primary/20'
+                : 'border-base-300 bg-base-100 hover:bg-base-200/70',
+              !isProviderUsable(cfg) ? 'opacity-50' : ''
+              ]"
             >
-              <IconTrash class="w-3.5 h-3.5 text-status-error" />
-            </button>
-          </div>
-        </div>
-
-        <!-- Add custom LLM -->
-        <button
-          @click="selectCustom()"
-          class="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-dashed border-border-separator hover:border-accent-primary hover:bg-accent-primary/10 transition-colors text-left"
-        >
-          <IconPlus class="w-3.5 h-3.5 text-text-tertiary flex-shrink-0" />
-          <span class="text-xs font-medium text-text-secondary">添加自定义 Model</span>
-          <span class="text-xs text-text-tertiary">OpenAI / Anthropic / Gemini</span>
-        </button>
-      </div>
-
-    </div><!-- /main -->
-
-    <!-- ══════════════════════════════════════════════════════════════════════
-         CONFIGURE FORM
-    ═══════════════════════════════════════════════════════════════════════ -->
-    <template v-else>
-      <div class="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-
-          <!-- Name -->
-          <div>
-            <label class="block text-sm font-medium text-text-primary mb-1">Name</label>
-            <input
-              v-model="form.label"
-              type="text"
-              :readonly="isPreset"
-              :placeholder="selectedPreset?.label ?? '自定义名称'"
-              class="w-full h-9 text-sm px-3 border border-border-separator rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-background-content text-text-primary"
-              :class="isPreset ? 'bg-background-window text-text-secondary cursor-default' : ''"
-            />
-          </div>
-
-          <!-- API Key -->
-          <div v-if="selectedPreset?.requiresApiKey !== false">
-            <label class="block text-sm font-medium text-text-primary mb-1">API Key</label>
-            <div class="relative">
-              <input
-                v-model="form.apiKey"
-                :type="showKey ? 'text' : 'password'"
-                placeholder="sk-... 或 $ENV_VAR_NAME"
-                class="w-full h-9 text-sm px-3 pr-10 border border-border-separator rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary font-mono bg-background-content text-text-primary"
+              <span
+                class="icon-dot shrink-0 self-center"
+                :class="cfg.id === aiStore.settings.activeProviderConfigId ? 'bg-primary' : 'bg-base-300'"
               />
-              <button type="button" @click="showKey = !showKey" class="absolute right-2.5 top-2">
-                <IconEye v-if="!showKey" class="w-4 h-4 text-text-tertiary" />
-                <IconEyeOff v-else class="w-4 h-4 text-text-tertiary" />
+              <span class="min-w-0 flex-1 truncate text-sm font-medium text-base-content">{{ cfg.label }}</span>
+              <span class="max-w-25 shrink-0 truncate text-left text-xs text-base-content/65 hidden sm:block">
+                {{ isProviderUsable(cfg) ? cfg.defaultModelId : 'Need Configuration' }}
+              </span>
+              <button
+                v-if="!cfg.presetId"
+                @click.stop="aiStore.removeProviderConfig(cfg.id)"
+                class="iw-toolbar-btn btn-xs opacity-0 transition-opacity group-hover:opacity-100 text-error hover:bg-error hover:text-error-content"
+                title="Remove Provider"
+              >
+                <IconTrash class="icon-2xs" />
               </button>
             </div>
-            <p class="text-xs text-text-tertiary mt-1">支持 <code class="bg-background-window px-1 rounded">$ENV_VAR_NAME</code> 格式引用系统环境变量</p>
           </div>
 
-          <!-- Interface type -->
-          <div>
-            <label class="block text-sm font-medium text-text-primary mb-1">Interface Type</label>
-            <select
-              v-model="form.type"
-              :disabled="isPreset"
-              class="w-full h-9 text-sm px-3 border border-border-separator rounded-lg bg-background-content text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
-              :class="isPreset ? 'bg-background-window text-text-secondary cursor-default' : ''"
-            >
-              <option value="openai-compat">OpenAI 兼容</option>
-              <option value="deepseek">DeepSeek</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="gemini">Google Gemini</option>
-            </select>
+          <div v-else class="rounded-box border border-dashed border-base-300 bg-base-100 px-4 py-5 text-sm text-base-content/65">
+            No providers configured yet.
           </div>
+        </section>
 
-          <!-- Base URL -->
-          <div v-if="form.type === 'openai-compat' || form.type === 'deepseek'">
-            <label class="block text-sm font-medium text-text-primary mb-1">Base URL</label>
-            <input
-              v-model="form.baseUrl"
-              type="text"
-              :placeholder="selectedPreset?.baseUrl ?? 'https://api.openai.com/v1'"
-              class="w-full h-9 text-sm px-3 border border-border-separator rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary font-mono bg-background-content text-text-primary"
-            />
-          </div>
+        <section class="mt-5 flex flex-col gap-3">
+          <h3 class="text-xs font-semibold uppercase text-base-content/60">Actions</h3>
+          <button
+            @click="selectCustom()"
+            class="flex w-full items-center gap-3 rounded-box border border-dashed border-base-300 bg-base-100 px-4 py-3 text-left transition-colors hover:border-primary hover:bg-primary/8"
+          >
+            <IconPlus class="icon-xs shrink-0 text-base-content" />
+            <span class="min-w-0 flex-1 truncate text-sm font-medium text-base-content">Add Custom Provider</span>
+            <span class="max-w-25 shrink-0 truncate text-left text-xs text-base-content/65 hidden sm:block">OpenAI / Anthropic / Gemini</span>
+          </button>
+        </section>
+      </div>
+    </div>
 
-          <!-- Models -->
-          <div v-if="selectedPreset?.id !== 'ollama'">
-            <label class="block text-sm font-medium text-text-primary mb-1">Models</label>
-            <input
-              v-model="form.modelsStr"
-              type="text"
-              :placeholder="(selectedPreset?.models ?? []).join(', ') || 'gpt-4o, gpt-4o-mini'"
-              class="w-full h-9 text-sm px-3 border border-border-separator rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary font-mono bg-background-content text-text-primary"
-            />
-            <p class="text-xs text-text-tertiary mt-1">逗号分隔，第一个为默认模型</p>
-          </div>
-          <div v-else>
-            <label class="block text-sm font-medium text-text-primary mb-1">Models</label>
-            <p class="text-xs text-text-tertiary bg-background-window border border-border-separator rounded-lg px-3 py-2">
-              Ollama 模型列表通过本地 Ollama 服务自动读取，无需手动配置
-            </p>
-          </div>
+    <template v-else>
+      <div class="flex-1 overflow-y-auto">
+        <div class="px-7 py-5">
+          <section class="flex flex-col gap-3">
+            <h3 class="text-xs font-semibold uppercase text-base-content/60">Identity</h3>
 
-          <div v-if="!isPreset">
-            <label class="block text-sm font-medium text-text-primary mb-1">Model Profiles (JSON)</label>
-            <textarea
-              v-model="form.modelProfilesStr"
-              rows="8"
-              placeholder='{
-  "deepseek-chat": { "maxInputTokens": 128000, "toolCalling": true }
+            <div class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-base-content">Name</label>
+              <input
+                v-model="form.label"
+                type="text"
+                :readonly="isPreset"
+                :placeholder="selectedPreset?.label ?? 'Custom Provider Name'"
+                class="iw-input"
+                :class="isPreset ? 'bg-base-200 text-base-content cursor-default' : ''"
+              />
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-base-content">Interface Type</label>
+              <select
+                v-model="form.type"
+                :disabled="isPreset"
+                class="iw-select w-full px-3"
+                :class="isPreset ? 'bg-base-100 text-base-content cursor-default' : ''"
+              >
+                <option value="openai-compat">OpenAI Compatible</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="gemini">Google Gemini</option>
+              </select>
+            </div>
+          </section>
+
+          <section v-if="selectedPreset?.requiresApiKey !== false" class="mt-5 flex flex-col gap-3">
+            <h3 class="text-xs font-semibold uppercase text-base-content/60">Authentication</h3>
+
+            <div class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-base-content">API Key</label>
+              <label class="iw-input">
+                <input
+                  v-model="form.apiKey"
+                  :type="showKey ? 'text' : 'password'"
+                  placeholder="sk-... or $ENV_VAR_NAME"
+                />
+                <button type="button" @click="showKey = !showKey" class="iw-toolbar-btn btn-xs">
+                  <IconEye v-if="!showKey" class="icon-xs" />
+                  <IconEyeOff v-else class="icon-xs" />
+                </button>
+              </label>
+              <p class="text-xs text-base-content/65">
+                Supports <code class="rounded bg-base-200 px-1">$ENV_VAR_NAME</code> format for referencing system environment variables
+              </p>
+            </div>
+          </section>
+
+          <section class="mt-5 flex flex-col gap-3">
+            <h3 class="text-xs font-semibold uppercase text-base-content/60">Connection</h3>
+
+            <div v-if="form.type === 'openai-compat' || form.type === 'deepseek'" class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-base-content">Base URL</label>
+              <input
+                v-model="form.baseUrl"
+                type="text"
+                :placeholder="selectedPreset?.baseUrl ?? 'https://api.openai.com/v1'"
+                class="iw-input"
+              />
+            </div>
+
+            <div v-if="selectedPreset?.id !== 'ollama'" class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-base-content">Models</label>
+              <input
+                v-model="form.modelsStr"
+                type="text"
+                :placeholder="(selectedPreset?.models ?? []).join(', ')"
+                class="iw-input"
+              />
+              <p class="text-xs text-base-content/65">Comma-separated, first model becomes the default.</p>
+            </div>
+
+            <div v-else class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-base-content">Models</label>
+              <p class="rounded-box border border-base-300 bg-base-100 px-4 py-3 text-xs text-base-content/65">
+                Ollama model list is read automatically from the local Ollama service.
+              </p>
+            </div>
+          </section>
+
+          <section v-if="!isPreset" class="mt-5 flex flex-col gap-3">
+            <h3 class="text-xs font-semibold uppercase text-base-content/60">Advanced</h3>
+
+            <div class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-base-content">Model Profiles (JSON)</label>
+              <textarea
+                v-model="form.modelProfilesStr"
+                rows="8"
+                placeholder='{
+  "deepseek-chat": {
+    "maxInputTokens": 128000,
+    "maxOutputTokens": 8000,
+    "reasoningOutput": false,
+    "toolCalling": true,
+    "toolChoice": true,
+    "structuredOutput": true
+  }
 }'
-              class="w-full text-sm px-3 py-2 border border-border-separator rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary font-mono resize-y bg-background-content text-text-primary"
-            />
-            <p class="text-xs mt-1" :class="modelProfilesError ? 'text-status-error' : 'text-text-tertiary'">
-              {{ modelProfilesError || '仅自定义 Provider 可编辑。按 modelId 配置 profile 覆盖，用于兼容模型和自定义模型。' }}
-            </p>
-          </div>
-
+                class="min-h-40 w-full resize-y rounded-field border border-base-300 bg-base-100 px-3 py-2 font-mono text-sm text-base-content focus:border-primary focus:outline-none"
+              />
+              <p class="text-xs" :class="modelProfilesError ? 'text-error' : 'text-base-content/65'">
+                {{ modelProfilesError || 'Configure model-specific capabilities by modelId for compatibility and custom models.' }}
+              </p>
+            </div>
+          </section>
+        </div>
       </div>
 
-      <!-- ── Save / Cancel ─────────────────────────────────────────────── -->
-      <div class="flex gap-2 px-4 py-3 border-t border-border-separator flex-shrink-0">
+      <div class="mx-7 flex shrink-0 items-center justify-end gap-2 border-t border-base-300 bg-base-100 pb-5 pt-4">
+        <button
+          @click="cancelForm"
+          class="iw-btn btn-ghost"
+        >
+          Cancel
+        </button>
         <button
           @click="submitForm"
           :disabled="!canSave"
-          :title="!canSave ? '请填写 Name' : ''"
-          class="flex-1 py-2 text-sm font-medium rounded-lg transition-colors"
-          :class="canSave
-            ? 'bg-accent-primary text-white hover:bg-accent-primary/90'
-            : 'bg-interactive-hover text-text-tertiary cursor-not-allowed border border-border-separator'"
+          :title="!canSave ? 'Please fill in the Name' : ''"
+          class="iw-btn"
+          :class="canSave ? 'btn-primary' : 'cursor-not-allowed'"
         >
-          {{ editingId ? '保存修改' : '确认添加' }}
-        </button>
-        <button
-          @click="cancelForm"
-          class="px-4 py-2 text-sm rounded-lg border border-border-separator text-text-secondary hover:bg-interactive-hover transition-colors"
-        >
-          取消
+          {{ editingId ? 'Save' : 'Confirm Add' }}
         </button>
       </div>
     </template>
-
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { IconPencil, IconTrash, IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
+import { IconTrash, IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/store/ai'
 import type { AiModelProfile, AiProviderConfig, AiProviderType } from '@/ai/types'
 import {
@@ -202,11 +209,14 @@ const emit = defineEmits<{
 const aiStore = useAiStore()
 
 // ── LLM usability check ───────────────────────────────────────────────────
-function isLlmUsable(cfg: AiProviderConfig): boolean {
-  const models = cfg.models ?? []
-  if (models.length) return true
+function isProviderUsable(cfg: AiProviderConfig): boolean {
   const preset = PROVIDER_PRESETS.find(p => p.id === cfg.presetId)
-  return (preset?.models ?? []).length > 0
+  const models = cfg.models ? cfg.models : preset?.models ?? []
+  if (
+    models.length &&
+    (cfg?.id === 'ollama' || cfg.apiKey.length)
+  ) return true
+  return false
 }
 
 // ── Sorted configured provider lists ────────────────────────────────────
@@ -249,20 +259,20 @@ const modelProfilesError = computed(() => {
   try {
     const parsed = JSON.parse(form.value.modelProfilesStr) as Record<string, AiModelProfile>
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return 'Model Profiles 必须是 JSON 对象'
+      return 'Provider Profiles must be a JSON object'
     }
     return ''
   } catch {
-    return 'Model Profiles 不是合法 JSON'
+    return 'Provider Profiles is not valid JSON'
   }
 })
 
 const canSave = computed(() => !!form.value.label.trim() && !modelProfilesError.value)
 
 const headerTitle = computed(() => {
-  if (view.value === 'main') return 'AI 配置'
-  if (editingId.value) return `编辑 ${form.value.label || '…'}`
-  return '新增自定义 Model'
+  if (view.value === 'main') return ''
+  if (editingId.value) return `${form.value.label || ''} Configuration`
+  return 'Add Custom Provider'
 })
 
 // ── Actions ───────────────────────────────────────────────────────────────

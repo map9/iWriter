@@ -227,16 +227,12 @@ function buildRunningSummary(toolCall: AiToolCall, fallback?: string): string | 
       return '正在读取指定段落'
     case 'get_block_context':
       return '正在读取上下文'
-    case 'search_document_sections':
-    case 'search_in_document':
-    case 'search_sections_in_document':
-      return '正在搜索相关章节'
-    case 'search_workspace_documents':
-    case 'search_in_directory':
-      return '正在搜索目录下文档内容'
-    case 'search_document_blocks':
     case 'search_blocks_in_document':
       return '正在搜索相关段落'
+    case 'search_sections_in_document':
+      return '正在搜索相关章节'
+    case 'search_in_directory':
+      return '正在搜索目录下文档内容'
     case 'write_todos':
       return '正在更新任务列表'
     case 'read_file':
@@ -322,7 +318,6 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         parsedResult,
         rawResult,
       }
-    case 'search_document_blocks':
     case 'search_blocks_in_document':
       return {
         actionLabel: '在文档中搜索段落',
@@ -334,8 +329,6 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         parsedResult,
         rawResult,
       }
-    case 'search_document_sections':
-    case 'search_in_document':
     case 'search_sections_in_document':
       return {
         actionLabel: '在文档中搜索章节',
@@ -347,7 +340,6 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         parsedResult,
         rawResult,
       }
-    case 'search_workspace_documents':
     case 'search_in_directory':
       return {
         actionLabel: '在目录中搜索文档内容',

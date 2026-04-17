@@ -1,30 +1,26 @@
 <template>
   <div class="h-full flex flex-col">
     <!-- No Folder Header -->
-    <div class="sidebar-header h-9 flex-shrink-0 select-none">
+    <div class=" iw-sidebar-section">
       <div class="flex items-center gap-2">
-        <span class="text-xs font-medium text-text-primary uppercase tracking-wide">
+        <span class="iw-sidebar-section-header">
           Start
         </span>
       </div>
     </div>
     
     <!-- Content -->
-    <div class="p-4 flex-1 flex flex-col justify-top">
-      <div>
-        <p class="mb-2 text-sm text-left text-text-secondary">You have not yet opened folder.</p>
+    <div class="flex flex-1 flex-col justify-top p-2 gap-2">
+        <p class="text-left text-sm text-base-content opacity-50">You have not yet opened folder.</p>
         <button
           @click="appStore.openFolder()"
-          class="button button-primary w-full mb-2 h-9"
+          class="iw-btn btn-primary w-full h-9"
         >
-          <IconFolder class="icon-base" />
+          <IconFolder class="icon-sm" />
           <span>Open Folder</span>
         </button>
 
-        <div class="mb-2 text-sm text-left text-text-secondary">
-          <p>Opening a folder will close all currently open editors.</p>
-        </div>
-      </div>
+        <p class="text-left text-sm text-base-content opacity-50">Opening a folder will close all currently open editors.</p>
     </div>
   </div>
 </template>

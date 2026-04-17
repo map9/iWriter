@@ -1,78 +1,82 @@
 <template>
   <div class="document-viewer-wrapper">
     <!-- PDF Toolbar -->
-    <div class="toolbar" @click.capture="handleToolbarClick">
-      <div class="toolbar-group">
+    <div class="iw-toolbar" @click.capture="handleToolbarClick">
+      <div class="iw-toolbar-group">
         <button
           @click="zoomOut"
           :disabled="zoom <= 0.25"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="缩小"
+          class="iw-toolbar-btn btn-sm"
+          title="Zoom In (⌘+)"
         >
-          <IconZoomOut class="w-5 h-5" />
+          <IconZoomOut class="icon-sm" />
         </button>
         
-        <div class="px-3 py-1 text-sm bg-gray-100 rounded min-w-[80px] text-center">
+        <div class="iw-stat">
           {{ Math.round(zoom * 100) }}%
         </div>
         
         <button
           @click="zoomIn"
           :disabled="zoom >= 5"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="放大"
+          class="iw-toolbar-btn btn-sm"
+          title="Zoom Out (⌘-)"
         >
-          <IconZoomIn class="w-5 h-5" />
+          <IconZoomIn class="icon-sm" />
         </button>
         
         <button
           @click="zoomToFit"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors"
-          title="适应页面"
+          class="iw-toolbar-btn btn-sm"
+          title="Fit to Page"
         >
-          <IconZoomReset class="w-5 h-5" />
+          <IconZoomReset class="icon-sm" />
         </button>
       </div>
       
-      <div class="toolbar-separator" />
-      
-      <div class="toolbar-group">
+      <div class="flex h-10 w-4 items-center justify-center">
+        <div class="h-1/2 w-px bg-base-300"></div>
+      </div>
+           
+      <div class="iw-toolbar-group">
         <button
           @click="setDisplayMode('continuous')"
-          class="px-2.5 py-1 text-sm rounded hover:bg-gray-200 transition-colors shrink-0 whitespace-nowrap leading-none"
-          :class="{ 'bg-gray-200 font-medium': displayMode === 'continuous' }"
-          title="连续滚动"
+          class="btn btn-ghost btn-sm rounded-field px-3 normal-case"
+          :class="{ 'btn-active': displayMode === 'continuous' }"
+          title="Continuous"
         >
-          连续
+          Continuous
         </button>
         <button
           @click="setDisplayMode('single')"
-          class="px-2.5 py-1 text-sm rounded hover:bg-gray-200 transition-colors shrink-0 whitespace-nowrap leading-none"
-          :class="{ 'bg-gray-200 font-medium': displayMode === 'single' }"
-          title="单页显示"
+          class="btn btn-ghost btn-sm field-box px-3 normal-case"
+          :class="{ 'btn-active': displayMode === 'single' }"
+          title="Single Page"
         >
-          单页
+          Single Page
         </button>
         <button
           @click="setDisplayMode('double')"
-          class="px-2.5 py-1 text-sm rounded hover:bg-gray-200 transition-colors shrink-0 whitespace-nowrap leading-none"
-          :class="{ 'bg-gray-200 font-medium': displayMode === 'double' }"
-          title="双页显示"
+          class="btn btn-ghost btn-sm rounded-field px-3 normal-case"
+          :class="{ 'btn-active': displayMode === 'double' }"
+          title="Double Page"
         >
-          双页
+          Double Page
         </button>
       </div>
 
-      <div class="toolbar-separator" />
-
-      <div class="toolbar-group">
+      <div class="flex h-10 w-4 items-center justify-center">
+        <div class="h-1/2 w-px bg-base-300"></div>
+      </div>
+           
+      <div class="iw-toolbar-group">
         <button
           @click="previousPageCommand"
           :disabled="currentPage <= 1"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="上一页"
+          class="iw-toolbar-btn btn-sm"
+          title="Last Page"
         >
-          <IconChevronLeft class="w-5 h-5" />
+          <IconChevronLeft class="icon-sm" />
         </button>
         
         <div class="flex items-center gap-2">
@@ -83,28 +87,28 @@
             type="number"
             :min="1"
             :max="totalPages"
-            class="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+            class="iw-input w-16 text-center"
           />
-          <span class="text-sm text-gray-600">/ {{ totalPages }}</span>
+          <span class="text-sm text-base-content/55">/ {{ totalPages }}</span>
         </div>
         
         <button
           @click="nextPageCommand"
           :disabled="currentPage >= totalPages"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="下一页"
+          class="iw-toolbar-btn btn-sm"
+          title="Next Page"
         >
-          <IconChevronRight class="w-5 h-5" />
+          <IconChevronRight class="icon-sm" />
         </button>
       </div>
       
-      <div class="toolbar-spacer" />
+      <div class="iw-toolbar-spacer" />
     </div>
     
     <!-- PDF Display Area -->
     <div
       ref="pdfContainer"
-      class="flex-1 overflow-auto bg-gray-200 outline-none focus:outline-none"
+      class="iw-viewer-stage"
       tabindex="0"
       @wheel="handleWheel"
       @scroll.passive="handleScroll"
@@ -128,8 +132,8 @@
               v-for="pageNum in row.pages"
               :key="pageNum"
               :ref="el => setCanvasRef(el as Element, pageNum)"
-              class="shadow-lg bg-white"
-              :class="{ 'ring-2 ring-blue-500': highlightedPages.has(pageNum) }"
+              class="bg-white shadow-sm"
+              :class="{ 'ring-2 ring-primary': highlightedPages.has(pageNum) }"
             />
           </div>
         </div>
@@ -157,8 +161,8 @@
                 v-for="pageNum in row.pages"
                 :key="pageNum"
                 :ref="el => setCanvasRef(el as Element, pageNum)"
-                class="shadow-lg bg-white"
-                :class="{ 'ring-2 ring-blue-500': highlightedPages.has(pageNum) }"
+                class="bg-white shadow-sm"
+                :class="{ 'ring-2 ring-primary': highlightedPages.has(pageNum) }"
               />
             </div>
           </div>
@@ -169,23 +173,23 @@
     <!-- Error State -->
     <div 
       v-if="error"
-      class="flex-1 flex items-center justify-center text-red-500"
+      class="flex flex-1 items-center justify-center text-error-content"
     >
       <div class="text-center">
         <IconAlertCircle class="w-12 h-12 mx-auto mb-2" />
-        <div class="text-lg mb-2">PDF 加载失败</div>
-        <div class="text-sm text-gray-600">{{ error }}</div>
+        <div class="text-lg mb-2">PDF Loading Failed</div>
+        <div class="text-sm text-base-content/55">{{ error }}</div>
       </div>
     </div>
     
     <!-- Loading State -->
     <div 
       v-if="loading"
-      class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-50"
+      class="absolute inset-0 flex items-center justify-center bg-base-100/70 backdrop-blur-sm"
     >
       <div class="text-center">
-        <div class="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-        <div>加载 PDF...</div>
+        <span class="loading loading-spinner loading-lg mb-2"></span>
+        <div>Loading PDF...</div>
       </div>
     </div>
   </div>
@@ -612,7 +616,7 @@ async function loadPDF() {
     focusViewer()
     
   } catch (err) {
-    error.value = `PDF文件加载失败: ${err instanceof Error ? err.message : String(err)}`
+    error.value = `PDF loading failed: ${err instanceof Error ? err.message : String(err)}`
     console.error('PDF loading error:', err)
   } finally {
     loading.value = false

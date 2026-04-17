@@ -1,15 +1,31 @@
 <template>
-  <div class="w-full rounded overflow-hidden text-xs" :class="containerClass">
+  <div
+    class="overflow-hidden rounded-box text-xs border transition-colors"
+    :class="[containerClass]"
+  >
     <div
-      class="flex items-center gap-2 px-2 py-1.5 cursor-pointer select-none"
-      :class="headerClass"
+      class="group flex items-center gap-2.5 px-2 py-0.5 cursor-pointer select-none"
       @click="expanded = !expanded"
     >
-      <span>✏️</span>
-      <span class="font-bold">{{ summaryLabel }}</span>
-      <span class="ml-auto opacity-60 text-2xs">{{ expanded ? '▲' : '▼' }}</span>
+      <div class="w-3.5 shrink-0 flex items-center justify-center">
+        <span>✏️</span>
+      </div>
+      <div class="shrink-0 font-semibold text-xs leading-4 whitespace-nowrap">
+        {{ summaryLabel }}
+      </div>
+      <div class="min-w-0 flex-1 flex flex-col justify-center">
+      </div>
+      <button
+        class="iw-toolbar-btn btn-xs opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto hover:bg-transparent"
+        :title="expanded ? 'Collapse' : 'Expand Details'"
+        @click="expanded = !expanded"
+      >
+        <IconChevronDown v-if="expanded" class="icon-2xs" />
+        <IconChevronUp v-else class="icon-2xs" />
+      </button>
     </div>
-    <div v-if="expanded" class="bg-background-content px-2 py-1.5" :class="bodyClass">
+
+    <div v-if="expanded" class="bg-base-100 px-2 py-1.5" :class="bodyClass">
       <span
         v-for="(tc, idx) in toolCalls"
         :key="tc.id"
@@ -22,11 +38,16 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import {
+  IconChevronUp,
+  IconChevronDown,
+} from '@tabler/icons-vue'
 import type { AiToolCall } from '@/ai/types'
 
 const props = defineProps<{ toolCalls: AiToolCall[] }>()
 
-const expanded = ref(true)
+const expanded = ref(false)
+
 watch(
   () => props.toolCalls.length,
   (len, oldLen) => { if (oldLen === 0 && len > 0) expanded.value = len <= 5 }
@@ -55,34 +76,26 @@ const summaryLabel = computed(() => {
 })
 
 const containerClass = computed(() => {
-  if (pendingCount.value > 0) return 'border border-status-warning/30'
-  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return 'border border-border-separator'
-  if (completedCount.value > 0 && failedCount.value === 0) return 'border border-status-success/30'
-  if (failedCount.value > 0 && completedCount.value === 0) return 'border border-status-error/30'
-  return 'border border-border-separator'
-})
-
-const headerClass = computed(() => {
-  if (pendingCount.value > 0) return 'bg-status-warning/10 text-status-warning'
-  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return 'bg-background-window text-text-primary'
-  if (completedCount.value > 0 && failedCount.value === 0) return 'bg-status-success/10 text-status-success'
-  if (failedCount.value > 0 && completedCount.value === 0) return 'bg-status-error/10 text-status-error'
-  return 'bg-background-window text-text-primary'
+  if (pendingCount.value > 0) return 'border-warning/30 bg-warning/20 text-warning-content hover:bg-warning/35'
+  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return 'border-base-300 bg-base-100 text-base-content hover:bg-base-300'
+  if (completedCount.value > 0 && failedCount.value === 0) return 'border-success/30 bg-success/20 text-success-content hover:bg-success/35'
+  if (failedCount.value > 0 && completedCount.value === 0) return 'border-error/30 bg-error/20 text-error-content hover:bg-error/35'
+  return 'border-base-300 bg-base-100 text-base-content hover:bg-base-300'
 })
 
 const bodyClass = computed(() => {
-  if (pendingCount.value > 0) return 'border-t border-status-warning/20'
-  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return 'border-t border-border-separator'
-  if (completedCount.value > 0 && failedCount.value === 0) return 'border-t border-status-success/20'
-  if (failedCount.value > 0 && completedCount.value === 0) return 'border-t border-status-error/20'
-  return 'border-t border-border-separator'
+  if (pendingCount.value > 0) return 'border-t border-warning/30'
+  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return 'border-t border-base-300'
+  if (completedCount.value > 0 && failedCount.value === 0) return 'border-t border-success/30'
+  if (failedCount.value > 0 && completedCount.value === 0) return 'border-t border-error/30'
+  return 'border-t border-base-300'
 })
 
 function itemClass(tc: AiToolCall): string {
-  if (tc.status === 'rejected') return 'text-text-secondary line-through opacity-75'
-  if (tc.status === 'failed' || tc.isError) return 'text-status-error line-through opacity-70'
-  if (tc.status === 'completed') return 'text-status-success'
-  return 'text-status-warning'
+  if (tc.status === 'rejected') return 'text-base-content line-through opacity-75'
+  if (tc.status === 'failed' || tc.isError) return 'text-error-content line-through opacity-75'
+  if (tc.status === 'completed') return 'text-success-content'
+  return 'text-warning-content'
 }
 
 function editOpDisplay(tc: AiToolCall): { label: string } {

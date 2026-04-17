@@ -4,7 +4,7 @@
       <div class="text-xs font-medium" :class="phaseTextClass">
         {{ phaseTitle }}
       </div>
-      <div v-if="phaseSubtitle" class="mt-0.5 text-xs text-text-secondary">
+      <div v-if="phaseSubtitle" class="mt-0.5 text-xs text-base-content">
         {{ phaseSubtitle }}
       </div>
     </div>
@@ -107,15 +107,15 @@ const phaseSubtitle = computed(() => {
 const phaseTextClass = computed(() => {
   switch (props.session.phase) {
     case 'review_ready':
-      return 'text-status-warning'
+      return 'text-warning-content'
     case 'completed':
-      return 'text-status-success'
+      return 'text-success-content'
     case 'cancelled':
-      return 'text-text-primary'
+      return 'text-base-content'
     case 'failed':
-      return 'text-status-error'
+      return 'text-error-content'
     default:
-      return 'text-text-primary'
+      return 'text-base-content'
   }
 })
 </script>

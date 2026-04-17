@@ -1,40 +1,38 @@
 <template>
   <div class="document-page">
-    <!-- Left side: Welcome content -->
-    <div class="flex-1 flex items-center justify-center">
-      <div class="text-center max-w-xl">
+    <div class="flex flex-1 items-center justify-center">
+      <div class="max-w-xl text-center p-3">
         <div class="mb-8">
-          <IconFileText class="w-24 h-24 mx-auto mb-4 text-text-primary" />
-          <h1 class="text-2xl font-bold mb-2 text-text-primary">Welcome to iWriter</h1>
-          <p class="text-base text-text-secondary">Create a new document or open an existing file to start editing</p>
+          <IconFileText class="size-20 mx-auto mb-4 text-primary" />
+          <h1 class="text-xl font-semibold tracking-tight text-base-content mb-2">Welcome to iWriter</h1>
+          <p class="text-md text-base-content opacity-50">Create a new document or open an existing file to start editing</p>
         </div>
         
-        <div class="flex gap-3 justify-center">
+        <div class="flex flex-wrap justify-center gap-3">
           <button 
             @click="createNewDocument"
-            class="button button-primary w-44 mb-4 h-9"
+            class="iw-btn btn-primary w-44 h-9"
           >
-            <IconPlus class="icon-base" />
+            <IconPlus class="icon-sm" />
             <span>New Document</span>
           </button>
           
           <button 
             @click="openFile"
-            class="button button-primary w-44 mb-4 h-9"
+            class="iw-btn btn-primary w-44 h-9"
           >
-            <IconFolderOpen class="icon-base" />
+            <IconFolderOpen class="icon-sm" />
             <span>Open Document</span>
           </button>
           
           <button v-if="!appStore.hasOpenFolder"
             @click="openFolder"
-            class="button button-primary w-44 mb-4 h-9"
+            class="iw-btn btn-primary w-44 h-9"
           >
-            <IconFolder class="icon-base" />
+            <IconFolder class="icon-sm" />
             <span>Open Folder</span>
           </button>
         </div>
-        
       </div>
     </div>
   </div>

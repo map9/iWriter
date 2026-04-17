@@ -111,6 +111,7 @@
     "better-sqlite3": "^12.8.0",
     "canvas": "^3.2.0",
     "chokidar": "^4.0.3",
+    "daisyui": "^5.5.19",
     "deepagents": "^1.8.4",
     "diff": "^8.0.3",
     "electron-log": "^5.4.3",

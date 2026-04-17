@@ -5,6 +5,7 @@ import type {
   ParagraphStateTableData
 } from '../src/types/windowContentState'
 import { DocumentType } from '../src/types'
+import { getCustomThemes } from '../src/utils/themes'
 import { isMac } from './utils'
 import type { WindowState, GlobalParameters } from './types'
 
@@ -1557,7 +1558,6 @@ export class MenuManager {
                   this.sendMenuAction('view-theme-follow-system')
                 }
               },
-              { type: 'separator' },
               {
                 label: 'Light',
                 type: 'radio',
@@ -1599,15 +1599,15 @@ export class MenuManager {
         submenu: [
           {
             label: "What's New...",
-            click: () => {
-              this.sendMenuAction('help-whats-new')
+            click: async () => {
+              await shell.openExternal('https://iwriter.com/updates')
             }
           },
           { type: 'separator' },
           {
             label: 'Quick Start',
-            click: () => {
-              this.sendMenuAction('help-quick-start')
+            click: async () => {
+              await shell.openExternal('https://iwriter.com/quick-start')
             }
           },
           {
@@ -1618,27 +1618,21 @@ export class MenuManager {
           },
           {
             label: 'Markdown Reference',
-            click: () => {
-              this.sendMenuAction('help-markdown-reference')
+            click: async () => {
+              await shell.openExternal('https://iwriter.com/markdown-reference')
             }
           },
           {
             label: 'Keyboard Shortcuts',
-            click: () => {
-              this.sendMenuAction('help-keyboard-shortcuts')
+            click: async () => {
+              await shell.openExternal('https://iwriter.com/keyboard-shortcuts')
             }
           },
           { type: 'separator' },
           {
             label: 'Acknowledgement',
-            click: () => {
-              this.sendMenuAction('help-acknowledgement')
-            }
-          },
-          {
-            label: 'Changelog',
-            click: () => {
-              this.sendMenuAction('help-changelog')
+            click: async () => {
+              await shell.openExternal('https://iwriter.com/acknowledgement')
             }
           },
           { type: 'separator' },
@@ -1684,24 +1678,24 @@ export class MenuManager {
       return true
     })
 
-    // Insert Theme items dynamically
-    if (wState?.wContentState?.view?.theme && !['system', 'light', 'dark'].includes(wState?.wContentState?.view?.theme)) {
-      const theme = wState?.wContentState?.view?.theme
+    // Insert additional daisyUI themes dynamically
+    const customThemes = getCustomThemes()
+    if (customThemes.length > 0) {
       const insertThemeItems: Electron.MenuItemConstructorOptions[] = [
         { type: 'separator' },
-        {
-          label: theme.charAt(0).toUpperCase() + theme.slice(1),
-          type: 'radio',
-          checked: true,
+        ...customThemes.map((theme) => ({
+          label: theme.name,
+          type: 'radio' as const,
+          checked: wState?.wContentState?.view?.theme === theme.id,
           click: () => {
-            this.sendMenuAction(`view-theme-${theme}`)
+            this.sendMenuAction(`view-theme-${theme.id}`)
           }
-        }
+        }))
       ]
 
       const result = insertInTemplate(baseTemplate, undefined, 'viewThemeDark', insertThemeItems);
       if (result === false) {
-        console.warn(`Failed to insert theme: ${theme} items into the template`);
+        console.warn('Failed to insert custom theme items into the template');
       }
     }
 

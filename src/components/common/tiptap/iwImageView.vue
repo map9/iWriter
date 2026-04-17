@@ -633,40 +633,53 @@ const updateImageFromInput = async (): Promise<void> => {
 
 <style lang="scss" scoped>
 
-//.tiptap {
+.tiptap {
   .toolbar-wrapper {
+    --image-surface: var(--color-base-100);
+    --image-surface-muted: var(--color-base-200);
+    --image-surface-hover: var(--color-base-300);
+    --image-border: var(--color-base-300);
+    --image-text: var(--color-base-content);
+    --image-text-muted: color-mix(in oklab, var(--color-base-content) 72%, transparent);
+    --image-placeholder: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+    --image-primary-soft: color-mix(in oklab, var(--color-primary) 14%, var(--color-base-100));
+    --image-overlay: color-mix(in oklab, var(--color-base-100) 88%, transparent);
+
     .toolbar-controls {
-      border-radius: 0.5rem 0.5rem 0 0;
+      border-radius: var(--radius-box) var(--radius-box) 0 0;
     }
 
     .control-content {
       display: inline-block;
+      max-width: 100%;
+      border-radius: var(--radius-box);
     }
 
     .control-content-empty {
       display: inline-block;
-      background: #ffffff;
-      border: 2px dashed #e5e7eb;
-      border-radius: 0.5rem;
       display: flex;
       align-items: center;
       justify-content: center;
       min-height: 280px;
       min-width: 500px;
-      color: #6b7280;
-      cursor: pointer;
-      transition: all 0.2s ease;
+      max-width: 100%;
       padding: 40px;
+      background: var(--image-surface);
+      border: 2px dashed var(--image-border);
+      border-radius: var(--radius-box);
+      color: var(--image-text-muted);
+      cursor: pointer;
+      transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 
       &:hover {
-        border-color: #d1d5db;
-        background: #f9fafb;
+        border-color: color-mix(in oklab, var(--color-neutral) 35%, var(--image-border));
+        background: var(--image-surface-hover);
       }
 
       &.drag-over {
-        background: #eff6ff;
-        border-color: #3b82f6;
-        color: #3b82f6;
+        background: var(--image-primary-soft);
+        border-color: var(--color-primary);
+        color: var(--color-primary);
       }
 
       .empty-image-content {
@@ -679,7 +692,7 @@ const updateImageFromInput = async (): Promise<void> => {
           .empty-image-icon {
             width: 48px;
             height: 48px;
-            color: #9ca3af;
+            color: var(--image-placeholder);
             margin: 0 auto;
           }
         }
@@ -687,18 +700,18 @@ const updateImageFromInput = async (): Promise<void> => {
         .empty-image-main-text {
           font-size: 16px;
           font-weight: 400;
-          color: #6b7280;
+          color: var(--image-text-muted);
           margin-bottom: 24px;
           line-height: 1.5;
 
           .empty-image-link {
-            color: #3b82f6;
+            color: var(--color-primary);
             font-weight: 500;
             text-decoration: underline;
             cursor: pointer;
 
             &:hover {
-              color: #2563eb;
+              color: color-mix(in oklab, var(--color-primary) 88%, var(--color-base-content));
             }
           }
         }
@@ -714,15 +727,15 @@ const updateImageFromInput = async (): Promise<void> => {
             left: 0;
             right: 0;
             height: 1px;
-            background: #e5e7eb;
+            background: var(--image-border);
             z-index: 1;
           }
 
           .empty-image-divider-text {
             position: relative;
-            background: #ffffff;
+            background: var(--image-surface);
             padding: 0 16px;
-            color: #9ca3af;
+            color: var(--image-placeholder);
             font-size: 14px;
             font-weight: 500;
             z-index: 2;
@@ -737,58 +750,67 @@ const updateImageFromInput = async (): Promise<void> => {
 
           .empty-image-input {
             flex: 1;
-            padding: 12px 16px;
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
+            padding: 12px 14px;
+            border: var(--border) solid var(--image-border);
+            border-radius: var(--radius-field);
             font-size: 14px;
-            color: #374151;
-            background: #ffffff;
+            color: var(--image-text);
+            background: var(--image-surface);
             outline: none;
-            transition: border-color 0.2s ease;
+            transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 
             &::placeholder {
-              color: #9ca3af;
+              color: var(--image-placeholder);
+            }
+
+            &:hover {
+              background: var(--image-surface-hover);
+              border-color: color-mix(in oklab, var(--color-neutral) 35%, var(--image-border));
             }
 
             &:focus {
-              border-color: #3b82f6;
-              box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+              background: var(--image-surface);
+              border-color: var(--color-primary);
+              box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 16%, transparent);
             }
           }
 
           .empty-image-search-btn {
-            padding: 12px 24px;
-            background: #3b82f6;
-            color: #ffffff;
-            border: none;
-            border-radius: 0.5rem;
+            padding: 12px 20px;
+            background: var(--color-primary);
+            color: var(--color-primary-content);
+            border: var(--border) solid color-mix(in oklab, var(--color-primary) 78%, var(--color-base-content));
+            border-radius: var(--radius-field);
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            transition: background-color 0.2s ease;
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
             white-space: nowrap;
 
             &:hover:not(:disabled) {
-              background: #2563eb;
+              background: color-mix(in oklab, var(--color-primary) 88%, var(--color-base-content));
             }
 
             &:disabled {
-              background: #d1d5db;
+              background: var(--image-surface-muted);
+              border-color: var(--image-border);
               cursor: not-allowed;
-              color: #9ca3af;
+              color: var(--image-placeholder);
             }
           }
         }
       }
 
       &.ProseMirror-selectednode {
-        outline: 3px solid #6a00f5;
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
       }
     }
 
     .image-container {
       position: relative;
       display: inline-block;
+      max-width: 100%;
 
       .control-content {
         display: block;
@@ -804,11 +826,11 @@ const updateImageFromInput = async (): Promise<void> => {
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(255, 255, 255, 0.9);
+        background: var(--image-overlay);
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 0.5rem;
+        border-radius: var(--radius-box);
         z-index: 10;
 
         .loading-content {
@@ -820,7 +842,7 @@ const updateImageFromInput = async (): Promise<void> => {
             .spinner-icon {
               width: 28px;
               height: 28px;
-              color: #3b82f6;
+              color: var(--color-primary);
               margin: 0 auto;
             }
           }
@@ -828,7 +850,7 @@ const updateImageFromInput = async (): Promise<void> => {
           .loading-text {
             font-size: 13px;
             font-weight: 500;
-            color: #374151;
+            color: var(--image-text);
           }
         }
       }
@@ -837,27 +859,27 @@ const updateImageFromInput = async (): Promise<void> => {
     .control-content-empty {
       .empty-image-content {
         .error-icon {
-          color: #ef4444;
+          color: var(--color-error);
         }
 
         .error-text {
-          color: #ef4444;
+          color: var(--color-error);
           margin-bottom: 16px;
         }
 
         .retry-button {
           padding: 8px 16px;
-          background: #3b82f6;
-          color: #ffffff;
-          border: none;
-          border-radius: 0.25rem;
+          background: var(--color-primary);
+          color: var(--color-primary-content);
+          border: var(--border) solid color-mix(in oklab, var(--color-primary) 78%, var(--color-base-content));
+          border-radius: var(--radius-field);
           font-size: 14px;
           font-weight: 500;
           cursor: pointer;
-          transition: background-color 0.2s ease;
+          transition: background-color 0.2s ease, border-color 0.2s ease;
 
           &:hover {
-            background: #2563eb;
+            background: color-mix(in oklab, var(--color-primary) 88%, var(--color-base-content));
           }
         }
       }
@@ -874,5 +896,5 @@ const updateImageFromInput = async (): Promise<void> => {
     }
     */
   }
-//}
+}
 </style>

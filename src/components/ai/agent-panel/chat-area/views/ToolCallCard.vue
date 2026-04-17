@@ -1,32 +1,29 @@
 <template>
   <div
-    class="overflow-hidden text-xs border transition-colors"
+    class="overflow-hidden rounded-box text-xs border transition-colors"
     :class="[containerClass, groupContainerClass, groupDividerClass]"
-    @mouseenter="isHovered = true"
-    @mouseleave="isHovered = false"
   >
     <div
-      class="flex items-center gap-2.5 px-2.5 py-1.5 transition-colors"
-      :class="headerHoverClass"
+      class="group flex items-center gap-2.5 px-2 py-0.5 cursor-pointer select-none"
       @click="toggleExpanded"
     >
-      <div class="w-3.5 flex-shrink-0 flex items-center justify-center">
-        <IconLoader2 v-if="isSpinning" class="w-3 h-3 animate-spin" />
+      <div class="w-3.5 shrink-0 flex items-center justify-center">
+        <IconLoader2 v-if="isSpinning" class="icon-2xs animate-spin" />
         <span v-else class="leading-none">{{ statusIcon }}</span>
       </div>
 
-      <div class="flex-shrink-0 font-semibold text-xs leading-4 whitespace-nowrap">
+      <div class="shrink-0 font-semibold text-xs leading-4 whitespace-nowrap">
         {{ actionLabel }}
       </div>
 
       <div class="min-w-0 flex-1 flex flex-col justify-center">
         <div
           v-if="inputLine"
-          class="min-w-0 text-2xs leading-4 text-text-primary truncate"
+          class="min-w-0 text-2xs leading-4 text-base-content truncate"
         >
           <button
             v-if="targetPath && targetLabel"
-            class="inline max-w-full truncate text-left underline decoration-border-separator underline-offset-2 hover:text-text-primary hover:decoration-text-tertiary"
+            class="inline max-w-full truncate font-medium text-left text-base-content/50 underline underline-offset-2 hover:text-primary hover:decoration-primary cursor-pointer"
             :title="targetPath"
             @click.stop="openTargetFile"
           >
@@ -37,8 +34,8 @@
 
         <div
           v-if="contextSummaryLine"
-          class="min-w-0 text-2xs leading-4 text-text-secondary truncate whitespace-nowrap"
-          :class="inputLine ? 'mt-[1px]' : ''"
+          class="min-w-0 text-2xs leading-4 text-base-content truncate whitespace-nowrap opacity-50"
+          :class="inputLine ? 'mt-px' : ''"
           :title="contextSummaryLine"
         >
           {{ contextSummaryLine }}
@@ -47,43 +44,43 @@
 
       <button
         v-if="showExpandableDetail"
-        class="flex-shrink-0 w-4.5 h-4.5 flex items-center justify-center rounded text-2xs text-text-secondary transition-opacity hover:bg-interactive-hover"
-        :class="expanded || isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'"
-        :title="expanded ? '收起' : '展开'"
+        class="iw-toolbar-btn btn-xs opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto hover:bg-transparent"
+        :title="expanded ? 'Collapse' : 'Expand Details'"
         @click.stop="toggleExpanded"
       >
-        {{ expanded ? '▲' : '▼' }}
+        <IconChevronDown v-if="expanded" class="icon-2xs" />
+        <IconChevronUp v-else class="icon-2xs" />
       </button>
     </div>
 
     <div
       v-if="showDetail"
-      class="border-t bg-background-content px-2.5 py-2 space-y-2"
+      class="border-t bg-base-100 px-2.5 py-2 space-y-2"
       :class="[detailBorderClass, groupDetailClass]"
     >
       <div v-if="detailType === 'outline' && outlineItems.length" class="space-y-1.5">
-        <div class="text-xs font-medium text-text-secondary">文档结构</div>
+        <div class="text-xs font-medium text-base-content">Outline</div>
         <div
           v-for="item in outlineItems"
           :key="`${item.blockId}-${item.text}`"
-          class="flex items-start justify-between gap-2 rounded-md bg-background-window px-2 py-1.5"
+          class="flex items-start justify-between gap-2 rounded-box bg-base-100 px-2 py-1.5"
           :style="{ paddingLeft: `${0.5 + (item.level - 1) * 0.75}rem` }"
         >
           <div class="min-w-0">
-            <div class="truncate text-text-primary">{{ item.text || `未命名标题 ${item.blockId}` }}</div>
-            <div class="text-2xs text-text-secondary">H{{ item.level }} · {b:{{ item.blockId }}}</div>
+            <div class="truncate text-base-content">{{ item.text || `Unnamed Title ${item.blockId}` }}</div>
+            <div class="text-2xs text-base-content">H{{ item.level }} · {b:{{ item.blockId }}}</div>
           </div>
-          <div class="flex-shrink-0 text-2xs text-text-secondary text-right">
+          <div class="shrink-0 text-2xs text-base-content text-right">
             <div>{{ item.sectionBlocks }} blocks</div>
-            <div>{{ item.wordCount }} 字</div>
+            <div>{{ item.wordCount }} Words</div>
           </div>
         </div>
       </div>
 
       <div v-else-if="detailType === 'section' && parsedResult" class="space-y-2">
-        <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-secondary">
-          <span v-if="sectionHeading">章节：{{ sectionHeading }}</span>
-          <span v-if="sectionRange">范围：{{ sectionRange }}</span>
+        <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-base-content">
+          <span v-if="sectionHeading">Chapter: {{ sectionHeading }}</span>
+          <span v-if="sectionRange">Range: {{ sectionRange }}</span>
           <span v-if="sectionPagination">{{ sectionPagination }}</span>
         </div>
         <MarkdownContentView v-if="sectionContent" :content="sectionContent" mode="text" size="xs" />
@@ -93,11 +90,11 @@
         <div
           v-for="item in blockItems"
           :key="item.blockId"
-          class="rounded-md bg-background-window px-2 py-1.5"
+          class="rounded-box bg-base-200 px-2 py-1.5"
         >
           <div class="flex items-center justify-between gap-2 text-xs">
-            <span class="font-medium text-text-primary">{b:{{ item.blockId }}}</span>
-            <span class="text-text-secondary">{{ item.type }}</span>
+            <span class="font-medium text-base-content">{b:{{ item.blockId }}}</span>
+            <span class="text-base-content">{{ item.type }}</span>
           </div>
           <div class="mt-1">
             <MarkdownContentView :content="item.content" mode="text" size="xs" />
@@ -106,16 +103,16 @@
       </div>
 
       <div v-else-if="detailType === 'block_context' && blockItems.length" class="space-y-1.5">
-        <div class="text-xs font-medium text-text-secondary">上下文块</div>
+        <div class="text-xs font-medium text-base-content">Context Blocks</div>
         <div
           v-for="item in blockItems"
           :key="item.blockId"
-          class="rounded-md px-2 py-1.5"
-          :class="item.blockId === centerBlockId ? 'bg-status-info/10 border border-status-info/20' : 'bg-background-window'"
+          class="rounded-box px-2 py-1.5"
+          :class="item.blockId === centerBlockId ? 'bg-error/20 border border-info/30' : 'bg-base-100'"
         >
           <div class="flex items-center justify-between gap-2 text-xs">
-            <span class="font-medium text-text-primary">{b:{{ item.blockId }}}</span>
-            <span class="text-text-secondary">{{ item.type }}</span>
+            <span class="font-medium text-base-content">{b:{{ item.blockId }}}</span>
+            <span class="text-base-content">{{ item.type }}</span>
           </div>
           <div class="mt-1">
             <MarkdownContentView :content="item.content" mode="text" size="xs" />
@@ -127,14 +124,14 @@
         <div
           v-for="section in searchSections"
           :key="`${section.headingBlockId}-${section.heading}`"
-          class="rounded-md bg-background-window px-2 py-1.5"
+          class="rounded-box bg-base-200 px-2 py-1.5"
         >
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0">
-              <div class="truncate text-text-primary">{{ section.heading || '未命名章节' }}</div>
-              <div class="text-2xs text-text-secondary">heading {b:{{ section.headingBlockId }}}</div>
+              <div class="truncate text-base-content">{{ section.heading || 'Unnamed Section' }}</div>
+              <div class="text-2xs text-base-content">heading {b:{{ section.headingBlockId }}}</div>
             </div>
-            <div class="flex-shrink-0 text-2xs text-text-secondary">{{ section.matchCount }} 个命中</div>
+            <div class="shrink-0 text-2xs text-base-content">{{ section.matchCount }} Matched</div>
           </div>
           <div v-if="section.preview" class="mt-1">
             <MarkdownContentView :content="section.preview" mode="text" size="xs" />
@@ -146,21 +143,21 @@
         <div
           v-for="file in workspaceFiles"
           :key="file.filePath"
-          class="rounded-md bg-background-window px-2 py-1.5"
+          class="rounded-box bg-base-200 px-2 py-1.5"
         >
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0">
               <button
-                class="truncate text-text-primary underline decoration-border-separator underline-offset-2 hover:text-text-primary hover:decoration-text-tertiary"
+                class="inline max-w-full truncate font-medium text-left text-base-content/50 underline underline-offset-2 hover:text-primary hover:decoration-primary cursor-pointer"
                 :title="file.filePath"
                 @click.stop="openFilePath(file.filePath)"
               >
                 {{ file.fileName }}
               </button>
-              <div class="text-2xs text-text-secondary truncate">{{ file.filePath }}</div>
+              <div class="text-2xs text-base-content truncate">{{ file.filePath }}</div>
             </div>
-            <div class="flex-shrink-0 text-2xs text-text-secondary text-right">
-              <div>{{ file.totalMatches }} 个命中</div>
+            <div class="shrink-0 text-2xs text-base-content text-right">
+              <div>{{ file.totalMatches }} Matched</div>
               <div>{{ file.documentType }}</div>
             </div>
           </div>
@@ -168,11 +165,11 @@
             <div
               v-for="preview in file.previews"
               :key="`${file.filePath}-${preview.blockId}`"
-              class="rounded bg-background-content px-2 py-1 border border-border-separator"
+              class="rounded-box bg-base-200 px-2 py-1 border border-base-300"
             >
-              <div class="text-2xs text-text-secondary mb-1">
+              <div class="text-2xs text-base-content mb-1">
                 <span v-if="preview.heading">{{ preview.heading }}</span>
-                <span v-else>未命名章节</span>
+                <span v-else>Unnamed Section</span>
                 <span> · {b:{{ preview.blockId }}}</span>
               </div>
               <MarkdownContentView :content="preview.preview" mode="text" size="xs" />
@@ -185,29 +182,29 @@
         <div
           v-for="(item, idx) in todoItems"
           :key="`${idx}-${item.content}`"
-          class="flex items-start gap-2 rounded-md bg-background-window px-2 py-1.5"
+          class="flex items-start gap-2 rounded-box bg-base-200 px-2 py-1.5"
         >
           <span
-            class="mt-[1px] inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border text-2xs leading-none"
+            class="mt-px inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border text-2xs leading-none"
             :class="item.statusClass"
           >
             {{ item.icon }}
           </span>
           <div class="min-w-0 flex-1">
-            <div class="text-text-primary break-words">{{ item.content }}</div>
-            <div v-if="item.statusLabel" class="mt-0.5 text-2xs text-text-secondary">{{ item.statusLabel }}</div>
+            <div class="text-base-content wrap-break-word">{{ item.content }}</div>
+            <div v-if="item.statusLabel" class="mt-0.5 text-2xs text-base-content">{{ item.statusLabel }}</div>
           </div>
         </div>
       </div>
 
       <div v-else-if="resultText" class="space-y-1">
-        <div class="text-xs font-medium text-text-secondary">结果详情</div>
+        <div class="text-xs font-medium text-base-content">Result Details</div>
         <MarkdownContentView :content="resultText" mode="text" size="xs" />
       </div>
 
       <details v-if="showRawResult" class="group">
-        <summary class="cursor-pointer text-xs text-text-secondary hover:text-text-primary">查看原始结果</summary>
-        <div class="mt-2 rounded-md bg-background-window px-2 py-1.5">
+        <summary class="cursor-pointer text-xs text-base-content hover:text-base-content/50">View Raw Result</summary>
+        <div class="mt-2 rounded-box bg-base-200 px-2 py-1.5">
           <MarkdownContentView :content="rawResult" mode="text" size="xs" />
         </div>
       </details>
@@ -217,7 +214,11 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { IconLoader2 } from '@tabler/icons-vue'
+import {
+  IconChevronUp,
+  IconChevronDown,
+  IconLoader2
+} from '@tabler/icons-vue'
 import { useAppStore } from '@/stores/app'
 import type { AiToolCall } from '@/ai/types'
 import MarkdownContentView from './MarkdownContentView.vue'
@@ -229,7 +230,6 @@ const props = defineProps<{
 
 const appStore = useAppStore()
 const expanded = ref(false)
-const isHovered = ref(false)
 const groupPosition = computed(() => props.groupPosition ?? 'single')
 
 const isSpinning = computed(() =>
@@ -247,25 +247,26 @@ const containerClass = computed(() => {
   const isRunning = props.toolCall.status === 'in_progress' || props.toolCall.status === 'pending'
   const isRejected = props.toolCall.status === 'rejected'
   const isError = props.toolCall.isError || props.toolCall.status === 'failed'
-  if (isError) return 'border-status-error/30 bg-status-error/10 text-status-error'
-  if (isRejected) return 'border-border-separator bg-background-window text-text-secondary'
-  if (isRunning) return 'border-status-info/30 bg-status-info/10 text-status-info'
+  if (isError) return 'border-error/30 bg-error/20 text-error-content hover:bg-error/35'
+  if (isRejected) return 'border-base-300 bg-base-100 text-base-content hover:bg-base-300'
+  if (isRunning) return 'border-info/30 bg-error/20 text-info-content'
   if (props.toolCall.kind === 'edit' || props.toolCall.kind === 'delete') {
-    return 'border-status-warning/30 bg-status-warning/10 text-status-warning'
+    return 'border-warning/30 bg-warning/20 text-warning-content hover:bg-warning/35'
   }
-  return 'border-status-success/30 bg-status-success/10 text-status-success'
+
+  return 'border-success/30 bg-success/20 text-success-content hover:bg-success/35'
 })
 
 const groupContainerClass = computed(() => {
   switch (groupPosition.value) {
     case 'start':
-      return 'rounded-t-lg rounded-b-none border-b-0'
+      return 'rounded-t-box rounded-b-none border-b-0'
     case 'middle':
       return 'rounded-none border-t-0 border-b-0'
     case 'end':
-      return 'rounded-b-lg rounded-t-none border-t-0'
+      return 'rounded-b-box rounded-t-none border-t-0'
     default:
-      return 'rounded-lg'
+      return 'rounded-box'
   }
 })
 
@@ -273,20 +274,10 @@ const groupDividerClass = computed(() => {
   switch (groupPosition.value) {
     case 'middle':
     case 'end':
-      return 'shadow-[inset_0_1px_0_rgba(15,23,42,0.06)]'
+      return 'shadow-sm'
     default:
       return ''
   }
-})
-
-const headerHoverClass = computed(() => {
-  const base = showExpandableDetail.value ? 'cursor-pointer select-none' : ''
-  if (!isHovered.value || expanded.value) return base
-  if (props.toolCall.isError || props.toolCall.status === 'failed') return `${base} bg-status-error/15`.trim()
-  if (props.toolCall.status === 'rejected') return `${base} bg-interactive-hover`.trim()
-  if (props.toolCall.status === 'pending' || props.toolCall.status === 'in_progress') return `${base} bg-status-info/15`.trim()
-  if (props.toolCall.kind === 'edit' || props.toolCall.kind === 'delete') return `${base} bg-status-warning/15`.trim()
-  return `${base} bg-status-success/15`.trim()
 })
 
 const groupDetailClass = computed(() => {
@@ -295,11 +286,11 @@ const groupDetailClass = computed(() => {
 })
 
 const detailBorderClass = computed(() => {
-  if (props.toolCall.isError || props.toolCall.status === 'failed') return 'border-status-error/20'
-  if (props.toolCall.status === 'rejected') return 'border-border-separator'
-  if (props.toolCall.status === 'pending' || props.toolCall.status === 'in_progress') return 'border-status-info/20'
-  if (props.toolCall.kind === 'edit' || props.toolCall.kind === 'delete') return 'border-status-warning/20'
-  return 'border-status-success/20'
+  if (props.toolCall.isError || props.toolCall.status === 'failed') return 'border-error/30'
+  if (props.toolCall.status === 'rejected') return 'border-base-300'
+  if (props.toolCall.status === 'pending' || props.toolCall.status === 'in_progress') return 'border-info/30'
+  if (props.toolCall.kind === 'edit' || props.toolCall.kind === 'delete') return 'border-warning/30'
+  return 'border-success/30'
 })
 
 const display = computed(() => props.toolCall.display ?? {})
@@ -457,7 +448,7 @@ const todoItems = computed(() => {
         content,
         icon: '✓',
         statusLabel: '已完成',
-        statusClass: 'border-status-success/40 bg-status-success/10 text-status-success',
+        statusClass: 'border-success/40 bg-success/20 text-success-content',
       }
     }
     if (status === 'in_progress') {
@@ -465,14 +456,14 @@ const todoItems = computed(() => {
         content,
         icon: '•',
         statusLabel: '进行中',
-        statusClass: 'border-status-warning/40 bg-status-warning/10 text-status-warning',
+        statusClass: 'border-warning/40 bg-warning/20 text-warning-content',
       }
     }
     return {
       content,
       icon: '',
       statusLabel: '待办',
-      statusClass: 'border-border-separator bg-background-content text-transparent',
+      statusClass: 'border-base-300 bg-base-100 text-transparent',
     }
   })
 })

@@ -1,6 +1,12 @@
-import type { SearchOptions } from '@/utils/search/SearchEngine'
 import type { DecorationSet } from '@tiptap/pm/view'
 import type { Range } from '@tiptap/core'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
+
+export interface SearchOptions {
+  caseSensitive: boolean
+  wholeWord: boolean
+  regex: boolean
+}
 
 /**
  * 搜索替换扩展选项
@@ -112,4 +118,29 @@ export interface SearchReplaceStorage {
    * 防抖定时器
    */
   debounceTimer: ReturnType<typeof setTimeout> | null
+}
+
+/**
+ * 适用于 iwSearchReplaceInFilesService 的搜索结果数据结构
+ */
+export interface SearchReplaceInFilesMatch {
+  position: { from: number; to: number }
+  text: string
+  contextHtml: string
+}
+
+/**
+ * 适用于 iwSearchReplaceInFilesService 的搜索结果数据结构
+ */
+export interface SearchReplaceInFilesSearchResult {
+  filePath: string
+  fileName: string
+  relativePath: string
+  documentType: string
+  matches: SearchReplaceInFilesMatch[]
+  totalMatches: number
+  // 内部缓存（用于替换）
+  _proseMirrorDoc?: ProseMirrorNode
+  _fileContent?: string
+  _lineEnding?: 'LF' | 'CRLF'
 }

@@ -1,5 +1,3 @@
-import type { ThemeColors } from '@/utils/themes'
-
 // Electron API 接口
 export interface ElectronAPI {
   platform: string
@@ -86,18 +84,16 @@ export interface ElectronAPI {
   onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => void
   removeWindowStateChangedListeners: () => void
 
-  getSystemColors: () => Promise<{ theme: 'light' | 'dark' | 'unknown', newColors: ThemeColors }>,
-  onSystemColorsChanged: (callback: (themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: ThemeColors }) => void) => void,
-  removeSystemColorsChangedListeners: () => void
-
   // 设置
   windowContentChange: (wContentState: Partial<import('@/types').WindowContentState>) => Promise<void>
   updateWindowTitle: (title: string) => Promise<{ success: boolean; error?: string }>
 
   // 更新器 API
   checkForUpdates: () => Promise<import('@/updater/types').UpdateCheckResult>
+  downloadUpdate: () => Promise<void>
   installUpdate: () => Promise<void>
   getUpdaterStatus: () => Promise<import('@/updater/types').UpdateStatus>
+  getUpdaterState: () => Promise<import('@/updater/types').UpdaterStateSnapshot>
   getUpdaterConfig: () => Promise<import('@/updater/types').UpdaterConfig>
   setUpdaterConfig: (config: Partial<import('@/updater/types').UpdaterConfig>) => Promise<void>
   

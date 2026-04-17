@@ -447,13 +447,13 @@ const createNodeDecorations = async (
 const getErrorClass = (errorType: string | undefined): string => {
 	switch (errorType) {
 		case 'spelling':
-			return 'spelling-error'
+			return 'iw-proofread-spelling-error'
 		case 'grammar':
-			return 'grammar-error'
+			return 'iw-proofread-grammar-error'
 		case 'style':
-			return 'style-error'
+			return 'iw-proofread-style-error'
 		default:
-			return 'misc-error'
+			return 'iw-proofread-misc-error'
 	}
 }
 
@@ -501,20 +501,21 @@ const showSuggestionPopup = (
 		noSuggestions: 'No suggestions found'
 	})
 
-	const app = suggestionBox({
-		error: {
-			from: decoration.from,
-			to: decoration.to,
-			message: error.message || `Misspelled word: ${error.word}`,
+		const app = suggestionBox({
+			error: {
+				from: decoration.from,
+				to: decoration.to,
+				message: error.message || `Misspelled word: ${error.word}`,
 			shortMessage: error.shortMessage || `misspelling`,
-			type: error.type || 'spelling',
-			replacements: error.suggestions
-		},
-		position: { x: rect.left, y: rect.bottom },
-	onReplace: (value: string) => {
-			if (!view.editable) {
-				app.destroy()
-				return
+				type: error.type || 'spelling',
+				replacements: error.suggestions
+			},
+			position: { x: rect.left, y: rect.bottom },
+			scrollContainer: view.dom as HTMLElement,
+		onReplace: (value: string) => {
+				if (!view.editable) {
+					app.destroy()
+					return
 			}
 			const { from, to } = decoration
 			const tr = view.state.tr

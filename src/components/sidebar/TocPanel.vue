@@ -1,70 +1,76 @@
 <template>
   <div class="h-full flex flex-col">
     <!-- TOC Header -->
-    <div class="sidebar-header h-9 flex-shrink-0 select-none">
+    <div class="iw-sidebar-section border-b border-base-300">
       <div class="flex items-center gap-2">
-        <span class="text-xs font-medium text-text-primary uppercase tracking-wide">
+        <span class="iw-sidebar-section-header">
           Outline
         </span>
       </div>
       
       <!-- Actions -->
-      <div class="flex items-center gap-1">
+      <div class="flex items-center">
         <button
           @click="toggleNumbering"
-          class="toolbar-button"
-          :class="{ 'toolbar-button-primary': showNumbering }"
+          class="iw-toolbar-btn btn-xs"
+          :class="{ 'iw-toolbar-btn-active': showNumbering }"
           title="Toggle Numbering"
         >
-          <IconNumbers class="icon-sm" />
+          <IconNumbers class="icon-xs" />
         </button>
 
         <!-- Separator -->
-        <div class="toolbar-separator" />
+        <div class="flex h-9 w-4 items-center justify-center">
+          <div class="h-1/2 w-px bg-base-300"></div>
+        </div>
 
         <!-- Heading Level Filter Buttons -->
-        <button
-          @click="setExpandLevel(2)"
-          class="toolbar-button text-xs"
-          :class="{ 'toolbar-button-primary': expandLevel === 2 }"
-          title="Collapse to H2 level"
-        >
-          <p class="icon-sm">H2</p>
-        </button>
-        <button
-          @click="setExpandLevel(3)"
-          class="toolbar-button text-xs"
-          :class="{ 'toolbar-button-primary': expandLevel === 3 }"
-          title="Collapse to H3 level"
-        >
-          <p class="icon-sm">H3</p>
-        </button>
-        <button
-          @click="setExpandLevel(4)"
-          class="toolbar-button text-xs"
-          :class="{ 'toolbar-button-primary': expandLevel === 4 }"
-          title="Collapse to H4 level"
-        >
-          <p class="icon-sm">H4</p>
-        </button>
-        <button
-          @click="setExpandLevel(6)"
-          class="toolbar-button text-xs"
-          :class="{ 'toolbar-button-primary': expandLevel === 6 }"
-          title="Expand all levels"
-        >
-          <p class="icon-sm">All</p>
-        </button>
+        <div class="join">
+          <button
+            @click="setExpandLevel(2)"
+            class="iw-toolbar-btn btn-xs join-item"
+            :class="{ 'iw-toolbar-btn-active': expandLevel === 2 }"
+            title="Collapse to H2 level"
+          >
+            <p class="icon-xs text-xs">H2</p>
+          </button>
+          <button
+            @click="setExpandLevel(3)"
+            class="iw-toolbar-btn btn-xs join-item"
+            :class="{ 'iw-toolbar-btn-active': expandLevel === 3 }"
+            title="Collapse to H3 level"
+          >
+            <p class="icon-xs text-xs">H3</p>
+          </button>
+          <button
+            @click="setExpandLevel(4)"
+            class="iw-toolbar-btn btn-xs join-item"
+            :class="{ 'iw-toolbar-btn-active': expandLevel === 4 }"
+            title="Collapse to H4 level"
+          >
+            <p class="icon-xs text-xs">H4</p>
+          </button>
+          <button
+            @click="setExpandLevel(6)"
+            class="iw-toolbar-btn btn-xs join-item"
+            :class="{ 'iw-toolbar-btn-active': expandLevel === 6 }"
+            title="Expand all levels"
+          >
+            <p class="icon-xs text-xs">All</p>
+          </button>
+        </div>
 
         <!-- Separator -->
-        <div class="toolbar-separator" />
+        <div class="join-item flex h-9 w-4 items-center justify-center">
+          <div class="h-1/2 w-px bg-base-300"></div>
+        </div>
 
         <button
           @click="scrollToTop"
-          class="toolbar-button"
+          class="iw-toolbar-btn btn-xs"
           title="Scroll to Top"
         >
-          <IconArrowUp class="icon-sm" />
+          <IconArrowUp class="icon-xs" />
         </button>
       </div>
    </div>
@@ -72,8 +78,8 @@
     <!-- TOC Content -->
     <div class="flex-1 overflow-hidden">
       <!-- Loading State -->
-      <div v-if="isLoading" class="p-4 text-center text-text-primary">
-        <div class="animate-spin w-6 h-6 border-2 border-gray-300 border-t-border-separator rounded-full mx-auto mb-2"></div>
+      <div v-if="isLoading" class="p-4 text-center text-base-content">
+        <span class="loading loading-spinner loading-md mb-2"></span>
         <p class="text-sm">Loading table of contents...</p>
       </div>
       
@@ -89,13 +95,13 @@
       
       <!-- Empty State -->
       <div v-else class="p-4 text-center select-none">
-        <IconList class="w-12 h-12 mx-auto mb-2 text-text-primary" />
-        <p class="text-sm font-medium text-text-secondary">{{ emptyStateMessage.title }}</p>
-        <p class="text-xs text-text-tertiary mt-1 leading-relaxed">
+        <IconList class="mx-auto mb-2 h-12 w-12 text-base-content/60" />
+        <p class="text-sm font-medium text-base-content/75">{{ emptyStateMessage.title }}</p>
+        <p class="mt-1 text-xs leading-relaxed text-base-content/55">
           {{ emptyStateMessage.subtitle }}
         </p>
-        <div v-if="emptyStateMessage.showProvider" class="mt-3 pt-2 border-t text-text-tertiary">
-          <p class="text-xs text-gray-300">
+        <div v-if="emptyStateMessage.showProvider" class="mt-3 border-t border-base-300 pt-2 text-base-content/55">
+          <p class="text-xs">
             Provider: {{ providerInfo.name }}
           </p>
         </div>
@@ -406,27 +412,29 @@ function scrollToTop() {
 .toc-tree {
   --tree-font-size: 12px;
   --tree-font-weight: 500;
-  --tree-text-color: var(--color-text-primary);
-  --tree-background-color: var(--color-background-content);
-  --tree-hover-color: var(--color-interactive-hover);
+  --tree-text-color: var(--color-base-content);
+  --tree-background-color: var(--color-base-100);
+  --tree-hover-color: var(--color-base-200);
 
-  --tree-selected-background: var(--color-interactive-elevated);
-  --tree-selected-color: var(--color-text-primary);
+  --tree-selected-background: var(--color-primary);
+  --tree-selected-color: var(--color-primary-content);
 
-  --tree-focus-outline: 1px solid var(--color-interactive-focus);
+  --tree-focus-outline: 1px solid var(--color-primary);
   --tree-focus-outline-offset: -2px;
 
-  --tree-selected-focused-background: var(--color-background-selected);
-  --tree-selected-focused-color: #FFFFFFFF;
+  --tree-selected-focused-background: var(--color-primary);
+  --tree-selected-focused-color: var(--color-primary-content);
 
-  --tree-input-background: var(--color-background-window);
-  --tree-input-border: 1px solid var(--color-interactive-focus);
+  --tree-input-background: transparent;
+  --tree-input-border: 1px solid var(--color-primary);
 
-  --tree-badge-background: var(--color-interactive-control);
-  --tree-badge-color: var(--color-text-primary);
+  --tree-badge-background: var(--color-base-100);
+  --tree-badge-color: var(--color-base-content);
+  --tree-badge-height: 20px;
+  --tree-badge-border-radius: var(--radius-selector);
 
   --tree-drop-border-color: transparent;
-  --tree-drop-background: var(--color-interactive-elevated);
+  --tree-drop-background: var(--color-base-300);
 }
 
 </style>

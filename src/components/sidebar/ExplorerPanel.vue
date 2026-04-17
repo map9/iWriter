@@ -2,10 +2,10 @@
   <div class="h-full flex flex-col">
     
     <!-- Explorer Header -->
-    <div class="sidebar-header h-9 flex-shrink-0 select-none">
+    <div class="iw-sidebar-section">
       <div class="flex items-center gap-2">
-        <span class="text-xs font-medium text-text-primary uppercase tracking-wide">
-          EXPLORER
+        <span class="iw-sidebar-section-header">
+          Explorer
         </span>
       </div>
       
@@ -13,31 +13,31 @@
       <div class="flex items-center gap-1">
         <button
           @click="appStore.openFolder"
-          class="toolbar-button"
+          class="iw-toolbar-btn btn-xs"
           title="Open Folder"
         >
-          <IconFolderOpen class="icon-sm" />
+          <IconFolderOpen class="icon-xs" />
         </button>
         <button
-          class="toolbar-button"
+          class="iw-toolbar-btn btn-xs"
           title="More actions"
         >
-          <IconDots class="icon-sm" />
+          <IconDots class="icon-xs" />
         </button>
       </div>
     </div>
 
     <!-- Search Files -->
-    <div class="flex items-center h-9 px-3 border-b border-border-separator select-none flex-shrink-0">
-      <div class="relative w-full bg-background-content">
-        <IconSearch class="icon-sm absolute left-2 top-1/2 transform -translate-y-1/2 text-text-secondary" />
-        <input
+    <div class="flex shrink-0 items-center border-b border-base-300 bg-base-200 p-2 select-none">
+      <label class="iw-input">
+        <IconSearch class="icon-xs text-base-content" />
+        <input 
           v-model="searchQuery"
-          type="text"
+          type="search"
+          class="grow"
           placeholder="Search Files"
-          class="w-full pl-7 pr-3 h-6 text-sm bg-transparent border border-border-separator focus:outline-none focus:ring-1 focus:ring-interactive-focus focus:border-transparent"
         />
-      </div>
+      </label>
     </div>
     
     <!-- Root Header with Controls -->
@@ -47,55 +47,55 @@
     >
       <div 
         v-if="hasRootFolder"
-        class="flex items-center justify-between h-9 p-1 select-none flex-shrink-0"
+        class="flex items-center justify-between h-9 px-2 py-1 select-none shrink-0"
       >
-        <div class="flex items-center ml-2">
+        <div class="flex items-center gap-1">
           <!-- Root Folder Icon and Name -->
-          <IconFolder class="icon-sm mr-2" />
-          <span class="text-sm font-medium text-text-primary">{{ folderName }}</span>
+          <IconFolder class="icon-sm" />
+          <span class="text-sm font-medium text-base-content">{{ folderName }}</span>
         </div>
         
         <!-- Action Buttons -->
         <div 
-          class="flex items-center gap-1 mr-2 transition-opacity duration-200"
+          class="flex items-center gap-1 pl-1 transition-opacity duration-200"
           :class="isTreeHovered ? 'opacity-100' : 'opacity-0'"
         >
           <!-- Create File -->
           <button
             @click="createFile"
-            class="toolbar-button p-1"
+            class="iw-toolbar-btn btn-xs"
             title="Create File"
           >
-            <IconFilePlus class="icon-sm" />
+            <IconFilePlus class="icon-xs" />
           </button>
           
           <!-- Create Folder -->
           <button
             @click="createFolder"
-            class="toolbar-button p-1"
+            class="iw-toolbar-btn btn-xs"
             title="Create Folder"
           >
-            <IconFolderPlus class="icon-sm" />
+            <IconFolderPlus class="icon-xs" />
           </button>
           
           <!-- Sort Menu -->
           <button
             @click="showSortContextMenu"
-            class="flex items-center toolbar-button p-1 gap-1 px-1 py-1"
+            class="iw-toolbar-btn btn-xs w-auto gap-1 px-1"
             title="Sort"
           >
-            <IconArrowsSort class="icon-sm" />
-            <IconChevronDown class="icon-xs" />
+            <IconArrowsSort class="icon-xs" />
+            <IconChevronDown class="icon-2xs" />
           </button>
           
           <!-- Expand/Collapse All -->
           <button
             @click="collapseAll"
-            class="toolbar-button p-1"
+            class="iw-toolbar-btn btn-xs"
             title="Collapse All"
             :disabled="!hasRootFolder"
           >
-            <IconFoldUp class="icon-sm" />
+            <IconFoldUp class="icon-xs" />
           </button>
         </div>
       </div>
@@ -107,7 +107,7 @@
         class="file-tree"
         :callbacks="fileCallbacks"
         drop-mode="inside-only"
-        :initialDepth="1"
+        :initialDepth="0"
         @node-click="handleNodeClick"
         @node-contextmenu="handleNodeContextMenu"
         @contextmenu="handleContextMenu"
@@ -644,27 +644,30 @@ onUnmounted(() => {
 .file-tree {
   --tree-font-size: 12px;
   --tree-font-weight: 500;
-  --tree-text-color: var(--color-text-primary);
-  --tree-background-color: var(--color-background-content);
-  --tree-hover-color: var(--color-interactive-hover);
+  --tree-text-color: var(--color-base-content);
+  --tree-background-color: var(--color-base-100);
+  --tree-hover-color: var(--color-base-200);
 
-  --tree-selected-background: var(--color-interactive-elevated);
-  --tree-selected-color: var(--color-text-primary);
+  --tree-selected-background: var(--color-primary);
+  --tree-selected-color: var(--color-primary-content);
 
-  --tree-focus-outline: 1px solid var(--color-interactive-focus);
+  --tree-focus-outline: 1px solid var(--color-primary);
   --tree-focus-outline-offset: -2px;
 
-  --tree-selected-focused-background: var(--color-background-selected);
-  --tree-selected-focused-color: #FFFFFFFF;
+  --tree-selected-focused-background: var(--color-primary);
+  --tree-selected-focused-color: var(--color-primary-content);
 
-  --tree-input-background: var(--color-background-window);
-  --tree-input-border: 1px solid var(--color-interactive-focus);
+  --tree-input-background: transparent;
+  --tree-input-border: 1px solid var(--color-primary);
 
-  --tree-badge-background: var(--color-interactive-control);
-  --tree-badge-color: var(--color-text-primary);
+  --tree-badge-background: var(--color-base-100);
+  --tree-badge-color: var(--color-base-content);
+  --tree-badge-font-size: 10px;
+  --tree-badge-height: 20px;
+  --tree-badge-border-radius: var(--radius-selector);
 
   --tree-drop-border-color: transparent;
-  --tree-drop-background: var(--color-interactive-elevated);
+  --tree-drop-background: var(--color-base-300);
 }
 
 </style>

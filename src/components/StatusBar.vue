@@ -1,18 +1,18 @@
 <template>
-  <div class="statusbar">
+  <div class="iw-statusbar">
     <!-- Notification Overlay -->
     <NotificationOverlay
       :state="notificationState"
       @close="hideNotification"
     />
     <!-- StatusBar fixed at the bottom -->
-    <StatusBar @command="handleStatusBarCommand" class="flex-shrink-0" />
+    <StatusBar @command="handleStatusBarCommand" class="shrink-0" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import type { IBasicStatusBarItem, StatusBarItem } from '@/components/common/statusbar'
+import type { IBasicStatusBarItem } from '@/components/common/statusbar'
 import { StatusBar, tooltipManager } from '@/components/common/statusbar'
 import { useNotification, NotificationOverlay } from '@/components/common/statusbar'
 import { createFileStatsStatusBarGroup } from './statusbar-items/file-stats'
@@ -25,16 +25,19 @@ const appStore = useAppStore()
 
 const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args?: unknown[]) => {
   switch(command) {
-    case 'checkForUpdates':
+    case 'checkForUpdates': {
       const type = updaterService.status.value.type
-      if (type === 'downloaded') {
-        // 可以安装更新
-        updaterService.installUpdate().catch(console.error)
+      // 有进行中的更新流程 → 重新打开 Dialog 查看
+      if (updaterService.hasPendingUpdate) {
+        updaterService.openDialog()
       } else if (type === 'error') {
-        // 显示错误详情或重试
+        updaterService.checkForUpdates().catch(console.error)
+      } else if (type === 'idle') {
+        // 手动触发检查
         updaterService.checkForUpdates().catch(console.error)
       }
       break
+    }
     case 'toggleReadonlyMode':
       void appStore.toggleReadonlyMode()
       break

@@ -19,13 +19,13 @@
       @mouseenter="clearCleanModeChromeTimer"
       @mouseleave="scheduleCleanModeChromeHide(500)"
     >
-      <div class="no-drag flex items-center gap-3 rounded-full border border-border-separator bg-background-window/92 px-3 py-1.5 shadow-lg backdrop-blur-md">
-        <div class="max-w-80 truncate text-sm text-text-secondary">
+      <div class="no-drag flex items-center gap-3 rounded-full border border-base-300 bg-base-100/95 px-3 py-1.5 shadow-sm backdrop-blur-md">
+        <div class="max-w-80 truncate text-sm text-base-content/65">
           {{ activeDocumentTitle }}
         </div>
-        <div class="h-4 w-px bg-border-separator" />
+        <div class="h-4 w-px bg-base-300" />
         <button
-          class="toolbar-button text-sm"
+          class="btn btn-ghost btn-sm rounded-full px-3 normal-case"
           @click="appStore.setCleanMode(false)"
         >
           Exit Clean Mode
@@ -34,19 +34,19 @@
     </div>
   </transition>
 
-  <!-- Workzone Wrapper -->
-  <div class="mainview">
+  <!-- MainView Wrapper -->
+  <div class="flex flex-1 flex-row overflow-hidden bg-base-100">
   
     <!-- Left Sidebar -->
     <LeftSidebar v-if="appStore.isLeftSidebarVisible && !appStore.isCleanMode" />
     
-    <!-- Workzone -->
-    <div class="workzone0">
+    <!-- Workzone Wrapper 0 -->
+    <div class="flex flex-1 flex-col overflow-hidden">
       <!-- Title Bar -->
       <TitleBar v-if="!appStore.isCleanMode" />
 
-      <!-- Document Workarea -->
-      <div class="workzone1">
+      <!-- Workzone Wrapper 1 -->
+      <div class="flex flex-1 flex-row overflow-hidden">
 
         <!-- Document Page -->
         <div class="document-page-wrapper">
@@ -82,22 +82,9 @@
             />
             
             <!-- Fallback for unknown types -->
-            <div v-else class="flex-1 flex items-center justify-center">
-              <div class="text-center">
-                <IconAlertTriangle class="w-16 h-16 mx-auto mb-4 text-status-warning" />
-                <div class="text-xl mb-2 text-text-secondary">不支持的文件类型</div>
-                <div class="text-base mx-auto max-w-xl mb-2 text-text-tertiary">The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.</div>
-                <div class="flex gap-3 justify-center">
-                  <button 
-                    @click="openWithShell(tab.path)"
-                    class="button button-primary w-44 mb-4 h-9"
-                  >
-                    <IconFolderOpen class="icon-base" />
-                    <span>Open Anyway</span>
-                  </button>
-                </div>
-              </div>
-            </div>
+            <UnknownPage v-else
+              :tab="tab"
+            />
           </div>
         </div>
         
@@ -112,9 +99,9 @@
   
   <!-- Update Dialog -->
   <UpdateDialog
-    v-if="updateDialogData"
-    :updateInfo="updateDialogData"
-    :visible="showUpdateDialog"
+    v-if="updaterService.updateInfo.value"
+    :updateInfo="updaterService.updateInfo.value"
+    :visible="updaterService.dialogVisible.value"
     @update="handleUpdateConfirm"
     @later="handleUpdateLater"
     @skip="handleUpdateSkip"
@@ -124,9 +111,9 @@
 
   <!-- Preferences Dialog -->
   <PreferencesDialog
-    :visible="showPreferencesDialog"
-    :initialTab="preferencesInitialTab"
-    @close="showPreferencesDialog = false"
+    :visible="appStore.showPreferencesDialog"
+    :initialTab="appStore.preferencesInitialTab"
+    @close="appStore.closePreferences()"
   />
 </template>
 
@@ -135,7 +122,6 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useAiStore } from '@/ai/store/ai'
 import { DocumentType } from '@/types'
-import type { UpdateInfo } from '@/updater/types'
 import type { SnapshotRequestEvent } from '@/ai/ipc'
 import { notify } from '@/utils/notifications'
 import updaterService from '@/updater/UpdaterService'
@@ -146,14 +132,12 @@ import RightSidebar from '@/components/RightSidebar.vue'
 import StatusBar from '@/components/StatusBar.vue'
 import WelcomePage from '@/components/pages/WelcomePage.vue'
 import MarkdownEditorPage from '@/components/pages/MarkdownEditorPage.vue'
+import '@/components/pages/markdown-editor/style.scss'
 import ImageViewerPage from '@/components/pages/ImageViewerPage.vue'
 import PDFViewerPage from '@/components/pages/PDFViewerPage.vue'
+import UnknownPage from '@/components/pages/UnknownPage.vue'
 import UpdateDialog from '@/components/updater/UpdateDialog.vue'
 import PreferencesDialog from '@/components/preferences/PreferencesDialog.vue'
-import { 
-  IconAlertTriangle,
-  IconFolderOpen, 
-} from '@tabler/icons-vue'
 
 const appStore = useAppStore()
 const aiStore = useAiStore()
@@ -163,13 +147,9 @@ const markdownEditorRefs = ref<InstanceType<typeof MarkdownEditorPage>[]>([])
 const imageViewerRefs = ref<InstanceType<typeof ImageViewerPage>[]>([])
 const pdfViewerRefs = ref<InstanceType<typeof PDFViewerPage>[]>([])
 
-// Update dialog state
-const showUpdateDialog = ref(false)
-const updateDialogData = ref<UpdateInfo | null>(null)
+// Update dialog：可见性与数据都集中在 updaterService 中，此处只保留句柄
+// （模板直接读 updaterService.dialogVisible / updaterService.updateInfo）
 
-// Preferences dialog state
-const showPreferencesDialog = ref(false)
-const preferencesInitialTab = ref<'editor' | 'spelling' | 'themes' | 'ai' | 'updates'>('editor')
 const showCleanModeChrome = ref(false)
 let cleanModeChromeTimer: ReturnType<typeof setTimeout> | null = null
 const handleWindowEscape = (event: KeyboardEvent) => {
@@ -227,44 +207,56 @@ function getActivePageRef() {
   }
 }
 
-async function openWithShell(filePath: string | undefined) {
-  if (!filePath) return
-  
-  try {
-    await window.electronAPI.openWithShell(filePath)
-  } catch (error) {
-    notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件操作')
+// Update dialog methods
+function handleUpdateConfirm() {
+  const statusType = updaterService.status.value.type
+
+  if (statusType === 'downloaded') {
+    updaterService.closeDialog()
+    updaterService.installUpdate().catch(error => {
+      console.error('Failed to install update:', error)
+      notify.error('更新安装失败', '请稍后重试')
+    })
+    return
+  }
+
+  if (statusType === 'available') {
+    updaterService.downloadUpdate().catch(error => {
+      console.error('Failed to download update:', error)
+      notify.error('更新下载失败', '请稍后重试')
+    })
   }
 }
 
-// Update dialog methods
-function handleUpdateConfirm() {
-  showUpdateDialog.value = false
-  updaterService.installUpdate().catch(error => {
-    console.error('Failed to install update:', error)
-    notify.error('更新安装失败', '请稍后重试')
-  })
-}
-
 function handleUpdateLater() {
-  showUpdateDialog.value = false
-  updateDialogData.value = null
+  updaterService.closeDialog()
 }
 
 function handleUpdateSkip() {
-  showUpdateDialog.value = false
-  updateDialogData.value = null
-  // TODO: Save skipped version to avoid showing again
+  const version = updaterService.updateInfo.value?.version
+  if (version) {
+    updaterService.updateConfig({ skipVersion: version }).catch(error => {
+      console.error('Failed to save skipped version:', error)
+      notify.error('跳过版本保存失败', '请稍后重试')
+    })
+  }
+  updaterService.closeDialog()
+  updaterService.status.value = { type: 'idle', message: '' }
+  updaterService.updateInfo.value = null
+  updaterService.isUpdateAvailable.value = false
+  updaterService.downloadProgress.value = 0
+  updaterService.downloadDetails.value = null
 }
 
 function handleUpdateDialogClose() {
-  showUpdateDialog.value = false
-  updateDialogData.value = null
+  updaterService.closeDialog()
+  // 关闭 Dialog 不清除 updateInfo —— 下载后台继续，可通过 StatusBar 点击重开
 }
 
 function handleViewUpdateDetails() {
-  if (updateDialogData.value) {
-    updaterService.openReleaseNotes(updateDialogData.value.version)
+  const info = updaterService.updateInfo.value
+  if (info) {
+    updaterService.openReleaseNotes(info.version)
   }
 }
 
@@ -310,11 +302,10 @@ onMounted(() => {
     })
   })
 
-  // 监听更新可用状态
+  // 监听更新可用状态 —— 首次 available 时自动弹窗（与现有行为一致）
   watch(() => updaterService.isUpdateAvailable.value, (isAvailable) => {
     if (isAvailable && updaterService.updateInfo.value) {
-      updateDialogData.value = updaterService.updateInfo.value
-      showUpdateDialog.value = true
+      updaterService.openDialog()
     }
   })
 })
@@ -342,24 +333,19 @@ defineExpose({
     // Preferences actions — intercepted before page delegation
     switch (action) {
       case 'preferences':
-        preferencesInitialTab.value = 'editor'
-        showPreferencesDialog.value = true
+        appStore.openPreferences('editor')
         return true
       case 'preferences-text-replacement':
-        preferencesInitialTab.value = 'editor'
-        showPreferencesDialog.value = true
+        appStore.openPreferences('editor')
         return true
       case 'preferences-spelling-grammar':
-        preferencesInitialTab.value = 'spelling'
-        showPreferencesDialog.value = true
+        appStore.openPreferences('spelling')
         return true
       case 'view-theme-settings':
-        preferencesInitialTab.value = 'themes'
-        showPreferencesDialog.value = true
+        appStore.openPreferences('themes')
         return true
       case 'auto-update-settings':
-        preferencesInitialTab.value = 'updates'
-        showPreferencesDialog.value = true
+        appStore.openPreferences('updates')
         return true
     }
     // Delegate to active page

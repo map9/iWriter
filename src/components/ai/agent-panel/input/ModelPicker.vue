@@ -2,57 +2,57 @@
   <div
     v-if="showModelPicker"
     ref="triggerEl"
-    class="relative flex-shrink-0"
+    class="relative shrink-0"
   >
     <button
       @click="onToggle"
-      class="flex items-center gap-1 px-2 py-1 rounded text-xs text-text-secondary hover:bg-interactive-hover transition-colors max-w-25"
-      title="切换模型"
+      class="flex items-center gap-1 px-2 py-1 rounded-field text-xs text-base-content hover:bg-base-300 transition-colors max-w-25"
+      title="Switch Model"
     >
-      <span class="truncate">{{ currentModelId || '选择模型' }}</span>
-      <IconChevronDown class="w-3 h-3 flex-shrink-0 text-text-tertiary" />
+      <span class="truncate">{{ currentModelId || 'Choose Model' }}</span>
+      <IconChevronDown class="icon-2xs shrink-0 text-base-content" />
     </button>
 
     <Teleport to="body">
       <div
         v-if="isOpen"
         ref="menuEl"
-        class="fixed w-56 bg-background-content border border-border-separator rounded-lg shadow-lg z-[1200]"
+        class="fixed w-56 bg-base-100 border border-base-300 rounded-field shadow-sm z-1200 py-1.5 px-1.5"
         :style="menuStyle"
       >
-        <div v-if="allModelItems.length > 10" class="px-2 pt-2 pb-1">
+        <div v-if="allModelItems.length > 10">
           <input
             v-model="modelSearch"
             ref="modelSearchEl"
             placeholder="Find model..."
-            class="w-full px-2 py-1 text-xs border border-border-separator rounded focus:outline-none focus:ring-1 focus:ring-accent-primary bg-background-content text-text-primary"
+            class="w-full px-2 py-1 text-xs border border-base-300 rounded-field focus:outline-none focus:border-primary bg-base-100 text-base-content"
           />
         </div>
 
         <div class="max-h-56 overflow-y-auto py-1">
-          <div v-if="isLoadingOllamaModels" class="px-3 py-2 text-xs text-text-tertiary text-center">
-            <span class="inline-block w-3 h-3 border border-border-separator border-t-accent-primary rounded-full animate-spin mr-1" />
-            加载中…
+          <div v-if="isLoadingOllamaModels" class="px-3 py-2 text-xs text-base-content text-center">
+            <span class="inline-block icon-2xs border border-base-300 border-t-primary rounded-full animate-spin mr-1" />
+            Loading models...
           </div>
 
-          <button
+        <button
             v-for="m in filteredModelItems"
             :key="m.id"
             @click="doSelect(m.id)"
-            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text-primary hover:bg-interactive-hover text-left"
+            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300 text-left"
           >
-            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              :class="m.id === currentModelId ? 'bg-accent-primary' : 'bg-transparent'"
+            <span class="icon-dot shrink-0"
+              :class="m.id === currentModelId ? 'bg-primary' : 'bg-transparent'"
             />
             <span class="truncate flex-1"
-              :class="m.id === currentModelId ? 'font-semibold text-text-primary' : ''"
+              :class="m.id === currentModelId ? 'font-semibold text-base-content' : ''"
             >{{ m.id }}</span>
-            <IconCloud v-if="m.status === 'cloud'" class="w-3 h-3 flex-shrink-0 text-blue-400" title="云端模型" />
-            <IconDownload v-else-if="m.status === 'remote'" class="w-3 h-3 flex-shrink-0 text-text-tertiary" title="未下载" />
+            <IconCloud v-if="m.status === 'cloud'" class="icon-2xs shrink-0 text-neutral-content" title="Cloud Model" />
+            <IconDownload v-else-if="m.status === 'remote'" class="icon-2xs shrink-0 text-base-content" title="Remote Model" />
           </button>
 
-          <div v-if="!isLoadingOllamaModels && !filteredModelItems.length" class="px-3 py-2 text-xs text-text-tertiary text-center">
-            暂无可用模型
+          <div v-if="!isLoadingOllamaModels && !filteredModelItems.length" class="px-3 py-2 text-xs text-base-content text-center">
+            No models found
           </div>
         </div>
       </div>

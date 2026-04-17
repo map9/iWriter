@@ -159,13 +159,6 @@ export const useAiStore = defineStore('ai', () => {
     return presetModels.length ? presetModels : [config.defaultModelId].filter(Boolean)
   })
 
-  /** Think modes for the current LLM provider */
-  const availableThinkModes = computed<string[]>(() => {
-    const config = effectiveProviderConfig.value
-    if (!config) return []
-    return config.thinkModes ?? []
-  })
-
   function saveSettings() {
     _saveSettingsToStorage(settings.value)
     // Keep main-process AgentEngine in sync whenever settings change
@@ -1600,7 +1593,6 @@ export const useAiStore = defineStore('ai', () => {
     activeProviderConfig,
     effectiveProviderConfig,
     availableModels,
-    availableThinkModes,
     addProviderConfig,
     updateProviderConfig,
     removeProviderConfig,

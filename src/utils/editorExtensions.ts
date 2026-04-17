@@ -1,6 +1,6 @@
 /**
  * TipTap Editor Extensions 统一配置
- * 用于 MarkdownEditor 和 TipTapSearchService
+ * 用于 MarkdownEditor 和 iwSearchReplaceInFilesService
  */
 
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
@@ -53,7 +53,7 @@ import { nanoid } from 'nanoid'
 import { iwTypography, iwPopupTools, iwLinkPopupTool, iwMathPopupTool } from '@/components/common/tiptap'
 import { iwProofreadExtension } from '@/components/common/tiptap/iw-proofread'
 import { iwSearchReplaceExtension } from '@/components/common/tiptap/iw-search-replace'
-import { IwBlockHighlightExtension } from '@/ai/edit-agent/iwBlockHighlightExtension'
+import { iwRangeHighlightExtension } from '@/components/common/tiptap/iw-range-highlight'
 
 // Custom node views (仅用于 MarkdownEditor，搜索服务不需要)
 import { iwTableView, iwImageView, iwCodeBlockView, iwMathBlockView } from '@/components/common/tiptap'
@@ -379,12 +379,7 @@ export function createMarkdownEditorExtensions(options: {
     }),
 
     // 搜索替换扩展
-    iwSearchReplaceExtension.configure({
-      maxMatches: 500,
-      debounceTime: 300,
-      currentMatchClass: 'search-result-current',
-      otherMatchClass: 'search-result'
-    }),
+    iwSearchReplaceExtension,
 
     // Block ID — stable IDs for AI agentic editing
     UniqueID.configure({
@@ -393,7 +388,7 @@ export function createMarkdownEditorExtensions(options: {
       generateID: () => nanoid(8),
     }),
 
-    // AI proposal block highlight (Decoration.node, no cursor change)
-    IwBlockHighlightExtension,
+    // Shared overlay range highlights for AI proposal review and search-in-selection
+    iwRangeHighlightExtension,
   ]
 }

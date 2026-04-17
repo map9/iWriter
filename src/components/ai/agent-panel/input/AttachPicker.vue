@@ -1,24 +1,24 @@
 <template>
-  <div ref="triggerEl" class="relative flex-shrink-0">
+  <div ref="triggerEl" class="relative shrink-0">
     <button
       @click="showMenu = !showMenu"
-      class="p-1.5 rounded hover:bg-interactive-hover transition-colors text-text-secondary"
-      title="添加文件 / 文件夹"
+      class="iw-toolbar-btn btn-xs"
+      title="Add Files / Folders"
     >
-      <IconPlus class="w-4 h-4" />
+      <IconPlus class="icon-xs" />
     </button>
     <Teleport to="body">
       <div
         v-if="showMenu"
         ref="menuEl"
-        class="fixed w-40 bg-background-content border border-border-separator rounded-lg shadow-lg z-[1200] py-1"
+        class="fixed w-40 bg-base-100 border border-base-300 rounded-field shadow-sm z-1200 py-1.5 px-1.5"
         :style="menuStyle"
       >
-        <button @click="emit('browse-files'); showMenu = false" class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text-primary hover:bg-interactive-hover">
-          <IconFile class="w-3.5 h-3.5 text-text-tertiary flex-shrink-0" />浏览文件…
+        <button @click="emit('browse-files'); showMenu = false" class="w-full flex items-center gap-2 px-1.5 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300">
+          <IconFile class="icon-xs shrink-0" />Browse Files...
         </button>
-        <button @click="emit('browse-folder'); showMenu = false" class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text-primary hover:bg-interactive-hover">
-          <IconFolder class="w-3.5 h-3.5 text-text-tertiary flex-shrink-0" />浏览文件夹…
+        <button @click="emit('browse-folder'); showMenu = false" class="w-full flex items-center gap-2 px-1.5 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300">
+          <IconFolder class="icon-xs shrink-0" />Browse Folders...
         </button>
       </div>
     </Teleport>

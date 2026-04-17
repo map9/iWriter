@@ -1,36 +1,38 @@
 <template>
   <div class="document-viewer-wrapper markdown-editor-page">
     <!-- Editor Toolbar -->
-    <fieldset v-if="!appStore.isCleanMode" class="toolbar" :disabled="isReadonly">
+    <fieldset v-if="!appStore.isCleanMode" class="iw-toolbar" :disabled="isReadonly">
       <!-- Undo/Redo Group -->
-      <div class="toolbar-group">
+      <div class="join">
         <button
           @click="editor?.chain().focus().undo().run()"
           :disabled="!editor?.can().undo()"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="iw-toolbar-btn btn-sm join-item"
           title="Undo (⌘Z)"
         >
-          <IconArrowBackUp class = "w-5 h-5" />
+          <IconArrowBackUp class = "icon-sm" />
         </button>
         <button
           @click="editor?.chain().focus().redo().run()"
           :disabled="!editor?.can().redo()"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="iw-toolbar-btn btn-sm join-item"
           title="Redo (⌘⇧Z)"
         >
-          <IconArrowForwardUp class="w-5 h-5" />
+          <IconArrowForwardUp class="icon-sm" />
         </button>
       </div>
       
-      <div class="toolbar-separator" />
-      
+      <div class="flex h-10 w-4 items-center justify-center">
+        <div class="h-1/2 w-px bg-base-300"></div>
+      </div>
+
       <!-- Heading Dropdown -->
-      <div class="toolbar-group">
+      <div class="iw-toolbar-group">
         <select
           v-model="currentHeading"
           @change="setHeading(editor, currentHeading)"
           :disabled="!editor"
-          class="px-3 text-sm border-none border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary-500 h-7 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="iw-select px-3"
         >
           <option value="1">Heading 1</option>
           <option value="2">Heading 2</option>
@@ -43,249 +45,255 @@
       </div>
           
       <!-- Text Formatting Group -->
-      <div class="toolbar-group">
+      <div class="iw-toolbar-group">
         <button
           @click="editor?.chain().focus().toggleBold().run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': editor?.isActive('bold') }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': editor?.isActive('bold') }"
+          class="iw-toolbar-btn btn-sm"
           title="Bold (⌘B)"
         >
-          <IconBold class="w-5 h-5" />
+          <IconBold class="icon-sm" />
         </button>
         <button
           @click="editor?.chain().focus().toggleItalic().run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': editor?.isActive('italic') }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': editor?.isActive('italic') }"
+          class="iw-toolbar-btn btn-sm"
           title="Italic (⌘I)"
         >
-          <IconItalic class="w-5 h-5" />
+          <IconItalic class="icon-sm" />
         </button>
         <button
           @click="editor?.chain().focus().toggleUnderline().run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': editor?.isActive('underline') }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': editor?.isActive('underline') }"
+          class="iw-toolbar-btn btn-sm"
           title="Underline (⌘U)"
         >
-          <IconUnderline class="w-5 h-5" />
+          <IconUnderline class="icon-sm" />
         </button>
         <button
           @click="editor?.chain().focus().toggleStrike().run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': editor?.isActive('strike') }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': editor?.isActive('strike') }"
+          class="iw-toolbar-btn btn-sm"
           title="Strikethrough (⌘⇧X)"
         >
-          <IconStrikethrough class="w-5 h-5" />
+          <IconStrikethrough class="icon-sm" />
         </button>
         <button
           @click="editor?.chain().focus().toggleHighlight().run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': editor?.isActive('highlight') }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': editor?.isActive('highlight') }"
+          class="iw-toolbar-btn btn-sm"
           title="Highlight"
         >
-          <IconHighlight class="w-5 h-5" />
+          <IconHighlight class="icon-sm" />
         </button>
         <button
           @click="toggleLink(editor)"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': editor?.isActive('link') }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': editor?.isActive('link') }"
+          class="iw-toolbar-btn btn-sm"
           title="Link"
         >
-          <IconLink class="w-5 h-5" />
+          <IconLink class="icon-sm" />
         </button>
         <button
           @click="editor?.chain().focus().toggleCode().run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': editor?.isActive('code') }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': editor?.isActive('code') }"
+          class="iw-toolbar-btn btn-sm"
           title="Inline Code"
         >
-          <IconCode class="w-5 h-5" />
+          <IconCode class="icon-sm" />
         </button>
         <button
           @click="toggleMath(editor)"
           :disabled="!editor"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="iw-toolbar-btn btn-sm"
           title="Inline Math"
         >
-          <IconMath class="w-5 h-5" />
+          <IconMath class="icon-sm" />
         </button>
       </div>
       
-      <div class="toolbar-separator" />
+      <div class="flex h-10 w-4 items-center justify-center">
+        <div class="h-1/2 w-px bg-base-300"></div>
+      </div>
       
       <!-- List Group -->
-      <div class="toolbar-group">
+      <div class="iw-toolbar-group">
         <button
           @click="editor?.chain().focus().toggleOrderedList().run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': editor?.isActive('orderedList') }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': editor?.isActive('orderedList') }"
+          class="iw-toolbar-btn btn-sm"
           title="Ordered List"
         >
-          <IconListNumbers class="w-5 h-5" />
+          <IconListNumbers class="icon-sm" />
         </button>
         <button
           @click="editor?.chain().focus().toggleBulletList().run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': editor?.isActive('bulletList') }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': editor?.isActive('bulletList') }"
+          class="iw-toolbar-btn btn-sm"
           title="Bullet List"
         >
-          <IconList class="w-5 h-5" />
+          <IconList class="icon-sm" />
         </button>
         <button
           @click="editor?.chain().focus().toggleTaskList().run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': editor?.isActive('taskList') }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': editor?.isActive('taskList') }"
+          class="iw-toolbar-btn btn-sm"
           title="Task List"
         >
-          <IconListCheck class="w-5 h-5" />
+          <IconListCheck class="icon-sm" />
         </button>
       </div>
       
-      <div class="toolbar-separator" />
-      
+      <div class="flex h-10 w-4 items-center justify-center">
+        <div class="h-1/2 w-px bg-base-300"></div>
+      </div>
+            
       <!-- Text Alignment Group -->
-      <div class="toolbar-group">
+      <div class="join">
         <button
           @click="editor?.chain().focus().setTextAlign('left').run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': 'left' === getCurrentAlignment(editor) }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': 'left' === getCurrentAlignment(editor) }"
+          class="iw-toolbar-btn btn-sm join-item"
           title="Align Left"
         >
-          <IconAlignLeft class="w-5 h-5" />
+          <IconAlignLeft class="icon-sm" />
         </button>
         <button
           @click="editor?.chain().focus().setTextAlign('center').run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': 'center' === getCurrentAlignment(editor) }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': 'center' === getCurrentAlignment(editor) }"
+          class="iw-toolbar-btn btn-sm join-item"
           title="Align Center"
         >
-          <IconAlignCenter class="w-5 h-5" />
+          <IconAlignCenter class="icon-sm" />
         </button>
         <button
           @click="editor?.chain().focus().setTextAlign('right').run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': 'right' === getCurrentAlignment(editor) }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': 'right' === getCurrentAlignment(editor) }"
+          class="iw-toolbar-btn btn-sm join-item"
           title="Align Right"
         >
-          <IconAlignRight class="w-5 h-5" />
+          <IconAlignRight class="icon-sm" />
         </button>
         <button
           @click="editor?.chain().focus().setTextAlign('justify').run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': 'justify' === getCurrentAlignment(editor) }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': 'justify' === getCurrentAlignment(editor) }"
+          class="iw-toolbar-btn btn-sm join-item"
           title="Align Justified"
         >
-          <IconAlignJustified class="w-5 h-5" />
+          <IconAlignJustified class="icon-sm" />
         </button>
       </div>
       
-      <div class="toolbar-separator" />
-      
+      <div class="flex h-10 w-4 items-center justify-center">
+        <div class="h-1/2 w-px bg-base-300"></div>
+      </div>
+            
       <!-- Insert Group -->
-      <div class="toolbar-group">
+      <div class="iw-toolbar-group">
         <button
           @click="insertTable(editor)"
           :disabled="!editor"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="iw-toolbar-btn btn-sm"
           title="Insert Table"
         >
-          <IconTable class="w-5 h-5" />
+          <IconTable class="icon-sm" />
         </button>
         <button
           @click="insertImage(editor)"
           :disabled="!editor"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="iw-toolbar-btn btn-sm"
           title="Insert Image"
         >
-          <IconPhoto class="w-5 h-5" />
+          <IconPhoto class="icon-sm" />
         </button>
         <button
           @click="insertAudio(editor)"
           :disabled="!editor"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="iw-toolbar-btn btn-sm"
           title="Insert Audio"
         >
-          <IconVolume class="w-5 h-5" />
+          <IconVolume class="icon-sm" />
         </button>
         <button
           @click="insertVideo(editor)"
           :disabled="!editor"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="iw-toolbar-btn btn-sm"
           title="Insert Video"
         >
-          <IconVideo class="w-5 h-5" />
+          <IconVideo class="icon-sm" />
         </button>
       </div>
       
-      <div class="toolbar-separator" />
-      
+      <div class="flex h-10 w-4 items-center justify-center">
+        <div class="h-1/2 w-px bg-base-300"></div>
+      </div>
+            
       <!-- Block Group -->
-      <div class="toolbar-group">
+      <div class="iw-toolbar-group">
         <button
           @click="editor?.chain().focus().toggleBlockquote().run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': editor?.isActive('blockquote') }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': editor?.isActive('blockquote') }"
+          class="iw-toolbar-btn btn-sm"
           title="Quote Block"
         >
-          <IconBlockquote class="w-5 h-5" />
+          <IconBlockquote class="icon-sm" />
         </button>
         <button
           @click="insertMathBlock(editor)"
           :disabled="!editor"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="iw-toolbar-btn btn-sm"
           title="Math Block"
         >
-          <IconFunction class="w-5 h-5" />
+          <IconFunction class="icon-sm" />
         </button>
         <button
           @click="editor?.chain().focus().toggleCodeBlock().run()"
           :disabled="!editor"
-          :class="{ 'bg-gray-200': editor?.isActive('codeBlock') }"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="{ 'bg-base-300': editor?.isActive('codeBlock') }"
+          class="iw-toolbar-btn btn-sm"
           title="Code Block"
         >
-          <IconSourceCode class="w-5 h-5" />
+          <IconSourceCode class="icon-sm" />
         </button>
       </div>
       
       <!-- Spacer -->
-      <div class="toolbar-spacer"></div>
+      <div class="iw-toolbar-spacer"></div>
       
       <!-- Clean Mode Button -->
-      <div class="toolbar-group">
+      <div class="iw-toolbar-group">
         <button
           @click="appStore.toggleCleanMode()"
           :disabled="!editor"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="iw-toolbar-btn btn-sm"
           title="Toggle Clean Mode"
         >
-          <IconMaximize class="w-5 h-5" />
+          <IconMaximize class="icon-sm" />
         </button>
       </div>
     </fieldset>
     
     <!-- TipTap Editor -->
     <div ref="editorScrollRef" class="editor-content-wrapper">
-        <!-- Selection Highlight Layer (外部高亮层) -->
-        <SelectionHighlightLayer
+        <!-- Shared Range Highlight Layer -->
+        <RangeHighlightLayer
           v-if="editor"
           :editor="editor"
-          :selection-range="editor.storage.iwSearchReplace.selectionRange"
-          :show="editor.storage.iwSearchReplace.searchInSelection"
         />
 
         <!-- Editor Content -->
@@ -314,7 +322,7 @@ import { migrateMathStrings } from '@tiptap/extension-mathematics'
 
 import SearchReplacePanel from '@/components/common/tiptap/iw-search-replace/components/SearchReplacePanel.vue'
 import { createMarkdownEditorExtensions } from '@/utils/editorExtensions'
-import SelectionHighlightLayer from '@/components/common/tiptap/iw-search-replace/components/SelectionHighlightLayer.vue'
+import { RangeHighlightLayer } from '@/components/common/tiptap/iw-range-highlight'
 
 import {
   IconArrowBackUp,
@@ -375,7 +383,7 @@ const props = defineProps<Props>()
 
 const appStore = useAppStore()
 const TYPEWRITER_ANCHOR_RATIO = 0.38
-const EDITOR_BASE_CLASS = 'flex-1 flex-shrink-0 p-[3rem] pb-[30vh] focus:outline-none'
+const EDITOR_BASE_CLASS = 'flex-1 shrink-0 p-[3rem] pb-[30vh] focus:outline-none'
 
 // Loading flag for this editor
 const isLoading = ref(false)
@@ -848,10 +856,14 @@ function toggleFirstLineIndent() {
   setFirstLineIndent( !props.tab.editState?.firstLineIndent )
 }
 
+function getCurrentEditorElement(): HTMLElement | null {
+  return editorScrollRef.value?.querySelector('.tiptap') as HTMLElement | null
+}
+
 function setFirstLineIndent(has: boolean) {
   const firstLineIndent: boolean = !!has
 
-  const editorElement = document.querySelector('.tiptap') as HTMLElement;
+  const editorElement = getCurrentEditorElement()
   if (editorElement) {
     if (firstLineIndent) {
       editorElement.classList.add('first-line-indent')

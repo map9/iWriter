@@ -1,35 +1,35 @@
 <template>
   <div class="h-full flex flex-col">
     <!-- Tag Header -->
-    <div class="sidebar-header h-9">
+    <div class="iw-sidebar-section">
       <div class="flex items-center gap-2">
-        <span class="text-xs font-medium text-gray-700 uppercase tracking-wide">
-          BY TAGS
+        <span class="iw-sidebar-section-header">
+          Tags
         </span>
       </div>
       
       <!-- Actions -->
       <div class="flex items-center gap-1">
         <button
-          class="p-1 rounded hover:bg-gray-200 transition-colors"
+          class="iw-toolbar-btn btn-xs"
           title="Refresh Tags"
         >
-          <IconRefresh class="w-5 h-5 text-gray-600" />
+          <IconRefresh class="icon-xs" />
         </button>
       </div>
     </div>
 
     <!-- Tag Search -->
-    <div class="px-3 border-b border-gray-200 h-12 flex items-center">
-      <div class="relative w-full">
-        <IconSearch class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-        <input
+    <div class="flex shrink-0 items-center border-b border-base-300 bg-base-200 p-2 select-none">
+      <label class="iw-input">
+        <IconSearch class="icon-xs text-base-content" />
+        <input 
           v-model="searchQuery"
           type="text"
+          class="grow"
           placeholder="Search Tags"
-          class="w-full pl-9 pr-3 h-9 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         />
-      </div>
+      </label>
     </div>
     
     <!-- Tag Tree -->
@@ -37,26 +37,26 @@
       <div
         v-for="tag in filteredTags"
         :key="tag.name"
-        class="border-b border-gray-100"
+        class="border-b border-base-300/70"
       >
         <!-- Tag Header -->
         <div
-          class="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+          class="flex cursor-pointer items-center px-3 py-2 hover:bg-base-200"
           @click="toggleTag(tag.name)"
         >
-          <button class="p-0.5 mr-2 rounded hover:bg-gray-200 transition-colors">
+          <button class="btn btn-ghost btn-xs mr-2 h-6 min-h-6 w-6 rounded-box p-0">
             <IconChevronDown
               v-if="expandedTags.has(tag.name)"
-              class="w-5 h-5 text-gray-500"
+              class="h-5 w-5 text-base-content/50"
             />
             <IconChevronRight
               v-else
-              class="w-5 h-5 text-gray-500"
+              class="h-5 w-5 text-base-content/50"
             />
           </button>
-          <IconTag class="w-5 h-5 mr-2 text-blue-500" />
+          <IconTag class="mr-2 h-5 w-5 text-primary" />
           <span class="flex-1 text-sm font-medium">{{ tag.name }}</span>
-          <span class="text-xs text-gray-400">{{ tag.files.length }}</span>
+          <span class="badge badge-ghost badge-sm">{{ tag.files.length }}</span>
         </div>
         
         <!-- Tagged Files -->
@@ -64,20 +64,20 @@
           <div
             v-for="file in tag.files"
             :key="file.path"
-            class="flex items-center px-3 py-1 hover:bg-gray-100 cursor-pointer text-sm"
+            class="flex cursor-pointer items-center px-3 py-1 text-sm hover:bg-base-200"
             @click="openFile(file.path)"
           >
-            <IconFileText class="w-5 h-5 mr-2 text-gray-500" />
+            <IconFileText class="mr-2 h-5 w-5 text-base-content/50" />
             <span class="flex-1 truncate">{{ file.name }}</span>
           </div>
         </div>
       </div>
       
       <!-- Empty State -->
-      <div v-if="tags.length === 0" class="p-4 text-center text-gray-500">
-        <IconTag :size="48" class="mx-auto mb-2 text-gray-400" />
+      <div v-if="tags.length === 0" class="p-4 text-center text-base-content/55">
+        <IconTag :size="48" class="mx-auto mb-2 text-base-content/35" />
         <p class="text-sm">No tagged files found</p>
-        <p class="text-xs text-gray-400 mt-1">
+        <p class="mt-1 text-xs text-base-content/40">
           Add tags to your markdown files using #tag syntax
         </p>
       </div>

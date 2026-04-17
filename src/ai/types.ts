@@ -42,21 +42,10 @@ export interface AiProviderConfig {
   models?: string[]
   /** Per-model profile overrides used when LangChain does not know the model family. */
   modelProfiles?: Record<string, AiModelProfile>
-  /** Think modes for LLM providers that support extended thinking, e.g. ['Normal', 'Think'] */
-  thinkModes?: string[]
   /** Last selected model ID for this provider (restored when switching back) */
   lastSelectedModelId?: string
   /** Last selected mode (think mode) for this provider */
   lastSelectedMode?: string
-}
-
-// Model information
-export interface AiModel {
-  id: string
-  label: string
-  contextWindow: number
-  supportsTools: boolean
-  supportsVision?: boolean
 }
 
 // ── Tool Call ──────────────────────────────────────────────────────────────
@@ -362,13 +351,9 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     get_section:          'read',
     get_blocks:           'read',
     get_block_context:    'read',
-    search_document_blocks: 'search',
-    search_document_sections: 'search',
-    search_workspace_documents: 'search',
-    search_in_document: 'search',
-    search_in_directory: 'search',
     search_blocks_in_document: 'search',
     search_sections_in_document: 'search',
+    search_in_directory: 'search',
     edit_block:           'edit',
     insert_block:         'edit',
     delete_block:         'delete',

@@ -3,30 +3,29 @@
   <button
     v-if="isPendingSend"
     @click="$emit('cancel-queued')"
-    class="p-1.5 rounded-md bg-status-warning/10 text-status-warning hover:bg-status-warning/20 transition-colors flex-shrink-0"
-    title="等待初始化完成后发送，点击取消"
+    class="btn btn-sm btn-square rounded-field btn-warning"
+    title="Message queued, waiting for agent initialization. Click to cancel."
   >
-    <span class="w-4 h-4 border-2 border-status-warning/40 border-t-status-warning rounded-full animate-spin inline-block" />
+    <span class="icon-xs border-2 border-warning/40 border-t-warning rounded-full animate-spin inline-block" />
   </button>
   <!-- Streaming: stop button -->
   <button
     v-else-if="isStreaming"
     @click="$emit('stop')"
-    class="p-1.5 rounded-md bg-status-error/10 text-status-error hover:bg-status-error/20 transition-colors flex-shrink-0"
-    title="停止"
+    class="btn btn-sm btn-square rounded-field btn-error"
+    title="Stopping the response..."
   >
-    <IconPlayerStop class="w-4 h-4" />
+    <IconPlayerStop class="icon-xs" />
   </button>
   <!-- Normal send -->
   <button
     v-else
     @click="$emit('send')"
     :disabled="!canSend"
-    class="p-1.5 rounded-md transition-colors flex-shrink-0"
-    :class="canSend ? 'bg-accent-primary text-white hover:bg-accent-primary/90 cursor-pointer' : 'bg-interactive-hover text-text-tertiary cursor-not-allowed'"
-    title="发送"
+    class="btn btn-sm btn-square rounded-field btn-primary"
+    title="Send Message"
   >
-    <IconSend class="w-4 h-4" />
+    <IconSend class="icon-xs" />
   </button>
 </template>
 

@@ -1,154 +1,155 @@
 <template>
   <div
     v-if="isOpen"
-    class="search-replace-panel"
-    :class="{ compact: isCompact, 'with-toolbar': !appStore.isCleanMode }"
+    class="absolute right-2 z-100 rounded-box shadow-sm flex flex-col bg-base-200 gap-1 p-2"
+    :class="{
+        compact: isCompact,
+        'top-2': appStore.isCleanMode,
+        'top-[calc(10*0.25rem+0.25rem)]': !appStore.isCleanMode
+      }"
   >
-    <!-- 第一行：搜索框 -->
-    <div class="search-row">
+    <div class="flex flex-row items-stretch">
       <!-- Toggle 按钮 -->
       <button
         @click="toggleReplaceMode"
-        class="toggle-btn"
+        class="iw-toolbar-btn w-4 h-auto"
         :title="mode === 'replace' ? 'Hide Replace' : 'Show Replace'"
       >
-        <IconChevronDown v-if="mode === 'replace'" class="w-4 h-4" />
-        <IconChevronRight v-else class="w-4 h-4" />
+        <IconChevronDown v-if="mode === 'replace'" class="icon-xs" />
+        <IconChevronRight v-else class="icon-xs" />
       </button>
 
-      <!-- 搜索输入框容器 -->
-      <div class="input-wrapper">
-        <textarea
-          ref="searchInputRef"
-          v-model="localSearchTerm"
-          rows="1"
-          placeholder="Find (↑↓ for history)"
-          class="search-input"
-          @keydown="handleSearchKeydown"
-          @input="autoResizeTextarea(searchInputRef)"
-        />
+      <div class="flex flex-1 flex-col gap-1 pl-1">
+        <!-- 第一行：搜索框 -->
+        <div class="flex items-start gap-1">
+          <!-- 搜索输入框容器 -->
+          <div class="flex relative min-w-0">
+            <textarea
+              ref="searchInputRef"
+              v-model="searchQuery"
+              rows="1"
+              placeholder="Find (↑↓ for history)"
+              class="w-65 min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 pr-22 pl-2 text-sm focus:border-primary rounded-field"
+              @keydown="handleSearchKeydown"
+              @input="autoResizeTextarea(searchInputRef)"
+            />
 
-        <!-- 选项按钮组（在输入框内部右侧） -->
-        <div class="input-options-group">
-          <button
-            @click="toggleCaseSensitive"
-            :class="{ active: options.caseSensitive }"
-            class="input-option-btn"
-            title="Match Case (Alt+C)"
-          >
-            Aa
-          </button>
-          <button
-            @click="toggleWholeWord"
-            :class="{ active: options.wholeWord }"
-            class="input-option-btn"
-            title="Match Whole Word (Alt+W)"
-          >
-            <IconLetterCase class="w-3.5 h-3.5" />
-          </button>
-          <button
-            @click="toggleRegex"
-            :class="{ active: options.regex }"
-            class="input-option-btn"
-            title="Use Regular Expression (Alt+R)"
-          >
-            .*
-          </button>
+            <!-- 选项按钮组（在输入框内部右侧） -->
+            <div class="flex absolute right-2 top-0.5 gap-0.5">
+              <button
+                @click="toggleCaseSensitive"
+                :class="{ 'iw-toolbar-btn-active': options.caseSensitive }"
+                class="iw-toolbar-btn btn-xs"
+                title="Match Case (Alt+C)"
+              >
+                <IconLetterCase class="icon-2xs" />
+              </button>
+              <button
+                @click="toggleWholeWord"
+                :class="{ 'iw-toolbar-btn-active': options.wholeWord }"
+                class="iw-toolbar-btn btn-xs"
+                title="Match Whole Word (Alt+W)"
+              >
+                <IconAbc class="icon-2xs" />
+              </button>
+              <button
+                @click="toggleRegex"
+                :class="{ 'iw-toolbar-btn-active': options.regex }"
+                class="iw-toolbar-btn btn-xs"
+                title="Use Regular Expression (Alt+R)"
+              >
+                <IconRegex class="icon-2xs" />
+              </button>
+            </div>
+          </div>
+          
+          <!-- Result Count 容器（输入框外部） -->
+          <div class="min-w-15 text-left shrink-0 text-xs text-base-content whitespace-nowrap mt-1.5">
+            <span v-if="totalMatches > 0">
+              {{ currentIndex + 1 }} of {{ totalMatches }}
+            </span>
+            <span v-else-if="totalMatches === 0" class="text-error">
+              No results
+            </span>
+          </div>
+
+          <!-- 导航按钮 -->
+          <div class="flex gap-1 shrink-0 mt-0.5">
+            <button
+              @click="findPrevious"
+              :disabled="totalMatches === 0"
+              class="iw-toolbar-btn btn-xs"
+              title="Previous Match (Shift+Enter)"
+            >
+              <IconArrowNarrowUp class="icon-xs" />
+            </button>
+            <button
+              @click="findNext"
+              :disabled="totalMatches === 0"
+              class="iw-toolbar-btn btn-xs"
+              title="Next Match (Enter)"
+            >
+              <IconArrowNarrowDown class="icon-xs" />
+            </button>
+            <!-- 选区按钮（有选区时显示） -->
+            <button
+              @click="toggleSearchInSelection"
+              :disabled="!hasSelection && !searchInSelection"
+              :class="{ 'btn-active btn-primary': searchInSelection }"
+              class="iw-toolbar-btn btn-xs"
+              title="Find in Selection (Alt+L)"
+            >
+              <IconAlignLeft class="icon-xs" />
+            </button>
+
+            <!-- 关闭按钮 -->
+            <button
+              @click="closePanel"
+              class="iw-toolbar-btn btn-xs"
+              title="Close (Escape)"
+            >
+              <IconX class="icon-xs" />
+            </button>
+          </div>
+        </div>
+
+        <!-- 第二行：替换框（仅在 replace 模式显示） -->
+        <div v-if="mode === 'replace'" class="flex flex-row items-start gap-1">
+          <!-- 替换输入框容器 -->
+          <div class="flex relative min-w-0 gap-1">
+            <textarea
+              ref="replaceInputRef"
+              v-model="replaceQuery"
+              rows="1"
+              placeholder="Replace (↑↓ for history)"
+              class="w-65 min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 px-2 text-sm focus:border-primary rounded-field"
+              @keydown="handleReplaceKeydown"
+              @input="autoResizeTextarea(replaceInputRef)"
+            />
+          </div>
+          <!-- 替换按钮组 -->
+          <div class="flex gap-1 shrink-0 mt-0.5">
+            <button
+              @click="replaceNext"
+              :disabled="totalMatches === 0"
+              class="iw-toolbar-btn btn-xs"
+              title="Replace (Enter)"
+            >
+              <IconReplace class="icon-xs" />
+            </button>
+            <button
+              @click="replaceAll"
+              :disabled="totalMatches === 0"
+              class="iw-toolbar-btn btn-xs"
+              title="Replace All"
+            >
+              <IconReplaceFilled class="icon-xs" />
+            </button>
+          </div>
         </div>
       </div>
-
-      <!-- Result Count 容器（输入框外部） -->
-      <div class="result-count-container">
-        <span v-if="matchCount > 0" class="result-count">
-          {{ currentIndex + 1 }} of {{ matchCount }}
-        </span>
-        <span v-else-if="localSearchTerm && matchCount === 0" class="result-count error">
-          No results
-        </span>
-      </div>
-
-      <!-- 导航按钮 -->
-      <div class="nav-group">
-        <button
-          @click="findPrevious"
-          :disabled="matchCount === 0"
-          class="nav-btn"
-          title="Previous Match (Shift+Enter)"
-        >
-          <IconArrowNarrowUp class="w-4 h-4" />
-        </button>
-        <button
-          @click="findNext"
-          :disabled="matchCount === 0"
-          class="nav-btn"
-          title="Next Match (Enter)"
-        >
-          <IconArrowNarrowDown class="w-4 h-4" />
-        </button>
-      </div>
-
-      <!-- 选区按钮（有选区时显示） -->
-      <button
-        v-if="hasSelection"
-        @click="toggleSearchInSelection"
-        :class="{ active: searchInSelection }"
-        class="selection-btn"
-        title="Find in Selection (Alt+L)"
-      >
-        <IconAlignLeft class="w-4 h-4" />
-      </button>
-
-      <!-- 关闭按钮 -->
-      <button
-        @click="closePanel"
-        class="close-btn"
-        title="Close (Escape)"
-      >
-        <IconX class="w-4 h-4" />
-      </button>
     </div>
 
-    <!-- 第二行：替换框（仅在 replace 模式显示） -->
-    <div v-if="mode === 'replace'" class="replace-row">
-      <!-- 占位对齐 -->
-      <div class="toggle-placeholder"></div>
-
-      <!-- 替换输入框 -->
-      <div class="input-wrapper">
-        <textarea
-          ref="replaceInputRef"
-          v-model="localReplaceTerm"
-          rows="1"
-          placeholder="Replace (↑↓ for history)"
-          class="replace-input"
-          @keydown="handleReplaceKeydown"
-          @input="autoResizeTextarea(replaceInputRef)"
-        />
-      </div>
-
-      <!-- 占位（对齐 Result Count 位置） -->
-      <div class="result-count-placeholder"></div>
-
-      <!-- 替换按钮组 -->
-      <div class="replace-actions">
-        <button
-          @click="replaceNext"
-          :disabled="matchCount === 0"
-          class="replace-btn"
-          title="Replace (Enter)"
-        >
-          <IconReplace class="w-4 h-4" />
-        </button>
-        <button
-          @click="replaceAll"
-          :disabled="matchCount === 0"
-          class="replace-btn"
-          title="Replace All (⌘+Enter)"
-        >
-          <IconReplaceFilled class="w-4 h-4" />
-        </button>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -157,6 +158,8 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import type { Editor } from '@tiptap/core'
 import { useAppStore } from '@/stores/app'
 import {
+  IconAbc,
+  IconRegex,
   IconArrowNarrowUp,
   IconChevronDown,
   IconArrowNarrowDown,
@@ -176,8 +179,8 @@ const props = defineProps<Props>()
 const appStore = useAppStore()
 
 // 本地状态（双向绑定）
-const localSearchTerm = ref('')
-const localReplaceTerm = ref('')
+const searchQuery = ref('')
+const replaceQuery = ref('')
 const searchInputRef = ref<HTMLTextAreaElement | null>(null)
 const replaceInputRef = ref<HTMLTextAreaElement | null>(null)
 const containerWidth = ref<number | null>(null)
@@ -186,7 +189,7 @@ const containerWidth = ref<number | null>(null)
 const isOpen = computed(() => props.editor.storage.iwSearchReplace.isOpen)
 const mode = computed(() => props.editor.storage.iwSearchReplace.mode)
 const options = computed(() => props.editor.storage.iwSearchReplace.options)
-const matchCount = computed(() => props.editor.storage.iwSearchReplace.matches.length)
+const totalMatches = computed(() => props.editor.storage.iwSearchReplace.matches.length)
 const currentIndex = computed(() => props.editor.storage.iwSearchReplace.currentMatchIndex)
 const searchInSelection = computed(() => props.editor.storage.iwSearchReplace.searchInSelection)
 const isCompact = computed(() => containerWidth.value !== null && containerWidth.value < 720)
@@ -198,12 +201,12 @@ const hasSelection = computed(() => {
 })
 
 // 监听本地搜索词变化，更新到 editor
-watch(localSearchTerm, (newValue) => {
+watch(searchQuery, (newValue) => {
   props.editor.commands.setSearchTerm(newValue)
 })
 
 // 监听本地替换词变化，更新到 editor
-watch(localReplaceTerm, (newValue) => {
+watch(replaceQuery, (newValue) => {
   props.editor.commands.setReplaceTerm(newValue)
 })
 
@@ -211,8 +214,8 @@ watch(localReplaceTerm, (newValue) => {
 watch(
   () => props.editor.storage.iwSearchReplace.searchTerm,
   (newValue) => {
-    if (newValue !== localSearchTerm.value) {
-      localSearchTerm.value = newValue
+    if (newValue !== searchQuery.value) {
+      searchQuery.value = newValue
     }
   }
 )
@@ -253,7 +256,7 @@ function replaceNext() {
 }
 
 function replaceAll() {
-  if (confirm(`Replace all ${matchCount.value} occurrences?`)) {
+  if (confirm(`Replace all ${totalMatches.value} occurrences?`)) {
     props.editor.commands.replaceAll()
   }
 }
@@ -282,7 +285,7 @@ function autoResizeTextarea(el: HTMLTextAreaElement | null) {
   el.style.height = el.scrollHeight + 'px'
 }
 
-function insertNewline(termRef: typeof localSearchTerm, inputRef: typeof searchInputRef) {
+function insertNewline(termRef: typeof searchQuery, inputRef: typeof searchInputRef) {
   const el = inputRef.value
   if (!el) return
   const start = el.selectionStart ?? termRef.value.length
@@ -315,7 +318,7 @@ function isOnLastLine(el: HTMLTextAreaElement): boolean {
 function navigateHistory(
   event: KeyboardEvent,
   direction: 'up' | 'down',
-  termRef: typeof localSearchTerm,
+  termRef: typeof searchQuery,
   inputRef: typeof searchInputRef,
   history: typeof searchHistory,
   historyIdx: typeof searchHistoryIndex
@@ -345,16 +348,16 @@ function handleSearchKeydown(event: KeyboardEvent) {
   if (event.key === 'Enter') {
     event.preventDefault()
     if (event.shiftKey || event.ctrlKey || event.metaKey) {
-      insertNewline(localSearchTerm, searchInputRef)
+      insertNewline(searchQuery, searchInputRef)
     } else {
-      addToHistory(searchHistory, localSearchTerm.value)
+      addToHistory(searchHistory, searchQuery.value)
       searchHistoryIndex.value = -1
       findNext()
     }
   } else if (event.key === 'ArrowUp') {
-    navigateHistory(event, 'up', localSearchTerm, searchInputRef, searchHistory, searchHistoryIndex)
+    navigateHistory(event, 'up', searchQuery, searchInputRef, searchHistory, searchHistoryIndex)
   } else if (event.key === 'ArrowDown') {
-    navigateHistory(event, 'down', localSearchTerm, searchInputRef, searchHistory, searchHistoryIndex)
+    navigateHistory(event, 'down', searchQuery, searchInputRef, searchHistory, searchHistoryIndex)
   } else if (event.key === 'Escape') {
     event.preventDefault()
     closePanel()
@@ -365,16 +368,16 @@ function handleReplaceKeydown(event: KeyboardEvent) {
   if (event.key === 'Enter') {
     event.preventDefault()
     if (event.shiftKey || event.ctrlKey || event.metaKey) {
-      insertNewline(localReplaceTerm, replaceInputRef)
+      insertNewline(replaceQuery, replaceInputRef)
     } else {
-      addToHistory(replaceHistory, localReplaceTerm.value)
+      addToHistory(replaceHistory, replaceQuery.value)
       replaceHistoryIndex.value = -1
       replaceNext()
     }
   } else if (event.key === 'ArrowUp') {
-    navigateHistory(event, 'up', localReplaceTerm, replaceInputRef, replaceHistory, replaceHistoryIndex)
+    navigateHistory(event, 'up', replaceQuery, replaceInputRef, replaceHistory, replaceHistoryIndex)
   } else if (event.key === 'ArrowDown') {
-    navigateHistory(event, 'down', localReplaceTerm, replaceInputRef, replaceHistory, replaceHistoryIndex)
+    navigateHistory(event, 'down', replaceQuery, replaceInputRef, replaceHistory, replaceHistoryIndex)
   } else if (event.key === 'Escape') {
     event.preventDefault()
     closePanel()
@@ -434,342 +437,3 @@ onUnmounted(() => {
   window.removeEventListener('resize', syncCompactMode)
 })
 </script>
-
-<style scoped>
-.search-replace-panel {
-  position: absolute;
-  top: 0.75rem;
-  right: 1rem;
-  z-index: 100;
-  background: var(--color-background-window);
-  border: 1px solid var(--color-border-separator);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 0.5rem;
-  box-sizing: border-box;
-  width: min(560px, calc(100% - 2rem));
-  max-width: calc(100% - 2rem);
-}
-
-.search-replace-panel.with-toolbar {
-  top: calc(2.25rem + 0.75rem);
-}
-
-/* ===== 第一行：搜索行 ===== */
-.search-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-}
-
-/* Toggle 按钮 */
-.toggle-btn {
-  width: 20px;
-  height: 28px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-radius: 3px;
-  cursor: pointer;
-  transition: all 0.2s;
-  padding: 0;
-}
-
-.toggle-btn:hover {
-  background: var(--color-interactive-hover);
-  color: var(--color-text-primary);
-}
-
-/* 输入框容器（包含输入框和内部选项按钮） */
-.input-wrapper {
-  position: relative;
-  flex: 1;
-  min-width: 180px;
-}
-
-/* 搜索输入框 */
-.search-input {
-  width: 100%;
-  min-height: 28px;
-  padding: 4px 90px 4px 8px;
-  font-size: 13px;
-  resize: none;
-  overflow: hidden;
-  line-height: 1.5;
-  border: 1px solid var(--color-border-separator);
-  border-radius: 4px;
-  background: var(--color-background-content);
-  color: var(--color-text-base);
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.search-input:focus {
-  border-color: var(--color-accent-primary);
-}
-
-/* 输入框内部的选项按钮组 */
-.input-options-group {
-  position: absolute;
-  right: 4px;
-  top: 4px;
-  display: flex;
-  gap: 2px;
-}
-
-.input-option-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-.input-option-btn:hover {
-  background: var(--color-interactive-hover);
-  color: var(--color-text-primary);
-}
-
-.input-option-btn.active {
-  background: var(--color-accent-primary);
-  color: white;
-}
-
-/* Result Count 容器（输入框外部） */
-.result-count-container {
-  min-width: 60px;
-  text-align: left;
-  flex-shrink: 0;
-}
-
-.result-count {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-}
-
-.result-count.error {
-  color: var(--color-status-error);
-}
-
-/* 导航按钮组 */
-.nav-group {
-  display: flex;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.nav-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.nav-btn:hover:not(:disabled) {
-  background: var(--color-interactive-hover);
-  color: var(--color-text-primary);
-}
-
-.nav-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* 选区按钮（仅在 replace 模式显示） */
-.selection-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-
-.selection-btn:hover {
-  background: var(--color-interactive-hover);
-  color: var(--color-text-primary);
-}
-
-.selection-btn.active {
-  background: var(--color-accent-primary);
-  color: white;
-}
-
-/* 关闭按钮 */
-.close-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-
-.close-btn:hover {
-  background: var(--color-interactive-hover);
-  color: var(--color-text-primary);
-}
-
-/* ===== 第二行：替换行 ===== */
-.replace-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--color-border-separator);
-}
-
-/* 占位对齐 Toggle 按钮 */
-.toggle-placeholder {
-  width: 20px;
-  flex-shrink: 0;
-}
-
-/* 替换输入框 */
-.replace-input {
-  width: 100%;
-  min-height: 28px;
-  padding: 4px 8px;
-  font-size: 13px;
-  resize: none;
-  overflow: hidden;
-  line-height: 1.5;
-  border: 1px solid var(--color-border-separator);
-  border-radius: 4px;
-  background: var(--color-background-content);
-  color: var(--color-text-base);
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.replace-input:focus {
-  border-color: var(--color-accent-primary);
-}
-
-/* 占位对齐 Result Count */
-.result-count-placeholder {
-  min-width: 60px;
-  flex-shrink: 0;
-}
-
-/* 替换按钮组 */
-.replace-actions {
-  display: flex;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.replace-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.replace-btn:hover:not(:disabled) {
-  background: var(--color-interactive-hover);
-  color: var(--color-text-primary);
-}
-
-.replace-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.search-replace-panel.compact .search-row,
-.search-replace-panel.compact .replace-row {
-  flex-wrap: wrap;
-}
-
-.search-replace-panel.compact .toggle-btn {
-  order: 1;
-}
-
-.search-replace-panel.compact .input-wrapper {
-  order: 2;
-  flex: 1 1 220px;
-}
-
-.search-replace-panel.compact .close-btn {
-  order: 3;
-  margin-left: auto;
-}
-
-.search-replace-panel.compact .result-count-container {
-  order: 4;
-  min-width: 0;
-  margin-left: 26px;
-}
-
-.search-replace-panel.compact .nav-group {
-  order: 5;
-  margin-left: auto;
-}
-
-.search-replace-panel.compact .selection-btn {
-  order: 6;
-}
-
-.search-replace-panel.compact .toggle-placeholder {
-  order: 1;
-}
-
-.search-replace-panel.compact .replace-row .input-wrapper {
-  order: 2;
-  flex-basis: calc(100% - 26px);
-}
-
-.search-replace-panel.compact .result-count-placeholder {
-  display: none;
-}
-
-.search-replace-panel.compact .replace-actions {
-  order: 3;
-  margin-left: auto;
-}
-</style>

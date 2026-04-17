@@ -8,7 +8,13 @@ import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { pathUtils } from '@/utils/pathUtils'
 import { notify } from '@/utils/notifications'
 import type { FileTreeNode, FileTreeSortType } from '@/components/common/tree'
-import { availableThemes, getThemeById, applyThemeColors, type Theme, applySystemColors, type ThemeColors } from '@/utils/themes'
+import {
+  availableThemes,
+  applyThemeSelection,
+  getSystemPrefersDark,
+  getThemeById,
+  type ThemeOption,
+} from '@/utils/themes'
 import updaterService from '@/updater/UpdaterService'
 import {
   TEXT_IWT_EXTENSION,
@@ -23,6 +29,8 @@ import { convertContentTo } from '@/import-export/'
 import { StateStorage, type WorkspaceState } from '@/utils/StateStorage'
 
 export const useAppStore = defineStore('app', () => {
+  type PreferencesTab = 'editor' | 'spelling' | 'themes' | 'ai' | 'updates'
+
   // 文件监听和类型检测
   const { detectFromPath } = useDocumentTypeDetector()
   
@@ -33,6 +41,8 @@ export const useAppStore = defineStore('app', () => {
   const isCleanMode = ref(false)
   const isFocusMode = ref(false)
   const isTypewriterMode = ref(false)
+  const showPreferencesDialog = ref(false)
+  const preferencesInitialTab = ref<PreferencesTab>('editor')
   const leftSidebarMode = ref<SidebarMode>(SidebarMode.START)
   const searchFolderPath = ref<string | null>(null)
   const leftSidebarWidth = ref(288) // 默认宽度
@@ -56,6 +66,8 @@ export const useAppStore = defineStore('app', () => {
   // Theme System
   const currentThemeId = ref<string>('system')
   const systemPrefersDark = ref(false)
+  let systemThemeMediaQuery: MediaQueryList | null = null
+  let systemThemeChangeHandler: ((event: MediaQueryListEvent) => void) | null = null
   
   // Folder and Files
   const currentFolder = ref<string | null>(null)
@@ -225,7 +237,7 @@ export const useAppStore = defineStore('app', () => {
 
     // 3. 恢复主题
     const savedThemeId = StateStorage.loadTheme()
-    currentThemeId.value = savedThemeId
+    currentThemeId.value = getThemeById(savedThemeId)?.id ?? 'system'
 
     // 4. 恢复工作区状态（在窗口完全加载后）
     setTimeout(() => {
@@ -406,10 +418,18 @@ export const useAppStore = defineStore('app', () => {
     if (window.electronAPI) {
       window.electronAPI.removeMenuActionListener()
       window.electronAPI.removeFileChangeListeners()
-      window.electronAPI.removeSystemColorsChangedListeners()
       window.electronAPI.removeWindowStateChangedListeners()
       window.electronAPI.removeRequestWindowCloseListeners()
       window.electronAPI.removeWindowIdListeners()
+    }
+    if (systemThemeMediaQuery && systemThemeChangeHandler) {
+      if (typeof systemThemeMediaQuery.removeEventListener === 'function') {
+        systemThemeMediaQuery.removeEventListener('change', systemThemeChangeHandler)
+      } else {
+        systemThemeMediaQuery.removeListener(systemThemeChangeHandler)
+      }
+      systemThemeMediaQuery = null
+      systemThemeChangeHandler = null
     }
   }
 
@@ -1626,20 +1646,24 @@ export const useAppStore = defineStore('app', () => {
 
   // Theme System Functions
   function initTheme() {
-    // currentThemeId 已经在 restoreState() 中恢复，这里不需要再读取
+    systemPrefersDark.value = getSystemPrefersDark()
 
-    // Detect system theme preference
-    if (window.electronAPI) {
-      window.electronAPI.onSystemColorsChanged((themeAndColors: { theme: 'light' | 'dark' | 'unknown', newColors: ThemeColors }) => {
-        // Re-apply theme if current theme is system
-        const currentTheme = getThemeById(currentThemeId.value)
-        if (currentTheme?.isSystem) {
-          applySystemColors(themeAndColors)
+    if (typeof window.matchMedia === 'function') {
+      systemThemeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+      systemThemeChangeHandler = (event: MediaQueryListEvent) => {
+        systemPrefersDark.value = event.matches
+        if (currentThemeId.value === 'system') {
+          applyCurrentTheme()
         }
-      })
+      }
+
+      if (typeof systemThemeMediaQuery.addEventListener === 'function') {
+        systemThemeMediaQuery.addEventListener('change', systemThemeChangeHandler)
+      } else {
+        systemThemeMediaQuery.addListener(systemThemeChangeHandler)
+      }
     }
 
-    // Apply initial theme
     applyCurrentTheme()
   }
 
@@ -1656,17 +1680,24 @@ export const useAppStore = defineStore('app', () => {
   }
   
   function applyCurrentTheme() {
-    const theme = getThemeById(currentThemeId.value)
-    if (!theme) return
-    applyThemeColors(theme)
+    applyThemeSelection(currentThemeId.value, systemPrefersDark.value)
   }
   
-  function getCurrentTheme(): Theme | undefined {
+  function getCurrentTheme(): ThemeOption | undefined {
     return getThemeById(currentThemeId.value)
   }
   
-  function getAvailableThemes(): Theme[] {
+  function getAvailableThemes(): ThemeOption[] {
     return availableThemes
+  }
+
+  function openPreferences(tab: PreferencesTab = 'editor') {
+    preferencesInitialTab.value = tab
+    showPreferencesDialog.value = true
+  }
+
+  function closePreferences() {
+    showPreferencesDialog.value = false
   }
 
   // Handle print functionality
@@ -1807,21 +1838,6 @@ export const useAppStore = defineStore('app', () => {
       case 'view-theme-follow-system':
         setTheme('system')
         return true
-      case 'view-theme-light':
-        setTheme('light')
-        return true
-      case 'view-theme-dark':
-        setTheme('dark')
-        return true
-      case 'view-theme-ocean':
-        setTheme('ocean')
-        return true
-      case 'view-theme-forest':
-        setTheme('forest')
-        return true
-      case 'view-theme-sunset':
-        setTheme('sunset')
-        return true
       case 'check-update':
         try {
           await updaterService.checkForUpdates()
@@ -1844,6 +1860,12 @@ export const useAppStore = defineStore('app', () => {
         return true
       
       default:
+        if (action.startsWith('view-theme-')) {
+          const theme = action.replace('view-theme-', '') as string
+          setTheme(theme.toLowerCase())
+          return true          
+        }
+
         console.warn('Unhandled menu action in app:', action)
         return false
     }
@@ -1909,6 +1931,8 @@ export const useAppStore = defineStore('app', () => {
     isCleanMode,
     isFocusMode,
     isTypewriterMode,
+    showPreferencesDialog,
+    preferencesInitialTab,
     leftSidebarMode,
     searchFolderPath,
     leftSidebarWidth,
@@ -1965,6 +1989,8 @@ export const useAppStore = defineStore('app', () => {
     applyCurrentTheme,
     getCurrentTheme,
     getAvailableThemes,
+    openPreferences,
+    closePreferences,
 
     // File operations
     openFile,

@@ -718,6 +718,7 @@ defineExpose({
 .tree-node-content .input {
   flex: 1;
   outline: none;
+  height: auto;
   background: var(--tree-input-background, transparent);
   border: var(--tree-input-border, 1px solid #ccc);
   border-radius: var(--tree-border-radius, 0px);
@@ -728,10 +729,11 @@ defineExpose({
 
 .tree-node-content .badge {
   white-space: nowrap;
+  height: var(--tree-badge-height, auto);
   background: var(--tree-badge-background, #f0f0f0);
   color: var(--tree-badge-color, #666);
   font-size: var(--tree-badge-font-size, inherit);
-  padding: var(--tree-badge-padding, 0px 8px);
+  padding: var(--tree-badge-padding, 4px 8px);
   border-radius: var(--tree-badge-border-radius, 12px);
   margin-left: var(--tree-badge-spacing, 4px);
   margin-right: var(--tree-badge-spacing, 4px);

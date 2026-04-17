@@ -1,11 +1,11 @@
 <template>
   <div
-    class="sidebar right-sidebar"
+    class="iw-sidebar iw-right-sidebar"
     :style="{ width: `${appStore.rightSidebarWidth}px` }"
   >
     <!-- Resizable handle on left edge -->
     <div
-      class="absolute top-0 left-0 w-1 h-full cursor-ew-resize hover:bg-background-selected hover:opacity-50 transition-all bg-transparent z-10"
+      class="iw-resize-handle left-0"
       @mousedown="startResize"
     ></div>
 

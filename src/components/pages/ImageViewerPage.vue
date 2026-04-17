@@ -1,72 +1,69 @@
 <template>
   <div class="document-viewer-wrapper">
     <!-- Image Toolbar -->
-    <div class="toolbar">
-      <div class="toolbar-group">
+    <div class="iw-toolbar">
+      <div class="iw-toolbar-group">
         <button
           @click="zoomOut"
           :disabled="zoom <= 0.1"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="缩小"
+          class="iw-toolbar-btn btn-sm"
+          title="Zoom In (⌘+)"
         >
-          <IconZoomOut class="w-5 h-5" />
+          <IconZoomOut class="icon-sm" />
         </button>
         
-        <div class="px-3 py-1 text-sm bg-gray-100 rounded min-w-[80px] text-center">
+        <div class="iw-stat">
           {{ Math.round(zoom * 100) }}%
         </div>
         
         <button
           @click="zoomIn"
           :disabled="zoom >= 10"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="放大"
+          class="iw-toolbar-btn btn-sm"
+          title="Zoom Out (⌘-)"
         >
-          <IconZoomIn class="w-5 h-5" />
+          <IconZoomIn class="icon-sm" />
         </button>
         
         <button
           @click="zoomToFit"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors"
-          title="适应窗口"
+          class="iw-toolbar-btn btn-sm"
+          title="Fit to Page"
         >
-          <IconZoomReset class="w-5 h-5" />
+          <IconZoomReset class="icon-sm" />
         </button>
       </div>
       
-      <div class="toolbar-separator" />
+      <div class="flex h-10 w-4 items-center justify-center">
+        <div class="h-1/2 w-px bg-base-300"></div>
+      </div>
       
-      <div class="toolbar-group">
+      <div class="iw-toolbar-group">
         <button
           @click="rotateLeft"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors"
-          title="向左旋转"
+          class="iw-toolbar-btn btn-sm"
+          title="Rotate to Left"
         >
-          <IconRotate class="w-5 h-5" />
+          <IconRotate class="icon-sm" />
         </button>
         
         <button
           @click="rotateRight"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors"
-          title="向右旋转"
+          class="iw-toolbar-btn btn-sm"
+          title="Rotate to Right"
         >
-          <IconRotateClockwise class="w-5 h-5" />
+          <IconRotateClockwise class="icon-sm" />
         </button>
       </div>
       
-      <div class="toolbar-spacer" />
+      <div class="iw-toolbar-spacer" />
       
-      <div class="text-sm text-gray-600">
-        <span v-if="imageDimensions.width && imageDimensions.height">
-          {{ imageDimensions.width }} × {{ imageDimensions.height }}
-        </span>
-      </div>
     </div>
     
     <!-- Image Display Area -->
     <div 
       ref="imageContainer"
-      class="flex-1 bg-gray-100 p-4 outline-none"
+      class="iw-viewer-stage p-4"
       :class="containerInteractionClass"
       :style="{ overflow: shouldShowScrollbars ? 'auto' : 'hidden' }"
       tabindex="0"
@@ -99,22 +96,22 @@
     <!-- Error State -->
     <div 
       v-if="error"
-      class="flex-1 flex items-center justify-center text-red-500"
+      class="flex flex-1 items-center justify-center text-error-content"
     >
       <div class="text-center">
         <IconAlertCircle class="w-12 h-12 mx-auto mb-2" />
         <div class="text-lg mb-2">图片加载失败</div>
-        <div class="text-sm text-gray-600">{{ error }}</div>
+        <div class="text-sm text-base-content/55">{{ error }}</div>
       </div>
     </div>
     
     <!-- Loading State -->
     <div 
       v-if="loading"
-      class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-50"
+      class="absolute inset-0 flex items-center justify-center bg-base-100/70 backdrop-blur-sm"
     >
       <div class="text-center">
-        <div class="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+        <span class="loading loading-spinner loading-lg mb-2"></span>
         <div>加载中...</div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 <template>
-  <div v-if="text" class="sticky top-1 z-10 flex justify-center pointer-events-none">
-    <div class="px-3 py-1 rounded-full bg-background-content/90 shadow-md ring-1 ring-border-separator text-2xs leading-4 text-text-secondary backdrop-blur-sm max-w-[85%] truncate">
+  <div v-if="text" class="sticky top-0 z-10 flex justify-center pointer-events-none select-none">
+    <div class="px-3 py-1 rounded-selector bg-base-100 shadow-sm ring-1 ring-base-300 text-2xs leading-4 text-base-content backdrop-blur-sm max-w-[85%] truncate">
       {{ text }}
     </div>
   </div>
@@ -22,13 +22,13 @@ const text = computed(() => {
   const originLabel = originPath ? pathUtils.basename(originPath) : null
 
   if (originLabel && currentLabel && originPath !== currentPath) {
-    return `会话基于 ${originLabel} · 当前文档 ${currentLabel}`
+    return `Session @ ${originLabel} · Current @ ${currentLabel}`
   }
   if (currentLabel) {
-    return `当前文档 ${currentLabel}`
+    return `Current @ ${currentLabel}`
   }
   if (originLabel) {
-    return `会话基于 ${originLabel}`
+    return `Session @ ${originLabel}`
   }
   return ''
 })

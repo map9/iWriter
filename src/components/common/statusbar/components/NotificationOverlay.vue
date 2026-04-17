@@ -10,7 +10,7 @@
   >
     <div
       v-if="state.isVisible && state.currentNotification"
-      class="absolute inset-0 px-4 z-50 flex items-center gap-2 text-sm font-medium text-white"
+      class="absolute inset-0 z-50 flex items-center gap-2 px-4 text-xs text-neutral-content"
       :class="[
         notificationClasses,
         state.displayOptions.flash ? 'animate-pulse' : ''
@@ -20,11 +20,11 @@
       <!-- Icon: 固定宽度 -->
       <component
         :is="getNotificationIcon()"
-        class="w-4 h-4 flex-shrink-0"
+        class="icon-xs shrink-0"
       />
 
       <!-- Type: 固定宽度 -->
-      <span class="flex-shrink-0">{{ getNotificationTitle() }}:</span>
+      <span class="shrink-0">{{ getNotificationTitle() }}:</span>
 
       <!-- Message: 占据剩余空间，可截断 -->
       <span class="flex-1 truncate text-left">{{ state.currentNotification.message }}</span>
@@ -33,12 +33,12 @@
       <button
         v-if="isForceClose()"
         @click="close"
-        class="flex-shrink-0 w-4 h-4 hover:bg-black hover:bg-opacity-20 rounded flex items-center justify-center bg-transparent"
+        class="flex icon-sm shrink-0 items-center justify-center rounded-field bg-transparent hover:bg-neutral-content/30"
         :class="[
           {'animate-bounce' : isBounceClose()}
         ]"
       >
-        <IconX class="w-3 h-3" />
+        <IconX class="icon-2xs" />
       </button>
     </div>
   </Transition>
@@ -131,17 +131,17 @@ const notificationClasses = computed(() => {
   // 默认主题色
   switch (type) {
     case NotificationType.INFORMATION:
-      return `${baseClasses} bg-blue-500 text-white`
+      return `${baseClasses} bg-info text-info-content`
     case NotificationType.SUCCESS:
-      return `${baseClasses} bg-green-500 text-white`
+      return `${baseClasses} bg-success text-success-content`
     case NotificationType.WARNING:
-      return `${baseClasses} bg-yellow-500 text-white`
+      return `${baseClasses} bg-warning text-warning-content`
     case NotificationType.ERROR:
-      return `${baseClasses} bg-red-500 text-white`
+      return `${baseClasses} bg-error text-error-content`
     case NotificationType.CRITICAL:
-      return `${baseClasses} bg-red-700 text-white`
+      return `${baseClasses} bg-error text-error-content`
     default:
-      return `${baseClasses} bg-gray-500 text-white`
+      return `${baseClasses} bg-neutral text-neutral-content`
   }
 })
 

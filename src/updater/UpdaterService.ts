@@ -22,6 +22,8 @@ class UpdaterService {
     total: number
   } | null
   >(null)
+  // Dialog 可见性：集中管理，允许任何来源（MainView watch、StatusBar 点击、未来菜单项）打开/关闭
+  public dialogVisible = ref(false)
 
   constructor() {
     this.setupEventListeners()
@@ -47,6 +49,7 @@ class UpdaterService {
           break
           
         case 'downloading':
+          this.isUpdateAvailable.value = true
           if (stateMessage.downloadProgress) {
             this.downloadProgress.value = stateMessage.downloadProgress.progress
             this.downloadDetails.value = stateMessage.downloadProgress
@@ -54,7 +57,16 @@ class UpdaterService {
           break
           
         case 'downloaded':
+          this.isUpdateAvailable.value = true
+          if (stateMessage.updateInfo) {
+            this.updateInfo.value = stateMessage.updateInfo
+          }
+          // 下载完成：将进度拉满，确保 UI 一致
+          this.downloadProgress.value = 100
+          break
+
         case 'installing':
+          this.isUpdateAvailable.value = true
           if (stateMessage.updateInfo) {
             this.updateInfo.value = stateMessage.updateInfo
           }
@@ -88,6 +100,15 @@ class UpdaterService {
 
   private async loadCurrentStatus() {
     try {
+      if (window.electronAPI?.getUpdaterState) {
+        const snapshot = await window.electronAPI.getUpdaterState()
+        this.status.value = snapshot.status
+        this.updateInfo.value = snapshot.updateInfo ?? null
+        this.isUpdateAvailable.value = ['available', 'downloading', 'downloaded', 'installing'].includes(snapshot.status.type)
+        this.downloadProgress.value = snapshot.status.progress ?? (snapshot.status.type === 'downloaded' ? 100 : 0)
+        return
+      }
+
       if (window.electronAPI?.getUpdaterStatus) {
         this.status.value = await window.electronAPI.getUpdaterStatus()
       }
@@ -116,6 +137,29 @@ class UpdaterService {
     }
 
     return window.electronAPI.installUpdate()
+  }
+
+  async downloadUpdate(): Promise<void> {
+    if (!window.electronAPI?.downloadUpdate) {
+      throw new Error('Updater API not available')
+    }
+
+    return window.electronAPI.downloadUpdate()
+  }
+
+  // Dialog 控制
+  openDialog(): void {
+    this.dialogVisible.value = true
+  }
+
+  closeDialog(): void {
+    this.dialogVisible.value = false
+  }
+
+  // 是否存在可查看的更新流程（用于 StatusBar 点击决定是打开 Dialog 还是检查更新）
+  get hasPendingUpdate(): boolean {
+    const t = this.status.value.type
+    return (t === 'available' || t === 'downloading' || t === 'downloaded') && this.updateInfo.value !== null
   }
 
   async updateConfig(newConfig: Partial<UpdaterConfig>): Promise<void> {

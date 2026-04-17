@@ -1,3 +1,5 @@
+import './style.scss'
+
 import { iwPopupTools } from './iw-popup-tools.ts'
 export * from './iw-popup-tools.ts'
 export * from './plugin/popup-tools/iw-link-popup-tool.ts'

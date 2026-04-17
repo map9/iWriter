@@ -1,9 +1,41 @@
 import { Extension } from '@tiptap/core'
+import type { Editor } from '@tiptap/core'
 import { DecorationSet } from '@tiptap/pm/view'
 import type { SearchReplaceOptions, SearchReplaceStorage } from './types'
 import { createSearchReplacePlugin, updateSearch } from './plugin/iwSearchReplacePlugin'
 import { goToSelection } from './utils/gotoSelection'
 import { getActualSelectionRange } from '../utils/selectionUtils'
+import { setRangeHighlights, removeRangeHighlights } from '../iw-range-highlight'
+
+const SEARCH_RESULT_HIGHLIGHT_CLASS = 'iw-search-result'
+const SEARCH_CURRENT_RESULT_HIGHLIGHT_CLASS = 'iw-search-result-current'
+
+const SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_ID = 'search-replace-current-result-id'
+const SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_CLASS = 'iw-range-highlight-search-current'
+
+const SEARCH_SELECTION_HIGHLIGHT_ID = 'search-replace-selection-id'
+const SEARCH_SELECTION_HIGHLIGHT_CLASS = 'iw-range-highlight-search-selection'
+
+function syncCurrentSearchResultHighlight(editor: Editor, storage: SearchReplaceStorage) {
+  const match = storage.currentMatchIndex >= 0
+    ? storage.matches[storage.currentMatchIndex]
+    : null
+
+  if (!match) {
+    removeRangeHighlights(
+      editor,
+      SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_ID,
+      SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_CLASS
+    )
+    return
+  }
+
+  setRangeHighlights(editor, [{
+    id: SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_ID,
+    from: match.from,
+    to: match.to,
+  }], SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_CLASS)
+}
 
 // 声明命令类型和存储类型
 declare module '@tiptap/core' {
@@ -83,8 +115,8 @@ export const iwSearchReplaceExtension = Extension.create<
     return {
       maxMatches: 500,
       debounceTime: 300,
-      currentMatchClass: 'search-result-current',
-      otherMatchClass: 'search-result'
+      currentMatchClass: SEARCH_CURRENT_RESULT_HIGHLIGHT_CLASS,
+      otherMatchClass: SEARCH_RESULT_HIGHLIGHT_CLASS
     }
   },
 
@@ -132,6 +164,7 @@ export const iwSearchReplaceExtension = Extension.create<
           }
 
           updateSearch(editor)
+          syncCurrentSearchResultHighlight(editor, this.storage)
           return true
         },
 
@@ -152,6 +185,7 @@ export const iwSearchReplaceExtension = Extension.create<
           }
 
           updateSearch(editor)
+          syncCurrentSearchResultHighlight(editor, this.storage)
           return true
         },
 
@@ -161,6 +195,10 @@ export const iwSearchReplaceExtension = Extension.create<
           this.storage.isOpen = false
           this.storage.matches = []
           this.storage.currentMatchIndex = -1
+          this.storage.searchInSelection = false
+          this.storage.selectionRange = null
+          removeRangeHighlights(editor, SEARCH_SELECTION_HIGHLIGHT_ID, SEARCH_SELECTION_HIGHLIGHT_CLASS)
+          removeRangeHighlights(editor, SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_ID, SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_CLASS)
           updateSearch(editor)
           return true
         },
@@ -188,6 +226,7 @@ export const iwSearchReplaceExtension = Extension.create<
           // 防抖搜索
           this.storage.debounceTimer = setTimeout(() => {
             updateSearch(editor)
+            syncCurrentSearchResultHighlight(editor, this.storage)
           }, this.options.debounceTime)
 
           return true
@@ -211,7 +250,10 @@ export const iwSearchReplaceExtension = Extension.create<
           const match = this.storage.matches[this.storage.currentMatchIndex]
           if (match) {
             updateSearch(editor)
+            syncCurrentSearchResultHighlight(editor, this.storage)
             goToSelection(editor, match)
+          } else {
+            removeRangeHighlights(editor, SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_ID, SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_CLASS)
           }
 
           return true
@@ -230,7 +272,10 @@ export const iwSearchReplaceExtension = Extension.create<
           const match = this.storage.matches[this.storage.currentMatchIndex]
           if (match) {
             updateSearch(editor)
+            syncCurrentSearchResultHighlight(editor, this.storage)
             goToSelection(editor, match)
+          } else {
+            removeRangeHighlights(editor, SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_ID, SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_CLASS)
           }
 
           return true
@@ -276,6 +321,7 @@ export const iwSearchReplaceExtension = Extension.create<
         ({ editor }) => {
           this.storage.options.caseSensitive = !this.storage.options.caseSensitive
           updateSearch(editor)
+          syncCurrentSearchResultHighlight(editor, this.storage)
           return true
         },
 
@@ -284,6 +330,7 @@ export const iwSearchReplaceExtension = Extension.create<
         ({ editor }) => {
           this.storage.options.wholeWord = !this.storage.options.wholeWord
           updateSearch(editor)
+          syncCurrentSearchResultHighlight(editor, this.storage)
           return true
         },
 
@@ -292,6 +339,7 @@ export const iwSearchReplaceExtension = Extension.create<
         ({ editor }) => {
           this.storage.options.regex = !this.storage.options.regex
           updateSearch(editor)
+          syncCurrentSearchResultHighlight(editor, this.storage)
           return true
         },
 
@@ -304,12 +352,17 @@ export const iwSearchReplaceExtension = Extension.create<
             // 取消选区搜索
             this.storage.searchInSelection = false
             this.storage.selectionRange = null
+            removeRangeHighlights(editor, SEARCH_SELECTION_HIGHLIGHT_ID, SEARCH_SELECTION_HIGHLIGHT_CLASS)
           } else {
             // 启用选区搜索
             if (!selection.empty) {
               this.storage.searchInSelection = true
               // 使用 getActualSelectionRange 正确处理 CellSelection
               this.storage.selectionRange = getActualSelectionRange(selection)
+              editor.commands.addRangeHighlights({
+                id: SEARCH_SELECTION_HIGHLIGHT_ID,
+                ...this.storage.selectionRange,
+              }, SEARCH_SELECTION_HIGHLIGHT_CLASS)
             } else {
               // 如果当前没有选区，不执行操作
               return false
@@ -317,6 +370,7 @@ export const iwSearchReplaceExtension = Extension.create<
           }
 
           updateSearch(editor)
+          syncCurrentSearchResultHighlight(editor, this.storage)
           return true
         }
     }

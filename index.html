@@ -14,33 +14,24 @@
     </style>
     <script>
       (() => {
-        const SNAPSHOT_KEY = 'iwriter-theme-snapshot'
+        const THEME_KEY = 'iwriter-theme'
         const root = document.documentElement
 
         try {
-          const rawSnapshot = localStorage.getItem(SNAPSHOT_KEY)
-          if (!rawSnapshot) return
-
-          const snapshot = JSON.parse(rawSnapshot)
-          if (
-            !snapshot ||
-            typeof snapshot.themeId !== 'string' ||
-            typeof snapshot.resolvedThemeId !== 'string' ||
-            !snapshot.vars ||
-            typeof snapshot.vars !== 'object'
-          ) {
-            return
-          }
-
           root.setAttribute('data-theme-bootstrapping', 'true')
-          Object.entries(snapshot.vars).forEach(([name, value]) => {
-            if (typeof value === 'string') {
-              root.style.setProperty(name, value)
-            }
-          })
-          root.dataset.theme = snapshot.themeId
-          root.dataset.resolvedTheme = snapshot.resolvedThemeId
-          root.style.colorScheme = snapshot.resolvedThemeId === 'dark' ? 'dark' : 'light'
+          const savedTheme = localStorage.getItem(THEME_KEY) || 'system'
+          const supportedThemes = ['system', 'light', 'dark', 'cupcake', 'sunset', 'caramellatte', 'abyss', 'dracula']
+          const darkThemes = ['dark', 'sunset', 'abyss', 'dracula']
+          const selectedTheme = supportedThemes.includes(savedTheme) ? savedTheme : 'system'
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+          const resolvedTheme = selectedTheme === 'system'
+            ? (prefersDark ? 'dark' : 'light')
+            : selectedTheme
+
+          root.dataset.theme = selectedTheme === 'system' ? resolvedTheme : selectedTheme
+          root.dataset.selectedTheme = selectedTheme
+          root.dataset.resolvedTheme = darkThemes.includes(resolvedTheme) ? 'dark' : 'light'
+          root.style.colorScheme = darkThemes.includes(resolvedTheme) ? 'dark' : 'light'
         } catch (error) {}
       })()
     </script>

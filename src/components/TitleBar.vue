@@ -1,47 +1,47 @@
 <template>
-  <div class="titlebar">
+  <div class="iw-titlebar gap-2">
     <!-- Window Controls - handled by system traffic lights -->
     <div v-if="!isMaximized && !appStore.isLeftSidebarVisible" class="flex items-center pl-20"></div>
     <!-- Left Sidebar Toggle -->
-    <div class="flex items-center flex-shrink-0 no-drag" :class="isMaximized ? 'pl-2 pr-1' : 'px-1'">
+    <div class="no-drag flex items-center">
       <button
         @click="appStore.toggleLeftSidebar()"
-        class="toolbar-button"
+        class="iw-toolbar-btn btn-sm"
         title="Toggle Sidebar"
       >
         <IconLayoutSidebarLeftCollapse
           v-if="appStore.isLeftSidebarVisible"
-          class="icon-base"
+          class="icon-sm"
         />
         <IconLayoutSidebarLeftExpand
           v-else
-          class="icon-base"
+          class="icon-sm"
         />
       </button>
     </div>
 
     <!-- Tab Navigation -->
-    <div class="flex items-center px-2 flex-shrink-0 no-drag">
+    <div class="no-drag join flex">
       <button
         @click="navigateTabs(-1)"
         :disabled="!canNavigateBack"
-        class="toolbar-button"
+        class="iw-toolbar-btn btn-sm join-item"
         title="Previous Tab"
       >
-        <IconChevronLeft class="icon-base" />
+        <IconChevronLeft class="icon-sm" />
       </button>
       <button
         @click="navigateTabs(1)"
         :disabled="!canNavigateForward"
-        class="toolbar-button"
+        class="iw-toolbar-btn btn-sm join-item"
         title="Next Tab"
       >
-        <IconChevronRight class="icon-base" />
+        <IconChevronRight class="icon-sm" />
       </button>
     </div>
 
     <!-- Document Tabs Area - 按内容伸缩，有最大宽度限制 -->
-    <div class="flex items-center h-full overflow-hidden no-drag max-w-[calc(100%-256px)]">
+    <div class="no-drag flex items-center h-full overflow-hidden max-w-[calc(100%-256px)]">
       <!-- Document Tabs Container -->
       <div ref="tabsContainer" class="flex items-center h-full overflow-x-auto scrollbar-hide">
         <!-- Tabs List -->
@@ -52,8 +52,8 @@
             :ref="(el: any) => { if (tab.isActive) setActivaeTabRef(el)}"
             :class="[
               idx === 0 ? 'border-l' : '',
-              'flex items-center px-3 py-2 space-x-2 border-r border-border-separator min-w-32 max-w-48 flex-shrink-0',
-              tab.isActive ? 'bg-background-content' : 'hover:bg-interactive-hover'
+              'flex items-center px-3 py-2 space-x-2 border-r border-base-300 min-w-32 max-w-48 shrink-0',
+              tab.isActive ? 'bg-base-100' : 'hover:bg-base-200'
             ]"
             @click="switchTab(tab.id)"
             :title="tab.name"
@@ -61,49 +61,49 @@
             <!-- 文档类型图标（固定宽度） -->
             <component 
               :is="getTabIcon(tab)" 
-              class="icon-sm flex-shrink-0"
+              class="icon-sm shrink-0"
             />
             
             <!-- 标签名称（伸缩部分） -->
-            <span class="flex-1 text-sm whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-text-primary">{{ tab.name }}</span>
+            <span class="flex-1 text-sm whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-base-content select-none">{{ tab.name }}</span>
             
             <!-- 只读指示器 -->
             <span
               v-if="tab.fileReadonly || tab.editReadonly"
-              class="text-xs text-text-secondary flex-shrink-0 mr-1 select-none"
+              class="text-xs text-warning-content shrink-0 mr-1 select-none"
               :title="tab.fileReadonly ? '文件只读' : '只读模式'"
             >🔒</span>
 
             <!-- 未保存指示器（固定宽度） -->
             <div
               v-if="tab.isDirty"
-              class="icon-dot flex-shrink-0"
+              class="icon-dot shrink-0 bg-warning"
             />
             
             <!-- 关闭按钮（固定宽度） -->
             <button 
               @click.stop="closeTab(tab.id)"
-              class="toolbar-button flex-shrink-0"
+              class="btn btn-ghost btn-xs btn-square shrink-0"
               title="Close Tab"
             >
-              <IconX class="icon-sm" />
+              <IconX class="icon-2xs" />
             </button>
           </div>
         </div>
       </div>
 
       <!-- New Tab Button - 固定在标签右侧 -->
-      <div class="flex items-center px-2 flex-shrink-0 no-drag">
+      <div class="flex items-center px-2 no-drag">
         <button
           @click="appStore.createTab(undefined, undefined)"
-          class="toolbar-button flex-shrink-0"
+          class="iw-toolbar-btn btn-sm"
           title="New Tab"
         >
-          <IconPlus class="icon-base" />
+          <IconPlus class="icon-sm" />
         </button>
       </div>
     </div>
-    
+
     <!-- Flexible drag area - 填充剩余空间，可被完全压缩 -->
     <div class="flex-1 h-full cursor-move drag-region min-w-44"></div>
     
@@ -244,7 +244,3 @@ watch(() => appStore.activeTabId, () => {
 })
 
 </script>
-
-<style>
-
-</style>

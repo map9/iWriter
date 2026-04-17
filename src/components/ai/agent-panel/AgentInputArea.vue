@@ -1,17 +1,17 @@
 <template>
-  <div class="border-2 border-accent-primary rounded-lg my-2 mx-3 bg-background-content flex-shrink-0 shadow-lg">
+  <div class="border-2 border-primary rounded-field bg-base-100 mx-3 my-2 shrink-0 shadow-sm">
 
     <AgentContextChips
       :files="contextFiles"
       @remove="removeContextFile"
     />
 
-    <div class="px-3 pt-2 pb-1">
+    <div class="px-3 pb-1 pt-2">
       <textarea
         v-model="inputText"
         ref="inputEl"
-        placeholder="发消息… (Enter 发送，Shift+Enter 换行)"
-        class="w-full text-sm border-none rounded-md resize-none focus:outline-none focus:border-transparent"
+        placeholder="Send message..."
+        class="w-full resize-none border-none bg-transparent text-sm focus:outline-none"
         rows="1"
         :style="{ maxHeight: maxTextareaHeight }"
         @keydown="handleKeydown"
@@ -19,7 +19,7 @@
       />
     </div>
 
-    <div class="mx-2 border-t border-border-separator" />
+    <div class="mx-3 border-t border-base-300" />
 
     <AgentToolbar
       :is-pending-send="pendingSend"
@@ -45,10 +45,10 @@
 <script setup lang="ts">
 import { watch } from 'vue'
 import { useAiStore } from '@/ai/store/ai'
-import AgentContextChips from './AgentContextChips.vue'
-import AgentToolbar from './AgentToolbar.vue'
-import { useContextFiles } from '../composables/useContextFiles'
-import { useChatSend } from '../composables/useChatSend'
+import AgentContextChips from './input/AgentContextChips.vue'
+import AgentToolbar from './input/AgentToolbar.vue'
+import { useContextFiles } from './composables/useContextFiles'
+import { useChatSend } from './composables/useChatSend'
 
 const aiStore = useAiStore()
 

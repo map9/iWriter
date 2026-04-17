@@ -3,13 +3,13 @@
     <span
       v-for="(f, i) in files"
       :key="i"
-      class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-status-info/10 border border-status-info/30 text-status-info rounded-full"
+      class="inline-flex items-center gap-1 px-2 py-0.5 text-2xs bg-base-100 border border-base-300 text-base-content rounded-selector select-none"
     >
-      <IconFolder v-if="isFolder(f)" class="w-3 h-3 flex-shrink-0" />
-      <IconFile v-else class="w-3 h-3 flex-shrink-0" />
-      <span class="truncate max-w-[120px]">{{ fileName(f) }}</span>
-      <button @click="$emit('remove', i)" class="flex-shrink-0 hover:text-status-error">
-        <IconX class="w-3 h-3" />
+      <IconFolder v-if="isFolder(f)" class="icon-2xs shrink-0" />
+      <IconFile v-else class="icon-2xs shrink-0" />
+      <span class="truncate max-w-30">{{ fileName(f) }}</span>
+      <button @click="$emit('remove', i)" class="shrink-0 p-0.5 hover:bg-base-300 hover:rounded-field">
+        <IconX class="icon-2xs" />
       </button>
     </span>
   </div>

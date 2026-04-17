@@ -59,6 +59,11 @@ export interface UpdaterStateMessage {
   }
 }
 
+export interface UpdaterStateSnapshot {
+  status: UpdateStatus
+  updateInfo?: UpdateInfo
+}
+
 // 默认配置
 export const DEFAULT_UPDATER_CONFIG: UpdaterConfig = {
   enabled: true,
@@ -87,8 +92,10 @@ export const UPDATE_STATUS_MESSAGES = {
 export const UPDATE_IPC_EVENTS = {
   CHECK_FOR_UPDATES: 'updater:check-for-updates',
   STATE_CHANGED: 'updater:state-changed',
+  DOWNLOAD_UPDATE: 'updater:download-update',
   INSTALL_UPDATE: 'updater:install-update',
   GET_UPDATE_STATUS: 'updater:get-status',
+  GET_UPDATE_STATE: 'updater:get-state',
   SET_UPDATE_CONFIG: 'updater:set-config',
   GET_UPDATE_CONFIG: 'updater:get-config'
 } as const

@@ -28,9 +28,12 @@ export const createUpdateStatusStatusBarItem = () => {
     updateStatusItem.command = 'checkForUpdates'
     updateStatusItem.show()
 
-    const updateStatus = updaterService.status.value
-    const updateInfo = updaterService.updateInfo.value
+    // 直接读 ref.value，确保 watchEffect 每次都重新建立响应式依赖
     watchEffect(() => {
+      const updateStatus = updaterService.status.value
+      const updateInfo = updaterService.updateInfo.value
+      updateStatusItem.color = undefined
+
       if (updateStatus.type === 'idle') {
         updateStatusItem.text = '$(idle)'
         updateStatusItem.tooltip = 'Update not available!'
@@ -40,24 +43,24 @@ export const createUpdateStatusStatusBarItem = () => {
       } else if (updateStatus.type === 'available') {
         updateStatusItem.text = '$(check~pulse)'
         if (updateInfo) {
-          updateStatusItem.tooltip = `Update available!\nVersion:${updateInfo.version}\nRelease Date:${updateInfo.releaseDate}`
+          updateStatusItem.tooltip = `Update available!\nVersion:${updateInfo.version}\nRelease Date:${updateInfo.releaseDate}\nClick to view details.`
         } else {
           updateStatusItem.tooltip = 'Update available!'
         }
       } else if (updateStatus.type === 'downloading') {
-        updateStatusItem.text = `$(refresh~spin) ${updateStatus.progress}%`
-        updateStatusItem.tooltip = 'Downloading update...'
+        updateStatusItem.text = `$(refresh~spin) ${updateStatus.progress ?? 0}%`
+        updateStatusItem.tooltip = `Downloading update... ${updateStatus.progress ?? 0}%\nClick to open details.`
       } else if (updateStatus.type === 'downloaded') {
         updateStatusItem.text = '$(download~bounce)'
         if (updateInfo) {
-          updateStatusItem.tooltip = `Update downloaded!\nVersion:${updateInfo.version}\nRelease Date:${updateInfo.releaseDate}\nRestart to install.`
+          updateStatusItem.tooltip = `Update downloaded!\nVersion:${updateInfo.version}\nRelease Date:${updateInfo.releaseDate}\nClick to install.`
         } else {
-          updateStatusItem.tooltip = `Update downloaded! Restart to install.`
+          updateStatusItem.tooltip = `Update downloaded! Click to install.`
         }
-      }else if (updateStatus.type === 'installing') {
+      } else if (updateStatus.type === 'installing') {
         updateStatusItem.text = '$(load~spin)'
         if (updateInfo) {
-          updateStatusItem.tooltip = `Installing a new version...\nVersion:${updateInfo.version}\nRelease Date:${updateInfo.releaseDate}\nRestart to install.`
+          updateStatusItem.tooltip = `Installing a new version...\nVersion:${updateInfo.version}\nRelease Date:${updateInfo.releaseDate}`
         } else {
           updateStatusItem.tooltip = `Installing a new version...`
         }

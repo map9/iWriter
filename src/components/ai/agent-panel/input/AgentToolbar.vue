@@ -29,7 +29,7 @@
       />
     </div>
 
-    <div class="flex items-center gap-1.5 min-w-0 ml-auto flex-shrink-0">
+    <div class="flex items-center gap-1.5 min-w-0 ml-auto shrink-0">
       <button
         v-if="showCompactButton"
         ref="compactButtonRef"
@@ -37,27 +37,27 @@
         @mouseenter="handleCompactMouseEnter"
         @mouseleave="handleCompactMouseLeave"
         :disabled="isCompacting"
-        class="p-1.5 rounded hover:bg-interactive-hover transition-colors text-text-secondary flex-shrink-0"
+        class="iw-toolbar-btn btn-xs"
         :class="isCompacting ? 'opacity-40 cursor-not-allowed' : ''"
       >
-        <svg viewBox="0 0 20 20" class="w-4 h-4">
+        <svg viewBox="0 0 20 20" class="icon-xs">
           <circle
             cx="10"
             cy="10"
             r="7"
             fill="none"
-            class="text-border-separator"
+            class="text-base-content/30"
             stroke="currentColor"
-            stroke-width="2"
+            stroke-width="3"
           />
           <circle
             cx="10"
             cy="10"
             r="7"
             fill="none"
-            class="text-accent-primary"
+            class="text-primary"
             stroke="currentColor"
-            stroke-width="2"
+            stroke-width="3"
             stroke-linecap="round"
             :stroke-dasharray="43.98"
             :stroke-dashoffset="43.98 * (1 - compactProgressRatio)"
@@ -68,7 +68,7 @@
             cx="10"
             cy="10"
             r="3"
-            class="text-accent-primary animate-pulse"
+            class="text-primary animate-pulse"
             fill="currentColor"
           />
           <circle
@@ -76,14 +76,14 @@
             cx="10"
             cy="10"
             r="2"
-            :class="compactProgressRatio >= 1 ? 'text-status-error' : 'text-text-tertiary'"
+            :class="compactProgressRatio >= 1 ? 'text-error' : 'text-base-content/30'"
             fill="currentColor"
           />
         </svg>
       </button>
     </div>
 
-    <div class="flex items-center flex-shrink-0">
+    <div class="flex items-center shrink-0">
       <SendButton
         :is-pending-send="isPendingSend"
         :is-streaming="isStreaming"

@@ -5,43 +5,19 @@
 
 import { Editor, generateJSON } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
-import { findMatchesInDocument } from '@/components/common/tiptap/iw-search-replace/engine/SearchReplace'
-import { goToSelection } from '@/components/common/tiptap/iw-search-replace/utils/gotoSelection'
-import { updateSearch } from '@/components/common/tiptap/iw-search-replace/plugin/iwSearchReplacePlugin'
+import { findMatchesInDocument } from './engine/SearchReplace'
+import { goToSelection } from './utils/gotoSelection'
+import { updateSearch } from './plugin/iwSearchReplacePlugin'
 import { convertContentFrom, convertContentTo } from '@/import-export'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { TEXT_EXTENSIONS, type FileTab } from '@/types'
 import { pathUtils } from '@/utils/pathUtils'
 import { createBaseExtensions } from '@/utils/editorExtensions'
+import type { SearchOptions, SearchReplaceInFilesSearchResult, SearchReplaceInFilesMatch } from './types'
 
 const { detectFromPath } = useDocumentTypeDetector()
 
-export interface TipTapSearchMatch {
-  position: { from: number; to: number }
-  text: string
-  contextHtml: string
-}
-
-export interface TipTapSearchResult {
-  filePath: string
-  fileName: string
-  relativePath: string
-  documentType: string
-  matches: TipTapSearchMatch[]
-  totalMatches: number
-  // 内部缓存（用于替换）
-  _proseMirrorDoc?: ProseMirrorNode
-  _fileContent?: string
-  _lineEnding?: 'LF' | 'CRLF'
-}
-
-export interface SearchOptions {
-  caseSensitive: boolean
-  wholeWord: boolean
-  regex: boolean
-}
-
-export class TipTapSearchService {
+export class iwSearchReplaceInFilesService {
   /**
    * 单例搜索引擎（用于获取 extensions 和 schema）
    */
@@ -83,7 +59,7 @@ export class TipTapSearchService {
     maxResults: number = 10000,
     openTabs?: FileTab[],
     onProgress?: (current: number, total: number) => void
-  ): Promise<TipTapSearchResult[]> {
+  ): Promise<SearchReplaceInFilesSearchResult[]> {
     if (!window.electronAPI) throw new Error('Electron API not available')
     if (!searchTerm) return []
 
@@ -96,7 +72,7 @@ export class TipTapSearchService {
 
     if (allFiles.length === 0) return []
 
-    const results: TipTapSearchResult[] = []
+    const results: SearchReplaceInFilesSearchResult[] = []
     let totalMatchesCount = 0
 
     // 2. 分批处理文件（每批 20 个，避免内存峰值）
@@ -148,7 +124,7 @@ export class TipTapSearchService {
     options: SearchOptions,
     maxMatches: number = 10000,
     openTabs?: FileTab[]
-  ): Promise<TipTapSearchResult | null> {
+  ): Promise<SearchReplaceInFilesSearchResult | null> {
     return this.searchInSingleFile(
       filePath,
       folderPath,
@@ -169,7 +145,7 @@ export class TipTapSearchService {
     options: SearchOptions,
     maxMatches: number,
     openTabs?: FileTab[]
-  ): Promise<TipTapSearchResult | null> {
+  ): Promise<SearchReplaceInFilesSearchResult | null> {
     try {
       let doc: ProseMirrorNode
       let content: string
@@ -466,7 +442,7 @@ export class TipTapSearchService {
    */
   static jumpToMatch(
     editor: Editor,
-    match: TipTapSearchMatch,
+    match: SearchReplaceInFilesMatch,
     searchTerm: string,
     options?: SearchOptions
   ): void {
@@ -489,9 +465,6 @@ export class TipTapSearchService {
     // 3. 滚动到位置
     setTimeout(() => {
       goToSelection(editor, match.position)
-
-      // 4. 临时高亮动画（额外的视觉反馈）
-      this.highlightTemporarily(editor, match.position)
     }, 100)
   }
 
@@ -505,32 +478,10 @@ export class TipTapSearchService {
   }
 
   /**
-   * 临时高亮动画
-   */
-  private static highlightTemporarily(
-    editor: Editor,
-    range: { from: number; to: number }
-  ): void {
-    try {
-      const { node } = editor.view.domAtPos(range.from)
-      const element = node instanceof HTMLElement ? node : (node.parentElement || null)
-
-      if (element) {
-        element.classList.add('search-result-flash')
-        setTimeout(() => {
-          element.classList.remove('search-result-flash')
-        }, 2000)
-      }
-    } catch (error) {
-      console.error('Error highlighting temporarily:', error)
-    }
-  }
-
-  /**
    * 跨文件批量替换（后台静默执行）
    */
   static async replaceInWorkspace(
-    results: TipTapSearchResult[],
+    results: SearchReplaceInFilesSearchResult[],
      
     _searchTerm: string,
     replaceTerm: string,

@@ -116,22 +116,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('window-state-changed')
   },
   
-  getSystemColors: () => ipcRenderer.invoke('get-system-colors'),
-  onSystemColorsChanged: (callback: (themeAndColors: any) => void) => {
-    ipcRenderer.on('system-colors-changed', (_, themeAndColors) => callback(themeAndColors))
-  },
-  removeSystemColorsChangedListeners: () => {
-    ipcRenderer.removeAllListeners('system-colors-changed')
-  },
-
   // Menu state updates
   windowContentChange: (wContentState: any) => ipcRenderer.invoke('window-content-changed', wContentState),
   updateWindowTitle: (title: string) => ipcRenderer.invoke('update-window-title', title),
 
   // Updater API
   checkForUpdates: () => ipcRenderer.invoke('updater:check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('updater:download-update'),
   installUpdate: () => ipcRenderer.invoke('updater:install-update'),
   getUpdaterStatus: () => ipcRenderer.invoke('updater:get-status'),
+  getUpdaterState: () => ipcRenderer.invoke('updater:get-state'),
   getUpdaterConfig: () => ipcRenderer.invoke('updater:get-config'),
   setUpdaterConfig: (config: any) => ipcRenderer.invoke('updater:set-config', config),
   
