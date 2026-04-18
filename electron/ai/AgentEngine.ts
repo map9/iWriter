@@ -55,6 +55,7 @@ import { buildFilesystemMounts, type FilesystemMount } from './runtime/Filesyste
 import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore } from './runtime/ThreadRuntimeStore'
 import { AiConfigStore } from './config/AiConfigStore'
+import { generateThreadTitle } from '../../src/ai/thread/title'
 
 // Import system prompts from src (shared)
 import { EDIT_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/edit'
@@ -200,7 +201,7 @@ export class AgentEngine {
 
     // Auto-title from first message
     if (isNewThread) {
-      this.threadListQuery!.setTitle(threadId, req.userText.slice(0, 80))
+      this.threadListQuery!.setTitle(threadId, generateThreadTitle(req.userText))
     }
 
     const userContent = buildUserMessage(req)

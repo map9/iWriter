@@ -1,5 +1,6 @@
 import type { AiThread, AiToolCall, ThreadMessage } from '@/ai/types'
 import { normalizeAgentMode, resolveAgentDomain } from '@/ai/types'
+import { generateThreadTitle } from './title'
 
 /**
  * Create a new thread with the given provider and model.
@@ -44,14 +45,6 @@ export function createMessage(
 }
 
 /**
- * Auto-generate a thread title from the first user message (max 40 chars).
- */
-export function generateTitle(firstUserMessage: string): string {
-  const text = firstUserMessage.trim().replace(/\s+/g, ' ')
-  return text.length <= 40 ? text : `${text.slice(0, 37)}...`
-}
-
-/**
  * Append a message to a thread for immediate local display.
  * The checkpointer is the authoritative message store; this is a UI-only update.
  * Returns a new thread object (immutable update).
@@ -62,7 +55,7 @@ export function appendMessage(thread: AiThread, message: ThreadMessage): AiThrea
   // Auto-title from first user message
   const title =
     thread.title === '新对话' && message.role === 'user'
-      ? generateTitle(message.content)
+      ? generateThreadTitle(message.content)
       : thread.title
 
   return { ...thread, messages, title, updatedAt: Date.now() }

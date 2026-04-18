@@ -249,6 +249,10 @@ export class TooltipManager {
       .iw-tooltip.show {
         opacity: 1 !important;
       }
+      
+      .iw-tooltip:not(.show) {
+        pointer-events: none;
+      }
     `
     
     document.head.appendChild(style)

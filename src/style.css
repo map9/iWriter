@@ -141,7 +141,7 @@
   }
 
   .iw-sidebar-section-header {
-    @apply text-sm font-semibold text-base-content uppercase;
+    @apply text-sm font-semibold text-base-content uppercase whitespace-nowrap block w-full truncate;
   }
 
   .iw-sidebar-content {

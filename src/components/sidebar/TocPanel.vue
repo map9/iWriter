@@ -9,7 +9,7 @@
       </div>
       
       <!-- Actions -->
-      <div class="flex items-center">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           @click="toggleNumbering"
           class="iw-toolbar-btn btn-xs"

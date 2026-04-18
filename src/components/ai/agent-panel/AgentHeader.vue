@@ -1,14 +1,14 @@
 <template>
-  <!-- Explorer Header -->
+  <!-- Agent Panel Header -->
   <div class="iw-sidebar-section border-b border-base-300">
-    <div class="flex flex-1 items-center gap-2">
-      <span class="iw-sidebar-section-header truncate">
+    <div class="flex min-w-0 flex-1 items-center gap-2">
+      <span class="iw-sidebar-section-header" :title="title">
         {{ title }}
       </span>
     </div>
     
     <!-- Actions -->
-    <div class="flex items-center gap-1">
+    <div class="flex shrink-0 items-center gap-1">
       <!-- 返回模式：仅显示返回按钮 -->
       <button
         v-if="showBackButton"

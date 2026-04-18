@@ -9,7 +9,7 @@
       </div>
       
       <!-- Actions -->
-      <div class="flex items-center gap-1">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           class="iw-toolbar-btn btn-xs"
           title="Refresh Tags"
