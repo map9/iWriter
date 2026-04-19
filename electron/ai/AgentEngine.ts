@@ -16,9 +16,8 @@ import * as fs from 'fs'
 import { app } from 'electron'
 import type { WebContents } from 'electron'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
-import type { StructuredTool } from '@langchain/core/tools'
 import type { ModelProfile } from '@langchain/core/language_models/profile'
-import { CompositeBackend, createDeepAgent, FilesystemBackend, LocalShellBackend } from 'deepagents'
+import { createDeepAgent } from 'deepagents'
 import { Command } from '@langchain/langgraph'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { countTokensApproximately } from 'langchain'
@@ -28,9 +27,6 @@ import { BLOCK_EDIT_TOOLS } from '../../src/types/ai'
 import { getModelBudgetInfo } from '../../src/ai/model-budget'
 import { estimateTextTokens } from '../../src/ai/token-estimation'
 import { createChatModel } from './providers/ModelFactory'
-import { buildDocumentTools } from './tools/DocumentTools'
-import { buildEditProposalTools } from './tools/EditProposalTools'
-import { buildCreativeArtifactTools } from './tools/CreativeArtifactTools'
 import { SnapshotBroker } from './document/SnapshotBroker'
 import type { CheckpointerInstance } from './checkpoint/CheckpointerFactory'
 import { getCheckpointer } from './checkpoint/CheckpointerFactory'
@@ -50,12 +46,14 @@ import {
 import { StreamEventAdapter } from './ipc/StreamEventAdapter'
 import { RendererEventBridge } from './ipc/RendererEventBridge'
 import { buildUserMessage } from './ipc/UserMessageBuilder'
-import { AttachedFileBackend } from './runtime/AttachedFileBackend'
 import { buildFilesystemMounts, type FilesystemMount } from './runtime/FilesystemMounts'
 import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore } from './runtime/ThreadRuntimeStore'
 import { AiConfigStore } from './config/AiConfigStore'
 import { generateThreadTitle } from '../../src/ai/thread/title'
+import type { DomainAgentCapabilities } from './domain/types'
+import { buildCreativeCapabilities } from './domain/creative/buildCreativeCapabilities'
+import { buildEditCapabilities } from './domain/edit/buildEditCapabilities'
 
 // Import system prompts from src (shared)
 import { EDIT_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/edit'
@@ -700,53 +698,16 @@ export class AgentEngine {
     domain: AiAgentDomain,
     mode: AiAgentMode,
     mounts: FilesystemMount[]
-  ): {
-    tools: StructuredTool[]
-    skills: string[]
-    backend?: CompositeBackend | FilesystemBackend | LocalShellBackend
-    interruptOn?: Record<string, { allowedDecisions: string[] }>
-  } {
+  ): DomainAgentCapabilities {
     if (domain === 'creative') {
-      return {
-        tools: [...buildCreativeArtifactTools(this.aiRootPath)],
-        skills: ['/skills/'],
-        backend: new LocalShellBackend({ rootDir: this.aiRootPath }),
-      }
+      return buildCreativeCapabilities(this.aiRootPath)
     }
 
     if (mode === 'minimal') {
       return { tools: [], skills: [] }
     }
 
-    const docTools = buildDocumentTools(this.snapshotBroker)
-    const editTools = buildEditProposalTools()
-    const workspaceMount = mounts.find(mount => mount.virtualPath === '/')
-    const defaultBackend = new FilesystemBackend({
-      rootDir: workspaceMount?.hostPath ?? path.join(this.aiRootPath, 'empty-fs'),
-      virtualMode: true,
-    })
-    const routes = Object.fromEntries(
-      mounts
-        .filter(mount => mount.virtualPath !== '/')
-        .map(mount => [
-          mount.virtualPath,
-          mount.kind === 'attached_file'
-            ? new AttachedFileBackend(mount.hostPath)
-            : new FilesystemBackend({ rootDir: mount.hostPath, virtualMode: true }),
-        ])
-    )
-    return {
-      tools: [...docTools, ...editTools],
-      backend: new CompositeBackend(defaultBackend, routes),
-      skills: [],
-      interruptOn: {
-        edit_block:      { allowedDecisions: ['approve', 'edit', 'reject'] },
-        insert_block:    { allowedDecisions: ['approve', 'edit', 'reject'] },
-        delete_block:    { allowedDecisions: ['approve', 'reject'] },
-        replace_range:   { allowedDecisions: ['approve', 'edit', 'reject'] },
-        create_document: { allowedDecisions: ['approve', 'edit', 'reject'] },
-      },
-    }
+    return buildEditCapabilities(this.snapshotBroker, this.aiRootPath, mounts)
   }
 
   private _assertWithinBudget(

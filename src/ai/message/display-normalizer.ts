@@ -250,6 +250,8 @@ function buildRunningSummary(toolCall: AiToolCall, fallback?: string): string | 
       return '正在写入文件'
     case 'edit_file':
       return '正在编辑文件'
+    case 'task':
+      return '子代理运行中'
     default:
       return fallback ?? '正在处理'
   }
@@ -468,6 +470,30 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         parsedResult,
         rawResult,
       }
+    case 'task': {
+      const description = toStringValue(args.description)
+      const subagentType = toStringValue(args.subagent_type) ?? 'general-purpose'
+      const descriptionPreview = description && description.length > 80
+        ? `${description.slice(0, 80)}…`
+        : description ?? undefined
+      const resultText = typeof rawResult === 'string' ? rawResult : ''
+      const completedSummary = toolCall.status === 'completed' && resultText
+        ? `返回 ${resultText.length} 字符`
+        : undefined
+      return {
+        actionLabel: '委派子代理',
+        targetLabel: subagentType,
+        contextLabel: descriptionPreview,
+        summaryLabel: buildRunningSummary(toolCall, completedSummary),
+        detailType: (description || resultText) ? 'subagent_task' : 'text',
+        parsedResult: {
+          description: description ?? '',
+          subagent_type: subagentType,
+          result: resultText,
+        },
+        rawResult,
+      }
+    }
     case 'save_story_asset': {
       const savedPath = parsedResult ? toStringValue(parsedResult.path) : null
       return {

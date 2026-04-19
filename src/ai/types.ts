@@ -63,6 +63,7 @@ export type AiToolDetailType =
   | 'search_sections'
   | 'workspace_search'
   | 'todo_list'
+  | 'subagent_task'
   | 'text'
   | 'json'
 

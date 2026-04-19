@@ -1,0 +1,201 @@
+import type { ComputedRef, Ref } from 'vue'
+import type {
+  AiThread,
+  AiToolCall,
+  EditProposal,
+  ThreadMessage,
+} from '@/ai/types'
+import type {
+  RunDoneEvent,
+  RunErrorEvent,
+  RunInterruptedEvent,
+  StreamChunkEvent,
+} from '@/ai/ipc'
+import type { LiveTurn, ThreadRunState } from './runtimeState'
+
+interface RuntimeEventsDeps {
+  activeThread: ComputedRef<AiThread | null>
+  threadRunState: Ref<ThreadRunState>
+  liveTurn: Ref<LiveTurn | null>
+  currentThreadId: Ref<string | null>
+  currentTurnId: Ref<string | null>
+  clearRunPointers: () => void
+  startLiveTurn: (params: {
+    threadId: string
+    turnId: string | null
+    state: 'streaming' | 'interrupted' | 'resuming'
+    startedAt?: number
+  }) => void
+  ensureLiveTurn: (params?: {
+    threadId?: string | null
+    turnId?: string | null
+    state?: 'streaming' | 'interrupted' | 'resuming'
+    startedAt?: number
+  }) => LiveTurn | null
+  clearLiveTurn: () => void
+  handleEditInterrupt: (params: {
+    threadId: string
+    turnId: string | null
+    proposals: EditProposal[]
+  }) => void
+  resetEditReviewState: () => void
+  inferToolKind: (toolName: string) => AiToolCall['kind']
+  normalizeMessagesForDisplay: (messages: ThreadMessage[]) => ThreadMessage[]
+  normalizeMessageForDisplay: (message: ThreadMessage) => ThreadMessage
+  appendMessage: (thread: AiThread, message: ThreadMessage) => AiThread
+  updateThread: (thread: AiThread) => void
+  notifyError: (message: string) => void
+  makeErrorMessage: (input: { turnId?: string | null; content: string }) => ThreadMessage
+}
+
+export function createRuntimeEvents(deps: RuntimeEventsDeps) {
+  let currentRunHasError = false
+
+  function resetRunErrorFlag() {
+    currentRunHasError = false
+  }
+
+  function onStreamChunk(chunk: StreamChunkEvent) {
+    const liveTurn = deps.ensureLiveTurn({
+      state: deps.threadRunState.value === 'interrupted' ? 'interrupted' : 'streaming',
+    })
+    if (!liveTurn) return
+
+    if (chunk.type === 'text' && chunk.delta) {
+      liveTurn.text += chunk.delta
+      liveTurn.currentText += chunk.delta
+      deps.liveTurn.value = { ...liveTurn }
+      return
+    }
+
+    if (chunk.type === 'thinking' && chunk.delta) {
+      liveTurn.thinkingText += chunk.delta
+      deps.liveTurn.value = { ...liveTurn }
+      return
+    }
+
+    if (chunk.type === 'tool_call_start' && chunk.toolCall) {
+      if (liveTurn.currentText) {
+        liveTurn.blocks = [...liveTurn.blocks, { type: 'text', text: liveTurn.currentText }]
+        liveTurn.currentText = ''
+      }
+      const enriched: AiToolCall = {
+        ...chunk.toolCall,
+        kind: deps.inferToolKind(chunk.toolCall.name),
+      }
+      liveTurn.blocks = [...liveTurn.blocks, { type: 'tool_call', toolCall: enriched }]
+      liveTurn.toolName = chunk.toolName ?? null
+      deps.liveTurn.value = { ...liveTurn }
+      return
+    }
+
+    if (chunk.type === 'tool_call_end' && chunk.toolCallId && chunk.toolCall) {
+      liveTurn.blocks = liveTurn.blocks.map(block =>
+        block.type === 'tool_call' && block.toolCall.id === chunk.toolCallId
+          ? { type: 'tool_call', toolCall: { ...block.toolCall, status: chunk.toolCall!.status, result: chunk.toolCall!.result, isError: chunk.toolCall!.isError } }
+          : block
+      )
+      liveTurn.toolName = null
+      deps.liveTurn.value = { ...liveTurn }
+    }
+  }
+
+  function onRunInterrupted(event: RunInterruptedEvent) {
+    deps.threadRunState.value = 'interrupted'
+
+    deps.startLiveTurn({
+      threadId: event.threadId,
+      turnId: event.turnId ?? deps.currentTurnId.value,
+      state: 'interrupted',
+      startedAt: deps.liveTurn.value?.turnId === (event.turnId ?? deps.currentTurnId.value)
+        ? deps.liveTurn.value.startedAt
+        : undefined,
+    })
+
+    deps.handleEditInterrupt({
+      threadId: event.threadId,
+      turnId: event.turnId ?? deps.currentTurnId.value,
+      proposals: event.proposals,
+    })
+
+    const thread = deps.activeThread.value
+    if (thread && thread.id === event.threadId) {
+      let updated = thread
+      if (event.partialMessage) {
+        const alreadyPresent = (updated.messages ?? []).some(message => message.id === event.partialMessage!.id)
+        if (!alreadyPresent) {
+          updated = deps.appendMessage(updated, deps.normalizeMessageForDisplay(event.partialMessage))
+        }
+      }
+      deps.updateThread({ ...updated, messagesLoaded: false })
+
+      window.electronAPI.aiGetThreadMessages?.(event.threadId)
+        .then(messages => {
+          if (!messages?.length) return
+          const current = deps.activeThread.value
+          if (current && current.id !== event.threadId) return
+          if (messages.length < (current?.messages?.length ?? 0)) return
+          const normalizedMessages = deps.normalizeMessagesForDisplay(messages)
+          if (event.turnId) {
+            for (let i = normalizedMessages.length - 1; i >= 0; i--) {
+              const message = normalizedMessages[i]
+              if (message?.role === 'assistant') {
+                normalizedMessages[i] = { ...message, turnId: message.turnId ?? event.turnId }
+                break
+              }
+            }
+          }
+          deps.updateThread({ ...current!, messages: normalizedMessages, messagesLoaded: true })
+        })
+        .catch(() => { /* ignore */ })
+    }
+  }
+
+  function onRunDone(event: RunDoneEvent) {
+    deps.threadRunState.value = 'idle'
+    deps.clearLiveTurn()
+    deps.clearRunPointers()
+    deps.resetEditReviewState()
+
+    const thread = deps.activeThread.value
+    if (thread && thread.id === event.threadId && !currentRunHasError) {
+      window.electronAPI.aiGetThreadMessages?.(event.threadId)
+        .then(messages => {
+          if (!messages?.length) return
+          const current = deps.activeThread.value
+          if (current && current.id === event.threadId) {
+            deps.updateThread({ ...current, messages: deps.normalizeMessagesForDisplay(messages), messagesLoaded: true })
+          }
+        })
+        .catch(() => { /* ignore */ })
+    }
+  }
+
+  function onRunError(event: RunErrorEvent) {
+    currentRunHasError = true
+    deps.threadRunState.value = 'idle'
+    deps.clearLiveTurn()
+    deps.clearRunPointers()
+    deps.resetEditReviewState()
+
+    deps.notifyError(`AI 错误: ${event.error}`)
+
+    const thread = deps.activeThread.value
+    if (thread && thread.id === event.threadId) {
+      deps.updateThread(
+        deps.appendMessage(
+          { ...thread, hasError: true },
+          deps.makeErrorMessage({ turnId: event.turnId, content: event.error })
+        )
+      )
+    }
+  }
+
+  return {
+    resetRunErrorFlag,
+    onStreamChunk,
+    onRunInterrupted,
+    onRunDone,
+    onRunError,
+  }
+}

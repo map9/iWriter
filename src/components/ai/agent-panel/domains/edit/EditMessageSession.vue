@@ -1,0 +1,44 @@
+<template>
+  <EditSessionCard
+    v-if="editSession"
+    :session="editSession"
+    :is-streaming="aiStore.isStreaming"
+    :reviewed-entries="aiStore.reviewedBatchEntries"
+    :review-summary="aiStore.reviewBatchSummary"
+    class="mt-1.5"
+    @approve="aiStore.approveEditProposal"
+    @edit-approve="({ id, editedArgs }) => aiStore.editAndApproveProposal(id, editedArgs)"
+    @approve-all="aiStore.approveAllProposals"
+    @rework="({ id, reason }) => aiStore.requestProposalRework(id, reason)"
+    @end-round="payload => aiStore.endReviewRound(payload?.id)"
+  />
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { AiToolCall, ThreadMessage } from '@/ai/types'
+import { useAiStore } from '@/ai/store/ai'
+import { buildEditSessionForMessage } from '@/ai/edit-session'
+import EditSessionCard from '../../chat-area/views/EditSessionCard.vue'
+
+const props = defineProps<{
+  message: ThreadMessage
+  editToolCalls: AiToolCall[]
+  isLatestAssistantMessage: boolean
+}>()
+
+const aiStore = useAiStore()
+
+const editSession = computed(() =>
+  buildEditSessionForMessage({
+    message: props.message,
+    mode: aiStore.activeThread?.mode,
+    pendingProposals: aiStore.pendingEditProposals,
+    isInterrupted: aiStore.isInterrupted,
+    interruptedTurnId: aiStore.interruptedTurnId,
+    isLatestAssistantMessage: props.isLatestAssistantMessage,
+    assistantMessageIds: aiStore.persistedAssistantMessageIds,
+    editToolCalls: props.editToolCalls,
+  })
+)
+</script>

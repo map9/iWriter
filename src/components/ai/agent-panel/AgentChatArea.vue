@@ -1,5 +1,5 @@
 <template>
-  <div ref="messagesEl" class="min-h-0 flex-1 space-y-3 overflow-y-auto bg-base-100 px-3 pb-2 pt-1" :style="{ paddingBottom: (bottomPadding ?? 0) + 24 + 'px' }">
+  <div ref="messagesEl" class="min-h-0 flex-1 space-y-3 overflow-y-auto bg-base-100 px-3 pb-2 pt-1" :style="{ paddingBottom: (bottomPadding ?? 0) + 24 + 'px' }" @scroll="onScroll">
     <ChatContextPill />
 
     <AgentEmptyState @suggest="handleSuggestPrompt" />
@@ -10,11 +10,7 @@
     >
       <div class="flex-1 min-w-0 space-y-1.5">
         <div class="inline-flex items-center gap-2 rounded-field bg-base-200 px-3 py-2">
-          <div class="flex items-center gap-0.5">
-            <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:0ms" />
-            <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:150ms" />
-            <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:300ms" />
-          </div>
+          <span class="loading loading-dots loading-sm text-base-content opacity-50"></span>
           <span class="text-xs text-base-content opacity-50">Loading session...</span>
         </div>
       </div>
@@ -34,42 +30,26 @@
     <div v-if="aiStore.isStreaming && !aiStore.streamingPreviewMessage" class="flex gap-2.5">
       <div class="flex-1 min-w-0 space-y-1.5">
         <div class="inline-flex items-center gap-2 rounded-field bg-base-200 px-3 py-2">
-          <div class="flex items-center gap-0.5">
-            <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:0ms" />
-            <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:150ms" />
-            <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:300ms" />
-          </div>
+          <span class="loading loading-dots loading-sm text-base-content opacity-50"></span>
           <span class="text-xs text-base-content opacity-50">{{ streamingStatusLabel }} · {{ formattedElapsed }}</span>
         </div>
       </div>
     </div>
 
-    <ProposalNavigator
-      v-if="showFallbackProposalNavigator"
-      :proposals="aiStore.allPendingProposals"
-      :reviewed-entries="aiStore.reviewedBatchEntries"
-      :review-summary="aiStore.reviewBatchSummary"
-      :is-streaming="aiStore.isStreaming"
-      @approve="aiStore.approveEditProposal"
-      @edit-approve="({ id, editedArgs }) => aiStore.editAndApproveProposal(id, editedArgs)"
-      @approve-all="aiStore.approveAllProposals"
-      @rework="({ id, reason }) => aiStore.requestProposalRework(id, reason)"
-      @end-round="payload => aiStore.endReviewRound(payload?.id)"
-    />
+    <DomainReviewSurface />
 
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
+import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 
 defineProps<{ bottomPadding?: number }>()
 import { useAiStore } from '@/ai/store/ai'
-import { buildEditSessionForMessage } from '@/ai/edit-session'
 import ChatContextPill from './chat-area/ChatContextPill.vue'
 import AgentEmptyState from './chat-area/AgentEmptyState.vue'
 import AgentMessageBubble from './chat-area/AgentMessageBubble.vue'
-import ProposalNavigator from './chat-area/ProposalNavigator.vue'
+import DomainReviewSurface from './domains/DomainReviewSurface.vue'
 
 const aiStore = useAiStore()
 
@@ -114,6 +94,7 @@ watch(
 
 onUnmounted(() => {
   if (elapsedInterval) clearInterval(elapsedInterval)
+  clearIdleTimer()
 })
 
 const formattedElapsed = computed(() => {
@@ -173,29 +154,60 @@ const streamingStatusLabel = computed(() => {
   return '正在处理'
 })
 
-const showFallbackProposalNavigator = computed(() => {
-  if (!aiStore.allPendingProposals.length) return false
-
-  const hasInlineReviewSurface = aiStore.displayMessages.some(entry => {
-    if (entry.message.role !== 'assistant') return false
-    const session = buildEditSessionForMessage({
-      message: entry.message,
-      mode: aiStore.activeThread?.mode,
-      pendingProposals: aiStore.allPendingProposals,
-      isInterrupted: aiStore.isInterrupted,
-      interruptedTurnId: aiStore.interruptedTurnId,
-      isLatestAssistantMessage: aiStore.latestPersistedAssistantMessageId === entry.message.id,
-      assistantMessageIds: aiStore.persistedAssistantMessageIds,
-      editToolCalls: entry.message.toolCalls?.filter(toolCall => toolCall.kind === 'edit') ?? [],
-    })
-    return session?.phase === 'review_ready'
-  })
-
-  return !hasInlineReviewSurface
-})
-
-// ── Auto-scroll ────────────────────────────────────────────────────────────
+// ── Auto-scroll (sticky auto-follow) ──────────────────────────────────────
 const messagesEl = ref<HTMLDivElement>()
+const isAutoFollow = ref(true)
+const pendingNewContent = ref(false)
+let isProgrammaticScroll = false
+let idleTimer: ReturnType<typeof setTimeout> | null = null
+
+const STICK_THRESHOLD_PX = 40
+const IDLE_RESUME_MS = 3000
+
+function isNearBottom(): boolean {
+  const el = messagesEl.value
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD_PX
+}
+
+function scrollToBottom() {
+  const el = messagesEl.value
+  if (!el) return
+  isProgrammaticScroll = true
+  el.scrollTop = el.scrollHeight
+  requestAnimationFrame(() => { isProgrammaticScroll = false })
+}
+
+function clearIdleTimer() {
+  if (idleTimer) {
+    clearTimeout(idleTimer)
+    idleTimer = null
+  }
+}
+
+function scheduleIdleResume() {
+  clearIdleTimer()
+  idleTimer = setTimeout(() => {
+    idleTimer = null
+    if (pendingNewContent.value) {
+      isAutoFollow.value = true
+      pendingNewContent.value = false
+      scrollToBottom()
+    }
+  }, IDLE_RESUME_MS)
+}
+
+function onScroll() {
+  if (isProgrammaticScroll) return
+  if (isNearBottom()) {
+    isAutoFollow.value = true
+    pendingNewContent.value = false
+    clearIdleTimer()
+  } else {
+    isAutoFollow.value = false
+    scheduleIdleResume()
+  }
+}
 
 watch(
   () => [
@@ -207,10 +219,28 @@ watch(
   ],
   () => {
     nextTick(() => {
-      if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight
+      if (isAutoFollow.value) {
+        scrollToBottom()
+      } else {
+        pendingNewContent.value = true
+      }
     })
   }
 )
+
+watch(
+  () => aiStore.activeThreadId,
+  () => {
+    clearIdleTimer()
+    isAutoFollow.value = true
+    pendingNewContent.value = false
+    nextTick(() => scrollToBottom())
+  }
+)
+
+onMounted(() => {
+  nextTick(() => scrollToBottom())
+})
 
 async function handleResend(messageId: string, newContent: string) {
   const truncated = aiStore.truncateActiveThreadBeforeMessage(messageId)

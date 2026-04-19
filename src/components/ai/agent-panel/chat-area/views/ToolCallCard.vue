@@ -178,6 +178,22 @@
         </div>
       </div>
 
+      <div v-else-if="detailType === 'subagent_task' && (taskDescription || taskResult)" class="space-y-2">
+        <div v-if="taskSubagentType" class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-base-content">
+          <span>子代理：{{ taskSubagentType }}</span>
+        </div>
+        <div v-if="taskDescription" class="space-y-1">
+          <div class="text-xs font-medium text-base-content">委派说明</div>
+          <div class="rounded-box bg-base-200 px-2 py-1.5">
+            <MarkdownContentView :content="taskDescription" mode="text" size="xs" />
+          </div>
+        </div>
+        <div v-if="taskResult" class="space-y-1">
+          <div class="text-xs font-medium text-base-content">子代理返回</div>
+          <MarkdownContentView :content="taskResult" mode="markdown" size="xs" />
+        </div>
+      </div>
+
       <div v-else-if="detailType === 'todo_list' && todoItems.length" class="space-y-1.5">
         <div
           v-for="(item, idx) in todoItems"
@@ -273,6 +289,7 @@ const groupContainerClass = computed(() => {
 const groupDividerClass = computed(() => {
   switch (groupPosition.value) {
     case 'middle':
+      return ''
     case 'end':
       return 'shadow-sm'
     default:
@@ -322,6 +339,8 @@ const hasStructuredDetail = computed(() => {
       return workspaceFiles.value.length > 0
     case 'todo_list':
       return todoItems.value.length > 0
+    case 'subagent_task':
+      return !!(taskDescription.value || taskResult.value)
     default:
       return false
   }
@@ -434,6 +453,21 @@ const workspaceFiles = computed(() => {
       }),
     }
   })
+})
+
+const taskDescription = computed(() => {
+  const value = parsedResult.value?.description
+  return typeof value === 'string' ? value : ''
+})
+
+const taskSubagentType = computed(() => {
+  const value = parsedResult.value?.subagent_type
+  return typeof value === 'string' ? value : ''
+})
+
+const taskResult = computed(() => {
+  const value = parsedResult.value?.result
+  return typeof value === 'string' ? value : ''
 })
 
 const todoItems = computed(() => {

@@ -119,19 +119,10 @@
         />
       </div>
 
-      <!-- Edit summary: single instance, applies to both Path A and Path B -->
-      <EditSessionCard
-        v-if="editSession"
-        :session="editSession"
-        :is-streaming="aiStore.isStreaming"
-        :reviewed-entries="aiStore.reviewedBatchEntries"
-        :review-summary="aiStore.reviewBatchSummary"
-        class="mt-1.5"
-        @approve="aiStore.approveEditProposal"
-        @edit-approve="({ id, editedArgs }) => aiStore.editAndApproveProposal(id, editedArgs)"
-        @approve-all="aiStore.approveAllProposals"
-        @rework="({ id, reason }) => aiStore.requestProposalRework(id, reason)"
-        @end-round="payload => aiStore.endReviewRound(payload?.id)"
+      <DomainMessageSession
+        :message="message"
+        :edit-tool-calls="editToolCalls"
+        :is-latest-assistant-message="isLatestAssistantMessage"
       />
 
       <div
@@ -147,9 +138,9 @@
         </button>
         <div
           v-if="thinkingExpanded"
-          class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-xs leading-relaxed text-base-content whitespace-pre-wrap"
+          class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content"
         >
-          {{ thinkingContent }}
+          <MarkdownContentView :content="thinkingContent" mode="markdown" size="xs" />
         </div>
       </div>
 
@@ -157,12 +148,8 @@
         v-if="isPreview && previewStatusText"
         class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-field text-base-300"
       >
-        <div v-if="showPreviewPulse" class="flex items-center gap-0.5">
-          <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:0ms" />
-          <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:150ms" />
-          <div class="icon-dot bg-base-300 animate-bounce" style="animation-delay:300ms" />
-        </div>
-        <span class="text-xs text-base-content">{{ previewStatusText }}</span>
+        <span v-if="showPreviewPulse" class="loading loading-dots loading-sm text-base-content opacity-50"></span>
+        <span class="text-xs text-base-content opacity-50">{{ previewStatusText }}</span>
       </div>
 
       <!-- Toolbar / Timestamp row -->
@@ -220,10 +207,9 @@ import { IconCopy, IconPencil, IconX, IconSend } from '@tabler/icons-vue'
 import type { ThreadMessage, AiToolCall } from '@/ai/types'
 import { BLOCK_EDIT_TOOLS } from '@/ai/types'
 import { useAiStore } from '@/ai/store/ai'
-import { buildEditSessionForMessage } from '@/ai/edit-session'
 import MarkdownContentView from './views/MarkdownContentView.vue'
 import ToolCallCard from './views/ToolCallCard.vue'
-import EditSessionCard from './views/EditSessionCard.vue'
+import DomainMessageSession from '../domains/DomainMessageSession.vue'
 
 const props = withDefaults(defineProps<{
   message: ThreadMessage
@@ -280,19 +266,6 @@ const isLatestAssistantMessage = computed(() => {
   return aiStore.latestPersistedAssistantMessageId === props.message.id
 })
 
-const editSession = computed(() =>
-  buildEditSessionForMessage({
-    message: props.message,
-    mode: aiStore.activeThread?.mode,
-    pendingProposals: aiStore.allPendingProposals,
-    isInterrupted: aiStore.isInterrupted,
-    interruptedTurnId: aiStore.interruptedTurnId,
-    isLatestAssistantMessage: isLatestAssistantMessage.value,
-    assistantMessageIds: aiStore.persistedAssistantMessageIds,
-    editToolCalls: editToolCalls.value,
-  })
-)
-
 function toolCallById(id: string): AiToolCall | undefined {
   return effectiveToolCalls.value.find(tc => tc.id === id)
 }
@@ -342,7 +315,6 @@ const shouldRenderMessage = computed(() => {
   if (!visibleContentBlocks.value.length && !!props.message.content?.trim()) return true
   if (readToolCalls.value.length > 0) return true
   if (editToolCalls.value.length > 0) return true
-  if (editSession.value) return true
   if (shouldShowThinkingToggle.value) return true
   if (props.isPreview && !!props.previewStatusText) return true
   return false
