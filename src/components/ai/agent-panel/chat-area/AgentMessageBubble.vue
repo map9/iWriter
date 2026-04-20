@@ -123,6 +123,7 @@
         :message="message"
         :edit-tool-calls="editToolCalls"
         :is-latest-assistant-message="isLatestAssistantMessage"
+        :is-preview="isPreview"
       />
 
       <div
@@ -304,9 +305,11 @@ const shouldShowThinkingToggle = computed(() => {
   if (props.message.role !== 'assistant' || props.isPreview) return false
   if (!thinkingContent.value) return false
   if (props.message.isError) return true
-  if (import.meta.env.DEV) return thinkingContent.value.length >= 80
-  if (hasToolDrivenOutput.value) return false
-  return thinkingContent.value.length >= 160
+  const hasReadToolOutput = readToolCalls.value.length > 0
+  const hasEditHost = !!props.message.editRoundResult
+  if (!hasAssistantTextOutput.value && !hasReadToolOutput && !hasEditHost) return false
+  const minLength = import.meta.env.DEV ? 80 : 160
+  return thinkingContent.value.length >= minLength
 })
 
 const shouldRenderMessage = computed(() => {
@@ -314,7 +317,7 @@ const shouldRenderMessage = computed(() => {
   if (visibleContentBlocks.value.length > 0) return true
   if (!visibleContentBlocks.value.length && !!props.message.content?.trim()) return true
   if (readToolCalls.value.length > 0) return true
-  if (editToolCalls.value.length > 0) return true
+  if (props.message.editRoundResult) return true
   if (shouldShowThinkingToggle.value) return true
   if (props.isPreview && !!props.previewStatusText) return true
   return false

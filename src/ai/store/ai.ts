@@ -36,7 +36,10 @@ import {
 import { createRuntimeDisplay } from './modules/runtimeDisplay'
 import { createRuntimeEvents } from './modules/runtimeEvents'
 
-export type { ProposalReviewEntry, ProposalReviewSummary } from './modules/editReview'
+export type {
+  ProposalReviewEntry,
+  ProposalReviewSummary,
+} from '@/ai/review/types'
 
 export interface AiDisplayMessageEntry {
   key: string
@@ -527,6 +530,7 @@ export const useAiStore = defineStore('ai', () => {
     reviewedEditSignatures,
     reviewedBatchEntries,
     reviewBatchSummary,
+    getCompletedRoundResult,
     handleInterrupt: _handleEditInterrupt,
     resetReviewState: _resetEditReviewState,
     rejectAllPendingProposals: _rejectAllPendingProposals,
@@ -534,6 +538,7 @@ export const useAiStore = defineStore('ai', () => {
     editAndApproveProposal,
     rejectEditProposal,
     requestProposalRework,
+    skipRemainingProposalsAndContinue,
     approveAllProposals,
     rejectAllProposals,
     endReviewRound,
@@ -554,6 +559,7 @@ export const useAiStore = defineStore('ai', () => {
     inferToolKind,
     normalizeMessagesForDisplay: _normalizeMessagesForDisplay,
     normalizeMessageForDisplay: _normalizeMessageForDisplay,
+    getCompletedRoundResult,
     appendMessage,
     updateThread,
     notifyError: notify.error,
@@ -690,6 +696,7 @@ export const useAiStore = defineStore('ai', () => {
     reviewedEditSignatures,
     reviewedBatchEntries,
     reviewBatchSummary,
+    getCompletedRoundResult,
     draftInput,
 
     // Actions
@@ -698,6 +705,7 @@ export const useAiStore = defineStore('ai', () => {
     editAndApproveProposal,
     rejectEditProposal,
     requestProposalRework,
+    skipRemainingProposalsAndContinue,
     approveAllProposals,
     rejectAllProposals,
     endReviewRound,

@@ -1,22 +1,20 @@
 <template>
   <div
-    class="overflow-hidden rounded-box text-xs border transition-colors"
-    :class="[containerClass]"
+    class="overflow-hidden rounded-box border text-xs transition-colors"
+    :class="containerClass"
   >
     <div
-      class="group flex items-center gap-2.5 px-2 py-0.5 cursor-pointer select-none"
+      class="group flex cursor-pointer select-none items-center gap-2.5 px-2 py-1"
       @click="expanded = !expanded"
     >
-      <div class="w-3.5 shrink-0 flex items-center justify-center">
-        <span>✏️</span>
+      <div class="flex w-3.5 shrink-0 items-center justify-center">
+        <IconPencil class="icon-2xs" />
       </div>
-      <div class="shrink-0 font-semibold text-xs leading-4 whitespace-nowrap">
+      <div class="min-w-0 flex-1 font-semibold leading-4">
         {{ summaryLabel }}
       </div>
-      <div class="min-w-0 flex-1 flex flex-col justify-center">
-      </div>
       <button
-        class="iw-toolbar-btn btn-xs opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto hover:bg-transparent"
+        class="iw-toolbar-btn btn-xs pointer-events-none opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-transparent"
         :title="expanded ? 'Collapse' : 'Expand Details'"
         @click="expanded = !expanded"
       >
@@ -25,98 +23,146 @@
       </button>
     </div>
 
-    <div v-if="expanded" class="bg-base-100 px-2 py-1.5" :class="bodyClass">
-      <span
-        v-for="(tc, idx) in toolCalls"
-        :key="tc.id"
-        class="font-mono"
-        :class="itemClass(tc)"
-      >{{ editOpDisplay(tc).label }}<template v-if="idx < toolCalls.length - 1">；</template></span>
+    <div v-if="expanded" class="space-y-2 border-t bg-base-100 px-2 py-2" :class="bodyClass">
+      <div class="flex flex-wrap gap-1.5">
+        <span
+          v-for="chip in summaryChips"
+          :key="chip.label"
+          class="inline-flex items-center rounded-full px-1.5 py-0.5 text-2xs font-medium"
+          :class="chip.className"
+        >{{ chip.label }}</span>
+      </div>
+
+      <div class="space-y-1">
+        <div
+          v-for="item in result.items"
+          :key="item.proposalId"
+          class="rounded-md px-2 py-1.5"
+          :class="detailRowClass(item.state)"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0 text-xs text-base-content">
+              {{ item.label }}
+            </div>
+            <span
+              class="shrink-0 rounded-full px-1.5 py-0.5 text-2xs font-medium"
+              :class="stateBadgeClass(item.state)"
+            >{{ stateLabel(item.state) }}</span>
+          </div>
+
+          <div v-if="item.description" class="mt-1 text-2xs text-base-content/70">
+            {{ item.description }}
+          </div>
+
+          <div
+            v-if="item.failureMessage"
+            class="mt-1 text-2xs text-error-content"
+          >
+            {{ item.failureMessage }}
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import {
-  IconChevronUp,
-  IconChevronDown,
-} from '@tabler/icons-vue'
-import type { AiToolCall } from '@/ai/types'
+import { IconChevronDown, IconChevronUp, IconPencil } from '@tabler/icons-vue'
+import type { EditRoundResult, EditRoundResultState } from '@/ai/types'
 
-const props = defineProps<{ toolCalls: AiToolCall[] }>()
+const props = defineProps<{
+  result: EditRoundResult
+}>()
 
 const expanded = ref(false)
 
 watch(
-  () => props.toolCalls.length,
-  (len, oldLen) => { if (oldLen === 0 && len > 0) expanded.value = len <= 5 }
-)
-
-const completedCount = computed(() =>
-  props.toolCalls.filter(tc => tc.status === 'completed').length
-)
-const pendingCount = computed(() =>
-  props.toolCalls.filter(tc => tc.status === 'pending' || tc.status === 'in_progress').length
-)
-const rejectedCount = computed(() =>
-  props.toolCalls.filter(tc => tc.status === 'rejected').length
-)
-const failedCount = computed(() =>
-  props.toolCalls.filter(tc => tc.status === 'failed' || tc.isError).length
+  () => props.result.items.length,
+  (len, oldLen) => {
+    if (oldLen === 0 && len > 0) expanded.value = len <= 5
+  },
+  { immediate: true },
 )
 
 const summaryLabel = computed(() => {
-  const total = props.toolCalls.length
-  if (pendingCount.value > 0) return `待确认 ${total} 处修改`
-  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return `已跳过 ${total} 处修改`
-  if (completedCount.value > 0 && failedCount.value === 0) return `已应用 ${total} 处修改`
-  if (failedCount.value > 0 && completedCount.value === 0) return `未应用 ${total} 处修改`
-  return `已处理 ${total} 处修改`
+  const appliedTotal = props.result.applied + props.result.appliedEdited
+  const parts: string[] = []
+  if (appliedTotal > 0) parts.push(`已应用 ${appliedTotal} 处修改`)
+  if (props.result.skipped > 0) parts.push(`跳过 ${props.result.skipped}`)
+  if (props.result.reworkRequested > 0) parts.push(`重做 ${props.result.reworkRequested}`)
+  if (props.result.ended > 0) parts.push(`结束 ${props.result.ended}`)
+  if (props.result.failedToApply > 0) parts.push(`失败 ${props.result.failedToApply}`)
+  if (!parts.length) parts.push(`本轮共处理 ${props.result.total} 条建议`)
+  return parts.join(' · ')
 })
 
 const containerClass = computed(() => {
-  if (pendingCount.value > 0) return 'border-warning/30 bg-warning/20 text-warning-content hover:bg-warning/35'
-  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return 'border-base-300 bg-base-100 text-base-content hover:bg-base-300'
-  if (completedCount.value > 0 && failedCount.value === 0) return 'border-success/30 bg-success/20 text-success-content hover:bg-success/35'
-  if (failedCount.value > 0 && completedCount.value === 0) return 'border-error/30 bg-error/20 text-error-content hover:bg-error/35'
-  return 'border-base-300 bg-base-100 text-base-content hover:bg-base-300'
+  if (props.result.failedToApply > 0) return 'border-error/30 bg-error/20 text-error-content hover:bg-error/35'
+  return 'border-warning/30 bg-warning/20 text-warning-content hover:bg-warning/35'
 })
 
 const bodyClass = computed(() => {
-  if (pendingCount.value > 0) return 'border-t border-warning/30'
-  if (rejectedCount.value > 0 && completedCount.value === 0 && failedCount.value === 0) return 'border-t border-base-300'
-  if (completedCount.value > 0 && failedCount.value === 0) return 'border-t border-success/30'
-  if (failedCount.value > 0 && completedCount.value === 0) return 'border-t border-error/30'
-  return 'border-t border-base-300'
+  if (props.result.failedToApply > 0) return 'border-error/30'
+  return 'border-warning/30'
 })
 
-function itemClass(tc: AiToolCall): string {
-  if (tc.status === 'rejected') return 'text-base-content line-through opacity-75'
-  if (tc.status === 'failed' || tc.isError) return 'text-error-content line-through opacity-75'
-  if (tc.status === 'completed') return 'text-success-content'
-  return 'text-warning-content'
+const summaryChips = computed(() => {
+  const chips: Array<{ label: string; className: string }> = []
+  chips.push({ label: `共 ${props.result.total} 条`, className: 'bg-base-200 text-base-content' })
+  if (props.result.applied > 0) chips.push({ label: `已应用 ${props.result.applied}`, className: 'bg-success/20 text-success-content' })
+  if (props.result.appliedEdited > 0) chips.push({ label: `修改后应用 ${props.result.appliedEdited}`, className: 'bg-info/20 text-info-content' })
+  if (props.result.skipped > 0) chips.push({ label: `已跳过 ${props.result.skipped}`, className: 'bg-base-200 text-base-content' })
+  if (props.result.reworkRequested > 0) chips.push({ label: `已退回重做 ${props.result.reworkRequested}`, className: 'bg-warning/20 text-warning-content' })
+  if (props.result.ended > 0) chips.push({ label: `本轮结束 ${props.result.ended}`, className: 'bg-base-200 text-base-content' })
+  if (props.result.failedToApply > 0) chips.push({ label: `应用失败 ${props.result.failedToApply}`, className: 'bg-error/20 text-error-content' })
+  return chips
+})
+
+function stateLabel(state: EditRoundResultState): string {
+  switch (state) {
+    case 'applied':
+      return '已应用'
+    case 'applied_edited':
+      return '修改后应用'
+    case 'rework_requested':
+      return '已退回重做'
+    case 'ended':
+      return '本轮结束'
+    case 'failed_to_apply':
+      return '应用失败'
+    default:
+      return '已跳过'
+  }
 }
 
-function editOpDisplay(tc: AiToolCall): { label: string } {
-  const args = tc.arguments
-  const bid  = (v: unknown) => v !== undefined && v !== null ? `{b:${v}}` : '?'
-  const fname = (fp: unknown) =>
-    typeof fp === 'string' && fp ? (fp.split('/').pop() ?? fp) : ''
-  switch (tc.name) {
-    case 'edit_block':     return { label: `编辑块 ${bid(args.block_id)}` }
-    case 'insert_block': {
-      const ref = args.after_block_id !== undefined ? `块 ${bid(args.after_block_id)} 之后`
-        : args.end_block_id !== undefined ? `尾部 ${bid(args.end_block_id)}` : ''
-      return { label: `插入块${ref ? ` (${ref})` : ''}` }
-    }
-    case 'delete_block':   return { label: `删除块 ${bid(args.block_id)}` }
-    case 'replace_range':  return { label: `替换块 ${bid(args.start_block_id)}–${bid(args.end_block_id)}` }
-    case 'create_document': {
-      const name = fname(args.file_path) || (typeof args.filename === 'string' ? args.filename : '')
-      return { label: `创建文档${name ? `: ${name}` : ''}` }
-    }
-    default:               return { label: tc.title || tc.name }
+function stateBadgeClass(state: EditRoundResultState): string {
+  switch (state) {
+    case 'applied':
+      return 'bg-success/20 text-success-content'
+    case 'applied_edited':
+      return 'bg-info/20 text-info-content'
+    case 'rework_requested':
+      return 'bg-warning/20 text-warning-content'
+    case 'failed_to_apply':
+      return 'bg-error/20 text-error-content'
+    default:
+      return 'bg-base-200 text-base-content'
+  }
+}
+
+function detailRowClass(state: EditRoundResultState): string {
+  switch (state) {
+    case 'applied':
+      return 'bg-success/5'
+    case 'applied_edited':
+      return 'bg-info/5'
+    case 'rework_requested':
+      return 'bg-warning/8'
+    case 'failed_to_apply':
+      return 'bg-error/8'
+    default:
+      return 'bg-base-100'
   }
 }
 </script>

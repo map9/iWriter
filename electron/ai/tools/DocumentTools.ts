@@ -22,11 +22,6 @@ function getRuntimeActiveFilePath(runtime: unknown): string | null {
   return getRuntimeString(runtime, 'active_file_path')
 }
 
-function getRuntimeWorkspacePath(runtime: unknown): string | null {
-  const value = getRuntimeString(runtime, 'workspace_path')
-  return value?.trim() ? value : null
-}
-
 function normalizePath(p: string): string {
   return p.replace(/\\/g, '/').toLowerCase()
 }

@@ -358,11 +358,12 @@ function renderedNewPaneClass(type: RenderedRow['type']): string {
 .dsv-body {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  max-height: 14rem;
+  max-height: 22rem;
   overflow-y: auto;
 }
 .dsv-body--editable {
   align-items: stretch;
+  height: 22rem;
 }
 
 .dsv-rendered {
@@ -406,7 +407,7 @@ function renderedNewPaneClass(type: RenderedRow['type']): string {
   overflow: hidden;
 }
 .dsv-cell--full {
-  min-height: 14rem;
+  min-height: 22rem;
 }
 .dsv-cell + .dsv-cell {
   border-left: 1px solid #fde68a;
@@ -437,9 +438,10 @@ function renderedNewPaneClass(type: RenderedRow['type']): string {
 
 .dsv-editor {
   width: 100%;
-  min-height: 14rem;
+  height: 100%;
+  min-height: 22rem;
   border: 0;
-  resize: vertical;
+  resize: none;
   background: transparent;
   color: #14532d;
   padding: 0.75rem 0.85rem;

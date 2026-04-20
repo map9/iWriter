@@ -4,6 +4,7 @@
     :message="message"
     :edit-tool-calls="editToolCalls"
     :is-latest-assistant-message="isLatestAssistantMessage"
+    :is-preview="isPreview"
   />
   <CreativeMessageSession
     v-else
@@ -24,6 +25,7 @@ defineProps<{
   message: ThreadMessage
   editToolCalls: AiToolCall[]
   isLatestAssistantMessage: boolean
+  isPreview?: boolean
 }>()
 
 const aiStore = useAiStore()

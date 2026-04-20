@@ -1,6 +1,6 @@
 <template>
   <div
-    class="w-full rounded-lg overflow-hidden text-xs border border-base-300 bg-base-100"
+    class="w-full rounded-box overflow-hidden text-xs border border-base-300 bg-base-200 text-base-content transition-colors hover:bg-base-300"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
   >
@@ -10,7 +10,7 @@
       @click="toggleExpanded"
     >
       <div class="w-3.5 shrink-0 flex items-center justify-center">
-        <span class="leading-none">✓</span>
+        <IconListCheck class="icon-2xs" />
       </div>
 
       <div class="shrink-0 font-semibold text-xs leading-4 whitespace-nowrap">
@@ -67,6 +67,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import {
   IconChevronUp,
   IconChevronDown,
+  IconListCheck,
 } from '@tabler/icons-vue'
 import type { TaskPlanItem } from '@/ai/types'
 

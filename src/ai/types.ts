@@ -52,8 +52,8 @@ export interface AiProviderConfig {
 
 /** Semantic kind of a tool call — used for UI icon/color selection. */
 export type AiToolCallKind =
-  | 'read' | 'edit' | 'delete' | 'move' | 'search'
-  | 'execute' | 'think' | 'fetch' | 'other'
+  | 'read' | 'edit' | 'delete' | 'search'
+  | 'execute' | 'delegate' | 'other'
 
 export type AiToolDetailType =
   | 'outline'
@@ -197,6 +197,43 @@ export interface FileCreateProposal extends BaseEditProposal {
 
 export type EditProposal = BlockEditProposal | FileCreateProposal
 
+export type EditRoundResultState =
+  | 'applied'
+  | 'applied_edited'
+  | 'skipped'
+  | 'rework_requested'
+  | 'ended'
+  | 'failed_to_apply'
+
+export interface EditRoundResultItem {
+  proposalId: string
+  state: EditRoundResultState
+  kind: EditProposal['kind'] | BlockEditProposal['type']
+  label: string
+  filePath?: string
+  description?: string
+  oldContent?: string
+  newContent?: string
+  finalAppliedContent?: string
+  failureMessage?: string
+  blockInfo?: {
+    displayBlockId?: number
+    startDisplayBlockId?: number
+    endDisplayBlockId?: number
+  }
+}
+
+export interface EditRoundResult {
+  total: number
+  applied: number
+  appliedEdited: number
+  skipped: number
+  reworkRequested: number
+  ended: number
+  failedToApply: number
+  items: EditRoundResultItem[]
+}
+
 // ── Thread Message ─────────────────────────────────────────────────────────
 
 /** A message stored in a thread. */
@@ -220,6 +257,7 @@ export interface ThreadMessage {
     toolCallId?: string
     items: TaskPlanItem[]
   }
+  editRoundResult?: EditRoundResult
   /** Ordered content blocks for interleaved text + tool call rendering. */
   contentBlocks?: MessageContentBlock[]
 
@@ -372,6 +410,7 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     ls:                   'read',
     glob:                 'search',
     grep:                 'search',
+    task:                 'delegate',
   }
   return mapping[toolName] ?? 'other'
 }

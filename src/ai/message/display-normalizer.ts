@@ -133,43 +133,65 @@ function toolParamsText(toolCall: AiToolCall): string {
 function summarizeOutline(parsedResult: Record<string, unknown> | null): string | undefined {
   if (!parsedResult) return undefined
   const outline = Array.isArray(parsedResult.outline) ? parsedResult.outline : []
-  const totalBlocks = toNumber(parsedResult.total_blocks)
   const totalWords = toNumber(parsedResult.total_words)
-  const parts = [`${outline.length} 个章节`]
-  if (totalBlocks !== null) parts.push(`${totalBlocks} blocks`)
-  if (totalWords !== null) parts.push(`${totalWords} 字`)
+  const parts = [`${outline.length} 章`]
+  if (totalWords !== null && totalWords > 0) parts.push(`${totalWords} 字`)
   return parts.join(' · ')
 }
 
 function summarizeSection(parsedResult: Record<string, unknown> | null): string | undefined {
   if (!parsedResult) return undefined
-  const range = formatBlockRange(parsedResult.block_id_range)
   const totalLines = toNumber(parsedResult.total_lines)
   const wordCount = toNumber(parsedResult.word_count)
+  const offset = toNumber(parsedResult.offset)
+  const hasMore = parsedResult.has_more === true
   const content = toStringValue(parsedResult.content)
-  const blockCount = countBlockMarkers(content)
-  const parts: string[] = []
-  if (blockCount !== null && blockCount > 0) parts.push(`${blockCount} blocks`)
-  else if (totalLines !== null) parts.push(`${totalLines} 段`)
-  if (range) parts.push(range)
-  if (wordCount !== null) parts.push(`${wordCount} 字`)
-  if (parsedResult.has_more === true) parts.push('还有更多内容')
-  return parts.join(' · ') || undefined
+  const pageCount = countBlockMarkers(content)
+
+  // 一次性读完整章节（首页且无后续，且当前页段数等于总段数）
+  const isFullRead =
+    (offset === null || offset === 0)
+    && !hasMore
+    && pageCount !== null
+    && totalLines !== null
+    && pageCount === totalLines
+
+  if (isFullRead && totalLines !== null) {
+    const parts = [`${totalLines} 段`]
+    if (wordCount !== null && wordCount > 0) parts.push(`${wordCount} 字`)
+    return parts.join(' · ')
+  }
+
+  // 翻页：显示当前页范围 / 总段数（不显示字数，word_count 是整章的会误导）
+  if (offset !== null && pageCount !== null && pageCount > 0 && totalLines !== null) {
+    const start = offset + 1
+    const end = Math.min(offset + pageCount, totalLines)
+    return `第 ${start}-${end}/${totalLines} 段`
+  }
+
+  if (totalLines !== null) return `共 ${totalLines} 段`
+  return undefined
 }
 
 function summarizeBlocks(parsedResult: Record<string, unknown> | null): string | undefined {
   if (!parsedResult) return undefined
   const blocks = Array.isArray(parsedResult.blocks) ? parsedResult.blocks : []
   if (!blocks.length) return undefined
-  return `${blocks.length} 个 blocks`
+  return `${blocks.length} 段`
+}
+
+function summarizeDocumentBlockSearch(parsedResult: Record<string, unknown> | null): string | undefined {
+  if (!parsedResult) return undefined
+  const totalMatches = toNumber(parsedResult.total_matches)
+  if (totalMatches === null) return undefined
+  return `${totalMatches} 处`
 }
 
 function summarizeBlockContext(parsedResult: Record<string, unknown> | null): string | undefined {
   if (!parsedResult) return undefined
-  const center = formatBlockId(parsedResult.centerBlockId)
   const blocks = Array.isArray(parsedResult.blocks) ? parsedResult.blocks : []
-  if (center && blocks.length) return `目标 ${center} · 共 ${blocks.length} 个上下文 blocks`
-  return center ? `目标 ${center}` : undefined
+  if (!blocks.length) return undefined
+  return `${blocks.length} 段上下文`
 }
 
 function summarizeSearchSections(parsedResult: Record<string, unknown> | null): string | undefined {
@@ -177,8 +199,8 @@ function summarizeSearchSections(parsedResult: Record<string, unknown> | null): 
   const totalSections = toNumber(parsedResult.total_sections)
   const totalMatches = toNumber(parsedResult.total_matches)
   const parts: string[] = []
-  if (totalSections !== null) parts.push(`${totalSections} 个章节`)
-  if (totalMatches !== null) parts.push(`${totalMatches} 个命中`)
+  if (totalMatches !== null) parts.push(`${totalMatches} 处`)
+  if (totalSections !== null) parts.push(`${totalSections} 章`)
   return parts.join(' · ') || undefined
 }
 
@@ -186,11 +208,9 @@ function summarizeWorkspaceSearch(parsedResult: Record<string, unknown> | null):
   if (!parsedResult) return undefined
   const matchedFiles = toNumber(parsedResult.matched_files)
   const totalMatches = toNumber(parsedResult.total_matches)
-  const scannedFiles = toNumber(parsedResult.scanned_files)
   const parts: string[] = []
-  if (matchedFiles !== null) parts.push(`${matchedFiles} 个文件`)
-  if (totalMatches !== null) parts.push(`${totalMatches} 个命中`)
-  if (scannedFiles !== null) parts.push(`扫描 ${scannedFiles} 个文件`)
+  if (matchedFiles !== null) parts.push(`${matchedFiles} 文件`)
+  if (totalMatches !== null) parts.push(`${totalMatches} 处`)
   return parts.join(' · ') || undefined
 }
 
@@ -207,54 +227,16 @@ function summarizeTodoList(parsedResult: Record<string, unknown> | null): string
     if (status === 'completed') completed += 1
     else if (status === 'in_progress') inProgress += 1
   }
-  const pending = todos.length - completed - inProgress
-  const parts = [`${todos.length} 项任务`]
-  if (completed > 0) parts.push(`${completed} 已完成`)
+  const parts = [`${completed}/${todos.length}`]
   if (inProgress > 0) parts.push(`${inProgress} 进行中`)
-  if (pending > 0) parts.push(`${pending} 待办`)
   return parts.join(' · ')
 }
 
-function buildRunningSummary(toolCall: AiToolCall, fallback?: string): string | undefined {
-  if (toolCall.status !== 'pending' && toolCall.status !== 'in_progress') return fallback
-
-  switch (toolCall.name) {
-    case 'get_document_outline':
-      return '正在读取文档大纲'
-    case 'get_section':
-      return '正在读取章节内容'
-    case 'get_blocks':
-      return '正在读取指定段落'
-    case 'get_block_context':
-      return '正在读取上下文'
-    case 'search_blocks_in_document':
-      return '正在搜索相关段落'
-    case 'search_sections_in_document':
-      return '正在搜索相关章节'
-    case 'search_in_directory':
-      return '正在搜索目录下文档内容'
-    case 'write_todos':
-      return '正在更新任务列表'
-    case 'read_file':
-      return '正在读取文件'
-    case 'list_directory':
-    case 'ls':
-      return '正在查看目录'
-    case 'glob':
-      return '正在匹配文件'
-    case 'grep':
-      return '正在搜索内容'
-    case 'execute':
-      return '正在执行命令'
-    case 'write_file':
-      return '正在写入文件'
-    case 'edit_file':
-      return '正在编辑文件'
-    case 'task':
-      return '子代理运行中'
-    default:
-      return fallback ?? '正在处理'
-  }
+function buildStatusSummary(toolCall: AiToolCall, completedSummary?: string): string | undefined {
+  if (toolCall.status === 'rejected') return '已拒绝'
+  if (toolCall.isError || toolCall.status === 'failed') return '失败'
+  if (toolCall.status === 'pending' || toolCall.status === 'in_progress') return undefined
+  return completedSummary
 }
 
 function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
@@ -277,7 +259,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         actionLabel: '读取文档大纲',
         targetLabel: fileLabel,
         targetPath: pathArg || toolCall.file?.path,
-        summaryLabel: buildRunningSummary(toolCall, summarizeOutline(parsedResult)),
+        summaryLabel: buildStatusSummary(toolCall, summarizeOutline(parsedResult)),
         detailType: parsedResult ? 'outline' : 'text',
         parsedResult,
         rawResult,
@@ -289,8 +271,8 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         actionLabel: '读取章节',
         targetLabel: fileLabel,
         targetPath: pathArg || toolCall.file?.path,
-        contextLabel: heading ? `章节 · ${heading}` : (formatBlockId(args.heading_block_id) ?? undefined),
-        summaryLabel: buildRunningSummary(toolCall, summarizeSection(parsedResult) ?? range ?? undefined),
+        contextLabel: heading ?? (formatBlockId(args.heading_block_id) ?? undefined),
+        summaryLabel: buildStatusSummary(toolCall, summarizeSection(parsedResult) ?? range ?? undefined),
         detailType: parsedResult ? 'section' : 'text',
         parsedResult,
         rawResult,
@@ -301,10 +283,14 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         actionLabel: '读取指定段落',
         targetLabel: fileLabel,
         targetPath: pathArg || toolCall.file?.path,
-        contextLabel: Array.isArray(args.block_ids)
-          ? args.block_ids.slice(0, 4).map(id => formatBlockId(id)).filter((id): id is string => !!id).join(', ')
-          : undefined,
-        summaryLabel: buildRunningSummary(toolCall, summarizeBlocks(parsedResult)),
+        contextLabel: (() => {
+          const ids = Array.isArray(args.block_ids) ? args.block_ids : []
+          const shown = ids.slice(0, 2).map(id => formatBlockId(id)).filter((id): id is string => !!id).join(', ')
+          if (!shown) return undefined
+          const rest = ids.length > 2 ? ` +${ids.length - 2}` : ''
+          return `${shown}${rest}`
+        })(),
+        summaryLabel: buildStatusSummary(toolCall, summarizeBlocks(parsedResult)),
         detailType: parsedResult ? 'blocks' : 'text',
         parsedResult,
         rawResult,
@@ -315,7 +301,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         targetLabel: fileLabel,
         targetPath: pathArg || toolCall.file?.path,
         contextLabel: formatBlockId(args.block_id) ?? undefined,
-        summaryLabel: buildRunningSummary(toolCall, summarizeBlockContext(parsedResult)),
+        summaryLabel: buildStatusSummary(toolCall, summarizeBlockContext(parsedResult)),
         detailType: parsedResult ? 'block_context' : 'text',
         parsedResult,
         rawResult,
@@ -325,8 +311,11 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         actionLabel: '在文档中搜索段落',
         targetLabel: fileLabel,
         targetPath: pathArg || toolCall.file?.path,
-        contextLabel: toStringValue(args.query) ?? undefined,
-        summaryLabel: buildRunningSummary(toolCall, summarizeBlocks(parsedResult)),
+        contextLabel: (() => {
+          const q = toStringValue(args.query)
+          return q ? `"${q}"` : undefined
+        })(),
+        summaryLabel: buildStatusSummary(toolCall, summarizeDocumentBlockSearch(parsedResult)),
         detailType: parsedResult ? 'blocks' : 'text',
         parsedResult,
         rawResult,
@@ -336,8 +325,11 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         actionLabel: '在文档中搜索章节',
         targetLabel: fileLabel,
         targetPath: pathArg || toolCall.file?.path,
-        contextLabel: toStringValue(args.query) ?? undefined,
-        summaryLabel: buildRunningSummary(toolCall, summarizeSearchSections(parsedResult)),
+        contextLabel: (() => {
+          const q = toStringValue(args.query)
+          return q ? `"${q}"` : undefined
+        })(),
+        summaryLabel: buildStatusSummary(toolCall, summarizeSearchSections(parsedResult)),
         detailType: parsedResult ? 'search_sections' : 'text',
         parsedResult,
         rawResult,
@@ -345,18 +337,15 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
     case 'search_in_directory':
       return {
         actionLabel: '在目录中搜索文档内容',
-        targetLabel: toStringValue(args.query) ?? undefined,
+        targetLabel: (() => {
+          const q = toStringValue(args.query)
+          return q ? `"${q}"` : undefined
+        })(),
         contextLabel: (() => {
           const dir = toStringValue(args.directory_path)
-          const include = toStringValue(args.include_glob)
-          const exclude = toStringValue(args.exclude_glob)
-          return [
-            dir ? `目录 ${basename(dir)}` : '',
-            include ? `包含 ${include}` : '',
-            exclude ? `排除 ${exclude}` : '',
-          ].filter(Boolean).join(' · ') || undefined
+          return dir ? `目录 ${basename(dir)}` : undefined
         })(),
-        summaryLabel: buildRunningSummary(toolCall, summarizeWorkspaceSearch(parsedResult)),
+        summaryLabel: buildStatusSummary(toolCall, summarizeWorkspaceSearch(parsedResult)),
         detailType: parsedResult ? 'workspace_search' : 'text',
         parsedResult,
         rawResult,
@@ -364,7 +353,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
     case 'write_todos':
       return {
         actionLabel: '任务列表',
-        summaryLabel: buildRunningSummary(toolCall, summarizeTodoList(parsedResult)),
+        summaryLabel: buildStatusSummary(toolCall, summarizeTodoList(parsedResult)),
         detailType: parsedResult ? 'todo_list' : 'text',
         parsedResult,
         rawResult,
@@ -374,7 +363,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         actionLabel: '读取文件',
         targetLabel: fileLabel || pathArg || undefined,
         targetPath: pathArg || toolCall.file?.path,
-        summaryLabel: buildRunningSummary(toolCall, rawResult ? `${rawResult.split('\n').length} 行结果` : undefined),
+        summaryLabel: buildStatusSummary(toolCall, rawResult ? `${rawResult.split('\n').length} 行` : undefined),
         detailType: 'text',
         parsedResult,
         rawResult,
@@ -384,7 +373,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
       return {
         actionLabel: '查看目录',
         targetLabel: pathArg || undefined,
-        summaryLabel: buildRunningSummary(toolCall, rawResult ? `${rawResult.split('\n').filter(Boolean).length} 个条目` : undefined),
+        summaryLabel: buildStatusSummary(toolCall, rawResult ? `${rawResult.split('\n').filter(Boolean).length} 项` : undefined),
         detailType: 'text',
         parsedResult,
         rawResult,
@@ -394,7 +383,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         actionLabel: '匹配文件',
         targetLabel: toStringValue(args.pattern) ?? undefined,
         contextLabel: pathArg || undefined,
-        summaryLabel: buildRunningSummary(toolCall, rawResult ? `${rawResult.split('\n').filter(Boolean).length} 个结果` : undefined),
+        summaryLabel: buildStatusSummary(toolCall, rawResult ? `${rawResult.split('\n').filter(Boolean).length} 项` : undefined),
         detailType: 'text',
         parsedResult,
         rawResult,
@@ -404,7 +393,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         actionLabel: '搜索内容',
         targetLabel: toStringValue(args.pattern) ?? toStringValue(args.query) ?? undefined,
         contextLabel: pathArg || undefined,
-        summaryLabel: buildRunningSummary(toolCall, rawResult ? `${rawResult.split('\n').filter(Boolean).length} 个结果` : undefined),
+        summaryLabel: buildStatusSummary(toolCall, rawResult ? `${rawResult.split('\n').filter(Boolean).length} 处` : undefined),
         detailType: 'text',
         parsedResult,
         rawResult,
@@ -414,7 +403,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
       return {
         actionLabel: '执行命令',
         targetLabel: command || undefined,
-        summaryLabel: buildRunningSummary(toolCall, toolCall.status === 'completed' ? '命令执行完成' : undefined),
+        summaryLabel: buildStatusSummary(toolCall, toolCall.status === 'completed' ? '完成' : undefined),
         detailType: 'text',
         parsedResult,
         rawResult,
@@ -425,7 +414,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         actionLabel: '写入文件',
         targetLabel: fileLabel || pathArg || undefined,
         targetPath: pathArg || toolCall.file?.path,
-        summaryLabel: buildRunningSummary(toolCall, toolCall.status === 'completed' ? '文件写入完成' : undefined),
+        summaryLabel: buildStatusSummary(toolCall, toolCall.status === 'completed' ? '已写入' : undefined),
         detailType: 'text',
         parsedResult,
         rawResult,
@@ -435,7 +424,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         actionLabel: '编辑文件',
         targetLabel: fileLabel || pathArg || undefined,
         targetPath: pathArg || toolCall.file?.path,
-        summaryLabel: buildRunningSummary(toolCall, toolCall.status === 'completed' ? '文件编辑完成' : undefined),
+        summaryLabel: buildStatusSummary(toolCall, toolCall.status === 'completed' ? '已编辑' : undefined),
         detailType: 'text',
         parsedResult,
         rawResult,
@@ -450,8 +439,8 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
       return {
         actionLabel: '列出故事资产',
         targetLabel: toStringValue(args.section) ?? 'story workspace',
-        contextLabel: sectionCount ? `${sectionCount} 个分区` : undefined,
-        summaryLabel: buildRunningSummary(toolCall, fileCount ? `${fileCount} 个文件` : '暂无文件'),
+        contextLabel: sectionCount ? `${sectionCount} 分区` : undefined,
+        summaryLabel: buildStatusSummary(toolCall, fileCount ? `${fileCount} 项` : '暂无文件'),
         detailType: parsedResult ? 'json' : 'text',
         parsedResult,
         rawResult,
@@ -462,9 +451,9 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         actionLabel: '读取故事资产',
         targetLabel: buildStoryAssetLabel(args.section, args.slug) ?? toStringValue(args.slug) ?? undefined,
         contextLabel: toStringValue(args.section) ?? undefined,
-        summaryLabel: buildRunningSummary(
+        summaryLabel: buildStatusSummary(
           toolCall,
-          rawResult ? `${rawResult.split('\n').length} 行 · ${rawResult.length} 字符` : undefined
+          rawResult ? `${rawResult.split('\n').length} 行` : undefined
         ),
         detailType: 'text',
         parsedResult,
@@ -478,13 +467,13 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         : description ?? undefined
       const resultText = typeof rawResult === 'string' ? rawResult : ''
       const completedSummary = toolCall.status === 'completed' && resultText
-        ? `返回 ${resultText.length} 字符`
+        ? `返回 ${resultText.length} 字`
         : undefined
       return {
         actionLabel: '委派子代理',
         targetLabel: subagentType,
         contextLabel: descriptionPreview,
-        summaryLabel: buildRunningSummary(toolCall, completedSummary),
+        summaryLabel: buildStatusSummary(toolCall, completedSummary),
         detailType: (description || resultText) ? 'subagent_task' : 'text',
         parsedResult: {
           description: description ?? '',
@@ -501,7 +490,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         targetLabel: savedPath ? basename(savedPath) : (buildStoryAssetLabel(args.section, args.slug) ?? toStringValue(args.slug) ?? undefined),
         targetPath: savedPath ?? undefined,
         contextLabel: [toStringValue(args.section), toStringValue(args.slug)].filter(Boolean).join(' · ') || undefined,
-        summaryLabel: buildRunningSummary(toolCall, toolCall.status === 'completed' ? '已保存' : undefined),
+        summaryLabel: buildStatusSummary(toolCall, toolCall.status === 'completed' ? '已保存' : undefined),
         detailType: parsedResult ? 'json' : 'text',
         parsedResult,
         rawResult,
@@ -512,7 +501,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         actionLabel: toolCall.title || toolCall.name,
         targetLabel: fileLabel,
         targetPath: pathArg || toolCall.file?.path,
-        summaryLabel: buildRunningSummary(toolCall, undefined),
+        summaryLabel: buildStatusSummary(toolCall, undefined),
         detailType: parsedResult ? 'json' : 'text',
         parsedResult,
         rawResult,

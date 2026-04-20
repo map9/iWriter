@@ -42,6 +42,7 @@ interface RuntimeEventsDeps {
   inferToolKind: (toolName: string) => AiToolCall['kind']
   normalizeMessagesForDisplay: (messages: ThreadMessage[]) => ThreadMessage[]
   normalizeMessageForDisplay: (message: ThreadMessage) => ThreadMessage
+  getCompletedRoundResult: (threadId: string | null | undefined, turnId: string | null | undefined) => ThreadMessage['editRoundResult'] | null
   appendMessage: (thread: AiThread, message: ThreadMessage) => AiThread
   updateThread: (thread: AiThread) => void
   notifyError: (message: string) => void
@@ -164,7 +165,25 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
           if (!messages?.length) return
           const current = deps.activeThread.value
           if (current && current.id === event.threadId) {
-            deps.updateThread({ ...current, messages: deps.normalizeMessagesForDisplay(messages), messagesLoaded: true })
+            const normalizedMessages = deps.normalizeMessagesForDisplay(messages)
+            if (event.turnId) {
+              let attached = false
+              for (let i = normalizedMessages.length - 1; i >= 0; i--) {
+                const message = normalizedMessages[i]
+                if (message?.role === 'assistant' && (message.turnId === event.turnId || (!message.turnId && !attached))) {
+                  const turnId = message.turnId ?? event.turnId
+                  const editRoundResult = deps.getCompletedRoundResult(event.threadId, turnId)
+                  normalizedMessages[i] = {
+                    ...message,
+                    turnId,
+                    editRoundResult: editRoundResult ?? message.editRoundResult,
+                  }
+                  attached = true
+                  if (message.turnId === event.turnId) break
+                }
+              }
+            }
+            deps.updateThread({ ...current, messages: normalizedMessages, messagesLoaded: true })
           }
         })
         .catch(() => { /* ignore */ })

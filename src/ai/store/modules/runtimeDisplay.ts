@@ -1,30 +1,135 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import type {
   AiToolCall,
+  AiToolResult,
   MessageContentBlock,
   ThreadMessage,
 } from '@/ai/types'
+import { BLOCK_EDIT_TOOLS } from '@/ai/types'
 import type { AiDisplayMessageEntry, AiDisplayThread } from '../ai'
 import type { LiveTurn, ThreadRunState } from './runtimeState'
+
+function hasAssistantText(message: ThreadMessage): boolean {
+  if (message.role !== 'assistant') return false
+  if (message.content?.trim()) return true
+  return (message.contentBlocks ?? []).some(block =>
+    block.type === 'text' && !!block.text?.trim()
+  )
+}
+
+function getNonTodoToolCalls(message: ThreadMessage): AiToolCall[] {
+  return (message.toolCalls ?? []).filter(tc => tc.name !== 'write_todos')
+}
+
+function getReadToolCalls(message: ThreadMessage): AiToolCall[] {
+  return getNonTodoToolCalls(message).filter(tc => !BLOCK_EDIT_TOOLS.has(tc.name))
+}
+
+function hasVisibleAssistantOutput(message: ThreadMessage): boolean {
+  return hasAssistantText(message) || getNonTodoToolCalls(message).length > 0 || !!message.editRoundResult
+}
 
 function isThinkingOnlyMessage(message: ThreadMessage): boolean {
   if (message.role !== 'assistant') return false
   if (!message.thinkingContent?.trim()) return false
-  if (message.content?.trim()) return false
+  if (hasVisibleAssistantOutput(message)) return false
+  return (message.toolCalls ?? []).every(tc => tc.name === 'write_todos')
+}
 
-  const toolCallsById = new Map((message.toolCalls ?? []).map(tc => [tc.id, tc]))
-  for (const tc of toolCallsById.values()) {
-    if (tc.name !== 'write_todos') return false
-  }
-  for (const block of message.contentBlocks ?? []) {
-    if (block.type === 'text' && block.text?.trim()) return false
-    if (block.type === 'tool_call') {
-      const tc = block.toolCallId ? toolCallsById.get(block.toolCallId) : undefined
-      if (!tc || tc.name !== 'write_todos') return false
-    }
-    if (block.type === 'agent_event' && (block.text?.trim() || block.agentName)) return false
-  }
+function shouldSuppressAssistantMessage(message: ThreadMessage): boolean {
+  if (message.role !== 'assistant') return false
+  if (hasVisibleAssistantOutput(message)) return false
+  if (message.thinkingContent?.trim()) return false
   return true
+}
+
+function isSameTurn(a: string | undefined, b: string | undefined): boolean {
+  return (a ?? '') === (b ?? '')
+}
+
+function canHostThinking(message: ThreadMessage): boolean {
+  return message.role === 'assistant' && (hasAssistantText(message) || !!message.editRoundResult)
+}
+
+function isReadToolOnlyMessage(message: ThreadMessage): boolean {
+  if (message.role !== 'assistant') return false
+  if (hasAssistantText(message)) return false
+  if (message.editRoundResult) return false
+  const toolCalls = message.toolCalls ?? []
+  if (!toolCalls.length) return false
+  return getReadToolCalls(message).length === toolCalls.filter(tc => tc.name !== 'write_todos').length
+}
+
+function mergeContentBlocks(messages: ThreadMessage[]): MessageContentBlock[] | undefined {
+  const blocks: MessageContentBlock[] = []
+  for (const message of messages) {
+    if (message.contentBlocks?.length) {
+      blocks.push(...message.contentBlocks)
+      continue
+    }
+    const text = message.content?.trim()
+    if (text) blocks.push({ type: 'text', text })
+    for (const toolCall of message.toolCalls ?? []) {
+      if (toolCall.name === 'write_todos' || BLOCK_EDIT_TOOLS.has(toolCall.name)) continue
+      blocks.push({ type: 'tool_call', toolCallId: toolCall.id })
+    }
+  }
+  return blocks.length ? blocks : undefined
+}
+
+function mergeReadToolOnlyMessages(messages: ThreadMessage[]): ThreadMessage {
+  const first = messages[0]!
+  const last = messages[messages.length - 1]!
+  const toolCalls = messages.flatMap(message => getReadToolCalls(message))
+  const toolResults = messages.flatMap(message => message.toolResults ?? [])
+  const mergedToolResults: AiToolResult[] | undefined = toolResults.length ? toolResults : undefined
+  const mergedThinking = messages
+    .map(message => message.thinkingContent?.trim() ?? '')
+    .filter(Boolean)
+    .join('\n\n---\n\n')
+
+  return {
+    ...last,
+    toolCalls: toolCalls.length ? toolCalls : undefined,
+    toolResults: mergedToolResults,
+    contentBlocks: mergeContentBlocks(messages),
+    content: '',
+    thinkingContent: mergedThinking || undefined,
+  }
+}
+
+function mergeThinking(host: ThreadMessage, thinkingMessages: ThreadMessage[]): ThreadMessage {
+  const mergedThinking = [
+    ...thinkingMessages.map(m => m.thinkingContent?.trim() ?? ''),
+    host.thinkingContent?.trim() ?? '',
+  ].filter(Boolean).join('\n\n---\n\n')
+
+  return {
+    ...host,
+    thinkingContent: mergedThinking || undefined,
+  }
+}
+
+function mergePendingThinkingBackward(
+  entries: AiDisplayMessageEntry[],
+  pendingThinking: ThreadMessage[],
+): boolean {
+  if (!pendingThinking.length) return false
+
+  const turnId = pendingThinking[0]?.turnId
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i]
+    if (!entry) continue
+    if (!isSameTurn(entry.message.turnId, turnId)) continue
+    if (!canHostThinking(entry.message)) continue
+    entries[i] = {
+      ...entry,
+      message: mergeThinking(entry.message, pendingThinking),
+    }
+    return true
+  }
+
+  return false
 }
 
 export function createRuntimeDisplay(deps: {
@@ -79,50 +184,77 @@ export function createRuntimeDisplay(deps: {
   const displayThread = computed<AiDisplayThread>(() => {
     const persisted = deps.persistedMessages.value
     const entries: AiDisplayMessageEntry[] = []
-
     let pendingThinking: ThreadMessage[] = []
 
-    for (const msg of persisted) {
+    for (let index = 0; index < persisted.length; index += 1) {
+      const msg = persisted[index]!
       if (isThinkingOnlyMessage(msg)) {
         pendingThinking.push(msg)
         continue
       }
 
-      if (pendingThinking.length > 0) {
-        const mergedThinking = [
-          ...pendingThinking.map(m => m.thinkingContent?.trim() ?? ''),
-          msg.thinkingContent?.trim() ?? '',
-        ].filter(Boolean).join('\n\n---\n\n')
-        const first = pendingThinking[0]!
-        const host: ThreadMessage = { ...msg, thinkingContent: mergedThinking }
-        entries.push({ key: `merged:${first.id}..${msg.id}`, message: host })
-        pendingThinking = []
-      } else {
-        entries.push({ key: msg.id, message: msg })
+      if (shouldSuppressAssistantMessage(msg)) {
+        continue
       }
+
+      const pendingTurnId = pendingThinking[0]?.turnId
+      if (
+        pendingThinking.length > 0
+        && msg.role === 'assistant'
+        && isSameTurn(msg.turnId, pendingTurnId)
+        && canHostThinking(msg)
+      ) {
+        entries.push({
+          key: `merged:${pendingThinking[0]!.id}..${msg.id}`,
+          message: mergeThinking(msg, pendingThinking),
+        })
+        pendingThinking = []
+        continue
+      }
+
+      if (pendingThinking.length > 0) {
+        mergePendingThinkingBackward(entries, pendingThinking)
+        pendingThinking = []
+      }
+
+      if (isReadToolOnlyMessage(msg)) {
+        const grouped: ThreadMessage[] = [msg]
+        let lookahead = index + 1
+        while (lookahead < persisted.length) {
+          const next = persisted[lookahead]!
+          if (shouldSuppressAssistantMessage(next)) {
+            lookahead += 1
+            continue
+          }
+          if (!isReadToolOnlyMessage(next)) break
+          if (!isSameTurn(next.turnId, msg.turnId)) break
+          grouped.push(next)
+          lookahead += 1
+        }
+        index = lookahead - 1
+
+        const merged = grouped.length > 1 ? mergeReadToolOnlyMessages(grouped) : msg
+        const last = grouped[grouped.length - 1]!
+        entries.push({
+          key: grouped.length > 1 ? `merged-tools:${msg.id}..${last.id}` : msg.id,
+          message: merged,
+        })
+        continue
+      }
+
+      entries.push({ key: msg.id, message: msg })
     }
 
     if (pendingThinking.length > 0) {
-      const first = pendingThinking[0]!
-      const last = pendingThinking[pendingThinking.length - 1]!
-      const host: ThreadMessage = {
-        ...first,
-        thinkingContent: pendingThinking
-          .map(m => m.thinkingContent?.trim() ?? '')
-          .filter(Boolean)
-          .join('\n---\n'),
-      }
-      entries.push({
-        key: first.id === last.id ? first.id : `merged:${first.id}..${last.id}`,
-        message: host,
-      })
+      mergePendingThinkingBackward(entries, pendingThinking)
+      pendingThinking = []
     }
 
-
     if (deps.threadRunState.value === 'streaming' && streamingPreviewMessage.value) {
+      const preview = streamingPreviewMessage.value
       entries.push({
-        key: `preview:${streamingPreviewMessage.value.id}:${streamingPreviewMessage.value.turnId ?? 'live'}`,
-        message: streamingPreviewMessage.value,
+        key: `preview:${preview.id}:${preview.turnId ?? 'live'}`,
+        message: preview,
         isPreview: true,
       })
     }

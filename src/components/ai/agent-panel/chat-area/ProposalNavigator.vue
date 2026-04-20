@@ -1,351 +1,179 @@
 <template>
-  <div
-    class="rounded-lg overflow-hidden"
-    :class="containerClass"
-  >
-    <!-- Header: batch summary + actions -->
+  <div class="overflow-hidden rounded-box border bg-base-100" :class="containerClass">
     <div
-      class="px-3 py-2 border-b space-y-1.5"
-      :class="headerContainerClass"
+      v-if="navigatorVm.isBatchReview"
+      class="space-y-2 border-b border-warning/30 bg-warning/10 px-3 py-2.5"
     >
-      <div class="flex items-center justify-between gap-3">
+      <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <div class="flex items-center gap-2">
-            <div class="text-xs font-semibold" :class="headerTitleClass">
-              {{ batchTitle }}
-            </div>
-            <span
-              v-if="hasDeleteProposal"
-              class="inline-flex items-center rounded-full bg-error/20 px-1.5 py-0.5 text-2xs font-medium text-error-content"
-            >
-              High Risk
-            </span>
+            <div class="text-sm font-semibold text-warning-content">建议审核</div>
+            <button
+              type="button"
+              class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-base-300 bg-base-100 text-2xs text-base-content/70"
+              :title="navigatorVm.batchHint"
+            >?</button>
           </div>
-          <div class="mt-0.5 text-xs truncate" :class="headerTextClass" :title="batchSummaryLine">
-            {{ batchSummaryLine }}
-          </div>
-          <div
-            v-if="hasDeleteProposal"
-            class="mt-1 text-xs text-error-content"
-          >
-            删除操作会直接移除相关内容，应用前请先确认命中范围和上下文。
-          </div>
+          <div class="mt-1 text-xs text-warning-content">{{ navigatorVm.batchSummaryLine }}</div>
         </div>
-        <div v-if="proposals.length > 1" class="flex gap-1.5">
+        <div class="flex shrink-0 flex-wrap gap-1.5">
           <button
-            @click="$emit('approveAll')"
-            :class="[
-              'iw-btn btn-xs',
-              hasDeleteProposal ? 'btn-error' : 'btn-primary'
-            ]"
-          >{{ hasDeleteProposal ? 'Delete All' : 'Apply All' }}</button>
+            class="iw-btn btn-xs btn-warning"
+            @click="handlePrimaryBatchAction"
+          >{{ navigatorVm.primaryBatchActionLabel }}</button>
           <button
+            class="iw-btn btn-xs btn-ghost"
+            title="直接结束这一轮审核，未处理建议不再继续。"
             @click="$emit('endRound')"
-            class="iw-btn btn-xs btn-error"
-          >⏹ 结束本轮</button>
+          >结束本轮修改</button>
         </div>
       </div>
+    </div>
 
-      <div class="flex items-center justify-between gap-3">
-        <template v-if="isStreaming">
-          <span class="text-xs font-medium animate-pulse" :class="headerTextClass">
-            正在生成建议... (已有 {{ proposals.length }} 条)
-          </span>
-        </template>
-        <template v-else>
+    <section v-if="current" class="min-w-0 bg-base-100">
+      <div class="border-b border-base-300 px-3 py-2.5" :class="tonePanelClass">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <div class="text-xs font-medium" :class="toneTitleClass">{{ navigatorVm.currentTitle }}</div>
+              <span
+                v-if="currentIsDelete"
+                class="inline-flex items-center rounded-full bg-error/20 px-1.5 py-0.5 text-2xs font-medium text-error-content"
+              >
+                高风险
+              </span>
+            </div>
+            <div class="mt-1 truncate text-sm font-medium text-base-content" :title="navigatorVm.currentLabel">
+              {{ navigatorVm.currentLabel }}
+            </div>
+          </div>
           <button
             class="iw-btn btn-xs"
-            :class="headerButtonClass"
-            title="Scroll to current block"
+            title="定位到文稿中的这处内容"
             @click="scrollToCurrentBlock"
-          >
-            <template v-if="proposals.length > 1">← {{ currentIndex + 1 }} / {{ proposals.length }} 处修改</template>
-            <template v-else>← 当前修改</template>
-          </button>
-          <div class="text-xs truncate" :class="headerTextClass" :title="operationSummaryLine">
-            {{ operationSummaryLine }}
+          >定位原文</button>
+        </div>
+        <div v-if="current.description" class="mt-2 text-xs" :class="toneDescriptionClass">
+          {{ current.description }}
+        </div>
+      </div>
+
+      <div class="min-h-52">
+        <template v-if="current.kind === 'create_file'">
+          <div class="border-b border-base-300 px-3 py-2 text-xs font-medium text-base-content">
+            新建文档预览
+          </div>
+          <div class="p-3">
+            <div class="mb-2 text-xs text-base-content/70">文件名：{{ current.filename }}</div>
+            <div class="rounded-md border p-2" :class="tonePanelClass">
+              <MarkdownContentView :content="current.content" />
+            </div>
           </div>
         </template>
-      </div>
 
-      <div
-        v-if="proposals.length > 1 && !isStreaming"
-        class="text-xs"
-        :class="headerTextClass"
-      >
-        逐条审核后统一应用，避免前面的修改影响后续块定位。
-      </div>
-
-      <div
-        v-if="reviewSummary && reviewSummary.total > 1"
-        class="flex flex-wrap items-center gap-1.5 text-xs"
-      >
-        <span class="font-medium" :class="headerTextClass">
-          已审核 {{ reviewSummary.resolved }} / {{ reviewSummary.total }}
-        </span>
-        <span
-          v-if="reviewSummary.approved > 0"
-          class="rounded-selector bg-success/20 px-1.5 py-0.5 text-success-content"
-        >{{ reviewSummary.approved }} 条待应用</span>
-        <span
-          v-if="reviewSummary.edited > 0"
-          class="rounded-selector bg-error/20 px-1.5 py-0.5 text-info-content"
-        >{{ reviewSummary.edited }} 条编辑后应用</span>
-        <span
-          v-if="reviewSummary.rework > 0"
-          class="rounded-selector bg-warning/20 px-1.5 py-0.5 text-warning-content"
-        >{{ reviewSummary.rework }} 条退回重做</span>
-        <span
-          v-if="reviewSummary.paused > 0"
-          class="rounded-selector bg-base-300 px-1.5 py-0.5 text-base-content"
-        >{{ reviewSummary.paused }} 条已暂停</span>
-      </div>
-    </div>
-
-    <!-- Description row -->
-    <div
-      class="flex items-center gap-2 px-3 py-1.5 border-b"
-      :class="descriptionRowClass"
-    >
-      <span class="text-sm leading-none">✏️</span>
-      <span class="text-xs font-medium" :class="descriptionTitleClass">{{ typeLabel }}</span>
-      <span class="text-xs truncate ml-auto max-w-50" :class="descriptionTextClass" :title="current?.description">
-        {{ current?.description }}
-      </span>
-    </div>
-
-    <div
-      v-if="proposals.length > 1"
-      class="px-3 py-2 bg-base-100 border-b"
-      :class="overviewBorderClass"
-    >
-      <div class="text-xs font-medium mb-1.5" :class="overviewTitleClass">{{ overviewTitle }}</div>
-      <div class="space-y-1">
-        <button
-          v-for="(proposal, idx) in proposals"
-          :key="proposal.id"
-          class="w-full flex items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-colors"
-          :class="proposalItemClass(proposal, idx)"
-          @click="currentIndex = idx"
-        >
-          <span
-            class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-2xs font-medium"
-            :class="proposalIndexBadgeClass(proposal, idx)"
-          >
-            {{ idx + 1 }}
-          </span>
-          <div class="min-w-0 flex-1">
-            <div class="truncate text-xs font-medium text-base-content">
-              {{ proposalListLabel(proposal) }}
+        <template v-else-if="current.type === 'delete'">
+          <div class="p-3">
+            <div class="mb-2 rounded-md bg-error/15 px-2 py-1.5 text-xs text-error-content">
+              这是一条删除建议。接受后会删除这段内容。
             </div>
+            <div class="mb-1.5 text-xs font-medium text-base-content">将被删除的原文</div>
+            <div class="rounded-md border border-error/30 bg-error/10 p-2">
+              <MarkdownContentView :content="current.oldContent || '(空)'" mode="markdown" />
+            </div>
+          </div>
+        </template>
+
+        <template v-else-if="current.type === 'insert'">
+          <div class="p-3">
+            <div class="mb-2 text-xs font-medium text-base-content">建议插入内容</div>
             <div
-              v-if="proposal.description"
-              class="mt-0.5 truncate text-xs text-base-content"
-              :title="proposal.description"
+              class="min-h-52 rounded-md border p-2"
+              :class="[tonePanelClass, isInsertEditing ? toneRingClass : 'cursor-text']"
+              @click="activateInsertEditing"
             >
-              {{ proposal.description }}
-            </div>
-          </div>
-          <span
-            v-if="idx === currentIndex"
-            class="shrink-0 text-2xs"
-            :class="isDeleteProposal(proposal) ? 'text-error-content' : 'text-warning-content'"
-          >当前</span>
-        </button>
-      </div>
-
-      <div v-if="reviewedEntriesToShow.length" class="mt-2 border-t border-base-300 pt-2">
-        <div class="mb-1.5 text-xs font-medium text-base-content">已审核</div>
-        <div class="space-y-1">
-          <button
-            v-for="entry in reviewedEntriesToShow"
-            :key="entry.proposal.id"
-            type="button"
-            class="flex w-full items-center gap-2 rounded-md border border-base-300 bg-base-100 px-2 py-1.5 text-left transition-colors hover:bg-base-300"
-            title="点击定位到这处修改"
-            @click="focusReviewedProposal(entry.proposal)"
-          >
-            <span
-              class="inline-flex rounded-full px-1.5 py-0.5 text-2xs font-medium"
-              :class="reviewedBadgeClass(entry)"
-            >
-              {{ entry.label }}
-            </span>
-            <div class="min-w-0 flex-1 truncate text-xs text-base-content">
-              {{ proposalListLabel(entry.proposal) }}
-            </div>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Diff content -->
-    <template v-if="current">
-      <!-- FileCreateProposal -->
-      <template v-if="current.kind === 'create_file'">
-        <div class="px-3 py-1.5 text-xs font-medium border-b" :class="hasDeleteProposal ? 'text-error-content border-error/30' : 'text-warning-content border-warning/30'">
-          📄 {{ createProposal.filename }}.md
-        </div>
-        <div class="p-2 text-xs">
-          <div class="text-xs font-medium mb-1" :class="hasDeleteProposal ? 'text-error-content' : 'text-warning-content'">修改详情</div>
-          <div class="text-success-content font-medium mb-1">文档内容</div>
-          <div class="text-success-content bg-success/20 rounded p-1.5 max-h-48 overflow-auto">
-            <MarkdownContentView :content="createProposal.content" />
-          </div>
-        </div>
-      </template>
-
-      <!-- BlockEditProposal: edit / delete -->
-      <template v-else-if="isSingleBlock">
-        <template v-if="blockProposal.type === 'delete'">
-          <div class="p-2 text-xs">
-            <div class="text-xs font-medium text-error-content mb-1">删除详情</div>
-            <div class="mb-1 rounded bg-error/20 px-2 py-1 text-xs text-error-content">
-              应用后将直接删除以下内容，且不会自动保留替代文本。
-            </div>
-            <div class="text-error-content font-medium mb-1">原文（将被删除）</div>
-            <div class="text-error-content bg-error/20 rounded p-1.5 max-h-32 overflow-auto">
-              <MarkdownContentView :content="blockProposal.oldContent || '(空)'" mode="markdown" />
+              <textarea
+                v-if="isInsertEditing"
+                ref="insertEditorRef"
+                v-model="editedContent"
+                rows="10"
+                class="min-h-48 w-full resize-y border-0 bg-transparent px-1 py-1 text-xs leading-relaxed text-base-content outline-none"
+                placeholder="按 Markdown 编辑将要插入的内容"
+                @blur="deactivateInsertEditing"
+              />
+              <pre
+                v-else
+                class="min-h-48 whitespace-pre-wrap warp-break-words px-1 py-1 font-mono text-xs leading-relaxed text-base-content"
+              >{{ editedContent }}</pre>
             </div>
           </div>
         </template>
-        <template v-else>
-          <div class="p-2 pb-0 text-xs font-medium" :class="hasDeleteProposal ? 'text-error-content' : 'text-warning-content'">修改详情</div>
+
+        <template v-else-if="current.type === 'edit' || current.type === 'replace_range'">
           <DiffSplitView
-            :old-content="blockProposal.oldContent || ''"
-            :new-content="blockProposal.newContent || ''"
+            :old-content="current.oldContent || ''"
+            :new-content="current.newContent || ''"
             editable-right
             v-model="editedContent"
           />
         </template>
-      </template>
+      </div>
 
-      <!-- BlockEditProposal: insert -->
-      <template v-else-if="current.kind === 'block' && blockProposal.type === 'insert'">
-        <div class="p-2 text-xs">
-          <div class="text-xs font-medium mb-1" :class="hasDeleteProposal ? 'text-error-content' : 'text-warning-content'">修改详情</div>
-          <div class="text-success-content font-medium mb-1">插入内容</div>
-          <div
-            class="rounded border border-success/30 bg-success/20 p-1.5"
-            :class="isInsertEditing ? 'ring-2 ring-green-200' : 'cursor-text'"
-            @click="activateInsertEditing"
-          >
-            <textarea
-              v-if="isInsertEditing"
-              ref="insertEditorRef"
-              v-model="editedContent"
-              rows="10"
-              class="w-full resize-y border-0 bg-transparent px-2 py-1 text-xs leading-relaxed text-success-content outline-none"
-              placeholder="按 Markdown 编辑将要插入的内容"
-              @blur="deactivateInsertEditing"
-            />
-            <pre
-              v-else
-              class="whitespace-pre-wrap break-word px-2 py-1 text-xs leading-relaxed text-success-content font-mono"
-            >{{ editedContent }}</pre>
-          </div>
-        </div>
-      </template>
-
-      <!-- BlockEditProposal: replace_range -->
-      <template v-else-if="current.kind === 'block' && blockProposal.type === 'replace_range'">
-        <div class="px-3 py-1 text-xs border-b" :class="hasDeleteProposal ? 'text-error-content border-error/30' : 'text-warning-content border-warning/30'">
-          <span class="font-medium mr-2" :class="hasDeleteProposal ? 'text-error-content' : 'text-warning-content'">修改详情</span>
-          块 {{ blockProposal.startDisplayBlockId }}–{{ blockProposal.endDisplayBlockId }}
-        </div>
-        <DiffSplitView
-          :old-content="blockProposal.oldContent || ''"
-          :new-content="blockProposal.newContent || ''"
-          editable-right
-          v-model="editedContent"
-        />
-      </template>
-
-      <!-- Fallback -->
-      <template v-else>
-        <div class="p-2 text-xs">
-          <div class="text-xs font-medium mb-1" :class="hasDeleteProposal ? 'text-error-content' : 'text-warning-content'">修改详情</div>
-          <div class="text-success-content font-medium mb-1">新内容预览</div>
-          <pre class="whitespace-pre-wrap wrap-break-word text-success-content bg-success/20 rounded p-1.5 max-h-40 overflow-auto font-mono leading-relaxed">{{ current.kind === 'block' ? blockProposal.newContent : '' }}</pre>
-        </div>
-      </template>
-    </template>
-
-    <!-- Footer: apply/ignore + navigation -->
-    <div
-      class="flex items-center justify-between px-3 py-2 border-t"
-      :class="footerContainerClass"
-    >
-      <div class="flex flex-col gap-2 min-w-0 flex-1">
-        <div class="flex gap-1.5 flex-wrap">
+      <div class="border-t border-base-300 px-3 py-2.5">
+        <div class="flex flex-wrap items-center gap-1.5">
+          <button class="iw-btn btn-xs" :class="currentIsDelete ? 'btn-error' : 'btn-warning'" @click="approve">
+            {{ navigatorVm.approveButtonLabel }}
+          </button>
+          <button class="iw-btn btn-xs btn-ghost" @click="skipCurrent">{{ navigatorVm.skipButtonLabel }}</button>
+          <button class="iw-btn btn-xs btn-warning" @click="openReworkComposer">{{ navigatorVm.reworkButtonLabel }}</button>
           <button
-            @click="approve"
-            :class="approveButtonClass"
-            class="iw-btn btn-xs"
-          >{{ approveButtonLabel }}</button>
+            type="button"
+            class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-base-300 bg-base-100 text-2xs text-base-content/70"
+            :title="navigatorVm.actionHint"
+          >?</button>
           <button
-            @click="openReworkComposer"
-            class="iw-btn btn-xs btn-warning"
-          >↻ 重新修改</button>
+            v-if="navigatorVm.isBatchReview"
+            class="iw-btn btn-xs btn-ghost"
+            :disabled="currentIndex === 0"
+            @click="prev"
+          >←</button>
           <button
-            @click="$emit('endRound', current ? { id: current.id } : undefined)"
-            class="iw-btn btn-xs btn-error"
-          >⏹ 结束本轮</button>
+            v-if="navigatorVm.isBatchReview"
+            class="iw-btn btn-xs btn-ghost"
+            :disabled="currentIndex >= proposals.length - 1"
+            @click="next"
+          >→</button>
         </div>
 
-        <div v-if="showReworkComposer" class="rounded-md border border-warning/30 bg-base-100/80 p-2">
-          <div class="text-xs font-medium text-warning-content">告诉 AI 这次应该怎么调整</div>
-          <div class="mt-1 text-xs text-warning-content/80">
-            提交后会暂停这一批后续修改，先让 AI 重做当前这处。
+        <div v-if="showReworkComposer" class="mt-3 rounded-md border p-3" :class="tonePanelClass">
+          <div class="text-xs font-medium" :class="toneTitleClass">告诉 AI 这条建议应该怎么调整</div>
+          <div class="mt-1 text-xs" :class="toneDescriptionClass">
+            提交后只会退回当前这条建议，其他建议的审核决定保持不变。
           </div>
           <textarea
             v-model="reworkReason"
             rows="3"
-            class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 px-2 text-sm focus:border-primary rounded-field"
+            class="mt-2 w-full resize-none rounded-field border border-base-300 bg-base-100 px-2 py-1 text-sm outline-none focus:border-primary"
             placeholder="例如：保留原文事实，只调整文风；不要再压缩句子。"
           />
           <div class="mt-2 flex gap-1.5">
             <button
-              @click="submitRework"
-              :disabled="!reworkReason.trim() || !current"
               class="iw-btn btn-xs btn-warning"
-            >提交并重改</button>
-            <button
-              @click="cancelReworkComposer"
-              class="iw-btn btn-xs btn-ghost"
-            >取消</button>
+              :disabled="!reworkReason.trim()"
+              @click="submitRework"
+            >提交反馈</button>
+            <button class="iw-btn btn-xs btn-ghost" @click="cancelReworkComposer">取消</button>
           </div>
         </div>
-
-        <div
-          v-if="proposals.length > 1"
-          class="text-xs"
-          :class="hasDeleteProposal ? 'text-error-content' : isQuickFixBatch ? 'text-info-content' : 'text-warning-content'"
-        >
-          当前确认只会暂存，等本批都审核完后再统一执行。
-        </div>
       </div>
-      <div v-if="proposals.length > 1" class="flex gap-1">
-        <button
-          @click="prev"
-          :disabled="currentIndex === 0"
-          class="px-2 py-1 text-xs rounded border border-base-300 bg-base-100 text-base-content hover:bg-base-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >← 上一个</button>
-        <button
-          @click="next"
-          :disabled="currentIndex >= proposals.length - 1"
-          class="px-2 py-1 text-xs rounded border border-base-300 bg-base-100 text-base-content hover:bg-base-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >下一个 →</button>
-      </div>
-    </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import type { EditProposal, BlockEditProposal, FileCreateProposal } from '@/ai/types'
-import type { ProposalReviewEntry, ProposalReviewSummary } from '@/ai/store/ai'
-import { PROPOSAL_TYPE_LABELS } from '@/ai/types'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import type { EditProposal } from '@/ai/types'
+import { buildProposalNavigatorViewModel } from '@/ai/review/selectors'
+import type { ProposalReviewSummary } from '@/ai/store/ai'
 import type { Editor } from '@tiptap/core'
 import { useAppStore } from '@/stores/app'
 import { findNodeById } from '@/ai/edit-agent/BlockEditApplier'
@@ -359,14 +187,15 @@ const PROPOSAL_HIGHLIGHT_CLASS = 'range-highlight-proposal'
 const props = defineProps<{
   proposals: EditProposal[]
   isStreaming?: boolean
-  sessionMode?: 'quick_fix' | 'standard' | 'delete_review'
-  reviewedEntries?: ProposalReviewEntry[]
   reviewSummary?: ProposalReviewSummary | null
 }>()
+
 const emit = defineEmits<{
-  approve:    [id: string]
+  approve: [id: string]
+  reject: [payload: { id: string; message?: string }]
   editApprove: [payload: { id: string; editedArgs: Record<string, unknown> }]
   approveAll: []
+  skipRemaining: []
   rework: [payload: { id: string; reason: string }]
   endRound: [payload?: { id?: string }]
 }>()
@@ -378,273 +207,58 @@ const insertEditorRef = ref<HTMLTextAreaElement | null>(null)
 const showReworkComposer = ref(false)
 const reworkReason = ref('')
 
-// Keep index in bounds when list shrinks (after approve/reject)
-watch(() => props.proposals.length, len => {
-  if (currentIndex.value >= len) {
-    currentIndex.value = Math.max(0, len - 1)
-  }
+watch(() => props.proposals.length, length => {
+  if (currentIndex.value >= length) currentIndex.value = Math.max(0, length - 1)
 })
 
 const current = computed(() => props.proposals[currentIndex.value] ?? null)
-const reviewedEntriesToShow = computed(() => props.reviewedEntries ?? [])
-
-const blockProposal  = computed(() => current.value as BlockEditProposal)
-const createProposal = computed(() => current.value as FileCreateProposal)
-
-const isSingleBlock = computed(() =>
-  current.value?.kind === 'block' &&
-  ['edit', 'delete'].includes(blockProposal.value?.type ?? '')
-)
-
-const isEditableProposal = computed(() =>
-  current.value?.kind === 'block' &&
-  ['edit', 'insert', 'replace_range'].includes(blockProposal.value?.type ?? '')
-)
-
+const currentIsDelete = computed(() => current.value?.kind === 'block' && current.value.type === 'delete')
 const hasEditedContent = computed(() =>
-  isEditableProposal.value
-  && editedContent.value !== (blockProposal.value?.newContent || '')
+  current.value?.kind === 'block'
+  && ['edit', 'insert', 'replace_range'].includes(current.value.type)
+  && editedContent.value !== (current.value.newContent || '')
+)
+const navigatorVm = computed(() =>
+  buildProposalNavigatorViewModel({
+    proposals: props.proposals,
+    reviewSummary: props.reviewSummary,
+    currentIndex: currentIndex.value,
+    current: current.value,
+    isStreaming: props.isStreaming,
+    hasEditedContent: hasEditedContent.value,
+  })
 )
 
-const typeLabel = computed(() => {
-  if (!current.value) return ''
-  if (props.sessionMode === 'quick_fix') return '轻量修正'
-  if (current.value.kind === 'create_file') return '创建文档'
-  return PROPOSAL_TYPE_LABELS[blockProposal.value?.type ?? ''] ?? '编辑建议'
-})
-
-function isDeleteProposal(proposal: EditProposal): boolean {
-  return proposal.kind === 'block' && proposal.type === 'delete'
-}
-
-const hasDeleteProposal = computed(() => props.proposals.some(proposal => isDeleteProposal(proposal)))
-
-const isQuickFixBatch = computed(() =>
-  props.sessionMode === 'quick_fix' && !hasDeleteProposal.value
+const containerClass = computed(() =>
+  !navigatorVm.value.isBatchReview && currentIsDelete.value ? 'border-error/30' : 'border-warning/30'
 )
+const tonePanelClass = computed(() => currentIsDelete.value ? 'border-error/30 bg-error/10' : 'border-warning/30 bg-warning/10')
+const toneTitleClass = computed(() => currentIsDelete.value ? 'text-error-content' : 'text-warning-content')
+const toneDescriptionClass = computed(() => currentIsDelete.value ? 'text-error-content/80' : 'text-base-content/70')
+const toneRingClass = computed(() => currentIsDelete.value ? 'ring-2 ring-error/30' : 'ring-2 ring-warning/30')
 
-const batchTitle = computed(() => {
-  if (hasDeleteProposal.value) return '本批删除建议'
-  if (isQuickFixBatch.value) return '轻量修正建议'
-  return '本批修改建议'
-})
-
-const overviewTitle = computed(() => {
-  if (hasDeleteProposal.value) return '本批删除概览'
-  if (isQuickFixBatch.value) return '本批修正概览'
-  return '本批修改概览'
-})
-
-const approveButtonLabel = computed(() => {
-  if (current.value && isDeleteProposal(current.value)) return '⚠ 删除这处'
-  if (hasEditedContent.value) return '✓ 编辑后应用'
-  if (isQuickFixBatch.value) return '✓ 应用修正'
-  return '✓ 应用'
-})
-
-const approveButtonClass = computed(() =>
-  current.value && isDeleteProposal(current.value)
-    ? 'btn-error'
-    : isQuickFixBatch.value
-      ? 'btn-warning'
-      : 'btn-primary'
-)
-
-const containerClass = computed(() => {
-  if (hasDeleteProposal.value) return 'border border-error/30 bg-error/20'
-  if (isQuickFixBatch.value) return 'border border-info/30 bg-error/20'
-  return 'border border-warning/30 bg-warning/20'
-})
-
-const headerContainerClass = computed(() => {
-  if (hasDeleteProposal.value) return 'bg-error/20 border-error/30'
-  if (isQuickFixBatch.value) return 'bg-error/20 border-info/30'
-  return 'bg-warning/20 border-warning/30'
-})
-
-const headerTitleClass = computed(() => {
-  if (hasDeleteProposal.value) return 'text-error-content'
-  if (isQuickFixBatch.value) return 'text-info-content'
-  return 'text-warning-content'
-})
-
-const headerTextClass = computed(() => {
-  if (hasDeleteProposal.value) return 'text-error-content'
-  if (isQuickFixBatch.value) return 'text-info-content'
-  return 'text-warning-content'
-})
-
-const headerButtonClass = computed(() => {
-  if (hasDeleteProposal.value) return 'btn-error'
-  if (isQuickFixBatch.value) return 'btn-info'
-  return 'btn-warning'
-})
-
-const descriptionRowClass = computed(() => {
-  if (hasDeleteProposal.value) return 'bg-error/20 border-error/30'
-  if (isQuickFixBatch.value) return 'bg-error/20 border-info/30'
-  return 'bg-warning/20 border-warning/30'
-})
-
-const descriptionTitleClass = computed(() => {
-  if (hasDeleteProposal.value) return 'text-error-content'
-  if (isQuickFixBatch.value) return 'text-info-content'
-  return 'text-warning-content'
-})
-
-const descriptionTextClass = computed(() => {
-  if (hasDeleteProposal.value) return 'text-error-content/80'
-  if (isQuickFixBatch.value) return 'text-info-content/80'
-  return 'text-warning-content/80'
-})
-
-const overviewBorderClass = computed(() => {
-  if (hasDeleteProposal.value) return 'border-error/30'
-  if (isQuickFixBatch.value) return 'border-info/30'
-  return 'border-warning/30'
-})
-
-const overviewTitleClass = computed(() => {
-  if (hasDeleteProposal.value) return 'text-error-content'
-  if (isQuickFixBatch.value) return 'text-info-content'
-  return 'text-warning-content'
-})
-
-const footerContainerClass = computed(() => {
-  if (hasDeleteProposal.value) return 'bg-error/20 border-error/30'
-  if (isQuickFixBatch.value) return 'bg-error/20 border-info/30'
-  return 'bg-warning/20 border-warning/30'
-})
-
-function basename(filePath: string): string {
-  return filePath.split('/').pop() ?? filePath
-}
-
-const affectedFileLabel = computed(() => {
-  const fileNames = Array.from(new Set(
-    props.proposals.flatMap(proposal => {
-      if (proposal.kind === 'create_file') {
-        return proposal.filename ? [proposal.filename] : []
-      }
-      return proposal.filePath ? [basename(proposal.filePath)] : []
-    }).filter(Boolean)
-  ))
-
-  if (!fileNames.length) return ''
-  if (fileNames.length === 1) return fileNames[0]!
-  return `${fileNames[0]} 等 ${fileNames.length} 个文件`
-})
-
-const batchSummaryLine = computed(() => {
-  const parts: string[] = []
-  if (affectedFileLabel.value) parts.push(affectedFileLabel.value)
-  parts.push(props.proposals.length > 1 ? `${props.proposals.length} 处待确认修改` : '1 处待确认修改')
-  return parts.join(' · ')
-})
-
-const operationSummaryLine = computed(() => {
-  let edits = 0
-  let inserts = 0
-  let deletes = 0
-  let replaces = 0
-  let creates = 0
-
-  for (const proposal of props.proposals) {
-    if (proposal.kind === 'create_file') {
-      creates += 1
-      continue
-    }
-    switch (proposal.type) {
-      case 'edit':
-        edits += 1
-        break
-      case 'insert':
-        inserts += 1
-        break
-      case 'delete':
-        deletes += 1
-        break
-      case 'replace_range':
-        replaces += 1
-        break
-    }
-  }
-
-  const parts: string[] = []
-  if (edits > 0) parts.push(`${edits} 处编辑`)
-  if (inserts > 0) parts.push(`${inserts} 处插入`)
-  if (deletes > 0) parts.push(`${deletes} 处删除`)
-  if (replaces > 0) parts.push(`${replaces} 处替换`)
-  if (creates > 0) parts.push(`${creates} 个文档创建`)
-  return parts.join(' · ') || '修改建议'
-})
-
-function proposalListLabel(proposal: EditProposal): string {
-  if (proposal.kind === 'create_file') {
-    return `创建文档：${proposal.filename || '未命名文档'}`
-  }
-
-  const fileLabel = proposal.filePath ? basename(proposal.filePath) : '当前文档'
-  switch (proposal.type) {
-    case 'edit':
-      return `${fileLabel} · 编辑块 {b:${proposal.displayBlockId ?? '?'}}`
-    case 'insert':
-      return `${fileLabel} · 在 {b:${proposal.displayBlockId ?? 0}} 后插入`
-    case 'delete':
-      return `${fileLabel} · 删除块 {b:${proposal.displayBlockId ?? '?'}}`
-    case 'replace_range':
-      return `${fileLabel} · 替换 {b:${proposal.startDisplayBlockId ?? '?'}}–{b:${proposal.endDisplayBlockId ?? '?'}}`
-    default:
-      return proposal.description || '修改建议'
-  }
-}
-
-function proposalItemClass(proposal: EditProposal, index: number): string {
-  if (isDeleteProposal(proposal)) {
-    return index === currentIndex.value
-      ? 'border-error/30 bg-error/20'
-      : 'border-error/30 bg-base-100 hover:bg-error/5'
-  }
-  return index === currentIndex.value
-    ? 'border-warning/30 bg-warning/20'
-    : 'border-warning/30 bg-base-100 hover:bg-warning/5'
-}
-
-function proposalIndexBadgeClass(proposal: EditProposal, index: number): string {
-  if (isDeleteProposal(proposal)) {
-    return index === currentIndex.value
-      ? 'bg-error/20 text-error-content'
-      : 'bg-error/20 text-error-content'
-  }
-  return index === currentIndex.value
-    ? 'bg-warning/20 text-warning-content'
-    : 'bg-warning/20 text-warning-content'
-}
-
-function reviewedBadgeClass(entry: ProposalReviewEntry): string {
-  switch (entry.tone) {
-    case 'green':
-      return 'bg-success/20 text-success-content'
-    case 'blue':
-      return 'bg-error/20 text-info-content'
-    case 'amber':
-      return 'bg-warning/20 text-warning-content'
-    default:
-      return 'text-base-300 text-base-content'
-  }
+function handlePrimaryBatchAction() {
+  if (navigatorVm.value.hasReviewProgress) emit('skipRemaining')
+  else emit('approveAll')
 }
 
 function approve() {
   if (!current.value) return
   if (hasEditedContent.value && current.value.kind === 'block') {
-    const editedArgs = current.value.type === 'insert'
-      ? { new_blocks: editedContent.value }
-      : { new_content: editedContent.value }
-    emit('editApprove', { id: current.value.id, editedArgs })
+    emit('editApprove', {
+      id: current.value.id,
+      editedArgs: current.value.type === 'insert'
+        ? { new_blocks: editedContent.value }
+        : { new_content: editedContent.value },
+    })
     return
   }
   emit('approve', current.value.id)
-  // index adjusts via watcher after list shrinks
+}
+
+function skipCurrent() {
+  if (!current.value) return
+  emit('reject', { id: current.value.id, message: 'User skipped this proposal.' })
 }
 
 function openReworkComposer() {
@@ -658,10 +272,7 @@ function cancelReworkComposer() {
 
 function submitRework() {
   if (!current.value || !reworkReason.value.trim()) return
-  emit('rework', {
-    id: current.value.id,
-    reason: reworkReason.value.trim(),
-  })
+  emit('rework', { id: current.value.id, reason: reworkReason.value.trim() })
   cancelReworkComposer()
 }
 
@@ -676,12 +287,10 @@ function next() {
 function scrollToProposal(proposal: EditProposal | null | undefined) {
   if (!proposal || proposal.kind !== 'block') return
 
-  const block = proposal as BlockEditProposal
   const nodeId =
-    block.type === 'insert' ? block.afterNodeId :
-    block.type === 'replace_range' ? block.startNodeId :
-    block.nodeId
-
+    proposal.type === 'insert' ? proposal.afterNodeId :
+    proposal.type === 'replace_range' ? proposal.startNodeId :
+    proposal.nodeId
   if (!nodeId || nodeId === '0') return
 
   const appStore = useAppStore()
@@ -691,10 +300,9 @@ function scrollToProposal(proposal: EditProposal | null | undefined) {
   let highlightRange: { from: number; to: number } | null = null
   let scrollTarget = findNodeById(editor.state.doc, nodeId)
 
-  if (block.type === 'replace_range' && block.startNodeId && block.endNodeId) {
-    const startFound = findNodeById(editor.state.doc, block.startNodeId)
-    const endFound = findNodeById(editor.state.doc, block.endNodeId)
-
+  if (proposal.type === 'replace_range' && proposal.startNodeId && proposal.endNodeId) {
+    const startFound = findNodeById(editor.state.doc, proposal.startNodeId)
+    const endFound = findNodeById(editor.state.doc, proposal.endNodeId)
     if (startFound && endFound) {
       highlightRange = {
         from: Math.min(startFound.from, endFound.from),
@@ -705,16 +313,10 @@ function scrollToProposal(proposal: EditProposal | null | undefined) {
   }
 
   if (!scrollTarget) return
-  if (!highlightRange) {
-    highlightRange = { from: scrollTarget.from, to: scrollTarget.to }
-  }
+  if (!highlightRange) highlightRange = { from: scrollTarget.from, to: scrollTarget.to }
 
-  setRangeHighlights(editor, [{
-    id: PROPOSAL_HIGHLIGHT_ID,
-    ...highlightRange,
-  }], PROPOSAL_HIGHLIGHT_CLASS)
+  setRangeHighlights(editor, [{ id: PROPOSAL_HIGHLIGHT_ID, ...highlightRange }], PROPOSAL_HIGHLIGHT_CLASS)
 
-  // Scroll into view
   const domNode = editor.view.nodeDOM(scrollTarget.from)
   const element = domNode instanceof Element ? domNode : (domNode as Node | null)?.parentElement
   element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -724,15 +326,6 @@ function scrollToCurrentBlock() {
   scrollToProposal(current.value)
 }
 
-function focusReviewedProposal(proposal: EditProposal) {
-  const pendingIndex = props.proposals.findIndex(item => item.id === proposal.id)
-  if (pendingIndex >= 0) {
-    currentIndex.value = pendingIndex
-    return
-  }
-  scrollToProposal(proposal)
-}
-
 function clearHighlight() {
   const appStore = useAppStore()
   const editor = appStore.activeTab?.editorInstance as Editor | undefined
@@ -740,35 +333,32 @@ function clearHighlight() {
 }
 
 function activateInsertEditing() {
-  if (!(current.value?.kind === 'block' && current.value.type === 'insert') || isInsertEditing.value) return
+  if (current.value?.kind !== 'block' || current.value.type !== 'insert' || isInsertEditing.value) return
   isInsertEditing.value = true
-  nextTick(() => {
-    insertEditorRef.value?.focus()
-  })
+  nextTick(() => insertEditorRef.value?.focus())
 }
 
 function deactivateInsertEditing() {
   isInsertEditing.value = false
 }
 
-watch(currentIndex, scrollToCurrentBlock)
 watch(
   current,
-  proposal => {
+  async proposal => {
     isInsertEditing.value = false
     showReworkComposer.value = false
     reworkReason.value = ''
-    if (!proposal || proposal.kind !== 'block') {
-      editedContent.value = ''
-      return
-    }
-    editedContent.value = proposal.newContent || ''
+    editedContent.value = proposal?.kind === 'block' ? proposal.newContent || '' : ''
+
+    await nextTick()
+    scrollToProposal(proposal)
   },
-  { immediate: true }
+  { immediate: true, flush: 'post' }
 )
-onMounted(scrollToCurrentBlock)
+
 onUnmounted(clearHighlight)
 </script>
+
 <style>
 .range-highlight-proposal {
   background-color: color-mix(in oklab, var(--color-warning, #fbbf24) 30%, transparent);

@@ -9,6 +9,7 @@
     >
       <div class="w-3.5 shrink-0 flex items-center justify-center">
         <IconLoader2 v-if="isSpinning" class="icon-2xs animate-spin" />
+        <component v-else-if="completedKindIcon" :is="completedKindIcon" class="icon-2xs" />
         <span v-else class="leading-none">{{ statusIcon }}</span>
       </div>
 
@@ -78,10 +79,14 @@
       </div>
 
       <div v-else-if="detailType === 'section' && parsedResult" class="space-y-2">
-        <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-base-content">
-          <span v-if="sectionHeading">Chapter: {{ sectionHeading }}</span>
-          <span v-if="sectionRange">Range: {{ sectionRange }}</span>
-          <span v-if="sectionPagination">{{ sectionPagination }}</span>
+        <div v-if="sectionHeading" class="text-xs font-medium text-base-content">
+          {{ sectionHeading }}
+        </div>
+        <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-base-content/70">
+          <span v-if="sectionRange">范围 {{ sectionRange }}</span>
+          <span v-if="sectionReadProgress">{{ sectionReadProgress }}</span>
+          <span v-if="sectionWordCount">{{ sectionWordCount }}</span>
+          <span v-if="sectionHasMore">可继续读取</span>
         </div>
         <MarkdownContentView v-if="sectionContent" :content="sectionContent" mode="text" size="xs" />
       </div>
@@ -233,7 +238,14 @@ import { computed, ref } from 'vue'
 import {
   IconChevronUp,
   IconChevronDown,
-  IconLoader2
+  IconLoader2,
+  IconEye,
+  IconSearch,
+  IconPencil,
+  IconTrash,
+  IconTerminal2,
+  IconUsers,
+  IconTool,
 } from '@tabler/icons-vue'
 import { useAppStore } from '@/stores/app'
 import type { AiToolCall } from '@/ai/types'
@@ -265,12 +277,23 @@ const containerClass = computed(() => {
   const isError = props.toolCall.isError || props.toolCall.status === 'failed'
   if (isError) return 'border-error/30 bg-error/20 text-error-content hover:bg-error/35'
   if (isRejected) return 'border-base-300 bg-base-100 text-base-content hover:bg-base-300'
-  if (isRunning) return 'border-info/30 bg-error/20 text-info-content'
-  if (props.toolCall.kind === 'edit' || props.toolCall.kind === 'delete') {
-    return 'border-warning/30 bg-warning/20 text-warning-content hover:bg-warning/35'
+  if (isRunning) return 'border-info/30 bg-info/20 text-info-content'
+  switch (props.toolCall.kind) {
+    case 'edit':
+    case 'delete':
+      return 'border-warning/30 bg-warning/20 text-warning-content hover:bg-warning/35'
+    case 'execute':
+      return 'border-error/30 bg-error/10 text-base-content hover:bg-error/20'
+    case 'search':
+      return 'border-info/30 bg-info/20 text-info-content hover:bg-info/35'
+    case 'delegate':
+      return 'border-primary/30 bg-primary/20 text-primary-content hover:bg-primary/35'
+    case 'read':
+      return 'border-success/30 bg-success/20 text-success-content hover:bg-success/35'
+    case 'other':
+    default:
+      return 'border-base-300 bg-base-200 text-base-content hover:bg-base-300'
   }
-
-  return 'border-success/30 bg-success/20 text-success-content hover:bg-success/35'
 })
 
 const groupContainerClass = computed(() => {
@@ -306,8 +329,37 @@ const detailBorderClass = computed(() => {
   if (props.toolCall.isError || props.toolCall.status === 'failed') return 'border-error/30'
   if (props.toolCall.status === 'rejected') return 'border-base-300'
   if (props.toolCall.status === 'pending' || props.toolCall.status === 'in_progress') return 'border-info/30'
-  if (props.toolCall.kind === 'edit' || props.toolCall.kind === 'delete') return 'border-warning/30'
-  return 'border-success/30'
+  switch (props.toolCall.kind) {
+    case 'edit':
+    case 'delete':
+      return 'border-warning/30'
+    case 'execute':
+      return 'border-error/30'
+    case 'search':
+      return 'border-info/30'
+    case 'delegate':
+      return 'border-primary/30'
+    case 'read':
+      return 'border-success/30'
+    case 'other':
+    default:
+      return 'border-base-300'
+  }
+})
+
+const completedKindIcon = computed(() => {
+  if (props.toolCall.status !== 'completed') return null
+  if (props.toolCall.isError) return null
+  switch (props.toolCall.kind) {
+    case 'read': return IconEye
+    case 'search': return IconSearch
+    case 'edit': return IconPencil
+    case 'delete': return IconTrash
+    case 'execute': return IconTerminal2
+    case 'delegate': return IconUsers
+    case 'other':
+    default: return IconTool
+  }
 })
 
 const display = computed(() => props.toolCall.display ?? {})
@@ -377,22 +429,39 @@ const sectionRange = computed(() => {
   return `{b:${range[0]}}-{b:${range[1]}}`
 })
 
-const sectionPagination = computed(() => {
+const sectionReadProgress = computed(() => {
   if (!parsedResult.value) return ''
   const offset = parsedResult.value.offset
   const limit = parsedResult.value.limit
   const totalLines = parsedResult.value.total_lines
-  const hasMore = parsedResult.value.has_more === true
-  const parts: string[] = []
+  const content = parsedResult.value.content
+  const currentCount = typeof content === 'string'
+    ? (content.match(/\{b:\d+\}/g)?.length ?? 0)
+    : 0
+
+  if (typeof totalLines === 'number' && currentCount > 0) {
+    if (totalLines > currentCount) return `已读取 ${currentCount}/${totalLines} 段`
+    return `共 ${totalLines} 段`
+  }
+
   if (typeof offset === 'number' && typeof limit === 'number') {
-    parts.push(`offset ${offset} · limit ${limit}`)
+    const start = offset + 1
+    const end = typeof totalLines === 'number'
+      ? Math.min(offset + limit, totalLines)
+      : offset + limit
+    return `第 ${start}-${end} 段`
   }
-  if (typeof totalLines === 'number') {
-    parts.push(`共 ${totalLines} 段`)
-  }
-  if (hasMore) parts.push('可继续分页')
-  return parts.join(' · ')
+
+  if (typeof totalLines === 'number') return `共 ${totalLines} 段`
+  return ''
 })
+
+const sectionWordCount = computed(() => {
+  const wordCount = parsedResult.value?.word_count
+  return typeof wordCount === 'number' ? `${wordCount} 字` : ''
+})
+
+const sectionHasMore = computed(() => parsedResult.value?.has_more === true)
 
 const sectionContent = computed(() => {
   const content = parsedResult.value?.content
