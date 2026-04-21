@@ -8,24 +8,21 @@ on:
 permissions:
   contents: write
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build-macos:
     name: Build macOS
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
         # postinstall runs electron-rebuild for macOS automatically
 
       - name: Generate icons
@@ -41,14 +38,14 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: release-macos
           path: |
             release/*.dmg
             release/*.zip
-            release/*.yml
-            release/*.yaml
+            release/latest*.yml
+            release/latest*.yaml
             release/*.blockmap
           if-no-files-found: error
 
@@ -56,16 +53,16 @@ jobs:
     name: Build Windows
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
         # postinstall runs electron-rebuild for Windows x64 automatically
 
       - name: Install ImageMagick
@@ -78,13 +75,13 @@ jobs:
         run: npm run dist:win -- --publish never
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: release-windows
           path: |
             release/*.exe
-            release/*.yml
-            release/*.yaml
+            release/latest*.yml
+            release/latest*.yaml
             release/*.blockmap
           if-no-files-found: error
 
@@ -92,12 +89,12 @@ jobs:
     name: Build Linux
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install system dependencies
@@ -106,7 +103,7 @@ jobs:
           sudo apt-get install -y rpm fakeroot dpkg imagemagick
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
         # postinstall runs electron-rebuild for Linux automatically
 
       - name: Generate icons
@@ -116,15 +113,16 @@ jobs:
         run: npm run dist:linux -- --publish never
 
       - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: release-linux
           path: |
             release/*.AppImage
             release/*.deb
             release/*.rpm
-            release/*.yml
-            release/*.yaml
+            release/latest*.yml
+            release/latest*.yaml
+            release/*.zsync
             release/*.blockmap
           if-no-files-found: error
 
@@ -137,7 +135,7 @@ jobs:
       - build-linux
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: release-assets
 
@@ -151,7 +149,7 @@ jobs:
             release-assets/**/*.AppImage
             release-assets/**/*.deb
             release-assets/**/*.rpm
+            release-assets/**/*.zsync
             release-assets/**/*.yml
-            release-assets/**/*.yaml
             release-assets/**/*.blockmap
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false
