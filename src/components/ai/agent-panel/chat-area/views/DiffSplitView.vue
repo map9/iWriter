@@ -35,43 +35,26 @@
       </div>
     </div>
 
-    <!-- Rendered diff rows -->
-    <div v-else class="grid max-h-88 grid-cols-2 overflow-auto font-mono gap-y-1">
-      <template v-for="(row, i) in renderedRows" :key="i">
-        <div
-          class="whitespace-pre-wrap px-2.5 py-0.5 wrap-anywhere"
-          :class="leftCellClass(row)"
-        >
-          <template v-if="row.type === 'changed'">
-            <span
-              v-for="(seg, si) in row.leftSegments"
-              :key="si"
-              :class="seg.kind === 'removed' ? 'rounded-sm bg-error/30' : ''"
-            >{{ seg.value }}</span>
-          </template>
-          <template v-else-if="row.type === 'unchanged' || row.type === 'removed-only'">
-            {{ row.leftText || '\u00A0' }}
-          </template>
-          <template v-else>&nbsp;</template>
-        </div>
-        <div
-          class="whitespace-pre-wrap border-l border-base-300 px-2.5 py-0.5 wrap-anywhere"
-          :class="[rightCellClass(row), editableRight ? 'cursor-text' : '']"
-          @click="activateEditing"
-        >
-          <template v-if="row.type === 'changed'">
-            <span
-              v-for="(seg, si) in row.rightSegments"
-              :key="si"
-              :class="seg.kind === 'added' ? 'rounded-sm bg-success/40' : ''"
-            >{{ seg.value }}</span>
-          </template>
-          <template v-else-if="row.type === 'unchanged' || row.type === 'added-only'">
-            {{ row.rightText || '\u00A0' }}
-          </template>
-          <template v-else>&nbsp;</template>
-        </div>
-      </template>
+    <!-- Rendered diff: diffWords on full content -->
+    <div v-else class="grid max-h-88 grid-cols-2 overflow-auto font-mono">
+      <div class="whitespace-pre-wrap px-2.5 py-1.5 wrap-anywhere text-base-content">
+        <span
+          v-for="(seg, i) in leftSegments"
+          :key="i"
+          :class="seg.kind === 'removed' ? 'rounded-sm bg-error/30 text-error-content' : ''"
+        >{{ seg.value }}</span>
+      </div>
+      <div
+        class="whitespace-pre-wrap border-l border-base-300 px-2.5 py-1.5 wrap-anywhere text-base-content"
+        :class="editableRight ? 'cursor-text' : ''"
+        @click="activateEditing"
+      >
+        <span
+          v-for="(seg, i) in rightSegments"
+          :key="i"
+          :class="seg.kind === 'added' ? 'rounded-sm bg-success/40 text-success-content' : ''"
+        >{{ seg.value }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -79,7 +62,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { diffArrays, diffWords } from 'diff'
+import { diffWords, diffLines } from 'diff'
+
 const { t } = useI18n()
 
 const props = defineProps<{
@@ -92,110 +76,35 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
+
 const isEditing = ref(false)
 const editorRef = ref<HTMLTextAreaElement | null>(null)
 
 const effectiveOldContent = computed(() => stripBlockMarkers(props.oldContent ?? ''))
 const effectiveNewContent = computed(() => stripBlockMarkers(props.editableRight ? editableContent.value : (props.newContent ?? '')))
 
-const oldLines = computed(() => splitLines(effectiveOldContent.value))
-const newLines = computed(() => splitLines(effectiveNewContent.value))
-
-const oldLineCount = computed(() => oldLines.value.length)
-const newLineCount = computed(() => newLines.value.length)
-
-const diffChunks = computed(() => diffArrays(oldLines.value, newLines.value))
-
-const addedLines = computed(() =>
-  diffChunks.value.filter(c => c.added).reduce((s, c) => s + ((c.value as string[]).length ?? 0), 0)
-)
-
-const removedLines = computed(() =>
-  diffChunks.value.filter(c => c.removed).reduce((s, c) => s + ((c.value as string[]).length ?? 0), 0)
-)
-
 const editableContent = computed(() => props.modelValue ?? props.newContent ?? '')
 
-type Segment = { value: string, kind: 'keep' | 'removed' | 'added' }
+const oldLineCount = computed(() => effectiveOldContent.value.split('\n').length)
+const newLineCount = computed(() => effectiveNewContent.value.split('\n').length)
 
-type RenderedRow =
-  | { type: 'unchanged', leftText: string, rightText: string }
-  | { type: 'changed', leftSegments: Segment[], rightSegments: Segment[] }
-  | { type: 'removed-only', leftText: string }
-  | { type: 'added-only', rightText: string }
+const lineDiff = computed(() => diffLines(effectiveOldContent.value, effectiveNewContent.value))
+const addedLines = computed(() => lineDiff.value.filter(c => c.added).reduce((s, c) => s + (c.count ?? 0), 0))
+const removedLines = computed(() => lineDiff.value.filter(c => c.removed).reduce((s, c) => s + (c.count ?? 0), 0))
 
-const renderedRows = computed<RenderedRow[]>(() => {
-  const chunks = diffChunks.value
-  const result: RenderedRow[] = []
-  let i = 0
-  while (i < chunks.length) {
-    const chunk = chunks[i]!
-    const values = chunk.value as string[]
-    if (!chunk.added && !chunk.removed) {
-      for (const line of values) {
-        const text = stripTrailingNewline(line)
-        result.push({ type: 'unchanged', leftText: text, rightText: text })
-      }
-      i++
-      continue
-    }
+const wordDiff = computed(() => diffWords(effectiveOldContent.value, effectiveNewContent.value))
 
-    if (chunk.removed) {
-      const next = chunks[i + 1]
-      if (next?.added) {
-        const leftLines = values
-        const rightLines = next.value as string[]
-        const count = Math.max(leftLines.length, rightLines.length)
-        for (let index = 0; index < count; index++) {
-          const leftRaw = leftLines[index]
-          const rightRaw = rightLines[index]
-          if (leftRaw !== undefined && rightRaw !== undefined) {
-            const { leftSegments, rightSegments } = inlineDiff(
-              stripTrailingNewline(leftRaw),
-              stripTrailingNewline(rightRaw),
-            )
-            result.push({ type: 'changed', leftSegments, rightSegments })
-          } else if (leftRaw !== undefined) {
-            result.push({ type: 'removed-only', leftText: stripTrailingNewline(leftRaw) })
-          } else if (rightRaw !== undefined) {
-            result.push({ type: 'added-only', rightText: stripTrailingNewline(rightRaw) })
-          }
-        }
-        i += 2
-        continue
-      }
+const leftSegments = computed(() =>
+  wordDiff.value
+    .filter(p => !p.added)
+    .map(p => ({ value: p.value, kind: p.removed ? 'removed' : 'keep' }))
+)
 
-      for (const line of values) {
-        result.push({ type: 'removed-only', leftText: stripTrailingNewline(line) })
-      }
-      i++
-      continue
-    }
-
-    for (const line of values) {
-      result.push({ type: 'added-only', rightText: stripTrailingNewline(line) })
-    }
-    i++
-  }
-  return result
-})
-
-function inlineDiff(oldLine: string, newLine: string): { leftSegments: Segment[], rightSegments: Segment[] } {
-  const parts = diffWords(oldLine, newLine)
-  const leftSegments: Segment[] = []
-  const rightSegments: Segment[] = []
-  for (const part of parts) {
-    if (part.added) {
-      rightSegments.push({ value: part.value, kind: 'added' })
-    } else if (part.removed) {
-      leftSegments.push({ value: part.value, kind: 'removed' })
-    } else {
-      leftSegments.push({ value: part.value, kind: 'keep' })
-      rightSegments.push({ value: part.value, kind: 'keep' })
-    }
-  }
-  return { leftSegments, rightSegments }
-}
+const rightSegments = computed(() =>
+  wordDiff.value
+    .filter(p => !p.removed)
+    .map(p => ({ value: p.value, kind: p.added ? 'added' : 'keep' }))
+)
 
 function syncEditorHeight() {
   const el = editorRef.value
@@ -226,28 +135,7 @@ watch(editableContent, () => {
   if (isEditing.value) nextTick(syncEditorHeight)
 })
 
-function splitLines(text: string): string[] {
-  if (text === '') return ['']
-  return text.match(/[^\n]*\n|[^\n]+$/g) ?? ['']
-}
-
 function stripBlockMarkers(text: string): string {
   return text.replace(/^\{b:\d+\}\n?/gm, '')
-}
-
-function stripTrailingNewline(line: string): string {
-  return line.endsWith('\n') ? line.slice(0, -1) : line
-}
-
-function leftCellClass(row: RenderedRow): string {
-  if (row.type === 'changed' || row.type === 'removed-only') return 'bg-error/10 text-error-content'
-  if (row.type === 'added-only') return 'bg-base-200/60'
-  return 'text-base-content'
-}
-
-function rightCellClass(row: RenderedRow): string {
-  if (row.type === 'changed' || row.type === 'added-only') return 'bg-success/10 text-success-content'
-  if (row.type === 'removed-only') return 'bg-base-200/60'
-  return 'text-base-content'
 }
 </script>
