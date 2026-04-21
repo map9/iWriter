@@ -1,7 +1,7 @@
 import { ref, computed, nextTick } from 'vue'
 import { useAiStore } from '@/ai/store/ai'
 import type { AiProviderConfig } from '@/ai/types'
-import { PROVIDER_PRESETS } from '@/ai/providers/provider-presets'
+import { getProviderPresetById } from '@/ai/providers/provider-presets'
 
 export function useProviderPicker() {
   const aiStore = useAiStore()
@@ -11,14 +11,19 @@ export function useProviderPicker() {
   function isLlmProviderUsable(cfg: AiProviderConfig): boolean {
     const models = cfg.models ?? []
     if (models.length) return true
-    const preset = PROVIDER_PRESETS.find(p => p.id === cfg.presetId)
+    const preset = getProviderPresetById(cfg.presetId)
     return (preset?.models ?? []).length > 0
+  }
+
+  function getProviderDisplayLabel(cfg: AiProviderConfig): string {
+    if (!cfg.presetId) return cfg.label
+    return getProviderPresetById(cfg.presetId)?.label ?? cfg.label
   }
 
   const filteredProviders = computed(() => {
     const search = providerSearch.value.toLowerCase()
     return aiStore.settings.providerConfigs
-      .filter(c => !search || c.label.toLowerCase().includes(search))
+      .filter(c => !search || getProviderDisplayLabel(c).toLowerCase().includes(search))
   })
 
   function onMenuOpen() {
@@ -34,6 +39,7 @@ export function useProviderPicker() {
   return {
     providerSearch, providerSearchEl,
     isLlmProviderUsable, filteredProviders,
+    getProviderDisplayLabel,
     onMenuOpen, selectProvider,
   }
 }

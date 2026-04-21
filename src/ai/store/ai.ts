@@ -16,7 +16,7 @@ import {
   normalizeModeForDomain,
   resolveAgentDomain,
 } from '@/ai/types'
-import { PROVIDER_PRESETS, type ProviderPreset } from '@/ai/providers/provider-presets'
+import { getProviderPresetById, getProviderPresets, type ProviderPreset } from '@/ai/providers/provider-presets'
 import { createThread, appendMessage, createMessage } from '@/ai/thread/Thread'
 import {
   normalizeThreadMessageForDisplay,
@@ -61,7 +61,7 @@ function _loadSettings(): AiSettings {
     const merged = { ...DEFAULT_AI_SETTINGS, ...JSON.parse(raw) } as AiSettings
     merged.defaultMode = normalizeAgentMode(merged.defaultMode)
     merged.providerConfigs = (merged.providerConfigs ?? []).map(cfg => {
-      const preset = PROVIDER_PRESETS.find(p => p.id === cfg.presetId)
+      const preset = getProviderPresetById(cfg.presetId)
       return {
         ...cfg,
         modelProfiles: cfg.modelProfiles ?? preset?.modelProfiles,
@@ -91,7 +91,7 @@ export const useAiStore = defineStore('ai', () => {
   const _initialSettings = _loadSettings()
   // Seed all presets on first run
   if (_initialSettings.providerConfigs.length === 0) {
-    _initialSettings.providerConfigs = PROVIDER_PRESETS
+    _initialSettings.providerConfigs = getProviderPresets()
       .map((p: ProviderPreset) => ({
         id: `preset-${p.id}`,
         enabled: true,
@@ -130,7 +130,7 @@ export const useAiStore = defineStore('ai', () => {
     const config = effectiveProviderConfig.value
     if (!config) return []
     if (config.models?.length) return config.models
-    const preset = PROVIDER_PRESETS.find(p => p.id === config.presetId)
+    const preset = getProviderPresetById(config.presetId)
     const presetModels = preset?.models ?? []
     return presetModels.length ? presetModels : [config.defaultModelId].filter(Boolean)
   })

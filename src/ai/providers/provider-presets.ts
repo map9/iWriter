@@ -11,6 +11,7 @@ import {
   DEFAULT_DEEPSEEK_MODEL_PROFILES,
   DEFAULT_OPENAI_MODEL_PROFILES,
 } from '@/ai/model-profiles'
+import { i18n } from '@/i18n'
 
 export interface ProviderPreset {
   id: string
@@ -26,6 +27,13 @@ export interface ProviderPreset {
   requiresApiKey: boolean
   /** If true, user can/should customise baseUrl (e.g. Ollama) */
   editableBaseUrl?: boolean
+}
+
+interface ProviderPresetTemplate extends Omit<ProviderPreset, 'label' | 'description'> {
+  labelKey: string
+  descriptionKey: string
+  fallbackLabel: string
+  fallbackDescription: string
 }
 
 /**
@@ -71,12 +79,14 @@ export interface ProviderPreset {
  * llama3.1:8b		              text        			tools
  * llama3.1:70b		              text        			tools
  */
-export const PROVIDER_PRESETS: ProviderPreset[] = [
+const PROVIDER_PRESET_TEMPLATES: ProviderPresetTemplate[] = [
   {
     id: 'ollama',
-    label: 'Ollama',
+    labelKey: 'preferences.ai.providerPresets.ollama.label',
+    fallbackLabel: 'Ollama',
     type: 'openai-compat',
-    description: '本地运行的开源模型',
+    descriptionKey: 'preferences.ai.providerPresets.ollama.description',
+    fallbackDescription: 'Open-source models running locally',
     baseUrl: 'http://localhost:11434/v1',
     defaultModelId: '',
     models: [
@@ -105,9 +115,11 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   },
   {
     id: 'deepseek',
-    label: 'DeepSeek',
+    labelKey: 'preferences.ai.providerPresets.deepseek.label',
+    fallbackLabel: 'DeepSeek',
     type: 'deepseek',
-    description: '深度求索 API',
+    descriptionKey: 'preferences.ai.providerPresets.deepseek.description',
+    fallbackDescription: 'DeepSeek API',
     baseUrl: 'https://api.deepseek.com/v1',
     defaultModelId: 'deepseek-chat',
     models: ['deepseek-chat', 'deepseek-reasoner'],
@@ -117,9 +129,11 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   },
   {
     id: 'glm',
-    label: 'GLM (智谱)',
+    labelKey: 'preferences.ai.providerPresets.glm.label',
+    fallbackLabel: 'GLM',
     type: 'openai-compat',
-    description: '智谱 AI GLM 系列',
+    descriptionKey: 'preferences.ai.providerPresets.glm.description',
+    fallbackDescription: 'Zhipu AI GLM series',
     baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
     defaultModelId: '',
     models: [
@@ -132,9 +146,11 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   },
   {
     id: 'openai',
-    label: 'OpenAI',
+    labelKey: 'preferences.ai.providerPresets.openai.label',
+    fallbackLabel: 'OpenAI',
     type: 'openai-compat',
-    description: 'OpenAI GPT / o 系列',
+    descriptionKey: 'preferences.ai.providerPresets.openai.description',
+    fallbackDescription: 'OpenAI GPT / o series',
     baseUrl: 'https://api.openai.com/v1',
     defaultModelId: '',
     models: [
@@ -148,9 +164,11 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   },
   {
     id: 'anthropic',
-    label: 'Anthropic',
+    labelKey: 'preferences.ai.providerPresets.anthropic.label',
+    fallbackLabel: 'Anthropic',
     type: 'anthropic',
-    description: 'Anthropic Claude 系列',
+    descriptionKey: 'preferences.ai.providerPresets.anthropic.description',
+    fallbackDescription: 'Anthropic Claude series',
     defaultModelId: '',
     models: [
       'claude-opus-4-6', 'claude-opus-4-5',
@@ -161,9 +179,11 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   },
   {
     id: 'gemini',
-    label: 'Gemini API',
+    labelKey: 'preferences.ai.providerPresets.gemini.label',
+    fallbackLabel: 'Gemini',
     type: 'gemini',
-    description: 'Google Gemini API',
+    descriptionKey: 'preferences.ai.providerPresets.gemini.description',
+    fallbackDescription: 'Google Gemini series',
     defaultModelId: '',
     models: [
       'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite-preview',
@@ -173,3 +193,21 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     requiresApiKey: true,
   },
 ]
+
+function translatePresetText(key: string, fallback: string): string {
+  if (i18n.global.te(key)) return i18n.global.t(key) as string
+  return fallback
+}
+
+export function getProviderPresets(): ProviderPreset[] {
+  return PROVIDER_PRESET_TEMPLATES.map(preset => ({
+    ...preset,
+    label: translatePresetText(preset.labelKey, preset.fallbackLabel),
+    description: translatePresetText(preset.descriptionKey, preset.fallbackDescription),
+  }))
+}
+
+export function getProviderPresetById(id: string | null | undefined): ProviderPreset | undefined {
+  if (!id) return undefined
+  return getProviderPresets().find(preset => preset.id === id)
+}

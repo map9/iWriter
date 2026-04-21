@@ -5,8 +5,18 @@
     class="relative shrink-0"
   >
     <button
+      v-if="compact"
       @click="onToggle"
-      class="flex items-center gap-1 px-2 py-1 rounded-field text-xs text-base-content hover:bg-base-300 transition-colors max-w-25"
+      class="flex items-center gap-0.5 px-1.5 py-1 rounded-field text-xs text-base-content hover:bg-base-300 transition-colors"
+      :title="currentModelId || t('agentPanel.modelPicker.chooseModel')"
+    >
+      <IconCube class="icon-xs shrink-0" />
+      <IconChevronDown class="icon-2xs shrink-0 text-base-content" />
+    </button>
+    <button
+      v-else
+      @click="onToggle"
+      class="flex items-center gap-1 px-2 py-1 rounded-field text-xs text-base-content hover:bg-base-300 transition-colors"
       :title="t('agentPanel.modelPicker.switchModel')"
     >
       <span class="truncate">{{ currentModelId || t('agentPanel.modelPicker.chooseModel') }}</span>
@@ -20,6 +30,9 @@
         class="fixed w-56 bg-base-100 border border-base-300 rounded-field shadow-sm z-1200 py-1.5 px-1.5"
         :style="menuStyle"
       >
+        <div class="px-1.5 pb-1.5 text-xs font-semibold text-base-content/40">
+          {{ t('agentPanel.modelPicker.title') }}
+        </div>
         <div v-if="allModelItems.length > 10">
           <input
             v-model="modelSearch"
@@ -35,7 +48,7 @@
             {{ t('agentPanel.modelPicker.loadingModels') }}
           </div>
 
-        <button
+          <button
             v-for="m in filteredModelItems"
             :key="m.id"
             @click="doSelect(m.id)"
@@ -63,10 +76,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconChevronDown, IconCloud, IconDownload } from '@tabler/icons-vue'
+import { IconChevronDown, IconCloud, IconCube, IconDownload } from '@tabler/icons-vue'
 import { useModelPicker } from '../composables/useModelPicker'
 
-const props = defineProps<{ isOpen: boolean }>()
+const props = defineProps<{ isOpen: boolean; compact?: boolean }>()
 const emit = defineEmits<{ open: []; close: [] }>()
 const { t } = useI18n()
 
@@ -76,7 +89,7 @@ const menuEl = ref<HTMLElement | null>(null)
 const menuWidth = 224
 
 const menuStyle = computed(() => {
-  if (!triggerEl.value) return {}
+  if (!props.isOpen || !triggerEl.value) return {}
   const rect = triggerEl.value.getBoundingClientRect()
   const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8))
   const bottom = Math.max(8, window.innerHeight - rect.top + 4)

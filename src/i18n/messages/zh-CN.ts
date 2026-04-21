@@ -104,6 +104,32 @@ export default {
       nameRequired: '请填写名称',
       addCustomProviderTitle: '添加自定义提供方',
       configurationSuffix: '配置',
+      providerPresets: {
+        ollama: {
+          label: 'Ollama',
+          description: '本地运行的开源模型',
+        },
+        deepseek: {
+          label: 'DeepSeek',
+          description: '深度求索 API',
+        },
+        glm: {
+          label: 'GLM（智谱）',
+          description: '智谱 AI GLM 系列',
+        },
+        openai: {
+          label: 'OpenAI',
+          description: 'OpenAI GPT / o 系列',
+        },
+        anthropic: {
+          label: 'Anthropic',
+          description: 'Anthropic Claude 系列',
+        },
+        gemini: {
+          label: 'Gemini',
+          description: 'Google Gemini 系列',
+        },
+      },
     },
     updates: {
       title: '更新',
@@ -178,12 +204,14 @@ export default {
       browseFolders: '浏览文件夹...',
     },
     providerPicker: {
+      title: '提供方',
       switchProvider: '切换提供方',
       noProvider: '无可用提供方',
       findProvider: '搜索提供方...',
       noProvidersFound: '未找到提供方',
     },
     modelPicker: {
+      title: '模型',
       switchModel: '切换模型',
       chooseModel: '选择模型',
       findModel: '搜索模型...',
@@ -193,11 +221,15 @@ export default {
       noModelsFound: '未找到模型',
     },
     modePicker: {
+      title: '模式',
       switchMode: '切换智能体模式',
       options: {
         edit: '编辑',
+        editDesc: '精准编辑，充分感知文档上下文',
         minimal: '精简',
+        minimalDesc: '简洁回复，减少冗余说明',
         creative: '创作',
+        creativeDesc: '富有想象力，大胆发挥创意',
       },
     },
     sendButton: {

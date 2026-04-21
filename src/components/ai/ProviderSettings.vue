@@ -21,7 +21,7 @@
                 class="icon-dot shrink-0 self-center"
                 :class="cfg.id === aiStore.settings.activeProviderConfigId ? 'bg-primary' : 'bg-base-300'"
               />
-              <span class="min-w-0 flex-1 truncate text-sm font-medium text-base-content">{{ cfg.label }}</span>
+              <span class="min-w-0 flex-1 truncate text-sm font-medium text-base-content">{{ getProviderDisplayLabel(cfg) }}</span>
               <span class="max-w-25 shrink-0 truncate text-left text-xs text-base-content/65 hidden sm:block">
                 {{ isProviderUsable(cfg) ? cfg.defaultModelId : t('preferences.ai.needConfiguration') }}
               </span>
@@ -199,7 +199,7 @@ import { IconTrash, IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/store/ai'
 import type { AiModelProfile, AiProviderConfig, AiProviderType } from '@/ai/types'
 import {
-  PROVIDER_PRESETS,
+  getProviderPresetById,
   type ProviderPreset,
 } from '@/ai/providers/provider-presets'
 
@@ -212,7 +212,7 @@ const aiStore = useAiStore()
 
 // ── LLM usability check ───────────────────────────────────────────────────
 function isProviderUsable(cfg: AiProviderConfig): boolean {
-  const preset = PROVIDER_PRESETS.find(p => p.id === cfg.presetId)
+  const preset = getProviderPresetById(cfg.presetId)
   const models = cfg.models ? cfg.models : preset?.models ?? []
   if (
     models.length &&
@@ -221,10 +221,17 @@ function isProviderUsable(cfg: AiProviderConfig): boolean {
   return false
 }
 
+function getProviderDisplayLabel(cfg: AiProviderConfig): string {
+  if (!cfg.presetId) return cfg.label
+  return getProviderPresetById(cfg.presetId)?.label ?? cfg.label
+}
+
 // ── Sorted configured provider lists ────────────────────────────────────
 const sortedLlmConfigs = computed(() => {
   const cfgs = aiStore.settings.providerConfigs
-  const presets = cfgs.filter(c => !!c.presetId).sort((a, b) => a.label.localeCompare(b.label))
+  const presets = cfgs
+    .filter(c => !!c.presetId)
+    .sort((a, b) => getProviderDisplayLabel(a).localeCompare(getProviderDisplayLabel(b)))
   const custom = cfgs.filter(c => !c.presetId).sort((a, b) => a.label.localeCompare(b.label))
   return [...presets, ...custom]
 })
@@ -296,11 +303,11 @@ function selectCustom() {
 function startEdit(cfg: AiProviderConfig) {
   editingId.value = cfg.id
   selectedPreset.value = cfg.presetId
-    ? (PROVIDER_PRESETS.find(p => p.id === cfg.presetId) ?? null)
+    ? (getProviderPresetById(cfg.presetId) ?? null)
     : null
   form.value = {
     type: cfg.type,
-    label: cfg.label,
+    label: getProviderDisplayLabel(cfg),
     apiKey: cfg.apiKey,
     baseUrl: cfg.baseUrl ?? '',
     modelsStr: (cfg.models ?? []).join(', '),
@@ -346,6 +353,18 @@ function submitForm() {
 
   cancelForm()
 }
+
+watch(
+  () => t('locale.label'),
+  () => {
+    if (!selectedPreset.value?.id) return
+    selectedPreset.value = getProviderPresetById(selectedPreset.value.id) ?? null
+    if (editingId.value) {
+      const cfg = aiStore.settings.providerConfigs.find(item => item.id === editingId.value)
+      if (cfg) form.value.label = getProviderDisplayLabel(cfg)
+    }
+  }
+)
 
 // Notify parent of view/title changes
 watch(

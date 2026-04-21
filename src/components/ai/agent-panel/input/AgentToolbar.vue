@@ -1,28 +1,28 @@
 <template>
-  <div ref="toolbarEl" class="flex items-center gap-2 px-2 pb-2 pt-1 min-w-0">
+  <div class="flex items-center gap-2 px-2 pb-2 pt-1 min-w-0">
 
-    <div class="flex items-center gap-1 min-w-0 flex-1 flex-nowrap overflow-hidden">
+    <div ref="pickerGroupEl" class="flex items-center gap-1 min-w-0 flex-1 flex-nowrap overflow-hidden">
       <AttachPicker
         @browse-files="$emit('browse-files')"
         @browse-folder="$emit('browse-folder')"
       />
 
       <ProviderPicker
-        v-if="showProviderPicker"
+        :compact="providerCompact"
         :is-open="activeMenu === 'provider'"
         @open="openMenu('provider')"
         @close="closeMenu()"
       />
 
       <ModelPicker
-        v-if="showModelPickerResponsive"
+        :compact="modelCompact"
         :is-open="activeMenu === 'model'"
         @open="openMenu('model')"
         @close="closeMenu()"
       />
 
       <ModePicker
-        v-if="showModePicker"
+        :compact="profileCompact"
         :is-open="activeMenu === 'mode'"
         @open="openMenu('mode')"
         @close="closeMenu()"
@@ -98,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TooltipContent } from '@/components/common/statusbar'
 import { tooltipManager } from '@/components/common/statusbar'
@@ -133,13 +133,41 @@ defineEmits<{
 type MenuName = 'provider' | 'model' | 'mode'
 const activeMenu = ref<MenuName | null>(null)
 const compactButtonRef = ref<HTMLElement | null>(null)
-const toolbarEl = ref<HTMLElement | null>(null)
-const toolbarWidth = ref(0)
+const pickerGroupEl = ref<HTMLElement | null>(null)
+const providerCompact = ref(false)
+const modelCompact = ref(false)
+const profileCompact = ref(false)
 let resizeObserver: ResizeObserver | null = null
 
-const showProviderPicker = computed(() => toolbarWidth.value >= 140)
-const showModelPickerResponsive = computed(() => toolbarWidth.value >= 240)
-const showModePicker = computed(() => toolbarWidth.value >= 340)
+function getUsedWidth(): number {
+  const el = pickerGroupEl.value
+  if (!el || !el.children.length) return 0
+  const first = el.children[0] as HTMLElement
+  const last = el.children[el.children.length - 1] as HTMLElement
+  return last.offsetLeft + last.offsetWidth - first.offsetLeft
+}
+
+async function updateLayout() {
+  if (!pickerGroupEl.value) return
+  const available = pickerGroupEl.value.clientWidth
+
+  // Reset all to text mode and re-measure after each step
+  providerCompact.value = false
+  modelCompact.value = false
+  profileCompact.value = false
+  await nextTick()
+  if (getUsedWidth() <= available) return
+
+  profileCompact.value = true
+  await nextTick()
+  if (getUsedWidth() <= available) return
+
+  modelCompact.value = true
+  await nextTick()
+  if (getUsedWidth() <= available) return
+
+  providerCompact.value = true
+}
 const showCompactButton = computed(() => props.showCompact)
 
 const compactTooltip = computed<TooltipContent>(() => ({
@@ -178,24 +206,10 @@ function formatCompactTokens(value: number): string {
 }
 
 onMounted(() => {
-  resizeObserver = new ResizeObserver(entries => {
-    toolbarWidth.value = entries[0]?.contentRect.width ?? 0
-  })
-  if (toolbarEl.value) resizeObserver.observe(toolbarEl.value)
+  resizeObserver = new ResizeObserver(() => updateLayout())
+  if (pickerGroupEl.value) resizeObserver.observe(pickerGroupEl.value)
+  updateLayout()
 })
-
-watch(
-  () => ({
-    provider: showProviderPicker.value,
-    model: showModelPickerResponsive.value,
-    mode: showModePicker.value,
-  }),
-  visible => {
-    if (activeMenu.value === 'provider' && !visible.provider) closeMenu()
-    if (activeMenu.value === 'model' && !visible.model) closeMenu()
-    if (activeMenu.value === 'mode' && !visible.mode) closeMenu()
-  }
-)
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()

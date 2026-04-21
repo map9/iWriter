@@ -1,13 +1,24 @@
 <template>
   <div ref="triggerEl" class="relative shrink-0">
     <button
+      v-if="compact"
       @click="onToggle"
-      class="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors min-w-0 max-w-25"
+      class="flex items-center gap-0.5 px-1.5 py-1 rounded text-xs transition-colors"
+      :class="currentProvider ? 'text-base-content hover:bg-base-300' : 'text-error hover:bg-base-300'"
+      :title="currentProviderLabel ?? t('agentPanel.providerPicker.noProvider')"
+    >
+      <component :is="currentProviderIcon" class="icon-xs shrink-0" />
+      <IconChevronDown class="icon-2xs shrink-0 text-base-content" />
+    </button>
+    <button
+      v-else
+      @click="onToggle"
+      class="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
       :class="currentProvider ? 'text-base-content hover:bg-base-300' : 'text-error hover:bg-base-300'"
       :title="t('agentPanel.providerPicker.switchProvider')"
     >
-      <span class="icon-dot bg-primary shrink-0" />
-      <span class="truncate">{{ currentProvider?.label ?? t('agentPanel.providerPicker.noProvider') }}</span>
+      <component :is="currentProviderIcon" class="icon-xs shrink-0" />
+      <span class="truncate">{{ currentProviderLabel ?? t('agentPanel.providerPicker.noProvider') }}</span>
       <IconChevronDown class="icon-2xs shrink-0 text-base-content" />
     </button>
 
@@ -18,6 +29,9 @@
         class="fixed w-56 bg-base-100 border border-base-300 rounded-field shadow-sm z-1200 py-1.5 px-1.5"
         :style="menuStyle"
       >
+        <div class="px-1.5 pb-1.5 text-xs font-semibold text-base-content/40">
+          {{ t('agentPanel.providerPicker.title') }}
+        </div>
         <div>
           <input
             v-model="providerSearch"
@@ -41,9 +55,13 @@
               <span class="icon-dot shrink-0"
                 :class="cfg.id === currentProviderId ? 'bg-primary' : 'bg-transparent'"
               />
+              <component
+                :is="getProviderIcon(cfg)"
+                class="icon-xs shrink-0 text-base-content"
+              />
               <span class="truncate flex-1"
                 :class="cfg.id === currentProviderId ? 'font-semibold text-base-content' : ''"
-              >{{ cfg.label }}</span>
+              >{{ getProviderDisplayLabel(cfg) }}</span>
             </button>
           </template>
 
@@ -60,26 +78,72 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { type Component, computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconChevronDown } from '@tabler/icons-vue'
+import {
+  IconBrandOpenai,
+  IconChevronDown,
+  IconRobot,
+  IconServer,
+} from '@tabler/icons-vue'
+import IconAnthropic from '@/components/icons/IconAnthropic.vue'
+import IconDeepseek from '@/components/icons/IconDeepseek.vue'
+import IconGemini from '@/components/icons/IconGemini.vue'
+import IconGlm from '@/components/icons/IconGlm.vue'
+import IconOllama from '@/components/icons/IconOllama.vue'
 import { useAiStore } from '@/ai/store/ai'
+import type { AiProviderConfig } from '@/ai/types'
 import { useProviderPicker } from '../composables/useProviderPicker'
 
-const props = defineProps<{ isOpen: boolean }>()
+const props = defineProps<{ isOpen: boolean; compact?: boolean }>()
 const emit = defineEmits<{ open: []; close: [] }>()
 const { t } = useI18n()
 
 const aiStore = useAiStore()
-const { providerSearch, providerSearchEl, isLlmProviderUsable, filteredProviders, onMenuOpen, selectProvider } = useProviderPicker()
+const {
+  providerSearch,
+  providerSearchEl,
+  isLlmProviderUsable,
+  filteredProviders,
+  getProviderDisplayLabel,
+  onMenuOpen,
+  selectProvider,
+} = useProviderPicker()
 const triggerEl = ref<HTMLElement | null>(null)
 const menuEl = ref<HTMLElement | null>(null)
-const menuWidth = 208
+const menuWidth = 224
+
 const currentProvider = computed(() => aiStore.effectiveProviderConfig)
 const currentProviderId = computed(() => currentProvider.value?.id ?? null)
+const currentProviderLabel = computed(() => (
+  currentProvider.value ? getProviderDisplayLabel(currentProvider.value) : null
+))
+
+function getProviderIcon(cfg: AiProviderConfig): Component {
+  const byPreset: Record<string, Component> = {
+    openai: IconBrandOpenai,
+    anthropic: IconAnthropic,
+    gemini: IconGemini,
+    deepseek: IconDeepseek,
+    ollama: IconOllama,
+    glm: IconGlm,
+  }
+  if (cfg.presetId && byPreset[cfg.presetId]) return byPreset[cfg.presetId] as Component
+  const byType: Record<string, Component> = {
+    'openai-compat': IconServer,
+    anthropic: IconAnthropic,
+    gemini: IconGemini,
+    deepseek: IconDeepseek,
+  }
+  return (byType[cfg.type] as Component | undefined) ?? IconRobot
+}
+
+const currentProviderIcon = computed(() =>
+  currentProvider.value ? getProviderIcon(currentProvider.value) : IconRobot
+)
 
 const menuStyle = computed(() => {
-  if (!triggerEl.value) return {}
+  if (!props.isOpen || !triggerEl.value) return {}
   const rect = triggerEl.value.getBoundingClientRect()
   const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8))
   const bottom = Math.max(8, window.innerHeight - rect.top + 4)

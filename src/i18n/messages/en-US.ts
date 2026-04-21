@@ -107,6 +107,32 @@ export default {
       nameRequired: 'Please fill in the Name',
       addCustomProviderTitle: 'Add Custom Provider',
       configurationSuffix: 'Configuration',
+      providerPresets: {
+        ollama: {
+          label: 'Ollama',
+          description: 'Open-source models running locally',
+        },
+        deepseek: {
+          label: 'DeepSeek',
+          description: 'DeepSeek series',
+        },
+        glm: {
+          label: 'GLM',
+          description: 'Zhipu AI GLM series',
+        },
+        openai: {
+          label: 'OpenAI',
+          description: 'OpenAI GPT / o series',
+        },
+        anthropic: {
+          label: 'Anthropic',
+          description: 'Anthropic Claude series',
+        },
+        gemini: {
+          label: 'Gemini',
+          description: 'Google Gemini series',
+        },
+      },
     },
     updates: {
       title: 'Updates',
@@ -181,12 +207,14 @@ export default {
       browseFolders: 'Browse Folders...',
     },
     providerPicker: {
+      title: 'Provider',
       switchProvider: 'Switch Provider',
       noProvider: 'No Provider',
       findProvider: 'Find provider...',
       noProvidersFound: 'No providers found',
     },
     modelPicker: {
+      title: 'Model',
       switchModel: 'Switch Model',
       chooseModel: 'Choose Model',
       findModel: 'Find model...',
@@ -196,11 +224,15 @@ export default {
       noModelsFound: 'No models found',
     },
     modePicker: {
+      title: 'Mode',
       switchMode: 'Switch Agent Mode',
       options: {
         edit: 'Edit',
+        editDesc: 'Precise edits with full document context',
         minimal: 'Minimal',
+        minimalDesc: 'Concise responses, less explanation',
         creative: 'Creative',
+        creativeDesc: 'Imaginative writing, takes creative liberties',
       },
     },
     sendButton: {
