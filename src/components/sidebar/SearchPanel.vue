@@ -4,7 +4,7 @@
     <div class="iw-sidebar-section">
       <div class="flex items-center gap-2">
         <span class="iw-sidebar-section-header">
-          Search
+          {{ t('notify.search.title') }}
         </span>
       </div>
     </div>
@@ -16,7 +16,7 @@
         <button
           @click="toggleReplaceMode"
           class="iw-toolbar-btn w-4 h-auto"
-          :title="showReplace ? 'Hide Replace' : 'Show Replace'"
+          :title="showReplace ? t('notify.search.hideReplace') : t('notify.search.showReplace')"
         >
           <IconChevronDown v-if="showReplace" class="icon-xs" />
           <IconChevronRight v-else class="icon-xs" />
@@ -31,7 +31,7 @@
                 ref="searchInputRef"
                 v-model="searchQuery"
                 rows="1"
-                placeholder="Find"
+                :placeholder="t('notify.search.findPlaceholder')"
                 class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 pr-22 pl-2 text-sm focus:border-primary rounded-field"
                 @keydown="handleSearchKeydown"
                 @input="autoResizeTextarea(searchInputRef)"
@@ -43,7 +43,7 @@
                   @click="toggleOption('matchCase')"
                   :class="{ 'iw-toolbar-btn-active': options.matchCase }"
                   class="iw-toolbar-btn btn-xs"
-                  title="Match Case (Alt+C)"
+                  :title="t('notify.search.matchCaseTitle')"
                 >
                   <IconLetterCase class="icon-2xs" />
                 </button>
@@ -51,7 +51,7 @@
                   @click="toggleOption('wholeWord')"
                   :class="{ 'iw-toolbar-btn-active': options.wholeWord }"
                   class="iw-toolbar-btn btn-xs"
-                  title="Match Whole Word (Alt+W)"
+                  :title="t('notify.search.matchWholeWordTitle')"
                 >
                   <IconAbc class="icon-2xs" />
                 </button>
@@ -59,7 +59,7 @@
                   @click="toggleOption('regex')"
                   :class="{ 'iw-toolbar-btn-active': options.regex }"
                   class="iw-toolbar-btn btn-xs"
-                  title="Use Regular Expression (Alt+R)"
+                  :title="t('notify.search.regexTitle')"
                 >
                   <IconRegex class="icon-2xs" />
                 </button>
@@ -75,7 +75,7 @@
                 ref="replaceInputRef"
                 v-model="replaceQuery"
                 rows="1"
-                placeholder="Replace"
+                :placeholder="t('notify.search.replacePlaceholder')"
                 class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 px-2 text-sm focus:border-primary rounded-field"
                 @keydown="handleReplaceKeydown"
                 @input="autoResizeTextarea(replaceInputRef)"
@@ -85,7 +85,7 @@
               @click="replaceAll"
               :disabled="totalMatches === 0"
               class="iw-toolbar-btn btn-xs mt-0.5"
-              title="Replace All"
+              :title="t('notify.search.replaceAllTitle')"
             >
               <IconReplaceFilled class="icon-xs" />
             </button>
@@ -95,22 +95,22 @@
 
       <!-- Files to include -->
       <div class="flex flex-col gap-1">
-        <label class="text-xs text-base-content">files to include</label>
+        <label class="text-xs text-base-content">{{ t('notify.search.includeLabel') }}</label>
         <input 
           v-model="includePattern"
           type="text"
-          placeholder="e.g. *.ts, src/**/*.js"
+          :placeholder="t('notify.search.includePlaceholder')"
           class="iw-input"
         />
       </div>
 
       <!-- Files to exclude -->
       <div class="flex flex-col gap-1">
-        <label class="text-xs text-base-content">files to exclude</label>
+        <label class="text-xs text-base-content">{{ t('notify.search.excludeLabel') }}</label>
         <input
           v-model="excludePattern"
           type="text"
-          placeholder="e.g. node_modules/**, *.min.js"
+          :placeholder="t('notify.search.excludePlaceholder')"
           class="iw-input"
         />
       </div>
@@ -118,19 +118,19 @@
 
     <!-- Results Summary -->
     <div class="flex flex-col bg-base-200 gap-1 p-2 border-b border-base-300 text-xs text-base-content">
-      <span v-if="isSearching">Searching...</span>
+      <span v-if="isSearching">{{ t('notify.search.searching') }}</span>
       <span v-else-if="totalMatches > 0">
-        {{ totalMatches }} results in {{ fileCount }} files
+        {{ t('notify.search.summary', { total: totalMatches, files: fileCount }) }}
       </span>
-      <span v-else-if="searchQuery">No results</span>
-      <span v-else>Search to find results</span>
+      <span v-else-if="searchQuery">{{ t('notify.search.noResults') }}</span>
+      <span v-else>{{ t('notify.search.searchHint') }}</span>
     </div>
 
     <!-- Search Results Tree -->
     <div class="flex-1 overflow-auto bg-base-100">
       <!-- Loading State -->
       <div v-if="isSearching" class="empty-panel">
-        <p class="text-sm">Searching files...</p>
+        <p class="text-sm">{{ t('notify.search.searchingFiles') }}</p>
       </div>
 
       <!-- Results Tree -->
@@ -162,7 +162,7 @@
                 class="iw-toolbar-btn btn-xs"
                 @click.stop="replaceAllInFile(result)"
                 :disabled="!result.totalMatches"
-                title="Replace All in File"
+                :title="t('notify.search.replaceAllInFileTitle')"
               >
                 <IconReplaceFilled class="icon-2xs" />
               </button>
@@ -188,7 +188,7 @@
                 <button
                   class="iw-toolbar-btn btn-xs"
                   @click.stop="replaceSingle(result, index)"
-                  title="Replace"
+                  :title="t('notify.search.replaceTitle')"
                 >
                   <IconReplace class="icon-2xs" />
                 </button>
@@ -201,13 +201,13 @@
       <!-- Empty State -->
       <div v-else-if="!isSearching && searchQuery" class="empty-panel">
         <IconSearchOff class="empty-panel-icon mb-3" />
-        <p class="text-sm">No results found</p>
+        <p class="text-sm">{{ t('notify.search.noResultsFound') }}</p>
       </div>
 
       <!-- Initial State -->
       <div v-else class="empty-panel">
         <IconSearch class="empty-panel-icon mb-3" />
-        <p class="text-sm">Search across files in your workspace</p>
+        <p class="text-sm">{{ t('notify.search.initialHint') }}</p>
       </div>
     </div>
   </div>
@@ -215,6 +215,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import {
   IconChevronRight,
@@ -237,6 +238,7 @@ import { pathUtils } from '@/utils/pathUtils'
 import { STORAGE_KEYS } from '@/utils/StateStorage'
 
 const appStore = useAppStore()
+const { t } = useI18n()
 
 // 组件内状态（使用 v-show 后不会被销毁）
 const searchQuery = ref('')
@@ -460,13 +462,13 @@ async function jumpToResult(fileResult: SearchReplaceInFilesSearchResult, matchI
     // 2. 等待编辑器实例就绪（包括内容加载完成）
     const editor = await waitForEditorReady(fileResult.filePath)
     if (!editor) {
-      notify.error('Failed to open editor')
+      notify.error(t('notify.search.failedOpenEditor'))
       return
     }
 
     const match = fileResult.matches[matchIndex]
     if (!match) {
-      notify.warning('Match not found')
+      notify.warning(t('notify.search.matchNotFound'))
       return
     }
 
@@ -483,7 +485,7 @@ async function jumpToResult(fileResult: SearchReplaceInFilesSearchResult, matchI
     )
   } catch (error) {
     console.error('Error jumping to result:', error)
-    notify.error('Failed to jump to result')
+    notify.error(t('notify.search.failedJump'))
   }
 }
 
@@ -528,13 +530,16 @@ async function waitForEditorReady(filePath: string, maxAttempts: number = 40): P
 
 function replaceNext() {
   // TODO: Implement replace next
-  notify.info('Replace next - not yet implemented')
+  notify.info(t('notify.search.replaceNextTodo'))
 }
 
 async function replaceAll() {
   if (totalMatches.value === 0) return
 
-  const confirmMsg = `Replace ${totalMatches.value} occurrences across ${fileCount.value} files?`
+  const confirmMsg = t('notify.search.replaceAllConfirm', {
+    total: totalMatches.value,
+    files: fileCount.value,
+  })
   if (!confirm(confirmMsg)) return
 
   try {
@@ -556,14 +561,20 @@ async function replaceAll() {
     // 显示结果
     if (result.success) {
       notify.success(
-        `Replaced ${result.totalReplacements} occurrences in ${result.filesModified} files`
+        t('notify.search.replaceAllSuccess', {
+          count: result.totalReplacements,
+          files: result.filesModified,
+        })
       )
       // 重新执行搜索以更新结果
       await performSearch()
     } else {
       const errorMsg = result.errors
-        ? `Replaced ${result.totalReplacements} occurrences, but encountered ${result.errors.length} errors`
-        : 'Replacement completed with errors'
+        ? t('notify.search.replaceAllPartial', {
+          count: result.totalReplacements,
+          errors: result.errors.length,
+        })
+        : t('notify.search.replaceAllWithErrors')
       notify.warning(errorMsg)
       // 仍然重新搜索以显示更新的结果
       await performSearch()
@@ -571,7 +582,7 @@ async function replaceAll() {
   } catch (error) {
     isReplacing.value = false
     console.error('Error in replaceAll:', error)
-    notify.error('Failed to replace: ' + String(error))
+    notify.error(t('notify.search.replaceFailed', { error: String(error) }))
   }
 }
 
@@ -579,7 +590,7 @@ async function replaceSingle(fileResult: SearchReplaceInFilesSearchResult, match
   try {
     const match = fileResult.matches[matchIndex]
     if (!match) {
-      notify.warning('Match not found')
+      notify.warning(t('notify.search.matchNotFound'))
       return
     }
 
@@ -590,7 +601,7 @@ async function replaceSingle(fileResult: SearchReplaceInFilesSearchResult, match
     // 2. 获取编辑器实例
     const tab = appStore.tabs.find(t => t.path === fileResult.filePath)
     if (!tab?.editorInstance) {
-      notify.error('Failed to open editor')
+      notify.error(t('notify.search.failedOpenEditor'))
       return
     }
 
@@ -602,18 +613,21 @@ async function replaceSingle(fileResult: SearchReplaceInFilesSearchResult, match
       replaceQuery.value
     )
 
-    notify.success('Replaced 1 occurrence')
+    notify.success(t('notify.search.replaceSingleSuccess'))
 
     // 4. 重新执行搜索以更新结果
     await performSearch()
   } catch (error) {
     console.error('Error in replaceSingle:', error)
-    notify.error('Failed to replace: ' + String(error))
+    notify.error(t('notify.search.replaceFailed', { error: String(error) }))
   }
 }
 
 async function replaceAllInFile(fileResult: SearchReplaceInFilesSearchResult) {
-  const confirmMsg = `Replace all ${fileResult.totalMatches} occurrences in ${fileResult.fileName}?`
+  const confirmMsg = t('notify.search.replaceInFileConfirm', {
+    count: fileResult.totalMatches,
+    name: fileResult.fileName,
+  })
   if (!confirm(confirmMsg)) return
 
   try {
@@ -635,18 +649,21 @@ async function replaceAllInFile(fileResult: SearchReplaceInFilesSearchResult) {
     // 显示结果
     if (result.success) {
       notify.success(
-        `Replaced ${result.totalReplacements} occurrences in ${fileResult.fileName}`
+        t('notify.search.replaceInFileSuccess', {
+          count: result.totalReplacements,
+          name: fileResult.fileName,
+        })
       )
       // 重新执行搜索以更新结果
       await performSearch()
     } else {
-      const errorMsg = result.errors?.[0]?.error || 'Unknown error'
-      notify.error(`Failed to replace in ${fileResult.fileName}: ${errorMsg}`)
+      const errorMsg = result.errors?.[0]?.error || t('notify.search.unknownError')
+      notify.error(t('notify.search.replaceInFileFailed', { name: fileResult.fileName, error: errorMsg }))
     }
   } catch (error) {
     isReplacing.value = false
     console.error('Error in replaceAllInFile:', error)
-    notify.error('Failed to replace: ' + String(error))
+    notify.error(t('notify.search.replaceFailed', { error: String(error) }))
   }
 }
 
@@ -849,7 +866,7 @@ async function performSearch() {
     }
   } catch (error) {
     console.error('Search error:', error)
-    notify.error('Search failed')
+    notify.error(t('notify.search.searchFailed'))
     searchResults.value = []
     expandedFiles.value.clear()
   } finally {

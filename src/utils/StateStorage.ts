@@ -3,6 +3,7 @@ import { SidebarMode, DocumentType } from '@/types'
 
 // Storage Keys
 export const STORAGE_KEYS = {
+  LOCALE: 'iwriter-locale',
   THEME: 'iwriter-theme',
   AUTO_SAVE: 'iwriter-auto-save',
   SEARCH_CONFIG: 'iwriter-search-in-files-config',
@@ -175,6 +176,29 @@ export class StateStorage {
     } catch (error) {
       console.error('Failed to load theme:', error)
       return 'system'
+    }
+  }
+
+  /**
+   * 保存语言设置
+   */
+  static saveLocale(locale: string): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.LOCALE, locale)
+    } catch (error) {
+      console.error('Failed to save locale:', error)
+    }
+  }
+
+  /**
+   * 加载语言设置
+   */
+  static loadLocale(): string | null {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.LOCALE)
+    } catch (error) {
+      console.error('Failed to load locale:', error)
+      return null
     }
   }
 

@@ -4,7 +4,7 @@
     v-if="isPendingSend"
     @click="$emit('cancel-queued')"
     class="btn btn-sm btn-square rounded-field btn-warning"
-    title="Message queued, waiting for agent initialization. Click to cancel."
+    :title="t('agentPanel.sendButton.pendingTitle')"
   >
     <span class="icon-xs border-2 border-warning/40 border-t-warning rounded-full animate-spin inline-block" />
   </button>
@@ -13,7 +13,7 @@
     v-else-if="isStreaming"
     @click="$emit('stop')"
     class="btn btn-sm btn-square rounded-field btn-error"
-    title="Stopping the response..."
+    :title="t('agentPanel.sendButton.stoppingTitle')"
   >
     <IconPlayerStop class="icon-xs" />
   </button>
@@ -23,7 +23,7 @@
     @click="$emit('send')"
     :disabled="!canSend"
     class="btn btn-sm btn-square rounded-field btn-primary"
-    title="Send Message"
+    :title="t('agentPanel.sendButton.sendTitle')"
   >
     <IconSend class="icon-xs" />
   </button>
@@ -31,6 +31,7 @@
 
 <script setup lang="ts">
 import { IconSend, IconPlayerStop } from '@tabler/icons-vue'
+import { useI18n } from 'vue-i18n'
 
 defineProps<{
   isPendingSend: boolean
@@ -43,4 +44,6 @@ defineEmits<{
   stop: []
   'cancel-queued': []
 }>()
+
+const { t } = useI18n()
 </script>

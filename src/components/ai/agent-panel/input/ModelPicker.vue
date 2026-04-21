@@ -7,9 +7,9 @@
     <button
       @click="onToggle"
       class="flex items-center gap-1 px-2 py-1 rounded-field text-xs text-base-content hover:bg-base-300 transition-colors max-w-25"
-      title="Switch Model"
+      :title="t('agentPanel.modelPicker.switchModel')"
     >
-      <span class="truncate">{{ currentModelId || 'Choose Model' }}</span>
+      <span class="truncate">{{ currentModelId || t('agentPanel.modelPicker.chooseModel') }}</span>
       <IconChevronDown class="icon-2xs shrink-0 text-base-content" />
     </button>
 
@@ -24,7 +24,7 @@
           <input
             v-model="modelSearch"
             ref="modelSearchEl"
-            placeholder="Find model..."
+            :placeholder="t('agentPanel.modelPicker.findModel')"
             class="w-full px-2 py-1 text-xs border border-base-300 rounded-field focus:outline-none focus:border-primary bg-base-100 text-base-content"
           />
         </div>
@@ -32,7 +32,7 @@
         <div class="max-h-56 overflow-y-auto py-1">
           <div v-if="isLoadingOllamaModels" class="px-3 py-2 text-xs text-base-content text-center">
             <span class="inline-block icon-2xs border border-base-300 border-t-primary rounded-full animate-spin mr-1" />
-            Loading models...
+            {{ t('agentPanel.modelPicker.loadingModels') }}
           </div>
 
         <button
@@ -47,12 +47,12 @@
             <span class="truncate flex-1"
               :class="m.id === currentModelId ? 'font-semibold text-base-content' : ''"
             >{{ m.id }}</span>
-            <IconCloud v-if="m.status === 'cloud'" class="icon-2xs shrink-0 text-neutral-content" title="Cloud Model" />
-            <IconDownload v-else-if="m.status === 'remote'" class="icon-2xs shrink-0 text-base-content" title="Remote Model" />
+            <IconCloud v-if="m.status === 'cloud'" class="icon-2xs shrink-0 text-neutral-content" :title="t('agentPanel.modelPicker.cloudModel')" />
+            <IconDownload v-else-if="m.status === 'remote'" class="icon-2xs shrink-0 text-base-content" :title="t('agentPanel.modelPicker.remoteModel')" />
           </button>
 
           <div v-if="!isLoadingOllamaModels && !filteredModelItems.length" class="px-3 py-2 text-xs text-base-content text-center">
-            No models found
+            {{ t('agentPanel.modelPicker.noModelsFound') }}
           </div>
         </div>
       </div>
@@ -62,11 +62,13 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { IconChevronDown, IconCloud, IconDownload } from '@tabler/icons-vue'
 import { useModelPicker } from '../composables/useModelPicker'
 
 const props = defineProps<{ isOpen: boolean }>()
 const emit = defineEmits<{ open: []; close: [] }>()
+const { t } = useI18n()
 
 const { modelSearch, modelSearchEl, isLoadingOllamaModels, allModelItems, filteredModelItems, showModelPicker, currentModelId, onMenuOpen, selectModel } = useModelPicker()
 const triggerEl = ref<HTMLElement | null>(null)

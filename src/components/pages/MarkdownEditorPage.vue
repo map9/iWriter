@@ -312,6 +312,7 @@
 
 <script setup lang="ts">
 import { ref, toRef, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { generateJSON, Editor } from '@tiptap/core'
 import { undoDepth } from '@tiptap/pm/history'
@@ -380,6 +381,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { t } = useI18n()
 
 const appStore = useAppStore()
 const TYPEWRITER_ANCHOR_RATIO = 0.38
@@ -680,7 +682,10 @@ async function loadTabContent(editorInstance: Editor) {
     })
     setLineEnding(lineEnding)
   } catch (error) {
-    notify.error(`加载文档内容失败: ${error instanceof Error ? error.message : String(error)}`, '编辑器错误')
+    notify.error(
+      t('notify.editor.loadFailed', { error: error instanceof Error ? error.message : String(error) }),
+      t('notify.editor.errorContext')
+    )
   } finally {
     isLoading.value = false
   }
@@ -786,7 +791,7 @@ async function handleMenuAction(action: string): Promise<boolean> {
       return true
 
     case 'text-replace':
-      notify.error(`${action}`, 'Not implemented')
+      notify.error(`${action}`, t('notify.editor.notImplemented'))
       return true
     case 'toggle-spelling-grammar-errors':
       toggleProofreadErrorsDisplay()

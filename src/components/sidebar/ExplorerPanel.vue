@@ -5,7 +5,7 @@
     <div class="iw-sidebar-section">
       <div class="flex items-center gap-2">
         <span class="iw-sidebar-section-header">
-          Explorer
+          {{ t('explorer.title') }}
         </span>
       </div>
       
@@ -14,13 +14,13 @@
         <button
           @click="appStore.openFolder"
           class="iw-toolbar-btn btn-xs"
-          title="Open Folder"
+          :title="t('explorer.openFolder')"
         >
           <IconFolderOpen class="icon-xs" />
         </button>
         <button
           class="iw-toolbar-btn btn-xs"
-          title="More actions"
+          :title="t('explorer.moreActions')"
         >
           <IconDots class="icon-xs" />
         </button>
@@ -35,7 +35,7 @@
           v-model="searchQuery"
           type="search"
           class="grow"
-          placeholder="Search Files"
+          :placeholder="t('explorer.searchFiles')"
         />
       </label>
     </div>
@@ -64,7 +64,7 @@
           <button
             @click="createFile"
             class="iw-toolbar-btn btn-xs"
-            title="Create File"
+            :title="t('explorer.createFile')"
           >
             <IconFilePlus class="icon-xs" />
           </button>
@@ -73,7 +73,7 @@
           <button
             @click="createFolder"
             class="iw-toolbar-btn btn-xs"
-            title="Create Folder"
+            :title="t('explorer.createFolder')"
           >
             <IconFolderPlus class="icon-xs" />
           </button>
@@ -82,7 +82,7 @@
           <button
             @click="showSortContextMenu"
             class="iw-toolbar-btn btn-xs w-auto gap-1 px-1"
-            title="Sort"
+            :title="t('explorer.sortTitle')"
           >
             <IconArrowsSort class="icon-xs" />
             <IconChevronDown class="icon-2xs" />
@@ -92,7 +92,7 @@
           <button
             @click="collapseAll"
             class="iw-toolbar-btn btn-xs"
-            title="Collapse All"
+            :title="t('explorer.collapseAll')"
             :disabled="!hasRootFolder"
           >
             <IconFoldUp class="icon-xs" />
@@ -118,6 +118,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import type { FileTreeNode, FileTreeCallbacks, FileTreeSortType } from '../common/tree'
 import type { ContextMenuItem } from '@/types'
@@ -139,6 +140,7 @@ import {
 } from '@tabler/icons-vue'
 
 const appStore = useAppStore()
+const { t } = useI18n()
 const searchQuery = ref('')
 const { getIconByExtension } = useDocumentTypeDetector()
 
@@ -158,8 +160,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const folderName = computed(() => {
-  if (!appStore.currentFolder) return 'No Folder'
-  return appStore.currentFolder.split('/').pop() || 'Root Folder'
+  if (!appStore.currentFolder) return t('explorer.noFolder')
+  return appStore.currentFolder.split('/').pop() || t('explorer.rootFolder')
 })
 
 // State
@@ -372,56 +374,56 @@ const showSortContextMenu = async (event: MouseEvent) => {
   const menuItems: ContextMenuItem[] = [
     {
       id: 'filetree-sort-none',
-      label: 'No Sort',
+      label: t('explorer.sort.none'),
       type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'none',
     },
     { type: 'separator' },
     {
       id: 'filetree-sort-name-asc',
-      label: 'Name (A-Z)',
+      label: t('explorer.sort.nameAsc'),
       type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'name-asc',
     },
     {
       id: 'filetree-sort-name-desc',
-      label: 'Name (Z-A)',
+      label: t('explorer.sort.nameDesc'),
       type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'name-desc',
     },
     {
       id: 'filetree-sort-type-asc',
-      label: 'Type (A-Z)',
+      label: t('explorer.sort.typeAsc'),
       type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'type-asc',
     },
     {
       id: 'filetree-sort-type-desc',
-      label: 'Type (Z-A)',
+      label: t('explorer.sort.typeDesc'),
       type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'type-desc',
     },
     {
       id: 'filetree-sort-created-asc',
-      label: 'Created (Oldest)',
+      label: t('explorer.sort.createdAsc'),
       type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'created-asc',
     },
     {
       id: 'filetree-sort-created-desc',
-      label: 'Created (Newest)',
+      label: t('explorer.sort.createdDesc'),
       type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'created-desc',
     },
     {
       id: 'filetree-sort-modified-asc',
-      label: 'Modified (Oldest)',
+      label: t('explorer.sort.modifiedAsc'),
       type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'modified-asc',
     },
     {
       id: 'filetree-sort-modified-desc',
-      label: 'Modified (Newest)',
+      label: t('explorer.sort.modifiedDesc'),
       type: 'checkbox',
       checked: appStore.currentFileTreeSortType === 'modified-desc',
     },
@@ -458,20 +460,20 @@ const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent })
     menuItems.push(
       {
         id: 'explorer-new-file',
-        label: 'New Document...',
+        label: t('explorer.menu.newDocument'),
       },
       {
         id: 'explorer-new-folder',
-        label: 'New Folder...',
+        label: t('explorer.menu.newFolder'),
       },
       {
         id: 'explorer-reveal-in-folder',
-        label: 'Reveal in Folder',
+        label: t('explorer.menu.revealInFolder'),
       },
       { type: 'separator' },
       {
         id: 'explorer-find-in-folder',
-        label: 'Find in Folder...',
+        label: t('explorer.menu.findInFolder'),
       },
       { type: 'separator' },
     )
@@ -481,11 +483,11 @@ const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent })
     menuItems.push(
       {
         id: 'explorer-open-file',
-        label: 'Open',
+        label: t('explorer.menu.open'),
       },
       {
         id: 'explorer-reveal-in-folder',
-        label: 'Reveal in Folder',
+        label: t('explorer.menu.revealInFolder'),
       },
       { type: 'separator' },
     )
@@ -515,7 +517,7 @@ const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent })
     menuItems.push(
       {
         id: 'explorer-rename-file-or-folder',
-        label: 'Rename...',
+        label: t('explorer.menu.rename'),
         accelerator: 'Enter',
       },
       {

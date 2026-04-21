@@ -3,7 +3,7 @@
     <button
       @click="onToggle"
       class="flex items-center gap-1 px-2 py-1 rounded text-xs text-base-content hover:bg-base-300 transition-colors max-w-25"
-      title="Switch Agent Mode"
+      :title="t('agentPanel.modePicker.switchMode')"
     >
       <span class="truncate">{{ currentLabel }}</span>
       <IconChevronDown class="icon-2xs shrink-0 text-base-content" />
@@ -40,12 +40,14 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { IconChevronDown } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/store/ai'
 import type { AiAgentMode } from '@/ai/types'
 
 const props = defineProps<{ isOpen: boolean }>()
 const emit = defineEmits<{ open: []; close: [] }>()
+const { t } = useI18n()
 
 const aiStore = useAiStore()
 const triggerEl = ref<HTMLElement | null>(null)
@@ -64,14 +66,14 @@ const menuStyle = computed(() => {
 })
 
 const modeOptions: Array<{ value: AiAgentMode; label: string }> = [
-  { value: 'edit', label: 'Edit' },
-  { value: 'minimal', label: 'Minimal' },
-  { value: 'creative', label: 'Creative' },
+  { value: 'edit', label: t('agentPanel.modePicker.options.edit') },
+  { value: 'minimal', label: t('agentPanel.modePicker.options.minimal') },
+  { value: 'creative', label: t('agentPanel.modePicker.options.creative') },
 ]
 
 const currentMode = computed(() => aiStore.activeThread?.mode ?? aiStore.settings.defaultMode)
 const currentLabel = computed(() => {
-  return modeOptions.find(option => option.value === currentMode.value)?.label ?? 'Edit'
+  return modeOptions.find(option => option.value === currentMode.value)?.label ?? t('agentPanel.modePicker.options.edit')
 })
 
 function onToggle() {

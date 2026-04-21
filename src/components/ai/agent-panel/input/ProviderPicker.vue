@@ -4,10 +4,10 @@
       @click="onToggle"
       class="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors min-w-0 max-w-25"
       :class="currentProvider ? 'text-base-content hover:bg-base-300' : 'text-error hover:bg-base-300'"
-      title="Switch Provider"
+      :title="t('agentPanel.providerPicker.switchProvider')"
     >
       <span class="icon-dot bg-primary shrink-0" />
-      <span class="truncate">{{ currentProvider?.label ?? 'No Provider' }}</span>
+      <span class="truncate">{{ currentProvider?.label ?? t('agentPanel.providerPicker.noProvider') }}</span>
       <IconChevronDown class="icon-2xs shrink-0 text-base-content" />
     </button>
 
@@ -22,7 +22,7 @@
           <input
             v-model="providerSearch"
             ref="providerSearchEl"
-            placeholder="Find provider..."
+            :placeholder="t('agentPanel.providerPicker.findProvider')"
             class="w-full px-2 py-1 text-xs border border-base-300 rounded-field focus:outline-none focus:border-primary bg-base-100 text-base-content"
           />
         </div>
@@ -51,7 +51,7 @@
             v-if="!filteredProviders.length"
             class="px-3 py-2 text-xs text-base-content text-center"
           >
-            No providers found
+            {{ t('agentPanel.providerPicker.noProvidersFound') }}
           </div>
         </div>
       </div>
@@ -61,12 +61,14 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { IconChevronDown } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/store/ai'
 import { useProviderPicker } from '../composables/useProviderPicker'
 
 const props = defineProps<{ isOpen: boolean }>()
 const emit = defineEmits<{ open: []; close: [] }>()
+const { t } = useI18n()
 
 const aiStore = useAiStore()
 const { providerSearch, providerSearchEl, isLlmProviderUsable, filteredProviders, onMenuOpen, selectProvider } = useProviderPicker()

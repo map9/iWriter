@@ -3,7 +3,7 @@
     <button
       @click="showMenu = !showMenu"
       class="iw-toolbar-btn btn-xs"
-      title="Add Files / Folders"
+      :title="t('agentPanel.attachPicker.addFilesOrFolders')"
     >
       <IconPlus class="icon-xs" />
     </button>
@@ -15,10 +15,10 @@
         :style="menuStyle"
       >
         <button @click="emit('browse-files'); showMenu = false" class="w-full flex items-center gap-2 px-1.5 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300">
-          <IconFile class="icon-xs shrink-0" />Browse Files...
+          <IconFile class="icon-xs shrink-0" />{{ t('agentPanel.attachPicker.browseFiles') }}
         </button>
         <button @click="emit('browse-folder'); showMenu = false" class="w-full flex items-center gap-2 px-1.5 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300">
-          <IconFolder class="icon-xs shrink-0" />Browse Folders...
+          <IconFolder class="icon-xs shrink-0" />{{ t('agentPanel.attachPicker.browseFolders') }}
         </button>
       </div>
     </Teleport>
@@ -27,6 +27,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { IconPlus, IconFile, IconFolder } from '@tabler/icons-vue'
 
 const showMenu = ref(false)
@@ -37,6 +38,7 @@ const emit = defineEmits<{
   'browse-files': []
   'browse-folder': []
 }>()
+const { t } = useI18n()
 
 const menuStyle = computed(() => {
   if (!triggerEl.value) return {}

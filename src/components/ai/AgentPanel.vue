@@ -39,6 +39,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, reactive, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAiStore } from '@/ai/store/ai'
 import { useAppStore } from '@/stores/app'
 import AgentHeader from './agent-panel/AgentHeader.vue'
@@ -72,6 +73,7 @@ const persistedPanelUi = reactive(loadPanelUiState())
 
 const aiStore = useAiStore()
 const appStore = useAppStore()
+const { t } = useI18n()
 
 const inputAreaRef = ref<HTMLElement | null>(null)
 const inputAreaHeight = ref(0)
@@ -83,9 +85,9 @@ let taskPlanResizeObserver: ResizeObserver | null = null
 const showHistory = computed(() => persistedPanelUi.view === 'history')
 
 const headerTitle = computed(() => {
-  if (showHistory.value) return 'History'
+  if (showHistory.value) return t('agentPanel.panel.historyTitle')
   const thread = aiStore.activeThread
-  if (!thread || !thread.messages?.length) return 'New Thread'
+  if (!thread || !thread.messages?.length) return t('agentPanel.panel.newThreadTitle')
   return thread.title
 })
 
@@ -111,14 +113,14 @@ function confirmThreadTermination(actionLabel: string): boolean {
   if (!activeThread || aiStore.liveTurnThreadId !== activeThread.id) return true
 
   const statusText = aiStore.isInterrupted
-    ? 'Current thread is waiting for your approval to modify'
+    ? t('agentPanel.panel.waitingApproval')
     : aiStore.isStreaming
-      ? 'Current thread is running'
+      ? t('agentPanel.panel.threadRunning')
       : ''
 
   if (!statusText) return true
 
-  return confirm(`${statusText}，${actionLabel} will terminate the current thread execution. Continue?`)
+  return confirm(t('agentPanel.panel.terminateConfirm', { status: statusText, action: actionLabel }))
 }
 
 function stopActiveThreadIfNeeded() {
@@ -128,7 +130,7 @@ function stopActiveThreadIfNeeded() {
 }
 
 function createNewThread() {
-  if (!confirmThreadTermination('create new thread')) return
+  if (!confirmThreadTermination(t('agentPanel.panel.actions.createNewThread'))) return
   stopActiveThreadIfNeeded()
   persistedPanelUi.view = 'chat'
   aiStore.createNewThread()
@@ -161,7 +163,7 @@ async function selectThread(id: string) {
     persistedPanelUi.view = 'chat'
     return
   }
-  if (!confirmThreadTermination('switch thread')) return
+  if (!confirmThreadTermination(t('agentPanel.panel.actions.switchThread'))) return
   stopActiveThreadIfNeeded()
   const switched = await aiStore.selectThread(id)
   if (switched) {

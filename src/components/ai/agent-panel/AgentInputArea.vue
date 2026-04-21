@@ -10,7 +10,7 @@
       <textarea
         v-model="inputText"
         ref="inputEl"
-        placeholder="Send message..."
+        :placeholder="t('agentPanel.input.sendMessagePlaceholder')"
         class="w-full resize-none border-none bg-transparent text-sm focus:outline-none"
         rows="1"
         :style="{ maxHeight: maxTextareaHeight }"
@@ -44,6 +44,7 @@
 
 <script setup lang="ts">
 import { watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAiStore } from '@/ai/store/ai'
 import AgentContextChips from './input/AgentContextChips.vue'
 import AgentToolbar from './input/AgentToolbar.vue'
@@ -51,6 +52,7 @@ import { useContextFiles } from './composables/useContextFiles'
 import { useChatSend } from './composables/useChatSend'
 
 const aiStore = useAiStore()
+const { t } = useI18n()
 
 const { contextFiles, removeContextFile, browseFiles, browseFolder } = useContextFiles()
 const {

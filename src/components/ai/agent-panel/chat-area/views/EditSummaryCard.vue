@@ -15,7 +15,7 @@
       </div>
       <button
         class="iw-toolbar-btn btn-xs pointer-events-none opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-transparent"
-        :title="expanded ? 'Collapse' : 'Expand Details'"
+        :title="expanded ? t('agentPanel.common.collapse') : t('agentPanel.common.expandDetails')"
         @click="expanded = !expanded"
       >
         <IconChevronDown v-if="expanded" class="icon-2xs" />
@@ -68,12 +68,14 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { IconChevronDown, IconChevronUp, IconPencil } from '@tabler/icons-vue'
 import type { EditRoundResult, EditRoundResultState } from '@/ai/types'
 
 const props = defineProps<{
   result: EditRoundResult
 }>()
+const { t } = useI18n()
 
 const expanded = ref(false)
 
@@ -88,12 +90,12 @@ watch(
 const summaryLabel = computed(() => {
   const appliedTotal = props.result.applied + props.result.appliedEdited
   const parts: string[] = []
-  if (appliedTotal > 0) parts.push(`已应用 ${appliedTotal} 处修改`)
-  if (props.result.skipped > 0) parts.push(`跳过 ${props.result.skipped}`)
-  if (props.result.reworkRequested > 0) parts.push(`重做 ${props.result.reworkRequested}`)
-  if (props.result.ended > 0) parts.push(`结束 ${props.result.ended}`)
-  if (props.result.failedToApply > 0) parts.push(`失败 ${props.result.failedToApply}`)
-  if (!parts.length) parts.push(`本轮共处理 ${props.result.total} 条建议`)
+  if (appliedTotal > 0) parts.push(t('agentPanel.editSummary.summary.appliedChanges', { count: appliedTotal }))
+  if (props.result.skipped > 0) parts.push(t('agentPanel.editSummary.summary.skipped', { count: props.result.skipped }))
+  if (props.result.reworkRequested > 0) parts.push(t('agentPanel.editSummary.summary.rework', { count: props.result.reworkRequested }))
+  if (props.result.ended > 0) parts.push(t('agentPanel.editSummary.summary.ended', { count: props.result.ended }))
+  if (props.result.failedToApply > 0) parts.push(t('agentPanel.editSummary.summary.failed', { count: props.result.failedToApply }))
+  if (!parts.length) parts.push(t('agentPanel.editSummary.summary.totalHandled', { count: props.result.total }))
   return parts.join(' · ')
 })
 
@@ -109,30 +111,30 @@ const bodyClass = computed(() => {
 
 const summaryChips = computed(() => {
   const chips: Array<{ label: string; className: string }> = []
-  chips.push({ label: `共 ${props.result.total} 条`, className: 'bg-base-200 text-base-content' })
-  if (props.result.applied > 0) chips.push({ label: `已应用 ${props.result.applied}`, className: 'bg-success/20 text-success-content' })
-  if (props.result.appliedEdited > 0) chips.push({ label: `修改后应用 ${props.result.appliedEdited}`, className: 'bg-info/20 text-info-content' })
-  if (props.result.skipped > 0) chips.push({ label: `已跳过 ${props.result.skipped}`, className: 'bg-base-200 text-base-content' })
-  if (props.result.reworkRequested > 0) chips.push({ label: `已退回重做 ${props.result.reworkRequested}`, className: 'bg-warning/20 text-warning-content' })
-  if (props.result.ended > 0) chips.push({ label: `本轮结束 ${props.result.ended}`, className: 'bg-base-200 text-base-content' })
-  if (props.result.failedToApply > 0) chips.push({ label: `应用失败 ${props.result.failedToApply}`, className: 'bg-error/20 text-error-content' })
+  chips.push({ label: t('agentPanel.editSummary.chips.total', { count: props.result.total }), className: 'bg-base-200 text-base-content' })
+  if (props.result.applied > 0) chips.push({ label: t('agentPanel.editSummary.chips.applied', { count: props.result.applied }), className: 'bg-success/20 text-success-content' })
+  if (props.result.appliedEdited > 0) chips.push({ label: t('agentPanel.editSummary.chips.appliedEdited', { count: props.result.appliedEdited }), className: 'bg-info/20 text-info-content' })
+  if (props.result.skipped > 0) chips.push({ label: t('agentPanel.editSummary.chips.skipped', { count: props.result.skipped }), className: 'bg-base-200 text-base-content' })
+  if (props.result.reworkRequested > 0) chips.push({ label: t('agentPanel.editSummary.chips.reworkRequested', { count: props.result.reworkRequested }), className: 'bg-warning/20 text-warning-content' })
+  if (props.result.ended > 0) chips.push({ label: t('agentPanel.editSummary.chips.ended', { count: props.result.ended }), className: 'bg-base-200 text-base-content' })
+  if (props.result.failedToApply > 0) chips.push({ label: t('agentPanel.editSummary.chips.failedToApply', { count: props.result.failedToApply }), className: 'bg-error/20 text-error-content' })
   return chips
 })
 
 function stateLabel(state: EditRoundResultState): string {
   switch (state) {
     case 'applied':
-      return '已应用'
+      return t('agentPanel.editSummary.states.applied')
     case 'applied_edited':
-      return '修改后应用'
+      return t('agentPanel.editSummary.states.appliedEdited')
     case 'rework_requested':
-      return '已退回重做'
+      return t('agentPanel.editSummary.states.reworkRequested')
     case 'ended':
-      return '本轮结束'
+      return t('agentPanel.editSummary.states.ended')
     case 'failed_to_apply':
-      return '应用失败'
+      return t('agentPanel.editSummary.states.failedToApply')
     default:
-      return '已跳过'
+      return t('agentPanel.editSummary.states.skipped')
   }
 }
 

@@ -11,7 +11,7 @@
       <div class="flex-1 min-w-0 space-y-1.5">
         <div class="inline-flex items-center gap-2 rounded-field bg-base-200 px-3 py-2">
           <span class="loading loading-dots loading-sm text-base-content opacity-50"></span>
-          <span class="text-xs text-base-content opacity-50">Loading session...</span>
+          <span class="text-xs text-base-content opacity-50">{{ t('agentPanel.chatArea.loadingSession') }}</span>
         </div>
       </div>
     </div>
@@ -43,6 +43,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 defineProps<{ bottomPadding?: number }>()
 import { useAiStore } from '@/ai/store/ai'
@@ -52,6 +53,7 @@ import AgentMessageBubble from './chat-area/AgentMessageBubble.vue'
 import DomainReviewSurface from './domains/DomainReviewSurface.vue'
 
 const aiStore = useAiStore()
+const { t } = useI18n()
 
 // ── Elapsed timer ─────────────────────────────────────────────────────────
 const elapsedMs = ref(0)
@@ -115,43 +117,25 @@ const formattedElapsed = computed(() => {
 
 function humanizeToolName(toolName: string | null | undefined): string {
   if (!toolName) return ''
-  const map: Record<string, string> = {
-    get_document_outline: '读取文档大纲',
-    get_section: '读取章节',
-    get_blocks: '读取段落',
-    get_block_context: '读取上下文',
-    search_blocks_in_document: '在文档中搜索段落',
-    search_sections_in_document: '在文档中搜索章节',
-    search_in_directory: '在目录中搜索文档内容',
-    read_file: '读取文件',
-    list_directory: '查看目录',
-    ls: '查看目录',
-    glob: '匹配文件',
-    grep: '搜索内容',
-    execute: '执行命令',
-    write_file: '写入文件',
-    edit_file: '编辑文件',
-    list_story_assets: '列出故事资产',
-    read_story_asset: '读取故事资产',
-    save_story_asset: '保存故事资产',
-  }
-  return map[toolName] || toolName
+  const key = `agentPanel.chatArea.toolNames.${toolName}`
+  const translated = t(key)
+  return translated === key ? toolName : translated
 }
 
 const streamingStatusLabel = computed(() => {
   if (aiStore.liveTurnState === 'resuming') {
-    return '正在继续处理已确认修改'
+    return t('agentPanel.chatArea.status.resuming')
   }
   if (aiStore.streamingToolName) {
-    return `正在调用工具 · ${humanizeToolName(aiStore.streamingToolName)}`
+    return t('agentPanel.chatArea.status.callingTool', { tool: humanizeToolName(aiStore.streamingToolName) })
   }
   if (aiStore.streamingText || aiStore.streamingPreviewMessage?.toolCalls?.length) {
-    return '正在整理结果'
+    return t('agentPanel.chatArea.status.organizingResult')
   }
   if (aiStore.streamingThinkingText) {
-    return '思考中'
+    return t('agentPanel.chatArea.status.thinking')
   }
-  return '正在处理'
+  return t('agentPanel.chatArea.status.processing')
 })
 
 // ── Auto-scroll (sticky auto-follow) ──────────────────────────────────────

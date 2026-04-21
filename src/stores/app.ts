@@ -27,9 +27,11 @@ import {
 } from '@/types'
 import { convertContentTo } from '@/import-export/'
 import { StateStorage, type WorkspaceState } from '@/utils/StateStorage'
+import { detectPreferredLocale, i18n, resolveLocale, setAppLocale, type AppLocale } from '@/i18n'
 
 export const useAppStore = defineStore('app', () => {
   type PreferencesTab = 'editor' | 'spelling' | 'themes' | 'ai' | 'updates'
+  const t = i18n.global.t
 
   // 文件监听和类型检测
   const { detectFromPath } = useDocumentTypeDetector()
@@ -50,6 +52,7 @@ export const useAppStore = defineStore('app', () => {
   const rightSidebarWidth = ref(288) // 默认宽度
   const minRightSidebarWidth = 288 // 最小宽度
   const autoSaveEnabled = ref(true)
+  const locale = ref<AppLocale>('en-US')
   const globalEditSetting = reactive<EditSetting>({
     lineEnding: 'LF',
     invisibleCharacters: true,
@@ -188,7 +191,7 @@ export const useAppStore = defineStore('app', () => {
   }, { immediate: true })
 
   // update menu when left sidebar or right sidebar or statusbar visibility changes
-  watch(() => [isLeftSidebarVisible.value, isRightSidebarVisible.value, isStatusbarVisible.value, isCleanMode.value, isFocusMode.value, isTypewriterMode.value], () => {
+  watch(() => [isLeftSidebarVisible.value, isRightSidebarVisible.value, isStatusbarVisible.value, isCleanMode.value, isFocusMode.value, isTypewriterMode.value, locale.value], () => {
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI?.windowContentChange?.({
         view: {
@@ -198,6 +201,7 @@ export const useAppStore = defineStore('app', () => {
           cleanMode: isCleanMode.value,
           focusMode: isFocusMode.value,
           typewriterMode: isTypewriterMode.value,
+          locale: locale.value,
         },
       })
     }
@@ -239,7 +243,13 @@ export const useAppStore = defineStore('app', () => {
     const savedThemeId = StateStorage.loadTheme()
     currentThemeId.value = getThemeById(savedThemeId)?.id ?? 'system'
 
-    // 4. 恢复工作区状态（在窗口完全加载后）
+    // 4. 恢复语言
+    const savedLocale = StateStorage.loadLocale()
+    const initialLocale = resolveLocale(savedLocale ?? detectPreferredLocale())
+    locale.value = initialLocale
+    setAppLocale(initialLocale)
+
+    // 5. 恢复工作区状态（在窗口完全加载后）
     setTimeout(() => {
       restoreWorkspace()
     }, 100)
@@ -388,12 +398,12 @@ export const useAppStore = defineStore('app', () => {
           console.error(`窗口${windowId}任务失败:`, error);
           // 提示用户后决定是否强制退出​
           const result = await window.electronAPI.showMessageBox({
-            message: 'Failed to close the window. Do you want to continue?',
+            message: t('notify.window.closeFailedMessage'),
             type: 'question',
-            buttons: ['Close', 'Cancel'],
+            buttons: [t('notify.window.closeAction'), t('notify.window.cancelAction')],
             defaultId: 0,
-            title: 'Close Window',
-            detail: 'Some opened files and configuration settings could not be properly closed or saved during the process.',
+            title: t('notify.window.closeFailedTitle'),
+            detail: t('notify.window.closeFailedDetail'),
             cancelId: 1
           })
       
@@ -521,7 +531,7 @@ export const useAppStore = defineStore('app', () => {
     if (tab.documentType !== DocumentType.MARKDOWN_EDITOR) return
 
     if (isFileReadonly(tab)) {
-      notify.warning('该文件因权限为只读，不能直接编辑或保存，可通过 Save As 另存为新文件。', '文件只读')
+      notify.warning(t('notify.readonly.fileReadonlyMessage'), t('notify.readonly.fileReadonlyContext'))
       return
     }
 
@@ -529,13 +539,17 @@ export const useAppStore = defineStore('app', () => {
 
     if (nextEditReadonly && tab.isDirty && window.electronAPI?.showMessageBox) {
       const result = await window.electronAPI.showMessageBox({
-        message: `Enable read-only mode for "${tab.name}"?`,
+        message: t('notify.readonly.enableMessage', { name: tab.name }),
         type: 'question',
-        buttons: ['Save Then Enable', 'Enable Read Only', 'Cancel'],
+        buttons: [
+          t('notify.readonly.saveThenEnable'),
+          t('notify.readonly.enableNow'),
+          t('notify.readonly.cancel'),
+        ],
         defaultId: 0,
         cancelId: 2,
-        title: 'Enable Read Only',
-        detail: 'This file has unsaved changes. Read-only mode will stop editing and auto save.'
+        title: t('notify.readonly.enableTitle'),
+        detail: t('notify.readonly.enableDetail')
       })
 
       if (result.response === 2) return
@@ -596,7 +610,7 @@ export const useAppStore = defineStore('app', () => {
     
     const files = await window.electronAPI.getFiles(filePath, true)
     if (!files || files.length === 0 || !files[0] || files[0].isDirectory === true) {
-      notify.error(`${filePath}不是文件或不存在`, '文件打开错误')
+      notify.error(t('notify.file.openError', { path: filePath }), t('notify.file.openErrorContext'))
       return
     }
     
@@ -638,7 +652,7 @@ export const useAppStore = defineStore('app', () => {
       const folderPath = result.filePaths[0]!
 
       if (folderPath === currentFolder.value) {
-        notify.success(`${folderPath} 已打开`, '文件操作')
+        notify.success(t('notify.file.alreadyOpened', { path: folderPath }), t('notify.file.operation'))
         return
       }
 
@@ -658,7 +672,7 @@ export const useAppStore = defineStore('app', () => {
       
       // 成功通知
       const folderName = pathUtils.basename(folderPath)
-      notify.success(`${folderName} 打开成功`, '文件操作')
+      notify.success(t('notify.file.opened', { name: folderName }), t('notify.file.operation'))
     }
   }
   
@@ -688,7 +702,7 @@ export const useAppStore = defineStore('app', () => {
       // 使用 await 等待异步操作完成
       const files = await window.electronAPI.getFiles(currentFolder.value, true)
       if (!files || files.length === 0 || !files[0] || files[0].isDirectory === false) {
-        throw(new Error('文件不是目录'))
+        throw(new Error(t('notify.file.notDirectory')))
       }
       const file = files[0]
       fileTree.value = {
@@ -709,7 +723,7 @@ export const useAppStore = defineStore('app', () => {
       // 使用 await 等待异步操作完成
       fileTree.value.children = await traverseFileTree(currentFolder.value, fileTree.value)
     } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件树加载错误')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.treeLoadError'))
       return []
     }
   }
@@ -883,7 +897,7 @@ export const useAppStore = defineStore('app', () => {
 
     try {
       if (parentNode.type !== 'folder') {
-        throw new Error('Invalid parent directory')
+        throw new Error(t('notify.file.invalidDirectory'))
       }
 
       const fileName = customName || generateUntitledName('txt', parentNode.path)
@@ -911,14 +925,14 @@ export const useAppStore = defineStore('app', () => {
         parentNode.children.push(newNode)
         //sortFileTreeNodes(parentNode.children as FileTreeNode[], currentFileTreeSortType.value)
         setSelectedItem(newNode)
-        notify.success(`${fileName} 创建成功`, '文件操作')
+        notify.success(t('notify.file.createSuccess', { name: fileName }), t('notify.file.operation'))
 
         return newNode
       }
 
       return null;
     } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件创建错误')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.createError'))
       return null
     }
   }
@@ -929,7 +943,7 @@ export const useAppStore = defineStore('app', () => {
 
     try {
       if (parentNode.type !== 'folder') {
-        throw new Error('Invalid parent directory')
+        throw new Error(t('notify.file.invalidDirectory'))
       }
 
       const folderName = customName || generateUntitledName('folder', parentNode.path)
@@ -958,14 +972,14 @@ export const useAppStore = defineStore('app', () => {
         parentNode.children.push(newNode)
         //sortFileTreeNodes(parentNode.children as FileTreeNode[], currentFileTreeSortType.value)
         setSelectedItem(newNode)
-        notify.success(`${folderName} 创建成功`, '文件操作')
+        notify.success(t('notify.file.createSuccess', { name: folderName }), t('notify.file.operation'))
         
         return newNode
       }
 
       return null;
     } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件夹创建错误')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.createFolderError'))
       return null
     }
   }
@@ -984,7 +998,7 @@ export const useAppStore = defineStore('app', () => {
           childNode.data = {}
           childNode.created = date
           childNode.modified = date
-          notify.success(`${filePath} 创建成功`, '文件操作')
+          notify.success(t('notify.file.createSuccess', { name: filePath }), t('notify.file.operation'))
         }
       } else if (childNode.type === 'folder') {
         const folderPath = await window.electronAPI.createFolder(parentNode.path, childNode.label)
@@ -994,16 +1008,16 @@ export const useAppStore = defineStore('app', () => {
           childNode.data = {}
           childNode.created = date
           childNode.modified = date
-          notify.success(`${folderPath} 创建成功`, '文件操作')
+          notify.success(t('notify.file.createSuccess', { name: folderPath }), t('notify.file.operation'))
         }
       }
       
       return true
     } catch (error) {
       if (childNode.type === 'file') {
-        notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件创建错误')
+        notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.createError'))
       } else if (childNode.type === 'folder') {
-        notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件夹创建错误')
+        notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.createFolderError'))
       }
       return false
     }
@@ -1025,7 +1039,7 @@ export const useAppStore = defineStore('app', () => {
             node.parent.children.splice(index, 1)
           }
         }
-        notify.success(`${node.path} 删除成功`, '文件操作')
+        notify.success(t('notify.file.deleteSuccess', { path: node.path }), t('notify.file.operation'))
 
         // Close tabs for deleted files (including files inside deleted folders)
         const tabsToClose = tabs.value.filter(tab => {
@@ -1044,7 +1058,7 @@ export const useAppStore = defineStore('app', () => {
 
       return false
     } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件删除错误')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.deleteError'))
       return false
     }
   }
@@ -1071,13 +1085,13 @@ export const useAppStore = defineStore('app', () => {
         //}
         setSelectedItem(node)
 
-        notify.success(`${node.path} -> ${newName} 重命名成功`, '文件操作')
+        notify.success(t('notify.file.renameSuccess', { from: node.path, to: newName }), t('notify.file.operation'))
         return true
       }
 
       return false
     } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件重命名错误')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.renameError'))
       return false
     }
   }
@@ -1091,7 +1105,7 @@ export const useAppStore = defineStore('app', () => {
       const result = await window.electronAPI.moveFile(sourcePath, targetDir)
       
       if (!result) {
-        throw new Error('Unknown error')
+        throw new Error(t('notify.file.unknownError'))
       }
       
       if (result.success) {
@@ -1131,14 +1145,14 @@ export const useAppStore = defineStore('app', () => {
     
         //sortFileTreeNodes(targetParentNode.children as FileTreeNode[], currentFileTreeSortType.value)
         setSelectedItem(sourceNode)
-        notify.success(`${sourcePath} -> ${result.newPath} 移动成功`, '文件操作')
+        notify.success(t('notify.file.moveSuccess', { from: sourcePath, to: result.newPath }), t('notify.file.operation'))
 
         return result
       }
 
       return result
     } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)} 移动失败`, '文件移动错误')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.moveError'))
       throw error
     }
   }
@@ -1158,11 +1172,11 @@ export const useAppStore = defineStore('app', () => {
         
         // 监听错误事件
         window.electronAPI.onFileWatchError((error) => {
-          notify.warning(`${error.message}`, '文件监听')
+          notify.warning(`${error.message}`, t('notify.file.watchWarning'))
         })
       }
     } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件监听无法启动')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.watchStartError'))
     }
   }
   
@@ -1174,7 +1188,7 @@ export const useAppStore = defineStore('app', () => {
       await window.electronAPI.stopFileWatching(currentFolder.value)
       window.electronAPI.removeFileChangeListeners()
     } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件监听无法停止')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.watchStopError'))
     }
   }
   
@@ -1214,7 +1228,7 @@ export const useAppStore = defineStore('app', () => {
           node.parent.children.splice(index, 1)
         }
       }
-      notify.success(`${node.path} 结点删除成功`, '文件树更新')
+      notify.success(t('notify.tree.nodeDeleted', { path: node.path }), t('notify.tree.context'))
 
       // Close tabs for deleted files (including files inside deleted folders)
       const tabsToClose = tabs.value.filter(tab => {
@@ -1235,7 +1249,7 @@ export const useAppStore = defineStore('app', () => {
 
       return true
     } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件树更新错误')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.tree.updateError'))
       return false
     }
   }
@@ -1280,14 +1294,14 @@ export const useAppStore = defineStore('app', () => {
       }
       parentNode.children.push(newNode)
 
-      notify.success(`${filePath} 结点添加成功`, '文件树更新')
+      notify.success(t('notify.tree.nodeAdded', { path: filePath }), t('notify.tree.context'))
 
       // Sort children based on current sort type
       //sortFileTreeNodes(parentNode.children as FileTreeNode[], currentFileTreeSortType.value)
       
       return true
     } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件树更新错误')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.tree.updateError'))
       return false
     }
   }
@@ -1311,7 +1325,10 @@ export const useAppStore = defineStore('app', () => {
         if (fileInfo.modified) node.modified = fileInfo.modified
       }
     } catch (error) {
-      notify.error(`文件树更新 ${node.path} 结点信息失败：${error instanceof Error ? error.message : String(error)}`, '文件树更新')
+      notify.error(
+        t('notify.tree.updateNodeInfoError', { path: node.path, error: error instanceof Error ? error.message : String(error) }),
+        t('notify.tree.context')
+      )
     }
   }
 
@@ -1369,7 +1386,7 @@ export const useAppStore = defineStore('app', () => {
     tabs.value.push(newTab)
     activeTabId.value = id
 
-    notify.success(`${path? path : tabName} 打开成功`, '文件操作')
+    notify.success(t('notify.file.opened', { name: path ? path : tabName }), t('notify.file.operation'))
     
     return newTab
   }
@@ -1390,16 +1407,24 @@ export const useAppStore = defineStore('app', () => {
       const isReadonlyDirty = isTabReadonly(tab)
       const isFileReadonlyDirty = isFileReadonly(tab)
       const result = await window.electronAPI.showMessageBox({
-        message: `Do you want to save the changes you made to "${tab.name}"?`,
+        message: t('dialog.saveChanges.message', { name: tab.name }),
         type: 'question',
-        buttons: [isFileReadonlyDirty ? 'Save As...' : isReadonlyDirty ? 'Disable Read Only & Save' : 'Save', 'Don\'t Save', 'Cancel'],
+        buttons: [
+          isFileReadonlyDirty
+            ? t('dialog.saveChanges.saveAs')
+            : isReadonlyDirty
+              ? t('dialog.saveChanges.disableReadonlyAndSave')
+              : t('dialog.saveChanges.save'),
+          t('dialog.saveChanges.dontSave'),
+          t('dialog.saveChanges.cancel'),
+        ],
         defaultId: 0,
-        title: 'Save Changes',
+        title: t('dialog.saveChanges.title'),
         detail: isReadonlyDirty
           ? isFileReadonlyDirty
-            ? 'This file is read-only on disk. Use Save As to save your changes to a new file, or choose Don\'t Save to discard them.'
-            : 'This tab is in read-only mode. Disable read-only to save, or choose Don\'t Save to discard the changes.'
-          : 'Your changes will be lost if you don\'t save them.',
+            ? t('dialog.saveChanges.detailFileReadonly')
+            : t('dialog.saveChanges.detailTabReadonly')
+          : t('dialog.saveChanges.detailDefault'),
         cancelId: 2
       })
 
@@ -1504,13 +1529,13 @@ export const useAppStore = defineStore('app', () => {
     if (!tab || !window.electronAPI) return false
     if (isFileReadonly(tab) && !saveAs) {
       if (!silent) {
-        notify.warning('该文件为只读文件，不能直接保存，请使用 Save As 另存为新文件。', '文件只读')
+        notify.warning(t('notify.readonly.fileReadonlyMessage'), t('notify.readonly.fileReadonlyContext'))
       }
       return false
     }
     if (isEditReadonly(tab) && !saveAs) {
       if (!silent) {
-        notify.warning('当前标签处于只读模式，请先关闭只读模式后再保存。', '只读模式')
+        notify.warning(t('notify.readonly.tabReadonlyMessage'), t('notify.readonly.tabReadonlyContext'))
       }
       return false
     }
@@ -1552,13 +1577,13 @@ export const useAppStore = defineStore('app', () => {
           tab.savedCheckPoint = undoDepth((tab.editorInstance as import('@tiptap/core').Editor).state)
 
           if (!silent) {
-            notify.success(`${originalPath} 保存成功`, '文件操作')
+            notify.success(t('notify.file.saveSuccess', { path: originalPath }), t('notify.file.operation'))
           }
           return true
         }
       }
     } catch(error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件保存错误')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.saveError'))
     }
 
     return false 
@@ -1607,7 +1632,10 @@ export const useAppStore = defineStore('app', () => {
     }
 
     if (blockedReadonlyCount > 0) {
-      notify.warning(`已保存 ${savedCount} 个文件，另有 ${blockedReadonlyCount} 个只读文件未保存。`, 'Save All')
+      notify.warning(
+        t('notify.tab.saveAllPartial', { saved: savedCount, blocked: blockedReadonlyCount }),
+        t('notify.tab.saveAllContext')
+      )
     }
   }
 
@@ -1670,13 +1698,19 @@ export const useAppStore = defineStore('app', () => {
   function setTheme(themeId: string) {
     const theme = getThemeById(themeId)
     if (!theme) {
-      notify.error(`主题 ${themeId} 不存在`, '主题设置错误')
+      notify.error(t('notify.theme.notFound', { themeId }), t('notify.theme.settingsError'))
       return
     }
 
     currentThemeId.value = themeId
     // StateStorage 会通过 watch 自动保存，不需要手动保存
     applyCurrentTheme()
+  }
+
+  function setLocale(nextLocale: string) {
+    const normalized = resolveLocale(nextLocale)
+    locale.value = normalized
+    setAppLocale(normalized)
   }
   
   function applyCurrentTheme() {
@@ -1704,7 +1738,7 @@ export const useAppStore = defineStore('app', () => {
   async function handlePrint() {
     const activeTab = tabs.value.find(tab => tab.id === activeTabId.value)
     if (!activeTab) {
-      notify.warning('No document to print')
+      notify.warning(t('notify.print.noDocument'))
       return
     }
 
@@ -1716,15 +1750,15 @@ export const useAppStore = defineStore('app', () => {
       const result = await window.electronAPI.print(printOptions)
       
       if (result.success) {
-        notify.success(`${activeTab.name} 打印成功`, '打印操作')
+        notify.success(t('notify.print.success', { name: activeTab.name }), t('notify.print.context'))
       } else if (result.cancelled) {
         console.info('Print operation cancelled by user')
       } else {
-        notify.error(result.error || 'Unknown error', '打印失败')
+        notify.error(result.error || t('notify.print.unknownError'), t('notify.print.failed'))
       }
       
     } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, '打印错误')
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.print.error'))
     }
   }
 
@@ -1771,7 +1805,7 @@ export const useAppStore = defineStore('app', () => {
         createTab(undefined, undefined, DocumentType.MARKDOWN_EDITOR)
         return true
       case 'new-from-template':
-        notify.error(`${action}`, 'Not implemented')
+        notify.error(`${action}`, t('notify.menu.notImplemented'))
         return true
       case 'open-file':
         await openFileDialog()
@@ -1842,7 +1876,7 @@ export const useAppStore = defineStore('app', () => {
         try {
           await updaterService.checkForUpdates()
         } catch (error) {
-          notify.error(`${error instanceof Error ? error.message : String(error)}`, '检查更新失败')
+          notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.update.checkFailed'))
         }
         return true
       
@@ -1896,6 +1930,10 @@ export const useAppStore = defineStore('app', () => {
     StateStorage.saveTheme(themeId)
   })
 
+  watch(locale, (value) => {
+    StateStorage.saveLocale(value)
+  })
+
   // 监听工作区状态变化（使用计算属性）
   const workspaceStateSnapshot = computed(() => {
     const tabsData = tabs.value
@@ -1940,6 +1978,7 @@ export const useAppStore = defineStore('app', () => {
     rightSidebarWidth,
     minRightSidebarWidth,
     currentThemeId,
+    locale,
     systemPrefersDark,
     globalEditSetting,
     autoSaveEnabled,
@@ -1986,6 +2025,7 @@ export const useAppStore = defineStore('app', () => {
     // Theme actions
     initTheme,
     setTheme,
+    setLocale,
     applyCurrentTheme,
     getCurrentTheme,
     getAvailableThemes,

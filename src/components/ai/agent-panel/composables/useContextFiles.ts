@@ -1,8 +1,10 @@
 import { ref } from 'vue'
 import { useAppStore } from '@/stores/app'
+import { i18n } from '@/i18n'
 
 export function useContextFiles() {
   const appStore = useAppStore()
+  const t = i18n.global.t
   const contextFiles = ref<string[]>([])
 
   function fileName(path: string): string {
@@ -22,7 +24,7 @@ export function useContextFiles() {
 
   async function browseFiles() {
     const result = await window.electronAPI.showOpenDialog({
-      title: '选择文件',
+      title: t('agentPanel.contextFiles.selectFilesTitle'),
       properties: ['openFile', 'multiSelections'],
     })
     if (!result.canceled) {
@@ -34,7 +36,7 @@ export function useContextFiles() {
 
   async function browseFolder() {
     const result = await window.electronAPI.showOpenDialog({
-      title: '选择文件夹',
+      title: t('agentPanel.contextFiles.selectFolderTitle'),
       properties: ['openDirectory'],
     })
     if (!result.canceled) {

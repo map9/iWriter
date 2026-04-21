@@ -7,7 +7,7 @@
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <div class="flex items-center gap-2">
-            <div class="text-sm font-semibold text-warning-content">建议审核</div>
+            <div class="text-sm font-semibold text-warning-content">{{ t('agentPanel.proposalNavigator.reviewTitle') }}</div>
             <button
               type="button"
               class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-base-300 bg-base-100 text-2xs text-base-content/70"
@@ -23,9 +23,9 @@
           >{{ navigatorVm.primaryBatchActionLabel }}</button>
           <button
             class="iw-btn btn-xs btn-ghost"
-            title="直接结束这一轮审核，未处理建议不再继续。"
+            :title="t('agentPanel.proposalNavigator.endRoundHint')"
             @click="$emit('endRound')"
-          >结束本轮修改</button>
+          >{{ t('agentPanel.proposalNavigator.endRound') }}</button>
         </div>
       </div>
     </div>
@@ -49,9 +49,9 @@
           </div>
           <button
             class="iw-btn btn-xs"
-            title="定位到文稿中的这处内容"
+            :title="t('agentPanel.proposalNavigator.locateHint')"
             @click="scrollToCurrentBlock"
-          >定位原文</button>
+          >{{ t('agentPanel.proposalNavigator.locate') }}</button>
         </div>
         <div v-if="current.description" class="mt-2 text-xs" :class="toneDescriptionClass">
           {{ current.description }}
@@ -61,10 +61,10 @@
       <div class="min-h-52">
         <template v-if="current.kind === 'create_file'">
           <div class="border-b border-base-300 px-3 py-2 text-xs font-medium text-base-content">
-            新建文档预览
+            {{ t('agentPanel.proposalNavigator.newFilePreview') }}
           </div>
           <div class="p-3">
-            <div class="mb-2 text-xs text-base-content/70">文件名：{{ current.filename }}</div>
+            <div class="mb-2 text-xs text-base-content/70">{{ t('agentPanel.proposalNavigator.fileName', { name: current.filename }) }}</div>
             <div class="rounded-md border p-2" :class="tonePanelClass">
               <MarkdownContentView :content="current.content" />
             </div>
@@ -74,18 +74,18 @@
         <template v-else-if="current.type === 'delete'">
           <div class="p-3">
             <div class="mb-2 rounded-md bg-error/15 px-2 py-1.5 text-xs text-error-content">
-              这是一条删除建议。接受后会删除这段内容。
+              {{ t('agentPanel.proposalNavigator.deleteWarning') }}
             </div>
-            <div class="mb-1.5 text-xs font-medium text-base-content">将被删除的原文</div>
+            <div class="mb-1.5 text-xs font-medium text-base-content">{{ t('agentPanel.proposalNavigator.originalToDelete') }}</div>
             <div class="rounded-md border border-error/30 bg-error/10 p-2">
-              <MarkdownContentView :content="current.oldContent || '(空)'" mode="markdown" />
+              <MarkdownContentView :content="current.oldContent || t('agentPanel.proposalNavigator.emptyContent')" mode="markdown" />
             </div>
           </div>
         </template>
 
         <template v-else-if="current.type === 'insert'">
           <div class="p-3">
-            <div class="mb-2 text-xs font-medium text-base-content">建议插入内容</div>
+            <div class="mb-2 text-xs font-medium text-base-content">{{ t('agentPanel.proposalNavigator.insertSuggestion') }}</div>
             <div
               class="min-h-52 rounded-md border p-2"
               :class="[tonePanelClass, isInsertEditing ? toneRingClass : 'cursor-text']"
@@ -97,7 +97,7 @@
                 v-model="editedContent"
                 rows="10"
                 class="min-h-48 w-full resize-y border-0 bg-transparent px-1 py-1 text-xs leading-relaxed text-base-content outline-none"
-                placeholder="按 Markdown 编辑将要插入的内容"
+                :placeholder="t('agentPanel.proposalNavigator.insertPlaceholder')"
                 @blur="deactivateInsertEditing"
               />
               <pre
@@ -145,23 +145,23 @@
         </div>
 
         <div v-if="showReworkComposer" class="mt-3 rounded-md border p-3" :class="tonePanelClass">
-          <div class="text-xs font-medium" :class="toneTitleClass">告诉 AI 这条建议应该怎么调整</div>
+          <div class="text-xs font-medium" :class="toneTitleClass">{{ t('agentPanel.proposalNavigator.reworkTitle') }}</div>
           <div class="mt-1 text-xs" :class="toneDescriptionClass">
-            提交后只会退回当前这条建议，其他建议的审核决定保持不变。
+            {{ t('agentPanel.proposalNavigator.reworkHint') }}
           </div>
           <textarea
             v-model="reworkReason"
             rows="3"
             class="mt-2 w-full resize-none rounded-field border border-base-300 bg-base-100 px-2 py-1 text-sm outline-none focus:border-primary"
-            placeholder="例如：保留原文事实，只调整文风；不要再压缩句子。"
+            :placeholder="t('agentPanel.proposalNavigator.reworkPlaceholder')"
           />
           <div class="mt-2 flex gap-1.5">
             <button
               class="iw-btn btn-xs btn-warning"
               :disabled="!reworkReason.trim()"
               @click="submitRework"
-            >提交反馈</button>
-            <button class="iw-btn btn-xs btn-ghost" @click="cancelReworkComposer">取消</button>
+            >{{ t('agentPanel.proposalNavigator.submitFeedback') }}</button>
+            <button class="iw-btn btn-xs btn-ghost" @click="cancelReworkComposer">{{ t('agentPanel.common.cancel') }}</button>
           </div>
         </div>
       </div>
@@ -171,6 +171,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { EditProposal } from '@/ai/types'
 import { buildProposalNavigatorViewModel } from '@/ai/review/selectors'
 import type { ProposalReviewSummary } from '@/ai/store/ai'
@@ -183,6 +184,7 @@ import DiffSplitView from './views/DiffSplitView.vue'
 
 const PROPOSAL_HIGHLIGHT_ID = 'ai-proposal-current-id'
 const PROPOSAL_HIGHLIGHT_CLASS = 'range-highlight-proposal'
+const { t } = useI18n()
 
 const props = defineProps<{
   proposals: EditProposal[]
@@ -258,7 +260,7 @@ function approve() {
 
 function skipCurrent() {
   if (!current.value) return
-  emit('reject', { id: current.value.id, message: 'User skipped this proposal.' })
+  emit('reject', { id: current.value.id, message: t('agentPanel.proposalNavigator.userSkipped') })
 }
 
 function openReworkComposer() {

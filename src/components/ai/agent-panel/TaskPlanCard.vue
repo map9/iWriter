@@ -14,7 +14,7 @@
       </div>
 
       <div class="shrink-0 font-semibold text-xs leading-4 whitespace-nowrap">
-        Task Plan
+        {{ t('agentPanel.taskPlan.title') }}
       </div>
 
       <div class="min-w-0 flex-1 flex flex-col justify-center">
@@ -37,7 +37,7 @@
       <button
         v-if="canToggle"
         class="iw-toolbar-btn btn-xs opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto hover:bg-transparent"
-        :title="expanded ? 'Collapse' : 'Expand Details'"
+        :title="expanded ? t('agentPanel.common.collapse') : t('agentPanel.common.expandDetails')"
         @click.stop="toggleExpanded"
       >
         <IconChevronDown v-if="expanded" class="icon-2xs" />
@@ -64,6 +64,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   IconChevronUp,
   IconChevronDown,
@@ -77,6 +78,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   isPreview: false,
 })
+const { t } = useI18n()
 
 const expanded = ref(true)
 const isHovered = ref(false)
@@ -88,14 +90,14 @@ const pendingCount = computed(() => props.items.filter(item => item.status === '
 const canToggle = computed(() => props.items.length > 1)
 const currentTaskLine = computed(() => {
   if (inProgressItem.value) return inProgressItem.value.content
-  if (completedCount.value === props.items.length && props.items.length > 0) return 'All tasks completed'
-  return 'No tasks in progress'
+  if (completedCount.value === props.items.length && props.items.length > 0) return t('agentPanel.taskPlan.allCompleted')
+  return t('agentPanel.taskPlan.noneInProgress')
 })
 const summaryLine = computed(() => {
-  const parts = [`${props.items.length} tasks`]
-  if (completedCount.value > 0) parts.push(`${completedCount.value} completed`)
-  if (inProgressItem.value) parts.push('1 in progress')
-  if (pendingCount.value > 0) parts.push(`${pendingCount.value} pending`)
+  const parts = [t('agentPanel.taskPlan.summary.tasks', { count: props.items.length })]
+  if (completedCount.value > 0) parts.push(t('agentPanel.taskPlan.summary.completed', { count: completedCount.value }))
+  if (inProgressItem.value) parts.push(t('agentPanel.taskPlan.summary.inProgress', { count: 1 }))
+  if (pendingCount.value > 0) parts.push(t('agentPanel.taskPlan.summary.pending', { count: pendingCount.value }))
   return parts.join(' · ')
 })
 

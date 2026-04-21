@@ -8,6 +8,7 @@ import { DocumentType } from '../src/types'
 import { getCustomThemes } from '../src/utils/themes'
 import { isMac } from './utils'
 import type { WindowState, GlobalParameters } from './types'
+import { createMainTranslator, localizeMenuTemplate } from './i18n'
 
 /**
  * 在菜单模板中指定ID的菜单项下方插入新项
@@ -69,6 +70,8 @@ export class MenuManager {
   }
 
   setupMenu(wState: WindowState, g: GlobalParameters): void {
+    const t = createMainTranslator(wState?.wContentState?.view?.locale)
+
     // Build base menu template
     const baseTemplate: Electron.MenuItemConstructorOptions[] = [
       // { role: 'appMenu' }
@@ -88,13 +91,13 @@ export class MenuManager {
           */
           { type: 'separator' },
           {
-            label: 'Check for update...',
+            label: t('menu.app.checkForUpdate', 'Check for update...'),
             click: () => {
               this.sendMenuAction('check-update')
             }
           },
           {
-            label: 'Preferences...',
+            label: t('menu.app.preferences', 'Preferences...'),
             accelerator: 'CmdOrCtrl+,',
             click: () => {
               this.sendMenuAction('preferences')
@@ -112,10 +115,10 @@ export class MenuManager {
       },
       {
         id: 'fileMenu',
-        label: 'File',
+        label: t('menu.file.title', 'File'),
         submenu: [
           {
-            label: 'New Document',
+            label: t('menu.file.newDocument', 'New Document'),
             accelerator: 'CmdOrCtrl+N',
             enabled: wState != null,
             click: () => {
@@ -134,14 +137,14 @@ export class MenuManager {
           */
           {
             id: 'new-window',
-            label: 'New Window',
+            label: t('menu.file.newWindow', 'New Window'),
             click: () => {
               this.sendMenuAction('new-window')              
             }
           },
           { type: 'separator' },
           {
-            label: 'Open File...',
+            label: t('menu.file.openFile', 'Open File...'),
             accelerator: 'CmdOrCtrl+O',
             enabled: wState != null,
             click: () => {
@@ -149,7 +152,7 @@ export class MenuManager {
             }
           },
           {
-            label: 'Open Folder...',
+            label: t('menu.file.openFolder', 'Open Folder...'),
             accelerator: 'CmdOrCtrl+Shift+O',
             enabled: wState != null,
             click: () => {
@@ -168,7 +171,7 @@ export class MenuManager {
           { type: 'separator' },
           {
             id: 'save',
-            label: 'Save',
+            label: t('menu.file.save', 'Save'),
             accelerator: 'CmdOrCtrl+S',
             enabled: wState?.wContentState?.hasActiveDocument,
             click: () => {
@@ -177,7 +180,7 @@ export class MenuManager {
           },
           {
             id: 'save-as',
-            label: 'Save As...',
+            label: t('menu.file.saveAs', 'Save As...'),
             accelerator: 'CmdOrCtrl+Shift+S',
             enabled: wState?.wContentState?.hasActiveDocument,
             click: () => {
@@ -186,7 +189,7 @@ export class MenuManager {
           },
           {
             id: 'auto-save',
-            label: 'Auto Save',
+            label: t('menu.file.autoSave', 'Auto Save'),
             type: 'checkbox',
             checked: (wState?.wContentState?.hasActiveDocument === true)? wState?.wContentState?.edit?.autoSave : wState?.wContentState?.autoSave,
             enabled: wState != null,
@@ -196,7 +199,7 @@ export class MenuManager {
           },
           {
             id: 'save-all',
-            label: 'Save All',
+            label: t('menu.file.saveAll', 'Save All'),
             accelerator: 'CmdOrCtrl+Alt+S',
             enabled: wState?.wContentState?.hasActiveDocument,
             click: () => {
@@ -206,7 +209,7 @@ export class MenuManager {
           { type: 'separator' },
           {
             id: 'toggle-readonly',
-            label: 'Read Only',
+            label: t('menu.file.readOnly', 'Read Only'),
             accelerator: 'CmdOrCtrl+Shift+L',
             type: 'checkbox',
             checked: wState?.wContentState?.edit?.readonly ? true : false,
@@ -292,7 +295,7 @@ export class MenuManager {
           */
           { type: 'separator' },
           {
-            label: 'Print...',
+            label: t('menu.file.print', 'Print...'),
             accelerator: 'CmdOrCtrl+P',
             enabled: wState?.wContentState?.hasActiveDocument,
             click: () => {
@@ -302,7 +305,7 @@ export class MenuManager {
           { type: 'separator' },
           {
             id: 'close-file',
-            label: 'Close File',
+            label: t('menu.file.closeFile', 'Close File'),
             accelerator: 'CmdOrCtrl+W',
             enabled: wState?.wContentState?.hasActiveDocument,
             click: () => {
@@ -311,7 +314,7 @@ export class MenuManager {
           },
           {
             id: 'close-folder',
-            label: 'Close Folder',
+            label: t('menu.file.closeFolder', 'Close Folder'),
             enabled: wState?.wContentState?.hasFolderOpen,
             click: () => {
               this.sendMenuAction('close-folder')
@@ -1522,6 +1525,7 @@ export class MenuManager {
           {
             label: 'AI StoryMate',
             accelerator: 'CmdOrCtrl+Shift+R',
+            type: 'checkbox',
             checked: wState?.wContentState?.view?.rightSidebar? true : false,
             click: () => {
               this.sendMenuAction('view-toggle-right-sidebar')
@@ -1698,6 +1702,11 @@ export class MenuManager {
         console.warn('Failed to insert custom theme items into the template');
       }
     }
+
+    localizeMenuTemplate(
+      baseTemplate as unknown as Array<Record<string, unknown>>,
+      wState?.wContentState?.view?.locale,
+    )
 
     const menu = Menu.buildFromTemplate(filteredTemplate)
     Menu.setApplicationMenu(menu)

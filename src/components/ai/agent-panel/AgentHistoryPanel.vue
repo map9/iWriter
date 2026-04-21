@@ -8,7 +8,7 @@
           v-model="searchQuery"
           type="text"
           class="grow"
-          placeholder="Search Sessions"
+          :placeholder="t('agentPanel.history.searchPlaceholder')"
         />
       </label>
     </div>
@@ -17,10 +17,10 @@
     <div class="flex-1 overflow-y-auto px-2 pb-2 min-h-0">
       <!-- Empty States -->
       <div v-if="!aiStore.threads.length" class="text-center py-8 text-xs text-base-content opacity-50">
-        No sessions
+        {{ t('agentPanel.history.noSessions') }}
       </div>
       <div v-else-if="!groupedThreads.length" class="text-center py-8 text-xs text-base-content opacity-50">
-        No sessions Finded
+        {{ t('agentPanel.history.noSessionMatches') }}
       </div>
 
       <!-- Grouped Threads -->
@@ -69,9 +69,9 @@
               <span
                 v-if="aiStore.isSwitchingThread && aiStore.switchingThreadId === thread.id && renamingId !== thread.id"
                 class="inline-block icon-2xs border border-base-300 rounded-full animate-spin shrink-0"
-                title="Loading session..."
+                :title="t('agentPanel.history.loadingSession')"
               />
-              <span v-if="thread.hasError && renamingId !== thread.id" class="shrink-0 text-error-content text-xs" title="Error in Last Session">⚠</span>
+              <span v-if="thread.hasError && renamingId !== thread.id" class="shrink-0 text-error-content text-xs" :title="t('agentPanel.history.lastSessionError')">⚠</span>
               <!-- Time (hide when renaming) -->
               <span v-if="renamingId !== thread.id" class="shrink-0 text-2xs text-base-content">{{ relativeTime(thread.updatedAt) }}</span>
             </div>
@@ -88,14 +88,14 @@
                 <button
                   @click.stop="startRename(thread)"
                   class="iw-toolbar-btn btn-xs"
-                  title="Rename"
+                  :title="t('agentPanel.history.rename')"
                 >
                   <IconPencil class="icon-2xs" />
                 </button>
                 <button
                   @click.stop="aiStore.deleteThread(thread.id)"
                   class="iw-toolbar-btn btn-xs text-error hover:bg-error hover:text-error-content"
-                  title="Delete"
+                  :title="t('agentPanel.history.delete')"
                 >
                   <IconTrash class="icon-2xs" />
                 </button>
@@ -116,7 +116,7 @@
           ? 'btn-error'
           : 'btn-neutral'"
       >
-        {{ confirmClear ? 'Confirm' : 'Clear All' }}
+        {{ confirmClear ? t('agentPanel.history.confirm') : t('agentPanel.history.clearAll') }}
       </button>
     </div>
   </div>
@@ -124,12 +124,14 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { IconTrash, IconSearch, IconPencil } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/store/ai'
 import type { AiThread } from '@/ai/types'
 
 const aiStore = useAiStore()
 const emit = defineEmits<{ select: [id: string] }>()
+const { t } = useI18n()
 
 // ── Search ────────────────────────────────────────────────────────────────────
 const searchQuery = ref('')
@@ -147,9 +149,9 @@ const groupedThreads = computed<ThreadGroup[]>(() => {
   const now = Date.now()
   const DAY = 86400000
   const groups: ThreadGroup[] = [
-    { label: 'Today', threads: [] },
-    { label: 'Past week', threads: [] },
-    { label: 'Earlier', threads: [] },
+    { label: t('agentPanel.history.group.today'), threads: [] },
+    { label: t('agentPanel.history.group.pastWeek'), threads: [] },
+    { label: t('agentPanel.history.group.earlier'), threads: [] },
   ]
   for (const t of filteredThreads.value) {
     const age = now - t.updatedAt
@@ -164,7 +166,7 @@ const groupedThreads = computed<ThreadGroup[]>(() => {
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'now'
+  if (mins < 1) return t('agentPanel.history.now')
   if (mins < 60) return `${mins}m`
   const hours = Math.floor(mins / 60)
   if (hours < 24) return `${hours}h`
@@ -182,7 +184,7 @@ function formatBytes(bytes: number): string {
 function threadSubtitle(thread: AiThread): string {
   const msgCount = thread.messages?.length ?? 0
   const size = formatBytes(JSON.stringify(thread).length)
-  return `${msgCount} messages · ${size}`
+  return t('agentPanel.history.subtitle', { count: msgCount, size })
 }
 
 // ── Rename ────────────────────────────────────────────────────────────────────

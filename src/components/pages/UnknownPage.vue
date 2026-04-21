@@ -4,8 +4,8 @@
       <div class="max-w-xl text-center p-3">
         <div class="mb-8">
           <IconAlertTriangle class="size-20 mx-auto mb-4 text-warning" />
-          <h1 class="text-xl font-semibold tracking-tight text-base-content mb-2">Unsupported File Type</h1>
-          <p class="text-md text-base-content opacity-50">The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.</p>
+          <h1 class="text-xl font-semibold tracking-tight text-base-content mb-2">{{ t('unknownPage.title') }}</h1>
+          <p class="text-md text-base-content opacity-50">{{ t('unknownPage.desc') }}</p>
         </div>
         
         <div class="flex flex-wrap justify-center gap-3">
@@ -14,7 +14,7 @@
             class="iw-btn btn-primary w-44 h-9"
           >
             <IconFolderOpen class="icon-sm" />
-            <span>Open Anyway</span>
+            <span>{{ t('unknownPage.openAnyway') }}</span>
           </button>
         </div>
       </div>
@@ -24,6 +24,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FileTab } from '@/types'
 import { notify } from '@/utils/notifications'
 
@@ -38,6 +39,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { t } = useI18n()
 
 // Computed
 const fileUrl = computed(() => {
@@ -53,7 +55,7 @@ async function openWithShell(filePath: string | undefined) {
   try {
     await window.electronAPI.openWithShell(filePath)
   } catch (error) {
-    notify.error(`${error instanceof Error ? error.message : String(error)}`, '文件操作')
+    notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.operation'))
   }
 }
 

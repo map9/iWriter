@@ -25,6 +25,7 @@ export interface ViewState {
   focusMode?: boolean
   typewriterMode?: boolean
   isFullscreen?: boolean
+  locale?: string
   theme?: string // 支持任意主题ID
   themeType?: 'light' | 'dark' | 'system' // 主题类型
 }

@@ -4,15 +4,15 @@
     <div class="grid grid-cols-2 border-b border-base-300 bg-base-200">
       <div class="flex items-center justify-between gap-2 border-r border-base-300 px-2.5 py-1.5 text-2xs text-base-content/60">
         <span class="inline-flex items-center rounded bg-error/20 px-1.5 py-px font-mono font-semibold text-error">
-          −{{ removedLines }} removals
+          {{ t('agentPanel.diffSplit.removals', { count: removedLines }) }}
         </span>
-        <span class="tabular-nums">{{ oldLineCount }} lines</span>
+        <span class="tabular-nums">{{ t('agentPanel.diffSplit.lines', { count: oldLineCount }) }}</span>
       </div>
       <div class="flex items-center justify-between gap-2 px-2.5 py-1.5 text-2xs text-base-content/60">
         <span class="inline-flex items-center rounded bg-success/20 px-1.5 py-px font-mono font-semibold text-success">
-          +{{ addedLines }} additions
+          {{ t('agentPanel.diffSplit.additions', { count: addedLines }) }}
         </span>
-        <span class="tabular-nums">{{ newLineCount }} lines{{ editableRight ? isEditing ? ' · 编辑中' : ' · 可编辑' : '' }}</span>
+        <span class="tabular-nums">{{ t('agentPanel.diffSplit.lines', { count: newLineCount }) }}{{ editableRight ? isEditing ? ` · ${t('agentPanel.diffSplit.editing')}` : ` · ${t('agentPanel.diffSplit.editable')}` : '' }}</span>
       </div>
     </div>
 
@@ -39,7 +39,7 @@
     <div v-else class="grid max-h-88 grid-cols-2 overflow-auto font-mono gap-y-1">
       <template v-for="(row, i) in renderedRows" :key="i">
         <div
-          class="min-h-[1.35em] whitespace-pre-wrap px-2.5 py-0.5 wrap-anywhere"
+          class="whitespace-pre-wrap px-2.5 py-0.5 wrap-anywhere"
           :class="leftCellClass(row)"
         >
           <template v-if="row.type === 'changed'">
@@ -55,7 +55,7 @@
           <template v-else>&nbsp;</template>
         </div>
         <div
-          class="min-h-[1.35em] whitespace-pre-wrap border-l border-base-300 px-2.5 py-0.5 wrap-anywhere"
+          class="whitespace-pre-wrap border-l border-base-300 px-2.5 py-0.5 wrap-anywhere"
           :class="[rightCellClass(row), editableRight ? 'cursor-text' : '']"
           @click="activateEditing"
         >
@@ -78,7 +78,9 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { diffArrays, diffWords } from 'diff'
+const { t } = useI18n()
 
 const props = defineProps<{
   oldContent: string

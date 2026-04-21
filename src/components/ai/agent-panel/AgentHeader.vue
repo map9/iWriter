@@ -14,27 +14,27 @@
         v-if="showBackButton"
         @click="$emit('back')"
         class="iw-toolbar-btn btn-xs"
-        title="Back"
+        :title="t('agentPanel.header.back')"
       >
         <IconArrowLeft class="icon-xs" />
       </button>
       <!-- 正常模式：新对话 + 历史 + 设置 -->
       <template v-else>
-        <button @click="$emit('new-thread')" class="iw-toolbar-btn btn-xs" title="New Thread">
+        <button @click="$emit('new-thread')" class="iw-toolbar-btn btn-xs" :title="t('agentPanel.header.newThread')">
           <IconPlus class="icon-xs" />
         </button>
         <button
           @click="$emit('toggle-history')"
           class="iw-toolbar-btn btn-xs"
           :class="historyActive ? 'iw-toolbar-btn-active' : ''"
-          title="History"
+          :title="t('agentPanel.header.history')"
         >
           <IconHistory class="icon-xs" />
         </button>
         <button
           @click="$emit('open-settings')"
           class="iw-toolbar-btn btn-xs"
-          title="AI Settings"
+          :title="t('agentPanel.header.aiSettings')"
         >
           <IconSettings class="icon-xs" />
         </button>
@@ -44,6 +44,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { IconArrowLeft, IconPlus, IconHistory, IconSettings } from '@tabler/icons-vue'
 
 defineProps<{
@@ -58,4 +59,6 @@ defineEmits<{
   'open-settings': []
   'back': []
 }>()
+
+const { t } = useI18n()
 </script>

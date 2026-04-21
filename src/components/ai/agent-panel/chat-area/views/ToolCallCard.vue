@@ -46,7 +46,7 @@
       <button
         v-if="showExpandableDetail"
         class="iw-toolbar-btn btn-xs opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto hover:bg-transparent"
-        :title="expanded ? 'Collapse' : 'Expand Details'"
+        :title="expanded ? t('agentPanel.common.collapse') : t('agentPanel.common.expandDetails')"
         @click.stop="toggleExpanded"
       >
         <IconChevronDown v-if="expanded" class="icon-2xs" />
@@ -60,7 +60,7 @@
       :class="[detailBorderClass, groupDetailClass]"
     >
       <div v-if="detailType === 'outline' && outlineItems.length" class="space-y-1.5">
-        <div class="text-xs font-medium text-base-content">Outline</div>
+        <div class="text-xs font-medium text-base-content">{{ t('agentPanel.toolCall.outline') }}</div>
         <div
           v-for="item in outlineItems"
           :key="`${item.blockId}-${item.text}`"
@@ -68,12 +68,12 @@
           :style="{ paddingLeft: `${0.5 + (item.level - 1) * 0.75}rem` }"
         >
           <div class="min-w-0">
-            <div class="truncate text-base-content">{{ item.text || `Unnamed Title ${item.blockId}` }}</div>
+            <div class="truncate text-base-content">{{ item.text || t('agentPanel.toolCall.unnamedTitle', { id: item.blockId }) }}</div>
             <div class="text-2xs text-base-content">H{{ item.level }} · {b:{{ item.blockId }}}</div>
           </div>
           <div class="shrink-0 text-2xs text-base-content text-right">
-            <div>{{ item.sectionBlocks }} blocks</div>
-            <div>{{ item.wordCount }} Words</div>
+            <div>{{ t('agentPanel.toolCall.blocks', { count: item.sectionBlocks }) }}</div>
+            <div>{{ t('agentPanel.toolCall.words', { count: item.wordCount }) }}</div>
           </div>
         </div>
       </div>
@@ -83,10 +83,10 @@
           {{ sectionHeading }}
         </div>
         <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-base-content/70">
-          <span v-if="sectionRange">范围 {{ sectionRange }}</span>
+          <span v-if="sectionRange">{{ t('agentPanel.toolCall.rangePrefix') }} {{ sectionRange }}</span>
           <span v-if="sectionReadProgress">{{ sectionReadProgress }}</span>
           <span v-if="sectionWordCount">{{ sectionWordCount }}</span>
-          <span v-if="sectionHasMore">可继续读取</span>
+          <span v-if="sectionHasMore">{{ t('agentPanel.toolCall.hasMore') }}</span>
         </div>
         <MarkdownContentView v-if="sectionContent" :content="sectionContent" mode="text" size="xs" />
       </div>
@@ -108,7 +108,7 @@
       </div>
 
       <div v-else-if="detailType === 'block_context' && blockItems.length" class="space-y-1.5">
-        <div class="text-xs font-medium text-base-content">Context Blocks</div>
+        <div class="text-xs font-medium text-base-content">{{ t('agentPanel.toolCall.contextBlocks') }}</div>
         <div
           v-for="item in blockItems"
           :key="item.blockId"
@@ -133,10 +133,10 @@
         >
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0">
-              <div class="truncate text-base-content">{{ section.heading || 'Unnamed Section' }}</div>
+              <div class="truncate text-base-content">{{ section.heading || t('agentPanel.toolCall.unnamedSection') }}</div>
               <div class="text-2xs text-base-content">heading {b:{{ section.headingBlockId }}}</div>
             </div>
-            <div class="shrink-0 text-2xs text-base-content">{{ section.matchCount }} Matched</div>
+            <div class="shrink-0 text-2xs text-base-content">{{ t('agentPanel.toolCall.matched', { count: section.matchCount }) }}</div>
           </div>
           <div v-if="section.preview" class="mt-1">
             <MarkdownContentView :content="section.preview" mode="text" size="xs" />
@@ -162,7 +162,7 @@
               <div class="text-2xs text-base-content truncate">{{ file.filePath }}</div>
             </div>
             <div class="shrink-0 text-2xs text-base-content text-right">
-              <div>{{ file.totalMatches }} Matched</div>
+              <div>{{ t('agentPanel.toolCall.matched', { count: file.totalMatches }) }}</div>
               <div>{{ file.documentType }}</div>
             </div>
           </div>
@@ -174,7 +174,7 @@
             >
               <div class="text-2xs text-base-content mb-1">
                 <span v-if="preview.heading">{{ preview.heading }}</span>
-                <span v-else>Unnamed Section</span>
+                <span v-else>{{ t('agentPanel.toolCall.unnamedSection') }}</span>
                 <span> · {b:{{ preview.blockId }}}</span>
               </div>
               <MarkdownContentView :content="preview.preview" mode="text" size="xs" />
@@ -185,16 +185,16 @@
 
       <div v-else-if="detailType === 'subagent_task' && (taskDescription || taskResult)" class="space-y-2">
         <div v-if="taskSubagentType" class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-base-content">
-          <span>子代理：{{ taskSubagentType }}</span>
+          <span>{{ t('agentPanel.toolCall.subagent', { type: taskSubagentType }) }}</span>
         </div>
         <div v-if="taskDescription" class="space-y-1">
-          <div class="text-xs font-medium text-base-content">委派说明</div>
+          <div class="text-xs font-medium text-base-content">{{ t('agentPanel.toolCall.delegateDescription') }}</div>
           <div class="rounded-box bg-base-200 px-2 py-1.5">
             <MarkdownContentView :content="taskDescription" mode="text" size="xs" />
           </div>
         </div>
         <div v-if="taskResult" class="space-y-1">
-          <div class="text-xs font-medium text-base-content">子代理返回</div>
+          <div class="text-xs font-medium text-base-content">{{ t('agentPanel.toolCall.subagentResult') }}</div>
           <MarkdownContentView :content="taskResult" mode="markdown" size="xs" />
         </div>
       </div>
@@ -219,12 +219,12 @@
       </div>
 
       <div v-else-if="resultText" class="space-y-1">
-        <div class="text-xs font-medium text-base-content">Result Details</div>
+        <div class="text-xs font-medium text-base-content">{{ t('agentPanel.toolCall.resultDetails') }}</div>
         <MarkdownContentView :content="resultText" mode="text" size="xs" />
       </div>
 
       <details v-if="showRawResult" class="group">
-        <summary class="cursor-pointer text-xs text-base-content hover:text-base-content/50">View Raw Result</summary>
+        <summary class="cursor-pointer text-xs text-base-content hover:text-base-content/50">{{ t('agentPanel.toolCall.viewRawResult') }}</summary>
         <div class="mt-2 rounded-box bg-base-200 px-2 py-1.5">
           <MarkdownContentView :content="rawResult" mode="text" size="xs" />
         </div>
@@ -235,6 +235,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   IconChevronUp,
   IconChevronDown,
@@ -257,6 +258,7 @@ const props = defineProps<{
 }>()
 
 const appStore = useAppStore()
+const { t } = useI18n()
 const expanded = ref(false)
 const groupPosition = computed(() => props.groupPosition ?? 'single')
 
@@ -440,8 +442,8 @@ const sectionReadProgress = computed(() => {
     : 0
 
   if (typeof totalLines === 'number' && currentCount > 0) {
-    if (totalLines > currentCount) return `已读取 ${currentCount}/${totalLines} 段`
-    return `共 ${totalLines} 段`
+    if (totalLines > currentCount) return t('agentPanel.toolCall.sectionReadProgress', { current: currentCount, total: totalLines })
+    return t('agentPanel.toolCall.sectionTotal', { total: totalLines })
   }
 
   if (typeof offset === 'number' && typeof limit === 'number') {
@@ -449,16 +451,16 @@ const sectionReadProgress = computed(() => {
     const end = typeof totalLines === 'number'
       ? Math.min(offset + limit, totalLines)
       : offset + limit
-    return `第 ${start}-${end} 段`
+    return t('agentPanel.toolCall.sectionRangeCount', { start, end })
   }
 
-  if (typeof totalLines === 'number') return `共 ${totalLines} 段`
+  if (typeof totalLines === 'number') return t('agentPanel.toolCall.sectionTotal', { total: totalLines })
   return ''
 })
 
 const sectionWordCount = computed(() => {
   const wordCount = parsedResult.value?.word_count
-  return typeof wordCount === 'number' ? `${wordCount} 字` : ''
+  return typeof wordCount === 'number' ? t('agentPanel.toolCall.wordCount', { count: wordCount }) : ''
 })
 
 const sectionHasMore = computed(() => parsedResult.value?.has_more === true)
@@ -550,7 +552,7 @@ const todoItems = computed(() => {
       return {
         content,
         icon: '✓',
-        statusLabel: '已完成',
+        statusLabel: t('agentPanel.toolCall.todo.completed'),
         statusClass: 'border-success/40 bg-success/20 text-success-content',
       }
     }
@@ -558,14 +560,14 @@ const todoItems = computed(() => {
       return {
         content,
         icon: '•',
-        statusLabel: '进行中',
+        statusLabel: t('agentPanel.toolCall.todo.inProgress'),
         statusClass: 'border-warning/40 bg-warning/20 text-warning-content',
       }
     }
     return {
       content,
       icon: '',
-      statusLabel: '待办',
+      statusLabel: t('agentPanel.toolCall.todo.pending'),
       statusClass: 'border-base-300 bg-base-100 text-transparent',
     }
   })

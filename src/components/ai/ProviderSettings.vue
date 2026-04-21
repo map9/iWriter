@@ -3,7 +3,7 @@
     <div v-if="view === 'main'" class="flex-1 overflow-y-auto">
       <div class="px-7 py-6">
         <section class="flex flex-col gap-3">
-          <h3 class="text-xs font-semibold uppercase text-base-content/60">Providers</h3>
+          <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.ai.providers') }}</h3>
         <div v-if="sortedLlmConfigs.length" class="flex flex-col gap-2">
           <div
             v-for="cfg in sortedLlmConfigs"
@@ -23,13 +23,13 @@
               />
               <span class="min-w-0 flex-1 truncate text-sm font-medium text-base-content">{{ cfg.label }}</span>
               <span class="max-w-25 shrink-0 truncate text-left text-xs text-base-content/65 hidden sm:block">
-                {{ isProviderUsable(cfg) ? cfg.defaultModelId : 'Need Configuration' }}
+                {{ isProviderUsable(cfg) ? cfg.defaultModelId : t('preferences.ai.needConfiguration') }}
               </span>
               <button
                 v-if="!cfg.presetId"
                 @click.stop="aiStore.removeProviderConfig(cfg.id)"
                 class="iw-toolbar-btn btn-xs opacity-0 transition-opacity group-hover:opacity-100 text-error hover:bg-error hover:text-error-content"
-                title="Remove Provider"
+                :title="t('preferences.ai.removeProvider')"
               >
                 <IconTrash class="icon-2xs" />
               </button>
@@ -37,19 +37,19 @@
           </div>
 
           <div v-else class="rounded-box border border-dashed border-base-300 bg-base-100 px-4 py-5 text-sm text-base-content/65">
-            No providers configured yet.
+            {{ t('preferences.ai.noProviders') }}
           </div>
         </section>
 
         <section class="mt-5 flex flex-col gap-3">
-          <h3 class="text-xs font-semibold uppercase text-base-content/60">Actions</h3>
+          <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.ai.actions') }}</h3>
           <button
             @click="selectCustom()"
             class="flex w-full items-center gap-3 rounded-box border border-dashed border-base-300 bg-base-100 px-4 py-3 text-left transition-colors hover:border-primary hover:bg-primary/8"
           >
             <IconPlus class="icon-xs shrink-0 text-base-content" />
-            <span class="min-w-0 flex-1 truncate text-sm font-medium text-base-content">Add Custom Provider</span>
-            <span class="max-w-25 shrink-0 truncate text-left text-xs text-base-content/65 hidden sm:block">OpenAI / Anthropic / Gemini</span>
+            <span class="min-w-0 flex-1 truncate text-sm font-medium text-base-content">{{ t('preferences.ai.addCustomProvider') }}</span>
+            <span class="max-w-25 shrink-0 truncate text-left text-xs text-base-content/65 hidden sm:block">{{ t('preferences.ai.addCustomProviderHint') }}</span>
           </button>
         </section>
       </div>
@@ -59,46 +59,46 @@
       <div class="flex-1 overflow-y-auto">
         <div class="px-7 py-5">
           <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">Identity</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.ai.identity') }}</h3>
 
             <div class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-base-content">Name</label>
+              <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.name') }}</label>
               <input
                 v-model="form.label"
                 type="text"
                 :readonly="isPreset"
-                :placeholder="selectedPreset?.label ?? 'Custom Provider Name'"
+                :placeholder="selectedPreset?.label ?? t('preferences.ai.customProviderName')"
                 class="iw-input"
                 :class="isPreset ? 'bg-base-200 text-base-content cursor-default' : ''"
               />
             </div>
 
             <div class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-base-content">Interface Type</label>
+              <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.interfaceType') }}</label>
               <select
                 v-model="form.type"
                 :disabled="isPreset"
                 class="iw-select w-full px-3"
                 :class="isPreset ? 'bg-base-100 text-base-content cursor-default' : ''"
               >
-                <option value="openai-compat">OpenAI Compatible</option>
-                <option value="deepseek">DeepSeek</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="gemini">Google Gemini</option>
+                <option value="openai-compat">{{ t('preferences.ai.interfaceOpenAICompat') }}</option>
+                <option value="deepseek">{{ t('preferences.ai.interfaceDeepSeek') }}</option>
+                <option value="anthropic">{{ t('preferences.ai.interfaceAnthropic') }}</option>
+                <option value="gemini">{{ t('preferences.ai.interfaceGemini') }}</option>
               </select>
             </div>
           </section>
 
           <section v-if="selectedPreset?.requiresApiKey !== false" class="mt-5 flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">Authentication</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.ai.authentication') }}</h3>
 
             <div class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-base-content">API Key</label>
+              <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.apiKey') }}</label>
               <label class="iw-input">
                 <input
                   v-model="form.apiKey"
                   :type="showKey ? 'text' : 'password'"
-                  placeholder="sk-... or $ENV_VAR_NAME"
+                  :placeholder="t('preferences.ai.apiKeyPlaceholder')"
                 />
                 <button type="button" @click="showKey = !showKey" class="iw-toolbar-btn btn-xs">
                   <IconEye v-if="!showKey" class="icon-xs" />
@@ -106,16 +106,16 @@
                 </button>
               </label>
               <p class="text-xs text-base-content/65">
-                Supports <code class="rounded bg-base-200 px-1">$ENV_VAR_NAME</code> format for referencing system environment variables
+                {{ t('preferences.ai.apiKeyHint') }}
               </p>
             </div>
           </section>
 
           <section class="mt-5 flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">Connection</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.ai.connection') }}</h3>
 
             <div v-if="form.type === 'openai-compat' || form.type === 'deepseek'" class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-base-content">Base URL</label>
+              <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.baseUrl') }}</label>
               <input
                 v-model="form.baseUrl"
                 type="text"
@@ -125,29 +125,29 @@
             </div>
 
             <div v-if="selectedPreset?.id !== 'ollama'" class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-base-content">Models</label>
+              <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.models') }}</label>
               <input
                 v-model="form.modelsStr"
                 type="text"
                 :placeholder="(selectedPreset?.models ?? []).join(', ')"
                 class="iw-input"
               />
-              <p class="text-xs text-base-content/65">Comma-separated, first model becomes the default.</p>
+              <p class="text-xs text-base-content/65">{{ t('preferences.ai.modelsHint') }}</p>
             </div>
 
             <div v-else class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-base-content">Models</label>
+              <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.models') }}</label>
               <p class="rounded-box border border-base-300 bg-base-100 px-4 py-3 text-xs text-base-content/65">
-                Ollama model list is read automatically from the local Ollama service.
+                {{ t('preferences.ai.ollamaModelsHint') }}
               </p>
             </div>
           </section>
 
           <section v-if="!isPreset" class="mt-5 flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">Advanced</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.ai.advanced') }}</h3>
 
             <div class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-base-content">Model Profiles (JSON)</label>
+              <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.modelProfiles') }}</label>
               <textarea
                 v-model="form.modelProfilesStr"
                 rows="8"
@@ -164,7 +164,7 @@
                 class="min-h-40 w-full resize-y rounded-field border border-base-300 bg-base-100 px-3 py-2 font-mono text-sm text-base-content focus:border-primary focus:outline-none"
               />
               <p class="text-xs" :class="modelProfilesError ? 'text-error' : 'text-base-content/65'">
-                {{ modelProfilesError || 'Configure model-specific capabilities by modelId for compatibility and custom models.' }}
+                {{ modelProfilesError || t('preferences.ai.modelProfilesHint') }}
               </p>
             </div>
           </section>
@@ -176,16 +176,16 @@
           @click="cancelForm"
           class="iw-btn btn-ghost"
         >
-          Cancel
+          {{ t('preferences.ai.cancel') }}
         </button>
         <button
           @click="submitForm"
           :disabled="!canSave"
-          :title="!canSave ? 'Please fill in the Name' : ''"
+          :title="!canSave ? t('preferences.ai.nameRequired') : ''"
           class="iw-btn"
           :class="canSave ? 'btn-primary' : 'cursor-not-allowed'"
         >
-          {{ editingId ? 'Save' : 'Confirm Add' }}
+          {{ editingId ? t('preferences.ai.save') : t('preferences.ai.confirmAdd') }}
         </button>
       </div>
     </template>
@@ -194,6 +194,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { IconTrash, IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/store/ai'
 import type { AiModelProfile, AiProviderConfig, AiProviderType } from '@/ai/types'
@@ -205,6 +206,7 @@ import {
 const emit = defineEmits<{
   'view-change': [info: { view: View; title: string }]
 }>()
+const { t } = useI18n()
 
 const aiStore = useAiStore()
 
@@ -259,11 +261,11 @@ const modelProfilesError = computed(() => {
   try {
     const parsed = JSON.parse(form.value.modelProfilesStr) as Record<string, AiModelProfile>
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return 'Provider Profiles must be a JSON object'
+      return t('preferences.ai.providerProfilesObjectError')
     }
     return ''
   } catch {
-    return 'Provider Profiles is not valid JSON'
+    return t('preferences.ai.providerProfilesJsonError')
   }
 })
 
@@ -271,8 +273,8 @@ const canSave = computed(() => !!form.value.label.trim() && !modelProfilesError.
 
 const headerTitle = computed(() => {
   if (view.value === 'main') return ''
-  if (editingId.value) return `${form.value.label || ''} Configuration`
-  return 'Add Custom Provider'
+  if (editingId.value) return `${form.value.label || ''} ${t('preferences.ai.configurationSuffix')}`
+  return t('preferences.ai.addCustomProviderTitle')
 })
 
 // ── Actions ───────────────────────────────────────────────────────────────

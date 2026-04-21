@@ -99,6 +99,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { TooltipContent } from '@/components/common/statusbar'
 import { tooltipManager } from '@/components/common/statusbar'
 import AttachPicker from './AttachPicker.vue'
@@ -118,6 +119,7 @@ const props = defineProps<{
   compactTriggerTokens: number
   maxInputTokens: number | null
 }>()
+const { t } = useI18n()
 
 defineEmits<{
   'browse-files': []
@@ -143,9 +145,12 @@ const showCompactButton = computed(() => props.showCompact)
 const compactTooltip = computed<TooltipContent>(() => ({
   type: 'markdown',
   content: [
-    `**Context window:**<br>`,
-    `${Math.round(props.compactProgressRatio * 100)}% full<br>`,
-    `${formatCompactTokens(props.currentSessionTokens)} / ${formatCompactTokens(props.maxInputTokens ?? 0)} tokens used`,
+    `**${t('agentPanel.toolbar.contextWindow')}:**<br>`,
+    t('agentPanel.toolbar.progressFull', { percent: Math.round(props.compactProgressRatio * 100) }) + '<br>',
+    t('agentPanel.toolbar.tokensUsed', {
+      current: formatCompactTokens(props.currentSessionTokens),
+      max: formatCompactTokens(props.maxInputTokens ?? 0),
+    }),
   ].join(''),
 }))
 

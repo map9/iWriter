@@ -14,10 +14,10 @@
         <div class="h-2.5 w-3/5 rounded-full bg-base-300/80" />
         <div class="mt-auto flex items-center gap-2">
           <span class="btn btn-primary btn-xs pointer-events-none min-h-0 h-6 px-2">
-            Save
+            {{ t('themePreview.save') }}
           </span>
           <span class="btn btn-ghost btn-xs pointer-events-none min-h-0 h-6 px-2">
-            Share
+            {{ t('themePreview.share') }}
           </span>
         </div>
       </div>
@@ -26,7 +26,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
 defineProps<{
   themeId: string
 }>()
+const { t } = useI18n()
 </script>

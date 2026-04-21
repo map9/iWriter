@@ -1,0 +1,288 @@
+type LocaleMessages = Record<string, string>
+type MenuLabelMap = Record<string, string>
+type MenuRoleLabelMap = Record<string, string>
+
+const enUS: LocaleMessages = {
+  'menu.app.checkForUpdate': 'Check for update...',
+  'menu.app.preferences': 'Preferences...',
+  'menu.file.title': 'File',
+  'menu.file.newDocument': 'New Document',
+  'menu.file.newWindow': 'New Window',
+  'menu.file.openFile': 'Open File...',
+  'menu.file.openFolder': 'Open Folder...',
+  'menu.file.save': 'Save',
+  'menu.file.saveAs': 'Save As...',
+  'menu.file.autoSave': 'Auto Save',
+  'menu.file.saveAll': 'Save All',
+  'menu.file.readOnly': 'Read Only',
+  'menu.file.print': 'Print...',
+  'menu.file.closeFile': 'Close File',
+  'menu.file.closeFolder': 'Close Folder',
+  'dialog.delete.title': 'Delete',
+  'dialog.delete.message': 'Are you sure you want to delete "{path}"?',
+  'dialog.common.yes': 'Yes',
+  'dialog.common.no': 'No',
+  'dialog.move.title': 'Move',
+  'dialog.move.message':
+    'An older item named "{name}" already exists here. Replace it with the newer item being moved?',
+  'dialog.move.keepBoth': 'KeepBoth',
+  'dialog.move.replace': 'Replace',
+  'error.fileExists': 'File already exists',
+  'error.folderExists': 'Folder already exists',
+  'error.targetExists': 'Target already exists',
+}
+
+const zhCN: LocaleMessages = {
+  'menu.app.checkForUpdate': '检查更新...',
+  'menu.app.preferences': '偏好设置...',
+  'menu.file.title': '文件',
+  'menu.file.newDocument': '新建文档',
+  'menu.file.newWindow': '新建窗口',
+  'menu.file.openFile': '打开文件...',
+  'menu.file.openFolder': '打开文件夹...',
+  'menu.file.save': '保存',
+  'menu.file.saveAs': '另存为...',
+  'menu.file.autoSave': '自动保存',
+  'menu.file.saveAll': '全部保存',
+  'menu.file.readOnly': '只读',
+  'menu.file.print': '打印...',
+  'menu.file.closeFile': '关闭文件',
+  'menu.file.closeFolder': '关闭文件夹',
+  'dialog.delete.title': '删除',
+  'dialog.delete.message': '确定要删除“{path}”吗？',
+  'dialog.common.yes': '是',
+  'dialog.common.no': '否',
+  'dialog.move.title': '移动',
+  'dialog.move.message': '此处已存在名为“{name}”的项目。是否替换为要移动的新项目？',
+  'dialog.move.keepBoth': '保留两者',
+  'dialog.move.replace': '替换',
+  'error.fileExists': '文件已存在',
+  'error.folderExists': '文件夹已存在',
+  'error.targetExists': '目标已存在',
+}
+
+const zhMenuLabelMap: MenuLabelMap = {
+  Edit: '编辑',
+  Undo: '撤销',
+  Redo: '重做',
+  'Copy as': '复制为',
+  'Plain Text': '纯文本',
+  Markdown: 'Markdown',
+  Html: 'HTML',
+  'Paste as Text': '粘贴为纯文本',
+  'Line Ending': '换行符',
+  'Windows CRLF': 'Windows CRLF',
+  'Unix LF': 'Unix LF',
+  'Space and Line break': '空格与换行符',
+  'First line indent': '首行缩进',
+  'Text Replacement': '文本替换',
+  'Smart Punctuation': '智能标点',
+  'Text Replace...': '文本替换...',
+  'More Options...': '更多选项...',
+  'Spelling and Grammar': '拼写与语法',
+  'Show Spelling and Grammar Errors': '显示拼写和语法错误',
+  'Check Whole Document': '检查整个文档',
+  'Check Spelling and Grammar while Typing': '输入时检查拼写和语法',
+  Find: '查找',
+  Replace: '替换',
+  Paragraph: '段落',
+  'Heading 1': '标题 1',
+  'Heading 2': '标题 2',
+  'Heading 3': '标题 3',
+  'Heading 4': '标题 4',
+  'Heading 5': '标题 5',
+  'Heading 6': '标题 6',
+  Paragraphs: '段落',
+  'Promote Heading': '提升标题级别',
+  'Demote Heading': '降低标题级别',
+  Table: '表格',
+  'Insert Table': '插入表格',
+  'Header Row': '表头行',
+  'Header Column': '表头列',
+  'Insert Row Above': '在上方插入行',
+  'Insert Row Below': '在下方插入行',
+  'Insert Column Left': '在左侧插入列',
+  'Insert Column Right': '在右侧插入列',
+  'Move Row Up': '上移行',
+  'Move Row Down': '下移行',
+  'Move Column Left': '左移列',
+  'Move Column Right': '右移列',
+  'Delete Row': '删除行',
+  'Delete Column': '删除列',
+  'Duplicate Table': '复制表格',
+  'Delete Table': '删除表格',
+  'Code Block': '代码块',
+  'Code Tools': '代码工具',
+  'Format Selection': '格式化选中内容',
+  'Format CodeBlock': '格式化代码块',
+  'Math Block': '数学块',
+  'Quote Block': '引用块',
+  'Ordered List': '有序列表',
+  'Bullet List': '无序列表',
+  'Task List': '任务列表',
+  'Task Status': '任务状态',
+  'Toggle Task Status': '切换任务状态',
+  'Complete Task': '完成任务',
+  'Uncomplete Task': '取消完成任务',
+  'List Indent': '列表缩进',
+  'Increase Indent': '增加缩进',
+  'Decrease Indent': '减少缩进',
+  'Insert Paragraph Above': '在上方插入段落',
+  'Insert Paragraph Below': '在下方插入段落',
+  'Horizontal Rule': '分隔线',
+  Format: '格式',
+  Bold: '加粗',
+  Italic: '斜体',
+  Underline: '下划线',
+  'Strike Through': '删除线',
+  'Text Alignment': '文本对齐',
+  'Left Aligned': '左对齐',
+  'Center Aligned': '居中对齐',
+  'Right Aligned': '右对齐',
+  Justified: '两端对齐',
+  'Inline Code': '行内代码',
+  'Inline Math': '行内公式',
+  Superscript: '上标',
+  Subscript: '下标',
+  Highlight: '高亮',
+  Link: '链接',
+  'Image / Video / Audio': '图片 / 视频 / 音频',
+  'Insert Media': '插入媒体',
+  'Insert Local Media...': '插入本地媒体...',
+  'Clear Formatting': '清除格式',
+  View: '视图',
+  Window: '窗口',
+  'Focus Mode': '专注模式',
+  'Typewriter Mode': '打字机模式',
+  Explorer: '资源管理器',
+  Search: '搜索',
+  Tag: '标签',
+  'Table of Contents': '目录',
+  'Clean Mode': '清爽模式',
+  Appearance: '外观',
+  'Left Side Bar': '左侧边栏',
+  'Status Bar': '状态栏',
+  'Follow System': '跟随系统',
+  Light: '浅色',
+  Dark: '深色',
+  'More Theme...': '更多主题...',
+  Help: '帮助',
+  "What's New...": '最新内容...',
+  'Quick Start': '快速开始',
+  'Online Guide and Course': '在线指南与课程',
+  'Markdown Reference': 'Markdown 参考',
+  'Keyboard Shortcuts': '快捷键',
+  Acknowledgement: '致谢',
+  'Auto Update Settings...': '自动更新设置...',
+  'Visit iWriter.com': '访问 iWriter.com',
+  Feedback: '反馈',
+}
+
+const enMenuRoleLabelMap: MenuRoleLabelMap = {
+  about: 'About iWriter',
+  services: 'Services',
+  hide: 'Hide iWriter',
+  hideothers: 'Hide Others',
+  unhide: 'Show All',
+  quit: 'Quit iWriter',
+  close: 'Close Window',
+  minimize: 'Minimize',
+  zoom: 'Zoom',
+  front: 'Bring All to Front',
+  recentdocuments: 'Open Recent',
+  clearrecentdocuments: 'Clear Menu',
+  undo: 'Undo',
+  redo: 'Redo',
+  cut: 'Cut',
+  copy: 'Copy',
+  paste: 'Paste',
+  delete: 'Delete',
+  selectall: 'Select All',
+  resetzoom: 'Actual Size',
+  zoomin: 'Zoom In',
+  zoomout: 'Zoom Out',
+  forcereload: 'Force Reload',
+  toggledevtools: 'Toggle Developer Tools',
+  windowmenu: 'Window',
+}
+
+const zhMenuRoleLabelMap: MenuRoleLabelMap = {
+  about: '关于 iWriter',
+  services: '服务',
+  hide: '隐藏 iWriter',
+  hideothers: '隐藏其他',
+  unhide: '全部显示',
+  quit: '退出 iWriter',
+  close: '关闭窗口',
+  minimize: '最小化',
+  zoom: '缩放',
+  front: '前置全部窗口',
+  recentdocuments: '最近打开',
+  clearrecentdocuments: '清除菜单',
+  undo: '撤销',
+  redo: '重做',
+  cut: '剪切',
+  copy: '复制',
+  paste: '粘贴',
+  delete: '删除',
+  selectall: '全选',
+  resetzoom: '实际大小',
+  zoomin: '放大',
+  zoomout: '缩小',
+  forcereload: '强制重新加载',
+  toggledevtools: '切换开发者工具',
+  windowmenu: '窗口',
+}
+
+export function normalizeLocale(raw: string | null | undefined): 'en-US' | 'zh-CN' {
+  const lower = (raw ?? '').toLowerCase()
+  if (lower === 'zh-cn' || lower === 'zh' || lower.startsWith('zh-')) return 'zh-CN'
+  return 'en-US'
+}
+
+export function createMainTranslator(localeInput: string | null | undefined) {
+  const locale = normalizeLocale(localeInput)
+  const messages = locale === 'zh-CN' ? zhCN : enUS
+  return (key: string, fallback: string) => messages[key] ?? fallback
+}
+
+export function formatMainText(
+  value: string,
+  params: Record<string, string | number | boolean | null | undefined>,
+) {
+  return value.replace(/\{(\w+)\}/g, (_, name: string) => {
+    const v = params[name]
+    return v == null ? '' : String(v)
+  })
+}
+
+function localizeMenuItems(
+  items: Array<Record<string, unknown>>,
+  labelMap: MenuLabelMap | undefined,
+  roleLabelMap: MenuRoleLabelMap,
+) {
+  for (const item of items) {
+    const role = typeof item.role === 'string' ? item.role.toLowerCase() : null
+    if (role && roleLabelMap[role] && typeof item.label !== 'string') {
+      item.label = roleLabelMap[role]
+    }
+
+    if (typeof item.label === 'string') {
+      item.label = labelMap?.[item.label] ?? item.label
+    }
+
+    if (Array.isArray(item.submenu)) {
+      localizeMenuItems(item.submenu as Array<Record<string, unknown>>, labelMap, roleLabelMap)
+    }
+  }
+}
+
+export function localizeMenuTemplate(
+  template: Array<Record<string, unknown>>,
+  localeInput: string | null | undefined,
+) {
+  const locale = normalizeLocale(localeInput)
+  const labelMap = locale === 'zh-CN' ? zhMenuLabelMap : undefined
+  const roleLabelMap = locale === 'zh-CN' ? zhMenuRoleLabelMap : enMenuRoleLabelMap
+  localizeMenuItems(template, labelMap, roleLabelMap)
+}

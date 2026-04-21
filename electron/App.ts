@@ -16,6 +16,7 @@ import { AgentEngine } from './ai/AgentEngine'
 import { AiConfigStore } from './ai/config/AiConfigStore'
 import type { AiSettings } from '../src/types/ai'
 import { formatCodeInMain } from './CodeFormatService'
+import { createMainTranslator, formatMainText } from './i18n'
 export class App {
   private fileWatchers: Map<string, FSWatcher>
   private menuManager: MenuManager
@@ -50,6 +51,23 @@ export class App {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;')
+  }
+
+  private t(key: string, fallback: string): string {
+    const focusedWindow = BrowserWindow.getFocusedWindow()
+    const locale = focusedWindow
+      ? this.windowManager.getWindowStateById(focusedWindow.id)?.wContentState?.view?.locale
+      : undefined
+    const translator = createMainTranslator(locale)
+    return translator(key, fallback)
+  }
+
+  private tf(
+    key: string,
+    fallback: string,
+    params: Record<string, string | number | boolean | null | undefined>,
+  ): string {
+    return formatMainText(this.t(key, fallback), params)
   }
 
   /**
@@ -403,7 +421,7 @@ export class App {
         
         // Check if file already exists
         if (fs.existsSync(filePath)) {
-          throw new Error('File already exists')
+          throw new Error(this.t('error.fileExists', 'File already exists'))
         }
         
         // Create file with default content
@@ -422,7 +440,7 @@ export class App {
         
         // Check if folder already exists
         if (fs.existsSync(folderPath)) {
-          throw new Error('Folder already exists')
+          throw new Error(this.t('error.folderExists', 'Folder already exists'))
         }
         
         fs.mkdirSync(folderPath, { recursive: true })
@@ -441,9 +459,14 @@ export class App {
         const stats = fs.statSync(filePath)
         const { response } = await dialog.showMessageBox(focusedWindow, {
           type: 'warning',
-          title: 'Delete',
-          message: `Are you sure you want to delete '${filePath}'?`,
-          buttons: ['Yes', 'No'],
+          title: this.t('dialog.delete.title', 'Delete'),
+          message: this.tf('dialog.delete.message', 'Are you sure you want to delete "{path}"?', {
+            path: filePath,
+          }),
+          buttons: [
+            this.t('dialog.common.yes', 'Yes'),
+            this.t('dialog.common.no', 'No'),
+          ],
           defaultId: 0,
           cancelId: 1
         })
@@ -478,7 +501,7 @@ export class App {
         
         // Check if target already exists (different from source)
         if (fs.existsSync(newPath)) {
-          throw new Error('Target already exists')
+          throw new Error(this.t('error.targetExists', 'Target already exists'))
         }
         
         fs.renameSync(oldPath, newPath)
@@ -510,9 +533,17 @@ export class App {
         if (fs.existsSync(targetPath)) {
           const { response } = await dialog.showMessageBox(focusedWindow, {
             type: 'warning',
-            title: 'Move',
-            message: `An older item named '${fileName}' already exists here. Replace it with the newer item being moved?`,
-            buttons: ['KeepBoth', 'No', 'Replace'],
+            title: this.t('dialog.move.title', 'Move'),
+            message: this.tf(
+              'dialog.move.message',
+              'An older item named "{name}" already exists here. Replace it with the newer item being moved?',
+              { name: fileName }
+            ),
+            buttons: [
+              this.t('dialog.move.keepBoth', 'KeepBoth'),
+              this.t('dialog.common.no', 'No'),
+              this.t('dialog.move.replace', 'Replace'),
+            ],
             defaultId: 0,
             cancelId: 2
           })

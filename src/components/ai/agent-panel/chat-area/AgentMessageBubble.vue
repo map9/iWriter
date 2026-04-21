@@ -15,13 +15,13 @@
       <div v-if="message.role === 'user' && message.content && isEditing" class="flex items-center gap-2 w-full">
         <button
           class="btn btn-square border-none rounded-field btn-sm shrink-0 self-end disabled:cursor-not-allowed"
-          title="Cancel"
+          :title="t('agentPanel.common.cancel')"
           @click="isEditing = false"
         ><IconX class="icon-xs" /></button>
         <textarea
           ref="editEl"
           v-model="editText"
-          placeholder="Send message..."
+          :placeholder="t('agentPanel.input.sendMessagePlaceholder')"
           class="flex-1 px-2 py-1.5 text-sm text-base-content border border-base-300 bg-base-100 rounded-field resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent overflow-hidden"
           rows="1"
           :style="{ maxHeight: maxTextareaHeight }"
@@ -33,7 +33,7 @@
         <button
           :disabled="!editText.trim()"
           class="btn btn-square border-none btn-primary rounded-field btn-sm shrink-0 self-end disabled:cursor-not-allowed"
-          title="Send"
+          :title="t('agentPanel.sendButton.sendTitle')"
           @click="submitEdit"
         ><IconSend class="icon-xs" /></button>
       </div>
@@ -58,7 +58,7 @@
           class="absolute bottom-2 right-2 btn border-none btn-neutral rounded-field btn-sm opacity-50 shrink-0"
           @click.stop="isExpanded = true"
         >
-          Expand
+          {{ t('agentPanel.messageBubble.expand') }}
         </div>
       </div>
 
@@ -135,7 +135,7 @@
           @click="thinkingExpanded = !thinkingExpanded"
         >
           <span>💭</span>
-          <span>{{ thinkingExpanded ? 'Hide Thinking' : 'Show Thinking' }}</span>
+          <span>{{ thinkingExpanded ? t('agentPanel.messageBubble.hideThinking') : t('agentPanel.messageBubble.showThinking') }}</span>
         </button>
         <div
           v-if="thinkingExpanded"
@@ -165,7 +165,7 @@
             :class="message.role === 'user' ? 'justify-end' : 'justify-start'"
           >
             <div
-              class="text-xs text-base-content transition-opacity"
+              class="text-xs text-base-content transition-opacity whitespace-nowrap"
               :class="showHoverToolbar && isHovered ? 'opacity-0 pointer-events-none' : 'opacity-100'"
             >
               {{ formatTime(message.timestamp) }}
@@ -181,7 +181,7 @@
           >
             <button
               class="iw-toolbar-btn btn-xs"
-              title="Copy"
+              :title="t('agentPanel.messageBubble.copy')"
               @click="handleCopy"
             >
               <IconCopy class="icon-xs" />
@@ -189,7 +189,7 @@
             <button
               v-if="message.role === 'user'"
               class="iw-toolbar-btn btn-xs"
-              title="Edit"
+              :title="t('agentPanel.messageBubble.edit')"
               @click="startEdit"
             >
               <IconPencil class="icon-xs" />
@@ -204,6 +204,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { IconCopy, IconPencil, IconX, IconSend } from '@tabler/icons-vue'
 import type { ThreadMessage, AiToolCall } from '@/ai/types'
 import { BLOCK_EDIT_TOOLS } from '@/ai/types'
@@ -225,6 +226,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{ resend: [messageId: string, newContent: string] }>()
 
 const aiStore = useAiStore()
+const { t, locale } = useI18n()
 const thinkingExpanded = ref(false)
 const isHovered = ref(false)
 const isEditing = ref(false)
@@ -392,13 +394,13 @@ function buildAssistantCopyText(): string {
   const calls = effectiveToolCalls.value.filter(tc => tc.name !== 'write_todos')
   if (calls?.length) {
     const lines = calls.map(tc => `- ${tc.name}: ${tc.title}`).join('\n')
-    result += `\n\n<details>\n<summary>🔧 工具调用 (${calls.length})</summary>\n\n${lines}\n\n</details>`
+    result += `\n\n<details>\n<summary>🔧 ${t('agentPanel.messageBubble.toolCallsSummary', { count: calls.length })}</summary>\n\n${lines}\n\n</details>`
   }
   return result
 }
 
 
 function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  return new Date(ts).toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
 }
 </script>
