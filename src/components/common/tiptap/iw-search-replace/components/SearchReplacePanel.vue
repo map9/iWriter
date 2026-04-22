@@ -13,7 +13,7 @@
       <button
         @click="toggleReplaceMode"
         class="iw-toolbar-btn w-4 h-auto"
-        :title="mode === 'replace' ? 'Hide Replace' : 'Show Replace'"
+        :title="mode === 'replace' ? t('notify.search.hideReplace') : t('notify.search.showReplace')"
       >
         <IconChevronDown v-if="mode === 'replace'" class="icon-xs" />
         <IconChevronRight v-else class="icon-xs" />
@@ -28,7 +28,7 @@
               ref="searchInputRef"
               v-model="searchQuery"
               rows="1"
-              placeholder="Find (↑↓ for history)"
+              :placeholder="t('notify.search.findPlaceholder')"
               class="w-65 min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 pr-22 pl-2 text-sm focus:border-primary rounded-field"
               @keydown="handleSearchKeydown"
               @input="autoResizeTextarea(searchInputRef)"
@@ -40,7 +40,7 @@
                 @click="toggleCaseSensitive"
                 :class="{ 'iw-toolbar-btn-active': options.caseSensitive }"
                 class="iw-toolbar-btn btn-xs"
-                title="Match Case (Alt+C)"
+                :title="t('notify.search.matchCaseTitle')"
               >
                 <IconLetterCase class="icon-2xs" />
               </button>
@@ -48,7 +48,7 @@
                 @click="toggleWholeWord"
                 :class="{ 'iw-toolbar-btn-active': options.wholeWord }"
                 class="iw-toolbar-btn btn-xs"
-                title="Match Whole Word (Alt+W)"
+                :title="t('notify.search.matchWholeWordTitle')"
               >
                 <IconAbc class="icon-2xs" />
               </button>
@@ -56,7 +56,7 @@
                 @click="toggleRegex"
                 :class="{ 'iw-toolbar-btn-active': options.regex }"
                 class="iw-toolbar-btn btn-xs"
-                title="Use Regular Expression (Alt+R)"
+                :title="t('notify.search.regexTitle')"
               >
                 <IconRegex class="icon-2xs" />
               </button>
@@ -66,10 +66,10 @@
           <!-- Result Count 容器（输入框外部） -->
           <div class="min-w-15 text-left shrink-0 text-xs text-base-content whitespace-nowrap mt-1.5">
             <span v-if="totalMatches > 0">
-              {{ currentIndex + 1 }} of {{ totalMatches }}
+              {{ t('notify.search.resultCount', { current: currentIndex + 1, total: totalMatches }) }}
             </span>
             <span v-else-if="totalMatches === 0" class="text-error">
-              No results
+              {{ t('notify.search.noResults') }}
             </span>
           </div>
 
@@ -79,7 +79,7 @@
               @click="findPrevious"
               :disabled="totalMatches === 0"
               class="iw-toolbar-btn btn-xs"
-              title="Previous Match (Shift+Enter)"
+              :title="t('notify.search.previousMatchTitle')"
             >
               <IconArrowNarrowUp class="icon-xs" />
             </button>
@@ -87,7 +87,7 @@
               @click="findNext"
               :disabled="totalMatches === 0"
               class="iw-toolbar-btn btn-xs"
-              title="Next Match (Enter)"
+              :title="t('notify.search.nextMatchTitle')"
             >
               <IconArrowNarrowDown class="icon-xs" />
             </button>
@@ -97,7 +97,7 @@
               :disabled="!hasSelection && !searchInSelection"
               :class="{ 'btn-active btn-primary': searchInSelection }"
               class="iw-toolbar-btn btn-xs"
-              title="Find in Selection (Alt+L)"
+              :title="t('notify.search.findInSelectionTitle')"
             >
               <IconAlignLeft class="icon-xs" />
             </button>
@@ -106,7 +106,7 @@
             <button
               @click="closePanel"
               class="iw-toolbar-btn btn-xs"
-              title="Close (Escape)"
+              :title="t('notify.search.closeTitle')"
             >
               <IconX class="icon-xs" />
             </button>
@@ -121,7 +121,7 @@
               ref="replaceInputRef"
               v-model="replaceQuery"
               rows="1"
-              placeholder="Replace (↑↓ for history)"
+              :placeholder="t('notify.search.replacePlaceholder')"
               class="w-65 min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 px-2 text-sm focus:border-primary rounded-field"
               @keydown="handleReplaceKeydown"
               @input="autoResizeTextarea(replaceInputRef)"
@@ -133,7 +133,7 @@
               @click="replaceNext"
               :disabled="totalMatches === 0"
               class="iw-toolbar-btn btn-xs"
-              title="Replace (Enter)"
+              :title="t('notify.search.replaceNextTitle')"
             >
               <IconReplace class="icon-xs" />
             </button>
@@ -141,7 +141,7 @@
               @click="replaceAll"
               :disabled="totalMatches === 0"
               class="iw-toolbar-btn btn-xs"
-              title="Replace All"
+              :title="t('notify.search.replaceAllTitle')"
             >
               <IconReplaceFilled class="icon-xs" />
             </button>
@@ -155,8 +155,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Editor } from '@tiptap/core'
 import { useAppStore } from '@/stores/app'
+import { StateStorage, STORAGE_KEYS } from '@/utils/StateStorage'
 import {
   IconAbc,
   IconRegex,
@@ -170,6 +172,8 @@ import {
   IconReplaceFilled,
   IconAlignLeft
 } from '@tabler/icons-vue'
+
+const { t } = useI18n()
 
 interface Props {
   editor: Editor
@@ -200,9 +204,21 @@ const hasSelection = computed(() => {
   return (from !== to) || !!props.editor.storage.iwSearchReplace.selectionRange
 })
 
-// 监听本地搜索词变化，更新到 editor
+// 监听本地搜索词变化，更新到 editor；防抖记录历史
+let searchHistoryDebounce: number | undefined
 watch(searchQuery, (newValue) => {
   props.editor.commands.setSearchTerm(newValue)
+  if (newValue) {
+    if (searchHistoryDebounce) clearTimeout(searchHistoryDebounce)
+    searchHistoryDebounce = window.setTimeout(() => {
+      const current = searchQuery.value
+      const isNavigation = searchHistoryIndex.value !== -1 && searchHistory.value[searchHistoryIndex.value] === current
+      if (!isNavigation) {
+        addToHistory(searchHistory, current, STORAGE_KEYS.SEARCH_REPLACE_SEARCH_HISTORY)
+        searchHistoryIndex.value = -1
+      }
+    }, 300)
+  }
 })
 
 // 监听本地替换词变化，更新到 editor
@@ -252,11 +268,15 @@ function findPrevious() {
 }
 
 function replaceNext() {
+  addToHistory(replaceHistory, replaceQuery.value, STORAGE_KEYS.SEARCH_REPLACE_REPLACE_HISTORY)
+  replaceHistoryIndex.value = -1
   props.editor.commands.replaceNext()
 }
 
 function replaceAll() {
   if (confirm(`Replace all ${totalMatches.value} occurrences?`)) {
+    addToHistory(replaceHistory, replaceQuery.value, STORAGE_KEYS.SEARCH_REPLACE_REPLACE_HISTORY)
+    replaceHistoryIndex.value = -1
     props.editor.commands.replaceAll()
   }
 }
@@ -299,12 +319,13 @@ function insertNewline(termRef: typeof searchQuery, inputRef: typeof searchInput
   })
 }
 
-function addToHistory(history: typeof searchHistory, value: string) {
+function addToHistory(history: typeof searchHistory, value: string, storageKey: string) {
   if (!value) return
   const idx = history.value.indexOf(value)
   if (idx !== -1) history.value.splice(idx, 1)
-  history.value.unshift(value)
-  if (history.value.length > 50) history.value.pop()
+  history.value.push(value)
+  if (history.value.length > 20) history.value.shift()
+  StateStorage.saveSearchHistory(storageKey, history.value)
 }
 
 function isOnFirstLine(el: HTMLTextAreaElement): boolean {
@@ -330,13 +351,19 @@ function navigateHistory(
 
   event.preventDefault()
   if (direction === 'up') {
-    if (historyIdx.value < history.value.length - 1) historyIdx.value++
+    if (historyIdx.value === -1) {
+      historyIdx.value = history.value.length - 1
+    } else if (historyIdx.value > 0) {
+      historyIdx.value--
+    }
   } else {
-    historyIdx.value--
+    if (historyIdx.value !== -1) {
+      historyIdx.value++
+      if (historyIdx.value >= history.value.length) historyIdx.value = -1
+    }
   }
 
-  if (historyIdx.value < 0) {
-    historyIdx.value = -1
+  if (historyIdx.value === -1) {
     termRef.value = ''
   } else {
     termRef.value = history.value[historyIdx.value] ?? ''
@@ -350,8 +377,6 @@ function handleSearchKeydown(event: KeyboardEvent) {
     if (event.shiftKey || event.ctrlKey || event.metaKey) {
       insertNewline(searchQuery, searchInputRef)
     } else {
-      addToHistory(searchHistory, searchQuery.value)
-      searchHistoryIndex.value = -1
       findNext()
     }
   } else if (event.key === 'ArrowUp') {
@@ -370,8 +395,6 @@ function handleReplaceKeydown(event: KeyboardEvent) {
     if (event.shiftKey || event.ctrlKey || event.metaKey) {
       insertNewline(replaceQuery, replaceInputRef)
     } else {
-      addToHistory(replaceHistory, replaceQuery.value)
-      replaceHistoryIndex.value = -1
       replaceNext()
     }
   } else if (event.key === 'ArrowUp') {
@@ -427,12 +450,15 @@ function handleKeyDown(event: KeyboardEvent) {
 }
 
 onMounted(() => {
+  searchHistory.value = StateStorage.loadSearchHistory(STORAGE_KEYS.SEARCH_REPLACE_SEARCH_HISTORY)
+  replaceHistory.value = StateStorage.loadSearchHistory(STORAGE_KEYS.SEARCH_REPLACE_REPLACE_HISTORY)
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('resize', syncCompactMode)
   nextTick(syncCompactMode)
 })
 
 onUnmounted(() => {
+  if (searchHistoryDebounce) clearTimeout(searchHistoryDebounce)
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('resize', syncCompactMode)
 })

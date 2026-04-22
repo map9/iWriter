@@ -34,6 +34,7 @@
                 :placeholder="t('notify.search.findPlaceholder')"
                 class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 pr-22 pl-2 text-sm focus:border-primary rounded-field"
                 @keydown="handleSearchKeydown"
+
                 @input="autoResizeTextarea(searchInputRef)"
               />
 
@@ -235,7 +236,7 @@ import { notify } from '@/utils/notifications'
 import type { FileChange } from '@/types'
 import { TEXT_EXTENSIONS } from '@/types'
 import { pathUtils } from '@/utils/pathUtils'
-import { STORAGE_KEYS } from '@/utils/StateStorage'
+import { StateStorage, STORAGE_KEYS } from '@/utils/StateStorage'
 
 const appStore = useAppStore()
 const { t } = useI18n()
@@ -297,9 +298,11 @@ function saveConfig() {
   }
 }
 
-// 组件挂载时加载配置
+// 组件挂载时加载配置和历史
 onMounted(() => {
   loadConfig()
+  searchHistory.value = StateStorage.loadSearchHistory(STORAGE_KEYS.SIDEBAR_SEARCH_HISTORY)
+  replaceHistory.value = StateStorage.loadSearchHistory(STORAGE_KEYS.SIDEBAR_REPLACE_HISTORY)
 })
 
 const fileCount = computed(() => {
@@ -375,12 +378,13 @@ function insertNewline(
   })
 }
 
-function addToHistory(history: typeof searchHistory, value: string) {
+function addToHistory(history: typeof searchHistory, value: string, storageKey: string) {
   if (!value) return
   const idx = history.value.indexOf(value)
   if (idx !== -1) history.value.splice(idx, 1)
-  history.value.unshift(value)
-  if (history.value.length > 50) history.value.pop()
+  history.value.push(value)
+  if (history.value.length > 20) history.value.shift()
+  StateStorage.saveSearchHistory(storageKey, history.value)
 }
 
 function isOnFirstLine(el: HTMLTextAreaElement): boolean {
@@ -406,13 +410,19 @@ function navigateHistory(
 
   event.preventDefault()
   if (direction === 'up') {
-    if (historyIdx.value < history.value.length - 1) historyIdx.value++
+    if (historyIdx.value === -1) {
+      historyIdx.value = history.value.length - 1
+    } else if (historyIdx.value > 0) {
+      historyIdx.value--
+    }
   } else {
-    historyIdx.value--
+    if (historyIdx.value !== -1) {
+      historyIdx.value++
+      if (historyIdx.value >= history.value.length) historyIdx.value = -1
+    }
   }
 
-  if (historyIdx.value < 0) {
-    historyIdx.value = -1
+  if (historyIdx.value === -1) {
     queryRef.value = ''
   } else {
     queryRef.value = history.value[historyIdx.value] ?? ''
@@ -425,11 +435,8 @@ function handleSearchKeydown(event: KeyboardEvent) {
     event.preventDefault()
     if (event.shiftKey || event.ctrlKey || event.metaKey) {
       insertNewline(searchQuery, searchInputRef)
-    } else {
-      addToHistory(searchHistory, searchQuery.value)
-      searchHistoryIndex.value = -1
-      // 搜索由 watch 驱动，Enter 仅记录历史
     }
+    // 搜索由 watch → performSearch 驱动，历史在 performSearch 内记录
   } else if (event.key === 'ArrowUp') {
     navigateHistory(event, 'up', searchQuery, searchInputRef, searchHistory, searchHistoryIndex)
   } else if (event.key === 'ArrowDown') {
@@ -443,8 +450,6 @@ function handleReplaceKeydown(event: KeyboardEvent) {
     if (event.shiftKey || event.ctrlKey || event.metaKey) {
       insertNewline(replaceQuery, replaceInputRef)
     } else {
-      addToHistory(replaceHistory, replaceQuery.value)
-      replaceHistoryIndex.value = -1
       replaceNext()
     }
   } else if (event.key === 'ArrowUp') {
@@ -542,6 +547,9 @@ async function replaceAll() {
   })
   if (!confirm(confirmMsg)) return
 
+  addToHistory(replaceHistory, replaceQuery.value, STORAGE_KEYS.SIDEBAR_REPLACE_HISTORY)
+  replaceHistoryIndex.value = -1
+
   try {
     // 执行跨文件替换（不再需要从编辑器获取 extensions）
     isReplacing.value = true
@@ -588,6 +596,9 @@ async function replaceAll() {
 }
 
 async function replaceSingle(fileResult: SearchReplaceInFilesSearchResult, matchIndex: number) {
+  addToHistory(replaceHistory, replaceQuery.value, STORAGE_KEYS.SIDEBAR_REPLACE_HISTORY)
+  replaceHistoryIndex.value = -1
+
   try {
     const match = fileResult.matches[matchIndex]
     if (!match) {
@@ -630,6 +641,9 @@ async function replaceAllInFile(fileResult: SearchReplaceInFilesSearchResult) {
     name: fileResult.fileName,
   })
   if (!confirm(confirmMsg)) return
+
+  addToHistory(replaceHistory, replaceQuery.value, STORAGE_KEYS.SIDEBAR_REPLACE_HISTORY)
+  replaceHistoryIndex.value = -1
 
   try {
     // 执行单文件替换（不再需要从编辑器获取 extensions）
@@ -709,6 +723,11 @@ watch(searchQuery, (newQuery) => {
 
   searchTimeout = window.setTimeout(() => {
     if (newQuery.length > 0) {
+      const isNavigation = searchHistoryIndex.value !== -1 && searchHistory.value[searchHistoryIndex.value] === newQuery
+      if (!isNavigation) {
+        addToHistory(searchHistory, newQuery, STORAGE_KEYS.SIDEBAR_SEARCH_HISTORY)
+        searchHistoryIndex.value = -1
+      }
       performSearch()
     } else {
       searchResults.value = []

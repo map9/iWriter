@@ -12,6 +12,10 @@ export const STORAGE_KEYS = {
   WORKSPACE_STATE: 'iwriter-workspace-state',
   AI_SETTINGS: 'iwriter-ai-settings',
   AI_THREADS: 'iwriter-ai-threads',
+  SEARCH_REPLACE_SEARCH_HISTORY: 'iwriter-search-replace-search-history',
+  SEARCH_REPLACE_REPLACE_HISTORY: 'iwriter-search-replace-replace-history',
+  SIDEBAR_SEARCH_HISTORY: 'iwriter-sidebar-search-history',
+  SIDEBAR_REPLACE_HISTORY: 'iwriter-sidebar-replace-history',
 } as const
 
 // 类型定义
@@ -226,6 +230,30 @@ export class StateStorage {
       console.error('Failed to load auto-save state:', error)
     }
     return true
+  }
+
+  /**
+   * 保存搜索历史
+   */
+  static saveSearchHistory(key: string, history: string[]): void {
+    try {
+      localStorage.setItem(key, JSON.stringify(history))
+    } catch (error) {
+      console.error('Failed to save search history:', error)
+    }
+  }
+
+  /**
+   * 加载搜索历史
+   */
+  static loadSearchHistory(key: string): string[] {
+    try {
+      const saved = localStorage.getItem(key)
+      if (saved) return JSON.parse(saved)
+    } catch (error) {
+      console.error('Failed to load search history:', error)
+    }
+    return []
   }
 
   /**
