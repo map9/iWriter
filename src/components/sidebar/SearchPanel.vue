@@ -34,8 +34,7 @@
                 :placeholder="t('notify.search.findPlaceholder')"
                 class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 pr-22 pl-2 text-sm focus:border-primary rounded-field"
                 @keydown="handleSearchKeydown"
-
-                @input="autoResizeTextarea(searchInputRef)"
+                @input="onSearchInput"
               />
 
               <!-- 选项按钮组（在输入框内部右侧） -->
@@ -79,7 +78,7 @@
                 :placeholder="t('notify.search.replacePlaceholder')"
                 class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 px-2 text-sm focus:border-primary rounded-field"
                 @keydown="handleReplaceKeydown"
-                @input="autoResizeTextarea(replaceInputRef)"
+                @input="onReplaceInput"
               />
             </div>
             <button
@@ -236,7 +235,8 @@ import { notify } from '@/utils/notifications'
 import type { FileChange } from '@/types'
 import { TEXT_EXTENSIONS } from '@/types'
 import { pathUtils } from '@/utils/pathUtils'
-import { StateStorage, STORAGE_KEYS } from '@/utils/StateStorage'
+import { STORAGE_KEYS } from '@/utils/StateStorage'
+import { useSearchHistory } from '@/components/common/tiptap/iw-search-replace/composables/useSearchHistory'
 
 const appStore = useAppStore()
 const { t } = useI18n()
@@ -298,11 +298,8 @@ function saveConfig() {
   }
 }
 
-// 组件挂载时加载配置和历史
 onMounted(() => {
   loadConfig()
-  searchHistory.value = StateStorage.loadSearchHistory(STORAGE_KEYS.SIDEBAR_SEARCH_HISTORY)
-  replaceHistory.value = StateStorage.loadSearchHistory(STORAGE_KEYS.SIDEBAR_REPLACE_HISTORY)
 })
 
 const fileCount = computed(() => {
@@ -349,11 +346,8 @@ function getRelativeDir(relativePath: string): string {
   return relativePath.substring(0, lastSlashIndex)
 }
 
-// 搜索/替换历史
-const searchHistory = ref<string[]>([])
-const searchHistoryIndex = ref(-1)
-const replaceHistory = ref<string[]>([])
-const replaceHistoryIndex = ref(-1)
+const searchHist = useSearchHistory(STORAGE_KEYS.SIDEBAR_SEARCH_HISTORY)
+const replaceHist = useSearchHistory(STORAGE_KEYS.SIDEBAR_REPLACE_HISTORY)
 
 function autoResizeTextarea(el: HTMLTextAreaElement | null) {
   if (!el) return
@@ -378,56 +372,14 @@ function insertNewline(
   })
 }
 
-function addToHistory(history: typeof searchHistory, value: string, storageKey: string) {
-  if (!value) return
-  const idx = history.value.indexOf(value)
-  if (idx !== -1) history.value.splice(idx, 1)
-  history.value.push(value)
-  if (history.value.length > 20) history.value.shift()
-  StateStorage.saveSearchHistory(storageKey, history.value)
+function onSearchInput() {
+  searchHist.markAsUserTyped()
+  autoResizeTextarea(searchInputRef.value)
 }
 
-function isOnFirstLine(el: HTMLTextAreaElement): boolean {
-  return !el.value.substring(0, el.selectionStart).includes('\n')
-}
-
-function isOnLastLine(el: HTMLTextAreaElement): boolean {
-  return !el.value.substring(el.selectionEnd).includes('\n')
-}
-
-function navigateHistory(
-  event: KeyboardEvent,
-  direction: 'up' | 'down',
-  queryRef: typeof searchQuery,
-  inputRef: typeof searchInputRef,
-  history: typeof searchHistory,
-  historyIdx: typeof searchHistoryIndex
-) {
-  const el = inputRef.value
-  if (!el || history.value.length === 0) return
-  if (direction === 'up' && !isOnFirstLine(el)) return
-  if (direction === 'down' && !isOnLastLine(el)) return
-
-  event.preventDefault()
-  if (direction === 'up') {
-    if (historyIdx.value === -1) {
-      historyIdx.value = history.value.length - 1
-    } else if (historyIdx.value > 0) {
-      historyIdx.value--
-    }
-  } else {
-    if (historyIdx.value !== -1) {
-      historyIdx.value++
-      if (historyIdx.value >= history.value.length) historyIdx.value = -1
-    }
-  }
-
-  if (historyIdx.value === -1) {
-    queryRef.value = ''
-  } else {
-    queryRef.value = history.value[historyIdx.value] ?? ''
-  }
-  nextTick(() => autoResizeTextarea(inputRef.value))
+function onReplaceInput() {
+  replaceHist.markAsUserTyped()
+  autoResizeTextarea(replaceInputRef.value)
 }
 
 function handleSearchKeydown(event: KeyboardEvent) {
@@ -435,12 +387,24 @@ function handleSearchKeydown(event: KeyboardEvent) {
     event.preventDefault()
     if (event.shiftKey || event.ctrlKey || event.metaKey) {
       insertNewline(searchQuery, searchInputRef)
+      searchHist.markAsUserTyped()
     }
-    // 搜索由 watch → performSearch 驱动，历史在 performSearch 内记录
   } else if (event.key === 'ArrowUp') {
-    navigateHistory(event, 'up', searchQuery, searchInputRef, searchHistory, searchHistoryIndex)
+    const el = searchInputRef.value
+    if (!el || el.value.substring(0, el.selectionStart).includes('\n')) return
+    const val = searchHist.up()
+    if (val === undefined) return
+    event.preventDefault()
+    searchQuery.value = val
+    nextTick(() => autoResizeTextarea(el))
   } else if (event.key === 'ArrowDown') {
-    navigateHistory(event, 'down', searchQuery, searchInputRef, searchHistory, searchHistoryIndex)
+    const el = searchInputRef.value
+    if (!el || el.value.substring(el.selectionEnd).includes('\n')) return
+    const val = searchHist.down()
+    if (val === undefined) return
+    event.preventDefault()
+    searchQuery.value = val ?? ''
+    nextTick(() => autoResizeTextarea(el))
   }
 }
 
@@ -449,13 +413,26 @@ function handleReplaceKeydown(event: KeyboardEvent) {
     event.preventDefault()
     if (event.shiftKey || event.ctrlKey || event.metaKey) {
       insertNewline(replaceQuery, replaceInputRef)
+      replaceHist.markAsUserTyped()
     } else {
       replaceNext()
     }
   } else if (event.key === 'ArrowUp') {
-    navigateHistory(event, 'up', replaceQuery, replaceInputRef, replaceHistory, replaceHistoryIndex)
+    const el = replaceInputRef.value
+    if (!el || el.value.substring(0, el.selectionStart).includes('\n')) return
+    const val = replaceHist.up()
+    if (val === undefined) return
+    event.preventDefault()
+    replaceQuery.value = val
+    nextTick(() => autoResizeTextarea(el))
   } else if (event.key === 'ArrowDown') {
-    navigateHistory(event, 'down', replaceQuery, replaceInputRef, replaceHistory, replaceHistoryIndex)
+    const el = replaceInputRef.value
+    if (!el || el.value.substring(el.selectionEnd).includes('\n')) return
+    const val = replaceHist.down()
+    if (val === undefined) return
+    event.preventDefault()
+    replaceQuery.value = val ?? ''
+    nextTick(() => autoResizeTextarea(el))
   }
 }
 
@@ -547,8 +524,7 @@ async function replaceAll() {
   })
   if (!confirm(confirmMsg)) return
 
-  addToHistory(replaceHistory, replaceQuery.value, STORAGE_KEYS.SIDEBAR_REPLACE_HISTORY)
-  replaceHistoryIndex.value = -1
+  replaceHist.forceRecord(replaceQuery.value)
 
   try {
     // 执行跨文件替换（不再需要从编辑器获取 extensions）
@@ -596,8 +572,7 @@ async function replaceAll() {
 }
 
 async function replaceSingle(fileResult: SearchReplaceInFilesSearchResult, matchIndex: number) {
-  addToHistory(replaceHistory, replaceQuery.value, STORAGE_KEYS.SIDEBAR_REPLACE_HISTORY)
-  replaceHistoryIndex.value = -1
+  replaceHist.forceRecord(replaceQuery.value)
 
   try {
     const match = fileResult.matches[matchIndex]
@@ -642,8 +617,7 @@ async function replaceAllInFile(fileResult: SearchReplaceInFilesSearchResult) {
   })
   if (!confirm(confirmMsg)) return
 
-  addToHistory(replaceHistory, replaceQuery.value, STORAGE_KEYS.SIDEBAR_REPLACE_HISTORY)
-  replaceHistoryIndex.value = -1
+  replaceHist.forceRecord(replaceQuery.value)
 
   try {
     // 执行单文件替换（不再需要从编辑器获取 extensions）
@@ -723,11 +697,7 @@ watch(searchQuery, (newQuery) => {
 
   searchTimeout = window.setTimeout(() => {
     if (newQuery.length > 0) {
-      const isNavigation = searchHistoryIndex.value !== -1 && searchHistory.value[searchHistoryIndex.value] === newQuery
-      if (!isNavigation) {
-        addToHistory(searchHistory, newQuery, STORAGE_KEYS.SIDEBAR_SEARCH_HISTORY)
-        searchHistoryIndex.value = -1
-      }
+      searchHist.record(newQuery)
       performSearch()
     } else {
       searchResults.value = []

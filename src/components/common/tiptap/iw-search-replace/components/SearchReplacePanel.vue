@@ -31,7 +31,7 @@
               :placeholder="t('notify.search.findPlaceholder')"
               class="w-65 min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 pr-22 pl-2 text-sm focus:border-primary rounded-field"
               @keydown="handleSearchKeydown"
-              @input="autoResizeTextarea(searchInputRef)"
+              @input="onSearchInput"
             />
 
             <!-- 选项按钮组（在输入框内部右侧） -->
@@ -62,7 +62,7 @@
               </button>
             </div>
           </div>
-          
+
           <!-- Result Count 容器（输入框外部） -->
           <div class="min-w-15 text-left shrink-0 text-xs text-base-content whitespace-nowrap mt-1.5">
             <span v-if="totalMatches > 0">
@@ -124,7 +124,7 @@
               :placeholder="t('notify.search.replacePlaceholder')"
               class="w-65 min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 px-2 text-sm focus:border-primary rounded-field"
               @keydown="handleReplaceKeydown"
-              @input="autoResizeTextarea(replaceInputRef)"
+              @input="onReplaceInput"
             />
           </div>
           <!-- 替换按钮组 -->
@@ -158,7 +158,8 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Editor } from '@tiptap/core'
 import { useAppStore } from '@/stores/app'
-import { StateStorage, STORAGE_KEYS } from '@/utils/StateStorage'
+import { STORAGE_KEYS } from '@/utils/StateStorage'
+import { useSearchHistory } from '../composables/useSearchHistory'
 import {
   IconAbc,
   IconRegex,
@@ -189,6 +190,10 @@ const searchInputRef = ref<HTMLTextAreaElement | null>(null)
 const replaceInputRef = ref<HTMLTextAreaElement | null>(null)
 const containerWidth = ref<number | null>(null)
 
+// 搜索/替换历史
+const searchHist = useSearchHistory(STORAGE_KEYS.SEARCH_REPLACE_SEARCH_HISTORY)
+const replaceHist = useSearchHistory(STORAGE_KEYS.SEARCH_REPLACE_REPLACE_HISTORY)
+
 // 计算属性从 editor storage 获取状态
 const isOpen = computed(() => props.editor.storage.iwSearchReplace.isOpen)
 const mode = computed(() => props.editor.storage.iwSearchReplace.mode)
@@ -208,17 +213,10 @@ const hasSelection = computed(() => {
 let searchHistoryDebounce: number | undefined
 watch(searchQuery, (newValue) => {
   props.editor.commands.setSearchTerm(newValue)
-  if (newValue) {
-    if (searchHistoryDebounce) clearTimeout(searchHistoryDebounce)
-    searchHistoryDebounce = window.setTimeout(() => {
-      const current = searchQuery.value
-      const isNavigation = searchHistoryIndex.value !== -1 && searchHistory.value[searchHistoryIndex.value] === current
-      if (!isNavigation) {
-        addToHistory(searchHistory, current, STORAGE_KEYS.SEARCH_REPLACE_SEARCH_HISTORY)
-        searchHistoryIndex.value = -1
-      }
-    }, 300)
-  }
+  if (searchHistoryDebounce) clearTimeout(searchHistoryDebounce)
+  searchHistoryDebounce = newValue
+    ? window.setTimeout(() => searchHist.record(newValue), 300)
+    : undefined
 })
 
 // 监听本地替换词变化，更新到 editor
@@ -268,15 +266,13 @@ function findPrevious() {
 }
 
 function replaceNext() {
-  addToHistory(replaceHistory, replaceQuery.value, STORAGE_KEYS.SEARCH_REPLACE_REPLACE_HISTORY)
-  replaceHistoryIndex.value = -1
+  replaceHist.forceRecord(replaceQuery.value)
   props.editor.commands.replaceNext()
 }
 
 function replaceAll() {
   if (confirm(`Replace all ${totalMatches.value} occurrences?`)) {
-    addToHistory(replaceHistory, replaceQuery.value, STORAGE_KEYS.SEARCH_REPLACE_REPLACE_HISTORY)
-    replaceHistoryIndex.value = -1
+    replaceHist.forceRecord(replaceQuery.value)
     props.editor.commands.replaceAll()
   }
 }
@@ -293,16 +289,20 @@ function toggleRegex() {
   props.editor.commands.toggleRegex()
 }
 
-// 搜索/替换历史
-const searchHistory = ref<string[]>([])
-const searchHistoryIndex = ref(-1)
-const replaceHistory = ref<string[]>([])
-const replaceHistoryIndex = ref(-1)
-
 function autoResizeTextarea(el: HTMLTextAreaElement | null) {
   if (!el) return
   el.style.height = 'auto'
   el.style.height = el.scrollHeight + 'px'
+}
+
+function onSearchInput() {
+  searchHist.markAsUserTyped()
+  autoResizeTextarea(searchInputRef.value)
+}
+
+function onReplaceInput() {
+  replaceHist.markAsUserTyped()
+  autoResizeTextarea(replaceInputRef.value)
 }
 
 function insertNewline(termRef: typeof searchQuery, inputRef: typeof searchInputRef) {
@@ -319,70 +319,31 @@ function insertNewline(termRef: typeof searchQuery, inputRef: typeof searchInput
   })
 }
 
-function addToHistory(history: typeof searchHistory, value: string, storageKey: string) {
-  if (!value) return
-  const idx = history.value.indexOf(value)
-  if (idx !== -1) history.value.splice(idx, 1)
-  history.value.push(value)
-  if (history.value.length > 20) history.value.shift()
-  StateStorage.saveSearchHistory(storageKey, history.value)
-}
-
-function isOnFirstLine(el: HTMLTextAreaElement): boolean {
-  return !el.value.substring(0, el.selectionStart).includes('\n')
-}
-
-function isOnLastLine(el: HTMLTextAreaElement): boolean {
-  return !el.value.substring(el.selectionEnd).includes('\n')
-}
-
-function navigateHistory(
-  event: KeyboardEvent,
-  direction: 'up' | 'down',
-  termRef: typeof searchQuery,
-  inputRef: typeof searchInputRef,
-  history: typeof searchHistory,
-  historyIdx: typeof searchHistoryIndex
-) {
-  const el = inputRef.value
-  if (!el || history.value.length === 0) return
-  if (direction === 'up' && !isOnFirstLine(el)) return
-  if (direction === 'down' && !isOnLastLine(el)) return
-
-  event.preventDefault()
-  if (direction === 'up') {
-    if (historyIdx.value === -1) {
-      historyIdx.value = history.value.length - 1
-    } else if (historyIdx.value > 0) {
-      historyIdx.value--
-    }
-  } else {
-    if (historyIdx.value !== -1) {
-      historyIdx.value++
-      if (historyIdx.value >= history.value.length) historyIdx.value = -1
-    }
-  }
-
-  if (historyIdx.value === -1) {
-    termRef.value = ''
-  } else {
-    termRef.value = history.value[historyIdx.value] ?? ''
-  }
-  nextTick(() => autoResizeTextarea(inputRef.value))
-}
-
 function handleSearchKeydown(event: KeyboardEvent) {
   if (event.key === 'Enter') {
     event.preventDefault()
     if (event.shiftKey || event.ctrlKey || event.metaKey) {
       insertNewline(searchQuery, searchInputRef)
+      searchHist.markAsUserTyped()
     } else {
       findNext()
     }
   } else if (event.key === 'ArrowUp') {
-    navigateHistory(event, 'up', searchQuery, searchInputRef, searchHistory, searchHistoryIndex)
+    const el = searchInputRef.value
+    if (!el || el.value.substring(0, el.selectionStart).includes('\n')) return
+    const val = searchHist.up()
+    if (val === undefined) return
+    event.preventDefault()
+    searchQuery.value = val
+    nextTick(() => autoResizeTextarea(el))
   } else if (event.key === 'ArrowDown') {
-    navigateHistory(event, 'down', searchQuery, searchInputRef, searchHistory, searchHistoryIndex)
+    const el = searchInputRef.value
+    if (!el || el.value.substring(el.selectionEnd).includes('\n')) return
+    const val = searchHist.down()
+    if (val === undefined) return
+    event.preventDefault()
+    searchQuery.value = val ?? ''
+    nextTick(() => autoResizeTextarea(el))
   } else if (event.key === 'Escape') {
     event.preventDefault()
     closePanel()
@@ -394,13 +355,26 @@ function handleReplaceKeydown(event: KeyboardEvent) {
     event.preventDefault()
     if (event.shiftKey || event.ctrlKey || event.metaKey) {
       insertNewline(replaceQuery, replaceInputRef)
+      replaceHist.markAsUserTyped()
     } else {
       replaceNext()
     }
   } else if (event.key === 'ArrowUp') {
-    navigateHistory(event, 'up', replaceQuery, replaceInputRef, replaceHistory, replaceHistoryIndex)
+    const el = replaceInputRef.value
+    if (!el || el.value.substring(0, el.selectionStart).includes('\n')) return
+    const val = replaceHist.up()
+    if (val === undefined) return
+    event.preventDefault()
+    replaceQuery.value = val
+    nextTick(() => autoResizeTextarea(el))
   } else if (event.key === 'ArrowDown') {
-    navigateHistory(event, 'down', replaceQuery, replaceInputRef, replaceHistory, replaceHistoryIndex)
+    const el = replaceInputRef.value
+    if (!el || el.value.substring(el.selectionEnd).includes('\n')) return
+    const val = replaceHist.down()
+    if (val === undefined) return
+    event.preventDefault()
+    replaceQuery.value = val ?? ''
+    nextTick(() => autoResizeTextarea(el))
   } else if (event.key === 'Escape') {
     event.preventDefault()
     closePanel()
@@ -408,7 +382,6 @@ function handleReplaceKeydown(event: KeyboardEvent) {
 }
 
 function toggleReplaceMode() {
-  // 切换 find 和 replace 模式
   if (mode.value === 'search') {
     props.editor.commands.openReplace()
   } else {
@@ -424,25 +397,18 @@ function toggleSearchInSelection() {
 function handleKeyDown(event: KeyboardEvent) {
   if (!isOpen.value) return
 
-  // Alt+C: Toggle case sensitive
   if (event.altKey && event.key === 'c') {
     event.preventDefault()
     toggleCaseSensitive()
   }
-
-  // Alt+W: Toggle whole word
   if (event.altKey && event.key === 'w') {
     event.preventDefault()
     toggleWholeWord()
   }
-
-  // Alt+R: Toggle regex
   if (event.altKey && event.key === 'r') {
     event.preventDefault()
     toggleRegex()
   }
-
-  // Alt+L: Toggle search in selection
   if (event.altKey && event.key === 'l') {
     event.preventDefault()
     toggleSearchInSelection()
@@ -450,8 +416,6 @@ function handleKeyDown(event: KeyboardEvent) {
 }
 
 onMounted(() => {
-  searchHistory.value = StateStorage.loadSearchHistory(STORAGE_KEYS.SEARCH_REPLACE_SEARCH_HISTORY)
-  replaceHistory.value = StateStorage.loadSearchHistory(STORAGE_KEYS.SEARCH_REPLACE_REPLACE_HISTORY)
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('resize', syncCompactMode)
   nextTick(syncCompactMode)
