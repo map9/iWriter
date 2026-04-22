@@ -41,7 +41,7 @@
       <div class="iw-toolbar-group">
         <button
           @click="setDisplayMode('continuous')"
-          class="btn btn-ghost btn-sm rounded-field px-3 normal-case"
+          class="iw-btn btn-ghost btn-sm px-3 normal-case"
           :class="{ 'btn-active': displayMode === 'continuous' }"
           title="Continuous"
         >
@@ -49,7 +49,7 @@
         </button>
         <button
           @click="setDisplayMode('single')"
-          class="btn btn-ghost btn-sm field-box px-3 normal-case"
+          class="iw-btn btn-ghost btn-sm px-3 normal-case"
           :class="{ 'btn-active': displayMode === 'single' }"
           title="Single Page"
         >
@@ -57,7 +57,7 @@
         </button>
         <button
           @click="setDisplayMode('double')"
-          class="btn btn-ghost btn-sm rounded-field px-3 normal-case"
+          class="iw-btn btn-ghost btn-sm px-3 normal-case"
           :class="{ 'btn-active': displayMode === 'double' }"
           title="Double Page"
         >

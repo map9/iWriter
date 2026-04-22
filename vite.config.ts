@@ -26,6 +26,9 @@ function getVendorChunkName(id: string): string | undefined {
 }
 
 export default defineConfig({
+  server: {
+    port: 57173,
+  },
   plugins: [
     tailwindcss(),
     vue(),

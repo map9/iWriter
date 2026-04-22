@@ -97,7 +97,7 @@ export class WindowManager {
 
     const windowId = window.id;
     const startUrl = isDev
-      ? 'http://localhost:5173'
+      ? 'http://localhost:57173'
       : `file://${path.join(__dirname, '../dist/index.html')}`
     window.loadURL(startUrl)
 

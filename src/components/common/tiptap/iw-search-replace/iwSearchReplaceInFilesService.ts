@@ -1,51 +1,24 @@
 /**
  * TipTap 统一搜索服务
  * 使用 TipTap/ProseMirror 引擎进行跨文件搜索和替换
+ *
+ * Document access (open tab vs disk) is delegated to DocumentLoader.
  */
 
-import { Editor, generateJSON } from '@tiptap/core'
+import { Editor } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { findMatchesInDocument } from './engine/SearchReplace'
 import { goToSelection } from './utils/gotoSelection'
 import { updateSearch } from './plugin/iwSearchReplacePlugin'
-import { convertContentFrom, convertContentTo } from '@/import-export'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { TEXT_EXTENSIONS, type FileTab } from '@/types'
 import { pathUtils } from '@/utils/pathUtils'
-import { createBaseExtensions } from '@/utils/editorExtensions'
+import { loadDocument, isLoadError } from '@/services/document/DocumentLoader'
 import type { SearchOptions, SearchReplaceInFilesSearchResult, SearchReplaceInFilesMatch } from './types'
 
 const { detectFromPath } = useDocumentTypeDetector()
 
 export class iwSearchReplaceInFilesService {
-  /**
-   * 单例搜索引擎（用于获取 extensions 和 schema）
-   */
-  private static searchEngine: Editor | null = null
-
-  /**
-   * 获取或创建搜索引擎实例
-   */
-  private static getSearchEngine(): Editor {
-    if (!this.searchEngine) {
-      this.searchEngine = new Editor({
-        content: '',
-        extensions: createBaseExtensions()
-      })
-    }
-    return this.searchEngine
-  }
-
-  /**
-   * 销毁搜索引擎（可选，用于释放资源）
-   */
-  static destroySearchEngine(): void {
-    if (this.searchEngine) {
-      this.searchEngine.destroy()
-      this.searchEngine = null
-    }
-  }
-
   /**
    * 跨文件搜索（workspace-wide）
    * 在渲染进程执行，使用 TipTap 引擎
@@ -147,50 +120,26 @@ export class iwSearchReplaceInFilesService {
     openTabs?: FileTab[]
   ): Promise<SearchReplaceInFilesSearchResult | null> {
     try {
-      let doc: ProseMirrorNode
-      let content: string
-      let lineEnding: 'LF' | 'CRLF' = 'LF'
+      const loaded = await loadDocument(filePath, openTabs, [])
+      if (isLoadError(loaded)) return null
 
-      // 优先使用打开的编辑器内容
-      const openTab = openTabs?.find(tab => tab.path === filePath)
-      if (openTab?.editorInstance) {
-        const editor = openTab.editorInstance as Editor
-        doc = editor.state.doc
-        content = editor.getText()
-        lineEnding = openTab.editState?.lineEnding || 'LF'
-      } else {
-        // 从磁盘读取（原有逻辑）
-        const fileContent = await window.electronAPI.readFile(filePath)
-        if (!fileContent) return null
-        content = fileContent
+      const { doc, lineEnding } = loaded
 
-        const extension = pathUtils.extension(filePath)
-        const converted = await convertContentFrom(content, extension)
-        if (!converted) return null
-
-        // Use the original extension set to avoid re-resolving already flattened kits.
-        const extensions = this.getSearchEngine().extensionManager.baseExtensions
-
-        // 生成 ProseMirror JSON，然后创建 Doc
-        const json = generateJSON(converted.content, extensions)
-        doc = this.getSearchEngine().schema.nodeFromJSON(json)
-        lineEnding = converted.lineEnding
-      }
-
-      // 使用 TipTap 引擎搜索
       const matches = findMatchesInDocument(doc, searchTerm, options)
 
-      if (matches.length === 0) return null
+      if (matches.length === 0) {
+        loaded.release()
+        return null
+      }
 
-      // 限制匹配数量
       const limitedMatches = matches.slice(0, maxMatches)
-
-      // 提取上下文
       const matchesWithContext = limitedMatches.map(match => ({
         position: { from: match.from, to: match.to },
         text: doc.textBetween(match.from, match.to),
         contextHtml: this.extractContextHtml(doc, match.from, match.to)
       }))
+
+      loaded.release()
 
       return {
         filePath,
@@ -201,10 +150,7 @@ export class iwSearchReplaceInFilesService {
         documentType: detectFromPath(filePath),
         matches: matchesWithContext,
         totalMatches: matchesWithContext.length,
-        // 缓存用于后续替换
-        _proseMirrorDoc: doc,
-        _fileContent: content,
-        _lineEnding: lineEnding
+        _lineEnding: lineEnding,
       }
     } catch (error) {
       console.error(`Error searching in file ${filePath}:`, error)
@@ -257,7 +203,6 @@ export class iwSearchReplaceInFilesService {
       // 从理想位置开始找语义边界
       const idealStart = beforeContext.length - MAX_CONTEXT_LENGTH
       const searchText = beforeContext.substring(idealStart)
-      //const searchText = beforeContext
 
       const boundaryIndex = this.findSemanticBoundary(searchText, true)
       if (boundaryIndex !== -1) {
@@ -271,7 +216,6 @@ export class iwSearchReplaceInFilesService {
     // 截取后置上下文
     if (afterContext.length > MAX_CONTEXT_LENGTH) {
       const searchText = afterContext.substring(0, MAX_CONTEXT_LENGTH)
-      //const searchText = afterContext
 
       const boundaryIndex = this.findSemanticBoundary(searchText, false)
       if (boundaryIndex !== -1) {
@@ -332,9 +276,9 @@ export class iwSearchReplaceInFilesService {
       '(', ')', '[', ']', '{', '}',
       '"', "'", '`',
       // 中文标点（Unicode）
-      '\u3002', '\uFF0C', '\uFF1B', '\uFF1A', '\uFF01', '\uFF1F',
-      '\u3001', '\u300A', '\u300B', '\u201C', '\u201D', '\u2018', '\u2019',
-      '\uFF08', '\uFF09', '\u3010', '\u3011', '\u300E', '\u300F',
+      '。', '，', '；', '：', '！', '？',
+      '、', '《', '》', '“', '”', '‘', '’',
+      '（', '）', '【', '】', '『', '』',
       // 空白字符
       '\t', '\n', '\r'
     ])
@@ -346,7 +290,7 @@ export class iwSearchReplaceInFilesService {
         const char = text[i]
         if (char) {
           if (BOUNDARY_CHARS.has(char)) return i
-          else if (char === ' ' || char === '\u3000') {
+          else if (char === ' ' || char === '　') {
             blankIndex = i
           }
         }
@@ -357,7 +301,7 @@ export class iwSearchReplaceInFilesService {
         const char = text[i]
         if (char) {
           if (BOUNDARY_CHARS.has(char)) return i
-          else if (char === ' ' || char === '\u3000') {
+          else if (char === ' ' || char === '　') {
             blankIndex = i
           }
         }
@@ -382,9 +326,9 @@ export class iwSearchReplaceInFilesService {
    */
   private static async getSearchableFiles(
     folderPath: string,
-     
+
     _includePattern?: string,
-     
+
     _excludePattern?: string
   ): Promise<string[]> {
     return this.getSearchableFilesRecursive(folderPath, _includePattern, _excludePattern, [])
@@ -396,9 +340,9 @@ export class iwSearchReplaceInFilesService {
    */
   private static async getSearchableFilesRecursive(
     dirPath: string,
-     
+
     _includePattern?: string,
-     
+
     _excludePattern?: string,
     result: string[] = []
   ): Promise<string[]> {
@@ -482,11 +426,12 @@ export class iwSearchReplaceInFilesService {
    */
   static async replaceInWorkspace(
     results: SearchReplaceInFilesSearchResult[],
-     
+
     _searchTerm: string,
     replaceTerm: string,
-     
-    _options: SearchOptions
+
+    _options: SearchOptions,
+    openTabs?: FileTab[]
   ): Promise<{
     success: boolean
     filesModified: number
@@ -497,62 +442,34 @@ export class iwSearchReplaceInFilesService {
     let totalReplacements = 0
     const errors: Array<{ file: string; error: string }> = []
 
-    // Use the original extension set to avoid re-resolving already flattened kits.
-    const extensions = this.getSearchEngine().extensionManager.baseExtensions
-
     for (const fileResult of results) {
       try {
-        // 1. 获取或重建 ProseMirror Doc
-        let doc = fileResult._proseMirrorDoc
+        // Prefer the live editor when the file is open so that (1) match positions
+        // remain valid and (2) the live editor gets updated — preventing the file
+        // watcher from triggering a re-search that finds the same matches again.
+        const loaded = await loadDocument(fileResult.filePath, openTabs, [])
+        if (isLoadError(loaded)) throw new Error(loaded.error)
 
-        if (!doc) {
-          const content = await window.electronAPI.readFile(fileResult.filePath)
-          if (!content) throw new Error('Failed to read file')
-
-          const extension = pathUtils.extension(fileResult.filePath)
-          const converted = await convertContentFrom(content, extension)
-          if (!converted) throw new Error('Failed to convert file')
-
-          const json = generateJSON(converted.content, extensions)
-          doc = this.getSearchEngine().schema.nodeFromJSON(json)
-        }
-
-        if (!doc) throw new Error('Document not available')
-
-        // 2. 执行替换（从后往前，避免位置偏移）
+        // Execute replacements from back to front to keep positions valid.
         const sortedMatches = [...fileResult.matches].sort(
           (a, b) => b.position.from - a.position.from
         )
 
-        // 创建临时编辑器执行替换
-        const tempEditor = new Editor({
-          content: doc.toJSON(),
-          extensions
-        })
-
         for (const match of sortedMatches) {
-          tempEditor.commands.insertContentAt(
+          loaded.editor.commands.insertContentAt(
             { from: match.position.from, to: match.position.to },
             replaceTerm
           )
           totalReplacements++
         }
 
-        // 3. 转换回原始格式
-        const extension = pathUtils.extension(fileResult.filePath)
-        const newContent = convertContentTo(
-          tempEditor,
-          extension,
-          fileResult._lineEnding
-        )
-
-        tempEditor.destroy()
+        const newContent = loaded.serialize()
+        loaded.release()
 
         if (!newContent) throw new Error('Failed to convert content back')
 
-        // 4. 写回文件
-        await window.electronAPI.saveFile(fileResult.filePath, newContent)
-        filesModified ++
+        await window.electronAPI.saveFile(newContent, fileResult.filePath)
+        filesModified++
 
       } catch (error) {
         errors.push({

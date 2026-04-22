@@ -14,10 +14,10 @@
           {{ t('preferences.title') }}
         </div>
         <nav class="no-drag">
-          <ul class="menu gap-1 rounded-box p-0">
+          <ul class="menu gap-1 rounded-box p-0 w-full">
             <li v-for="tab in tabs" :key="tab.id">
               <button
-                class="btn h-10 justify-start gap-3 rounded-field border-none text-sm font-medium whitespace-nowrap"
+                class="iw-btn btn-sm border-none h-10 justify-start gap-3 text-sm font-medium whitespace-nowrap"
                 :class="activeTab === tab.id ? 'btn-primary' : 'btn-ghost'"
                 @click="activeTab = tab.id"
               >

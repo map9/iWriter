@@ -174,7 +174,7 @@
       <div class="mx-7 flex shrink-0 items-center justify-end gap-2 border-t border-base-300 bg-base-100 pb-5 pt-4">
         <button
           @click="cancelForm"
-          class="iw-btn btn-ghost"
+          class="iw-btn btn-ghost btn-sm font-medium"
         >
           {{ t('preferences.ai.cancel') }}
         </button>
@@ -182,8 +182,8 @@
           @click="submitForm"
           :disabled="!canSave"
           :title="!canSave ? t('preferences.ai.nameRequired') : ''"
-          class="iw-btn"
-          :class="canSave ? 'btn-primary' : 'cursor-not-allowed'"
+          class="iw-btn btn-sm font-medium disabled:cursor-not-allowed"
+          :class="canSave ? 'btn-primary' : ''"
         >
           {{ editingId ? t('preferences.ai.save') : t('preferences.ai.confirmAdd') }}
         </button>

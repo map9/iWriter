@@ -4,21 +4,18 @@
  * All documents (active editor OR disk files) go through the same pipeline:
  *   DocumentViewBuilder → BlockEditApplier
  *
- * For disk files a virtual TipTap Editor is created in memory (no DOM rendering),
- * following the same pattern as iwSearchReplaceInFilesService workspace replacement.
- * This gives us real nodeIds via UniqueID, consistent block-type coverage,
- * and the exact same edit code path as the active editor.
- *
- * Replaces the dual FileDocumentView / FileBlockEditApplier approach.
+ * For disk files, document loading is delegated to DocumentLoader which creates a
+ * virtual headless TipTap Editor (no DOM rendering) — the same pattern used by
+ * iwSearchReplaceInFilesService. UniqueID is injected via extraExtensions so every
+ * block gets a stable nodeId, which BlockEditApplier requires.
  */
 
-import { Editor, generateJSON } from '@tiptap/core'
+import { Editor } from '@tiptap/core'
 import UniqueID from '@tiptap/extension-unique-id'
 import { nanoid } from 'nanoid'
 
-import { createBaseExtensions } from '@/utils/editorExtensions'
-import { convertContentFrom, convertContentTo } from '@/import-export/formatConverter'
-import { pathUtils } from '@/utils/pathUtils'
+import { loadDocumentFromDisk, isLoadError } from '@/services/document/DocumentLoader'
+import type { LoadedDocument } from '@/services/document/DocumentLoader'
 import { DocumentViewBuilder } from './DocumentViewBuilder'
 import { applyBlockEditProposal } from './BlockEditApplier'
 import type { BlockEditProposal } from '@/ai/types'
@@ -28,22 +25,12 @@ export type { ApplyResult } from './BlockEditApplier'
 import type { ApplyResult } from './BlockEditApplier'
 
 // ── Virtual editor extensions ────────────────────────────────────────────────
-// createBaseExtensions() + UniqueID so blocks get stable node IDs (required by BlockEditApplier)
+// createBaseExtensions() (via DocumentLoader) + UniqueID so blocks get stable node IDs
 
 const VIRTUAL_EDITOR_NODE_TYPES = new Set([
   'paragraph', 'heading', 'codeBlock', 'mathBlock', 'image',
   'horizontalRule', 'blockquote', 'table', 'listItem', 'taskItem',
 ])
-
-function buildVirtualEditorExtensions() {
-  return [
-    ...createBaseExtensions(),
-    UniqueID.configure({
-      types: Array.from(VIRTUAL_EDITOR_NODE_TYPES),
-      generateID: () => nanoid(8),
-    }),
-  ]
-}
 
 /**
  * Ensure every block node tracked by UniqueID has a non-null id attr.
@@ -155,72 +142,68 @@ export class UnifiedDocumentAccess {
   // ── private ──────────────────────────────────────────────────────────────
 
   private static async _createFromFile(filePath: string): Promise<DocumentHandle | { error: string }> {
-    if (!pathUtils.isAbsolutePath(filePath)) {
-      return { error: `file_path must be an absolute path: "${filePath}"` }
-    }
+    const uniqueIdExt = UniqueID.configure({
+      types: Array.from(VIRTUAL_EDITOR_NODE_TYPES),
+      generateID: () => nanoid(8),
+    })
 
-    let raw: string | null
-    try {
-      raw = await window.electronAPI.readFile(filePath)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      return { error: `Failed to read file "${filePath}": ${message}` }
-    }
-    if (raw === null) return { error: `File not found or unreadable: "${filePath}"` }
+    const result = await loadDocumentFromDisk(filePath, [uniqueIdExt])
+    if (isLoadError(result)) return { error: result.error }
 
-    const ext = pathUtils.extension(filePath)
-    const converted = await convertContentFrom(raw, ext)
-    if (!converted) return { error: `Unsupported file type: ".${ext}". Use execute command to read this file.` }
-
-    const extensions = buildVirtualEditorExtensions()
-    const json = generateJSON(converted.content, extensions)
-    const virtualEditor = new Editor({ content: json, extensions })
+    const { editor: virtualEditor } = result
     ensureNodeIds(virtualEditor)
 
-    const view = new DocumentViewBuilder().build(virtualEditor)
-    const snapshot: DocumentViewSnapshot = {
-      view,
-      editor: virtualEditor,
-      cursorBlockId: null,
-      filePath,
-    }
+    return _buildHandle(virtualEditor, result, filePath)
+  }
+}
 
-    const handle: DocumentHandle = {
-      snapshot,
+// ── Handle factory ────────────────────────────────────────────────────────────
 
-      applyBlockProposal: async (proposal: BlockEditProposal): Promise<ApplyResult> => {
-        // Re-build a fresh view from the virtual editor's current state so nodeIds
-        // are always valid (the editor may have been mutated by a prior approval).
-        const freshView = new DocumentViewBuilder().build(virtualEditor)
-        const resolved = resolveProposalNodeIds(proposal, freshView.blockMap)
-        if (!resolved) {
-          return {
-            success: false,
-            error: `Cannot resolve block IDs for proposal type "${proposal.type}". ` +
-                   `The file may have changed since it was last read. ` +
-                   `Try calling get_document_outline(file_path=...) again to get fresh block IDs.`,
-          }
+function _buildHandle(
+  virtualEditor: Editor,
+  loaded: LoadedDocument,
+  filePath: string
+): DocumentHandle {
+  const view = new DocumentViewBuilder().build(virtualEditor)
+  const snapshot: DocumentViewSnapshot = {
+    view,
+    editor: virtualEditor,
+    cursorBlockId: null,
+    filePath,
+  }
+
+  return {
+    snapshot,
+
+    applyBlockProposal: async (proposal: BlockEditProposal): Promise<ApplyResult> => {
+      // Re-build a fresh view from the virtual editor's current state so nodeIds
+      // are always valid (the editor may have been mutated by a prior approval).
+      const freshView = new DocumentViewBuilder().build(virtualEditor)
+      const resolved = resolveProposalNodeIds(proposal, freshView.blockMap)
+      if (!resolved) {
+        return {
+          success: false,
+          error: `Cannot resolve block IDs for proposal type "${proposal.type}". ` +
+                 `The file may have changed since it was last read. ` +
+                 `Try calling get_document_outline(file_path=...) again to get fresh block IDs.`,
         }
+      }
 
-        const applyResult = await applyBlockEditProposal(virtualEditor, resolved)
-        if (!applyResult.success) return applyResult
+      const applyResult = await applyBlockEditProposal(virtualEditor, resolved)
+      if (!applyResult.success) return applyResult
 
-        // Serialize and save back to disk
-        const newContent = convertContentTo(virtualEditor, ext, converted.lineEnding ?? undefined)
-        if (newContent === null) {
-          return { success: false, error: 'Failed to serialize edited content' }
-        }
-        const saved = await window.electronAPI.saveFile(newContent, filePath)
-        if (!saved) {
-          return { success: false, error: `Failed to write file: "${filePath}"` }
-        }
-        return { success: true }
-      },
+      const newContent = loaded.serialize()
+      if (newContent === null) {
+        return { success: false, error: 'Failed to serialize edited content' }
+      }
+      const saved = await window.electronAPI.saveFile(newContent, filePath)
+      if (!saved) {
+        return { success: false, error: `Failed to write file: "${filePath}"` }
+      }
+      return { success: true }
+    },
 
-      dispose: () => virtualEditor.destroy(),
-    }
-
-    return handle
+    dispose: () => loaded.release(),
   }
 }
 

@@ -148,8 +148,12 @@
     @apply flex flex-1 flex-col h-full relative overflow-hidden;
   }
 
+  .iw-btn {
+    @apply btn;
+  }
+
   .iw-toolbar-btn {
-    @apply btn btn-ghost btn-square border-none rounded-field disabled:cursor-not-allowed;
+    @apply btn btn-ghost btn-square border-none disabled:cursor-not-allowed;
   }
 
   .iw-toolbar-btn-active {
@@ -164,9 +168,6 @@
     @apply size-12 opacity-50;
   }
 
-  .iw-btn {
-    @apply btn rounded-field btn-sm gap-2 font-medium disabled:cursor-not-allowed;
-  }
 
   .iw-toolbar {
     @apply flex h-10 w-full items-center gap-2 overflow-x-auto overflow-y-hidden border-b border-base-300 bg-base-100 px-3 scrollbar-hide;
@@ -228,6 +229,16 @@
   .iw-input:focus-within {
     --input-color: var(--color-primary);
     outline: none;
+    isolation: isolate;
+  }
+
+  .iw-btn:focus,
+  .iw-btn:focus-within,
+  .iw-toolbar-btn:focus,
+  .iw-toolbar-btn:focus-within {
+    outline-offset: 0.5px;
+    outline-width: 1px;
+    outline-color: var(--color-primary);
     isolation: isolate;
   }
 }

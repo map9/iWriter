@@ -553,7 +553,8 @@ async function replaceAll() {
         caseSensitive: options.value.matchCase,
         wholeWord: options.value.wholeWord,
         regex: options.value.regex
-      }
+      },
+      appStore.tabs
     )
 
     isReplacing.value = false
@@ -641,7 +642,8 @@ async function replaceAllInFile(fileResult: SearchReplaceInFilesSearchResult) {
         caseSensitive: options.value.matchCase,
         wholeWord: options.value.wholeWord,
         regex: options.value.regex
-      }
+      },
+      appStore.tabs
     )
 
     isReplacing.value = false

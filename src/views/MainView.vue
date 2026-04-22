@@ -25,7 +25,7 @@
         </div>
         <div class="h-4 w-px bg-base-300" />
         <button
-          class="btn btn-ghost btn-sm rounded-full px-3 normal-case"
+          class="iw-btn btn-sm btn-ghost rounded-full px-3 normal-case"
           @click="appStore.setCleanMode(false)"
         >
           Exit Clean Mode

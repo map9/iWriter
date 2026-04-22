@@ -1,120 +1,149 @@
 # iWriter
 
-一个本地文件优先的桌面写作工具，基于 Electron、Vue 3 和 TypeScript 构建，支持 Markdown / 纯文本 / 代码文件编辑，也集成了图片、PDF 浏览和 AI 辅助创作能力。
+> 代码校对日期：2026-04-22  
+> 本 README 以当前工程实现为准（`src/` + `electron/` + `package.json`），不以 `docs/` 中历史方案文档为准。
 
-适合希望在本地工作区中统一处理写作、资料查看和 AI 辅助编辑的用户。
+## 项目定位
 
-## 安装与下载
+iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 Electron + Vue 3 + TypeScript 构建。
 
-当前仓库已经具备打包配置，但 README 里还没有固定的公开下载入口。现阶段更推荐两种使用方式：
+当前版本聚焦三类能力：
 
-- 开发者：直接拉取仓库后本地运行 `npm install` 和 `npm run dev`
-- 维护者：通过 `npm run dist:*` 在本机构建对应平台安装包
+- 本地文件工作区管理（文件树、标签页、跨文件搜索、监听刷新）
+- 富文本/Markdown 写作（TipTap 编辑器 + 大纲 + 拼写校对 + 搜索替换）
+- AI 辅助写作与编辑（Edit / Creative / Minimal，多 Provider，编辑提案审批流）
 
-如果后续要对外发布，建议把下载地址统一放到 GitHub Releases：
+## 设计定位（阶段）
 
-- 仓库主页：`https://github.com/iwriter/iwriter`
-- 更新源配置指向：`map9/iWriter`
+### 第一阶段
 
-在公开下载页补齐之前，可以把当前状态理解为“适合本地开发、内部分发或手动打包验证”的阶段。
+- 对标 Joplin 等 Markdown 写作工具
+- 目标人群与 Joplin 的核心用户群体相近（本地文件优先、长期写作/笔记管理需求）
 
-## 适合做什么
+### 第二阶段（已基本完成，可使用）
 
-iWriter 目前比较适合这几类场景：
+- 在第一阶段能力上，加入 AI 辅助写作与编辑
+- 已具备可用的 AI 对话、提案式编辑与审批流
 
-- 写 Markdown 笔记、文章和项目文档
-- 在一个工作区里管理 `.md`、`.txt`、`.iwt` 和常见代码文件
-- 一边写作一边查看图片或 PDF 参考资料
-- 用 AI 做润色、改写、脑暴和长篇创作辅助
+### 第三阶段（双分支）
 
-如果你需要的是一个“本地文件优先”的桌面写作工具，而不是纯在线文档产品，这个工程现在已经有比较完整的基础能力。
+- `3.1` AI 支持下的个人知识库管理：未启动
+- `3.2` AI 支持下的小说创作与写作：正在开始
 
-## 快速开始
+## 当前能力总览
 
-### 普通使用流程
+### 1) 文档与文件能力
 
-1. 启动应用后先打开一个文件或文件夹
-2. 左侧栏浏览目录、搜索文件、查看大纲
-3. 在主编辑区编辑 Markdown / 文本 / 代码文件
-4. 需要时打开右侧 AI 面板进行问答、提案式编辑或创作辅助
+- 支持打开文件夹并构建树形工作区
+- 支持文件新建、文件夹新建、重命名、移动、删除
+- 支持多标签页与状态恢复（重启后恢复工作区与已打开文件）
+- 支持自动保存、另存为、全部保存、只读模式
+- 支持外部文件变更监听并同步到文件树
+- 支持跨文件全文搜索与替换（含正则/大小写/整词）
 
-初次进入应用时，欢迎页会直接提供：
+### 2) 编辑器能力（MarkdownEditor）
 
-- `New Document`
-- `Open Document`
-- `Open Folder`
+- 标题、段落、粗斜体、下划线、删除线、高亮、链接、行内代码
+- 引用、代码块、数学公式（行内/块）、任务列表、有序/无序列表
+- 表格（插入、结构调整、移动、删除）
+- 图片插入、媒体插入（音频/视频链接）
+- 搜索替换面板（文内）
+- 拼写与语法检查（LanguageTool / Typo.js 引擎切换）
+- TOC（目录）联动与定位
 
-## 界面预览
+### 3) 多类型文档查看
 
-当前仓库里已经包含设计截图，可直接作为 README 预览入口：
+- 图片查看器：缩放、旋转、拖拽平移、适配窗口
+- PDF 查看器：连续/单页/双页模式，缩放，跳页，懒加载渲染
+- 不支持类型会进入 `Unknown` 页面兜底
 
-![iWriter main window](design/Window%20-%204.Folder%20Opened%20+%20Document%20Opened@2x.png)
+### 4) AI 能力（主进程 Runtime）
 
-更多界面参考：
+- 会话线程持久化（SQLite Checkpointer）
+- 三种模式：
+  - `edit`：面向文档编辑，支持“先读后改”工具链
+  - `creative`：面向创作素材生成与保存
+  - `minimal`：最小对话模式（无业务工具）
+- Edit 模式支持 proposal/HITL 审批：
+  - 模型先提出编辑提案（编辑/插入/删除/范围替换/新建文档）
+  - 用户可逐项 `approve / edit / reject`
+  - 审批后再落地到文档
+- 支持上下文附件：文本文件、二进制文件（图片/PDF）、目录
+- 支持输入压缩（compact input）与上下文 token 统计
 
-- [主窗口](/Users/sunyafu/zebra/iWriter/design/Window%20-%204.Folder%20Opened%20+%20Document%20Opened@2x.png)
-- [欢迎页](/Users/sunyafu/zebra/iWriter/design/Window%20-%201.Blank@2x.png)
-- [左侧栏 Explorer](/Users/sunyafu/zebra/iWriter/design/Sidebar%20-%201.Explorer@2x.png)
-- [AI 侧栏](/Users/sunyafu/zebra/iWriter/design/Sidebar%20-%202.AI%20Chat@2x.png)
+### 5) AI Provider 与模型配置
 
-## 当前构建状态
+内置 Provider 预设（可在偏好设置中配置 API Key / Base URL / Model）：
 
-基于当前仓库内容，下面两条命令已验证通过：
+- OpenAI-compatible
+- DeepSeek
+- Anthropic
+- Gemini
+- Ollama（通过 OpenAI-compatible 方式）
+- GLM（通过 OpenAI-compatible 方式）
 
-```bash
-npm run type-check
-npm run build:quick
-```
+### 6) 界面与体验
 
-当前构建产物目录：
+- 左侧栏：Explorer / Search / Tag / TOC
+- 右侧栏：AI Agent 面板（历史会话 + 当前会话）
+- 状态栏：文件统计、更新状态等
+- 视图模式：Clean Mode / Focus Mode / Typewriter Mode
+- 主题系统：内置主题 + 系统主题跟随
+- 语言：`en-US` / `zh-CN`
 
-- `dist/`：渲染进程静态资源
-- `dist-electron/`：Electron 主进程与 preload 构建产物
-- `release/`：`electron-builder` 打包输出目录
+## 重要边界（基于当前代码）
+
+- `TagPanel` 目前是示例数据实现（mock），不是完整标签索引系统
+- AI 编辑是“提案审批后执行”，不是模型直接无确认写盘
+- 自动更新仅在生产环境启用（开发环境关闭）
+- 自动更新依赖 GitHub Releases（`map9/iWriter`）与可用网络/权限
+- 打包签名与 notarize（macOS）依赖本机证书和 Apple 凭证
+
+## 支持的文件类型
+
+- 文本编辑：`md` `markdown` `txt` `iwt` + 常见代码文件（如 `ts` `js` `vue` `py` `go` `rs` `json` `yaml` 等）
+- 图片查看：`jpg` `jpeg` `png` `gif` `bmp` `svg` `webp` `ico`
+- PDF 查看：`pdf`
 
 说明：
 
-- `npm run build` 会在正式构建前执行图标生成与打包预处理脚本。
-- `npm run dist` / `npm run dist:*` 走 `electron-builder` 打包流程。
-- macOS 打包配置里已经包含签名与 notarize 逻辑；如果本机没有对应证书或 Apple 凭证，打包分发阶段可能失败。
-
-## 主要能力
-
-- Markdown / `.iwt` / `.txt` / 常见代码文件编辑
-- 文件树、标签页、多文档切换
-- 全文搜索与文档大纲
-- 图片查看
-- PDF 查看
-- AI 侧栏，支持编辑、创作和最小对话三种模式
-- 自动更新集成（GitHub Releases）
-
-## 平台支持
-
-从 `electron-builder` 当前配置看，项目的打包目标包括：
-
-- macOS：`dmg`、`zip`，支持 `arm64` 和 `x64`
-- Windows：`nsis`、`portable`，支持 `x64` 和 `ia32`
-- Linux：`AppImage`、`deb`、`rpm`，当前配置为 `x64`
-
-更适合优先验证的平台：
-
-- macOS
-
-原因：
-
-- 仓库里已经配置了 macOS 签名与 notarize
-- 当前开发机和现有打包配置明显更偏 macOS 工作流
+- `.iwt` 为 iWriter 自有格式，内容为 JSON（含 HTML 文档内容与元信息）
 
 ## 技术栈
 
-- 前端：Vue 3 + TypeScript + Pinia + Vue Router
-- 桌面端：Electron + vite-plugin-electron
-- 编辑器：TipTap 3
-- 样式：Tailwind CSS 4 + Sass
-- AI Runtime：DeepAgents + LangGraph Checkpointer + 多 Provider 接入
-- 打包：electron-builder
+- 桌面框架：Electron
+- 前端框架：Vue 3 + TypeScript
+- 状态管理：Pinia
+- 路由：Vue Router
+- 编辑器：TipTap 3 + ProseMirror
+- 样式：Tailwind CSS 4 + Sass + daisyUI
+- AI Runtime：deepagents + LangGraph + better-sqlite3
+- 更新：electron-updater
+- 构建：Vite + electron-builder
 
-## 开发环境
+## 目录结构（核心）
+
+```text
+.
+├─ electron/                  # 主进程、菜单、窗口、AI Runtime、preload
+│  ├─ ai/
+│  ├─ App.ts
+│  ├─ MenuManager.ts
+│  ├─ WindowManager.ts
+│  └─ preload.ts
+├─ src/                       # 渲染进程
+│  ├─ components/
+│  ├─ stores/
+│  ├─ ai/
+│  ├─ updater/
+│  └─ main.ts
+├─ public/                    # 静态资源（含 pdf worker / cmaps）
+├─ scripts/                   # 构建与发布辅助脚本
+├─ assets/                    # 应用图标等打包资源
+└─ package.json
+```
+
+## 本地开发
 
 ### 1. 安装依赖
 
@@ -122,16 +151,10 @@ npm run build:quick
 npm install
 ```
 
-安装完成后会自动执行：
+安装后会自动执行：
 
 - `patch-package`
 - `electron-rebuild -f -w better-sqlite3`
-
-如果原生模块需要重新编译，可以手动执行：
-
-```bash
-npm run rebuild-native
-```
 
 ### 2. 启动开发环境
 
@@ -139,25 +162,21 @@ npm run rebuild-native
 npm run dev
 ```
 
-当前 `vite.config.ts` 已接入 `vite-plugin-electron`，开发时会同时启动渲染进程和 Electron 主进程。
-
 ### 3. 类型检查与构建
 
 ```bash
 npm run type-check
-npm run build
-```
-
-补充命令：
-
-```bash
 npm run build:quick
-npm run lint
 ```
 
-## 打包发布
+本次校对实测结果：
 
-### 打包命令
+- `npm run type-check` 通过
+- `npm run build:quick` 通过
+
+## 打包与发布
+
+### 常用命令
 
 ```bash
 npm run dist
@@ -168,102 +187,44 @@ npm run dist:linux
 npm run dist:all
 ```
 
-### 构建前检查
+### 产物目录
 
-项目提供了一个依赖检查脚本：
+- `dist/`：渲染进程构建产物
+- `dist-electron/`：主进程与 preload 构建产物
+- `release/`：安装包输出目录
+
+### 预检查
 
 ```bash
 npm run check-deps
 ```
 
-它会检查图标生成相关依赖，例如：
+## 环境变量
 
-- `sharp`：必需
-- `ImageMagick`：可选，用于生成 Windows ICO
-- `iconutil`：可选，用于生成 macOS ICNS
-
-### 环境变量
-
-仓库里提供了 `.env.simple`，可以按需复制为 `.env`：
+可先复制模板：
 
 ```bash
 cp .env.simple .env
 ```
 
-当前打包/发布相关环境变量主要包括：
+常见变量：
 
-- `GH_TOKEN`：GitHub Releases 更新与发布
-- `APPLE_ID`
-- `APPLE_APP_SPECIFIC_PASSWORD`
-- `APPLE_TEAM_ID`
-- `LANGSMITH_*`：LangSmith 调试/追踪
+- `GH_TOKEN`：GitHub 发布/更新相关
+- `APPLE_ID` `APPLE_APP_SPECIFIC_PASSWORD` `APPLE_TEAM_ID`：macOS notarize
+- `LANGSMITH_*`：LangSmith 观测相关
 
-说明：
+## 生产文档建议
 
-- 开发环境下主进程会自动加载 `.env`
-- `scripts/notarize.js` 会在 macOS 签名后读取 Apple 凭证
-- 自动更新默认使用 GitHub provider，未配置 `GH_TOKEN` 时会给出 warning
+如果要继续建设面对用户的帮助中心/官网文档，建议优先从这里拆分：
 
-## AI 能力
+1. 快速上手（打开文件夹、创建文档、AI 对话）
+2. 编辑器指南（格式、搜索替换、拼写检查、TOC）
+3. 工作区指南（文件树、监听、跨文件搜索）
+4. AI 指南（三模式、Provider 配置、审批流）
+5. 下载与更新（安装、更新策略、常见问题）
 
-当前 AI 架构已经切到主进程 runtime，核心说明见 [docs/AGENTIC_EDITING.md](/Users/sunyafu/zebra/iWriter/docs/AGENTIC_EDITING.md)。
-
-目前保留 3 个模式：
-
-- `Edit`：先读后改，文档修改统一走 proposal / HITL 审批
-- `Creative`：小说脑暴、设定、故事线等创作资产生成
-- `Minimal`：最小对话模式，不挂业务工具
-
-当前内置 Provider 预设包括：
-
-- OpenAI
-- Anthropic
-- Gemini
-- DeepSeek
-- GLM
-- Ollama / OpenAI-compatible 接口
-
-使用 AI 前需要在应用配置里填入对应 Provider 的 API Key 或服务地址；本仓库不会内置这些凭证。
-
-## 已知限制
-
-基于当前工程状态，比较值得提前说明的限制有：
-
-- `npm run dev` 尚未在这次文档更新中重新实机验证；本次确认的是 `type-check` 和 `build:quick`
-- 自动更新依赖 GitHub Releases 和 `GH_TOKEN` 配置，未配置时更新能力可能不可用
-- macOS 分发打包依赖本机证书、Apple 账号和 notarize 凭证，不是开箱即用
-- 审校能力已有独立实现，但具体引擎和语言覆盖仍取决于实际配置，见 [PROOFREAD.md](/Users/sunyafu/zebra/iWriter/docs/PROOFREAD.md)
-- AI 文档修改采用 proposal / HITL 审批流，不是“模型直接落盘”式编辑
-
-## 路线图
-
-结合当前代码结构，后续比较明确的演进方向可以归纳为：
-
-- 继续完善 Markdown 编辑体验，尤其是更强的块级编辑与富内容块能力
-- 打磨 AI 编辑提案流，降低多处修改时的交互成本
-- 完善自动更新设置与版本跳过等细节
-- 提升打包发布稳定性，减少平台相关依赖和签名配置门槛
-- 补齐更面向最终用户的安装、更新日志和下载说明
-
-如果这个仓库要对外发布，建议优先把“下载入口 + 版本说明 + 平台安装提示”补齐到 README 或 Releases 页面。
-
-## 目录概览
-
-```text
-electron/        Electron 主进程、菜单、窗口、AI runtime
-src/             Vue 渲染进程、编辑器、侧栏、AI UI
-public/          静态资源（含 PDF worker / cmaps）
-scripts/         图标生成、构建预处理、notarize 等脚本
-docs/            架构与功能文档
-design/          设计稿与草图资源
-```
-
-## 相关文档
-
-- [Agentic Editing](/Users/sunyafu/zebra/iWriter/docs/AGENTIC_EDITING.md)
-- [Proofread](/Users/sunyafu/zebra/iWriter/docs/PROOFREAD.md)
-- [Logging](/Users/sunyafu/zebra/iWriter/docs/LOGGING.md)
+`docs/WEBSITE_PLAN_VITEPRESS.md` 已按当前实现更新了提纲，可直接作为官网文档骨架。
 
 ## 许可证
 
-Apache License 2.0
+[LICENSE.txt](./LICENSE.txt)
