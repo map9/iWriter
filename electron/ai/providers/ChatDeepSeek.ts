@@ -326,6 +326,9 @@ export class ChatDeepSeek extends BaseChatModel {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let lastResponseId: string | undefined
+    let lastResponseModel: string | undefined
+    let emittedResponseMetadata = false
     const toolCallAccumulators = new Map<number, ToolCallAccumulator>()
 
     while (true) {
@@ -340,7 +343,25 @@ export class ChatDeepSeek extends BaseChatModel {
         const trimmed = line.trim()
         if (!trimmed.startsWith('data: ')) continue
         const payload = trimmed.slice(6).trim()
-        if (!payload || payload === '[DONE]') continue
+        if (!payload) continue
+        if (payload === '[DONE]') {
+          if (!emittedResponseMetadata) {
+            const metadataChunk = new ChatGenerationChunk({
+              message: new AIMessageChunk({
+                content: '',
+                response_metadata: {
+                  model_provider: 'deepseek',
+                  model_name: lastResponseModel ?? this.model,
+                },
+                id: lastResponseId,
+              }),
+              text: '',
+            })
+            yield metadataChunk
+            await runManager?.handleLLMNewToken?.('', undefined, undefined, undefined, undefined, { chunk: metadataChunk })
+          }
+          continue
+        }
 
         let parsed: DeepSeekChatCompletionChunk
         try {
@@ -349,8 +370,12 @@ export class ChatDeepSeek extends BaseChatModel {
           continue
         }
 
+        lastResponseId = parsed.id ?? lastResponseId
+        lastResponseModel = parsed.model ?? lastResponseModel
+
         const usageMetadata = convertUsageToMetadata(parsed.usage)
         if (usageMetadata) {
+          emittedResponseMetadata = true
           const usageChunk = new ChatGenerationChunk({
             message: new AIMessageChunk({
               content: '',
@@ -377,10 +402,6 @@ export class ChatDeepSeek extends BaseChatModel {
             message: new AIMessageChunk({
               content: '',
               additional_kwargs: { reasoning_content: delta.reasoning_content },
-              response_metadata: {
-                model_provider: 'deepseek',
-                model_name: parsed.model ?? this.model,
-              },
               id: parsed.id,
             }),
             text: '',
@@ -396,10 +417,6 @@ export class ChatDeepSeek extends BaseChatModel {
           const textChunk = new ChatGenerationChunk({
             message: new AIMessageChunk({
               content: delta.content,
-              response_metadata: {
-                model_provider: 'deepseek',
-                model_name: parsed.model ?? this.model,
-              },
               id: parsed.id,
             }),
             text: delta.content,
@@ -437,10 +454,6 @@ export class ChatDeepSeek extends BaseChatModel {
               content: '',
               tool_call_chunks: toolCallChunks,
               additional_kwargs: { tool_calls: delta.tool_calls },
-              response_metadata: {
-                model_provider: 'deepseek',
-                model_name: parsed.model ?? this.model,
-              },
               id: parsed.id,
             }),
             text: '',
