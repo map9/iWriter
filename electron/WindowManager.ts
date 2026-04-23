@@ -185,6 +185,14 @@ export class WindowManager {
       this.loopHeartbeatCheck(windowState)
     });
 
+    // 渲染进程崩溃时自动重载（macOS 休眠恢复等场景）
+    window.webContents.on('render-process-gone', (_, details) => {
+      console.error(`Renderer process gone for window ${windowId}: ${details.reason}`)
+      if (!window.isDestroyed()) {
+        setTimeout(() => window.webContents.reload(), 500)
+      }
+    })
+
     if (isDev) {
       window.webContents.openDevTools()
     }
