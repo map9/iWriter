@@ -552,7 +552,7 @@ export class ChatDeepSeek extends BaseChatModel {
           role: 'assistant',
           content: text,
           ...(Array.isArray(rawToolCalls) && rawToolCalls.length ? { tool_calls: rawToolCalls } : {}),
-          ...(Array.isArray(rawToolCalls) && rawToolCalls.length && reasoning ? { reasoning_content: reasoning } : {}),
+          ...(reasoning ? { reasoning_content: reasoning } : {}),
         }]
       }
 
