@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, shell, dialog, powerMonitor } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, shell, dialog } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import { exec } from 'child_process'
@@ -1203,19 +1203,6 @@ export class App {
         console.debug('UpdaterManager disabled in development mode')
       }
 
-      // macOS 合盖休眠后，Chromium 渲染进程可能进入无效状态（#app 为空）。
-      // 系统唤醒后延迟重载所有窗口，确保 Vue 能正常挂载。
-      powerMonitor.on('resume', () => {
-        console.debug('System resumed from sleep, reloading all windows')
-        setTimeout(() => {
-          BrowserWindow.getAllWindows().forEach(win => {
-            if (!win.isDestroyed()) {
-              console.debug(`Reloading window ${win.id} after system resume`)
-              win.webContents.reload()
-            }
-          })
-        }, 1500)
-      })
     })
   }
 }

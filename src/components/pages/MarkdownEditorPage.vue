@@ -541,7 +541,13 @@ watch(() => editor.value, (newEditor) => {
     nextTick(() => {
       scheduleTypewriterSync(true)
     })
-    appStore.updateTabState(props.tab.id, { editorInstance: newEditor, tocProvider: new MarkdownTocProvider(newEditor)})
+    appStore.updateTabState(props.tab.id, {
+      editorInstance: newEditor,
+      tocProvider: new MarkdownTocProvider(newEditor, {
+        historyScopeId: props.tab.id,
+        isActive: () => props.tab.isActive,
+      })
+    })
   }
 }, { immediate: true })
 

@@ -4,20 +4,42 @@ import type { Editor } from '@tiptap/vue-3'
 import type { TableOfContentData } from '@tiptap/extension-table-of-contents'
 import type { TocProvider, TocItem, UnsubscribeFn } from '@/types/toc'
 
+const TOC_HISTORY_STATE_KEY = '__iwriterToc'
+
+interface TocHistoryStatePayload {
+  scopeId: string
+  itemId: string
+}
+
 export class MarkdownTocProvider implements TocProvider {
   private editor: Editor
   private tocItems: Ref<TocItem[]>
   private updateCallbacks: Set<(items: TocItem[]) => void>
   private unsubscribeTipTapToc: (() => void) | null = null
+  private historyScopeId: string
+  private isActive: () => boolean
+  private readonly handlePopStateBound: (event: PopStateEvent) => void
   
   isLoading = false
 
-  constructor(editor: Editor) {
+  constructor(
+    editor: Editor,
+    options?: {
+      historyScopeId?: string
+      isActive?: () => boolean
+    }
+  ) {
     this.editor = editor
     this.tocItems = ref<TocItem[]>([])
     this.updateCallbacks = new Set()
+    this.historyScopeId = options?.historyScopeId ?? 'default'
+    this.isActive = options?.isActive ?? (() => true)
+    this.handlePopStateBound = event => {
+      this.handlePopState(event)
+    }
     
     this.setupTipTapTocListener()
+    window.addEventListener('popstate', this.handlePopStateBound)
   }
 
   private setupTipTapTocListener(): void {
@@ -63,6 +85,10 @@ export class MarkdownTocProvider implements TocProvider {
   }
 
   navigateToItem(id: string): void {
+    this.navigateToItemInternal(id, true)
+  }
+
+  private navigateToItemInternal(id: string, recordHistory: boolean): void {
     if (!this.editor) {
       console.warn('Editor is not available for navigation')
       return
@@ -85,9 +111,8 @@ export class MarkdownTocProvider implements TocProvider {
       this.editor.view.dispatch(tr)
       this.editor.view.focus()
 
-      // 更新浏览器历史记录
-      if (history.pushState) {
-        history.pushState(null, '', `#${id}`)
+      if (recordHistory) {
+        this.recordHistoryEntry(id)
       }
 
       // 平滑滚动到元素
@@ -105,10 +130,67 @@ export class MarkdownTocProvider implements TocProvider {
       // 降级处理：尝试通过 data 属性查找元素
       const fallbackElement = document.querySelector(`[data-toc-id="${id}"]`)
       if (fallbackElement) {
+        if (recordHistory) {
+          this.recordHistoryEntry(id)
+        }
         fallbackElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
         this.updateActiveState(id)
       }
     }
+  }
+
+  private recordHistoryEntry(id: string): void {
+    if (!history.pushState || !history.replaceState) return
+
+    const currentPayload = this.readHistoryPayload(history.state)
+    const currentActiveId = this.tocItems.value.find(item => item.isActive)?.id ?? null
+
+    if (currentActiveId && (!currentPayload || currentPayload.scopeId !== this.historyScopeId || currentPayload.itemId !== currentActiveId)) {
+      history.replaceState(
+        this.mergeHistoryState(history.state, { scopeId: this.historyScopeId, itemId: currentActiveId }),
+        '',
+        window.location.href
+      )
+    }
+
+    history.pushState(
+      this.mergeHistoryState(history.state, { scopeId: this.historyScopeId, itemId: id }),
+      '',
+      window.location.href
+    )
+  }
+
+  private handlePopState(event: PopStateEvent): void {
+    if (!this.isActive() || !this.editor || this.editor.isDestroyed) return
+
+    const payload = this.readHistoryPayload(event.state)
+    if (!payload || payload.scopeId !== this.historyScopeId) return
+
+    this.navigateToItemInternal(payload.itemId, false)
+  }
+
+  private readHistoryPayload(state: unknown): TocHistoryStatePayload | null {
+    if (!state || typeof state !== 'object') return null
+
+    const record = state as Record<string, unknown>
+    const payload = record[TOC_HISTORY_STATE_KEY]
+    if (!payload || typeof payload !== 'object') return null
+
+    const scopeId = (payload as Record<string, unknown>).scopeId
+    const itemId = (payload as Record<string, unknown>).itemId
+
+    if (typeof scopeId !== 'string' || typeof itemId !== 'string') return null
+
+    return { scopeId, itemId }
+  }
+
+  private mergeHistoryState(state: unknown, payload: TocHistoryStatePayload): Record<string, unknown> {
+    const base = state && typeof state === 'object'
+      ? { ...(state as Record<string, unknown>) }
+      : {}
+
+    base[TOC_HISTORY_STATE_KEY] = payload
+    return base
   }
 
   private updateActiveState(activeId: string): void {
@@ -143,6 +225,7 @@ export class MarkdownTocProvider implements TocProvider {
   destroy(): void {
     // 清理所有回调
     this.updateCallbacks.clear()
+    window.removeEventListener('popstate', this.handlePopStateBound)
     
     // 清理 TipTap 监听器
     if (this.unsubscribeTipTapToc) {
