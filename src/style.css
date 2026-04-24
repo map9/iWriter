@@ -330,4 +330,8 @@
   .ProseMirror pre {
     page-break-inside: avoid;
   }
+
+  .tiptap-invisible-character {
+    display: none !important;
+  }
 }
