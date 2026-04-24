@@ -96,6 +96,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   formatCode: (code: string, language?: string | null) =>
     ipcRenderer.invoke('format-code', { code, language }),
 
+  // Clipboard
+  readClipboardText: () => ipcRenderer.invoke('read-clipboard-text'),
+
   // Menu actions
   onMenuAction: (callback: (action: string) => void) => {
     ipcRenderer.on('menu-action', (_, action) => callback(action))

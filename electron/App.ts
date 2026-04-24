@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, shell, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, shell, dialog, clipboard } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import { exec } from 'child_process'
@@ -260,6 +260,8 @@ export class App {
         this.appQuitTimer?.end()
       }
     })
+
+    ipcMain.handle('read-clipboard-text', () => clipboard.readText())
 
     ipcMain.handle('read-file', async (_, filePath: string) => {
       try {

@@ -76,6 +76,9 @@ export interface ElectronAPI {
   execShell: (command: string, cwd?: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>
   formatCode: (code: string, language?: string | null) => Promise<import('@/types/code-format').CodeFormatResult>
 
+  // 剪贴板（主进程读取，绕过 renderer clipboard-read 权限限制）
+  readClipboardText: () => Promise<string>
+
   // 菜单操作
   onMenuAction: (callback: (action: string) => void) => void
   removeMenuActionListener: (listener?: unknown) => void

@@ -143,8 +143,8 @@ export async function copyAsHtml(editor: Editor): Promise<boolean> {
  */
 export async function pasteAsText(editor: Editor): Promise<boolean> {
   try {
-    // readText() 返回的就是纯文本（即使剪贴板包含 HTML）
-    const text = await navigator.clipboard.readText()
+    // 通过主进程读取剪贴板，避免 renderer clipboard-read 权限问题
+    const text = await window.electronAPI.readClipboardText()
     if (!text) {
       return false
     }
