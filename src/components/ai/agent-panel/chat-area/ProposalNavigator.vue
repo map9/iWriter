@@ -87,7 +87,7 @@
           <div class="p-3">
             <div class="mb-2 text-xs font-medium text-base-content">{{ t('agentPanel.proposalNavigator.insertSuggestion') }}</div>
             <div
-              class="min-h-52 rounded-md border p-2"
+            class="min-h-32 max-h-88 rounded-field border"
               :class="[tonePanelClass, isInsertEditing ? toneRingClass : 'cursor-text']"
               @click="activateInsertEditing"
             >
@@ -95,14 +95,14 @@
                 v-if="isInsertEditing"
                 ref="insertEditorRef"
                 v-model="editedContent"
-                rows="10"
-                class="min-h-48 w-full resize-y border-0 bg-transparent px-1 py-1 text-xs leading-relaxed text-base-content outline-none"
+                class="w-full min-h-32 max-h-88 h-full overflow-y-auto resize-none border-0 bg-transparent px-3 py-2.5 font-mono text-xs leading-relaxed text-base-content outline-none"
                 :placeholder="t('agentPanel.proposalNavigator.insertPlaceholder')"
                 @blur="deactivateInsertEditing"
+                @input="onEditorInput"
               />
               <pre
                 v-else
-                class="min-h-48 whitespace-pre-wrap warp-break-words px-1 py-1 font-mono text-xs leading-relaxed text-base-content"
+                class="min-h-32 max-h-88 overflow-y-auto whitespace-pre-wrap warp-break-words px-1 py-1 font-mono text-xs leading-relaxed text-base-content"
               >{{ editedContent }}</pre>
             </div>
           </div>
@@ -239,6 +239,17 @@ const toneTitleClass = computed(() => currentIsDelete.value ? 'text-error-conten
 const toneDescriptionClass = computed(() => currentIsDelete.value ? 'text-error-content/80' : 'text-base-content/70')
 const toneRingClass = computed(() => currentIsDelete.value ? 'ring-2 ring-error/30' : 'ring-2 ring-warning/30')
 
+function syncEditorHeight() {
+  const el = insertEditorRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+
+function onEditorInput(event: Event) {
+  syncEditorHeight()
+}
+
 function handlePrimaryBatchAction() {
   if (navigatorVm.value.hasReviewProgress) emit('skipRemaining')
   else emit('approveAll')
@@ -249,9 +260,7 @@ function approve() {
   if (hasEditedContent.value && current.value.kind === 'block') {
     emit('editApprove', {
       id: current.value.id,
-      editedArgs: current.value.type === 'insert'
-        ? { new_blocks: editedContent.value }
-        : { new_content: editedContent.value },
+      editedArgs: { new_content: editedContent.value },
     })
     return
   }
@@ -337,7 +346,10 @@ function clearHighlight() {
 function activateInsertEditing() {
   if (current.value?.kind !== 'block' || current.value.type !== 'insert' || isInsertEditing.value) return
   isInsertEditing.value = true
-  nextTick(() => insertEditorRef.value?.focus())
+  nextTick(() => {
+    insertEditorRef.value?.focus()
+    syncEditorHeight()
+  })
 }
 
 function deactivateInsertEditing() {

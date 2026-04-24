@@ -463,7 +463,7 @@ export function buildProposalFromAction(
       displayBlockId: afterId,
       afterNodeId: entry?.nodeId ?? (afterId === 0 ? '0' : undefined),
       anchorContent: entry?.content,
-      newContent: String(args.new_blocks ?? ''),
+      newContent: String(args.new_content ?? ''),
       expectedAnchorContent: typeof args.expected_anchor_content === 'string'
         ? args.expected_anchor_content
         : undefined,

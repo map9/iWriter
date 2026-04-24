@@ -254,11 +254,9 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
     const blockProposal = {
       ...proposal,
       newContent:
-        typeof normalizedEditedArgs.new_blocks === 'string'
-          ? normalizedEditedArgs.new_blocks
-          : typeof normalizedEditedArgs.new_content === 'string'
-            ? normalizedEditedArgs.new_content
-            : proposal.newContent,
+        typeof normalizedEditedArgs.new_content === 'string'
+          ? normalizedEditedArgs.new_content
+          : proposal.newContent,
     }
 
     const liveTurn = deps.ensureLiveTurn()

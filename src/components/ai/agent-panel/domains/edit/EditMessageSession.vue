@@ -38,6 +38,7 @@ const editSession = computed(() =>
   buildEditSessionViewModel({
     message: props.message,
     mode: aiStore.activeThread?.mode,
+    persistedMessages: aiStore.persistedMessages,
     pendingProposals: aiStore.pendingEditProposals,
     isInterrupted: aiStore.isInterrupted,
     interruptedTurnId: aiStore.interruptedTurnId,

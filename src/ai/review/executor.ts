@@ -47,7 +47,7 @@ export function normalizeEditedArgsForProposal(
     case 'insert':
       return {
         after_block_id: proposal.displayBlockId ?? 0,
-        new_blocks: editedArgs.new_blocks ?? editedArgs.new_content ?? proposal.newContent ?? '',
+        new_content: editedArgs.new_content ?? proposal.newContent ?? '',
         expected_anchor_content: proposal.expectedAnchorContent,
         reason: proposal.description,
         file_path: proposal.filePath,
@@ -188,7 +188,6 @@ async function applyRecordedDecision(params: {
     const normalizedEditedArgs = normalizeEditedArgsForProposal(blockProposal, decision.editedArgs)
     setProposalDecision(proposalId, 'edited', { editedArgs: normalizedEditedArgs, message: decision.message })
     if (typeof normalizedEditedArgs.new_content === 'string') blockProposal.newContent = normalizedEditedArgs.new_content
-    if (typeof normalizedEditedArgs.new_blocks === 'string') blockProposal.newContent = normalizedEditedArgs.new_blocks
   }
 
   const result = await applyBlockProposalToTarget(appStore, blockProposal)

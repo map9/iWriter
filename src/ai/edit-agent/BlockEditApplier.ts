@@ -211,7 +211,7 @@ export async function applyEditBlock(
 
 /**
  * insert_block: Insert new blocks after the given block (or at document start if afterNodeId === '0').
- * new_blocks is Markdown that may contain multiple blocks separated by blank lines.
+ * new_content is Markdown that may contain multiple blocks separated by blank lines.
  */
 export async function applyInsertBlock(
   editor: Editor,

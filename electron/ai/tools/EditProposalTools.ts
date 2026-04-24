@@ -43,7 +43,7 @@ export function buildEditProposalTools() {
   )
 
   const insertBlock = tool(
-    async ({ after_block_id, file_path }: { after_block_id: number; new_blocks: string; expected_anchor_content?: string; reason?: string; file_path?: string }) => {
+    async ({ after_block_id, file_path }: { after_block_id: number; new_content: string; expected_anchor_content?: string; reason?: string; file_path?: string }) => {
       const target = file_path ? `file "${file_path}"` : 'the active document'
       return `Insert applied to ${target} after block {b:${after_block_id}}. The document has changed, so block IDs for this file may now be stale. If you need more edits on the same file, call get_document_outline, get_section, or get_blocks again before editing.`
     },
@@ -56,7 +56,7 @@ export function buildEditProposalTools() {
         'When inserting after an existing block, pass expected_anchor_content when available so the insert fails if the anchor moved.',
       schema: z.object({
         after_block_id: z.number().describe('Insert after this block ID. Use 0 to insert at document start.'),
-        new_blocks: z.string().describe('Markdown content of the new block(s) to insert.'),
+        new_content: z.string().describe('Markdown content of the new block(s) to insert.'),
         expected_anchor_content: z
           .string()
           .optional()

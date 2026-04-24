@@ -208,6 +208,7 @@ import { useI18n } from 'vue-i18n'
 import { IconCopy, IconPencil, IconX, IconSend } from '@tabler/icons-vue'
 import type { ThreadMessage, AiToolCall } from '@/ai/types'
 import { BLOCK_EDIT_TOOLS } from '@/ai/types'
+import { isRenderableAssistantMessage } from '@/ai/review/selectors'
 import { useAiStore } from '@/ai/store/ai'
 import MarkdownContentView from './views/MarkdownContentView.vue'
 import ToolCallCard from './views/ToolCallCard.vue'
@@ -316,13 +317,8 @@ const shouldShowThinkingToggle = computed(() => {
 
 const shouldRenderMessage = computed(() => {
   if (props.message.role === 'user') return !!props.message.content || isEditing.value
-  if (visibleContentBlocks.value.length > 0) return true
-  if (!visibleContentBlocks.value.length && !!props.message.content?.trim()) return true
-  if (readToolCalls.value.length > 0) return true
-  if (props.message.editRoundResult) return true
-  if (shouldShowThinkingToggle.value) return true
   if (props.isPreview && !!props.previewStatusText) return true
-  return false
+  return isRenderableAssistantMessage(props.message)
 })
 
 function isReadToolBlockAt(index: number): boolean {

@@ -271,7 +271,7 @@ To create a new document (opens as a new tab in the editor):
 ## Editing Tools
 Choose the narrowest tool:
 - \`edit_block(block_id, new_content, expected_current_content?, reason?, file_path?)\` — change content of one block, keeping type/level.
-- \`insert_block(after_block_id, new_blocks, expected_anchor_content?, reason?, file_path?)\` — insert after a block (0 = doc start).
+- \`insert_block(after_block_id, new_content, expected_anchor_content?, reason?, file_path?)\` — insert after a block (0 = doc start).
 - \`delete_block(block_id, expected_current_content?, reason?, file_path?)\` — delete a block.
 - \`replace_range(start_block_id, end_block_id, new_content, expected_old_content?, reason?, file_path?)\` — replace a range.
   Use for multi-block rewrites OR when changing block type / heading level.

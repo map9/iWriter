@@ -1,4 +1,5 @@
 import type { AiAgentMode, AiToolCall, EditProposal, EditRoundResult, EditRoundResultItem, EditRoundResultState, ThreadMessage } from '@/ai/types'
+import { BLOCK_EDIT_TOOLS } from '@/ai/types'
 import { pathUtils } from '@/utils/pathUtils'
 import type {
   EditSessionPhase,
@@ -9,6 +10,71 @@ import type {
   ProposalReviewSummary,
   ReviewBatchState,
 } from './types'
+
+function hasRenderableTextBlocks(message: ThreadMessage): boolean {
+  return (message.contentBlocks ?? []).some(block => block.type === 'text' && !!block.text?.trim())
+}
+
+function getReadToolCalls(message: ThreadMessage): AiToolCall[] {
+  return (message.toolCalls ?? []).filter(tc => !BLOCK_EDIT_TOOLS.has(tc.name) && tc.name !== 'write_todos')
+}
+
+export function isRenderableAssistantMessage(message: ThreadMessage): boolean {
+  if (message.role !== 'assistant') return false
+  if (hasRenderableTextBlocks(message)) return true
+  if (!!message.content?.trim()) return true
+  if (getReadToolCalls(message).length > 0) return true
+  if (!!message.editRoundResult) return true
+
+  const thinkingContent = message.thinkingContent?.trim() ?? ''
+  if (!thinkingContent) return false
+
+  const hasReadToolOutput = getReadToolCalls(message).length > 0
+  const hasEditHost = !!message.editRoundResult
+  if (!message.content?.trim() && !hasRenderableTextBlocks(message) && !hasReadToolOutput && !hasEditHost) {
+    return false
+  }
+
+  const minLength = import.meta.env.DEV ? 80 : 160
+  return thinkingContent.length >= minLength
+}
+
+export function resolveProposalHostMessageId(input: {
+  mode?: AiAgentMode
+  persistedMessages?: ThreadMessage[]
+  pendingProposals?: EditProposal[]
+  isInterrupted?: boolean
+  interruptedTurnId?: string | null
+}): string | null {
+  const {
+    mode,
+    persistedMessages = [],
+    pendingProposals = [],
+    isInterrupted = false,
+    interruptedTurnId = null,
+  } = input
+
+  if (mode !== 'edit' || !isInterrupted || !pendingProposals.length) return null
+
+  const renderableAssistants = persistedMessages.filter(isRenderableAssistantMessage)
+  if (!renderableAssistants.length) return null
+
+  const byId = new Map(renderableAssistants.map(message => [message.id, message]))
+  const directHost = pendingProposals
+    .map(proposal => proposal.sourceMessageId)
+    .find((messageId): messageId is string => !!messageId && byId.has(messageId))
+  if (directHost) return directHost
+
+  const proposalTurnId = interruptedTurnId
+    ?? pendingProposals.find(proposal => proposal.sourceTurnId)?.sourceTurnId
+    ?? null
+  if (!proposalTurnId) return renderableAssistants[renderableAssistants.length - 1]?.id ?? null
+
+  const turnMatches = renderableAssistants.filter(message => message.turnId === proposalTurnId)
+  if (turnMatches.length) return turnMatches[turnMatches.length - 1]?.id ?? null
+
+  return null
+}
 
 function reviewEntryForDecision(
   proposal: EditProposal,
@@ -133,7 +199,7 @@ export function buildEditRoundResult(batch: ReviewBatchState | null): EditRoundR
       oldContent: proposal.kind === 'block' ? proposal.oldContent : undefined,
       newContent: proposal.kind === 'create_file' ? proposal.content : proposal.newContent,
       finalAppliedContent: state === 'applied_edited'
-        ? decision.editedArgs?.new_blocks as string ?? decision.editedArgs?.new_content as string ?? (proposal.kind === 'create_file' ? proposal.content : proposal.newContent)
+        ? decision.editedArgs?.new_content as string ?? (proposal.kind === 'create_file' ? proposal.content : proposal.newContent)
         : (proposal.kind === 'create_file' ? proposal.content : proposal.newContent),
       failureMessage: state === 'failed_to_apply' ? decision.message : undefined,
       blockInfo: proposal.kind === 'block'
@@ -275,6 +341,7 @@ export function buildProposalNavigatorViewModel(input: {
 interface BuildEditSessionOptions {
   message: ThreadMessage
   mode?: AiAgentMode
+  persistedMessages?: ThreadMessage[]
   pendingProposals?: EditProposal[]
   isInterrupted?: boolean
   interruptedTurnId?: string | null
@@ -289,6 +356,7 @@ export function buildEditSessionViewModel(
   const {
     message,
     mode,
+    persistedMessages = [],
     pendingProposals = [],
     isInterrupted = false,
     interruptedTurnId = null,
@@ -300,6 +368,25 @@ export function buildEditSessionViewModel(
   if (mode !== 'edit' || message.role !== 'assistant') return null
 
   if (isInterrupted && pendingProposals.length) {
+    const hostMessageId = resolveProposalHostMessageId({
+      mode,
+      persistedMessages,
+      pendingProposals,
+      isInterrupted,
+      interruptedTurnId,
+    })
+    if (hostMessageId) {
+      if (message.id === hostMessageId) {
+        return {
+          kind: 'proposal_review',
+          messageId: message.id,
+          phase: 'review_ready',
+          proposals: pendingProposals,
+        }
+      }
+      return null
+    }
+
     const turnMatches = interruptedTurnId
       && pendingProposals.some(proposal => proposal.sourceTurnId === interruptedTurnId)
       && message.turnId === interruptedTurnId

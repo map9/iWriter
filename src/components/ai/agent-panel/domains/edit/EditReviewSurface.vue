@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { buildEditSessionViewModel } from '@/ai/review/selectors'
+import { resolveProposalHostMessageId } from '@/ai/review/selectors'
 import { useAiStore } from '@/ai/store/ai'
 import ProposalNavigator from '../../chat-area/ProposalNavigator.vue'
 
@@ -25,21 +25,14 @@ const aiStore = useAiStore()
 const showFallbackProposalNavigator = computed(() => {
   if (!aiStore.pendingEditProposals.length) return false
 
-  const hasInlineReviewSurface = aiStore.displayMessages.some(entry => {
-    if (entry.message.role !== 'assistant') return false
-    const session = buildEditSessionViewModel({
-      message: entry.message,
-      mode: aiStore.activeThread?.mode,
-      pendingProposals: aiStore.pendingEditProposals,
-      isInterrupted: aiStore.isInterrupted,
-      interruptedTurnId: aiStore.interruptedTurnId,
-      isLatestAssistantMessage: aiStore.latestPersistedAssistantMessageId === entry.message.id,
-      assistantMessageIds: aiStore.persistedAssistantMessageIds,
-      editToolCalls: entry.message.toolCalls?.filter(toolCall => toolCall.kind === 'edit') ?? [],
-    })
-    return session?.kind === 'proposal_review'
+  const hostMessageId = resolveProposalHostMessageId({
+    mode: aiStore.activeThread?.mode,
+    persistedMessages: aiStore.persistedMessages,
+    pendingProposals: aiStore.pendingEditProposals,
+    isInterrupted: aiStore.isInterrupted,
+    interruptedTurnId: aiStore.interruptedTurnId,
   })
 
-  return !hasInlineReviewSurface
+  return !hostMessageId
 })
 </script>
