@@ -123,6 +123,7 @@
     "marked": "^16.2.1",
     "nanoid": "^5.1.6",
     "object-hash": "^3.0.0",
+    "pagedjs": "^0.4.3",
     "pdfjs-dist": "^5.4.149",
     "pinia": "^3.0.3",
     "prettier": "^3.6.2",
