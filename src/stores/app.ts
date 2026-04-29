@@ -45,6 +45,9 @@ export const useAppStore = defineStore('app', () => {
   const isTypewriterMode = ref(false)
   const showPreferencesDialog = ref(false)
   const preferencesInitialTab = ref<PreferencesTab>('editor')
+  const showPrintPreviewDialog = ref(false)
+  const printPreviewHtml = ref('')
+  const printPreviewTitle = ref('')
   const leftSidebarMode = ref<SidebarMode>(SidebarMode.START)
   const searchFolderPath = ref<string | null>(null)
   const leftSidebarWidth = ref(288) // 默认宽度
@@ -1734,6 +1737,19 @@ export const useAppStore = defineStore('app', () => {
     showPreferencesDialog.value = false
   }
 
+  function openPrintPreview(html: string, title?: string) {
+    printPreviewHtml.value = html
+    const activeTab = tabs.value.find(tab => tab.id === activeTabId.value)
+    printPreviewTitle.value = title ?? activeTab?.name ?? 'Untitled'
+    showPrintPreviewDialog.value = true
+  }
+
+  function closePrintPreview() {
+    showPrintPreviewDialog.value = false
+    printPreviewHtml.value = ''
+    printPreviewTitle.value = ''
+  }
+
   // Handle print functionality
   async function handlePrint() {
     const activeTab = tabs.value.find(tab => tab.id === activeTabId.value)
@@ -2031,6 +2047,11 @@ export const useAppStore = defineStore('app', () => {
     getAvailableThemes,
     openPreferences,
     closePreferences,
+    showPrintPreviewDialog,
+    printPreviewHtml,
+    printPreviewTitle,
+    openPrintPreview,
+    closePrintPreview,
 
     // File operations
     openFile,

@@ -106,6 +106,10 @@ export interface ElectronAPI {
 
   // 打印 API
   print: (options?: Electron.WebContentsPrintOptions) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
+  printFromHtml: (htmlContent: string, printOptions?: Electron.WebContentsPrintOptions) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
+  getPrinters: () => Promise<Electron.PrinterInfo[]>
+  saveToPdf: (printOptions?: any, saveOptions?: { defaultName?: string }) => Promise<{ success: boolean; cancelled?: boolean; error?: string; filePath?: string }>
+  saveToPdfFromHtml: (htmlContent: string, printOptions?: any, saveOptions?: { defaultName?: string }) => Promise<{ success: boolean; cancelled?: boolean; error?: string; filePath?: string }>
 
   // ── AI Agent (main-process deepagents) ──────────────────────────────────────
   aiSendMessage?: (req: import('./ai-ipc').SendMessageRequest) => Promise<{ threadId: string }>

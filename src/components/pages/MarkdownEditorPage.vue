@@ -271,10 +271,26 @@
           <IconSourceCode class="icon-sm" />
         </button>
       </div>
-      
+
+      <div class="flex h-10 w-4 items-center justify-center">
+        <div class="h-1/2 w-px bg-base-300"></div>
+      </div>
+
+      <!-- Print Preview Button -->
+      <div class="iw-toolbar-group">
+        <button
+          @click="openPrintPreview"
+          :disabled="!editor"
+          class="iw-toolbar-btn btn-sm"
+          title="Print Preview (⌘P)"
+        >
+          <IconPrinter class="icon-sm" />
+        </button>
+      </div>
+
       <!-- Spacer -->
       <div class="iw-toolbar-spacer"></div>
-      
+
       <!-- Clean Mode Button -->
       <div class="iw-toolbar-group">
         <button
@@ -350,7 +366,8 @@ import {
   IconBlockquote,
   IconFunction,
   IconSourceCode,
-  IconMaximize
+  IconMaximize,
+  IconPrinter
 } from '@tabler/icons-vue'
 
 import type { EditSetting, FileTab } from '@/types'
@@ -765,8 +782,17 @@ function handleVisibilityChange() {
 }
 
 // Handle menu actions
+function openPrintPreview() {
+  if (editor.value) {
+    appStore.openPrintPreview(editor.value.getHTML(), props.tab.name)
+  }
+}
+
 async function handleMenuAction(action: string): Promise<boolean> {
   switch (action) {
+    case 'print':
+      openPrintPreview()
+      return true
     case 'line-ending-crlf':
       setLineEnding('CRLF')
       return true

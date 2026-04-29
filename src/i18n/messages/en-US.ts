@@ -726,5 +726,95 @@ export default {
       detailTabReadonly:
         "This tab is in read-only mode. Disable read-only to save, or choose Don't Save to discard the changes.",
     },
+    printPreviewDialog: {
+      title: 'Print',
+      untitled: 'Untitled',
+      sheets: '{count} sheets',
+      moreSettings: 'More settings',
+      systemDialog: 'Print using system dialog...(Option+Command+P)',
+      preview: {
+        zoomResetTitle: 'Click to reset to fit page (Ctrl+wheel to zoom)',
+      },
+      printer: {
+        label: 'Printer',
+        saveAsPdf: 'Save as PDF',
+      },
+      pageRange: {
+        label: 'Pages',
+        placeholder: 'e.g. 1-5, 8',
+        options: {
+          all: 'All',
+          odd: 'Odd pages only',
+          even: 'Even pages only',
+          custom: 'Custom',
+        },
+      },
+      copies: {
+        label: 'Copies',
+      },
+      printTheme: {
+        label: 'Print theme',
+      },
+      orientation: {
+        label: 'Layout',
+        options: {
+          portrait: 'Portrait',
+          landscape: 'Landscape',
+        },
+      },
+      paperSize: {
+        label: 'Paper size',
+      },
+      pagesPerSheet: {
+        label: 'Pages per sheet',
+      },
+      margins: {
+        label: 'Margins',
+        options: {
+          theme: 'Theme default',
+          default: 'Default',
+          none: 'None',
+          minimum: 'Minimum',
+        },
+      },
+      quality: {
+        label: 'Print quality',
+      },
+      scale: {
+        label: 'Scale',
+        options: {
+          default: 'Default (100%)',
+          custom: 'Custom',
+        },
+      },
+      color: {
+        label: 'Color',
+        options: {
+          color: 'Color',
+          grayscale: 'Black & white',
+        },
+      },
+      options: {
+        label: 'Options',
+        printBackground: 'Background graphics',
+        printHeaderFooter: 'Print headers and footers',
+      },
+      actions: {
+        cancel: 'Cancel',
+        print: 'Print',
+        saveAsPdf: 'Save as PDF...',
+      },
+      validation: {
+        scalePositive: 'Enter a scale greater than 0. Preview is currently shown at 100%.',
+        pageRangeInvalid: 'Invalid page range format. Preview is currently showing all pages.',
+        pageRangeOutOfRange: 'Page range is out of bounds. Preview is currently showing all pages.',
+      },
+      notifications: {
+        previewFailed: 'Failed to generate preview',
+        printFailed: 'Print failed',
+        savePdfFailed: 'Failed to save PDF',
+        pdfSaved: 'PDF saved',
+      },
+    },
   },
 }

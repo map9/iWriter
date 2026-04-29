@@ -716,5 +716,95 @@ export default {
       detailFileReadonly: '该文件在磁盘上是只读的。请使用“另存为”保存为新文件，或选择“不保存”丢弃更改。',
       detailTabReadonly: '当前标签处于只读模式。可先关闭只读再保存，或选择“不保存”丢弃更改。',
     },
+    printPreviewDialog: {
+      title: '打印',
+      untitled: '未命名',
+      sheets: '{count} 张纸',
+      moreSettings: '更多设置',
+      systemDialog: '使用系统对话框进行打印...(⌥⌘P)',
+      preview: {
+        zoomResetTitle: '点击恢复适合页面 (Ctrl+滚轮 缩放)',
+      },
+      printer: {
+        label: '目标打印机',
+        saveAsPdf: '另存为 PDF',
+      },
+      pageRange: {
+        label: '页面',
+        placeholder: '例：1-5, 8',
+        options: {
+          all: '全部',
+          odd: '仅限奇数页',
+          even: '仅限偶数页',
+          custom: '自定义',
+        },
+      },
+      copies: {
+        label: '份数',
+      },
+      printTheme: {
+        label: '打印主题',
+      },
+      orientation: {
+        label: '布局',
+        options: {
+          portrait: '纵向',
+          landscape: '横向',
+        },
+      },
+      paperSize: {
+        label: '纸张尺寸',
+      },
+      pagesPerSheet: {
+        label: '每版打印页数',
+      },
+      margins: {
+        label: '边距',
+        options: {
+          theme: '主题默认',
+          default: '默认',
+          none: '无',
+          minimum: '最小',
+        },
+      },
+      quality: {
+        label: '打印质量',
+      },
+      scale: {
+        label: '缩放',
+        options: {
+          default: '默认 (100%)',
+          custom: '自定义',
+        },
+      },
+      color: {
+        label: '颜色',
+        options: {
+          color: '彩色',
+          grayscale: '黑白',
+        },
+      },
+      options: {
+        label: '选项',
+        printBackground: '背景图形',
+        printHeaderFooter: '打印页眉和页脚',
+      },
+      actions: {
+        cancel: '取消',
+        print: '打印',
+        saveAsPdf: '保存为 PDF...',
+      },
+      validation: {
+        scalePositive: '请输入大于 0 的缩放值；当前按 100% 预览。',
+        pageRangeInvalid: '页码格式无效；当前按全部页面预览。',
+        pageRangeOutOfRange: '页码超出范围；当前按全部页面预览。',
+      },
+      notifications: {
+        previewFailed: '预览生成失败',
+        printFailed: '打印失败',
+        savePdfFailed: '保存 PDF 失败',
+        pdfSaved: 'PDF 已保存',
+      },
+    },
   },
 }

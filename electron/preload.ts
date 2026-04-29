@@ -141,7 +141,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Print API
+  getPrinters: () => ipcRenderer.invoke('get-printers'),
   print: (options: any = {}) => ipcRenderer.invoke('print', options),
+  printFromHtml: (htmlContent: string, printOptions?: any) => ipcRenderer.invoke('print-from-html', htmlContent, printOptions),
+  saveToPdfFromHtml: (htmlContent: string, printOptions?: any, saveOptions?: any) => ipcRenderer.invoke('save-to-pdf-from-html', htmlContent, printOptions, saveOptions),
 
   // ── AI Agent (main-process deepagents) ────────────────────────────────────
   aiSendMessage: (req: any) => ipcRenderer.invoke('ai:send-message', req),

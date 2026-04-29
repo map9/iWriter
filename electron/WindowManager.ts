@@ -1,5 +1,6 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import * as path from 'path'
+import * as fs from 'fs'
 import { merge } from 'lodash'
 
 import Timer from '../src/utils/Timer'
@@ -291,21 +292,100 @@ export class WindowManager {
         };
 
         window.webContents.print(printOptions, (success: boolean, errorType?: string) => {
-          // Check if print was cancelled by user
-          const isCancelled = errorType && (
-            errorType.toLowerCase().includes('cancel') ||
-            errorType.toLowerCase().includes('cancelled') ||
-            errorType.toLowerCase().includes('user abort') ||
-            errorType.toLowerCase().includes('abort')
-          );
-          
-          resolve({ 
-            success, 
+          resolve({
+            success,
             error: errorType || (success ? null : 'Unknown print error'),
-            cancelled: isCancelled || false
+            cancelled: this.isPrintCancelled(errorType),
           });
         });
       });
+    })
+
+    ipcMain.handle('get-printers', async (event) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (!window) return []
+      try {
+        return await window.webContents.getPrintersAsync()
+      } catch {
+        return []
+      }
+    })
+
+    ipcMain.handle('print-from-html', async (event, htmlContent: string, printOptions: any = {}) => {
+      if (!BrowserWindow.fromWebContents(event.sender)) return { success: false, error: 'Window not found' }
+      try {
+        return await this.renderInHiddenHtmlWindow(htmlContent, (hidden) =>
+          new Promise((resolve) => {
+            hidden.webContents.print(printOptions, (success: boolean, errorType?: string) => {
+              resolve({
+                success,
+                error: errorType || (success ? null : 'Unknown print error'),
+                cancelled: this.isPrintCancelled(errorType),
+              })
+            })
+          })
+        )
+      } catch (err: any) {
+        return { success: false, error: err?.message ?? String(err) }
+      }
+    })
+
+    ipcMain.handle('save-to-pdf-from-html', async (event, htmlContent: string, pdfOptions: any = {}, saveOptions: any = {}) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (!win) return { success: false, error: 'Window not found' }
+
+      const saveResult = await dialog.showSaveDialog(win, {
+        title: '保存为 PDF',
+        defaultPath: saveOptions?.defaultName ?? 'document.pdf',
+        filters: [{ name: 'PDF 文件', extensions: ['pdf'] }],
+      })
+      if (saveResult.canceled || !saveResult.filePath) {
+        return { success: false, cancelled: true }
+      }
+
+      const filePath = saveResult.filePath
+      try {
+        return await this.renderInHiddenHtmlWindow(htmlContent, async (hidden) => {
+          const buffer = await hidden.webContents.printToPDF({
+            printBackground: pdfOptions.printBackground ?? false,
+            landscape: pdfOptions.landscape ?? false,
+            pageSize: pdfOptions.pageSize,
+            pageRanges: pdfOptions.pageRanges ?? '',
+            displayHeaderFooter: pdfOptions.displayHeaderFooter ?? false,
+            scale: pdfOptions.scale ?? 1,
+            preferCSSPageSize: pdfOptions.preferCSSPageSize ?? true,
+            margins: pdfOptions.margins ?? { top: 0, bottom: 0, left: 0, right: 0 },
+          })
+          await fs.promises.writeFile(filePath, Buffer.from(buffer))
+          return { success: true, filePath }
+        })
+      } catch (err: any) {
+        return { success: false, error: err?.message ?? String(err) }
+      }
+    })
+
+    // Save current window content as PDF via native save dialog
+    ipcMain.handle('save-to-pdf', async (event, printOptions: any = {}, saveOptions: any = {}) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (!window) return { success: false, error: 'Window not found' }
+
+      const saveResult = await dialog.showSaveDialog(window, {
+        title: '保存为 PDF',
+        defaultPath: saveOptions.defaultName ?? 'document.pdf',
+        filters: [{ name: 'PDF 文件', extensions: ['pdf'] }],
+      })
+
+      if (saveResult.canceled || !saveResult.filePath) {
+        return { success: false, cancelled: true }
+      }
+
+      try {
+        const pdfBuffer = await window.webContents.printToPDF(printOptions)
+        await fs.promises.writeFile(saveResult.filePath, pdfBuffer)
+        return { success: true, filePath: saveResult.filePath }
+      } catch (err: any) {
+        return { success: false, error: err?.message ?? String(err) }
+      }
     })
 
     ipcMain.handle('window-content-changed', async (event, wContentState: WindowContentState) => {
@@ -334,6 +414,47 @@ export class WindowManager {
         }
       }
     })
+  }
+
+  private isPrintCancelled(errorType?: string): boolean {
+    const t = (errorType ?? '').toLowerCase()
+    return t.includes('cancel') || t.includes('user abort') || t.includes('abort')
+  }
+
+  private async renderInHiddenHtmlWindow<T>(
+    htmlContent: string,
+    action: (hidden: BrowserWindow) => Promise<T>
+  ): Promise<T> {
+    const tmpFile = path.join(app.getPath('temp'), `iwriter-print-${Date.now()}.html`)
+    await fs.promises.writeFile(tmpFile, htmlContent, 'utf-8')
+    const hidden = new BrowserWindow({
+      show: false,
+      width: 1200,
+      height: 900,
+      webPreferences: { nodeIntegration: false, contextIsolation: true },
+    })
+    try {
+      await hidden.loadFile(tmpFile)
+      // loadFile() resolves after did-finish-load; poll until paged.js renders its first page element
+      await new Promise<void>((resolve, reject) => {
+        const deadline = Date.now() + 30000
+        const poll = async () => {
+          if (Date.now() > deadline) { reject(new Error('pagedjs rendering timeout')); return }
+          try {
+            const ready = await hidden.webContents.executeJavaScript(
+              'document.querySelector(".pagedjs_page, .pps_pages_sheet") !== null'
+            )
+            if (ready) { setTimeout(resolve, 600); return }
+          } catch { /* executeJavaScript may fail briefly after load */ }
+          setTimeout(poll, 300)
+        }
+        setTimeout(poll, 800)
+      })
+      return await action(hidden)
+    } finally {
+      hidden.close()
+      fs.promises.unlink(tmpFile).catch(() => {})
+    }
   }
 
   destroy(): void {
