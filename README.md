@@ -174,6 +174,24 @@ npm run build:quick
 - `npm run type-check` 通过
 - `npm run build:quick` 通过
 
+## 文档站点
+
+文档站点基于 `VitePress`，源码位于 `docs/`。
+
+本地预览与构建：
+
+```bash
+npm run docs:dev
+npm run docs:build
+```
+
+GitHub Pages 发布：
+
+- 工作流文件：`.github/workflows/docs-pages.yml`
+- 触发条件：`main` 分支下 `docs/**`、工作流文件、`package*.json` 发生变更
+- 构建产物：`docs/.vitepress/dist`
+- 发布方式：GitHub Actions 构建后部署到 GitHub Pages
+
 ## 打包与发布
 
 ### 常用命令

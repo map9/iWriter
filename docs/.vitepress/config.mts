@@ -1,6 +1,9 @@
 import { defineConfig } from 'vitepress'
 
 const base = process.env.BASE_PATH || '/'
+const repositoryUrl = process.env.DOCS_REPO_URL || 'https://github.com/map9/iWriter'
+const editLinkPattern =
+  process.env.DOCS_EDIT_LINK_PATTERN || `${repositoryUrl}/edit/main/docs/:path`
 
 export default defineConfig({
   lang: 'zh-CN',
@@ -58,9 +61,9 @@ export default defineConfig({
         }
       ]
     },
-    socialLinks: [{ icon: 'github', link: 'https://github.com/map9/iWriter' }],
+    socialLinks: [{ icon: 'github', link: repositoryUrl }],
     editLink: {
-      pattern: 'https://github.com/sunyafu/iwriter.github.io/edit/main/docs/:path',
+      pattern: editLinkPattern,
       text: '在 GitHub 上编辑此页'
     },
     footer: {
