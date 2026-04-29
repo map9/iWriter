@@ -33,7 +33,6 @@ jobs:
     name: Build docs
     runs-on: ubuntu-latest
     env:
-      BASE_PATH: ${{ steps.pages.outputs.base_path }}
       DOCS_REPO_URL: https://github.com/${{ github.repository }}
       DOCS_EDIT_LINK_PATTERN: https://github.com/${{ github.repository }}/edit/${{ github.ref_name }}/docs/:path
     steps:
@@ -69,9 +68,13 @@ jobs:
           echo "PACKAGE_VERSION=${PACKAGE_VERSION}" >> "${GITHUB_ENV}"
 
       - name: Build docs site
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
         run: npm run docs:build
 
       - name: Publish summary
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
         run: |
           if [[ "${PUBLISH_KIND}" == "release" ]]; then
             echo "Publishing release docs for version ${PACKAGE_VERSION}." >> "${GITHUB_STEP_SUMMARY}"
