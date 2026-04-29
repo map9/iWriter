@@ -117,7 +117,7 @@
   />
 
   <!-- Print Preview Dialog -->
-  <PrintPreviewDialog
+  <PrintDialog
     :visible="appStore.showPrintPreviewDialog"
     :html="appStore.printPreviewHtml"
     :title="appStore.printPreviewTitle"
@@ -146,7 +146,7 @@ import PDFViewerPage from '@/components/pages/PDFViewerPage.vue'
 import UnknownPage from '@/components/pages/UnknownPage.vue'
 import UpdateDialog from '@/components/updater/UpdateDialog.vue'
 import PreferencesDialog from '@/components/preferences/PreferencesDialog.vue'
-import PrintPreviewDialog from '@/components/print-preview/PrintPreviewDialog.vue'
+import PrintDialog from '@/components/print/PrintDialog.vue'
 
 const appStore = useAppStore()
 const aiStore = useAiStore()
