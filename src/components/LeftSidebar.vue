@@ -115,12 +115,12 @@ const mainSidebarModes = computed(() => [
     key: SidebarMode.SEARCH as const,
     title: 'Search',
     icon: IconSearch
-  },
+  }/*,
   {
     key: SidebarMode.TAG as const,
     title: 'By TAG',
     icon: IconTag
-  }
+  }*/
 ])
 
 function handleModeClick(mode: SidebarMode) {
