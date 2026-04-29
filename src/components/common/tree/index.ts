@@ -60,6 +60,9 @@ export interface FileTreeNode extends TreeNode {
   path: string
   size?: number
   isOpen?: boolean
+  isHidden?: boolean
+  isWritable?: boolean
+  isReadonly?: boolean
   created?: Date
   modified?: Date
 }

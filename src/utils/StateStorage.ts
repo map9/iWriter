@@ -1,5 +1,6 @@
 import type { EditSetting } from '@/types'
 import { SidebarMode, DocumentType } from '@/types'
+import { DEFAULT_WORKSPACE_IGNORE_RULES } from '@/services/workspace/filtering'
 
 // Storage Keys
 export const STORAGE_KEYS = {
@@ -64,6 +65,7 @@ export const DEFAULT_EDIT_SETTING: EditSetting = {
   proofreadLanguage: 'en-US',
   proofreadApiUrl: 'https://api.languagetool.org/v2/check',
   proofreadApiKey: '',
+  workspaceIgnoreRules: DEFAULT_WORKSPACE_IGNORE_RULES,
 }
 
 export const DEFAULT_WORKSPACE_STATE: WorkspaceState = {

@@ -17,6 +17,11 @@ import { AiConfigStore } from './ai/config/AiConfigStore'
 import type { AiSettings } from '../src/types/ai'
 import { formatCodeInMain } from './CodeFormatService'
 import { createMainTranslator, formatMainText } from './i18n'
+import {
+  DEFAULT_WORKSPACE_IGNORE_RULES,
+  parseWorkspaceIgnoreRules,
+  shouldIncludeWorkspaceEntry,
+} from '../src/services/workspace/filtering'
 export class App {
   private fileWatchers: Map<string, FSWatcher>
   private menuManager: MenuManager
@@ -324,7 +329,8 @@ export class App {
               modified: stats?.mtime,
               accessed: stats?.atime,
               changed: stats?.ctime,
-              isWritable
+              isWritable,
+              isHidden: file.name.startsWith('.')
             }
           })
         } else {
@@ -340,7 +346,8 @@ export class App {
             modified: stats?.mtime,
             accessed: stats?.atime,
             changed: stats?.ctime,
-            isWritable
+            isWritable,
+            isHidden: path.basename(folderPath).startsWith('.')
           }]
         }
       } catch (error) {
@@ -618,7 +625,6 @@ export class App {
 
         // 创建新的监听器
         const watcher = chokidar.watch(folderPath, {
-          ignored: /(^|[\/\\])\../, // 忽略隐藏文件
           awaitWriteFinish: true, // emit single event when chunked writes are completed
           atomic: true, // emit proper events when "atomic writes" (mv _tmp file) are used
           // The options also allow specifying custom intervals in ms
@@ -819,19 +825,7 @@ export class App {
           return []
         }
 
-        // 默认排除的目录和文件模式
-        const defaultExcludePatterns = [
-          'node_modules/**',
-          '.git/**',
-          'dist/**',
-          'build/**',
-          '.vscode/**',
-          '.idea/**',
-          '*.min.js',
-          '*.min.css',
-          'package-lock.json',
-          'yarn.lock'
-        ]
+        const ignoreMatcher = parseWorkspaceIgnoreRules(DEFAULT_WORKSPACE_IGNORE_RULES)
 
         // 二进制文件扩展名
         const binaryExtensions = new Set([
@@ -856,15 +850,15 @@ export class App {
               if (totalMatches >= maxResults) break
 
               const fullPath = path.join(dir, item.name)
-              const relativePath = path.relative(folderPath, fullPath)
+              const relativePath = path.relative(folderPath, fullPath).replace(/\\/g, '/')
+              const shouldInclude = shouldIncludeWorkspaceEntry(
+                { relativePath, isDirectory: item.isDirectory() },
+                ignoreMatcher,
+                item.isDirectory() ? undefined : includePattern,
+                excludePattern
+              )
 
-              // 检查是否应该排除
-              const shouldExclude = defaultExcludePatterns.some(pattern => {
-                const regex = new RegExp(pattern.replace(/\*/g, '.*').replace(/\//g, '\\/'))
-                return regex.test(relativePath) || regex.test(item.name)
-              })
-
-              if (shouldExclude) continue
+              if (!shouldInclude) continue
 
               if (item.isDirectory()) {
                 searchInDirectory(fullPath)

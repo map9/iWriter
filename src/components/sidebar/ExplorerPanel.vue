@@ -137,6 +137,8 @@ import {
   IconChevronDown,
   IconFoldUp,
   IconArrowsSort,
+  IconLock,
+  IconEyeOff,
 } from '@tabler/icons-vue'
 
 const appStore = useAppStore()
@@ -179,6 +181,7 @@ const rootChildren = computed(() => {
   }
   
   const children = [...appStore.fileTree.children]
+  children.forEach(child => applyNodeAppearance(child as FileTreeNode))
   
   if (appStore.currentFileTreeSortType !== 'none') {
     appStore.sortFileTreeNodes(children as FileTreeNode[], appStore.currentFileTreeSortType)
@@ -242,6 +245,12 @@ const fileCallbacks: FileTreeCallbacks = {
   getCollapseIcon: (node) => (node as FileTreeNode).type === 'folder' ? IconChevronDown : undefined,
   getTypeIcon: (node) => {
     const fileNode = node as FileTreeNode
+    if (fileNode.isReadonly) {
+      return IconLock
+    }
+    if (fileNode.isHidden) {
+      return IconEyeOff
+    }
     if (fileNode.type === 'folder') {
       return fileNode.isExpanded && ((fileNode.children?.length ?? 0) > 0) ? IconFolderOpen : IconFolder
     }
@@ -290,6 +299,17 @@ const fileCallbacks: FileTreeCallbacks = {
   onDrop: (dragNode, dropNode, position) => {
     handleFileDrop(dragNode as FileTreeNode, dropNode as FileTreeNode, position)
   }
+}
+
+const applyNodeAppearance = (node: FileTreeNode) => {
+  const isDimmed = node.isHidden === true || node.isReadonly === true
+  node.data = {
+    ...(typeof node.data === 'object' && node.data !== null ? node.data : {}),
+    treeIconClass: isDimmed ? 'text-base-content/45' : 'text-base-content/80',
+    treeLabelStyle: isDimmed ? { opacity: '0.6' } : undefined,
+  }
+
+  node.children?.forEach(child => applyNodeAppearance(child as FileTreeNode))
 }
 
 // Event handlers

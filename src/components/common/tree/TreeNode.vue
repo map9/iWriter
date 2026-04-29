@@ -11,8 +11,8 @@
     <div
       ref="nodeContentRef"
       class="tree-node-content"
-      :class="[dropTargetClasses, selectedClasses]"
-      :style="{ paddingLeft: `${(depth + initialDepth) * 12 + 8}px` }"
+      :class="[dropTargetClasses, selectedClasses, customRowClass]"
+      :style="customRowStyle"
       :title = "node.path"
       @click="handleClick($event)"
       @contextmenu.stop="handleContextMenu"
@@ -54,13 +54,15 @@
 
       <!-- Type Icon -->
       <div v-if="typeIcon" class="icon-wrapper">
-        <component :is="typeIcon" class="type-icon" />
+        <component :is="typeIcon" class="type-icon" :class="customIconClass" :style="customIconStyle" />
       </div>
 
       <!-- Label -->
       <div
         v-if="!isRenaming"
         class="label"
+        :class="customLabelClass"
+        :style="customLabelStyle"
         @click="handleLabelClick"
         @dblclick="handleDoubleClick"
       >
@@ -195,6 +197,23 @@ const typeIcon = computed(() => {
 const rightContent = computed(() => {
   return props.callbacks?.getRightContent?.(props.node) || null
 })
+
+const customTreeData = computed(() => {
+  if (props.node.data && typeof props.node.data === 'object') {
+    return props.node.data as Record<string, unknown>
+  }
+  return {}
+})
+
+const customRowClass = computed(() => customTreeData.value.treeRowClass as string | string[] | Record<string, boolean> | undefined)
+const customRowStyle = computed(() => ({
+  paddingLeft: `${(props.depth + props.initialDepth) * 12 + 8}px`,
+  ...(customTreeData.value.treeRowStyle as Record<string, string> | undefined),
+}))
+const customIconClass = computed(() => customTreeData.value.treeIconClass as string | string[] | Record<string, boolean> | undefined)
+const customIconStyle = computed(() => customTreeData.value.treeIconStyle as Record<string, string> | undefined)
+const customLabelClass = computed(() => customTreeData.value.treeLabelClass as string | string[] | Record<string, boolean> | undefined)
+const customLabelStyle = computed(() => customTreeData.value.treeLabelStyle as Record<string, string> | undefined)
 
 // Check if this is a first-level node (depth === 0) and has a parent (root node)
 const isFirstLevelNode = computed(() => {

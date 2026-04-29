@@ -14,4 +14,5 @@ export interface EditSetting {
   proofreadLanguage?: string
   proofreadApiUrl?: string
   proofreadApiKey?: string
+  workspaceIgnoreRules?: string
 }

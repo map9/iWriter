@@ -1,6 +1,11 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import type { SerializedBlockEntry, SerializedSnapshot } from '../ipc/protocol'
+import {
+  DEFAULT_WORKSPACE_IGNORE_RULES,
+  parseWorkspaceIgnoreRules,
+  shouldIncludeWorkspaceEntry,
+} from '../../../src/services/workspace/filtering'
 
 export const SUPPORTED_DOC_EXTS = new Set(['md', 'txt', 'iwt'])
 
@@ -147,32 +152,6 @@ function aggregateSections(blockMatches: BlockMatch[]): SectionMatch[] {
   return Array.from(sections.values())
 }
 
-function wildcardToRegex(glob: string): RegExp {
-  const escaped = glob
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '.*')
-    .replace(/\?/g, '.')
-  return new RegExp(`^${escaped}$`, 'i')
-}
-
-function matchesGlob(filePath: string, workspacePath: string, glob?: string): boolean {
-  if (!glob?.trim()) return true
-  const re = wildcardToRegex(glob)
-  const relative = path.relative(workspacePath, filePath).replace(/\\/g, '/')
-  return re.test(relative) || re.test(path.basename(filePath))
-}
-
-function shouldIncludeFile(
-  filePath: string,
-  workspacePath: string,
-  includeGlob?: string,
-  excludeGlob?: string
-): boolean {
-  if (!matchesGlob(filePath, workspacePath, includeGlob)) return false
-  if (excludeGlob?.trim() && matchesGlob(filePath, workspacePath, excludeGlob)) return false
-  return true
-}
-
 export function listWorkspaceDocumentPaths(
   workspacePath: string,
   includeGlob?: string,
@@ -180,6 +159,7 @@ export function listWorkspaceDocumentPaths(
   maxFiles = 200
 ): string[] {
   const results: string[] = []
+  const matcher = parseWorkspaceIgnoreRules(DEFAULT_WORKSPACE_IGNORE_RULES)
 
   function walk(dirPath: string): void {
     if (results.length >= maxFiles) return
@@ -193,17 +173,23 @@ export function listWorkspaceDocumentPaths(
     for (const entry of entries) {
       if (results.length >= maxFiles) return
       const fullPath = path.join(dirPath, entry.name)
+      const relativePath = path.relative(workspacePath, fullPath).replace(/\\/g, '/')
+      const shouldIncludeEntry = shouldIncludeWorkspaceEntry(
+        { relativePath, isDirectory: entry.isDirectory() },
+        matcher,
+        entry.isDirectory() ? undefined : includeGlob,
+        excludeGlob
+      )
+
       if (entry.isDirectory()) {
-        if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'build') {
-          continue
-        }
+        if (!shouldIncludeEntry) continue
         walk(fullPath)
         continue
       }
       if (!entry.isFile()) continue
       const ext = path.extname(entry.name).replace(/^\./, '').toLowerCase()
       if (!SUPPORTED_DOC_EXTS.has(ext)) continue
-      if (!shouldIncludeFile(fullPath, workspacePath, includeGlob, excludeGlob)) continue
+      if (!shouldIncludeEntry) continue
       results.push(fullPath)
     }
   }
@@ -281,4 +267,3 @@ export class DocumentSearch {
     }, null, 2)
   }
 }
-

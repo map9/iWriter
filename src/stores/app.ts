@@ -28,6 +28,13 @@ import {
 import { convertContentTo } from '@/import-export/'
 import { StateStorage, type WorkspaceState } from '@/utils/StateStorage'
 import { detectPreferredLocale, i18n, resolveLocale, setAppLocale, type AppLocale } from '@/i18n'
+import {
+  DEFAULT_WORKSPACE_IGNORE_RULES,
+  getWorkspaceEntriesRaw,
+  listWorkspaceEntries,
+  parseWorkspaceIgnoreRules,
+  shouldIncludeWorkspaceEntry,
+} from '@/services/workspace/filtering'
 
 export const useAppStore = defineStore('app', () => {
   type PreferencesTab = 'editor' | 'spelling' | 'themes' | 'ai' | 'updates'
@@ -62,7 +69,8 @@ export const useAppStore = defineStore('app', () => {
     firstLineIndent: true,
     smartPunctuation: true,
     showProofreadErrors: true,
-    proofread: true
+    proofread: true,
+    workspaceIgnoreRules: DEFAULT_WORKSPACE_IGNORE_RULES,
   })
 
   // Heart beat
@@ -336,6 +344,11 @@ export const useAppStore = defineStore('app', () => {
   const saveEditSettingDebounced = debounce(() => {
     StateStorage.saveEditSetting(globalEditSetting)
   }, 500)
+
+  const reloadFileTreeForFiltersDebounced = debounce(async () => {
+    if (!currentFolder.value) return
+    await loadFileTree()
+  }, 300)
 
   const saveAutoSaveDebounced = debounce(() => {
     StateStorage.saveAutoSave(autoSaveEnabled.value)
@@ -719,6 +732,9 @@ export const useAppStore = defineStore('app', () => {
         isEnabled: true,
         data: {},
         isOpen: false,
+        isHidden: file.isHidden ?? file.name.startsWith('.'),
+        isWritable: file.isWritable,
+        isReadonly: file.isWritable === false,
         created: file.created,
         modified: file.modified,
       }
@@ -735,38 +751,52 @@ export const useAppStore = defineStore('app', () => {
     if (!dirPath || !window.electronAPI) return undefined
     
     try {
-      // 使用 await 等待异步操作完成
-      const files = await window.electronAPI.getFiles(dirPath)
+      const workspaceRoot = currentFolder.value ?? dirPath
+      const matcher = parseWorkspaceIgnoreRules(globalEditSetting.workspaceIgnoreRules)
+      const files = await getWorkspaceEntriesRaw(dirPath, workspaceRoot)
+
       if (files && Array.isArray(files)) {
         // 使用 Promise.all 处理所有子目录的异步操作
         const fileTree = await Promise.all(
           files.map(async (file) => {
+            let children: FileTreeNode[] | undefined
+            if (file.isDirectory) {
+              children = await traverseFileTree(file.path)
+            }
+
+            const shouldIncludeNode = shouldIncludeWorkspaceEntry(file, matcher)
+            if (!shouldIncludeNode && (!children || children.length === 0)) {
+              return null
+            }
+
             const node: FileTreeNode = {
               id: generateId(),
               label: file.name,
               path: file.path,
               type: file.isDirectory ? 'folder' : 'file',
-              children: file.isDirectory ? [] : undefined,
+              children,
               parent: parent,
               isExpanded: file.isDirectory ? false : undefined,
               isVisible: true,
               isEnabled: true,
               data: {},
               isOpen: false,
+              isHidden: file.isHidden,
+              isWritable: file.isWritable,
+              isReadonly: file.isReadonly,
               created: file?.created,
               modified: file?.modified,
             }
 
-            // 如果是目录，递归读取子内容
-            if (file.isDirectory) {
-              node.children = await traverseFileTree(file.path, node)
-            }
+            node.children?.forEach(child => {
+              child.parent = node
+            })
             
             return node
           })
         )
-        
-        return fileTree
+
+        return fileTree.filter((node): node is FileTreeNode => node !== null)
       }      
     } catch (error) {
       throw(error)
@@ -918,6 +948,9 @@ export const useAppStore = defineStore('app', () => {
           isEnabled: true,
           data: {},
           size: 0,
+          isHidden: pathUtils.basename(filePath).startsWith('.'),
+          isWritable: true,
+          isReadonly: false,
           created: date,
           modified: date,
         }
@@ -964,6 +997,9 @@ export const useAppStore = defineStore('app', () => {
           isVisible: true,
           isEnabled: true,
           data: {},
+          isHidden: pathUtils.basename(folderPath).startsWith('.'),
+          isWritable: true,
+          isReadonly: false,
           created: date,
           modified: date,
         }
@@ -999,6 +1035,9 @@ export const useAppStore = defineStore('app', () => {
           childNode.label = pathUtils.basename(filePath)
           childNode.path = filePath
           childNode.data = {}
+          childNode.isHidden = pathUtils.basename(filePath).startsWith('.')
+          childNode.isWritable = true
+          childNode.isReadonly = false
           childNode.created = date
           childNode.modified = date
           notify.success(t('notify.file.createSuccess', { name: filePath }), t('notify.file.operation'))
@@ -1009,6 +1048,9 @@ export const useAppStore = defineStore('app', () => {
           childNode.label = pathUtils.basename(folderPath)
           childNode.path = folderPath
           childNode.data = {}
+          childNode.isHidden = pathUtils.basename(folderPath).startsWith('.')
+          childNode.isWritable = true
+          childNode.isReadonly = false
           childNode.created = date
           childNode.modified = date
           notify.success(t('notify.file.createSuccess', { name: folderPath }), t('notify.file.operation'))
@@ -1276,6 +1318,19 @@ export const useAppStore = defineStore('app', () => {
       if (!files || files.length === 0 || !files[0]) {
         throw new Error(`获取 ${parentPath} 信息失败`)
       }
+
+      if (currentFolder.value) {
+        const entries = await listWorkspaceEntries(parentPath, {
+          workspaceRoot: currentFolder.value,
+          ignoreRulesText: globalEditSetting.workspaceIgnoreRules,
+          includeDirectories: true,
+        })
+        const existsAfterFiltering = entries.some(entry => entry.path === filePath)
+        if (!existsAfterFiltering) {
+          return false
+        }
+      }
+
       const newNode: FileTreeNode = {
         id: generateId(),
         label: files[0].name,
@@ -1286,6 +1341,9 @@ export const useAppStore = defineStore('app', () => {
         isEnabled: true,
         data: {},
         size: files[0].size || 0,
+        isHidden: files[0].isHidden ?? files[0].name.startsWith('.'),
+        isWritable: files[0].isWritable,
+        isReadonly: files[0].isWritable === false,
         created: files[0].created,
         modified: files[0].modified,
       }
@@ -1324,6 +1382,9 @@ export const useAppStore = defineStore('app', () => {
       
       if (fileInfo) {
         node.size = fileInfo.size
+        node.isHidden = fileInfo.isHidden ?? fileInfo.name.startsWith('.')
+        node.isWritable = fileInfo.isWritable
+        node.isReadonly = fileInfo.isWritable === false
         if (fileInfo.created) node.created = fileInfo.created
         if (fileInfo.modified) node.modified = fileInfo.modified
       }
@@ -1939,6 +2000,9 @@ export const useAppStore = defineStore('app', () => {
 
   // 监听编辑设置变化
   watch(globalEditSetting, () => saveEditSettingDebounced(), { deep: true })
+  watch(() => globalEditSetting.workspaceIgnoreRules, () => {
+    reloadFileTreeForFiltersDebounced()
+  })
   watch(autoSaveEnabled, () => saveAutoSaveDebounced())
 
   // 监听主题变化

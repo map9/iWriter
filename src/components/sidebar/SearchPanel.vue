@@ -233,10 +233,10 @@ import { iwSearchReplaceInFilesService, type SearchReplaceInFilesSearchResult } 
 import type { Editor } from '@tiptap/core'
 import { notify } from '@/utils/notifications'
 import type { FileChange } from '@/types'
-import { TEXT_EXTENSIONS } from '@/types'
 import { pathUtils } from '@/utils/pathUtils'
 import { STORAGE_KEYS } from '@/utils/StateStorage'
 import { useSearchHistory } from '@/components/common/tiptap/iw-search-replace/composables/useSearchHistory'
+import { collectWorkspaceTextFiles } from '@/services/workspace/filtering'
 
 const appStore = useAppStore()
 const { t } = useI18n()
@@ -309,6 +309,8 @@ const fileCount = computed(() => {
 const totalMatches = computed(() => {
   return searchResults.value.reduce((sum, file) => sum + file.totalMatches, 0)
 })
+
+const workspaceIgnoreRules = computed(() => appStore.globalEditSetting.workspaceIgnoreRules)
 
 function toggleReplaceMode() {
   showReplace.value = !showReplace.value
@@ -688,37 +690,29 @@ watch(() => appStore.searchFolderPath, (newPath) => {
   }
 })
 
-// Watch for search query changes
-let searchTimeout: number | undefined
-watch(searchQuery, (newQuery) => {
-  if (searchTimeout) {
-    clearTimeout(searchTimeout)
-  }
+// Unified debounced trigger so rapid keystrokes don't fire concurrent searches.
+// Without this, an intermediate exclude pattern like "*." can finish AFTER the
+// final "*.md" search and overwrite results, leaving stale `.md` files visible.
+let searchDebounceTimer: number | undefined
+const SEARCH_DEBOUNCE_MS = 300
 
-  searchTimeout = window.setTimeout(() => {
-    if (newQuery.length > 0) {
-      searchHist.record(newQuery)
+function scheduleSearch() {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+  searchDebounceTimer = window.setTimeout(() => {
+    if (searchQuery.value.length > 0) {
+      searchHist.record(searchQuery.value)
       performSearch()
     } else {
       searchResults.value = []
       expandedFiles.value.clear()
     }
-  }, 300)
-})
+  }, SEARCH_DEBOUNCE_MS)
+}
 
-// Watch for options changes
-watch(options, () => {
-  if (searchQuery.value.length > 0) {
-    performSearch()
-  }
-}, { deep: true })
-
-// Watch for filter changes
-watch([includePattern, excludePattern], () => {
-  if (searchQuery.value.length > 0) {
-    performSearch()
-  }
-})
+watch(searchQuery, scheduleSearch)
+watch([includePattern, excludePattern], scheduleSearch)
+watch(options, scheduleSearch, { deep: true })
+watch(workspaceIgnoreRules, scheduleSearch)
 
 // 监听配置变化，自动保存到 localStorage
 watch([searchQuery, replaceQuery, includePattern, excludePattern, options], () => {
@@ -763,10 +757,18 @@ async function handleEditorContentChange(filePath: string) {
   // 只有存在搜索条件时才处理
   if (!searchQuery.value || !appStore.currentFolder) return
 
+  // 编辑器更新事件必须经过统一的 include/exclude/ignore 过滤，否则
+  // 已被 excludePattern 排除的文件会因为编辑触发重新加入结果。
+  if (!isFileInSearchScope(filePath)) {
+    updateSingleFileResult(filePath, null)
+    return
+  }
+
   try {
     // 重新搜索这一个文件
     const updatedResult = await iwSearchReplaceInFilesService.searchInSingleFilePublic(
       filePath,
+      appStore.currentFolder,
       appStore.currentFolder,
       searchQuery.value,
       {
@@ -818,6 +820,10 @@ function updateSingleFileResult(
   }
 }
 
+// 递增 ID，用于丢弃过期搜索结果。debounce 之外仍可能并发（例如目录变化触发），
+// 所以在每次 await 返回后必须比对 ID。
+let currentSearchId = 0
+
 async function performSearch() {
   if (!appStore.currentFolder) {
     return
@@ -829,9 +835,10 @@ async function performSearch() {
     return
   }
 
-  try {
-    isSearching.value = true
+  const myId = ++currentSearchId
+  isSearching.value = true
 
+  try {
     // 使用 TipTap 搜索服务，传递打开的 tabs 以优先搜索编辑器内容
     const results = await iwSearchReplaceInFilesService.searchInWorkspace(
       appStore.searchFolderPath || appStore.currentFolder,
@@ -844,8 +851,13 @@ async function performSearch() {
       includePattern.value || undefined,
       excludePattern.value || undefined,
       10000,
-      appStore.tabs  // 传递 tabs
+      appStore.tabs,  // 传递 tabs
+      undefined,
+      appStore.currentFolder,
+      workspaceIgnoreRules.value
     )
+
+    if (myId !== currentSearchId) return
 
     searchResults.value = results
 
@@ -856,12 +868,15 @@ async function performSearch() {
       expandedFiles.value.clear()
     }
   } catch (error) {
+    if (myId !== currentSearchId) return
     console.error('Search error:', error)
     notify.error(t('notify.search.searchFailed'))
     searchResults.value = []
     expandedFiles.value.clear()
   } finally {
-    isSearching.value = false
+    if (myId === currentSearchId) {
+      isSearching.value = false
+    }
   }
 }
 
@@ -921,18 +936,21 @@ async function handleFileSystemChange(change: FileChange) {
 function isFileInSearchScope(filePath: string): boolean {
   if (!appStore.currentFolder) return false
 
-  // 1. 检查是否在当前文件夹下
-  if (!filePath.startsWith(appStore.currentFolder)) return false
+  const rootPath = appStore.searchFolderPath || appStore.currentFolder
+  if (!filePath.startsWith(rootPath)) return false
 
-  // 2. 检查是否是文本文件（目录也返回 true，后续会递归处理）
-  const ext = pathUtils.extension(filePath)
-  if (ext && !(TEXT_EXTENSIONS as readonly string[]).includes(ext)) {
-    return false
-  }
-
-  // 3. TODO: 应用 include/exclude 模式过滤
-
-  return true
+  return iwSearchReplaceInFilesService.shouldSearchPath(
+    {
+      path: filePath,
+      name: pathUtils.basename(filePath),
+      isDirectory: false,
+      isHidden: pathUtils.basename(filePath).startsWith('.'),
+    },
+    appStore.currentFolder,
+    workspaceIgnoreRules.value,
+    includePattern.value || undefined,
+    excludePattern.value || undefined
+  )
 }
 
 // 处理文件添加或内容变化
@@ -950,6 +968,7 @@ async function handleFileAddedOrChanged(filePath: string) {
       // 重新搜索这一个文件
       const updatedResult = await iwSearchReplaceInFilesService.searchInSingleFilePublic(
         filePath,
+        appStore.currentFolder!,
         appStore.currentFolder!,
         searchQuery.value,
         {
@@ -1008,6 +1027,7 @@ async function handleDirectoryAdded(dirPath: string) {
             iwSearchReplaceInFilesService.searchInSingleFilePublic(
               filePath,
               appStore.currentFolder!,
+              appStore.currentFolder!,
               searchQuery.value,
               {
                 caseSensitive: options.value.matchCase,
@@ -1040,34 +1060,22 @@ async function handleDirectoryAdded(dirPath: string) {
 
 // 递归获取目录下所有文本文件
 async function getFilesInDirectory(dirPath: string): Promise<string[]> {
-  const result: string[] = []
+  if (!appStore.currentFolder) return []
 
-  async function traverse(path: string) {
-    if (!window.electronAPI) return
+  try {
+    const files = await collectWorkspaceTextFiles({
+      workspaceRoot: appStore.currentFolder,
+      directoryPath: dirPath,
+      ignoreRulesText: workspaceIgnoreRules.value,
+      includePattern: includePattern.value || undefined,
+      excludePattern: excludePattern.value || undefined,
+    })
 
-    try {
-      const files = await window.electronAPI.getFiles(path)
-      if (!files || !Array.isArray(files)) return
-
-      await Promise.all(
-        files.map(async (file) => {
-          if (file.isDirectory) {
-            await traverse(file.path)
-          } else {
-            const ext = pathUtils.extension(file.path)
-            if ((TEXT_EXTENSIONS as readonly string[]).includes(ext)) {
-              result.push(file.path)
-            }
-          }
-        })
-      )
-    } catch (error) {
-      console.error('Error traversing directory:', path, error)
-    }
+    return files.map(file => file.path)
+  } catch (error) {
+    console.error('Error traversing directory:', dirPath, error)
+    return []
   }
-
-  await traverse(dirPath)
-  return result
 }
 
 // 处理目录删除

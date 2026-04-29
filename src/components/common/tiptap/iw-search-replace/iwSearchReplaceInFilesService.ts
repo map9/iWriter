@@ -15,6 +15,13 @@ import { TEXT_EXTENSIONS, type FileTab } from '@/types'
 import { pathUtils } from '@/utils/pathUtils'
 import { loadDocument, isLoadError } from '@/services/document/DocumentLoader'
 import type { SearchOptions, SearchReplaceInFilesSearchResult, SearchReplaceInFilesMatch } from './types'
+import {
+  collectWorkspaceTextFiles,
+  parseWorkspaceIgnoreRules,
+  shouldIncludeWorkspaceEntry,
+  toWorkspaceRelativePath,
+  toWorkspaceEntry,
+} from '@/services/workspace/filtering'
 
 const { detectFromPath } = useDocumentTypeDetector()
 
@@ -31,7 +38,9 @@ export class iwSearchReplaceInFilesService {
     excludePattern?: string,
     maxResults: number = 10000,
     openTabs?: FileTab[],
-    onProgress?: (current: number, total: number) => void
+    onProgress?: (current: number, total: number) => void,
+    workspaceRoot?: string,
+    ignoreRulesText?: string
   ): Promise<SearchReplaceInFilesSearchResult[]> {
     if (!window.electronAPI) throw new Error('Electron API not available')
     if (!searchTerm) return []
@@ -39,6 +48,8 @@ export class iwSearchReplaceInFilesService {
     // 1. 获取所有可搜索文件
     const allFiles = await this.getSearchableFiles(
       folderPath,
+      workspaceRoot ?? folderPath,
+      ignoreRulesText,
       includePattern,
       excludePattern
     )
@@ -61,6 +72,7 @@ export class iwSearchReplaceInFilesService {
           this.searchInSingleFile(
             filePath,
             folderPath,
+            workspaceRoot ?? folderPath,
             searchTerm,
             options,
             maxResults - totalMatchesCount,
@@ -93,6 +105,7 @@ export class iwSearchReplaceInFilesService {
   static async searchInSingleFilePublic(
     filePath: string,
     folderPath: string,
+    workspaceRoot: string,
     searchTerm: string,
     options: SearchOptions,
     maxMatches: number = 10000,
@@ -101,6 +114,7 @@ export class iwSearchReplaceInFilesService {
     return this.searchInSingleFile(
       filePath,
       folderPath,
+      workspaceRoot,
       searchTerm,
       options,
       maxMatches,
@@ -114,6 +128,7 @@ export class iwSearchReplaceInFilesService {
   private static async searchInSingleFile(
     filePath: string,
     folderPath: string,
+    workspaceRoot: string,
     searchTerm: string,
     options: SearchOptions,
     maxMatches: number,
@@ -144,9 +159,7 @@ export class iwSearchReplaceInFilesService {
       return {
         filePath,
         fileName: pathUtils.basename(filePath),
-        relativePath: filePath.startsWith(folderPath)
-          ? filePath.slice(folderPath.length).replace(/^\//, '')
-          : filePath,
+        relativePath: toWorkspaceRelativePath(workspaceRoot, filePath),
         documentType: detectFromPath(filePath),
         matches: matchesWithContext,
         totalMatches: matchesWithContext.length,
@@ -326,59 +339,39 @@ export class iwSearchReplaceInFilesService {
    */
   private static async getSearchableFiles(
     folderPath: string,
+    workspaceRoot: string,
+    ignoreRulesText?: string,
 
     _includePattern?: string,
 
     _excludePattern?: string
   ): Promise<string[]> {
-    return this.getSearchableFilesRecursive(folderPath, _includePattern, _excludePattern, [])
+    const entries = await collectWorkspaceTextFiles({
+      workspaceRoot,
+      directoryPath: folderPath,
+      ignoreRulesText,
+      includePattern: _includePattern,
+      excludePattern: _excludePattern,
+    })
+
+    return entries.map(entry => entry.path)
   }
 
-  /**
-   * 递归获取目录下所有可搜索的文本文件
-   * 参考 app.ts 中的 traverseFileTree 实现
-   */
-  private static async getSearchableFilesRecursive(
-    dirPath: string,
-
-    _includePattern?: string,
-
-    _excludePattern?: string,
-    result: string[] = []
-  ): Promise<string[]> {
-    if (!window.electronAPI) return result
-
-    try {
-      const files = await window.electronAPI.getFiles(dirPath)
-      if (!files || !Array.isArray(files)) return result
-
-      // 使用 Promise.all 并行处理所有文件和子目录
-      await Promise.all(
-        files.map(async (file) => {
-          if (file.isDirectory) {
-            // 递归处理子目录
-            await this.getSearchableFilesRecursive(
-              file.path,
-              _includePattern,
-              _excludePattern,
-              result
-            )
-          } else {
-            // 过滤文本文件
-            const ext = pathUtils.extension(file.path)
-            if ((TEXT_EXTENSIONS as readonly string[]).includes(ext)) {
-              // TODO: 应用 include/exclude 模式过滤
-              result.push(file.path)
-            }
-          }
-        })
-      )
-
-      return result
-    } catch (error) {
-      console.error(`Error traversing directory ${dirPath}:`, error)
-      return result
+  static shouldSearchPath(
+    fileInfo: { path: string; name: string; isDirectory: boolean; isWritable?: boolean; isHidden?: boolean },
+    workspaceRoot: string,
+    ignoreRulesText?: string,
+    includePattern?: string,
+    excludePattern?: string
+  ): boolean {
+    const ext = pathUtils.extension(fileInfo.path)
+    if (!fileInfo.isDirectory && ext && !(TEXT_EXTENSIONS as readonly string[]).includes(ext)) {
+      return false
     }
+
+    const matcher = parseWorkspaceIgnoreRules(ignoreRulesText)
+    const entry = toWorkspaceEntry(workspaceRoot, fileInfo)
+    return shouldIncludeWorkspaceEntry(entry, matcher, includePattern, excludePattern)
   }
 
   /**

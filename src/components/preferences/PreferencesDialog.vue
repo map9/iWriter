@@ -192,6 +192,22 @@
               </label>
             </div>
           </section>
+
+          <section class="flex flex-col gap-3">
+            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.editor.workspaceTitle') }}</h3>
+            <div class="flex flex-col gap-2 rounded-box border border-base-300 bg-base-100 px-4 py-3">
+              <div class="min-w-0">
+                <div class="text-sm font-medium text-base-content">{{ t('preferences.editor.workspaceIgnoreRulesTitle') }}</div>
+                <div class="text-xs text-base-content/65">{{ t('preferences.editor.workspaceIgnoreRulesDesc') }}</div>
+              </div>
+              <textarea
+                class="min-h-32 w-full resize-y rounded-field border border-base-300 bg-base-100 px-3 py-2 text-sm outline-none focus:border-primary"
+                :placeholder="t('preferences.editor.workspaceIgnoreRulesPlaceholder')"
+                :value="appStore.globalEditSetting.workspaceIgnoreRules"
+                @input="appStore.globalEditSetting.workspaceIgnoreRules = ($event.target as HTMLTextAreaElement).value"
+              />
+            </div>
+          </section>
           </div>
         </div>
 
