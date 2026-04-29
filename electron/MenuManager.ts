@@ -1502,6 +1502,7 @@ export class MenuManager {
               this.sendMenuAction('view-search')
             }
           },
+/*
           {
             label: 'Tag',
             accelerator: 'CmdOrCtrl+Shift+3',
@@ -1510,6 +1511,7 @@ export class MenuManager {
               this.sendMenuAction('view-tag')
             }
           },
+*/
           {
             label: 'Table of Contents',
             accelerator: 'CmdOrCtrl+Shift+4',
