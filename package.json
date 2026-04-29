@@ -11,8 +11,10 @@
   "scripts": {
     "dev": "vite",
     "check-deps": "node scripts/check-dependencies.mjs",
+    "preversion": "node scripts/verify-release-readiness.mjs",
     "postinstall": "patch-package && electron-rebuild -f -w better-sqlite3",
     "rebuild-native": "electron-rebuild -f -w better-sqlite3",
+    "docs:sync-version": "node scripts/sync-docs-version.mjs",
     "prebuild": "node scripts/generate-icons.mjs && node scripts/prepare-build.mjs",
     "build": "vue-tsc --noEmit && vite build",
     "build:quick": "vite build",
@@ -27,7 +29,8 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
-    "type-check": "vue-tsc --noEmit"
+    "type-check": "vue-tsc --noEmit",
+    "version": "node scripts/sync-docs-version.mjs --finalize-release && git add package.json package-lock.json docs"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",

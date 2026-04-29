@@ -192,6 +192,15 @@ GitHub Pages 发布：
 - 构建产物：`docs/.vitepress/dist`
 - 发布方式：GitHub Actions 构建后部署到 GitHub Pages
 
+发布版本时，建议先在 `docs/changelog.md` 的 `## Unreleased` 下补充本次更新说明，再执行：
+
+```bash
+npm version patch
+git push --follow-tags
+```
+
+`npm version patch` 会自动同步 `docs/` 中的版本号与日期，并把 `## Unreleased` 替换成新版本号标题。
+
 ## 打包与发布
 
 ### 常用命令

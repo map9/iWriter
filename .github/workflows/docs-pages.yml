@@ -1,4 +1,12 @@
 name: Docs Pages
+run-name: >-
+  ${{
+    github.event_name == 'workflow_dispatch'
+      && format('Docs manual deploy {0}', github.ref_name)
+      || startsWith(github.event.head_commit.message, 'v')
+      && format('Release docs {0}', github.event.head_commit.message)
+      || format('Docs update {0}', github.ref_name)
+  }}
 
 on:
   push:
@@ -45,8 +53,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Classify docs publish
+        run: |
+          COMMIT_MESSAGE="${{ github.event.head_commit.message || github.event_name }}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "${COMMIT_MESSAGE}" == workflow_dispatch ]]; then
+            PUBLISH_KIND="manual"
+          elif [[ "${COMMIT_MESSAGE}" == v* ]]; then
+            PUBLISH_KIND="release"
+          else
+            PUBLISH_KIND="regular"
+          fi
+          echo "COMMIT_MESSAGE=${COMMIT_MESSAGE}" >> "${GITHUB_ENV}"
+          echo "PUBLISH_KIND=${PUBLISH_KIND}" >> "${GITHUB_ENV}"
+          echo "PACKAGE_VERSION=${PACKAGE_VERSION}" >> "${GITHUB_ENV}"
+
       - name: Build docs site
         run: npm run docs:build
+
+      - name: Publish summary
+        run: |
+          if [[ "${PUBLISH_KIND}" == "release" ]]; then
+            echo "Publishing release docs for version ${PACKAGE_VERSION}." >> "${GITHUB_STEP_SUMMARY}"
+          elif [[ "${PUBLISH_KIND}" == "manual" ]]; then
+            echo "Publishing manual docs deployment for version ${PACKAGE_VERSION}." >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "Publishing routine docs update from ${GITHUB_REF_NAME}." >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          echo "Commit message: ${COMMIT_MESSAGE}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Base path: ${BASE_PATH}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4

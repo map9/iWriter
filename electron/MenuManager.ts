@@ -10,6 +10,13 @@ import { isMac } from './utils'
 import type { WindowState, GlobalParameters } from './types'
 import { createMainTranslator, localizeMenuTemplate } from './i18n'
 
+const REPOSITORY_URL = 'https://github.com/map9/iWriter'
+const DOCS_SITE_URL = 'https://map9.github.io/iWriter'
+
+function docsUrl(path = ''): string {
+  return `${DOCS_SITE_URL}${path}`
+}
+
 /**
  * 在菜单模板中指定ID的菜单项下方插入新项
  * @param template 菜单模板数组
@@ -1604,39 +1611,53 @@ export class MenuManager {
           {
             label: "What's New...",
             click: async () => {
-              await shell.openExternal('https://iwriter.com/updates')
+              await shell.openExternal(docsUrl('/changelog'))
             }
           },
           { type: 'separator' },
           {
             label: 'Quick Start',
             click: async () => {
-              await shell.openExternal('https://iwriter.com/quick-start')
+              await shell.openExternal(docsUrl('/quick-start'))
             }
           },
+          /*
           {
             label: 'Online Guide and Course',
             click: async () => {
-              await shell.openExternal('https://iwriter.com/guide')
+              await shell.openExternal(docsUrl('/docs/'))
             }
           },
           {
             label: 'Markdown Reference',
             click: async () => {
-              await shell.openExternal('https://iwriter.com/markdown-reference')
+              await shell.openExternal(docsUrl('/docs/editor'))
             }
           },
           {
             label: 'Keyboard Shortcuts',
             click: async () => {
-              await shell.openExternal('https://iwriter.com/keyboard-shortcuts')
+              await shell.openExternal(docsUrl('/faq'))
             }
           },
+          */
           { type: 'separator' },
           {
-            label: 'Acknowledgement',
+            label: 'Licenses and Acknowledgements',
             click: async () => {
-              await shell.openExternal('https://iwriter.com/acknowledgement')
+              await shell.openExternal(docsUrl('/docs/licenses'))
+            }
+          },
+          {
+            label: 'FAQ',
+            click: async () => {
+              await shell.openExternal(docsUrl('/faq'))
+            }
+          },
+          {
+            label: 'Security',
+            click: async () => {
+              await shell.openExternal(docsUrl('/security'))
             }
           },
           { type: 'separator' },
@@ -1647,15 +1668,15 @@ export class MenuManager {
             }
           },
           {
-            label: 'Visit iWriter.com',
+            label: 'Visit Project Repository',
             click: async () => {
-              await shell.openExternal('https://iwriter.com')
+              await shell.openExternal(REPOSITORY_URL)
             }
           },
           {
             label: 'Feedback',
             click: async () => {
-              await shell.openExternal('https://iwriter.com/feedback')
+              await shell.openExternal(docsUrl('/community'))
             }
           }
         ]
