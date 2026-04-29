@@ -17,7 +17,7 @@ hero:
 <SmartDownloadButton :enhance-hero="true" />
 
 <div class="home-screenshot">
-  <img src="/images/docs/editor/home-hero-main-window.png" alt="iWriter 主界面预览" />
+  <img src="/images/home/main-window.png" alt="iWriter 主界面预览" />
 </div>
 
 <div class="home-release-note">

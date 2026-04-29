@@ -21,7 +21,7 @@
           <img
             v-if="item.poster"
             class="home-media-card__image"
-            :src="item.poster"
+            :src="resolveAsset(item.poster)"
             :alt="item.alt"
             loading="lazy"
           />
@@ -36,8 +36,8 @@
         <video
           v-else-if="item.type === 'video'"
           class="home-media-card__video"
-          :src="item.src"
-          :poster="item.poster"
+          :src="resolveAsset(item.src)"
+          :poster="item.poster ? resolveAsset(item.poster) : undefined"
           :autoplay="item.autoplay"
           :muted="item.muted"
           :loop="item.loop"
@@ -48,7 +48,7 @@
         <img
           v-else
           class="home-media-card__image"
-          :src="item.src"
+          :src="resolveAsset(item.src)"
           :alt="item.alt"
           loading="lazy"
         />
@@ -64,6 +64,13 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { withBase } from 'vitepress'
+
+function resolveAsset(src) {
+  if (!src) return src
+  if (/^(?:[a-z]+:)?\/\//i.test(src) || src.startsWith('data:')) return src
+  return withBase(src)
+}
 
 const props = defineProps({
   items: {
@@ -100,7 +107,7 @@ const normalizedItems = computed(() =>
 )
 
 function getExternalVideoHref(item) {
-  return item.externalUrl ?? item.href ?? item.link ?? item.src
+  return item.externalUrl ?? item.href ?? item.link ?? resolveAsset(item.src)
 }
 
 function isExternalVideo(item) {
