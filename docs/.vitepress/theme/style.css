@@ -200,6 +200,14 @@
   flex-shrink: 0;
 }
 
+.home-page .VPHomeHero .action a[data-unsupported="true"] {
+  background-color: #8a6f4d;
+}
+
+.home-page .VPHomeHero .action a[data-unsupported="true"]:hover {
+  background-color: #7b6142;
+}
+
 .home-page .VPHomeFeatures {
   display: none;
 }

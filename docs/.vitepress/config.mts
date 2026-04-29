@@ -17,7 +17,6 @@ export default defineConfig({
     nav: [
       { text: '功能', link: '/features' },
       { text: '下载', link: '/download' },
-      { text: '快速开始', link: '/quick-start' },
       { text: '文档', link: '/docs/' }
     ],
     sidebar: {
@@ -25,7 +24,8 @@ export default defineConfig({
         {
           text: '开始使用',
           items: [
-            { text: '文档首页', link: '/docs/' },
+            { text: '概述', link: '/docs/' },
+            { text: '快速开始', link: '/quick-start' },
             { text: '工作区与文件管理', link: '/docs/workspace' },
             { text: '编辑器使用', link: '/docs/editor' },
             { text: '搜索与替换', link: '/docs/search' },

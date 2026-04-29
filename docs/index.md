@@ -10,9 +10,11 @@ hero:
       text: 下载
       link: /download
     - theme: alt
-      text: Quick start
+      text: 快速开始
       link: /quick-start
 ---
+
+<SmartDownloadButton :enhance-hero="true" />
 
 <div class="home-screenshot">
   <img src="/images/docs/editor/home-hero-main-window.png" alt="iWriter 主界面预览" />
@@ -35,7 +37,7 @@ hero:
         StoryMate 的所有编辑，都需要等您审核后才落地。
       </p>
       <p>
-        支持 Anthnopic、Deepseek、Gemini、GLM、Openai 等常见 AI 服务商配置。
+        支持 Anthropic、DeepSeek、Gemini、GLM、OpenAI 等常见 AI 服务商配置。
       </p>
     </div>
     <div class="home-feature-collage">

@@ -52,6 +52,8 @@ iWriter 支持自动检查和下载更新，发现新版本后会弹出更新对
 - 更新通道支持 `稳定版` 与 `测试版`，实际可获取到的版本取决于发布端是否提供对应版本
 - "跳过当前版本"会记录具体版本号，而不是永久关闭更新提示
 - 更新说明来自发布信息；若发布页缺少详细说明，界面会展示简短的默认提示
+- 自动更新仅在生产环境启用；本地开发构建不会触发真实更新
+- 发布源当前为 GitHub Releases：<https://github.com/map9/iWriter/releases>
 
 ![更新下载与安装对话框](/images/docs/update/update-download-install.png)
 

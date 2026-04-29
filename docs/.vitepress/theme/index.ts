@@ -3,6 +3,7 @@ import { h } from 'vue'
 import type { Theme } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import HomeFeatureGallery from './components/HomeFeatureGallery.vue'
+import SmartDownloadButton from './components/SmartDownloadButton.vue'
 import './style.css'
 
 export default {
@@ -14,5 +15,6 @@ export default {
   },
   enhanceApp({ app, router, siteData }) {
     app.component('HomeFeatureGallery', HomeFeatureGallery)
+    app.component('SmartDownloadButton', SmartDownloadButton)
   }
 } satisfies Theme

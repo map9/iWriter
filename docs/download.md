@@ -4,6 +4,8 @@
 >
 > 最后更新：2026-04-29
 
+<SmartDownloadButton />
+
 ## 稳定版本
 
 - 当前文档对应版本：`0.1.6`
@@ -12,6 +14,50 @@
 ## 下载入口
 
 - GitHub Releases：<https://github.com/map9/iWriter/releases>
+
+## 按平台选择
+
+<div id="windows"></div>
+
+### Windows
+
+- 推荐包类型：`.exe` 安装包
+- 适合：Windows 桌面系统
+- 下载方式：前往 GitHub Releases 选择最新的 Windows 安装包
+
+<div id="macos-apple-silicon"></div>
+
+### macOS Apple Silicon
+
+- 推荐包类型：ARM64 / Apple Silicon `.dmg`
+- 适合：M1 / M2 / M3 / M4 系列 Mac
+- 下载方式：前往 GitHub Releases 选择最新的 Apple Silicon macOS 安装包
+
+<div id="macos-intel"></div>
+
+### macOS Intel
+
+- 推荐包类型：x64 / Intel `.dmg`
+- 适合：Intel 芯片 Mac
+- 下载方式：前往 GitHub Releases 选择最新的 Intel macOS 安装包
+
+<div id="linux"></div>
+
+### Linux
+
+- 推荐包类型：
+  - `AppImage`：通用桌面发行版，适合快速试用
+  - `.deb`：Debian / Ubuntu 系
+  - `.rpm`：Fedora / RHEL 系
+- 下载方式：前往 GitHub Releases 选择适合当前发行版的安装包
+
+<div id="unsupported-device"></div>
+
+### 不支持的设备
+
+- 当前不提供 iPad、iPhone、Android 等移动设备安装包
+- 当前文档站点也不面向触控平板场景优化下载流程
+- 如需使用，请在 Windows、macOS 或 Linux 桌面系统中访问下载页
 
 ## 安装步骤
 

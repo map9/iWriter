@@ -63,6 +63,8 @@ AI 分组用于管理内置和自定义 Provider。
 - 支持添加自定义提供方
 - 自定义接口类型支持 `OpenAI`、`Anthropic`、`Gemini`
 - Provider 配置通常包括 API Key、Base URL、模型列表，以及更细的模型能力配置
+- `Ollama` 的模型列表会自动从本地服务读取，更适合本地模型工作流
+- `DeepSeek`、`GLM` 等预设更适合直接套用官方接口或兼容网关
 
 ![AI 偏好项：Provider 列表](/images/docs/preferences/preferences-ai-providers.png)
 
@@ -79,6 +81,12 @@ AI 分组用于管理内置和自定义 Provider。
 - 更新通道：支持 `稳定版` 与 `测试版`
 - 检查间隔：可按小时设置自动检查频率
 - 操作：支持手动执行“立即检查更新”
+
+当前实现说明：
+
+- 自动更新只在生产环境启用，开发环境不会走真实更新流程
+- 发布源依赖 GitHub Releases（`map9/iWriter`）
+- `Skip This Version` 会记录具体版本号，而不是永久关闭更新
 
 ![更新偏好项](/images/docs/preferences/preferences-updater.png)
 
