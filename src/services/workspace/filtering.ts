@@ -1,5 +1,6 @@
-import { TEXT_EXTENSIONS, type FileInfo } from '@/types'
-import { pathUtils } from '@/utils/pathUtils'
+import { TEXT_EXTENSIONS } from '../../types/file-extension'
+import type { FileInfo } from '../../types/file-operation'
+import { pathUtils } from '../../utils/pathUtils'
 
 export const DEFAULT_WORKSPACE_IGNORE_RULES = [
   '# One rule per line. Syntax is similar to .gitignore.',

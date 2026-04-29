@@ -132,13 +132,14 @@ import {
   IconDots,
   IconFolder,
   IconFolderOpen,
+  IconFolderFilled,
+  IconFolderOpenFilled,
   IconFilePlus,
   IconChevronRight,
   IconChevronDown,
   IconFoldUp,
   IconArrowsSort,
   IconLock,
-  IconEyeOff,
 } from '@tabler/icons-vue'
 
 const appStore = useAppStore()
@@ -248,9 +249,6 @@ const fileCallbacks: FileTreeCallbacks = {
     if (fileNode.isReadonly) {
       return IconLock
     }
-    if (fileNode.isHidden) {
-      return IconEyeOff
-    }
     if (fileNode.type === 'folder') {
       return fileNode.isExpanded && ((fileNode.children?.length ?? 0) > 0) ? IconFolderOpen : IconFolder
     }
@@ -305,7 +303,7 @@ const applyNodeAppearance = (node: FileTreeNode) => {
   const isDimmed = node.isHidden === true || node.isReadonly === true
   node.data = {
     ...(typeof node.data === 'object' && node.data !== null ? node.data : {}),
-    treeIconClass: isDimmed ? 'text-base-content/45' : 'text-base-content/80',
+    treeIconClass: isDimmed ? { opacity: '0.6' } : undefined,
     treeLabelStyle: isDimmed ? { opacity: '0.6' } : undefined,
   }
 
