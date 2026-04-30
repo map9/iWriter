@@ -32,8 +32,10 @@ import {
   DEFAULT_WORKSPACE_IGNORE_RULES,
   getWorkspaceEntriesRaw,
   listWorkspaceEntries,
+  mergeWorkspaceIgnoreRules,
   parseWorkspaceIgnoreRules,
   shouldIncludeWorkspaceEntry,
+  WORKSPACE_IGNORE_FILENAME,
 } from '@/services/workspace/filtering'
 
 export const useAppStore = defineStore('app', () => {
@@ -715,6 +717,7 @@ export const useAppStore = defineStore('app', () => {
     if (!currentFolder.value || !window.electronAPI) return
 
     try {
+      const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
       // 使用 await 等待异步操作完成
       const files = await window.electronAPI.getFiles(currentFolder.value, true)
       if (!files || files.length === 0 || !files[0] || files[0].isDirectory === false) {
@@ -740,19 +743,36 @@ export const useAppStore = defineStore('app', () => {
       }
 
       // 使用 await 等待异步操作完成
-      fileTree.value.children = await traverseFileTree(currentFolder.value, fileTree.value)
+      fileTree.value.children = await traverseFileTree(currentFolder.value, fileTree.value, effectiveIgnoreRules)
     } catch (error) {
       notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.treeLoadError'))
       return []
     }
   }
 
-  async function traverseFileTree(dirPath: string, parent?: FileTreeNode): Promise<FileTreeNode[] | undefined> {
+  async function getEffectiveWorkspaceIgnoreRules(workspaceRoot: string): Promise<string> {
+    const preferenceRules = globalEditSetting.workspaceIgnoreRules ?? DEFAULT_WORKSPACE_IGNORE_RULES
+    const ignoreFilePath = pathUtils.join(workspaceRoot, WORKSPACE_IGNORE_FILENAME)
+
+    try {
+      const exists = await window.electronAPI?.pathExists(ignoreFilePath)
+      if (!exists) return preferenceRules
+
+      const workspaceRules = await window.electronAPI?.readFileSilent(ignoreFilePath)
+      return mergeWorkspaceIgnoreRules(preferenceRules, workspaceRules)
+    } catch (error) {
+      console.warn(`Failed to load ${WORKSPACE_IGNORE_FILENAME}:`, error)
+      return preferenceRules
+    }
+  }
+
+  async function traverseFileTree(dirPath: string, parent?: FileTreeNode, effectiveIgnoreRules?: string): Promise<FileTreeNode[] | undefined> {
     if (!dirPath || !window.electronAPI) return undefined
     
     try {
       const workspaceRoot = currentFolder.value ?? dirPath
-      const matcher = parseWorkspaceIgnoreRules(globalEditSetting.workspaceIgnoreRules)
+      const ignoreRules = effectiveIgnoreRules ?? await getEffectiveWorkspaceIgnoreRules(workspaceRoot)
+      const matcher = parseWorkspaceIgnoreRules(ignoreRules)
       const files = await getWorkspaceEntriesRaw(dirPath, workspaceRoot)
 
       if (files && Array.isArray(files)) {
@@ -761,7 +781,7 @@ export const useAppStore = defineStore('app', () => {
           files.map(async (file) => {
             let children: FileTreeNode[] | undefined
             if (file.isDirectory) {
-              children = await traverseFileTree(file.path)
+              children = await traverseFileTree(file.path, undefined, ignoreRules)
             }
 
             const shouldIncludeNode = shouldIncludeWorkspaceEntry(file, matcher)
@@ -1320,9 +1340,10 @@ export const useAppStore = defineStore('app', () => {
       }
 
       if (currentFolder.value) {
+        const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
         const entries = await listWorkspaceEntries(parentPath, {
           workspaceRoot: currentFolder.value,
-          ignoreRulesText: globalEditSetting.workspaceIgnoreRules,
+          ignoreRulesText: effectiveIgnoreRules,
           includeDirectories: true,
         })
         const existsAfterFiltering = entries.some(entry => entry.path === filePath)
@@ -1348,7 +1369,10 @@ export const useAppStore = defineStore('app', () => {
         modified: files[0].modified,
       }
       if (files[0].isDirectory) {
-        newNode.children = await traverseFileTree(files[0].path, newNode)
+        const effectiveIgnoreRules = currentFolder.value
+          ? await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
+          : undefined
+        newNode.children = await traverseFileTree(files[0].path, newNode, effectiveIgnoreRules)
       }
       if (!parentNode.children) {
         parentNode.children = []
@@ -1398,6 +1422,11 @@ export const useAppStore = defineStore('app', () => {
 
   // 处理文件变化
   function handleFileChange(change: FileChange) {    
+    if (currentFolder.value && change.path === pathUtils.join(currentFolder.value, WORKSPACE_IGNORE_FILENAME)) {
+      loadFileTree()
+      return
+    }
+
     // 根据变化类型文件树更新
     switch (change.type) {
       case 'add':

@@ -279,6 +279,15 @@ export class App {
       }
     })
 
+    ipcMain.handle('read-file-silent', async (_, filePath: string) => {
+      try {
+        return fs.readFileSync(filePath, 'utf8')
+      } catch (error) {
+        console.error('Error reading file silently:', error)
+        throw(error)
+      }
+    })
+
     ipcMain.handle('read-file-binary', async (_, filePath: string) => {
       try {
         const buffer = fs.readFileSync(filePath)
@@ -1047,6 +1056,7 @@ export class App {
     ipcMain.removeHandler('format-code')
     ipcMain.removeHandler('hello')
     ipcMain.removeHandler('read-file')
+    ipcMain.removeHandler('read-file-silent')
     ipcMain.removeHandler('read-file-binary')
     ipcMain.removeHandler('save-file')
     ipcMain.removeHandler('path-exists')

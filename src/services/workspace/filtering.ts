@@ -8,6 +8,8 @@ export const DEFAULT_WORKSPACE_IGNORE_RULES = [
   '**/.DS_Store',
 ].join('\n')
 
+export const WORKSPACE_IGNORE_FILENAME = '.iwtignore'
+
 export interface WorkspaceIgnoreRule {
   pattern: string
   negated: boolean
@@ -35,6 +37,13 @@ export interface WalkWorkspaceOptions {
   includePattern?: string
   excludePattern?: string
   includeDirectories?: boolean
+}
+
+export function mergeWorkspaceIgnoreRules(...ruleSets: Array<string | undefined | null>): string {
+  return ruleSets
+    .map(ruleSet => (ruleSet ?? '').trim())
+    .filter(Boolean)
+    .join('\n')
 }
 
 function hasNegatedRules(matcher: WorkspaceIgnoreMatcher): boolean {

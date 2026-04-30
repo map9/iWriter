@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // File operations
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
+  readFileSilent: (filePath: string) => ipcRenderer.invoke('read-file-silent', filePath),
   readFileBinary: (filePath: string) => ipcRenderer.invoke('read-file-binary', filePath),
   saveFile: (content: string, filePath?: string) => 
     ipcRenderer.invoke('save-file', content, filePath),

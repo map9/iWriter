@@ -15,6 +15,7 @@ export interface ElectronAPI {
 
   // 文件操作
   readFile: (filePath: string) => Promise<string | null>
+  readFileSilent: (filePath: string) => Promise<string | null>
   readFileBinary: (filePath: string) => Promise<string | null>
   saveFile: (content: string, filePath?: string) => Promise<boolean>
 
