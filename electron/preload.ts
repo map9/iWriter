@@ -68,6 +68,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('rename-file', oldPath, newName),
   moveFile: (sourcePath: string, targetDir: string, conflictAction?: 'keepBoth' | 'replace' | 'cancel') => 
     ipcRenderer.invoke('move-file', sourcePath, targetDir, conflictAction),
+  copyFile: (sourcePath: string, targetDir: string) =>
+    ipcRenderer.invoke('copy-file', sourcePath, targetDir),
   
   // File watching
   startFileWatching: (folderPath: string) => ipcRenderer.invoke('start-file-watching', folderPath),

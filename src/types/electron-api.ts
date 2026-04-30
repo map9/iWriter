@@ -58,6 +58,7 @@ export interface ElectronAPI {
   deleteFile: (filePath: string) => Promise<boolean>
   renameFile: (oldPath: string, newName: string) => Promise<string>
   moveFile: (sourcePath: string, targetDir: string) => Promise<import('@/types').FileOperationResult>
+  copyFile: (sourcePath: string, targetDir: string) => Promise<import('@/types').FileOperationResult>
   
   // 文件监听
   startFileWatching: (folderPath: string) => Promise<{ success: boolean; path?: string; error?: string }>

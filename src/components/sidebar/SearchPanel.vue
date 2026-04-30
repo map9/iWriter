@@ -302,6 +302,17 @@ onMounted(() => {
   loadConfig()
 })
 
+watch(
+  () => appStore.searchRequestKey,
+  () => {
+    includePattern.value = appStore.searchIncludePattern || ''
+    excludePattern.value = appStore.searchExcludePattern || ''
+    if (appStore.leftSidebarMode === 'search' && searchQuery.value) {
+      performSearch()
+    }
+  }
+)
+
 const fileCount = computed(() => {
   return searchResults.value.length
 })

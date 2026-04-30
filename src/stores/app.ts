@@ -35,6 +35,7 @@ import {
   mergeWorkspaceIgnoreRules,
   parseWorkspaceIgnoreRules,
   shouldIncludeWorkspaceEntry,
+  toWorkspaceRelativePath,
   WORKSPACE_IGNORE_FILENAME,
 } from '@/services/workspace/filtering'
 
@@ -59,6 +60,9 @@ export const useAppStore = defineStore('app', () => {
   const printPreviewTitle = ref('')
   const leftSidebarMode = ref<SidebarMode>(SidebarMode.START)
   const searchFolderPath = ref<string | null>(null)
+  const searchIncludePattern = ref('')
+  const searchExcludePattern = ref('')
+  const searchRequestKey = ref(0)
   const leftSidebarWidth = ref(288) // 默认宽度
   const minSidebarWidth = 256 // 最小宽度 - 对应TOC按钮右边缘
   const rightSidebarWidth = ref(288) // 默认宽度
@@ -487,6 +491,20 @@ export const useAppStore = defineStore('app', () => {
 
   function searchInFolder(folderPath: string) {
     searchFolderPath.value = folderPath
+    const relativePath = currentFolder.value
+      ? toWorkspaceRelativePath(currentFolder.value, folderPath)
+      : ''
+    searchIncludePattern.value = relativePath ? `${relativePath}/**` : ''
+    searchExcludePattern.value = ''
+    searchRequestKey.value += 1
+    setLeftSidebarMode(SidebarMode.SEARCH)
+  }
+
+  function searchInWorkspace() {
+    searchFolderPath.value = null
+    searchIncludePattern.value = ''
+    searchExcludePattern.value = ''
+    searchRequestKey.value += 1
     setLeftSidebarMode(SidebarMode.SEARCH)
   }
 
@@ -1218,6 +1236,24 @@ export const useAppStore = defineStore('app', () => {
       return result
     } catch (error) {
       notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.moveError'))
+      throw error
+    }
+  }
+
+  async function copyFileOrFolder(sourceNode: FileTreeNode, targetParentNode: FileTreeNode): Promise<FileOperationResult | null> {
+    if (!window.electronAPI) return null
+
+    try {
+      const result = await window.electronAPI.copyFile(sourceNode.path, targetParentNode.path)
+      if (!result?.success) {
+        return result
+      }
+
+      await addNodeToFileTreeByFilePath(result.newPath)
+      notify.success(t('notify.file.copySuccess', { from: sourceNode.path, to: result.newPath }), t('notify.file.operation'))
+      return result
+    } catch (error) {
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.copyError'))
       throw error
     }
   }
@@ -2082,6 +2118,9 @@ export const useAppStore = defineStore('app', () => {
     preferencesInitialTab,
     leftSidebarMode,
     searchFolderPath,
+    searchIncludePattern,
+    searchExcludePattern,
+    searchRequestKey,
     leftSidebarWidth,
     minSidebarWidth,
     rightSidebarWidth,
@@ -2126,6 +2165,7 @@ export const useAppStore = defineStore('app', () => {
     toggleTypewriterMode,
     setLeftSidebarMode,
     searchInFolder,
+    searchInWorkspace,
     setLeftSidebarWidth,
     setRightSidebarWidth,
     toggleAutoSave,
@@ -2161,8 +2201,10 @@ export const useAppStore = defineStore('app', () => {
     deleteFileOrFolder,
     renameFileOrFolder,
     moveFileOrFolder,
+    copyFileOrFolder,
     startAdvancedFileWatching,
     stopAdvancedFileWatching,
+    findNodeByPath,
 
     // Tab operations
     createTab,

@@ -622,6 +622,104 @@ export class App {
       }
     })
 
+    ipcMain.handle('copy-file', async (_, sourcePath: string, targetDir: string) => {
+      const focusedWindow = BrowserWindow.getFocusedWindow()
+      if (focusedWindow == null) return null
+
+      const copyPathRecursive = (source: string, target: string) => {
+        const sourceStats = fs.statSync(source)
+        if (sourceStats.isDirectory()) {
+          fs.mkdirSync(target, { recursive: true })
+          const entries = fs.readdirSync(source, { withFileTypes: true })
+          for (const entry of entries) {
+            copyPathRecursive(path.join(source, entry.name), path.join(target, entry.name))
+          }
+          return
+        }
+
+        fs.copyFileSync(source, target)
+      }
+
+      const buildKeepBothTargetPath = (originalTargetPath: string) => {
+        const fileName = path.basename(originalTargetPath)
+        const parentDir = path.dirname(originalTargetPath)
+        const ext = path.extname(fileName)
+        const baseName = ext ? fileName.slice(0, -ext.length) : fileName
+
+        let counter = 1
+        let newTargetPath = path.join(parentDir, `${baseName} (${counter})${ext}`)
+        while (fs.existsSync(newTargetPath)) {
+          counter += 1
+          newTargetPath = path.join(parentDir, `${baseName} (${counter})${ext}`)
+        }
+
+        return newTargetPath
+      }
+
+      try {
+        const fileName = path.basename(sourcePath)
+        const sourceDir = path.dirname(sourcePath)
+        const targetPath = path.join(targetDir, fileName)
+
+        let finalTargetPath = targetPath
+
+        if (sourceDir === targetDir) {
+          finalTargetPath = buildKeepBothTargetPath(targetPath)
+          copyPathRecursive(sourcePath, finalTargetPath)
+          return {
+            success: true,
+            conflictAction: 'keepBoth',
+            newPath: finalTargetPath,
+          }
+        }
+
+        if (fs.existsSync(targetPath)) {
+          const { response } = await dialog.showMessageBox(focusedWindow, {
+            type: 'warning',
+            title: this.t('dialog.move.title', 'Copy'),
+            message: this.tf(
+              'dialog.move.message',
+              'An older item named "{name}" already exists here. Replace it with the newer item being moved?',
+              { name: fileName }
+            ),
+            buttons: [
+              this.t('dialog.move.keepBoth', 'KeepBoth'),
+              this.t('dialog.common.no', 'No'),
+              this.t('dialog.move.replace', 'Replace'),
+            ],
+            defaultId: 0,
+            cancelId: 1,
+          })
+
+          if (response === 0) {
+            finalTargetPath = buildKeepBothTargetPath(targetPath)
+          } else if (response === 2) {
+            if (fs.statSync(targetPath).isDirectory()) {
+              fs.rmSync(targetPath, { recursive: true, force: true })
+            } else {
+              fs.unlinkSync(targetPath)
+            }
+          } else {
+            return {
+              success: false,
+              conflictAction: 'cancel',
+              newPath: sourcePath,
+            }
+          }
+        }
+
+        copyPathRecursive(sourcePath, finalTargetPath)
+        return {
+          success: true,
+          conflictAction: finalTargetPath === targetPath ? 'replace' : 'keepBoth',
+          newPath: finalTargetPath,
+        }
+      } catch (error) {
+        console.error('Error copying file:', error)
+        throw error
+      }
+    })
+
     // 文件监听相关的 IPC 处理器
     ipcMain.handle('start-file-watching', async (event, folderPath: string) => {
       try {
@@ -767,10 +865,10 @@ export class App {
           if (item.type) {
             menuItem.type = item.type || 'normal'
           }
-          if (item.enabled) {
+          if (typeof item.enabled === 'boolean') {
             menuItem.enabled = item.enabled !== false
           }
-          if (item.visible) {
+          if (typeof item.visible === 'boolean') {
             menuItem.visible = item.visible !== false
           }
           if (item.checked) {

@@ -706,7 +706,7 @@ async function loadTabContent(editorInstance: Editor) {
     setLineEnding(lineEnding)
   } catch (error) {
     notify.error(
-      t('notify.editor.loadFailed', { error: error instanceof Error ? error.message : String(error) }),
+      t('notify.editor.loadFailed', { filepath: props.tab.path || 'Unknown File', error: error instanceof Error ? error.message : String(error) }),
       t('notify.editor.errorContext')
     )
   } finally {

@@ -554,9 +554,14 @@ export default {
     menu: {
       newDocument: '新建文档...',
       newFolder: '新建文件夹...',
-      revealInFolder: '在文件夹中显示',
+      revealInFolder: '打开所在文件夹',
       findInFolder: '在文件夹中查找...',
+      findInFiles: '在文件中查找...',
       open: '打开',
+      cut: '剪切',
+      copy: '复制',
+      paste: '粘贴',
+      delete: '删除',
       rename: '重命名...',
     },
   },
@@ -583,7 +588,7 @@ export default {
   },
   notify: {
     editor: {
-      loadFailed: '加载文档内容失败: {error}',
+      loadFailed: '加载文档 {filepath} 失败: {error}',
       errorContext: '编辑器错误',
       notImplemented: '未实现',
     },
@@ -614,6 +619,8 @@ export default {
       renameError: '文件重命名错误',
       moveSuccess: '{from} -> {to} 移动成功',
       moveError: '文件移动错误',
+      copySuccess: '{from} -> {to} 复制成功',
+      copyError: '文件复制错误',
       saveSuccess: '{path} 保存成功',
       saveError: '文件保存错误',
       treeLoadError: '文件树加载错误',

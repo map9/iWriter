@@ -37,6 +37,13 @@ export async function convertContentFrom(content: string, extension: string) {
   // @ts-expect-error don't report error
   } else if (TEXT_IWT_EXTENSIONS.includes(extension)) {
     // iWriter files are stored as JSON with HTML content
+    if (content.trim().length === 0) {
+      return {
+        content: '',
+        lineEnding: 'LF' as const
+      }
+    }
+
     try {
       const parsed = JSON.parse(content)
       return {

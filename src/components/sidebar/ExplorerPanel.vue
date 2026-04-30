@@ -173,6 +173,10 @@ const currentCreateType = ref<'file' | 'folder'>('file')
 const isAllExpanded = ref(false)
 const currentContextNode = ref<FileTreeNode | null>(null)
 const isTreeHovered = ref(false)
+const fileClipboard = ref<{
+  operation: 'cut' | 'copy'
+  sourcePath: string
+} | null>(null)
 const hasRootFolder = computed(() => appStore.fileTree !== null)
 
 // Get root folder's children to display in the tree (not the root folder itself)
@@ -372,6 +376,61 @@ const deleteNode = async (node: FileTreeNode | null) => {
   await appStore.deleteFileOrFolder(node)
 }
 
+const getRootNode = (): FileTreeNode | null => {
+  return appStore.fileTree
+}
+
+const getContextTargetNode = (): FileTreeNode | null => {
+  return currentContextNode.value ?? getRootNode()
+}
+
+const canPasteInto = (targetNode: FileTreeNode | null): boolean => {
+  if (!targetNode || targetNode.type !== 'folder' || !fileClipboard.value) {
+    return false
+  }
+
+  if (fileClipboard.value.operation === 'cut' || fileClipboard.value.operation === 'copy') {
+    const sourceNode = appStore.findNodeByPath(fileClipboard.value.sourcePath)
+    if (!sourceNode) {
+      return false
+    }
+
+    if (targetNode.path === sourceNode.path) return false
+    if (fileClipboard.value.operation === 'cut' && sourceNode.parent?.path === targetNode.path) return false
+    if (sourceNode.type === 'folder' && (targetNode.path === sourceNode.path || targetNode.path.startsWith(`${sourceNode.path}/`))) {
+      return false
+    }
+  }
+
+  return true
+}
+
+const setClipboardFromNode = (node: FileTreeNode, operation: 'cut' | 'copy') => {
+  fileClipboard.value = {
+    operation,
+    sourcePath: node.path,
+  }
+}
+
+const pasteIntoNode = async (targetNode: FileTreeNode | null) => {
+  if (!targetNode || targetNode.type !== 'folder' || !fileClipboard.value) return
+
+  const clipboardEntry = fileClipboard.value
+  const sourceNode = appStore.findNodeByPath(clipboardEntry.sourcePath)
+
+  if (!sourceNode) {
+    return
+  }
+
+  if (clipboardEntry.operation === 'cut') {
+    await appStore.moveFileOrFolder(sourceNode, targetNode)
+    fileClipboard.value = null
+    return
+  }
+
+  await appStore.copyFileOrFolder(sourceNode, targetNode)
+}
+
 const toggleExpandAll = () => {
   if (isAllExpanded.value) {
     treeRef.value?.collapseAll()
@@ -472,9 +531,11 @@ const openFile = async (file: FileTreeNode) => {
 // 处理节点右键上下文菜单
 const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent }) => {
   const fileNode = data.node as FileTreeNode
+  const targetNode = fileNode ?? getRootNode()
+  if (!targetNode) return
 
   const menuItems: ContextMenuItem[] = []
-  if (!fileNode || (fileNode && fileNode.type === 'folder')) {
+  if (!fileNode || fileNode.type === 'folder') {
     menuItems.push(
       {
         id: 'explorer-new-file',
@@ -490,8 +551,8 @@ const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent })
       },
       { type: 'separator' },
       {
-        id: 'explorer-find-in-folder',
-        label: t('explorer.menu.findInFolder'),
+        id: fileNode ? 'explorer-find-in-folder' : 'explorer-find-in-files',
+        label: fileNode ? t('explorer.menu.findInFolder') : t('explorer.menu.findInFiles'),
       },
       { type: 'separator' },
     )
@@ -514,10 +575,12 @@ const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent })
   if (fileNode) {
     menuItems.push(
       {
-        role: 'cut'
+        id: 'explorer-cut',
+        label: t('explorer.menu.cut'),
       },
       {
-        role: 'copy'
+        id: 'explorer-copy',
+        label: t('explorer.menu.copy'),
       },
     )
   }
@@ -525,13 +588,15 @@ const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent })
   if (!fileNode || (fileNode && fileNode.type === 'folder')) {
     menuItems.push(
       {
-        role: 'paste'
+        id: 'explorer-paste',
+        label: t('explorer.menu.paste'),
+        enabled: canPasteInto(targetNode),
       },
       { type: 'separator' },
     )
   }
   
-    if (fileNode) {
+  if (fileNode) {
     menuItems.push(
       {
         id: 'explorer-rename-file-or-folder',
@@ -539,7 +604,8 @@ const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent })
         accelerator: 'Enter',
       },
       {
-        role: 'delete'
+        id: 'explorer-delete',
+        label: t('explorer.menu.delete'),
       },
     )
   }
@@ -609,26 +675,52 @@ const handleMenuAction = async (action: string) => {
   }
 
   const node = currentContextNode.value
-  if (!node) return
+  const targetNode = getContextTargetNode()
+  if (!targetNode) return
   
   switch (action) {
     case 'explorer-open-file':
-      openFile(node)
+      if (node) {
+        openFile(node)
+      }
       break
     case 'explorer-new-file':
-      createFileInFolder(node)
+      createFileInFolder(targetNode)
       break
     case 'explorer-new-folder':
-      createFolderInFolder(node)
+      createFolderInFolder(targetNode)
       break
     case 'explorer-reveal-in-folder':
-      window.electronAPI.revealInFolder(node.path)
+      window.electronAPI.revealInFolder(targetNode.path)
       break
     case 'explorer-find-in-folder':
-      appStore.searchInFolder(node.path)
+      appStore.searchInFolder(targetNode.path)
+      break
+    case 'explorer-find-in-files':
+      appStore.searchInWorkspace()
+      break
+    case 'explorer-cut':
+      if (node) {
+        setClipboardFromNode(node, 'cut')
+      }
+      break
+    case 'explorer-copy':
+      if (node) {
+        setClipboardFromNode(node, 'copy')
+      }
+      break
+    case 'explorer-paste':
+      await pasteIntoNode(targetNode)
       break
     case 'explorer-rename-file-or-folder':
-      treeRef.value?.startRenameNode(node.id)
+      if (node) {
+        treeRef.value?.startRenameNode(node.id)
+      }
+      break
+    case 'explorer-delete':
+      if (node) {
+        await deleteNode(node)
+      }
       break
     default:
       break
@@ -666,6 +758,7 @@ onUnmounted(() => {
   --tree-font-weight: 500;
   --tree-text-color: var(--color-base-content);
   --tree-background-color: var(--color-base-100);
+  --tree-container-padding: 0 0 56px 0;
   --tree-hover-color: var(--color-base-200);
 
   --tree-selected-background: var(--color-primary);
