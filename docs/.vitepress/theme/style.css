@@ -129,7 +129,7 @@
   --vp-custom-block-tip-code-bg: var(--vp-c-brand-soft);
 }
 
-.VPNav {
+.VPNavBar {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -203,11 +203,11 @@
 }
 
 .home-page .VPHomeHero .action a[data-unsupported="true"] {
-  background-color: #8a6f4d;
+  background-color: #422ad5;
 }
 
 .home-page .VPHomeHero .action a[data-unsupported="true"]:hover {
-  background-color: #7b6142;
+  background-color: #3527a9;
 }
 
 .home-page .VPHomeFeatures {
@@ -339,7 +339,6 @@
 .home-media-card__media {
   position: relative;
   width: 100%;
-  height: 100%;
   overflow: hidden;
   background: color-mix(in srgb, var(--vp-c-bg-soft) 78%, black 6%);
 }
@@ -354,11 +353,10 @@
 .home-media-card__external-placeholder {
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
   margin: 0px 0px;
 }
 
-.home-media-card__image,
 .home-media-card__video,
 .home-media-card__external-placeholder {
   object-fit: cover;
@@ -402,6 +400,7 @@
 
 .home-media-card__external-link {
   position: relative;
+  line-height: 0;
   color: white;
   text-decoration: none;
 }
@@ -466,18 +465,33 @@
 }
 
 @media (max-width: 768px) {
-  .home-page .VPHomeHero .actions {
-    flex-direction: column;
-    align-items: stretch;
-    width: 100%;
+  .VPNav {
+    z-index: calc(var(--vp-z-index-sidebar) + 10);
   }
 
-  .home-page .VPHomeHero .action {
-    width: 100%;
+  .VPNavBar,
+  .VPNavScreen {
+    z-index: calc(var(--vp-z-index-sidebar) + 11);
+  }
+
+  .home-page .VPHomeHero .actions {
+    flex-wrap: wrap;
+    justify-content: center;
+    width: auto;
+  }
+
+  .home-page .VPHomeHero .action,
+  .home-page .VPHomeHero .action .VPButton {
+    width: auto;
   }
 
   .home-page .VPHomeHero .action .VPButton {
-    width: 100%;
+    min-width: 168px;
+  }
+
+  .home-page .VPHomeHero .text {
+    max-width: 100%;
+    font-size: clamp(34px, 13vw, 56px);
   }
 
   .home-screenshot,
@@ -507,16 +521,26 @@
     margin-bottom: 0;
   }
 
-  .home-media-card--hero,
-  .home-media-card--wide {
-    aspect-ratio: 1.4 / 1;
+  .home-media-card__image,
+  .home-media-card__video,
+  .home-media-card__external-link,
+  .home-media-card__external-placeholder {
+    height: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-page .VPHomeHero .actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
   }
 
-  .home-media-card--medium {
-    aspect-ratio: 1.2 / 1;
+  .home-page .VPHomeHero .action {
+    width: 100%;
   }
 
-  .home-media-card--small {
-    aspect-ratio: 1 / 1;
+  .home-page .VPHomeHero .action .VPButton {
+    width: 100%;
   }
 }
