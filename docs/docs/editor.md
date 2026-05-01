@@ -2,7 +2,7 @@
 
 > 适用版本：iWriter `0.1.8`
 >
-> 最后更新：2026-04-29
+> 最后更新：2026-05-01
 
 iWriter 的编辑器基于 Tiptap / ProseMirror 构建，同时支持 Markdown 语法输入和可视化富文本编辑，两种方式可以混用。
 
@@ -90,12 +90,20 @@ iWriter 的编辑器基于 Tiptap / ProseMirror 构建，同时支持 Markdown �
 
 这些模式可以组合使用，用来在“排版操作”和“沉浸写作”之间切换。
 
-## 打印与导出 PDF
+## 打印与导出
 
 - 支持从 `File -> Print...` 进入打印流程
 - 会根据当前文档类型准备打印参数
 - 支持打印预览、打印机选择以及导出 PDF
+- 支持从 `File -> Export` 导出为 HTML、Word（`.docx`）、OpenOffice（`.odt`）、RTF、EPUB、LaTeX、MediaWiki、reStructuredText、Textile、OPML
 - 适合小说、简历、普通文稿等需要正式输出的场景
+
+## 导入已有文稿
+
+- 支持从 `File -> Import Document...` 导入常见文稿格式
+- 当前导入流程基于 Pandoc，适合把已有 Word、ODT、RTF、EPUB、HTML 等内容接入当前工作区
+- 导入后的内容会转换为 iWriter 可继续编辑的文档结构
+- 如果需要自定义 Pandoc 路径或导出参数，可在 [偏好设置](/docs/preferences) 中配置
 
 ## 快捷键速查
 

@@ -2,7 +2,7 @@
 
 > 适用版本：iWriter `0.1.8`
 >
-> 最后更新：2026-04-29
+> 最后更新：2026-05-01
 
 欢迎来到 iWriter 使用文档。
 
@@ -22,6 +22,7 @@
 2. [工作区与文件管理](/docs/workspace)
 3. [编辑器使用](/docs/editor)
 4. [AI 总览](/docs/ai-overview)
+5. [偏好设置](/docs/preferences)
 
 ### 进阶路线
 
