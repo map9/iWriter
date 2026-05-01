@@ -217,7 +217,7 @@
                 <div class="text-xs text-base-content/65">{{ t('preferences.editor.workspaceIgnoreRulesDesc') }}</div>
               </div>
               <textarea
-                class="min-h-32 w-full resize-y rounded-field border border-base-300 bg-base-100 px-3 py-2 text-sm outline-none focus:border-primary"
+                class="min-h-32 w-full rounded-field resize-none border border-base-300 bg-base-100 px-3 py-2 text-sm outline-none focus:border-primary"
                 :placeholder="t('preferences.editor.workspaceIgnoreRulesPlaceholder')"
                 :value="appStore.globalEditSetting.workspaceIgnoreRules"
                 @input="appStore.globalEditSetting.workspaceIgnoreRules = ($event.target as HTMLTextAreaElement).value"
