@@ -670,6 +670,7 @@ async function loadTabContent(editorInstance: Editor) {
   isLoading.value = true
 
   let lineEnding = props.tab.editState?.lineEnding ?? 'LF'
+  let loadedPendingImport = false
   try {
     // Load from file if path exists and content is empty
     if (props.tab.path) {
@@ -694,14 +695,32 @@ async function loadTabContent(editorInstance: Editor) {
         .run()
         lineEnding = contentConverted.lineEnding || 'LF'
       }
+    } else if (props.tab.pendingImport?.markdown) {
+      const contentConverted = await convertContentFrom(props.tab.pendingImport.markdown, 'md')
+      if (contentConverted === null) {
+        throw new Error('Unsupport imported markdown content')
+      }
+      editorInstance.chain().command(({ tr, dispatch }: { tr: Transaction; dispatch?: (tr: Transaction) => void }) => {
+        if (dispatch) {
+          tr.setMeta('addToHistory', false)
+          const json = generateJSON(contentConverted.content, extensions)
+          const doc = editorInstance.schema.nodeFromJSON(json)
+          tr.replaceWith(0, tr.doc.content.size, doc.content)
+          dispatch(tr)
+        }
+        return true
+      }).run()
+      lineEnding = contentConverted.lineEnding || 'LF'
+      loadedPendingImport = true
     }
     
     // 等待DOM更新后设置初始历史状态
     await nextTick()
     // 文件加载完成后，设置当前状态为"干净"状态
     appStore.updateTabState(props.tab.id, { 
-      isDirty: false,
-      savedCheckPoint: undoDepth(editorInstance.state)
+      isDirty: loadedPendingImport,
+      pendingImport: undefined,
+      savedCheckPoint: loadedPendingImport ? -1 : undoDepth(editorInstance.state)
     })
     setLineEnding(lineEnding)
   } catch (error) {
@@ -784,7 +803,7 @@ function handleVisibilityChange() {
 // Handle menu actions
 function openPrintPreview() {
   if (editor.value) {
-    appStore.openPrintPreview(editor.value.getHTML(), props.tab.name)
+    appStore.openPrintPreview(editor.value.getHTML(), props.tab.name, { mode: 'print' })
   }
 }
 

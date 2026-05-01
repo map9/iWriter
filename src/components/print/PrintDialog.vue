@@ -25,7 +25,7 @@
         <button
           v-if="!isRendering && totalPages > 0"
           class="absolute bottom-3 right-3 z-10 rounded-md bg-base-200/80 px-2 py-1 text-xs text-base-content/60 backdrop-blur-sm hover:bg-base-300 hover:text-base-content"
-          :title="t('dialog.printPreviewDialog.preview.zoomResetTitle')"
+          :title="t('dialog.printDialog.preview.zoomResetTitle')"
           @click="computeFitScale"
         >
           {{ Math.round(previewScale * 100) }}%
@@ -36,19 +36,18 @@
       <div class="flex w-80 shrink-0 flex-col border-l border-base-300">
         <!-- Header -->
         <div class="flex shrink-0 items-center justify-between border-b border-base-300 px-5 py-4">
-          <h2 class="text-base font-semibold">{{ t('dialog.printPreviewDialog.title') }}</h2>
-          <span class="text-sm text-base-content/50">{{ t('dialog.printPreviewDialog.sheets', { count: physicalSheets }) }}</span>
+          <h2 class="text-base font-semibold">{{ dialogTitle }}</h2>
+          <span class="text-sm text-base-content/50">{{ t('dialog.printDialog.sheets', { count: physicalSheets }) }}</span>
         </div>
 
         <!-- Settings -->
         <div class="flex-1 overflow-y-auto">
-          <div class="divide-y divide-base-300">
+          <div class="space-y-1 divide-base-300 border-b border-base-300">
 
             <!-- Printer -->
-            <div class="flex items-center justify-between px-5 py-3">
-              <label class="shrink-0 text-sm">{{ t('dialog.printPreviewDialog.printer.label') }}</label>
+            <div v-if="isPrintMode" class="flex items-center justify-between px-5 py-3">
+              <label class="shrink-0 text-sm">{{ t('dialog.printDialog.printer.label') }}</label>
               <select v-model="selectedPrinter" class="iw-select ml-3 w-44 text-sm">
-                <option :value="PDF_PRINTER">{{ t('dialog.printPreviewDialog.printer.saveAsPdf') }}</option>
                 <option v-for="p in printers" :key="p.name" :value="p.name">
                   {{ p.displayName || p.name }}
                 </option>
@@ -58,19 +57,19 @@
             <!-- Page range -->
             <div class="flex flex-col gap-2 px-5 py-3">
               <div class="flex items-center justify-between">
-                <label class="shrink-0 text-sm">{{ t('dialog.printPreviewDialog.pageRange.label') }}</label>
+                <label class="shrink-0 text-sm">{{ t('dialog.printDialog.pageRange.label') }}</label>
                 <select v-model="pageRange" class="iw-select ml-3 w-44 text-sm">
-                  <option value="all">{{ t('dialog.printPreviewDialog.pageRange.options.all') }}</option>
-                  <option value="odd">{{ t('dialog.printPreviewDialog.pageRange.options.odd') }}</option>
-                  <option value="even">{{ t('dialog.printPreviewDialog.pageRange.options.even') }}</option>
-                  <option value="custom">{{ t('dialog.printPreviewDialog.pageRange.options.custom') }}</option>
+                  <option value="all">{{ t('dialog.printDialog.pageRange.options.all') }}</option>
+                  <option value="odd">{{ t('dialog.printDialog.pageRange.options.odd') }}</option>
+                  <option value="even">{{ t('dialog.printDialog.pageRange.options.even') }}</option>
+                  <option value="custom">{{ t('dialog.printDialog.pageRange.options.custom') }}</option>
                 </select>
               </div>
               <input
                 v-if="pageRange === 'custom'"
                 v-model="customPageRange"
                 class="iw-input w-full text-sm"
-                :placeholder="t('dialog.printPreviewDialog.pageRange.placeholder')"
+                :placeholder="t('dialog.printDialog.pageRange.placeholder')"
               />
               <p v-if="pageRange === 'custom' && customPageRangeError" class="text-xs text-error">
                 {{ customPageRangeError }}
@@ -79,7 +78,7 @@
 
             <!-- Copies (hidden for PDF printer) -->
             <div v-if="!isPdfPrinter" class="flex items-center justify-between px-5 py-3">
-              <label class="shrink-0 text-sm">{{ t('dialog.printPreviewDialog.copies.label') }}</label>
+              <label class="shrink-0 text-sm">{{ t('dialog.printDialog.copies.label') }}</label>
               <input
                 v-model.number="copies"
                 type="number"
@@ -89,21 +88,24 @@
               />
             </div>
 
+          </div>
+
+          <div class="space-y-1 divide-base-300 border-b border-base-300">
             <!-- More Settings Toggle -->
             <button
               class="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-base-200"
-              @click="showMoreSettings = !showMoreSettings"
+              @click="showPageSettings = !showPageSettings"
             >
-              <span class="text-sm font-medium">{{ t('dialog.printPreviewDialog.moreSettings') }}</span>
-              <IconChevronUp v-if="showMoreSettings" class="icon-xs shrink-0 text-base-content/60" />
+              <span class="text-sm font-medium">{{ t('dialog.printDialog.pageSettings') }}</span>
+              <IconChevronUp v-if="showPageSettings" class="icon-xs shrink-0 text-base-content/60" />
               <IconChevronDown v-else class="icon-xs shrink-0 text-base-content/60" />
             </button>
 
-            <template v-if="showMoreSettings">
+            <template v-if="showPageSettings">
 
             <!-- Print theme -->
             <div class="flex items-center justify-between px-5 py-3">
-              <label class="shrink-0 text-sm">{{ t('dialog.printPreviewDialog.printTheme.label') }}</label>
+              <label class="shrink-0 text-sm">{{ t('dialog.printDialog.printTheme.label') }}</label>
               <select v-model="selectedPrintThemeId" class="iw-select ml-3 w-44 text-sm">
                 <option v-for="theme in availablePrintThemes" :key="theme.id" :value="theme.id">
                   {{ theme.name }}
@@ -111,18 +113,9 @@
               </select>
             </div>
 
-              <!-- Layout / Orientation -->
-              <div class="flex items-center justify-between px-5 py-3">
-                <label class="shrink-0 text-sm">{{ t('dialog.printPreviewDialog.orientation.label') }}</label>
-                <select v-model="orientation" class="iw-select ml-3 w-44 text-sm" @change="renderPreview">
-                  <option value="portrait">{{ t('dialog.printPreviewDialog.orientation.options.portrait') }}</option>
-                  <option value="landscape">{{ t('dialog.printPreviewDialog.orientation.options.landscape') }}</option>
-                </select>
-              </div>
-
               <!-- Paper Size -->
               <div class="flex items-center justify-between px-5 py-3">
-                <label class="shrink-0 text-sm">{{ t('dialog.printPreviewDialog.paperSize.label') }}</label>
+                <label class="shrink-0 text-sm">{{ t('dialog.printDialog.paperSize.label') }}</label>
                 <select v-model="paperSize" class="iw-select ml-3 w-44 text-sm" @change="renderPreview">
                   <option v-for="s in availablePaperSizes" :key="s.value" :value="s.value">
                     {{ s.label }}
@@ -130,9 +123,18 @@
                 </select>
               </div>
 
+              <!-- Layout / Orientation -->
+              <div class="flex items-center justify-between px-5 py-3">
+                <label class="shrink-0 text-sm">{{ t('dialog.printDialog.orientation.label') }}</label>
+                <select v-model="orientation" class="iw-select ml-3 w-44 text-sm" @change="renderPreview">
+                  <option value="portrait">{{ t('dialog.printDialog.orientation.options.portrait') }}</option>
+                  <option value="landscape">{{ t('dialog.printDialog.orientation.options.landscape') }}</option>
+                </select>
+              </div>
+
               <!-- Pages per sheet -->
               <div class="flex items-center justify-between px-5 py-3">
-                <label class="shrink-0 text-sm">{{ t('dialog.printPreviewDialog.pagesPerSheet.label') }}</label>
+                <label class="shrink-0 text-sm">{{ t('dialog.printDialog.pagesPerSheet.label') }}</label>
                 <select v-model="pagesPerSheet" class="iw-select ml-3 w-44 text-sm" @change="renderPreview">
                   <option value="1">1</option>
                   <option value="2">2</option>
@@ -144,18 +146,47 @@
 
               <!-- Margins -->
               <div class="flex items-center justify-between px-5 py-3">
-                <label class="shrink-0 text-sm">{{ t('dialog.printPreviewDialog.margins.label') }}</label>
+                <label class="shrink-0 text-sm">{{ t('dialog.printDialog.margins.label') }}</label>
                 <select v-model="margins" class="iw-select ml-3 w-44 text-sm" @change="renderPreview">
-                  <option value="theme">{{ t('dialog.printPreviewDialog.margins.options.theme') }}</option>
-                  <option value="default">{{ t('dialog.printPreviewDialog.margins.options.default') }}</option>
-                  <option value="none">{{ t('dialog.printPreviewDialog.margins.options.none') }}</option>
-                  <option value="minimum">{{ t('dialog.printPreviewDialog.margins.options.minimum') }}</option>
+                  <option value="theme">{{ t('dialog.printDialog.margins.options.theme') }}</option>
+                  <option value="default">{{ t('dialog.printDialog.margins.options.default') }}</option>
+                  <option value="none">{{ t('dialog.printDialog.margins.options.none') }}</option>
+                  <option value="minimum">{{ t('dialog.printDialog.margins.options.minimum') }}</option>
                 </select>
               </div>
 
+              <!-- Options -->
+              <div class="flex flex-col gap-3 px-5 py-3">
+                <label class="shrink-0 text-sm font-medium">{{ t('dialog.printDialog.options.label') }}</label>
+                <label class="flex cursor-pointer items-center gap-2">
+                  <input type="checkbox" v-model="printBackground" class="checkbox checkbox-sm checkbox-primary" />
+                  <span class="text-sm">{{ t('dialog.printDialog.options.printBackground') }}</span>
+                </label>
+                <label class="flex cursor-pointer items-center gap-2">
+                  <input type="checkbox" v-model="printHeaderFooter" class="checkbox checkbox-sm checkbox-primary" @change="renderPreview" />
+                  <span class="text-sm">{{ t('dialog.printDialog.options.printHeaderFooter') }}</span>
+                </label>
+              </div>
+
+            </template>
+          
+          </div>
+
+          <div class="space-y-1 divide-base-300 border-b border-base-300">
+            <!-- More Settings Toggle -->
+            <button
+              class="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-base-200"
+              @click="showMoreSettings = !showMoreSettings"
+            >
+              <span class="text-sm font-medium">{{ t('dialog.printDialog.moreSettings') }}</span>
+              <IconChevronUp v-if="showMoreSettings" class="icon-xs shrink-0 text-base-content/60" />
+              <IconChevronDown v-else class="icon-xs shrink-0 text-base-content/60" />
+            </button>
+
+            <template v-if="showMoreSettings">
               <!-- Print Quality (hidden for PDF) -->
               <div v-if="!isPdfPrinter" class="flex items-center justify-between px-5 py-3">
-                <label class="shrink-0 text-sm">{{ t('dialog.printPreviewDialog.quality.label') }}</label>
+                <label class="shrink-0 text-sm">{{ t('dialog.printDialog.quality.label') }}</label>
                 <select v-model="dpi" class="iw-select ml-3 w-44 text-sm">
                   <option value="150">150 dpi</option>
                   <option value="300">300 dpi</option>
@@ -166,10 +197,10 @@
               <!-- Scale -->
               <div class="flex flex-col gap-2 px-5 py-3">
                 <div class="flex items-center justify-between">
-                  <label class="shrink-0 text-sm">{{ t('dialog.printPreviewDialog.scale.label') }}</label>
+                  <label class="shrink-0 text-sm">{{ t('dialog.printDialog.scale.label') }}</label>
                   <select v-model="scaleMode" class="iw-select ml-3 w-44 text-sm">
-                    <option value="default">{{ t('dialog.printPreviewDialog.scale.options.default') }}</option>
-                    <option value="custom">{{ t('dialog.printPreviewDialog.scale.options.custom') }}</option>
+                    <option value="default">{{ t('dialog.printDialog.scale.options.default') }}</option>
+                    <option value="custom">{{ t('dialog.printDialog.scale.options.custom') }}</option>
                   </select>
                 </div>
                 <div v-if="scaleMode === 'custom'" class="flex items-center gap-2">
@@ -189,36 +220,26 @@
 
               <!-- Color (only for real printers that support color) -->
               <div v-if="!isPdfPrinter && printerColorSupported" class="flex items-center justify-between px-5 py-3">
-                <label class="shrink-0 text-sm">{{ t('dialog.printPreviewDialog.color.label') }}</label>
+                <label class="shrink-0 text-sm">{{ t('dialog.printDialog.color.label') }}</label>
                 <select v-model="colorMode" class="iw-select ml-3 w-44 text-sm" @change="renderPreview">
-                  <option value="color">{{ t('dialog.printPreviewDialog.color.options.color') }}</option>
-                  <option value="grayscale">{{ t('dialog.printPreviewDialog.color.options.grayscale') }}</option>
+                  <option value="color">{{ t('dialog.printDialog.color.options.color') }}</option>
+                  <option value="grayscale">{{ t('dialog.printDialog.color.options.grayscale') }}</option>
                 </select>
               </div>
 
-              <!-- Options -->
-              <div class="flex flex-col gap-2 px-5 py-3">
-                <label class="shrink-0 text-sm">{{ t('dialog.printPreviewDialog.options.label') }}</label>
-                <label class="flex cursor-pointer items-center gap-2">
-                  <input type="checkbox" v-model="printBackground" class="checkbox checkbox-sm" />
-                  <span class="text-sm">{{ t('dialog.printPreviewDialog.options.printBackground') }}</span>
-                </label>
-                <label class="flex cursor-pointer items-center gap-2">
-                  <input type="checkbox" v-model="printHeaderFooter" class="checkbox checkbox-sm" @change="renderPreview" />
-                  <span class="text-sm">{{ t('dialog.printPreviewDialog.options.printHeaderFooter') }}</span>
-                </label>
-              </div>
-
             </template>
-
+          
+          </div>
+          
+          <div class="space-y-1 divide-base-300">
             <!-- System dialog link (hidden for PDF) -->
             <button
-              v-if="!isPdfPrinter"
+              v-if="isPrintMode && !isPdfPrinter"
               class="flex w-full items-center justify-between px-5 py-3 text-left text-sm text-primary hover:bg-base-200"
               @click="handleSystemPrint"
               :disabled="isPrinting"
             >
-              <span>{{ t('dialog.printPreviewDialog.systemDialog') }}</span>
+              <span>{{ t('dialog.printDialog.systemDialog') }}</span>
               <IconExternalLink class="icon-xs shrink-0" />
             </button>
 
@@ -227,13 +248,13 @@
 
         <!-- Footer -->
         <div class="flex shrink-0 items-center justify-end gap-3 border-t border-base-300 px-5 py-3">
-          <button class="iw-btn btn-ghost btn-sm" @click="emit('close')">{{ t('dialog.printPreviewDialog.actions.cancel') }}</button>
+          <button class="iw-btn btn-ghost btn-sm" @click="emit('close')">{{ t('dialog.printDialog.actions.cancel') }}</button>
           <button
             class="iw-btn btn-primary btn-sm"
             :disabled="isPrinting || isRendering || totalPages === 0"
             @click="handlePrint"
           >
-            {{ isPdfPrinter ? t('dialog.printPreviewDialog.actions.saveAsPdf') : t('dialog.printPreviewDialog.actions.print') }}
+            {{ isPdfPrinter ? t('dialog.printDialog.actions.saveAsPdf') : t('dialog.printDialog.actions.print') }}
           </button>
         </div>
       </div>
@@ -246,6 +267,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconChevronUp, IconChevronDown, IconExternalLink } from '@tabler/icons-vue'
 import { notify } from '@/utils/notifications'
+import { useAppStore } from '@/stores/app'
 import { buildPreviewDocumentWithOptions } from './buildPreviewDoc'
 import { buildPrintCss } from './buildPrintCss'
 import { builtInPrintThemes, getPrintThemeById } from './printThemes'
@@ -354,10 +376,14 @@ const props = defineProps<{
   visible: boolean
   html: string
   title: string
+  mode?: 'print' | 'export'
+  defaultSavePath?: string
+  skipSaveDialog?: boolean
 }>()
 
 const emit = defineEmits<{ close: [] }>()
 const { t, locale } = useI18n()
+const appStore = useAppStore()
 
 const previewFrame  = ref<HTMLIFrameElement>()
 const previewScroll = ref<HTMLDivElement>()
@@ -381,7 +407,7 @@ const PREVIEW_RENDER_DEBOUNCE_MS = 220
 
 // Printer
 const printers        = ref<Electron.PrinterInfo[]>([])
-const selectedPrinter = ref(PDF_PRINTER)
+const selectedPrinter = ref('')
 
 // Page
 const pageRange      = ref<'all' | 'odd' | 'even' | 'custom'>('all')
@@ -390,7 +416,8 @@ const copies         = ref(1)
 const selectedPrintThemeId = ref('default')
 
 // More settings
-const showMoreSettings  = ref(true)
+const showPageSettings  = ref(true)
+const showMoreSettings  = ref(false)
 const orientation       = ref<'portrait' | 'landscape'>('portrait')
 const paperSize         = ref('A4')
 const pagesPerSheet     = ref('1')
@@ -410,6 +437,11 @@ type CustomInputValidation<T> = {
 // ── Computed ──────────────────────────────────────────────────────────────────
 
 const isPdfPrinter = computed(() => selectedPrinter.value === PDF_PRINTER)
+const isExportMode = computed(() => props.mode === 'export')
+const isPrintMode = computed(() => !isExportMode.value)
+const dialogTitle = computed(() =>
+  isExportMode.value ? t('dialog.printDialog.exportTitle') : t('dialog.printDialog.title')
+)
 
 const selectedPrinterInfo = computed<Electron.PrinterInfo | null>(() =>
   printers.value.find(p => p.name === selectedPrinter.value) ?? null
@@ -441,7 +473,7 @@ const customScaleValidation = computed<CustomInputValidation<number>>(() => {
 
   const scale = Number(rawValue)
   if (!Number.isFinite(scale) || scale <= 0) {
-    return { effectiveValue: 100, error: t('dialog.printPreviewDialog.validation.scalePositive') }
+    return { effectiveValue: 100, error: t('dialog.printDialog.validation.scalePositive') }
   }
 
   return { effectiveValue: scale, error: '' }
@@ -460,12 +492,12 @@ const customPageRangeValidation = computed<CustomInputValidation<number[] | null
   }
 
   if (!/^(\d+(\s*-\s*\d+)?)(\s*,\s*\d+(\s*-\s*\d+)?)*$/.test(rawValue)) {
-    return { effectiveValue: null, error: t('dialog.printPreviewDialog.validation.pageRangeInvalid') }
+    return { effectiveValue: null, error: t('dialog.printDialog.validation.pageRangeInvalid') }
   }
 
   const pages = parseCustomPageRangeInput(rawValue, originalTotalPages.value)
   if (!pages.length) {
-    return { effectiveValue: null, error: t('dialog.printPreviewDialog.validation.pageRangeOutOfRange') }
+    return { effectiveValue: null, error: t('dialog.printDialog.validation.pageRangeOutOfRange') }
   }
 
   return { effectiveValue: pages, error: '' }
@@ -550,14 +582,18 @@ function getPrinterPaperSizes(info: Electron.PrinterInfo | null): typeof STANDAR
 onMounted(async () => {
   window.addEventListener('message', handleFrameMessage)
   window.addEventListener('resize', handlePreviewViewportResize)
+  if (isExportMode.value) {
+    selectedPrinter.value = PDF_PRINTER
+    return
+  }
   try {
     const list = await window.electronAPI.getPrinters()
     printers.value = list
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const def = list.find((p: any) => p.isDefault)
-    if (def) selectedPrinter.value = def.name
+    selectedPrinter.value = def?.name ?? list[0]?.name ?? ''
   } catch {
-    /* no printers API — keep PDF_PRINTER as default */
+    /* no printers API — keep the printer selection empty */
   }
 })
 
@@ -576,6 +612,9 @@ watch(
   () => props.visible,
   async (val) => {
     if (val) {
+      if (isExportMode.value) {
+        selectedPrinter.value = PDF_PRINTER
+      }
       await nextTick()
       previewScroll.value?.addEventListener('wheel', handlePreviewWheel, { passive: false })
       if (props.html) renderPreview()
@@ -623,7 +662,7 @@ function handleFrameMessage(event: MessageEvent) {
 
   } else if (event.data?.type === 'paged-error') {
     console.error('[PrintPreview] pagedjs error:', event.data.error)
-    notify.error(t('dialog.printPreviewDialog.notifications.previewFailed'))
+    notify.error(t('dialog.printDialog.notifications.previewFailed'))
     isRendering.value = false
   }
 }
@@ -682,7 +721,7 @@ function generatePrintCSS(): { css: string; enablePageNumberFix: boolean; pageNu
   const pageSize = `${formatCssLengthMm(pageWidth)} ${formatCssLengthMm(pageHeight)}`
   return buildPrintCss({
     theme: selectedPrintTheme.value,
-    documentTitle: props.title || t('dialog.printPreviewDialog.untitled'),
+    documentTitle: props.title || t('dialog.printDialog.untitled'),
     printDate: getPrintDateText(),
     pageSize,
     margin: getDialogMarginOverride(),
@@ -776,11 +815,11 @@ async function doPrint(silent: boolean) {
   try {
     result = await window.electronAPI.printFromHtml(htmlDoc, options)
   } catch (err: unknown) {
-    notify.error(err instanceof Error ? err.message : t('dialog.printPreviewDialog.notifications.printFailed'))
+    notify.error(err instanceof Error ? err.message : t('dialog.printDialog.notifications.printFailed'))
     return
   }
   if (!result.success && !result.cancelled) {
-    notify.error(result.error ?? t('dialog.printPreviewDialog.notifications.printFailed'))
+    notify.error(result.error ?? t('dialog.printDialog.notifications.printFailed'))
   } else if (result.success) {
     emit('close')
   }
@@ -802,21 +841,28 @@ async function handleSaveToPDF() {
         right: 0,
       },
     }
-    const result = await window.electronAPI.saveToPdfFromHtml(htmlDoc, pdfOptions)
+    const result = await window.electronAPI.saveToPdfFromHtml(htmlDoc, pdfOptions, {
+      defaultPath: props.defaultSavePath,
+      skipDialog: props.skipSaveDialog,
+    })
     if (!result.success && !result.cancelled) {
-      notify.error(result.error ?? t('dialog.printPreviewDialog.notifications.savePdfFailed'))
+      notify.error(result.error ?? t('dialog.printDialog.notifications.savePdfFailed'))
     } else if (result.success) {
-      notify.success(t('dialog.printPreviewDialog.notifications.pdfSaved'))
+      notify.success(t('dialog.printDialog.notifications.pdfSaved'))
+      if (result.filePath && isExportMode.value) {
+        await handlePostExportAction(result.filePath)
+      }
+      emit('close')
     }
   } catch (err: unknown) {
-    notify.error(err instanceof Error ? err.message : t('dialog.printPreviewDialog.notifications.savePdfFailed'))
+    notify.error(err instanceof Error ? err.message : t('dialog.printDialog.notifications.savePdfFailed'))
   } finally {
     isPrinting.value = false
   }
 }
 
 async function handlePrint() {
-  if (isPdfPrinter.value) {
+  if (isExportMode.value || isPdfPrinter.value) {
     await handleSaveToPDF()
     return
   }
@@ -824,7 +870,7 @@ async function handlePrint() {
   try {
     await doPrint(true)
   } catch (err: unknown) {
-    notify.error(err instanceof Error ? err.message : t('dialog.printPreviewDialog.notifications.printFailed'))
+    notify.error(err instanceof Error ? err.message : t('dialog.printDialog.notifications.printFailed'))
   } finally {
     isPrinting.value = false
   }
@@ -835,9 +881,25 @@ async function handleSystemPrint() {
   try {
     await doPrint(false)
   } catch (err: unknown) {
-    notify.error(err instanceof Error ? err.message : t('dialog.printPreviewDialog.notifications.printFailed'))
+    notify.error(err instanceof Error ? err.message : t('dialog.printDialog.notifications.printFailed'))
   } finally {
     isPrinting.value = false
+  }
+}
+
+async function handlePostExportAction(filePath: string) {
+  const actions = appStore.globalExportSetting.common.afterExportActions
+  if (!actions.reveal && !actions.open) return
+
+  try {
+    if (actions.reveal) {
+      await window.electronAPI.revealInFolder(filePath)
+    }
+    if (actions.open) {
+      await window.electronAPI.openWithShell(filePath)
+    }
+  } catch (error) {
+    console.warn('Failed to run post-export action for PDF:', error)
   }
 }
 

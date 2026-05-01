@@ -334,16 +334,18 @@ export class WindowManager {
       const win = BrowserWindow.fromWebContents(event.sender)
       if (!win) return { success: false, error: 'Window not found' }
 
-      const saveResult = await dialog.showSaveDialog(win, {
-        title: '保存为 PDF',
-        defaultPath: saveOptions?.defaultName ?? 'document.pdf',
-        filters: [{ name: 'PDF 文件', extensions: ['pdf'] }],
-      })
-      if (saveResult.canceled || !saveResult.filePath) {
-        return { success: false, cancelled: true }
+      let filePath = saveOptions?.defaultPath ?? saveOptions?.defaultName ?? 'document.pdf'
+      if (!saveOptions?.skipDialog) {
+        const saveResult = await dialog.showSaveDialog(win, {
+          title: '保存为 PDF',
+          defaultPath: filePath,
+          filters: [{ name: 'PDF 文件', extensions: ['pdf'] }],
+        })
+        if (saveResult.canceled || !saveResult.filePath) {
+          return { success: false, cancelled: true }
+        }
+        filePath = saveResult.filePath
       }
-
-      const filePath = saveResult.filePath
       try {
         return await this.renderInHiddenHtmlWindow(htmlContent, async (hidden) => {
           const buffer = await hidden.webContents.printToPDF({

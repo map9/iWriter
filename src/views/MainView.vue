@@ -121,6 +121,9 @@
     :visible="appStore.showPrintPreviewDialog"
     :html="appStore.printPreviewHtml"
     :title="appStore.printPreviewTitle"
+    :mode="appStore.printPreviewMode"
+    :default-save-path="appStore.printPreviewDefaultSavePath"
+    :skip-save-dialog="appStore.printPreviewSkipSaveDialog"
     @close="appStore.closePrintPreview()"
   />
 </template>

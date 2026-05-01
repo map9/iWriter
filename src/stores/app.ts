@@ -4,6 +4,7 @@ import { ref, computed, watch, reactive } from 'vue'
 import { undoDepth } from '@tiptap/pm/history'
 import type { FileTab, FileOperationResult, FileChange, EditSetting } from '@/types'
 import { SidebarMode, DocumentType } from '@/types'
+import type { ExportFormatId, ExportSettings } from '@/types'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { pathUtils } from '@/utils/pathUtils'
 import { notify } from '@/utils/notifications'
@@ -24,9 +25,12 @@ import {
   TEXT_EXTENSIONS,
   IMAGE_EXTENSIONS,
   PDF_EXTENSIONS,
+  type PandocAvailabilityResult,
+  type PandocExportRequest,
 } from '@/types'
 import { convertContentTo } from '@/import-export/'
-import { StateStorage, type WorkspaceState } from '@/utils/StateStorage'
+import { PANDOC_EXPORT_EXTENSIONS, PANDOC_IMPORT_EXTENSIONS } from '@/import-export'
+import { DEFAULT_EXPORT_SETTING, StateStorage, type WorkspaceState } from '@/utils/StateStorage'
 import { detectPreferredLocale, i18n, resolveLocale, setAppLocale, type AppLocale } from '@/i18n'
 import {
   DEFAULT_WORKSPACE_IGNORE_RULES,
@@ -40,7 +44,7 @@ import {
 } from '@/services/workspace/filtering'
 
 export const useAppStore = defineStore('app', () => {
-  type PreferencesTab = 'editor' | 'spelling' | 'themes' | 'ai' | 'updates'
+  type PreferencesTab = 'editor' | 'spelling' | 'themes' | 'export' | 'ai' | 'updates'
   const t = i18n.global.t
 
   // 文件监听和类型检测
@@ -58,6 +62,9 @@ export const useAppStore = defineStore('app', () => {
   const showPrintPreviewDialog = ref(false)
   const printPreviewHtml = ref('')
   const printPreviewTitle = ref('')
+  const printPreviewMode = ref<'print' | 'export'>('print')
+  const printPreviewDefaultSavePath = ref('')
+  const printPreviewSkipSaveDialog = ref(false)
   const leftSidebarMode = ref<SidebarMode>(SidebarMode.START)
   const searchFolderPath = ref<string | null>(null)
   const searchIncludePattern = ref('')
@@ -78,6 +85,7 @@ export const useAppStore = defineStore('app', () => {
     proofread: true,
     workspaceIgnoreRules: DEFAULT_WORKSPACE_IGNORE_RULES,
   })
+  const globalExportSetting = reactive<ExportSettings>(structuredClone(DEFAULT_EXPORT_SETTING))
 
   // Heart beat
   let sayHelloTimeout: ReturnType<typeof setTimeout> | null = null
@@ -254,6 +262,9 @@ export const useAppStore = defineStore('app', () => {
     // 2. 恢复编辑设置
     const editSetting = StateStorage.loadEditSetting()
     Object.assign(globalEditSetting, editSetting)
+    const exportSetting = StateStorage.loadExportSetting()
+    Object.assign(globalExportSetting.common, exportSetting.common)
+    Object.assign(globalExportSetting.formats, exportSetting.formats)
     autoSaveEnabled.value = StateStorage.loadAutoSave()
 
     // 3. 恢复主题
@@ -632,6 +643,239 @@ export const useAppStore = defineStore('app', () => {
   function toggleAutoSave() {
     if (!window.electronAPI?.windowContentChange) return
     autoSaveEnabled.value = !autoSave.value
+  }
+
+  function getPreferredFileDirectory(): string | undefined {
+    if (activeTab.value?.path) return pathUtils.dirname(activeTab.value.path)
+    if (currentFolder.value) return currentFolder.value
+    return undefined
+  }
+
+  async function ensurePandocAvailable(): Promise<PandocAvailabilityResult | null> {
+    if (!window.electronAPI?.pandocCheck) return null
+
+    const availability = await window.electronAPI.pandocCheck({
+      pandocPath: getConfiguredPandocPath(),
+    })
+    if (availability.available) return availability
+
+    const detail = [t('notify.pandoc.unavailableDetail'), availability.installHint]
+      .filter(Boolean)
+      .join('\n\n')
+
+    if (window.electronAPI.showMessageBox) {
+      await window.electronAPI.showMessageBox({
+        type: 'warning',
+        title: t('notify.pandoc.unavailableTitle'),
+        message: availability.error || t('notify.pandoc.unavailableTitle'),
+        detail,
+        buttons: [t('common.close')],
+        defaultId: 0,
+        cancelId: 0,
+      })
+    } else {
+      notify.warning(availability.error || t('notify.pandoc.unavailableTitle'), detail)
+    }
+
+    return null
+  }
+
+  async function importWithPandoc(preferredExtensions?: string[]) {
+    if (!window.electronAPI?.pandocImportFile) return false
+    if (!(await ensurePandocAvailable())) return false
+
+    const importExtensions = preferredExtensions?.length ? preferredExtensions : PANDOC_IMPORT_EXTENSIONS
+    const result = await window.electronAPI.showOpenDialog({
+      title: 'Import with Pandoc',
+      defaultPath: getPreferredFileDirectory(),
+      properties: ['openFile'],
+      filters: [
+        { name: 'Supported Documents', extensions: importExtensions },
+      ],
+    })
+
+    if (result.canceled || result.filePaths.length === 0) return false
+
+    const sourcePath = result.filePaths[0]!
+    const importResult = await window.electronAPI.pandocImportFile({
+      inputPath: sourcePath,
+      pandocPath: getConfiguredPandocPath(),
+    })
+    if (!importResult.success || !importResult.markdown) {
+      notify.error(importResult.error || t('notify.pandoc.unsupportedSource'), t('notify.pandoc.importFailed'))
+      return false
+    }
+
+    const sourceBaseName = pathUtils.basename(sourcePath)
+    const nameWithoutExt = sourceBaseName.replace(/\.[^.]+$/, '')
+    createTab(`${nameWithoutExt}.md`, undefined, DocumentType.MARKDOWN_EDITOR, false, {
+      markdown: importResult.markdown,
+      sourcePath,
+    })
+    notify.success(t('notify.pandoc.importSuccess', { name: sourceBaseName }), t('notify.file.operation'))
+    return true
+  }
+
+  async function exportWithPandoc(defaultExtension?: string) {
+    if (!window.electronAPI?.pandocExportFile) return false
+    if (!(await ensurePandocAvailable())) return false
+
+    const tab = activeTab.value
+    if (!tab || tab.documentType !== DocumentType.MARKDOWN_EDITOR || !tab.editorInstance) {
+      notify.warning(t('notify.pandoc.noActiveEditor'), t('notify.pandoc.exportFailed'))
+      return false
+    }
+
+    const markdown = convertContentTo(tab.editorInstance as import('@tiptap/core').Editor, 'md')
+    if (markdown == null || markdown.trim().length === 0) {
+      notify.warning(t('notify.pandoc.emptyDocument'), t('notify.pandoc.exportFailed'))
+      return false
+    }
+
+    const currentBaseName = (tab.path ? pathUtils.basename(tab.path) : tab.name).replace(/\.[^.]+$/, '')
+    const extension = defaultExtension || 'docx'
+    const exportTargetPath = await resolveExportTargetPath(tab, currentBaseName, extension, [
+      { name: 'Pandoc Export Formats', extensions: PANDOC_EXPORT_EXTENSIONS },
+      { name: 'Word Document', extensions: ['docx'] },
+      { name: 'HTML Document', extensions: ['html'] },
+      { name: 'OpenDocument Text', extensions: ['odt'] },
+      { name: 'Rich Text Format', extensions: ['rtf'] },
+      { name: 'EPUB Ebook', extensions: ['epub'] },
+      { name: 'LaTeX Document', extensions: ['tex'] },
+      { name: 'MediaWiki Text', extensions: ['mediawiki'] },
+      { name: 'reStructuredText', extensions: ['rst'] },
+      { name: 'Textile', extensions: ['textile'] },
+      { name: 'OPML', extensions: ['opml'] },
+    ])
+    if (!exportTargetPath) return false
+
+    const request: PandocExportRequest = {
+      markdown,
+      outputPath: exportTargetPath,
+      title: currentBaseName,
+      pandocPath: getConfiguredPandocPath(),
+      options: buildPandocExportOptions(pathUtils.extension(exportTargetPath)),
+    }
+    const exportResult = await window.electronAPI.pandocExportFile(request)
+
+    if (!exportResult.success || !exportResult.outputPath) {
+      notify.error(exportResult.error || t('notify.pandoc.unsupportedTarget'), t('notify.pandoc.exportFailed'))
+      return false
+    }
+
+    notify.success(t('notify.pandoc.exportSuccess', { path: exportResult.outputPath }), t('notify.file.operation'))
+    void handlePostExportAction(exportResult.outputPath)
+    return true
+  }
+
+  function getConfiguredPandocPath(): string | undefined {
+    if (globalExportSetting.common.pandocPathMode !== 'custom') return undefined
+    const configured = globalExportSetting.common.pandocPath.trim()
+    return configured || undefined
+  }
+
+  function getPreferredExportDirectory(tab?: FileTab | null): string | undefined {
+    switch (globalExportSetting.common.defaultFolderMode) {
+      case 'same-directory':
+        if (tab?.path) return pathUtils.dirname(tab.path)
+        return undefined
+      case 'custom':
+        return globalExportSetting.common.customFolderPath.trim() || undefined
+      default:
+        return undefined
+    }
+  }
+
+  async function resolveExportTargetPath(
+    tab: FileTab | null | undefined,
+    baseName: string,
+    extension: string,
+    filters: { name: string; extensions: string[] }[],
+  ): Promise<string | null> {
+    const folderMode = globalExportSetting.common.defaultFolderMode
+    const preferredDirectory = getPreferredExportDirectory(tab)
+    const directExport =
+      (folderMode === 'same-directory' && !!preferredDirectory) ||
+      (folderMode === 'custom' && !!preferredDirectory)
+
+    const defaultPath = preferredDirectory
+      ? pathUtils.join(preferredDirectory, `${baseName}.${extension}`)
+      : `${baseName}.${extension}`
+
+    if (directExport) {
+      return defaultPath
+    }
+
+    const result = await window.electronAPI.showSaveDialog({
+      title: 'Export',
+      defaultPath,
+      filters,
+    })
+
+    if (result.canceled || !result.filePath) return null
+    return result.filePath
+  }
+
+  function mapExtensionToExportFormat(extension: string): ExportFormatId | null {
+    const normalized = extension.toLowerCase()
+    switch (normalized) {
+      case 'html':
+      case 'htm':
+        return 'html'
+      case 'docx':
+        return 'docx'
+      case 'odt':
+        return 'odt'
+      case 'rtf':
+        return 'rtf'
+      case 'epub':
+        return 'epub'
+      case 'tex':
+      case 'latex':
+        return 'latex'
+      case 'mediawiki':
+      case 'wiki':
+        return 'mediawiki'
+      case 'rst':
+      case 'rest':
+        return 'rst'
+      case 'textile':
+        return 'textile'
+      case 'opml':
+        return 'opml'
+      default:
+        return null
+    }
+  }
+
+  function buildPandocExportOptions(extension: string): PandocExportRequest['options'] {
+    const formatId = mapExtensionToExportFormat(extension)
+    if (!formatId) return undefined
+
+    const settings = globalExportSetting.formats[formatId]
+    return {
+      customArgs: settings.customArgs,
+      referenceDocPath: settings.referenceDocPath,
+      templatePath: settings.templatePath,
+      cssPath: settings.cssPath,
+      tocDepth: settings.tocDepth,
+    }
+  }
+
+  async function handlePostExportAction(filePath: string) {
+    const actions = globalExportSetting.common.afterExportActions
+    if (!actions.reveal && !actions.open) return
+
+    try {
+      if (actions.reveal) {
+        await window.electronAPI.revealInFolder(filePath)
+      }
+      if (actions.open) {
+        await window.electronAPI.openWithShell(filePath)
+      }
+    } catch (error) {
+      console.warn('Failed to handle post export action:', error)
+    }
   }
 
   async function openFile(filePath: string) {
@@ -1482,7 +1726,13 @@ export const useAppStore = defineStore('app', () => {
     }
   }
   
-  function createTab(name?: string, path?: string, documentType?: DocumentType, fileReadonly?: boolean) {
+  function createTab(
+    name?: string,
+    path?: string,
+    documentType?: DocumentType,
+    fileReadonly?: boolean,
+    pendingImport?: FileTab['pendingImport']
+  ) {
     const id = Date.now().toString()
     
     // Generate untitled name if not provided
@@ -1502,6 +1752,7 @@ export const useAppStore = defineStore('app', () => {
       isDirty: false,
       isActive: true,
       documentType: documentType || (path ? detectFromPath(path) : DocumentType.MARKDOWN_EDITOR),
+      pendingImport,
       editState: { ...globalEditSetting },
       fileReadonly: fileReadonly ?? false,
       editReadonly: false
@@ -1863,10 +2114,17 @@ export const useAppStore = defineStore('app', () => {
     showPreferencesDialog.value = false
   }
 
-  function openPrintPreview(html: string, title?: string) {
+  function openPrintPreview(
+    html: string,
+    title?: string,
+    options?: { mode?: 'print' | 'export'; defaultSavePath?: string; skipSaveDialog?: boolean }
+  ) {
     printPreviewHtml.value = html
     const activeTab = tabs.value.find(tab => tab.id === activeTabId.value)
     printPreviewTitle.value = title ?? activeTab?.name ?? 'Untitled'
+    printPreviewMode.value = options?.mode ?? 'print'
+    printPreviewDefaultSavePath.value = options?.defaultSavePath ?? ''
+    printPreviewSkipSaveDialog.value = options?.skipSaveDialog === true
     showPrintPreviewDialog.value = true
   }
 
@@ -1874,6 +2132,9 @@ export const useAppStore = defineStore('app', () => {
     showPrintPreviewDialog.value = false
     printPreviewHtml.value = ''
     printPreviewTitle.value = ''
+    printPreviewMode.value = 'print'
+    printPreviewDefaultSavePath.value = ''
+    printPreviewSkipSaveDialog.value = false
   }
 
   // Handle print functionality
@@ -1955,6 +2216,9 @@ export const useAppStore = defineStore('app', () => {
       case 'open-folder':
         await openFolder()
         return true
+      case 'import-document':
+        await importWithPandoc()
+        return true
       case 'save':
         await saveActiveTab()
         return true
@@ -1969,6 +2233,54 @@ export const useAppStore = defineStore('app', () => {
         return true
       case 'print':
         await handlePrint()
+        return true
+      case 'export-pdf':
+        if (activeTab.value?.documentType === DocumentType.MARKDOWN_EDITOR && activeTab.value.editorInstance) {
+          const baseName = (activeTab.value.path ? pathUtils.basename(activeTab.value.path) : activeTab.value.name).replace(/\.[^.]+$/, '')
+          const preferredDirectory = getPreferredExportDirectory(activeTab.value)
+          const skipSaveDialog =
+            (globalExportSetting.common.defaultFolderMode === 'same-directory' && !!preferredDirectory) ||
+            (globalExportSetting.common.defaultFolderMode === 'custom' && !!preferredDirectory)
+          const defaultSavePath = preferredDirectory ? pathUtils.join(preferredDirectory, `${baseName}.pdf`) : `${baseName}.pdf`
+          openPrintPreview(
+            (activeTab.value.editorInstance as import('@tiptap/core').Editor).getHTML(),
+            activeTab.value.name,
+            { mode: 'export', defaultSavePath, skipSaveDialog }
+          )
+        }
+        return true
+      case 'export-html':
+        await exportWithPandoc('html')
+        return true
+      case 'export-word':
+        await exportWithPandoc('docx')
+        return true
+      case 'export-odt':
+        await exportWithPandoc('odt')
+        return true
+      case 'export-rtf':
+        await exportWithPandoc('rtf')
+        return true
+      case 'export-epub':
+        await exportWithPandoc('epub')
+        return true
+      case 'export-latex':
+        await exportWithPandoc('tex')
+        return true
+      case 'export-mediawiki':
+        await exportWithPandoc('mediawiki')
+        return true
+      case 'export-rst':
+        await exportWithPandoc('rst')
+        return true
+      case 'export-textile':
+        await exportWithPandoc('textile')
+        return true
+      case 'export-opml':
+        await exportWithPandoc('opml')
+        return true
+      case 'export-more-options':
+        await exportWithPandoc()
         return true
       case 'close-file':
         if (activeTabId.value) {
@@ -2065,6 +2377,7 @@ export const useAppStore = defineStore('app', () => {
 
   // 监听编辑设置变化
   watch(globalEditSetting, () => saveEditSettingDebounced(), { deep: true })
+  watch(globalExportSetting, () => StateStorage.saveExportSetting(globalExportSetting), { deep: true })
   watch(() => globalEditSetting.workspaceIgnoreRules, () => {
     reloadFileTreeForFiltersDebounced()
   })
@@ -2129,6 +2442,7 @@ export const useAppStore = defineStore('app', () => {
     locale,
     systemPrefersDark,
     globalEditSetting,
+    globalExportSetting,
     autoSaveEnabled,
     currentFolder,
     fileTree,
@@ -2183,6 +2497,9 @@ export const useAppStore = defineStore('app', () => {
     showPrintPreviewDialog,
     printPreviewHtml,
     printPreviewTitle,
+    printPreviewMode,
+    printPreviewDefaultSavePath,
+    printPreviewSkipSaveDialog,
     openPrintPreview,
     closePrintPreview,
 

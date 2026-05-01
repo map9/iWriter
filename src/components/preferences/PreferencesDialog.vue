@@ -14,10 +14,10 @@
           {{ t('preferences.title') }}
         </div>
         <nav class="no-drag">
-          <ul class="menu gap-1 rounded-box p-0 w-full">
+          <ul class="space-y-1 w-full">
             <li v-for="tab in tabs" :key="tab.id">
               <button
-                class="iw-btn btn-sm border-none h-10 justify-start gap-3 text-sm font-medium whitespace-nowrap"
+                class="iw-btn btn-sm h-10 w-full justify-start border-none text-left font-medium whitespace-nowrap"
                 :class="activeTab === tab.id ? 'btn-primary' : 'btn-ghost'"
                 @click="activeTab = tab.id"
               >
@@ -64,6 +64,22 @@
               </button>
             </div>
           </section>
+          </div>
+        </div>
+
+        <div v-show="activeTab === 'export'" class="flex min-h-0 flex-1 flex-col">
+          <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
+            <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.export.title') }}</h2>
+            <button
+              class="iw-btn btn-ghost absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              :aria-label="t('common.close')"
+              @click="emit('close')"
+            >
+              <IconX class="icon-xs" />
+            </button>
+          </div>
+          <div class="flex min-h-0 flex-1 overflow-hidden">
+            <ExportPreferencesPanel />
           </div>
         </div>
 
@@ -502,6 +518,7 @@ import { useI18n } from 'vue-i18n'
 import {
   IconPalette,
   IconEdit,
+  IconFileExport,
   IconTextSpellcheck,
   IconRobot,
   IconDownload,
@@ -516,8 +533,9 @@ import updaterService from '@/updater/UpdaterService'
 import type { UpdaterConfig } from '@/updater/types'
 import { notify } from '@/utils/notifications'
 import ProviderSettings from '@/components/ai/ProviderSettings.vue'
+import ExportPreferencesPanel from '@/components/preferences/ExportPreferencesPanel.vue'
 
-type TabId = 'editor' | 'spelling' | 'themes' | 'ai' | 'updates'
+type TabId = 'editor' | 'spelling' | 'themes' | 'export' | 'ai' | 'updates'
 type AiView = 'main' | 'configure'
 
 interface Props {
@@ -538,6 +556,7 @@ const tabs = computed(() => [
   { id: 'editor' as TabId, label: t('preferences.tabs.editor'), icon: IconEdit },
   { id: 'spelling' as TabId, label: t('preferences.tabs.spelling'), icon: IconTextSpellcheck },
   { id: 'themes' as TabId, label: t('preferences.tabs.themes'), icon: IconPalette },
+  { id: 'export' as TabId, label: t('preferences.tabs.export'), icon: IconFileExport },
   { id: 'ai' as TabId, label: t('preferences.tabs.ai'), icon: IconRobot },
   { id: 'updates' as TabId, label: t('preferences.tabs.updates'), icon: IconDownload },
 ])

@@ -14,6 +14,10 @@ export interface FileTab {
   name: string
   path?: string
   documentType?: import('@/types/document-type').DocumentType;
+  pendingImport?: {
+    markdown: string
+    sourcePath?: string
+  }
   metadata?: FileMetadata
   isActive: boolean
   isDirty: boolean

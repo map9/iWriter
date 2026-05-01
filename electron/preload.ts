@@ -98,6 +98,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('exec-shell', command, cwd),
   formatCode: (code: string, language?: string | null) =>
     ipcRenderer.invoke('format-code', { code, language }),
+  pandocCheck: (req?: any) => ipcRenderer.invoke('pandoc:check', req),
+  pandocImportFile: (req: any) => ipcRenderer.invoke('pandoc:import-file', req),
+  pandocExportFile: (req: any) => ipcRenderer.invoke('pandoc:export-file', req),
 
   // Clipboard
   readClipboardText: () => ipcRenderer.invoke('read-clipboard-text'),

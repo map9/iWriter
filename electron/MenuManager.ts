@@ -228,78 +228,99 @@ export class MenuManager {
               this.sendMenuAction('view-toggle-readonly')
             }
           },
-          /*
           { type: 'separator' },
           {
-            label: 'Import',
+            label: t('menu.file.importDocument', 'Import Document...'),
             enabled: wState != null,
-            submenu: [
-              {
-                label: 'Evernote',
-                click: () => {
-                  this.sendMenuAction('import-evernote')
-                }
-              },
-              {
-                label: 'Drafts',
-                click: () => {
-                  this.sendMenuAction('import-drafts')
-                }
-              },
-              {
-                label: 'Obsidian',
-                click: () => {
-                  this.sendMenuAction('import-obsidian')
-                }
-              },
-              {
-                label: 'Day One',
-                click: () => {
-                  this.sendMenuAction('import-day-one')
-                }
-              },
-              { type: 'separator' },
-              {
-                label: 'More Options...',
-                click: () => {
-                  this.sendMenuAction('import-more-options')
-                }
-              }
-            ]
+            click: () => {
+              this.sendMenuAction('import-document')
+            }
           },
           {
             id: 'export',
-            label: 'Export',
-            enabled: wState?.wContentState?.hasActiveDocument,
+            label: t('menu.file.export', 'Export'),
+            enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
             submenu: [
               {
-                label: 'PDF',
+                label: t('menu.file.exportPdf', 'PDF...'),
+                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
                 click: () => {
                   this.sendMenuAction('export-pdf')
                 }
               },
+              { type: 'separator' },
               {
-                label: 'Html',
+                label: t('menu.file.exportHtml', 'HTML...'),
+                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
                 click: () => {
                   this.sendMenuAction('export-html')
                 }
               },
               {
-                label: 'Word(.docx)',
+                label: t('menu.file.exportWord', 'Word (.docx)...'),
+                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
                 click: () => {
                   this.sendMenuAction('export-word')
                 }
               },
-              { type: 'separator' },
               {
-                label: 'More Options...',
+                label: t('menu.file.exportOdt', 'OpenOffice (.odt)...'),
+                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
                 click: () => {
-                  this.sendMenuAction('export-more-options')
+                  this.sendMenuAction('export-odt')
+                }
+              },
+              {
+                label: t('menu.file.exportRtf', 'RTF...'),
+                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                click: () => {
+                  this.sendMenuAction('export-rtf')
+                }
+              },
+              {
+                label: t('menu.file.exportEpub', 'EPUB...'),
+                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                click: () => {
+                  this.sendMenuAction('export-epub')
+                }
+              },
+              {
+                label: t('menu.file.exportLatex', 'LaTeX...'),
+                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                click: () => {
+                  this.sendMenuAction('export-latex')
+                }
+              },
+              {
+                label: t('menu.file.exportMediawiki', 'MediaWiki...'),
+                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                click: () => {
+                  this.sendMenuAction('export-mediawiki')
+                }
+              },
+              {
+                label: t('menu.file.exportRst', 'reStructuredText...'),
+                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                click: () => {
+                  this.sendMenuAction('export-rst')
+                }
+              },
+              {
+                label: t('menu.file.exportTextile', 'Textile...'),
+                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                click: () => {
+                  this.sendMenuAction('export-textile')
+                }
+              },
+              {
+                label: t('menu.file.exportOpml', 'OPML...'),
+                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                click: () => {
+                  this.sendMenuAction('export-opml')
                 }
               }
             ]
           },
-          */
           { type: 'separator' },
           {
             label: t('menu.file.print', 'Print...'),

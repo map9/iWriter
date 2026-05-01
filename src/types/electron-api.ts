@@ -77,6 +77,9 @@ export interface ElectronAPI {
   // Shell execution (read-only commands, enforced in main process)
   execShell: (command: string, cwd?: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>
   formatCode: (code: string, language?: string | null) => Promise<import('@/types/code-format').CodeFormatResult>
+  pandocCheck: (req?: { pandocPath?: string }) => Promise<import('@/types').PandocAvailabilityResult>
+  pandocImportFile: (req: import('@/types').PandocImportRequest) => Promise<import('@/types').PandocImportResult>
+  pandocExportFile: (req: import('@/types').PandocExportRequest) => Promise<import('@/types').PandocExportResult>
 
   // 剪贴板（主进程读取，绕过 renderer clipboard-read 权限限制）
   readClipboardText: () => Promise<string>
@@ -111,7 +114,7 @@ export interface ElectronAPI {
   printFromHtml: (htmlContent: string, printOptions?: Electron.WebContentsPrintOptions) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
   getPrinters: () => Promise<Electron.PrinterInfo[]>
   saveToPdf: (printOptions?: any, saveOptions?: { defaultName?: string }) => Promise<{ success: boolean; cancelled?: boolean; error?: string; filePath?: string }>
-  saveToPdfFromHtml: (htmlContent: string, printOptions?: any, saveOptions?: { defaultName?: string }) => Promise<{ success: boolean; cancelled?: boolean; error?: string; filePath?: string }>
+  saveToPdfFromHtml: (htmlContent: string, printOptions?: any, saveOptions?: { defaultName?: string; defaultPath?: string; skipDialog?: boolean }) => Promise<{ success: boolean; cancelled?: boolean; error?: string; filePath?: string }>
 
   // ── AI Agent (main-process deepagents) ──────────────────────────────────────
   aiSendMessage?: (req: import('./ai-ipc').SendMessageRequest) => Promise<{ threadId: string }>

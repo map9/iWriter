@@ -12,6 +12,7 @@ import type { WindowState } from './types'
 import { MenuManager } from './MenuManager'
 import { WindowManager } from './WindowManager'
 import { UpdaterManager } from '../src/updater/UpdaterManager'
+import { PandocService } from './PandocService'
 import { AgentEngine } from './ai/AgentEngine'
 import { AiConfigStore } from './ai/config/AiConfigStore'
 import type { AiSettings } from '../src/types/ai'
@@ -27,6 +28,7 @@ export class App {
   private menuManager: MenuManager
   private windowManager: WindowManager
   private updaterManager: UpdaterManager | null
+  private pandocService: PandocService
   private agentEngine: AgentEngine
   private appQuitTimer: Timer | null = null
   private _isAppQuitting: boolean
@@ -37,6 +39,7 @@ export class App {
     this.menuManager = new MenuManager()
     this.windowManager = new WindowManager(this)
     this.updaterManager = null
+    this.pandocService = new PandocService()
     this._isAppQuitting = false
     this._exitApp = false
     this.agentEngine = new AgentEngine(
@@ -239,6 +242,7 @@ export class App {
   private setupIpcHandlers() {
     this.registerExecShellHandler()
     this.registerCodeFormatHandler()
+    this.registerPandocHandlers()
     this.registerAgentIpcHandlers()
     ipcMain.on('hello', (_, windowId: number) => {
       this.windowManager.handleHello(windowId)
@@ -1102,6 +1106,20 @@ export class App {
     })
   }
 
+  private registerPandocHandlers() {
+    ipcMain.handle('pandoc:check', async (_, req?: { pandocPath?: string }) => {
+      return this.pandocService.checkAvailability(req?.pandocPath)
+    })
+
+    ipcMain.handle('pandoc:import-file', async (_, req) => {
+      return this.pandocService.importFile(req)
+    })
+
+    ipcMain.handle('pandoc:export-file', async (_, req) => {
+      return this.pandocService.exportFile(req)
+    })
+  }
+
   private registerAgentIpcHandlers() {
     ipcMain.handle('ai:send-message', async (_, req) => {
       return this.agentEngine.sendMessage(req)
@@ -1152,6 +1170,9 @@ export class App {
   private removeAllHandler() {
     ipcMain.removeHandler('exec-shell')
     ipcMain.removeHandler('format-code')
+    ipcMain.removeHandler('pandoc:check')
+    ipcMain.removeHandler('pandoc:import-file')
+    ipcMain.removeHandler('pandoc:export-file')
     ipcMain.removeHandler('hello')
     ipcMain.removeHandler('read-file')
     ipcMain.removeHandler('read-file-silent')

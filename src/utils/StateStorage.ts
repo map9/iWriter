@@ -1,4 +1,4 @@
-import type { EditSetting } from '@/types'
+import type { EditSetting, ExportSettings } from '@/types'
 import { SidebarMode, DocumentType } from '@/types'
 import { DEFAULT_WORKSPACE_IGNORE_RULES } from '@/services/workspace/filtering'
 
@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   SEARCH_CONFIG: 'iwriter-search-in-files-config',
   UI_STATE: 'iwriter-ui-state',
   EDIT_SETTING: 'iwriter-edit-setting',
+  EXPORT_SETTING: 'iwriter-export-setting',
   WORKSPACE_STATE: 'iwriter-workspace-state',
   AI_SETTINGS: 'iwriter-ai-settings',
   AI_THREADS: 'iwriter-ai-threads',
@@ -74,6 +75,31 @@ export const DEFAULT_WORKSPACE_STATE: WorkspaceState = {
   activeTabPath: null
 }
 
+export const DEFAULT_EXPORT_SETTING: ExportSettings = {
+  common: {
+    defaultFolderMode: 'prompt',
+    customFolderPath: '',
+    pandocPathMode: 'auto',
+    pandocPath: '',
+    afterExportActions: {
+      reveal: false,
+      open: false,
+    },
+  },
+  formats: {
+    html: { customArgs: '', cssPath: '' },
+    docx: { customArgs: '', referenceDocPath: '' },
+    odt: { customArgs: '', templatePath: '' },
+    rtf: { customArgs: '' },
+    epub: { customArgs: '', cssPath: '', tocDepth: 3 },
+    latex: { customArgs: '' },
+    mediawiki: { customArgs: '' },
+    rst: { customArgs: '' },
+    textile: { customArgs: '' },
+    opml: { customArgs: '' },
+  },
+}
+
 /**
  * 统一的状态存储工具类
  */
@@ -132,6 +158,51 @@ export class StateStorage {
       console.error('Failed to load edit setting:', error)
     }
     return DEFAULT_EDIT_SETTING
+  }
+
+  static saveExportSetting(setting: Partial<ExportSettings>): void {
+    try {
+      const current = this.loadExportSetting()
+      const merged: ExportSettings = {
+        ...current,
+        ...setting,
+        common: {
+          ...current.common,
+          ...(setting.common ?? {}),
+        },
+        formats: {
+          ...current.formats,
+          ...(setting.formats ?? {}),
+        },
+      }
+      localStorage.setItem(STORAGE_KEYS.EXPORT_SETTING, JSON.stringify(merged))
+    } catch (error) {
+      console.error('Failed to save export setting:', error)
+    }
+  }
+
+  static loadExportSetting(): ExportSettings {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.EXPORT_SETTING)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        return {
+          ...DEFAULT_EXPORT_SETTING,
+          ...parsed,
+          common: {
+            ...DEFAULT_EXPORT_SETTING.common,
+            ...(parsed.common ?? {}),
+          },
+          formats: {
+            ...DEFAULT_EXPORT_SETTING.formats,
+            ...(parsed.formats ?? {}),
+          },
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load export setting:', error)
+    }
+    return DEFAULT_EXPORT_SETTING
   }
 
   /**
