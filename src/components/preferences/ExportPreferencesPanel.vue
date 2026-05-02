@@ -61,7 +61,7 @@
         <div class="flex flex-col gap-1.5">
           <div class="flex items-center gap-3">
             <label class="text-sm font-medium text-base-content">{{ t('preferences.export.pandocPathTitle') }}</label>
-            <button class="text-sm text-primary hover:underline" type="button" @click="openPandocDocs">
+            <button class="text-xs text-primary hover:underline" type="button" @click="openPandocDocs">
               {{ t('preferences.export.learnMore') }}
             </button>
           </div>
@@ -111,7 +111,7 @@
 
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.export.argsTitle') }}</label>
-          <input type="text" class="iw-input w-full" :value="buildArgsPreview(activeFormat)" readonly />
+          <input type="text" class="iw-input w-full text-base-content/50" :value="buildArgsPreview(activeFormat)" readonly />
         </div>
 
         <div class="flex flex-col gap-1.5">
