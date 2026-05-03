@@ -43,14 +43,53 @@
           </div>
           <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-7">
           <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.themes.sectionTitle') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.themes.languageTitle') }}</h3>
+            <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
+              <div class="min-w-0">
+                <div class="text-sm font-medium text-base-content">{{ t('locale.label') }}</div>
+                <div class="text-xs text-base-content/65">{{ t('preferences.themes.languageDescription') }}</div>
+              </div>
+              <select
+                class="iw-select w-52"
+                :value="appStore.locale"
+                @change="appStore.setLocale(($event.target as HTMLSelectElement).value)"
+              >
+                <option value="en-US">{{ t('locale.enUS') }}</option>
+                <option value="zh-CN">{{ t('locale.zhCN') }}</option>
+              </select>
+            </div>
+          </section>
+
+          <section class="flex flex-col gap-3">
+            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.themes.displayThemeTitle') }}</h3>
+            <div class="grid grid-cols-3 gap-3">
+              <button
+                v-for="theme in markdownThemes"
+                :key="theme.id"
+                class="card gap-3 rounded-box border bg-base-100 p-3 text-left transition-colors"
+                :class="appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId === theme.id
+                  ? 'border-primary bg-primary/8'
+                  : 'border-base-300 hover:border-primary/40 hover:bg-base-200/60'"
+                @click="appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId = theme.id"
+              >
+                <div class="text-sm font-medium text-base-content">{{ theme.name }}</div>
+                <div class="text-xs text-base-content/65">{{ theme.description }}</div>
+                <span v-if="appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId === theme.id" class="badge badge-primary badge-sm w-fit">
+                  {{ t('common.active') }}
+                </span>
+              </button>
+            </div>
+          </section>
+
+          <section class="flex flex-col gap-3">
+            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.themes.appThemeTitle') }}</h3>
             <div class="grid grid-cols-3 gap-3">
               <button
                 v-for="theme in availableThemes"
                 :key="theme.id"
                 class="card gap-3 rounded-box border bg-base-100 p-3 text-left transition-colors"
                 :class="appStore.currentThemeId === theme.id
-                  ? 'border-primary bg-primary/8 ring-1 ring-primary/30'
+                  ? 'border-primary bg-primary/8'
                   : 'border-base-300 hover:border-primary/40 hover:bg-base-200/60'"
                 @click="appStore.setTheme(theme.id)"
               >
@@ -64,6 +103,36 @@
               </button>
             </div>
           </section>
+          </div>
+        </div>
+
+        <div v-show="activeTab === 'workspace'" class="flex min-h-0 flex-1 flex-col">
+          <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
+            <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.workspace.title') }}</h2>
+            <button
+              class="iw-btn btn-ghost absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              :aria-label="t('common.close')"
+              @click="emit('close')"
+            >
+              <IconX class="icon-xs" />
+            </button>
+          </div>
+          <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-7">
+            <section class="flex flex-col gap-3">
+              <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.workspace.rulesTitle') }}</h3>
+              <div class="flex flex-col gap-2 rounded-box border border-base-300 bg-base-100 px-4 py-3">
+                <div class="min-w-0">
+                  <div class="text-sm font-medium text-base-content">{{ t('preferences.workspace.workspaceIgnoreRulesTitle') }}</div>
+                  <div class="text-xs text-base-content/65">{{ t('preferences.workspace.workspaceIgnoreRulesDesc') }}</div>
+                </div>
+                <textarea
+                  class="min-h-32 w-full rounded-field resize-none border border-base-300 bg-base-100 px-3 py-2 text-sm outline-none focus:border-primary"
+                  :placeholder="t('preferences.workspace.workspaceIgnoreRulesPlaceholder')"
+                  :value="appStore.globalEditSetting.workspaceIgnoreRules"
+                  @input="appStore.globalEditSetting.workspaceIgnoreRules = ($event.target as HTMLTextAreaElement).value"
+                />
+              </div>
+            </section>
           </div>
         </div>
 
@@ -83,6 +152,22 @@
           </div>
         </div>
 
+        <div v-show="activeTab === 'print'" class="flex min-h-0 flex-1 flex-col">
+          <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
+            <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.print.title') }}</h2>
+            <button
+              class="iw-btn btn-ghost absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              :aria-label="t('common.close')"
+              @click="emit('close')"
+            >
+              <IconX class="icon-xs" />
+            </button>
+          </div>
+          <div class="flex min-h-0 flex-1 overflow-hidden">
+            <PrintPreferencesPanel />
+          </div>
+        </div>
+
         <div v-show="activeTab === 'editor'" class="flex min-h-0 flex-1 flex-col">
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.editor.title') }}</h2>
@@ -95,24 +180,6 @@
             </button>
           </div>
           <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-7">
-          <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.editor.languageTitle') }}</h3>
-            <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
-              <div class="min-w-0">
-                <div class="text-sm font-medium text-base-content">{{ t('locale.label') }}</div>
-                <div class="text-xs text-base-content/65">{{ t('preferences.editor.languageDescription') }}</div>
-              </div>
-              <select
-                class="iw-select w-42"
-                :value="appStore.locale"
-                @change="appStore.setLocale(($event.target as HTMLSelectElement).value)"
-              >
-                <option value="en-US">{{ t('locale.enUS') }}</option>
-                <option value="zh-CN">{{ t('locale.zhCN') }}</option>
-              </select>
-            </div>
-          </section>
-
           <section class="flex flex-col gap-3">
             <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.editor.saving') }}</h3>
             <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
@@ -209,21 +276,6 @@
             </div>
           </section>
 
-          <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.editor.workspaceTitle') }}</h3>
-            <div class="flex flex-col gap-2 rounded-box border border-base-300 bg-base-100 px-4 py-3">
-              <div class="min-w-0">
-                <div class="text-sm font-medium text-base-content">{{ t('preferences.editor.workspaceIgnoreRulesTitle') }}</div>
-                <div class="text-xs text-base-content/65">{{ t('preferences.editor.workspaceIgnoreRulesDesc') }}</div>
-              </div>
-              <textarea
-                class="min-h-32 w-full rounded-field resize-none border border-base-300 bg-base-100 px-3 py-2 text-sm outline-none focus:border-primary"
-                :placeholder="t('preferences.editor.workspaceIgnoreRulesPlaceholder')"
-                :value="appStore.globalEditSetting.workspaceIgnoreRules"
-                @input="appStore.globalEditSetting.workspaceIgnoreRules = ($event.target as HTMLTextAreaElement).value"
-              />
-            </div>
-          </section>
           </div>
         </div>
 
@@ -518,7 +570,9 @@ import { useI18n } from 'vue-i18n'
 import {
   IconPalette,
   IconEdit,
+  IconFolders,
   IconFileExport,
+  IconPrinter,
   IconTextSpellcheck,
   IconRobot,
   IconDownload,
@@ -529,13 +583,15 @@ import {
 import { useAppStore } from '@/stores/app'
 import ThemePreviewSample from '@/components/preferences/ThemePreviewSample.vue'
 import { availableThemes, getThemePreviewThemeId } from '@/utils/themes'
+import { builtInMarkdownThemes } from '@/components/print/markdownThemes'
 import updaterService from '@/updater/UpdaterService'
 import type { UpdaterConfig } from '@/updater/types'
 import { notify } from '@/utils/notifications'
 import ProviderSettings from '@/components/ai/ProviderSettings.vue'
 import ExportPreferencesPanel from '@/components/preferences/ExportPreferencesPanel.vue'
+import PrintPreferencesPanel from '@/components/preferences/PrintPreferencesPanel.vue'
 
-type TabId = 'editor' | 'spelling' | 'themes' | 'export' | 'ai' | 'updates'
+type TabId = 'workspace' | 'editor' | 'spelling' | 'themes' | 'print' | 'export' | 'ai' | 'updates'
 type AiView = 'main' | 'configure'
 
 interface Props {
@@ -551,11 +607,14 @@ const emit = defineEmits<{ close: [] }>()
 const { t } = useI18n()
 
 const appStore = useAppStore()
+const markdownThemes = builtInMarkdownThemes
 
 const tabs = computed(() => [
+  { id: 'workspace' as TabId, label: t('preferences.tabs.workspace'), icon: IconFolders },
   { id: 'editor' as TabId, label: t('preferences.tabs.editor'), icon: IconEdit },
   { id: 'spelling' as TabId, label: t('preferences.tabs.spelling'), icon: IconTextSpellcheck },
   { id: 'themes' as TabId, label: t('preferences.tabs.themes'), icon: IconPalette },
+  { id: 'print' as TabId, label: t('preferences.tabs.print'), icon: IconPrinter },
   { id: 'export' as TabId, label: t('preferences.tabs.export'), icon: IconFileExport },
   { id: 'ai' as TabId, label: t('preferences.tabs.ai'), icon: IconRobot },
   { id: 'updates' as TabId, label: t('preferences.tabs.updates'), icon: IconDownload },

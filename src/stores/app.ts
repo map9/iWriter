@@ -4,7 +4,7 @@ import { ref, computed, watch, reactive } from 'vue'
 import { undoDepth } from '@tiptap/pm/history'
 import type { FileTab, FileOperationResult, FileChange, EditSetting } from '@/types'
 import { SidebarMode, DocumentType } from '@/types'
-import type { ExportFormatId, ExportSettings } from '@/types'
+import type { ExportFormatId, ExportSettings, MarkdownPrintPreferences } from '@/types'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { pathUtils } from '@/utils/pathUtils'
 import { notify } from '@/utils/notifications'
@@ -32,6 +32,7 @@ import { convertContentTo } from '@/import-export/'
 import { PANDOC_EXPORT_EXTENSIONS, PANDOC_IMPORT_EXTENSIONS } from '@/import-export'
 import { DEFAULT_EXPORT_SETTING, StateStorage, type WorkspaceState } from '@/utils/StateStorage'
 import { detectPreferredLocale, i18n, resolveLocale, setAppLocale, type AppLocale } from '@/i18n'
+import { DEFAULT_MARKDOWN_PRINT_PREFERENCES } from '@/components/print/markdownThemes'
 import {
   DEFAULT_WORKSPACE_IGNORE_RULES,
   getWorkspaceEntriesRaw,
@@ -44,7 +45,7 @@ import {
 } from '@/services/workspace/filtering'
 
 export const useAppStore = defineStore('app', () => {
-  type PreferencesTab = 'editor' | 'spelling' | 'themes' | 'export' | 'ai' | 'updates'
+  type PreferencesTab = 'editor' | 'spelling' | 'themes' | 'print' | 'export' | 'ai' | 'updates'
   const t = i18n.global.t
 
   // 文件监听和类型检测
@@ -86,6 +87,7 @@ export const useAppStore = defineStore('app', () => {
     workspaceIgnoreRules: DEFAULT_WORKSPACE_IGNORE_RULES,
   })
   const globalExportSetting = reactive<ExportSettings>(structuredClone(DEFAULT_EXPORT_SETTING))
+  const globalMarkdownPrintSetting = reactive<MarkdownPrintPreferences>(structuredClone(DEFAULT_MARKDOWN_PRINT_PREFERENCES))
 
   // Heart beat
   let sayHelloTimeout: ReturnType<typeof setTimeout> | null = null
@@ -265,6 +267,9 @@ export const useAppStore = defineStore('app', () => {
     const exportSetting = StateStorage.loadExportSetting()
     Object.assign(globalExportSetting.common, exportSetting.common)
     Object.assign(globalExportSetting.formats, exportSetting.formats)
+    const markdownPrintSetting = StateStorage.loadMarkdownPrintSetting()
+    Object.assign(globalMarkdownPrintSetting.themeAssignment, markdownPrintSetting.themeAssignment)
+    globalMarkdownPrintSetting.printOverrides = structuredClone(markdownPrintSetting.printOverrides ?? {})
     autoSaveEnabled.value = StateStorage.loadAutoSave()
 
     // 3. 恢复主题
@@ -2121,7 +2126,8 @@ export const useAppStore = defineStore('app', () => {
   ) {
     printPreviewHtml.value = html
     const activeTab = tabs.value.find(tab => tab.id === activeTabId.value)
-    printPreviewTitle.value = title ?? activeTab?.name ?? 'Untitled'
+    const previewTitle = title ?? activeTab?.name ?? 'Untitled'
+    printPreviewTitle.value = pathUtils.basename(previewTitle, pathUtils.extension(previewTitle))
     printPreviewMode.value = options?.mode ?? 'print'
     printPreviewDefaultSavePath.value = options?.defaultSavePath ?? ''
     printPreviewSkipSaveDialog.value = options?.skipSaveDialog === true
@@ -2378,6 +2384,7 @@ export const useAppStore = defineStore('app', () => {
   // 监听编辑设置变化
   watch(globalEditSetting, () => saveEditSettingDebounced(), { deep: true })
   watch(globalExportSetting, () => StateStorage.saveExportSetting(globalExportSetting), { deep: true })
+  watch(globalMarkdownPrintSetting, () => StateStorage.saveMarkdownPrintSetting(globalMarkdownPrintSetting), { deep: true })
   watch(() => globalEditSetting.workspaceIgnoreRules, () => {
     reloadFileTreeForFiltersDebounced()
   })
@@ -2443,6 +2450,7 @@ export const useAppStore = defineStore('app', () => {
     systemPrefersDark,
     globalEditSetting,
     globalExportSetting,
+    globalMarkdownPrintSetting,
     autoSaveEnabled,
     currentFolder,
     fileTree,

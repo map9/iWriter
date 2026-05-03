@@ -5,13 +5,18 @@ export const pathUtils = {
 
     const cleaned = path.replace(/\\/g, '/').replace(/\/+$/, '')
     let basename = cleaned.split('/').pop() || cleaned;
-    if (ext && basename.endsWith(ext)) {
-      basename = basename.slice(0, -ext.length);
+
+    if (ext) {
+      const suffix = ext.startsWith('.') ? ext : `.${ext}`;
+      if (basename.endsWith(suffix)) {
+        basename = basename.slice(0, -suffix.length);
+      }
     }
 
     return basename
   },
 
+  // 获取带点的文件扩展名
   extname: (path: string) => {
     if (!path) return '';
     
@@ -22,6 +27,7 @@ export const pathUtils = {
     return basename.slice(lastDot);
   },
 
+  // 获取不带点的文件扩展名
   extension: (path: string) => {
     if (!path) return '';
     

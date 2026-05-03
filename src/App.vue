@@ -6,6 +6,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useRouter } from 'vue-router'
+import { ensureMarkdownScreenThemeStyleSheet } from '@/components/print/markdownThemes'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -24,6 +25,7 @@ async function handleMenuAction(action: string): Promise<boolean> {
 
 onMounted(() => {
   // Initialize
+  ensureMarkdownScreenThemeStyleSheet()
   appStore.initial()
   
   if (window.electronAPI) {

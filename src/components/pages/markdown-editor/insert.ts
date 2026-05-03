@@ -1,7 +1,7 @@
 import { type Editor } from '@tiptap/vue-3'
 import { find } from 'linkifyjs'
 import { iwPopupTool } from '@/components/common/tiptap/iw-popup-tools'
-import path from 'path-browserify'
+import { pathUtils } from '@/utils/pathUtils'
 import { IMAGE_EXTENSIONS } from '@/types/file-extension'
 import { notify } from '@/utils/notifications'
 
@@ -138,7 +138,7 @@ export async function insertLocalMedia(editor: Editor | undefined) {
         // 更新图片的src属性（替换而不是添加）
         editor?.chain().focus().setImage({
           src: `file://${selectedPath}`,
-          alt: path.basename(selectedPath),
+          alt: pathUtils.basename(selectedPath),
           title: selectedPath
         }).run()
 

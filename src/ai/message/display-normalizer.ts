@@ -1,5 +1,6 @@
 import type { AiToolCall, AiToolDisplayMeta, AiToolResult, MessageContentBlock, TaskPlanItem, ThreadMessage } from '@/ai/types'
 import { i18n } from '@/i18n'
+import { pathUtils } from '@/utils/pathUtils'
 
 export interface ToolCallStatusOverrides {
   byId?: Record<string, AiToolCall['status']>
@@ -33,10 +34,6 @@ export function stableStringify(value: unknown): string {
 
 export function toolCallSignature(toolCall: AiToolCall): string {
   return `${toolCall.name}:${stableStringify(toolCall.arguments)}`
-}
-
-function basename(path: string): string {
-  return path.split('/').pop() ?? path
 }
 
 function buildStoryAssetLabel(section: unknown, slug: unknown): string | undefined {
@@ -101,7 +98,7 @@ function toolParamsText(toolCall: AiToolCall): string {
 
   const fname = (fp: unknown): string => {
     const path = (typeof fp === 'string' && fp) ? fp : (toolCall.file?.path ?? '')
-    return path ? basename(path) : ''
+    return path ? pathUtils.basename(path) : ''
   }
   const bid = (val: unknown): string => val !== undefined && val !== null ? `{b:${val}}` : ''
 
@@ -263,8 +260,8 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
     || (typeof args.path === 'string' && args.path)
     || ''
   const fileLabel = (() => {
-    const fromArg = pathArg ? basename(pathArg) : ''
-    const fromFile = toolCall.file?.path ? basename(toolCall.file.path) : ''
+    const fromArg = pathArg ? pathUtils.basename(pathArg) : ''
+    const fromFile = toolCall.file?.path ? pathUtils.basename(toolCall.file.path) : ''
     return fromArg || fromFile || undefined
   })()
   const rawResult = typeof toolCall.result === 'string' ? toolCall.result : undefined
@@ -360,7 +357,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         })(),
         contextLabel: (() => {
           const dir = toStringValue(args.directory_path)
-          return dir ? t('agentPanel.displayNormalizer.params.directory', { name: basename(dir) }) : undefined
+          return dir ? t('agentPanel.displayNormalizer.params.directory', { name: pathUtils.basename(dir) }) : undefined
         })(),
         summaryLabel: buildStatusSummary(toolCall, summarizeWorkspaceSearch(parsedResult)),
         detailType: parsedResult ? 'workspace_search' : 'text',
@@ -530,7 +527,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
       const savedPath = parsedResult ? toStringValue(parsedResult.path) : null
       return {
         actionLabel: toolNameLabel('save_story_asset'),
-        targetLabel: savedPath ? basename(savedPath) : (buildStoryAssetLabel(args.section, args.slug) ?? toStringValue(args.slug) ?? undefined),
+        targetLabel: savedPath ? pathUtils.basename(savedPath) : (buildStoryAssetLabel(args.section, args.slug) ?? toStringValue(args.slug) ?? undefined),
         targetPath: savedPath ?? undefined,
         contextLabel: [toStringValue(args.section), toStringValue(args.slug)].filter(Boolean).join(' · ') || undefined,
         summaryLabel: buildStatusSummary(

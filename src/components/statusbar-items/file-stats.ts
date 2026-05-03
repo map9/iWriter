@@ -1,5 +1,5 @@
 import { computed, watchEffect } from 'vue'
-import path from 'path-browserify'
+import { pathUtils } from '@/utils/pathUtils'
 import { useStatusBar, StatusBarAlignment, setTablerIcon } from '@/components/common/statusbar'
 import { useAppStore } from '@/stores/app'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
@@ -119,7 +119,7 @@ export const createFileStatsStatusBarGroup = () => {
     const filepath = appStore.activeTab?.path
 
     if (docType && filepath) {
-      return path.extname(filepath).replace('.', '').toLowerCase()
+      return pathUtils.extension(filepath).toLowerCase()
     } else {
       return ''
     }

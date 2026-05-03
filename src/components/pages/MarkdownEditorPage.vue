@@ -391,6 +391,7 @@ import { onEditorMenuAction } from './markdown-editor/menu-action'
 import { useAppStore } from '@/stores/app'
 import type { WindowContentState } from '@/types'
 import { DocumentType } from '@/types'
+import { builtInMarkdownThemes } from '@/components/print/markdownThemes'
 
 // Props
 interface Props {
@@ -556,6 +557,7 @@ watch(() => editor.value, (newEditor) => {
     applyEditorModeClasses(newEditor, appStore.isFocusMode)
     syncProofreadRuntime()
     nextTick(() => {
+      setScreenTheme(appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId)
       scheduleTypewriterSync(true)
     })
     appStore.updateTabState(props.tab.id, {
@@ -916,6 +918,16 @@ function getCurrentEditorElement(): HTMLElement | null {
   return editorScrollRef.value?.querySelector('.tiptap') as HTMLElement | null
 }
 
+function setScreenTheme(themeId: string) {
+  const editorElement = getCurrentEditorElement()
+  if (!editorElement) return
+
+  for (const theme of builtInMarkdownThemes) {
+    editorElement.classList.remove(`markdown-theme-${theme.id}`)
+  }
+  editorElement.classList.add(`markdown-theme-${themeId}`)
+}
+
 function setFirstLineIndent(has: boolean) {
   const firstLineIndent: boolean = !!has
 
@@ -948,6 +960,14 @@ function setInvisibleCharacters(visible: boolean) {
   appStore.updateTabState(props.tab.id, { editState: { invisibleCharacters } })
   syncEditMenuState({ invisibleCharacters })
 }
+
+watch(
+  () => appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId,
+  (themeId) => {
+    nextTick(() => setScreenTheme(themeId))
+  },
+  { immediate: true },
+)
 
 function toggleSmartPunctuation() {
   setSmartPunctuation(!props.tab.editState?.smartPunctuation)

@@ -166,7 +166,7 @@ import { nodeViewProps, NodeViewWrapper } from '@tiptap/vue-3'
 import { IconFolder, IconExternalLink, IconCopy, IconTrash, IconAlignLeft, IconAlignCenter, IconAlignRight, IconAlignJustified, IconCheck } from '@tabler/icons-vue'
 import { IMAGE_EXTENSIONS } from '@/types'
 import { notify } from '@/utils/notifications'
-import path from '@/utils/pathUtils'
+import { pathUtils } from '@/utils/pathUtils'
 import { isImageUrl } from './utils/isImageUrl'
 
 enum SrcStatus {
@@ -247,7 +247,7 @@ const displayPath = computed((): string => {
   if (fullPath.startsWith('http://') || fullPath.startsWith('https://')) {
     try {
       const url = new URL(fullPath)
-      const filename = path.basename(url.pathname)
+      const filename = pathUtils.basename(url.pathname)
       return `${url.hostname}/...//${filename}`
     } catch {
       return '...' + fullPath.slice(-47)
@@ -255,9 +255,9 @@ const displayPath = computed((): string => {
   }
 
   // 如果是本地文件路径，显示文件夹和文件名
-  const dirname = path.dirname(fullPath)
-  const basename = path.basename(fullPath)
-  const parentDir = path.basename(dirname)
+  const dirname = pathUtils.dirname(fullPath)
+  const basename = pathUtils.basename(fullPath)
+  const parentDir = pathUtils.basename(dirname)
 
   if (parentDir && basename) {
     return `.../${parentDir}/${basename}`
@@ -333,7 +333,7 @@ const openFolder = async (): Promise<void> => {
         // 更新图片的src属性（替换而不是添加）
         props.updateAttributes({
           src: `file://${selectedPath}`,
-          alt: path.basename(selectedPath),
+          alt: pathUtils.basename(selectedPath),
           title: selectedPath
         })
 
@@ -618,7 +618,7 @@ const updateImageFromInput = async (): Promise<void> => {
 
       props.updateAttributes({
         src: filePath,
-        alt: path.basename(actualPath),
+        alt: pathUtils.basename(actualPath),
         title: actualPath
       })
     } else {

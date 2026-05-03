@@ -77,7 +77,7 @@ function buildRunner(options: {
   selectedPages: number[] | null
   contentScale: number
   enablePageNumberFix: boolean
-  pageNumberMarginBoxes: string[]
+  pageNumberTemplatesByBox: Record<string, string>
 }): string {
   const serializedOptions = JSON.stringify(options)
   return `;(async () => {
@@ -122,21 +122,35 @@ function buildRunner(options: {
     };
     filterPages(previewOptions.selectedPages, previewOptions.pageSelectionMode);
 
-    var syncFooterPageNumbers = function(originalTotal, marginBoxes) {
+    var escapeCssValue = function(value) {
+      return String(value).split('\\\\').join('\\\\\\\\').split('"').join('\\"');
+    };
+
+    var renderPageTemplate = function(template, pageNo, totalPages) {
+      var pageNoToken = '$' + '{pageNo}';
+      var totalPagesToken = '$' + '{totalPages}';
+      return String(template)
+        .split(pageNoToken).join(String(pageNo))
+        .split(totalPagesToken).join(String(totalPages));
+    };
+
+    var syncFooterPageNumbers = function(originalTotal, templatesByBox) {
       var existingStyle = document.querySelector('style[data-iw-footer-page-numbers]');
       if (existingStyle && existingStyle.parentNode) {
         existingStyle.parentNode.removeChild(existingStyle);
       }
 
       var pages = Array.from(document.querySelectorAll('.pagedjs_page'));
-      if (!pages.length || !originalTotal || !Array.isArray(marginBoxes) || !marginBoxes.length) return;
+      var boxes = templatesByBox ? Object.keys(templatesByBox) : [];
+      if (!pages.length || !originalTotal || !boxes.length) return;
 
       var cssRules = pages.map(function(page) {
         var pageNumber = page.dataset.pageNumber;
         if (!pageNumber) return '';
-        var footerText = JSON.stringify(pageNumber + '/' + originalTotal);
-        return marginBoxes.map(function(box) {
-          return '[data-page-number="' + pageNumber + '"] .pagedjs_margin-' + box + ' > .pagedjs_margin-content::after { content: ' + footerText + ' !important; }';
+        return boxes.map(function(box) {
+          var template = templatesByBox[box];
+          var footerText = renderPageTemplate(template, pageNumber, originalTotal);
+          return '[data-page-number="' + pageNumber + '"] .pagedjs_margin-' + box + ' > .pagedjs_margin-content::after { content: "' + escapeCssValue(footerText) + '" !important; }';
         }).join('');
       }).filter(Boolean).join('');
 
@@ -148,7 +162,7 @@ function buildRunner(options: {
       document.head.appendChild(style);
     };
     if (previewOptions.enablePageNumberFix) {
-      syncFooterPageNumbers(result.total ?? 0, previewOptions.pageNumberMarginBoxes);
+      syncFooterPageNumbers(result.total ?? 0, previewOptions.pageNumberTemplatesByBox);
     }
 
     // Rearranges individual pagedjs pages into N-up sheet groups after rendering.
@@ -306,7 +320,7 @@ export function buildPreviewDocument(html: string, printCss: string, pagesPerShe
     selectedPages: null as number[] | null,
     contentScale: 1,
     enablePageNumberFix: false,
-    pageNumberMarginBoxes: [] as string[],
+    pageNumberTemplatesByBox: {} as Record<string, string>,
   }
   return buildPreviewDocumentWithOptions(html, printCss, options)
 }
@@ -321,7 +335,7 @@ export function buildPreviewDocumentWithOptions(
     selectedPages?: number[] | null
     contentScale?: number
     enablePageNumberFix?: boolean
-    pageNumberMarginBoxes?: string[]
+    pageNumberTemplatesByBox?: Record<string, string>
   } = {},
 ): string {
   // Prevent any </script sequences in user HTML from breaking the iframe document
@@ -344,7 +358,7 @@ export function buildPreviewDocumentWithOptions(
       selectedPages: options.selectedPages ?? null,
       contentScale: options.contentScale ?? 1,
       enablePageNumberFix: options.enablePageNumberFix ?? false,
-      pageNumberMarginBoxes: options.pageNumberMarginBoxes ?? [],
+      pageNumberTemplatesByBox: options.pageNumberTemplatesByBox ?? {},
     }), '\n', TAG_CLOSE,
     '</body></html>',
   ].join('')

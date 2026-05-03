@@ -1,6 +1,7 @@
-import type { EditSetting, ExportSettings } from '@/types'
+import type { EditSetting, ExportSettings, MarkdownPrintPreferences } from '@/types'
 import { SidebarMode, DocumentType } from '@/types'
 import { DEFAULT_WORKSPACE_IGNORE_RULES } from '@/services/workspace/filtering'
+import { DEFAULT_MARKDOWN_PRINT_PREFERENCES } from '@/components/print/markdownThemes'
 
 // Storage Keys
 export const STORAGE_KEYS = {
@@ -11,6 +12,7 @@ export const STORAGE_KEYS = {
   UI_STATE: 'iwriter-ui-state',
   EDIT_SETTING: 'iwriter-edit-setting',
   EXPORT_SETTING: 'iwriter-export-setting',
+  MARKDOWN_PRINT_SETTING: 'iwriter-markdown-print-setting',
   WORKSPACE_STATE: 'iwriter-workspace-state',
   AI_SETTINGS: 'iwriter-ai-settings',
   AI_THREADS: 'iwriter-ai-threads',
@@ -99,6 +101,8 @@ export const DEFAULT_EXPORT_SETTING: ExportSettings = {
     opml: { customArgs: '' },
   },
 }
+
+export const DEFAULT_MARKDOWN_PRINT_SETTING: MarkdownPrintPreferences = DEFAULT_MARKDOWN_PRINT_PREFERENCES
 
 /**
  * 统一的状态存储工具类
@@ -203,6 +207,96 @@ export class StateStorage {
       console.error('Failed to load export setting:', error)
     }
     return DEFAULT_EXPORT_SETTING
+  }
+
+  static saveMarkdownPrintSetting(setting: MarkdownPrintPreferences): void {
+    try {
+      // Overwrite, not merge: `setting` is the canonical full state from the
+      // store, already produced by `deriveMarkdownPrintOverrides`. Merging
+      // would resurrect overrides the user just removed.
+      // `setting` may be a Vue reactive proxy; JSON round-trip strips the
+      // proxy wrapper so the data is safe to persist.
+      const payload: MarkdownPrintPreferences = JSON.parse(JSON.stringify({
+        themeAssignment: setting.themeAssignment,
+        printOverrides: setting.printOverrides ?? {},
+      }))
+      localStorage.setItem(STORAGE_KEYS.MARKDOWN_PRINT_SETTING, JSON.stringify(payload))
+    } catch (error) {
+      console.error('Failed to save markdown print setting:', error)
+    }
+  }
+
+  static loadMarkdownPrintSetting(): MarkdownPrintPreferences {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.MARKDOWN_PRINT_SETTING)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        const legacyOverrides = 'printOverrides' in parsed
+          ? {}
+          : {
+            pageSetup: parsed.pageSetup ?? {},
+            pagination: parsed.pagination ?? {},
+            headerFooter: parsed.headerFooter ?? {},
+            runningTitle: parsed.runningTitle ?? {},
+          }
+        return {
+          ...DEFAULT_MARKDOWN_PRINT_SETTING,
+          ...parsed,
+          themeAssignment: {
+            ...DEFAULT_MARKDOWN_PRINT_SETTING.themeAssignment,
+            ...(parsed.themeAssignment ?? {}),
+          },
+          printOverrides: {
+            ...DEFAULT_MARKDOWN_PRINT_SETTING.printOverrides,
+            ...legacyOverrides,
+            ...(parsed.printOverrides ?? {}),
+            pageSetup: {
+              ...(legacyOverrides.pageSetup ?? {}),
+              ...(parsed.printOverrides?.pageSetup ?? {}),
+            },
+            pagination: {
+              ...(legacyOverrides.pagination ?? {}),
+              ...(parsed.printOverrides?.pagination ?? {}),
+              keepWithNext: {
+                ...(legacyOverrides.pagination?.keepWithNext ?? {}),
+                ...(parsed.printOverrides?.pagination?.keepWithNext ?? {}),
+              },
+              avoidBreakInside: {
+                ...(legacyOverrides.pagination?.avoidBreakInside ?? {}),
+                ...(parsed.printOverrides?.pagination?.avoidBreakInside ?? {}),
+              },
+            },
+            headerFooter: {
+              ...(legacyOverrides.headerFooter ?? {}),
+              ...(parsed.printOverrides?.headerFooter ?? {}),
+              slots: {
+                ...(legacyOverrides.headerFooter?.slots ?? {}),
+                ...(parsed.printOverrides?.headerFooter?.slots ?? {}),
+              },
+              firstPageSlots: {
+                ...(legacyOverrides.headerFooter?.firstPageSlots ?? {}),
+                ...(parsed.printOverrides?.headerFooter?.firstPageSlots ?? {}),
+              },
+              leftPageSlots: {
+                ...(legacyOverrides.headerFooter?.leftPageSlots ?? {}),
+                ...(parsed.printOverrides?.headerFooter?.leftPageSlots ?? {}),
+              },
+              rightPageSlots: {
+                ...(legacyOverrides.headerFooter?.rightPageSlots ?? {}),
+                ...(parsed.printOverrides?.headerFooter?.rightPageSlots ?? {}),
+              },
+            },
+            runningTitle: {
+              ...(legacyOverrides.runningTitle ?? {}),
+              ...(parsed.printOverrides?.runningTitle ?? {}),
+            },
+          },
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load markdown print setting:', error)
+    }
+    return DEFAULT_MARKDOWN_PRINT_SETTING
   }
 
   /**

@@ -47,7 +47,10 @@
             <!-- Printer -->
             <div v-if="isPrintMode" class="flex items-center justify-between px-5 py-3">
               <label class="shrink-0 text-sm">{{ t('dialog.printDialog.printer.label') }}</label>
-              <select v-model="selectedPrinter" class="iw-select ml-3 w-44 text-sm">
+              <select v-model="selectedPrinter" class="iw-select ml-3 w-44 text-sm" :disabled="!hasPrinters">
+                <option v-if="!hasPrinters" :value="''" disabled>
+                  {{ t('dialog.printDialog.printer.noPrinter') }}
+                </option>
                 <option v-for="p in printers" :key="p.name" :value="p.name">
                   {{ p.displayName || p.name }}
                 </option>
@@ -102,71 +105,12 @@
             </button>
 
             <template v-if="showPageSettings">
-
-            <!-- Print theme -->
-            <div class="flex items-center justify-between px-5 py-3">
-              <label class="shrink-0 text-sm">{{ t('dialog.printDialog.printTheme.label') }}</label>
-              <select v-model="selectedPrintThemeId" class="iw-select ml-3 w-44 text-sm">
-                <option v-for="theme in availablePrintThemes" :key="theme.id" :value="theme.id">
-                  {{ theme.name }}
-                </option>
-              </select>
-            </div>
-
-              <!-- Paper Size -->
-              <div class="flex items-center justify-between px-5 py-3">
-                <label class="shrink-0 text-sm">{{ t('dialog.printDialog.paperSize.label') }}</label>
-                <select v-model="paperSize" class="iw-select ml-3 w-44 text-sm" @change="renderPreview">
-                  <option v-for="s in availablePaperSizes" :key="s.value" :value="s.value">
-                    {{ s.label }}
-                  </option>
-                </select>
-              </div>
-
-              <!-- Layout / Orientation -->
-              <div class="flex items-center justify-between px-5 py-3">
-                <label class="shrink-0 text-sm">{{ t('dialog.printDialog.orientation.label') }}</label>
-                <select v-model="orientation" class="iw-select ml-3 w-44 text-sm" @change="renderPreview">
-                  <option value="portrait">{{ t('dialog.printDialog.orientation.options.portrait') }}</option>
-                  <option value="landscape">{{ t('dialog.printDialog.orientation.options.landscape') }}</option>
-                </select>
-              </div>
-
-              <!-- Pages per sheet -->
-              <div class="flex items-center justify-between px-5 py-3">
-                <label class="shrink-0 text-sm">{{ t('dialog.printDialog.pagesPerSheet.label') }}</label>
-                <select v-model="pagesPerSheet" class="iw-select ml-3 w-44 text-sm" @change="renderPreview">
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="4">4</option>
-                  <option value="6">6</option>
-                  <option value="9">9</option>
-                </select>
-              </div>
-
-              <!-- Margins -->
-              <div class="flex items-center justify-between px-5 py-3">
-                <label class="shrink-0 text-sm">{{ t('dialog.printDialog.margins.label') }}</label>
-                <select v-model="margins" class="iw-select ml-3 w-44 text-sm" @change="renderPreview">
-                  <option value="theme">{{ t('dialog.printDialog.margins.options.theme') }}</option>
-                  <option value="default">{{ t('dialog.printDialog.margins.options.default') }}</option>
-                  <option value="none">{{ t('dialog.printDialog.margins.options.none') }}</option>
-                  <option value="minimum">{{ t('dialog.printDialog.margins.options.minimum') }}</option>
-                </select>
-              </div>
-
-              <!-- Options -->
-              <div class="flex flex-col gap-3 px-5 py-3">
-                <label class="shrink-0 text-sm font-medium">{{ t('dialog.printDialog.options.label') }}</label>
-                <label class="flex cursor-pointer items-center gap-2">
-                  <input type="checkbox" v-model="printBackground" class="checkbox checkbox-sm checkbox-primary" />
-                  <span class="text-sm">{{ t('dialog.printDialog.options.printBackground') }}</span>
-                </label>
-                <label class="flex cursor-pointer items-center gap-2">
-                  <input type="checkbox" v-model="printHeaderFooter" class="checkbox checkbox-sm checkbox-primary" @change="renderPreview" />
-                  <span class="text-sm">{{ t('dialog.printDialog.options.printHeaderFooter') }}</span>
-                </label>
-              </div>
+              <PrintSharedSettingsForm
+                :settings="dialogPrintSettings"
+                :paper-sizes="availablePaperSizes"
+                container-class="px-5 py-3"
+                section-gap-class="mt-6"
+              />
 
             </template>
           
@@ -184,6 +128,17 @@
             </button>
 
             <template v-if="showMoreSettings">
+              <div class="flex items-center justify-between px-5 py-3">
+                <label class="shrink-0 text-sm">{{ t('dialog.printDialog.pagesPerSheet.label') }}</label>
+                <select v-model="pagesPerSheet" class="iw-select ml-3 w-44 text-sm" @change="renderPreview">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="4">4</option>
+                  <option value="6">6</option>
+                  <option value="9">9</option>
+                </select>
+              </div>
+              
               <!-- Print Quality (hidden for PDF) -->
               <div v-if="!isPdfPrinter" class="flex items-center justify-between px-5 py-3">
                 <label class="shrink-0 text-sm">{{ t('dialog.printDialog.quality.label') }}</label>
@@ -235,9 +190,9 @@
             <!-- System dialog link (hidden for PDF) -->
             <button
               v-if="isPrintMode && !isPdfPrinter"
-              class="flex w-full items-center justify-between px-5 py-3 text-left text-sm text-primary hover:bg-base-200"
+              class="flex w-full items-center justify-between px-5 py-3 text-left text-sm text-primary hover:bg-base-200 disabled:cursor-not-allowed disabled:text-base-content/40"
               @click="handleSystemPrint"
-              :disabled="isPrinting"
+              :disabled="isPrinting || !hasPrinters"
             >
               <span>{{ t('dialog.printDialog.systemDialog') }}</span>
               <IconExternalLink class="icon-xs shrink-0" />
@@ -251,7 +206,7 @@
           <button class="iw-btn btn-ghost btn-sm" @click="emit('close')">{{ t('dialog.printDialog.actions.cancel') }}</button>
           <button
             class="iw-btn btn-primary btn-sm"
-            :disabled="isPrinting || isRendering || totalPages === 0"
+            :disabled="isPrinting || isRendering || totalPages === 0 || (isPrintMode && !isPdfPrinter && !hasPrinters)"
             @click="handlePrint"
           >
             {{ isPdfPrinter ? t('dialog.printDialog.actions.saveAsPdf') : t('dialog.printDialog.actions.print') }}
@@ -263,26 +218,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconChevronUp, IconChevronDown, IconExternalLink } from '@tabler/icons-vue'
 import { notify } from '@/utils/notifications'
 import { useAppStore } from '@/stores/app'
 import { buildPreviewDocumentWithOptions } from './buildPreviewDoc'
 import { buildPrintCss } from './buildPrintCss'
-import { builtInPrintThemes, getPrintThemeById } from './printThemes'
+import PrintSharedSettingsForm from './PrintSharedSettingsForm.vue'
+import {
+  builtInMarkdownThemes,
+  cloneHeaderFooterSetup,
+  clonePageSetup,
+  clonePaginationSetup,
+  cloneRunningTitleSetup,
+  createResolvedMarkdownPrintSettings,
+  derivePrintRuntimeOverrides,
+  getEffectivePrintThemeId,
+  getMarkdownThemeById,
+  rebaseResolvedSettingsOnThemeChange,
+  resolveMarkdownPrintSettings,
+} from './markdownThemes'
+import type { PageSetup, PrintRuntimeOverrides, ResolvedMarkdownPrintSettings } from '@/types'
 
 // Special sentinel value for "Save as PDF" pseudo-printer
 const PDF_PRINTER = '__pdf__'
-
-type MarginMode = 'theme' | 'default' | 'none' | 'minimum'
-
-const MARGIN_VALUES: Record<MarginMode, string> = {
-  theme: '',
-  default: '20mm',
-  none:    '0',
-  minimum: '5mm',
-}
 
 type PaperSpec = {
   value: string
@@ -331,17 +291,14 @@ function getPaperDimensionsMm(size: string): { widthMm: number; heightMm: number
   return PAPER_DIMS_MM[size] ?? PAPER_DIMS_MM.A4 ?? { widthMm: 210, heightMm: 297 }
 }
 
-function formatCssLengthMm(mm: number): string {
-  return `${Number(mm.toFixed(4))}mm`
-}
-
 function getPagesPerSheetNumber(): number {
   return parseInt(pagesPerSheet.value, 10) || 1
 }
 
 function getEffectiveSheetOrientation(): 'portrait' | 'landscape' {
-  if (getPagesPerSheetNumber() <= 1) return orientation.value
-  return orientation.value === 'portrait' ? 'landscape' : 'portrait'
+  const orientation = dialogPrintSettings.pageSetup.orientation
+  if (getPagesPerSheetNumber() <= 1) return orientation
+  return orientation === 'portrait' ? 'landscape' : 'portrait'
 }
 
 function parseCustomPageRangeInput(input: string, pageCount: number): number[] {
@@ -385,11 +342,31 @@ const emit = defineEmits<{ close: [] }>()
 const { t, locale } = useI18n()
 const appStore = useAppStore()
 
+function applyResolvedPrintContentSettings(
+  target: ResolvedMarkdownPrintSettings,
+  source: ResolvedMarkdownPrintSettings,
+) {
+  target.pageSetup = clonePageSetup(source.pageSetup)
+  target.pagination = clonePaginationSetup(source.pagination)
+  target.headerFooter = cloneHeaderFooterSetup(source.headerFooter)
+  target.runningTitle = cloneRunningTitleSetup(source.runningTitle)
+}
+
+function applyResolvedPrintSettings(
+  target: ResolvedMarkdownPrintSettings,
+  source: ResolvedMarkdownPrintSettings,
+) {
+  target.themeAssignment = { ...source.themeAssignment }
+  applyResolvedPrintContentSettings(target, source)
+}
+
 const previewFrame  = ref<HTMLIFrameElement>()
 const previewScroll = ref<HTMLDivElement>()
 let currentBlobUrl = ''
 let lastPreviewHtml = ''
 let previewRenderTimer: ReturnType<typeof setTimeout> | null = null
+let rebasingThemeAssignment = false
+let syncingDialogSettings = false
 
 const isRendering = ref(false)
 const isPrinting  = ref(false)
@@ -413,21 +390,18 @@ const selectedPrinter = ref('')
 const pageRange      = ref<'all' | 'odd' | 'even' | 'custom'>('all')
 const customPageRange = ref('')
 const copies         = ref(1)
-const selectedPrintThemeId = ref('default')
+const dialogPrintSettings = reactive<ResolvedMarkdownPrintSettings>(
+  createResolvedMarkdownPrintSettings(appStore.globalMarkdownPrintSetting.themeAssignment),
+)
 
 // More settings
 const showPageSettings  = ref(true)
 const showMoreSettings  = ref(false)
-const orientation       = ref<'portrait' | 'landscape'>('portrait')
-const paperSize         = ref('A4')
 const pagesPerSheet     = ref('1')
-const margins           = ref<MarginMode>('theme')
 const dpi               = ref('300')
 const scaleMode         = ref<'default' | 'custom'>('default')
 const customScale       = ref(100)
 const colorMode         = ref<'color' | 'grayscale'>('color')
-const printBackground   = ref(false)
-const printHeaderFooter = ref(true)
 
 type CustomInputValidation<T> = {
   effectiveValue: T
@@ -439,6 +413,7 @@ type CustomInputValidation<T> = {
 const isPdfPrinter = computed(() => selectedPrinter.value === PDF_PRINTER)
 const isExportMode = computed(() => props.mode === 'export')
 const isPrintMode = computed(() => !isExportMode.value)
+const hasPrinters = computed(() => printers.value.length > 0)
 const dialogTitle = computed(() =>
   isExportMode.value ? t('dialog.printDialog.exportTitle') : t('dialog.printDialog.title')
 )
@@ -451,6 +426,13 @@ const printerColorSupported = computed(() => {
   if (isPdfPrinter.value) return false
   return detectColorSupport(selectedPrinterInfo.value)
 })
+
+// Whether the effective output (PDF or selected printer) honors a color choice.
+// PDF always renders in color; physical printers depend on capability.
+const effectiveColorSupported = computed(() => isPdfPrinter.value || printerColorSupported.value)
+const effectiveColorMode = computed<'color' | 'grayscale'>(() =>
+  effectiveColorSupported.value ? colorMode.value : 'color',
+)
 
 const availablePaperSizes = computed(() => {
   if (isPdfPrinter.value) return STANDARD_PAPER_SIZES
@@ -504,8 +486,8 @@ const customPageRangeValidation = computed<CustomInputValidation<number[] | null
 })
 
 const customPageRangeError = computed(() => customPageRangeValidation.value.error)
-const availablePrintThemes = builtInPrintThemes
-const selectedPrintTheme = computed(() => getPrintThemeById(selectedPrintThemeId.value) ?? builtInPrintThemes[0]!)
+const effectivePrintThemeId = computed(() => getEffectivePrintThemeId(dialogPrintSettings))
+const effectivePrintTheme = computed(() => getMarkdownThemeById(effectivePrintThemeId.value) ?? builtInMarkdownThemes[0]!)
 
 const physicalSheets = computed(() =>
   totalPages.value > 0
@@ -579,13 +561,7 @@ function getPrinterPaperSizes(info: Electron.PrinterInfo | null): typeof STANDAR
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-onMounted(async () => {
-  window.addEventListener('message', handleFrameMessage)
-  window.addEventListener('resize', handlePreviewViewportResize)
-  if (isExportMode.value) {
-    selectedPrinter.value = PDF_PRINTER
-    return
-  }
+async function refreshPrinters() {
   try {
     const list = await window.electronAPI.getPrinters()
     printers.value = list
@@ -593,8 +569,14 @@ onMounted(async () => {
     const def = list.find((p: any) => p.isDefault)
     selectedPrinter.value = def?.name ?? list[0]?.name ?? ''
   } catch {
-    /* no printers API — keep the printer selection empty */
+    printers.value = []
+    selectedPrinter.value = ''
   }
+}
+
+onMounted(() => {
+  window.addEventListener('message', handleFrameMessage)
+  window.addEventListener('resize', handlePreviewViewportResize)
 })
 
 onUnmounted(() => {
@@ -612,8 +594,13 @@ watch(
   () => props.visible,
   async (val) => {
     if (val) {
+      syncingDialogSettings = true
+      applyResolvedPrintSettings(dialogPrintSettings, resolveMarkdownPrintSettings(appStore.globalMarkdownPrintSetting))
+      syncingDialogSettings = false
       if (isExportMode.value) {
         selectedPrinter.value = PDF_PRINTER
+      } else {
+        await refreshPrinters()
       }
       await nextTick()
       previewScroll.value?.addEventListener('wheel', handlePreviewWheel, { passive: false })
@@ -629,11 +616,34 @@ watch(
   async (val) => { if (props.visible && val) { await nextTick(); renderPreview() } }
 )
 
-// When printer switches, validate paper size and re-render
+watch(
+  () => [
+    dialogPrintSettings.themeAssignment.screenThemeId,
+    dialogPrintSettings.themeAssignment.printThemeId,
+    dialogPrintSettings.themeAssignment.printUsesScreenTheme,
+  ] as const,
+  ([nextScreen, nextPrint, nextUses], [prevScreen, prevPrint, prevUses]) => {
+    if (rebasingThemeAssignment || syncingDialogSettings) return
+    if (prevScreen === undefined || prevPrint === undefined || prevUses === undefined) return
+    const rebased = rebaseResolvedSettingsOnThemeChange(
+      dialogPrintSettings,
+      { screenThemeId: prevScreen, printThemeId: prevPrint, printUsesScreenTheme: prevUses },
+      { screenThemeId: nextScreen, printThemeId: nextPrint, printUsesScreenTheme: nextUses },
+    )
+    rebasingThemeAssignment = true
+    applyResolvedPrintContentSettings(dialogPrintSettings, rebased)
+    rebasingThemeAssignment = false
+  },
+)
+
+// When printer switches, validate paper size, reset stale color preference, re-render
 watch(selectedPrinter, () => {
   const sizes = availablePaperSizes.value
-  if (!sizes.find(s => s.value === paperSize.value)) {
-    paperSize.value = sizes[0]?.value ?? 'A4'
+  if (!sizes.find(s => s.value === dialogPrintSettings.pageSetup.size)) {
+    dialogPrintSettings.pageSetup.size = (sizes[0]?.value ?? 'A4') as PageSetup['size']
+  }
+  if (!effectiveColorSupported.value && colorMode.value === 'grayscale') {
+    colorMode.value = 'color'
   }
   schedulePreviewRender()
 })
@@ -710,24 +720,23 @@ function getPrintDateText(): string {
   }).format(new Date())
 }
 
-function getDialogMarginOverride(): string | null {
-  return margins.value === 'theme' ? null : MARGIN_VALUES[margins.value]
+function getDialogRuntimeOverrides(): PrintRuntimeOverrides {
+  const base = resolveMarkdownPrintSettings(appStore.globalMarkdownPrintSetting)
+  return derivePrintRuntimeOverrides(base, dialogPrintSettings)
 }
 
-function generatePrintCSS(): { css: string; enablePageNumberFix: boolean; pageNumberMarginBoxes: string[] } {
-  const dims = getPaperDimensionsMm(paperSize.value)
-  const pageWidth = orientation.value === 'landscape' ? dims.heightMm : dims.widthMm
-  const pageHeight = orientation.value === 'landscape' ? dims.widthMm : dims.heightMm
-  const pageSize = `${formatCssLengthMm(pageWidth)} ${formatCssLengthMm(pageHeight)}`
+function generatePrintCSS(): { css: string; enablePageNumberFix: boolean; pageNumberTemplatesByBox: Record<string, string> } {
+  const resolvedSettings = resolveMarkdownPrintSettings(appStore.globalMarkdownPrintSetting, getDialogRuntimeOverrides())
   return buildPrintCss({
-    theme: selectedPrintTheme.value,
+    theme: effectivePrintTheme.value,
     documentTitle: props.title || t('dialog.printDialog.untitled'),
     printDate: getPrintDateText(),
-    pageSize,
-    margin: getDialogMarginOverride(),
+    pageSetup: resolvedSettings.pageSetup,
+    pagination: resolvedSettings.pagination,
+    headerFooter: resolvedSettings.headerFooter,
+    runningTitle: resolvedSettings.runningTitle,
     zoomFactor: effectiveScale.value / 100,
-    colorMode: colorMode.value,
-    printHeaderFooter: printHeaderFooter.value,
+    colorMode: effectiveColorMode.value,
   })
 }
 
@@ -760,12 +769,12 @@ function buildPreviewHtml(): string {
   const printCss = generatePrintCSS()
   return buildPreviewDocumentWithOptions(props.html, printCss.css, {
     pagesPerSheet: getPagesPerSheetNumber(),
-    orientation: orientation.value,
+    orientation: dialogPrintSettings.pageSetup.orientation,
     pageSelectionMode: effectivePageSelectionMode,
     selectedPages: pageRange.value === 'custom' ? customPageRangeValidation.value.effectiveValue : null,
     contentScale: zoomFactorForPreview(),
     enablePageNumberFix: printCss.enablePageNumberFix,
-    pageNumberMarginBoxes: printCss.pageNumberMarginBoxes,
+    pageNumberTemplatesByBox: printCss.pageNumberTemplatesByBox,
   })
 }
 
@@ -785,10 +794,10 @@ function zoomFactorForPreview(): number {
 // ── Print helpers ─────────────────────────────────────────────────────────────
 
 function buildElectronPrintPageSize(): Electron.WebContentsPrintOptions['pageSize'] {
-  if (ELECTRON_PRINT_KEYWORDS.has(paperSize.value)) {
-    return paperSize.value as Electron.WebContentsPrintOptions['pageSize']
+  if (ELECTRON_PRINT_KEYWORDS.has(dialogPrintSettings.pageSetup.size)) {
+    return dialogPrintSettings.pageSetup.size as Electron.WebContentsPrintOptions['pageSize']
   }
-  const dims = getPaperDimensionsMm(paperSize.value)
+  const dims = getPaperDimensionsMm(dialogPrintSettings.pageSetup.size)
   return {
     width: Math.round(dims.widthMm * 1000),
     height: Math.round(dims.heightMm * 1000),
@@ -802,8 +811,8 @@ async function doPrint(silent: boolean) {
   const htmlDoc = lastPreviewHtml || buildPreviewHtml()
   const options: Electron.WebContentsPrintOptions = {
     silent,
-    printBackground: printBackground.value,
-    color: colorMode.value === 'color',
+    printBackground: dialogPrintSettings.pageSetup.background,
+    color: effectiveColorMode.value === 'color',
     deviceName: selectedPrinter.value,
     pageSize: buildElectronPrintPageSize(),
     landscape: getEffectiveSheetOrientation() === 'landscape',
@@ -830,7 +839,7 @@ async function handleSaveToPDF() {
   try {
     const htmlDoc = lastPreviewHtml || buildPreviewHtml()
     const pdfOptions: Electron.PrintToPDFOptions = {
-      printBackground: printBackground.value,
+      printBackground: dialogPrintSettings.pageSetup.background,
       preferCSSPageSize: true,
       displayHeaderFooter: false,
       scale: 1,
@@ -903,19 +912,12 @@ async function handlePostExportAction(filePath: string) {
   }
 }
 
+watch(dialogPrintSettings, () => {
+  schedulePreviewRender()
+}, { deep: true })
+
 watch(
-  [
-    orientation,
-    paperSize,
-    pagesPerSheet,
-    margins,
-    colorMode,
-    printHeaderFooter,
-    printBackground,
-    pageRange,
-    selectedPrintThemeId,
-    scaleMode,
-  ],
+  [pagesPerSheet, colorMode, pageRange, scaleMode],
   () => {
     schedulePreviewRender()
   },
