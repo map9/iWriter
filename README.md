@@ -1,16 +1,18 @@
 # iWriter
 
-> 代码校对日期：2026-04-22  
+> 代码校对日期：2026-05-04  
 > 本 README 以当前工程实现为准（`src/` + `electron/` + `package.json`），不以 `docs/` 中历史方案文档为准。
 
 ## 项目定位
 
 iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 Electron + Vue 3 + TypeScript 构建。
 
-当前版本聚焦三类能力：
+当前版本聚焦五类能力：
 
 - 本地文件工作区管理（文件树、标签页、跨文件搜索、监听刷新）
 - 富文本/Markdown 写作（TipTap 编辑器 + 大纲 + 拼写校对 + 搜索替换）
+- Markdown 主题系统（内置主题 + 自定义 CSS 主题 + 屏幕/打印独立主题）
+- 打印、PDF 与文档导出（paged.js 分页渲染 + Pandoc 多格式转换）
 - AI 辅助写作与编辑（Edit / Creative / Minimal，多 Provider，编辑提案审批流）
 
 ## 设计定位（阶段）
@@ -51,13 +53,40 @@ iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 El
 - 拼写与语法检查（LanguageTool / Typo.js 引擎切换）
 - TOC（目录）联动与定位
 
-### 3) 多类型文档查看
+### 3) Markdown 主题系统
+
+- 内置四套主题：`github`（技术文档）、`github-dark`（深色模式）、`prose`（通用文章）、`novel`（长文书稿）
+- 屏幕主题与打印主题可独立选择，打印主题可选"跟随屏幕主题"
+- 每套内置主题包含屏幕 CSS、打印 CSS，以及页面设置/分页策略/页眉页脚的默认值
+- 支持自定义 CSS 主题：将主题文件夹放入 `~/.iwriter/markdown/themes/`，App 自动发现并热更新
+- 自定义主题需提供 `screen.css`（必须）、可选的 `theme.json`（元数据与打印默认值）和 `print.css`
+- 提供 30+ CSS 变量控制排版、颜色、标题、列表、引用、表格、代码块等元素样式
+- 支持 Create Example 一键生成示例主题，帮助快速上手
+
+### 4) 打印、PDF 与导出
+
+**打印与 PDF：**
+- 基于 paged.js 分页渲染，打印对话框提供实时预览
+- 支持 11 种纸张大小、纵向/横向、普通边距/对页边距模式
+- 三种分页策略预设（Balanced / Compact / Strict Book）+ 自定义模式（7 种避免断页规则）
+- 支持 16 个页眉页脚位置（margin box），6 个模板变量（documentTitle / chapterTitle / sectionTitle / printDate / pageNo / totalPages）
+- 支持首页不同、奇偶页不同的页眉页脚，运行标题自动提取章节信息
+- 支持 N-up 打印（每张纸 1/2/4/6/9 页）
+- 支持真实打印机输出与 Save as PDF 两种模式
+
+**导入/导出（Pandoc 驱动）：**
+- 导出支持 10 种格式：HTML、Word (.docx)、OpenOffice (.odt)、RTF、EPUB、LaTeX、MediaWiki、reStructuredText、Textile、OPML
+- 导入支持 Word、ODT、RTF、EPUB、HTML、LaTeX 等常见格式
+- 每种导出格式可独立配置自定义参数、参考文档、CSS 样式等
+- 导出目录、Pandoc 路径、导出后动作可在偏好设置中配置
+
+### 5) 多类型文档查看
 
 - 图片查看器：缩放、旋转、拖拽平移、适配窗口
 - PDF 查看器：连续/单页/双页模式，缩放，跳页，懒加载渲染
 - 不支持类型会进入 `Unknown` 页面兜底
 
-### 4) AI 能力（主进程 Runtime）
+### 6) AI 能力（主进程 Runtime）
 
 - 会话线程持久化（SQLite Checkpointer）
 - 三种模式：
@@ -71,7 +100,7 @@ iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 El
 - 支持上下文附件：文本文件、二进制文件（图片/PDF）、目录
 - 支持输入压缩（compact input）与上下文 token 统计
 
-### 5) AI Provider 与模型配置
+### 7) AI Provider 与模型配置
 
 内置 Provider 预设（可在偏好设置中配置 API Key / Base URL / Model）：
 
@@ -82,19 +111,21 @@ iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 El
 - Ollama（通过 OpenAI-compatible 方式）
 - GLM（通过 OpenAI-compatible 方式）
 
-### 6) 界面与体验
+### 8) 界面与体验
 
 - 左侧栏：Explorer / Search / Tag / TOC
 - 右侧栏：AI Agent 面板（历史会话 + 当前会话）
 - 状态栏：文件统计、更新状态等
 - 视图模式：Clean Mode / Focus Mode / Typewriter Mode
-- 主题系统：内置主题 + 系统主题跟随
+- 主题系统：内置 Markdown 主题 + 自定义 CSS 主题 + 应用 UI 主题 + 系统主题跟随
+- 打印与导出：打印预览对话框 + 偏好设置中的打印/导出默认值配置
 - 语言：`en-US` / `zh-CN`
 
 ## 重要边界（基于当前代码）
 
 - `TagPanel` 目前是示例数据实现（mock），不是完整标签索引系统
-- AI 编辑是“提案审批后执行”，不是模型直接无确认写盘
+- AI 编辑是”提案审批后执行”，不是模型直接无确认写盘
+- 导入/导出功能依赖系统安装 Pandoc（[pandoc.org](https://pandoc.org/)），未安装时功能不可用
 - 自动更新仅在生产环境启用（开发环境关闭）
 - 自动更新依赖 GitHub Releases（`map9/iWriter`）与可用网络/权限
 - 打包签名与 notarize（macOS）依赖本机证书和 Apple 凭证
@@ -108,6 +139,7 @@ iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 El
 说明：
 
 - `.iwt` 为 iWriter 自有格式，内容为 JSON（含 HTML 文档内容与元信息）
+- 通过 Pandoc 可导入/导出更多格式：`docx` `odt` `rtf` `epub` `html` `tex` `mediawiki` `rst` `textile` `opml`
 
 ## 技术栈
 
@@ -118,6 +150,8 @@ iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 El
 - 编辑器：TipTap 3 + ProseMirror
 - 样式：Tailwind CSS 4 + Sass + daisyUI
 - AI Runtime：deepagents + LangGraph + better-sqlite3
+- 打印引擎：paged.js（分页渲染与预览）
+- 文档转换：Pandoc（导入/导出多格式转换）
 - 更新：electron-updater
 - 构建：Vite + electron-builder
 
@@ -246,9 +280,11 @@ cp .env.simple .env
 
 1. 快速上手（打开文件夹、创建文档、AI 对话）
 2. 编辑器指南（格式、搜索替换、拼写检查、TOC）
-3. 工作区指南（文件树、监听、跨文件搜索）
-4. AI 指南（三模式、Provider 配置、审批流）
-5. 下载与更新（安装、更新策略、常见问题）
+3. Markdown 主题系统（内置主题、自定义主题、CSS 变量参考）→ 已有初稿 `docs/docs/markdown-themes.md`
+4. 打印、PDF 与导出（打印预览、分页策略、页眉页脚、Pandoc 导出）→ 已有初稿 `docs/docs/print-export.md`
+5. 工作区指南（文件树、监听、跨文件搜索）
+6. AI 指南（三模式、Provider 配置、审批流）
+7. 下载与更新（安装、更新策略、常见问题）
 
 `docs/WEBSITE_PLAN_VITEPRESS.md` 已按当前实现更新了提纲，可直接作为官网文档骨架。
 
