@@ -391,7 +391,7 @@ import { onEditorMenuAction } from './markdown-editor/menu-action'
 import { useAppStore } from '@/stores/app'
 import type { WindowContentState } from '@/types'
 import { DocumentType } from '@/types'
-import { builtInMarkdownThemes } from '@/components/print/markdownThemes'
+import { getAllMarkdownThemes } from '@/components/print/markdownThemes'
 
 // Props
 interface Props {
@@ -919,10 +919,14 @@ function getCurrentEditorElement(): HTMLElement | null {
 }
 
 function setScreenTheme(themeId: string) {
-  const editorElement = getCurrentEditorElement()
+  // Use editor.view.dom directly so the class is applied as soon as the editor
+  // is created, without waiting for EditorContent to move the DOM element into
+  // editorScrollRef (which happens in a separate nextTick and would otherwise
+  // race with our own nextTick, leaving the theme unapplied on startup).
+  const editorElement = (editor.value?.view.dom as HTMLElement | null) ?? getCurrentEditorElement()
   if (!editorElement) return
 
-  for (const theme of builtInMarkdownThemes) {
+  for (const theme of getAllMarkdownThemes()) {
     editorElement.classList.remove(`markdown-theme-${theme.id}`)
   }
   editorElement.classList.add(`markdown-theme-${themeId}`)

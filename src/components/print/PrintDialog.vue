@@ -227,7 +227,7 @@ import { buildPreviewDocumentWithOptions } from './buildPreviewDoc'
 import { buildPrintCss } from './buildPrintCss'
 import PrintSharedSettingsForm from './PrintSharedSettingsForm.vue'
 import {
-  builtInMarkdownThemes,
+  getAllMarkdownThemes,
   cloneHeaderFooterSetup,
   clonePageSetup,
   clonePaginationSetup,
@@ -487,7 +487,7 @@ const customPageRangeValidation = computed<CustomInputValidation<number[] | null
 
 const customPageRangeError = computed(() => customPageRangeValidation.value.error)
 const effectivePrintThemeId = computed(() => getEffectivePrintThemeId(dialogPrintSettings))
-const effectivePrintTheme = computed(() => getMarkdownThemeById(effectivePrintThemeId.value) ?? builtInMarkdownThemes[0]!)
+const effectivePrintTheme = computed(() => getMarkdownThemeById(effectivePrintThemeId.value) ?? getAllMarkdownThemes()[0]!)
 
 const physicalSheets = computed(() =>
   totalPages.value > 0

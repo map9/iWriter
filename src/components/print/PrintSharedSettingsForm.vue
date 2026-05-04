@@ -353,7 +353,7 @@ import { useI18n } from 'vue-i18n'
 import { IconDots, IconPlus, IconTrash } from '@tabler/icons-vue'
 import {
   applyPaginationModePreset,
-  builtInMarkdownThemes,
+  getAllMarkdownThemes,
   createFacingMargins,
   createSingleMargins,
 } from '@/components/print/markdownThemes'
@@ -396,7 +396,7 @@ const props = withDefaults(defineProps<{
 })
 
 const { t } = useI18n()
-const themes = builtInMarkdownThemes
+const themes = computed(() => getAllMarkdownThemes())
 const settings = props.settings
 const isFacingMargins = computed(() => settings.pageSetup.marginMode === 'facing')
 const pageSideStartRectoLabel = computed(() =>

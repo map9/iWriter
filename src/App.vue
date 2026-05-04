@@ -6,7 +6,12 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useRouter } from 'vue-router'
-import { ensureMarkdownScreenThemeStyleSheet } from '@/components/print/markdownThemes'
+import {
+  ensureMarkdownScreenThemeStyleSheet,
+  buildMarkdownThemeFromRaw,
+  registerCustomThemes,
+} from '@/components/print/markdownThemes'
+import type { RawCustomTheme } from '@/types'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -23,11 +28,17 @@ async function handleMenuAction(action: string): Promise<boolean> {
   return false
 }
 
-onMounted(() => {
+function applyRawCustomThemes(rawThemes: unknown[]): void {
+  const raw = rawThemes as RawCustomTheme[]
+  const themes = raw.map(buildMarkdownThemeFromRaw)
+  registerCustomThemes(themes, raw)
+}
+
+onMounted(async () => {
   // Initialize
   ensureMarkdownScreenThemeStyleSheet()
   appStore.initial()
-  
+
   if (window.electronAPI) {
     window.electronAPI.onMenuAction(async (action: string) => {
       // Try to handle through editor first
@@ -37,11 +48,26 @@ onMounted(() => {
         appStore.handleMenuAction(action)
       }
     })
+
+    // Load custom themes and watch for changes
+    if (window.electronAPI.customThemes) {
+      try {
+        const rawThemes = await window.electronAPI.customThemes.load()
+        applyRawCustomThemes(rawThemes)
+      } catch {
+        // Custom themes are non-critical — silently ignore load failures
+      }
+
+      window.electronAPI.customThemes.onChanged(applyRawCustomThemes)
+    }
   }
 })
 
 onUnmounted(() => {
-  // Destroy
+  window.electronAPI?.customThemes?.removeChangedListeners()
+})
+
+onUnmounted(() => {
   appStore.destroy()
 })
 </script>

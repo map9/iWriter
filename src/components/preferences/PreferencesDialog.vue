@@ -61,7 +61,7 @@
           </section>
 
           <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.themes.displayThemeTitle') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.themes.markdownThemeTitle') }}</h3>
             <div class="grid grid-cols-3 gap-3">
               <button
                 v-for="theme in markdownThemes"
@@ -78,6 +78,46 @@
                   {{ t('common.active') }}
                 </span>
               </button>
+            </div>
+          </section>
+
+          <section class="flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.themes.customMarkdownThemesTitle') }}</h3>
+              <div class="flex items-center gap-2">
+                <button class="iw-btn btn-ghost btn-xs gap-1.5" @click="handleCreateExampleTheme">
+                  <IconPlus class="icon-xs" />
+                  {{ t('preferences.themes.createExample') }}
+                </button>
+                <button class="iw-btn btn-ghost btn-xs gap-1.5" @click="openThemesFolder">
+                  <IconFolderOpen class="icon-xs" />
+                  {{ t('preferences.themes.openFolder') }}
+                </button>
+              </div>
+            </div>
+            <div v-if="rawCustomThemes.length === 0" class="rounded-box border border-dashed border-base-300 px-4 py-5 text-center text-sm text-base-content/50">
+              {{ t('preferences.themes.noCustomThemes') }}
+            </div>
+            <div v-else class="flex flex-col gap-2">
+              <div
+                v-for="theme in rawCustomThemes"
+                :key="theme.id"
+                class="flex items-start gap-3 rounded-box border border-base-300 bg-base-100 px-4 py-3"
+                :class="theme.errors.length > 0 ? 'border-warning/40 bg-warning/5' : ''"
+              >
+                <component
+                  :is="theme.errors.length > 0 ? IconAlertTriangle : IconCheck"
+                  class="icon-xs mt-0.5 shrink-0"
+                  :class="theme.errors.length > 0 ? 'text-warning' : 'text-success'"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="text-sm font-medium text-base-content">{{ theme.manifest.name }}</div>
+                  <div class="text-xs text-base-content/50">{{ theme.id }}</div>
+                  <ul v-if="theme.errors.length > 0" class="mt-1 space-y-0.5">
+                    <li v-for="(err, i) in theme.errors" :key="i" class="text-xs text-warning">{{ err }}</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -579,11 +619,16 @@ import {
   IconInfoCircle,
   IconChevronLeft,
   IconX,
+  IconFolderOpen,
+  IconPlus,
+  IconCheck,
+  IconAlertTriangle,
 } from '@tabler/icons-vue'
 import { useAppStore } from '@/stores/app'
 import ThemePreviewSample from '@/components/preferences/ThemePreviewSample.vue'
 import { availableThemes, getThemePreviewThemeId } from '@/utils/themes'
-import { builtInMarkdownThemes } from '@/components/print/markdownThemes'
+import { getAllMarkdownThemes, getRawCustomThemes } from '@/components/print/markdownThemes'
+import type { RawCustomTheme } from '@/types'
 import updaterService from '@/updater/UpdaterService'
 import type { UpdaterConfig } from '@/updater/types'
 import { notify } from '@/utils/notifications'
@@ -607,7 +652,16 @@ const emit = defineEmits<{ close: [] }>()
 const { t } = useI18n()
 
 const appStore = useAppStore()
-const markdownThemes = builtInMarkdownThemes
+const markdownThemes = computed(() => getAllMarkdownThemes())
+const rawCustomThemes = computed<readonly RawCustomTheme[]>(() => getRawCustomThemes())
+
+async function openThemesFolder(): Promise<void> {
+  await window.electronAPI?.customThemes?.openFolder()
+}
+
+async function handleCreateExampleTheme(): Promise<void> {
+  await window.electronAPI?.customThemes?.createExample()
+}
 
 const tabs = computed(() => [
   { id: 'workspace' as TabId, label: t('preferences.tabs.workspace'), icon: IconFolders },

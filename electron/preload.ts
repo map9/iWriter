@@ -152,6 +152,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printFromHtml: (htmlContent: string, printOptions?: any) => ipcRenderer.invoke('print-from-html', htmlContent, printOptions),
   saveToPdfFromHtml: (htmlContent: string, printOptions?: any, saveOptions?: any) => ipcRenderer.invoke('save-to-pdf-from-html', htmlContent, printOptions, saveOptions),
 
+  // ── Custom Markdown Themes ────────────────────────────────────────────────
+  customThemes: {
+    load: () => ipcRenderer.invoke('custom-themes:load'),
+    openFolder: () => ipcRenderer.invoke('custom-themes:open-folder'),
+    createExample: () => ipcRenderer.invoke('custom-themes:create-example'),
+    onChanged: (callback: (themes: unknown[]) => void) => {
+      ipcRenderer.on('custom-themes:changed', (_, themes) => callback(themes))
+    },
+    removeChangedListeners: () => {
+      ipcRenderer.removeAllListeners('custom-themes:changed')
+    },
+  },
+
   // ── AI Agent (main-process deepagents) ────────────────────────────────────
   aiSendMessage: (req: any) => ipcRenderer.invoke('ai:send-message', req),
   aiCompactInput: (req: any) => ipcRenderer.invoke('ai:compact-input', req),

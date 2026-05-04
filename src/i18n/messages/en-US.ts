@@ -79,7 +79,11 @@ export default {
       title: 'Display',
       languageTitle: 'Language',
       languageDescription: 'Choose the app display language',
-      displayThemeTitle: 'Markdown Screen Theme',
+      markdownThemeTitle: 'Markdown Theme',
+      customMarkdownThemesTitle: 'Custom Markdown Themes',
+      openFolder: 'Open Folder',
+      createExample: 'Create Example',
+      noCustomThemes: 'No custom markdown themes loaded. Place theme folders in ~/.iwriter/markdown/themes/',
       appThemeTitle: 'App Theme',
     },
     export: {

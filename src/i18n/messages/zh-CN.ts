@@ -79,7 +79,11 @@ export default {
       title: '显示',
       languageTitle: '界面语言',
       languageDescription: '选择应用界面显示语言',
-      displayThemeTitle: 'Markdown 显示主题',
+      markdownThemeTitle: 'Markdown 主题',
+      customMarkdownThemesTitle: '自定义 Markdown 主题',
+      openFolder: '打开主题文件夹',
+      createExample: '创建示例主题',
+      noCustomThemes: '暂无自定义主题，请将主题文件夹放置于 ~/.iwriter/markdown/themes/',
       appThemeTitle: '应用主题',
     },
     export: {

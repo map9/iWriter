@@ -1,3 +1,4 @@
+import { shallowRef } from 'vue'
 import type {
   FacingPageMargins,
   HeaderFooterSetup,
@@ -5,10 +6,13 @@ import type {
   MarkdownPrintPreferences,
   MarkdownTheme,
   MarkdownThemeId,
+  MarginBoxSlot,
+  MarginBoxContent,
   PageSetup,
   PaginationModePreset,
   PaginationSetup,
   PrintRuntimeOverrides,
+  RawCustomTheme,
   ResolvedMarkdownPrintSettings,
   RunningTitleSetup,
   SinglePageMargins,
@@ -225,6 +229,17 @@ const GITHUB_SCREEN_CSS = `
     --md-code-block-bg: #0d1117;
     --md-code-block-color: #e6edf3;
     --md-image-radius: 0.375rem;
+    --md-h4-size: 1rem;
+    --md-h5-size: 0.875rem;
+    --md-list-padding-x: 1rem;
+    --md-bullet-margin: 1rem;
+    --md-bullet-padding-left: 1.5rem;
+    --md-mark-bg: #fff8c5;
+    --md-math-block-bg: #f6f8fa;
+  }
+
+  .tiptap.markdown-theme-github h6 {
+    color: #57606a;
   }
 
   .tiptap.markdown-theme-github h1,
@@ -253,6 +268,79 @@ const GITHUB_SCREEN_CSS = `
   }
 `
 
+const GITHUB_DARK_SCREEN_CSS = `
+  .tiptap.markdown-theme-github-dark {
+    --md-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    --md-line-height: 1.6;
+    --md-body-color: #e6edf3;
+    --md-heading-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    --md-heading-color: #e6edf3;
+    --md-h1-size: 2rem;
+    --md-h2-size: 1.5rem;
+    --md-h3-size: 1.25rem;
+    --md-h4-size: 1rem;
+    --md-h5-size: 0.875rem;
+    --md-p-margin: 1rem 0;
+    --md-list-margin: 1rem 0 1rem 0.4rem;
+    --md-list-padding-x: 1rem;
+    --md-bullet-margin: 1rem;
+    --md-bullet-padding-left: 1.5rem;
+    --md-hr-color: #30363d;
+    --md-mark-bg: #bb8009;
+    --md-link-color: #58a6ff;
+    --md-link-hover-color: #79b8ff;
+    --md-blockquote-border: #3b434b;
+    --md-blockquote-color: #8b949e;
+    --md-blockquote-font-style: normal;
+    --md-table-border-color: #30363d;
+    --md-table-header-bg: #161b22;
+    --md-inline-code-bg: rgba(110, 118, 129, 0.4);
+    --md-inline-code-color: #ff7b72;
+    --md-code-block-bg: #161b22;
+    --md-code-block-color: #e6edf3;
+    --md-image-radius: 0.375rem;
+    --md-math-block-bg: rgba(22, 27, 34, 0.6);
+    background-color: #0d1117;
+  }
+
+  .tiptap.markdown-theme-github-dark h6 {
+    color: #8b949e;
+  }
+
+  .tiptap.markdown-theme-github-dark h1,
+  .tiptap.markdown-theme-github-dark h2 {
+    padding-bottom: 0.2em;
+    border-bottom: 1px solid #21262d;
+  }
+
+  .tiptap.markdown-theme-github-dark h2 {
+    margin-top: 2rem;
+  }
+
+  .tiptap.markdown-theme-github-dark ul,
+  .tiptap.markdown-theme-github-dark ol {
+    margin-left: 0.2rem;
+  }
+
+  .tiptap.markdown-theme-github-dark .tableWrapper table {
+    border-radius: 0.375rem;
+    overflow: hidden;
+  }
+
+  .tiptap.markdown-theme-github-dark pre {
+    border: 1px solid #30363d;
+    border-radius: 0.5rem;
+  }
+
+  .tiptap.markdown-theme-github-dark hr {
+    border-top-color: #30363d;
+  }
+
+  .tiptap.markdown-theme-github-dark mark {
+    color: #e6edf3;
+  }
+`
+
 const PROSE_SCREEN_CSS = `
   .tiptap.markdown-theme-prose {
     --md-font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
@@ -277,6 +365,18 @@ const PROSE_SCREEN_CSS = `
     --md-code-block-bg: #111827;
     --md-code-block-color: #f8fafc;
     --md-image-radius: 0.5rem;
+    --md-h4-size: 1.1rem;
+    --md-h5-size: 1rem;
+    --md-list-padding-x: 1rem;
+    --md-bullet-margin: 1.1rem;
+    --md-bullet-padding-left: 1.5rem;
+    --md-mark-bg: #fef08a;
+    --md-blockquote-font-style: normal;
+    --md-math-block-bg: rgba(248, 250, 252, 0.7);
+  }
+
+  .tiptap.markdown-theme-prose h6 {
+    color: #475569;
   }
 
   .tiptap.markdown-theme-prose h1 {
@@ -335,6 +435,17 @@ const NOVEL_SCREEN_CSS = `
     --md-code-block-color: #f5f5f4;
     --md-image-radius: 0.625rem;
     --md-math-block-bg: rgba(28, 25, 23, 0.03);
+    --md-h4-size: 1.15rem;
+    --md-h5-size: 1.05rem;
+    --md-list-padding-x: 1rem;
+    --md-bullet-margin: 1.2rem;
+    --md-bullet-padding-left: 1.5rem;
+    --md-blockquote-font-style: italic;
+  }
+
+  .tiptap.markdown-theme-novel h6 {
+    color: #4b5563;
+    font-style: italic;
   }
 
   .tiptap.markdown-theme-novel h1 {
@@ -384,22 +495,153 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         }
         h1, h2, h3, h4, h5, h6 {
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+          font-weight: 600;
           color: #0f172a;
+          line-height: 1.25;
+          margin-top: 1.5em;
+          margin-bottom: 0.5em;
         }
-        h1 { font-size: 22pt; margin: 1.6em 0 0.5em; }
-        h2 { font-size: 16pt; margin: 1.3em 0 0.45em; }
-        h3 { font-size: 13pt; margin: 1.1em 0 0.3em; }
-        h4, h5, h6 { font-size: 11pt; margin: 0.9em 0 0.2em; }
+        h1 { font-size: 22pt; border-bottom: 1px solid #d8dee4; padding-bottom: 0.2em; margin-top: 0; }
+        h2 { font-size: 16pt; border-bottom: 1px solid #d8dee4; padding-bottom: 0.2em; }
+        h3 { font-size: 13pt; }
+        h4 { font-size: 11.5pt; }
+        h5 { font-size: 11pt; }
+        h6 { font-size: 11pt; color: #57606a; }
+        p { margin: 0 0 0.85em; }
+        ul, ol { margin: 0 0 0.85em; padding-left: 2em; }
+        li { margin: 0.2em 0; }
+        li > ul, li > ol { margin-top: 0.2em; margin-bottom: 0; }
+        ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+        ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.5em; }
+        ul[data-type="taskList"] li input[type="checkbox"] { margin-top: 0.2em; flex-shrink: 0; }
         blockquote {
           border-left: 3px solid #d0d7de;
           padding-left: 1em;
           color: #57606a;
+          margin: 1em 0;
         }
-        th { background: #f6f8fa; }
+        table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 10.5pt; }
+        th, td { border: 1px solid #d0d7de; padding: 6px 13px; text-align: left; }
+        th { background: #f6f8fa; font-weight: 600; }
+        tr:nth-child(even) td { background: #f6f8fa; }
+        code {
+          font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+          font-size: 0.875em;
+          background: rgba(175, 184, 193, 0.2);
+          color: #cf222e;
+          padding: 0.1em 0.25em;
+          border-radius: 3px;
+        }
+        pre {
+          font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+          font-size: 9pt;
+          background: #0d1117;
+          color: #e6edf3;
+          padding: 1em;
+          border-radius: 6px;
+          border: 1px solid #30363d;
+          white-space: pre-wrap;
+          word-break: break-all;
+          margin: 1em 0;
+        }
+        pre code { background: none; color: inherit; padding: 0; border-radius: 0; }
+        img { max-width: 100%; height: auto; border-radius: 3px; display: block; margin: 1em auto; }
+        hr { border: none; border-top: 1px solid #d0d7de; margin: 1.5em 0; }
+        mark { background: #fff8c5; padding: 0.1em 0.15em; }
         a { color: #0969da; text-decoration: underline; }
+        del { color: #57606a; }
+        sub { font-size: 0.75em; vertical-align: sub; }
+        sup { font-size: 0.75em; vertical-align: super; }
+        strong { font-weight: 600; }
+        em { font-style: italic; }
       `,
       pageDefaults: createPageSetup({
         margins: createSingleMargins('20mm', '18mm', '22mm', '18mm'),
+      }),
+      paginationDefaults: createPaginationSetup(),
+      headerFooterDefaults: createHeaderFooterSetup(),
+      runningTitleDefaults: createRunningTitleSetup(),
+    },
+  },
+  {
+    id: 'github-dark',
+    name: 'GitHub Dark',
+    description: 'Dark variant of GitHub Markdown — faithful to GitHub\'s dark mode design tokens.',
+    screen: { css: GITHUB_DARK_SCREEN_CSS },
+    print: {
+      css: `
+        body {
+          background: #0d1117;
+          color: #e6edf3;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+          font-size: 11pt;
+          line-height: 1.65;
+        }
+        h1, h2, h3, h4, h5, h6 {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+          font-weight: 600;
+          color: #e6edf3;
+          line-height: 1.25;
+          margin-top: 1.5em;
+          margin-bottom: 0.5em;
+        }
+        h1 { font-size: 22pt; border-bottom: 1px solid #30363d; padding-bottom: 0.2em; margin-top: 0; }
+        h2 { font-size: 16pt; border-bottom: 1px solid #30363d; padding-bottom: 0.2em; }
+        h3 { font-size: 13pt; }
+        h4 { font-size: 11.5pt; }
+        h5 { font-size: 11pt; }
+        h6 { font-size: 11pt; color: #8b949e; }
+        p { margin: 0 0 0.85em; }
+        ul, ol { margin: 0 0 0.85em; padding-left: 2em; }
+        li { margin: 0.2em 0; }
+        li > ul, li > ol { margin-top: 0.2em; margin-bottom: 0; }
+        ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+        ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.5em; }
+        ul[data-type="taskList"] li input[type="checkbox"] { margin-top: 0.2em; flex-shrink: 0; }
+        blockquote {
+          border-left: 3px solid #3b434b;
+          padding-left: 1em;
+          color: #8b949e;
+          margin: 1em 0;
+        }
+        table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 10.5pt; }
+        th, td { border: 1px solid #30363d; padding: 6px 13px; text-align: left; }
+        th { background: #161b22; font-weight: 600; }
+        tr:nth-child(even) td { background: #161b22; }
+        code {
+          font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+          font-size: 0.875em;
+          background: rgba(110, 118, 129, 0.4);
+          color: #ff7b72;
+          padding: 0.1em 0.25em;
+          border-radius: 3px;
+        }
+        pre {
+          font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+          font-size: 9pt;
+          background: #161b22;
+          color: #e6edf3;
+          padding: 1em;
+          border-radius: 6px;
+          border: 1px solid #30363d;
+          white-space: pre-wrap;
+          word-break: break-all;
+          margin: 1em 0;
+        }
+        pre code { background: none; color: inherit; padding: 0; border-radius: 0; }
+        img { max-width: 100%; height: auto; border-radius: 3px; display: block; margin: 1em auto; }
+        hr { border: none; border-top: 1px solid #30363d; margin: 1.5em 0; }
+        mark { background: #bb8009; color: #e6edf3; padding: 0.1em 0.15em; }
+        a { color: #58a6ff; text-decoration: underline; }
+        del { color: #8b949e; }
+        sub { font-size: 0.75em; vertical-align: sub; }
+        sup { font-size: 0.75em; vertical-align: super; }
+        strong { font-weight: 600; }
+        em { font-style: italic; }
+      `,
+      pageDefaults: createPageSetup({
+        margins: createSingleMargins('20mm', '18mm', '22mm', '18mm'),
+        background: true,
       }),
       paginationDefaults: createPaginationSetup(),
       headerFooterDefaults: createHeaderFooterSetup(),
@@ -421,20 +663,66 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         }
         h1, h2, h3, h4, h5, h6 {
           font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+          font-weight: 600;
           color: #111827;
+          line-height: 1.2;
+          margin-top: 1.8em;
+          margin-bottom: 0.5em;
         }
-        h1 { font-size: 24pt; margin: 1.8em 0 0.55em; }
-        h2 { font-size: 17pt; margin: 1.4em 0 0.45em; }
-        h3 { font-size: 13.5pt; margin: 1.1em 0 0.35em; }
-        h4, h5, h6 { font-size: 11pt; margin: 0.9em 0 0.25em; }
+        h1 { font-size: 24pt; margin-top: 0; margin-bottom: 1em; }
+        h2 { font-size: 17pt; }
+        h3 { font-size: 13.5pt; }
+        h4 { font-size: 12pt; }
+        h5 { font-size: 11.5pt; }
+        h6 { font-size: 11pt; color: #475569; }
         p { margin: 0 0 0.9em; }
+        ul, ol { margin: 0 0 0.9em; padding-left: 1.8em; }
+        li { margin: 0.25em 0; }
+        li > ul, li > ol { margin-top: 0.25em; margin-bottom: 0; }
+        ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+        ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.5em; }
+        ul[data-type="taskList"] li input[type="checkbox"] { margin-top: 0.25em; flex-shrink: 0; }
         blockquote {
           border-left: 2px solid #cbd5e1;
-          padding-left: 1em;
+          padding: 0.5em 1em;
           color: #475569;
+          margin: 1.25em 0;
+          background: rgba(148, 163, 184, 0.06);
+          border-radius: 0 4px 4px 0;
         }
-        th { background: #f8fafc; }
+        table { border-collapse: collapse; width: 100%; margin: 1.25em 0; font-size: 11pt; }
+        th, td { border: 1px solid #d6d3d1; padding: 8px 14px; text-align: left; }
+        th { background: #f8fafc; font-weight: 600; }
+        tr:nth-child(even) td { background: #fafafa; }
+        code {
+          font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
+          font-size: 0.875em;
+          background: #f3f4f6;
+          color: #9f1239;
+          padding: 0.1em 0.3em;
+          border-radius: 3px;
+        }
+        pre {
+          font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
+          font-size: 9.5pt;
+          background: #111827;
+          color: #f8fafc;
+          padding: 1em 1.2em;
+          border-radius: 6px;
+          white-space: pre-wrap;
+          word-break: break-all;
+          margin: 1.25em 0;
+        }
+        pre code { background: none; color: inherit; padding: 0; border-radius: 0; }
+        img { max-width: 100%; height: auto; border-radius: 4px; display: block; margin: 1.25em auto; }
+        hr { border: none; border-top: 1px solid #cbd5e1; margin: 2em 0; }
+        mark { background: #fef08a; padding: 0.1em 0.15em; }
         a { color: #111827; text-decoration: underline; }
+        del { color: #475569; }
+        sub { font-size: 0.75em; vertical-align: sub; }
+        sup { font-size: 0.75em; vertical-align: super; }
+        strong { font-weight: 700; }
+        em { font-style: italic; }
       `,
       pageDefaults: createPageSetup({
         margins: createSingleMargins('22mm', '20mm', '24mm', '20mm'),
@@ -465,18 +753,62 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         h1, h2, h3, h4, h5, h6 {
           font-family: "Baskerville", Georgia, serif;
           font-weight: 500;
+          color: #1f2937;
+          line-height: 1.2;
         }
-        h1 { font-size: 24pt; margin: 2.2em 0 0.9em; text-align: center; }
+        h1 { font-size: 24pt; margin: 2.2em 0 0.9em; text-align: center; letter-spacing: 0.02em; }
         h2 { font-size: 17pt; margin: 1.8em 0 0.6em; }
         h3 { font-size: 14pt; margin: 1.4em 0 0.5em; }
-        h4, h5, h6 { font-size: 12pt; margin: 1em 0 0.4em; }
+        h4 { font-size: 12.5pt; margin: 1.2em 0 0.4em; font-style: italic; }
+        h5 { font-size: 12pt; margin: 1em 0 0.35em; }
+        h6 { font-size: 12pt; margin: 0.9em 0 0.3em; font-style: italic; color: #4b5563; }
         p { margin: 0 0 0.95em; text-align: justify; }
+        ul, ol { margin: 1em 0; padding-left: 2em; }
+        li { margin: 0.3em 0; }
+        li > ul, li > ol { margin-top: 0.3em; margin-bottom: 0; }
+        ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+        ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.5em; text-align: left; }
+        ul[data-type="taskList"] li input[type="checkbox"] { margin-top: 0.3em; flex-shrink: 0; }
         blockquote {
           border-left: 2px solid #bbbbbb;
-          padding-left: 1em;
+          padding: 0.5em 1em;
           color: #444444;
+          margin: 1.5em 2em;
           font-style: italic;
         }
+        table { border-collapse: collapse; width: 100%; margin: 1.5em 0; font-size: 11.5pt; }
+        th, td { border: 1px solid rgba(82, 82, 91, 0.3); padding: 8px 14px; text-align: left; }
+        th { background: rgba(82, 82, 91, 0.08); font-weight: 600; }
+        tr:nth-child(even) td { background: rgba(82, 82, 91, 0.03); }
+        code {
+          font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
+          font-size: 0.85em;
+          background: #f5f5f4;
+          color: #7c2d12;
+          padding: 0.1em 0.3em;
+          border-radius: 3px;
+        }
+        pre {
+          font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
+          font-size: 9pt;
+          background: #1c1917;
+          color: #f5f5f4;
+          padding: 1em 1.2em;
+          border-radius: 8px;
+          white-space: pre-wrap;
+          word-break: break-all;
+          margin: 1.5em 0;
+        }
+        pre code { background: none; color: inherit; padding: 0; border-radius: 0; }
+        img { max-width: 100%; height: auto; border-radius: 5px; display: block; margin: 1.5em auto; }
+        hr { border: none; border-top: 1px solid #d4d4d8; margin: 2.5em auto; width: 40%; }
+        mark { background: #fef3c7; padding: 0.1em 0.15em; }
+        a { color: #374151; text-decoration: underline; }
+        del { color: #6b7280; }
+        sub { font-size: 0.75em; vertical-align: sub; }
+        sup { font-size: 0.75em; vertical-align: super; }
+        strong { font-weight: 700; }
+        em { font-style: italic; }
       `,
       pageDefaults: createPageSetup({
         marginMode: 'facing',
@@ -494,8 +826,75 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
   },
 ]
 
+// ── Custom theme registry ─────────────────────────────────────────────────────
+
+const _customThemes = shallowRef<MarkdownTheme[]>([])
+const _rawCustomThemes = shallowRef<RawCustomTheme[]>([])
+
+export function registerCustomThemes(themes: MarkdownTheme[], raw: RawCustomTheme[] = []): void {
+  _customThemes.value = themes
+  _rawCustomThemes.value = raw
+  ensureMarkdownScreenThemeStyleSheet()
+}
+
+export function getAllMarkdownThemes(): MarkdownTheme[] {
+  return [...builtInMarkdownThemes, ..._customThemes.value]
+}
+
+export function getRawCustomThemes(): readonly RawCustomTheme[] {
+  return _rawCustomThemes.value
+}
+
+export function buildMarkdownThemeFromRaw(raw: RawCustomTheme): MarkdownTheme {
+  const p = raw.manifest.print ?? {}
+
+  const marginMode = p.marginMode ?? 'single'
+  const margins = marginMode === 'facing'
+    ? createFacingMargins(p.marginTop, p.marginBottom, p.marginInside, p.marginOutside)
+    : createSingleMargins(p.marginTop, p.marginRight, p.marginBottom, p.marginLeft)
+
+  const pageOverrides: Partial<PageSetup> = { marginMode, margins }
+  if (p.pageSize) pageOverrides.size = p.pageSize
+  if (p.pageOrientation) pageOverrides.orientation = p.pageOrientation
+  if (p.pageSideStart) pageOverrides.pageSideStart = p.pageSideStart
+  if (p.background !== undefined) pageOverrides.background = p.background
+
+  const slots: Partial<Record<MarginBoxSlot, MarginBoxContent>> = {}
+  if (p.headerLeft !== undefined) slots['top-left'] = { template: p.headerLeft }
+  if (p.headerCenter !== undefined) slots['top-center'] = { template: p.headerCenter, textAlign: 'center' }
+  if (p.headerRight !== undefined) slots['top-right'] = { template: p.headerRight, textAlign: 'right' }
+  if (p.footerLeft !== undefined) slots['bottom-left'] = { template: p.footerLeft }
+  if (p.footerCenter !== undefined) slots['bottom-center'] = { template: p.footerCenter, textAlign: 'center' }
+  if (p.footerRight !== undefined) slots['bottom-right'] = { template: p.footerRight, textAlign: 'right' }
+
+  const hfOverrides: Partial<HeaderFooterSetup> = {}
+  if (p.headerFooterEnabled !== undefined) hfOverrides.enabled = p.headerFooterEnabled
+  if (p.differentFirstPage !== undefined) hfOverrides.differentFirstPage = p.differentFirstPage
+  if (p.differentLeftRight !== undefined) hfOverrides.differentLeftRight = p.differentLeftRight
+  if (Object.keys(slots).length > 0) hfOverrides.slots = slots
+
+  return {
+    id: raw.id,
+    name: raw.manifest.name,
+    description: raw.manifest.description,
+    screen: { css: raw.screenCss },
+    print: {
+      css: raw.printCss,
+      pageDefaults: createPageSetup(pageOverrides),
+      paginationDefaults: createPaginationSetup(p.paginationMode ? { mode: p.paginationMode } : {}),
+      headerFooterDefaults: createHeaderFooterSetup(hfOverrides),
+      runningTitleDefaults: createRunningTitleSetup({
+        chapterSource: p.chapterSource,
+        sectionSource: p.sectionSource,
+      }),
+    },
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function getMarkdownThemeById(id: string): MarkdownTheme | undefined {
-  return builtInMarkdownThemes.find(theme => theme.id === id)
+  return getAllMarkdownThemes().find(theme => theme.id === id)
 }
 
 export function getEffectivePrintThemeId(preferences: MarkdownPrintPreferences | ResolvedMarkdownPrintSettings | MarkdownPrintPreferences['themeAssignment']): MarkdownThemeId {
@@ -582,7 +981,7 @@ export function createResolvedMarkdownPrintSettings(
   themeAssignment = DEFAULT_MARKDOWN_PRINT_PREFERENCES.themeAssignment,
 ): ResolvedMarkdownPrintSettings {
   const effectiveThemeId = themeAssignment.printUsesScreenTheme ? themeAssignment.screenThemeId : themeAssignment.printThemeId
-  const theme = getMarkdownThemeById(effectiveThemeId) ?? builtInMarkdownThemes[0]!
+  const theme = getMarkdownThemeById(effectiveThemeId) ?? getAllMarkdownThemes()[0]!
 
   return {
     themeAssignment: { ...themeAssignment },
@@ -780,7 +1179,7 @@ function diffMarginBoxSlots(
 const SCREEN_THEME_STYLE_ELEMENT_ID = 'iw-markdown-screen-themes'
 
 export function buildMarkdownScreenThemeStyleSheet(): string {
-  return builtInMarkdownThemes.map(theme => theme.screen.css.trim()).join('\n\n')
+  return getAllMarkdownThemes().map(theme => theme.screen.css.trim()).join('\n\n')
 }
 
 export function ensureMarkdownScreenThemeStyleSheet(): void {

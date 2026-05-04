@@ -23,6 +23,7 @@ import {
   parseWorkspaceIgnoreRules,
   shouldIncludeWorkspaceEntry,
 } from '../src/services/workspace/filtering'
+import { CustomThemeLoader } from './CustomThemeLoader'
 export class App {
   private fileWatchers: Map<string, FSWatcher>
   private menuManager: MenuManager
@@ -30,6 +31,7 @@ export class App {
   private updaterManager: UpdaterManager | null
   private pandocService: PandocService
   private agentEngine: AgentEngine
+  private customThemeLoader: CustomThemeLoader
   private appQuitTimer: Timer | null = null
   private _isAppQuitting: boolean
   private _exitApp: boolean
@@ -40,6 +42,7 @@ export class App {
     this.windowManager = new WindowManager(this)
     this.updaterManager = null
     this.pandocService = new PandocService()
+    this.customThemeLoader = new CustomThemeLoader()
     this._isAppQuitting = false
     this._exitApp = false
     this.agentEngine = new AgentEngine(
@@ -244,6 +247,7 @@ export class App {
     this.registerCodeFormatHandler()
     this.registerPandocHandlers()
     this.registerAgentIpcHandlers()
+    this.registerCustomThemeHandlers()
     ipcMain.on('hello', (_, windowId: number) => {
       this.windowManager.handleHello(windowId)
       
@@ -1164,6 +1168,29 @@ export class App {
 
     ipcMain.handle('ai:get-thread-messages', async (_, { threadId }: { threadId: string }) => {
       return this.agentEngine.getThreadMessages(threadId)
+    })
+  }
+
+  private registerCustomThemeHandlers() {
+    ipcMain.handle('custom-themes:load', () => {
+      return this.customThemeLoader.load()
+    })
+
+    ipcMain.handle('custom-themes:open-folder', () => {
+      this.customThemeLoader.openFolder()
+    })
+
+    ipcMain.handle('custom-themes:create-example', () => {
+      this.customThemeLoader.createExampleTheme()
+      return this.customThemeLoader.load()
+    })
+
+    this.customThemeLoader.watchThemes((themes) => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) {
+          win.webContents.send('custom-themes:changed', themes)
+        }
+      }
     })
   }
 

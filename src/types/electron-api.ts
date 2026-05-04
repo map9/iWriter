@@ -155,4 +155,13 @@ export interface ElectronAPI {
   onAcpStderr?: (callback: (data: { sessionId: string; line: string }) => void) => void
   removeAcpListeners?: () => void
   removeAcpStderrListeners?: () => void
+
+  // Custom Markdown Themes
+  customThemes?: {
+    load: () => Promise<import('./markdown-theme').RawCustomTheme[]>
+    openFolder: () => Promise<void>
+    createExample: () => Promise<import('./markdown-theme').RawCustomTheme[]>
+    onChanged: (callback: (themes: unknown[]) => void) => void
+    removeChangedListeners: () => void
+  }
 }

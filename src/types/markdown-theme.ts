@@ -1,4 +1,48 @@
-export type MarkdownThemeId = 'github' | 'prose' | 'novel'
+export type BuiltInMarkdownThemeId = 'github' | 'github-dark' | 'prose' | 'novel'
+export type MarkdownThemeId = string
+
+export interface CustomThemeManifestPrint {
+  pageSize?: PageSizeValue
+  pageOrientation?: 'portrait' | 'landscape'
+  marginMode?: 'single' | 'facing'
+  marginTop?: string
+  marginRight?: string
+  marginBottom?: string
+  marginLeft?: string
+  marginInside?: string
+  marginOutside?: string
+  background?: boolean
+  pageSideStart?: 'auto' | 'recto' | 'verso'
+  paginationMode?: PaginationModePreset
+  headerFooterEnabled?: boolean
+  headerLeft?: string
+  headerCenter?: string
+  headerRight?: string
+  footerLeft?: string
+  footerCenter?: string
+  footerRight?: string
+  differentFirstPage?: boolean
+  differentLeftRight?: boolean
+  chapterSource?: 'none' | 'h1' | 'h2' | 'h3'
+  sectionSource?: 'none' | 'h2' | 'h3' | 'h4'
+}
+
+export interface CustomThemeManifest {
+  name: string
+  description?: string
+  version?: string
+  author?: string
+  print?: CustomThemeManifestPrint
+}
+
+export interface RawCustomTheme {
+  id: string
+  folderPath: string
+  screenCss: string
+  printCss: string
+  manifest: CustomThemeManifest
+  errors: string[]
+}
 
 export type MarginBoxSlot =
   | 'top-left-corner'
@@ -104,8 +148,8 @@ export interface HeaderFooterSetup {
 }
 
 export interface RunningTitleSetup {
-  chapterSource: 'none' | 'h1' | 'h2'
-  sectionSource: 'none' | 'h2' | 'h3'
+  chapterSource: 'none' | 'h1' | 'h2' | 'h3'
+  sectionSource: 'none' | 'h2' | 'h3' | 'h4'
 }
 
 export interface MarkdownTheme {
