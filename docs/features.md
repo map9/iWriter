@@ -2,7 +2,7 @@
 
 > 适用版本：iWriter `0.1.8`
 >
-> 最后更新：2026-05-01
+> 最后更新：2026-05-04
 
 ## 与阶段定位的关系
 
@@ -33,8 +33,24 @@
 - 支持 in Editor 内的工具，如：图片工具、表格工具、代码块工具、公式块工具
 - 支持图片粘贴、富文本粘贴与“粘贴为纯文本”场景
 - 支持 `Clean Mode`、`Focus Mode`、`Typewriter Mode`
-- 支持打印与导出 PDF 的预览流程
-- 支持导入常见文档格式，并导出为 HTML、Word、ODT、RTF、EPUB、LaTeX 等格式
+- 支持 Markdown 屏幕主题与打印主题，内置 `github`、`github-dark`、`prose`、`novel` 四套主题
+- 屏幕主题与打印主题可独立选择，打印主题可选择"跟随屏幕主题"
+- 每套内置主题包含屏幕 CSS、打印 CSS，以及页面设置 / 分页策略 / 页眉页脚的默认值
+- 支持自定义主题：将 CSS 文件放入 `~/.iwriter/markdown/themes/` 目录，App 自动发现并热更新
+- 自定义主题需提供 `screen.css`（必须）和可选的 `theme.json`（元数据与打印默认值）、`print.css`
+- 支持 30+ CSS 变量控制排版、颜色、标题、列表、引用、表格、代码块等元素样式
+- 支持 Create Example 一键生成示例主题，帮助快速上手
+- 支持打印与 PDF 导出，基于 paged.js 分页渲染
+- 打印对话框提供实时预览，支持缩放查看分页效果
+- 支持 11 种纸张大小、纵向/横向、普通边距/对页边距模式
+- 支持三种分页策略预设（Balanced / Compact / Strict Book）+ 自定义模式
+- 支持 16 个页眉页脚位置（margin box），6 个模板变量（documentTitle / chapterTitle / sectionTitle / printDate / pageNo / totalPages）
+- 支持首页不同、奇偶页不同的页眉页脚，运行标题自动提取章节信息
+- 支持 N-up 打印（每张纸 1/2/4/6/9 页）
+- 支持真实打印机输出与 Save as PDF 两种模式
+- 支持导入常见文档格式（Word、ODT、RTF、EPUB、HTML、LaTeX 等），基于 Pandoc 转换
+- 支持导出为 HTML、Word、ODT、RTF、EPUB、LaTeX、MediaWiki、reStructuredText、Textile、OPML 等 10 种格式
+- 每种导出格式可独立配置自定义参数、参考文档、CSS 样式等
 
 ## 图片 / PDF 查看
 
@@ -58,9 +74,12 @@
 
 ## 偏好设置
 
-- 主题与显示模式
-- 语言（`zh-CN` / `en-US`）
+- 显示模式：
+  - 语言（`zh-CN` / `en-US`）
+  - Markdown 屏幕主题选择
+  - Markdown 自定义主题（Create Example、Open Folder）
+  - 应用主题选择
+- 拼写与语法检查引擎切换（`LanguageTool` / `Typo.js`）
 - 导出设置（默认目录、Pandoc 路径、格式级参数）
 - AI Provider、API Key、模型与 Base URL
-- 拼写与语法检查引擎切换（`LanguageTool` / `Typo.js`）
 - 更新策略控制（自动下载、自动安装、检查频率）
