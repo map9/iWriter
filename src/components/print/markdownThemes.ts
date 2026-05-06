@@ -208,6 +208,7 @@ const GITHUB_SCREEN_CSS = `
   .tiptap.markdown-theme-github {
     --md-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
     --md-line-height: 1.6;
+    --md-background-color: #ffffff;
     --md-body-color: #1f2328;
     --md-heading-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
     --md-heading-color: #0f172a;
@@ -272,6 +273,7 @@ const GITHUB_DARK_SCREEN_CSS = `
   .tiptap.markdown-theme-github-dark {
     --md-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
     --md-line-height: 1.6;
+    --md-background-color: #0d1117;
     --md-body-color: #e6edf3;
     --md-heading-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
     --md-heading-color: #e6edf3;
@@ -300,7 +302,6 @@ const GITHUB_DARK_SCREEN_CSS = `
     --md-code-block-color: #e6edf3;
     --md-image-radius: 0.375rem;
     --md-math-block-bg: rgba(22, 27, 34, 0.6);
-    background-color: #0d1117;
   }
 
   .tiptap.markdown-theme-github-dark h6 {
@@ -345,6 +346,7 @@ const PROSE_SCREEN_CSS = `
   .tiptap.markdown-theme-prose {
     --md-font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
     --md-line-height: 1.75;
+    --md-background-color: #ffffff;
     --md-body-color: #1c1917;
     --md-heading-font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
     --md-heading-color: #111827;
@@ -414,6 +416,7 @@ const NOVEL_SCREEN_CSS = `
   .tiptap.markdown-theme-novel {
     --md-font-family: "Iowan Old Style", Georgia, "Times New Roman", serif;
     --md-line-height: 1.85;
+    --md-background-color: #fffdf8;
     --md-body-color: #111827;
     --md-heading-font-family: "Baskerville", Georgia, serif;
     --md-heading-color: #1f2937;

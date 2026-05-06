@@ -2,6 +2,7 @@
 .tiptap {
   --md-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --md-line-height: 1.5;
+  --md-background-color: transparent;
   --md-body-color: inherit;
   --md-heading-font-family: var(--md-font-family);
   --md-heading-color: currentColor;
@@ -34,6 +35,7 @@
 
   line-height: var(--md-line-height);
   font-family: var(--md-font-family);
+  background-color: var(--md-background-color);
   color: var(--md-body-color);
   
   :first-child {
