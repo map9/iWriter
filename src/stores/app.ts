@@ -109,7 +109,6 @@ export const useAppStore = defineStore('app', () => {
   // Tabs
   const tabs = ref<FileTab[]>([])
   const activeTabId = ref<string | null>(null)
-  const untitledCounter = ref(1)
 
   // 控制是否应该保存状态（在退出清理时设为 false）
   const shouldPersistState = ref(true)
@@ -1731,6 +1730,18 @@ export const useAppStore = defineStore('app', () => {
     }
   }
   
+  function generateUntitledTabName(): string {
+    const usedNames = new Set(tabs.value.map(tab => tab.name))
+    for (let counter = 1; counter <= 99; counter++) {
+      const formattedNumber = counter.toString().padStart(2, '0')
+      const candidate = `Untitled-${formattedNumber}.${TEXT_IWT_EXTENSION}`
+      if (!usedNames.has(candidate)) {
+        return candidate
+      }
+    }
+    return `Untitled-${Date.now()}.${TEXT_IWT_EXTENSION}`
+  }
+
   function createTab(
     name?: string,
     path?: string,
@@ -1743,11 +1754,7 @@ export const useAppStore = defineStore('app', () => {
     // Generate untitled name if not provided
     let tabName = name
     if (!tabName) {
-      const formattedNumber = untitledCounter.value.toString().padStart(2, '0')
-      tabName = `Untitled-${formattedNumber}.${TEXT_IWT_EXTENSION}`
-      
-      // Increment counter and cycle back to 01 after 99
-      untitledCounter.value = untitledCounter.value >= 99 ? 1 : untitledCounter.value + 1
+      tabName = generateUntitledTabName()
     }
     
     const newTab: FileTab = {

@@ -12,6 +12,12 @@ import type { WindowState } from './types'
 import { MenuManager } from './MenuManager'
 import { WindowManager } from './WindowManager'
 import { UpdaterManager } from '../src/updater/UpdaterManager'
+import {
+  DEFAULT_UPDATER_CONFIG,
+  UPDATE_IPC_EVENTS,
+  type UpdateCheckResult,
+  type UpdaterStateSnapshot,
+} from '../src/updater/types'
 import { PandocService } from './PandocService'
 import { AgentEngine } from './ai/AgentEngine'
 import { AiConfigStore } from './ai/config/AiConfigStore'
@@ -248,6 +254,9 @@ export class App {
     this.registerPandocHandlers()
     this.registerAgentIpcHandlers()
     this.registerCustomThemeHandlers()
+    if (isDev) {
+      this.registerDevUpdaterIpcHandlers()
+    }
     ipcMain.on('hello', (_, windowId: number) => {
       this.windowManager.handleHello(windowId)
       
@@ -1194,6 +1203,28 @@ export class App {
     })
   }
 
+  private registerDevUpdaterIpcHandlers() {
+    const idleState: UpdaterStateSnapshot = {
+      status: { type: 'idle', message: '' },
+    }
+
+    ipcMain.handle(UPDATE_IPC_EVENTS.CHECK_FOR_UPDATES, async (): Promise<UpdateCheckResult> => {
+      return { available: false }
+    })
+
+    ipcMain.handle(UPDATE_IPC_EVENTS.DOWNLOAD_UPDATE, async () => {})
+
+    ipcMain.handle(UPDATE_IPC_EVENTS.INSTALL_UPDATE, async () => {})
+
+    ipcMain.handle(UPDATE_IPC_EVENTS.GET_UPDATE_STATUS, () => idleState.status)
+
+    ipcMain.handle(UPDATE_IPC_EVENTS.GET_UPDATE_STATE, () => idleState)
+
+    ipcMain.handle(UPDATE_IPC_EVENTS.GET_UPDATE_CONFIG, () => DEFAULT_UPDATER_CONFIG)
+
+    ipcMain.handle(UPDATE_IPC_EVENTS.SET_UPDATE_CONFIG, () => {})
+  }
+
   private removeAllHandler() {
     ipcMain.removeHandler('exec-shell')
     ipcMain.removeHandler('format-code')
@@ -1237,6 +1268,14 @@ export class App {
     ipcMain.removeHandler('ai:delete-thread')
     ipcMain.removeHandler('ai:clear-threads')
     ipcMain.removeHandler('ai:get-thread-messages')
+
+    ipcMain.removeHandler(UPDATE_IPC_EVENTS.CHECK_FOR_UPDATES)
+    ipcMain.removeHandler(UPDATE_IPC_EVENTS.DOWNLOAD_UPDATE)
+    ipcMain.removeHandler(UPDATE_IPC_EVENTS.INSTALL_UPDATE)
+    ipcMain.removeHandler(UPDATE_IPC_EVENTS.GET_UPDATE_STATUS)
+    ipcMain.removeHandler(UPDATE_IPC_EVENTS.GET_UPDATE_STATE)
+    ipcMain.removeHandler(UPDATE_IPC_EVENTS.GET_UPDATE_CONFIG)
+    ipcMain.removeHandler(UPDATE_IPC_EVENTS.SET_UPDATE_CONFIG)
   }
 
   // Send menu action to the focused window
