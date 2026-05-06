@@ -14,11 +14,13 @@ import { USE_CONFIRMATION_TIMEOUT, HELLO_TIMEOUT, CLOSE_WINDOW_CONFIRMATION_TIME
 export class WindowManager {
   private appInstance: IApp
   private updateMenu: () => void
+  private updateMenuTimer: NodeJS.Timeout | null
   private _windows: WindowState[]
 
   constructor(appInstance: IApp) {
     this.appInstance = appInstance
     this.updateMenu = () => {}
+    this.updateMenuTimer = null
     this._windows = []
     
     this.setupIpcHandlers()
@@ -44,6 +46,17 @@ export class WindowManager {
 
   setUpdateMenu(callback: () => void) {
     this.updateMenu = callback;
+  }
+
+  private scheduleUpdateMenu(): void {
+    if (this.updateMenuTimer) {
+      clearTimeout(this.updateMenuTimer)
+    }
+
+    this.updateMenuTimer = setTimeout(() => {
+      this.updateMenuTimer = null
+      this.updateMenu()
+    }, 50)
   }
 
   // 循环心跳检测
@@ -411,7 +424,7 @@ export class WindowManager {
             wContentState
           );
           if (BrowserWindow.getFocusedWindow()?.id === window.id) {
-            this.updateMenu();
+            this.scheduleUpdateMenu();
           }
         }
       }
