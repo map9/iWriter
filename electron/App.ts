@@ -22,6 +22,9 @@ import { PandocService } from './PandocService'
 import { AgentEngine } from './ai/AgentEngine'
 import { AiConfigStore } from './ai/config/AiConfigStore'
 import type { AiSettings } from '../src/types/ai'
+import { ConfirmGate } from './ai/novel-harness/ipc/ConfirmGate'
+import { RendererEventBridge } from './ai/ipc/RendererEventBridge'
+import type { NovelConfirmRequest, NovelConfirmResponse } from './ai/ipc/protocol'
 import { formatCodeInMain } from './CodeFormatService'
 import { createMainTranslator, formatMainText } from './i18n'
 import {
@@ -37,6 +40,7 @@ export class App {
   private updaterManager: UpdaterManager | null
   private pandocService: PandocService
   private agentEngine: AgentEngine
+  private novelConfirmGate: ConfirmGate
   private customThemeLoader: CustomThemeLoader
   private appQuitTimer: Timer | null = null
   private _isAppQuitting: boolean
@@ -53,6 +57,9 @@ export class App {
     this._exitApp = false
     this.agentEngine = new AgentEngine(
       () => BrowserWindow.getAllWindows()[0]?.webContents ?? null
+    )
+    this.novelConfirmGate = new ConfirmGate(
+      new RendererEventBridge(() => BrowserWindow.getAllWindows()[0]?.webContents ?? null)
     )
 
     this.setupIpcHandlers()
@@ -253,6 +260,7 @@ export class App {
     this.registerCodeFormatHandler()
     this.registerPandocHandlers()
     this.registerAgentIpcHandlers()
+    this.registerNovelHarnessIpcHandlers()
     this.registerCustomThemeHandlers()
     if (isDev) {
       this.registerDevUpdaterIpcHandlers()
@@ -1180,6 +1188,58 @@ export class App {
     })
   }
 
+  private registerNovelHarnessIpcHandlers() {
+    ipcMain.on('novel:confirm-response', (_, resp: NovelConfirmResponse) => {
+      const resolved = this.novelConfirmGate.resolve(resp)
+      if (!resolved) {
+        console.warn(`[NovelHarness] Ignored unmatched confirm response: ${resp.sessionId}`)
+      }
+    })
+
+    ipcMain.handle('novel:start-compress', async () => {
+      return this.novelConfirmGate.waitForConfirm(this.createMockNovelConfirmRequest('chapter_boundary'))
+    })
+
+    ipcMain.handle('novel:start-expand', async () => {
+      return this.novelConfirmGate.waitForConfirm(this.createMockNovelConfirmRequest('expansion_plan'))
+    })
+  }
+
+  private createMockNovelConfirmRequest(type: 'chapter_boundary' | 'expansion_plan'): NovelConfirmRequest {
+    const sessionId = `novel-${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    if (type === 'expansion_plan') {
+      return {
+        sessionId,
+        type,
+        payload: {
+          sceneId: 'ch01--001',
+          sceneTitle: 'T0 expansion plan mock',
+          beats: [
+            { seq: 1, description: 'Open the scene with the protagonist entering the room.', estimatedWords: 350 },
+            { seq: 2, description: 'Reveal the key conflict through dialogue.', estimatedWords: 500 },
+          ],
+        },
+      }
+    }
+
+    return {
+      sessionId,
+      type,
+      payload: {
+        chapters: [
+          {
+            id: 'ch01',
+            title: 'T0 chapter boundary mock',
+            wordCount: 1200,
+            blockCount: 18,
+            startBlockId: 1,
+            endBlockId: 18,
+          },
+        ],
+      },
+    }
+  }
+
   private registerCustomThemeHandlers() {
     ipcMain.handle('custom-themes:load', () => {
       return this.customThemeLoader.load()
@@ -1268,6 +1328,10 @@ export class App {
     ipcMain.removeHandler('ai:delete-thread')
     ipcMain.removeHandler('ai:clear-threads')
     ipcMain.removeHandler('ai:get-thread-messages')
+    ipcMain.removeAllListeners('novel:confirm-response')
+    ipcMain.removeHandler('novel:start-compress')
+    ipcMain.removeHandler('novel:start-expand')
+    this.novelConfirmGate.cancelAll()
 
     ipcMain.removeHandler(UPDATE_IPC_EVENTS.CHECK_FOR_UPDATES)
     ipcMain.removeHandler(UPDATE_IPC_EVENTS.DOWNLOAD_UPDATE)

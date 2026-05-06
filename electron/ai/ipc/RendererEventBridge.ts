@@ -4,6 +4,7 @@ import type {
   RunErrorEvent,
   RunInterruptedEvent,
   StreamChunkEvent,
+  NovelConfirmRequest,
 } from './protocol'
 
 export class RendererEventBridge {
@@ -23,5 +24,9 @@ export class RendererEventBridge {
 
   sendRunError(event: RunErrorEvent): void {
     this.getWebContents()?.send('ai:run-error', event)
+  }
+
+  sendNovelConfirm(event: NovelConfirmRequest): void {
+    this.getWebContents()?.send('novel:confirm-request', event)
   }
 }

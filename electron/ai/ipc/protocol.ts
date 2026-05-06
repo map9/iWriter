@@ -179,6 +179,90 @@ export interface ProposalStatusUpdate {
   resultText: string
 }
 
+// ── Novel Harness confirmations ───────────────────────────────────────────
+
+export type NovelConfirmType =
+  | 'chapter_boundary'
+  | 'scene_split'
+  | 'alias_merge'
+  | 'story_state_write'
+  | 'expansion_plan'
+
+export interface ChapterBoundaryPayload {
+  chapters: Array<{
+    id: string
+    title: string
+    wordCount: number
+    blockCount: number
+    startBlockId: number
+    endBlockId: number
+  }>
+}
+
+export interface SceneSplitPayload {
+  chapterId: string
+  chapterTitle: string
+  scenes: Array<{
+    seq: number
+    summary: string
+    tone: string
+    estimatedBlocks: number
+  }>
+}
+
+export interface AliasMergePayload {
+  groups: Array<{
+    suggestedId: string
+    canonicalName: string
+    aliases: string[]
+    confidence: number
+    exampleContext?: string
+  }>
+}
+
+export interface StoryStateWritePayload {
+  summary: {
+    characterCount: number
+    sceneCount: number
+    timelineEventCount: number
+    foreshadowingCount: number
+    hasStyleProfile: boolean
+    hasOutline: boolean
+  }
+  lowConfidenceCount: number
+  targetDirectory: string
+}
+
+export interface ExpansionPlanPayload {
+  sceneId: string
+  sceneTitle: string
+  beats: Array<{
+    seq: number
+    description: string
+    estimatedWords: number
+  }>
+}
+
+export type NovelConfirmPayload =
+  | ChapterBoundaryPayload
+  | SceneSplitPayload
+  | AliasMergePayload
+  | StoryStateWritePayload
+  | ExpansionPlanPayload
+
+export interface NovelConfirmRequest {
+  sessionId: string
+  type: NovelConfirmType
+  payload: NovelConfirmPayload
+}
+
+export interface NovelConfirmResponse {
+  sessionId: string
+  type: NovelConfirmType
+  decision: 'confirm' | 'adjust' | 'cancel'
+  adjustmentText?: string
+}
+
 // ── Serialized Document Snapshot ──────────────────────────────────────────
 
 /**

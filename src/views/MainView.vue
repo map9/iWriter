@@ -126,6 +126,8 @@
     :skip-save-dialog="appStore.printPreviewSkipSaveDialog"
     @close="appStore.closePrintPreview()"
   />
+
+  <ConfirmCard />
 </template>
 
 <script setup lang="ts">
@@ -150,6 +152,7 @@ import UnknownPage from '@/components/pages/UnknownPage.vue'
 import UpdateDialog from '@/components/updater/UpdateDialog.vue'
 import PreferencesDialog from '@/components/preferences/PreferencesDialog.vue'
 import PrintDialog from '@/components/print/PrintDialog.vue'
+import ConfirmCard from '@/ai/components/ConfirmCard.vue'
 
 const appStore = useAppStore()
 const aiStore = useAiStore()

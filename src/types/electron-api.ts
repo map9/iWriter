@@ -129,6 +129,9 @@ export interface ElectronAPI {
   aiClearThreads?: () => Promise<void>
   aiGetThreadMessages?: (threadId: string) => Promise<import('./ai').ThreadMessage[]>
   aiSnapshotResponse?: (resp: import('./ai-ipc').SnapshotResponse) => void
+  novelStartCompress?: () => Promise<import('./ai-ipc').NovelConfirmResponse>
+  novelStartExpand?: () => Promise<import('./ai-ipc').NovelConfirmResponse>
+  novelConfirmResponse?: (resp: import('./ai-ipc').NovelConfirmResponse) => void
 
   onAiStreamChunk?: (cb: (chunk: import('./ai-ipc').StreamChunkEvent) => void) => void
   onAiRunInterrupted?: (cb: (e: import('./ai-ipc').RunInterruptedEvent) => void) => void
@@ -136,6 +139,8 @@ export interface ElectronAPI {
   onAiRunError?: (cb: (e: import('./ai-ipc').RunErrorEvent) => void) => void
   onAiRequestSnapshot?: (cb: (req: import('./ai-ipc').SnapshotRequestEvent) => void) => void
   removeAiListeners?: () => void
+  onNovelConfirmRequest?: (cb: (req: import('./ai-ipc').NovelConfirmRequest) => void) => void
+  removeNovelConfirmListeners?: () => void
 
   // ACP (Agent Client Protocol) — external agent process management
   acpLaunch?: (params: { sessionId: string; command: string; args?: string[]; env?: Record<string, string>; workspacePath: string | null; filePath: string | null }) => Promise<{ success: boolean; error?: string }>

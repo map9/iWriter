@@ -179,6 +179,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiGetThreadMessages: (threadId: string) => ipcRenderer.invoke('ai:get-thread-messages', { threadId }),
   // Renderer sends snapshot back to main (not an invoke — fire-and-forget)
   aiSnapshotResponse: (resp: any) => ipcRenderer.send('ai:snapshot-response', resp),
+  novelStartCompress: () => ipcRenderer.invoke('novel:start-compress'),
+  novelStartExpand: () => ipcRenderer.invoke('novel:start-expand'),
+  novelConfirmResponse: (resp: any) => ipcRenderer.send('novel:confirm-response', resp),
 
   // Incoming events from main process
   onAiStreamChunk: (cb: (chunk: any) => void) => {
@@ -197,6 +200,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onAiRequestSnapshot: (cb: (req: any) => void) => {
     ipcRenderer.on('ai:request-snapshot', (_, r) => cb(r))
   },
+  onNovelConfirmRequest: (cb: (req: any) => void) => {
+    ipcRenderer.on('novel:confirm-request', (_, r) => cb(r))
+  },
   removeAiListeners: () => {
     ;[
       'ai:stream-chunk',
@@ -205,6 +211,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'ai:run-error',
       'ai:request-snapshot',
     ].forEach(ch => ipcRenderer.removeAllListeners(ch))
+  },
+  removeNovelConfirmListeners: () => {
+    ipcRenderer.removeAllListeners('novel:confirm-request')
   },
 
 })
