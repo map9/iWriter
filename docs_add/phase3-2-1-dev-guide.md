@@ -278,23 +278,51 @@ class ConfirmGate {
 
 ### T4 · compress 单章（T0 + T2 + T3 完成后）
 
-**输出文件**：`ChapterCompressor.ts` + `compress-chapter/SKILL.md`
+**输出文件**：`ChapterCompressor.ts` + `compress-chapter/SKILL.md` + `ConfirmCard.vue` 的三种 payload 视图
 
 **LLM 调用方式**：直接 `createChatModel(providerConfig, { modelId }) → model.invoke([...])` 取模式，与 `AgentEngine.compactInput()` 相同，不走 LangGraph thread。
 
-**SKILL.md 职责**：只放 prompt 模板 + 输出格式约束 + 完整示例。所有状态编排（分块、重试、确认节点、写入事务）由 `ChapterCompressor.ts` 控制。
+**SKILL.md 职责**：只放 prompt 模板 + JSON draft 输出格式 + 完整示例。所有状态编排（分块、重试、确认节点、写入事务）由 TypeScript orchestrator 控制。
+
+**关键边界**：
+- T4a 输出叫 `CompressionDraft`，不是最终资产。T4c 在用户确认场景和别名后，才把 draft 归一化成最终 `StoryAsset`。
+- 模型输出 JSON，不直接输出 YAML；写入时由 `StoryStateStore` 序列化为 YAML frontmatter + Markdown。
+- `novel:start-compress` 参数应支持 `{ filePath?, providerConfigId?, modelId?, thinkMode? }`，与现有 provider runtime 思路一致。
+- story assets 根目录需要在 T4c 明确，建议先用 `~/.iwriter/ai/story-assets/<source-file-basename>/`。
 
 **LLM schema 合规风险**（最高风险）：
-- 必须在 prompt 里给完整 YAML frontmatter 示例
+- 必须在 prompt 里给完整 JSON 示例
 - `confidence` 要求输出数字而非字符串（在示例里体现）
 - 校验失败 → 提示重试，不写入，最多重试 2 次
-- 必要时改为要求 LLM 输出 JSON，程序转换为 YAML
+- `source_refs[].block_id` 必须来自传入的 blockMap
 
 四个确认节点均走 ConfirmGate：
 - 节点 1 章节切分（T3 已实现）
 - 节点 2 场景切分（`scene_split` payload）
 - 节点 3 别名归并（`alias_merge` payload）—— `confidence < 0.6` 的组标红
 - 节点 4 写入确认（`story_state_write` payload）—— 确认后调用 T2 写入
+
+**用户使用流程**：
+1. 用户打开小说文档。
+2. 用户触发"压缩/提取小说状态"。
+3. harness 通过 `SnapshotBroker` 获取当前文档 snapshot。
+4. `ChapterSegmenter` 自动生成章节边界。
+5. 用户在 `chapter_boundary` 确认卡中改标题、合并或拆分章节。
+6. `ChapterCompressor` 选择单章正文和 blockMap 调模型生成 `CompressionDraft`。
+7. 程序 parse JSON 并用 T1 schema 校验，失败自动重试，仍失败则报错且不写盘。
+8. 用户确认 `scene_split`。
+9. 用户确认 `alias_merge`，低置信度人物组标记"需复核"。
+10. harness 归一化最终 `CharacterCard[]`、`SceneCard[]`、`TimelineChapter?`。
+11. 用户确认 `story_state_write`，看到即将写入的条目列表和目标目录。
+12. `StoryStateStore.writeAsset()` 写入 `characters/`、`scenes/`、`timeline/` 等目录。
+
+**最终结果**：用户拿到的不是摘要文本，而是一组可追溯的小说状态资产。每个资产包含 schema 字段、`confidence`、`source_refs.block_id`，后续可用于扩写、检索、多模态生成或角色互动。
+
+**建议拆分**：
+- T4a Extractor：SKILL.md + `extractChapter()` + JSON parse / retry / schema validate，不确认、不写盘。
+- T4b Confirm UI：`scene_split`、`alias_merge`、`story_state_write` 三种专用视图。
+- T4c Orchestrator：串联 T3/T4a/T4b/T2/T5，负责 provider runtime、目标目录、alias 归一和写入错误记录。
+- T4d 验收：真实样章端到端跑通，生成文件可被 `StoryStateStore.readAsset()` 读回。
 
 验收（对应 M3）：
 1. 单章输出 ≥1 个通过 schema 校验的 SceneCard + CharacterCard

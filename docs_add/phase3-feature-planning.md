@@ -524,15 +524,39 @@ novel-harness/
 - [ ] T3.4 无标题结构时，按 2000 字固定窗口分块并标注为"未命名章节 N"
 - [ ] T3.5 验收 M2 全部条目
 
-**T4 · compress 单章（T2、T3 完成后）**
-- [ ] T4.1 新建 `electron/ai/builtin-skills/compress-chapter/SKILL.md`，定义场景卡提取格式（含 YAML frontmatter 输出约束）
-- [ ] T4.2 在 SKILL.md 中要求 LLM 为每条 source_refs 提供原文中的 `block_id`（从 `ingest` 传入的 blockMap）
-- [ ] T4.3 添加确认节点 2（`scene_split_confirm`）：展示场景划分，支持调整
-- [ ] T4.4 添加确认节点 3（`alias_merge_confirm`）：展示别名归并候选列表，支持拆分错误归并
-- [ ] T4.5 添加确认节点 4（`story_state_write_confirm`）：展示将要写入的 asset 摘要，确认后调用 T2 写入
-- [ ] T4.6 `confidence` 低于 0.6 的条目在确认 UI 中标记为"需复核"
-- [ ] T4.7 处理 LLM 输出格式错误：schema 校验失败时提示重试，不写入损坏数据
-- [ ] T4.8 验收 M3 全部条目
+**T4 · compress 单章（T2、T3、T5 完成后）**
+
+**用户体验目标**：用户打开小说文档 → 点击压缩 → 确认章节边界 → 模型压缩单章 → 确认场景拆分 → 确认人物别名归并 → 确认即将写入的 story assets → 写入 `characters/`、`scenes/`、`timeline/` 等结构化文件。
+
+**T4a · Extractor（LLM 提取核心）**
+- [ ] T4a.1 新建 `electron/ai/builtin-skills/compress-chapter/SKILL.md`，定义 **JSON draft** 输出格式，不要求模型直接输出 YAML
+- [ ] T4a.2 新建 `ChapterCompressor.extractChapter()`，输入章节正文 + blockMap + provider runtime，输出 `CompressionDraft`
+- [ ] T4a.3 prompt 示例中明确 `confidence` 是数字，如 `"confidence": 0.85`
+- [ ] T4a.4 要求所有 `source_refs[].block_id` 来自 ingest 传入的 blockMap，且为正整数
+- [ ] T4a.5 JSON parse → Zod schema 校验 → 失败带错误重试，最多 2 次；全部失败则抛错，不写文件
+- [ ] T4a.6 `confidence < 0.6` 不阻断，保留给确认节点标记"需复核"
+- [ ] T4a.7 验收：真实章节文本可输出 ≥1 个通过 schema 的 CharacterCard draft + SceneCard draft
+
+**T4b · ConfirmCard UI（纯确认视图）**
+- [ ] T4b.1 `scene_split`：场景列表表格，展示 `seq / summary / tone / estimatedBlocks`，支持行内编辑 summary
+- [ ] T4b.2 `alias_merge`：人物分组列表，展示 `canonicalName / aliases / confidence`，`confidence < 0.6` 标红，支持改 canonicalName
+- [ ] T4b.3 `story_state_write`：展示即将写入的 asset 列表、数量汇总、低置信度数量、目标目录
+- [ ] T4b.4 三种确认类型都通过 `adjustedPayload` 回传用户修改后的数据
+- [ ] T4b.5 验收：mock payload 能触发三种视图，confirm / adjust / cancel 回传正确
+
+**T4c · Orchestrator（完整编排）**
+- [ ] T4c.1 扩展 `novel:start-compress` 参数：`{ filePath?, providerConfigId?, modelId?, thinkMode? }`
+- [ ] T4c.2 `NovelHarness.startCompress()` 串联：章节边界确认（T3）→ `extractChapter()`（T4a）→ scene_split → alias_merge → story_state_write → `StoryStateStore.writeAsset()`
+- [ ] T4c.3 拍板并实现 story assets 根目录，例如 `~/.iwriter/ai/story-assets/<source-file-basename>/`
+- [ ] T4c.4 alias merge 后重写 `SceneCard.characters`，把别名归一到 canonicalName / suggestedId
+- [ ] T4c.5 写入采用 MVP 策略：逐条写，某条失败记录错误继续，不回滚已成功写入条目
+- [ ] T4c.6 写入前用 T5 `ConsistencyValidator` 生成软校验报告，报告只提示不阻断
+
+**T4d · 验收与样章**
+- [ ] T4d.1 打开一个有标题的真实文档 → 触发 compress → 依次看到 4 个确认节点
+- [ ] T4d.2 全部 confirm 后，story assets 目录生成 `.md` 文件
+- [ ] T4d.3 生成文件能被 `StoryStateStore.readAsset()` 读回并通过 validator
+- [ ] T4d.4 取消任一确认节点时，不写入后续未确认资产
 
 **T5 · validate 模块（T1 完成后，与 T3/T4 并行）**
 - [ ] T5.1 实现人物行为校验工具：接收 `(text, CharacterCard)` → 输出 `{issues: [{field, description, severity}]}`
