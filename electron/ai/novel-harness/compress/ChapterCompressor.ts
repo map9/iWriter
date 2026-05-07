@@ -13,14 +13,8 @@ import {
 } from '../schema/validator'
 
 const DEFAULT_MAX_RETRIES = 2
-const DEFAULT_SKILL_PATH = path.resolve(
-  process.cwd(),
-  'electron',
-  'ai',
-  'builtin-skills',
-  'compress-chapter',
-  'SKILL.md',
-)
+const COMPRESS_SKILL_RELATIVE_PATH = path.join('electron', 'ai', 'builtin-skills', 'compress-chapter', 'SKILL.md')
+const COMPRESS_SKILL_FROM_SOURCE_DIR = path.resolve(__dirname, '..', '..', 'builtin-skills', 'compress-chapter', 'SKILL.md')
 
 export interface CompressionDraft {
   chapter: {
@@ -77,7 +71,7 @@ export class ChapterCompressor {
   private readonly modelInvoker: CompressModelInvoker
 
   constructor(options: ChapterCompressorOptions = {}) {
-    this.skillPrompt = options.skillPrompt ?? loadSkillPrompt(options.skillPath ?? DEFAULT_SKILL_PATH)
+    this.skillPrompt = options.skillPrompt ?? loadSkillPrompt(options.skillPath)
     this.modelInvoker = options.modelInvoker ?? defaultModelInvoker
   }
 
@@ -151,8 +145,35 @@ export class ChapterCompressor {
   }
 }
 
-function loadSkillPrompt(skillPath: string): string {
-  return fs.readFileSync(skillPath, 'utf-8')
+function loadSkillPrompt(skillPath?: string): string {
+  const appPath = getElectronAppPath()
+  const candidates = [
+    skillPath,
+    appPath
+      ? path.join(appPath, COMPRESS_SKILL_RELATIVE_PATH)
+      : undefined,
+    COMPRESS_SKILL_FROM_SOURCE_DIR,
+    path.resolve(process.cwd(), COMPRESS_SKILL_RELATIVE_PATH),
+  ].filter((candidate): candidate is string => !!candidate)
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return fs.readFileSync(candidate, 'utf-8')
+    }
+  }
+
+  throw new Error(`compress-chapter/SKILL.md not found. Tried:\n${candidates.join('\n')}`)
+}
+
+function getElectronAppPath(): string | null {
+  try {
+    // Use runtime require so Node-only verifier scripts can import this module.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const electron = require('electron') as { app?: { getAppPath?: () => string } }
+    return electron.app?.getAppPath?.() ?? null
+  } catch {
+    return null
+  }
 }
 
 async function defaultModelInvoker(

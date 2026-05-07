@@ -529,13 +529,14 @@ novel-harness/
 **用户体验目标**：用户打开小说文档 → 点击压缩 → 确认章节边界 → 模型压缩单章 → 确认场景拆分 → 确认人物别名归并 → 确认即将写入的 story assets → 写入 `characters/`、`scenes/`、`timeline/` 等结构化文件。
 
 **T4a · Extractor（LLM 提取核心）**
-- [ ] T4a.1 新建 `electron/ai/builtin-skills/compress-chapter/SKILL.md`，定义 **JSON draft** 输出格式，不要求模型直接输出 YAML
-- [ ] T4a.2 新建 `ChapterCompressor.extractChapter()`，输入章节正文 + blockMap + provider runtime，输出 `CompressionDraft`
-- [ ] T4a.3 prompt 示例中明确 `confidence` 是数字，如 `"confidence": 0.85`
-- [ ] T4a.4 要求所有 `source_refs[].block_id` 来自 ingest 传入的 blockMap，且为正整数
-- [ ] T4a.5 JSON parse → Zod schema 校验 → 失败带错误重试，最多 2 次；全部失败则抛错，不写文件
-- [ ] T4a.6 `confidence < 0.6` 不阻断，保留给确认节点标记"需复核"
-- [ ] T4a.7 验收：真实章节文本可输出 ≥1 个通过 schema 的 CharacterCard draft + SceneCard draft
+- [x] T4a.1 新建 `electron/ai/builtin-skills/compress-chapter/SKILL.md`，定义 **JSON draft** 输出格式，不要求模型直接输出 YAML
+- [x] T4a.2 新建 `ChapterCompressor.extractChapter()`，输入章节正文 + blockMap + provider runtime，输出 `CompressionDraft`
+- [x] T4a.3 prompt 示例中明确 `confidence` 是数字，如 `"confidence": 0.85`
+- [x] T4a.4 要求所有 `source_refs[].block_id` 来自 ingest 传入的 blockMap，且为正整数
+- [x] T4a.5 JSON parse → Zod schema 校验 → 失败带错误重试，最多 2 次；全部失败则抛错，不写文件
+- [x] T4a.6 `confidence < 0.6` 不阻断，保留给确认节点标记"需复核"
+- [x] T4a.7a 自动验收：`scripts/verify-t4a.ts` 使用 mock model 验证解析 / Zod 校验 / 重试 / block_id 约束管道
+- [ ] T4a.7b 人工验收：配置真实 provider 后运行 `scripts/verify-t4a-real.ts`，确认真实章节文本可输出 ≥1 个通过 schema 的 CharacterCard draft + SceneCard draft
 
 **T4b · ConfirmCard UI（纯确认视图）**
 - [ ] T4b.1 `scene_split`：场景列表表格，展示 `seq / summary / tone / estimatedBlocks`，支持行内编辑 summary
