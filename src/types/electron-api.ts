@@ -129,7 +129,7 @@ export interface ElectronAPI {
   aiClearThreads?: () => Promise<void>
   aiGetThreadMessages?: (threadId: string) => Promise<import('./ai').ThreadMessage[]>
   aiSnapshotResponse?: (resp: import('./ai-ipc').SnapshotResponse) => void
-  novelStartCompress?: () => Promise<import('./ai-ipc').NovelConfirmResponse>
+  novelStartCompress?: (req?: { filePath?: string | null }) => Promise<import('./ai-ipc').NovelConfirmResponse>
   novelStartExpand?: () => Promise<import('./ai-ipc').NovelConfirmResponse>
   novelConfirmResponse?: (resp: import('./ai-ipc').NovelConfirmResponse) => void
 

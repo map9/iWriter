@@ -179,7 +179,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiGetThreadMessages: (threadId: string) => ipcRenderer.invoke('ai:get-thread-messages', { threadId }),
   // Renderer sends snapshot back to main (not an invoke — fire-and-forget)
   aiSnapshotResponse: (resp: any) => ipcRenderer.send('ai:snapshot-response', resp),
-  novelStartCompress: () => ipcRenderer.invoke('novel:start-compress'),
+  novelStartCompress: (req?: { filePath?: string | null }) => ipcRenderer.invoke('novel:start-compress', req),
   novelStartExpand: () => ipcRenderer.invoke('novel:start-expand'),
   novelConfirmResponse: (resp: any) => ipcRenderer.send('novel:confirm-response', resp),
 

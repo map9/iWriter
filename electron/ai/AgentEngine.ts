@@ -98,6 +98,10 @@ export class AgentEngine {
     this.threadListQuery = new ThreadListQuery(ci)
   }
 
+  getSnapshotBroker(): SnapshotBroker {
+    return this.snapshotBroker
+  }
+
   // ── Public: thread list (IPC ai:get-threads) ──────────────────────────────
 
   async getThreads() {

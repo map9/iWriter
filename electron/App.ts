@@ -23,6 +23,7 @@ import { AgentEngine } from './ai/AgentEngine'
 import { AiConfigStore } from './ai/config/AiConfigStore'
 import type { AiSettings } from '../src/types/ai'
 import { ConfirmGate } from './ai/novel-harness/ipc/ConfirmGate'
+import { NovelHarness } from './ai/novel-harness/NovelHarness'
 import { RendererEventBridge } from './ai/ipc/RendererEventBridge'
 import type { NovelConfirmRequest, NovelConfirmResponse } from './ai/ipc/protocol'
 import { formatCodeInMain } from './CodeFormatService'
@@ -41,6 +42,7 @@ export class App {
   private pandocService: PandocService
   private agentEngine: AgentEngine
   private novelConfirmGate: ConfirmGate
+  private novelHarness: NovelHarness
   private customThemeLoader: CustomThemeLoader
   private appQuitTimer: Timer | null = null
   private _isAppQuitting: boolean
@@ -60,6 +62,10 @@ export class App {
     )
     this.novelConfirmGate = new ConfirmGate(
       new RendererEventBridge(() => BrowserWindow.getAllWindows()[0]?.webContents ?? null)
+    )
+    this.novelHarness = new NovelHarness(
+      this.agentEngine.getSnapshotBroker(),
+      this.novelConfirmGate
     )
 
     this.setupIpcHandlers()
@@ -1196,45 +1202,25 @@ export class App {
       }
     })
 
-    ipcMain.handle('novel:start-compress', async () => {
-      return this.novelConfirmGate.waitForConfirm(this.createMockNovelConfirmRequest('chapter_boundary'))
+    ipcMain.handle('novel:start-compress', async (_, req?: { filePath?: string | null }) => {
+      return this.novelHarness.startCompress(req?.filePath ?? null)
     })
 
     ipcMain.handle('novel:start-expand', async () => {
-      return this.novelConfirmGate.waitForConfirm(this.createMockNovelConfirmRequest('expansion_plan'))
+      return this.novelConfirmGate.waitForConfirm(this.createMockExpansionPlanConfirmRequest())
     })
   }
 
-  private createMockNovelConfirmRequest(type: 'chapter_boundary' | 'expansion_plan'): NovelConfirmRequest {
-    const sessionId = `novel-${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    if (type === 'expansion_plan') {
-      return {
-        sessionId,
-        type,
-        payload: {
-          sceneId: 'ch01--001',
-          sceneTitle: 'T0 expansion plan mock',
-          beats: [
-            { seq: 1, description: 'Open the scene with the protagonist entering the room.', estimatedWords: 350 },
-            { seq: 2, description: 'Reveal the key conflict through dialogue.', estimatedWords: 500 },
-          ],
-        },
-      }
-    }
-
+  private createMockExpansionPlanConfirmRequest(): NovelConfirmRequest {
     return {
-      sessionId,
-      type,
+      sessionId: `novel-expansion_plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type: 'expansion_plan',
       payload: {
-        chapters: [
-          {
-            id: 'ch01',
-            title: 'T0 chapter boundary mock',
-            wordCount: 1200,
-            blockCount: 18,
-            startBlockId: 1,
-            endBlockId: 18,
-          },
+        sceneId: 'ch01--001',
+        sceneTitle: 'T0 expansion plan mock',
+        beats: [
+          { seq: 1, description: 'Open the scene with the protagonist entering the room.', estimatedWords: 350 },
+          { seq: 2, description: 'Reveal the key conflict through dialogue.', estimatedWords: 500 },
         ],
       },
     }

@@ -261,6 +261,7 @@ export interface NovelConfirmResponse {
   type: NovelConfirmType
   decision: 'confirm' | 'adjust' | 'cancel'
   adjustmentText?: string
+  adjustedPayload?: NovelConfirmPayload
 }
 
 // ── Serialized Document Snapshot ──────────────────────────────────────────
