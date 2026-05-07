@@ -56,6 +56,21 @@
         <div v-if="current.description" class="mt-2 text-xs" :class="toneDescriptionClass">
           {{ current.description }}
         </div>
+        <div
+          v-if="current.validationReport?.length"
+          class="mt-2 space-y-1 rounded-md border border-base-300 bg-base-100/70 px-2 py-1.5"
+        >
+          <div
+            v-for="(issue, issueIndex) in current.validationReport"
+            :key="`${issue.dimension}-${issueIndex}`"
+            class="text-xs"
+            :class="issue.severity === 'error' ? 'text-error-content' : 'text-warning-content'"
+          >
+            <span class="font-medium">{{ issue.severity }}</span>
+            <span> · {{ issue.dimension }} · {{ issue.description }}</span>
+            <span v-if="issue.suggestion"> {{ issue.suggestion }}</span>
+          </div>
+        </div>
       </div>
 
       <div class="min-h-52">

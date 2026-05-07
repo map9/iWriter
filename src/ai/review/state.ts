@@ -1,12 +1,18 @@
 import type { EditProposal } from '@/ai/types'
-import type { ProposalDecisionKind, ReviewBatchState } from './types'
+import type { ProposalDecisionKind, ReviewBatchSource, ReviewBatchState } from './types'
 
 export function createReviewBatchState(
   threadId: string,
   turnId: string | null,
   proposals: EditProposal[],
+  options: {
+    source?: ReviewBatchSource
+    novelSessionId?: string
+  } = {},
 ): ReviewBatchState {
   return {
+    source: options.source ?? 'agent',
+    novelSessionId: options.novelSessionId,
     threadId,
     turnId,
     total: proposals.length,

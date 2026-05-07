@@ -137,6 +137,13 @@ export interface TaskPlanItem {
   status: 'pending' | 'in_progress' | 'completed'
 }
 
+export interface ValidationIssue {
+  dimension: string
+  description: string
+  severity: 'warning' | 'error'
+  suggestion?: string
+}
+
 /** Ordered content block for interleaved text + tool call rendering. */
 export type MessageContentBlock =
   | MessageTextBlock
@@ -152,6 +159,7 @@ interface BaseEditProposal {
   status: 'pending' | 'applied' | 'rejected'
   sourceMessageId?: string
   sourceTurnId?: string
+  validationReport?: ValidationIssue[]
   /** True if the user modified the proposal args before approving (edit decision). */
   wasEdited?: boolean
 }

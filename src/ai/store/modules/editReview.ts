@@ -149,6 +149,8 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
     threadId: string
     turnId: string | null
     proposals: EditProposal[]
+    source?: ReviewBatchState['source']
+    novelSessionId?: string
   }) {
     deps.interruptedThreadId.value = params.threadId
     deps.interruptedTurnId.value = params.turnId ?? deps.currentTurnId.value
@@ -169,6 +171,10 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
       params.threadId,
       params.turnId ?? deps.currentTurnId.value,
       params.proposals,
+      {
+        source: params.source,
+        novelSessionId: params.novelSessionId,
+      },
     ))
   }
 
@@ -213,6 +219,21 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
         message: record.kind === 'approved' || record.kind === 'edited' ? undefined : (record.message ?? 'User rejected.'),
       }
     })
+
+    if (currentBatch.source === 'novel_harness') {
+      deps.threadRunState.value = 'idle'
+      deps.interruptedThreadId.value = null
+      deps.interruptedTurnId.value = null
+      interruptActionCount.value = 0
+      setReviewBatch(null)
+
+      const liveTurn = deps.ensureLiveTurn({ threadId, state: 'interrupted' })
+      if (liveTurn) {
+        liveTurn.proposals = []
+        deps.liveTurnRef.value = { ...liveTurn }
+      }
+      return
+    }
 
     deps.threadRunState.value = 'streaming'
     isResumingReviewedEdits.value = true

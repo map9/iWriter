@@ -1,5 +1,7 @@
 import type { AiToolCall, EditProposal, EditRoundResult } from '@/ai/types'
 
+export type ReviewBatchSource = 'agent' | 'novel_harness'
+
 export type ProposalDecisionKind =
   | 'approved'
   | 'edited'
@@ -17,6 +19,8 @@ export interface ProposalDecision {
 }
 
 export interface ReviewBatchState {
+  source: ReviewBatchSource
+  novelSessionId?: string
   threadId: string
   turnId: string | null
   total: number
