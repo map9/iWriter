@@ -33,7 +33,10 @@
           v-for="option in modeOptions"
           :key="option.value"
           @click="select(option.value)"
+          :disabled="option.disabled"
+          :title="option.tooltip"
           class="w-full flex items-center gap-2 px-1.5 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300 text-left"
+          :class="option.disabled ? 'cursor-not-allowed opacity-45 hover:bg-transparent' : ''"
         >
           <span
             class="icon-dot shrink-0 mt-0.5"
@@ -56,6 +59,7 @@ import { type Component, computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconChevronDown, IconMinus, IconPencil, IconSparkles } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/store/ai'
+import { useAppStore } from '@/stores/app'
 import type { AiAgentMode } from '@/ai/types'
 
 const props = defineProps<{ isOpen: boolean; compact?: boolean }>()
@@ -63,6 +67,7 @@ const emit = defineEmits<{ open: []; close: [] }>()
 const { t } = useI18n()
 
 const aiStore = useAiStore()
+const appStore = useAppStore()
 const triggerEl = ref<HTMLElement | null>(null)
 const menuEl = ref<HTMLElement | null>(null)
 const menuWidth = 208
@@ -84,15 +89,24 @@ const menuStyle = computed(() => {
   }
 })
 
-const modeOptions: Array<{ value: AiAgentMode; label: string; desc: string }> = [
-  { value: 'edit', label: t('agentPanel.modePicker.options.edit'), desc: t('agentPanel.modePicker.options.editDesc') },
-  { value: 'minimal', label: t('agentPanel.modePicker.options.minimal'), desc: t('agentPanel.modePicker.options.minimalDesc') },
-  { value: 'creative', label: t('agentPanel.modePicker.options.creative'), desc: t('agentPanel.modePicker.options.creativeDesc') },
-]
+const modeOptions = computed<Array<{ value: AiAgentMode; label: string; desc: string; disabled?: boolean; tooltip?: string }>>(() => {
+  const creativeDisabled = !appStore.currentFolder
+  return [
+    { value: 'edit', label: t('agentPanel.modePicker.options.edit'), desc: t('agentPanel.modePicker.options.editDesc') },
+    { value: 'minimal', label: t('agentPanel.modePicker.options.minimal'), desc: t('agentPanel.modePicker.options.minimalDesc') },
+    {
+      value: 'creative',
+      label: t('agentPanel.modePicker.options.creative'),
+      desc: creativeDisabled ? 'Open a workspace folder to use Creative mode.' : t('agentPanel.modePicker.options.creativeDesc'),
+      disabled: creativeDisabled,
+      tooltip: creativeDisabled ? 'Creative mode requires an open workspace folder.' : undefined,
+    },
+  ]
+})
 
 const currentMode = computed(() => aiStore.activeThread?.mode ?? aiStore.settings.defaultMode)
 const currentLabel = computed(() => {
-  return modeOptions.find(option => option.value === currentMode.value)?.label ?? t('agentPanel.modePicker.options.edit')
+  return modeOptions.value.find(option => option.value === currentMode.value)?.label ?? t('agentPanel.modePicker.options.edit')
 })
 const currentModeIcon = computed(() => MODE_ICONS[currentMode.value] ?? IconPencil)
 
@@ -102,6 +116,8 @@ function onToggle() {
 }
 
 function select(mode: AiAgentMode) {
+  const option = modeOptions.value.find(item => item.value === mode)
+  if (option?.disabled) return
   aiStore.setCurrentMode(mode)
   emit('close')
 }

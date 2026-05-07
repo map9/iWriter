@@ -32,16 +32,17 @@ export function resolveThreadRuntime(
     throw new Error('No active AI provider configured. Please add a provider in settings.')
   }
 
-  const requestedMode = normalizeAgentMode(req?.mode)
+  const requestedMode = req?.mode ? normalizeAgentMode(req.mode) : undefined
+  const metaMode = meta?.mode ? normalizeAgentMode(meta.mode) : undefined
   const fallbackMode = normalizeAgentMode(settings.defaultMode)
   const domain =
     req?.domain
     ?? (requestedMode ? resolveAgentDomain(requestedMode) : undefined)
     ?? meta?.domain
-    ?? resolveAgentDomain(normalizeAgentMode(meta?.mode ?? fallbackMode))
+    ?? resolveAgentDomain(metaMode ?? fallbackMode)
   const mode = normalizeModeForDomain(
     requestedMode
-      ?? normalizeAgentMode(meta?.mode)
+      ?? metaMode
       ?? getDefaultModeForDomain(domain),
     domain,
   )

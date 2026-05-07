@@ -197,6 +197,49 @@ export interface FileCreateProposal extends BaseEditProposal {
 
 export type EditProposal = BlockEditProposal | FileCreateProposal
 
+// ── Creative Review Items ─────────────────────────────────────────────────
+
+interface BaseCreativeReviewItem {
+  id: string
+  status: 'pending' | 'applied' | 'rejected'
+  sourceMessageId?: string
+  sourceTurnId?: string
+  toolCallId?: string
+  wasEdited?: boolean
+}
+
+export interface CreativePlanReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_plan'
+  toolName: 'confirm_writing_plan'
+  plan: string
+  rationale: string
+  alternatives?: string[]
+}
+
+export interface CreativeWriteReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_write'
+  toolName: 'write_to_chapter'
+  filename: string
+  mode: 'append' | 'insert_at' | 'replace_range'
+  approvedPlan: string
+  newContent: string
+  insertAnchor?: string
+  replaceStartAnchor?: string
+  replaceEndAnchor?: string
+}
+
+export interface CreativeStoryBibleReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_storybible'
+  toolName: 'replace_storybible_section' | 'rebuild_storybible'
+  section?: string
+  newContent: string
+}
+
+export type CreativeReviewItem =
+  | CreativePlanReviewItem
+  | CreativeWriteReviewItem
+  | CreativeStoryBibleReviewItem
+
 export type EditRoundResultState =
   | 'applied'
   | 'applied_edited'
@@ -204,6 +247,33 @@ export type EditRoundResultState =
   | 'rework_requested'
   | 'ended'
   | 'failed_to_apply'
+
+// ── Creative Round Results ─────────────────────────────────────────────────
+
+export type CreativeRoundResultState =
+  | 'applied'
+  | 'applied_edited'
+  | 'skipped'
+  | 'failed_to_apply'
+
+export interface CreativeRoundResultItem {
+  reviewId: string
+  state: CreativeRoundResultState
+  kind: CreativeReviewItem['kind']
+  toolName: string
+  label: string
+  finalContent?: string
+  failureMessage?: string
+}
+
+export interface CreativeRoundResult {
+  total: number
+  applied: number
+  appliedEdited: number
+  skipped: number
+  failedToApply: number
+  items: CreativeRoundResultItem[]
+}
 
 export interface EditRoundResultItem {
   proposalId: string
@@ -258,6 +328,7 @@ export interface ThreadMessage {
     items: TaskPlanItem[]
   }
   editRoundResult?: EditRoundResult
+  creativeRoundResult?: CreativeRoundResult
   /** Ordered content blocks for interleaved text + tool call rendering. */
   contentBlocks?: MessageContentBlock[]
 
@@ -398,9 +469,17 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     delete_block:         'delete',
     replace_range:        'edit',
     create_document:      'edit',
-    list_story_assets:    'read',
-    read_story_asset:     'read',
-    save_story_asset:     'edit',
+    read_storybible:      'read',
+    read_chapter:         'read',
+    read_fragments:       'read',
+    search_draft:         'search',
+    get_session_diff:     'read',
+    add_fragment:         'edit',
+    patch_storybible:     'edit',
+    confirm_writing_plan: 'edit',
+    write_to_chapter:     'edit',
+    replace_storybible_section: 'edit',
+    rebuild_storybible:   'edit',
     // deepagents built-in tools
     execute:              'execute',
     read_file:            'read',
@@ -422,6 +501,13 @@ export const BLOCK_EDIT_TOOLS = new Set([
   'delete_block',
   'replace_range',
   'create_document',
+])
+
+export const CREATIVE_REVIEW_TOOLS = new Set([
+  'confirm_writing_plan',
+  'write_to_chapter',
+  'replace_storybible_section',
+  'rebuild_storybible',
 ])
 
 /** Human-readable labels for BlockEditProposal types. */

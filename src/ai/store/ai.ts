@@ -31,6 +31,9 @@ import {
   createEditReviewModule,
 } from './modules/editReview'
 import {
+  createCreativeReviewModule,
+} from './modules/creativeReview'
+import {
   createRuntimeState,
 } from './modules/runtimeState'
 import { createRuntimeDisplay } from './modules/runtimeDisplay'
@@ -358,6 +361,7 @@ export const useAiStore = defineStore('ai', () => {
     streamingThinkingText,
     streamingToolName,
     pendingEditProposals,
+    pendingCreativeReviews,
     liveTurnState,
     liveTurnThreadId,
     liveTurnTurnId,
@@ -368,11 +372,22 @@ export const useAiStore = defineStore('ai', () => {
     clearRunPointers: _clearRunPointers,
   } = runtimeState
 
+  let _creativeDisplayOverrides: (() => ReturnType<typeof editReview.displayOverrides>) | null = null
+
+  function _mergedOverrides() {
+    const e = editReview.displayOverrides()
+    const c = _creativeDisplayOverrides?.() ?? {}
+    return {
+      byId: { ...e.byId, ...(c.byId ?? {}) },
+      bySignature: { ...e.bySignature, ...(c.bySignature ?? {}) },
+    }
+  }
+
   const _normalizeMessagesForDisplay = (messages: ThreadMessage[]): ThreadMessage[] =>
-    normalizeThreadMessagesForDisplay(messages, editReview.displayOverrides())
+    normalizeThreadMessagesForDisplay(messages, _mergedOverrides())
 
   const _normalizeMessageForDisplay = (message: ThreadMessage): ThreadMessage =>
-    normalizeThreadMessageForDisplay(message, editReview.displayOverrides())
+    normalizeThreadMessageForDisplay(message, _mergedOverrides())
 
   const editReview = createEditReviewModule({
     appStore,
@@ -389,6 +404,21 @@ export const useAiStore = defineStore('ai', () => {
     updateThread,
   })
 
+  const creativeReview = createCreativeReviewModule({
+    activeThread,
+    pendingCreativeReviews,
+    interruptedThreadId: _interruptedThreadId,
+    interruptedTurnId: _interruptedTurnId,
+    threadRunState: _threadRunState,
+    currentThreadId: _currentThreadId,
+    currentTurnId: _currentTurnId,
+    liveTurnRef: _liveTurn,
+    ensureLiveTurn: _ensureLiveTurn,
+    updateThread,
+    normalizeMessagesForDisplay: _normalizeMessagesForDisplay,
+  })
+  _creativeDisplayOverrides = creativeReview.displayOverrides
+
   // ── Send Message ──────────────────────────────────────────────────────────
   async function sendMessage(userText: string, sendContext?: SendContext): Promise<boolean> {
     // Block new messages while actively streaming
@@ -401,6 +431,7 @@ export const useAiStore = defineStore('ai', () => {
 
     // Auto-reject any proposals still waiting for user approval
     _rejectAllPendingProposals()
+    _rejectAllPendingCreativeReviews()
 
     // Ensure there is an active thread
     let thread = activeThread.value
@@ -544,6 +575,20 @@ export const useAiStore = defineStore('ai', () => {
     endReviewRound,
   } = editReview
 
+  const {
+    isResumingCreativeReview,
+    getCompletedCreativeRoundResult,
+    handleInterrupt: _handleCreativeInterrupt,
+    resetReviewState: _resetCreativeReviewState,
+    rejectAllPendingReviews: _rejectAllPendingCreativeReviews,
+    approveCreativeReview,
+    editAndApproveCreativeReview,
+    rejectCreativeReview,
+    approveAllCreativeReviews,
+    notifyCreativeToolResult: _notifyCreativeToolResult,
+    finalizePendingCreativeApply: _finalizePendingCreativeApply,
+  } = creativeReview
+
   const runtimeEvents = createRuntimeEvents({
     activeThread,
     threadRunState: _threadRunState,
@@ -555,11 +600,16 @@ export const useAiStore = defineStore('ai', () => {
     ensureLiveTurn: _ensureLiveTurn,
     clearLiveTurn: _clearLiveTurn,
     handleEditInterrupt: _handleEditInterrupt,
+    handleCreativeInterrupt: _handleCreativeInterrupt,
     resetEditReviewState: _resetEditReviewState,
+    resetCreativeReviewState: _resetCreativeReviewState,
+    notifyCreativeToolResult: _notifyCreativeToolResult,
+    finalizePendingCreativeApply: _finalizePendingCreativeApply,
     inferToolKind,
     normalizeMessagesForDisplay: _normalizeMessagesForDisplay,
     normalizeMessageForDisplay: _normalizeMessageForDisplay,
     getCompletedRoundResult,
+    getCompletedCreativeRoundResult,
     appendMessage,
     updateThread,
     notifyError: notify.error,
@@ -597,6 +647,7 @@ export const useAiStore = defineStore('ai', () => {
     _threadRunState.value = 'idle'
     _clearRunPointers()
     _resetEditReviewState()
+    _resetCreativeReviewState()
     _clearLiveTurn()
     notify.info('已停止生成')
   }
@@ -691,7 +742,9 @@ export const useAiStore = defineStore('ai', () => {
     persistedAssistantMessageIds,
     latestPersistedAssistantMessageId,
     pendingEditProposals,
+    pendingCreativeReviews,
     isResumingReviewedEdits,
+    isResumingCreativeReview,
     reviewedToolCallStatuses,
     reviewedEditSignatures,
     reviewedBatchEntries,
@@ -709,6 +762,10 @@ export const useAiStore = defineStore('ai', () => {
     approveAllProposals,
     rejectAllProposals,
     endReviewRound,
+    approveCreativeReview,
+    editAndApproveCreativeReview,
+    rejectCreativeReview,
+    approveAllCreativeReviews,
     cancelStreaming,
     setDraftInput,
     init,

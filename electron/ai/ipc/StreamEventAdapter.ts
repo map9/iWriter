@@ -24,6 +24,7 @@ export class StreamEventAdapter {
     interruptPayload: null,
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   consume(threadId: string, event: any): StreamChunkEvent[] {
     const chunks: StreamChunkEvent[] = []
 
@@ -31,7 +32,6 @@ export class StreamEventAdapter {
       const chunk = event.data?.chunk
       const content = chunk?.content
       let sawReasoningInContent = false
-      let reasoningDeltaFromContent = ''
       if (typeof content === 'string' && content) {
         this.state.assistantContent += content
         this.state.pendingText += content
@@ -47,12 +47,10 @@ export class StreamEventAdapter {
             chunks.push({ threadId, type: 'thinking', delta: part.thinking })
           } else if (part.type === 'reasoning' && part.reasoning) {
             sawReasoningInContent = true
-            reasoningDeltaFromContent += part.reasoning
             this.state.thinkingContent += part.reasoning
             chunks.push({ threadId, type: 'thinking', delta: part.reasoning })
           } else if (part.type === 'reasoning' && part.text) {
             sawReasoningInContent = true
-            reasoningDeltaFromContent += part.text
             this.state.thinkingContent += part.text
             chunks.push({ threadId, type: 'thinking', delta: part.text })
           }
@@ -106,8 +104,29 @@ export class StreamEventAdapter {
     if (event.event === 'on_tool_end') {
       const tc = this.state.toolCalls.find(t => t.id === event.run_id)
       if (tc) {
-        tc.status = 'completed'
-        tc.result = extractToolResult(event.name, event.data?.output)
+        const result = extractToolResult(event.name, event.data?.output)
+        const isError = isToolResultError(event.data?.output, result)
+        tc.status = isError ? 'failed' : 'completed'
+        tc.result = result
+        tc.isError = isError
+        chunks.push({
+          threadId,
+          type: 'tool_call_end',
+          toolCallId: tc.id,
+          toolCall: { ...tc },
+        })
+      }
+      return chunks
+    }
+
+    if (event.event === 'on_tool_error') {
+      const tc = this.state.toolCalls.find(t => t.id === event.run_id)
+      if (tc) {
+        tc.status = 'failed'
+        tc.isError = true
+        tc.result = event.data?.error instanceof Error
+          ? event.data.error.message
+          : String(event.data?.error ?? 'Tool failed.')
         chunks.push({
           threadId,
           type: 'tool_call_end',
@@ -164,4 +183,15 @@ export class StreamEventAdapter {
     this.state.contentBlocks.push({ type: 'text', text: this.state.pendingText })
     this.state.pendingText = ''
   }
+}
+
+function isToolResultError(output: unknown, result: string): boolean {
+  if (/^\s*Error:/i.test(result)) return true
+  if (output && typeof output === 'object') {
+    const maybe = output as { error?: unknown }
+    if (typeof maybe.error === 'string' && maybe.error.trim()) return true
+    const content = (output as { content?: unknown }).content
+    if (typeof content === 'string' && /^\s*Error:/i.test(content)) return true
+  }
+  return false
 }

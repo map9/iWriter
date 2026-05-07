@@ -10,6 +10,7 @@
     v-else
     :message="message"
     :edit-tool-calls="editToolCalls"
+    :creative-review-tool-calls="creativeReviewToolCalls"
     :is-latest-assistant-message="isLatestAssistantMessage"
   />
 </template>
@@ -24,6 +25,7 @@ import CreativeMessageSession from './creative/CreativeMessageSession.vue'
 defineProps<{
   message: ThreadMessage
   editToolCalls: AiToolCall[]
+  creativeReviewToolCalls?: AiToolCall[]
   isLatestAssistantMessage: boolean
   isPreview?: boolean
 }>()

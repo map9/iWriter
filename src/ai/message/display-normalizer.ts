@@ -464,6 +464,52 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         parsedResult,
         rawResult,
       }
+    case 'read_storybible':
+    case 'read_fragments':
+    case 'get_session_diff':
+      return {
+        actionLabel: toolNameLabel(toolCall.name),
+        targetLabel: toolCall.name === 'read_storybible'
+          ? 'storybible.md'
+          : toolCall.name === 'read_fragments'
+            ? 'draft/fragments.md'
+            : 'story session',
+        summaryLabel: buildStatusSummary(toolCall, rawResult ? t('agentPanel.displayNormalizer.status.completed') : undefined),
+        detailType: parsedResult ? 'json' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'read_chapter':
+    case 'write_to_chapter':
+      return {
+        actionLabel: toolNameLabel(toolCall.name),
+        targetLabel: toStringValue(args.filename) ?? undefined,
+        contextLabel: toStringValue(args.mode) ?? undefined,
+        summaryLabel: buildStatusSummary(
+          toolCall,
+          toolCall.status === 'completed' ? t('agentPanel.displayNormalizer.status.completed') : undefined
+        ),
+        detailType: parsedResult ? 'json' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'search_draft':
+    case 'add_fragment':
+    case 'patch_storybible':
+    case 'confirm_writing_plan':
+    case 'replace_storybible_section':
+    case 'rebuild_storybible':
+      return {
+        actionLabel: toolNameLabel(toolCall.name),
+        targetLabel: toStringValue(args.section) ?? toStringValue(args.query) ?? undefined,
+        summaryLabel: buildStatusSummary(
+          toolCall,
+          toolCall.status === 'completed' ? t('agentPanel.displayNormalizer.status.completed') : undefined
+        ),
+        detailType: parsedResult ? 'json' : 'text',
+        parsedResult,
+        rawResult,
+      }
     case 'list_story_assets': {
       const sections = parsedResult && Array.isArray(parsedResult.sections) ? parsedResult.sections : []
       const sectionCount = sections.length

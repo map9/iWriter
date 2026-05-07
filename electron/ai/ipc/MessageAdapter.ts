@@ -14,7 +14,7 @@ import type {
   EditProposal,
   MessageContentBlock,
 } from '../../../src/types/ai'
-import { BLOCK_EDIT_TOOLS, inferToolKind } from '../../../src/types/ai'
+import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS, inferToolKind } from '../../../src/types/ai'
 import type { SerializedSnapshot } from './protocol'
 
 // ── Tool argument parsing ────────────────────────────────────────────────────
@@ -131,7 +131,6 @@ function lcMsgType(msg: any): string {
   return msg._getType?.() ?? msg.getType?.() ?? msg.type ?? ''
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function lcMsgText(content: unknown): string {
   if (typeof content === 'string') return content
   if (Array.isArray(content)) {
@@ -349,8 +348,11 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
         const tc = toolCalls.find(t => t.id === tcId)
         const resultText = extractToolResult(tc?.name ?? '', toolMsg.content)
         if (tc) {
-          tc.status = 'completed'
+          const isError = isToolResultError(toolMsg, resultText)
+          const isRejected = isToolResultRejected(toolMsg, resultText)
+          tc.status = isRejected ? 'rejected' : isError ? 'failed' : 'completed'
           tc.result = resultText
+          tc.isError = isError && !isRejected
         }
         toolResults.push({ toolCallId: tcId, content: resultText })
         j++
@@ -362,7 +364,10 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
       })
       if (hasLaterConversation) {
         for (const toolCall of toolCalls) {
-          if (toolCall.status === 'pending' && BLOCK_EDIT_TOOLS.has(toolCall.name)) {
+          if (
+            toolCall.status === 'pending' &&
+            (BLOCK_EDIT_TOOLS.has(toolCall.name) || CREATIVE_REVIEW_TOOLS.has(toolCall.name))
+          ) {
             toolCall.status = 'rejected'
           }
         }
@@ -386,6 +391,23 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
   }
 
   return result
+}
+
+function isToolResultError(output: unknown, result: string): boolean {
+  if (/^\s*Error:/i.test(result)) return true
+  if (output && typeof output === 'object') {
+    const maybe = output as { error?: unknown; content?: unknown; status?: unknown }
+    if (maybe.status === 'error') return true
+    if (typeof maybe.error === 'string' && maybe.error.trim()) return true
+    if (typeof maybe.content === 'string' && /^\s*Error:/i.test(maybe.content)) return true
+  }
+  return false
+}
+
+function isToolResultRejected(output: unknown, result: string): boolean {
+  if (!output || typeof output !== 'object') return false
+  const maybe = output as { status?: unknown }
+  return maybe.status === 'error' && /^The user rejected|^User rejected/i.test(result.trim())
 }
 
 // ── EditProposal construction ────────────────────────────────────────────────

@@ -1615,8 +1615,20 @@ export const useAppStore = defineStore('app', () => {
       const parentPath = pathUtils.dirname(filePath)
       const parentNode = findNodeByPath(parentPath)
       if (!parentNode) {
-        throw new Error(`Parent node not found for path: ${parentPath}`)
+        if (currentFolder.value && isPathInsideWorkspace(parentPath, currentFolder.value)) {
+          const parentAdded = await addNodeToFileTreeByFilePath(parentPath)
+          if (!parentAdded && !findNodeByPath(parentPath)) {
+            await loadFileTree()
+            return !!findNodeByPath(filePath)
+          }
+        } else {
+          await loadFileTree()
+          return !!findNodeByPath(filePath)
+        }
       }
+      const resolvedParentNode = findNodeByPath(parentPath)
+      if (!resolvedParentNode) return false
+      if (findNodeByPath(filePath)) return false
       
       // 使用 await 等待异步操作完成
       const files = await window.electronAPI.getFiles(filePath, true)
@@ -1642,7 +1654,7 @@ export const useAppStore = defineStore('app', () => {
         label: files[0].name,
         path: files[0].path,
         type: files[0].isDirectory ? 'folder' : 'file',
-        parent: parentNode,
+        parent: resolvedParentNode,
         isVisible: true,
         isEnabled: true,
         data: {},
@@ -1659,10 +1671,10 @@ export const useAppStore = defineStore('app', () => {
           : undefined
         newNode.children = await traverseFileTree(files[0].path, newNode, effectiveIgnoreRules)
       }
-      if (!parentNode.children) {
-        parentNode.children = []
+      if (!resolvedParentNode.children) {
+        resolvedParentNode.children = []
       }
-      parentNode.children.push(newNode)
+      resolvedParentNode.children.push(newNode)
 
       notify.success(t('notify.tree.nodeAdded', { path: filePath }), t('notify.tree.context'))
 
@@ -1706,7 +1718,18 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // 处理文件变化
+  function isPathInsideWorkspace(filePath: string, workspacePath: string): boolean {
+    const normalizedFilePath = pathUtils.normalize(filePath)
+    const normalizedWorkspacePath = pathUtils.normalize(workspacePath).replace(/\/+$/, '')
+    return normalizedFilePath === normalizedWorkspacePath ||
+      normalizedFilePath.startsWith(`${normalizedWorkspacePath}/`)
+  }
+
   function handleFileChange(change: FileChange) {    
+    if (currentFolder.value && !isPathInsideWorkspace(change.path, currentFolder.value)) {
+      return
+    }
+
     if (currentFolder.value && change.path === pathUtils.join(currentFolder.value, WORKSPACE_IGNORE_FILENAME)) {
       loadFileTree()
       return

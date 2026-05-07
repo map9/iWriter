@@ -22,8 +22,8 @@ import { Command } from '@langchain/langgraph'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { countTokensApproximately } from 'langchain'
 
-import type { AiProviderConfig, AiAgentDomain, AiAgentMode, ThreadMessage, EditProposal } from '../../src/types/ai'
-import { BLOCK_EDIT_TOOLS } from '../../src/types/ai'
+import type { AiProviderConfig, AiAgentDomain, AiAgentMode, ThreadMessage, EditProposal, CreativeReviewItem } from '../../src/types/ai'
+import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS } from '../../src/types/ai'
 import { getModelBudgetInfo } from '../../src/ai/model-budget'
 import { estimateTextTokens } from '../../src/ai/token-estimation'
 import { createChatModel } from './providers/ModelFactory'
@@ -54,6 +54,8 @@ import { generateThreadTitle } from '../../src/ai/thread/title'
 import type { DomainAgentCapabilities } from './domain/types'
 import { buildCreativeCapabilities } from './domain/creative/buildCreativeCapabilities'
 import { buildEditCapabilities } from './domain/edit/buildEditCapabilities'
+import { buildCreativeReviewItemFromAction } from './ipc/CreativeReviewAdapter'
+import { computeWorkspaceHashes, getCreativeDb } from './db/CreativeDb'
 
 // Import system prompts from src (shared)
 import { EDIT_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/edit'
@@ -115,6 +117,7 @@ export class AgentEngine {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const t = tuple as any
       // checkpointer.get() returns the checkpoint object directly (not wrapped in { checkpoint: ... })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rawMessages: any[] = t.channel_values?.messages ?? []
       return convertLcMessages(rawMessages)
     } catch (err) {
@@ -273,7 +276,9 @@ export class AgentEngine {
       ? response.content.trim()
       : Array.isArray(response.content)
         ? response.content
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .filter((part: any) => part?.type === 'text')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .map((part: any) => String(part?.text ?? ''))
             .join('')
             .trim()
@@ -489,6 +494,7 @@ export class AgentEngine {
       }
 
       this.threadListQuery?.updateMeta(threadId, { updatedAt: Date.now() })
+      this._recordCreativeSession(threadId)
       this.rendererBridge.sendRunDone({
         threadId,
         turnId: this.runtimeStore.getCurrentTurnId(threadId) ?? undefined,
@@ -533,6 +539,39 @@ export class AgentEngine {
 
     if (!actionRequests.length) {
       console.warn('[AgentEngine] Interrupt with no actionRequests:', interruptValue)
+      return
+    }
+
+    // Request snapshot using the first action's file path as the primary target.
+    // All proposals in one interrupt batch share the same snapshot (block IDs are stable).
+    const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
+    if (domain === 'creative') {
+      const pendingCreativeToolCalls = (partialMessage?.toolCalls ?? []).filter(tc =>
+        CREATIVE_REVIEW_TOOLS.has(tc.name) && tc.status !== 'completed'
+      )
+      const creativeReviews: CreativeReviewItem[] = actionRequests.map((ar, index) =>
+        buildCreativeReviewItemFromAction(
+          ar,
+          pendingCreativeToolCalls[index]?.id,
+          partialMessage?.id,
+          turnId,
+        )
+      )
+
+      this.runtimeStore.setInterrupted(threadId, {
+        actionRequestCount: actionRequests.length,
+        actionNames: actionRequests.map(ar => ar.name),
+        turnId,
+      })
+
+      this.rendererBridge.sendRunInterrupted({
+        threadId,
+        turnId,
+        proposals: [],
+        creativeReviews,
+        partialMessage,
+        actionRequests,
+      })
       return
     }
 
@@ -638,6 +677,7 @@ export class AgentEngine {
         configurable: { thread_id: threadId },
       })
       if (!tuple) return 0
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const t = tuple as any
       const channelValues = t.channel_values ?? {}
       const rawMessages = Array.isArray(channelValues.messages) ? channelValues.messages : []
@@ -650,7 +690,7 @@ export class AgentEngine {
       const systemPrompt = new SystemMessage(getSystemPrompt(domain, mode))
       return countTokensApproximately(
         [systemPrompt, ...effectiveMessages],
-        capabilities.tools as unknown as Array<Record<string, any>>
+        capabilities.tools as unknown as Array<Record<string, unknown>>
       )
     } catch (err) {
       console.warn('[AgentEngine] Failed to compute current session tokens:', err)
@@ -670,6 +710,7 @@ export class AgentEngine {
       path.join(this.aiRootPath, 'memory'),
       path.join(this.aiRootPath, 'skills'),
       path.join(this.aiRootPath, 'subagents'),
+      path.join(this.aiRootPath, 'empty-fs'),
     ]
     for (const dir of dirs) {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
@@ -700,7 +741,12 @@ export class AgentEngine {
     mounts: FilesystemMount[]
   ): DomainAgentCapabilities {
     if (domain === 'creative') {
-      return buildCreativeCapabilities(this.aiRootPath)
+      const workspacePath = mounts.find(mount => mount.virtualPath === '/')?.hostPath
+      return buildCreativeCapabilities(
+        this.aiRootPath,
+        mounts,
+        workspacePath ? this._getCreativeDb(workspacePath) : null,
+      )
     }
 
     if (mode === 'minimal') {
@@ -708,6 +754,23 @@ export class AgentEngine {
     }
 
     return buildEditCapabilities(this.snapshotBroker, this.aiRootPath, mounts)
+  }
+
+  private _getCreativeDb(workspacePath: string) {
+    return getCreativeDb(workspacePath)
+  }
+
+  private _recordCreativeSession(threadId: string): void {
+    const meta = this.threadListQuery?.getMeta(threadId)
+    if (meta?.domain !== 'creative') return
+    const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath
+    if (!workspacePath) return
+    try {
+      const db = this._getCreativeDb(workspacePath)
+      db.upsertSession(workspacePath, computeWorkspaceHashes(workspacePath))
+    } catch (err) {
+      console.warn('[AgentEngine] Failed to record creative session:', err)
+    }
   }
 
   private _assertWithinBudget(

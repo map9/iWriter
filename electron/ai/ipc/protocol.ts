@@ -10,6 +10,7 @@ import type {
   AiSettings,
   AiThread,
   EditProposal,
+  CreativeReviewItem,
   AiToolCall,
   ThreadMessage,
   AiAgentMode,
@@ -136,6 +137,8 @@ export interface RunInterruptedEvent {
   partialMessage?: ThreadMessage
   /** All proposals from this interrupt batch, in actionRequests order. Used for UI display (diff view). */
   proposals: EditProposal[]
+  /** Creative-domain review payloads, in actionRequests order. */
+  creativeReviews?: CreativeReviewItem[]
   /**
    * Raw LangGraph actionRequests in order.
    * Used by the renderer to align decisions by index.

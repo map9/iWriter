@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import type { AiToolCall, EditProposal } from '@/ai/types'
+import type { AiToolCall, CreativeReviewItem, EditProposal } from '@/ai/types'
 
 export type ThreadRunState = 'idle' | 'streaming' | 'interrupted'
 
@@ -20,6 +20,7 @@ export interface LiveTurn {
   thinkingText: string
   toolName: string | null
   proposals: EditProposal[]
+  creativeReviews: CreativeReviewItem[]
 }
 
 export function createRuntimeState() {
@@ -39,6 +40,7 @@ export function createRuntimeState() {
   const streamingThinkingText = computed(() => liveTurn.value?.thinkingText ?? '')
   const streamingToolName = computed(() => liveTurn.value?.toolName ?? null)
   const pendingEditProposals = computed(() => liveTurn.value?.proposals ?? [])
+  const pendingCreativeReviews = computed(() => liveTurn.value?.creativeReviews ?? [])
   const liveTurnState = computed<LiveTurnState | null>(() => liveTurn.value?.state ?? null)
   const liveTurnThreadId = computed(() => liveTurn.value?.threadId ?? null)
   const liveTurnTurnId = computed(() => liveTurn.value?.turnId ?? null)
@@ -61,6 +63,7 @@ export function createRuntimeState() {
       thinkingText: '',
       toolName: null,
       proposals: [],
+      creativeReviews: [],
     }
   }
 
@@ -114,6 +117,7 @@ export function createRuntimeState() {
     streamingThinkingText,
     streamingToolName,
     pendingEditProposals,
+    pendingCreativeReviews,
     liveTurnState,
     liveTurnThreadId,
     liveTurnTurnId,

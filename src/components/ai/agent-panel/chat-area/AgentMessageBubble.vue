@@ -122,6 +122,7 @@
       <DomainMessageSession
         :message="message"
         :edit-tool-calls="editToolCalls"
+        :creative-review-tool-calls="creativeReviewToolCalls"
         :is-latest-assistant-message="isLatestAssistantMessage"
         :is-preview="isPreview"
       />
@@ -207,7 +208,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconCopy, IconPencil, IconX, IconSend } from '@tabler/icons-vue'
 import type { ThreadMessage, AiToolCall } from '@/ai/types'
-import { BLOCK_EDIT_TOOLS } from '@/ai/types'
+import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS } from '@/ai/types'
 import { isRenderableAssistantMessage } from '@/ai/review/selectors'
 import { useAiStore } from '@/ai/store/ai'
 import MarkdownContentView from './views/MarkdownContentView.vue'
@@ -260,10 +261,15 @@ watch(editText, (val) => {
 const effectiveToolCalls = computed<AiToolCall[]>(() => props.message.toolCalls ?? [])
 const thinkingContent = computed(() => props.message.thinkingContent?.trim() ?? '')
 const readToolCalls = computed(() =>
-  effectiveToolCalls.value.filter(tc => !BLOCK_EDIT_TOOLS.has(tc.name) && tc.name !== 'write_todos')
+  effectiveToolCalls.value.filter(
+    tc => !BLOCK_EDIT_TOOLS.has(tc.name) && !CREATIVE_REVIEW_TOOLS.has(tc.name) && tc.name !== 'write_todos',
+  )
 )
 const editToolCalls = computed(() =>
   effectiveToolCalls.value.filter(tc => BLOCK_EDIT_TOOLS.has(tc.name))
+)
+const creativeReviewToolCalls = computed(() =>
+  effectiveToolCalls.value.filter(tc => CREATIVE_REVIEW_TOOLS.has(tc.name))
 )
 
 const isLatestAssistantMessage = computed(() => {
@@ -275,7 +281,7 @@ function toolCallById(id: string): AiToolCall | undefined {
 }
 function isReadToolById(id: string): boolean {
   const tc = toolCallById(id)
-  return !!tc && !BLOCK_EDIT_TOOLS.has(tc.name) && tc.name !== 'write_todos'
+  return !!tc && !BLOCK_EDIT_TOOLS.has(tc.name) && !CREATIVE_REVIEW_TOOLS.has(tc.name) && tc.name !== 'write_todos'
 }
 
 const visibleContentBlocks = computed(() =>

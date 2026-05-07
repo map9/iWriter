@@ -25,12 +25,13 @@ export function isRenderableAssistantMessage(message: ThreadMessage): boolean {
   if (!!message.content?.trim()) return true
   if (getReadToolCalls(message).length > 0) return true
   if (!!message.editRoundResult) return true
+  if (!!message.creativeRoundResult) return true
 
   const thinkingContent = message.thinkingContent?.trim() ?? ''
   if (!thinkingContent) return false
 
   const hasReadToolOutput = getReadToolCalls(message).length > 0
-  const hasEditHost = !!message.editRoundResult
+  const hasEditHost = !!message.editRoundResult || !!message.creativeRoundResult
   if (!message.content?.trim() && !hasRenderableTextBlocks(message) && !hasReadToolOutput && !hasEditHost) {
     return false
   }

@@ -2,6 +2,8 @@ import type { ComputedRef, Ref } from 'vue'
 import type {
   AiThread,
   AiToolCall,
+  CreativeReviewItem,
+  CreativeRoundResult,
   EditProposal,
   ThreadMessage,
 } from '@/ai/types'
@@ -38,11 +40,20 @@ interface RuntimeEventsDeps {
     turnId: string | null
     proposals: EditProposal[]
   }) => void
+  handleCreativeInterrupt: (params: {
+    threadId: string
+    turnId: string | null
+    reviews: CreativeReviewItem[]
+  }) => void
   resetEditReviewState: () => void
+  resetCreativeReviewState: () => void
+  notifyCreativeToolResult: (toolName: string, isError: boolean) => void
+  finalizePendingCreativeApply: () => void
   inferToolKind: (toolName: string) => AiToolCall['kind']
   normalizeMessagesForDisplay: (messages: ThreadMessage[]) => ThreadMessage[]
   normalizeMessageForDisplay: (message: ThreadMessage) => ThreadMessage
   getCompletedRoundResult: (threadId: string | null | undefined, turnId: string | null | undefined) => ThreadMessage['editRoundResult'] | null
+  getCompletedCreativeRoundResult: (threadId: string | null | undefined, turnId: string | null | undefined) => CreativeRoundResult | null
   appendMessage: (thread: AiThread, message: ThreadMessage) => AiThread
   updateThread: (thread: AiThread) => void
   notifyError: (message: string) => void
@@ -98,6 +109,9 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
       )
       liveTurn.toolName = null
       deps.liveTurn.value = { ...liveTurn }
+      if (chunk.toolCall?.isError && chunk.toolCall.name) {
+        deps.notifyCreativeToolResult(chunk.toolCall.name, true)
+      }
     }
   }
 
@@ -113,11 +127,19 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
         : undefined,
     })
 
-    deps.handleEditInterrupt({
-      threadId: event.threadId,
-      turnId: event.turnId ?? deps.currentTurnId.value,
-      proposals: event.proposals,
-    })
+    if (event.creativeReviews?.length) {
+      deps.handleCreativeInterrupt({
+        threadId: event.threadId,
+        turnId: event.turnId ?? deps.currentTurnId.value,
+        reviews: event.creativeReviews,
+      })
+    } else {
+      deps.handleEditInterrupt({
+        threadId: event.threadId,
+        turnId: event.turnId ?? deps.currentTurnId.value,
+        proposals: event.proposals,
+      })
+    }
 
     const thread = deps.activeThread.value
     if (thread && thread.id === event.threadId) {
@@ -153,10 +175,12 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
   }
 
   function onRunDone(event: RunDoneEvent) {
+    deps.finalizePendingCreativeApply()
     deps.threadRunState.value = 'idle'
     deps.clearLiveTurn()
     deps.clearRunPointers()
     deps.resetEditReviewState()
+    deps.resetCreativeReviewState()
 
     const thread = deps.activeThread.value
     if (thread && thread.id === event.threadId && !currentRunHasError) {
@@ -173,10 +197,12 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
                 if (message?.role === 'assistant' && (message.turnId === event.turnId || (!message.turnId && !attached))) {
                   const turnId = message.turnId ?? event.turnId
                   const editRoundResult = deps.getCompletedRoundResult(event.threadId, turnId)
+                  const creativeRoundResult = deps.getCompletedCreativeRoundResult(event.threadId, turnId)
                   normalizedMessages[i] = {
                     ...message,
                     turnId,
                     editRoundResult: editRoundResult ?? message.editRoundResult,
+                    creativeRoundResult: creativeRoundResult ?? message.creativeRoundResult,
                   }
                   attached = true
                   if (message.turnId === event.turnId) break
@@ -196,6 +222,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     deps.clearLiveTurn()
     deps.clearRunPointers()
     deps.resetEditReviewState()
+    deps.resetCreativeReviewState()
 
     deps.notifyError(`AI 错误: ${event.error}`)
 
