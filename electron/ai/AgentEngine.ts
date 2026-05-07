@@ -22,7 +22,7 @@ import { Command } from '@langchain/langgraph'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { countTokensApproximately } from 'langchain'
 
-import type { AiProviderConfig, AiAgentDomain, AiAgentMode, ThreadMessage, EditProposal, CreativeReviewItem } from '../../src/types/ai'
+import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage, EditProposal, CreativeReviewItem } from '../../src/types/ai'
 import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS } from '../../src/types/ai'
 import { getModelBudgetInfo } from '../../src/ai/model-budget'
 import { estimateTextTokens } from '../../src/ai/token-estimation'
@@ -177,7 +177,7 @@ export class AgentEngine {
         modelId: runtime.modelId,
         providerConfigId: runtime.providerConfig.id,
         originFilePath: req.editorContext.filePath,
-        thinkMode: runtime.thinkMode,
+        thinkingLevel: runtime.thinkingLevel,
       })
     } else {
       this.threadListQuery!.updateMeta(threadId, {
@@ -185,7 +185,7 @@ export class AgentEngine {
         mode: runtime.mode,
         modelId: runtime.modelId,
         providerConfigId: runtime.providerConfig.id,
-        thinkMode: runtime.thinkMode,
+        thinkingLevel: runtime.thinkingLevel,
         originFilePath: existingMeta?.originFilePath ?? req.editorContext.filePath,
       })
     }
@@ -206,7 +206,7 @@ export class AgentEngine {
     }
 
     const userContent = buildUserMessage(req)
-    this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkMode, userContent)
+    this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent)
 
     // If this thread was left in an interrupted state (e.g., app restart during HITL),
     // clear the stale in-memory entry so the new message starts a fresh run.
@@ -216,7 +216,7 @@ export class AgentEngine {
     }
 
     // Run agent in background
-    this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkMode, userContent).catch(err => {
+    this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent).catch(err => {
       console.error('[AgentEngine] _runSession error:', err)
     })
 
@@ -250,7 +250,7 @@ export class AgentEngine {
 
     const model = createChatModel(runtime.providerConfig, {
       modelId: runtime.modelId,
-      thinkMode: runtime.thinkMode,
+      thinkingLevel: runtime.thinkingLevel,
     })
 
     const systemPrompt = [
@@ -322,7 +322,7 @@ export class AgentEngine {
 
     const model = createChatModel(runtime.providerConfig, {
       modelId: runtime.modelId,
-      thinkMode: runtime.thinkMode,
+      thinkingLevel: runtime.thinkingLevel,
     })
     const profile = (model as BaseChatModel & { profile?: ModelProfile }).profile
     const budget = getModelBudgetInfo(profile)
@@ -396,7 +396,7 @@ export class AgentEngine {
 
     const hiResp = { decisions: lgDecisions }
 
-    this._continueSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkMode, new Command({ resume: hiResp }))
+    this._continueSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, new Command({ resume: hiResp }))
       .catch(err => console.error('[AgentEngine] _continueSession error:', err))
   }
 
@@ -408,10 +408,10 @@ export class AgentEngine {
     domain: AiAgentDomain,
     mode: AiAgentMode,
     modelId: string,
-    thinkMode: string | undefined,
+    thinkingLevel: AiThinkingLevel,
     userContent: string,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkMode)
+    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkingLevel)
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
@@ -431,10 +431,10 @@ export class AgentEngine {
     domain: AiAgentDomain,
     mode: AiAgentMode,
     modelId: string,
-    thinkMode: string | undefined,
+    thinkingLevel: AiThinkingLevel,
     command: typeof Command.prototype,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkMode)
+    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkingLevel)
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
@@ -625,17 +625,17 @@ export class AgentEngine {
     domain: AiAgentDomain,
     mode: AiAgentMode,
     modelId: string,
-    thinkMode?: string,
+    thinkingLevel: AiThinkingLevel,
   ): DeepAgentInstance {
     const mounts = this._getFilesystemMounts(threadId)
     // Include apiKey and baseUrl in the key so that credential updates immediately
     // produce a new agent instance rather than reusing a stale one.
     const keyFingerprint = config.apiKey ? config.apiKey.slice(-8) : ''
     const mountKey = mounts.map(mount => `${mount.virtualPath}:${mount.hostPath}:${mount.kind}`).join('|')
-    const cacheKey = `${threadId}:${config.id}:${domain}:${mode}:${modelId}:${thinkMode ?? ''}:${keyFingerprint}:${config.baseUrl ?? ''}:${mountKey}`
+    const cacheKey = `${threadId}:${config.id}:${domain}:${mode}:${modelId}:${thinkingLevel ?? ''}:${keyFingerprint}:${config.baseUrl ?? ''}:${mountKey}`
     if (this.agentCache.has(cacheKey)) return this.agentCache.get(cacheKey)!
 
-    const model = createChatModel(config, { modelId, thinkMode })
+    const model = createChatModel(config, { modelId, thinkingLevel })
     const capabilities = this._buildAgentCapabilities(domain, mode, mounts)
     const agent = createDeepAgent({
       model,
@@ -778,12 +778,12 @@ export class AgentEngine {
     domain: AiAgentDomain,
     mode: AiAgentMode,
     modelId: string,
-    thinkMode: string | undefined,
+    thinkingLevel: AiThinkingLevel,
     userContent: string,
   ): void {
     const systemPrompt = getSystemPrompt(domain, mode)
     const inputTokens = estimateTextTokens(systemPrompt) + estimateTextTokens(userContent)
-    const model = createChatModel(config, { modelId, thinkMode })
+    const model = createChatModel(config, { modelId, thinkingLevel })
     const budgetInfo = getModelBudgetInfo((model as BaseChatModel & { profile?: ModelProfile }).profile)
     const allowedBudget = budgetInfo.triggerTokens
 

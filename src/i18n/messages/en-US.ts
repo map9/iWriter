@@ -209,6 +209,14 @@ export default {
       ollamaModelsHint:
         'Ollama model list is read automatically from the local Ollama service.',
       advanced: 'Advanced',
+      temperature: 'Temperature',
+      temperatureHint: 'Higher values allow looser, more surprising prose; lower values keep narration steadier.',
+      topP: 'Top P',
+      topPHint: 'Narrows the word-choice pool; lower values make scenes more focused and less wandering.',
+      frequencyPenalty: 'Frequency Penalty',
+      frequencyPenaltyHint: 'Reduces repeated words and phrases, useful for avoiding echoing descriptions.',
+      presencePenalty: 'Presence Penalty',
+      presencePenaltyHint: 'Encourages fresh details and turns, useful when a scene feels stuck in one idea.',
       modelProfiles: 'Model Profiles (JSON)',
       modelProfilesHint:
         'Configure model-specific capabilities by modelId for compatibility and custom models.',
@@ -335,6 +343,13 @@ export default {
       cloudModel: 'Cloud Model',
       remoteModel: 'Remote Model',
       noModelsFound: 'No models found',
+      thinkingLevel: 'Thinking Level',
+      thinkingLevels: {
+        low: 'Low',
+        medium: 'Medium',
+        high: 'High',
+        extraHigh: 'Extra High',
+      },
     },
     modePicker: {
       title: 'Mode',

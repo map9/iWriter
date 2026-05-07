@@ -1,4 +1,4 @@
-import type { AiThread, AiToolCall, ThreadMessage } from '@/ai/types'
+import type { AiThinkingLevel, AiThread, AiToolCall, ThreadMessage } from '@/ai/types'
 import { normalizeAgentMode, resolveAgentDomain } from '@/ai/types'
 import { generateThreadTitle } from './title'
 
@@ -9,7 +9,8 @@ import { generateThreadTitle } from './title'
 export function createThread(
   providerConfigId: string,
   modelId: string,
-  mode: AiThread['mode']
+  mode: AiThread['mode'],
+  thinkingLevel?: AiThinkingLevel,
 ): AiThread {
   const normalizedMode = normalizeAgentMode(mode)
   const now = Date.now()
@@ -24,6 +25,7 @@ export function createThread(
     modelId,
     domain: resolveAgentDomain(normalizedMode),
     mode: normalizedMode,
+    thinkingLevel,
   }
 }
 

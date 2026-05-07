@@ -1,11 +1,18 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useAiStore } from '@/ai/store/ai'
+import type { AiThinkingLevel } from '@/ai/types'
+import { DEFAULT_THINKING_LEVEL, normalizeThinkingLevel } from '@/ai/types'
 
 export type ModelStatus = 'local' | 'cloud' | 'remote'
 
 export interface ModelItem {
   id: string
   status?: ModelStatus
+}
+
+export interface ThinkingLevelItem {
+  value: AiThinkingLevel
+  labelKey: string
 }
 
 interface OllamaModelEntry {
@@ -51,7 +58,7 @@ export function useModelPicker() {
   })
 
   const showModelPicker = computed(() => {
-    return allModelItems.value.length > 1 || isOllamaProvider.value
+    return !!aiStore.effectiveProviderConfig
   })
 
   const currentModelId = computed(() => {
@@ -61,6 +68,21 @@ export function useModelPicker() {
       return models[0]!
     }
     return candidate
+  })
+
+  const thinkingLevelItems: ThinkingLevelItem[] = [
+    { value: 'low', labelKey: 'agentPanel.modelPicker.thinkingLevels.low' },
+    { value: 'medium', labelKey: 'agentPanel.modelPicker.thinkingLevels.medium' },
+    { value: 'high', labelKey: 'agentPanel.modelPicker.thinkingLevels.high' },
+    { value: 'extra_high', labelKey: 'agentPanel.modelPicker.thinkingLevels.extraHigh' },
+  ]
+
+  const currentThinkingLevel = computed<AiThinkingLevel>(() => {
+    return normalizeThinkingLevel(
+      aiStore.activeThread?.thinkingLevel
+      ?? aiStore.effectiveProviderConfig?.lastSelectedThinkingLevel
+      ?? DEFAULT_THINKING_LEVEL,
+    )
   })
 
   async function fetchOllamaModels() {
@@ -96,6 +118,10 @@ export function useModelPicker() {
     aiStore.setCurrentModelId(modelId)
   }
 
+  function selectThinkingLevel(level: AiThinkingLevel) {
+    aiStore.setCurrentThinkingLevel(level)
+  }
+
   watch(
     () => aiStore.effectiveProviderConfig?.id,
     () => { ollamaFetchedModels.value = [] }
@@ -105,6 +131,7 @@ export function useModelPicker() {
     modelSearch, modelSearchEl, isLoadingOllamaModels,
     isOllamaProvider, allModelItems, filteredModelItems,
     showModelPicker, currentModelId,
-    onMenuOpen, selectModel,
+    thinkingLevelItems, currentThinkingLevel,
+    onMenuOpen, selectModel, selectThinkingLevel,
   }
 }

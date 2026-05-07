@@ -16,6 +16,7 @@ import type {
   AiAgentMode,
   AiAgentDomain,
   OpenTabInfo,
+  AiThinkingLevel,
 } from '../../../src/types/ai'
 
 // ── Renderer → Main ────────────────────────────────────────────────────────
@@ -30,7 +31,7 @@ export interface SendMessageRequest {
   threadRuntime?: {
     providerConfigId?: string
     modelId?: string
-    thinkMode?: string
+    thinkingLevel?: AiThinkingLevel
   }
   /** Context from the renderer at send time */
   editorContext: EditorContext
@@ -50,7 +51,7 @@ export interface CompactInputRequest {
   threadRuntime?: {
     providerConfigId?: string
     modelId?: string
-    thinkMode?: string
+    thinkingLevel?: AiThinkingLevel
   }
 }
 

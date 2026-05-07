@@ -6,6 +6,8 @@ export type AiAgentDomain = 'editing' | 'creative'
 
 export type AiAgentMode = 'edit' | 'minimal' | 'creative'
 
+export type AiThinkingLevel = 'low' | 'medium' | 'high' | 'extra_high'
+
 export type AiToolPermission = 'confirm' | 'allow' | 'deny'
 
 export interface AiModelProfile {
@@ -27,6 +29,20 @@ export interface AiModelProfile {
   structuredOutput?: boolean
 }
 
+export interface AiProviderParameters {
+  temperature?: number
+  topP?: number
+  frequencyPenalty?: number
+  presencePenalty?: number
+}
+
+export interface AiProviderParameterSupport {
+  temperature: boolean
+  topP: boolean
+  frequencyPenalty: boolean
+  presencePenalty: boolean
+}
+
 // Provider configuration (stored by user)
 export interface AiProviderConfig {
   id: string
@@ -44,8 +60,10 @@ export interface AiProviderConfig {
   modelProfiles?: Record<string, AiModelProfile>
   /** Last selected model ID for this provider (restored when switching back) */
   lastSelectedModelId?: string
-  /** Last selected mode (think mode) for this provider */
-  lastSelectedMode?: string
+  /** Last selected reasoning/thinking level for this provider */
+  lastSelectedThinkingLevel?: AiThinkingLevel
+  /** Protocol-level generation parameters */
+  parameters?: AiProviderParameters
 }
 
 // ── Tool Call ──────────────────────────────────────────────────────────────
@@ -380,8 +398,8 @@ export interface AiThread {
   modelId: string
   domain: AiAgentDomain
   mode: AiAgentMode
-  /** Current think mode for LLM providers that support it */
-  thinkMode?: string
+  /** Current thinking level for LLM provider protocols that support it */
+  thinkingLevel?: AiThinkingLevel
   /** Set to true when the last run ended with an error (shown in history list) */
   hasError?: boolean
   /** File path this thread was started against (set on first user message). Null = no file was open. */
@@ -422,6 +440,63 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
     delete_block:         'allow',
     replace_range:        'allow',
     create_document:      'allow',
+  }
+}
+
+export const DEFAULT_THINKING_LEVEL: AiThinkingLevel = 'medium'
+
+export const DEFAULT_AI_PROVIDER_PARAMETERS: Required<AiProviderParameters> = {
+  temperature: 0.78,
+  topP: 0.92,
+  frequencyPenalty: 0.2,
+  presencePenalty: 0.25,
+}
+
+export function normalizeThinkingLevel(level: string | undefined): AiThinkingLevel {
+  if (level === 'low') return 'low'
+  if (level === 'medium') return 'medium'
+  if (level === 'high') return 'high'
+  if (level === 'extra_high') return 'extra_high'
+  return DEFAULT_THINKING_LEVEL
+}
+
+export function normalizeProviderParameters(parameters: AiProviderParameters | undefined): Required<AiProviderParameters> {
+  return {
+    temperature: parameters?.temperature ?? DEFAULT_AI_PROVIDER_PARAMETERS.temperature,
+    topP: parameters?.topP ?? DEFAULT_AI_PROVIDER_PARAMETERS.topP,
+    frequencyPenalty: parameters?.frequencyPenalty ?? DEFAULT_AI_PROVIDER_PARAMETERS.frequencyPenalty,
+    presencePenalty: parameters?.presencePenalty ?? DEFAULT_AI_PROVIDER_PARAMETERS.presencePenalty,
+  }
+}
+
+export function isOpenAIResponsesProtocol(type: AiProviderType, baseUrl?: string): boolean {
+  if (type !== 'openai-compat') return false
+  if (!baseUrl) return true
+  return /api\.openai\.com/i.test(baseUrl)
+}
+
+export function getProviderParameterSupport(type: AiProviderType, baseUrl?: string): AiProviderParameterSupport {
+  if (isOpenAIResponsesProtocol(type, baseUrl)) {
+    return {
+      temperature: true,
+      topP: true,
+      frequencyPenalty: false,
+      presencePenalty: false,
+    }
+  }
+  if (type === 'anthropic') {
+    return {
+      temperature: false,
+      topP: true,
+      frequencyPenalty: false,
+      presencePenalty: false,
+    }
+  }
+  return {
+    temperature: true,
+    topP: true,
+    frequencyPenalty: true,
+    presencePenalty: true,
   }
 }
 

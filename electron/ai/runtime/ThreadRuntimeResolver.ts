@@ -1,8 +1,10 @@
-import type { AiAgentDomain, AiAgentMode, AiProviderConfig, AiSettings } from '../../../src/types/ai'
+import type { AiAgentDomain, AiAgentMode, AiProviderConfig, AiSettings, AiThinkingLevel } from '../../../src/types/ai'
 import {
   getDefaultModeForDomain,
+  DEFAULT_THINKING_LEVEL,
   normalizeAgentMode,
   normalizeModeForDomain,
+  normalizeThinkingLevel,
   resolveAgentDomain,
 } from '../../../src/types/ai'
 import type { SendMessageRequest } from '../ipc/protocol'
@@ -13,7 +15,7 @@ export interface ResolvedThreadRuntime {
   domain: AiAgentDomain
   mode: AiAgentMode
   modelId: string
-  thinkMode?: string
+  thinkingLevel: AiThinkingLevel
 }
 
 export function resolveThreadRuntime(
@@ -53,7 +55,12 @@ export function resolveThreadRuntime(
     || providerConfig.defaultModelId
     || providerConfig.models?.[0]
     || ''
-  const thinkMode = req?.threadRuntime?.thinkMode ?? meta?.thinkMode
+  const thinkingLevel = normalizeThinkingLevel(
+    req?.threadRuntime?.thinkingLevel
+    ?? meta?.thinkingLevel
+    ?? providerConfig.lastSelectedThinkingLevel
+    ?? DEFAULT_THINKING_LEVEL,
+  )
 
-  return { providerConfig, domain, mode, modelId, thinkMode }
+  return { providerConfig, domain, mode, modelId, thinkingLevel }
 }

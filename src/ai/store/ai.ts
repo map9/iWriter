@@ -4,6 +4,7 @@ import type {
   AiThread,
   AiProviderConfig,
   AiSettings,
+  AiThinkingLevel,
   AiAgentDomain,
   AiAgentMode,
   ThreadMessage,
@@ -12,8 +13,12 @@ import type {
 import {
   inferToolKind,
   DEFAULT_AI_SETTINGS,
+  DEFAULT_AI_PROVIDER_PARAMETERS,
+  DEFAULT_THINKING_LEVEL,
   normalizeAgentMode,
   normalizeModeForDomain,
+  normalizeProviderParameters,
+  normalizeThinkingLevel,
   resolveAgentDomain,
 } from '@/ai/types'
 import { getProviderPresetById, getProviderPresets, type ProviderPreset } from '@/ai/providers/provider-presets'
@@ -68,6 +73,8 @@ function _loadSettings(): AiSettings {
       return {
         ...cfg,
         modelProfiles: cfg.modelProfiles ?? preset?.modelProfiles,
+        lastSelectedThinkingLevel: normalizeThinkingLevel(cfg.lastSelectedThinkingLevel),
+        parameters: normalizeProviderParameters(cfg.parameters),
       }
     })
     return merged
@@ -106,6 +113,8 @@ export const useAiStore = defineStore('ai', () => {
         presetId: p.id,
         models: p.models,
         modelProfiles: p.modelProfiles,
+        lastSelectedThinkingLevel: DEFAULT_THINKING_LEVEL,
+        parameters: { ...DEFAULT_AI_PROVIDER_PARAMETERS },
       }))
     _initialSettings.activeProviderConfigId = _initialSettings.providerConfigs[0]?.id ?? null
     _saveSettingsToStorage(_initialSettings)
@@ -181,7 +190,7 @@ export const useAiStore = defineStore('ai', () => {
         ...thread,
         providerConfigId: id,
         modelId: nextProvider?.lastSelectedModelId || nextProvider?.defaultModelId || thread.modelId,
-        thinkMode: undefined,
+        thinkingLevel: normalizeThinkingLevel(nextProvider?.lastSelectedThinkingLevel),
       })
     }
   }
@@ -190,21 +199,22 @@ export const useAiStore = defineStore('ai', () => {
   function setCurrentModelId(modelId: string) {
     const config = effectiveProviderConfig.value
     if (config) {
-      updateProviderConfig(config.id, { defaultModelId: modelId })
+      updateProviderConfig(config.id, { defaultModelId: modelId, lastSelectedModelId: modelId })
     }
     if (activeThread.value) {
       updateThread({ ...activeThread.value, modelId })
     }
   }
 
-  /** Persist selected think mode to provider config and current thread */
-  function setCurrentThinkMode(mode: string) {
+  /** Persist selected thinking level to provider config and current thread */
+  function setCurrentThinkingLevel(level: AiThinkingLevel) {
+    const normalizedLevel = normalizeThinkingLevel(level)
     const config = effectiveProviderConfig.value
     if (config) {
-      updateProviderConfig(config.id, { lastSelectedMode: mode })
+      updateProviderConfig(config.id, { lastSelectedThinkingLevel: normalizedLevel })
     }
     if (activeThread.value) {
-      updateThread({ ...activeThread.value, thinkMode: mode })
+      updateThread({ ...activeThread.value, thinkingLevel: normalizedLevel })
     }
   }
 
@@ -253,7 +263,8 @@ export const useAiStore = defineStore('ai', () => {
     const thread = createThread(
       config?.id ?? '',
       config?.defaultModelId ?? '',
-      settings.value.defaultMode
+      settings.value.defaultMode,
+      normalizeThinkingLevel(config?.lastSelectedThinkingLevel),
     )
     threads.value.unshift(thread)
     activeThreadId.value = thread.id
@@ -510,7 +521,11 @@ export const useAiStore = defineStore('ai', () => {
         threadRuntime: {
           providerConfigId: thread.providerConfigId || activeProviderConfig.value?.id,
           modelId: thread.modelId || activeProviderConfig.value?.defaultModelId,
-          thinkMode: thread.thinkMode,
+          thinkingLevel: normalizeThinkingLevel(
+            thread.thinkingLevel
+            ?? effectiveProviderConfig.value?.lastSelectedThinkingLevel
+            ?? DEFAULT_THINKING_LEVEL,
+          ),
         },
         editorContext: {
           filePath: currentFilePath,
@@ -703,7 +718,7 @@ export const useAiStore = defineStore('ai', () => {
     removeProviderConfig,
     setActiveProvider,
     setCurrentModelId,
-    setCurrentThinkMode,
+    setCurrentThinkingLevel,
     setCurrentMode,
     saveSettings,
 

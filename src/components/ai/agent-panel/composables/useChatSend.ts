@@ -69,7 +69,7 @@ export function useChatSend(contextFiles: Ref<string[]>) {
         threadRuntime: {
           providerConfigId: providerId,
           modelId,
-          thinkMode: thread?.thinkMode,
+          thinkingLevel: thread?.thinkingLevel,
         },
       })
       if (!result) return
@@ -145,7 +145,7 @@ export function useChatSend(contextFiles: Ref<string[]>) {
         threadRuntime: {
           providerConfigId: providerId,
           modelId,
-          thinkMode: thread?.thinkMode,
+          thinkingLevel: thread?.thinkingLevel,
         },
       })
       if (!result) return
@@ -169,7 +169,7 @@ export function useChatSend(contextFiles: Ref<string[]>) {
       () => aiStore.activeThread?.id ?? '',
       () => aiStore.activeThread?.providerConfigId ?? aiStore.effectiveProviderConfig?.id ?? '',
       () => aiStore.activeThread?.modelId ?? aiStore.effectiveProviderConfig?.defaultModelId ?? '',
-      () => aiStore.activeThread?.thinkMode ?? '',
+      () => aiStore.activeThread?.thinkingLevel ?? '',
       () => aiStore.activeThread?.domain ?? resolveAgentDomain(aiStore.settings.defaultMode),
       () => aiStore.activeThread?.mode ?? aiStore.settings.defaultMode,
       () => aiStore.activeThread?.updatedAt ?? 0,

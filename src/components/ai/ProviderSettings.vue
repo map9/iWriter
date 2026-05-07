@@ -143,10 +143,38 @@
             </div>
           </section>
 
-          <section v-if="!isPreset" class="mt-5 flex flex-col gap-3">
+          <section class="mt-5 flex flex-col gap-3">
             <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.ai.advanced') }}</h3>
 
-            <div class="flex flex-col gap-1.5">
+            <div class="flex flex-col gap-3">
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div v-if="parameterSupport.temperature" class="flex flex-col gap-1.5">
+                  <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.temperature') }}</label>
+                  <input v-model.number="form.temperature" type="number" min="0" max="2" step="0.01" class="iw-input" />
+                  <span class="text-xs text-base-content/65">{{ t('preferences.ai.temperatureHint') }}</span>
+                </div>
+
+                <div v-if="parameterSupport.topP" class="flex flex-col gap-1.5">
+                  <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.topP') }}</label>
+                  <input v-model.number="form.topP" type="number" min="0" max="1" step="0.01" class="iw-input" />
+                  <span class="text-xs text-base-content/65">{{ t('preferences.ai.topPHint') }}</span>
+                </div>
+
+                <div v-if="parameterSupport.frequencyPenalty" class="flex flex-col gap-1.5">
+                  <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.frequencyPenalty') }}</label>
+                  <input v-model.number="form.frequencyPenalty" type="number" min="-2" max="2" step="0.01" class="iw-input" />
+                  <span class="text-xs text-base-content/65">{{ t('preferences.ai.frequencyPenaltyHint') }}</span>
+                </div>
+
+                <div v-if="parameterSupport.presencePenalty" class="flex flex-col gap-1.5">
+                  <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.presencePenalty') }}</label>
+                  <input v-model.number="form.presencePenalty" type="number" min="-2" max="2" step="0.01" class="iw-input" />
+                  <span class="text-xs text-base-content/65">{{ t('preferences.ai.presencePenaltyHint') }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="!isPreset" class="flex flex-col gap-1.5">
               <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.modelProfiles') }}</label>
               <textarea
                 v-model="form.modelProfilesStr"
@@ -198,6 +226,11 @@ import { useI18n } from 'vue-i18n'
 import { IconTrash, IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/store/ai'
 import type { AiModelProfile, AiProviderConfig, AiProviderType } from '@/ai/types'
+import {
+  DEFAULT_AI_PROVIDER_PARAMETERS,
+  getProviderParameterSupport,
+  normalizeProviderParameters,
+} from '@/ai/types'
 import {
   getProviderPresetById,
   type ProviderPreset,
@@ -252,6 +285,10 @@ interface FormState {
   baseUrl: string
   modelsStr: string       // comma-separated model IDs
   modelProfilesStr: string
+  temperature: number
+  topP: number
+  frequencyPenalty: number
+  presencePenalty: number
 }
 
 const form = ref<FormState>({
@@ -261,7 +298,13 @@ const form = ref<FormState>({
   baseUrl: '',
   modelsStr: '',
   modelProfilesStr: '',
+  temperature: DEFAULT_AI_PROVIDER_PARAMETERS.temperature,
+  topP: DEFAULT_AI_PROVIDER_PARAMETERS.topP,
+  frequencyPenalty: DEFAULT_AI_PROVIDER_PARAMETERS.frequencyPenalty,
+  presencePenalty: DEFAULT_AI_PROVIDER_PARAMETERS.presencePenalty,
 })
+
+const parameterSupport = computed(() => getProviderParameterSupport(form.value.type, form.value.baseUrl))
 
 const modelProfilesError = computed(() => {
   if (isPreset.value || !form.value.modelProfilesStr.trim()) return ''
@@ -277,6 +320,10 @@ const modelProfilesError = computed(() => {
 })
 
 const canSave = computed(() => !!form.value.label.trim() && !modelProfilesError.value)
+
+function numberOrDefault(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
 
 const headerTitle = computed(() => {
   if (view.value === 'main') return ''
@@ -295,12 +342,17 @@ function selectCustom() {
     baseUrl: '',
     modelsStr: '',
     modelProfilesStr: '',
+    temperature: DEFAULT_AI_PROVIDER_PARAMETERS.temperature,
+    topP: DEFAULT_AI_PROVIDER_PARAMETERS.topP,
+    frequencyPenalty: DEFAULT_AI_PROVIDER_PARAMETERS.frequencyPenalty,
+    presencePenalty: DEFAULT_AI_PROVIDER_PARAMETERS.presencePenalty,
   }
   showKey.value = false
   view.value = 'configure'
 }
 
 function startEdit(cfg: AiProviderConfig) {
+  const parameters = normalizeProviderParameters(cfg.parameters)
   editingId.value = cfg.id
   selectedPreset.value = cfg.presetId
     ? (getProviderPresetById(cfg.presetId) ?? null)
@@ -312,6 +364,10 @@ function startEdit(cfg: AiProviderConfig) {
     baseUrl: cfg.baseUrl ?? '',
     modelsStr: (cfg.models ?? []).join(', '),
     modelProfilesStr: cfg.modelProfiles ? JSON.stringify(cfg.modelProfiles, null, 2) : '',
+    temperature: parameters.temperature,
+    topP: parameters.topP,
+    frequencyPenalty: parameters.frequencyPenalty,
+    presencePenalty: parameters.presencePenalty,
   }
   showKey.value = false
   view.value = 'configure'
@@ -343,6 +399,12 @@ function submitForm() {
     presetId: selectedPreset.value?.id,
     models: modelsArr.length ? modelsArr : (selectedPreset.value?.models),
     modelProfiles: isPreset.value ? selectedPreset.value?.modelProfiles : modelProfiles,
+    parameters: {
+      temperature: numberOrDefault(form.value.temperature, DEFAULT_AI_PROVIDER_PARAMETERS.temperature),
+      topP: numberOrDefault(form.value.topP, DEFAULT_AI_PROVIDER_PARAMETERS.topP),
+      frequencyPenalty: numberOrDefault(form.value.frequencyPenalty, DEFAULT_AI_PROVIDER_PARAMETERS.frequencyPenalty),
+      presencePenalty: numberOrDefault(form.value.presencePenalty, DEFAULT_AI_PROVIDER_PARAMETERS.presencePenalty),
+    },
   }
 
   if (editingId.value) {

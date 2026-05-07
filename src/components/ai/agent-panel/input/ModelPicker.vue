@@ -68,6 +68,25 @@
             {{ t('agentPanel.modelPicker.noModelsFound') }}
           </div>
         </div>
+
+        <div class="my-1 border-t border-base-300" />
+
+        <div class="px-1.5 pb-1 text-xs font-semibold text-base-content/40">
+          {{ t('agentPanel.modelPicker.thinkingLevel') }}
+        </div>
+        <button
+          v-for="option in thinkingLevelItems"
+          :key="option.value"
+          @click="doSelectThinkingLevel(option.value)"
+          class="w-full flex items-center gap-2 px-2 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300 text-left"
+        >
+          <span class="icon-dot shrink-0"
+            :class="option.value === currentThinkingLevel ? 'bg-primary' : 'bg-transparent'"
+          />
+          <span class="truncate flex-1"
+            :class="option.value === currentThinkingLevel ? 'font-semibold text-base-content' : ''"
+          >{{ t(option.labelKey) }}</span>
+        </button>
       </div>
     </Teleport>
   </div>
@@ -78,12 +97,26 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconChevronDown, IconCloud, IconCube, IconDownload } from '@tabler/icons-vue'
 import { useModelPicker } from '../composables/useModelPicker'
+import type { AiThinkingLevel } from '@/ai/types'
 
 const props = defineProps<{ isOpen: boolean; compact?: boolean }>()
 const emit = defineEmits<{ open: []; close: [] }>()
 const { t } = useI18n()
 
-const { modelSearch, modelSearchEl, isLoadingOllamaModels, allModelItems, filteredModelItems, showModelPicker, currentModelId, onMenuOpen, selectModel } = useModelPicker()
+const {
+  modelSearch,
+  modelSearchEl,
+  isLoadingOllamaModels,
+  allModelItems,
+  filteredModelItems,
+  showModelPicker,
+  currentModelId,
+  thinkingLevelItems,
+  currentThinkingLevel,
+  onMenuOpen,
+  selectModel,
+  selectThinkingLevel,
+} = useModelPicker()
 const triggerEl = ref<HTMLElement | null>(null)
 const menuEl = ref<HTMLElement | null>(null)
 const menuWidth = 224
@@ -106,6 +139,11 @@ function onToggle() {
 
 function doSelect(id: string) {
   selectModel(id)
+  emit('close')
+}
+
+function doSelectThinkingLevel(level: AiThinkingLevel) {
+  selectThinkingLevel(level)
   emit('close')
 }
 

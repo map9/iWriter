@@ -7,31 +7,40 @@
 
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import type { ModelProfile } from '@langchain/core/language_models/profile'
-import type { AiProviderConfig } from '../../../src/types/ai'
+import type { AiProviderConfig, AiThinkingLevel } from '../../../src/types/ai'
+import {
+  getProviderParameterSupport,
+  isOpenAIResponsesProtocol,
+  normalizeProviderParameters,
+  normalizeThinkingLevel,
+} from '../../../src/types/ai'
 import { ChatDeepSeek } from './ChatDeepSeek'
 
 export interface ChatModelRuntimeOptions {
   modelId?: string
-  thinkMode?: string
+  thinkingLevel?: AiThinkingLevel
 }
 
-function isOpenAIHostedBaseUrl(baseUrl?: string): boolean {
-  if (!baseUrl) return true
-  return /api\.openai\.com/i.test(baseUrl)
+function mapThinkingLevelToOpenAIReasoningEffort(thinkingLevel?: AiThinkingLevel): 'low' | 'medium' | 'high' | 'xhigh' {
+  const normalized = normalizeThinkingLevel(thinkingLevel)
+  if (normalized === 'extra_high') return 'xhigh'
+  return normalized
 }
 
-function isOpenAIReasoningModel(modelId: string): boolean {
-  return /^(gpt-5|o1|o3|o4)/i.test(modelId)
+const THINKING_TOKEN_BUDGETS: Record<AiThinkingLevel, number> = {
+  low: 1024,
+  medium: 4096,
+  high: 8192,
+  extra_high: 16384,
 }
 
-function mapThinkModeToReasoningEffort(thinkMode?: string): 'low' | 'medium' | 'high' | undefined {
-  const normalized = thinkMode?.trim().toLowerCase()
-  if (!normalized || normalized === 'normal') return undefined
-  if (normalized === 'think') return 'medium'
-  if (normalized === 'low') return 'low'
-  if (normalized === 'medium') return 'medium'
-  if (normalized === 'high') return 'high'
-  return 'medium'
+function mapThinkingLevelToBudget(thinkingLevel?: AiThinkingLevel): number {
+  return THINKING_TOKEN_BUDGETS[normalizeThinkingLevel(thinkingLevel)]
+}
+
+function normalizeAnthropicThinkingTopP(topP: number): number | undefined {
+  if (topP < 0.95 || topP > 1) return undefined
+  return topP
 }
 
 function getProfileOverride(config: AiProviderConfig, modelId: string): ModelProfile | undefined {
@@ -69,15 +78,17 @@ export function createChatModel(
   runtime: ChatModelRuntimeOptions = {},
 ): BaseChatModel {
   const modelId = runtime.modelId || config.lastSelectedModelId || config.defaultModelId
+  const thinkingLevel = normalizeThinkingLevel(runtime.thinkingLevel ?? config.lastSelectedThinkingLevel)
+  const parameters = normalizeProviderParameters(config.parameters)
+  const parameterSupport = getProviderParameterSupport(config.type, config.baseUrl)
 
   switch (config.type) {
     case 'openai-compat': {
       // Lazy import to avoid loading unused providers
       const { ChatOpenAI } = require('@langchain/openai')
       const key = config.apiKey || 'no-key'
-      const isTrueOpenAI = isOpenAIHostedBaseUrl(config.baseUrl)
-      const useOpenAIReasoning = isTrueOpenAI && isOpenAIReasoningModel(modelId)
-      const reasoningEffort = mapThinkModeToReasoningEffort(runtime.thinkMode)
+      const isTrueOpenAI = isOpenAIResponsesProtocol(config.type, config.baseUrl)
+      const reasoningEffort = mapThinkingLevelToOpenAIReasoningEffort(thinkingLevel)
       const model = new ChatOpenAI({
         model: modelId,
         apiKey: key,
@@ -85,15 +96,23 @@ export function createChatModel(
           ? { baseURL: config.baseUrl }
           : undefined,
         streaming: true,
-        ...(useOpenAIReasoning
+        ...(parameterSupport.temperature ? { temperature: parameters.temperature } : {}),
+        ...(parameterSupport.topP ? { topP: parameters.topP } : {}),
+        ...(isTrueOpenAI
           ? {
               useResponsesApi: true,
               reasoning: {
                 summary: 'auto',
-                ...(reasoningEffort ? { effort: reasoningEffort } : {}),
+                effort: reasoningEffort,
               },
             }
-          : {}),
+          : {
+              modelKwargs: {
+                reasoning_effort: reasoningEffort,
+                ...(parameterSupport.frequencyPenalty ? { frequency_penalty: parameters.frequencyPenalty } : {}),
+                ...(parameterSupport.presencePenalty ? { presence_penalty: parameters.presencePenalty } : {}),
+              },
+            }),
       }) as BaseChatModel
       return applyProfileOverride(model, getProfileOverride(config, modelId))
     }
@@ -106,16 +125,30 @@ export function createChatModel(
         baseUrl: config.baseUrl,
         streaming: true,
         profile: getProfileOverride(config, modelId),
+        thinkingLevel,
+        ...(parameterSupport.temperature ? { temperature: parameters.temperature } : {}),
+        ...(parameterSupport.topP ? { topP: parameters.topP } : {}),
+        ...(parameterSupport.frequencyPenalty ? { frequencyPenalty: parameters.frequencyPenalty } : {}),
+        ...(parameterSupport.presencePenalty ? { presencePenalty: parameters.presencePenalty } : {}),
       }) as BaseChatModel
     }
 
     case 'anthropic': {
       const { ChatAnthropic } = require('@langchain/anthropic')
+      const thinkingBudget = mapThinkingLevelToBudget(thinkingLevel)
       return applyProfileOverride(new ChatAnthropic({
         model: modelId,
         anthropicApiKey: config.apiKey,
         streaming: true,
-      }) as BaseChatModel, getProfileOverride(config, modelId))
+        ...(parameterSupport.topP && normalizeAnthropicThinkingTopP(parameters.topP) != null
+          ? { topP: normalizeAnthropicThinkingTopP(parameters.topP) }
+          : {}),
+        maxTokens: thinkingBudget + 2048,
+        thinking: {
+          type: 'enabled',
+          budget_tokens: thinkingBudget,
+        },
+      } as any) as BaseChatModel, getProfileOverride(config, modelId))
     }
 
     case 'gemini': {
@@ -124,7 +157,14 @@ export function createChatModel(
         model: modelId,
         apiKey: config.apiKey,
         streaming: true,
-      }) as BaseChatModel, getProfileOverride(config, modelId))
+        ...(parameterSupport.temperature ? { temperature: parameters.temperature } : {}),
+        ...(parameterSupport.topP ? { topP: parameters.topP } : {}),
+        ...(parameterSupport.frequencyPenalty ? { frequencyPenalty: parameters.frequencyPenalty } : {}),
+        ...(parameterSupport.presencePenalty ? { presencePenalty: parameters.presencePenalty } : {}),
+        thinkingConfig: {
+          thinkingBudget: mapThinkingLevelToBudget(thinkingLevel),
+        },
+      } as any) as BaseChatModel, getProfileOverride(config, modelId))
     }
 
     default:

@@ -13,8 +13,8 @@
  */
 
 import type { CheckpointerInstance } from '../checkpoint/CheckpointerFactory'
-import type { AiThread, AiAgentMode, AiAgentDomain } from '../../../src/types/ai'
-import { normalizeAgentMode } from '../../../src/types/ai'
+import type { AiThread, AiAgentMode, AiAgentDomain, AiThinkingLevel } from '../../../src/types/ai'
+import { normalizeAgentMode, normalizeThinkingLevel } from '../../../src/types/ai'
 
 const MAX_THREADS = 100
 
@@ -29,7 +29,7 @@ export interface ThreadMeta {
   createdAt: number
   updatedAt: number
   hasError?: boolean
-  thinkMode?: string
+  thinkingLevel?: AiThinkingLevel
 }
 
 // ─── SQLite helpers ──────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ function ensureTable(db: any): void {
       created_at        INTEGER NOT NULL,
       updated_at        INTEGER NOT NULL,
       has_error         INTEGER DEFAULT 0,
-      think_mode        TEXT
+      thinking_level        TEXT
     )
   `)
   try {
@@ -57,6 +57,9 @@ function ensureTable(db: any): void {
       .map(col => String(col.name))
     if (!cols.includes('domain')) {
       db.exec(`ALTER TABLE thread_metadata ADD COLUMN domain TEXT NOT NULL DEFAULT 'editing'`)
+    }
+    if (!cols.includes('thinking_level')) {
+      db.exec('ALTER TABLE thread_metadata ADD COLUMN thinking_level TEXT')
     }
   } catch {
     // ignore migration errors; CREATE TABLE path already covers new installs
@@ -76,7 +79,7 @@ function rowToMeta(row: any): ThreadMeta {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     hasError: !!row.has_error,
-    thinkMode: row.think_mode ?? undefined,
+    thinkingLevel: row.thinking_level ? normalizeThinkingLevel(row.thinking_level) : undefined,
   }
 }
 
@@ -132,7 +135,7 @@ export class ThreadListQuery {
     modelId: string
     providerConfigId: string
     originFilePath?: string | null
-    thinkMode?: string
+    thinkingLevel?: AiThinkingLevel
   }): ThreadMeta {
     const now = Date.now()
     const meta: ThreadMeta = {
@@ -145,7 +148,7 @@ export class ThreadListQuery {
       originFilePath: params.originFilePath ?? null,
       createdAt: now,
       updatedAt: now,
-      thinkMode: params.thinkMode,
+      thinkingLevel: params.thinkingLevel,
     }
     this._saveMeta(meta)
     return meta
@@ -155,7 +158,7 @@ export class ThreadListQuery {
     id: string,
     updates: Partial<Pick<
       ThreadMeta,
-      'title' | 'hasError' | 'updatedAt' | 'domain' | 'mode' | 'modelId' | 'providerConfigId' | 'thinkMode' | 'originFilePath'
+      'title' | 'hasError' | 'updatedAt' | 'domain' | 'mode' | 'modelId' | 'providerConfigId' | 'thinkingLevel' | 'originFilePath'
     >>,
   ): void {
     const meta = this.getMeta(id)
@@ -199,7 +202,7 @@ export class ThreadListQuery {
       this.db.prepare(`
         INSERT OR REPLACE INTO thread_metadata
           (thread_id, title, domain, mode, model_id, provider_config_id,
-           origin_file_path, created_at, updated_at, has_error, think_mode)
+           origin_file_path, created_at, updated_at, has_error, thinking_level)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         meta.id,
@@ -212,7 +215,7 @@ export class ThreadListQuery {
         meta.createdAt,
         meta.updatedAt,
         meta.hasError ? 1 : 0,
-        meta.thinkMode ?? null,
+        meta.thinkingLevel ?? null,
       )
       return
     }
@@ -239,7 +242,7 @@ export function metaToAiThread(meta: ThreadMeta): AiThread {
     modelId: meta.modelId,
     domain: meta.domain,
     mode: meta.mode,
-    thinkMode: meta.thinkMode,
+    thinkingLevel: meta.thinkingLevel,
     hasError: meta.hasError,
     originFilePath: meta.originFilePath,
   }
