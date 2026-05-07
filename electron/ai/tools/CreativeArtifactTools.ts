@@ -4,16 +4,20 @@ import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import { getRuntimeConfigurable } from './runtimeHelpers'
 
-const STORY_SECTIONS = [
+export const STORY_SECTIONS = [
   'brainstorms',
   'worldbook',
   'characters',
   'storylines',
   'scenes',
+  'timeline',
+  'foreshadowing',
+  'outlines',
+  'style',
   'notes',
 ] as const
 
-type StorySection = typeof STORY_SECTIONS[number]
+export type StorySection = typeof STORY_SECTIONS[number]
 
 
 function normalizeSlug(slug: string): string {
@@ -69,7 +73,7 @@ export function buildCreativeArtifactTools(aiRootPath: string) {
       name: 'list_story_assets',
       description:
         'List saved story-planning assets under the current project story workspace. ' +
-        'Use this before creating or revising worldbuilding, character, storyline, or brainstorm files.',
+        'Use this before creating or revising brainstorm, worldbook, character, storyline, scene, timeline, foreshadowing, outline, style, or note files.',
       schema: z.object({
         section: z.enum(STORY_SECTIONS).optional().describe('Optional section to filter by.'),
       }),
@@ -92,7 +96,7 @@ export function buildCreativeArtifactTools(aiRootPath: string) {
     {
       name: 'read_story_asset',
       description:
-        'Read a saved story-planning asset such as a worldbook entry, character sheet, storyline plan, or brainstorm note.',
+        'Read a saved story-planning asset such as a worldbook entry, character sheet, storyline plan, scene card, timeline, foreshadowing entry, outline, style profile, or brainstorm note.',
       schema: z.object({
         section: z.enum(STORY_SECTIONS).describe('Which story asset section to read from.'),
         slug: z.string().describe('Asset slug or short identifier.'),
@@ -127,7 +131,7 @@ export function buildCreativeArtifactTools(aiRootPath: string) {
       name: 'save_story_asset',
       description:
         'Create or overwrite a structured story-planning markdown file. ' +
-        'Use this to persist brainstorm results, worldbook notes, character sheets, storylines, or scene plans.',
+        'Use this to persist brainstorm results, worldbook notes, character sheets, storylines, scene plans, timelines, foreshadowing entries, outlines, style profiles, or notes.',
       schema: z.object({
         section: z.enum(STORY_SECTIONS).describe('Which story asset section to save into.'),
         slug: z.string().describe('Asset slug or short identifier used as the markdown filename.'),
