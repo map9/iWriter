@@ -35,7 +35,11 @@
         <button class="iw-btn btn-sm btn-ghost" @click="sendDecision('cancel')">
           Cancel
         </button>
-        <button class="iw-btn btn-sm btn-outline" @click="sendDecision('adjust')">
+        <button
+          class="iw-btn btn-sm btn-outline"
+          :disabled="!adjustmentText.trim()"
+          @click="sendDecision('adjust')"
+        >
           Adjust
         </button>
         <button class="iw-btn btn-sm btn-primary" @click="sendDecision('confirm')">
