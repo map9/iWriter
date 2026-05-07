@@ -288,7 +288,7 @@ class ConfirmGate {
 - T4a 输出叫 `CompressionDraft`，不是最终资产。T4c 在用户确认场景和别名后，才把 draft 归一化成最终 `StoryAsset`。
 - 模型输出 JSON，不直接输出 YAML；写入时由 `StoryStateStore` 序列化为 YAML frontmatter + Markdown。
 - `novel:start-compress` 参数应支持 `{ filePath?, providerConfigId?, modelId?, thinkMode? }`，与现有 provider runtime 思路一致。
-- story assets 根目录需要在 T4c 明确，建议先用 `~/.iwriter/ai/story-assets/<source-file-basename>/`。
+- story assets 根目录沿用 workspace-relative 布局：`{workspace}/.iwriter/story/`，与 `CreativeArtifactTools` 和 T2 `StoryStateStore` 保持一致。
 
 **LLM schema 合规风险**（最高风险）：
 - 必须在 prompt 里给完整 JSON 示例
@@ -321,7 +321,7 @@ class ConfirmGate {
 **建议拆分**：
 - T4a Extractor：SKILL.md + `extractChapter()` + JSON parse / retry / schema validate，不确认、不写盘。
 - T4b Confirm UI：`scene_split`、`alias_merge`、`story_state_write` 三种专用视图。
-- T4c Orchestrator：串联 T3/T4a/T4b/T2/T5，负责 provider runtime、目标目录、alias 归一和写入错误记录。
+- T4c Orchestrator：串联 T3/T4a/T4b/T2，负责 provider runtime、目标目录、alias 归一和写入错误记录。
 - T4d 验收：真实样章端到端跑通，生成文件可被 `StoryStateStore.readAsset()` 读回。
 
 验收（对应 M3）：
@@ -419,7 +419,7 @@ Spike 需要确认三件事：
 
 | 风险 | 严重度 | 缓解 |
 |------|--------|------|
-| LLM YAML 输出格式不稳定（T4） | 高 | prompt 里给完整示例；写入前 Zod 校验；最多重试 2 次；必要时改为 JSON 输出再转 YAML |
+| LLM JSON 输出格式不稳定（T4） | 高 | prompt 给完整 JSON 示例；Zod 校验失败后带错误消息重试，最多 2 次；全部失败则报错，不写盘 |
 | `editReview.ts` source 分支改动影响现有审批流（T6） | 中 | Spike 先确认改动 diff；改动 < 30 行；现有 agent 路径不动 |
 | SnapshotBroker 10 秒超时（T3/T4） | 中 | 目前够用；大文件压缩时可适当提高超时阈值 |
 | `confidence < 0.6` 条目过多影响用户体验 | 低 | 软标记"需复核"，不阻止写入；用户可以直接编辑 asset 文件 |

@@ -524,7 +524,7 @@ novel-harness/
 - [ ] T3.4 无标题结构时，按 2000 字固定窗口分块并标注为"未命名章节 N"
 - [ ] T3.5 验收 M2 全部条目
 
-**T4 · compress 单章（T2、T3、T5 完成后）**
+**T4 · compress 单章（T2、T3 完成后）**
 
 **用户体验目标**：用户打开小说文档 → 点击压缩 → 确认章节边界 → 模型压缩单章 → 确认场景拆分 → 确认人物别名归并 → 确认即将写入的 story assets → 写入 `characters/`、`scenes/`、`timeline/` 等结构化文件。
 
@@ -547,10 +547,10 @@ novel-harness/
 **T4c · Orchestrator（完整编排）**
 - [ ] T4c.1 扩展 `novel:start-compress` 参数：`{ filePath?, providerConfigId?, modelId?, thinkMode? }`
 - [ ] T4c.2 `NovelHarness.startCompress()` 串联：章节边界确认（T3）→ `extractChapter()`（T4a）→ scene_split → alias_merge → story_state_write → `StoryStateStore.writeAsset()`
-- [ ] T4c.3 拍板并实现 story assets 根目录，例如 `~/.iwriter/ai/story-assets/<source-file-basename>/`
+- [ ] T4c.3 沿用 workspace-relative story assets 根目录：`{workspace}/.iwriter/story/`
 - [ ] T4c.4 alias merge 后重写 `SceneCard.characters`，把别名归一到 canonicalName / suggestedId
 - [ ] T4c.5 写入采用 MVP 策略：逐条写，某条失败记录错误继续，不回滚已成功写入条目
-- [ ] T4c.6 写入前用 T5 `ConsistencyValidator` 生成软校验报告，报告只提示不阻断
+- [ ] T4c.6 写入前对最终 `StoryAsset` 再跑一次 T1 Zod schema 校验；校验失败的条目不写入并记录错误
 
 **T4d · 验收与样章**
 - [ ] T4d.1 打开一个有标题的真实文档 → 触发 compress → 依次看到 4 个确认节点
@@ -696,7 +696,7 @@ novel-harness/
 |------|------|---------|
 | Token 压力 | 百万字小说分块数量大，多轮 API 调用成本高 | Phase 3.2.1 只做单章；提供批次进度显示 |
 | 实体归并质量 | 同一人物别名识别错误会导致人物卡分裂或合并错误 | 确认节点 3 强制用户核对；`aliases` 列表显式存储且可编辑 |
-| schema 漂移 | SKILL.md 生成结果字段不稳定 | YAML frontmatter 强制 schema；LLM 输出时提供 JSON schema 约束；写入前验证（T2.2）|
+| schema 漂移 | SKILL.md 生成结果字段不稳定 | LLM 默认输出 JSON draft；prompt 提供完整 JSON 示例；Zod 校验失败后带错误消息重试，最终写盘由 StoryStateStore 转成 YAML frontmatter |
 | 风格保留 | 扩写结果风格与原文有偏差 | `StyleProfile.sample_paragraphs` few-shot 注入；用户可手动补充样本段落 |
 | 一致性校验误报 | 校验过严导致大量正常提案被标记 | 软校验优先（可调整建议 C）；校验结果为建议，不自动阻止 |
 | 角色出戏 | 互动模式中角色行为偏离人物卡 | 人物卡 + 世界观强注入系统提示；每 N 轮对话后重注入 |
