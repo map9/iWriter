@@ -63,7 +63,6 @@
         class="label"
         :class="customLabelClass"
         :style="customLabelStyle"
-        @click="handleLabelClick"
         @dblclick="handleDoubleClick"
       >
         {{ node.label }}
@@ -105,6 +104,7 @@
         :depth="depth + 1"
         :initialDepth="initialDepth"
         :drop-mode="dropMode"
+        :item-click-mode="itemClickMode"
         @node-click="$emit('node-click', $event)"
         @node-check="$emit('node-check', $event)"
         @node-rename="$emit('node-rename', $event)"
@@ -121,7 +121,7 @@
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
 import { ref, computed, nextTick, onUnmounted } from 'vue'
-import type { TreeNode, TreeCallbacks, DropMode } from './index'
+import type { TreeNode, TreeCallbacks, DropMode, TreeItemClickMode } from './index'
 import { dragDropState } from './drag-drop.ts'
 
 interface Props {
@@ -130,6 +130,7 @@ interface Props {
   depth?: number
   initialDepth?: number
   dropMode?: DropMode
+  itemClickMode?: TreeItemClickMode
 }
 
 interface Emits {
@@ -146,7 +147,8 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   depth: 0,
   initialDepth: 0,
-  dropMode: 'all'
+  dropMode: 'all',
+  itemClickMode: 'rename',
 })
 
 const emit = defineEmits<Emits>()
@@ -282,26 +284,30 @@ const selectedClasses = computed(() => {
 
 const handleClick = (event: MouseEvent) => {
   if (props.node.isEnabled === false) return
-  emit('node-click', { node: props.node, event })
-}
+  if (event.detail > 1) return
 
-const handleLabelClick = (event: MouseEvent) => {
-  if (props.node.isEnabled === false) return
-  
-  // Stop propagation to prevent the node click event
-  event.stopPropagation()
-  
-  // If node is already selected, start rename
-  if (props.node.isSelected) {
+  const wasSelected = !!props.node.isSelected
+  emit('node-click', { node: props.node, event })
+
+  if (event.ctrlKey || event.metaKey || event.shiftKey) {
+    return
+  }
+
+  if (props.itemClickMode === 'expand') {
+    if (hasChildren.value) {
+      toggleExpanded()
+    }
+    return
+  }
+
+  if (wasSelected) {
     startRename()
-  } else {
-    // If not selected, emit click to select it first
-    emit('node-click', { node: props.node, event })
   }
 }
 
 const handleDoubleClick = () => {
   if (props.node.isEnabled === false) return
+  if (props.itemClickMode !== 'rename') return
   // Always start rename on double-click if allowed
   startRename()
 }

@@ -23,6 +23,7 @@ export interface TreeNode {
 
 export type DropPosition = 'before' | 'after' | 'inside'
 export type DropMode = 'all' | 'inside-only'
+export type TreeItemClickMode = 'expand' | 'rename'
 
 export interface TreeCallbacks {
   canCheck?: (node: TreeNode) => boolean

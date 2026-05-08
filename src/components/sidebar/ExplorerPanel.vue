@@ -107,6 +107,7 @@
         class="file-tree"
         :callbacks="fileCallbacks"
         drop-mode="inside-only"
+        item-click-mode="expand"
         :initialDepth="0"
         @node-click="handleNodeClick"
         @node-contextmenu="handleNodeContextMenu"

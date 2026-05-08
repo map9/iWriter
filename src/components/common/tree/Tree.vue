@@ -23,6 +23,7 @@
       :callbacks="callbacks"
       :initialDepth="initialDepth"
       :drop-mode="dropMode"
+      :item-click-mode="itemClickMode"
       @node-click="(data: any) => handleNodeClick(data.node, data.event)"
       @node-check="handleNodeCheck"
       @node-rename="handleNodeRename"
@@ -38,7 +39,7 @@
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
 import { computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
-import type { TreeNode as TreeNodeType, TreeCallbacks, DropMode } from './index'
+import type { TreeNode as TreeNodeType, TreeCallbacks, DropMode, TreeItemClickMode } from './index'
 import TreeNode from './TreeNode.vue'
 import { dragDropState } from './drag-drop.ts'
 
@@ -48,6 +49,7 @@ interface Props {
   dropMode?: DropMode
   initialDepth?: number
   multiSelectable?: boolean
+  itemClickMode?: TreeItemClickMode
 }
 
 interface Emits {
@@ -79,6 +81,7 @@ const props = withDefaults(defineProps<Props>(), {
   dropMode: 'all',
   initialDepth: 0,
   multiSelectable: false,
+  itemClickMode: 'rename',
 })
 const emit = defineEmits<Emits>()
 
