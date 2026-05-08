@@ -105,7 +105,6 @@ function shouldPreserveStructuredToolResult(toolName: string, output: unknown): 
 
   const plainTextTools = new Set([
     'read_file',
-    'read_story_asset',
     'execute',
   ])
   if (plainTextTools.has(toolName)) return false

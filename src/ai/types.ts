@@ -549,6 +549,8 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     read_fragments:       'read',
     search_draft:         'search',
     get_session_diff:     'read',
+    get_storybible_rebuild_signal: 'read',
+    run_consistency_check: 'search',
     add_fragment:         'edit',
     patch_storybible:     'edit',
     confirm_writing_plan: 'edit',

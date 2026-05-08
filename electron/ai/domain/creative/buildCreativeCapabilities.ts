@@ -3,20 +3,27 @@ import { CompositeBackend, FilesystemBackend } from 'deepagents'
 import type { DomainAgentCapabilities } from '../types'
 import type { FilesystemMount } from '../../runtime/FilesystemMounts'
 import { buildCreativeTools } from '../../tools/CreativeTools'
+import { buildCreativeAnalysisTools } from '../../tools/CreativeAnalysisTools'
 import type { CreativeDb } from '../../db/CreativeDb'
 import { WorkspaceFilesystemBackend } from '../../runtime/WorkspaceFilesystemBackend'
+import type { SnapshotBroker } from '../../document/SnapshotBroker'
 
 export function buildCreativeCapabilities(
   aiRootPath: string,
   mounts: FilesystemMount[],
   creativeDb: CreativeDb | null,
+  snapshotBroker: SnapshotBroker,
 ): DomainAgentCapabilities {
   const workspaceMount = mounts.find(mount => mount.virtualPath === '/')
   const workspacePath = workspaceMount?.hostPath ?? null
 
   return {
-    tools: [...buildCreativeTools({ workspacePath, creativeDb })],
+    tools: [
+      ...buildCreativeTools({ workspacePath, creativeDb, snapshotBroker }),
+      ...buildCreativeAnalysisTools({ workspacePath, creativeDb, snapshotBroker }),
+    ],
     skills: ['/skills/'],
+    subAgents: [],
     backend: new CompositeBackend(
       new WorkspaceFilesystemBackend(workspacePath ?? path.join(aiRootPath, 'empty-fs')),
       {

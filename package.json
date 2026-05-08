@@ -30,7 +30,7 @@
     "predocs:build": "node scripts/optimize-docs-images.mjs",
     "docs:build": "cross-env BASE_PATH=/iWriter/ vitepress build docs",
     "docs:preview": "cross-env BASE_PATH=/iWriter/ vitepress preview docs",
-    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
     "type-check": "vue-tsc --noEmit",
     "version": "node scripts/sync-docs-version.mjs --finalize-release && git add package.json package-lock.json docs"
   },

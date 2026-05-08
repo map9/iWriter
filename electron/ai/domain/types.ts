@@ -6,4 +6,5 @@ export interface DomainAgentCapabilities {
   skills: string[]
   backend?: BackendProtocol | CompositeBackend | FilesystemBackend | LocalShellBackend
   interruptOn?: Record<string, { allowedDecisions: string[] }>
+  subAgents?: unknown[]
 }

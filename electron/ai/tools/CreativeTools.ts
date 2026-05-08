@@ -3,7 +3,10 @@ import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import type { CreativeDb } from '../db/CreativeDb'
+import type { SnapshotBroker } from '../document/SnapshotBroker'
+import { DocumentSearch, listWorkspaceDocumentPaths } from '../document/DocumentSearch'
 import { getRuntimeString } from './runtimeHelpers'
+import { countWordDelta } from '../../../src/utils/textStats'
 
 const STORYBIBLE_TEMPLATE = `# StoryBible
 
@@ -131,59 +134,66 @@ function upsertStoryBibleSection(content: string, section: string, patchContent:
   return `${content.slice(0, sectionRange.start)}${currentSection}\n\n${nextEntry}\n${content.slice(sectionRange.end)}`
 }
 
-function summarizeSearchMatch(text: string, query: string): string | null {
-  const index = text.toLowerCase().indexOf(query.toLowerCase())
-  if (index < 0) return null
-  const start = Math.max(0, index - 80)
-  const end = Math.min(text.length, index + query.length + 160)
-  const prefix = start > 0 ? '...' : ''
-  const suffix = end < text.length ? '...' : ''
-  return `${prefix}${text.slice(start, end)}${suffix}`.replace(/\s+/g, ' ').trim()
-}
+async function searchDraftFiles(
+  draftDir: string,
+  query: string,
+  limit: number,
+  snapshotBroker: SnapshotBroker | null,
+): Promise<string> {
+  if (!snapshotBroker) {
+    return JSON.stringify({ query, scanned_files: 0, matched_files: 0, total_matches: 0, files: [] }, null, 2)
+  }
+  const filePaths = listWorkspaceDocumentPaths(draftDir, '**/*.md', undefined, 200)
+  const fileLimit = Math.max(1, Math.min(limit, 10))
+  const matchBudget = fileLimit * 5
+  let remaining = matchBudget
+  const files: Array<{
+    file_path: string
+    file_name: string
+    document_type: string
+    total_matches: number
+    matches: Array<{
+      block_id: number
+      heading_block_id: number | null
+      heading: string | null
+      node_type: string
+      match_count: number
+      match_texts: string[]
+      preview: string
+    }>
+  }> = []
 
-function searchDraftFiles(draftDir: string, query: string, limit: number) {
-  const results: Array<{ filename: string; matches: string[] }> = []
-  if (!fs.existsSync(draftDir)) return results
-
-  function walk(dirPath: string): void {
-    if (results.length >= limit) return
-    let entries: fs.Dirent[]
-    try {
-      entries = fs.readdirSync(dirPath, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const entry of entries) {
-      if (results.length >= limit) return
-      const fullPath = path.join(dirPath, entry.name)
-      if (entry.isDirectory()) {
-        walk(fullPath)
-        continue
-      }
-      if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.md')) continue
-      let text = ''
-      try {
-        text = fs.readFileSync(fullPath, 'utf-8')
-      } catch {
-        continue
-      }
-      const match = summarizeSearchMatch(text, query)
-      if (match) {
-        results.push({
-          filename: path.relative(draftDir, fullPath).replace(/\\/g, '/'),
-          matches: [match],
-        })
-      }
-    }
+  for (const filePath of filePaths) {
+    if (remaining <= 0 || files.length >= fileLimit) break
+    const snapshot = await snapshotBroker.requestSnapshot(filePath)
+    if (!snapshot) continue
+    const result = DocumentSearch.searchDocumentBlocksRaw(snapshot, query, {}, remaining)
+    if (!result?.matches.length) continue
+    remaining -= result.total_matches
+    files.push({
+      file_path: filePath,
+      file_name: path.basename(filePath),
+      document_type: 'md',
+      total_matches: result.total_matches,
+      matches: result.matches.map(match => ({
+        block_id: match.block_id,
+        heading_block_id: match.heading_block_id,
+        heading: match.heading,
+        node_type: match.node_type,
+        match_count: match.match_count,
+        match_texts: match.match_texts,
+        preview: match.preview,
+      })),
+    })
   }
 
-  walk(draftDir)
-  return results
+  return DocumentSearch.formatWorkspaceSearchResult(query, files, filePaths.length)
 }
 
 export function buildCreativeTools(options: {
   workspacePath?: string | null
   creativeDb: CreativeDb | null
+  snapshotBroker?: SnapshotBroker | null
 }) {
   const resolveWorkspace = (runtime: unknown): string | null =>
     ensureWorkspace(getWorkspacePath(runtime, options.workspacePath))
@@ -239,12 +249,11 @@ export function buildCreativeTools(options: {
       if (!workspacePath) return 'Error: Creative mode requires an open workspace folder.'
       const cleanQuery = query.trim()
       if (!cleanQuery) return 'Error: query is required.'
-      const results = searchDraftFiles(path.join(workspacePath, 'draft'), cleanQuery, Math.max(1, Math.min(limit ?? 3, 10)))
-      return JSON.stringify({ query: cleanQuery, files: results }, null, 2)
+      return searchDraftFiles(path.join(workspacePath, 'draft'), cleanQuery, Math.max(1, Math.min(limit ?? 3, 10)), options.snapshotBroker ?? null)
     },
     {
       name: 'search_draft',
-      description: 'Keyword-search Markdown files under draft/ and return small content previews.',
+      description: 'Block-aware keyword search across Markdown files under draft/, returning matched blocks and headings.',
       schema: z.object({
         query: z.string().describe('Keyword or phrase to search for.'),
         limit: z.number().optional().describe('Maximum matched files to return. Default 3, max 10.'),
@@ -273,7 +282,15 @@ export function buildCreativeTools(options: {
       const filePath = ensureFragments(workspacePath)
       const entry = content.trim()
       if (!entry) return 'Error: content is required.'
+      const current = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : ''
+      const next = `${current}\n\n- ${entry}\n`
       fs.appendFileSync(filePath, `\n\n- ${entry}\n`, 'utf-8')
+      options.creativeDb?.recordStoryBibleChange(workspacePath, {
+        toolName: 'add_fragment',
+        targetPath: 'draft/fragments.md',
+        wordDelta: countWordDelta(current, next),
+        summary: entry.slice(0, 240),
+      })
       return `Fragment added to draft/fragments.md.`
     },
     {
@@ -298,6 +315,12 @@ export function buildCreativeTools(options: {
       const current = fs.readFileSync(filePath, 'utf-8')
       const next = upsertStoryBibleSection(current, section.trim(), patchContent)
       fs.writeFileSync(filePath, next, 'utf-8')
+      options.creativeDb?.recordStoryBibleChange(workspacePath, {
+        toolName: 'patch_storybible',
+        targetPath: 'storybible.md',
+        wordDelta: countWordDelta(current, next),
+        summary: patchContent.slice(0, 240),
+      })
       return JSON.stringify({ patched: true, section: section.trim(), summary: patchContent.slice(0, 240) }, null, 2)
     },
     {
@@ -374,6 +397,12 @@ export function buildCreativeTools(options: {
         next = replaced
       }
       fs.writeFileSync(resolved.path, next, 'utf-8')
+      options.creativeDb?.recordStoryBibleChange(workspacePath, {
+        toolName: 'write_to_chapter',
+        targetPath: `draft/${resolved.relativePath}`,
+        wordDelta: countWordDelta(current, next),
+        summary: cleanContent.slice(0, 240),
+      })
       return JSON.stringify({ written: true, filename: `draft/${resolved.relativePath}`, mode }, null, 2)
     },
     {
@@ -406,6 +435,12 @@ export function buildCreativeTools(options: {
         ? `${current.slice(0, range.start)}${replacement}${current.slice(range.end)}`
         : `${current.trimEnd()}\n\n${replacement}`
       fs.writeFileSync(filePath, next, 'utf-8')
+      options.creativeDb?.recordStoryBibleChange(workspacePath, {
+        toolName: 'replace_storybible_section',
+        targetPath: 'storybible.md',
+        wordDelta: countWordDelta(current, next),
+        summary: cleanContent.slice(0, 240),
+      })
       return JSON.stringify({ replaced: true, section: cleanSection }, null, 2)
     },
     {
@@ -426,6 +461,7 @@ export function buildCreativeTools(options: {
       if (!cleanContent) return 'Error: content is required.'
       const filePath = path.join(workspacePath, 'storybible.md')
       fs.writeFileSync(filePath, `${cleanContent}\n`, 'utf-8')
+      options.creativeDb?.clearStoryBibleChangeLog(workspacePath)
       return 'StoryBible rebuilt.'
     },
     {

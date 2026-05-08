@@ -71,13 +71,22 @@
             v-if="block.type === 'thinking' && block.text"
             class="hidden"
           />
-          <div
-            v-else-if="block.type === 'text' && block.text"
-            class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word"
-            :class="[message.isError ? 'bg-error/20 border border-error/30  px-3 py-2' : 'text-base-content', idx > 0 ? 'mt-1.5' : '']"
-          >
-            <MarkdownContentView :content="block.text" mode="markdown" size="sm" />
-          </div>
+          <template v-else-if="block.type === 'text' && block.text">
+            <template v-for="(part, partIdx) in splitTextWithFindings(block.text)" :key="`${idx}-${partIdx}`">
+              <div
+                v-if="part.kind === 'prose'"
+                class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word"
+                :class="[message.isError ? 'bg-error/20 border border-error/30  px-3 py-2' : 'text-base-content', (idx > 0 || partIdx > 0) ? 'mt-1.5' : '']"
+              >
+                <MarkdownContentView :content="part.text" mode="markdown" size="sm" />
+              </div>
+              <ConsistencyFindingsBlock
+                v-else
+                :findings="part.findings"
+                class="max-w-full"
+              />
+            </template>
+          </template>
           <ToolCallCard
             v-else-if="block.type === 'tool_call' && block.toolCallId && isReadToolById(block.toolCallId)"
             :tool-call="toolCallById(block.toolCallId)!"
@@ -101,7 +110,20 @@
         class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word"
         :class="message.isError ? 'bg-error/20 border border-error/30  px-3 py-2' : 'text-base-content'"
       >
-        <MarkdownContentView :content="message.content" mode="markdown" size="sm" />
+        <template v-for="(part, partIdx) in splitTextWithFindings(message.content)" :key="partIdx">
+          <MarkdownContentView
+            v-if="part.kind === 'prose'"
+            :content="part.text"
+            mode="markdown"
+            size="sm"
+            :class="partIdx > 0 ? 'mt-1.5' : ''"
+          />
+          <ConsistencyFindingsBlock
+            v-else
+            :findings="part.findings"
+            class="max-w-full"
+          />
+        </template>
       </div>
 
       <!-- Legacy read tool calls (only when no contentBlocks) -->
@@ -213,7 +235,9 @@ import { isRenderableAssistantMessage } from '@/ai/review/selectors'
 import { useAiStore } from '@/ai/store/ai'
 import MarkdownContentView from './views/MarkdownContentView.vue'
 import ToolCallCard from './views/ToolCallCard.vue'
+import ConsistencyFindingsBlock from './views/ConsistencyFindingsBlock.vue'
 import DomainMessageSession from '../domains/DomainMessageSession.vue'
+import { splitTextWithFindings } from '@/ai/message/consistency-findings'
 
 const props = withDefaults(defineProps<{
   message: ThreadMessage

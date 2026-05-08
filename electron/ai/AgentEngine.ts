@@ -646,6 +646,7 @@ export class AgentEngine {
       memory: [path.join(this.aiRootPath, 'memory', 'AGENTS.md')].filter(fs.existsSync),
       checkpointer: this.checkpointerInstance?.checkpointer,
       interruptOn: capabilities.interruptOn,
+      subagents: capabilities.subAgents,
     })
 
     this.agentCache.set(cacheKey, agent)
@@ -746,6 +747,7 @@ export class AgentEngine {
         this.aiRootPath,
         mounts,
         workspacePath ? this._getCreativeDb(workspacePath) : null,
+        this.snapshotBroker,
       )
     }
 

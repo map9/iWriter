@@ -3,6 +3,7 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { Selection } from '@tiptap/pm/state'
 import { getContentState } from './state'
 import { getActualSelectionRange, getSelectionText } from '@/components/common/tiptap'
+import { countWords } from '@/utils/textStats'
 
 function getCurrentLineFromPos(editor: Editor | undefined, pos: number): number {
   if (!editor) return 1
@@ -42,13 +43,6 @@ function getSelectionWordCount(editor: Editor | undefined, selection: Selection)
   if (selection.empty || !editor) return 0
   const selectedText = getSelectionText(editor.state.doc, selection)
   return countWords(selectedText)
-}
-
-function countWords(text: string): number {
-  if (!text.trim()) return 0
-  // 使用正则匹配单词，排除标点符号
-  const words = text.trim().match(/\b[a-zA-Z0-9\u4e00-\u9fff]+\b/g)
-  return words ? words.length : 0
 }
 
 function countParagraphs(doc: ProseMirrorNode): number {

@@ -36,13 +36,6 @@ export function toolCallSignature(toolCall: AiToolCall): string {
   return `${toolCall.name}:${stableStringify(toolCall.arguments)}`
 }
 
-function buildStoryAssetLabel(section: unknown, slug: unknown): string | undefined {
-  const sectionText = toStringValue(section)
-  const slugText = toStringValue(slug)
-  if (!sectionText || !slugText) return undefined
-  return `${sectionText}/${slugText}.md`
-}
-
 function parseJsonObject(text: string | undefined): Record<string, unknown> | null {
   if (typeof text !== 'string' || !text.trim()) return null
   try {
@@ -467,13 +460,16 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
     case 'read_storybible':
     case 'read_fragments':
     case 'get_session_diff':
+    case 'get_storybible_rebuild_signal':
       return {
         actionLabel: toolNameLabel(toolCall.name),
         targetLabel: toolCall.name === 'read_storybible'
           ? 'storybible.md'
           : toolCall.name === 'read_fragments'
             ? 'draft/fragments.md'
-            : 'story session',
+            : toolCall.name === 'get_storybible_rebuild_signal'
+              ? 'StoryBible'
+              : 'story session',
         summaryLabel: buildStatusSummary(toolCall, rawResult ? t('agentPanel.displayNormalizer.status.completed') : undefined),
         detailType: parsedResult ? 'json' : 'text',
         parsedResult,
@@ -494,6 +490,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         rawResult,
       }
     case 'search_draft':
+    case 'run_consistency_check':
     case 'add_fragment':
     case 'patch_storybible':
     case 'confirm_writing_plan':
@@ -507,41 +504,6 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
           toolCall.status === 'completed' ? t('agentPanel.displayNormalizer.status.completed') : undefined
         ),
         detailType: parsedResult ? 'json' : 'text',
-        parsedResult,
-        rawResult,
-      }
-    case 'list_story_assets': {
-      const sections = parsedResult && Array.isArray(parsedResult.sections) ? parsedResult.sections : []
-      const sectionCount = sections.length
-      const fileCount = sections.reduce((total, item) => {
-        const entry = item as Record<string, unknown>
-        return total + (Array.isArray(entry.files) ? entry.files.length : 0)
-      }, 0)
-      return {
-        actionLabel: toolNameLabel('list_story_assets'),
-        targetLabel: toStringValue(args.section) ?? t('agentPanel.displayNormalizer.storyWorkspace'),
-        contextLabel: sectionCount ? t('agentPanel.displayNormalizer.count.sections', { count: sectionCount }) : undefined,
-        summaryLabel: buildStatusSummary(
-          toolCall,
-          fileCount
-            ? t('agentPanel.displayNormalizer.count.items', { count: fileCount })
-            : t('agentPanel.displayNormalizer.status.empty')
-        ),
-        detailType: parsedResult ? 'json' : 'text',
-        parsedResult,
-        rawResult,
-      }
-    }
-    case 'read_story_asset':
-      return {
-        actionLabel: toolNameLabel('read_story_asset'),
-        targetLabel: buildStoryAssetLabel(args.section, args.slug) ?? toStringValue(args.slug) ?? undefined,
-        contextLabel: toStringValue(args.section) ?? undefined,
-        summaryLabel: buildStatusSummary(
-          toolCall,
-          rawResult ? t('agentPanel.displayNormalizer.count.lines', { count: rawResult.split('\n').length }) : undefined
-        ),
-        detailType: 'text',
         parsedResult,
         rawResult,
       }
@@ -566,22 +528,6 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
           subagent_type: subagentType,
           result: resultText,
         },
-        rawResult,
-      }
-    }
-    case 'save_story_asset': {
-      const savedPath = parsedResult ? toStringValue(parsedResult.path) : null
-      return {
-        actionLabel: toolNameLabel('save_story_asset'),
-        targetLabel: savedPath ? pathUtils.basename(savedPath) : (buildStoryAssetLabel(args.section, args.slug) ?? toStringValue(args.slug) ?? undefined),
-        targetPath: savedPath ?? undefined,
-        contextLabel: [toStringValue(args.section), toStringValue(args.slug)].filter(Boolean).join(' · ') || undefined,
-        summaryLabel: buildStatusSummary(
-          toolCall,
-          toolCall.status === 'completed' ? t('agentPanel.displayNormalizer.status.saved') : undefined
-        ),
-        detailType: parsedResult ? 'json' : 'text',
-        parsedResult,
         rawResult,
       }
     }

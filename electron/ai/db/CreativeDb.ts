@@ -17,6 +17,23 @@ export interface SessionDiff {
   deleted: string[]
 }
 
+export interface StoryBibleChangeInput {
+  toolName: string
+  targetPath: string
+  wordDelta: number
+  summary?: string
+}
+
+export interface StoryBibleChangeStats {
+  totalWordDelta: number
+  recordCount: number
+  byTool: Record<string, { count: number; wordDelta: number }>
+  oldestRecordedAt: number | null
+  newestRecordedAt: number | null
+}
+
+export const STORYBIBLE_REBUILD_WORD_THRESHOLD = 2000
+
 const dbCache = new Map<string, CreativeDb>()
 
 function normalizeRelativePath(filePath: string): string {
@@ -118,6 +135,17 @@ export class CreativeDb {
       );
       CREATE INDEX IF NOT EXISTS idx_session_log_workspace_ended
         ON session_log(workspace_path, ended_at DESC);
+      CREATE TABLE IF NOT EXISTS storybible_change_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        workspace_path TEXT NOT NULL,
+        recorded_at INTEGER NOT NULL,
+        tool_name TEXT NOT NULL,
+        target_path TEXT NOT NULL,
+        word_delta INTEGER NOT NULL,
+        summary TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_change_log_ws_recorded
+        ON storybible_change_log(workspace_path, recorded_at DESC);
     `)
   }
 
@@ -154,6 +182,82 @@ export class CreativeDb {
     const previous = this.getLastSession(workspacePath)
     const current = computeWorkspaceHashes(workspacePath)
     return computeSessionDiff(previous?.fileHashes ?? null, current)
+  }
+
+  recordStoryBibleChange(workspacePath: string, change: StoryBibleChangeInput): void {
+    this.db
+      .prepare(`
+        INSERT INTO storybible_change_log
+          (workspace_path, recorded_at, tool_name, target_path, word_delta, summary)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        workspacePath,
+        Date.now(),
+        change.toolName,
+        change.targetPath,
+        Math.trunc(change.wordDelta),
+        change.summary ?? null,
+      )
+
+    const row = this.db
+      .prepare('SELECT COUNT(*) AS count FROM storybible_change_log WHERE workspace_path = ?')
+      .get(workspacePath) as { count: number } | undefined
+    if ((row?.count ?? 0) > 1000) {
+      this.db
+        .prepare(`
+          DELETE FROM storybible_change_log
+          WHERE id IN (
+            SELECT id FROM storybible_change_log
+            WHERE workspace_path = ?
+            ORDER BY recorded_at ASC, id ASC
+            LIMIT 200
+          )
+        `)
+        .run(workspacePath)
+    }
+  }
+
+  getStoryBibleChangeStats(workspacePath = this.workspacePath, sinceTimestamp?: number): StoryBibleChangeStats {
+    const params: Array<string | number> = [workspacePath]
+    const sinceClause = typeof sinceTimestamp === 'number' ? 'AND recorded_at >= ?' : ''
+    if (sinceClause) params.push(sinceTimestamp!)
+    const rows = this.db
+      .prepare(`
+        SELECT tool_name, word_delta, recorded_at
+        FROM storybible_change_log
+        WHERE workspace_path = ? ${sinceClause}
+        ORDER BY recorded_at ASC, id ASC
+      `)
+      .all(...params) as Array<{ tool_name: string; word_delta: number; recorded_at: number }>
+
+    const byTool: StoryBibleChangeStats['byTool'] = {}
+    let totalWordDelta = 0
+    let oldestRecordedAt: number | null = null
+    let newestRecordedAt: number | null = null
+    for (const row of rows) {
+      totalWordDelta += Math.abs(row.word_delta)
+      const entry = byTool[row.tool_name] ?? { count: 0, wordDelta: 0 }
+      entry.count += 1
+      entry.wordDelta += Math.abs(row.word_delta)
+      byTool[row.tool_name] = entry
+      oldestRecordedAt = oldestRecordedAt === null ? row.recorded_at : Math.min(oldestRecordedAt, row.recorded_at)
+      newestRecordedAt = newestRecordedAt === null ? row.recorded_at : Math.max(newestRecordedAt, row.recorded_at)
+    }
+
+    return {
+      totalWordDelta,
+      recordCount: rows.length,
+      byTool,
+      oldestRecordedAt,
+      newestRecordedAt,
+    }
+  }
+
+  clearStoryBibleChangeLog(workspacePath = this.workspacePath): void {
+    this.db
+      .prepare('DELETE FROM storybible_change_log WHERE workspace_path = ?')
+      .run(workspacePath)
   }
 }
 

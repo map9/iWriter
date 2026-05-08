@@ -1,4 +1,5 @@
 // eslint.config.mjs
+import { globalIgnores } from 'eslint/config'
 import pluginVue from 'eslint-plugin-vue'
 import {
   defineConfigWithVueTs,
@@ -6,6 +7,30 @@ import {
 } from '@vue/eslint-config-typescript'
 
 export default defineConfigWithVueTs(
+  globalIgnores([
+    'dist/',
+    'dist-electron/',
+    'release/',
+    'node_modules/',
+    'coverage/',
+    'docs/.vitepress/dist/',
+    'docs/.vitepress/.temp/',
+    'docs/.vitepress/cache/',
+    'public/dictionaries/',
+    'assets/',
+    'cer/',
+    '*.log',
+    '*.tmp',
+    '*.temp',
+    '*.iwt',
+    '*.tsbuildinfo',
+    '.DS_Store',
+    '.claude/',
+    '.env',
+    '.env.*.local',
+    '.env.local',
+    '.eslintcache',
+  ]),
   pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
   {

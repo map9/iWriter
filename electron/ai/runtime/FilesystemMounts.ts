@@ -37,7 +37,7 @@ export function buildFilesystemMounts(
   }
 
   const addMount = (basePrefix: string, hostPath: string, kind: FilesystemMount['kind']) => {
-    let slug = slugify(path.basename(hostPath))
+    const slug = slugify(path.basename(hostPath))
     let candidate = `${basePrefix}/${slug}`
     let counter = 2
     while (used.has(candidate)) {
