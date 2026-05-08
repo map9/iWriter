@@ -339,7 +339,6 @@ export function buildPreviewDocumentWithOptions(
   const TAG_OPEN = '<script type="module">'
   const TAG_CLOSE = '</script>'
 
-  console.log('Building preview document with options:', options)
   return [
     '<!DOCTYPE html><html><head><meta charset="utf-8">',
     '<style media="screen">', PREVIEW_STYLES, '</style>',
