@@ -2,6 +2,19 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import { FilesystemBackend } from 'deepagents'
 
+type LsInfoEntry = Awaited<ReturnType<FilesystemBackend['lsInfo']>>[number]
+type ReadRawResult = Awaited<ReturnType<FilesystemBackend['readRaw']>>
+type WriteResult = Awaited<ReturnType<FilesystemBackend['write']>>
+type EditResult = Awaited<ReturnType<FilesystemBackend['edit']>>
+type GrepRawResult = Awaited<ReturnType<FilesystemBackend['grepRaw']>>
+type GlobInfoEntry = Awaited<ReturnType<FilesystemBackend['globInfo']>>[number]
+type UploadResult = { path: string; error: string | null }
+type DownloadResult = { path: string; content: Buffer; error: string | null }
+
+function hasPath(value: unknown): value is { path: string } {
+  return !!value && typeof value === 'object' && typeof (value as { path?: unknown }).path === 'string'
+}
+
 export class AttachedFileBackend {
   private delegate: FilesystemBackend
   private allowedVirtualPath: string
@@ -32,7 +45,7 @@ export class AttachedFileBackend {
     throw new Error(`Access denied: path "${normalized}" is outside attached file scope.`)
   }
 
-  async lsInfo(dirPath: string): Promise<any[]> {
+  async lsInfo(dirPath: string): Promise<LsInfoEntry[]> {
     const normalized = this.normalizeVirtualPath(dirPath)
     if (normalized !== this.allowedDirPath) {
       throw new Error(`Access denied: directory "${normalized}" is outside attached file scope.`)
@@ -48,39 +61,39 @@ export class AttachedFileBackend {
     return this.delegate.read(this.ensureFilePath(filePath), offset, limit)
   }
 
-  async readRaw(filePath: string): Promise<any> {
+  async readRaw(filePath: string): Promise<ReadRawResult> {
     return this.delegate.readRaw(this.ensureFilePath(filePath))
   }
 
-  async write(filePath: string, content: string): Promise<any> {
+  async write(filePath: string, content: string): Promise<WriteResult> {
     return this.delegate.write(this.ensureFilePath(filePath), content)
   }
 
-  async edit(filePath: string, oldString: string, newString: string, replaceAll?: boolean): Promise<any> {
+  async edit(filePath: string, oldString: string, newString: string, replaceAll?: boolean): Promise<EditResult> {
     return this.delegate.edit(this.ensureFilePath(filePath), oldString, newString, replaceAll)
   }
 
-  async grepRaw(pattern: string, searchPath?: string, glob?: string | null): Promise<any> {
+  async grepRaw(pattern: string, searchPath?: string, glob?: string | null): Promise<GrepRawResult> {
     const normalized = this.normalizeVirtualPath(searchPath)
     if (normalized !== '/' && normalized !== this.allowedVirtualPath) {
       throw new Error(`Access denied: path "${normalized}" is outside attached file scope.`)
     }
     const result = await this.delegate.grepRaw(pattern, this.allowedVirtualPath, glob)
     if (typeof result === 'string') return result
-    return result.filter((entry: any) => entry.path === this.allowedVirtualPath)
+    return result.filter((entry) => hasPath(entry) && entry.path === this.allowedVirtualPath)
   }
 
-  async globInfo(pattern: string, searchPath?: string): Promise<any[]> {
+  async globInfo(pattern: string, searchPath?: string): Promise<GlobInfoEntry[]> {
     const normalized = this.normalizeVirtualPath(searchPath)
     if (normalized !== '/' && normalized !== this.allowedVirtualPath) {
       throw new Error(`Access denied: path "${normalized}" is outside attached file scope.`)
     }
     const results = await this.delegate.globInfo(pattern, '/')
-    return results.filter((entry: any) => entry.path === this.allowedVirtualPath)
+    return results.filter((entry) => hasPath(entry) && entry.path === this.allowedVirtualPath)
   }
 
-  async uploadFiles(files: Array<[string, Uint8Array]>): Promise<any[]> {
-    const results: any[] = []
+  async uploadFiles(files: Array<[string, Uint8Array]>): Promise<UploadResult[]> {
+    const results: UploadResult[] = []
     for (const [targetPath, content] of files) {
       const normalized = this.ensureFilePath(targetPath)
       await fs.writeFile(path.join(path.dirname(this.filePath), normalized.slice(1)), Buffer.from(content))
@@ -89,7 +102,7 @@ export class AttachedFileBackend {
     return results
   }
 
-  async downloadFiles(paths: string[]): Promise<any[]> {
+  async downloadFiles(paths: string[]): Promise<DownloadResult[]> {
     return Promise.all(paths.map(async requestedPath => {
       const normalized = this.ensureFilePath(requestedPath)
       const content = await fs.readFile(this.filePath)
@@ -97,4 +110,3 @@ export class AttachedFileBackend {
     }))
   }
 }
-

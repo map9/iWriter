@@ -1,10 +1,12 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import type { Event, PrintToPDFOptions, WebContentsPrintOptions } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import { merge } from 'lodash'
 
 import Timer from '../src/utils/Timer'
 import type { WindowContentState } from '../src/types/windowContentState'
+import type { PdfSaveOptions } from '../src/types/electron-api'
 
 import { isDev } from './utils'
 import type { WindowState, IApp } from './types'
@@ -122,7 +124,7 @@ export class WindowManager {
       this.updateMenu();
     }
 
-    const handleWindowClose = async (event: any) => {
+    const handleWindowClose = async (event: Event) => {
       const wState = this.getWindowStateById(window.id)
       if (!wState) {
         console.error(`Find a unkown window id: ${window.id} request close`)
@@ -255,7 +257,7 @@ export class WindowManager {
     })
   }
 
-  handleAppUpdateInfo(channel: string, data?: any) {
+  handleAppUpdateInfo(channel: string, data?: unknown) {
     this._windows.forEach(w => {
       if (w.window && !w.window.isDestroyed()) {
         w.window.webContents.send(channel, data);
@@ -275,7 +277,7 @@ export class WindowManager {
     })
 
     // Print IPC handler
-    ipcMain.handle('print', async (event, options: any = {}) => {
+    ipcMain.handle('print', async (event, options: WebContentsPrintOptions = {}) => {
       const window = BrowserWindow.fromWebContents(event.sender);
       if (!window) {
         return { success: false, error: 'Window not found' };
@@ -311,7 +313,7 @@ export class WindowManager {
       }
     })
 
-    ipcMain.handle('print-from-html', async (event, htmlContent: string, printOptions: any = {}) => {
+    ipcMain.handle('print-from-html', async (event, htmlContent: string, printOptions: WebContentsPrintOptions = {}) => {
       if (!BrowserWindow.fromWebContents(event.sender)) return { success: false, error: 'Window not found' }
       try {
         return await this.renderInHiddenHtmlWindow(htmlContent, (hidden) =>
@@ -325,12 +327,12 @@ export class WindowManager {
             })
           })
         )
-      } catch (err: any) {
-        return { success: false, error: err?.message ?? String(err) }
+      } catch (err: unknown) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) }
       }
     })
 
-    ipcMain.handle('save-to-pdf-from-html', async (event, htmlContent: string, pdfOptions: any = {}, saveOptions: any = {}) => {
+    ipcMain.handle('save-to-pdf-from-html', async (event, htmlContent: string, pdfOptions: PrintToPDFOptions = {}, saveOptions: PdfSaveOptions = {}) => {
       const win = BrowserWindow.fromWebContents(event.sender)
       if (!win) return { success: false, error: 'Window not found' }
 
@@ -361,13 +363,13 @@ export class WindowManager {
           await fs.promises.writeFile(filePath, Buffer.from(buffer))
           return { success: true, filePath }
         })
-      } catch (err: any) {
-        return { success: false, error: err?.message ?? String(err) }
+      } catch (err: unknown) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) }
       }
     })
 
     // Save current window content as PDF via native save dialog
-    ipcMain.handle('save-to-pdf', async (event, printOptions: any = {}, saveOptions: any = {}) => {
+    ipcMain.handle('save-to-pdf', async (event, printOptions: PrintToPDFOptions = {}, saveOptions: PdfSaveOptions = {}) => {
       const window = BrowserWindow.fromWebContents(event.sender)
       if (!window) return { success: false, error: 'Window not found' }
 
@@ -385,8 +387,8 @@ export class WindowManager {
         const pdfBuffer = await window.webContents.printToPDF(printOptions)
         await fs.promises.writeFile(saveResult.filePath, pdfBuffer)
         return { success: true, filePath: saveResult.filePath }
-      } catch (err: any) {
-        return { success: false, error: err?.message ?? String(err) }
+      } catch (err: unknown) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) }
       }
     })
 

@@ -376,7 +376,7 @@ import pathUtils from '@/utils/pathUtils'
 import { MarkdownTocProvider } from '@/services/toc/MarkdownTocProvider'
 import { setHeading, getContentState, getCurrentAlignment } from './markdown-editor/state' 
 import { calculateFileStats } from './markdown-editor/stats' 
-import { onFileHandlerDrop, onFileHandlerPaste, onPlaceholder } from './markdown-editor/on'
+import { onFileHandlerDrop, onFileHandlerPaste } from './markdown-editor/on'
 import { 
   toggleLink,
   toggleMath,

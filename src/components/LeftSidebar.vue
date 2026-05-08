@@ -88,7 +88,6 @@ import { useAppStore } from '@/stores/app'
 import {
   IconFolder,
   IconSearch,
-  IconTag,
   IconList,
 } from '@tabler/icons-vue'
 

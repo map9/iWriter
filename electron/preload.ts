@@ -1,6 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { ElectronAPI, PdfSaveOptions } from '../src/types/electron-api'
+import type { SendMessageRequest, CompactInputRequest, CompactInputResponse, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
+import type { AiSettings } from '../src/types/ai'
+import type { ContextMenuItem } from '../src/types/menu'
+import type { FileChange } from '../src/types/file-operation'
+import type { WindowContentState } from '../src/types/window-content-state'
+import type { PandocAvailabilityResult, PandocImportRequest, PandocImportResult, PandocExportRequest, PandocExportResult } from '../src/types/pandoc'
+import type { UpdaterConfig, UpdaterStateMessage } from '../src/updater/types'
 
-contextBridge.exposeInMainWorld('electronAPI', {
+const electronAPI: ElectronAPI = {
   platform: process.platform,
 
   // alive monitoring
@@ -78,10 +86,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getFileWatchingStatus: () => ipcRenderer.invoke('get-file-watching-status'),
   
   // File change events
-  onFileChange: (callback: (change: any) => void) => {
+  onFileChange: (callback: (change: FileChange) => void) => {
     ipcRenderer.on('file-change', (_, change) => callback(change))
   },
-  onFileWatchError: (callback: (error: any) => void) => {
+  onFileWatchError: (callback: (error: { message: string; path: string; timestamp: Date }) => void) => {
     ipcRenderer.on('file-watch-error', (_, error) => callback(error))
   },
   removeFileChangeListeners: () => {
@@ -90,7 +98,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Context menu
-  showContextMenu: (menuItems: any[], position: { x: number; y: number }) =>
+  showContextMenu: (menuItems: ContextMenuItem[], position: { x: number; y: number }) =>
     ipcRenderer.invoke('show-context-menu', menuItems, position),
 
   // Shell execution (read-only commands only)
@@ -98,9 +106,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('exec-shell', command, cwd),
   formatCode: (code: string, language?: string | null) =>
     ipcRenderer.invoke('format-code', { code, language }),
-  pandocCheck: (req?: any) => ipcRenderer.invoke('pandoc:check', req),
-  pandocImportFile: (req: any) => ipcRenderer.invoke('pandoc:import-file', req),
-  pandocExportFile: (req: any) => ipcRenderer.invoke('pandoc:export-file', req),
+  pandocCheck: (req?: { pandocPath?: string }): Promise<PandocAvailabilityResult> => ipcRenderer.invoke('pandoc:check', req),
+  pandocImportFile: (req: PandocImportRequest): Promise<PandocImportResult> => ipcRenderer.invoke('pandoc:import-file', req),
+  pandocExportFile: (req: PandocExportRequest): Promise<PandocExportResult> => ipcRenderer.invoke('pandoc:export-file', req),
 
   // Clipboard
   readClipboardText: () => ipcRenderer.invoke('read-clipboard-text'),
@@ -109,7 +117,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMenuAction: (callback: (action: string) => void) => {
     ipcRenderer.on('menu-action', (_, action) => callback(action))
   },
-  removeMenuActionListener: (listener?: any) => {
+  removeMenuActionListener: (listener?: unknown) => {
     if (listener) {
       ipcRenderer.removeListener('menu-action', listener)
     } else {
@@ -126,7 +134,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   
   // Menu state updates
-  windowContentChange: (wContentState: any) => ipcRenderer.invoke('window-content-changed', wContentState),
+  windowContentChange: (wContentState: Partial<WindowContentState>) => ipcRenderer.invoke('window-content-changed', wContentState),
   updateWindowTitle: (title: string) => ipcRenderer.invoke('update-window-title', title),
 
   // Updater API
@@ -136,10 +144,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getUpdaterStatus: () => ipcRenderer.invoke('updater:get-status'),
   getUpdaterState: () => ipcRenderer.invoke('updater:get-state'),
   getUpdaterConfig: () => ipcRenderer.invoke('updater:get-config'),
-  setUpdaterConfig: (config: any) => ipcRenderer.invoke('updater:set-config', config),
+  setUpdaterConfig: (config: Partial<UpdaterConfig>) => ipcRenderer.invoke('updater:set-config', config),
   
   // Updater events
-  onUpdaterStateChanged: (callback: (stateMessage: any) => void) => {
+  onUpdaterStateChanged: (callback: (stateMessage: UpdaterStateMessage) => void) => {
     ipcRenderer.on('updater:state-changed', (_, stateMessage) => callback(stateMessage))
   },
   removeUpdaterListeners: () => {
@@ -148,9 +156,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Print API
   getPrinters: () => ipcRenderer.invoke('get-printers'),
-  print: (options: any = {}) => ipcRenderer.invoke('print', options),
-  printFromHtml: (htmlContent: string, printOptions?: any) => ipcRenderer.invoke('print-from-html', htmlContent, printOptions),
-  saveToPdfFromHtml: (htmlContent: string, printOptions?: any, saveOptions?: any) => ipcRenderer.invoke('save-to-pdf-from-html', htmlContent, printOptions, saveOptions),
+  print: (options: Electron.WebContentsPrintOptions = {}) => ipcRenderer.invoke('print', options),
+  printFromHtml: (htmlContent: string, printOptions?: Electron.WebContentsPrintOptions) => ipcRenderer.invoke('print-from-html', htmlContent, printOptions),
+  saveToPdf: (printOptions?: Electron.PrintToPDFOptions, saveOptions?: PdfSaveOptions) => ipcRenderer.invoke('save-to-pdf', printOptions, saveOptions),
+  saveToPdfFromHtml: (htmlContent: string, printOptions?: Electron.PrintToPDFOptions, saveOptions?: PdfSaveOptions) => ipcRenderer.invoke('save-to-pdf-from-html', htmlContent, printOptions, saveOptions),
 
   // ── Custom Markdown Themes ────────────────────────────────────────────────
   customThemes: {
@@ -166,35 +175,35 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // ── AI Agent (main-process deepagents) ────────────────────────────────────
-  aiSendMessage: (req: any) => ipcRenderer.invoke('ai:send-message', req),
-  aiCompactInput: (req: any) => ipcRenderer.invoke('ai:compact-input', req),
-  aiGetSessionContextStats: (req: any) => ipcRenderer.invoke('ai:get-session-context-stats', req),
+  aiSendMessage: (req: SendMessageRequest): Promise<{ threadId: string }> => ipcRenderer.invoke('ai:send-message', req),
+  aiCompactInput: (req: CompactInputRequest): Promise<CompactInputResponse> => ipcRenderer.invoke('ai:compact-input', req),
+  aiGetSessionContextStats: (req: CompactInputRequest): Promise<SessionContextStatsResponse> => ipcRenderer.invoke('ai:get-session-context-stats', req),
   aiCancel: (threadId: string) => ipcRenderer.invoke('ai:cancel', { threadId }),
-  aiResume: (req: any) => ipcRenderer.invoke('ai:resume', req),
+  aiResume: (req: ResumeRunRequest) => ipcRenderer.invoke('ai:resume', req),
   aiGetConfig: () => ipcRenderer.invoke('ai:get-config'),
-  aiUpdateConfig: (patch: any) => ipcRenderer.invoke('ai:update-config', patch),
+  aiUpdateConfig: (patch: Partial<AiSettings>) => ipcRenderer.invoke('ai:update-config', patch),
   aiGetThreads: () => ipcRenderer.invoke('ai:get-threads'),
   aiDeleteThread: (threadId: string) => ipcRenderer.invoke('ai:delete-thread', { threadId }),
   aiClearThreads: () => ipcRenderer.invoke('ai:clear-threads'),
   aiGetThreadMessages: (threadId: string) => ipcRenderer.invoke('ai:get-thread-messages', { threadId }),
   // Renderer sends snapshot back to main (not an invoke — fire-and-forget)
-  aiSnapshotResponse: (resp: any) => ipcRenderer.send('ai:snapshot-response', resp),
+  aiSnapshotResponse: (resp: SnapshotResponse) => ipcRenderer.send('ai:snapshot-response', resp),
 
   // Incoming events from main process
-  onAiStreamChunk: (cb: (chunk: any) => void) => {
+  onAiStreamChunk: (cb: (chunk: StreamChunkEvent) => void) => {
     ipcRenderer.on('ai:stream-chunk', (_, c) => cb(c))
   },
   /** New atomic interrupt event (replaces onAiInterruptReady). */
-  onAiRunInterrupted: (cb: (e: any) => void) => {
+  onAiRunInterrupted: (cb: (e: RunInterruptedEvent) => void) => {
     ipcRenderer.on('ai:run-interrupted', (_, e) => cb(e))
   },
-  onAiRunDone: (cb: (e: any) => void) => {
+  onAiRunDone: (cb: (e: RunDoneEvent) => void) => {
     ipcRenderer.on('ai:run-done', (_, e) => cb(e))
   },
-  onAiRunError: (cb: (e: any) => void) => {
+  onAiRunError: (cb: (e: RunErrorEvent) => void) => {
     ipcRenderer.on('ai:run-error', (_, e) => cb(e))
   },
-  onAiRequestSnapshot: (cb: (req: any) => void) => {
+  onAiRequestSnapshot: (cb: (req: SnapshotRequestEvent) => void) => {
     ipcRenderer.on('ai:request-snapshot', (_, r) => cb(r))
   },
   removeAiListeners: () => {
@@ -207,4 +216,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ].forEach(ch => ipcRenderer.removeAllListeners(ch))
   },
 
-})
+}
+
+contextBridge.exposeInMainWorld('electronAPI', electronAPI)

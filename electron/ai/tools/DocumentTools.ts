@@ -90,7 +90,7 @@ type DirectoryResolution =
   | { ok: true; directoryPath: string }
   | { ok: false; error: string }
 
-function resolveDirectoryPathForRuntime(argDirectoryPath: string | undefined, runtime: unknown): DirectoryResolution {
+function resolveDirectoryPathForRuntime(argDirectoryPath: string | undefined, _runtime: unknown): DirectoryResolution {
   const requested = argDirectoryPath?.trim()
   if (!requested) {
     return { ok: false, error: 'Error: directory_path is required and must be an absolute host directory path.' }

@@ -132,8 +132,6 @@ import {
   IconDots,
   IconFolder,
   IconFolderOpen,
-  IconFolderFilled,
-  IconFolderOpenFilled,
   IconFilePlus,
   IconChevronRight,
   IconChevronDown,
@@ -221,10 +219,10 @@ const generateUniqueFileSystemName = (baseName: string, parentNode: FileTreeNode
 
 // File callbacks
 const fileCallbacks: FileTreeCallbacks = {
-  canRename: (node) => props.allowRename,
-  canDrag: (node) => props.allowMove,
+  canRename: () => props.allowRename,
+  canDrag: () => props.allowMove,
   canAddChild: (node) => node.type === 'folder',
-  canDelete: (node) => props.allowDelete,
+  canDelete: () => props.allowDelete,
   canDrop: (dragNode, dropNode, position) => {
     if (!props.allowMove && position !== 'inside') return false
     
@@ -268,7 +266,7 @@ const fileCallbacks: FileTreeCallbacks = {
     }
     return null
   },
-  getDefaultChildType: (parentNode) => {
+  getDefaultChildType: () => {
     return currentCreateType.value || 'file'
   },
   getDefaultChildLabel: (parentNode) => {
@@ -279,9 +277,9 @@ const fileCallbacks: FileTreeCallbacks = {
     }
     return generateUniqueFileSystemName('Untitled', fileParentNode, TEXT_IWT_EXTENSION)
   },
-  onExpand: (node) => {
+  onExpand: () => {
   },
-  onCollapse: (node) => {
+  onCollapse: () => {
   },
   onRename: async (node, newName) => {
     const fileNode = node as FileTreeNode
@@ -429,16 +427,6 @@ const pasteIntoNode = async (targetNode: FileTreeNode | null) => {
   }
 
   await appStore.copyFileOrFolder(sourceNode, targetNode)
-}
-
-const toggleExpandAll = () => {
-  if (isAllExpanded.value) {
-    treeRef.value?.collapseAll()
-    isAllExpanded.value = false
-  } else {
-    treeRef.value?.expandAll()
-    isAllExpanded.value = true
-  }
 }
 
 const collapseAll = () => {

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, Menu, shell, dialog, clipboard } from 'electron'
+import type { MenuItemConstructorOptions, MessageBoxOptions, OpenDialogOptions, SaveDialogOptions } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import { exec } from 'child_process'
@@ -23,7 +24,39 @@ import {
   parseWorkspaceIgnoreRules,
   shouldIncludeWorkspaceEntry,
 } from '../src/services/workspace/filtering'
+import type { ContextMenuItem } from '../src/types/menu'
 import { CustomThemeLoader } from './CustomThemeLoader'
+
+interface WorkspaceSearchOptions {
+  regex?: boolean
+  wholeWord?: boolean
+  caseSensitive?: boolean
+}
+
+interface SearchInFilesRequest {
+  folderPath: string
+  searchTerm: string
+  options: WorkspaceSearchOptions
+  includePattern?: string
+  excludePattern?: string
+  maxResults?: number
+}
+
+interface SearchMatch {
+  line: number
+  column: number
+  text: string
+  contextHtml: string
+}
+
+interface SearchFileResult {
+  filePath: string
+  fileName: string
+  relativePath: string
+  matches: SearchMatch[]
+  totalMatches: number
+}
+
 export class App {
   private fileWatchers: Map<string, FSWatcher>
   private menuManager: MenuManager
@@ -401,7 +434,7 @@ export class App {
     })
 
     // Show open dialog
-    ipcMain.handle('show-open-dialog', async (_, options: any) => {
+    ipcMain.handle('show-open-dialog', async (_, options: OpenDialogOptions) => {
       const focusedWindow = BrowserWindow.getFocusedWindow()
       if (focusedWindow == null) return null
       
@@ -416,7 +449,7 @@ export class App {
     })
 
     // Show open dialog
-    ipcMain.handle('show-save-dialog', async (_, options: any) => {
+    ipcMain.handle('show-save-dialog', async (_, options: SaveDialogOptions) => {
       const focusedWindow = BrowserWindow.getFocusedWindow()
       if (focusedWindow == null) return null
       
@@ -431,7 +464,7 @@ export class App {
     })
 
     // Show save dialog
-    ipcMain.handle('show-message-box', async (_, options) => {
+    ipcMain.handle('show-message-box', async (_, options: MessageBoxOptions) => {
       const focusedWindow = BrowserWindow.getFocusedWindow()
       if (focusedWindow == null) return null
 
@@ -850,20 +883,20 @@ export class App {
     })
 
     // Context menu handler
-    ipcMain.handle('show-context-menu', async (event, menuItems: any[], position: { x: number; y: number }) => {
+    ipcMain.handle('show-context-menu', async (event, menuItems: ContextMenuItem[], position: { x: number; y: number }) => {
       const window = BrowserWindow.fromWebContents(event.sender);
       if (!window) {
         return null;
       }
 
       // 将菜单项转换为 Electron 菜单格式
-      const convertMenuItems = (items: any[]): any[] => {
+      const convertMenuItems = (items: ContextMenuItem[]): MenuItemConstructorOptions[] => {
         return items.map(item => {
           if (item.type === 'separator') {
             return { type: 'separator' };
           }
           
-          const menuItem: any = {}
+          const menuItem: MenuItemConstructorOptions = {}
           if (item.id) {
             menuItem.id = item.id
           }
@@ -925,7 +958,7 @@ export class App {
     })
 
     // 跨文件搜索
-    ipcMain.handle('search-in-files', async (_, options: any) => {
+    ipcMain.handle('search-in-files', async (_, options: SearchInFilesRequest) => {
       try {
         const {
           folderPath,
@@ -951,7 +984,7 @@ export class App {
           '.exe', '.dll', '.so', '.dylib'
         ])
 
-        const results: any[] = []
+        const results: SearchFileResult[] = []
         let totalMatches = 0
 
         // 递归搜索文件
@@ -986,7 +1019,7 @@ export class App {
                 try {
                   const stats = fs.statSync(fullPath)
                   if (stats.size > 10 * 1024 * 1024) continue
-                } catch (err) {
+                } catch {
                   continue
                 }
 
@@ -994,7 +1027,7 @@ export class App {
                 try {
                   const content = fs.readFileSync(fullPath, 'utf8')
                   const lines = content.split('\n')
-                  const matches: any[] = []
+                  const matches: SearchMatch[] = []
 
                   // 构建搜索正则表达式
                   let pattern = searchTerm
@@ -1299,7 +1332,7 @@ export class App {
       }
     });
 
-    app.on('will-quit', async (event) => {
+    app.on('will-quit', async (_event) => {
       // 清理应用强制退出定时器
       this.appQuitTimer?.end()
 
@@ -1344,7 +1377,7 @@ export class App {
       if (!isDev) {
         try {
           this.updaterManager = new UpdaterManager()
-          this.updaterManager.setSendAppUpdateInfo((channel: string, data?: any)=>{
+          this.updaterManager.setSendAppUpdateInfo((channel: string, data?: unknown)=>{
             this.windowManager.handleAppUpdateInfo(channel, data)
           })
           this.updaterManager.checkOnStartup()

@@ -78,7 +78,6 @@ function mergeContentBlocks(messages: ThreadMessage[]): MessageContentBlock[] | 
 }
 
 function mergeReadToolOnlyMessages(messages: ThreadMessage[]): ThreadMessage {
-  const first = messages[0]!
   const last = messages[messages.length - 1]!
   const toolCalls = messages.flatMap(message => getReadToolCalls(message))
   const toolResults = messages.flatMap(message => message.toolResults ?? [])

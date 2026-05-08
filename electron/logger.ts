@@ -80,7 +80,7 @@ const THROTTLE_INTERVAL = 1000 // 1秒
  * @param logFn 日志函数
  * @param args 日志参数
  */
-function throttleLog(key: string, logFn: (...args: any[]) => void, ...args: any[]) {
+function throttleLog(key: string, logFn: (...args: unknown[]) => void, ...args: unknown[]) {
   const now = Date.now()
   const lastLog = throttledLogs.get(key)
 
@@ -112,10 +112,10 @@ function sanitizePath(filePath: string): string {
  * @param data 用户数据对象
  * @returns 脱敏后的数据
  */
-function sanitizeUserData(data: any): any {
+function sanitizeUserData(data: unknown): unknown {
   if (!data || typeof data !== 'object') return data
 
-  const sanitized = { ...data }
+  const sanitized: Record<string, unknown> = { ...(data as Record<string, unknown>) }
   const sensitiveKeys = ['password', 'token', 'secret', 'apiKey', 'credential']
 
   for (const key of Object.keys(sanitized)) {
@@ -138,7 +138,7 @@ function safeLog(
   level: 'info' | 'warn' | 'error' | 'debug',
   message: string,
   filePath?: string,
-  extra?: any
+  extra?: unknown
 ) {
   const sanitizedPath = filePath ? sanitizePath(filePath) : undefined
   const sanitizedExtra = extra ? sanitizeUserData(extra) : undefined

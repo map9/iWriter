@@ -148,7 +148,7 @@
   "build": {
     "appId": "com.iwriter.app",
     "productName": "iWriter",
-    "afterSign": "scripts/notarize.js",
+    "afterSign": "scripts/notarize.cjs",
     "directories": {
       "output": "release",
       "buildResources": "assets"

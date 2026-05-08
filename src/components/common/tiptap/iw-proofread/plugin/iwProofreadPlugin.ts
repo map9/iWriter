@@ -59,7 +59,7 @@ const processNode = processNodeAdvanced
 
 // 遍历 node, 对 node 进行处理，这个处理比较简单，就是将 ProseMirror 中被隔断的文本送到 Proofread 中
 // 会有语义不清，空白字符，段落不清等问题，不利于后续 AI 的 Proofread 的使用
-function processNodeNormal(
+function _processNodeNormal(
   doc: ProseMirrorNode, from: number, to: number, 
   processFun: (node: ProseMirrorNode, pos: number, nodeContent: string, n?: TextNodesWithPosition[])=>void
 ) {
@@ -90,7 +90,7 @@ const inlineEmojiText = '[Emoji]'
 // 后续需要将 inlineMath 拼装为一个完整的句子，送去进行 proofread，现在只是简单解决一下包含 inlineMath 的段落起点位置 pos + 1 的问题。
 // 具体拼装的方式为：将所有的 inlineMath 用 [Math Exp.] 来代替，在生成 Decorations 时，来进行处理
 // 用于替换 processNodeNormal 函数
-function processNodePlus(
+function _processNodePlus(
   doc: ProseMirrorNode, from: number, to: number, 
   processFun: (node: ProseMirrorNode, pos: number, nodeContent: string, n?: TextNodesWithPosition[])=>void
 ) {
@@ -618,7 +618,7 @@ export const performProofread = async (
 	}
 }
 
-const dumpChangedNode = (node: ChangedNode) => {
+const dumpChangedNode = (_node: ChangedNode) => {
   /*
 	console.debug({
     function: 'dumpChangedNode',

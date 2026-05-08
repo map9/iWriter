@@ -25,12 +25,6 @@ interface CreativeReviewModuleDeps {
   normalizeMessagesForDisplay: (messages: ThreadMessage[]) => ThreadMessage[]
 }
 
-interface CreativeDecision {
-  kind: 'approved' | 'edited' | 'rejected' | 'failed_to_apply'
-  editedArgs?: Record<string, unknown>
-  message?: string
-}
-
 function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, unknown>): Record<string, unknown> {
   if (editedArgs) return editedArgs
   if (review.kind === 'creative_plan') {

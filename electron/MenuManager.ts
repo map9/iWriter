@@ -1,4 +1,4 @@
-import { BrowserWindow, Menu, shell } from 'electron'
+import { Menu, shell } from 'electron'
 import type {
   ParagraphStateListData,
   ParagraphStateTaskListData,
@@ -76,7 +76,7 @@ export class MenuManager {
     this.sendMenuAction = callback;
   }
 
-  setupMenu(wState: WindowState, g: GlobalParameters): void {
+  setupMenu(wState: WindowState, _g: GlobalParameters): void {
     const t = createMainTranslator(wState?.wContentState?.view?.locale)
 
     // Build base menu template

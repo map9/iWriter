@@ -119,6 +119,7 @@
 </template>
 
 <script setup lang="ts">
+/* eslint-disable vue/no-mutating-props */
 import { ref, computed, nextTick, onUnmounted } from 'vue'
 import type { TreeNode, TreeCallbacks, DropMode } from './index'
 import { dragDropState } from './drag-drop.ts'

@@ -15,7 +15,7 @@ export interface WindowState {
 
 export interface ThemeListener{
   type: string
-  handler: any 
+  handler: (...args: unknown[]) => void
 }
 
 export const HELLO_TIMEOUT = 5000              // 5秒

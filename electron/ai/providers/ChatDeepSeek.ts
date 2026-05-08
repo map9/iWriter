@@ -115,6 +115,17 @@ interface DeepSeekMessageParam {
   }>
 }
 
+interface DeepSeekContentPart {
+  type?: string
+  text?: unknown
+  reasoning?: unknown
+  thinking?: unknown
+}
+
+interface LangChainMessageWithToolCalls extends BaseMessage {
+  tool_calls?: unknown[]
+}
+
 function isDeepSeekTool(value: unknown): value is DeepSeekTool {
   if (!value || typeof value !== 'object') return false
   const candidate = value as DeepSeekTool
@@ -125,16 +136,20 @@ function extractTextContent(content: unknown): string {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
   return content
-    .filter((part: any) => part?.type === 'text')
-    .map((part: any) => String(part?.text ?? ''))
+    .filter((part): part is DeepSeekContentPart => !!part && typeof part === 'object' && (part as DeepSeekContentPart).type === 'text')
+    .map(part => String(part.text ?? ''))
     .join('')
 }
 
 function extractReasoningContent(content: unknown, additionalKwargs?: Record<string, unknown>): string {
   if (Array.isArray(content)) {
     const fromContent = content
-      .filter((part: any) => part?.type === 'reasoning' || part?.type === 'thinking')
-      .map((part: any) => String(part?.reasoning ?? part?.thinking ?? part?.text ?? ''))
+      .filter((part): part is DeepSeekContentPart => {
+        if (!part || typeof part !== 'object') return false
+        const candidate = part as DeepSeekContentPart
+        return candidate.type === 'reasoning' || candidate.type === 'thinking'
+      })
+      .map(part => String(part.reasoning ?? part.thinking ?? part.text ?? ''))
       .join('')
     if (fromContent) return fromContent
   }
@@ -222,7 +237,7 @@ export class ChatDeepSeek extends BaseChatModel {
     }
   }
 
-  bindTools(tools: any[], kwargs?: Record<string, unknown>): RunnableBinding {
+  bindTools(tools: Array<{ name: string; description?: string; schema: Record<string, unknown> } | DeepSeekTool>, kwargs?: Record<string, unknown>): RunnableBinding {
     const formattedTools = tools.map(tool => {
       if (isDeepSeekTool(tool)) return tool
       return {
@@ -244,7 +259,7 @@ export class ChatDeepSeek extends BaseChatModel {
 
   async _generate(
     messages: BaseMessage[],
-    options: Record<string, any> = {},
+    options: Record<string, unknown> = {},
   ): Promise<ChatResult> {
     const body = this.buildRequestBody(messages, options, false)
     const response = await this.fetchJson(body, options.signal)
@@ -259,7 +274,7 @@ export class ChatDeepSeek extends BaseChatModel {
 
     const toolCalls = (message.tool_calls ?? []).flatMap(tc => {
       try {
-        return [parseToolCall(tc as any, { returnId: true })]
+        return [parseToolCall(tc as Record<string, unknown>, { returnId: true })]
       } catch {
         return []
       }
@@ -306,9 +321,9 @@ export class ChatDeepSeek extends BaseChatModel {
 
   async *_streamResponseChunks(
     messages: BaseMessage[],
-    options: Record<string, any> = {},
+    options: Record<string, unknown> = {},
     runManager?: {
-      handleLLMNewToken?: (token: string, ...args: any[]) => Promise<void> | void
+      handleLLMNewToken?: (token: string, ...args: unknown[]) => Promise<void> | void
     },
   ): AsyncGenerator<ChatGenerationChunk> {
     const body = this.buildRequestBody(messages, options, true)
@@ -504,7 +519,7 @@ export class ChatDeepSeek extends BaseChatModel {
 
   private buildRequestBody(
     messages: BaseMessage[],
-    options: Record<string, any>,
+    options: Record<string, unknown>,
     stream: boolean,
   ): Record<string, unknown> {
     const body: Record<string, unknown> = {
@@ -559,8 +574,9 @@ export class ChatDeepSeek extends BaseChatModel {
       if (message._getType() === 'ai') {
         const text = extractTextContent(message.content)
         const reasoning = extractReasoningContent(message.content, message.additional_kwargs)
-        const rawToolCalls = Array.isArray((message as any).tool_calls) && (message as any).tool_calls.length
-          ? (message as any).tool_calls.map(convertLangChainToolCallToOpenAI)
+        const typedMessage = message as LangChainMessageWithToolCalls
+        const rawToolCalls = Array.isArray(typedMessage.tool_calls) && typedMessage.tool_calls.length
+          ? typedMessage.tool_calls.map(convertLangChainToolCallToOpenAI)
           : (Array.isArray(message.additional_kwargs?.tool_calls) ? message.additional_kwargs.tool_calls : [])
 
         return [{

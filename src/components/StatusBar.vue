@@ -23,7 +23,7 @@ const { state: notificationState, dismiss: hideNotification } = useNotification(
 import updaterService from '@/updater/UpdaterService'
 const appStore = useAppStore()
 
-const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args?: unknown[]) => {
+const handleStatusBarCommand = (command: string, _item: IBasicStatusBarItem, _args?: unknown[]) => {
   switch(command) {
     case 'checkForUpdates': {
       const type = updaterService.status.value.type
@@ -49,7 +49,7 @@ const handleStatusBarCommand = (command: string, item: IBasicStatusBarItem, args
 }
 
 // Set up tooltip command handler to use the same logic as StatusBar commands
-const handleTooltipCommand = (protocol: string, command: string, args?: unknown[]) => {
+const handleTooltipCommand = (_protocol: string, _command: string, _args?: unknown[]) => {
 
 }
 

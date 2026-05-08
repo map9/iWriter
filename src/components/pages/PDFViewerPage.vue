@@ -634,10 +634,6 @@ async function renderPage(pageNum: number) {
   copyCachedCanvasToVisible(pageNum)
 }
 
-async function renderCurrentPage() {
-  await syncDisplayPages({ preserveScroll: true })
-}
-
 // 预加载附近页面
 async function preloadNearbyPages() {
   if (!renderProvider || totalPages.value === 0) {

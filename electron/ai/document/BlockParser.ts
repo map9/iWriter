@@ -5,7 +5,7 @@
  * operating on pure JSON data instead of a live TipTap Editor instance.
  */
 
-import type { SerializedSnapshot, SerializedBlockEntry } from '../ipc/protocol'
+import type { SerializedSnapshot } from '../ipc/protocol'
 
 export class BlockParser {
   /**

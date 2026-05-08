@@ -246,7 +246,7 @@ function syncEditorHeight() {
   el.style.height = `${el.scrollHeight}px`
 }
 
-function onEditorInput(event: Event) {
+function onEditorInput(_event: Event) {
   syncEditorHeight()
 }
 

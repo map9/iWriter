@@ -36,6 +36,7 @@
 </template>
 
 <script setup lang="ts">
+/* eslint-disable vue/no-mutating-props */
 import { computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
 import type { TreeNode as TreeNodeType, TreeCallbacks, DropMode } from './index'
 import TreeNode from './TreeNode.vue'

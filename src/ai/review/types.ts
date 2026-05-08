@@ -1,4 +1,4 @@
-import type { AiToolCall, EditProposal, EditRoundResult } from '@/ai/types'
+import type { EditProposal, EditRoundResult } from '@/ai/types'
 
 export type ProposalDecisionKind =
   | 'approved'

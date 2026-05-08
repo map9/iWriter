@@ -7,6 +7,9 @@
 
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import type { ModelProfile } from '@langchain/core/language_models/profile'
+import { ChatAnthropic } from '@langchain/anthropic'
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
+import { ChatOpenAI } from '@langchain/openai'
 import type { AiProviderConfig, AiThinkingLevel } from '../../../src/types/ai'
 import {
   getProviderParameterSupport,
@@ -20,6 +23,9 @@ export interface ChatModelRuntimeOptions {
   modelId?: string
   thinkingLevel?: AiThinkingLevel
 }
+
+type ChatAnthropicFields = ConstructorParameters<typeof ChatAnthropic>[0]
+type ChatGoogleGenerativeAIFields = ConstructorParameters<typeof ChatGoogleGenerativeAI>[0]
 
 function mapThinkingLevelToOpenAIReasoningEffort(thinkingLevel?: AiThinkingLevel): 'low' | 'medium' | 'high' | 'xhigh' {
   const normalized = normalizeThinkingLevel(thinkingLevel)
@@ -80,12 +86,10 @@ export function createChatModel(
   const modelId = runtime.modelId || config.lastSelectedModelId || config.defaultModelId
   const thinkingLevel = normalizeThinkingLevel(runtime.thinkingLevel ?? config.lastSelectedThinkingLevel)
   const parameters = normalizeProviderParameters(config.parameters)
-  const parameterSupport = getProviderParameterSupport(config.type, config.baseUrl)
+    const parameterSupport = getProviderParameterSupport(config.type, config.baseUrl)
 
   switch (config.type) {
     case 'openai-compat': {
-      // Lazy import to avoid loading unused providers
-      const { ChatOpenAI } = require('@langchain/openai')
       const key = config.apiKey || 'no-key'
       const isTrueOpenAI = isOpenAIResponsesProtocol(config.type, config.baseUrl)
       const reasoningEffort = mapThinkingLevelToOpenAIReasoningEffort(thinkingLevel)
@@ -134,7 +138,6 @@ export function createChatModel(
     }
 
     case 'anthropic': {
-      const { ChatAnthropic } = require('@langchain/anthropic')
       const thinkingBudget = mapThinkingLevelToBudget(thinkingLevel)
       return applyProfileOverride(new ChatAnthropic({
         model: modelId,
@@ -148,11 +151,10 @@ export function createChatModel(
           type: 'enabled',
           budget_tokens: thinkingBudget,
         },
-      } as any) as BaseChatModel, getProfileOverride(config, modelId))
+      } as ChatAnthropicFields) as BaseChatModel, getProfileOverride(config, modelId))
     }
 
     case 'gemini': {
-      const { ChatGoogleGenerativeAI } = require('@langchain/google-genai')
       return applyProfileOverride(new ChatGoogleGenerativeAI({
         model: modelId,
         apiKey: config.apiKey,
@@ -164,7 +166,7 @@ export function createChatModel(
         thinkingConfig: {
           thinkingBudget: mapThinkingLevelToBudget(thinkingLevel),
         },
-      } as any) as BaseChatModel, getProfileOverride(config, modelId))
+      } as ChatGoogleGenerativeAIFields) as BaseChatModel, getProfileOverride(config, modelId))
     }
 
     default:

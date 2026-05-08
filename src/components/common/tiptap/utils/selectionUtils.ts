@@ -1,4 +1,5 @@
 import type { Selection } from '@tiptap/pm/state'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 
 /**
  * 选区范围接口
@@ -63,7 +64,7 @@ export function getActualSelectionRange(selection: Selection): SelectionRange {
  * @returns 选区内的文本内容
  */
 export function getSelectionText(
-  doc: any,
+  doc: ProseMirrorNode,
   selection: Selection,
   separator: string = ''
 ): string {
