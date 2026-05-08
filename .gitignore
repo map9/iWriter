@@ -3,7 +3,6 @@ dist-electron
 
 # AI
 .claude
-CLAUDE.md
 !electron/ai/builtin-skills/**/SKILL.md
 claude-**.sh
 
@@ -16,7 +15,6 @@ public/dictionaries
 *.iwt
 /assets/
 /cer/
-/design/
 
 # Mac OS --------------------------------------
 .DS_Store
