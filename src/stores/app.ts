@@ -438,6 +438,10 @@ export const useAppStore = defineStore('app', () => {
             resultClosed = await closeAllTab();
           }
 
+          if (!resultClosed) {
+            shouldPersistState.value = true
+          }
+
           window.electronAPI.windowCloseConfirm(windowId, resultClosed);
         } catch(error) {
           console.error(`窗口${windowId}任务失败:`, error);
@@ -455,6 +459,7 @@ export const useAppStore = defineStore('app', () => {
           if (result.response === 0) {
             window.electronAPI.windowCloseConfirm(windowId, true);
           } else {
+            shouldPersistState.value = true
             window.electronAPI.windowCloseConfirm(windowId, false);
           }
         }
