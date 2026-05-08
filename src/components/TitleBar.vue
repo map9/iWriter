@@ -52,7 +52,7 @@
             :ref="(el: any) => { if (tab.isActive) setActivaeTabRef(el)}"
             :class="[
               idx === 0 ? 'border-l' : '',
-              'flex items-center px-3 py-2 space-x-2 border-r border-base-300 min-w-32 max-w-48 shrink-0',
+              'group flex items-center px-3 py-2 space-x-2 border-r border-base-300 min-w-32 max-w-48 shrink-0',
               tab.isActive ? 'bg-base-100' : 'hover:bg-base-200'
             ]"
             @click="switchTab(tab.id)"
@@ -63,7 +63,7 @@
               :is="getTabIcon(tab)" 
               class="icon-sm shrink-0"
             />
-            
+
             <!-- 标签名称（伸缩部分） -->
             <span class="flex-1 text-sm whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-base-content select-none">{{ tab.name }}</span>
             
@@ -74,20 +74,23 @@
               :title="tab.fileReadonly ? '文件只读' : '只读模式'"
             >🔒</span>
 
-            <!-- 未保存指示器（固定宽度） -->
-            <div
-              v-if="tab.isDirty"
-              class="icon-dot shrink-0 bg-warning"
-            />
-            
-            <!-- 关闭按钮（固定宽度） -->
-            <button 
-              @click.stop="closeTab(tab.id)"
-              class="btn btn-ghost btn-xs btn-square shrink-0"
-              title="Close Tab"
-            >
-              <IconX class="icon-2xs" />
-            </button>
+            <!-- 未保存状态与关闭按钮共用一个固定位置 -->
+            <div class="relative size-6 shrink-0">
+              <div
+                v-if="tab.isDirty"
+                class="icon-dot absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-warning group-hover:hidden"
+              />
+              <button
+                @click.stop="closeTab(tab.id)"
+                :class="[
+                  'btn btn-ghost btn-xs btn-square absolute inset-0',
+                  tab.isDirty ? 'hidden group-hover:flex' : 'flex'
+                ]"
+                title="Close Tab"
+              >
+                <IconX class="icon-2xs" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -105,7 +108,7 @@
     </div>
 
     <!-- Flexible drag area - 填充剩余空间，可被完全压缩 -->
-    <div class="flex-1 h-full cursor-move drag-region min-w-44"></div>
+    <div class="flex-1 h-full cursor-move drag-region min-w-0"></div>
     
     <AiStatusButton />
   </div>

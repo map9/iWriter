@@ -1,6 +1,7 @@
 import { debounce } from 'lodash'
 import { defineStore } from 'pinia'
 import { ref, computed, watch, reactive } from 'vue'
+import { generateJSON, type Editor } from '@tiptap/core'
 import { undoDepth } from '@tiptap/pm/history'
 import type { FileTab, FileOperationResult, FileChange, EditSetting } from '@/types'
 import { SidebarMode, DocumentType } from '@/types'
@@ -28,7 +29,7 @@ import {
   type PandocAvailabilityResult,
   type PandocExportRequest,
 } from '@/types'
-import { convertContentTo } from '@/import-export/'
+import { convertContentFrom, convertContentTo } from '@/import-export/'
 import { PANDOC_EXPORT_EXTENSIONS, PANDOC_IMPORT_EXTENSIONS } from '@/import-export'
 import { DEFAULT_EXPORT_SETTING, StateStorage, type WorkspaceState } from '@/utils/StateStorage'
 import { detectPreferredLocale, i18n, resolveLocale, setAppLocale, type AppLocale } from '@/i18n'
@@ -110,6 +111,7 @@ export const useAppStore = defineStore('app', () => {
   const tabs = ref<FileTab[]>([])
   const activeTabId = ref<string | null>(null)
   const untitledCounter = ref(1)
+  const externalChangePromptPaths = new Set<string>()
 
   // 控制是否应该保存状态（在退出清理时设为 false）
   const shouldPersistState = ref(true)
@@ -151,6 +153,11 @@ export const useAppStore = defineStore('app', () => {
 
   function canRunProofread(tab: FileTab | null | undefined): boolean {
     return canEditTab(tab)
+  }
+
+  function getOpenTabByPath(filePath: string): FileTab | undefined {
+    const normalizedPath = pathUtils.normalize(filePath)
+    return tabs.value.find(tab => tab.path && pathUtils.normalize(tab.path) === normalizedPath)
   }
 
   function syncReadonlyWindowState(tab: FileTab | null | undefined) {
@@ -1517,7 +1524,7 @@ export const useAppStore = defineStore('app', () => {
       if (result.success) {        
         // 监听文件变化事件
         window.electronAPI.onFileChange((change) => {
-          handleFileChange(change)
+          void handleFileChange(change)
         })
         
         // 监听错误事件
@@ -1725,7 +1732,83 @@ export const useAppStore = defineStore('app', () => {
       normalizedFilePath.startsWith(`${normalizedWorkspacePath}/`)
   }
 
-  function handleFileChange(change: FileChange) {    
+  async function reloadOpenMarkdownTabFromDisk(tab: FileTab): Promise<boolean> {
+    if (!window.electronAPI || !tab.path || tab.documentType !== DocumentType.MARKDOWN_EDITOR) {
+      return false
+    }
+
+    const editor = tab.editorInstance as Editor | undefined
+    if (!editor) return false
+
+    const content = await window.electronAPI.readFile(tab.path)
+    if (content === null) return false
+
+    const contentConverted = await convertContentFrom(content, pathUtils.extension(tab.path))
+    if (contentConverted === null) {
+      throw new Error('Unsupport file format')
+    }
+
+    editor.chain().command(({ tr, dispatch }) => {
+      if (dispatch) {
+        tr.setMeta('addToHistory', false)
+        const json = generateJSON(contentConverted.content, editor.extensionManager.extensions)
+        const doc = editor.schema.nodeFromJSON(json)
+        tr.replaceWith(0, tr.doc.content.size, doc.content)
+        dispatch(tr)
+      }
+      return true
+    }).run()
+
+    updateTabState(tab.id, {
+      isDirty: false,
+      savedCheckPoint: undoDepth(editor.state),
+      editState: {
+        lineEnding: contentConverted.lineEnding || 'LF',
+      }
+    })
+    return true
+  }
+
+  async function handleOpenTabExternalChange(filePath: string) {
+    const tab = getOpenTabByPath(filePath)
+    if (!tab || tab.documentType !== DocumentType.MARKDOWN_EDITOR) return
+
+    const normalizedPath = pathUtils.normalize(filePath)
+    if (!tab.isDirty) {
+      try {
+        await reloadOpenMarkdownTabFromDisk(tab)
+      } catch (error) {
+        notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.editor.errorContext'))
+      }
+      return
+    }
+
+    if (externalChangePromptPaths.has(normalizedPath) || !window.electronAPI?.showMessageBox) return
+    externalChangePromptPaths.add(normalizedPath)
+
+    try {
+      const result = await window.electronAPI.showMessageBox({
+        message: 'The file has changed on disk',
+        type: 'warning',
+        buttons: ['Reload', 'Ignore'],
+        defaultId: 0,
+        cancelId: 1,
+        title: 'File Changed',
+        detail: tab.path ?? filePath,
+        noLink: true,
+      })
+
+      if (result.response === 0) {
+        await reloadOpenMarkdownTabFromDisk(tab)
+      }
+    } catch (error) {
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.editor.errorContext'))
+    } finally {
+      externalChangePromptPaths.delete(normalizedPath)
+    }
+  }
+
+  async function handleFileChange(change: FileChange) {    
     if (currentFolder.value && !isPathInsideWorkspace(change.path, currentFolder.value)) {
       return
     }
@@ -1750,6 +1833,7 @@ export const useAppStore = defineStore('app', () => {
       case 'change':
         // 文件内容变化，更新文件信息
         updateFileTreeNodeInfo(change.path)
+        await handleOpenTabExternalChange(change.path)
         break
     }
   }

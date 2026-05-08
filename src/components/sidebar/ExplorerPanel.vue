@@ -52,7 +52,7 @@
         <div class="flex items-center gap-1">
           <!-- Root Folder Icon and Name -->
           <IconFolder class="icon-sm" />
-          <span class="text-sm font-medium text-base-content">{{ folderName }}</span>
+          <span class="text-sm font-medium text-base-content whitespace-nowrap overflow-hidden text-ellipsis">{{ folderName }}</span>
         </div>
         
         <!-- Action Buttons -->
