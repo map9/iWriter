@@ -15,6 +15,7 @@
     <script>
       (() => {
         const THEME_KEY = 'iwriter-theme'
+        const LOCALE_KEY = 'iwriter-locale'
         const root = document.documentElement
 
         try {
@@ -32,6 +33,17 @@
           root.dataset.selectedTheme = selectedTheme
           root.dataset.resolvedTheme = darkThemes.includes(resolvedTheme) ? 'dark' : 'light'
           root.style.colorScheme = darkThemes.includes(resolvedTheme) ? 'dark' : 'light'
+        } catch (error) {}
+
+        try {
+          const savedLocale = (localStorage.getItem(LOCALE_KEY) || '').toLowerCase()
+          const normalizedLocale =
+            savedLocale === 'zh-cn' || savedLocale === 'zh' || savedLocale.startsWith('zh-')
+              ? 'zh-CN'
+              : 'en-US'
+
+          root.lang = normalizedLocale
+          window.electronAPI?.bootstrapWindowLocale?.(normalizedLocale)
         } catch (error) {}
       })()
     </script>

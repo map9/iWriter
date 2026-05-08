@@ -11,6 +11,7 @@ import type { PdfSaveOptions } from '../src/types/electron-api'
 import { isDev } from './utils'
 import type { WindowState, IApp } from './types'
 import { USE_CONFIRMATION_TIMEOUT, HELLO_TIMEOUT, CLOSE_WINDOW_CONFIRMATION_TIMEOUT } from './types'
+import { normalizeLocale } from './i18n'
 
 
 export class WindowManager {
@@ -274,6 +275,27 @@ export class WindowManager {
         return { success: true };
       }
       return { success: false, error: 'Window not found' };
+    })
+
+    ipcMain.handle('window-bootstrap-locale', async (event, locale: string) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      const normalizedLocale = normalizeLocale(locale)
+
+      if (!window) return normalizedLocale
+
+      const windowIndex = this._windows.findIndex(w => w.id === window.id)
+      if (windowIndex === -1) return normalizedLocale
+
+      this._windows[windowIndex].wContentState = merge(
+        this._windows[windowIndex].wContentState,
+        { view: { locale: normalizedLocale } },
+      )
+
+      if (BrowserWindow.getFocusedWindow()?.id === window.id) {
+        this.updateMenu()
+      }
+
+      return normalizedLocale
     })
 
     // Print IPC handler

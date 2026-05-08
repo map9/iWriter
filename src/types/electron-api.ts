@@ -99,6 +99,7 @@ export interface ElectronAPI {
   removeWindowStateChangedListeners: () => void
 
   // 设置
+  bootstrapWindowLocale: (locale: string) => Promise<string>
   windowContentChange: (wContentState: Partial<import('@/types').WindowContentState>) => Promise<void>
   updateWindowTitle: (title: string) => Promise<{ success: boolean; error?: string }>
 

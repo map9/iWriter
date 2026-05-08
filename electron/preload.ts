@@ -134,6 +134,7 @@ const electronAPI: ElectronAPI = {
   },
   
   // Menu state updates
+  bootstrapWindowLocale: (locale: string) => ipcRenderer.invoke('window-bootstrap-locale', locale),
   windowContentChange: (wContentState: Partial<WindowContentState>) => ipcRenderer.invoke('window-content-changed', wContentState),
   updateWindowTitle: (title: string) => ipcRenderer.invoke('update-window-title', title),
 

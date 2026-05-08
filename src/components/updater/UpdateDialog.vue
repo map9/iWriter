@@ -15,17 +15,17 @@
           <IconDownload class="icon-sm" />
         </div>
         <div class="min-w-0 flex-1">
-          <h2 class="truncate text-lg font-semibold text-base-content">iWriter Update Available</h2>
+          <h2 class="truncate text-lg font-semibold text-base-content">{{ t('updateDialog.title') }}</h2>
           <p class="mt-0.5 text-sm text-base-content/70">
-            New version <span class="font-medium text-base-content">{{ updateInfo.version }}</span>
+            {{ t('updateDialog.newVersion') }} <span class="font-medium text-base-content">{{ updateInfo.version }}</span>
             <span class="mx-1 text-base-content/40">·</span>
-            <span class="text-base-content/55">Current {{ updateInfo.currentVersion }}</span>
+            <span class="text-base-content/55">{{ t('updateDialog.currentVersion') }} {{ updateInfo.currentVersion }}</span>
           </p>
         </div>
         <button
           class="iw-btn btn-ghost self-start px-2 -translate-y-1"
-          :title="isDownloading ? 'Close (download continues in background)' : 'Close'"
-          aria-label="Close"
+          :title="isDownloading ? t('updateDialog.closeWhileDownloading') : t('common.close')"
+          :aria-label="t('common.close')"
           @click="closeDialog"
         >
           <IconX class="icon-xs" />
@@ -37,18 +37,18 @@
         <!-- Release Info -->
         <div class="mb-5 flex flex-col divide-y divide-base-300 rounded-box border border-base-300 bg-base-200/40">
           <div class="flex items-center justify-between px-4 py-2.5 text-sm">
-            <span class="text-base-content/60">Release Date</span>
+            <span class="text-base-content/60">{{ t('updateDialog.releaseDate') }}</span>
             <span class="text-base-content">{{ formatDate(updateInfo.releaseDate) }}</span>
           </div>
           <div v-if="downloadSize" class="flex items-center justify-between px-4 py-2.5 text-sm">
-            <span class="text-base-content/60">Download Size</span>
+            <span class="text-base-content/60">{{ t('updateDialog.downloadSize') }}</span>
             <span class="text-base-content">{{ downloadSize }}</span>
           </div>
         </div>
 
         <!-- Release Notes -->
         <div>
-          <h3 class="mb-3 text-xs font-semibold uppercase tracking-wide text-base-content/60">What's New</h3>
+          <h3 class="mb-3 text-xs font-semibold uppercase tracking-wide text-base-content/60">{{ t('updateDialog.whatsNew') }}</h3>
           <div class="update-notes text-sm leading-relaxed text-base-content/85" v-html="formattedReleaseNotes"></div>
         </div>
       </section>
@@ -76,23 +76,23 @@
       <!-- Actions -->
       <footer class="flex items-center justify-between gap-2 border-t border-base-300 bg-base-200 px-3 py-4">
         <button class="iw-btn btn-ghost" @click="handleViewDetails">
-          View Details
+          {{ t('updateDialog.viewDetails') }}
         </button>
         <div class="flex items-center gap-2">
           <button v-if="!isDownloading" class="iw-btn btn-ghost" @click="handleSkipVersion">
-            Skip This Version
+            {{ t('updateDialog.skipThisVersion') }}
           </button>
           <button v-if="!isDownloading" class="iw-btn btn-ghost" @click="handleLater">
-            Remind Me Later
+            {{ t('updateDialog.remindMeLater') }}
           </button>
           <button
             v-if="isDownloading"
             class="iw-btn btn-primary"
-            title="Close window, download continues in background"
+            :title="t('updateDialog.closeWhileDownloading')"
             @click="closeDialog"
           >
             <span class="loading loading-spinner loading-xs"></span>
-            Download in Background
+            {{ t('updateDialog.downloadInBackground') }}
           </button>
           <button v-else class="iw-btn btn-primary" @click="handleUpdate">
             {{ updateButtonText }}
@@ -105,6 +105,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { IconDownload, IconX, IconCircleCheck } from '@tabler/icons-vue'
 import type { UpdateInfo } from '@/updater/types'
 import updaterService from '@/updater/UpdaterService'
@@ -115,6 +116,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { t, locale } = useI18n()
 
 const emit = defineEmits<{
   update: []
@@ -146,25 +148,25 @@ const downloadSize = computed(() => {
 
 const formattedReleaseNotes = computed(() => {
   if (!props.updateInfo.releaseNotes) {
-    return '<p>This update includes performance improvements and bug fixes.</p>'
+    return `<p>${t('updateDialog.releaseNotesFallback')}</p>`
   }
   return updaterService.formatReleaseNotes(props.updateInfo.releaseNotes)
 })
 
 const updateButtonText = computed(() => {
-  if (isDownloaded.value) return 'Install Now'
-  if (isDownloading.value) return 'Downloading...'
-  return 'Update Now'
+  if (isDownloaded.value) return t('updateDialog.installNow')
+  if (isDownloading.value) return t('updateDialog.downloading')
+  return t('updateDialog.updateNow')
 })
 
 const progressLabel = computed(() => {
-  if (isDownloaded.value) return 'Download complete, ready to install'
-  return 'Downloading update...'
+  if (isDownloaded.value) return t('updateDialog.downloadComplete')
+  return t('updateDialog.downloadingProgress')
 })
 
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
+  return date.toLocaleDateString(locale.value || undefined, {
     year: 'numeric',
     month: 'long',
     day: 'numeric'

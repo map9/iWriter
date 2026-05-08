@@ -348,6 +348,18 @@ export class MenuManager {
               this.sendMenuAction('close-folder')
             }
           },
+          ...(isMac
+            ? []
+            : [
+                { type: 'separator' as const },
+                {
+                  label: t('menu.file.preferences', 'Preferences...'),
+                  accelerator: 'CmdOrCtrl+,',
+                  click: () => {
+                    this.sendMenuAction('preferences')
+                  }
+                },
+              ]),
           isMac ? { role: 'close' } : { role: 'quit' }
         ]
       },
@@ -1629,17 +1641,32 @@ export class MenuManager {
       { role: 'windowMenu' },
       {
         id: 'helpMenu',
-        label: 'Help',
+        label: t('menu.help.title', 'Help'),
         submenu: [
+          ...(isMac
+            ? []
+            : [
+                {
+                  label: t('menu.help.about', 'About iWriter'),
+                  role: 'about' as const,
+                },
+                {
+                  label: t('menu.help.checkForUpdate', 'Check for Updates...'),
+                  click: () => {
+                    this.sendMenuAction('check-update')
+                  }
+                },
+                { type: 'separator' as const },
+              ]),
           {
-            label: "What's New...",
+            label: t('menu.help.whatsNew', "What's New..."),
             click: async () => {
               await shell.openExternal(docsUrl('/changelog'))
             }
           },
           { type: 'separator' },
           {
-            label: 'Quick Start',
+            label: t('menu.help.quickStart', 'Quick Start'),
             click: async () => {
               await shell.openExternal(docsUrl('/quick-start'))
             }
@@ -1666,38 +1693,38 @@ export class MenuManager {
           */
           { type: 'separator' },
           {
-            label: 'Licenses and Acknowledgements',
+            label: t('menu.help.licenses', 'Licenses and Acknowledgements'),
             click: async () => {
               await shell.openExternal(docsUrl('/docs/licenses'))
             }
           },
           {
-            label: 'FAQ',
+            label: t('menu.help.faq', 'FAQ'),
             click: async () => {
               await shell.openExternal(docsUrl('/faq'))
             }
           },
           {
-            label: 'Security',
+            label: t('menu.help.security', 'Security'),
             click: async () => {
               await shell.openExternal(docsUrl('/security'))
             }
           },
           { type: 'separator' },
           {
-            label: 'Auto Update Settings...',
+            label: t('menu.help.autoUpdateSettings', 'Auto Update Settings...'),
             click: () => {
               this.sendMenuAction('auto-update-settings')
             }
           },
           {
-            label: 'Visit Project Repository',
+            label: t('menu.help.visitProjectRepository', 'Visit Project Repository'),
             click: async () => {
               await shell.openExternal(REPOSITORY_URL)
             }
           },
           {
-            label: 'Feedback',
+            label: t('menu.help.feedback', 'Feedback'),
             click: async () => {
               await shell.openExternal(docsUrl('/community'))
             }
