@@ -161,14 +161,25 @@ jobs:
       - build-windows
       - build-linux
     steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
           path: release-assets
 
+      - name: Generate release notes from changelog
+        run: node scripts/extract-release-notes.mjs --version "${GITHUB_REF_NAME#v}" --output release-notes.md
+
       - name: Publish release assets
         uses: softprops/action-gh-release@v2
         with:
+          body_path: release-notes.md
           files: |
             release-assets/**/*.dmg
             release-assets/**/*.zip

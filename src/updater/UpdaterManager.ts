@@ -24,6 +24,7 @@ export class UpdaterManager {
   private currentStatus: UpdateStatus = { type: 'idle', message: '' }
   private updateInfo: UpdateInfo | null = null
   private checkTimer: NodeJS.Timeout | null = null
+  private releaseNotesCache = new Map<string, string>()
 
   constructor() {
     autoUpdater.logger = log;
@@ -88,24 +89,13 @@ export class UpdaterManager {
     })
 
     this.updater.on('update-available', (info: ElectronUpdateInfo) => {
-      const updateInfo: UpdateInfo = {
-        version: info.version,
-        currentVersion: app.getVersion(),
-        releaseNotes: info.releaseNotes as string || '',
-        releaseDate: info.releaseDate,
-        files: info.files || []
-      }
-
-      if (this.isSkippedVersion(updateInfo.version)) {
+      if (this.isSkippedVersion(info.version)) {
         this.updateInfo = null
         this.updateStatus('idle', '')
         return
       }
 
-      this.updateInfo = updateInfo
-      this.updateStatus('available', UPDATE_STATUS_MESSAGES.available, {
-        updateInfo
-      })
+      void this.handleUpdateAvailable(info)
     })
 
     this.updater.on('update-not-available', () => {
@@ -126,17 +116,7 @@ export class UpdaterManager {
     })
 
     this.updater.on('update-downloaded', (info: UpdateDownloadedEvent) => {
-      const updateInfo: UpdateInfo = {
-        version: info.version,
-        currentVersion: app.getVersion(),
-        releaseNotes: info.releaseNotes as string || '',
-        releaseDate: info.releaseDate,
-        files: info.files || []
-      }
-      this.updateInfo = updateInfo
-      this.updateStatus('downloaded', UPDATE_STATUS_MESSAGES.downloaded, {
-        updateInfo
-      })
+      void this.handleUpdateDownloaded(info)
     })
 
     this.updater.on('error', (error) => {
@@ -146,6 +126,22 @@ export class UpdaterManager {
           stack: error.stack
         }
       })
+    })
+  }
+
+  private async handleUpdateAvailable(info: ElectronUpdateInfo) {
+    const updateInfo = await this.buildUpdateInfo(info)
+    this.updateInfo = updateInfo
+    this.updateStatus('available', UPDATE_STATUS_MESSAGES.available, {
+      updateInfo
+    })
+  }
+
+  private async handleUpdateDownloaded(info: UpdateDownloadedEvent) {
+    const updateInfo = await this.buildUpdateInfo(info)
+    this.updateInfo = updateInfo
+    this.updateStatus('downloaded', UPDATE_STATUS_MESSAGES.downloaded, {
+      updateInfo
     })
   }
 
@@ -226,6 +222,141 @@ export class UpdaterManager {
     return this.getConfig().skipVersion === version
   }
 
+  private async buildUpdateInfo(info: Pick<ElectronUpdateInfo, 'version' | 'releaseNotes' | 'releaseDate' | 'files'>): Promise<UpdateInfo> {
+    return {
+      version: info.version,
+      currentVersion: app.getVersion(),
+      releaseNotes: await this.resolveReleaseNotes(info.version, info.releaseNotes),
+      releaseDate: info.releaseDate,
+      files: info.files || []
+    }
+  }
+
+  private async resolveReleaseNotes(version: string, releaseNotes: ElectronUpdateInfo['releaseNotes']): Promise<string> {
+    const normalized = this.normalizeReleaseNotes(releaseNotes)
+    if (normalized) {
+      return normalized
+    }
+
+    return this.fetchReleaseNotesFromChangelog(version)
+  }
+
+  private normalizeReleaseNotes(releaseNotes: ElectronUpdateInfo['releaseNotes']): string {
+    if (typeof releaseNotes === 'string') {
+      return releaseNotes.trim()
+    }
+
+    if (!Array.isArray(releaseNotes)) {
+      return ''
+    }
+
+    return releaseNotes
+      .map((item: unknown) => {
+        if (typeof item === 'string') {
+          return item.trim()
+        }
+
+        if (!item || typeof item !== 'object') {
+          return ''
+        }
+
+        const releaseNote = item as Record<string, unknown>
+        const note = typeof releaseNote.note === 'string' ? releaseNote.note.trim() : ''
+        const version = typeof releaseNote.version === 'string' ? releaseNote.version.trim() : ''
+
+        if (version && note) {
+          return `## ${version}\n\n${note}`
+        }
+
+        return note
+      })
+      .filter(Boolean)
+      .join('\n\n')
+      .trim()
+  }
+
+  private async fetchReleaseNotesFromChangelog(version: string): Promise<string> {
+    if (!version) {
+      return ''
+    }
+
+    const cached = this.releaseNotesCache.get(version)
+    if (cached) {
+      return cached
+    }
+
+    const changelogUrls = [
+      'https://raw.githubusercontent.com/map9/iWriter/main/docs/changelog.md',
+      'https://raw.githubusercontent.com/map9/iWriter/master/docs/changelog.md'
+    ]
+
+    for (const url of changelogUrls) {
+      try {
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': `iWriter/${app.getVersion()}`
+          },
+          signal: AbortSignal.timeout(5000)
+        })
+
+        if (!response.ok) {
+          continue
+        }
+
+        const changelog = await response.text()
+        const notes = this.extractReleaseNotesFromChangelog(changelog, version)
+        if (notes) {
+          this.releaseNotesCache.set(version, notes)
+          return notes
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch release notes from ${url}:`, error)
+      }
+    }
+
+    return ''
+  }
+
+  private extractReleaseNotesFromChangelog(changelog: string, version: string): string {
+    const lines = changelog.split(/\r?\n/)
+    let start = -1
+    let end = lines.length
+
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index]
+      if (!line) {
+        continue
+      }
+
+      if (!line.startsWith('## ')) {
+        continue
+      }
+
+      const heading = line.slice(3).trim().replace(/^`|`$/g, '')
+      if (heading !== version) {
+        continue
+      }
+
+      start = index + 1
+
+      for (let cursor = start; cursor < lines.length; cursor += 1) {
+        const nextLine = lines[cursor]
+        if (nextLine?.startsWith('## ')) {
+          end = cursor
+          break
+        }
+      }
+
+      break
+    }
+
+    if (start === -1) {
+      return ''
+    }
+
+    return lines.slice(start, end).join('\n').trim()
+  }
+
   // 公共方法
   async checkForUpdates(manual = false): Promise<UpdateCheckResult> {
     const config = this.getConfig()
@@ -239,15 +370,10 @@ export class UpdaterManager {
         if (this.isSkippedVersion(result.updateInfo.version)) {
           return { available: false }
         }
+        const updateInfo = await this.buildUpdateInfo(result.updateInfo)
         return {
           available: true,
-          updateInfo: {
-            version: result.updateInfo.version,
-            currentVersion: app.getVersion(),
-            releaseNotes: result.updateInfo.releaseNotes as string || '',
-            releaseDate: result.updateInfo.releaseDate,
-            files: result.updateInfo.files || []
-          }
+          updateInfo
         }
       }
       return { available: false }

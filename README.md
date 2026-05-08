@@ -234,6 +234,7 @@ git push --follow-tags
 ```
 
 `npm version patch` 会自动同步 `docs/` 中的版本号与日期，并把 `## Unreleased` 替换成新版本号标题。
+打上 `v*` tag 后，`.github/workflows/release.yml` 会自动从 `docs/changelog.md` 提取对应版本内容，写入 GitHub Release body，供应用内更新对话框读取。
 
 ## 打包与发布
 
