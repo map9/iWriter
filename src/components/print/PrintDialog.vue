@@ -11,7 +11,7 @@
       @click.stop
     >
       <!-- Left: Preview Area -->
-      <div class="relative flex flex-1 flex-col overflow-hidden bg-neutral/20">
+      <div ref="previewArea" class="relative flex flex-1 flex-col overflow-hidden bg-base-300">
         <div v-if="isRendering" class="absolute inset-0 z-10 flex items-center justify-center bg-base-200/70">
           <span class="loading loading-spinner loading-md text-base-content/50" />
         </div>
@@ -362,6 +362,7 @@ function applyResolvedPrintSettings(
 
 const previewFrame  = ref<HTMLIFrameElement>()
 const previewScroll = ref<HTMLDivElement>()
+const previewArea   = ref<HTMLDivElement>()
 let currentBlobUrl = ''
 let lastPreviewHtml = ''
 let previewRenderTimer: ReturnType<typeof setTimeout> | null = null
@@ -761,6 +762,12 @@ async function renderPreview() {
   previewFrame.value.src = currentBlobUrl
 }
 
+function getPreviewAreaBackgroundColor(): string {
+  const el = previewArea.value
+  if (!el) return ''
+  const color = window.getComputedStyle(el).backgroundColor
+  return color ? color : ''
+}
 
 function buildPreviewHtml(): string {
   const effectivePageSelectionMode = pageRange.value === 'custom' && !customPageRangeValidation.value.effectiveValue
@@ -775,6 +782,7 @@ function buildPreviewHtml(): string {
     contentScale: zoomFactorForPreview(),
     enablePageNumberFix: printCss.enablePageNumberFix,
     pageNumberTemplatesByBox: printCss.pageNumberTemplatesByBox,
+    bodyBackground: getPreviewAreaBackgroundColor(),
   })
 }
 

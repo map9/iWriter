@@ -11,7 +11,7 @@ const PREVIEW_STYLES =
 `:root {
   --color-mbox : rgba(0,0,0,0.2);
   --margin: 4px;
-  --background: #fdfdfd;
+  --background: transparent;
 }
 
 #paged-preview-root {
@@ -78,6 +78,7 @@ function buildRunner(options: {
   contentScale: number
   enablePageNumberFix: boolean
   pageNumberTemplatesByBox: Record<string, string>
+  bodyBackground?: string,
 }): string {
   const serializedOptions = JSON.stringify(options)
   return `;(async () => {
@@ -89,6 +90,20 @@ function buildRunner(options: {
     wrapper.id = 'paged-preview-root';
     document.body.appendChild(wrapper);
     const previewer = new Previewer();
+    previewer.on('rendering', () => {
+      if (previewOptions.bodyBackground) {
+        const realBg = window.getComputedStyle(document.body).backgroundColor;
+        
+        const style = document.createElement('style');
+        style.textContent = 
+        '@media screen {' +
+        ':root { --background:' + realBg + ' !important; }' +
+        'body { background: ' + previewOptions.bodyBackground + ' !important; }' +
+        '}';
+        document.head.appendChild(style);
+      }
+    });
+
     const result = await previewer.preview(bodyContent, null, wrapper);
 
     var totalPages = result.total ?? 0;
@@ -303,28 +318,6 @@ function buildRunner(options: {
 })();`
 }
 
-/**
- * Builds a self-contained HTML document for the iframe preview.
- * All pagedjs style injections stay inside the iframe's own document.head,
- * so the main app's styles are never affected.
- *
- * Style tag layout:
- *   <style media="screen"> PREVIEW_STYLES </style>   ← pagedjs skips (media filter)
- *   <style>                printCss       </style>   ← pagedjs removeStyles() picks this up
- */
-export function buildPreviewDocument(html: string, printCss: string, pagesPerSheet = 1): string {
-  const options = {
-    pagesPerSheet,
-    orientation: 'portrait' as const,
-    pageSelectionMode: 'all' as const,
-    selectedPages: null as number[] | null,
-    contentScale: 1,
-    enablePageNumberFix: false,
-    pageNumberTemplatesByBox: {} as Record<string, string>,
-  }
-  return buildPreviewDocumentWithOptions(html, printCss, options)
-}
-
 export function buildPreviewDocumentWithOptions(
   html: string,
   printCss: string,
@@ -336,6 +329,7 @@ export function buildPreviewDocumentWithOptions(
     contentScale?: number
     enablePageNumberFix?: boolean
     pageNumberTemplatesByBox?: Record<string, string>
+    bodyBackground?: string,
   } = {},
 ): string {
   // Prevent any </script sequences in user HTML from breaking the iframe document
@@ -345,6 +339,7 @@ export function buildPreviewDocumentWithOptions(
   const TAG_OPEN = '<script type="module">'
   const TAG_CLOSE = '</script>'
 
+  console.log('Building preview document with options:', options)
   return [
     '<!DOCTYPE html><html><head><meta charset="utf-8">',
     '<style media="screen">', PREVIEW_STYLES, '</style>',
@@ -359,6 +354,7 @@ export function buildPreviewDocumentWithOptions(
       contentScale: options.contentScale ?? 1,
       enablePageNumberFix: options.enablePageNumberFix ?? false,
       pageNumberTemplatesByBox: options.pageNumberTemplatesByBox ?? {},
+      bodyBackground: options.bodyBackground,
     }), '\n', TAG_CLOSE,
     '</body></html>',
   ].join('')
