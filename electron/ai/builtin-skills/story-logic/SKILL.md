@@ -1,3 +1,8 @@
+---
+name: story-logic
+description: Check causal consistency, continuity, and plot plausibility for events, motives, character knowledge, and available resources.
+---
+
 # Story Logic
 
 Use this skill for causal consistency, continuity, and plot plausibility.

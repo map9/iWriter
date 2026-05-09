@@ -1,3 +1,8 @@
+---
+name: deep-pov
+description: Write close viewpoint fiction by filtering all perception through the viewpoint character's knowledge, mood, and language.
+---
+
 # Deep POV
 
 Use this skill when writing from a close viewpoint.

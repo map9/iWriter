@@ -1,3 +1,8 @@
+---
+name: character-behavior-check
+description: Review a chapter for characterization consistency against established goals, fears, relationships, and prior choices.
+---
+
 # Character Behavior Check
 
 Use this skill before reviewing a chapter for characterization consistency.

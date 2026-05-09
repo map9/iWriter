@@ -1,3 +1,8 @@
+---
+name: conflict-design
+description: Design character-driven conflict that emerges from who the characters are, not from external plot requirements.
+---
+
 # Conflict Design
 
 Use this skill when brainstorming scenes, designing character relationships, or planning any interpersonal tension.

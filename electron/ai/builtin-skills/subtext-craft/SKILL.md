@@ -1,3 +1,8 @@
+---
+name: subtext-craft
+description: "Write dialogue or narration that runs two conversations simultaneously: the stated surface exchange and the real meaning underneath."
+---
+
 # Subtext Craft
 
 Use this skill when writing dialogue, interiority, or close narration.

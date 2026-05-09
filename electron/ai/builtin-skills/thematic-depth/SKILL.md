@@ -1,3 +1,8 @@
+---
+name: thematic-depth
+description: Design story structure and turning points around a coherent thematic question about human experience that cannot be answered cleanly.
+---
+
 # Thematic Depth
 
 Use this skill when brainstorming overall structure, designing major turning points, or generating creative ideas for a story.

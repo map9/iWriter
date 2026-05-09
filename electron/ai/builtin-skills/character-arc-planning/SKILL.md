@@ -1,3 +1,8 @@
+---
+name: character-arc-planning
+description: Plan and track a character's long-term transformation arc, ensuring each action reflects their current stage of change.
+---
+
 # Character Arc Planning
 
 Use this skill when forming plans that affect a character's long-term change.

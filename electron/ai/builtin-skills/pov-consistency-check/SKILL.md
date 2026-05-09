@@ -1,3 +1,8 @@
+---
+name: pov-consistency-check
+description: Review a chapter for point-of-view violations including impossible knowledge, sensory camera drift, and narrator intrusion.
+---
+
 # POV Consistency Check
 
 Use this skill before reviewing a chapter for point-of-view issues.

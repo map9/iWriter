@@ -1,3 +1,8 @@
+---
+name: information-density
+description: Draft or revise prose so each sentence carries multiple simultaneous layers of character, texture, emotion, and meaning.
+---
+
 # Information Density
 
 Use this skill when drafting prose or revising for quality.

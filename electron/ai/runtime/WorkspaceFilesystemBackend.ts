@@ -36,6 +36,11 @@ function firstPathSegment(value: string): string | null {
   return normalized.split('/').find(Boolean) ?? null
 }
 
+function startsWithRelativeSegment(value: string, segment: string): boolean {
+  const normalized = toPosixPath(value).trim().replace(/^\/+/, '')
+  return normalized === segment || normalized.startsWith(`${segment}/`)
+}
+
 /**
  * deepagents' FilesystemBackend uses virtual absolute paths when virtualMode is
  * enabled. This adapter also accepts real host absolute paths inside workspace,
@@ -58,6 +63,15 @@ export class WorkspaceFilesystemBackend implements BackendProtocol {
     if (raw && path.isAbsolute(raw) && isSameOrInsidePath(raw, this.rootPath)) {
       const relativePath = toPosixPath(path.relative(this.rootPath, path.resolve(raw)))
       return { ok: true, path: relativePath ? `/${relativePath}` : '/' }
+    }
+
+    // Fail fast for reserved virtual roots so they cannot silently fall back to
+    // workspace-relative paths like "<workspace>/skills/...".
+    if (!path.isAbsolute(raw) && startsWithRelativeSegment(raw, 'skills')) {
+      return {
+        ok: false,
+        error: `Error: reserved virtual path must be absolute: ${raw}. Use /skills/... instead.`,
+      }
     }
 
     const virtualPath = normalizeVirtualPath(raw)

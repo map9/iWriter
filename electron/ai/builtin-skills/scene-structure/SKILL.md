@@ -1,3 +1,8 @@
+---
+name: scene-structure
+description: Plan or draft a fiction scene with a concrete character goal, meaningful opposition, a turning point, and a consequential result.
+---
+
 # Scene Structure
 
 Use this skill when planning or drafting a fiction scene.

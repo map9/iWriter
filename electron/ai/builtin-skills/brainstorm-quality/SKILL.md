@@ -1,6 +1,11 @@
+---
+name: brainstorm-quality
+description: Use before offering creative options, story directions, or brainstorming ideas so proposals are original, character-driven, and beyond the familiar.
+---
+
 # Brainstorm Quality
 
-Load this skill before any creative ideation session.
+Read this skill before offering creative options, story directions, or brainstorming ideas.
 
 ## The first idea is the most familiar
 

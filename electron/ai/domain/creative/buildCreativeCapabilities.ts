@@ -17,6 +17,21 @@ export function buildCreativeCapabilities(
   const workspaceMount = mounts.find(mount => mount.virtualPath === '/')
   const workspacePath = workspaceMount?.hostPath ?? null
 
+  const backend = new CompositeBackend(
+    new WorkspaceFilesystemBackend(workspacePath ?? path.join(aiRootPath, 'empty-fs')),
+    {
+      '/skills/': new FilesystemBackend({
+        rootDir: path.join(aiRootPath, 'skills'),
+        virtualMode: true,
+      }),
+    },
+  )
+  // CompositeBackend defines execute() and id getter (returns ""), which makes
+  // isSandboxBackend() return true even when the default backend is not a sandbox.
+  // Override id to undefined so isSandboxBackend returns false and the execute
+  // tool is not injected into the creative agent.
+  Object.defineProperty(backend, 'id', { get: () => undefined })
+
   return {
     tools: [
       ...buildCreativeTools({ workspacePath, creativeDb, snapshotBroker }),
@@ -24,15 +39,7 @@ export function buildCreativeCapabilities(
     ],
     skills: ['/skills/'],
     subAgents: [],
-    backend: new CompositeBackend(
-      new WorkspaceFilesystemBackend(workspacePath ?? path.join(aiRootPath, 'empty-fs')),
-      {
-        '/skills': new FilesystemBackend({
-          rootDir: path.join(aiRootPath, 'skills'),
-          virtualMode: true,
-        }),
-      },
-    ),
+    backend,
     interruptOn: {
       confirm_writing_plan:       { allowedDecisions: ['approve', 'edit', 'reject'] },
       write_to_chapter:           { allowedDecisions: ['approve', 'edit', 'reject'] },

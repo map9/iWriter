@@ -1,3 +1,8 @@
+---
+name: dialogue-craft
+description: Draft or revise dialogue-heavy scenes where each exchange reveals desire, conceals fear, and shifts power through subtext.
+---
+
 # Dialogue Craft
 
 Use this skill when drafting or revising dialogue-heavy fiction scenes.

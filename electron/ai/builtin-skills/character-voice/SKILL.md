@@ -1,3 +1,8 @@
+---
+name: character-voice
+description: Write dialogue, interiority, or close narration with a distinct and consistent character voice built from vocabulary, rhythm, and pressure response.
+---
+
 # Character Voice
 
 Use this skill when writing dialogue, interiority, or close narration.

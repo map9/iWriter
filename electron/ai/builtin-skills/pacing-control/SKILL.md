@@ -1,3 +1,8 @@
+---
+name: pacing-control
+description: Plan or draft scenes where rhythm, tension, and momentum matter by balancing escalation and release.
+---
+
 # Pacing Control
 
 Use this skill when planning or drafting scenes where rhythm, tension, or momentum matters.

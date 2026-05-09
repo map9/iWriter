@@ -1,6 +1,11 @@
+---
+name: character-complexity
+description: Use before designing, deepening, or offering options for a character, using desire, fear, false belief, and the common root of strength and damage.
+---
+
 # Character Complexity
 
-Use this skill when designing new characters or deepening existing ones.
+Read this skill before designing, deepening, or offering options for a character.
 
 ## The Core Triangle
 
