@@ -373,6 +373,7 @@ import {
 import type { EditSetting, FileTab } from '@/types'
 import { notify } from '@/utils/notifications'
 import pathUtils from '@/utils/pathUtils'
+import { computeFileContentHash } from '@/utils/fileContentHash'
 import { MarkdownTocProvider } from '@/services/toc/MarkdownTocProvider'
 import { setHeading, getContentState, getCurrentAlignment } from './markdown-editor/state' 
 import { calculateFileStats } from './markdown-editor/stats' 
@@ -673,30 +674,34 @@ async function loadTabContent(editorInstance: Editor) {
 
   let lineEnding = props.tab.editState?.lineEnding ?? 'LF'
   let loadedPendingImport = false
+  let lastSavedHash: string | undefined
   try {
     // Load from file if path exists and content is empty
     if (props.tab.path) {
       const content = await window.electronAPI.readFile(props.tab.path)
-      if (content !== null) {
-        const contentConverted = await convertContentFrom(content, pathUtils.extension(props.tab.path))
-        if (contentConverted === null) {
-          throw new Error('Unsupport file format')
-        }
-        //editorInstance.commands.setContent(contentConverted, { emitUpdate: false })
-        // 第一次加载文件内容，忽略掉 undo
-        editorInstance.chain().command(({ tr, dispatch }: { tr: Transaction; dispatch?: (tr: Transaction) => void }) => {
-          if (dispatch) {
-            tr.setMeta('addToHistory', false)
-            const json = generateJSON(contentConverted.content, extensions)
-            const doc = editorInstance.schema.nodeFromJSON(json)
-            tr.replaceWith(0, tr.doc.content.size, doc.content)
-            dispatch(tr)
-          }
-          return true
-        })
-        .run()
-        lineEnding = contentConverted.lineEnding || 'LF'
+      if (content === null) {
+        throw new Error(`Failed to read file: ${props.tab.path}`)
       }
+
+      lastSavedHash = computeFileContentHash(content)
+      const contentConverted = await convertContentFrom(content, pathUtils.extension(props.tab.path))
+      if (contentConverted === null) {
+        throw new Error('Unsupport file format')
+      }
+      //editorInstance.commands.setContent(contentConverted, { emitUpdate: false })
+      // 第一次加载文件内容，忽略掉 undo
+      editorInstance.chain().command(({ tr, dispatch }: { tr: Transaction; dispatch?: (tr: Transaction) => void }) => {
+        if (dispatch) {
+          tr.setMeta('addToHistory', false)
+          const json = generateJSON(contentConverted.content, extensions)
+          const doc = editorInstance.schema.nodeFromJSON(json)
+          tr.replaceWith(0, tr.doc.content.size, doc.content)
+          dispatch(tr)
+        }
+        return true
+      })
+      .run()
+      lineEnding = contentConverted.lineEnding || 'LF'
     } else if (props.tab.pendingImport?.markdown) {
       const contentConverted = await convertContentFrom(props.tab.pendingImport.markdown, 'md')
       if (contentConverted === null) {
@@ -721,6 +726,7 @@ async function loadTabContent(editorInstance: Editor) {
     // 文件加载完成后，设置当前状态为"干净"状态
     appStore.updateTabState(props.tab.id, { 
       isDirty: loadedPendingImport,
+      lastSavedHash,
       pendingImport: undefined,
       savedCheckPoint: loadedPendingImport ? -1 : undoDepth(editorInstance.state)
     })

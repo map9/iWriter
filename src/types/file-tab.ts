@@ -28,4 +28,5 @@ export interface FileTab {
   editState?: import('@/types/edit-setting').EditSetting
   fileReadonly?: boolean
   editReadonly?: boolean
+  lastSavedHash?: string
 }

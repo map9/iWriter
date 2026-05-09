@@ -34,6 +34,7 @@ import { PANDOC_EXPORT_EXTENSIONS, PANDOC_IMPORT_EXTENSIONS } from '@/import-exp
 import { DEFAULT_EXPORT_SETTING, StateStorage, type WorkspaceState } from '@/utils/StateStorage'
 import { detectPreferredLocale, i18n, resolveLocale, setAppLocale, type AppLocale } from '@/i18n'
 import { DEFAULT_MARKDOWN_PRINT_PREFERENCES } from '@/components/print/markdownThemes'
+import { computeFileContentHash } from '@/utils/fileContentHash'
 import {
   DEFAULT_WORKSPACE_IGNORE_RULES,
   getWorkspaceEntriesRaw,
@@ -158,6 +159,10 @@ export const useAppStore = defineStore('app', () => {
   function getOpenTabByPath(filePath: string): FileTab | undefined {
     const normalizedPath = pathUtils.normalize(filePath)
     return tabs.value.find(tab => tab.path && pathUtils.normalize(tab.path) === normalizedPath)
+  }
+
+  function buildSavedHash(content: string): string {
+    return computeFileContentHash(content)
   }
 
   function syncReadonlyWindowState(tab: FileTab | null | undefined) {
@@ -1578,7 +1583,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // 从文件树中移除节点（基于 deleteFileOrFolder 的逻辑，但不实际删除文件）
-  function removeNodeFromFileTreeByFilePath(targetPath: string): boolean {
+  async function removeNodeFromFileTreeByFilePath(targetPath: string): Promise<boolean> {
     const node = findNodeByPath(targetPath)
     if (!node) return false
     
@@ -1600,7 +1605,7 @@ export const useAppStore = defineStore('app', () => {
       // Close all matching tabs
       for (const tab of tabsToClose) {
         tab.path = undefined
-        closeTab(tab.id)
+        await closeTab(tab.id)
       }
       
       // Clear selection if the deleted node was selected
@@ -1737,7 +1742,7 @@ export const useAppStore = defineStore('app', () => {
       normalizedFilePath.startsWith(`${normalizedWorkspacePath}/`)
   }
 
-  async function reloadOpenMarkdownTabFromDisk(tab: FileTab): Promise<boolean> {
+  async function reloadOpenMarkdownTabFromDisk(tab: FileTab, rawContent?: string): Promise<boolean> {
     if (!window.electronAPI || !tab.path || tab.documentType !== DocumentType.MARKDOWN_EDITOR) {
       return false
     }
@@ -1745,8 +1750,11 @@ export const useAppStore = defineStore('app', () => {
     const editor = tab.editorInstance as Editor | undefined
     if (!editor) return false
 
-    const content = await window.electronAPI.readFile(tab.path)
-    if (content === null) return false
+    const content = rawContent ?? await window.electronAPI.readFile(tab.path)
+    if (content === null) {
+      throw new Error(`Failed to read file from disk: ${tab.path}`)
+    }
+    const savedHash = buildSavedHash(content)
 
     const contentConverted = await convertContentFrom(content, pathUtils.extension(tab.path))
     if (contentConverted === null) {
@@ -1766,6 +1774,7 @@ export const useAppStore = defineStore('app', () => {
 
     updateTabState(tab.id, {
       isDirty: false,
+      lastSavedHash: savedHash,
       savedCheckPoint: undoDepth(editor.state),
       editState: {
         lineEnding: contentConverted.lineEnding || 'LF',
@@ -1774,21 +1783,44 @@ export const useAppStore = defineStore('app', () => {
     return true
   }
 
-  async function handleOpenTabExternalChange(filePath: string) {
+  async function handleOpenTabExternalChange(filePath: string, rawContent?: string) {
     const tab = getOpenTabByPath(filePath)
     if (!tab || tab.documentType !== DocumentType.MARKDOWN_EDITOR) return
 
     const normalizedPath = pathUtils.normalize(filePath)
-    if (!tab.isDirty) {
-      try {
-        await reloadOpenMarkdownTabFromDisk(tab)
-      } catch (error) {
-        notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.editor.errorContext'))
-      }
+    const content = rawContent ?? await window.electronAPI?.readFile(filePath)
+    if (content === null || content === undefined) {
+      throw new Error(`Failed to read changed file from disk: ${filePath}`)
+    }
+    const changedHash = buildSavedHash(content)
+
+    if (tab.lastSavedHash && changedHash === tab.lastSavedHash) {
       return
     }
 
-    if (externalChangePromptPaths.has(normalizedPath) || !window.electronAPI?.showMessageBox) return
+    if (!tab.isDirty) {
+      if (!tab.lastSavedHash) {
+        throw new Error(`Missing lastSavedHash for clean tab: ${filePath}`)
+      }
+
+      await reloadOpenMarkdownTabFromDisk(tab, content)
+      return
+    }
+
+    await promptReloadForExternalChange(tab, normalizedPath, filePath, content)
+  }
+
+  async function promptReloadForExternalChange(
+    tab: FileTab,
+    normalizedPath: string,
+    filePath: string,
+    rawContent?: string
+  ) {
+    if (externalChangePromptPaths.has(normalizedPath)) return
+    if (!window.electronAPI?.showMessageBox) {
+      throw new Error('showMessageBox not available')
+    }
+
     externalChangePromptPaths.add(normalizedPath)
 
     try {
@@ -1804,10 +1836,8 @@ export const useAppStore = defineStore('app', () => {
       })
 
       if (result.response === 0) {
-        await reloadOpenMarkdownTabFromDisk(tab)
+        await reloadOpenMarkdownTabFromDisk(tab, rawContent)
       }
-    } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.editor.errorContext'))
     } finally {
       externalChangePromptPaths.delete(normalizedPath)
     }
@@ -1833,12 +1863,17 @@ export const useAppStore = defineStore('app', () => {
       case 'unlink':
       case 'unlinkDir':
         // 外部删除的文件或文件夹，从文件树中移除
-        removeNodeFromFileTreeByFilePath(change.path)
+        await removeNodeFromFileTreeByFilePath(change.path)
         break
       case 'change':
         // 文件内容变化，更新文件信息
         updateFileTreeNodeInfo(change.path)
-        await handleOpenTabExternalChange(change.path)
+        try {
+          await handleOpenTabExternalChange(change.path)
+        } catch (error) {
+          notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.editor.errorContext'))
+          throw error
+        }
         break
     }
   }
@@ -1948,7 +1983,7 @@ export const useAppStore = defineStore('app', () => {
           return false
       }
     }
-    
+
     // Remove the tab
     tabs.value.splice(index, 1)
     
@@ -2062,6 +2097,7 @@ export const useAppStore = defineStore('app', () => {
         if (content === null) {
           throw new Error('Unsupport file format')
         }
+        const savedHash = buildSavedHash(content)
         const result = await window.electronAPI.saveFile(content, originalPath)
 
         if (result === true) {
@@ -2069,6 +2105,7 @@ export const useAppStore = defineStore('app', () => {
           tab.isDirty = false
           tab.fileReadonly = false
           tab.editReadonly = false
+          tab.lastSavedHash = savedHash
           syncReadonlyWindowState(tab)
           tab.name = pathUtils.basename(originalPath)
           tab.savedCheckPoint = undoDepth((tab.editorInstance as import('@tiptap/core').Editor).state)
