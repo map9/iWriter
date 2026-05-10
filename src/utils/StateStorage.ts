@@ -103,6 +103,31 @@ export const DEFAULT_EXPORT_SETTING: ExportSettings = {
 }
 
 export const DEFAULT_MARKDOWN_PRINT_SETTING: MarkdownPrintPreferences = DEFAULT_MARKDOWN_PRINT_PREFERENCES
+export const AUTO_SAVE_MIN_INTERVAL_SECONDS = 30
+export const AUTO_SAVE_MAX_INTERVAL_SECONDS = 600
+export const AUTO_SAVE_INTERVAL_STEP_SECONDS = 30
+export const DEFAULT_AUTO_SAVE_INTERVAL_SECONDS = 30
+
+export interface AutoSaveSettings {
+  enabled: boolean
+  intervalSeconds: number
+}
+
+export const DEFAULT_AUTO_SAVE_SETTINGS: AutoSaveSettings = {
+  enabled: true,
+  intervalSeconds: DEFAULT_AUTO_SAVE_INTERVAL_SECONDS,
+}
+
+export function normalizeAutoSaveIntervalSeconds(value: number | null | undefined): number {
+  if (!Number.isFinite(value)) return DEFAULT_AUTO_SAVE_INTERVAL_SECONDS
+
+  const clamped = Math.min(
+    AUTO_SAVE_MAX_INTERVAL_SECONDS,
+    Math.max(AUTO_SAVE_MIN_INTERVAL_SECONDS, Math.round(value!)),
+  )
+
+  return Math.round(clamped / AUTO_SAVE_INTERVAL_STEP_SECONDS) * AUTO_SAVE_INTERVAL_STEP_SECONDS
+}
 
 /**
  * 统一的状态存储工具类
@@ -376,9 +401,15 @@ export class StateStorage {
   /**
    * 保存自动保存设置
    */
-  static saveAutoSave(enabled: boolean): void {
+  static saveAutoSave(settings: AutoSaveSettings): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.AUTO_SAVE, JSON.stringify(enabled))
+      localStorage.setItem(
+        STORAGE_KEYS.AUTO_SAVE,
+        JSON.stringify({
+          enabled: settings.enabled,
+          intervalSeconds: normalizeAutoSaveIntervalSeconds(settings.intervalSeconds),
+        } satisfies AutoSaveSettings),
+      )
     } catch (error) {
       console.error('Failed to save auto-save state:', error)
     }
@@ -387,16 +418,27 @@ export class StateStorage {
   /**
    * 加载自动保存设置
    */
-  static loadAutoSave(): boolean {
+  static loadAutoSave(): AutoSaveSettings {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.AUTO_SAVE)
       if (saved !== null) {
-        return JSON.parse(saved)
+        const parsed = JSON.parse(saved) as boolean | Partial<AutoSaveSettings>
+        if (typeof parsed === 'boolean') {
+          return {
+            enabled: parsed,
+            intervalSeconds: DEFAULT_AUTO_SAVE_INTERVAL_SECONDS,
+          }
+        }
+
+        return {
+          enabled: parsed.enabled ?? DEFAULT_AUTO_SAVE_SETTINGS.enabled,
+          intervalSeconds: normalizeAutoSaveIntervalSeconds(parsed.intervalSeconds),
+        }
       }
     } catch (error) {
       console.error('Failed to load auto-save state:', error)
     }
-    return true
+    return { ...DEFAULT_AUTO_SAVE_SETTINGS }
   }
 
   /**

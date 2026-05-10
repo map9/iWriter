@@ -236,6 +236,25 @@
                 />
               </label>
             </div>
+
+            <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
+              <div class="min-w-0">
+                <div class="text-sm font-medium text-base-content">{{ t('preferences.editor.autoSaveIntervalTitle') + formatAutoSaveInterval(appStore.autoSaveIntervalSeconds) }}</div>
+                <div class="text-xs text-base-content/65">{{ t('preferences.editor.autoSaveIntervalDesc') }}</div>
+              </div>
+              <label class="label cursor-pointer gap-3">
+                <input
+                  type="number"
+                  class="iw-input w-16 text-center"
+                  min="30"
+                  max="600"
+                  step="30"
+                  :disabled="!appStore.autoSaveEnabled"
+                  :value="appStore.autoSaveIntervalSeconds"
+                  @input="appStore.setAutoSaveIntervalSeconds(Number(($event.target as HTMLInputElement).value))"
+                />
+              </label>
+            </div>
           </section>
 
           <section class="flex flex-col gap-3">
@@ -694,6 +713,21 @@ const updaterConfig = computed(() => updaterService.config.value)
 
 function themePreviewThemeId(themeId: string) {
   return getThemePreviewThemeId(themeId, appStore.systemPrefersDark)
+}
+
+function formatAutoSaveInterval(seconds: number): string {
+  if (seconds < 60) {
+    return t('preferences.editor.autoSaveIntervalSeconds', { count: seconds })
+  }
+
+  if (seconds % 60 === 0) {
+    return t('preferences.editor.autoSaveIntervalMinutes', { count: seconds / 60 })
+  }
+
+  return t('preferences.editor.autoSaveIntervalMixed', {
+    minutes: Math.floor(seconds / 60),
+    seconds: seconds % 60,
+  })
 }
 
 function patchUpdaterConfig(patch: Partial<UpdaterConfig>) {

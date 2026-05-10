@@ -410,7 +410,6 @@ const EDITOR_BASE_CLASS = 'flex-1 shrink-0 p-[3rem] pb-[30vh] focus:outline-none
 const isLoading = ref(false)
 const editorScrollRef = ref<HTMLElement | null>(null)
 let typewriterSyncFrame = 0
-const AUTO_SAVE_DELAY = 2000
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 // Toolbar state
@@ -617,6 +616,12 @@ watch(() => appStore.autoSave, (enabled) => {
   }
 })
 
+watch(() => appStore.autoSaveDelayMs, () => {
+  if (autoSaveTimer !== null && appStore.canRunAutoSave(props.tab)) {
+    scheduleAutoSave()
+  }
+})
+
 // 当 Proofread 引擎配置变更时，清除旧 decorations 并用新引擎重新检查
 watch(
   () => ({
@@ -783,7 +788,7 @@ function scheduleAutoSave() {
   autoSaveTimer = setTimeout(() => {
     autoSaveTimer = null
     void flushAutoSave()
-  }, AUTO_SAVE_DELAY)
+  }, appStore.autoSaveDelayMs)
 }
 
 async function flushAutoSave(allowInactive: boolean = false) {

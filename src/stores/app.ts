@@ -31,7 +31,13 @@ import {
 } from '@/types'
 import { convertContentFrom, convertContentTo } from '@/import-export/'
 import { PANDOC_EXPORT_EXTENSIONS, PANDOC_IMPORT_EXTENSIONS } from '@/import-export'
-import { DEFAULT_EXPORT_SETTING, StateStorage, type WorkspaceState } from '@/utils/StateStorage'
+import {
+  DEFAULT_EXPORT_SETTING,
+  DEFAULT_AUTO_SAVE_SETTINGS,
+  StateStorage,
+  normalizeAutoSaveIntervalSeconds,
+  type WorkspaceState,
+} from '@/utils/StateStorage'
 import { detectPreferredLocale, i18n, resolveLocale, setAppLocale, type AppLocale } from '@/i18n'
 import { DEFAULT_MARKDOWN_PRINT_PREFERENCES } from '@/components/print/markdownThemes'
 import { computeFileContentHash } from '@/utils/fileContentHash'
@@ -77,7 +83,8 @@ export const useAppStore = defineStore('app', () => {
   const minSidebarWidth = 256 // 最小宽度 - 对应TOC按钮右边缘
   const rightSidebarWidth = ref(288) // 默认宽度
   const minRightSidebarWidth = 288 // 最小宽度
-  const autoSaveEnabled = ref(true)
+  const autoSaveEnabled = ref(DEFAULT_AUTO_SAVE_SETTINGS.enabled)
+  const autoSaveIntervalSeconds = ref(DEFAULT_AUTO_SAVE_SETTINGS.intervalSeconds)
   const locale = ref<AppLocale>('en-US')
   const globalEditSetting = reactive<EditSetting>({
     lineEnding: 'LF',
@@ -127,6 +134,7 @@ export const useAppStore = defineStore('app', () => {
   })
 
   const autoSave = computed(() => autoSaveEnabled.value)
+  const autoSaveDelayMs = computed(() => autoSaveIntervalSeconds.value * 1000)
 
   function isFileReadonly(tab: FileTab | null | undefined): boolean {
     return tab?.fileReadonly === true
@@ -282,7 +290,9 @@ export const useAppStore = defineStore('app', () => {
     const markdownPrintSetting = StateStorage.loadMarkdownPrintSetting()
     Object.assign(globalMarkdownPrintSetting.themeAssignment, markdownPrintSetting.themeAssignment)
     globalMarkdownPrintSetting.printOverrides = structuredClone(markdownPrintSetting.printOverrides ?? {})
-    autoSaveEnabled.value = StateStorage.loadAutoSave()
+    const autoSaveSettings = StateStorage.loadAutoSave()
+    autoSaveEnabled.value = autoSaveSettings.enabled
+    autoSaveIntervalSeconds.value = autoSaveSettings.intervalSeconds
 
     // 3. 恢复主题
     const savedThemeId = StateStorage.loadTheme()
@@ -385,7 +395,10 @@ export const useAppStore = defineStore('app', () => {
   }, 300)
 
   const saveAutoSaveDebounced = debounce(() => {
-    StateStorage.saveAutoSave(autoSaveEnabled.value)
+    StateStorage.saveAutoSave({
+      enabled: autoSaveEnabled.value,
+      intervalSeconds: autoSaveIntervalSeconds.value,
+    })
   }, 500)
 
   /**
@@ -665,6 +678,10 @@ export const useAppStore = defineStore('app', () => {
   function toggleAutoSave() {
     if (!window.electronAPI?.windowContentChange) return
     autoSaveEnabled.value = !autoSave.value
+  }
+
+  function setAutoSaveIntervalSeconds(value: number) {
+    autoSaveIntervalSeconds.value = normalizeAutoSaveIntervalSeconds(value)
   }
 
   function getPreferredFileDirectory(): string | undefined {
@@ -2537,7 +2554,7 @@ export const useAppStore = defineStore('app', () => {
   watch(() => globalEditSetting.workspaceIgnoreRules, () => {
     reloadFileTreeForFiltersDebounced()
   })
-  watch(autoSaveEnabled, () => saveAutoSaveDebounced())
+  watch([autoSaveEnabled, autoSaveIntervalSeconds], () => saveAutoSaveDebounced())
 
   // 监听主题变化
   watch(currentThemeId, (themeId) => {
@@ -2601,6 +2618,7 @@ export const useAppStore = defineStore('app', () => {
     globalExportSetting,
     globalMarkdownPrintSetting,
     autoSaveEnabled,
+    autoSaveIntervalSeconds,
     currentFolder,
     fileTree,
     selectedItem,
@@ -2612,6 +2630,7 @@ export const useAppStore = defineStore('app', () => {
     activeTab,
     hasOpenFolder,
     autoSave,
+    autoSaveDelayMs,
     isFileReadonly,
     isEditReadonly,
     isTabReadonly,
@@ -2640,6 +2659,7 @@ export const useAppStore = defineStore('app', () => {
     setLeftSidebarWidth,
     setRightSidebarWidth,
     toggleAutoSave,
+    setAutoSaveIntervalSeconds,
     updateWindowTitle,
 
     // Theme actions
