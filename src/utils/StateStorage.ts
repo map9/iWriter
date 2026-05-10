@@ -62,8 +62,8 @@ export const DEFAULT_EDIT_SETTING: EditSetting = {
   invisibleCharacters: true,
   firstLineIndent: true,
   smartPunctuation: true,
-  showProofreadErrors: true,
-  proofread: true,
+  showProofreadErrors: false,
+  proofread: false,
   proofreadEngineType: 'languagetool',
   proofreadLanguage: 'en-US',
   proofreadApiUrl: 'https://api.languagetool.org/v2/check',
@@ -114,7 +114,7 @@ export interface AutoSaveSettings {
 }
 
 export const DEFAULT_AUTO_SAVE_SETTINGS: AutoSaveSettings = {
-  enabled: true,
+  enabled: false,
   intervalSeconds: DEFAULT_AUTO_SAVE_INTERVAL_SECONDS,
 }
 
