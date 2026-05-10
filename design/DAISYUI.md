@@ -128,6 +128,14 @@ root scrollbar gutter is excluded. `daisy-` prefix is used for all daisyUI class
 8. Using Tailwind CSS color names for text colors should be avoided because Tailwind CSS color `text-gray-800` on `bg-base-100` would be unreadable on a dark theme - because on dark theme, `bg-base-100` is a dark color
 9. `*-content` colors should have a good contrast compared to their associated colors
 10. suggestion - when designing a page use `base-*` colors for majority of the page. use `primary` color for important elements
+11. 方案一，base
+  - background color: bg-base-100, bg-base-200, bg-base-300, bg-base-content/10, 30, 50 一层比一层颜色深。
+  - border color: border-base-200, border-base-300, or border-base-content/10, 30, 50 以上一个比一个颜色深。
+  - content color: text-base-content, text-base-content/90, 70, 50, 30, 以上一个比一个颜色浅。
+12. 方案二，xxx: primary, secondary, accent, netural; info, success, warning, error.
+  - background color: bg-xxx, bg-xxx/90, 70, 50, 30, like bg-primary-content/90, 以上一层比一层颜色浅。
+  - border color: border-xxx-content/15, like border-primary-content/15。
+  - content color: text-xxx-content, text-xxx-content/90, 70, 50, like text-primary-content/30, 以上一个比一个颜色浅。
 
 ### daisyUI custom theme with custom colors
 A CSS file with Tailwind CSS, daisyUI and a custom daisyUI theme looks like this:
