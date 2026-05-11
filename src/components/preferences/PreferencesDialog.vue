@@ -245,7 +245,7 @@
               <label class="label cursor-pointer gap-3">
                 <input
                   type="number"
-                  class="iw-input w-16 text-center"
+                  class="iw-input w-16"
                   min="30"
                   max="600"
                   step="30"
@@ -599,7 +599,7 @@
                   type="number"
                   min="1"
                   max="168"
-                  class="input input-sm w-28"
+                  class="iw-input w-16"
                   :value="updaterConfig.checkInterval"
                   :disabled="!updaterConfig.enabled"
                   @change="patchUpdaterConfig({ checkInterval: Number(($event.target as HTMLInputElement).value) })"

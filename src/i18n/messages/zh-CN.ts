@@ -294,7 +294,7 @@ export default {
       beta: '测试版',
       betaDesc: '可提前体验新功能，但可能包含问题',
       checkIntervalTitle: '检查间隔',
-      checkEveryHours: '每隔（小时）检查',
+      checkEveryHours: '每隔检查（小时）',
       actionsTitle: '操作',
       checkNow: '立即检查更新',
     },
