@@ -489,6 +489,8 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         parsedResult,
         rawResult,
       }
+    case 'advise_directions':
+    case 'analyze_story_architecture':
     case 'search_draft':
     case 'run_consistency_check':
     case 'add_fragment':

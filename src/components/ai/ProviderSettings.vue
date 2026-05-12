@@ -150,7 +150,7 @@
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div v-if="parameterSupport.temperature" class="flex flex-col gap-1.5">
                   <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.temperature') }}</label>
-                  <input v-model.number="form.temperature" type="number" min="0" max="2" step="0.01" class="iw-input" />
+                  <input v-model.number="form.temperature" type="number" min="0" :max="temperatureMax" step="0.01" class="iw-input" />
                   <span class="text-xs text-base-content/65">{{ t('preferences.ai.temperatureHint') }}</span>
                 </div>
 
@@ -305,6 +305,8 @@ const form = ref<FormState>({
 })
 
 const parameterSupport = computed(() => getProviderParameterSupport(form.value.type, form.value.baseUrl))
+const isGlmProvider = computed(() => selectedPreset.value?.id === 'glm' || /open\.bigmodel\.cn/i.test(form.value.baseUrl))
+const temperatureMax = computed(() => isGlmProvider.value ? 1 : 2)
 
 const modelProfilesError = computed(() => {
   if (isPreset.value || !form.value.modelProfilesStr.trim()) return ''
@@ -323,6 +325,10 @@ const canSave = computed(() => !!form.value.label.trim() && !modelProfilesError.
 
 function numberOrDefault(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 const headerTitle = computed(() => {
@@ -400,7 +406,11 @@ function submitForm() {
     models: modelsArr.length ? modelsArr : (selectedPreset.value?.models),
     modelProfiles: isPreset.value ? selectedPreset.value?.modelProfiles : modelProfiles,
     parameters: {
-      temperature: numberOrDefault(form.value.temperature, DEFAULT_AI_PROVIDER_PARAMETERS.temperature),
+      temperature: clampNumber(
+        numberOrDefault(form.value.temperature, DEFAULT_AI_PROVIDER_PARAMETERS.temperature),
+        0,
+        temperatureMax.value,
+      ),
       topP: numberOrDefault(form.value.topP, DEFAULT_AI_PROVIDER_PARAMETERS.topP),
       frequencyPenalty: numberOrDefault(form.value.frequencyPenalty, DEFAULT_AI_PROVIDER_PARAMETERS.frequencyPenalty),
       presencePenalty: numberOrDefault(form.value.presencePenalty, DEFAULT_AI_PROVIDER_PARAMETERS.presencePenalty),

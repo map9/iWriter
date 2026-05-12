@@ -4,6 +4,7 @@ import type { DomainAgentCapabilities } from '../types'
 import type { FilesystemMount } from '../../runtime/FilesystemMounts'
 import { buildCreativeTools } from '../../tools/CreativeTools'
 import { buildCreativeAnalysisTools } from '../../tools/CreativeAnalysisTools'
+import { buildCreativeAdvisorTools } from '../../tools/CreativeAdvisorTools'
 import type { CreativeDb } from '../../db/CreativeDb'
 import { WorkspaceFilesystemBackend } from '../../runtime/WorkspaceFilesystemBackend'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
@@ -36,6 +37,7 @@ export function buildCreativeCapabilities(
     tools: [
       ...buildCreativeTools({ workspacePath, creativeDb, snapshotBroker }),
       ...buildCreativeAnalysisTools({ workspacePath, creativeDb, snapshotBroker }),
+      ...buildCreativeAdvisorTools({ workspacePath }),
     ],
     skills: ['/skills/'],
     subAgents: [],

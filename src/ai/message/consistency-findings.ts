@@ -54,35 +54,27 @@ function normalizeFinding(value: unknown): ConsistencyFinding | null {
   }
 }
 
-function parseFindings(raw: string): ConsistencyFinding[] | null {
+export function parseFindings(raw: string): ConsistencyFinding[] | null {
   try {
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return null
-    return parsed.map(normalizeFinding).filter((item): item is ConsistencyFinding => !!item)
+    const results = parsed
+      .map(normalizeFinding)
+      .filter((item): item is ConsistencyFinding => !!item)
+    return results.length ? results : null
   } catch {
     return null
   }
 }
 
+import { splitTextWithFences } from './fenced-blocks'
+
 export function splitTextWithFindings(text: string): ConsistencyFindingTextPart[] {
-  const parts: ConsistencyFindingTextPart[] = []
-  const fence = /```consistency-findings\s*([\s\S]*?)```/g
-  let lastIndex = 0
-  let match: RegExpExecArray | null
-
-  while ((match = fence.exec(text)) !== null) {
-    const before = text.slice(lastIndex, match.index)
-    if (before.trim()) parts.push({ kind: 'prose', text: before })
-    const findings = parseFindings(match[1] ?? '')
-    if (!findings) {
-      parts.push({ kind: 'prose', text: match[0] })
-    } else if (findings.length) {
-      parts.push({ kind: 'findings', findings })
-    }
-    lastIndex = match.index + match[0].length
-  }
-
-  const after = text.slice(lastIndex)
-  if (after.trim()) parts.push({ kind: 'prose', text: after })
-  return parts.length ? parts : [{ kind: 'prose', text }]
+  const parts = splitTextWithFences(text, {
+    'consistency-findings': parseFindings,
+  })
+  return parts.map((p) => {
+    if (!('data' in p)) return p
+    return { kind: 'findings', findings: p.data as ConsistencyFinding[] }
+  })
 }

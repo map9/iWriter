@@ -72,7 +72,7 @@
             class="hidden"
           />
           <template v-else-if="block.type === 'text' && block.text">
-            <template v-for="(part, partIdx) in splitTextWithFindings(block.text)" :key="`${idx}-${partIdx}`">
+            <template v-for="(part, partIdx) in splitAssistantText(block.text)" :key="`${idx}-${partIdx}`">
               <div
                 v-if="part.kind === 'prose'"
                 class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word"
@@ -81,8 +81,13 @@
                 <MarkdownContentView :content="part.text" mode="markdown" size="sm" />
               </div>
               <ConsistencyFindingsBlock
-                v-else
+                v-else-if="part.kind === 'findings'"
                 :findings="part.findings"
+                class="max-w-full"
+              />
+              <AdvisorDirectionsBlock
+                v-else-if="part.kind === 'directions'"
+                :directions="part.directions"
                 class="max-w-full"
               />
             </template>
@@ -110,7 +115,7 @@
         class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word"
         :class="message.isError ? 'bg-error/20 border border-error/30  px-3 py-2' : 'text-base-content'"
       >
-        <template v-for="(part, partIdx) in splitTextWithFindings(message.content)" :key="partIdx">
+        <template v-for="(part, partIdx) in splitAssistantText(message.content)" :key="partIdx">
           <MarkdownContentView
             v-if="part.kind === 'prose'"
             :content="part.text"
@@ -119,8 +124,13 @@
             :class="partIdx > 0 ? 'mt-1.5' : ''"
           />
           <ConsistencyFindingsBlock
-            v-else
+            v-else-if="part.kind === 'findings'"
             :findings="part.findings"
+            class="max-w-full"
+          />
+          <AdvisorDirectionsBlock
+            v-else-if="part.kind === 'directions'"
+            :directions="part.directions"
             class="max-w-full"
           />
         </template>
@@ -236,8 +246,30 @@ import { useAiStore } from '@/ai/store/ai'
 import MarkdownContentView from './views/MarkdownContentView.vue'
 import ToolCallCard from './views/ToolCallCard.vue'
 import ConsistencyFindingsBlock from './views/ConsistencyFindingsBlock.vue'
+import AdvisorDirectionsBlock from './views/AdvisorDirectionsBlock.vue'
 import DomainMessageSession from '../domains/DomainMessageSession.vue'
-import { splitTextWithFindings } from '@/ai/message/consistency-findings'
+import { parseFindings } from '@/ai/message/consistency-findings'
+import type { ConsistencyFinding } from '@/ai/message/consistency-findings'
+import type { AdvisorDirection } from '@/ai/message/advisor-directions'
+import { parseDirections } from '@/ai/message/advisor-directions'
+import { splitTextWithFences } from '@/ai/message/fenced-blocks'
+
+type AssistantTextPart =
+  | { kind: 'prose'; text: string }
+  | { kind: 'findings'; findings: ConsistencyFinding[] }
+  | { kind: 'directions'; directions: AdvisorDirection[] }
+
+function splitAssistantText(text: string): AssistantTextPart[] {
+  const parts = splitTextWithFences(text, {
+    'consistency-findings': parseFindings,
+    'advisor-directions': parseDirections,
+  })
+  return parts.map((p) => {
+    if (!('data' in p)) return p as { kind: 'prose'; text: string }
+    if (p.kind === 'consistency-findings') return { kind: 'findings' as const, findings: p.data as ConsistencyFinding[] }
+    return { kind: 'directions' as const, directions: p.data as AdvisorDirection[] }
+  })
+}
 
 const props = withDefaults(defineProps<{
   message: ThreadMessage

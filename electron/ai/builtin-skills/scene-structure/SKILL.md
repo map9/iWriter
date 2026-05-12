@@ -29,9 +29,20 @@ The turn is not simply a change of events. The best turns force a character to m
 - A turn that arrives through external coincidence rather than character choice or consequence.
 - A scene that ends in the same emotional register it began.
 
+## Minimum bar before drafting
+
+Complete this sentence before writing a single line of prose:
+
+> "The reader will discover \_\_\_ about [character name] in this scene."
+
+The blank must be filled with something about who this character is—a specific desire in conflict, a fear surfacing under pressure, a behavior that contradicts their stated self. It cannot be filled with an event ("the reader will discover that the clone has already taken the phone").
+
+If you cannot complete the sentence with a character-specific answer, the scene is not ready to write. Find what the scene is actually about before drafting.
+
 ## Before drafting, check
 
 - What does the character want right now, specifically?
 - What makes getting it difficult—and does that difficulty emerge from the situation, from another character's opposing need, or from the character's own limitations?
 - What emotional or relational state changes by the end?
 - What new fact, shifted relationship, or open question should remain after the scene closes?
+- What would a generic person do in this situation—and what does this specific character do differently, and why?
