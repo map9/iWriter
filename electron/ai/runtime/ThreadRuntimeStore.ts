@@ -1,4 +1,5 @@
 import type { AiAgentDomain } from '../../../src/types/ai'
+import type { DetectedInputLanguage } from '../../../src/ai/message/detectInputLanguage'
 
 interface InterruptedRun {
   actionRequestCount: number
@@ -9,6 +10,7 @@ interface InterruptedRun {
 interface ThreadExecutionContext {
   activeFilePath: string | null
   workspacePath: string | null
+  language?: DetectedInputLanguage
   attachmentTextFilePaths: string[]
   attachmentBinaryFilePaths: string[]
   attachmentDirectories: string[]
@@ -34,6 +36,7 @@ export class ThreadRuntimeStore {
       agent_domain: domain ?? 'editing',
       active_file_path: ctx?.activeFilePath ?? '',
       workspace_path: ctx?.workspacePath ?? '',
+      output_language: ctx?.language ?? '',
       attached_text_file_paths: JSON.stringify(ctx?.attachmentTextFilePaths ?? []),
       attached_binary_file_paths: JSON.stringify(ctx?.attachmentBinaryFilePaths ?? []),
       attached_directories: JSON.stringify(ctx?.attachmentDirectories ?? []),

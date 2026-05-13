@@ -5,15 +5,20 @@ import type { FilesystemMount } from '../../runtime/FilesystemMounts'
 import { buildCreativeTools } from '../../tools/CreativeTools'
 import { buildCreativeAnalysisTools } from '../../tools/CreativeAnalysisTools'
 import { buildCreativeAdvisorTools } from '../../tools/CreativeAdvisorTools'
+import { buildCreativeLogicTools } from '../../tools/CreativeLogicTools'
 import type { CreativeDb } from '../../db/CreativeDb'
 import { WorkspaceFilesystemBackend } from '../../runtime/WorkspaceFilesystemBackend'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
+import { buildPlannerSubAgent } from './subAgents/planner'
+import { buildConsistencySubAgent } from './subAgents/consistency'
+import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
 
 export function buildCreativeCapabilities(
   aiRootPath: string,
   mounts: FilesystemMount[],
   creativeDb: CreativeDb | null,
   snapshotBroker: SnapshotBroker,
+  language: DetectedInputLanguage = 'en-US',
 ): DomainAgentCapabilities {
   const workspaceMount = mounts.find(mount => mount.virtualPath === '/')
   const workspacePath = workspaceMount?.hostPath ?? null
@@ -33,18 +38,43 @@ export function buildCreativeCapabilities(
   // tool is not injected into the creative agent.
   Object.defineProperty(backend, 'id', { get: () => undefined })
 
+  const creativeTools = buildCreativeTools({ workspacePath, creativeDb, snapshotBroker })
+  const mainTools = [
+    ...creativeTools,
+    ...buildCreativeAnalysisTools({ workspacePath, creativeDb, snapshotBroker }),
+    ...buildCreativeAdvisorTools({ workspacePath }),
+  ]
+
+  const readToolNames = new Set([
+    'read_storybible',
+    'read_chapter',
+    'read_fragments',
+    'search_draft',
+    'list_chapters',
+    'get_session_diff',
+  ])
+  const readOnlyTools = creativeTools.filter(tool => readToolNames.has(tool.name))
+  const plannerTools = [
+    ...readOnlyTools,
+    ...buildCreativeLogicTools({ workspacePath }),
+  ]
+
   return {
-    tools: [
-      ...buildCreativeTools({ workspacePath, creativeDb, snapshotBroker }),
-      ...buildCreativeAnalysisTools({ workspacePath, creativeDb, snapshotBroker }),
-      ...buildCreativeAdvisorTools({ workspacePath }),
-    ],
+    tools: mainTools,
     skills: ['/skills/'],
-    subAgents: [],
+    subAgents: [
+      buildPlannerSubAgent(plannerTools, language),
+      buildConsistencySubAgent(readOnlyTools, language),
+    ],
     backend,
     interruptOn: {
       confirm_writing_plan:       { allowedDecisions: ['approve', 'edit', 'reject'] },
       write_to_chapter:           { allowedDecisions: ['approve', 'edit', 'reject'] },
+      resolve_open_question:      { allowedDecisions: ['approve', 'edit', 'reject'] },
+      create_chapter:             { allowedDecisions: ['approve', 'reject'] },
+      delete_chapter:             { allowedDecisions: ['approve', 'reject'] },
+      rename_chapter:             { allowedDecisions: ['approve', 'reject'] },
+      reorder_chapters:           { allowedDecisions: ['approve', 'reject'] },
       replace_storybible_section: { allowedDecisions: ['approve', 'reject'] },
       rebuild_storybible:         { allowedDecisions: ['approve', 'reject'] },
     },

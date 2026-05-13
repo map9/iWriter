@@ -5,6 +5,7 @@ export type ConsistencyFindingLayer =
   | 'voice'
   | 'pacing'
   | 'continuity'
+  | 'common_sense'
   | 'other'
 
 export type ConsistencyFindingSeverity = 'info' | 'minor' | 'major'
@@ -20,6 +21,7 @@ export interface ConsistencyFinding {
 export type ConsistencyFindingTextPart =
   | { kind: 'prose'; text: string }
   | { kind: 'findings'; findings: ConsistencyFinding[] }
+  | { kind: 'pending'; name: string }
 
 const VALID_LAYERS = new Set<ConsistencyFindingLayer>([
   'pov',
@@ -28,6 +30,7 @@ const VALID_LAYERS = new Set<ConsistencyFindingLayer>([
   'voice',
   'pacing',
   'continuity',
+  'common_sense',
   'other',
 ])
 
@@ -54,9 +57,9 @@ function normalizeFinding(value: unknown): ConsistencyFinding | null {
   }
 }
 
-export function parseFindings(raw: string): ConsistencyFinding[] | null {
+function tryParseFindings(text: string): ConsistencyFinding[] | null {
   try {
-    const parsed = JSON.parse(raw)
+    const parsed = JSON.parse(text)
     if (!Array.isArray(parsed)) return null
     const results = parsed
       .map(normalizeFinding)
@@ -67,14 +70,20 @@ export function parseFindings(raw: string): ConsistencyFinding[] | null {
   }
 }
 
-import { splitTextWithFences } from './fenced-blocks'
+export function parseFindings(raw: string): ConsistencyFinding[] | null {
+  return tryParseFindings(raw) ?? tryParseFindings(repairJsonQuotes(raw))
+}
+
+import { splitTextWithFences, repairJsonQuotes } from './fenced-blocks'
 
 export function splitTextWithFindings(text: string): ConsistencyFindingTextPart[] {
   const parts = splitTextWithFences(text, {
     'consistency-findings': parseFindings,
-  })
-  return parts.map((p) => {
-    if (!('data' in p)) return p
-    return { kind: 'findings', findings: p.data as ConsistencyFinding[] }
+  }, { placeholderForOpenFence: true })
+  return parts.flatMap<ConsistencyFindingTextPart>((p) => {
+    if (p.kind === 'prose') return p
+    if (p.kind === 'pending') return p
+    if ('data' in p) return { kind: 'findings', findings: p.data as ConsistencyFinding[] }
+    return []
   })
 }

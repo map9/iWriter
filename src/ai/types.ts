@@ -1,4 +1,5 @@
 // AI Provider Types
+import type { LogicAudit } from './creative/logicAudit'
 
 export type AiProviderType = 'openai-compat' | 'deepseek' | 'anthropic' | 'gemini'
 
@@ -232,6 +233,7 @@ export interface CreativePlanReviewItem extends BaseCreativeReviewItem {
   plan: string
   rationale: string
   alternatives?: string[]
+  logicAudit?: LogicAudit
 }
 
 export interface CreativeWriteReviewItem extends BaseCreativeReviewItem {
@@ -248,15 +250,37 @@ export interface CreativeWriteReviewItem extends BaseCreativeReviewItem {
 
 export interface CreativeStoryBibleReviewItem extends BaseCreativeReviewItem {
   kind: 'creative_storybible'
-  toolName: 'replace_storybible_section' | 'rebuild_storybible'
+  toolName: 'replace_storybible_section' | 'rebuild_storybible' | 'resolve_open_question'
   section?: string
   newContent: string
+  question?: string
+  targetSection?: string
+}
+
+export interface CreativeChapterStructureEntry {
+  filename: string
+  h1?: string
+  wordCount?: number
+}
+
+export interface CreativeChapterStructureReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_chapter_structure'
+  toolName: 'create_chapter' | 'delete_chapter' | 'rename_chapter' | 'reorder_chapters'
+  operation: 'create' | 'delete' | 'rename' | 'reorder'
+  filename?: string
+  newFilename?: string
+  afterFilename?: string
+  cascadeRenumber?: boolean
+  order?: string[]
+  before?: CreativeChapterStructureEntry[]
+  after?: CreativeChapterStructureEntry[]
 }
 
 export type CreativeReviewItem =
   | CreativePlanReviewItem
   | CreativeWriteReviewItem
   | CreativeStoryBibleReviewItem
+  | CreativeChapterStructureReviewItem
 
 export type EditRoundResultState =
   | 'applied'
@@ -550,7 +574,7 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     search_draft:         'search',
     get_session_diff:     'read',
     get_storybible_rebuild_signal: 'read',
-    run_consistency_check: 'search',
+    get_character_psychology: 'read',
     advise_directions: 'read',
     analyze_story_architecture: 'read',
     add_fragment:         'edit',
@@ -585,6 +609,11 @@ export const BLOCK_EDIT_TOOLS = new Set([
 export const CREATIVE_REVIEW_TOOLS = new Set([
   'confirm_writing_plan',
   'write_to_chapter',
+  'resolve_open_question',
+  'create_chapter',
+  'delete_chapter',
+  'rename_chapter',
+  'reorder_chapters',
   'replace_storybible_section',
   'rebuild_storybible',
 ])

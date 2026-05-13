@@ -527,6 +527,7 @@ export const useAiStore = defineStore('ai', () => {
             ?? DEFAULT_THINKING_LEVEL,
           ),
         },
+        uiLocale: appStore.locale,
         editorContext: {
           filePath: currentFilePath,
           isDirty: activeTab?.isDirty ?? false,

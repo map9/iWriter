@@ -29,7 +29,41 @@
         />
       </label>
 
-      <label class="block">
+      <div
+        v-if="currentReview.kind === 'creative_chapter_structure'"
+        class="rounded-md border border-base-300 bg-base-200 px-2 py-2 text-xs"
+      >
+        <div class="font-medium text-base-content/70">
+          {{ t('agentPanel.creativeReview.chapterStructure') }}
+        </div>
+        <dl class="mt-2 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-1 text-base-content/70">
+          <dt>{{ t('agentPanel.creativeReview.operation') }}</dt>
+          <dd class="min-w-0 break-words">{{ chapterOperationLabel }}</dd>
+          <dt v-if="currentReview.filename">{{ t('agentPanel.creativeReview.filename') }}</dt>
+          <dd v-if="currentReview.filename" class="min-w-0 break-words">{{ currentReview.filename }}</dd>
+          <dt v-if="currentReview.newFilename">{{ t('agentPanel.creativeReview.newFilename') }}</dt>
+          <dd v-if="currentReview.newFilename" class="min-w-0 break-words">{{ currentReview.newFilename }}</dd>
+          <dt v-if="currentReview.afterFilename">{{ t('agentPanel.creativeReview.afterFilename') }}</dt>
+          <dd v-if="currentReview.afterFilename" class="min-w-0 break-words">{{ currentReview.afterFilename }}</dd>
+        </dl>
+        <ol
+          v-if="currentReview.order?.length"
+          class="mt-2 list-decimal space-y-1 pl-5 text-base-content/70"
+        >
+          <li
+            v-for="filename in currentReview.order"
+            :key="filename"
+            class="break-words"
+          >
+            {{ filename }}
+          </li>
+        </ol>
+      </div>
+
+      <label
+        v-else
+        class="block"
+      >
         <span class="mb-1 block text-[11px] font-medium text-base-content/50">{{ bodyLabel }}</span>
         <textarea
           v-model="bodyDraft"
@@ -47,6 +81,64 @@
           class="min-h-20 w-full resize-y rounded-md border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
         />
       </label>
+
+      <details
+        v-if="logicAudit"
+        class="rounded-md border border-base-300 bg-base-200 px-2 py-1.5 text-xs"
+      >
+        <summary class="cursor-pointer select-none font-medium text-base-content/70">
+          {{ t('agentPanel.creativeReview.logicAudit') }}
+        </summary>
+        <div class="mt-2 space-y-2">
+          <section v-if="logicAudit.motivationTraces.length">
+            <div class="mb-1 font-medium text-base-content/60">
+              {{ t('agentPanel.creativeReview.motivationTraces') }}
+            </div>
+            <ul class="space-y-1">
+              <li
+                v-for="(trace, index) in logicAudit.motivationTraces"
+                :key="`motivation-${index}`"
+                class="rounded border border-base-300 bg-base-100 px-2 py-1"
+              >
+                <div class="font-medium">{{ trace.character }} · {{ trace.action }}</div>
+                <div class="text-base-content/70">{{ trace.derivation }}</div>
+              </li>
+            </ul>
+          </section>
+
+          <section v-if="logicAudit.causalChain.length">
+            <div class="mb-1 font-medium text-base-content/60">
+              {{ t('agentPanel.creativeReview.causalChain') }}
+            </div>
+            <ul class="space-y-1">
+              <li
+                v-for="(beat, index) in logicAudit.causalChain"
+                :key="`causal-${index}`"
+                class="rounded border border-base-300 bg-base-100 px-2 py-1"
+              >
+                <div class="font-medium">{{ beat.beat }}</div>
+                <div class="text-base-content/70">{{ beat.trigger }} → {{ beat.decision }} → {{ beat.consequence }}</div>
+              </li>
+            </ul>
+          </section>
+
+          <section v-if="logicAudit.commonSenseFlags.length">
+            <div class="mb-1 font-medium text-base-content/60">
+              {{ t('agentPanel.creativeReview.commonSenseFlags') }}
+            </div>
+            <ul class="space-y-1">
+              <li
+                v-for="(flag, index) in logicAudit.commonSenseFlags"
+                :key="`common-sense-${index}`"
+                class="rounded border border-base-300 bg-base-100 px-2 py-1"
+              >
+                <div class="font-medium">{{ flag.dimension }} · {{ flag.issue }}</div>
+                <div class="text-base-content/70">{{ flag.correction }}</div>
+              </li>
+            </ul>
+          </section>
+        </div>
+      </details>
     </div>
 
     <footer class="flex flex-wrap items-center justify-end gap-2 border-t border-base-300 px-3 py-2">
@@ -100,6 +192,9 @@ const { t } = useI18n()
 const reviews = computed(() => aiStore.pendingCreativeReviews)
 const currentIndex = ref(0)
 const currentReview = computed(() => reviews.value[currentIndex.value] ?? null)
+const logicAudit = computed(() =>
+  currentReview.value?.kind === 'creative_plan' ? currentReview.value.logicAudit : undefined
+)
 
 const bodyDraft = ref('')
 const rationaleDraft = ref('')
@@ -110,6 +205,7 @@ const title = computed(() => {
   if (!review) return ''
   if (review.kind === 'creative_plan') return t('agentPanel.creativeReview.titlePlan')
   if (review.kind === 'creative_write') return t('agentPanel.creativeReview.titleWrite')
+  if (review.kind === 'creative_chapter_structure') return t('agentPanel.creativeReview.titleChapterStructure')
   return review.toolName === 'rebuild_storybible'
     ? t('agentPanel.creativeReview.titleRebuildStoryBible')
     : t('agentPanel.creativeReview.titleStoryBibleSection')
@@ -119,6 +215,7 @@ const subtitle = computed(() => {
   const review = currentReview.value
   if (!review) return ''
   if (review.kind === 'creative_write') return `${review.filename} · ${review.mode}`
+  if (review.kind === 'creative_chapter_structure') return chapterOperationLabel.value
   if (review.kind === 'creative_storybible') return review.section ?? 'storybible.md'
   return t('agentPanel.creativeReview.planFirstApproval')
 })
@@ -140,7 +237,14 @@ const hasEditedContent = computed(() => {
   if (review.kind === 'creative_write') {
     return bodyDraft.value !== review.newContent || approvedPlanDraft.value !== review.approvedPlan
   }
+  if (review.kind === 'creative_chapter_structure') return false
   return bodyDraft.value !== review.newContent
+})
+
+const chapterOperationLabel = computed(() => {
+  const review = currentReview.value
+  if (!review || review.kind !== 'creative_chapter_structure') return ''
+  return t(`agentPanel.creativeReview.chapterOperation.${review.operation}`)
 })
 
 const approveLabel = computed(() =>
@@ -172,6 +276,12 @@ watch(currentReview, review => {
     rationaleDraft.value = ''
     return
   }
+  if (review.kind === 'creative_chapter_structure') {
+    bodyDraft.value = ''
+    rationaleDraft.value = ''
+    approvedPlanDraft.value = ''
+    return
+  }
   bodyDraft.value = review.newContent
   rationaleDraft.value = ''
   approvedPlanDraft.value = ''
@@ -185,6 +295,7 @@ function editedArgs() {
       plan: bodyDraft.value,
       rationale: rationaleDraft.value,
       alternatives: review.alternatives,
+      logicAudit: review.logicAudit,
     }
   }
   if (review.kind === 'creative_write') {
@@ -196,6 +307,34 @@ function editedArgs() {
       ...(review.insertAnchor !== undefined && { insert_anchor: review.insertAnchor }),
       ...(review.replaceStartAnchor !== undefined && { replace_start_anchor: review.replaceStartAnchor }),
       ...(review.replaceEndAnchor !== undefined && { replace_end_anchor: review.replaceEndAnchor }),
+    }
+  }
+  if (review.kind === 'creative_chapter_structure') {
+    if (review.toolName === 'create_chapter') {
+      return {
+        filename: review.filename,
+        ...(review.afterFilename !== undefined && { after_filename: review.afterFilename }),
+      }
+    }
+    if (review.toolName === 'delete_chapter') {
+      return {
+        filename: review.filename,
+        ...(review.cascadeRenumber !== undefined && { cascade_renumber: review.cascadeRenumber }),
+      }
+    }
+    if (review.toolName === 'rename_chapter') {
+      return {
+        filename: review.filename,
+        new_filename: review.newFilename,
+      }
+    }
+    return { order: review.order ?? [] }
+  }
+  if (review.toolName === 'resolve_open_question') {
+    return {
+      question: review.question,
+      resolution: bodyDraft.value,
+      target_section: review.targetSection ?? review.section,
     }
   }
   if (review.toolName === 'replace_storybible_section') {

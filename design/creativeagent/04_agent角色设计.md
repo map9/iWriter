@@ -13,7 +13,8 @@
 | 1 | 单 LLM | MainAgent + WriterAgent + StateAgent 合一 |
 | 2 | 单 LLM 拓展工具 | + ConsistencyAgent（通过新工具 + skill 实现，仍为单 LLM） |
 | 3 | 单 LLM 拓展工具 | + AdvisorAgent |
-| 4+ | 评估是否需要 sub-agent 编排 | + ExplorerAgent / PlannerAgent 独立 |
+| 4A | SubAgent 化 | PlannerAgent / ConsistencyAgent 独立上下文，专项加固逻辑质量 |
+| 5+ | SubAgent 编排扩展 | ExplorerAgent / 方向探索 / 语义搜索 / git 分支 |
 
 下面对各 sub-agent 的角色描述，应理解为 **职责切片**——同一个 LLM 在不同的对话上下文中切换角色，而不是真的存在 6 个独立实例。
 
@@ -514,7 +515,12 @@ StateAgent（后台）：
 - AdvisorAgent 完整版
 - `plot_extrapolation` / `theme_recognition` / `structural_diagnosis`
 
-**Phase 4：方向探索**
+**Phase 4A：逻辑质量加固 / SubAgent 化**
+- PlannerAgent 独立 sub-agent：写作前推导角色心理、因果链、常识约束
+- ConsistencyAgent 独立 sub-agent：写作后独立检查一致性与常识问题
+- WriterAgent 仍由主 agent 承担，沿用 plan-first / write_to_chapter HITL 链路
+
+**Phase 5：方向探索**
 - ExplorerAgent
 - StateAgent 全量重建机制完善
 

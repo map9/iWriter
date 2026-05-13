@@ -85,6 +85,12 @@
                 :findings="part.findings"
                 class="max-w-full"
               />
+              <div
+                v-else-if="part.kind === 'pending'"
+                class="mt-1.5 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/60"
+              >
+                {{ t('consistencyFinding.pending') }}
+              </div>
               <AdvisorDirectionsBlock
                 v-else-if="part.kind === 'directions'"
                 :directions="part.directions"
@@ -128,6 +134,12 @@
             :findings="part.findings"
             class="max-w-full"
           />
+          <div
+            v-else-if="part.kind === 'pending'"
+            class="mt-1.5 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/60"
+          >
+            {{ t('consistencyFinding.pending') }}
+          </div>
           <AdvisorDirectionsBlock
             v-else-if="part.kind === 'directions'"
             :directions="part.directions"
@@ -257,15 +269,18 @@ import { splitTextWithFences } from '@/ai/message/fenced-blocks'
 type AssistantTextPart =
   | { kind: 'prose'; text: string }
   | { kind: 'findings'; findings: ConsistencyFinding[] }
+  | { kind: 'pending'; name: string }
   | { kind: 'directions'; directions: AdvisorDirection[] }
 
 function splitAssistantText(text: string): AssistantTextPart[] {
   const parts = splitTextWithFences(text, {
     'consistency-findings': parseFindings,
     'advisor-directions': parseDirections,
-  })
-  return parts.map((p) => {
-    if (!('data' in p)) return p as { kind: 'prose'; text: string }
+  }, { placeholderForOpenFence: true })
+  return parts.flatMap<AssistantTextPart>((p) => {
+    if (p.kind === 'prose') return p
+    if (p.kind === 'pending') return p
+    if (!('data' in p)) return []
     if (p.kind === 'consistency-findings') return { kind: 'findings' as const, findings: p.data as ConsistencyFinding[] }
     return { kind: 'directions' as const, directions: p.data as AdvisorDirection[] }
   })

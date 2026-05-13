@@ -60,7 +60,8 @@ import { computeWorkspaceHashes, getCreativeDb } from './db/CreativeDb'
 // Import system prompts from src (shared)
 import { EDIT_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/edit'
 import { MINIMAL_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/minimal'
-import { CREATIVE_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/creative'
+import { buildCreativeSystemPrompt } from '../../src/ai/thread/system-prompts/creative'
+import { detectInputLanguage, type DetectedInputLanguage } from '../../src/ai/message/detectInputLanguage'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -191,9 +192,11 @@ export class AgentEngine {
     }
 
     // Update thread-scoped context from request
+    const language = detectInputLanguage([req.userText], req.uiLocale)
     this.runtimeStore.setContext(threadId, {
       activeFilePath: req.editorContext.filePath ?? null,
       workspacePath: req.editorContext.folderPath ?? null,
+      language,
       attachmentTextFilePaths: req.attachments?.textFilePaths ?? [],
       attachmentBinaryFilePaths: req.attachments?.binaryFilePaths ?? [],
       attachmentDirectories: req.attachments?.directories ?? [],
@@ -206,7 +209,7 @@ export class AgentEngine {
     }
 
     const userContent = buildUserMessage(req)
-    this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent)
+    this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language)
 
     // If this thread was left in an interrupted state (e.g., app restart during HITL),
     // clear the stale in-memory entry so the new message starts a fresh run.
@@ -216,7 +219,7 @@ export class AgentEngine {
     }
 
     // Run agent in background
-    this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent).catch(err => {
+    this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language).catch(err => {
       console.error('[AgentEngine] _runSession error:', err)
     })
 
@@ -396,7 +399,8 @@ export class AgentEngine {
 
     const hiResp = { decisions: lgDecisions }
 
-    this._continueSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, new Command({ resume: hiResp }))
+    const language = this.runtimeStore.getContext(threadId)?.language ?? 'en-US'
+    this._continueSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, new Command({ resume: hiResp }), language)
       .catch(err => console.error('[AgentEngine] _continueSession error:', err))
   }
 
@@ -410,8 +414,9 @@ export class AgentEngine {
     modelId: string,
     thinkingLevel: AiThinkingLevel,
     userContent: string,
+    language: DetectedInputLanguage,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkingLevel)
+    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkingLevel, language)
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
@@ -433,8 +438,9 @@ export class AgentEngine {
     modelId: string,
     thinkingLevel: AiThinkingLevel,
     command: typeof Command.prototype,
+    language: DetectedInputLanguage,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkingLevel)
+    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkingLevel, language)
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
@@ -626,20 +632,21 @@ export class AgentEngine {
     mode: AiAgentMode,
     modelId: string,
     thinkingLevel: AiThinkingLevel,
+    language: DetectedInputLanguage = 'en-US',
   ): DeepAgentInstance {
     const mounts = this._getFilesystemMounts(threadId)
     // Include apiKey and baseUrl in the key so that credential updates immediately
     // produce a new agent instance rather than reusing a stale one.
     const keyFingerprint = config.apiKey ? config.apiKey.slice(-8) : ''
     const mountKey = mounts.map(mount => `${mount.virtualPath}:${mount.hostPath}:${mount.kind}`).join('|')
-    const cacheKey = `${threadId}:${config.id}:${domain}:${mode}:${modelId}:${thinkingLevel ?? ''}:${keyFingerprint}:${config.baseUrl ?? ''}:${mountKey}`
+    const cacheKey = `${threadId}:${config.id}:${domain}:${mode}:${modelId}:${thinkingLevel ?? ''}:${language}:${keyFingerprint}:${config.baseUrl ?? ''}:${mountKey}`
     if (this.agentCache.has(cacheKey)) return this.agentCache.get(cacheKey)!
 
     const model = createChatModel(config, { modelId, thinkingLevel })
-    const capabilities = this._buildAgentCapabilities(domain, mode, mounts)
+    const capabilities = this._buildAgentCapabilities(domain, mode, mounts, language)
     const agent = createDeepAgent({
       model,
-      systemPrompt: getSystemPrompt(domain, mode),
+      systemPrompt: getSystemPrompt(domain, mode, language),
       tools: capabilities.tools,
       backend: capabilities.backend,
       skills: capabilities.skills,
@@ -687,8 +694,9 @@ export class AgentEngine {
         ? [summarizationEvent.summaryMessage, ...rawMessages.slice(summarizationEvent.cutoffIndex ?? 0)]
         : rawMessages
       const mounts = this._getFilesystemMounts(threadId)
-      const capabilities = this._buildAgentCapabilities(domain, mode, mounts)
-      const systemPrompt = new SystemMessage(getSystemPrompt(domain, mode))
+      const language = this.runtimeStore.getContext(threadId)?.language ?? 'en-US'
+      const capabilities = this._buildAgentCapabilities(domain, mode, mounts, language)
+      const systemPrompt = new SystemMessage(getSystemPrompt(domain, mode, language))
       return countTokensApproximately(
         [systemPrompt, ...effectiveMessages],
         capabilities.tools as unknown as Array<Record<string, unknown>>
@@ -739,7 +747,8 @@ export class AgentEngine {
   private _buildAgentCapabilities(
     domain: AiAgentDomain,
     mode: AiAgentMode,
-    mounts: FilesystemMount[]
+    mounts: FilesystemMount[],
+    language: DetectedInputLanguage = 'en-US',
   ): DomainAgentCapabilities {
     if (domain === 'creative') {
       const workspacePath = mounts.find(mount => mount.virtualPath === '/')?.hostPath
@@ -748,6 +757,7 @@ export class AgentEngine {
         mounts,
         workspacePath ? this._getCreativeDb(workspacePath) : null,
         this.snapshotBroker,
+        language,
       )
     }
 
@@ -782,8 +792,9 @@ export class AgentEngine {
     modelId: string,
     thinkingLevel: AiThinkingLevel,
     userContent: string,
+    language: DetectedInputLanguage = 'en-US',
   ): void {
-    const systemPrompt = getSystemPrompt(domain, mode)
+    const systemPrompt = getSystemPrompt(domain, mode, language)
     const inputTokens = estimateTextTokens(systemPrompt) + estimateTextTokens(userContent)
     const model = createChatModel(config, { modelId, thinkingLevel })
     const budgetInfo = getModelBudgetInfo((model as BaseChatModel & { profile?: ModelProfile }).profile)
@@ -799,9 +810,13 @@ export class AgentEngine {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function getSystemPrompt(domain: AiAgentDomain, mode: AiAgentMode): string {
+function getSystemPrompt(
+  domain: AiAgentDomain,
+  mode: AiAgentMode,
+  language: DetectedInputLanguage = 'en-US',
+): string {
   if (domain === 'creative') {
-    return CREATIVE_SYSTEM_PROMPT
+    return buildCreativeSystemPrompt(language)
   }
   switch (mode) {
     case 'minimal': return MINIMAL_SYSTEM_PROMPT

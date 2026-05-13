@@ -32,6 +32,7 @@ function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, u
       plan: review.plan,
       rationale: review.rationale,
       alternatives: review.alternatives,
+      logicAudit: review.logicAudit,
     }
   }
   if (review.kind === 'creative_write') {
@@ -43,6 +44,36 @@ function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, u
       ...(review.insertAnchor !== undefined && { insert_anchor: review.insertAnchor }),
       ...(review.replaceStartAnchor !== undefined && { replace_start_anchor: review.replaceStartAnchor }),
       ...(review.replaceEndAnchor !== undefined && { replace_end_anchor: review.replaceEndAnchor }),
+    }
+  }
+  if (review.kind === 'creative_chapter_structure') {
+    if (review.toolName === 'create_chapter') {
+      return {
+        filename: review.filename,
+        ...(review.afterFilename !== undefined && { after_filename: review.afterFilename }),
+      }
+    }
+    if (review.toolName === 'delete_chapter') {
+      return {
+        filename: review.filename,
+        ...(review.cascadeRenumber !== undefined && { cascade_renumber: review.cascadeRenumber }),
+      }
+    }
+    if (review.toolName === 'rename_chapter') {
+      return {
+        filename: review.filename,
+        new_filename: review.newFilename,
+      }
+    }
+    return {
+      order: review.order ?? [],
+    }
+  }
+  if (review.toolName === 'resolve_open_question') {
+    return {
+      question: review.question,
+      resolution: review.newContent,
+      target_section: review.targetSection ?? review.section,
     }
   }
   if (review.toolName === 'replace_storybible_section') {
@@ -65,6 +96,9 @@ function defaultRejectMessage(review: CreativeReviewItem): string {
   }
   if (review.toolName === 'rebuild_storybible') {
     return 'The user rejected the StoryBible rebuild. Do not modify storybible.md and do not retry the rebuild. Briefly acknowledge the rejection.'
+  }
+  if (review.kind === 'creative_chapter_structure') {
+    return 'The user rejected this chapter structure change. Do not modify draft chapter files or retry the same structure change automatically. Briefly acknowledge the rejection.'
   }
   return 'The user rejected this Creative tool call. Do not retry the same action automatically. Briefly acknowledge the rejection and wait for the user to redirect.'
 }

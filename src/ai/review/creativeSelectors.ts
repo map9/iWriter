@@ -50,6 +50,11 @@ export interface CreativeReviewBatch {
 function reviewLabel(review: CreativeReviewItem): string {
   if (review.kind === 'creative_plan') return 'writing plan'
   if (review.kind === 'creative_write') return `${review.filename} · ${review.mode}`
+  if (review.kind === 'creative_chapter_structure') {
+    if (review.toolName === 'rename_chapter') return `${review.filename} → ${review.newFilename}`
+    if (review.toolName === 'reorder_chapters') return 'chapter order'
+    return review.filename ? `${review.operation} ${review.filename}` : review.operation
+  }
   return review.section ? `storybible.md · ${review.section}` : 'storybible.md'
 }
 
@@ -68,6 +73,7 @@ function finalContent(review: CreativeReviewItem, decision: CreativeDecision): s
     if (typeof plan === 'string') return plan
   }
   if (review.kind === 'creative_plan') return review.plan
+  if (review.kind === 'creative_chapter_structure') return review.order?.join('\n') ?? review.filename
   return (review as { newContent?: string }).newContent
 }
 

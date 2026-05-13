@@ -44,9 +44,9 @@ function normalizeDirection(value: unknown): AdvisorDirection | null {
   }
 }
 
-export function parseDirections(raw: string): AdvisorDirection[] | null {
+function tryParseDirections(text: string): AdvisorDirection[] | null {
   try {
-    const parsed = JSON.parse(raw)
+    const parsed = JSON.parse(text)
     if (!Array.isArray(parsed)) return null
     const results = parsed
       .map(normalizeDirection)
@@ -57,14 +57,20 @@ export function parseDirections(raw: string): AdvisorDirection[] | null {
   }
 }
 
-import { splitTextWithFences } from './fenced-blocks'
+export function parseDirections(raw: string): AdvisorDirection[] | null {
+  return tryParseDirections(raw) ?? tryParseDirections(repairJsonQuotes(raw))
+}
+
+import { splitTextWithFences, repairJsonQuotes } from './fenced-blocks'
 
 export function splitTextWithDirections(text: string): AdvisorDirectionTextPart[] {
   const parts = splitTextWithFences(text, {
     'advisor-directions': parseDirections,
   })
-  return parts.map((p) => {
-    if (!('data' in p)) return p
-    return { kind: 'directions', directions: p.data as AdvisorDirection[] }
+  return parts.flatMap<AdvisorDirectionTextPart>((p) => {
+    if (p.kind === 'prose') return p
+    if (p.kind === 'pending') return []
+    if ('data' in p) return { kind: 'directions', directions: p.data as AdvisorDirection[] }
+    return []
   })
 }

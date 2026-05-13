@@ -459,6 +459,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
       }
     case 'read_storybible':
     case 'read_fragments':
+    case 'list_chapters':
     case 'get_session_diff':
     case 'get_storybible_rebuild_signal':
       return {
@@ -492,10 +493,15 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
     case 'advise_directions':
     case 'analyze_story_architecture':
     case 'search_draft':
-    case 'run_consistency_check':
+    case 'get_character_psychology':
     case 'add_fragment':
     case 'patch_storybible':
+    case 'resolve_open_question':
     case 'confirm_writing_plan':
+    case 'create_chapter':
+    case 'delete_chapter':
+    case 'rename_chapter':
+    case 'reorder_chapters':
     case 'replace_storybible_section':
     case 'rebuild_storybible':
       return {

@@ -19,6 +19,13 @@ interface DeepSeekTool {
   }
 }
 
+interface DeepSeekToolChoice {
+  type: 'function'
+  function: {
+    name: string
+  }
+}
+
 interface ChatDeepSeekFields {
   apiKey?: string
   model: string
@@ -130,6 +137,21 @@ function isDeepSeekTool(value: unknown): value is DeepSeekTool {
   if (!value || typeof value !== 'object') return false
   const candidate = value as DeepSeekTool
   return candidate.type === 'function' && typeof candidate.function?.name === 'string'
+}
+
+function isDeepSeekToolChoice(value: unknown): value is DeepSeekToolChoice {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as DeepSeekToolChoice
+  return candidate.type === 'function' && typeof candidate.function?.name === 'string'
+}
+
+type NormalizedDeepSeekToolChoice = 'none' | 'auto' | 'required' | DeepSeekToolChoice
+
+function normalizeDeepSeekToolChoice(value: unknown): NormalizedDeepSeekToolChoice {
+  if (value === 'none' || value === 'auto' || value === 'required') return value
+  if (value === 'any') return 'required'
+  if (isDeepSeekToolChoice(value)) return value
+  return 'auto'
 }
 
 function extractTextContent(content: unknown): string {
@@ -252,8 +274,8 @@ export class ChatDeepSeek extends BaseChatModel {
 
     return this.withConfig({
       tools: formattedTools,
-      tool_choice: 'auto',
       ...kwargs,
+      tool_choice: normalizeDeepSeekToolChoice(kwargs?.tool_choice ?? 'auto'),
     })
   }
 
@@ -535,7 +557,6 @@ export class ChatDeepSeek extends BaseChatModel {
     body.reasoning_effort = this.thinkingLevel === 'extra_high' ? 'max' : 'high'
     if (Array.isArray(options.tools) && options.tools.length) {
       body.tools = options.tools
-      body.tool_choice = options.tool_choice ?? 'auto'
     }
     if (this.temperature != null) body.temperature = this.temperature
     if (this.topP != null) body.top_p = this.topP

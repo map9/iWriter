@@ -1,4 +1,5 @@
 import type { CreativeReviewItem } from '../../../src/types/ai'
+import { parseLogicAudit } from '../../../src/ai/creative/logicAudit'
 
 interface ActionRequest {
   name: string
@@ -23,6 +24,10 @@ function asOptionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value ? value : undefined
 }
 
+function asBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined
+}
+
 export function buildCreativeReviewItemFromAction(
   action: ActionRequest,
   toolCallId?: string,
@@ -41,6 +46,7 @@ export function buildCreativeReviewItemFromAction(
       plan: asString(args.plan),
       rationale: asString(args.rationale),
       alternatives: asStringArray(args.alternatives),
+      logicAudit: parseLogicAudit(args.logicAudit),
       toolCallId,
       sourceMessageId,
       sourceTurnId,
@@ -74,6 +80,81 @@ export function buildCreativeReviewItemFromAction(
       status: 'pending',
       section: asString(args.section),
       newContent: asString(args.content),
+      toolCallId,
+      sourceMessageId,
+      sourceTurnId,
+    }
+  }
+
+  if (action.name === 'resolve_open_question') {
+    return {
+      id,
+      kind: 'creative_storybible',
+      toolName: 'resolve_open_question',
+      status: 'pending',
+      section: asString(args.target_section),
+      targetSection: asString(args.target_section),
+      question: asString(args.question),
+      newContent: asString(args.resolution),
+      toolCallId,
+      sourceMessageId,
+      sourceTurnId,
+    }
+  }
+
+  if (action.name === 'create_chapter') {
+    return {
+      id,
+      kind: 'creative_chapter_structure',
+      toolName: 'create_chapter',
+      status: 'pending',
+      operation: 'create',
+      filename: asString(args.filename),
+      afterFilename: asOptionalString(args.after_filename),
+      toolCallId,
+      sourceMessageId,
+      sourceTurnId,
+    }
+  }
+
+  if (action.name === 'delete_chapter') {
+    return {
+      id,
+      kind: 'creative_chapter_structure',
+      toolName: 'delete_chapter',
+      status: 'pending',
+      operation: 'delete',
+      filename: asString(args.filename),
+      cascadeRenumber: asBoolean(args.cascade_renumber),
+      toolCallId,
+      sourceMessageId,
+      sourceTurnId,
+    }
+  }
+
+  if (action.name === 'rename_chapter') {
+    return {
+      id,
+      kind: 'creative_chapter_structure',
+      toolName: 'rename_chapter',
+      status: 'pending',
+      operation: 'rename',
+      filename: asString(args.filename),
+      newFilename: asString(args.new_filename),
+      toolCallId,
+      sourceMessageId,
+      sourceTurnId,
+    }
+  }
+
+  if (action.name === 'reorder_chapters') {
+    return {
+      id,
+      kind: 'creative_chapter_structure',
+      toolName: 'reorder_chapters',
+      status: 'pending',
+      operation: 'reorder',
+      order: asStringArray(args.order) ?? [],
       toolCallId,
       sourceMessageId,
       sourceTurnId,

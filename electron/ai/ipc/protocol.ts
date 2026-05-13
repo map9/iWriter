@@ -25,6 +25,7 @@ export interface SendMessageRequest {
   threadId?: string            // Omit to start a new thread
   turnId?: string              // Stable renderer-generated turn identity
   userText: string
+  uiLocale?: string
   domain: AiAgentDomain
   mode: AiAgentMode
   /** Runtime configuration chosen by the renderer for this thread/run. */
