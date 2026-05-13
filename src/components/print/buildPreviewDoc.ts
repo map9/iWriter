@@ -4,6 +4,8 @@
 // a string literal in the bundle. Packaged Electron apps never access node_modules
 // at runtime, so this import is safe for production.
 import pagedJsRaw from '../../../node_modules/pagedjs/dist/paged.esm.js?raw'
+import { KATEX_INLINE_CSS } from './katexAssets'
+import { renderMathInHtml } from './mathRenderer'
 
 // media="screen" is critical: pagedjs's removeStyles() skips <style media~="screen"> elements,
 // so these visual-only rules stay in the DOM via normal cascade without being processed by pagedjs.
@@ -332,8 +334,11 @@ export function buildPreviewDocumentWithOptions(
     bodyBackground?: string,
   } = {},
 ): string {
+  // Pre-render KaTeX math nodes so formulas appear in print/PDF contexts that
+  // don't run the Vue NodeView (editor.getHTML() emits empty containers only).
+  const renderedHtml = renderMathInHtml(html)
   // Prevent any </script sequences in user HTML from breaking the iframe document
-  const safeHtml = html.split('</script').join('<\\/script')
+  const safeHtml = renderedHtml.split('</script').join('<\\/script')
 
   // In a plain .ts file (no SFC parser) these strings are just strings
   const TAG_OPEN = '<script type="module">'
@@ -341,6 +346,9 @@ export function buildPreviewDocumentWithOptions(
 
   return [
     '<!DOCTYPE html><html><head><meta charset="utf-8">',
+    // KaTeX CSS with fonts inlined as base64 data URIs — must come before theme
+    // CSS so theme rules can override spacing/background without specificity fights.
+    '<style>', KATEX_INLINE_CSS, '</style>',
     '<style media="screen">', PREVIEW_STYLES, '</style>',
     '<style>', printCss, '</style>',
     '</head><body>',
