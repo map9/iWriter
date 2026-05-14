@@ -10,6 +10,22 @@ const turndownService = new TurndownService({
   codeBlockStyle: 'fenced'
 })
 turndownService.use(gfm)
+turndownService.addRule('inlineMath', {
+  filter: (node) =>
+    node.nodeName === 'SPAN' && (node as HTMLElement).getAttribute('data-type') === 'inline-math',
+  replacement: (_content, node) => {
+    const latex = (node as HTMLElement).getAttribute('data-latex') ?? ''
+    return `$${latex}$`
+  },
+})
+turndownService.addRule('blockMath', {
+  filter: (node) =>
+    node.nodeName === 'DIV' && (node as HTMLElement).getAttribute('data-type') === 'block-math',
+  replacement: (_content, node) => {
+    const latex = (node as HTMLElement).getAttribute('data-latex') ?? ''
+    return `\n\n$$\n${latex}\n$$\n\n`
+  },
+})
 
 /**
  * 获取选中内容的HTML

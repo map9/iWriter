@@ -1,11 +1,67 @@
 import { Editor } from '@tiptap/core'
 import { marked } from 'marked'
+import type { Tokens } from 'marked'
 import TurndownService from 'turndown'
 import { gfm } from '@guyplusplus/turndown-plugin-gfm'
+import { renderInlineMathHtml, renderBlockMathHtml } from '@/utils/mathDelimiters'
 
 import { TEXT_MD_EXTENSIONS, TEXT_TXT_EXTENSIONS, TEXT_IWT_EXTENSIONS, CODE_EXTENSIONS } from '@/types'
 
 const iwtVersion = '1.0.0'
+
+function mathRenderer(render: (latex: string) => string) {
+  return (t: Tokens.Generic) => render(String(t['latex'] ?? ''))
+}
+
+// Register math delimiter extensions for marked (block rules must precede inline)
+marked.use({
+  extensions: [
+    {
+      name: 'mathBlockBracket',
+      level: 'block' as const,
+      start(src: string) { return src.indexOf('\\[') },
+      tokenizer(src: string) {
+        const m = /^\\\[([\s\S]+?)\\\]/.exec(src)
+        if (!m) return undefined
+        return { type: 'mathBlockBracket', raw: m[0] ?? '', latex: (m[1] ?? '').trim() }
+      },
+      renderer: mathRenderer((l) => renderBlockMathHtml(l) + '\n'),
+    },
+    {
+      name: 'mathBlockDollar',
+      level: 'block' as const,
+      start(src: string) { return src.indexOf('$$') },
+      tokenizer(src: string) {
+        const m = /^\$\$([\s\S]+?)\$\$/.exec(src)
+        if (!m) return undefined
+        return { type: 'mathBlockDollar', raw: m[0] ?? '', latex: (m[1] ?? '').trim() }
+      },
+      renderer: mathRenderer((l) => renderBlockMathHtml(l) + '\n'),
+    },
+    {
+      name: 'mathInlineParen',
+      level: 'inline' as const,
+      start(src: string) { return src.indexOf('\\(') },
+      tokenizer(src: string) {
+        const m = /^\\\(([^\n]+?)\\\)/.exec(src)
+        if (!m) return undefined
+        return { type: 'mathInlineParen', raw: m[0] ?? '', latex: m[1] ?? '' }
+      },
+      renderer: mathRenderer(renderInlineMathHtml),
+    },
+    {
+      name: 'mathInlineDollar',
+      level: 'inline' as const,
+      start(src: string) { return src.indexOf('$') },
+      tokenizer(src: string) {
+        const m = /^\$(?!\d+\$)([^\n$]+?)\$(?!\d)/.exec(src)
+        if (!m) return undefined
+        return { type: 'mathInlineDollar', raw: m[0] ?? '', latex: m[1] ?? '' }
+      },
+      renderer: mathRenderer(renderInlineMathHtml),
+    },
+  ],
+})
 
 // Initialize markdown parser and converter
 const turndownService = new TurndownService({
@@ -19,6 +75,22 @@ taskListItems
 gfm (which applies all of the above)
 */
 turndownService.use(gfm)
+turndownService.addRule('inlineMath', {
+  filter: (node) =>
+    node.nodeName === 'SPAN' && (node as HTMLElement).getAttribute('data-type') === 'inline-math',
+  replacement: (_content, node) => {
+    const latex = (node as HTMLElement).getAttribute('data-latex') ?? ''
+    return `$${latex}$`
+  },
+})
+turndownService.addRule('blockMath', {
+  filter: (node) =>
+    node.nodeName === 'DIV' && (node as HTMLElement).getAttribute('data-type') === 'block-math',
+  replacement: (_content, node) => {
+    const latex = (node as HTMLElement).getAttribute('data-latex') ?? ''
+    return `\n\n$$\n${latex}\n$$\n\n`
+  },
+})
 
 function detectLineEnding(text: string): 'LF' | 'CRLF' {
   if (text.includes('\r\n')) return 'CRLF'

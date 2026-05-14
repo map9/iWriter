@@ -282,9 +282,8 @@ export function nodeToMarkdown(node: PmNode): string {
       return '```' + lang + '\n' + node.textContent + '\n```'
     }
 
-    case 'mathBlock': {
-      // BlockMath stores content as text content
-      const content = node.textContent ?? node.attrs.content ?? ''
+    case 'blockMath': {
+      const content = node.attrs.latex ?? node.textContent ?? ''
       return '$$\n' + content + '\n$$'
     }
 

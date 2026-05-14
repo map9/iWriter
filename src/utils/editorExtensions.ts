@@ -30,6 +30,12 @@ import html from 'highlight.js/lib/languages/xml'
 import { all, common, createLowlight } from 'lowlight'
 
 import { InlineMath, BlockMath } from '@tiptap/extension-mathematics'
+import { InputRule, mergeAttributes } from '@tiptap/core'
+import { nodePasteRule } from '@tiptap/core'
+import {
+  INLINE_PAREN_INPUT_REGEX, BLOCK_BRACKET_INPUT_REGEX,
+  INLINE_PAREN_PASTE_REGEX, BLOCK_BRACKET_PASTE_REGEX,
+} from '@/utils/mathDelimiters'
 
 import { ListItem, BulletList, OrderedList, ListKeymap, TaskItem, TaskList } from '@tiptap/extension-list'
 
@@ -91,7 +97,33 @@ export function createBaseExtensions() {
     CodeBlockLowlight.configure({ lowlight }),
 
     // 数学公式
-    InlineMath.configure({
+    InlineMath.extend({
+      renderHTML({ node, HTMLAttributes }) {
+        return ['span', mergeAttributes(HTMLAttributes, { 'data-type': 'inline-math' }), String(node.attrs['latex'] ?? '')]
+      },
+      addInputRules() {
+        return [
+          ...(this.parent?.() ?? []),
+          new InputRule({
+            find: INLINE_PAREN_INPUT_REGEX,
+            handler: ({ state, range, match }) => {
+              const latex = match[1]
+              const { tr } = state
+              tr.replaceWith(range.from, range.to, this.type.create({ latex }))
+            },
+          }),
+        ]
+      },
+      addPasteRules() {
+        return [
+          nodePasteRule({
+            find: INLINE_PAREN_PASTE_REGEX,
+            type: this.type,
+            getAttributes: (match) => ({ latex: match[1] ?? '' }),
+          }),
+        ]
+      },
+    }).configure({
       onClick: undefined,
       katexOptions: {
         throwOnError: false,
@@ -101,7 +133,33 @@ export function createBaseExtensions() {
         },
       },
     }),
-    BlockMath.configure({
+    BlockMath.extend({
+      renderHTML({ node, HTMLAttributes }) {
+        return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'block-math' }), String(node.attrs['latex'] ?? '')]
+      },
+      addInputRules() {
+        return [
+          ...(this.parent?.() ?? []),
+          new InputRule({
+            find: BLOCK_BRACKET_INPUT_REGEX,
+            handler: ({ state, range, match }) => {
+              const latex = match[1]
+              const { tr } = state
+              tr.replaceWith(range.from, range.to, this.type.create({ latex }))
+            },
+          }),
+        ]
+      },
+      addPasteRules() {
+        return [
+          nodePasteRule({
+            find: BLOCK_BRACKET_PASTE_REGEX,
+            type: this.type,
+            getAttributes: (match) => ({ latex: match[1] ?? '' }),
+          }),
+        ]
+      },
+    }).configure({
       katexOptions: {
         throwOnError: false,
         macros: {
@@ -302,7 +360,33 @@ export function createMarkdownEditorExtensions(options: {
     }).configure({ lowlight }),
 
     // 数学公式
-    InlineMath.configure({
+    InlineMath.extend({
+      renderHTML({ node, HTMLAttributes }) {
+        return ['span', mergeAttributes(HTMLAttributes, { 'data-type': 'inline-math' }), String(node.attrs['latex'] ?? '')]
+      },
+      addInputRules() {
+        return [
+          ...(this.parent?.() ?? []),
+          new InputRule({
+            find: INLINE_PAREN_INPUT_REGEX,
+            handler: ({ state, range, match }) => {
+              const latex = match[1]
+              const { tr } = state
+              tr.replaceWith(range.from, range.to, this.type.create({ latex }))
+            },
+          }),
+        ]
+      },
+      addPasteRules() {
+        return [
+          nodePasteRule({
+            find: INLINE_PAREN_PASTE_REGEX,
+            type: this.type,
+            getAttributes: (match) => ({ latex: match[1] ?? '' }),
+          }),
+        ]
+      },
+    }).configure({
       onClick: undefined,
       katexOptions: {
         throwOnError: false,
@@ -314,8 +398,33 @@ export function createMarkdownEditorExtensions(options: {
     }),
     BlockMath.extend({
       draggable: true,
+      renderHTML({ node, HTMLAttributes }) {
+        return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'block-math' }), String(node.attrs['latex'] ?? '')]
+      },
       addNodeView() {
         return VueNodeViewRenderer(iwMathBlockView)
+      },
+      addInputRules() {
+        return [
+          ...(this.parent?.() ?? []),
+          new InputRule({
+            find: BLOCK_BRACKET_INPUT_REGEX,
+            handler: ({ state, range, match }) => {
+              const latex = match[1]
+              const { tr } = state
+              tr.replaceWith(range.from, range.to, this.type.create({ latex }))
+            },
+          }),
+        ]
+      },
+      addPasteRules() {
+        return [
+          nodePasteRule({
+            find: BLOCK_BRACKET_PASTE_REGEX,
+            type: this.type,
+            getAttributes: (match) => ({ latex: match[1] ?? '' }),
+          }),
+        ]
       },
     }).configure({
       katexOptions: {
