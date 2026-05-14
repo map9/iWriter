@@ -561,6 +561,7 @@ export class AgentEngine {
           pendingCreativeToolCalls[index]?.id,
           partialMessage?.id,
           turnId,
+          this.runtimeStore.getContext(threadId)?.workspacePath ?? null,
         )
       )
 

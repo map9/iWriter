@@ -462,6 +462,9 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
     case 'list_chapters':
     case 'get_session_diff':
     case 'get_storybible_rebuild_signal':
+    case 'git_status':
+    case 'git_log':
+    case 'list_explorations':
       return {
         actionLabel: toolNameLabel(toolCall.name),
         targetLabel: toolCall.name === 'read_storybible'
@@ -470,7 +473,11 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
             ? 'draft/fragments.md'
             : toolCall.name === 'get_storybible_rebuild_signal'
               ? 'StoryBible'
-              : 'story session',
+              : toolCall.name.startsWith('git_')
+                ? 'Git'
+                : toolCall.name === 'list_explorations'
+                  ? '.iwriter/explorations'
+                  : 'story session',
         summaryLabel: buildStatusSummary(toolCall, rawResult ? t('agentPanel.displayNormalizer.status.completed') : undefined),
         detailType: parsedResult ? 'json' : 'text',
         parsedResult,
@@ -493,11 +500,21 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
     case 'advise_directions':
     case 'analyze_story_architecture':
     case 'search_draft':
+    case 'git_diff':
     case 'get_character_psychology':
     case 'add_fragment':
     case 'patch_storybible':
     case 'resolve_open_question':
     case 'confirm_writing_plan':
+    case 'git_commit':
+    case 'git_tag':
+    case 'compress_storybible_history':
+    case 'start_exploration':
+    case 'read_exploration':
+    case 'write_exploration_draft':
+    case 'finish_exploration':
+    case 'promote_exploration':
+    case 'delete_exploration':
     case 'create_chapter':
     case 'delete_chapter':
     case 'rename_chapter':
@@ -506,7 +523,12 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
     case 'rebuild_storybible':
       return {
         actionLabel: toolNameLabel(toolCall.name),
-        targetLabel: toStringValue(args.section) ?? toStringValue(args.query) ?? undefined,
+        targetLabel: toStringValue(args.section)
+          ?? toStringValue(args.query)
+          ?? toStringValue(args.name)
+          ?? toStringValue(args.direction_name)
+          ?? toStringValue(args.target_chapter)
+          ?? undefined,
         summaryLabel: buildStatusSummary(
           toolCall,
           toolCall.status === 'completed' ? t('agentPanel.displayNormalizer.status.completed') : undefined

@@ -69,6 +69,54 @@ function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, u
       order: review.order ?? [],
     }
   }
+  if (review.kind === 'creative_git_commit') {
+    return {
+      message: review.message,
+      files: review.files,
+    }
+  }
+  if (review.kind === 'creative_git_tag') {
+    return {
+      name: review.name,
+      ...(review.message !== undefined && { message: review.message }),
+    }
+  }
+  if (review.kind === 'creative_exploration_start') {
+    return {
+      context: review.context,
+      directions: review.directions,
+    }
+  }
+  if (review.kind === 'creative_exploration_compare') {
+    return {
+      comparison_report: review.comparisonReport,
+      ...(review.directionSummaries !== undefined && {
+        direction_summaries: review.directionSummaries.map(direction => ({
+          name: direction.name,
+          summary: direction.summary,
+          narrative_consequences: direction.narrativeConsequences,
+        })),
+      }),
+    }
+  }
+  if (review.kind === 'creative_exploration_merge') {
+    return {
+      direction_name: review.directionName,
+      target_chapter: review.targetChapter,
+      mode: review.mode,
+      ...(review.newContent !== undefined && { content: review.newContent }),
+    }
+  }
+  if (review.kind === 'creative_exploration_delete') {
+    return {
+      direction_name: review.directionName,
+    }
+  }
+  if (review.kind === 'creative_compress') {
+    return {
+      completed_chapters: review.completedChapters,
+    }
+  }
   if (review.toolName === 'resolve_open_question') {
     return {
       question: review.question,
@@ -99,6 +147,15 @@ function defaultRejectMessage(review: CreativeReviewItem): string {
   }
   if (review.kind === 'creative_chapter_structure') {
     return 'The user rejected this chapter structure change. Do not modify draft chapter files or retry the same structure change automatically. Briefly acknowledge the rejection.'
+  }
+  if (review.kind === 'creative_git_commit' || review.kind === 'creative_git_tag') {
+    return 'The user rejected this git checkpoint. Do not commit or tag, and do not retry the same git action automatically. Briefly acknowledge the rejection.'
+  }
+  if (review.kind.startsWith('creative_exploration')) {
+    return 'The user rejected this exploration action. Do not modify exploration or draft files, and do not retry the same action automatically. Briefly acknowledge the rejection.'
+  }
+  if (review.kind === 'creative_compress') {
+    return 'The user rejected StoryBible compression. Do not modify storybible.md and do not retry compression automatically. Briefly acknowledge the rejection.'
   }
   return 'The user rejected this Creative tool call. Do not retry the same action automatically. Briefly acknowledge the rejection and wait for the user to redirect.'
 }

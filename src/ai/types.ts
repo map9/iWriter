@@ -276,11 +276,72 @@ export interface CreativeChapterStructureReviewItem extends BaseCreativeReviewIt
   after?: CreativeChapterStructureEntry[]
 }
 
+export interface CreativeGitCommitReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_git_commit'
+  toolName: 'git_commit'
+  message: string
+  files: string[]
+}
+
+export interface CreativeGitTagReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_git_tag'
+  toolName: 'git_tag'
+  name: string
+  message?: string
+}
+
+export interface CreativeExplorationCompareReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_exploration_compare'
+  toolName: 'finish_exploration'
+  comparisonReport: string
+  directionSummaries?: Array<{
+    name: string
+    summary: string
+    narrativeConsequences: string[]
+  }>
+}
+
+export interface CreativeExplorationMergeReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_exploration_merge'
+  toolName: 'promote_exploration'
+  directionName: string
+  targetChapter: string
+  mode: 'append' | 'replace'
+  beforeContent?: string
+  newContent?: string
+}
+
+export interface CreativeExplorationStartReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_exploration_start'
+  toolName: 'start_exploration'
+  context: string
+  directions: Array<{ name: string; description: string }>
+}
+
+export interface CreativeExplorationDeleteReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_exploration_delete'
+  toolName: 'delete_exploration'
+  directionName: string
+}
+
+export interface CreativeCompressReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_compress'
+  toolName: 'compress_storybible_history'
+  completedChapters: string[]
+}
+
 export type CreativeReviewItem =
   | CreativePlanReviewItem
   | CreativeWriteReviewItem
   | CreativeStoryBibleReviewItem
   | CreativeChapterStructureReviewItem
+  | CreativeGitCommitReviewItem
+  | CreativeGitTagReviewItem
+  | CreativeExplorationCompareReviewItem
+  | CreativeExplorationMergeReviewItem
+  | CreativeExplorationStartReviewItem
+  | CreativeExplorationDeleteReviewItem
+  | CreativeCompressReviewItem
 
 export type EditRoundResultState =
   | 'applied'
@@ -574,6 +635,9 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     search_draft:         'search',
     get_session_diff:     'read',
     get_storybible_rebuild_signal: 'read',
+    git_status:            'read',
+    git_log:               'read',
+    git_diff:              'read',
     get_character_psychology: 'read',
     advise_directions: 'read',
     analyze_story_architecture: 'read',
@@ -583,6 +647,16 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     write_to_chapter:     'edit',
     replace_storybible_section: 'edit',
     rebuild_storybible:   'edit',
+    compress_storybible_history: 'edit',
+    git_commit:           'edit',
+    git_tag:              'edit',
+    list_explorations:    'read',
+    start_exploration:    'edit',
+    write_exploration_draft: 'edit',
+    read_exploration:     'read',
+    finish_exploration:   'edit',
+    promote_exploration:  'edit',
+    delete_exploration:   'delete',
     // deepagents built-in tools
     execute:              'execute',
     read_file:            'read',
@@ -616,6 +690,13 @@ export const CREATIVE_REVIEW_TOOLS = new Set([
   'reorder_chapters',
   'replace_storybible_section',
   'rebuild_storybible',
+  'compress_storybible_history',
+  'git_commit',
+  'git_tag',
+  'start_exploration',
+  'finish_exploration',
+  'promote_exploration',
+  'delete_exploration',
 ])
 
 /** Human-readable labels for BlockEditProposal types. */

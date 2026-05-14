@@ -60,14 +60,139 @@
         </ol>
       </div>
 
+      <div
+        v-else-if="currentReview.kind === 'creative_exploration_start'"
+        class="rounded-md border border-base-300 bg-base-200 px-2 py-2 text-xs"
+      >
+        <div class="font-medium text-base-content/70">
+          {{ t('agentPanel.creativeReview.explorationPlan') }}
+        </div>
+        <p class="mt-2 whitespace-pre-wrap text-base-content/70">{{ currentReview.context }}</p>
+        <ol class="mt-2 list-decimal space-y-1 pl-5 text-base-content/70">
+          <li
+            v-for="direction in currentReview.directions"
+            :key="direction.name"
+          >
+            <span class="font-medium">{{ direction.name }}</span>
+            <span v-if="direction.description"> — {{ direction.description }}</span>
+          </li>
+        </ol>
+      </div>
+
+      <div
+        v-else-if="currentReview.kind === 'creative_exploration_delete'"
+        class="rounded-md border border-base-300 bg-base-200 px-2 py-2 text-xs text-base-content/70"
+      >
+        {{ t('agentPanel.creativeReview.deleteExploration', { name: currentReview.directionName }) }}
+      </div>
+
+      <div
+        v-else-if="currentReview.kind === 'creative_compress'"
+        class="rounded-md border border-base-300 bg-base-200 px-2 py-2 text-xs"
+      >
+        <div class="font-medium text-base-content/70">
+          {{ t('agentPanel.creativeReview.compressChapters') }}
+        </div>
+        <ul class="mt-2 list-disc space-y-1 pl-5 text-base-content/70">
+          <li
+            v-for="chapter in currentReview.completedChapters"
+            :key="chapter"
+          >
+            {{ chapter }}
+          </li>
+        </ul>
+      </div>
+
+      <div
+        v-else-if="currentReview.kind === 'creative_exploration_compare'"
+        class="space-y-2"
+      >
+        <div
+          v-if="currentReview.directionSummaries?.length"
+          class="grid gap-2"
+        >
+          <section
+            v-for="direction in currentReview.directionSummaries"
+            :key="direction.name"
+            class="rounded-md border border-base-300 bg-base-200 px-2 py-2 text-xs"
+          >
+            <div class="font-semibold text-base-content/80">{{ direction.name }}</div>
+            <p class="mt-1 whitespace-pre-wrap text-base-content/70">{{ direction.summary }}</p>
+            <ul
+              v-if="direction.narrativeConsequences.length"
+              class="mt-2 list-disc space-y-1 pl-5 text-base-content/65"
+            >
+              <li
+                v-for="consequence in direction.narrativeConsequences"
+                :key="consequence"
+              >
+                {{ consequence }}
+              </li>
+            </ul>
+          </section>
+        </div>
+        <label class="block">
+          <span class="mb-1 block text-[11px] font-medium text-base-content/50">{{ t('agentPanel.creativeReview.comparisonReport') }}</span>
+          <textarea
+            v-model="bodyDraft"
+            class="min-h-32 w-full resize-y rounded-md border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
+          />
+        </label>
+      </div>
+
+      <div
+        v-else-if="currentReview.kind === 'creative_exploration_merge'"
+        class="space-y-2"
+      >
+        <div class="grid gap-2 md:grid-cols-2">
+          <section class="min-w-0 rounded-md border border-base-300 bg-base-200 px-2 py-2 text-xs">
+            <div class="mb-1 font-medium text-base-content/60">
+              {{ t('agentPanel.creativeReview.beforeContent') }}
+            </div>
+            <pre class="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded bg-base-100 px-2 py-1.5 text-[11px] leading-relaxed text-base-content/70">{{ currentReview.beforeContent || t('agentPanel.creativeReview.emptyContent') }}</pre>
+          </section>
+          <section class="min-w-0 rounded-md border border-base-300 bg-base-200 px-2 py-2 text-xs">
+            <div class="mb-1 font-medium text-base-content/60">
+              {{ t('agentPanel.creativeReview.afterContent') }}
+            </div>
+            <textarea
+              v-model="bodyDraft"
+              class="min-h-56 w-full resize-y rounded-md border border-base-300 bg-base-100 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
+            />
+          </section>
+        </div>
+      </div>
+
       <label
-        v-else
+        v-else-if="showsBodyEditor"
         class="block"
       >
         <span class="mb-1 block text-[11px] font-medium text-base-content/50">{{ bodyLabel }}</span>
         <textarea
           v-model="bodyDraft"
           class="min-h-40 w-full resize-y rounded-md border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
+        />
+      </label>
+
+      <label
+        v-if="currentReview.kind === 'creative_git_commit'"
+        class="block"
+      >
+        <span class="mb-1 block text-[11px] font-medium text-base-content/50">{{ t('agentPanel.creativeReview.gitFiles') }}</span>
+        <textarea
+          v-model="filesDraft"
+          class="min-h-16 w-full resize-y rounded-md border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
+        />
+      </label>
+
+      <label
+        v-if="currentReview.kind === 'creative_git_tag'"
+        class="block"
+      >
+        <span class="mb-1 block text-[11px] font-medium text-base-content/50">{{ t('agentPanel.creativeReview.gitTagMessage') }}</span>
+        <textarea
+          v-model="tagMessageDraft"
+          class="min-h-16 w-full resize-y rounded-md border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
         />
       </label>
 
@@ -199,6 +324,8 @@ const logicAudit = computed(() =>
 const bodyDraft = ref('')
 const rationaleDraft = ref('')
 const approvedPlanDraft = ref('')
+const filesDraft = ref('')
+const tagMessageDraft = ref('')
 
 const title = computed(() => {
   const review = currentReview.value
@@ -206,6 +333,13 @@ const title = computed(() => {
   if (review.kind === 'creative_plan') return t('agentPanel.creativeReview.titlePlan')
   if (review.kind === 'creative_write') return t('agentPanel.creativeReview.titleWrite')
   if (review.kind === 'creative_chapter_structure') return t('agentPanel.creativeReview.titleChapterStructure')
+  if (review.kind === 'creative_git_commit') return t('agentPanel.creativeReview.titleGitCommit')
+  if (review.kind === 'creative_git_tag') return t('agentPanel.creativeReview.titleGitTag')
+  if (review.kind === 'creative_exploration_start') return t('agentPanel.creativeReview.titleExplorationStart')
+  if (review.kind === 'creative_exploration_compare') return t('agentPanel.creativeReview.titleExplorationCompare')
+  if (review.kind === 'creative_exploration_merge') return t('agentPanel.creativeReview.titleExplorationMerge')
+  if (review.kind === 'creative_exploration_delete') return t('agentPanel.creativeReview.titleExplorationDelete')
+  if (review.kind === 'creative_compress') return t('agentPanel.creativeReview.titleCompress')
   return review.toolName === 'rebuild_storybible'
     ? t('agentPanel.creativeReview.titleRebuildStoryBible')
     : t('agentPanel.creativeReview.titleStoryBibleSection')
@@ -217,6 +351,13 @@ const subtitle = computed(() => {
   if (review.kind === 'creative_write') return `${review.filename} · ${review.mode}`
   if (review.kind === 'creative_chapter_structure') return chapterOperationLabel.value
   if (review.kind === 'creative_storybible') return review.section ?? 'storybible.md'
+  if (review.kind === 'creative_git_commit') return review.files.join(', ')
+  if (review.kind === 'creative_git_tag') return review.name
+  if (review.kind === 'creative_exploration_start') return t('agentPanel.creativeReview.explorationDirections', { count: review.directions.length })
+  if (review.kind === 'creative_exploration_compare') return t('agentPanel.creativeReview.explorationComparison')
+  if (review.kind === 'creative_exploration_merge') return `${review.directionName} → ${review.targetChapter} · ${review.mode}`
+  if (review.kind === 'creative_exploration_delete') return review.directionName
+  if (review.kind === 'creative_compress') return review.completedChapters.join(', ')
   return t('agentPanel.creativeReview.planFirstApproval')
 })
 
@@ -225,7 +366,21 @@ const bodyLabel = computed(() => {
   if (!review) return t('agentPanel.creativeReview.content')
   if (review.kind === 'creative_plan') return t('agentPanel.creativeReview.plan')
   if (review.kind === 'creative_write') return t('agentPanel.creativeReview.draftContent')
+  if (review.kind === 'creative_git_commit') return t('agentPanel.creativeReview.gitCommitMessage')
+  if (review.kind === 'creative_git_tag') return t('agentPanel.creativeReview.gitTagName')
+  if (review.kind === 'creative_exploration_compare') return t('agentPanel.creativeReview.comparisonReport')
+  if (review.kind === 'creative_exploration_merge') return t('agentPanel.creativeReview.explorationContent')
   return t('agentPanel.creativeReview.storyBibleContent')
+})
+
+const showsBodyEditor = computed(() => {
+  const review = currentReview.value
+  if (!review) return false
+  return review.kind === 'creative_plan'
+    || review.kind === 'creative_write'
+    || review.kind === 'creative_storybible'
+    || review.kind === 'creative_git_commit'
+    || review.kind === 'creative_git_tag'
 })
 
 const hasEditedContent = computed(() => {
@@ -238,6 +393,15 @@ const hasEditedContent = computed(() => {
     return bodyDraft.value !== review.newContent || approvedPlanDraft.value !== review.approvedPlan
   }
   if (review.kind === 'creative_chapter_structure') return false
+  if (review.kind === 'creative_git_commit') {
+    return bodyDraft.value !== review.message || filesDraft.value !== review.files.join('\n')
+  }
+  if (review.kind === 'creative_git_tag') {
+    return bodyDraft.value !== review.name || tagMessageDraft.value !== (review.message ?? '')
+  }
+  if (review.kind === 'creative_exploration_start' || review.kind === 'creative_exploration_delete' || review.kind === 'creative_compress') return false
+  if (review.kind === 'creative_exploration_compare') return bodyDraft.value !== review.comparisonReport
+  if (review.kind === 'creative_exploration_merge') return bodyDraft.value !== (review.newContent ?? '')
   return bodyDraft.value !== review.newContent
 })
 
@@ -262,24 +426,64 @@ watch(currentReview, review => {
     bodyDraft.value = ''
     rationaleDraft.value = ''
     approvedPlanDraft.value = ''
+    filesDraft.value = ''
+    tagMessageDraft.value = ''
     return
   }
   if (review.kind === 'creative_plan') {
     bodyDraft.value = review.plan
     rationaleDraft.value = review.rationale
     approvedPlanDraft.value = ''
+    filesDraft.value = ''
+    tagMessageDraft.value = ''
     return
   }
   if (review.kind === 'creative_write') {
     bodyDraft.value = review.newContent
     approvedPlanDraft.value = review.approvedPlan
     rationaleDraft.value = ''
+    filesDraft.value = ''
+    tagMessageDraft.value = ''
     return
   }
-  if (review.kind === 'creative_chapter_structure') {
+  if (review.kind === 'creative_chapter_structure' || review.kind === 'creative_exploration_start' || review.kind === 'creative_exploration_delete' || review.kind === 'creative_compress') {
     bodyDraft.value = ''
     rationaleDraft.value = ''
     approvedPlanDraft.value = ''
+    filesDraft.value = ''
+    tagMessageDraft.value = ''
+    return
+  }
+  if (review.kind === 'creative_git_commit') {
+    bodyDraft.value = review.message
+    filesDraft.value = review.files.join('\n')
+    rationaleDraft.value = ''
+    approvedPlanDraft.value = ''
+    tagMessageDraft.value = ''
+    return
+  }
+  if (review.kind === 'creative_git_tag') {
+    bodyDraft.value = review.name
+    tagMessageDraft.value = review.message ?? ''
+    rationaleDraft.value = ''
+    approvedPlanDraft.value = ''
+    filesDraft.value = ''
+    return
+  }
+  if (review.kind === 'creative_exploration_compare') {
+    bodyDraft.value = review.comparisonReport
+    rationaleDraft.value = ''
+    approvedPlanDraft.value = ''
+    filesDraft.value = ''
+    tagMessageDraft.value = ''
+    return
+  }
+  if (review.kind === 'creative_exploration_merge') {
+    bodyDraft.value = review.newContent ?? ''
+    rationaleDraft.value = ''
+    approvedPlanDraft.value = ''
+    filesDraft.value = ''
+    tagMessageDraft.value = ''
     return
   }
   bodyDraft.value = review.newContent
@@ -329,6 +533,47 @@ function editedArgs() {
       }
     }
     return { order: review.order ?? [] }
+  }
+  if (review.kind === 'creative_git_commit') {
+    return {
+      message: bodyDraft.value,
+      files: filesDraft.value.split(/\r?\n/).map(file => file.trim()).filter(Boolean),
+    }
+  }
+  if (review.kind === 'creative_git_tag') {
+    return {
+      name: bodyDraft.value,
+      ...(tagMessageDraft.value.trim() && { message: tagMessageDraft.value }),
+    }
+  }
+  if (review.kind === 'creative_exploration_start') {
+    return {
+      context: review.context,
+      directions: review.directions,
+    }
+  }
+  if (review.kind === 'creative_exploration_compare') {
+    return {
+      comparison_report: bodyDraft.value,
+    }
+  }
+  if (review.kind === 'creative_exploration_merge') {
+    return {
+      direction_name: review.directionName,
+      target_chapter: review.targetChapter,
+      mode: review.mode,
+      ...(bodyDraft.value.trim() && { content: bodyDraft.value }),
+    }
+  }
+  if (review.kind === 'creative_exploration_delete') {
+    return {
+      direction_name: review.directionName,
+    }
+  }
+  if (review.kind === 'creative_compress') {
+    return {
+      completed_chapters: review.completedChapters,
+    }
   }
   if (review.toolName === 'resolve_open_question') {
     return {

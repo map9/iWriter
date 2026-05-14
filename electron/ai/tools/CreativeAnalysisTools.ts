@@ -5,7 +5,9 @@ import { z } from 'zod'
 import type { CreativeDb } from '../db/CreativeDb'
 import { STORYBIBLE_REBUILD_WORD_THRESHOLD } from '../db/CreativeDb'
 import type { SnapshotBroker } from '../document/SnapshotBroker'
+import { estimateTextTokens } from '../../../src/ai/token-estimation'
 import { getRuntimeString } from './runtimeHelpers'
+import { getLastGitTagInfo } from './CreativeGitTools'
 
 function getWorkspacePath(runtime: unknown, fallbackWorkspacePath?: string | null): string | null {
   return getRuntimeString(runtime, 'workspace_path')?.trim() || fallbackWorkspacePath || null
@@ -69,6 +71,8 @@ export function buildCreativeAnalysisTools(options: {
       const shouldPropose = stats.totalWordDelta >= STORYBIBLE_REBUILD_WORD_THRESHOLD
       const storyBiblePath = path.join(workspacePath, 'storybible.md')
       const storyBible = fs.existsSync(storyBiblePath) ? fs.readFileSync(storyBiblePath, 'utf-8') : ''
+      const storybibleTokenEstimate = estimateTextTokens(storyBible)
+      const gitTagInfo = await getLastGitTagInfo(workspacePath)
       const missingPremise = ['Premise', 'Theme', 'Promise to Reader'].some(section =>
         isPlaceholderOnly(sectionBody(storyBible, section))
       )
@@ -82,6 +86,12 @@ export function buildCreativeAnalysisTools(options: {
         should_propose_rebuild: shouldPropose,
         missing_premise: missingPremise,
         open_questions: extractOpenQuestions(storyBible),
+        last_git_tag: gitTagInfo.last_git_tag,
+        commits_since_last_tag: gitTagInfo.commits_since_last_tag,
+        storybible_token_estimate: storybibleTokenEstimate,
+        recommended_action: storybibleTokenEstimate > 3500
+          ? `StoryBible has reached approximately ${storybibleTokenEstimate} tokens. Suggest offering compress_storybible_history for chapters the author considers complete.`
+          : null,
         hint: shouldPropose
           ? 'Propose rebuild_storybible in a user-approved plan. Do not call it silently.'
           : 'No StoryBible rebuild proposal is needed yet.',

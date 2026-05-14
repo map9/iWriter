@@ -33,7 +33,7 @@ _Last updated: not yet established_
 ## Open Questions
 `
 
-type SafePathResult =
+export type SafePathResult =
   | { ok: true; path: string; relativePath: string }
   | { ok: false; error: string }
 
@@ -46,7 +46,7 @@ function ensureWorkspace(workspacePath: string | null): string | null {
   return path.resolve(workspacePath)
 }
 
-function isInside(parent: string, child: string): boolean {
+export function isInside(parent: string, child: string): boolean {
   const relative = path.relative(parent, child)
   return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative))
 }
@@ -73,32 +73,53 @@ function ensureFragments(workspacePath: string): string {
   return filePath
 }
 
-function resolveDraftMarkdownPath(workspacePath: string, filename: string): SafePathResult {
+export function resolveWorkspaceSubpath(
+  workspacePath: string,
+  subdir: string,
+  filename: string,
+  options?: {
+    requiredExt?: string
+    appendExt?: boolean
+    label?: string
+  },
+): SafePathResult {
   const trimmed = filename.trim()
-  if (!trimmed) return { ok: false, error: 'Error: filename is required.' }
+  const label = options?.label ?? 'filename'
+  if (!trimmed) return { ok: false, error: `Error: ${label} is required.` }
   if (path.isAbsolute(trimmed) || trimmed.startsWith('~') || /^[a-zA-Z]:[\\/]/.test(trimmed)) {
-    return { ok: false, error: 'Error: filename must be relative to draft/ and cannot be absolute.' }
+    return { ok: false, error: `Error: ${label} must be relative to ${subdir}/ and cannot be absolute.` }
   }
   if (trimmed.split(/[\\/]+/).includes('..')) {
-    return { ok: false, error: 'Error: filename cannot contain "..".' }
+    return { ok: false, error: `Error: ${label} cannot contain "..".` }
   }
 
-  const draftDir = path.resolve(workspacePath, 'draft')
-  const withExt = path.extname(trimmed) ? trimmed : `${trimmed}.md`
-  if (path.extname(withExt).toLowerCase() !== '.md') {
-    return { ok: false, error: 'Error: creative draft tools only support .md files.' }
+  const rootDir = path.resolve(workspacePath, subdir)
+  let targetName = trimmed
+  if (options?.appendExt && options.requiredExt && !path.extname(targetName)) {
+    targetName = `${targetName}${options.requiredExt}`
+  }
+  if (options?.requiredExt && path.extname(targetName).toLowerCase() !== options.requiredExt.toLowerCase()) {
+    return { ok: false, error: `Error: ${label} must use ${options.requiredExt} files.` }
   }
 
-  const targetPath = path.resolve(draftDir, withExt)
-  if (!isInside(draftDir, targetPath)) {
-    return { ok: false, error: 'Error: resolved draft path escapes the workspace draft directory.' }
+  const targetPath = path.resolve(rootDir, targetName)
+  if (!isInside(rootDir, targetPath)) {
+    return { ok: false, error: `Error: resolved ${label} escapes the ${subdir}/ directory.` }
   }
 
   return {
     ok: true,
     path: targetPath,
-    relativePath: path.relative(draftDir, targetPath).replace(/\\/g, '/'),
+    relativePath: path.relative(rootDir, targetPath).replace(/\\/g, '/'),
   }
+}
+
+function resolveDraftMarkdownPath(workspacePath: string, filename: string): SafePathResult {
+  return resolveWorkspaceSubpath(workspacePath, 'draft', filename, {
+    requiredExt: '.md',
+    appendExt: true,
+    label: 'filename',
+  })
 }
 
 function insertAfterAnchor(current: string, anchor: string, content: string): string | null {
@@ -142,6 +163,68 @@ function upsertStoryBibleSection(content: string, section: string, patchContent:
   }
   const currentSection = content.slice(sectionRange.start, sectionRange.end).trimEnd()
   return `${content.slice(0, sectionRange.start)}${currentSection}\n\n${nextEntry}\n${content.slice(sectionRange.end)}`
+}
+
+function summarizeArchivedChapter(filename: string, content: string): string {
+  const body = content
+    .replace(/^#\s+.*$/gm, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!body) return `${filename}: Empty chapter or placeholder content.`
+  const target = body.length > 420 ? `${body.slice(0, 360).trim()} ... ${body.slice(-120).trim()}` : body
+  return `${filename}: ${target}`
+}
+
+function upsertArchivedChapters(content: string, entries: Array<{ filename: string; summary: string }>): string {
+  const storyStateRange = findMarkdownSection(content, 'Story State')
+  const base = storyStateRange
+    ? content
+    : `${content.trimEnd()}\n\n## Story State\n\n`
+  const range = findMarkdownSection(base, 'Story State')
+  if (!range) return base
+
+  const storyState = base.slice(range.start, range.end)
+  const archiveHeading = /^###\s+Archived Chapters\s*$/mi
+  const archiveMatch = archiveHeading.exec(storyState)
+  const entryByFilename = new Map(entries.map(entry => [entry.filename, entry.summary.trim()]))
+
+  if (!archiveMatch || archiveMatch.index === undefined) {
+    const addition = [
+      '',
+      '### Archived Chapters',
+      '',
+      ...entries.map(entry => `- **${entry.filename}**: ${entry.summary.trim()}`),
+      '',
+    ].join('\n')
+    return `${base.slice(0, range.end).trimEnd()}\n${addition}${base.slice(range.end)}`
+  }
+
+  const archiveStart = archiveMatch.index
+  const afterHeading = archiveStart + archiveMatch[0].length
+  const nextSubheading = /^###\s+/gmi
+  nextSubheading.lastIndex = afterHeading
+  const next = nextSubheading.exec(storyState)
+  const archiveEnd = next?.index ?? storyState.length
+  const beforeArchive = storyState.slice(0, archiveStart)
+  const archiveBlock = storyState.slice(archiveStart, archiveEnd)
+  const afterArchive = storyState.slice(archiveEnd)
+  const consumed = new Set<string>()
+  const lines = archiveBlock.split(/\r?\n/)
+  const nextLines = lines.map(line => {
+    const match = /^-\s+\*\*(.+?)\*\*:\s*/.exec(line.trim())
+    const filename = match?.[1]
+    if (!filename || !entryByFilename.has(filename)) return line
+    consumed.add(filename)
+    return `- **${filename}**: ${entryByFilename.get(filename)}`
+  })
+  for (const entry of entries) {
+    if (!consumed.has(entry.filename)) {
+      nextLines.push(`- **${entry.filename}**: ${entry.summary.trim()}`)
+    }
+  }
+  const nextStoryState = `${beforeArchive}${nextLines.join('\n').trimEnd()}\n${afterArchive}`
+  return `${base.slice(0, range.start)}${nextStoryState}${base.slice(range.end)}`
 }
 
 function removeOpenQuestion(content: string, question: string): string {
@@ -823,6 +906,50 @@ export function buildCreativeTools(options: {
     }
   )
 
+  const compressStoryBibleHistory = tool(
+    async ({ completed_chapters }: { completed_chapters: string[] }, runtime) => {
+      const workspacePath = resolveWorkspace(runtime)
+      if (!workspacePath) return 'Error: Creative mode requires an open workspace folder.'
+      const chapters = [...new Set(completed_chapters.map(chapter => chapter.trim()).filter(Boolean))]
+      if (!chapters.length) return 'Error: completed_chapters is required.'
+
+      const entries: Array<{ filename: string; summary: string }> = []
+      for (const chapter of chapters) {
+        const resolved = resolveDraftMarkdownPath(workspacePath, chapter)
+        if (!resolved.ok) return resolved.error
+        if (!fs.existsSync(resolved.path)) return `Error: draft chapter not found: draft/${resolved.relativePath}`
+        const content = fs.readFileSync(resolved.path, 'utf-8')
+        entries.push({
+          filename: resolved.relativePath,
+          summary: summarizeArchivedChapter(resolved.relativePath, content),
+        })
+      }
+
+      const filePath = ensureStoryBible(workspacePath)
+      const current = fs.readFileSync(filePath, 'utf-8')
+      const next = upsertArchivedChapters(current, entries)
+      fs.writeFileSync(filePath, next, 'utf-8')
+      options.creativeDb?.recordStoryBibleChange(workspacePath, {
+        toolName: 'compress_storybible_history',
+        targetPath: 'storybible.md',
+        wordDelta: countWordDelta(current, next),
+        summary: `Archived ${entries.map(entry => entry.filename).join(', ')}`,
+      })
+      return JSON.stringify({
+        archived: true,
+        chapters: entries.map(entry => entry.filename),
+        added_or_updated: entries,
+      }, null, 2)
+    },
+    {
+      name: 'compress_storybible_history',
+      description: 'Append or upsert archived chapter summaries under StoryBible ## Story State / ### Archived Chapters. Never deletes existing StoryBible content.',
+      schema: z.object({
+        completed_chapters: z.array(z.string()).describe('Chapter filenames whose content can be summarized, e.g. ["ch01.md", "ch02.md"].'),
+      }),
+    }
+  )
+
   return [
     readStoryBible,
     readChapter,
@@ -841,5 +968,6 @@ export function buildCreativeTools(options: {
     writeToChapter,
     replaceStoryBibleSection,
     rebuildStoryBible,
+    compressStoryBibleHistory,
   ] as const
 }

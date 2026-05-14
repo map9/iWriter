@@ -5,12 +5,15 @@ import type { FilesystemMount } from '../../runtime/FilesystemMounts'
 import { buildCreativeTools } from '../../tools/CreativeTools'
 import { buildCreativeAnalysisTools } from '../../tools/CreativeAnalysisTools'
 import { buildCreativeAdvisorTools } from '../../tools/CreativeAdvisorTools'
+import { buildCreativeExplorationTools } from '../../tools/CreativeExplorationTools'
+import { buildCreativeGitTools } from '../../tools/CreativeGitTools'
 import { buildCreativeLogicTools } from '../../tools/CreativeLogicTools'
 import type { CreativeDb } from '../../db/CreativeDb'
 import { WorkspaceFilesystemBackend } from '../../runtime/WorkspaceFilesystemBackend'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import { buildPlannerSubAgent } from './subAgents/planner'
 import { buildConsistencySubAgent } from './subAgents/consistency'
+import { buildExplorerSubAgent } from './subAgents/explorer'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
 
 export function buildCreativeCapabilities(
@@ -39,10 +42,13 @@ export function buildCreativeCapabilities(
   Object.defineProperty(backend, 'id', { get: () => undefined })
 
   const creativeTools = buildCreativeTools({ workspacePath, creativeDb, snapshotBroker })
+  const explorationTools = buildCreativeExplorationTools({ workspacePath, creativeDb })
   const mainTools = [
     ...creativeTools,
     ...buildCreativeAnalysisTools({ workspacePath, creativeDb, snapshotBroker }),
     ...buildCreativeAdvisorTools({ workspacePath }),
+    ...buildCreativeGitTools({ workspacePath }),
+    ...explorationTools,
   ]
 
   const readToolNames = new Set([
@@ -58,6 +64,15 @@ export function buildCreativeCapabilities(
     ...readOnlyTools,
     ...buildCreativeLogicTools({ workspacePath }),
   ]
+  const explorerToolNames = new Set([
+    ...readToolNames,
+    'list_chapters',
+    'write_exploration_draft',
+  ])
+  const explorerTools = [
+    ...creativeTools.filter(tool => explorerToolNames.has(tool.name)),
+    ...explorationTools.filter(tool => explorerToolNames.has(tool.name)),
+  ]
 
   return {
     tools: mainTools,
@@ -65,6 +80,7 @@ export function buildCreativeCapabilities(
     subAgents: [
       buildPlannerSubAgent(plannerTools, language),
       buildConsistencySubAgent(readOnlyTools, language),
+      buildExplorerSubAgent(explorerTools, language),
     ],
     backend,
     interruptOn: {
@@ -77,6 +93,13 @@ export function buildCreativeCapabilities(
       reorder_chapters:           { allowedDecisions: ['approve', 'reject'] },
       replace_storybible_section: { allowedDecisions: ['approve', 'reject'] },
       rebuild_storybible:         { allowedDecisions: ['approve', 'reject'] },
+      compress_storybible_history: { allowedDecisions: ['approve', 'reject'] },
+      git_commit:                 { allowedDecisions: ['approve', 'edit', 'reject'] },
+      git_tag:                    { allowedDecisions: ['approve', 'reject'] },
+      start_exploration:          { allowedDecisions: ['approve', 'reject'] },
+      finish_exploration:         { allowedDecisions: ['approve', 'reject'] },
+      promote_exploration:        { allowedDecisions: ['approve', 'edit', 'reject'] },
+      delete_exploration:         { allowedDecisions: ['approve', 'reject'] },
     },
   }
 }

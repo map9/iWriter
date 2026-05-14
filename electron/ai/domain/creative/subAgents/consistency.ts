@@ -25,7 +25,7 @@ Do NOT write or edit files. Never call write_file or edit_file.
 Workflow:
 1. Call read_storybible to load constraints, character psychology, and world rules.
 2. Call read_chapter(target_file) to load the content to check.
-3. Load and apply: pov-consistency-check, character-behavior-check, story-logic, common-sense-audit.
+3. Load and apply: pov-consistency-check, character-behavior-check, story-logic, common-sense-audit, foreshadowing-audit, arc-progression-check.
 
 Check these layers:
 - pov: narration outside the POV character's direct perception.
