@@ -1032,6 +1032,12 @@ export default {
     },
   },
   dialog: {
+    fileExternalChange: {
+      title: 'File Changed',
+      message: 'The file has changed on disk',
+      reload: 'Reload',
+      ignore: 'Ignore',
+    },
     saveChanges: {
       title: 'Save Changes',
       message: 'Do you want to save the changes you made to "{name}"?',

@@ -120,6 +120,7 @@ export const useAppStore = defineStore('app', () => {
   const activeTabId = ref<string | null>(null)
   const untitledCounter = ref(1)
   const externalChangePromptPaths = new Set<string>()
+  const ignoredExternalChangePaths = new Set<string>()
 
   // 控制是否应该保存状态（在退出清理时设为 false）
   const shouldPersistState = ref(true)
@@ -1548,16 +1549,18 @@ export const useAppStore = defineStore('app', () => {
     try {
       // 启动原生文件监听
       const result = await window.electronAPI.startFileWatching(currentFolder.value)
-      if (result.success) {        
+      if (result.success) {
         // 监听文件变化事件
         window.electronAPI.onFileChange((change) => {
           void handleFileChange(change)
         })
-        
+
         // 监听错误事件
         window.electronAPI.onFileWatchError((error) => {
           notify.warning(`${error.message}`, t('notify.file.watchWarning'))
         })
+      } else {
+        notify.warning(result.error ?? 'File watcher failed to start', t('notify.file.watchStartError'))
       }
     } catch (error) {
       notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.watchStartError'))
@@ -1805,6 +1808,9 @@ export const useAppStore = defineStore('app', () => {
     if (!tab || tab.documentType !== DocumentType.MARKDOWN_EDITOR) return
 
     const normalizedPath = pathUtils.normalize(filePath)
+
+    if (ignoredExternalChangePaths.has(normalizedPath)) return
+
     const content = rawContent ?? await window.electronAPI?.readFile(filePath)
     if (content === null || content === undefined) {
       throw new Error(`Failed to read changed file from disk: ${filePath}`)
@@ -1820,7 +1826,10 @@ export const useAppStore = defineStore('app', () => {
         throw new Error(`Missing lastSavedHash for clean tab: ${filePath}`)
       }
 
-      await reloadOpenMarkdownTabFromDisk(tab, content)
+      const reloaded = await reloadOpenMarkdownTabFromDisk(tab, content)
+      if (!reloaded) {
+        throw new Error(`Failed to reload file in editor: ${filePath}`)
+      }
       return
     }
 
@@ -1842,18 +1851,20 @@ export const useAppStore = defineStore('app', () => {
 
     try {
       const result = await window.electronAPI.showMessageBox({
-        message: 'The file has changed on disk',
+        message: t('dialog.fileExternalChange.message'),
         type: 'warning',
-        buttons: ['Reload', 'Ignore'],
+        buttons: [t('dialog.fileExternalChange.reload'), t('dialog.fileExternalChange.ignore')],
         defaultId: 0,
         cancelId: 1,
-        title: 'File Changed',
+        title: t('dialog.fileExternalChange.title'),
         detail: tab.path ?? filePath,
         noLink: true,
       })
 
       if (result.response === 0) {
         await reloadOpenMarkdownTabFromDisk(tab, rawContent)
+      } else {
+        ignoredExternalChangePaths.add(normalizedPath)
       }
     } finally {
       externalChangePromptPaths.delete(normalizedPath)
@@ -1873,8 +1884,15 @@ export const useAppStore = defineStore('app', () => {
     // 根据变化类型文件树更新
     switch (change.type) {
       case 'add':
+        // 原子写入工具（vim/VSCode等）可能触发 add 而非 change，也需检查 open tabs
+        addNodeToFileTreeByFilePath(change.path)
+        try {
+          await handleOpenTabExternalChange(change.path)
+        } catch (error) {
+          notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.editor.errorContext'))
+        }
+        break
       case 'addDir':
-        // 外部添加的文件或文件夹，添加到文件树
         addNodeToFileTreeByFilePath(change.path)
         break
       case 'unlink':
@@ -1889,7 +1907,6 @@ export const useAppStore = defineStore('app', () => {
           await handleOpenTabExternalChange(change.path)
         } catch (error) {
           notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.editor.errorContext'))
-          throw error
         }
         break
     }
@@ -2002,6 +2019,11 @@ export const useAppStore = defineStore('app', () => {
     }
 
     // Remove the tab
+    if (tab?.path) {
+      const normalizedTabPath = pathUtils.normalize(tab.path)
+      ignoredExternalChangePaths.delete(normalizedTabPath)
+      externalChangePromptPaths.delete(normalizedTabPath)
+    }
     tabs.value.splice(index, 1)
     
     // If closing active tab, activate another tab

@@ -1023,6 +1023,12 @@ export default {
     },
   },
   dialog: {
+    fileExternalChange: {
+      title: '文件已更改',
+      message: '磁盘上的文件已被外部修改',
+      reload: '重新加载',
+      ignore: '忽略',
+    },
     saveChanges: {
       title: '保存更改',
       message: '是否保存你对“{name}”所做的更改？',
