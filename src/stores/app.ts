@@ -121,6 +121,8 @@ export const useAppStore = defineStore('app', () => {
   const untitledCounter = ref(1)
   const externalChangePromptPaths = new Set<string>()
   const ignoredExternalChangePaths = new Set<string>()
+  const openDocumentWatchDirs = new Set<string>()
+  let fileWatchListenersRegistered = false
 
   // 控制是否应该保存状态（在退出清理时设为 false）
   const shouldPersistState = ref(true)
@@ -168,6 +170,16 @@ export const useAppStore = defineStore('app', () => {
   function getOpenTabByPath(filePath: string): FileTab | undefined {
     const normalizedPath = pathUtils.normalize(filePath)
     return tabs.value.find(tab => tab.path && pathUtils.normalize(tab.path) === normalizedPath)
+  }
+
+  function getOpenTabsAffectedByPath(targetPath: string, includeChildren = false): FileTab[] {
+    const normalizedTargetPath = pathUtils.normalize(targetPath).replace(/\/+$/, '')
+    return tabs.value.filter(tab => {
+      if (!tab.path) return false
+      const normalizedTabPath = pathUtils.normalize(tab.path)
+      return normalizedTabPath === normalizedTargetPath ||
+        (includeChildren && normalizedTabPath.startsWith(`${normalizedTargetPath}/`))
+    })
   }
 
   function buildSavedHash(content: string): string {
@@ -489,7 +501,8 @@ export const useAppStore = defineStore('app', () => {
   // Destroy
   function destroy() {
     // Clean up file watching
-    stopAdvancedFileWatching()
+    void stopAdvancedFileWatching()
+    void stopOpenDocumentWatchers()
     if (sayHelloTimeout) {
       clearTimeout(sayHelloTimeout)
       sayHelloTimeout = null
@@ -497,6 +510,7 @@ export const useAppStore = defineStore('app', () => {
     if (window.electronAPI) {
       window.electronAPI.removeMenuActionListener()
       window.electronAPI.removeFileChangeListeners()
+      fileWatchListenersRegistered = false
       window.electronAPI.removeWindowStateChangedListeners()
       window.electronAPI.removeRequestWindowCloseListeners()
       window.electronAPI.removeWindowIdListeners()
@@ -1408,16 +1422,7 @@ export const useAppStore = defineStore('app', () => {
         }
         notify.success(t('notify.file.deleteSuccess', { path: node.path }), t('notify.file.operation'))
 
-        // Close tabs for deleted files (including files inside deleted folders)
-        const tabsToClose = tabs.value.filter(tab => {
-          return tab.path && (tab.path === node.path || tab.path.startsWith(node.path + '/'))
-        })
-
-        // Close all tabs since no folder is open
-        for (const tab of tabsToClose) {
-          tab.path = undefined
-          await closeTab(tab.id)
-        }
+        markOpenTabsDeleted(node.path, node.type === 'folder')
         setSelectedItem(null)
 
         return true
@@ -1547,19 +1552,11 @@ export const useAppStore = defineStore('app', () => {
     if (!currentFolder.value || !window.electronAPI) return
     
     try {
+      ensureFileWatchListeners()
+
       // 启动原生文件监听
       const result = await window.electronAPI.startFileWatching(currentFolder.value)
-      if (result.success) {
-        // 监听文件变化事件
-        window.electronAPI.onFileChange((change) => {
-          void handleFileChange(change)
-        })
-
-        // 监听错误事件
-        window.electronAPI.onFileWatchError((error) => {
-          notify.warning(`${error.message}`, t('notify.file.watchWarning'))
-        })
-      } else {
+      if (!result.success) {
         notify.warning(result.error ?? 'File watcher failed to start', t('notify.file.watchStartError'))
       }
     } catch (error) {
@@ -1573,10 +1570,82 @@ export const useAppStore = defineStore('app', () => {
     
     try {
       await window.electronAPI.stopFileWatching(currentFolder.value)
-      window.electronAPI.removeFileChangeListeners()
     } catch (error) {
       notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.watchStopError'))
     }
+  }
+
+  function ensureFileWatchListeners() {
+    if (!window.electronAPI || fileWatchListenersRegistered) return
+
+    window.electronAPI.onFileChange((change) => {
+      void handleFileChange(change)
+    })
+
+    window.electronAPI.onFileWatchError((error) => {
+      notify.warning(`${error.message}`, t('notify.file.watchWarning'))
+    })
+
+    fileWatchListenersRegistered = true
+  }
+
+  function shouldWatchOpenDocumentPath(filePath: string): boolean {
+    return !currentFolder.value || !isPathInsideWorkspace(filePath, currentFolder.value)
+  }
+
+  async function syncOpenDocumentWatchers() {
+    if (!window.electronAPI) return
+
+    ensureFileWatchListeners()
+
+    const desiredDirs = new Set<string>()
+    for (const tab of tabs.value) {
+      if (!tab.path || !shouldWatchOpenDocumentPath(tab.path)) continue
+      const parentDir = pathUtils.normalize(pathUtils.dirname(tab.path))
+      desiredDirs.add(parentDir)
+      desiredDirs.add(pathUtils.normalize(pathUtils.dirname(parentDir)))
+    }
+
+    for (const dir of Array.from(openDocumentWatchDirs)) {
+      if (desiredDirs.has(dir)) continue
+
+      try {
+        await window.electronAPI.stopFileWatching(dir)
+      } catch (error) {
+        notify.warning(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.watchStopError'))
+      } finally {
+        openDocumentWatchDirs.delete(dir)
+      }
+    }
+
+    for (const dir of desiredDirs) {
+      if (openDocumentWatchDirs.has(dir)) continue
+
+      try {
+        const result = await window.electronAPI.startFileWatching(dir)
+        if (result.success) {
+          openDocumentWatchDirs.add(dir)
+        } else {
+          notify.warning(result.error ?? 'File watcher failed to start', t('notify.file.watchStartError'))
+        }
+      } catch (error) {
+        notify.warning(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.watchStartError'))
+      }
+    }
+  }
+
+  async function stopOpenDocumentWatchers() {
+    if (!window.electronAPI) return
+
+    const dirs = Array.from(openDocumentWatchDirs)
+    openDocumentWatchDirs.clear()
+    await Promise.all(dirs.map(async dir => {
+      try {
+        await window.electronAPI.stopFileWatching(dir)
+      } catch (error) {
+        notify.warning(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.watchStopError'))
+      }
+    }))
   }
   
   // 根据路径在文件树中查找节点
@@ -1617,16 +1686,7 @@ export const useAppStore = defineStore('app', () => {
       }
       notify.success(t('notify.tree.nodeDeleted', { path: node.path }), t('notify.tree.context'))
 
-      // Close tabs for deleted files (including files inside deleted folders)
-      const tabsToClose = tabs.value.filter(tab => {
-        return tab.path && (tab.path === targetPath || tab.path.startsWith(targetPath + '/'))
-      })
-
-      // Close all matching tabs
-      for (const tab of tabsToClose) {
-        tab.path = undefined
-        await closeTab(tab.id)
-      }
+      markOpenTabsDeleted(targetPath, node.type === 'folder')
       
       // Clear selection if the deleted node was selected
       if (selectedItem.value?.path === targetPath || 
@@ -1638,6 +1698,16 @@ export const useAppStore = defineStore('app', () => {
     } catch (error) {
       notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.tree.updateError'))
       return false
+    }
+  }
+
+  function markOpenTabsDeleted(targetPath: string, includeChildren = false) {
+    for (const tab of getOpenTabsAffectedByPath(targetPath, includeChildren)) {
+      updateTabState(tab.id, { diskState: 'deleted' })
+      if (tab.path) {
+        ignoredExternalChangePaths.delete(pathUtils.normalize(tab.path))
+        externalChangePromptPaths.delete(pathUtils.normalize(tab.path))
+      }
     }
   }
 
@@ -1795,11 +1865,17 @@ export const useAppStore = defineStore('app', () => {
     updateTabState(tab.id, {
       isDirty: false,
       lastSavedHash: savedHash,
+      diskState: 'normal',
       savedCheckPoint: undoDepth(editor.state),
       editState: {
         lineEnding: contentConverted.lineEnding || 'LF',
       }
     })
+    if (tab.path) {
+      const normalizedPath = pathUtils.normalize(tab.path)
+      ignoredExternalChangePaths.delete(normalizedPath)
+      externalChangePromptPaths.delete(normalizedPath)
+    }
     return true
   }
 
@@ -1817,7 +1893,25 @@ export const useAppStore = defineStore('app', () => {
     }
     const changedHash = buildSavedHash(content)
 
+    if (tab.diskState === 'deleted') {
+      if (tab.isDirty) {
+        if (tab.lastSavedHash && changedHash !== tab.lastSavedHash) {
+          ignoredExternalChangePaths.add(normalizedPath)
+          updateTabState(tab.id, { diskState: 'external-modified' })
+        } else {
+          updateTabState(tab.id, { diskState: 'normal' })
+        }
+        return
+      }
+
+      if (tab.lastSavedHash && changedHash === tab.lastSavedHash) {
+        updateTabState(tab.id, { diskState: 'normal' })
+        return
+      }
+    }
+
     if (tab.lastSavedHash && changedHash === tab.lastSavedHash) {
+      updateTabState(tab.id, { diskState: 'normal' })
       return
     }
 
@@ -1861,54 +1955,100 @@ export const useAppStore = defineStore('app', () => {
         noLink: true,
       })
 
-      if (result.response === 0) {
+      if (result?.response === 0) {
         await reloadOpenMarkdownTabFromDisk(tab, rawContent)
       } else {
         ignoredExternalChangePaths.add(normalizedPath)
+        updateTabState(tab.id, { diskState: 'external-modified' })
       }
     } finally {
       externalChangePromptPaths.delete(normalizedPath)
     }
   }
 
-  async function handleFileChange(change: FileChange) {    
-    if (currentFolder.value && !isPathInsideWorkspace(change.path, currentFolder.value)) {
-      return
-    }
+  function doesChangeAffectOpenTab(change: FileChange): boolean {
+    return getOpenTabsAffectedByPath(change.path, change.type === 'addDir' || change.type === 'unlinkDir').length > 0
+  }
 
-    if (currentFolder.value && change.path === pathUtils.join(currentFolder.value, WORKSPACE_IGNORE_FILENAME)) {
-      loadFileTree()
-      return
-    }
+  async function refreshDeletedOpenTabsUnderPath(targetPath: string) {
+    const affectedTabs = getOpenTabsAffectedByPath(targetPath, true)
 
-    // 根据变化类型文件树更新
+    await Promise.all(affectedTabs.map(async tab => {
+      if (!tab.path || tab.diskState !== 'deleted') return
+
+      try {
+        const exists = await window.electronAPI?.pathExists(tab.path)
+        if (exists) {
+          await handleOpenTabExternalChange(tab.path)
+        }
+      } catch {
+        // Keep the deleted state if the filesystem check fails.
+      }
+    }))
+  }
+
+  async function handleOpenDocumentDiskChange(change: FileChange) {
     switch (change.type) {
       case 'add':
-        // 原子写入工具（vim/VSCode等）可能触发 add 而非 change，也需检查 open tabs
-        addNodeToFileTreeByFilePath(change.path)
+      case 'change':
         try {
           await handleOpenTabExternalChange(change.path)
         } catch (error) {
           notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.editor.errorContext'))
         }
-        break
-      case 'addDir':
-        addNodeToFileTreeByFilePath(change.path)
         break
       case 'unlink':
+        markOpenTabsDeleted(change.path)
+        break
+      case 'addDir':
+        await refreshDeletedOpenTabsUnderPath(change.path)
+        break
       case 'unlinkDir':
-        // 外部删除的文件或文件夹，从文件树中移除
-        await removeNodeFromFileTreeByFilePath(change.path)
+        markOpenTabsDeleted(change.path, true)
         break
-      case 'change':
-        // 文件内容变化，更新文件信息
-        updateFileTreeNodeInfo(change.path)
-        try {
-          await handleOpenTabExternalChange(change.path)
-        } catch (error) {
-          notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.editor.errorContext'))
-        }
-        break
+    }
+  }
+
+  async function handleFileChange(change: FileChange) {
+    const isInWorkspace = !!currentFolder.value && isPathInsideWorkspace(change.path, currentFolder.value)
+    const affectsOpenTab = doesChangeAffectOpenTab(change)
+
+    if (!isInWorkspace && !affectsOpenTab) {
+      return
+    }
+
+    const isWorkspaceIgnoreFile = isInWorkspace &&
+      !!currentFolder.value &&
+      change.path === pathUtils.join(currentFolder.value, WORKSPACE_IGNORE_FILENAME)
+
+    if (isWorkspaceIgnoreFile) {
+      loadFileTree()
+      if (!affectsOpenTab) return
+    }
+
+    if (isInWorkspace && !isWorkspaceIgnoreFile) {
+      // 根据变化类型文件树更新
+      switch (change.type) {
+        case 'add':
+          addNodeToFileTreeByFilePath(change.path)
+          break
+        case 'addDir':
+          addNodeToFileTreeByFilePath(change.path)
+          break
+        case 'unlink':
+        case 'unlinkDir':
+          // 外部删除的文件或文件夹，从文件树中移除
+          await removeNodeFromFileTreeByFilePath(change.path)
+          break
+        case 'change':
+          // 文件内容变化，更新文件信息
+          updateFileTreeNodeInfo(change.path)
+          break
+      }
+    }
+
+    if (affectsOpenTab) {
+      await handleOpenDocumentDiskChange(change)
     }
   }
   
@@ -1941,7 +2081,8 @@ export const useAppStore = defineStore('app', () => {
       pendingImport,
       editState: { ...globalEditSetting },
       fileReadonly: fileReadonly ?? false,
-      editReadonly: false
+      editReadonly: false,
+      diskState: 'normal'
     }
     
     // Deactivate all other tabs
@@ -2145,9 +2286,13 @@ export const useAppStore = defineStore('app', () => {
           tab.fileReadonly = false
           tab.editReadonly = false
           tab.lastSavedHash = savedHash
+          tab.diskState = 'normal'
           syncReadonlyWindowState(tab)
           tab.name = pathUtils.basename(originalPath)
           tab.savedCheckPoint = undoDepth((tab.editorInstance as import('@tiptap/core').Editor).state)
+          const normalizedPath = pathUtils.normalize(originalPath)
+          ignoredExternalChangePaths.delete(normalizedPath)
+          externalChangePromptPaths.delete(normalizedPath)
 
           if (!silent) {
             notify.success(t('notify.file.saveSuccess', { path: originalPath }), t('notify.file.operation'))
@@ -2610,6 +2755,22 @@ export const useAppStore = defineStore('app', () => {
       if (shouldPersistState.value) {
         saveWorkspaceStateDebounced(newState)
       }
+    },
+    { deep: true }
+  )
+
+  const openDocumentWatchSnapshot = computed(() => ({
+    currentFolder: currentFolder.value,
+    paths: tabs.value
+      .map(tab => tab.path ? pathUtils.normalize(tab.path) : null)
+      .filter((path): path is string => !!path)
+      .sort(),
+  }))
+
+  watch(
+    openDocumentWatchSnapshot,
+    () => {
+      void syncOpenDocumentWatchers()
     },
     { deep: true }
   )

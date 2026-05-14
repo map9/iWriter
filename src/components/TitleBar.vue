@@ -56,7 +56,7 @@
               tab.isActive ? 'bg-base-100' : 'hover:bg-base-200'
             ]"
             @click="switchTab(tab.id)"
-            :title="tab.name"
+            :title="getTabTitle(tab)"
           >
             <!-- 文档类型图标（固定宽度） -->
             <component 
@@ -65,7 +65,7 @@
             />
 
             <!-- 标签名称（伸缩部分） -->
-            <span class="flex-1 text-sm whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-base-content select-none">{{ tab.name }}</span>
+            <span :class="getTabNameClass(tab)">{{ tab.name }}</span>
             
             <!-- 只读指示器 -->
             <span
@@ -162,6 +162,27 @@ function navigateTabs(direction: number) {
 
 function getTabIcon(tab: FileTab) {
   return getIconByExtension(pathUtils.extension(tab.name))
+}
+
+function getTabTitle(tab: FileTab): string {
+  if (tab.diskState === 'external-modified') {
+    return `${tab.name}\n磁盘文件已被外部修改`
+  }
+
+  if (tab.diskState === 'deleted') {
+    return `${tab.name}\n文件已从磁盘删除`
+  }
+
+  return tab.name
+}
+
+function getTabNameClass(tab: FileTab): string[] {
+  return [
+    'flex-1 text-sm whitespace-nowrap overflow-hidden text-ellipsis mr-2 select-none',
+    tab.diskState === 'external-modified' ? 'text-warning' : '',
+    tab.diskState === 'deleted' ? 'text-error line-through' : '',
+    !tab.diskState || tab.diskState === 'normal' ? 'text-base-content' : '',
+  ].filter(Boolean)
 }
 
 function switchTab(tabId: string) {

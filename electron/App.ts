@@ -342,6 +342,7 @@ export class App {
 
     ipcMain.handle('save-file', async (_, content: string, filePath: string) => {
       try {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true })
         fs.writeFileSync(filePath, content, 'utf8')
         app.addRecentDocument(filePath)
       } catch (error) {

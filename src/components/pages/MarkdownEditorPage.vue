@@ -732,6 +732,7 @@ async function loadTabContent(editorInstance: Editor) {
     appStore.updateTabState(props.tab.id, { 
       isDirty: loadedPendingImport,
       lastSavedHash,
+      diskState: 'normal',
       pendingImport: undefined,
       savedCheckPoint: loadedPendingImport ? -1 : undoDepth(editorInstance.state)
     })

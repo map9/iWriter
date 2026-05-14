@@ -8,6 +8,8 @@ export interface FileMetadata {
   tags?: string[]
 }
 
+export type DocumentDiskState = 'normal' | 'external-modified' | 'deleted'
+
 // 文件标签页接口
 export interface FileTab {
   id: string
@@ -29,4 +31,5 @@ export interface FileTab {
   fileReadonly?: boolean
   editReadonly?: boolean
   lastSavedHash?: string
+  diskState?: DocumentDiskState
 }
