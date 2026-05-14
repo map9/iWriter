@@ -798,6 +798,15 @@ export default {
     collapseAll: 'Collapse All',
     noFolder: 'No Folder',
     rootFolder: 'Root Folder',
+    workspaceDeleted: {
+      title: 'Workspace folder was deleted externally',
+      description:
+        'We can no longer ensure your work will behave normally. You can rebuild the workspace folder, close this workspace, open another workspace, or pause here and restore the folder outside iWriter before returning.',
+      originalPath: 'Original path',
+      rebuild: 'Rebuild Workspace Folder',
+      close: 'Close Workspace',
+      openNew: 'Open New Workspace',
+    },
     sort: {
       none: 'No Sort',
       nameAsc: 'Name (A-Z)',
@@ -904,6 +913,18 @@ export default {
       saveThenEnable: 'Save Then Enable',
       enableNow: 'Enable Read Only',
       cancel: 'Cancel',
+    },
+    workspace: {
+      deletedTitle: 'Workspace unavailable',
+      deletedMessage: 'The workspace folder was deleted externally. Workspace features are paused until the folder exists again.',
+      deletedFeaturePaused: '{feature} is paused because the workspace folder was deleted externally.',
+      restoredTitle: 'Workspace restored',
+      restoredMessage: 'The workspace folder exists again. Workspace features have resumed.',
+      rebuildError: 'Failed to rebuild workspace folder',
+      features: {
+        search: 'Workspace search',
+        fileTree: 'File tree operations',
+      },
     },
     file: {
       openError: '{path} is not a file or does not exist',

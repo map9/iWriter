@@ -54,6 +54,7 @@ import {
 
 export const useAppStore = defineStore('app', () => {
   type PreferencesTab = 'editor' | 'spelling' | 'themes' | 'print' | 'export' | 'ai' | 'updates'
+  type WorkspaceStatus = 'available' | 'deleted'
   const t = i18n.global.t
 
   // 文件监听和类型检测
@@ -110,6 +111,7 @@ export const useAppStore = defineStore('app', () => {
   
   // Folder and Files
   const currentFolder = ref<string | null>(null)
+  const workspaceStatus = ref<WorkspaceStatus>('available')
   const fileTree = ref<FileTreeNode | null>(null)
   const selectedItem = ref<FileTreeNode | null>(null)
   const currentFileTreeSortType = ref<FileTreeSortType>('type-asc')
@@ -123,6 +125,7 @@ export const useAppStore = defineStore('app', () => {
   const ignoredExternalChangePaths = new Set<string>()
   const openDocumentWatchDirs = new Set<string>()
   let fileWatchListenersRegistered = false
+  let workspaceRestoreCheckTimer: ReturnType<typeof setInterval> | null = null
 
   // 控制是否应该保存状态（在退出清理时设为 false）
   const shouldPersistState = ref(true)
@@ -135,6 +138,9 @@ export const useAppStore = defineStore('app', () => {
   const hasOpenFolder = computed(() => {
     return currentFolder.value !== null
   })
+
+  const isWorkspaceDeleted = computed(() => workspaceStatus.value === 'deleted')
+  const canUseWorkspaceFeatures = computed(() => hasOpenFolder.value && !isWorkspaceDeleted.value)
 
   const autoSave = computed(() => autoSaveEnabled.value)
   const autoSaveDelayMs = computed(() => autoSaveIntervalSeconds.value * 1000)
@@ -160,7 +166,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function canRunAutoSave(tab: FileTab | null | undefined): boolean {
-    return !!tab && autoSave.value && !!tab.path && !!tab.isDirty && canSaveTab(tab)
+    return !!tab && autoSave.value && !!tab.path && !!tab.isDirty && canSaveTab(tab) && !isWorkspaceDeleted.value
   }
 
   function canRunProofread(tab: FileTab | null | undefined): boolean {
@@ -180,6 +186,76 @@ export const useAppStore = defineStore('app', () => {
       return normalizedTabPath === normalizedTargetPath ||
         (includeChildren && normalizedTabPath.startsWith(`${normalizedTargetPath}/`))
     })
+  }
+
+  function isCurrentWorkspacePath(targetPath: string): boolean {
+    if (!currentFolder.value) return false
+    return pathUtils.normalize(targetPath).replace(/\/+$/, '') ===
+      pathUtils.normalize(currentFolder.value).replace(/\/+$/, '')
+  }
+
+  function notifyWorkspaceDeleted(feature?: string) {
+    notify.warning(
+      feature
+        ? t('notify.workspace.deletedFeaturePaused', { feature })
+        : t('notify.workspace.deletedMessage'),
+      t('notify.workspace.deletedTitle')
+    )
+  }
+
+  function ensureWorkspaceFeatureAvailable(feature?: string): boolean {
+    if (!isWorkspaceDeleted.value) return true
+    notifyWorkspaceDeleted(feature)
+    return false
+  }
+
+  function startWorkspaceRestorePolling() {
+    if (workspaceRestoreCheckTimer !== null) return
+    workspaceRestoreCheckTimer = setInterval(() => {
+      void checkWorkspaceDirectoryRestored(true)
+    }, 3000)
+  }
+
+  function stopWorkspaceRestorePolling() {
+    if (workspaceRestoreCheckTimer === null) return
+    clearInterval(workspaceRestoreCheckTimer)
+    workspaceRestoreCheckTimer = null
+  }
+
+  function enterWorkspaceDeletedState() {
+    if (!currentFolder.value) return
+    if (workspaceStatus.value === 'deleted') return
+
+    workspaceStatus.value = 'deleted'
+    fileTree.value = null
+    selectedItem.value = null
+    markOpenTabsDeleted(currentFolder.value, true)
+    if (leftSidebarMode.value === SidebarMode.SEARCH) {
+      leftSidebarMode.value = SidebarMode.EXPLORER
+    }
+    void stopAdvancedFileWatching()
+    startWorkspaceRestorePolling()
+    notifyWorkspaceDeleted()
+  }
+
+  async function checkWorkspaceDirectoryRestored(silent = false): Promise<boolean> {
+    if (!currentFolder.value || !window.electronAPI || workspaceStatus.value !== 'deleted') return false
+
+    const exists = await window.electronAPI.pathExists(currentFolder.value)
+    if (!exists) {
+      if (!silent) notifyWorkspaceDeleted()
+      return false
+    }
+
+    workspaceStatus.value = 'available'
+    stopWorkspaceRestorePolling()
+    await loadFileTree()
+    await startAdvancedFileWatching()
+    await refreshDeletedOpenTabsUnderPath(currentFolder.value)
+    if (!silent) {
+      notify.success(t('notify.workspace.restoredMessage'), t('notify.workspace.restoredTitle'))
+    }
+    return true
   }
 
   function buildSavedHash(content: string): string {
@@ -336,11 +412,19 @@ export const useAppStore = defineStore('app', () => {
         const exists = await window.electronAPI.pathExists(workspaceState.currentFolder)
         if (exists) {
           currentFolder.value = workspaceState.currentFolder
+          workspaceStatus.value = 'available'
           await loadFileTree()
           startAdvancedFileWatching()
           leftSidebarMode.value = SidebarMode.EXPLORER
         } else {
           console.warn('Saved folder no longer exists:', workspaceState.currentFolder)
+          currentFolder.value = null
+          workspaceStatus.value = 'available'
+          fileTree.value = null
+          selectedItem.value = null
+          if (leftSidebarMode.value !== SidebarMode.TOC) {
+            leftSidebarMode.value = SidebarMode.START
+          }
         }
       } catch (error) {
         console.warn('Failed to restore folder:', error)
@@ -403,7 +487,7 @@ export const useAppStore = defineStore('app', () => {
   }, 500)
 
   const reloadFileTreeForFiltersDebounced = debounce(async () => {
-    if (!currentFolder.value) return
+    if (!currentFolder.value || isWorkspaceDeleted.value) return
     await loadFileTree()
   }, 300)
 
@@ -428,6 +512,7 @@ export const useAppStore = defineStore('app', () => {
 
     // 初始化主题系统
     initTheme()
+    window.addEventListener('focus', handleWindowFocus)
 
     function startSayHello(windowId: number) {
       sayHelloTimeout = setTimeout(() => {
@@ -501,6 +586,8 @@ export const useAppStore = defineStore('app', () => {
   // Destroy
   function destroy() {
     // Clean up file watching
+    window.removeEventListener('focus', handleWindowFocus)
+    stopWorkspaceRestorePolling()
     void stopAdvancedFileWatching()
     void stopOpenDocumentWatchers()
     if (sayHelloTimeout) {
@@ -524,6 +611,10 @@ export const useAppStore = defineStore('app', () => {
       systemThemeMediaQuery = null
       systemThemeChangeHandler = null
     }
+  }
+
+  function handleWindowFocus() {
+    void checkWorkspaceDirectoryRestored(true)
   }
 
   // Actions
@@ -551,6 +642,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function searchInFolder(folderPath: string) {
+    if (!ensureWorkspaceFeatureAvailable(t('notify.workspace.features.search'))) return
     searchFolderPath.value = folderPath
     const relativePath = currentFolder.value
       ? toWorkspaceRelativePath(currentFolder.value, folderPath)
@@ -562,6 +654,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function searchInWorkspace() {
+    if (!ensureWorkspaceFeatureAvailable(t('notify.workspace.features.search'))) return
     searchFolderPath.value = null
     searchIncludePattern.value = ''
     searchExcludePattern.value = ''
@@ -570,6 +663,13 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function setLeftSidebarMode(mode: SidebarMode) {
+    if (mode === SidebarMode.SEARCH && isWorkspaceDeleted.value) {
+      notifyWorkspaceDeleted(t('notify.workspace.features.search'))
+      leftSidebarMode.value = SidebarMode.EXPLORER
+      showLeftSidebar(true)
+      return
+    }
+
     if (
       (mode === SidebarMode.TOC && tabs.value.length === 0) ||
       (mode !== SidebarMode.TOC && hasOpenFolder.value === false)
@@ -986,6 +1086,10 @@ export const useAppStore = defineStore('app', () => {
       const folderPath = result.filePaths[0]!
 
       if (folderPath === currentFolder.value) {
+        if (isWorkspaceDeleted.value) {
+          await checkWorkspaceDirectoryRestored(false)
+          return
+        }
         notify.success(t('notify.file.alreadyOpened', { path: folderPath }), t('notify.file.operation'))
         return
       }
@@ -1000,6 +1104,8 @@ export const useAppStore = defineStore('app', () => {
         return
 
       currentFolder.value = folderPath
+      workspaceStatus.value = 'available'
+      stopWorkspaceRestorePolling()
       leftSidebarMode.value = SidebarMode.EXPLORER
       await loadFileTree()
       startAdvancedFileWatching() // Start advanced file watching
@@ -1018,6 +1124,8 @@ export const useAppStore = defineStore('app', () => {
       if (result) {
         stopAdvancedFileWatching() // Stop file watching when folder is closed
         currentFolder.value = null
+        workspaceStatus.value = 'available'
+        stopWorkspaceRestorePolling()
         fileTree.value = null
         selectedItem.value = null
         leftSidebarMode.value = SidebarMode.START
@@ -1029,8 +1137,21 @@ export const useAppStore = defineStore('app', () => {
     return true
   }
 
+  async function rebuildWorkspaceDirectory(): Promise<boolean> {
+    if (!currentFolder.value || !window.electronAPI) return false
+
+    try {
+      await window.electronAPI.ensureDirectory(currentFolder.value)
+      return await checkWorkspaceDirectoryRestored(false)
+    } catch (error) {
+      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.workspace.rebuildError'))
+      return false
+    }
+  }
+
   async function loadFileTree() {
     if (!currentFolder.value || !window.electronAPI) return
+    if (isWorkspaceDeleted.value) return
 
     try {
       const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
@@ -1061,6 +1182,11 @@ export const useAppStore = defineStore('app', () => {
       // 使用 await 等待异步操作完成
       fileTree.value.children = await traverseFileTree(currentFolder.value, fileTree.value, effectiveIgnoreRules)
     } catch (error) {
+      const exists = await window.electronAPI.pathExists(currentFolder.value)
+      if (!exists) {
+        enterWorkspaceDeletedState()
+        return []
+      }
       notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.treeLoadError'))
       return []
     }
@@ -1263,6 +1389,7 @@ export const useAppStore = defineStore('app', () => {
   // Create a new file
   async function createFile(parentNode: FileTreeNode, customName?: string): Promise<FileTreeNode | null> {
     if (!window.electronAPI) return null
+    if (!ensureWorkspaceFeatureAvailable(t('notify.workspace.features.fileTree'))) return null
 
     try {
       if (parentNode.type !== 'folder') {
@@ -1312,6 +1439,7 @@ export const useAppStore = defineStore('app', () => {
   // Create a new folder
   async function createFolder(parentNode: FileTreeNode, customName?: string): Promise<FileTreeNode | null> {
     if (!window.electronAPI) return null
+    if (!ensureWorkspaceFeatureAvailable(t('notify.workspace.features.fileTree'))) return null
 
     try {
       if (parentNode.type !== 'folder') {
@@ -1362,6 +1490,7 @@ export const useAppStore = defineStore('app', () => {
     // Create a file or folder by input node parameters
   async function CreateFileOrFolder(parentNode: FileTreeNode, childNode: FileTreeNode): Promise<boolean> {
     if (!window.electronAPI) return false
+    if (!ensureWorkspaceFeatureAvailable(t('notify.workspace.features.fileTree'))) return false
     const date = new Date()
 
     try {
@@ -1408,6 +1537,7 @@ export const useAppStore = defineStore('app', () => {
   // Delete a file or folder
   async function deleteFileOrFolder(node: FileTreeNode): Promise<boolean> {
     if (!window.electronAPI) return false
+    if (!ensureWorkspaceFeatureAvailable(t('notify.workspace.features.fileTree'))) return false
 
     try {
       const result = await window.electronAPI.deleteFile(node.path)
@@ -1438,6 +1568,7 @@ export const useAppStore = defineStore('app', () => {
   // Rename a file or folder
   async function renameFileOrFolder(node: FileTreeNode, newName: string): Promise<boolean> {
     if (!window.electronAPI) return false
+    if (!ensureWorkspaceFeatureAvailable(t('notify.workspace.features.fileTree'))) return false
 
     try {
       const newPath = await window.electronAPI.renameFile(node.path, newName)
@@ -1470,6 +1601,7 @@ export const useAppStore = defineStore('app', () => {
 
   async function moveFileOrFolder(sourceNode: FileTreeNode, targetParentNode: FileTreeNode): Promise<FileOperationResult | null> {
     if (!window.electronAPI) return null
+    if (!ensureWorkspaceFeatureAvailable(t('notify.workspace.features.fileTree'))) return null
 
     const sourcePath: string = sourceNode.path
     const targetDir: string = targetParentNode.path
@@ -1531,6 +1663,7 @@ export const useAppStore = defineStore('app', () => {
 
   async function copyFileOrFolder(sourceNode: FileTreeNode, targetParentNode: FileTreeNode): Promise<FileOperationResult | null> {
     if (!window.electronAPI) return null
+    if (!ensureWorkspaceFeatureAvailable(t('notify.workspace.features.fileTree'))) return null
 
     try {
       const result = await window.electronAPI.copyFile(sourceNode.path, targetParentNode.path)
@@ -1550,6 +1683,7 @@ export const useAppStore = defineStore('app', () => {
   // 启动高级文件监听
   async function startAdvancedFileWatching() {
     if (!currentFolder.value || !window.electronAPI) return
+    if (isWorkspaceDeleted.value) return
     
     try {
       ensureFileWatchListeners()
@@ -2010,6 +2144,22 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function handleFileChange(change: FileChange) {
+    if (isCurrentWorkspacePath(change.path)) {
+      if (change.type === 'unlinkDir') {
+        enterWorkspaceDeletedState()
+        return
+      }
+
+      if (change.type === 'addDir' && isWorkspaceDeleted.value) {
+        await checkWorkspaceDirectoryRestored(true)
+        return
+      }
+    }
+
+    if (isWorkspaceDeleted.value && currentFolder.value && isPathInsideWorkspace(change.path, currentFolder.value)) {
+      return
+    }
+
     const isInWorkspace = !!currentFolder.value && isPathInsideWorkspace(change.path, currentFolder.value)
     const affectsOpenTab = doesChangeAffectOpenTab(change)
 
@@ -2296,6 +2446,9 @@ export const useAppStore = defineStore('app', () => {
 
           if (!silent) {
             notify.success(t('notify.file.saveSuccess', { path: originalPath }), t('notify.file.operation'))
+          }
+          if (isWorkspaceDeleted.value && currentFolder.value && isPathInsideWorkspace(originalPath, currentFolder.value)) {
+            await checkWorkspaceDirectoryRestored(!silent)
           }
           return true
         }
@@ -2803,6 +2956,7 @@ export const useAppStore = defineStore('app', () => {
     autoSaveEnabled,
     autoSaveIntervalSeconds,
     currentFolder,
+    workspaceStatus,
     fileTree,
     selectedItem,
     currentFileTreeSortType,
@@ -2812,6 +2966,8 @@ export const useAppStore = defineStore('app', () => {
     // Computed
     activeTab,
     hasOpenFolder,
+    isWorkspaceDeleted,
+    canUseWorkspaceFeatures,
     autoSave,
     autoSaveDelayMs,
     isFileReadonly,
@@ -2867,6 +3023,8 @@ export const useAppStore = defineStore('app', () => {
     openFile,
     openFolder,
     closeFolder,
+    rebuildWorkspaceDirectory,
+    checkWorkspaceDirectoryRestored,
     loadFileTree,
     sortFileTreeNodes,
     queryFileTreeNodes,

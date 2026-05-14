@@ -795,6 +795,15 @@ export default {
     collapseAll: '全部折叠',
     noFolder: '未打开文件夹',
     rootFolder: '根目录',
+    workspaceDeleted: {
+      title: '工作区目录已被外部删除',
+      description:
+        '我们已无法确保您的工作不出现异常。您可以重建工作区目录、关闭工作区、打开新的工作区；或者暂停当前工作，在外部恢复工作区目录后，再回到当前程序。',
+      originalPath: '原路径',
+      rebuild: '重建工作区目录',
+      close: '关闭工作区',
+      openNew: '打开新的工作区',
+    },
     sort: {
       none: '不排序',
       nameAsc: '名称 (A-Z)',
@@ -899,6 +908,18 @@ export default {
       saveThenEnable: '保存后启用',
       enableNow: '直接启用只读',
       cancel: '取消',
+    },
+    workspace: {
+      deletedTitle: '工作区不可用',
+      deletedMessage: '工作区目录已被外部删除。在目录重新存在前，工作区相关能力已暂停。',
+      deletedFeaturePaused: '工作区目录已被外部删除，{feature} 已暂停。',
+      restoredTitle: '工作区已恢复',
+      restoredMessage: '工作区目录已重新存在，工作区相关能力已恢复。',
+      rebuildError: '重建工作区目录失败',
+      features: {
+        search: '工作区搜索',
+        fileTree: '文件树操作',
+      },
     },
     file: {
       openError: '{path} 不是文件或不存在',

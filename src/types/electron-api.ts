@@ -26,6 +26,7 @@ export interface ElectronAPI {
   saveFile: (content: string, filePath?: string) => Promise<boolean>
 
   pathExists: (filePath: string) => Promise<boolean>
+  ensureDirectory: (folderPath: string) => Promise<boolean>
   getFiles: (folderPath: string, onlyself?: boolean) => Promise<import('@/types').FileInfo[]>
   // 在系统文件管理器中显示文件或文件夹
   revealInFolder: (path: string) => Promise<void>  

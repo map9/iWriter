@@ -28,7 +28,10 @@
     </div>
 
     <!-- Search Files -->
-    <div class="flex shrink-0 items-center border-b border-base-300 bg-base-200 p-2 select-none">
+    <div
+      v-if="!appStore.isWorkspaceDeleted"
+      class="flex shrink-0 items-center border-b border-base-300 bg-base-200 p-2 select-none"
+    >
       <label class="iw-input">
         <IconSearch class="icon-xs text-base-content" />
         <input 
@@ -45,8 +48,55 @@
       @mouseenter="handleTreeMouseEnter"
       @mouseleave="handleTreeMouseLeave"
     >
+      <div
+        v-if="appStore.isWorkspaceDeleted"
+        class="flex h-full flex-col gap-4 px-4 py-6 text-sm text-base-content"
+      >
+        <div class="flex items-center gap-2 text-error">
+          <IconAlertTriangle class="icon-sm shrink-0" />
+          <span class="font-medium">{{ t('explorer.workspaceDeleted.title') }}</span>
+        </div>
+
+        <p class="leading-6 text-base-content/75">
+          {{ t('explorer.workspaceDeleted.description') }}
+        </p>
+
+        <div class="rounded border border-base-300 bg-base-200 px-3 py-2 text-xs text-base-content/65">
+          <div class="mb-1 font-medium text-base-content/75">
+            {{ t('explorer.workspaceDeleted.originalPath') }}
+          </div>
+          <div class="break-all font-mono">
+            {{ appStore.currentFolder }}
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <button
+            class="iw-btn btn-ghost justify-start gap-2 h-9"
+            @click="appStore.rebuildWorkspaceDirectory"
+          >
+            <IconFolderPlus class="icon-xs" />
+            {{ t('explorer.workspaceDeleted.rebuild') }}
+          </button>
+          <button
+            class="iw-btn btn-ghost justify-start gap-2 h-9"
+            @click="appStore.closeFolder"
+          >
+            <IconX class="icon-xs" />
+            {{ t('explorer.workspaceDeleted.close') }}
+          </button>
+          <button
+            class="iw-btn btn-ghost justify-start gap-2 h-9"
+            @click="appStore.openFolder"
+          >
+            <IconFolderOpen class="icon-xs" />
+            {{ t('explorer.workspaceDeleted.openNew') }}
+          </button>
+        </div>
+      </div>
+
       <div 
-        v-if="hasRootFolder"
+        v-else-if="hasRootFolder"
         class="flex items-center justify-between h-9 px-2 py-1 select-none shrink-0"
       >
         <div class="flex items-center gap-1">
@@ -101,7 +151,7 @@
       </div>
 
       <!-- Tree Content -->
-      <Tree v-if="hasRootFolder"
+      <Tree v-if="hasRootFolder && !appStore.isWorkspaceDeleted"
         ref="treeRef"
         :nodes="rootChildren"
         class="file-tree"
@@ -134,11 +184,13 @@ import {
   IconFolder,
   IconFolderOpen,
   IconFilePlus,
+  IconAlertTriangle,
   IconChevronRight,
   IconChevronDown,
   IconFoldUp,
   IconArrowsSort,
   IconLock,
+  IconX,
 } from '@tabler/icons-vue'
 
 const appStore = useAppStore()

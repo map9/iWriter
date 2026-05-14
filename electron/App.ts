@@ -361,6 +361,16 @@ export class App {
       }
     })
 
+    ipcMain.handle('ensure-directory', async (_, folderPath: string) => {
+      try {
+        fs.mkdirSync(folderPath, { recursive: true })
+        return true
+      } catch (error) {
+        console.error('Error ensuring directory:', error)
+        throw error
+      }
+    })
+
     ipcMain.handle('get-files', async (_, folderPath: string, onlyself?: boolean) => {
       try {
         let stats: fs.Stats | null = null

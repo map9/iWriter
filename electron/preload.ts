@@ -38,6 +38,7 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('save-file', content, filePath),
 
   pathExists: (filePath: string) => ipcRenderer.invoke('path-exists', filePath),
+  ensureDirectory: (folderPath: string) => ipcRenderer.invoke('ensure-directory', folderPath),
   getFiles: (folderPath: string, onlyself?: boolean) => ipcRenderer.invoke('get-files', folderPath, onlyself),
   revealInFolder: (path: string) => ipcRenderer.invoke('reveal-in-folder', path),
   openWithShell: (path: string) => ipcRenderer.invoke('open-with-shell', path),
