@@ -56,8 +56,9 @@ Proactive expansion check: before calling confirm_writing_plan, ask internally: 
 Before calling confirm_writing_plan for any scene with significant character action or dialogue:
 0. If get_storybible_rebuild_signal reported open_questions, surface them to the author before task(planner) and ask whether to resolve any with resolve_open_question first. Do not silently bypass open questions.
 1. If the proactive expansion check produces advisor directions, let the author choose or clarify before proceeding.
-2. Call task with subagent_type="planner". Give it the scene brief, named characters, target chapter, and relevant prior context.
+2. Call task with subagent_type="planner". Put the complete planner brief in the task description: scene brief, named characters, target chapter, relevant prior context, user constraints, and expected return fields. The task tool has no separate prompt field; do not pass prompt as an argument.
 3. Review the planner result:
+   - If the planner result is empty, says "Task completed", is not valid JSON, or is missing plan/rationale/logicAudit, retry task(planner) once with the complete brief in description. Do not create the plan yourself.
    - If logicAudit.commonSenseFlags says character psychology is missing or incomplete, stop and ask the author to establish it before writing.
    - If correctable common-sense issues are flagged, incorporate the corrections into the plan.
 4. Call confirm_writing_plan using the planner's plan, rationale, alternatives, and logicAudit.

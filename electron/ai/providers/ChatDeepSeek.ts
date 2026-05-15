@@ -568,6 +568,17 @@ export class ChatDeepSeek extends BaseChatModel {
   }
 
   private convertMessages(messages: BaseMessage[]): DeepSeekMessageParam[] {
+    // Collect tool_call_ids that have ToolMessage responses so orphaned tool_calls
+    // (from interrupted sessions) can be stripped — DeepSeek 400s if any tool_call
+    // is not followed by a matching tool message.
+    const respondedToolCallIds = new Set<string>()
+    for (const msg of messages) {
+      if (msg instanceof ToolMessage || msg._getType() === 'tool') {
+        const toolMsg = msg as ToolMessage
+        if (toolMsg.tool_call_id) respondedToolCallIds.add(toolMsg.tool_call_id)
+      }
+    }
+
     return messages.flatMap(message => {
       if (message instanceof SystemMessage || message._getType() === 'system') {
         return [{
@@ -596,14 +607,20 @@ export class ChatDeepSeek extends BaseChatModel {
         const text = extractTextContent(message.content)
         const reasoning = extractReasoningContent(message.content, message.additional_kwargs)
         const typedMessage = message as LangChainMessageWithToolCalls
-        const rawToolCalls = Array.isArray(typedMessage.tool_calls) && typedMessage.tool_calls.length
+        const hasInvalidToolCalls = Array.isArray((message as { invalid_tool_calls?: unknown[] }).invalid_tool_calls)
+          && (message as { invalid_tool_calls?: unknown[] }).invalid_tool_calls!.length > 0
+        const allRawToolCalls = Array.isArray(typedMessage.tool_calls) && typedMessage.tool_calls.length
           ? typedMessage.tool_calls.map(convertLangChainToolCallToOpenAI)
-          : (Array.isArray(message.additional_kwargs?.tool_calls) ? message.additional_kwargs.tool_calls : [])
+          : (!hasInvalidToolCalls && Array.isArray(message.additional_kwargs?.tool_calls) ? message.additional_kwargs.tool_calls : [])
+        // Strip tool_calls that have no matching ToolMessage — sending them causes DeepSeek 400.
+        const rawToolCalls = (allRawToolCalls as Array<{ id?: string }>).filter(
+          tc => !tc.id || respondedToolCallIds.has(tc.id)
+        )
 
         return [{
           role: 'assistant',
           content: text,
-          ...(Array.isArray(rawToolCalls) && rawToolCalls.length ? { tool_calls: rawToolCalls } : {}),
+          ...(rawToolCalls.length ? { tool_calls: rawToolCalls } : {}),
           ...(reasoning ? { reasoning_content: reasoning } : {}),
         }]
       }

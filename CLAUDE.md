@@ -11,7 +11,7 @@ NEVER proactively create documentation files (*.md) or README files. Only create
 
 iWriter is a multi-format document editor built with **Electron + Vue 3 + TypeScript**.
 
-**Tech Stack**: Vue 3 Composition API, TipTap v3.x, Pinia, Tailwind CSS v4, daisyUI 5, chokidar, Pandoc (import/export), pagedjs (print), Langchain/Langgraph (AI agent)
+**Tech Stack**: Vue 3 Composition API, TipTap v3.x, Pinia, Tailwind CSS v4, daisyUI 5, chokidar, Pandoc (import/export), pagedjs (print), Langchain/Langgraph (deepagents)
 
 **Document Type System**: File type auto-detected → routed to page component (`WelcomePage`, `MarkdownEditorPage`, `ImageViewerPage`, `PDFViewerPage`). Each tab is independent.
 

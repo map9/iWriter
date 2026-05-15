@@ -56,6 +56,7 @@ import { buildCreativeCapabilities } from './domain/creative/buildCreativeCapabi
 import { buildEditCapabilities } from './domain/edit/buildEditCapabilities'
 import { buildCreativeReviewItemFromAction } from './ipc/CreativeReviewAdapter'
 import { computeWorkspaceHashes, getCreativeDb } from './db/CreativeDb'
+import { createTaskToolCompatMiddleware } from './runtime/TaskToolCompatMiddleware'
 
 // Import system prompts from src (shared)
 import { EDIT_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/edit'
@@ -655,6 +656,7 @@ export class AgentEngine {
       checkpointer: this.checkpointerInstance?.checkpointer,
       interruptOn: capabilities.interruptOn,
       subagents: capabilities.subAgents,
+      middleware: [createTaskToolCompatMiddleware()],
     })
 
     this.agentCache.set(cacheKey, agent)
