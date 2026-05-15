@@ -81,7 +81,7 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('copy-file', sourcePath, targetDir),
   
   // File watching
-  startFileWatching: (folderPath: string) => ipcRenderer.invoke('start-file-watching', folderPath),
+  startFileWatching: (folderPath: string, options?: { depth?: number; ignoreRulesText?: string }) => ipcRenderer.invoke('start-file-watching', folderPath, options),
   stopFileWatching: (folderPath: string) => ipcRenderer.invoke('stop-file-watching', folderPath),
   stopAllFileWatching: () => ipcRenderer.invoke('stop-all-file-watching'),
   getFileWatchingStatus: () => ipcRenderer.invoke('get-file-watching-status'),

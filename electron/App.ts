@@ -21,6 +21,7 @@ import { formatCodeInMain } from './CodeFormatService'
 import { createMainTranslator, formatMainText } from './i18n'
 import {
   DEFAULT_WORKSPACE_IGNORE_RULES,
+  WORKSPACE_IGNORE_FILENAME,
   parseWorkspaceIgnoreRules,
   shouldIncludeWorkspaceEntry,
 } from '../src/services/workspace/filtering'
@@ -55,6 +56,49 @@ interface SearchFileResult {
   relativePath: string
   matches: SearchMatch[]
   totalMatches: number
+}
+
+interface FileWatchingOptions {
+  depth?: number
+  ignoreRulesText?: string
+}
+
+function createWorkspaceIgnoredPredicate(
+  workspaceRoot: string,
+  ignoreRulesText?: string
+): ((filePath: string, stats?: fs.Stats) => boolean) | undefined {
+  if (!ignoreRulesText?.trim()) return undefined
+
+  const normalizedRoot = path.resolve(workspaceRoot)
+  const matcher = parseWorkspaceIgnoreRules(ignoreRulesText)
+  const hasNegatedRules = matcher.rules.some(rule => rule.negated)
+
+  return (filePath: string, stats?: fs.Stats): boolean => {
+    const absolutePath = path.resolve(filePath)
+    const relativePath = path.relative(normalizedRoot, absolutePath).replace(/\\/g, '/')
+
+    if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      return false
+    }
+
+    if (path.basename(absolutePath) === WORKSPACE_IGNORE_FILENAME) {
+      return false
+    }
+
+    if (!stats) return false
+
+    if (stats.isDirectory() && hasNegatedRules) {
+      return false
+    }
+
+    return !shouldIncludeWorkspaceEntry(
+      {
+        relativePath,
+        isDirectory: stats.isDirectory(),
+      },
+      matcher
+    )
+  }
 }
 
 export class App {
@@ -773,7 +817,7 @@ export class App {
     })
 
     // 文件监听相关的 IPC 处理器
-    ipcMain.handle('start-file-watching', async (event, folderPath: string) => {
+    ipcMain.handle('start-file-watching', async (event, folderPath: string, watchOptions: FileWatchingOptions = {}) => {
       try {
         // 停止已存在的监听器
         if (this.fileWatchers.has(folderPath)) {
@@ -781,6 +825,8 @@ export class App {
           existingWatcher?.close();
           this.fileWatchers.delete(folderPath);
         }
+
+        const ignored = createWorkspaceIgnoredPredicate(folderPath, watchOptions.ignoreRulesText)
 
         // 创建新的监听器
         const watcher = chokidar.watch(folderPath, {
@@ -795,7 +841,9 @@ export class App {
           persistent: true,
           ignoreInitial: true,
           followSymlinks: false,
-          depth: 10, // 限制监听深度
+          depth: watchOptions.depth ?? 10, // 限制监听深度
+          ignored,
+          ignorePermissionErrors: true,
           usePolling: false, // 优先使用原生事件
           interval: 1000, // 轮询间隔（当原生事件不可用时）
           binaryInterval: 3000

@@ -1688,8 +1688,12 @@ export const useAppStore = defineStore('app', () => {
     try {
       ensureFileWatchListeners()
 
+      const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
+
       // 启动原生文件监听
-      const result = await window.electronAPI.startFileWatching(currentFolder.value)
+      const result = await window.electronAPI.startFileWatching(currentFolder.value, {
+        ignoreRulesText: effectiveIgnoreRules,
+      })
       if (!result.success) {
         notify.warning(result.error ?? 'File watcher failed to start', t('notify.file.watchStartError'))
       }
@@ -1737,7 +1741,6 @@ export const useAppStore = defineStore('app', () => {
       if (!tab.path || !shouldWatchOpenDocumentPath(tab.path)) continue
       const parentDir = pathUtils.normalize(pathUtils.dirname(tab.path))
       desiredDirs.add(parentDir)
-      desiredDirs.add(pathUtils.normalize(pathUtils.dirname(parentDir)))
     }
 
     for (const dir of Array.from(openDocumentWatchDirs)) {
@@ -1756,7 +1759,7 @@ export const useAppStore = defineStore('app', () => {
       if (openDocumentWatchDirs.has(dir)) continue
 
       try {
-        const result = await window.electronAPI.startFileWatching(dir)
+        const result = await window.electronAPI.startFileWatching(dir, { depth: 0 })
         if (result.success) {
           openDocumentWatchDirs.add(dir)
         } else {
@@ -2172,7 +2175,8 @@ export const useAppStore = defineStore('app', () => {
       change.path === pathUtils.join(currentFolder.value, WORKSPACE_IGNORE_FILENAME)
 
     if (isWorkspaceIgnoreFile) {
-      loadFileTree()
+      await loadFileTree()
+      await startAdvancedFileWatching()
       if (!affectsOpenTab) return
     }
 
@@ -2423,7 +2427,11 @@ export const useAppStore = defineStore('app', () => {
       }
 
       if (originalPath != null) {
-        const content = convertContentTo(tab.editorInstance as import('@tiptap/core').Editor, pathUtils.extension(originalPath))
+        const content = convertContentTo(
+          tab.editorInstance as import('@tiptap/core').Editor,
+          pathUtils.extension(originalPath),
+          tab.editState?.lineEnding ?? 'LF'
+        )
         if (content === null) {
           throw new Error('Unsupport file format')
         }

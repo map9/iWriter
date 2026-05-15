@@ -68,7 +68,7 @@ export interface ElectronAPI {
   copyFile: (sourcePath: string, targetDir: string) => Promise<import('@/types').FileOperationResult>
   
   // 文件监听
-  startFileWatching: (folderPath: string) => Promise<{ success: boolean; path?: string; error?: string }>
+  startFileWatching: (folderPath: string, options?: { depth?: number; ignoreRulesText?: string }) => Promise<{ success: boolean; path?: string; error?: string }>
   stopFileWatching: (folderPath: string) => Promise<{ success: boolean; path?: string; error?: string }>
   stopAllFileWatching: () => Promise<{ success: boolean; error?: string }>
   getFileWatchingStatus: () => Promise<{ watchedPaths: string[]; totalWatchers: number }>

@@ -97,6 +97,28 @@ function detectLineEnding(text: string): 'LF' | 'CRLF' {
   return 'LF'
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function plainTextToHtml(content: string): string {
+  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  return normalized
+    .split('\n')
+    .map(line => `<p>${escapeHtml(line)}</p>`)
+    .join('')
+}
+
+function applyLineEnding(content: string, lineEnding: 'LF' | 'CRLF' = 'LF'): string {
+  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  return lineEnding === 'CRLF' ? normalized.replace(/\n/g, '\r\n') : normalized
+}
+
 // Load content into editor
 export async function convertContentFrom(content: string, extension: string) {
   // @ts-expect-error don't report error
@@ -127,16 +149,16 @@ export async function convertContentFrom(content: string, extension: string) {
     }
   // @ts-expect-error don't report error
   } else if (TEXT_TXT_EXTENSIONS.includes(extension)) {
-    // 纯文本文件：包裹在 <p> 标签中以便 TipTap 处理
+    // Plain text files are represented as one paragraph per source line.
     return {
-      content: `<p>${content}</p>`,
+      content: plainTextToHtml(content),
       lineEnding: detectLineEnding(content)
     }
   // @ts-expect-error don't report error
   } else if (CODE_EXTENSIONS.includes(extension)) {
-    // 代码文件：按纯文本处理（包裹在 <p> 标签中）
+    // Code files are edited as plain text in the rich editor surface.
     return {
-      content: `<p>${content}</p>`,
+      content: plainTextToHtml(content),
       lineEnding: detectLineEnding(content)
     }
   } else {
@@ -150,7 +172,7 @@ export function htmlToMarkdown(html: string): string {
 }
 
  
-export function convertContentTo(editorInstance: Editor, extension: string, _lineEnding?: 'LF' | 'CRLF'): string | null {
+export function convertContentTo(editorInstance: Editor, extension: string, lineEnding: 'LF' | 'CRLF' = 'LF'): string | null {
   if (!editorInstance) return null
 
   // @ts-expect-error don't report error
@@ -161,7 +183,7 @@ export function convertContentTo(editorInstance: Editor, extension: string, _lin
     //return renderToMarkdown({ content: json, extensions: editor.extensionManager.extensions })
     // 方案二，采用turndown来转换
     const html = editorInstance.getHTML()
-    return turndownService.turndown(html)
+    return applyLineEnding(turndownService.turndown(html), lineEnding)
   // @ts-expect-error don't report error
   } else if (TEXT_IWT_EXTENSIONS.includes(extension)) {
     // Store as JSON + HTML for iWriter files
@@ -176,12 +198,12 @@ export function convertContentTo(editorInstance: Editor, extension: string, _lin
     })
   // @ts-expect-error don't report error
   } else if (TEXT_TXT_EXTENSIONS.includes(extension)) {
-    // Plain text - 使用 getText() 保留换行符
-    return editorInstance.getText()
+    // Plain text - serialize block boundaries as real newlines.
+    return applyLineEnding(editorInstance.getText({ blockSeparator: '\n' }), lineEnding)
   // @ts-expect-error don't report error
   } else if (CODE_EXTENSIONS.includes(extension)) {
-    // 代码文件 - 使用 getText() 保留原始格式
-    return editorInstance.getText()
+    // Code files - serialize block boundaries as real newlines.
+    return applyLineEnding(editorInstance.getText({ blockSeparator: '\n' }), lineEnding)
   } else {
     return null
   }
