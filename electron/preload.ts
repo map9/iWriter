@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { ElectronAPI, PdfSaveOptions } from '../src/types/electron-api'
 import type { SendMessageRequest, CompactInputRequest, CompactInputResponse, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
 import type { AiSettings } from '../src/types/ai'
@@ -42,6 +42,7 @@ const electronAPI: ElectronAPI = {
   getFiles: (folderPath: string, onlyself?: boolean) => ipcRenderer.invoke('get-files', folderPath, onlyself),
   revealInFolder: (path: string) => ipcRenderer.invoke('reveal-in-folder', path),
   openWithShell: (path: string) => ipcRenderer.invoke('open-with-shell', path),
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
   
   showOpenDialog: (options: {
     title?: string

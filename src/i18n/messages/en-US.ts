@@ -45,6 +45,24 @@ export default {
     enUS: 'English',
     zhCN: '简体中文',
   },
+  titlebar: {
+    toggleSidebar: 'Toggle Sidebar',
+    previousTab: 'Previous Tab',
+    nextTab: 'Next Tab',
+    closeTab: 'Close Tab',
+    newTab: 'New Tab',
+    readonly: {
+      file: 'File is read-only',
+      edit: 'Read-only mode',
+    },
+    tab: {
+      externalModifiedTitle: '{name}\nFile was modified on disk',
+      deletedTitle: '{name}\nFile was deleted from disk',
+    },
+    drop: {
+      folderUnsupported: 'Folders cannot be opened here. Open workspaces from Explorer.',
+    },
+  },
   preferences: {
     title: 'Preferences',
     tabs: {

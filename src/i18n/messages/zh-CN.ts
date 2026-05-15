@@ -45,6 +45,24 @@ export default {
     enUS: 'English',
     zhCN: '简体中文',
   },
+  titlebar: {
+    toggleSidebar: '切换侧边栏',
+    previousTab: '上一个标签页',
+    nextTab: '下一个标签页',
+    closeTab: '关闭标签页',
+    newTab: '新建标签页',
+    readonly: {
+      file: '文件只读',
+      edit: '只读模式',
+    },
+    tab: {
+      externalModifiedTitle: '{name}\n磁盘文件已被外部修改',
+      deletedTitle: '{name}\n文件已从磁盘删除',
+    },
+    drop: {
+      folderUnsupported: '文件夹不能在这里打开，请在资源管理器中打开工作区',
+    },
+  },
   preferences: {
     title: '偏好设置',
     tabs: {

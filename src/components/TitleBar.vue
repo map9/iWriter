@@ -1,5 +1,10 @@
 <template>
-  <div class="iw-titlebar gap-2">
+  <div
+    class="iw-titlebar gap-2"
+    @dragover.prevent="handleDocumentDragOver"
+    @dragleave="handleDocumentDragLeave"
+    @drop.prevent="handleDocumentDrop"
+  >
     <!-- Window Controls - handled by system traffic lights -->
     <div v-if="!isMaximized && !appStore.isLeftSidebarVisible" class="flex items-center pl-20"></div>
     <!-- Left Sidebar Toggle -->
@@ -7,7 +12,7 @@
       <button
         @click="appStore.toggleLeftSidebar()"
         class="iw-toolbar-btn btn-sm"
-        title="Toggle Sidebar"
+        :title="t('titlebar.toggleSidebar')"
       >
         <IconLayoutSidebarLeftCollapse
           v-if="appStore.isLeftSidebarVisible"
@@ -26,7 +31,7 @@
         @click="navigateTabs(-1)"
         :disabled="!canNavigateBack"
         class="iw-toolbar-btn btn-sm join-item"
-        title="Previous Tab"
+        :title="t('titlebar.previousTab')"
       >
         <IconChevronLeft class="icon-sm" />
       </button>
@@ -34,62 +39,76 @@
         @click="navigateTabs(1)"
         :disabled="!canNavigateForward"
         class="iw-toolbar-btn btn-sm join-item"
-        title="Next Tab"
+        :title="t('titlebar.nextTab')"
       >
         <IconChevronRight class="icon-sm" />
       </button>
     </div>
 
     <!-- Document Tabs Area - 按内容伸缩，有最大宽度限制 -->
-    <div class="no-drag flex items-center h-full overflow-hidden max-w-[calc(100%-256px)]">
+    <div
+      ref="tabsDropArea"
+      class="no-drag flex items-center h-full overflow-hidden max-w-[calc(100%-256px)] min-w-0"
+    >
       <!-- Document Tabs Container -->
-      <div ref="tabsContainer" class="flex items-center h-full overflow-x-auto scrollbar-hide">
-        <!-- Tabs List -->
-        <div class="flex items-center">
-          <div 
-            v-for="(tab, idx) in appStore.tabs" 
-            :key="tab.id"
-            :ref="(el: any) => { if (tab.isActive) setActivaeTabRef(el)}"
-            :class="[
-              idx === 0 ? 'border-l' : '',
-              'group flex items-center px-3 py-2 space-x-2 border-r border-base-300 min-w-32 max-w-48 shrink-0',
-              tab.isActive ? 'bg-base-100' : 'hover:bg-base-200'
-            ]"
-            @click="switchTab(tab.id)"
-            :title="getTabTitle(tab)"
-          >
-            <!-- 文档类型图标（固定宽度） -->
-            <component 
-              :is="getTabIcon(tab)" 
-              class="icon-sm shrink-0"
-            />
+      <div ref="tabsContainer" class="titlebar-tabs-viewport flex items-center h-full overflow-x-auto scrollbar-hide">
+        <div class="relative flex items-center h-full pr-0.5" :class="tabCount > 0? 'pl-0.5' : ''">
+          <div
+            v-if="dropIndicatorVisible"
+            class="titlebar-drop-indicator"
+            :style="{ left: `${dropIndicatorLeft}px` }"
+          />
 
-            <!-- 标签名称（伸缩部分） -->
-            <span :class="getTabNameClass(tab)">{{ tab.name }}</span>
-            
-            <!-- 只读指示器 -->
-            <span
-              v-if="tab.fileReadonly || tab.editReadonly"
-              class="text-xs text-warning-content shrink-0 mr-1 select-none"
-              :title="tab.fileReadonly ? '文件只读' : '只读模式'"
-            >🔒</span>
-
-            <!-- 未保存状态与关闭按钮共用一个固定位置 -->
-            <div class="relative size-6 shrink-0">
-              <div
-                v-if="tab.isDirty"
-                class="icon-dot absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-warning group-hover:hidden"
+          <!-- Tabs List -->
+          <div class="flex items-center h-full">
+            <div
+              v-for="(tab, idx) in appStore.tabs"
+              :key="tab.id"
+              :ref="el => setTabRef(tab.id, el as HTMLElement | null, tab.isActive)"
+              :class="[
+                idx === 0 ? 'border-l' : '',
+                'group flex items-center px-3 py-2 space-x-2 border-r border-base-300 min-w-32 max-w-48 shrink-0 h-full',
+                tab.isActive ? 'bg-base-100' : 'hover:bg-base-200'
+              ]"
+              draggable="true"
+              @dragstart="handleTabDragStart($event, tab.id)"
+              @dragend="clearDragState()"
+              @click="switchTab(tab.id)"
+              :title="getTabTitle(tab)"
+            >
+              <!-- 文档类型图标（固定宽度） -->
+              <component
+                :is="getTabIcon(tab)"
+                class="icon-sm shrink-0"
               />
-              <button
-                @click.stop="closeTab(tab.id)"
-                :class="[
-                  'btn btn-ghost btn-xs btn-square absolute inset-0',
-                  tab.isDirty ? 'hidden group-hover:flex' : 'flex'
-                ]"
-                title="Close Tab"
-              >
-                <IconX class="icon-2xs" />
-              </button>
+
+              <!-- 标签名称（伸缩部分） -->
+              <span :class="getTabNameClass(tab)">{{ tab.name }}</span>
+
+              <!-- 只读指示器 -->
+              <span
+                v-if="tab.fileReadonly || tab.editReadonly"
+                class="text-xs text-warning-content shrink-0 mr-1 select-none"
+                :title="tab.fileReadonly ? t('titlebar.readonly.file') : t('titlebar.readonly.edit')"
+              >🔒</span>
+
+              <!-- 未保存状态与关闭按钮共用一个固定位置 -->
+              <div class="relative size-6 shrink-0">
+                <div
+                  v-if="tab.isDirty"
+                  class="icon-dot absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-warning group-hover:hidden"
+                />
+                <button
+                  @click.stop="closeTab(tab.id)"
+                  :class="[
+                    'btn btn-ghost btn-xs btn-square absolute inset-0',
+                    tab.isDirty ? 'hidden group-hover:flex' : 'flex'
+                  ]"
+                  :title="t('titlebar.closeTab')"
+                >
+                  <IconX class="icon-2xs" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -100,7 +119,7 @@
         <button
           @click="appStore.createTab(undefined, undefined)"
           class="iw-toolbar-btn btn-sm"
-          title="New Tab"
+          :title="t('titlebar.newTab')"
         >
           <IconPlus class="icon-sm" />
         </button>
@@ -108,19 +127,27 @@
     </div>
 
     <!-- Flexible drag area - 填充剩余空间，可被完全压缩 -->
-    <div class="flex-1 h-full cursor-move drag-region min-w-0"></div>
-    
+    <div
+      ref="flexibleDragArea"
+      :class="[
+        'flex-1 h-full min-w-0',
+        dragMode ? 'no-drag' : 'drag-region cursor-move'
+      ]"
+    ></div>
+
     <AiStatusButton />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import type { FileTab } from '@/types'
 import { SidebarMode } from '@/types'
 import pathUtils from '@/utils/pathUtils'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
+import { notify } from '@/utils/notifications'
 import AiStatusButton from './AiStatusButton.vue'
 import {
   IconLayoutSidebarLeftCollapse,
@@ -131,15 +158,58 @@ import {
   IconPlus,
 } from '@tabler/icons-vue'
 
+type DragMode = 'file-open' | 'tab-reorder' | null
+
+interface FileTreeDragData {
+  id?: string
+  label?: string
+  type?: string
+  path?: string
+}
+
+interface TabDragData {
+  tabId: string
+}
+
+const FILETREE_DRAG_MIME = 'application/x-iwriter-filetree-node'
+const TAB_DRAG_MIME = 'application/x-iwriter-tab'
+
 const appStore = useAppStore()
+const { t } = useI18n()
 const isMaximized = ref(false)
+const tabsDropArea = ref<HTMLElement>()
 const tabsContainer = ref<HTMLElement>()
+const flexibleDragArea = ref<HTMLElement>()
+const tabRefs = ref(new Map<string, HTMLElement>())
 let activeTabRef: HTMLElement | null = null
+
+const dragMode = ref<DragMode>(null)
+const dropIndicatorVisible = ref(false)
+const dropInsertIndex = ref(0)
+const dropIndicatorLeft = ref(0)
+const draggedTabId = ref<string | null>(null)
+
 const { getIconByExtension } = useDocumentTypeDetector()
 
-function setActivaeTabRef(el: HTMLElement) {
-  activeTabRef = el
+function setTabRef(tabId: string, el: HTMLElement | null, isActive: boolean) {
+  if (el) {
+    el.dataset.tabId = tabId
+    tabRefs.value.set(tabId, el)
+    if (isActive) {
+      activeTabRef = el
+    }
+    return
+  }
+
+  tabRefs.value.delete(tabId)
+  if (activeTabRef && activeTabRef.dataset.tabId === tabId) {
+    activeTabRef = null
+  }
 }
+
+const tabCount = computed(() => {
+  return appStore.tabs.length
+})
 
 const canNavigateBack = computed(() => {
   const activeIndex = appStore.tabs.findIndex(tab => tab.isActive)
@@ -154,7 +224,7 @@ const canNavigateForward = computed(() => {
 function navigateTabs(direction: number) {
   const activeIndex = appStore.tabs.findIndex(tab => tab.isActive)
   const newIndex = activeIndex + direction
-  
+
   if (newIndex >= 0 && newIndex < appStore.tabs.length && appStore.tabs[newIndex]) {
     appStore.setActiveTab(appStore.tabs[newIndex].id)
   }
@@ -166,11 +236,11 @@ function getTabIcon(tab: FileTab) {
 
 function getTabTitle(tab: FileTab): string {
   if (tab.diskState === 'external-modified') {
-    return `${tab.name}\n磁盘文件已被外部修改`
+    return t('titlebar.tab.externalModifiedTitle', { name: tab.name })
   }
 
   if (tab.diskState === 'deleted') {
-    return `${tab.name}\n文件已从磁盘删除`
+    return t('titlebar.tab.deletedTitle', { name: tab.name })
   }
 
   return tab.name
@@ -187,30 +257,26 @@ function getTabNameClass(tab: FileTab): string[] {
 
 function switchTab(tabId: string) {
   appStore.setActiveTab(tabId)
-  // 确保激活的标签在视图中可见
   nextTick(() => {
     scrollActiveTabIntoView()
   })
 }
 
-// 滚动激活标签到可视区域
 function scrollActiveTabIntoView() {
   if (!tabsContainer.value || !activeTabRef) return
-  
+
   const container = tabsContainer.value
   const activeTab = activeTabRef
-  
+
   const containerRect = container.getBoundingClientRect()
   const tabRect = activeTab.getBoundingClientRect()
-  
-  // 检查标签是否在容器的可视区域内
+
   const isTabVisible = (
     tabRect.left >= containerRect.left &&
     tabRect.right <= containerRect.right
   )
-  
+
   if (!isTabVisible) {
-    // 计算需要滚动的距离
     const scrollLeft = activeTab.offsetLeft - container.offsetLeft - (container.clientWidth - activeTab.clientWidth) / 2
     container.scrollTo({
       left: scrollLeft,
@@ -219,12 +285,271 @@ function scrollActiveTabIntoView() {
   }
 }
 
+function isPointInsideElement(element: HTMLElement | undefined, clientX: number, clientY: number): boolean {
+  if (!element) return false
+  const rect = element.getBoundingClientRect()
+  return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
+}
+
+function isPointInsideTabsDropArea(clientX: number, clientY: number): boolean {
+  if (!tabsDropArea.value) return false
+
+  const rect = tabsDropArea.value.getBoundingClientRect()
+  const minimumInteractiveWidth = appStore.tabs.length === 0 ? 160 : 0
+  const effectiveRight = Math.max(rect.right, rect.left + minimumInteractiveWidth)
+
+  return clientX >= rect.left && clientX <= effectiveRight && clientY >= rect.top && clientY <= rect.bottom
+}
+
+function getOrderedTabElements(): HTMLElement[] {
+  return appStore.tabs
+    .map(tab => {
+      const element = tabRefs.value.get(tab.id)
+      if (element) {
+        element.dataset.tabId = tab.id
+      }
+      return element
+    })
+    .filter((element): element is HTMLElement => !!element)
+}
+
+function getInsertIndexFromClientX(clientX: number, inFlexibleArea: boolean): number {
+  if (inFlexibleArea) {
+    return appStore.tabs.length
+  }
+
+  const orderedTabs = getOrderedTabElements()
+  if (orderedTabs.length === 0) {
+    return 0
+  }
+
+  for (let index = 0; index < orderedTabs.length; index += 1) {
+    const tabElement = orderedTabs[index]
+    if (!tabElement) continue
+    const rect = tabElement.getBoundingClientRect()
+    if (clientX <= rect.right) {
+      return clientX < rect.left + rect.width / 2 ? index : index + 1
+    }
+  }
+
+  return orderedTabs.length
+}
+
+function updateDropIndicator(insertIndex: number) {
+  if (!tabsContainer.value) return
+
+  const orderedTabs = getOrderedTabElements()
+  const container = tabsContainer.value
+  const scrollLeft = container.scrollLeft
+
+  let left = 0
+
+  if (orderedTabs.length === 0 || insertIndex <= 0) {
+    left = -scrollLeft + 1
+  } else if (insertIndex >= orderedTabs.length) {
+    const lastTab = orderedTabs[orderedTabs.length - 1]
+    left = lastTab ? lastTab.offsetLeft + lastTab.offsetWidth - scrollLeft : -scrollLeft + 1
+  } else {
+    const targetTab = orderedTabs[insertIndex]
+    left = targetTab ? targetTab.offsetLeft - scrollLeft : -scrollLeft + 1
+  }
+
+  dropInsertIndex.value = insertIndex
+  dropIndicatorLeft.value = left
+  dropIndicatorVisible.value = true
+}
+
+function clearDragState() {
+  dragMode.value = null
+  dropIndicatorVisible.value = false
+  draggedTabId.value = null
+}
+
+function parseJsonData<T>(text: string): T | null {
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    return null
+  }
+}
+
+function detectDragMode(dataTransfer: DataTransfer | null): DragMode {
+  if (!dataTransfer) return null
+  const types = Array.from(dataTransfer.types)
+  if (types.includes(TAB_DRAG_MIME)) return 'tab-reorder'
+  if (types.includes(FILETREE_DRAG_MIME) || types.includes('Files')) return 'file-open'
+  return null
+}
+
+function updateIndicatorFromPointer(clientX: number, clientY: number, mode: DragMode) {
+  const inTabsArea = isPointInsideTabsDropArea(clientX, clientY)
+  const inFlexibleArea = isPointInsideElement(flexibleDragArea.value, clientX, clientY)
+
+  if (!inTabsArea && !inFlexibleArea) {
+    if (mode !== 'tab-reorder') {
+      dropIndicatorVisible.value = false
+    }
+    return false
+  }
+
+  dragMode.value = mode
+  updateDropIndicator(getInsertIndexFromClientX(clientX, inFlexibleArea))
+  return true
+}
+
+function handleTabDragStart(event: DragEvent, tabId: string) {
+  if (!event.dataTransfer) return
+
+  const dragData: TabDragData = { tabId }
+  event.dataTransfer.setData(TAB_DRAG_MIME, JSON.stringify(dragData))
+  event.dataTransfer.effectAllowed = 'move'
+  draggedTabId.value = tabId
+  dragMode.value = 'tab-reorder'
+  dropIndicatorVisible.value = false
+}
+
+async function openDroppedFiles(filePaths: string[], insertIndex: number) {
+  let currentInsertIndex = insertIndex
+  for (const filePath of filePaths) {
+    const didInsert = await appStore.openFileAt(filePath, currentInsertIndex)
+    if (didInsert) {
+      currentInsertIndex += 1
+    }
+  }
+}
+
+async function resolveExternalDrop(event: DragEvent): Promise<{ filePaths: string[]; folderCount: number }> {
+  const dataTransfer = event.dataTransfer
+  if (!dataTransfer || !window.electronAPI) {
+    return { filePaths: [], folderCount: 0 }
+  }
+
+  const filePaths: string[] = []
+  let folderCount = 0
+
+  for (const file of Array.from(dataTransfer.files)) {
+    const candidatePath = window.electronAPI.getPathForFile(file)
+    if (!candidatePath) continue
+
+    const files = await window.electronAPI.getFiles(candidatePath, true)
+    if (!files || files.length === 0 || !files[0]) {
+      continue
+    }
+
+    if (files[0].isDirectory) {
+      folderCount += 1
+      continue
+    }
+
+    filePaths.push(candidatePath)
+  }
+
+  return { filePaths, folderCount }
+}
+
+async function handleFileOpenDrop(event: DragEvent, insertIndex: number) {
+  const dataTransfer = event.dataTransfer
+  if (!dataTransfer) return
+
+  const fileTreeRaw = dataTransfer.getData(FILETREE_DRAG_MIME)
+  if (fileTreeRaw) {
+    const dragData = parseJsonData<FileTreeDragData>(fileTreeRaw)
+    if (dragData?.type === 'folder') {
+      notify.warning(t('titlebar.drop.folderUnsupported'))
+      return
+    }
+    if (dragData?.path) {
+      await appStore.openFileAt(dragData.path, insertIndex)
+    }
+    return
+  }
+
+  const { filePaths, folderCount } = await resolveExternalDrop(event)
+  if (filePaths.length > 0) {
+    await openDroppedFiles(filePaths, insertIndex)
+  }
+  if (folderCount > 0) {
+    notify.warning(t('titlebar.drop.folderUnsupported'))
+  }
+}
+
+function handleTabReorderDrop(event: DragEvent, insertIndex: number) {
+  const dataTransfer = event.dataTransfer
+  if (!dataTransfer) return
+
+  const raw = dataTransfer.getData(TAB_DRAG_MIME)
+  const dragData = parseJsonData<TabDragData>(raw)
+  if (!dragData) return
+
+  const sourceIndex = appStore.tabs.findIndex(tab => tab.id === dragData.tabId)
+  if (sourceIndex === -1) return
+
+  const adjustedInsertIndex = sourceIndex < insertIndex ? insertIndex - 1 : insertIndex
+  if (adjustedInsertIndex === sourceIndex) return
+
+  appStore.moveTab(dragData.tabId, adjustedInsertIndex)
+}
+
+function handleDocumentDragOver(event: DragEvent) {
+  const mode = detectDragMode(event.dataTransfer)
+  if (!mode) return
+
+  const inTabsArea = isPointInsideTabsDropArea(event.clientX, event.clientY)
+  const inFlexibleArea = isPointInsideElement(flexibleDragArea.value, event.clientX, event.clientY)
+
+  if (mode === 'tab-reorder' && draggedTabId.value === null) {
+    return
+  }
+
+  if (!inTabsArea && !inFlexibleArea) {
+    dropIndicatorVisible.value = false
+    return
+  }
+
+  event.preventDefault()
+  updateIndicatorFromPointer(event.clientX, event.clientY, mode)
+}
+
+async function handleDocumentDrop(event: DragEvent) {
+  const mode = detectDragMode(event.dataTransfer) ?? dragMode.value
+  if (!mode) return
+
+  const didHitTitlebar = updateIndicatorFromPointer(event.clientX, event.clientY, mode)
+  if (!didHitTitlebar) {
+    clearDragState()
+    return
+  }
+
+  event.preventDefault()
+
+  const insertIndex = dropInsertIndex.value
+  try {
+    if (mode === 'file-open') {
+      await handleFileOpenDrop(event, insertIndex)
+    } else if (mode === 'tab-reorder') {
+      handleTabReorderDrop(event, insertIndex)
+    }
+  } finally {
+    clearDragState()
+  }
+}
+
+function handleDocumentDragLeave(event: DragEvent) {
+  const mode = detectDragMode(event.dataTransfer) ?? dragMode.value
+  if (!mode) return
+
+  const stillInsideTitlebar = isPointInsideTabsDropArea(event.clientX, event.clientY)
+    || isPointInsideElement(flexibleDragArea.value, event.clientX, event.clientY)
+
+  if (!stillInsideTitlebar) {
+    clearDragState()
+  }
+}
+
 async function closeTab(tabId: string) {
-  // Use the centralized closeTab function from app store
   await appStore.closeTab(tabId)
 }
 
-// 监听状态变化，自动切换到合适的模式
 function checkAndSwitchMode() {
   if (appStore.leftSidebarMode !== SidebarMode.TOC && !appStore.hasOpenFolder) {
     appStore.setLeftSidebarMode(SidebarMode.START)
@@ -238,29 +563,29 @@ function checkAndSwitchMode() {
   }
 }
 
-onMounted(async () => {
+onMounted(() => {
   if (window.electronAPI) {
-    // 监听窗口状态变化事件
     if (window.electronAPI.onWindowStateChanged) {
       window.electronAPI.onWindowStateChanged((state: { maximized: boolean }) => {
         isMaximized.value = state.maximized
       })
     }
-    
-    // 初始状态为未最大化
+
     isMaximized.value = false
   }
-  
-  // 初始检查模式
+
   checkAndSwitchMode()
 })
 
-// 监听相关状态变化
 watch([() => appStore.hasOpenFolder, () => appStore.tabs.length], () => {
   checkAndSwitchMode()
+  nextTick(() => {
+    if (dropIndicatorVisible.value) {
+      updateDropIndicator(Math.min(dropInsertIndex.value, appStore.tabs.length))
+    }
+  })
 })
 
-// 监听激活标签变化，确保其可见
 watch(() => appStore.activeTabId, () => {
   nextTick(() => {
     scrollActiveTabIntoView()
@@ -268,3 +593,21 @@ watch(() => appStore.activeTabId, () => {
 })
 
 </script>
+
+<style scoped>
+.titlebar-tabs-viewport {
+  position: relative;
+}
+
+.titlebar-drop-indicator {
+  position: absolute;
+  top: 0px;
+  bottom: 0px;
+  width: 2px;
+  border: none;
+  background: var(--color-primary, #3b82f6);
+  pointer-events: none;
+  transform: translateX(-1px);
+  z-index: 5;
+}
+</style>

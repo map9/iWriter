@@ -32,6 +32,7 @@ export interface ElectronAPI {
   revealInFolder: (path: string) => Promise<void>  
   // 使用系统默认应用程序打开文件
   openWithShell: (path: string) => Promise<void>
+  getPathForFile: (file: File) => string
 
   // 对话框
   showOpenDialog: (options: {

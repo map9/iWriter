@@ -414,6 +414,7 @@ const handleDragStart = (e: DragEvent) => {
     path: props.node.path
   }
   e.dataTransfer?.setData('application/json', JSON.stringify(dragData))
+  e.dataTransfer?.setData('application/x-iwriter-filetree-node', JSON.stringify(dragData))
   e.dataTransfer!.effectAllowed = 'copyMove'
 
   // Store in global state for reliable access

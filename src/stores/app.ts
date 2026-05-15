@@ -121,6 +121,7 @@ export const useAppStore = defineStore('app', () => {
   const tabs = ref<FileTab[]>([])
   const activeTabId = ref<string | null>(null)
   const untitledCounter = ref(1)
+  const pendingOpenPaths = new Set<string>()
   const externalChangePromptPaths = new Set<string>()
   const ignoredExternalChangePaths = new Set<string>()
   const openDocumentWatchDirs = new Set<string>()
@@ -1033,24 +1034,46 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function openFile(filePath: string) {
-    if (!window.electronAPI) return
-    
+    return openFileAt(filePath)
+  }
+
+  async function openFileAt(filePath: string, insertIndex?: number) {
+    if (!window.electronAPI) return false
+    const normalizedFilePath = pathUtils.normalize(filePath)
+
     // Check if file is already open
-    const existingTab = tabs.value.find(tab => tab.path === filePath)
+    const existingTab = tabs.value.find(tab => tab.path && pathUtils.normalize(tab.path) === normalizedFilePath)
     if (existingTab) {
       setActiveTab(existingTab.id)
-      return
+      return false
     }
-    
-    const files = await window.electronAPI.getFiles(filePath, true)
-    if (!files || files.length === 0 || !files[0] || files[0].isDirectory === true) {
-      notify.error(t('notify.file.openError', { path: filePath }), t('notify.file.openErrorContext'))
-      return
+
+    if (pendingOpenPaths.has(normalizedFilePath)) {
+      return false
     }
-    
-    const documentType = detectFromPath(filePath)
-    const fileReadonly = files[0].isWritable === false
-    createTab(pathUtils.basename(filePath), filePath, documentType, fileReadonly)
+
+    pendingOpenPaths.add(normalizedFilePath)
+
+    try {
+      const files = await window.electronAPI.getFiles(filePath, true)
+      if (!files || files.length === 0 || !files[0] || files[0].isDirectory === true) {
+        notify.error(t('notify.file.openError', { path: filePath }), t('notify.file.openErrorContext'))
+        return false
+      }
+
+      const duplicateTab = tabs.value.find(tab => tab.path && pathUtils.normalize(tab.path) === normalizedFilePath)
+      if (duplicateTab) {
+        setActiveTab(duplicateTab.id)
+        return false
+      }
+
+      const documentType = detectFromPath(filePath)
+      const fileReadonly = files[0].isWritable === false
+      createTab(pathUtils.basename(filePath), filePath, documentType, fileReadonly, undefined, insertIndex)
+      return true
+    } finally {
+      pendingOpenPaths.delete(normalizedFilePath)
+    }
   }
 
   /* for debug
@@ -2211,7 +2234,8 @@ export const useAppStore = defineStore('app', () => {
     path?: string,
     documentType?: DocumentType,
     fileReadonly?: boolean,
-    pendingImport?: FileTab['pendingImport']
+    pendingImport?: FileTab['pendingImport'],
+    insertIndex?: number
   ) {
     const id = Date.now().toString()
     
@@ -2244,12 +2268,28 @@ export const useAppStore = defineStore('app', () => {
       tab.isActive = false
     })
     
-    tabs.value.push(newTab)
+    const normalizedInsertIndex = typeof insertIndex === 'number'
+      ? Math.max(0, Math.min(insertIndex, tabs.value.length))
+      : tabs.value.length
+
+    tabs.value.splice(normalizedInsertIndex, 0, newTab)
     activeTabId.value = id
 
     notify.success(t('notify.file.opened', { name: path ? path : tabName }), t('notify.file.operation'))
     
     return newTab
+  }
+
+  function moveTab(tabId: string, insertIndex: number) {
+    const sourceIndex = tabs.value.findIndex(tab => tab.id === tabId)
+    if (sourceIndex === -1) return
+
+    const [movedTab] = tabs.value.splice(sourceIndex, 1)
+    if (!movedTab) return
+
+    const boundedIndex = Math.max(0, Math.min(insertIndex, tabs.value.length))
+    tabs.value.splice(boundedIndex, 0, movedTab)
+    setActiveTab(movedTab.id)
   }
   
   async function closeTab(tabId: string): Promise<boolean> {
@@ -3029,6 +3069,7 @@ export const useAppStore = defineStore('app', () => {
 
     // File operations
     openFile,
+    openFileAt,
     openFolder,
     closeFolder,
     rebuildWorkspaceDirectory,
@@ -3051,6 +3092,7 @@ export const useAppStore = defineStore('app', () => {
 
     // Tab operations
     createTab,
+    moveTab,
     closeTab,
     closeAllTab,
     saveTab,
