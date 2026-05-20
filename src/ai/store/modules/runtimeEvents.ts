@@ -12,8 +12,9 @@ import type {
   RunErrorEvent,
   RunInterruptedEvent,
   StreamChunkEvent,
+  DomainReviewItem,
 } from '@/ai/ipc'
-import type { LiveTurn, ThreadRunState } from './runtimeState'
+import type { LiveSubTask, LiveTurn, ThreadRunState } from './runtimeState'
 
 interface RuntimeEventsDeps {
   activeThread: ComputedRef<AiThread | null>
@@ -47,7 +48,7 @@ interface RuntimeEventsDeps {
   }) => void
   resetEditReviewState: () => void
   resetCreativeReviewState: () => void
-  notifyCreativeToolResult: (toolName: string, isError: boolean) => void
+  notifyCreativeToolResult: (toolName: string, isError: boolean, toolCallId?: string) => void
   finalizePendingCreativeApply: () => void
   inferToolKind: (toolName: string) => AiToolCall['kind']
   normalizeMessagesForDisplay: (messages: ThreadMessage[]) => ThreadMessage[]
@@ -67,11 +68,59 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     currentRunHasError = false
   }
 
+  function updateSubTaskStatus(
+    liveTurn: LiveTurn,
+    id: string | undefined,
+    status: LiveSubTask['status'],
+    output?: unknown,
+  ): boolean {
+    if (!id) return false
+    const idx = liveTurn.subTasks.findIndex(st => st.invocationId === id)
+    if (idx < 0) return false
+    const updated = [...liveTurn.subTasks]
+    updated[idx] = { ...liveTurn.subTasks[idx]!, status, output }
+    liveTurn.subTasks = updated
+    return true
+  }
+
   function onStreamChunk(chunk: StreamChunkEvent) {
     const liveTurn = deps.ensureLiveTurn({
       state: deps.threadRunState.value === 'interrupted' ? 'interrupted' : 'streaming',
     })
     if (!liveTurn) return
+    if (chunk.threadId !== liveTurn.threadId) return
+
+    if (chunk.type === 'subagent_start') {
+      const invocationId = chunk.subagentId
+      if (!invocationId) return
+      const subTask: LiveSubTask = {
+        invocationId,
+        name: chunk.subagentName,
+        taskInput: chunk.taskInput,
+        text: '',
+        thinkingText: '',
+        blocks: [],
+        status: 'running',
+      }
+      liveTurn.subTasks = [...liveTurn.subTasks, subTask]
+      deps.liveTurn.value = { ...liveTurn }
+      return
+    }
+
+    if (chunk.type === 'subagent_end') {
+      if (updateSubTaskStatus(liveTurn, chunk.subagentId, 'done', chunk.output)) {
+        deps.liveTurn.value = { ...liveTurn }
+      }
+      return
+    }
+
+    if (chunk.subagentName) {
+      if (chunk.subagentId) {
+        _applySubagentChunk(liveTurn, chunk as StreamChunkEvent & { subagentName: string }, chunk.subagentId)
+        deps.liveTurn.value = { ...liveTurn }
+      }
+      return
+    }
 
     if (chunk.type === 'text' && chunk.delta) {
       liveTurn.text += chunk.delta
@@ -107,11 +156,53 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
           ? { type: 'tool_call', toolCall: { ...block.toolCall, status: chunk.toolCall!.status, result: chunk.toolCall!.result, isError: chunk.toolCall!.isError } }
           : block
       )
+      if (chunk.toolCall.name === 'task') {
+        updateSubTaskStatus(liveTurn, chunk.toolCallId, chunk.toolCall.isError ? 'error' : 'done', chunk.toolCall.result)
+      }
       liveTurn.toolName = null
       deps.liveTurn.value = { ...liveTurn }
       if (chunk.toolCall?.isError && chunk.toolCall.name) {
-        deps.notifyCreativeToolResult(chunk.toolCall.name, true)
+        deps.notifyCreativeToolResult(chunk.toolCall.name, true, chunk.toolCallId)
       }
+    }
+  }
+
+  function _applySubagentChunk(liveTurn: LiveTurn, chunk: StreamChunkEvent & { subagentName: string }, invocationId: string): void {
+    const idx = liveTurn.subTasks.findIndex(st => st.invocationId === invocationId)
+    if (idx < 0) return
+    const subTask = liveTurn.subTasks[idx]!
+
+    if (chunk.type === 'thinking' && chunk.delta) {
+      const updated = [...liveTurn.subTasks]
+      updated[idx] = { ...subTask, thinkingText: subTask.thinkingText + chunk.delta }
+      liveTurn.subTasks = updated
+      return
+    }
+
+    if (chunk.type === 'text' && chunk.delta) {
+      const updated = [...liveTurn.subTasks]
+      updated[idx] = { ...subTask, text: subTask.text + chunk.delta }
+      liveTurn.subTasks = updated
+      return
+    }
+
+    if (chunk.type === 'tool_call_start' && chunk.toolCall) {
+      const enriched: AiToolCall = { ...chunk.toolCall, kind: deps.inferToolKind(chunk.toolCall.name) }
+      const updated = [...liveTurn.subTasks]
+      updated[idx] = { ...subTask, blocks: [...subTask.blocks, { type: 'tool_call', toolCall: enriched }] }
+      liveTurn.subTasks = updated
+      return
+    }
+
+    if (chunk.type === 'tool_call_end' && chunk.toolCallId && chunk.toolCall) {
+      const updatedBlocks = subTask.blocks.map(b =>
+        b.type === 'tool_call' && b.toolCall.id === chunk.toolCallId
+          ? { type: 'tool_call' as const, toolCall: { ...b.toolCall, status: chunk.toolCall!.status, result: chunk.toolCall!.result, isError: chunk.toolCall!.isError } }
+          : b
+      )
+      const updated = [...liveTurn.subTasks]
+      updated[idx] = { ...subTask, blocks: updatedBlocks }
+      liveTurn.subTasks = updated
     }
   }
 
@@ -127,17 +218,24 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
         : undefined,
     })
 
-    if (event.creativeReviews?.length) {
+    const editProposals = event.reviews
+      .filter((r): r is Extract<DomainReviewItem, { kind: 'edit' }> => r.kind === 'edit')
+      .map(r => r.payload)
+    const creativeReviews = event.reviews
+      .filter((r): r is Extract<DomainReviewItem, { kind: 'creative' }> => r.kind === 'creative')
+      .map(r => r.payload)
+
+    if (creativeReviews.length) {
       deps.handleCreativeInterrupt({
         threadId: event.threadId,
         turnId: event.turnId ?? deps.currentTurnId.value,
-        reviews: event.creativeReviews,
+        reviews: creativeReviews,
       })
     } else {
       deps.handleEditInterrupt({
         threadId: event.threadId,
         turnId: event.turnId ?? deps.currentTurnId.value,
-        proposals: event.proposals,
+        proposals: editProposals,
       })
     }
 

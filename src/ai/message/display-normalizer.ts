@@ -105,6 +105,16 @@ function toolParamsText(toolCall: AiToolCall): string {
       return fname(args.file_path)
     case 'get_section':
       return [fname(args.file_path), bid(args.heading_block_id)].filter(Boolean).join(' ')
+    case 'get_sections': {
+      const requests = Array.isArray(args.requests) ? args.requests : []
+      const shown = requests
+        .slice(0, 3)
+        .map(request => bid((request as Record<string, unknown>).heading_block_id))
+        .filter(Boolean)
+        .join(', ')
+      const rest = requests.length > 3 ? t('agentPanel.displayNormalizer.summary.moreCount', { count: requests.length - 3 }) : ''
+      return [fname(args.file_path), `${shown}${rest}`].filter(Boolean).join(' ')
+    }
     case 'get_blocks': {
       const ids = Array.isArray(args.block_ids) ? args.block_ids : []
       return [fname(args.file_path), ids.map((id: unknown) => bid(id)).join(', ')].filter(Boolean).join(' ')
@@ -178,6 +188,19 @@ function summarizeSection(parsedResult: Record<string, unknown> | null): string 
 
   if (totalLines !== null) return t('agentPanel.displayNormalizer.summary.sectionTotal', { total: totalLines })
   return undefined
+}
+
+function summarizeSections(parsedResult: Record<string, unknown> | null): string | undefined {
+  if (!parsedResult) return undefined
+  const sections = Array.isArray(parsedResult.sections) ? parsedResult.sections : []
+  const totalSections = toNumber(parsedResult.total_sections) ?? sections.length
+  const errorCount = toNumber(parsedResult.error_count)
+  const parts: string[] = []
+  if (totalSections > 0) parts.push(t('agentPanel.displayNormalizer.count.sections', { count: totalSections }))
+  if (errorCount !== null && errorCount > 0) {
+    parts.push(t('agentPanel.displayNormalizer.summary.failedCount', { count: errorCount }))
+  }
+  return parts.join(' · ') || undefined
 }
 
 function summarizeBlocks(parsedResult: Record<string, unknown> | null): string | undefined {
@@ -281,6 +304,25 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         contextLabel: heading ?? (formatBlockId(args.heading_block_id) ?? undefined),
         summaryLabel: buildStatusSummary(toolCall, summarizeSection(parsedResult) ?? range ?? undefined),
         detailType: parsedResult ? 'section' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    }
+    case 'get_sections': {
+      const requests = Array.isArray(args.requests) ? args.requests : []
+      const shown = requests
+        .slice(0, 3)
+        .map(request => formatBlockId((request as Record<string, unknown>).heading_block_id))
+        .filter((id): id is string => !!id)
+        .join(', ')
+      const rest = requests.length > 3 ? t('agentPanel.displayNormalizer.summary.moreCount', { count: requests.length - 3 }) : ''
+      return {
+        actionLabel: toolNameLabel('get_sections'),
+        targetLabel: fileLabel,
+        targetPath: pathArg || toolCall.file?.path,
+        contextLabel: shown ? `${shown}${rest}` : undefined,
+        summaryLabel: buildStatusSummary(toolCall, summarizeSections(parsedResult)),
+        detailType: parsedResult ? 'sections' : 'text',
         parsedResult,
         rawResult,
       }

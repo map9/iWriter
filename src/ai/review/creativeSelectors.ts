@@ -31,7 +31,7 @@ export type CreativeSessionViewModel =
 
 // Internal CreativeReviewBatch shape (mirrors creativeReview.ts)
 interface CreativeDecision {
-  kind: 'approved' | 'edited' | 'rejected' | 'failed_to_apply'
+  kind: 'approved' | 'edited' | 'rejected' | 'responded' | 'failed_to_apply'
   editedArgs?: Record<string, unknown>
   message?: string
 }

@@ -46,7 +46,7 @@ export class BlockParser {
       const available = snapshot.outline
         .map(h => `${h.displayId} ("${h.text}")`)
         .join(', ')
-      return `Error: No heading found with block_id ${headingBlockId}. Available headings: ${available || '(none)'}.`
+      throw new Error(`No heading found with block_id ${headingBlockId}. Available headings: ${available || '(none)'}.`)
     }
 
     const headingLevel = headingEntry.headingLevel ?? 1

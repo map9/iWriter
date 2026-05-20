@@ -2,14 +2,15 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
-import { getRuntimeString } from './runtimeHelpers'
+import type { IWriterAgentContext } from '../runtime/AgentContext'
 
 const STORYBIBLE_CONTEXT_LIMIT = 4000
 const FRAGMENTS_CONTEXT_LIMIT = 2000
 const CHAPTER_PREVIEW_CHARS = 200
 
 function getWorkspacePath(runtime: unknown, fallbackWorkspacePath?: string | null): string | null {
-  return getRuntimeString(runtime, 'workspace_path')?.trim() || fallbackWorkspacePath || null
+  const wp = (runtime as { context?: IWriterAgentContext } | undefined)?.context?.workspacePath
+  return wp?.trim() || fallbackWorkspacePath || null
 }
 
 function ensureWorkspace(workspacePath: string | null): string | null {

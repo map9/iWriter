@@ -6,7 +6,7 @@ import type {
   ThreadMessage,
 } from '@/ai/types'
 import type { ToolCallStatusOverrides } from '@/ai/message/display-normalizer'
-import type { ResumeDecision } from '@/ai/ipc'
+import type { ResumeDecision, DomainReviewItem } from '@/ai/ipc'
 import {
   flushReviewedBatch,
   normalizeEditedArgsForProposal,
@@ -112,7 +112,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
     if (options?.clearLiveTurnProposals) {
       const liveTurn = deps.ensureLiveTurn()
       if (liveTurn) {
-        liveTurn.proposals = []
+        liveTurn.reviews = liveTurn.reviews.filter((r: DomainReviewItem) => r.kind !== 'edit')
         deps.liveTurnRef.value = { ...liveTurn }
       }
     }
@@ -161,7 +161,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
       state: 'interrupted',
     })
     if (liveTurn) {
-      liveTurn.proposals = params.proposals
+      liveTurn.reviews = params.proposals.map((p): DomainReviewItem => ({ kind: 'edit', payload: p }))
       deps.liveTurnRef.value = { ...liveTurn }
     }
 
@@ -181,7 +181,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
   function removePendingProposal(proposalId: string) {
     const liveTurn = deps.ensureLiveTurn()
     if (!liveTurn) return
-    liveTurn.proposals = liveTurn.proposals.filter(p => p.id !== proposalId)
+    liveTurn.reviews = liveTurn.reviews.filter((r: DomainReviewItem) => r.kind !== 'edit' || r.payload.id !== proposalId)
     deps.liveTurnRef.value = { ...liveTurn }
   }
 
@@ -234,7 +234,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
 
     const liveTurn = deps.ensureLiveTurn({ threadId, state: 'resuming' })
     if (liveTurn) {
-      liveTurn.proposals = []
+      liveTurn.reviews = liveTurn.reviews.filter((r: DomainReviewItem) => r.kind !== 'edit')
       deps.liveTurnRef.value = { ...liveTurn }
     }
   }
@@ -261,8 +261,10 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
 
     const liveTurn = deps.ensureLiveTurn()
     if (liveTurn) {
-      liveTurn.proposals = liveTurn.proposals.map(current =>
-        current.id === proposalId ? { ...blockProposal, wasEdited: true } : current,
+      liveTurn.reviews = liveTurn.reviews.map((r: DomainReviewItem) =>
+        r.kind === 'edit' && r.payload.id === proposalId
+          ? { kind: 'edit' as const, payload: { ...blockProposal, wasEdited: true } }
+          : r
       )
       deps.liveTurnRef.value = { ...liveTurn }
     }
@@ -303,7 +305,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
 
     const liveTurn = deps.ensureLiveTurn()
     if (liveTurn) {
-      liveTurn.proposals = []
+      liveTurn.reviews = liveTurn.reviews.filter((r: DomainReviewItem) => r.kind !== 'edit')
       deps.liveTurnRef.value = { ...liveTurn }
     }
 
@@ -327,7 +329,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
 
     const liveTurn = deps.ensureLiveTurn()
     if (liveTurn) {
-      liveTurn.proposals = []
+      liveTurn.reviews = liveTurn.reviews.filter((r: DomainReviewItem) => r.kind !== 'edit')
       deps.liveTurnRef.value = { ...liveTurn }
     }
 

@@ -1,5 +1,6 @@
 import type { AiAgentDomain } from '../../../src/types/ai'
 import type { DetectedInputLanguage } from '../../../src/ai/message/detectInputLanguage'
+import { IWriterAgentContextSchema, type IWriterAgentContext } from './AgentContext'
 
 interface InterruptedRun {
   actionRequestCount: number
@@ -20,6 +21,7 @@ export class ThreadRuntimeStore {
   private interruptedRuns = new Map<string, InterruptedRun>()
   private threadContexts = new Map<string, ThreadExecutionContext>()
   private currentTurnIds = new Map<string, string>()
+  private lastSummarizationCutoffs = new Map<string, number>()
 
   setContext(threadId: string, context: ThreadExecutionContext): void {
     this.threadContexts.set(threadId, context)
@@ -29,18 +31,22 @@ export class ThreadRuntimeStore {
     return this.threadContexts.get(threadId) ?? null
   }
 
-  buildConfigurable(threadId: string, domain?: AiAgentDomain): Record<string, string> {
+  buildConfigurable(threadId: string): Record<string, string> {
+    return { thread_id: threadId }
+  }
+
+  buildContext(threadId: string, domain?: AiAgentDomain): IWriterAgentContext {
     const ctx = this.getContext(threadId)
-    return {
-      thread_id: threadId,
-      agent_domain: domain ?? 'editing',
-      active_file_path: ctx?.activeFilePath ?? '',
-      workspace_path: ctx?.workspacePath ?? '',
-      output_language: ctx?.language ?? '',
-      attached_text_file_paths: JSON.stringify(ctx?.attachmentTextFilePaths ?? []),
-      attached_binary_file_paths: JSON.stringify(ctx?.attachmentBinaryFilePaths ?? []),
-      attached_directories: JSON.stringify(ctx?.attachmentDirectories ?? []),
-    }
+    return IWriterAgentContextSchema.parse({
+      threadId,
+      agentDomain: domain ?? 'editing',
+      activeFilePath: ctx?.activeFilePath ?? null,
+      workspacePath: ctx?.workspacePath ?? null,
+      outputLanguage: ctx?.language ?? '',
+      attachedTextFilePaths: ctx?.attachmentTextFilePaths ?? [],
+      attachedBinaryFilePaths: ctx?.attachmentBinaryFilePaths ?? [],
+      attachedDirectories: ctx?.attachmentDirectories ?? [],
+    })
   }
 
   setInterrupted(threadId: string, interrupted: InterruptedRun): void {
@@ -67,17 +73,27 @@ export class ThreadRuntimeStore {
     this.currentTurnIds.delete(threadId)
   }
 
+  getLastSummarizationCutoff(threadId: string): number | undefined {
+    return this.lastSummarizationCutoffs.get(threadId)
+  }
+
+  setLastSummarizationCutoff(threadId: string, cutoff: number): void {
+    this.lastSummarizationCutoffs.set(threadId, cutoff)
+  }
+
   deleteThread(threadId: string): void {
     this.threadContexts.delete(threadId)
     this.interruptedRuns.delete(threadId)
     this.currentTurnIds.delete(threadId)
+    this.lastSummarizationCutoffs.delete(threadId)
   }
 
   clear(): void {
     this.threadContexts.clear()
     this.interruptedRuns.clear()
     this.currentTurnIds.clear()
+    this.lastSummarizationCutoffs.clear()
   }
 }
 
-export type { InterruptedRun, ThreadExecutionContext }
+export type { InterruptedRun, ThreadExecutionContext, IWriterAgentContext }

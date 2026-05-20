@@ -4,11 +4,12 @@ import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import type { CreativeDb } from '../db/CreativeDb'
 import { countWordDelta } from '../../../src/utils/textStats'
-import { getRuntimeString } from './runtimeHelpers'
+import type { IWriterAgentContext } from '../runtime/AgentContext'
 import { resolveWorkspaceSubpath } from './CreativeTools'
 
 function getWorkspacePath(runtime: unknown, fallbackWorkspacePath?: string | null): string | null {
-  return getRuntimeString(runtime, 'workspace_path')?.trim() || fallbackWorkspacePath || null
+  const wp = (runtime as { context?: IWriterAgentContext } | undefined)?.context?.workspacePath
+  return wp?.trim() || fallbackWorkspacePath || null
 }
 
 function ensureWorkspace(workspacePath: string | null): string | null {

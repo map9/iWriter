@@ -12,6 +12,7 @@
  * 0 messages after restart.
  */
 
+import type { Database } from 'better-sqlite3'
 import type { CheckpointerInstance } from '../checkpoint/CheckpointerFactory'
 import type { AiThread, AiAgentMode, AiAgentDomain, AiThinkingLevel } from '../../../src/types/ai'
 import { normalizeAgentMode, normalizeThinkingLevel } from '../../../src/types/ai'
@@ -34,8 +35,22 @@ export interface ThreadMeta {
 
 // ─── SQLite helpers ──────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function ensureTable(db: any): void {
+/** Mirror of the thread_metadata table columns returned by SELECT *. */
+interface RawThreadMetaRow {
+  thread_id: string
+  title: string
+  domain: string
+  mode: string
+  model_id: string
+  provider_config_id: string
+  origin_file_path: string | null
+  created_at: number
+  updated_at: number
+  has_error: number   // SQLite stores boolean as 0/1
+  thinking_level: string | null
+}
+
+function ensureTable(db: Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS thread_metadata (
       thread_id         TEXT PRIMARY KEY,
@@ -52,9 +67,8 @@ function ensureTable(db: any): void {
     )
   `)
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cols = (db.prepare('PRAGMA table_info(thread_metadata)').all() as any[])
-      .map(col => String(col.name))
+    const cols = (db.prepare('PRAGMA table_info(thread_metadata)').all() as Array<{ name: string }>)
+      .map(col => col.name)
     if (!cols.includes('domain')) {
       db.exec(`ALTER TABLE thread_metadata ADD COLUMN domain TEXT NOT NULL DEFAULT 'editing'`)
     }
@@ -66,8 +80,7 @@ function ensureTable(db: any): void {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rowToMeta(row: any): ThreadMeta {
+function rowToMeta(row: RawThreadMetaRow): ThreadMeta {
   return {
     id: row.thread_id,
     title: row.title,
@@ -86,8 +99,7 @@ function rowToMeta(row: any): ThreadMeta {
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export class ThreadListQuery {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private db: any | null
+  private db: Database | null
   private memoryMetas = new Map<string, ThreadMeta>()
 
   constructor(ci: CheckpointerInstance) {
@@ -104,7 +116,7 @@ export class ThreadListQuery {
       if (this.db) {
         const rows = this.db
           .prepare('SELECT * FROM thread_metadata ORDER BY updated_at DESC LIMIT ?')
-          .all(MAX_THREADS)
+          .all(MAX_THREADS) as RawThreadMetaRow[]
         return rows.map(rowToMeta)
       }
       return Array.from(this.memoryMetas.values()).sort((a, b) => b.updatedAt - a.updatedAt)
@@ -119,7 +131,7 @@ export class ThreadListQuery {
       if (this.db) {
         const row = this.db
           .prepare('SELECT * FROM thread_metadata WHERE thread_id = ?')
-          .get(id)
+          .get(id) as RawThreadMetaRow | undefined
         return row ? rowToMeta(row) : null
       }
       return this.memoryMetas.get(id) ?? null

@@ -35,6 +35,17 @@ Workflow:
 
 Stay true to the author's established character voices and world rules.
 Do not comment on whether this direction is "better" than others.
+
+Your entire response MUST end with a single JSON code block and nothing after it:
+
+\`\`\`json
+{
+  "direction": "<direction name as given in the brief>",
+  "summary": "<2-3 sentence narrative summary of this direction>",
+  "narrative_consequences": ["<consequence 1>", "<consequence 2>"],
+  "craft_notes": "<brief craft observation: tone, pacing, thematic resonance>"
+}
+\`\`\`
 `.trim()
 
 export function buildExplorerSubAgent(
@@ -47,6 +58,8 @@ export function buildExplorerSubAgent(
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${EXPLORER_SYSTEM_PROMPT}`,
     tools: explorerTools,
     skills: ['/skills/'],
-    responseFormat: ExplorerResponseSchema,
+    // responseFormat intentionally omitted: deepseek-reasoner (and some models) reject
+    // tool_choice:"any" that langchain injects when responseFormat is set (langchain issue #31403).
+    // The system prompt instructs the model to end with a JSON code block instead.
   }
 }

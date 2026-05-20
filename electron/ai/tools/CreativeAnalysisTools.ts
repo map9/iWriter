@@ -6,11 +6,12 @@ import type { CreativeDb } from '../db/CreativeDb'
 import { STORYBIBLE_REBUILD_WORD_THRESHOLD } from '../db/CreativeDb'
 import type { SnapshotBroker } from '../document/SnapshotBroker'
 import { estimateTextTokens } from '../../../src/ai/token-estimation'
-import { getRuntimeString } from './runtimeHelpers'
+import type { IWriterAgentContext } from '../runtime/AgentContext'
 import { getLastGitTagInfo } from './CreativeGitTools'
 
 function getWorkspacePath(runtime: unknown, fallbackWorkspacePath?: string | null): string | null {
-  return getRuntimeString(runtime, 'workspace_path')?.trim() || fallbackWorkspacePath || null
+  const wp = (runtime as { context?: IWriterAgentContext } | undefined)?.context?.workspacePath
+  return wp?.trim() || fallbackWorkspacePath || null
 }
 
 function ensureWorkspace(workspacePath: string | null): string | null {

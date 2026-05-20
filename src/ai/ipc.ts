@@ -15,9 +15,12 @@ export type {
   RunInterruptedEvent,
   RunDoneEvent,
   RunErrorEvent,
+  RunContextCompressedEvent,
+  RunModelFallbackEvent,
   SnapshotRequestEvent,
   SnapshotResponse,
   SerializedSnapshot,
   SerializedBlockEntry,
   SerializedOutlineEntry,
+  DomainReviewItem,
 } from '../../electron/ai/ipc/protocol'

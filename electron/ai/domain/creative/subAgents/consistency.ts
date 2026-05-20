@@ -41,6 +41,19 @@ Severity:
 - info: worth noting but low impact.
 
 Report only findings that matter. Do not generate findings for coverage.
+
+Your entire response MUST end with a single JSON code block and nothing after it:
+
+\`\`\`json
+{
+  "findings": [
+    { "layer": "pov|character|logic|voice|pacing|continuity|common_sense|other", "severity": "info|minor|major", "locationRef": "", "description": "", "suggestion": "" }
+  ],
+  "checkedLayers": ["pov", "character", "logic", "voice", "pacing", "continuity", "common_sense"]
+}
+\`\`\`
+
+If there are no issues, output an empty findings array: \`"findings": []\`
 `.trim()
 
 export function buildConsistencySubAgent(
@@ -53,6 +66,8 @@ export function buildConsistencySubAgent(
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${CONSISTENCY_SYSTEM_PROMPT}`,
     tools: readOnlyTools,
     skills: ['/skills/'],
-    responseFormat: ConsistencyResponseSchema,
+    // responseFormat intentionally omitted: deepseek-reasoner (and some models) reject
+    // tool_choice:"any" that langchain injects when responseFormat is set (langchain issue #31403).
+    // The system prompt instructs the model to end with a JSON code block instead.
   }
 }

@@ -133,14 +133,34 @@ function lcMsgType(msg: any): string {
 function lcMsgText(content: unknown): string {
   if (typeof content === 'string') return content
   if (Array.isArray(content)) {
+    assertLangChainContentBlocksAreSane(content)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return content.filter((b: any) => b?.type === 'text').map((b: any) => b.text ?? '').join('')
   }
   return String(content ?? '')
 }
 
+function assertLangChainContentBlocksAreSane(content: unknown[]): void {
+  content.forEach((block, index) => {
+    if (!block || typeof block !== 'object' || Array.isArray(block)) return
+    const record = block as Record<string, unknown>
+    const type = record.type
+
+    if (type === 'text' && ('reasoning' in record || 'thinking' in record)) {
+      throw new Error(`Invalid LangChain content block at index ${index}: text block contains reasoning fields.`)
+    }
+    if ((type === 'reasoning' || type === 'thinking') && 'text' in record) {
+      throw new Error(`Invalid LangChain content block at index ${index}: reasoning block contains text.`)
+    }
+    if (type === 'tool_call_chunk' && ('text' in record || 'reasoning' in record || 'thinking' in record)) {
+      throw new Error(`Invalid LangChain content block at index ${index}: tool call block contains text/reasoning fields.`)
+    }
+  })
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function lcMsgThinking(content: unknown, additionalKwargs?: any): string {
+  if (Array.isArray(content)) assertLangChainContentBlocksAreSane(content)
   const fromContent = Array.isArray(content)
     ? content
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

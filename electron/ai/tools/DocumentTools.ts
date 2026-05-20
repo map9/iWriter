@@ -12,14 +12,15 @@ import { z } from 'zod'
 import type { SnapshotBroker } from '../document/SnapshotBroker'
 import { BlockParser } from '../document/BlockParser'
 import { DocumentSearch, listWorkspaceDocumentPaths, SUPPORTED_DOC_EXTS, type DocumentSearchOptions } from '../document/DocumentSearch'
-import { getRuntimeString } from './runtimeHelpers'
+import type { IWriterAgentContext } from '../runtime/AgentContext'
+import type { SerializedSnapshot } from '../ipc/protocol'
 
 function getExt(filePath: string): string {
   return filePath.split('.').pop()?.toLowerCase() ?? ''
 }
 
 function getRuntimeActiveFilePath(runtime: unknown): string | null {
-  return getRuntimeString(runtime, 'active_file_path')
+  return (runtime as { context?: IWriterAgentContext } | undefined)?.context?.activeFilePath ?? null
 }
 
 function normalizePath(p: string): string {
@@ -193,13 +194,13 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       file_path?: string
     }, runtime) => {
       const resolved = resolveDocumentPathForRuntime(file_path, runtime)
-      if (!resolved.ok) return resolved.error
+      if (!resolved.ok) throw new Error(resolved.error.replace(/^Error:\s*/i, ''))
       const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
       if (!snapshot) {
-        return resolvedPath
+        throw new Error(resolvedPath
           ? `Error: Could not load document "${resolvedPath}".`
-          : 'Error: No document is currently open.'
+          : 'Error: No document is currently open.')
       }
 
       return BlockParser.getSection(
@@ -226,6 +227,121 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           .string()
           .optional()
           .describe('Real absolute host path to the target document file. Omit to use the active editor document.'),
+      }),
+    }
+  )
+
+  // ── get_sections ──────────────────────────────────────────────────────────
+
+  const getSections = tool(
+    async ({
+      requests,
+      file_path,
+    }: {
+      requests: Array<{
+        heading_block_id: number
+        offset?: number
+        limit?: number
+        file_path?: string
+      }>
+      file_path?: string
+    }, runtime) => {
+      const snapshotCache = new Map<string, SerializedSnapshot | null>()
+      const sections: Array<Record<string, unknown>> = []
+
+      for (const request of requests) {
+        const requestFilePath = request.file_path ?? file_path
+        const headingBlockId = request.heading_block_id
+
+        try {
+          const resolved = resolveDocumentPathForRuntime(requestFilePath, runtime)
+          if (!resolved.ok) {
+            sections.push({
+              heading_block_id: headingBlockId,
+              status: 'error',
+              error: resolved.error.replace(/^Error:\s*/i, ''),
+            })
+            continue
+          }
+
+          const resolvedPath = resolved.filePath
+          const cacheKey = resolvedPath ?? '__active__'
+          if (!snapshotCache.has(cacheKey)) {
+            snapshotCache.set(cacheKey, await snapshotBroker.requestSnapshot(resolvedPath))
+          }
+
+          const snapshot = snapshotCache.get(cacheKey)
+          if (!snapshot) {
+            sections.push({
+              heading_block_id: headingBlockId,
+              status: 'error',
+              error: resolvedPath
+                ? `Could not load document "${resolvedPath}".`
+                : 'No document is currently open.',
+            })
+            continue
+          }
+
+          const raw = BlockParser.getSection(
+            snapshot,
+            headingBlockId,
+            request.offset !== undefined ? Math.max(0, request.offset) : 0,
+            request.limit !== undefined ? Math.max(1, request.limit) : 20
+          )
+          sections.push({
+            heading_block_id: headingBlockId,
+            status: 'success',
+            ...JSON.parse(raw),
+          })
+        } catch (err) {
+          sections.push({
+            heading_block_id: headingBlockId,
+            status: 'error',
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }
+
+      const successCount = sections.filter(section => section.status === 'success').length
+
+      return JSON.stringify(
+        {
+          sections,
+          total_sections: sections.length,
+          success_count: successCount,
+          error_count: sections.length - successCount,
+        },
+        null,
+        2
+      )
+    },
+    {
+      name: 'get_sections',
+      description:
+        'Get multiple document sections in a single tool call. ' +
+        'Use this when you need to read several known heading_block_id sections before answering or editing. ' +
+        'Each request supports heading_block_id, offset, limit, and optional file_path. ' +
+        'The top-level file_path applies to every request that does not provide its own file_path.',
+      schema: z.object({
+        requests: z
+          .array(z.object({
+            heading_block_id: z
+              .number()
+              .describe('The block_id of the heading that starts the section (from get_document_outline).'),
+            offset: z.number().optional().describe('Paragraph offset for pagination (default: 0).'),
+            limit: z.number().optional().describe('Max paragraphs per page (default: 20).'),
+            file_path: z
+              .string()
+              .optional()
+              .describe('Real absolute host path to the target document file. Omit to use the top-level file_path or active editor document.'),
+          }))
+          .min(1)
+          .max(12)
+          .describe('Section read requests. Prefer this over emitting many same-kind get_section calls.'),
+        file_path: z
+          .string()
+          .optional()
+          .describe('Real absolute host path shared by all requests. Omit to use the active editor document.'),
       }),
     }
   )
@@ -515,6 +631,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
   return [
     getDocumentOutline,
     getSection,
+    getSections,
     getBlocks,
     getBlockContext,
     searchBlocksInDocument,

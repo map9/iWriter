@@ -91,6 +91,38 @@
         <MarkdownContentView v-if="sectionContent" :content="sectionContent" mode="text" size="xs" />
       </div>
 
+      <div v-else-if="detailType === 'sections' && batchSectionItems.length" class="space-y-2">
+        <div
+          v-for="item in batchSectionItems"
+          :key="item.key"
+          class="rounded-box bg-base-200 px-2 py-1.5"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="truncate text-xs font-medium text-base-content">
+                {{ item.heading || t('agentPanel.toolCall.unnamedSection') }}
+              </div>
+              <div class="text-2xs text-base-content">heading {b:{{ item.headingBlockId }}}</div>
+            </div>
+            <span v-if="item.error" class="shrink-0 text-2xs text-error">{{ t('agentPanel.displayNormalizer.status.failed') }}</span>
+          </div>
+          <div v-if="item.error" class="mt-1 text-xs text-error">
+            {{ item.error }}
+          </div>
+          <template v-else>
+            <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-base-content/70">
+              <span v-if="item.range">{{ t('agentPanel.toolCall.rangePrefix') }} {{ item.range }}</span>
+              <span v-if="item.progress">{{ item.progress }}</span>
+              <span v-if="item.wordCount">{{ item.wordCount }}</span>
+              <span v-if="item.hasMore">{{ t('agentPanel.toolCall.hasMore') }}</span>
+            </div>
+            <div v-if="item.content" class="mt-1">
+              <MarkdownContentView :content="item.content" mode="text" size="xs" />
+            </div>
+          </template>
+        </div>
+      </div>
+
       <div v-else-if="detailType === 'blocks' && blockItems.length" class="space-y-1.5">
         <div
           v-for="item in blockItems"
@@ -384,6 +416,8 @@ const hasStructuredDetail = computed(() => {
       return outlineItems.value.length > 0
     case 'section':
       return !!sectionContent.value
+    case 'sections':
+      return batchSectionItems.value.length > 0
     case 'blocks':
     case 'block_context':
       return blockItems.value.length > 0
@@ -468,6 +502,52 @@ const sectionHasMore = computed(() => parsedResult.value?.has_more === true)
 const sectionContent = computed(() => {
   const content = parsedResult.value?.content
   return typeof content === 'string' ? content : ''
+})
+
+const batchSectionItems = computed(() => {
+  const sections = parsedResult.value?.sections
+  if (!Array.isArray(sections)) return []
+  return sections.map((item, index) => {
+    const entry = item as Record<string, unknown>
+    const headingBlockId = Number(entry.heading_block_id ?? 0)
+    const content = typeof entry.content === 'string' ? entry.content : ''
+    const totalLines = typeof entry.total_lines === 'number' ? entry.total_lines : null
+    const currentCount = content ? (content.match(/\{b:\d+\}/g)?.length ?? 0) : 0
+    const offset = typeof entry.offset === 'number' ? entry.offset : null
+    const limit = typeof entry.limit === 'number' ? entry.limit : null
+
+    let progress = ''
+    if (totalLines !== null && currentCount > 0) {
+      progress = totalLines > currentCount
+        ? t('agentPanel.toolCall.sectionReadProgress', { current: currentCount, total: totalLines })
+        : t('agentPanel.toolCall.sectionTotal', { total: totalLines })
+    } else if (offset !== null && limit !== null) {
+      const start = offset + 1
+      const end = totalLines !== null ? Math.min(offset + limit, totalLines) : offset + limit
+      progress = t('agentPanel.toolCall.sectionRangeCount', { start, end })
+    } else if (totalLines !== null) {
+      progress = t('agentPanel.toolCall.sectionTotal', { total: totalLines })
+    }
+
+    const range = Array.isArray(entry.block_id_range) && entry.block_id_range.length >= 2
+      ? `{b:${entry.block_id_range[0]}}-{b:${entry.block_id_range[1]}}`
+      : ''
+    const wordCount = typeof entry.word_count === 'number'
+      ? t('agentPanel.toolCall.wordCount', { count: entry.word_count })
+      : ''
+
+    return {
+      key: `${headingBlockId}-${index}`,
+      headingBlockId,
+      heading: typeof entry.heading === 'string' ? entry.heading : '',
+      range,
+      progress,
+      wordCount,
+      hasMore: entry.has_more === true,
+      content,
+      error: typeof entry.error === 'string' ? entry.error : '',
+    }
+  })
 })
 
 const blockItems = computed(() => {

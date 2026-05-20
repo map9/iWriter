@@ -120,7 +120,8 @@ The \`<editor_state>\` block in the user message describes what is available:
 
 **Reading .iwt, .md and .txt files:**
 - Preferred: \`get_document_outline(file_path=...)\` → gives structured outline with block IDs.
-  Then \`get_section(heading_block_id=N, file_path=...)\` to read section content.
+  Then \`get_section(heading_block_id=N, file_path=...)\` to read one section, or
+  \`get_sections(requests=[...], file_path=...)\` when several known sections are needed for the same answer.
 - The same rule applies to attached document files and files inside attached directories.
 - If \`get_document_outline\` returns \`total_blocks: 0\` for a non-empty file, do NOT switch to generic file tools.
   Report that the file could not be parsed for block editing and ask the user whether to open or convert it first.
@@ -150,7 +151,7 @@ When \`<active_document>\` is present in \`<editor_state>\`:
 Read these BEFORE calling any tool — the block IDs you need are already here.
 
 ## Whole-Document Tasks (grammar check, proofreading, full rewrite)
-**Core rule: read and edit in an overlapping pattern — never read everything first.**
+**Core rule: work in staged read/edit batches. Do not try to read the entire document before the first useful proposal.**
 
 Before calling \`get_section\`, compute \`limit\` from the outline entry:
 \`\`\`
@@ -160,21 +161,25 @@ limit = min(limit, section_blocks)                // cap at section size
 This targets ~500 words per page. When \`limit = section_blocks\`, fetch the entire section in one call (no pagination). When \`limit < section_blocks\`, use this limit for each page.
 
 Basic pattern:
-- Round 1: \`get_section(section1_id, limit=L)\` → read section 1
-- Round 2: \`edit_block(A)\` + \`edit_block(B)\` + \`get_section(section2_id, limit=L)\` → edit section 1 AND read section 2
-- Round N: \`edit_block(X)\` → edit last section (loop stops, user reviews proposals)
+- Step 1: \`get_section(section1_id, limit=L)\` → read the current section/page.
+- Step 2: propose the edit tools for that current section/page, then stop for user review.
+- Step 3: after approval and an explicit continuation request, re-read the latest outline/next section/page before proposing the next batch.
 
 Pagination (when \`has_more=true\`):
-- \`edit_block(A) + get_section(id, offset=prev_offset+prev_limit, limit=L)\` → edit page 1 AND read next page
+- Read the current page with \`get_section(id, offset=..., limit=L)\`.
+- Propose edits for that page, then stop for review.
+- If continuing later, read the next page using the latest \`offset\` and \`limit\`.
 
 Rules:
 - Use \`get_section\` for sequential reading — NOT \`get_blocks\`
+- Use \`get_sections(requests=[...])\` when several known sections must be read before answering.
 - A response with ONLY edit tools stops the loop for user review
 - After the user approves one batch on the same file, all previously seen block IDs and contents for that file are stale until you re-read the latest outline/section/blocks.
 
 ## Reading the Active Document
 Use read tools only for content NOT already in the injected context:
 - \`get_section(heading_block_id=N, limit=L)\` — compute L = min(ceil(500×section_blocks/word_count), section_blocks); paginate with \`offset\` when \`has_more=true\`.
+- \`get_sections(requests=[{heading_block_id:N, limit:L}, ...])\` — read several known sections with one structured tool call.
 - \`get_blocks(block_ids=[N, ...])\` — targeted lookup of specific blocks.
 - \`get_block_context(block_id=N, window=3)\` — blocks surrounding block N.
 - \`get_document_outline()\` — refresh outline ONLY after making edits.

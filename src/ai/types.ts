@@ -65,6 +65,8 @@ export interface AiProviderConfig {
   lastSelectedThinkingLevel?: AiThinkingLevel
   /** Protocol-level generation parameters */
   parameters?: AiProviderParameters
+  /** Optional fallback model ID used by modelFallbackMiddleware when the primary model call fails. */
+  fallbackModelId?: string
 }
 
 // ── Tool Call ──────────────────────────────────────────────────────────────
@@ -77,6 +79,7 @@ export type AiToolCallKind =
 export type AiToolDetailType =
   | 'outline'
   | 'section'
+  | 'sections'
   | 'blocks'
   | 'block_context'
   | 'search_sections'
@@ -407,6 +410,17 @@ export interface EditRoundResult {
   items: EditRoundResultItem[]
 }
 
+// ── Sub-Task Progress (live streaming, not persisted) ─────────────────────
+
+export interface AiSubTaskProgress {
+  invocationId: string
+  name: string
+  status: 'running' | 'done' | 'error'
+  text: string
+  thinkingText: string
+  toolCalls: AiToolCall[]
+}
+
 // ── Thread Message ─────────────────────────────────────────────────────────
 
 /** A message stored in a thread. */
@@ -434,6 +448,8 @@ export interface ThreadMessage {
   creativeRoundResult?: CreativeRoundResult
   /** Ordered content blocks for interleaved text + tool call rendering. */
   contentBlocks?: MessageContentBlock[]
+  /** Live subagent task progress — only set on the streaming preview message, never persisted. */
+  subTasks?: AiSubTaskProgress[]
 
   timestamp: number
   usage?: { inputTokens: number; outputTokens: number }
@@ -517,6 +533,7 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
     // Document access tools: always allowed (read-only)
     get_document_outline: 'allow',
     get_section:          'allow',
+    get_sections:         'allow',
     get_blocks:           'allow',
     get_block_context:    'allow',
     // Edit tools: require confirm
@@ -619,6 +636,7 @@ export function inferToolKind(toolName: string): AiToolCallKind {
   const mapping: Record<string, AiToolCallKind> = {
     get_document_outline: 'read',
     get_section:          'read',
+    get_sections:         'read',
     get_blocks:           'read',
     get_block_context:    'read',
     search_blocks_in_document: 'search',
@@ -657,6 +675,12 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     finish_exploration:   'edit',
     promote_exploration:  'edit',
     delete_exploration:   'delete',
+    list_writing_styles:  'read',
+    get_writing_style:    'read',
+    save_writing_style_skill: 'edit',
+    create_writing_style: 'edit',
+    update_writing_style: 'edit',
+    delete_writing_style: 'delete',
     // deepagents built-in tools
     execute:              'execute',
     read_file:            'read',

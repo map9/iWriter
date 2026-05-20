@@ -43,6 +43,21 @@ Keep the plan author-readable and concise.
 Keep logicAudit entries brief; each field should be one clear sentence.
 Every plan must include one line beginning "Theme tie:" that states how the plan serves the StoryBible Theme/Premise. If Theme/Premise is not established, say that directly.
 motivationTrace.derivation must reference the character psychology and, when available, Premise or Theme.
+
+Your entire response MUST end with a single JSON code block and nothing after it:
+
+\`\`\`json
+{
+  "plan": "<the full plan text>",
+  "rationale": "<why this direction>",
+  "alternatives": ["<alt 1>", "<alt 2>"],
+  "logicAudit": {
+    "motivationTraces": [{ "character": "", "coreDesire": "", "coreFear": "", "falseBelief": "", "derivation": "" }],
+    "causalChain": [{ "beat": "", "priorState": "", "trigger": "", "characterInterpretation": "", "decision": "", "consequence": "", "causalNecessity": "" }],
+    "commonSenseFlags": [{ "category": "physical|social|psychological", "flag": "", "severity": "info|minor|major" }]
+  }
+}
+\`\`\`
 `.trim()
 
 export function buildPlannerSubAgent(
@@ -55,6 +70,8 @@ export function buildPlannerSubAgent(
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${PLANNER_SYSTEM_PROMPT}`,
     tools: plannerTools,
     skills: ['/skills/'],
-    responseFormat: PlannerResponseSchema,
+    // responseFormat intentionally omitted: deepseek-reasoner (and some models) reject
+    // tool_choice:"any" that langchain injects when responseFormat is set (langchain issue #31403).
+    // The system prompt instructs the model to end with a JSON code block instead.
   }
 }

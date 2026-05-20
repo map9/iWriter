@@ -1,13 +1,15 @@
 import * as path from 'path'
 import { FilesystemBackend } from 'deepagents'
 import type {
-  BackendProtocol,
+  BackendProtocolV2,
   EditResult,
-  FileData,
   FileDownloadResponse,
-  FileInfo,
   FileUploadResponse,
-  GrepMatch,
+  GlobResult,
+  GrepResult,
+  LsResult,
+  ReadRawResult,
+  ReadResult,
   WriteResult,
 } from 'deepagents'
 
@@ -46,7 +48,7 @@ function startsWithRelativeSegment(value: string, segment: string): boolean {
  * enabled. This adapter also accepts real host absolute paths inside workspace,
  * then maps them back to the equivalent virtual path before delegating.
  */
-export class WorkspaceFilesystemBackend implements BackendProtocol {
+export class WorkspaceFilesystemBackend implements BackendProtocolV2 {
   private delegate: FilesystemBackend
   private rootPath: string
   private hostRootSegment: string | null
@@ -91,34 +93,34 @@ export class WorkspaceFilesystemBackend implements BackendProtocol {
     return virtualPath.startsWith('/draft/') && virtualPath.toLowerCase().endsWith('.md')
   }
 
-  async lsInfo(dirPath: string): Promise<FileInfo[]> {
+  async ls(dirPath: string): Promise<LsResult> {
     const resolved = this.toBackendPath(dirPath)
-    if (!resolved.ok) return []
-    return this.delegate.lsInfo(resolved.path)
+    if (!resolved.ok) return { error: resolved.error }
+    return this.delegate.ls(resolved.path)
   }
 
-  async read(filePath: string, offset?: number, limit?: number): Promise<string> {
+  async read(filePath: string, offset?: number, limit?: number): Promise<ReadResult> {
     const resolved = this.toBackendPath(filePath)
-    if (!resolved.ok) return resolved.error
+    if (!resolved.ok) return { error: resolved.error }
     return this.delegate.read(resolved.path, offset, limit)
   }
 
-  async readRaw(filePath: string): Promise<FileData> {
+  async readRaw(filePath: string): Promise<ReadRawResult> {
     const resolved = this.toBackendPath(filePath)
-    if (!resolved.ok) throw new Error(resolved.error)
+    if (!resolved.ok) return { error: resolved.error }
     return this.delegate.readRaw(resolved.path)
   }
 
-  async grepRaw(pattern: string, searchPath?: string | null, glob?: string | null): Promise<GrepMatch[] | string> {
+  async grep(pattern: string, searchPath?: string | null, glob?: string | null): Promise<GrepResult> {
     const resolved = this.toBackendPath(searchPath || '/')
-    if (!resolved.ok) return []
-    return this.delegate.grepRaw(pattern, resolved.path, glob)
+    if (!resolved.ok) return { error: resolved.error }
+    return this.delegate.grep(pattern, resolved.path, glob)
   }
 
-  async globInfo(pattern: string, searchPath?: string): Promise<FileInfo[]> {
+  async glob(pattern: string, searchPath?: string): Promise<GlobResult> {
     const resolved = this.toBackendPath(searchPath || '/')
-    if (!resolved.ok) return []
-    return this.delegate.globInfo(pattern, resolved.path)
+    if (!resolved.ok) return { error: resolved.error }
+    return this.delegate.glob(pattern, resolved.path)
   }
 
   async write(filePath: string, content: string): Promise<WriteResult> {

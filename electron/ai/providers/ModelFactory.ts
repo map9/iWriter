@@ -33,6 +33,7 @@ function mapThinkingLevelToOpenAIReasoningEffort(thinkingLevel?: AiThinkingLevel
   return normalized
 }
 
+
 const THINKING_TOKEN_BUDGETS: Record<AiThinkingLevel, number> = {
   low: 1024,
   medium: 4096,
@@ -123,18 +124,18 @@ export function createChatModel(
 
     case 'deepseek': {
       const key = config.apiKey || 'no-key'
-      return new ChatDeepSeek({
+      const model = new ChatDeepSeek({
         model: modelId,
         apiKey: key,
         baseUrl: config.baseUrl,
         streaming: true,
-        profile: getProfileOverride(config, modelId),
         thinkingLevel,
         ...(parameterSupport.temperature ? { temperature: parameters.temperature } : {}),
         ...(parameterSupport.topP ? { topP: parameters.topP } : {}),
         ...(parameterSupport.frequencyPenalty ? { frequencyPenalty: parameters.frequencyPenalty } : {}),
         ...(parameterSupport.presencePenalty ? { presencePenalty: parameters.presencePenalty } : {}),
       }) as BaseChatModel
+      return applyProfileOverride(model, getProfileOverride(config, modelId))
     }
 
     case 'anthropic': {

@@ -17,13 +17,17 @@ import { app } from 'electron'
 import type { WebContents } from 'electron'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import type { ModelProfile } from '@langchain/core/language_models/profile'
-import { createDeepAgent } from 'deepagents'
+import { createDeepAgent, type DeepAgentRunStream } from 'deepagents'
 import { Command } from '@langchain/langgraph'
-import { HumanMessage, SystemMessage } from '@langchain/core/messages'
-import { countTokensApproximately } from 'langchain'
+import { HumanMessage, SystemMessage, isAIMessage, isToolMessage, isHumanMessage } from '@langchain/core/messages'
+import {
+  countTokensApproximately,
+  modelCallLimitMiddleware,
+  toolCallLimitMiddleware,
+  modelRetryMiddleware,
+} from 'langchain'
 
-import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage, EditProposal, CreativeReviewItem } from '../../src/types/ai'
-import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS } from '../../src/types/ai'
+import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage } from '../../src/types/ai'
 import { getModelBudgetInfo } from '../../src/ai/model-budget'
 import { estimateTextTokens } from '../../src/ai/token-estimation'
 import { createChatModel } from './providers/ModelFactory'
@@ -34,15 +38,11 @@ import { ThreadListQuery, metaToAiThread } from './thread/ThreadListQuery'
 import type {
   SendMessageRequest,
   ResumeDecision,
-  SerializedSnapshot,
   CompactInputRequest,
   CompactInputResponse,
   SessionContextStatsResponse,
 } from './ipc/protocol'
-import {
-  convertLcMessages,
-  buildProposalFromAction,
-} from './ipc/MessageAdapter'
+import { convertLcMessages } from './ipc/MessageAdapter'
 import { StreamEventAdapter } from './ipc/StreamEventAdapter'
 import { RendererEventBridge } from './ipc/RendererEventBridge'
 import { buildUserMessage } from './ipc/UserMessageBuilder'
@@ -51,17 +51,15 @@ import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore } from './runtime/ThreadRuntimeStore'
 import { AiConfigStore } from './config/AiConfigStore'
 import { generateThreadTitle } from '../../src/ai/thread/title'
-import type { DomainAgentCapabilities } from './domain/types'
-import { buildCreativeCapabilities } from './domain/creative/buildCreativeCapabilities'
-import { buildEditCapabilities } from './domain/edit/buildEditCapabilities'
-import { buildCreativeReviewItemFromAction } from './ipc/CreativeReviewAdapter'
-import { computeWorkspaceHashes, getCreativeDb } from './db/CreativeDb'
+import { IWriterAgentContextSchema, type IWriterAgentContext } from './runtime/AgentContext'
 import { createTaskToolCompatMiddleware } from './runtime/TaskToolCompatMiddleware'
-
-// Import system prompts from src (shared)
-import { EDIT_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/edit'
-import { MINIMAL_SYSTEM_PROMPT } from '../../src/ai/thread/system-prompts/minimal'
-import { buildCreativeSystemPrompt } from '../../src/ai/thread/system-prompts/creative'
+import { createOrphanToolCallStripperMiddleware } from './runtime/OrphanToolCallStripperMiddleware'
+import { createHumanRespondMessageMiddleware, RESPOND_MARKER } from './runtime/HumanRespondMessageMiddleware'
+import { CheckpointerAdmin } from './checkpoint/CheckpointerAdmin'
+import { MIDDLEWARE_CONFIG, createInstrumentedFallbackMiddleware } from './runtime/middleware-config'
+import type { DomainStrategy } from './domain/DomainStrategy'
+import { EditDomainStrategy } from './domain/edit/EditDomainStrategy'
+import { CreativeDomainStrategy } from './domain/creative/CreativeDomainStrategy'
 import { detectInputLanguage, type DetectedInputLanguage } from '../../src/ai/message/detectInputLanguage'
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -81,16 +79,31 @@ export class AgentEngine {
 
   /** Agent cache keyed by "configId:mode:modelId" */
   private agentCache = new Map<string, DeepAgentInstance>()
+  /** One model fallback notification per thread turn, even when cached agents retry/resume. */
+  private fallbackNotifiedTurnKeys = new Set<string>()
 
   /** Initialized once on first use */
   private checkpointerInstance: CheckpointerInstance | null = null
+  private checkpointerAdmin: CheckpointerAdmin | null = null
   private threadListQuery: ThreadListQuery | null = null
+
+  /** Domain strategy table — add new domains here only. AgentEngine itself never branches on domain. */
+  private readonly strategies: Record<AiAgentDomain, DomainStrategy>
 
   constructor(private getWebContents: () => WebContents | null) {
     this.snapshotBroker = new SnapshotBroker(getWebContents)
     this.rendererBridge = new RendererEventBridge(getWebContents)
     this.aiRootPath = path.join(app.getPath('home'), '.iwriter', 'ai')
     this.bundledSkillsPath = path.join(app.getAppPath(), 'electron', 'ai', 'builtin-skills')
+    this.strategies = {
+      editing: new EditDomainStrategy(this.snapshotBroker, this.aiRootPath, this.runtimeStore),
+      creative: new CreativeDomainStrategy(
+        this.snapshotBroker,
+        this.aiRootPath,
+        this.runtimeStore,
+        () => this.invalidateAgentCache(),
+      ),
+    }
     this.ensureAiDirectories()
   }
 
@@ -99,6 +112,7 @@ export class AgentEngine {
   async initialize(): Promise<void> {
     const ci = await getCheckpointer()
     this.checkpointerInstance = ci
+    this.checkpointerAdmin = new CheckpointerAdmin(ci)
     this.threadListQuery = new ThreadListQuery(ci)
   }
 
@@ -121,6 +135,7 @@ export class AgentEngine {
       // checkpointer.get() returns the checkpoint object directly (not wrapped in { checkpoint: ... })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rawMessages: any[] = t.channel_values?.messages ?? []
+      await this._maybeRehydrateInterrupt(threadId, rawMessages)
       return convertLcMessages(rawMessages)
     } catch (err) {
       console.error('[AgentEngine] getThreadMessages error:', err)
@@ -132,28 +147,16 @@ export class AgentEngine {
     this.threadListQuery?.deleteMeta(threadId)
     this.runtimeStore.deleteThread(threadId)
     this.activeRuns.delete(threadId)
-    if (this.checkpointerInstance?.backend === 'sqlite' && this.checkpointerInstance.db) {
-      try {
-        this.checkpointerInstance.db
-          .prepare('DELETE FROM checkpoints WHERE thread_id = ?')
-          .run(threadId)
-        this.checkpointerInstance.db
-          .prepare('DELETE FROM writes WHERE thread_id = ?')
-          .run(threadId)
-      } catch { /* ignore */ }
-    }
+    this._clearFallbackNotificationKeys(threadId)
+    this.checkpointerAdmin?.deleteThread(threadId)
   }
 
   clearThreads(): void {
     this.threadListQuery?.clearMetas()
     this.runtimeStore.clear()
     this.activeRuns.clear()
-    if (this.checkpointerInstance?.backend === 'sqlite' && this.checkpointerInstance.db) {
-      try {
-        this.checkpointerInstance.db.prepare('DELETE FROM checkpoints').run()
-        this.checkpointerInstance.db.prepare('DELETE FROM writes').run()
-      } catch { /* ignore */ }
-    }
+    this.fallbackNotifiedTurnKeys.clear()
+    this.checkpointerAdmin?.clearAll()
   }
 
   // ── Public: send message ──────────────────────────────────────────────────
@@ -356,6 +359,7 @@ export class AgentEngine {
       this.activeRuns.delete(threadId)
     }
     this.runtimeStore.clearInterrupted(threadId)
+    this._clearFallbackNotificationKeys(threadId, this.runtimeStore.getCurrentTurnId(threadId))
     this.runtimeStore.clearCurrentTurnId(threadId)
   }
 
@@ -392,6 +396,18 @@ export class AgentEngine {
           },
         }
       }
+      if (d.type === 'responded') {
+        if (!d.message?.trim()) {
+          throw new Error('[AgentEngine] responded decision requires non-empty message')
+        }
+        // Use reject channel to satisfy langchain HITL's allowed-decisions constraint.
+        // HumanRespondMessageMiddleware strips the marker and removes status:'error'
+        // before the message reaches the LLM, so it reads as guidance, not a failure.
+        return {
+          type: 'reject' as const,
+          message: `${RESPOND_MARKER}${d.message}`,
+        }
+      }
       return {
         type: 'reject' as const,
         message: d.message ?? 'User rejected the edit.',
@@ -401,8 +417,25 @@ export class AgentEngine {
     const hiResp = { decisions: lgDecisions }
 
     const language = this.runtimeStore.getContext(threadId)?.language ?? 'en-US'
-    this._continueSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, new Command({ resume: hiResp }), language)
-      .catch(err => console.error('[AgentEngine] _continueSession error:', err))
+    const resumePromise = this._continueSession(
+      threadId,
+      runtime.providerConfig,
+      runtime.domain,
+      runtime.mode,
+      runtime.modelId,
+      runtime.thinkingLevel,
+      new Command({ resume: hiResp }),
+      language,
+    )
+    resumePromise.catch(err => console.error('[AgentEngine] _continueSession error:', err))
+
+    if (decisions.some(d => d.type === 'responded')) {
+      // Housekeeping: strip RESPOND_MARKER after the resumed stream has settled, so we clean
+      // both the new checkpoint and any LangGraph write rows produced during resume.
+      resumePromise.finally(() => {
+        this.checkpointerAdmin?.stripRespondMarkers(threadId).catch(() => { /* ignore */ })
+      }).catch(() => { /* ignore */ })
+    }
   }
 
   // ── Private: run session ──────────────────────────────────────────────────
@@ -422,12 +455,13 @@ export class AgentEngine {
     this.activeRuns.set(threadId, abortController)
 
     const runConfig = {
-      configurable: this._buildRunConfigurable(threadId, domain),
-      version: 'v2' as const,
+      configurable: this._buildRunConfigurable(threadId),
+      context: this._buildRunContext(threadId, domain),
       signal: abortController.signal,
-      recursionLimit: 100,
+      recursionLimit: MIDDLEWARE_CONFIG.recursionLimit,
     }
 
+    await this._seedSummarizationBaseline(threadId)
     await this._streamLoop(threadId, agent, { messages: [new HumanMessage(userContent)] }, runConfig)
   }
 
@@ -446,12 +480,13 @@ export class AgentEngine {
     this.activeRuns.set(threadId, abortController)
 
     const runConfig = {
-      configurable: this._buildRunConfigurable(threadId, domain),
-      version: 'v2' as const,
+      configurable: this._buildRunConfigurable(threadId),
+      context: this._buildRunContext(threadId, domain),
       signal: abortController.signal,
-      recursionLimit: 100,
+      recursionLimit: MIDDLEWARE_CONFIG.recursionLimit,
     }
 
+    await this._seedSummarizationBaseline(threadId)
     await this._streamLoop(threadId, agent, command, runConfig)
   }
 
@@ -462,27 +497,30 @@ export class AgentEngine {
     input: any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     runConfig: any,
+    retryCount = 0,
   ): Promise<void> {
     const abortController = this.activeRuns.get(threadId)
-    const adapter = new StreamEventAdapter()
+    const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
+    const adapter = new StreamEventAdapter(threadId, turnId, this.rendererBridge)
 
     try {
-      for await (const event of await agent.streamEvents(input, runConfig)) {
-        if (abortController?.signal.aborted) break
-        for (const chunk of adapter.consume(threadId, event)) {
-          this.rendererBridge.sendStreamChunk(chunk)
-        }
-        if (adapter.interrupted) {
-          break
-        }
-      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const run = await (agent.streamEvents as any)(input, { ...runConfig, version: 'v3' }) as DeepAgentRunStream
+      await Promise.all([
+        adapter.consumeMessages(run.messages),
+        adapter.consumeToolCalls(run.toolCalls),
+        adapter.consumeSubagents(run.subagents),
+      ])
+      await run.output.catch((err: unknown) => {
+        if (!abortController?.signal.aborted && !run.interrupted) throw err
+      })
 
       if (abortController?.signal.aborted) {
         this.activeRuns.delete(threadId)
         return
       }
 
-      if (adapter.interrupted) {
+      if (run.interrupted) {
         const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
         const partialMessage: ThreadMessage | undefined = adapter.buildPartialMessage(turnId)
 
@@ -490,18 +528,45 @@ export class AgentEngine {
           this.threadListQuery?.updateMeta(threadId, { updatedAt: Date.now() })
         }
 
-        if (adapter.interruptPayload) {
-          await this._handleInterrupt(threadId, adapter.interruptPayload, partialMessage)
+        if (run.interrupts.length > 0) {
+          await this._handleInterrupt(threadId, run.interrupts[0].payload, partialMessage)
         } else {
-          console.warn('[AgentEngine] adapter interrupted without interruptPayload', { threadId })
+          console.warn('[AgentEngine] run interrupted but no interrupts payload', { threadId })
         }
 
         this.activeRuns.delete(threadId)
         return
       }
 
+      if (!adapter.hasVisibleAssistantOutput()) {
+        if (adapter.hasOnlyReasoningOutput() && retryCount < 1) {
+          console.warn('[AgentEngine] Only reasoning returned, retrying with nudge', { threadId, retryCount })
+          const nudgeInput = {
+            messages: [new HumanMessage('请基于你的分析，直接给出回答或执行工具调用。')],
+          }
+          await this._streamLoop(threadId, agent, nudgeInput, runConfig, retryCount + 1)
+          return
+        }
+
+        const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
+        const errorMsg = adapter.hasOnlyReasoningOutput()
+          ? '模型仅生成了思考内容，未返回实际响应。请重试。'
+          : adapter.hasAnyAssistantSignal()
+            ? '模型没有返回可显示内容或可执行工具调用，可能生成了非法工具调用参数。请重试。'
+            : '模型没有返回可显示内容。请重试。'
+        this.threadListQuery?.updateMeta(threadId, { hasError: true, updatedAt: Date.now() })
+        this.rendererBridge.sendRunError({ threadId, turnId, error: errorMsg })
+        this.rendererBridge.sendRunDone({ threadId, turnId })
+        return
+      }
+
       this.threadListQuery?.updateMeta(threadId, { updatedAt: Date.now() })
-      this._recordCreativeSession(threadId)
+      const sessionDomain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
+      this.strategies[sessionDomain].onSessionComplete?.({
+        threadId,
+        workspacePath: this.runtimeStore.getContext(threadId)?.workspacePath ?? null,
+      })
+      await this._detectAndNotifySummarization(threadId)
       this.rendererBridge.sendRunDone({
         threadId,
         turnId: this.runtimeStore.getCurrentTurnId(threadId) ?? undefined,
@@ -525,6 +590,7 @@ export class AgentEngine {
       this.rendererBridge.sendRunDone({ threadId, turnId })
     } finally {
       if (!this.runtimeStore.getInterrupted(threadId)) {
+        this._clearFallbackNotificationKeys(threadId, this.runtimeStore.getCurrentTurnId(threadId))
         this.runtimeStore.clearCurrentTurnId(threadId)
       }
       this.activeRuns.delete(threadId)
@@ -549,70 +615,10 @@ export class AgentEngine {
       return
     }
 
-    // Request snapshot using the first action's file path as the primary target.
-    // All proposals in one interrupt batch share the same snapshot (block IDs are stable).
     const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
-    if (domain === 'creative') {
-      const pendingCreativeToolCalls = (partialMessage?.toolCalls ?? []).filter(tc =>
-        CREATIVE_REVIEW_TOOLS.has(tc.name) && tc.status !== 'completed'
-      )
-      const creativeReviews: CreativeReviewItem[] = actionRequests.map((ar, index) =>
-        buildCreativeReviewItemFromAction(
-          ar,
-          pendingCreativeToolCalls[index]?.id,
-          partialMessage?.id,
-          turnId,
-          this.runtimeStore.getContext(threadId)?.workspacePath ?? null,
-        )
-      )
-
-      this.runtimeStore.setInterrupted(threadId, {
-        actionRequestCount: actionRequests.length,
-        actionNames: actionRequests.map(ar => ar.name),
-        turnId,
-      })
-
-      this.rendererBridge.sendRunInterrupted({
-        threadId,
-        turnId,
-        proposals: [],
-        creativeReviews,
-        partialMessage,
-        actionRequests,
-      })
-      return
-    }
-
-    // Request snapshot using the first action's file path as the primary target.
-    // All proposals in one interrupt batch share the same snapshot (block IDs are stable).
-    const firstArgs = actionRequests[0].args ?? {}
-    const argFilePath = typeof firstArgs.file_path === 'string' ? firstArgs.file_path : null
-    const activeFilePath = this.runtimeStore.getContext(threadId)?.activeFilePath ?? null
-    const snapshotTargetPath = (argFilePath && argFilePath !== activeFilePath)
-      ? argFilePath
-      : null
-
-    let snapshot: SerializedSnapshot | null = null
-    try {
-      snapshot = await this.snapshotBroker.requestSnapshot(snapshotTargetPath)
-    } catch (err) {
-      console.warn('[AgentEngine] Could not get snapshot for interrupt:', err)
-    }
-
-    // Build one proposal per actionRequest, preserving order
-    const pendingEditToolCalls = (partialMessage?.toolCalls ?? []).filter(tc =>
-      BLOCK_EDIT_TOOLS.has(tc.name) && tc.status !== 'completed'
-    )
-    const proposals: EditProposal[] = actionRequests.map((ar, index) =>
-      buildProposalFromAction(
-        ar.name,
-        ar.args ?? {},
-        snapshot,
-        pendingEditToolCalls[index]?.id,
-        partialMessage?.id,
-        turnId,
-      )
-    )
+    const reviews = await this.strategies[domain].buildReviewItems({
+      threadId, turnId, actionRequests, partialMessage,
+    })
 
     this.runtimeStore.setInterrupted(threadId, {
       actionRequestCount: actionRequests.length,
@@ -620,9 +626,67 @@ export class AgentEngine {
       turnId,
     })
 
-    // Emit single atomic event (replaces old two-event sequence)
-    // actionRequests are included so the renderer can align decisions by index
-    this.rendererBridge.sendRunInterrupted({ threadId, turnId, proposals, partialMessage, actionRequests })
+    this.rendererBridge.sendRunInterrupted({ threadId, turnId, reviews, partialMessage, actionRequests })
+  }
+
+  // ── Private: interrupt rehydration on thread reopen ──────────────────────
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async _maybeRehydrateInterrupt(threadId: string, lcMessages: any[]): Promise<void> {
+    if (this.runtimeStore.getInterrupted(threadId)) return
+    if (this.activeRuns.has(threadId)) return
+    if (!lcMessages.length) return
+
+    const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
+    const interruptOnNames = this.strategies[domain].getInterruptOnNames()
+
+    // Collect all tool_call_ids that already have a ToolMessage response
+    const responded = new Set<string>()
+    for (const m of lcMessages) {
+      if (isToolMessage(m) && m.tool_call_id) responded.add(m.tool_call_id)
+    }
+
+    // Find the last AIMessage; bail if a human or non-tool message follows it
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let lastAi: any = null
+    for (let i = lcMessages.length - 1; i >= 0; i--) {
+      const m = lcMessages[i]
+      if (isAIMessage(m)) { lastAi = m; break }
+      if (isHumanMessage(m)) return
+    }
+    if (!lastAi?.tool_calls?.length) return
+
+    // Collect orphan tool_calls that belong to this domain's interruptOn set
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const actionRequests = (lastAi.tool_calls as any[])
+      .filter((tc) => tc.id && !responded.has(tc.id) && interruptOnNames.has(tc.name))
+      .map((tc) => ({ name: tc.name as string, args: (tc.args ?? {}) as Record<string, unknown> }))
+
+    if (!actionRequests.length) return
+
+    const turnId = `rehydrated-${crypto.randomUUID()}`
+    this.runtimeStore.setCurrentTurnId(threadId, turnId)
+    this.runtimeStore.setInterrupted(threadId, {
+      actionRequestCount: actionRequests.length,
+      actionNames: actionRequests.map((a) => a.name),
+      turnId,
+    })
+
+    let reviews: import('./domain/DomainStrategy').DomainReviewItem[] = []
+    try {
+      reviews = await this.strategies[domain].buildReviewItems({ threadId, turnId, actionRequests })
+    } catch (err) {
+      console.warn('[AgentEngine] _maybeRehydrateInterrupt: buildReviewItems failed:', err)
+    }
+
+    this.rendererBridge.sendRunInterrupted({ threadId, turnId, reviews, actionRequests })
+  }
+
+  // ── Public: cache management ──────────────────────────────────────────────
+
+  /** Clears the agent cache so the next turn rebuilds agents (e.g. after new skills are written). */
+  invalidateAgentCache(): void {
+    this.agentCache.clear()
   }
 
   // ── Private: agent cache ──────────────────────────────────────────────────
@@ -641,30 +705,93 @@ export class AgentEngine {
     // produce a new agent instance rather than reusing a stale one.
     const keyFingerprint = config.apiKey ? config.apiKey.slice(-8) : ''
     const mountKey = mounts.map(mount => `${mount.virtualPath}:${mount.hostPath}:${mount.kind}`).join('|')
-    const cacheKey = `${threadId}:${config.id}:${domain}:${mode}:${modelId}:${thinkingLevel ?? ''}:${language}:${keyFingerprint}:${config.baseUrl ?? ''}:${mountKey}`
+    const cacheKey = `${threadId}:${config.id}:${domain}:${mode}:${modelId}:${thinkingLevel ?? ''}:${language}:${keyFingerprint}:${config.baseUrl ?? ''}:${config.fallbackModelId ?? ''}:${mountKey}`
     if (this.agentCache.has(cacheKey)) return this.agentCache.get(cacheKey)!
 
     const model = createChatModel(config, { modelId, thinkingLevel })
-    const capabilities = this._buildAgentCapabilities(domain, mode, mounts, language)
+    const capabilities = this.strategies[domain].buildCapabilities({ mode, mounts, language })
+
+    const fallbackModels: BaseChatModel[] = []
+    if (config.fallbackModelId && config.fallbackModelId !== modelId) {
+      try {
+        fallbackModels.push(createChatModel(config, { modelId: config.fallbackModelId, thinkingLevel }))
+      } catch (err) {
+        console.warn(
+          `[AgentEngine] Failed to instantiate fallback model "${config.fallbackModelId}" for provider "${config.id}":`,
+          err,
+        )
+      }
+    }
+
     const agent = createDeepAgent({
       model,
-      systemPrompt: getSystemPrompt(domain, mode, language),
+      systemPrompt: this.strategies[domain].getSystemPrompt(mode, language),
       tools: capabilities.tools,
       backend: capabilities.backend,
       skills: capabilities.skills,
-      memory: [path.join(this.aiRootPath, 'memory', 'AGENTS.md')].filter(fs.existsSync),
+      memory: this._buildMemoryPaths(domain),
       checkpointer: this.checkpointerInstance?.checkpointer,
       interruptOn: capabilities.interruptOn,
       subagents: capabilities.subAgents,
-      middleware: [createTaskToolCompatMiddleware()],
+      // Middleware ordering note:
+      // createDeepAgent places its built-in SummarizationMiddleware BEFORE customMiddleware
+      // (outer wrapper), so our custom middlewares below run INNER (closer to the LLM).
+      // HITL+summarization safety: SummarizationMiddleware splits messages into old/recent at
+      // cutoffIndex. RESPOND_MARKER is always on the most-recent ToolMessage (current HITL
+      // cycle), so it falls in the preserved (inner) portion — never in the old portion sent
+      // to the summary LLM. HumanRespondMessage (inner) then strips the marker before the
+      // main LLM call. Both LLMs remain marker-free; the invariant from Phase 4 §B1.4 holds.
+      middleware: [
+        createOrphanToolCallStripperMiddleware(),
+        createHumanRespondMessageMiddleware(),
+        createTaskToolCompatMiddleware(),
+        modelCallLimitMiddleware(MIDDLEWARE_CONFIG.modelCallLimit),
+        toolCallLimitMiddleware(MIDDLEWARE_CONFIG.toolCallLimit),
+        modelRetryMiddleware(MIDDLEWARE_CONFIG.retry),
+        ...(fallbackModels.length
+          ? [createInstrumentedFallbackMiddleware(fallbackModels, (fallbackModelId) => {
+              this._notifyModelFallbackOnce(threadId, fallbackModelId)
+            })]
+          : []),
+      ],
+      contextSchema: IWriterAgentContextSchema,
     })
 
     this.agentCache.set(cacheKey, agent)
     return agent
   }
 
-  private _buildRunConfigurable(threadId: string, domain: AiAgentDomain): Record<string, string> {
-    return this.runtimeStore.buildConfigurable(threadId, domain)
+  private _buildRunConfigurable(threadId: string): Record<string, string> {
+    return this.runtimeStore.buildConfigurable(threadId)
+  }
+
+  private _fallbackNotificationKey(threadId: string, turnId: string | null): string {
+    return `${threadId}:${turnId ?? '__no_turn__'}`
+  }
+
+  private _clearFallbackNotificationKeys(threadId: string, turnId?: string | null): void {
+    if (turnId !== undefined) {
+      this.fallbackNotifiedTurnKeys.delete(this._fallbackNotificationKey(threadId, turnId))
+      return
+    }
+
+    const prefix = `${threadId}:`
+    for (const key of this.fallbackNotifiedTurnKeys) {
+      if (key.startsWith(prefix)) this.fallbackNotifiedTurnKeys.delete(key)
+    }
+  }
+
+  private _notifyModelFallbackOnce(threadId: string, fallbackModelId: string): void {
+    const turnId = this.runtimeStore.getCurrentTurnId(threadId)
+    const key = this._fallbackNotificationKey(threadId, turnId)
+    if (this.fallbackNotifiedTurnKeys.has(key)) return
+
+    this.fallbackNotifiedTurnKeys.add(key)
+    this.rendererBridge.sendRunModelFallback({ threadId, fallbackModelId })
+  }
+
+  private _buildRunContext(threadId: string, domain: AiAgentDomain): IWriterAgentContext {
+    return this.runtimeStore.buildContext(threadId, domain)
   }
 
   private _getFilesystemMounts(threadId: string): FilesystemMount[] {
@@ -674,6 +801,44 @@ export class AgentEngine {
       binaryFilePaths: ctx?.attachmentBinaryFilePaths ?? [],
       directories: ctx?.attachmentDirectories ?? [],
     })
+  }
+
+  private async _seedSummarizationBaseline(threadId: string): Promise<void> {
+    if (this.runtimeStore.getLastSummarizationCutoff(threadId) !== undefined) return
+    if (!this.checkpointerInstance) return
+    try {
+      const tuple = await this.checkpointerInstance.checkpointer.get({
+        configurable: { thread_id: threadId },
+      })
+      if (!tuple) return
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cutoffIndex: unknown = ((tuple as any).channel_values ?? {})._summarizationEvent?.cutoffIndex
+      if (typeof cutoffIndex === 'number' && cutoffIndex > 0) {
+        this.runtimeStore.setLastSummarizationCutoff(threadId, cutoffIndex)
+      }
+    } catch {
+      // Non-fatal — baseline stays undefined; first run will still detect correctly
+    }
+  }
+
+  private async _detectAndNotifySummarization(threadId: string): Promise<void> {
+    if (!this.checkpointerInstance) return
+    try {
+      const tuple = await this.checkpointerInstance.checkpointer.get({
+        configurable: { thread_id: threadId },
+      })
+      if (!tuple) return
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const channelValues = (tuple as any).channel_values ?? {}
+      const cutoffIndex: unknown = channelValues._summarizationEvent?.cutoffIndex
+      if (typeof cutoffIndex !== 'number' || cutoffIndex <= 0) return
+      const lastCutoff = this.runtimeStore.getLastSummarizationCutoff(threadId)
+      if (cutoffIndex === lastCutoff) return
+      this.runtimeStore.setLastSummarizationCutoff(threadId, cutoffIndex)
+      this.rendererBridge.sendRunContextCompressed({ threadId, compressedMessageCount: cutoffIndex })
+    } catch (err) {
+      console.warn('[AgentEngine] Failed to detect summarization:', err)
+    }
   }
 
   private async _getCurrentSessionTokens(
@@ -698,8 +863,8 @@ export class AgentEngine {
         : rawMessages
       const mounts = this._getFilesystemMounts(threadId)
       const language = this.runtimeStore.getContext(threadId)?.language ?? 'en-US'
-      const capabilities = this._buildAgentCapabilities(domain, mode, mounts, language)
-      const systemPrompt = new SystemMessage(getSystemPrompt(domain, mode, language))
+      const capabilities = this.strategies[domain].buildCapabilities({ mode, mounts, language })
+      const systemPrompt = new SystemMessage(this.strategies[domain].getSystemPrompt(mode, language))
       return countTokensApproximately(
         [systemPrompt, ...effectiveMessages],
         capabilities.tools as unknown as Array<Record<string, unknown>>
@@ -739,53 +904,13 @@ export class AgentEngine {
       const sourceDir = path.join(this.bundledSkillsPath, entry.name)
       const targetDir = path.join(targetRoot, entry.name)
       fs.mkdirSync(targetDir, { recursive: true })
-      const files = fs.readdirSync(sourceDir, { withFileTypes: true })
-      for (const file of files) {
-        if (!file.isFile()) continue
-        fs.copyFileSync(path.join(sourceDir, file.name), path.join(targetDir, file.name))
-      }
+      fs.cpSync(sourceDir, targetDir, { recursive: true })
     }
   }
 
-  private _buildAgentCapabilities(
-    domain: AiAgentDomain,
-    mode: AiAgentMode,
-    mounts: FilesystemMount[],
-    language: DetectedInputLanguage = 'en-US',
-  ): DomainAgentCapabilities {
-    if (domain === 'creative') {
-      const workspacePath = mounts.find(mount => mount.virtualPath === '/')?.hostPath
-      return buildCreativeCapabilities(
-        this.aiRootPath,
-        mounts,
-        workspacePath ? this._getCreativeDb(workspacePath) : null,
-        this.snapshotBroker,
-        language,
-      )
-    }
-
-    if (mode === 'minimal') {
-      return { tools: [], skills: [] }
-    }
-
-    return buildEditCapabilities(this.snapshotBroker, this.aiRootPath, mounts)
-  }
-
-  private _getCreativeDb(workspacePath: string) {
-    return getCreativeDb(workspacePath)
-  }
-
-  private _recordCreativeSession(threadId: string): void {
-    const meta = this.threadListQuery?.getMeta(threadId)
-    if (meta?.domain !== 'creative') return
-    const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath
-    if (!workspacePath) return
-    try {
-      const db = this._getCreativeDb(workspacePath)
-      db.upsertSession(workspacePath, computeWorkspaceHashes(workspacePath))
-    } catch (err) {
-      console.warn('[AgentEngine] Failed to record creative session:', err)
-    }
+  private _buildMemoryPaths(domain: AiAgentDomain): string[] {
+    return [path.join(this.aiRootPath, 'memory', this.strategies[domain].getMemoryFileName())]
+      .filter(fs.existsSync)
   }
 
   private _assertWithinBudget(
@@ -797,7 +922,7 @@ export class AgentEngine {
     userContent: string,
     language: DetectedInputLanguage = 'en-US',
   ): void {
-    const systemPrompt = getSystemPrompt(domain, mode, language)
+    const systemPrompt = this.strategies[domain].getSystemPrompt(mode, language)
     const inputTokens = estimateTextTokens(systemPrompt) + estimateTextTokens(userContent)
     const model = createChatModel(config, { modelId, thinkingLevel })
     const budgetInfo = getModelBudgetInfo((model as BaseChatModel & { profile?: ModelProfile }).profile)
@@ -808,22 +933,5 @@ export class AgentEngine {
     throw new Error(
       `当前请求预计约 ${inputTokens} tokens，已超过摘要触发预算 ${allowedBudget}。请先点击 Compact 压缩输入，或减少附件与上下文。`
     )
-  }
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function getSystemPrompt(
-  domain: AiAgentDomain,
-  mode: AiAgentMode,
-  language: DetectedInputLanguage = 'en-US',
-): string {
-  if (domain === 'creative') {
-    return buildCreativeSystemPrompt(language)
-  }
-  switch (mode) {
-    case 'minimal': return MINIMAL_SYSTEM_PROMPT
-    case 'edit': return EDIT_SYSTEM_PROMPT
-    default: return EDIT_SYSTEM_PROMPT
   }
 }

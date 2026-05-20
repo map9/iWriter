@@ -1,6 +1,6 @@
 import { ref, type ComputedRef, type Ref } from 'vue'
 import type { AiThread, CreativeReviewItem, CreativeRoundResult, ThreadMessage } from '@/ai/types'
-import type { ResumeDecision } from '@/ai/ipc'
+import type { ResumeDecision, DomainReviewItem } from '@/ai/ipc'
 import { buildCreativeRoundResult, mergeCreativeRoundResults, type CreativeReviewBatch } from '@/ai/review/creativeSelectors'
 import { createCreativeThreadSync } from '@/ai/review/creativeThreadSync'
 import type { ToolCallStatusOverrides } from '@/ai/message/display-normalizer'
@@ -198,7 +198,7 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
     if (options?.clearLiveTurnReviews) {
       const liveTurn = deps.ensureLiveTurn()
       if (liveTurn) {
-        liveTurn.creativeReviews = []
+        liveTurn.reviews = liveTurn.reviews.filter((r: DomainReviewItem) => r.kind !== 'creative')
         deps.liveTurnRef.value = { ...liveTurn }
       }
     }
@@ -254,7 +254,7 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
       state: 'interrupted',
     })
     if (liveTurn) {
-      liveTurn.creativeReviews = params.reviews
+      liveTurn.reviews = params.reviews.map((r): DomainReviewItem => ({ kind: 'creative', payload: r }))
       deps.liveTurnRef.value = { ...liveTurn }
     }
 
@@ -271,7 +271,7 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
   function removePendingReview(reviewId: string) {
     const liveTurn = deps.ensureLiveTurn()
     if (!liveTurn) return
-    liveTurn.creativeReviews = liveTurn.creativeReviews.filter(review => review.id !== reviewId)
+    liveTurn.reviews = liveTurn.reviews.filter((r: DomainReviewItem) => r.kind !== 'creative' || r.payload.id !== reviewId)
     deps.liveTurnRef.value = { ...liveTurn }
   }
 
@@ -291,6 +291,9 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
           type: 'edited',
           editedArgs: argsForReview(review, decision.editedArgs),
         }
+      }
+      if (decision.kind === 'responded') {
+        return { type: 'responded', message: decision.message }
       }
       return {
         type: 'rejected',
@@ -319,7 +322,7 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
 
     const liveTurn = deps.ensureLiveTurn({ threadId, state: 'resuming' })
     if (liveTurn) {
-      liveTurn.creativeReviews = []
+      liveTurn.reviews = liveTurn.reviews.filter((r: DomainReviewItem) => r.kind !== 'creative')
       deps.liveTurnRef.value = { ...liveTurn }
     }
   }
@@ -355,22 +358,33 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
     await maybeFlushResume()
   }
 
+  async function respondCreativeReview(reviewId: string, message: string) {
+    const batch = reviewBatch.value
+    const review = batch?.reviewsById[reviewId]
+    if (!review || !message.trim()) return
+    batch.decisionsById[reviewId] = { kind: 'responded', message: message.trim() }
+    threadSync.updateLocalCreativeToolCall(review, 'rejected')
+    removePendingReview(reviewId)
+    await maybeFlushResume()
+  }
+
   async function approveAllCreativeReviews() {
     const ids = deps.pendingCreativeReviews.value.map(review => review.id)
     for (const id of ids) await approveCreativeReview(id)
   }
 
-  function notifyCreativeToolResult(toolName: string, isError: boolean): void {
+  function notifyCreativeToolResult(toolName: string, isError: boolean, toolCallId?: string): void {
     if (!isError) return
     const batch = pendingApplyBatch.value
     if (!batch) return
-    const reviewId = batch.order.find(id => {
-      const review = batch.reviewsById[id]
+    const isUnsettled = (id: string) => {
       const decision = batch.decisionsById[id]
-      return review?.toolName === toolName
-        && decision?.kind !== 'rejected'
-        && decision?.kind !== 'failed_to_apply'
-    })
+      return decision?.kind !== 'rejected' && decision?.kind !== 'responded' && decision?.kind !== 'failed_to_apply'
+    }
+    // Two-pass: exact toolCallId first, then toolName fallback.
+    const reviewId =
+      (toolCallId && batch.order.find(id => isUnsettled(id) && batch.reviewsById[id]?.toolCallId === toolCallId)) ||
+      batch.order.find(id => isUnsettled(id) && batch.reviewsById[id]?.toolName === toolName)
     if (!reviewId) return
     pendingApplyBatch.value = {
       ...batch,
@@ -399,6 +413,7 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
     approveCreativeReview,
     editAndApproveCreativeReview,
     rejectCreativeReview,
+    respondCreativeReview,
     approveAllCreativeReviews,
     notifyCreativeToolResult,
     finalizePendingCreativeApply,

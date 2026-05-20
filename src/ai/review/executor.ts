@@ -74,6 +74,86 @@ export function normalizeEditedArgsForProposal(
   }
 }
 
+function syncEditedStructureToProposal(
+  proposal: BlockEditProposal,
+  normalizedArgs: Record<string, unknown>,
+): void {
+  switch (proposal.type) {
+    case 'edit':
+    case 'delete': {
+      const previousBlockId = proposal.displayBlockId
+      const previousExpectedContent = proposal.expectedCurrentContent
+      if (typeof normalizedArgs.block_id === 'number') {
+        proposal.displayBlockId = normalizedArgs.block_id
+      }
+      const targetChanged = typeof normalizedArgs.block_id === 'number'
+        && normalizedArgs.block_id !== previousBlockId
+      if (targetChanged) {
+        proposal.oldContent = undefined
+        if (
+          typeof normalizedArgs.expected_current_content === 'string' &&
+          normalizedArgs.expected_current_content !== previousExpectedContent
+        ) {
+          proposal.expectedCurrentContent = normalizedArgs.expected_current_content
+        } else {
+          proposal.expectedCurrentContent = undefined
+          delete normalizedArgs.expected_current_content
+        }
+      }
+      return
+    }
+    case 'insert': {
+      const previousAfterBlockId = proposal.displayBlockId
+      const previousExpectedAnchorContent = proposal.expectedAnchorContent
+      if (typeof normalizedArgs.after_block_id === 'number') {
+        proposal.displayBlockId = normalizedArgs.after_block_id
+      }
+      const targetChanged = typeof normalizedArgs.after_block_id === 'number'
+        && normalizedArgs.after_block_id !== previousAfterBlockId
+      if (targetChanged) {
+        proposal.anchorContent = undefined
+        if (
+          typeof normalizedArgs.expected_anchor_content === 'string' &&
+          normalizedArgs.expected_anchor_content !== previousExpectedAnchorContent
+        ) {
+          proposal.expectedAnchorContent = normalizedArgs.expected_anchor_content
+        } else {
+          proposal.expectedAnchorContent = undefined
+          delete normalizedArgs.expected_anchor_content
+        }
+      }
+      return
+    }
+    case 'replace_range': {
+      const previousStartBlockId = proposal.startDisplayBlockId
+      const previousEndBlockId = proposal.endDisplayBlockId
+      const previousExpectedOldContent = proposal.expectedOldContent
+      if (typeof normalizedArgs.start_block_id === 'number') {
+        proposal.startDisplayBlockId = normalizedArgs.start_block_id
+      }
+      if (typeof normalizedArgs.end_block_id === 'number') {
+        proposal.endDisplayBlockId = normalizedArgs.end_block_id
+      }
+      const targetChanged =
+        (typeof normalizedArgs.start_block_id === 'number' && normalizedArgs.start_block_id !== previousStartBlockId) ||
+        (typeof normalizedArgs.end_block_id === 'number' && normalizedArgs.end_block_id !== previousEndBlockId)
+      if (targetChanged) {
+        proposal.oldContent = undefined
+        if (
+          typeof normalizedArgs.expected_old_content === 'string' &&
+          normalizedArgs.expected_old_content !== previousExpectedOldContent
+        ) {
+          proposal.expectedOldContent = normalizedArgs.expected_old_content
+        } else {
+          proposal.expectedOldContent = undefined
+          delete normalizedArgs.expected_old_content
+        }
+      }
+      return
+    }
+  }
+}
+
 async function applyBlockProposalToTarget(
   appStore: ReviewExecutorAppStoreLike,
   proposal: BlockEditProposal,
@@ -186,8 +266,9 @@ async function applyRecordedDecision(params: {
   const blockProposal = { ...proposal } as BlockEditProposal
   if (decision.kind === 'edited' && decision.editedArgs) {
     const normalizedEditedArgs = normalizeEditedArgsForProposal(blockProposal, decision.editedArgs)
-    setProposalDecision(proposalId, 'edited', { editedArgs: normalizedEditedArgs, message: decision.message })
     if (typeof normalizedEditedArgs.new_content === 'string') blockProposal.newContent = normalizedEditedArgs.new_content
+    syncEditedStructureToProposal(blockProposal, normalizedEditedArgs)
+    setProposalDecision(proposalId, 'edited', { editedArgs: normalizedEditedArgs, message: decision.message })
   }
 
   const result = await applyBlockProposalToTarget(appStore, blockProposal)

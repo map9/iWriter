@@ -135,6 +135,21 @@
               <p class="text-xs text-base-content/65">{{ t('preferences.ai.modelsHint') }}</p>
             </div>
 
+            <div v-if="selectedPreset?.id !== 'ollama'" class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.fallbackModel') }}</label>
+              <input
+                v-model="form.fallbackModelId"
+                type="text"
+                list="iw-fallback-models"
+                :placeholder="t('preferences.ai.fallbackModelPlaceholder')"
+                class="iw-input"
+              />
+              <datalist id="iw-fallback-models">
+                <option v-for="m in availableModels" :key="m" :value="m" />
+              </datalist>
+              <p class="text-xs text-base-content/65">{{ t('preferences.ai.fallbackModelHint') }}</p>
+            </div>
+
             <div v-else class="flex flex-col gap-1.5">
               <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.models') }}</label>
               <p class="rounded-box border border-base-300 bg-base-100 px-4 py-3 text-xs text-base-content/65">
@@ -284,6 +299,7 @@ interface FormState {
   apiKey: string
   baseUrl: string
   modelsStr: string       // comma-separated model IDs
+  fallbackModelId: string
   modelProfilesStr: string
   temperature: number
   topP: number
@@ -297,12 +313,20 @@ const form = ref<FormState>({
   apiKey: '',
   baseUrl: '',
   modelsStr: '',
+  fallbackModelId: '',
   modelProfilesStr: '',
   temperature: DEFAULT_AI_PROVIDER_PARAMETERS.temperature,
   topP: DEFAULT_AI_PROVIDER_PARAMETERS.topP,
   frequencyPenalty: DEFAULT_AI_PROVIDER_PARAMETERS.frequencyPenalty,
   presencePenalty: DEFAULT_AI_PROVIDER_PARAMETERS.presencePenalty,
 })
+
+const availableModels = computed(() =>
+  form.value.modelsStr
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+)
 
 const parameterSupport = computed(() => getProviderParameterSupport(form.value.type, form.value.baseUrl))
 const isGlmProvider = computed(() => selectedPreset.value?.id === 'glm' || /open\.bigmodel\.cn/i.test(form.value.baseUrl))
@@ -347,6 +371,7 @@ function selectCustom() {
     apiKey: '',
     baseUrl: '',
     modelsStr: '',
+    fallbackModelId: '',
     modelProfilesStr: '',
     temperature: DEFAULT_AI_PROVIDER_PARAMETERS.temperature,
     topP: DEFAULT_AI_PROVIDER_PARAMETERS.topP,
@@ -369,6 +394,7 @@ function startEdit(cfg: AiProviderConfig) {
     apiKey: cfg.apiKey,
     baseUrl: cfg.baseUrl ?? '',
     modelsStr: (cfg.models ?? []).join(', '),
+    fallbackModelId: cfg.fallbackModelId ?? '',
     modelProfilesStr: cfg.modelProfiles ? JSON.stringify(cfg.modelProfiles, null, 2) : '',
     temperature: parameters.temperature,
     topP: parameters.topP,
@@ -405,6 +431,7 @@ function submitForm() {
     presetId: selectedPreset.value?.id,
     models: modelsArr.length ? modelsArr : (selectedPreset.value?.models),
     modelProfiles: isPreset.value ? selectedPreset.value?.modelProfiles : modelProfiles,
+    fallbackModelId: form.value.fallbackModelId.trim() || undefined,
     parameters: {
       temperature: clampNumber(
         numberOrDefault(form.value.temperature, DEFAULT_AI_PROVIDER_PARAMETERS.temperature),

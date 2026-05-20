@@ -3,7 +3,7 @@ import * as path from 'path'
 import { execFile, type ExecFileException } from 'child_process'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
-import { getRuntimeString } from './runtimeHelpers'
+import type { IWriterAgentContext } from '../runtime/AgentContext'
 import { isInside } from './CreativeTools'
 
 const MAX_BUFFER = 20 * 1024 * 1024
@@ -23,7 +23,8 @@ type GitResult =
   | { ok: false; errorCode: GitErrorCode; message: string }
 
 function getWorkspacePath(runtime: unknown, fallbackWorkspacePath?: string | null): string | null {
-  return getRuntimeString(runtime, 'workspace_path')?.trim() || fallbackWorkspacePath || null
+  const wp = (runtime as { context?: IWriterAgentContext } | undefined)?.context?.workspacePath
+  return wp?.trim() || fallbackWorkspacePath || null
 }
 
 function ensureWorkspace(workspacePath: string | null): string | null {

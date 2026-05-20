@@ -1,0 +1,354 @@
+diff --git a/node_modules/@langchain/core/dist/language_models/compat.cjs b/node_modules/@langchain/core/dist/language_models/compat.cjs
+index 4d30dc7..ad6e499 100644
+--- a/node_modules/@langchain/core/dist/language_models/compat.cjs
++++ b/node_modules/@langchain/core/dist/language_models/compat.cjs
+@@ -98,6 +98,9 @@ async function* convertChunksToEvents(chunks, options) {
+ 	let messageStarted = false;
+ 	let lastUsage;
+ 	let audioStream;
++	let textBlockIndex;
++	let reasoningBlockIndex;
++	const toolBlockIndexMap = /* @__PURE__ */ new Map();
+ 	const emittedImageKeys = /* @__PURE__ */ new Set();
+ 	for await (const chunk of chunks) {
+ 		options?.signal?.throwIfAborted();
+@@ -116,13 +119,19 @@ async function* convertChunksToEvents(chunks, options) {
+ 			}
+ 			yield startEvent;
+ 		}
+-		const content = msg.content;
+-		if (typeof content === "string") {
+-			if (content !== "") {
+-				const blockIndex = 0;
+-				if (!activeBlocks.has(blockIndex)) {
+-					const initial = {
+-						type: "text",
++			const content = msg.content;
++			if (typeof content === "string") {
++				if (content !== "") {
++					let blockIndex = textBlockIndex;
++					if (blockIndex == null) {
++						blockIndex = 0;
++						const existingBlock = activeBlocks.get(blockIndex);
++						if (existingBlock != null && existingBlock.type !== "text") blockIndex = nextBlockIndex(activeBlocks);
++						textBlockIndex = blockIndex;
++					}
++					if (!activeBlocks.has(blockIndex)) {
++						const initial = {
++							type: "text",
+ 						text: ""
+ 					};
+ 					activeBlocks.set(blockIndex, {
+@@ -133,12 +142,12 @@ async function* convertChunksToEvents(chunks, options) {
+ 						event: "content-block-start",
+ 						index: blockIndex,
+ 						content: initial
+-					};
+-				}
+-				const block = activeBlocks.get(blockIndex);
+-				block.accumulated = {
+-					...block.accumulated,
+-					text: (block.accumulated.text ?? "") + content
++						};
++					}
++					const block = activeBlocks.get(blockIndex);
++					block.accumulated = {
++						...block.accumulated,
++						text: (block.accumulated.text ?? "") + content
+ 				};
+ 				yield {
+ 					event: "content-block-delta",
+@@ -148,35 +157,82 @@ async function* convertChunksToEvents(chunks, options) {
+ 						text: content
+ 					}
+ 				};
+-			}
+-		} else if (Array.isArray(content)) for (const part of content) {
+-			const blockIndex = typeof part.index === "number" ? part.index : activeBlocks.size;
+-			if (!activeBlocks.has(blockIndex)) {
+-				activeBlocks.set(blockIndex, {
+-					type: part.type,
+-					accumulated: { ...part }
++				}
++			} else if (Array.isArray(content)) for (const part of content) {
++				const blockIndex = typeof part.index === "number" ? part.index : nextBlockIndex(activeBlocks);
++				if (!activeBlocks.has(blockIndex)) {
++					activeBlocks.set(blockIndex, {
++						type: part.type,
++						accumulated: { ...part }
+ 				});
+ 				yield {
+ 					event: "content-block-start",
+ 					index: blockIndex,
+ 					content: { ...part }
+-				};
+-			} else {
+-				const block = activeBlocks.get(blockIndex);
+-				const delta = contentBlockToDelta(part);
+-				block.accumulated = applyDeltaToBlock(block.accumulated, delta);
+-				yield {
++					};
++				} else {
++					const block = activeBlocks.get(blockIndex);
++					const delta = contentBlockToDelta(part);
++					block.accumulated = applyDeltaToBlock(block.accumulated, delta);
++					yield {
+ 					event: "content-block-delta",
+ 					index: blockIndex,
+ 					delta
+-				};
++					};
++				}
+ 			}
+-		}
+-		if (require_ai.AIMessageChunk.isInstance(msg) && msg.tool_call_chunks && msg.tool_call_chunks.length > 0) for (const toolChunk of msg.tool_call_chunks) {
+-			const blockIndex = typeof toolChunk.index === "number" ? toolChunk.index : activeBlocks.size;
+-			if (!activeBlocks.has(blockIndex)) {
+-				const initial = {
+-					type: "tool_call_chunk",
++			if (require_ai.AIMessageChunk.isInstance(msg)) {
++				const reasoningContent = getAdditionalKwargs(msg).reasoning_content;
++				if (typeof reasoningContent === "string" && reasoningContent.length > 0) {
++					let blockIndex = reasoningBlockIndex;
++					if (blockIndex == null) {
++						blockIndex = 0;
++						const existingBlock = activeBlocks.get(blockIndex);
++						if (existingBlock != null && existingBlock.type !== "reasoning") blockIndex = nextBlockIndex(activeBlocks);
++						reasoningBlockIndex = blockIndex;
++					}
++					if (!activeBlocks.has(blockIndex)) {
++						const initial = {
++							type: "reasoning",
++							reasoning: ""
++						};
++						activeBlocks.set(blockIndex, {
++							type: "reasoning",
++							accumulated: initial
++						});
++						yield {
++							event: "content-block-start",
++							index: blockIndex,
++							content: initial
++						};
++					}
++					const block = activeBlocks.get(blockIndex);
++					block.accumulated = {
++						...block.accumulated,
++						reasoning: (block.accumulated.reasoning ?? "") + reasoningContent
++					};
++					yield {
++						event: "content-block-delta",
++						index: blockIndex,
++						delta: {
++							type: "reasoning-delta",
++							reasoning: reasoningContent
++						}
++					};
++				}
++			}
++			if (require_ai.AIMessageChunk.isInstance(msg) && msg.tool_call_chunks && msg.tool_call_chunks.length > 0) for (const toolChunk of msg.tool_call_chunks) {
++				const originalBlockIndex = typeof toolChunk.index === "number" ? toolChunk.index : nextBlockIndex(activeBlocks);
++				let blockIndex = toolBlockIndexMap.get(originalBlockIndex);
++				if (blockIndex == null) {
++					blockIndex = originalBlockIndex;
++					const existingBlock = activeBlocks.get(blockIndex);
++					if (existingBlock != null) blockIndex = nextBlockIndex(activeBlocks);
++					toolBlockIndexMap.set(originalBlockIndex, blockIndex);
++				}
++				if (!activeBlocks.has(blockIndex)) {
++					const initial = {
++						type: "tool_call_chunk",
+ 					id: toolChunk.id,
+ 					name: toolChunk.name,
+ 					args: "",
+@@ -190,9 +246,10 @@ async function* convertChunksToEvents(chunks, options) {
+ 					event: "content-block-start",
+ 					index: blockIndex,
+ 					content: initial
+-				};
+-			}
+-			const acc = activeBlocks.get(blockIndex).accumulated;
++					};
++				}
++				const block = activeBlocks.get(blockIndex);
++				const acc = block.accumulated;
+ 			if (toolChunk.id != null) acc.id = toolChunk.id;
+ 			if (toolChunk.name != null) acc.name = toolChunk.name;
+ 			acc.args = (acc.args ?? "") + (toolChunk.args ?? "");
+diff --git a/node_modules/@langchain/core/dist/language_models/compat.js b/node_modules/@langchain/core/dist/language_models/compat.js
+index 0ee30a4..24c524f 100644
+--- a/node_modules/@langchain/core/dist/language_models/compat.js
++++ b/node_modules/@langchain/core/dist/language_models/compat.js
+@@ -97,6 +97,9 @@ async function* convertChunksToEvents(chunks, options) {
+ 	let messageStarted = false;
+ 	let lastUsage;
+ 	let audioStream;
++	let textBlockIndex;
++	let reasoningBlockIndex;
++	const toolBlockIndexMap = /* @__PURE__ */ new Map();
+ 	const emittedImageKeys = /* @__PURE__ */ new Set();
+ 	for await (const chunk of chunks) {
+ 		options?.signal?.throwIfAborted();
+@@ -115,13 +118,19 @@ async function* convertChunksToEvents(chunks, options) {
+ 			}
+ 			yield startEvent;
+ 		}
+-		const content = msg.content;
+-		if (typeof content === "string") {
+-			if (content !== "") {
+-				const blockIndex = 0;
+-				if (!activeBlocks.has(blockIndex)) {
+-					const initial = {
+-						type: "text",
++			const content = msg.content;
++			if (typeof content === "string") {
++				if (content !== "") {
++					let blockIndex = textBlockIndex;
++					if (blockIndex == null) {
++						blockIndex = 0;
++						const existingBlock = activeBlocks.get(blockIndex);
++						if (existingBlock != null && existingBlock.type !== "text") blockIndex = nextBlockIndex(activeBlocks);
++						textBlockIndex = blockIndex;
++					}
++					if (!activeBlocks.has(blockIndex)) {
++						const initial = {
++							type: "text",
+ 						text: ""
+ 					};
+ 					activeBlocks.set(blockIndex, {
+@@ -132,12 +141,12 @@ async function* convertChunksToEvents(chunks, options) {
+ 						event: "content-block-start",
+ 						index: blockIndex,
+ 						content: initial
+-					};
+-				}
+-				const block = activeBlocks.get(blockIndex);
+-				block.accumulated = {
+-					...block.accumulated,
+-					text: (block.accumulated.text ?? "") + content
++						};
++					}
++					const block = activeBlocks.get(blockIndex);
++					block.accumulated = {
++						...block.accumulated,
++						text: (block.accumulated.text ?? "") + content
+ 				};
+ 				yield {
+ 					event: "content-block-delta",
+@@ -147,35 +156,82 @@ async function* convertChunksToEvents(chunks, options) {
+ 						text: content
+ 					}
+ 				};
+-			}
+-		} else if (Array.isArray(content)) for (const part of content) {
+-			const blockIndex = typeof part.index === "number" ? part.index : activeBlocks.size;
+-			if (!activeBlocks.has(blockIndex)) {
+-				activeBlocks.set(blockIndex, {
+-					type: part.type,
+-					accumulated: { ...part }
++				}
++			} else if (Array.isArray(content)) for (const part of content) {
++				const blockIndex = typeof part.index === "number" ? part.index : nextBlockIndex(activeBlocks);
++				if (!activeBlocks.has(blockIndex)) {
++					activeBlocks.set(blockIndex, {
++						type: part.type,
++						accumulated: { ...part }
+ 				});
+ 				yield {
+ 					event: "content-block-start",
+ 					index: blockIndex,
+ 					content: { ...part }
+-				};
+-			} else {
+-				const block = activeBlocks.get(blockIndex);
+-				const delta = contentBlockToDelta(part);
+-				block.accumulated = applyDeltaToBlock(block.accumulated, delta);
+-				yield {
++					};
++				} else {
++					const block = activeBlocks.get(blockIndex);
++					const delta = contentBlockToDelta(part);
++					block.accumulated = applyDeltaToBlock(block.accumulated, delta);
++					yield {
+ 					event: "content-block-delta",
+ 					index: blockIndex,
+ 					delta
+-				};
++					};
++				}
+ 			}
+-		}
+-		if (AIMessageChunk.isInstance(msg) && msg.tool_call_chunks && msg.tool_call_chunks.length > 0) for (const toolChunk of msg.tool_call_chunks) {
+-			const blockIndex = typeof toolChunk.index === "number" ? toolChunk.index : activeBlocks.size;
+-			if (!activeBlocks.has(blockIndex)) {
+-				const initial = {
+-					type: "tool_call_chunk",
++			if (AIMessageChunk.isInstance(msg)) {
++				const reasoningContent = getAdditionalKwargs(msg).reasoning_content;
++				if (typeof reasoningContent === "string" && reasoningContent.length > 0) {
++					let blockIndex = reasoningBlockIndex;
++					if (blockIndex == null) {
++						blockIndex = 0;
++						const existingBlock = activeBlocks.get(blockIndex);
++						if (existingBlock != null && existingBlock.type !== "reasoning") blockIndex = nextBlockIndex(activeBlocks);
++						reasoningBlockIndex = blockIndex;
++					}
++					if (!activeBlocks.has(blockIndex)) {
++						const initial = {
++							type: "reasoning",
++							reasoning: ""
++						};
++						activeBlocks.set(blockIndex, {
++							type: "reasoning",
++							accumulated: initial
++						});
++						yield {
++							event: "content-block-start",
++							index: blockIndex,
++							content: initial
++						};
++					}
++					const block = activeBlocks.get(blockIndex);
++					block.accumulated = {
++						...block.accumulated,
++						reasoning: (block.accumulated.reasoning ?? "") + reasoningContent
++					};
++					yield {
++						event: "content-block-delta",
++						index: blockIndex,
++						delta: {
++							type: "reasoning-delta",
++							reasoning: reasoningContent
++						}
++					};
++				}
++			}
++			if (AIMessageChunk.isInstance(msg) && msg.tool_call_chunks && msg.tool_call_chunks.length > 0) for (const toolChunk of msg.tool_call_chunks) {
++				const originalBlockIndex = typeof toolChunk.index === "number" ? toolChunk.index : nextBlockIndex(activeBlocks);
++				let blockIndex = toolBlockIndexMap.get(originalBlockIndex);
++				if (blockIndex == null) {
++					blockIndex = originalBlockIndex;
++					const existingBlock = activeBlocks.get(blockIndex);
++					if (existingBlock != null) blockIndex = nextBlockIndex(activeBlocks);
++					toolBlockIndexMap.set(originalBlockIndex, blockIndex);
++				}
++				if (!activeBlocks.has(blockIndex)) {
++					const initial = {
++						type: "tool_call_chunk",
+ 					id: toolChunk.id,
+ 					name: toolChunk.name,
+ 					args: "",
+@@ -189,9 +245,10 @@ async function* convertChunksToEvents(chunks, options) {
+ 					event: "content-block-start",
+ 					index: blockIndex,
+ 					content: initial
+-				};
+-			}
+-			const acc = activeBlocks.get(blockIndex).accumulated;
++					};
++				}
++				const block = activeBlocks.get(blockIndex);
++				const acc = block.accumulated;
+ 			if (toolChunk.id != null) acc.id = toolChunk.id;
+ 			if (toolChunk.name != null) acc.name = toolChunk.name;
+ 			acc.args = (acc.args ?? "") + (toolChunk.args ?? "");

@@ -31,6 +31,7 @@ import { buildSnapshot, buildEditorStateBlock } from '@/ai/thread/ContextBuilder
 import { useAppStore } from '@/stores/app'
 import type { Editor } from '@tiptap/core'
 import { notify } from '@/utils/notifications'
+import { i18n } from '@/i18n'
 import { nanoid } from 'nanoid'
 import {
   createEditReviewModule,
@@ -600,6 +601,7 @@ export const useAiStore = defineStore('ai', () => {
     approveCreativeReview,
     editAndApproveCreativeReview,
     rejectCreativeReview,
+    respondCreativeReview,
     approveAllCreativeReviews,
     notifyCreativeToolResult: _notifyCreativeToolResult,
     finalizePendingCreativeApply: _finalizePendingCreativeApply,
@@ -702,6 +704,12 @@ export const useAiStore = defineStore('ai', () => {
     window.electronAPI.onAiRunInterrupted?.(runtimeEvents.onRunInterrupted)
     window.electronAPI.onAiRunDone?.(runtimeEvents.onRunDone)
     window.electronAPI.onAiRunError?.(runtimeEvents.onRunError)
+    window.electronAPI.onAiContextCompressed?.(() => {
+      notify.info(i18n.global.t('notify.ai.contextCompressed'))
+    })
+    window.electronAPI.onAiModelFallback?.((e) => {
+      notify.warning(i18n.global.t('notify.ai.modelFallback', { modelId: e.fallbackModelId }))
+    })
   }
 
   function teardown() {
@@ -781,6 +789,7 @@ export const useAiStore = defineStore('ai', () => {
     approveCreativeReview,
     editAndApproveCreativeReview,
     rejectCreativeReview,
+    respondCreativeReview,
     approveAllCreativeReviews,
     cancelStreaming,
     setDraftInput,

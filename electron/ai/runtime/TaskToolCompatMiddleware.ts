@@ -1,3 +1,23 @@
+/**
+ * TaskToolCompatMiddleware
+ *
+ * 处理 deepagents `task` 工具的两类兼容性问题：
+ *
+ * 1. `prompt → description` 归一化（wrapToolCall :68-85）
+ *    deepagents 的 task 工具 schema 仅声明 `description` + `subagent_type` 两个参数
+ *    （node_modules/deepagents/dist/index.js:2306-2309），但部分模型（DeepSeek、
+ *    早期 GPT-4o）会幻觉出 `prompt` 字段。这里把 prompt 内容并入 description，
+ *    避免子代理因参数名错位收到空 brief。
+ *
+ * 2. Planner 子代理输出 schema 校验（wrapToolCall :92-101）
+ *    虽然 buildPlannerSubAgent 已声明 `responseFormat: PlannerResponseSchema`，
+ *    但 deepagents `createTaskTool` 在常规工具调用路径（即 config.toolCall?.id 存在）
+ *    只通过 returnCommandWithStateUpdate 返回 messages，**不会**把 structuredResponse
+ *    JSON-stringify 后回灌给父代理（参见 node_modules/deepagents/dist/index.js:2274-2302）。
+ *    因此 langchain `responseFormat` 仅在「直接调用 subagent.invoke」的边路生效，
+ *    `task` 工具下完全不生效。本中间件的 JSON.parse + Zod safeParse 是
+ *    实际唯一拦截 planner 非法输出的关卡，不能删除。
+ */
 import { ToolMessage } from '@langchain/core/messages'
 import { createMiddleware } from 'langchain'
 import { PlannerResponseSchema } from '../domain/creative/subAgents/planner'

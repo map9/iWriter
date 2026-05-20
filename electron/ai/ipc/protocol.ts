@@ -9,8 +9,6 @@
 import type {
   AiSettings,
   AiThread,
-  EditProposal,
-  CreativeReviewItem,
   AiToolCall,
   ThreadMessage,
   AiAgentMode,
@@ -18,6 +16,8 @@ import type {
   OpenTabInfo,
   AiThinkingLevel,
 } from '../../../src/types/ai'
+import type { DomainReviewItem } from '../domain/DomainStrategy'
+export type { DomainReviewItem }
 
 // ── Renderer → Main ────────────────────────────────────────────────────────
 
@@ -88,13 +88,13 @@ export interface EditorContext {
  * - edited:   execute the tool with user-modified arguments (editedArgs required)
  * - rejected: skip the tool call entirely
  *
- * decisions[i] corresponds to actionRequests[i] from RunInterruptedEvent.
- * The array length MUST equal RunInterruptedEvent.proposals.length.
+ * decisions[i] corresponds to actionRequests[i] and reviews[i] from RunInterruptedEvent.
+ * The array length MUST equal RunInterruptedEvent.reviews.length.
  * No proposalId needed — position in array determines which action is decided.
  */
 export interface ResumeDecision {
-  type: 'approved' | 'edited' | 'rejected'
-  /** Optional rejection reason shown to the LLM in conversation history. */
+  type: 'approved' | 'edited' | 'rejected' | 'responded'
+  /** Optional rejection/feedback reason. Required for 'responded'. */
   message?: string
   /** Modified tool arguments for 'edited' decisions. */
   editedArgs?: Record<string, unknown>
@@ -103,7 +103,7 @@ export interface ResumeDecision {
 export interface ResumeRunRequest {
   threadId: string
   /**
-   * One decision per pending proposal, in the same order as RunInterruptedEvent.proposals.
+   * One decision per review item, in the same order as RunInterruptedEvent.reviews.
    * Length MUST equal the number of actionRequests in the interrupt.
    */
   decisions: ResumeDecision[]
@@ -111,23 +111,23 @@ export interface ResumeRunRequest {
 
 // ── Main → Renderer ────────────────────────────────────────────────────────
 
-export interface StreamChunkEvent {
-  threadId: string
-  type: 'text' | 'thinking' | 'tool_call_start' | 'tool_call_end'
-  delta?: string               // Text or thinking delta
-  toolName?: string            // For tool_call_start
-  toolCallId?: string
-  toolCall?: AiToolCall        // Full tool call for tool_call_start
-}
+export type StreamChunkEvent =
+  | { threadId: string; turnId?: string; type: 'text'; delta: string; subagentName?: string; subagentId?: string }
+  | { threadId: string; turnId?: string; type: 'thinking'; delta: string; subagentName?: string; subagentId?: string }
+  | { threadId: string; turnId?: string; type: 'tool_call_start'; toolName?: string; toolCallId: string; toolCall: AiToolCall; subagentName?: string; subagentId?: string }
+  | { threadId: string; turnId?: string; type: 'tool_call_end'; toolCallId: string; toolCall: AiToolCall; subagentName?: string; subagentId?: string }
+  | { threadId: string; turnId?: string; type: 'subagent_start'; subagentName: string; taskInput: unknown; subagentId?: string }
+  | { threadId: string; turnId?: string; type: 'subagent_end'; subagentName: string; output: unknown; subagentId?: string }
 
 /**
  * Emitted when the agent hits a HITL interrupt. Contains:
  * - partialMessage: assistant content accumulated before the interrupt (may be absent)
- * - proposals: ALL proposals from ALL actionRequests in this interrupt batch, in order (UI display)
+ * - reviews: unified DomainReviewItem[] for all actionRequests in this batch (in order)
  * - actionRequests: raw LangGraph actionRequests in order (used for decision index alignment)
  *
- * The renderer must collect one decision per proposal/action before calling ai:resume.
- * decisions[i] corresponds to actionRequests[i] and proposals[i].
+ * The renderer must collect one decision per review/action before calling ai:resume.
+ * decisions[i] corresponds to actionRequests[i] and reviews[i].
+ * Dispatch to edit or creative UI by inspecting reviews[i].kind.
  */
 export interface RunInterruptedEvent {
   threadId: string
@@ -137,10 +137,8 @@ export interface RunInterruptedEvent {
    * Absent when the LLM called an edit tool as its very first action.
    */
   partialMessage?: ThreadMessage
-  /** All proposals from this interrupt batch, in actionRequests order. Used for UI display (diff view). */
-  proposals: EditProposal[]
-  /** Creative-domain review payloads, in actionRequests order. */
-  creativeReviews?: CreativeReviewItem[]
+  /** Unified review payloads in actionRequests order. Dispatch by reviews[i].kind. */
+  reviews: DomainReviewItem[]
   /**
    * Raw LangGraph actionRequests in order.
    * Used by the renderer to align decisions by index.
@@ -162,6 +160,19 @@ export interface RunErrorEvent {
   threadId: string
   turnId?: string
   error: string
+}
+
+/** Fired when SummarizationMiddleware compressed this thread's history during a run. */
+export interface RunContextCompressedEvent {
+  threadId: string
+  /** Number of original messages that were rolled into the summary. */
+  compressedMessageCount: number
+}
+
+/** Fired when modelFallbackMiddleware switched from the primary model to a backup. */
+export interface RunModelFallbackEvent {
+  threadId: string
+  fallbackModelId: string
 }
 
 /** Main requests a serialized document snapshot from renderer */

@@ -1,11 +1,23 @@
 import { computed, ref } from 'vue'
-import type { AiToolCall, CreativeReviewItem, EditProposal } from '@/ai/types'
+import type { AiToolCall } from '@/ai/types'
+import type { DomainReviewItem } from '@/ai/ipc'
 
 export type ThreadRunState = 'idle' | 'streaming' | 'interrupted'
 
 export type StreamingBlock =
   | { type: 'text'; text: string }
   | { type: 'tool_call'; toolCall: AiToolCall }
+
+export interface LiveSubTask {
+  invocationId: string
+  name: string
+  taskInput: unknown
+  text: string
+  thinkingText: string
+  blocks: StreamingBlock[]
+  status: 'running' | 'done' | 'error'
+  output?: unknown
+}
 
 export type LiveTurnState = 'streaming' | 'interrupted' | 'resuming'
 
@@ -19,8 +31,8 @@ export interface LiveTurn {
   blocks: StreamingBlock[]
   thinkingText: string
   toolName: string | null
-  proposals: EditProposal[]
-  creativeReviews: CreativeReviewItem[]
+  reviews: DomainReviewItem[]
+  subTasks: LiveSubTask[]
 }
 
 export function createRuntimeState() {
@@ -39,8 +51,17 @@ export function createRuntimeState() {
   const streamingBlocks = computed(() => liveTurn.value?.blocks ?? [])
   const streamingThinkingText = computed(() => liveTurn.value?.thinkingText ?? '')
   const streamingToolName = computed(() => liveTurn.value?.toolName ?? null)
-  const pendingEditProposals = computed(() => liveTurn.value?.proposals ?? [])
-  const pendingCreativeReviews = computed(() => liveTurn.value?.creativeReviews ?? [])
+  const pendingReviews = computed(() => liveTurn.value?.reviews ?? [])
+  const pendingEditProposals = computed(() =>
+    pendingReviews.value
+      .filter((r): r is Extract<DomainReviewItem, { kind: 'edit' }> => r.kind === 'edit')
+      .map(r => r.payload)
+  )
+  const pendingCreativeReviews = computed(() =>
+    pendingReviews.value
+      .filter((r): r is Extract<DomainReviewItem, { kind: 'creative' }> => r.kind === 'creative')
+      .map(r => r.payload)
+  )
   const liveTurnState = computed<LiveTurnState | null>(() => liveTurn.value?.state ?? null)
   const liveTurnThreadId = computed(() => liveTurn.value?.threadId ?? null)
   const liveTurnTurnId = computed(() => liveTurn.value?.turnId ?? null)
@@ -62,8 +83,8 @@ export function createRuntimeState() {
       blocks: [],
       thinkingText: '',
       toolName: null,
-      proposals: [],
-      creativeReviews: [],
+      reviews: [],
+      subTasks: [],
     }
   }
 
@@ -116,6 +137,7 @@ export function createRuntimeState() {
     streamingBlocks,
     streamingThinkingText,
     streamingToolName,
+    pendingReviews,
     pendingEditProposals,
     pendingCreativeReviews,
     liveTurnState,

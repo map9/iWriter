@@ -98,13 +98,29 @@
               />
             </template>
           </template>
-          <ToolCallCard
-            v-else-if="block.type === 'tool_call' && block.toolCallId && isReadToolById(block.toolCallId)"
-            :tool-call="toolCallById(block.toolCallId)!"
-            :group-position="contentBlockToolPosition(idx)"
-            class="w-full"
-            :class="contentBlockToolMarginClass(idx)"
-          />
+          <template v-else-if="block.type === 'tool_call' && block.toolCallId && isReadToolById(block.toolCallId)">
+            <SubTaskProgressView
+              v-if="findRunningSubTaskFor(block.toolCallId)"
+              :sub-task="findRunningSubTaskFor(block.toolCallId)!"
+              class="w-full"
+              :class="contentBlockToolMarginClass(idx)"
+            />
+            <div
+              v-else-if="shouldShowTaskFallback(block.toolCallId)"
+              class="inline-flex items-center gap-2 rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/60"
+              :class="contentBlockToolMarginClass(idx)"
+            >
+              <span class="loading loading-spinner loading-xs shrink-0" />
+              <span>{{ taskSubagentTypeOf(block.toolCallId) ?? '...' }}</span>
+            </div>
+            <ToolCallCard
+              v-else
+              :tool-call="toolCallById(block.toolCallId)!"
+              :group-position="contentBlockToolPosition(idx)"
+              class="w-full"
+              :class="contentBlockToolMarginClass(idx)"
+            />
+          </template>
           <div
             v-else-if="block.type === 'agent_event' && (block.text || block.agentName)"
             class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-field bg-base-100 border border-base-300 text-base-content text-xs"
@@ -154,13 +170,30 @@
         class="w-full"
         :class="message.content ? 'mt-1.5' : ''"
       >
-        <ToolCallCard
+        <template
           v-for="(tc, idx) in readToolCalls"
           :key="tc.id"
-          :tool-call="tc"
-          :group-position="readToolPosition(idx)"
-          :class="idx > 0 ? 'mt-0' : ''"
-        />
+        >
+          <SubTaskProgressView
+            v-if="findRunningSubTaskFor(tc.id)"
+            :sub-task="findRunningSubTaskFor(tc.id)!"
+            :class="idx > 0 ? 'mt-0' : ''"
+          />
+          <div
+            v-else-if="shouldShowTaskFallback(tc.id)"
+            class="inline-flex items-center gap-2 rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/60"
+            :class="idx > 0 ? 'mt-0' : ''"
+          >
+            <span class="loading loading-spinner loading-xs shrink-0" />
+            <span>{{ taskSubagentTypeOf(tc.id) ?? '...' }}</span>
+          </div>
+          <ToolCallCard
+            v-else
+            :tool-call="tc"
+            :group-position="readToolPosition(idx)"
+            :class="idx > 0 ? 'mt-0' : ''"
+          />
+        </template>
       </div>
 
       <DomainMessageSession
@@ -251,12 +284,13 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconCopy, IconPencil, IconX, IconSend } from '@tabler/icons-vue'
-import type { ThreadMessage, AiToolCall } from '@/ai/types'
+import type { ThreadMessage, AiToolCall, AiSubTaskProgress } from '@/ai/types'
 import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS } from '@/ai/types'
 import { isRenderableAssistantMessage } from '@/ai/review/selectors'
 import { useAiStore } from '@/ai/store/ai'
 import MarkdownContentView from './views/MarkdownContentView.vue'
 import ToolCallCard from './views/ToolCallCard.vue'
+import SubTaskProgressView from './views/SubTaskProgressView.vue'
 import ConsistencyFindingsBlock from './views/ConsistencyFindingsBlock.vue'
 import AdvisorDirectionsBlock from './views/AdvisorDirectionsBlock.vue'
 import DomainMessageSession from '../domains/DomainMessageSession.vue'
@@ -397,6 +431,36 @@ const shouldRenderMessage = computed(() => {
   if (props.isPreview && !!props.previewStatusText) return true
   return isRenderableAssistantMessage(props.message)
 })
+
+function isTaskTool(tc: AiToolCall): boolean {
+  return tc.name === 'task'
+}
+
+function isTaskRunning(tc: AiToolCall): boolean {
+  return isTaskTool(tc) && (tc.status === 'in_progress' || tc.status === 'pending')
+}
+
+function taskSubagentTypeOf(toolCallId: string): string | undefined {
+  const tc = toolCallById(toolCallId)
+  return tc?.arguments['subagent_type'] as string | undefined
+}
+
+function findSubTaskFor(toolCallId: string): AiSubTaskProgress | undefined {
+  return (props.message.subTasks ?? []).find(st =>st.invocationId === toolCallId
+  )
+}
+
+function findRunningSubTaskFor(toolCallId: string): AiSubTaskProgress | undefined {
+  const tc = toolCallById(toolCallId)
+  if (!tc || !isTaskRunning(tc)) return undefined
+  const subTask = findSubTaskFor(toolCallId)
+  return subTask?.status === 'running' ? subTask : undefined
+}
+
+function shouldShowTaskFallback(toolCallId: string): boolean {
+  const tc = toolCallById(toolCallId)
+  return !!tc && isTaskRunning(tc) && !findSubTaskFor(toolCallId)
+}
 
 function isReadToolBlockAt(index: number): boolean {
   const block = visibleContentBlocks.value[index]

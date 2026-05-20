@@ -1,5 +1,6 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import type {
+  AiSubTaskProgress,
   AiToolCall,
   AiToolResult,
   MessageContentBlock,
@@ -166,7 +167,18 @@ export function createRuntimeDisplay(deps: {
       content += liveTurn.currentText
     }
 
-    if (!contentBlocks.length && !liveTurn.thinkingText) return null
+    const subTasks: AiSubTaskProgress[] = liveTurn.subTasks.map(st => ({
+      invocationId: st.invocationId,
+      name: st.name,
+      status: st.status,
+      text: st.text,
+      thinkingText: st.thinkingText,
+      toolCalls: st.blocks
+        .filter((b): b is { type: 'tool_call'; toolCall: AiToolCall } => b.type === 'tool_call')
+        .map(b => b.toolCall),
+    }))
+
+    if (!contentBlocks.length && !liveTurn.thinkingText && !subTasks.length) return null
 
     return deps.normalizeMessageForDisplay({
       id: 'streaming-preview',
@@ -177,6 +189,7 @@ export function createRuntimeDisplay(deps: {
       thinkingContent: liveTurn.thinkingText || undefined,
       toolCalls: toolCalls.length ? toolCalls : undefined,
       contentBlocks: contentBlocks.length ? contentBlocks : undefined,
+      subTasks: subTasks.length ? subTasks : undefined,
     })
   })
 

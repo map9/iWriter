@@ -144,6 +144,8 @@ export interface ElectronAPI {
   onAiRunDone?: (cb: (e: import('./ai-ipc').RunDoneEvent) => void) => void
   onAiRunError?: (cb: (e: import('./ai-ipc').RunErrorEvent) => void) => void
   onAiRequestSnapshot?: (cb: (req: import('./ai-ipc').SnapshotRequestEvent) => void) => void
+  onAiContextCompressed?: (cb: (e: import('./ai-ipc').RunContextCompressedEvent) => void) => void
+  onAiModelFallback?: (cb: (e: import('./ai-ipc').RunModelFallbackEvent) => void) => void
   removeAiListeners?: () => void
 
   // ACP (Agent Client Protocol) — external agent process management

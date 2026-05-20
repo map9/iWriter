@@ -266,6 +266,33 @@
       </details>
     </div>
 
+    <div
+      v-if="isRespondOpen"
+      class="border-t border-base-300 px-3 py-2"
+    >
+      <textarea
+        v-model="respondMessage"
+        class="w-full resize-none rounded-md border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
+        rows="3"
+        :placeholder="t('agentPanel.creativeReview.respondPlaceholder')"
+        @keydown.enter.ctrl="sendRespond"
+      />
+      <div class="mt-1.5 flex justify-end gap-2">
+        <button
+          class="iw-btn btn-xs btn-ghost"
+          @click="isRespondOpen = false; respondMessage = ''"
+        >
+          {{ t('agentPanel.creativeReview.respondCancel') }}
+        </button>
+        <button
+          class="iw-btn btn-xs btn-warning"
+          :disabled="!respondMessage.trim()"
+          @click="sendRespond"
+        >
+          {{ t('agentPanel.creativeReview.respondSend') }}
+        </button>
+      </div>
+    </div>
     <footer class="flex flex-wrap items-center justify-end gap-2 border-t border-base-300 px-3 py-2">
       <button
         v-if="reviews.length > 1"
@@ -279,6 +306,12 @@
         @click="reject"
       >
         {{ t('agentPanel.creativeReview.reject') }}
+      </button>
+      <button
+        class="iw-btn btn-xs btn-ghost"
+        @click="isRespondOpen = true"
+      >
+        {{ t('agentPanel.creativeReview.respond') }}
       </button>
       <button
         v-if="reviews.length > 1"
@@ -326,6 +359,8 @@ const rationaleDraft = ref('')
 const approvedPlanDraft = ref('')
 const filesDraft = ref('')
 const tagMessageDraft = ref('')
+const isRespondOpen = ref(false)
+const respondMessage = ref('')
 
 const title = computed(() => {
   const review = currentReview.value
@@ -422,6 +457,8 @@ watch(() => reviews.value.length, length => {
 })
 
 watch(currentReview, review => {
+  isRespondOpen.value = false
+  respondMessage.value = ''
   if (!review) {
     bodyDraft.value = ''
     rationaleDraft.value = ''
@@ -603,6 +640,15 @@ function approve() {
 function reject() {
   const review = currentReview.value
   if (review) aiStore.rejectCreativeReview(review.id)
+}
+
+function sendRespond() {
+  const review = currentReview.value
+  const msg = respondMessage.value.trim()
+  if (!review || !msg) return
+  isRespondOpen.value = false
+  respondMessage.value = ''
+  aiStore.respondCreativeReview(review.id, msg)
 }
 
 function prev() {

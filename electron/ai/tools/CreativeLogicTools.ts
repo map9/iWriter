@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
-import { getRuntimeString } from './runtimeHelpers'
+import type { IWriterAgentContext } from '../runtime/AgentContext'
 
 interface CharacterPsychology {
   core_desire?: string
@@ -18,7 +18,8 @@ interface MissingFields {
 }
 
 function getWorkspacePath(runtime: unknown, fallbackWorkspacePath?: string | null): string | null {
-  return getRuntimeString(runtime, 'workspace_path')?.trim() || fallbackWorkspacePath || null
+  const wp = (runtime as { context?: IWriterAgentContext } | undefined)?.context?.workspacePath
+  return wp?.trim() || fallbackWorkspacePath || null
 }
 
 function normalizeHeading(value: string): string {

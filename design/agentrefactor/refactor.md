@@ -445,10 +445,14 @@ npm run lint && npm run type-check
 
 ## 六、开放问题（实施前需决定）
 
-1. **C1 — 编辑工具体执行路径**（stub-then-renderer vs in-tool IPC）：影响 HITL `edit` 决策能否真正改变 args。若选 in-tool IPC，Phase 3 改造量增加约 2x。
+1. **C1 — 编辑工具体执行路径**（stub-then-renderer vs in-tool IPC）：**已决定采用方案 A（renderer-first + 修补 editedArgs 传播）**，见 Phase 6。in-tool IPC 方案改动量过大，不采用。
 
-2. **Phase 2 ChatDeepSeek 替换兜底**：若 `body.thinking={type:'enabled'}` 等参数官方包无法表达，且通过 `extraBody` 也无效，是否接受退化（关闭强制 thinking 参数，依赖模型默认行为）？
+2. **Phase 2 ChatDeepSeek 替换兜底**：已完成，`@langchain/deepseek@^1.0.25` 覆盖全部所需特性，`body.thinking` 通过 `extraBody` 注入，已验证通过。
 
-3. **Memory 拆分粒度**：domain 级（edit / creative）是否足够，还是需要进一步细分到 mode 级（edit/minimal 各一份）？
+3. **Memory 拆分粒度**：**不再细分到 mode 级**。domain 级（`AGENTS.edit.md` / `AGENTS.creative.md`）已足够，minimal mode 是 editing domain 的子集，共用同一份 memory 不会引入噪声。
 
 4. **新 domain 扩展时机**：Phase 5 完成后，DomainStrategy 接口就绪，届时可按需评估是否增加新 domain（如 Research、Literary Edit 等），注册策略即可，无需再改 AgentEngine。
+
+5. **跨 provider 的 modelFallback**：**不实施**。配置复杂度（需维护多 provider 凭证 + 跨 provider tool schema 兼容性）与实际触发频率不成比例，当前同 provider 内切换已满足需求。
+
+6. **AGENTS.md mode 级细分**：**不实施**（见第 3 条决定）。

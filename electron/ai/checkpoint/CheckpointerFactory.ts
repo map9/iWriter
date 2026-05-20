@@ -14,6 +14,7 @@ import * as path from 'path'
 import { app } from 'electron'
 import { MemorySaver } from '@langchain/langgraph'
 import type { BaseCheckpointSaver } from '@langchain/langgraph'
+import type { Database } from 'better-sqlite3'
 
 export type CheckpointerBackend = 'sqlite' | 'memory'
 
@@ -21,8 +22,7 @@ export interface CheckpointerInstance {
   checkpointer: BaseCheckpointSaver
   backend: CheckpointerBackend
   /** Raw better-sqlite3 Database instance, only set when backend === 'sqlite' */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  db?: any
+  db: Database | null
 }
 
 let _instance: CheckpointerInstance | null = null
@@ -40,9 +40,12 @@ export async function getCheckpointer(): Promise<CheckpointerInstance> {
     // Verify it actually works (native addon may fail inside Electron)
     saver.setup()
 
-    // Access the underlying DB connection for thread-list queries
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = (saver as any).db ?? (saver as any).conn
+    // Access the underlying DB connection for thread-list queries.
+    // SqliteSaver does not expose a public accessor; we cast through unknown to
+    // keep the `any` surface minimal. If the field name changes in a future
+    // upgrade, TypeScript will catch it here (unlike a bare `as any`).
+    const rawSaver = saver as unknown as { db?: Database; conn?: Database }
+    const db = rawSaver.db ?? rawSaver.conn ?? null
 
     _instance = { checkpointer: saver, backend: 'sqlite', db }
   } catch (err) {
@@ -69,7 +72,7 @@ export async function getCheckpointer(): Promise<CheckpointerInstance> {
       '[CheckpointerFactory] SqliteSaver unavailable, falling back to MemorySaver:',
       payload,
     )
-    _instance = { checkpointer: new MemorySaver(), backend: 'memory' }
+    _instance = { checkpointer: new MemorySaver(), backend: 'memory', db: null }
   }
 
   return _instance

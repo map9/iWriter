@@ -34,12 +34,16 @@ export function buildEditCapabilities(
     tools: [...docTools, ...editTools],
     backend: new CompositeBackend(defaultBackend, routes),
     skills: [],
-    interruptOn: {
-      edit_block:      { allowedDecisions: ['approve', 'edit', 'reject'] },
-      insert_block:    { allowedDecisions: ['approve', 'edit', 'reject'] },
-      delete_block:    { allowedDecisions: ['approve', 'reject'] },
-      replace_range:   { allowedDecisions: ['approve', 'edit', 'reject'] },
-      create_document: { allowedDecisions: ['approve', 'edit', 'reject'] },
-    },
+    interruptOn: EDIT_INTERRUPT_ON_CONFIG,
   }
 }
+
+export const EDIT_INTERRUPT_ON_CONFIG = {
+  edit_block:      { allowedDecisions: ['approve', 'edit', 'reject'] as const },
+  insert_block:    { allowedDecisions: ['approve', 'edit', 'reject'] as const },
+  delete_block:    { allowedDecisions: ['approve', 'reject'] as const },
+  replace_range:   { allowedDecisions: ['approve', 'edit', 'reject'] as const },
+  create_document: { allowedDecisions: ['approve', 'edit', 'reject'] as const },
+}
+
+export const EDIT_INTERRUPT_ON_NAMES = new Set(Object.keys(EDIT_INTERRUPT_ON_CONFIG))
