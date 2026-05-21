@@ -63,5 +63,9 @@ export function buildWritingStyleExtractorSubAgent(
     description: 'Extracts a named author writing style from works or provided files by following the writing-style skill protocol. It writes compact structured extraction JSON to /large_tool_results/ and returns its path.',
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${WRITING_EXTRACTOR_SYSTEM_PROMPT}`,
     tools,
+    permissions: [
+      { operations: ['write'], paths: ['/large_tool_results/**'], mode: 'allow' },
+      { operations: ['write'], paths: ['/**'], mode: 'deny' },
+    ],
   }
 }

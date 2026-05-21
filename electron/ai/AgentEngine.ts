@@ -47,8 +47,9 @@ import { StreamEventAdapter } from './ipc/StreamEventAdapter'
 import { RendererEventBridge } from './ipc/RendererEventBridge'
 import { buildUserMessage } from './ipc/UserMessageBuilder'
 import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
-import { ThreadRuntimeStore } from './runtime/ThreadRuntimeStore'
+import { ThreadRuntimeStore, type InterruptedRun } from './runtime/ThreadRuntimeStore'
 import { buildAgentFilesystem, FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './runtime/filesystem/AgentFilesystem'
+import { decideFilesystemWriteApproval, isFilesystemWriteToolName } from './runtime/filesystem/FilesystemApprovalPolicy'
 import { AiConfigStore } from './config/AiConfigStore'
 import { generateThreadTitle } from '../../src/ai/thread/title'
 import { IWriterAgentContextSchema, type IWriterAgentContext } from './runtime/AgentContext'
@@ -65,6 +66,7 @@ import { detectInputLanguage, type DetectedInputLanguage } from '../../src/ai/me
 // ── Types ───────────────────────────────────────────────────────────────────
 
 type DeepAgentInstance = { streamEvents: unknown }
+type HitlActionRequest = { name: string; args: Record<string, unknown> }
 
 export class AgentEngine {
   private snapshotBroker: SnapshotBroker
@@ -383,9 +385,11 @@ export class AgentEngine {
       return
     }
 
+    const fullDecisions = this._mergeResumeDecisions(interrupted, decisions)
+
     // Map decisions[] → LangGraph HITLResponse decisions.
     // decisions[i] corresponds to actionRequests[i] — array position is the contract.
-    const lgDecisions = decisions.map((d, idx) => {
+    const lgDecisions = fullDecisions.map((d, idx) => {
       if (d.type === 'approved') {
         return { type: 'approve' as const }
       }
@@ -431,13 +435,53 @@ export class AgentEngine {
     )
     resumePromise.catch(err => console.error('[AgentEngine] _continueSession error:', err))
 
-    if (decisions.some(d => d.type === 'responded')) {
+    if (fullDecisions.some(d => d.type === 'responded')) {
       // Housekeeping: strip RESPOND_MARKER after the resumed stream has settled, so we clean
       // both the new checkpoint and any LangGraph write rows produced during resume.
       resumePromise.finally(() => {
         this.checkpointerAdmin?.stripRespondMarkers(threadId).catch(() => { /* ignore */ })
       }).catch(() => { /* ignore */ })
     }
+  }
+
+  private _mergeResumeDecisions(interrupted: InterruptedRun, reviewDecisions: ResumeDecision[]): ResumeDecision[] {
+    const fullDecisions: ResumeDecision[] = Array.from(
+      { length: interrupted.actionRequestCount },
+      () => ({ type: 'rejected' as const, message: 'User did not review this action.' }),
+    )
+
+    for (const [indexText, decision] of Object.entries(interrupted.autoDecisionsByIndex ?? {})) {
+      const index = Number(indexText)
+      if (Number.isInteger(index) && index >= 0 && index < fullDecisions.length) {
+        fullDecisions[index] = this._cloneResumeDecision(decision)
+      }
+    }
+
+    const reviewIndices = interrupted.reviewActionOriginalIndices
+      ?? reviewDecisions.map((_, index) => index)
+
+    reviewDecisions.forEach((decision, reviewIndex) => {
+      const originalIndex = reviewIndices[reviewIndex]
+      if (originalIndex === undefined || originalIndex < 0 || originalIndex >= fullDecisions.length) return
+      fullDecisions[originalIndex] = this._cloneResumeDecision(decision)
+    })
+
+    return fullDecisions
+  }
+
+  private _cloneResumeDecision(decision: ResumeDecision): ResumeDecision {
+    if (decision.type === 'approved') return { type: 'approved' }
+    if (decision.type === 'edited') {
+      return {
+        type: 'edited',
+        editedArgs: decision.editedArgs ? { ...decision.editedArgs } : undefined,
+        message: decision.message,
+      }
+    }
+    if (decision.type === 'responded') {
+      return { type: 'responded', message: decision.message }
+    }
+    return { type: 'rejected', message: decision.message }
   }
 
   // ── Private: run session ──────────────────────────────────────────────────
@@ -601,6 +645,65 @@ export class AgentEngine {
 
   // ── Private: interrupt handling ───────────────────────────────────────────
 
+  private _prepareActionRequestsForReview(
+    threadId: string,
+    actionRequests: HitlActionRequest[],
+  ): {
+    reviewActionRequests: HitlActionRequest[]
+    reviewActionOriginalIndices: number[]
+    autoDecisionsByIndex: Record<number, ResumeDecision>
+  } {
+    const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
+    const reviewActionRequests: HitlActionRequest[] = []
+    const reviewActionOriginalIndices: number[] = []
+    const autoDecisionsByIndex: Record<number, ResumeDecision> = {}
+    let hasAutoReject = false
+
+    actionRequests.forEach((actionRequest, index) => {
+      if (!isFilesystemWriteToolName(actionRequest.name)) {
+        reviewActionRequests.push(actionRequest)
+        reviewActionOriginalIndices.push(index)
+        return
+      }
+
+      const decision = decideFilesystemWriteApproval({
+        toolName: actionRequest.name,
+        filePath: actionRequest.args?.file_path,
+        workspacePath,
+      })
+
+      if (decision.kind === 'requires-review') {
+        reviewActionRequests.push(actionRequest)
+        reviewActionOriginalIndices.push(index)
+        return
+      }
+
+      autoDecisionsByIndex[index] = decision.decision
+      if (decision.kind === 'auto-reject') hasAutoReject = true
+    })
+
+    if (hasAutoReject) {
+      actionRequests.forEach((_actionRequest, index) => {
+        if (autoDecisionsByIndex[index]) return
+        autoDecisionsByIndex[index] = {
+          type: 'rejected',
+          message: 'Skipped because another filesystem operation in this batch was rejected by policy.',
+        }
+      })
+      return {
+        reviewActionRequests: [],
+        reviewActionOriginalIndices: [],
+        autoDecisionsByIndex,
+      }
+    }
+
+    return {
+      reviewActionRequests,
+      reviewActionOriginalIndices,
+      autoDecisionsByIndex,
+    }
+  }
+
   private async _handleInterrupt(
     threadId: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -608,7 +711,7 @@ export class AgentEngine {
     partialMessage?: ThreadMessage,
   ): Promise<void> {
     // interruptValue: HITLRequest { actionRequests: [{ name, args }], reviewConfigs: [...] }
-    const actionRequests: Array<{ name: string; args: Record<string, unknown> }> =
+    const actionRequests: HitlActionRequest[] =
       interruptValue?.actionRequests ?? []
     const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
 
@@ -617,18 +720,38 @@ export class AgentEngine {
       return
     }
 
-    const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
-    const reviews = await this.strategies[domain].buildReviewItems({
-      threadId, turnId, actionRequests, partialMessage,
-    })
+    const prepared = this._prepareActionRequestsForReview(threadId, actionRequests)
 
     this.runtimeStore.setInterrupted(threadId, {
       actionRequestCount: actionRequests.length,
       actionNames: actionRequests.map(ar => ar.name),
       turnId,
+      reviewActionOriginalIndices: prepared.reviewActionOriginalIndices,
+      autoDecisionsByIndex: prepared.autoDecisionsByIndex,
     })
 
-    this.rendererBridge.sendRunInterrupted({ threadId, turnId, reviews, partialMessage, actionRequests })
+    if (!prepared.reviewActionRequests.length) {
+      setTimeout(() => {
+        this.resumeRun(threadId, []).catch(err => console.error('[AgentEngine] auto resumeRun error:', err))
+      }, 0)
+      return
+    }
+
+    const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
+    const reviews = await this.strategies[domain].buildReviewItems({
+      threadId,
+      turnId,
+      actionRequests: prepared.reviewActionRequests,
+      partialMessage,
+    })
+
+    this.rendererBridge.sendRunInterrupted({
+      threadId,
+      turnId,
+      reviews,
+      partialMessage,
+      actionRequests: prepared.reviewActionRequests,
+    })
   }
 
   // ── Private: interrupt rehydration on thread reopen ──────────────────────
@@ -663,7 +786,7 @@ export class AgentEngine {
 
     // Collect orphan tool_calls that belong to this domain's interruptOn set
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const actionRequests = (lastAi.tool_calls as any[])
+    const actionRequests: HitlActionRequest[] = (lastAi.tool_calls as any[])
       .filter((tc) => tc.id && !responded.has(tc.id) && interruptOnNames.has(tc.name))
       .map((tc) => ({ name: tc.name as string, args: (tc.args ?? {}) as Record<string, unknown> }))
 
@@ -671,20 +794,37 @@ export class AgentEngine {
 
     const turnId = `rehydrated-${crypto.randomUUID()}`
     this.runtimeStore.setCurrentTurnId(threadId, turnId)
+    const prepared = this._prepareActionRequestsForReview(threadId, actionRequests)
     this.runtimeStore.setInterrupted(threadId, {
       actionRequestCount: actionRequests.length,
       actionNames: actionRequests.map((a) => a.name),
       turnId,
+      reviewActionOriginalIndices: prepared.reviewActionOriginalIndices,
+      autoDecisionsByIndex: prepared.autoDecisionsByIndex,
     })
+
+    if (!prepared.reviewActionRequests.length) {
+      await this.resumeRun(threadId, [])
+      return
+    }
 
     let reviews: import('./domain/DomainStrategy').DomainReviewItem[] = []
     try {
-      reviews = await this.strategies[domain].buildReviewItems({ threadId, turnId, actionRequests })
+      reviews = await this.strategies[domain].buildReviewItems({
+        threadId,
+        turnId,
+        actionRequests: prepared.reviewActionRequests,
+      })
     } catch (err) {
       console.warn('[AgentEngine] _maybeRehydrateInterrupt: buildReviewItems failed:', err)
     }
 
-    this.rendererBridge.sendRunInterrupted({ threadId, turnId, reviews, actionRequests })
+    this.rendererBridge.sendRunInterrupted({
+      threadId,
+      turnId,
+      reviews,
+      actionRequests: prepared.reviewActionRequests,
+    })
   }
 
   // ── Public: cache management ──────────────────────────────────────────────

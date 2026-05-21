@@ -121,7 +121,13 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
       if (!batch.filesystemIds.has(id)) {
         return { type: 'rejected', message: 'User reviewed only the filesystem operation in this mixed approval batch.' }
       }
-      return batch.decisionsById[id] ?? { type: 'rejected', message: 'User rejected this file operation.' }
+      const decision = batch.decisionsById[id]
+      if (!decision) return { type: 'rejected', message: 'User rejected this file operation.' }
+      if (decision.type === 'approved') return { type: 'approved' }
+      return {
+        type: 'rejected',
+        message: decision.message ?? 'User rejected this file operation.',
+      }
     })
 
     deps.threadRunState.value = 'streaming'
@@ -140,7 +146,7 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
     interruptActionCount.value = 0
     reviewBatch.value = null
 
-    window.electronAPI.aiResume?.({ threadId, decisions })
+    await window.electronAPI.aiResume?.({ threadId, decisions })
 
     const liveTurn = deps.ensureLiveTurn({ threadId, state: 'resuming' })
     if (liveTurn) {

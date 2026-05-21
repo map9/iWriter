@@ -122,11 +122,13 @@ export type StreamChunkEvent =
 /**
  * Emitted when the agent hits a HITL interrupt. Contains:
  * - partialMessage: assistant content accumulated before the interrupt (may be absent)
- * - reviews: unified DomainReviewItem[] for all actionRequests in this batch (in order)
- * - actionRequests: raw LangGraph actionRequests in order (used for decision index alignment)
+ * - reviews: unified DomainReviewItem[] for actionRequests that require user review
+ * - actionRequests: reviewable LangGraph actionRequests in the same order as reviews
  *
  * The renderer must collect one decision per review/action before calling ai:resume.
- * decisions[i] corresponds to actionRequests[i] and reviews[i].
+ * decisions[i] corresponds to the reviewable actionRequests[i] and reviews[i].
+ * Main process merges these decisions with any auto-approved/auto-rejected actions
+ * before resuming LangGraph's original interrupt batch.
  * Dispatch to edit or creative UI by inspecting reviews[i].kind.
  */
 export interface RunInterruptedEvent {
@@ -137,11 +139,11 @@ export interface RunInterruptedEvent {
    * Absent when the LLM called an edit tool as its very first action.
    */
   partialMessage?: ThreadMessage
-  /** Unified review payloads in actionRequests order. Dispatch by reviews[i].kind. */
+  /** Unified review payloads in reviewable actionRequests order. Dispatch by reviews[i].kind. */
   reviews: DomainReviewItem[]
   /**
-   * Raw LangGraph actionRequests in order.
-   * Used by the renderer to align decisions by index.
+   * LangGraph actionRequests that still require user review.
+   * Main process keeps any original-index mapping needed for resume.
    */
   actionRequests: Array<{ name: string; args: Record<string, unknown> }>
 }
