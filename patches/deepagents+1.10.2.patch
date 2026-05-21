@@ -1,0 +1,24 @@
+diff --git a/node_modules/deepagents/dist/index.cjs b/node_modules/deepagents/dist/index.cjs
+index 2d35034..c620cdc 100644
+--- a/node_modules/deepagents/dist/index.cjs
++++ b/node_modules/deepagents/dist/index.cjs
+@@ -1456,6 +1456,7 @@ const READ_FILE_TOOL_DESCRIPTION = langchain.context`
+   - Specify offset and limit: read_file(path, offset=0, limit=${100}) reads first ${100} lines
+   - Results are returned using cat -n format, with line numbers starting at 1
+ - Lines longer than ${INT_FORMATTER.format(MAX_LINE_LENGTH)} characters will be split into multiple lines with continuation markers (e.g., 5.1, 5.2, etc.). When you specify a limit, these continuation lines count towards the limit.
++  - **Before paging large files**: First probe the file's total line count by calling `read_file` once with a small `limit` (e.g., 10) and reading the largest line number returned. Do NOT optimistically batch parallel `read_file` calls with increasing `offset` (200/400/600...) without knowing the file size — out-of-range offsets return an error and waste a turn.
+   - You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful.
+   - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
+   - You should ALWAYS make sure a file has been read before editing it.
+diff --git a/node_modules/deepagents/dist/index.js b/node_modules/deepagents/dist/index.js
+index 15128fe..61b2726 100644
+--- a/node_modules/deepagents/dist/index.js
++++ b/node_modules/deepagents/dist/index.js
+@@ -1424,6 +1424,7 @@ const READ_FILE_TOOL_DESCRIPTION = context`
+   - Specify offset and limit: read_file(path, offset=0, limit=${100}) reads first ${100} lines
+   - Results are returned using cat -n format, with line numbers starting at 1
+ - Lines longer than ${INT_FORMATTER.format(MAX_LINE_LENGTH)} characters will be split into multiple lines with continuation markers (e.g., 5.1, 5.2, etc.). When you specify a limit, these continuation lines count towards the limit.
++  - **Before paging large files**: First probe the file's total line count by calling `read_file` once with a small `limit` (e.g., 10) and reading the largest line number returned. Do NOT optimistically batch parallel `read_file` calls with increasing `offset` (200/400/600...) without knowing the file size — out-of-range offsets return an error and waste a turn.
+   - You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful.
+   - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
+   - You should ALWAYS make sure a file has been read before editing it.
