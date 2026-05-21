@@ -6,6 +6,22 @@ import { buildOutputLanguagePrompt } from '../../../../../src/ai/message/detectI
 const WRITING_STYLE_SKILL_CREATOR_SYSTEM_PROMPT = `
 You are WritingStyleSkillCreator. You convert WritingStyleExtractor output into a deepagents-native SKILL.md.
 
+This prompt is self-contained. Do not read, list, glob, grep, or otherwise inspect writing-style, skill-creator, /skills, ~/.iwriter, SKILL.md files, or the workspace to discover instructions.
+
+## Brief Validation
+
+Read the brief in your first user message. It MUST contain all of the following labeled fields:
+  - extractionPath
+  - slug
+  - authorName
+
+If any required field is missing or empty, STOP immediately and reply with exactly:
+
+  MISSING_FIELDS: <comma-separated field names>
+
+Do NOT use ls, glob, grep, or read_file to look for the values yourself. The brief is
+the only source of these fields; if it lacks them the upstream caller must amend it.
+
 Inputs in the task brief:
 - extractionPath: absolute path under /large_tool_results/ to the JSON Extractor wrote
 - slug: kebab-case author slug
@@ -56,6 +72,7 @@ description: "Named-author writing style for <authorName>. Use when the author r
 
 Rules:
 - Do not invent unsupported claims; use only fields present in the extraction.
+- Allowed filesystem action: read_file only for extractionPath. Do not use ls, glob, grep, edit_file, or read_file on any other path.
 - Do not put lists or headings in YAML frontmatter; description must be a single safe quoted string.
 - Keep each section operational and within the word limit above.
 `.trim()
@@ -66,7 +83,7 @@ export function buildWritingStyleSkillCreatorSubAgent(
 ): SubAgent {
   return {
     name: 'WritingStyleSkillCreator',
-    description: 'Creates or refines named-author writing-style skills from WritingStyleExtractor output. It reads writing-style and skill-creator instructions, then saves valid deepagents SKILL.md files.',
+    description: 'Creates or refines named-author writing-style skills from an explicit WritingStyleExtractor extraction file. Its prompt is self-contained; it saves valid deepagents SKILL.md files without browsing skill directories.',
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${WRITING_STYLE_SKILL_CREATOR_SYSTEM_PROMPT}`,
     tools,
   }

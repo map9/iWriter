@@ -7,15 +7,7 @@ description: "Router and protocol for named-author writing-style skills. Use whe
 
 This skill manages named-author writing-style skills. It is not for arbitrary user-defined prose preferences; those belong in the story's own style constraints or conversation context.
 
-Author style skills live as sub-skills under this directory:
-
-```txt
-/skills/writing-style/<author-slug>/SKILL.md
-```
-
-Examples:
-- `/skills/writing-style/lu-xun/SKILL.md`
-- `/skills/writing-style/zhang-ai-ling/SKILL.md`
+Author style skills are managed by the app's writing-style tools. Do not browse skill directories with `ls`, `glob`, or `grep` to discover them.
 
 ## When to Use
 
@@ -30,9 +22,9 @@ Do not create a skill for a custom style invented by the user. Keep custom style
 
 ## Existing Style Flow
 
-1. Check the Available Skills list for an author style loaded from `/skills/writing-style/`.
-2. If a matching author style exists, read its `SKILL.md` with `read_file(file_path="<path>", limit=1000)`.
-3. Follow that skill's Generation Recipe and Self-check sections before writing.
+1. Call `list_writing_styles` to discover saved author style slugs.
+2. If a matching author style exists, call `get_writing_style(slug)`.
+3. Follow that style's Generation Recipe, Self-check, and Avoid sections before writing.
 4. If the author is only testing the style, produce TWO short samples that exercise distinct narrative modes from the skill's Generation Recipe; ask which feels closer.
 
 ## New Style Flow
@@ -44,22 +36,43 @@ When no matching named-author style exists, decide between two branches based on
 Trigger: user attached or pasted ≥ 3,000 characters of representative work by the target author.
 
 1. Skip Researcher entirely. The provided text is the source of truth.
-2. Call `task` with `subagent_type="WritingStyleExtractor"`. Brief MUST include:
-   - `sourceFilePaths`: absolute paths of provided files
-   - `targetAuthor`: human-readable name
-   - `slug`: kebab-case identifier
-   - `outputPath`: `/large_tool_results/style-extraction-<slug>.json`
-3. Call `task` with `subagent_type="WritingStyleSkillCreator"`. Brief MUST include:
-   - `extractionPath`: the same path Extractor wrote to
-   - `slug`, `authorName`
-4. After save, generate TWO short test samples that exercise distinct narrative modes specified in the new skill's Generation Recipe; ask which feels closer.
+   Do NOT use `glob`, `ls`, `grep`, or a second `read_file` to verify the source path or check `/large_tool_results` for pre-existing extraction output. Trust the absolute path the user provided and proceed directly to step 2.
+2. Call `task` with `subagent_type="WritingStyleExtractor"` using this brief template verbatim (replace each <placeholder>; keep field labels exactly as shown, one per line):
+
+   ```
+   Extract writing style for <authorName>.
+   sourceFilePaths: [<absolute path>, ...]
+   targetAuthor: "<authorName>"
+   slug: "<kebab-case-slug>"
+   outputPath: "/large_tool_results/style-extraction-<slug>.json"
+   ```
+
+   All four fields are required. If only inline text is available, use `sourceText: "<text>"` instead of `sourceFilePaths`. Do not omit `outputPath` — the subagent has no other way to know where to write.
+3. Call `task` with `subagent_type="WritingStyleSkillCreator"` using this brief template verbatim:
+
+   ```
+   Create writing-style skill for <authorName>.
+   extractionPath: "<absolute /large_tool_results/... path returned by Extractor>"
+   slug: "<same kebab-case-slug>"
+   authorName: "<authorName>"
+   ```
+
+4. Do not ask either subagent to read this skill, `skill-creator`, `/skills`, `~/.iwriter`, or any writing-style directory. Their prompts contain the full extraction and SKILL.md format.
+5. After save, generate TWO short test samples that exercise distinct narrative modes specified in the new skill's Generation Recipe; ask which feels closer.
 
 ### Branch B — Only author/work name available
 
 Trigger: no representative text provided.
 
-1. Call `task` with `subagent_type="Researcher"`. STRICT SCOPE: find primary-source excerpts of the target author's works (chapter openings, key passages). Do NOT collect biographical or literary-critical secondary commentary.
-2. Pass Researcher excerpts as `sourceText` (alongside `targetAuthor`, `slug`, `outputPath`) to step A.2.
+1. Call `task` with `subagent_type="Researcher"` using this brief template verbatim:
+
+   ```
+   Research primary-source excerpts for <authorName>.
+   question: "Find representative primary-source excerpts (chapter openings, key passages) by <authorName>."
+   scope: "Primary-source text only. Do NOT collect biographical or literary-critical secondary commentary."
+   ```
+
+2. Pass Researcher's excerpts as `sourceText` (alongside `targetAuthor`, `slug`, `outputPath`) to step A.2 above.
 3. Continue as Branch A from step A.3.
 
 ## Extraction Protocol
@@ -116,6 +129,7 @@ The YAML description must be a single safe quoted string. Do not put Markdown li
 - Save a newly created style with `save_writing_style_skill(slug, content, overwrite?)`.
 - Refine an existing style with `update_writing_style(slug, {appendNote: "..."})` for small feedback, or use WritingStyleSkillCreator for larger rewrites.
 - Delete a style only when the author explicitly asks, using `delete_writing_style(slug)`.
+- Do not discover or maintain styles by directly listing or reading the writing-style storage directory.
 
 ## Constraints
 

@@ -470,7 +470,6 @@ export default {
         search_sections_in_document: '在文档中搜索章节',
         search_in_directory: '在目录中搜索文档内容',
         read_file: '读取文件',
-        list_directory: '查看目录',
         ls: '查看目录',
         glob: '匹配文件',
         grep: '搜索内容',

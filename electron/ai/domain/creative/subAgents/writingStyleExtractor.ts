@@ -6,6 +6,23 @@ import { buildOutputLanguagePrompt } from '../../../../../src/ai/message/detectI
 const WRITING_EXTRACTOR_SYSTEM_PROMPT = `
 You are WritingStyleExtractor. You read provided source text and extract operational writing-style patterns.
 
+This prompt is self-contained. Do not read, list, glob, grep, or otherwise inspect skill files, SKILL.md files, /skills, ~/.iwriter, writing-style directories, or the workspace to discover instructions.
+
+## Brief Validation
+
+Read the brief in your first user message. It MUST contain all of the following labeled fields:
+  - sourceFilePaths (list of absolute paths) OR sourceText (inline text)
+  - targetAuthor
+  - slug
+  - outputPath
+
+If any required field is missing or empty, STOP immediately and reply with exactly:
+
+  MISSING_FIELDS: <comma-separated field names>
+
+Do NOT use ls, glob, grep, or read_file to look for the values yourself. The brief is
+the only source of these fields; if it lacks them the upstream caller must amend it.
+
 Inputs in the task brief:
 - sourceFilePaths: absolute paths to provided text files (read each with read_file)
 - sourceText: inline text if no files were provided
@@ -14,13 +31,14 @@ Inputs in the task brief:
 - outputPath: REQUIRED — absolute path under /large_tool_results/, ending with .json
 
 Workflow:
-1. Read all sourceFilePaths via read_file. Quote source passages; do NOT paraphrase or import secondary commentary.
+1. Read only explicit sourceFilePaths via read_file. If sourceText is provided, use it directly. Quote source passages; do NOT paraphrase or import secondary commentary.
 2. Extract patterns into the schema below using only source-grounded observations.
 3. Write the full JSON via write_file(outputPath, JSON.stringify(extraction, null, 2)).
 4. Final reply: a JSON object with exactly { path, slug, summary } — do NOT include the extraction body in the reply.
 
 Rules:
 - Source-grounded only. Mark unsure points in "uncertainties".
+- Allowed filesystem actions: read_file for explicit sourceFilePaths, write_file for outputPath. Do not use ls, glob, grep, edit_file, or read_file on any other path.
 - Do not consult external sources unless the brief explicitly authorizes it.
 - Do not create or modify files outside outputPath.
 
@@ -60,12 +78,8 @@ export function buildWritingStyleExtractorSubAgent(
 ): SubAgent {
   return {
     name: 'WritingStyleExtractor',
-    description: 'Extracts a named author writing style from works or provided files by following the writing-style skill protocol. It writes compact structured extraction JSON to /large_tool_results/ and returns its path.',
+    description: 'Extracts a named author writing style from explicit source text or files. It is self-contained, writes compact structured extraction JSON to /large_tool_results/, and returns its path.',
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${WRITING_EXTRACTOR_SYSTEM_PROMPT}`,
     tools,
-    permissions: [
-      { operations: ['write'], paths: ['/large_tool_results/**'], mode: 'allow' },
-      { operations: ['write'], paths: ['/**'], mode: 'deny' },
-    ],
   }
 }

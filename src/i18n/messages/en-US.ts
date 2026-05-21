@@ -473,7 +473,6 @@ export default {
         search_sections_in_document: 'Search sections in document',
         search_in_directory: 'Search document content in directory',
         read_file: 'Read file',
-        list_directory: 'List directory',
         ls: 'List directory',
         glob: 'Match files',
         grep: 'Search content',

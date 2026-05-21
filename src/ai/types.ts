@@ -701,7 +701,6 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     // deepagents built-in tools
     execute:              'execute',
     read_file:            'read',
-    list_directory:       'read',
     write_file:           'edit',
     edit_file:            'edit',
     ls:                   'read',

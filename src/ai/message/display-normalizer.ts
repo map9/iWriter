@@ -420,7 +420,6 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         parsedResult,
         rawResult,
       }
-    case 'list_directory':
     case 'ls':
       return {
         actionLabel: toolNameLabel('ls'),
