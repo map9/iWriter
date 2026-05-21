@@ -1,6 +1,6 @@
 import type { BrowserWindow } from 'electron'
 import Timer from '../src/utils/Timer'
-import type { WindowContentState } from '../src/types/windowContentState'
+import type { WindowContentState } from '../src/types/window-content-state'
 
 // 窗口状态接口
 export interface WindowState {

@@ -38,6 +38,7 @@ function findSection(content: string, level: number, names: string[]): string {
 
   for (let i = 0; i < matches.length; i += 1) {
     const match = matches[i]
+    if (!match) continue
     const title = normalizeHeading(match[1] ?? '')
     if (!normalizedNames.has(title)) continue
     const start = (match.index ?? 0) + match[0].length

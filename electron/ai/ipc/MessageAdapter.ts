@@ -59,7 +59,7 @@ export function extractToolResult(toolName: string, output: unknown): string {
       if (match) {
         try {
           const parsed: Todo[] = JSON.parse(match[0])
-          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].content !== undefined) {
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.content !== undefined) {
             return formatTodos(parsed)
           }
         } catch { /* fall through */ }
@@ -75,7 +75,7 @@ export function extractToolResult(toolName: string, output: unknown): string {
       if (match) {
         try {
           const parsed: Todo[] = JSON.parse(match[0])
-          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].content !== undefined) {
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.content !== undefined) {
             return formatTodos(parsed)
           }
         } catch { /* fall through */ }
@@ -119,7 +119,7 @@ function shouldPreserveStructuredToolResult(toolName: string, output: unknown): 
   // Even single-key objects should stay structured unless they are explicitly
   // text-first tools. This avoids losing shape for future tools that return
   // JSON payloads such as { content, ... } through LangChain ToolMessages.
-  const [onlyKey] = entries[0]
+  const [onlyKey] = entries[0]!
   return onlyKey !== 'content'
 }
 
@@ -204,7 +204,7 @@ function isLangChainToolMessageLike(raw: unknown): raw is {
   type?: unknown
   _getType?: () => string
   getType?: () => string
-} {
+} & Record<string, unknown> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
   const record = raw as Record<string, unknown>
   const type =
@@ -257,7 +257,7 @@ function unwrapSerializedLangChainMessage(raw: unknown): unknown {
       continue
     }
 
-    const lcKwargs = record.lc_kwargs
+    const lcKwargs = record['lc_kwargs']
     if (lcKwargs && typeof lcKwargs === 'object' && !Array.isArray(lcKwargs)) {
       const content = (lcKwargs as Record<string, unknown>).content
       if (content != null) {
@@ -266,7 +266,7 @@ function unwrapSerializedLangChainMessage(raw: unknown): unknown {
       }
     }
 
-    const kwargs = record.kwargs
+    const kwargs = record['kwargs']
     if (!kwargs || typeof kwargs !== 'object' || Array.isArray(kwargs)) {
       return current
     }
@@ -315,11 +315,9 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
 
     if (type === 'human') {
       const raw = lcMsgText(msg.content)
-      // Strip system-injected XML blocks added at send time (editor_state, context_files, filesystem_roots)
+      // Strip system-injected XML blocks added at send time.
       const content = raw
         .replace(/<editor_state[\s\S]*?<\/editor_state>\s*/g, '')
-        .replace(/<context_files>[\s\S]*?<\/context_files>\s*/g, '')
-        .replace(/<filesystem_roots>[\s\S]*?<\/filesystem_roots>\s*/g, '')
         .trim()
       result.push({
         id: `msg-h-${i}`,

@@ -1,17 +1,17 @@
 import type { ThreadMessage } from '../../../src/types/ai'
 import type { DomainAgentCapabilities } from './types'
-import type { AiAgentMode, EditProposal, CreativeReviewItem } from '../../../src/types/ai'
-import type { FilesystemMount } from '../runtime/FilesystemMounts'
+import type { AiAgentMode, EditProposal, CreativeReviewItem, FilesystemReviewItem } from '../../../src/types/ai'
 import type { DetectedInputLanguage } from '../../../src/ai/message/detectInputLanguage'
 
 /** Unified review payload — renderer dispatches to edit or creative UI by kind. */
 export type DomainReviewItem =
   | { kind: 'edit'; payload: EditProposal }
   | { kind: 'creative'; payload: CreativeReviewItem }
+  | { kind: 'filesystem'; payload: FilesystemReviewItem }
 
 export interface DomainBuildContext {
   mode: AiAgentMode
-  mounts: FilesystemMount[]
+  workspacePath: string | null
   language: DetectedInputLanguage
 }
 
@@ -28,7 +28,7 @@ export interface SessionCompleteContext {
 }
 
 export interface DomainStrategy {
-  /** Build deepagents capabilities (tools / backend / interruptOn / subAgents / skills). */
+  /** Build domain capabilities. Filesystem backend, skills middleware, and file HITL live in AgentFilesystem. */
   buildCapabilities(ctx: DomainBuildContext): DomainAgentCapabilities
 
   /** System prompt for the current domain + mode combination. */

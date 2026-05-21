@@ -1,0 +1,31 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.json",
+  "include": [
+    "env.d.ts",
+    "src/types/**/*.d.ts",
+    "electron/**/*.ts"
+  ],
+  "exclude": [
+    "electron/ai/builtin-skills/**/scripts/**/*.ts"
+  ],
+  "compilerOptions": {
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "turndown": [
+        "./node_modules/@types/turndown/index.d.ts"
+      ],
+      "turndown-plugin-gfm": [
+        "./src/types/@guyplusplus/turndown-plugin-gfm.d.ts"
+      ]
+    }
+  }
+}

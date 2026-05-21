@@ -38,7 +38,7 @@ export async function getCheckpointer(): Promise<CheckpointerInstance> {
     const saver = SqliteSaver.fromConnString(dbPath)
 
     // Verify it actually works (native addon may fail inside Electron)
-    saver.setup()
+    ;(saver as unknown as { setup: () => void }).setup()
 
     // Access the underlying DB connection for thread-list queries.
     // SqliteSaver does not expose a public accessor; we cast through unknown to

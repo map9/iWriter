@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import type { AiToolCall } from '@/ai/types'
+import type { AiToolCall, FilesystemReviewItem } from '@/ai/types'
 import type { DomainReviewItem } from '@/ai/ipc'
 
 export type ThreadRunState = 'idle' | 'streaming' | 'interrupted'
@@ -60,6 +60,11 @@ export function createRuntimeState() {
   const pendingCreativeReviews = computed(() =>
     pendingReviews.value
       .filter((r): r is Extract<DomainReviewItem, { kind: 'creative' }> => r.kind === 'creative')
+      .map(r => r.payload)
+  )
+  const pendingFilesystemReviews = computed<FilesystemReviewItem[]>(() =>
+    pendingReviews.value
+      .filter((r): r is Extract<DomainReviewItem, { kind: 'filesystem' }> => r.kind === 'filesystem')
       .map(r => r.payload)
   )
   const liveTurnState = computed<LiveTurnState | null>(() => liveTurn.value?.state ?? null)
@@ -140,6 +145,7 @@ export function createRuntimeState() {
     pendingReviews,
     pendingEditProposals,
     pendingCreativeReviews,
+    pendingFilesystemReviews,
     liveTurnState,
     liveTurnThreadId,
     liveTurnTurnId,

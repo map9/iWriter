@@ -5,7 +5,7 @@ import * as fs from 'fs'
 import { merge } from 'lodash'
 
 import Timer from '../src/utils/Timer'
-import type { WindowContentState } from '../src/types/windowContentState'
+import type { WindowContentState } from '../src/types/window-content-state'
 import type { PdfSaveOptions } from '../src/types/electron-api'
 
 import { isDev } from './utils'
@@ -170,10 +170,12 @@ export class WindowManager {
         this.appInstance.exitApp = true
       } else if (BrowserWindow.getFocusedWindow()?.id === window.id) {
         if (this._windows.length > 0) {
-          if (this._windows[0].window.isMinimized()) {
-            this._windows[0].window.restore();
+          const firstWindow = this._windows[0]
+          if (!firstWindow) return
+          if (firstWindow.window.isMinimized()) {
+            firstWindow.window.restore();
           }
-          this._windows[0].window.focus();
+          firstWindow.window.focus();
         }
       }
     })
@@ -250,7 +252,7 @@ export class WindowManager {
     return true
   }
 
-  handleSystemColorsChanged({theme, newColors}) {
+  handleSystemColorsChanged({ theme, newColors }: { theme: string; newColors: unknown }) {
     this._windows.forEach(w => {
       if (w.window && !w.window.isDestroyed()) {
         w.window.webContents.send('system-colors-changed', {theme, newColors});
@@ -286,8 +288,10 @@ export class WindowManager {
       const windowIndex = this._windows.findIndex(w => w.id === window.id)
       if (windowIndex === -1) return normalizedLocale
 
-      this._windows[windowIndex].wContentState = merge(
-        this._windows[windowIndex].wContentState,
+      const wState = this._windows[windowIndex]
+      if (!wState) return normalizedLocale
+      wState.wContentState = merge(
+        wState.wContentState,
         { view: { locale: normalizedLocale } },
       )
 
@@ -306,12 +310,12 @@ export class WindowManager {
       }
 
       return new Promise((resolve) => {
-        const printOptions = {
+        const printOptions: WebContentsPrintOptions = {
           silent: false, // Show system print dialog
           printBackground: true,
           color: true,
           pageSize: 'A4',
-          margins: { marginType: 'default' },
+          margins: { marginType: 'default' as const },
           ...options // Allow custom options to override defaults
         };
 
@@ -430,8 +434,10 @@ export class WindowManager {
         */
         
         if (windowIndex !== -1) {
-          this._windows[windowIndex].wContentState = merge(
-            this._windows[windowIndex].wContentState, 
+          const wState = this._windows[windowIndex]
+          if (!wState) return
+          wState.wContentState = merge(
+            wState.wContentState, 
             wContentState
           );
           if (BrowserWindow.getFocusedWindow()?.id === window.id) {

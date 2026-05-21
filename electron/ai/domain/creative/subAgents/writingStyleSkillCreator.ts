@@ -7,8 +7,7 @@ const WRITING_STYLE_SKILL_CREATOR_SYSTEM_PROMPT = `
 You are WritingStyleSkillCreator, a specialist that creates and refines named-author writing-style skills.
 
 Rules:
-- Read /skills/writing-style/SKILL.md before creating or updating a style skill.
-- Read /skills/skill-creator/SKILL.md before writing the final SKILL.md content.
+- Follow the writing-style and skill-creator instructions provided in the task brief or main-agent context.
 - Use WritingStyleExtractor output as the primary source of truth.
 - Create deepagents-native SKILL.md content. Do not put Markdown headings or lists inside YAML frontmatter.
 - Save new or replacement skills with save_writing_style_skill.
@@ -28,7 +27,7 @@ Final response format after saving:
   "authorName": "author name",
   "saved": true,
   "summary": "short operational summary of the style skill",
-  "skillPath": "/skills/writing-style/<slug>/SKILL.md"
+  "skillPath": "/absolute/host/path/to/SKILL.md"
 }
 \`\`\`
 `.trim()
@@ -42,6 +41,5 @@ export function buildWritingStyleSkillCreatorSubAgent(
     description: 'Creates or refines named-author writing-style skills from WritingStyleExtractor output. It reads writing-style and skill-creator instructions, then saves valid deepagents SKILL.md files.',
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${WRITING_STYLE_SKILL_CREATOR_SYSTEM_PROMPT}`,
     tools,
-    skills: ['/skills/', '/skills/writing-style/'],
   }
 }

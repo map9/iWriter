@@ -346,6 +346,23 @@ export type CreativeReviewItem =
   | CreativeExplorationDeleteReviewItem
   | CreativeCompressReviewItem
 
+// ── Filesystem Review Items ───────────────────────────────────────────────
+
+export interface FilesystemReviewItem {
+  id: string
+  kind: 'filesystem'
+  status: 'pending' | 'applied' | 'rejected'
+  toolName: 'write_file' | 'edit_file'
+  targetPath: string
+  newContent?: string
+  oldString?: string
+  newString?: string
+  replaceAll?: boolean
+  sourceMessageId?: string
+  sourceTurnId?: string
+  toolCallId?: string
+}
+
 export type EditRoundResultState =
   | 'applied'
   | 'applied_edited'
@@ -462,11 +479,11 @@ export interface ThreadMessage {
  * Passed from useChatSend → aiStore.sendMessage.
  */
 export interface SendContext {
-  /** Local text file paths (md/txt/iwt/code) — listed in <context_files> system prompt section. */
+  /** Local text file paths (md/txt/iwt/code) — listed in <attached_files> inside editor_state. */
   textFilePaths: string[]
   /** Binary file paths (images, PDFs) — read by the store and embedded as inline base64 in the message. */
   binaryFilePaths: string[]
-  /** Attached directory paths — listed in <environment> system prompt section. */
+  /** Attached directory paths — listed in <attached_dirs> inside editor_state. */
   directories: string[]
 }
 

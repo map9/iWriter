@@ -2,6 +2,7 @@ import { CREATIVE_REVIEW_TOOLS } from '../../../../src/types/ai'
 import { buildCreativeSystemPrompt } from '../../../../src/ai/thread/system-prompts/creative'
 import { buildCreativeCapabilities, CREATIVE_INTERRUPT_ON_NAMES } from './buildCreativeCapabilities'
 import { buildCreativeReviewItemFromAction } from '../../ipc/CreativeReviewAdapter'
+import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
 import { computeWorkspaceHashes, getCreativeDb } from '../../db/CreativeDb'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { ThreadRuntimeStore } from '../../runtime/ThreadRuntimeStore'
@@ -25,15 +26,14 @@ export class CreativeDomainStrategy implements DomainStrategy {
   ) {}
 
   buildCapabilities(ctx: DomainBuildContext): DomainAgentCapabilities {
-    const workspacePath = ctx.mounts.find(m => m.virtualPath === '/')?.hostPath
-    return buildCreativeCapabilities(
-      this.aiRootPath,
-      ctx.mounts,
-      workspacePath ? getCreativeDb(workspacePath) : null,
-      this.snapshotBroker,
-      ctx.language,
-      this.onSkillsMutated,
-    )
+    return buildCreativeCapabilities({
+      aiRootPath: this.aiRootPath,
+      workspacePath: ctx.workspacePath,
+      creativeDb: ctx.workspacePath ? getCreativeDb(ctx.workspacePath) : null,
+      snapshotBroker: this.snapshotBroker,
+      language: ctx.language,
+      onSkillsMutated: this.onSkillsMutated,
+    })
   }
 
   getSystemPrompt(_mode: AiAgentMode, language: DetectedInputLanguage): string {
@@ -54,16 +54,30 @@ export class CreativeDomainStrategy implements DomainStrategy {
       CREATIVE_REVIEW_TOOLS.has(tc.name)
     )
 
-    return ctx.actionRequests.map((ar, index): DomainReviewItem => ({
-      kind: 'creative',
-      payload: buildCreativeReviewItemFromAction(
-        ar,
-        pendingCreativeToolCalls[index]?.id,
-        ctx.partialMessage?.id,
-        ctx.turnId,
-        workspacePath,
-      ),
-    }))
+    return ctx.actionRequests.map((ar, index): DomainReviewItem => {
+      if (isFilesystemWriteTool(ar.name)) {
+        return {
+          kind: 'filesystem',
+          payload: buildFilesystemReviewItemFromAction(
+            ar,
+            ctx.partialMessage?.toolCalls?.find(tc => tc.name === ar.name)?.id,
+            ctx.partialMessage?.id,
+            ctx.turnId,
+          ),
+        }
+      }
+
+      return {
+        kind: 'creative',
+        payload: buildCreativeReviewItemFromAction(
+          ar,
+          pendingCreativeToolCalls[index]?.id,
+          ctx.partialMessage?.id,
+          ctx.turnId,
+          workspacePath,
+        ),
+      }
+    })
   }
 
   onSessionComplete(ctx: SessionCompleteContext): void {

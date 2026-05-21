@@ -1,10 +1,9 @@
 import type { StructuredTool } from '@langchain/core/tools'
-import type { AnyBackendProtocol, SubAgent } from 'deepagents'
+import type { SubAgent } from 'deepagents'
+import type { InterruptOnConfig } from 'langchain'
 
 export interface DomainAgentCapabilities {
   tools: StructuredTool[]
-  skills: string[]
-  backend?: AnyBackendProtocol
-  interruptOn?: Record<string, { allowedDecisions: string[] }>
   subAgents?: SubAgent[]
+  interruptOn?: Record<string, InterruptOnConfig>
 }

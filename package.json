@@ -16,7 +16,7 @@
     "rebuild-native": "electron-rebuild -f -w better-sqlite3",
     "docs:sync-version": "node scripts/sync-docs-version.mjs",
     "prebuild": "node scripts/generate-icons.mjs && node scripts/prepare-build.mjs",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "npm run type-check && vite build",
     "build:quick": "vite build",
     "dist": "npm run build && electron-builder",
     "dist:quick": "npm run build:quick && electron-builder",
@@ -31,7 +31,7 @@
     "docs:build": "cross-env BASE_PATH=/iWriter/ vitepress build docs",
     "docs:preview": "cross-env BASE_PATH=/iWriter/ vitepress preview docs",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
-    "type-check": "vue-tsc --noEmit",
+    "type-check": "vue-tsc --noEmit && tsc --noEmit -p tsconfig.electron.json",
     "verify:langchain-patches": "node scripts/verify-langchain-patches.mjs",
     "version": "node scripts/sync-docs-version.mjs --finalize-release && git add package.json package-lock.json docs"
   },

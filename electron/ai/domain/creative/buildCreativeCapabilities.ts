@@ -1,7 +1,6 @@
 import * as path from 'path'
-import { CompositeBackend, FilesystemBackend } from 'deepagents'
 import type { DomainAgentCapabilities } from '../types'
-import type { FilesystemMount } from '../../runtime/FilesystemMounts'
+import type { InterruptOnConfig } from 'langchain'
 import { buildCreativeTools } from '../../tools/CreativeTools'
 import { buildCreativeAnalysisTools } from '../../tools/CreativeAnalysisTools'
 import { buildCreativeAdvisorTools } from '../../tools/CreativeAdvisorTools'
@@ -11,7 +10,6 @@ import { buildCreativeLogicTools } from '../../tools/CreativeLogicTools'
 import { buildWebTools } from '../../tools/WebTools'
 import { buildWritingStyleTools } from '../../tools/WritingStyleTools'
 import type { CreativeDb } from '../../db/CreativeDb'
-import { WorkspaceFilesystemBackend } from '../../runtime/WorkspaceFilesystemBackend'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import { buildPlannerSubAgent } from './subAgents/planner'
 import { buildConsistencySubAgent } from './subAgents/consistency'
@@ -21,38 +19,24 @@ import { buildWritingStyleExtractorSubAgent } from './subAgents/writingStyleExtr
 import { buildWritingStyleSkillCreatorSubAgent } from './subAgents/writingStyleSkillCreator'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
 
-const CREATIVE_SKILL_SOURCES = ['/skills/', '/skills/writing-style/']
-
-export function buildCreativeCapabilities(
+export function buildCreativeCapabilities(input: {
   aiRootPath: string,
-  mounts: FilesystemMount[],
+  workspacePath: string | null,
   creativeDb: CreativeDb | null,
   snapshotBroker: SnapshotBroker,
-  language: DetectedInputLanguage = 'en-US',
+  language?: DetectedInputLanguage,
   onSkillsMutated?: () => void,
-): DomainAgentCapabilities {
-  const workspaceMount = mounts.find(mount => mount.virtualPath === '/')
-  const workspacePath = workspaceMount?.hostPath ?? null
-
-  const backend = new CompositeBackend(
-    new WorkspaceFilesystemBackend(workspacePath ?? path.join(aiRootPath, 'empty-fs')),
-    {
-      '/skills/': new FilesystemBackend({
-        rootDir: path.join(aiRootPath, 'skills'),
-        virtualMode: true,
-      }),
-    },
-  )
-  const skillsRoot = path.join(aiRootPath, 'skills')
+}): DomainAgentCapabilities {
+  const skillsRoot = path.join(input.aiRootPath, 'skills')
   const noop = () => {}
   const writingStyleTools = buildWritingStyleTools({
     skillsRoot,
-    onSkillsMutated: onSkillsMutated ?? noop,
+    onSkillsMutated: input.onSkillsMutated ?? noop,
   })
   const webTools = buildWebTools()
 
-  const creativeTools = buildCreativeTools({ workspacePath, creativeDb, snapshotBroker })
-  const explorationTools = buildCreativeExplorationTools({ workspacePath, creativeDb })
+  const creativeTools = buildCreativeTools({ workspacePath: input.workspacePath, creativeDb: input.creativeDb, snapshotBroker: input.snapshotBroker })
+  const explorationTools = buildCreativeExplorationTools({ workspacePath: input.workspacePath, creativeDb: input.creativeDb })
 
   const mainWritingStyleTools = writingStyleTools.filter(t =>
     t.name === 'list_writing_styles' ||
@@ -63,9 +47,9 @@ export function buildCreativeCapabilities(
 
   const mainTools = [
     ...creativeTools,
-    ...buildCreativeAnalysisTools({ workspacePath, creativeDb, snapshotBroker }),
-    ...buildCreativeAdvisorTools({ workspacePath }),
-    ...buildCreativeGitTools({ workspacePath }),
+    ...buildCreativeAnalysisTools({ workspacePath: input.workspacePath, creativeDb: input.creativeDb, snapshotBroker: input.snapshotBroker }),
+    ...buildCreativeAdvisorTools({ workspacePath: input.workspacePath }),
+    ...buildCreativeGitTools({ workspacePath: input.workspacePath }),
     ...explorationTools,
     ...mainWritingStyleTools,
   ]
@@ -81,7 +65,7 @@ export function buildCreativeCapabilities(
   const readOnlyTools = creativeTools.filter(tool => readToolNames.has(tool.name))
   const plannerTools = [
     ...readOnlyTools,
-    ...buildCreativeLogicTools({ workspacePath }),
+    ...buildCreativeLogicTools({ workspacePath: input.workspacePath }),
   ]
   const explorerToolNames = new Set([
     ...readToolNames,
@@ -103,38 +87,36 @@ export function buildCreativeCapabilities(
 
   return {
     tools: mainTools,
-    skills: CREATIVE_SKILL_SOURCES,
     subAgents: [
-      buildPlannerSubAgent(plannerTools, language),
-      buildConsistencySubAgent(readOnlyTools, language),
-      buildExplorerSubAgent(explorerTools, language),
-      buildResearcherSubAgent(researcherTools, language),
-      buildWritingStyleExtractorSubAgent([], language),
-      buildWritingStyleSkillCreatorSubAgent(writingStyleSkillCreatorTools, language),
+      buildPlannerSubAgent(plannerTools, input.language ?? 'en-US'),
+      buildConsistencySubAgent(readOnlyTools, input.language ?? 'en-US'),
+      buildExplorerSubAgent(explorerTools, input.language ?? 'en-US'),
+      buildResearcherSubAgent([...researcherTools], input.language ?? 'en-US'),
+      buildWritingStyleExtractorSubAgent([], input.language ?? 'en-US'),
+      buildWritingStyleSkillCreatorSubAgent(writingStyleSkillCreatorTools, input.language ?? 'en-US'),
     ],
-    backend,
     interruptOn: CREATIVE_INTERRUPT_ON_CONFIG,
   }
 }
 
-export const CREATIVE_INTERRUPT_ON_CONFIG = {
-  confirm_writing_plan:        { allowedDecisions: ['approve', 'edit', 'reject'] as const },
-  write_to_chapter:            { allowedDecisions: ['approve', 'edit', 'reject'] as const },
-  resolve_open_question:       { allowedDecisions: ['approve', 'edit', 'reject'] as const },
-  create_chapter:              { allowedDecisions: ['approve', 'reject'] as const },
-  delete_chapter:              { allowedDecisions: ['approve', 'reject'] as const },
-  rename_chapter:              { allowedDecisions: ['approve', 'reject'] as const },
-  reorder_chapters:            { allowedDecisions: ['approve', 'reject'] as const },
-  replace_storybible_section:  { allowedDecisions: ['approve', 'reject'] as const },
-  rebuild_storybible:          { allowedDecisions: ['approve', 'reject'] as const },
-  compress_storybible_history: { allowedDecisions: ['approve', 'reject'] as const },
-  git_commit:                  { allowedDecisions: ['approve', 'edit', 'reject'] as const },
-  git_tag:                     { allowedDecisions: ['approve', 'reject'] as const },
-  start_exploration:           { allowedDecisions: ['approve', 'reject'] as const },
-  finish_exploration:          { allowedDecisions: ['approve', 'reject'] as const },
-  promote_exploration:         { allowedDecisions: ['approve', 'edit', 'reject'] as const },
-  delete_exploration:          { allowedDecisions: ['approve', 'reject'] as const },
-  delete_writing_style:        { allowedDecisions: ['approve', 'reject'] as const },
+export const CREATIVE_INTERRUPT_ON_CONFIG: Record<string, InterruptOnConfig> = {
+  confirm_writing_plan:        { allowedDecisions: ['approve', 'edit', 'reject'] },
+  write_to_chapter:            { allowedDecisions: ['approve', 'edit', 'reject'] },
+  resolve_open_question:       { allowedDecisions: ['approve', 'edit', 'reject'] },
+  create_chapter:              { allowedDecisions: ['approve', 'reject'] },
+  delete_chapter:              { allowedDecisions: ['approve', 'reject'] },
+  rename_chapter:              { allowedDecisions: ['approve', 'reject'] },
+  reorder_chapters:            { allowedDecisions: ['approve', 'reject'] },
+  replace_storybible_section:  { allowedDecisions: ['approve', 'reject'] },
+  rebuild_storybible:          { allowedDecisions: ['approve', 'reject'] },
+  compress_storybible_history: { allowedDecisions: ['approve', 'reject'] },
+  git_commit:                  { allowedDecisions: ['approve', 'edit', 'reject'] },
+  git_tag:                     { allowedDecisions: ['approve', 'reject'] },
+  start_exploration:           { allowedDecisions: ['approve', 'reject'] },
+  finish_exploration:          { allowedDecisions: ['approve', 'reject'] },
+  promote_exploration:         { allowedDecisions: ['approve', 'edit', 'reject'] },
+  delete_exploration:          { allowedDecisions: ['approve', 'reject'] },
+  delete_writing_style:        { allowedDecisions: ['approve', 'reject'] },
 }
 
 export const CREATIVE_INTERRUPT_ON_NAMES = new Set(Object.keys(CREATIVE_INTERRUPT_ON_CONFIG))

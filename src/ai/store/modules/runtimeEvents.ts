@@ -46,6 +46,11 @@ interface RuntimeEventsDeps {
     turnId: string | null
     reviews: CreativeReviewItem[]
   }) => void
+  handleFilesystemInterrupt: (params: {
+    threadId: string
+    turnId: string | null
+    reviews: DomainReviewItem[]
+  }) => void
   resetEditReviewState: () => void
   resetCreativeReviewState: () => void
   notifyCreativeToolResult: (toolName: string, isError: boolean, toolCallId?: string) => void
@@ -224,8 +229,17 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     const creativeReviews = event.reviews
       .filter((r): r is Extract<DomainReviewItem, { kind: 'creative' }> => r.kind === 'creative')
       .map(r => r.payload)
+    const filesystemReviews = event.reviews
+      .filter((r): r is Extract<DomainReviewItem, { kind: 'filesystem' }> => r.kind === 'filesystem')
+      .map(r => r.payload)
 
-    if (creativeReviews.length) {
+    if (filesystemReviews.length) {
+      deps.handleFilesystemInterrupt({
+        threadId: event.threadId,
+        turnId: event.turnId ?? deps.currentTurnId.value,
+        reviews: event.reviews,
+      })
+    } else if (creativeReviews.length) {
       deps.handleCreativeInterrupt({
         threadId: event.threadId,
         turnId: event.turnId ?? deps.currentTurnId.value,

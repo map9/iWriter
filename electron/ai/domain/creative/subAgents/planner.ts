@@ -69,7 +69,6 @@ export function buildPlannerSubAgent(
     description: 'Produces a logic-first writing plan. Reads story context, derives character motivation from psychology triangles, builds causal beats, and performs common-sense checks. Returns plan, rationale, alternatives, and Logic Audit.',
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${PLANNER_SYSTEM_PROMPT}`,
     tools: plannerTools,
-    skills: ['/skills/'],
     // responseFormat intentionally omitted: deepseek-reasoner (and some models) reject
     // tool_choice:"any" that langchain injects when responseFormat is set (langchain issue #31403).
     // The system prompt instructs the model to end with a JSON code block instead.

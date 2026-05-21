@@ -62,7 +62,7 @@ function validateSkillMd(content: string, expectedSlug: string): { ok: true } | 
 
   let frontmatter: unknown
   try {
-    frontmatter = yaml.parse(match[1])
+    frontmatter = yaml.parse(match[1] ?? '')
   } catch (err) {
     return { ok: false, error: `Invalid YAML frontmatter: ${String(err)}` }
   }
@@ -135,12 +135,12 @@ When writing prose in this style, follow the style markers described above. Pref
 
 function parseCreatedAt(skillMd: string): string | null {
   const match = /<!--\s*iwriter-meta:.*?createdAt=([^,\s]+)/.exec(skillMd)
-  return match ? match[1] : null
+  return match ? (match[1] ?? null) : null
 }
 
 function parseAuthorNameFromMd(skillMd: string): string | null {
   const match = /^#\s+(.+?)\s+Writing Style/m.exec(skillMd)
-  return match ? match[1].trim() : null
+  return match ? (match[1]?.trim() ?? null) : null
 }
 
 function listStyleDirs(skillsRoot: string): { slug: string; dir: string }[] {
@@ -172,7 +172,7 @@ function makeListWritingStyles(skillsRoot: string): DynamicStructuredTool {
           authorName = parseAuthorNameFromMd(content)
           createdAt = parseCreatedAt(content)
           const descMatch = /^description:\s*(.+)$/m.exec(content)
-          description = descMatch ? descMatch[1].trim() : ''
+          description = descMatch ? (descMatch[1]?.trim() ?? '') : ''
         } catch {
           // skip unreadable entries
         }
@@ -207,7 +207,7 @@ function makeSaveWritingStyleSkill(
 ): DynamicStructuredTool {
   return new DynamicStructuredTool({
     name: 'save_writing_style_skill',
-    description: 'Saves a complete deepagents SKILL.md for a named-author writing style under /skills/writing-style/<slug>/SKILL.md. The content must include valid YAML frontmatter with name equal to slug.',
+    description: 'Saves a complete deepagents SKILL.md for a named-author writing style under the configured writing-style skills directory. The content must include valid YAML frontmatter with name equal to slug.',
     schema: z.object({
       slug: z.string().describe("The author style slug, e.g. 'lu-xun' or 'jane-austen'."),
       content: z.string().describe('Complete SKILL.md content to save, including YAML frontmatter.'),
@@ -237,7 +237,7 @@ function makeSaveWritingStyleSkill(
       fs.writeFileSync(mdPath, content, 'utf-8')
       onSkillsMutated()
       console.log(`[WritingStyleTools] saved writing-style/${slug}`)
-      return JSON.stringify({ saved: true, slug, skillPath: `/skills/writing-style/${slug}/SKILL.md` })
+      return JSON.stringify({ saved: true, slug, skillPath: mdPath })
     },
   })
 }
@@ -280,10 +280,11 @@ function makeCreateWritingStyle(
         if (!validation.ok) {
           return JSON.stringify({ error: validation.error })
         }
-        fs.writeFileSync(path.join(dir, 'SKILL.md'), content, 'utf-8')
+        const mdPath = path.join(dir, 'SKILL.md')
+        fs.writeFileSync(mdPath, content, 'utf-8')
         onSkillsMutated()
         console.log(`[WritingStyleTools] created writing-style/${slug} for "${authorName}"`)
-        return JSON.stringify({ created: true, slug, skillName: slug, skillPath: `/skills/writing-style/${slug}/SKILL.md` })
+        return JSON.stringify({ created: true, slug, skillName: slug, skillPath: mdPath })
       } finally {
         inFlightSlugs.delete(slug)
       }
@@ -325,7 +326,7 @@ function makeUpdateWritingStyle(
       }
 
       if (patch.references?.length) {
-        const newRefs = patch.references.map(r => `- ${r}`).join('\n')
+        const newRefs = patch.references.map((r: string) => `- ${r}`).join('\n')
         content = content.replace(
           /(## Sources\n\n)([\s\S]*?)(\n\n## )/,
           (_, h, existing, rest) => `${h}${existing.trimEnd()}\n${newRefs}${rest}`,
@@ -336,7 +337,7 @@ function makeUpdateWritingStyle(
       if (patch.sampleExcerpts?.length) {
         const newExcerpts = patch.sampleExcerpts
           .slice(0, MAX_EXCERPTS)
-          .map((e, i) => `> Excerpt (update ${i + 1}): ${e.slice(0, MAX_EXCERPT_CHARS)}${e.length > MAX_EXCERPT_CHARS ? '…' : ''}`)
+          .map((e: string, i: number) => `> Excerpt (update ${i + 1}): ${e.slice(0, MAX_EXCERPT_CHARS)}${e.length > MAX_EXCERPT_CHARS ? '…' : ''}`)
           .join('\n\n')
         content = content.replace(
           /(## Sample Excerpts\n\n)([\s\S]*?)(\n\n## )/,

@@ -3,11 +3,11 @@ import type {
   ParagraphStateListData,
   ParagraphStateTaskListData,
   ParagraphStateTableData
-} from '../src/types/windowContentState'
+} from '../src/types/window-content-state'
 import { DocumentType } from '../src/types'
 import { getCustomThemes } from '../src/utils/themes'
 import { isMac } from './utils'
-import type { WindowState, GlobalParameters } from './types'
+import type { WindowState } from './types'
 import { createMainTranslator, localizeMenuTemplate } from './i18n'
 
 const REPOSITORY_URL = 'https://github.com/map9/iWriter'
@@ -36,13 +36,14 @@ function insertInTemplate(
   function findAndInsert(items: Electron.MenuItemConstructorOptions[]): boolean {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
+      if (!item) continue
       
       if (item.id === parentId) {
         if (item.submenu) {
           const submenu = Array.isArray(item.submenu) ? item.submenu : [];
           
           for (let j = 0; j < submenu.length; j++) {
-            if (submenu[j].id === targetId) {
+            if (submenu[j]?.id === targetId) {
               submenu.splice(j + 1, 0, ...itemsToInsert);
               return true;
             }
@@ -76,7 +77,7 @@ export class MenuManager {
     this.sendMenuAction = callback;
   }
 
-  setupMenu(wState: WindowState, _g: GlobalParameters): void {
+  setupMenu(wState: WindowState): void {
     const t = createMainTranslator(wState?.wContentState?.view?.locale)
 
     // Build base menu template

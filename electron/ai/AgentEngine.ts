@@ -46,9 +46,9 @@ import { convertLcMessages } from './ipc/MessageAdapter'
 import { StreamEventAdapter } from './ipc/StreamEventAdapter'
 import { RendererEventBridge } from './ipc/RendererEventBridge'
 import { buildUserMessage } from './ipc/UserMessageBuilder'
-import { buildFilesystemMounts, type FilesystemMount } from './runtime/FilesystemMounts'
 import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore } from './runtime/ThreadRuntimeStore'
+import { buildAgentFilesystem, FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './runtime/filesystem/AgentFilesystem'
 import { AiConfigStore } from './config/AiConfigStore'
 import { generateThreadTitle } from '../../src/ai/thread/title'
 import { IWriterAgentContextSchema, type IWriterAgentContext } from './runtime/AgentContext'
@@ -64,7 +64,7 @@ import { detectInputLanguage, type DetectedInputLanguage } from '../../src/ai/me
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-type DeepAgentInstance = ReturnType<typeof createDeepAgent>
+type DeepAgentInstance = { streamEvents: unknown }
 
 export class AgentEngine {
   private snapshotBroker: SnapshotBroker
@@ -77,8 +77,8 @@ export class AgentEngine {
   /** Thread-scoped runtime data: editor context + pending interrupts. */
   private runtimeStore = new ThreadRuntimeStore()
 
-  /** Agent cache keyed by "configId:mode:modelId" */
-  private agentCache = new Map<string, DeepAgentInstance>()
+  /** Agent cache keyed by thread + runtime + filesystem fingerprint. */
+  private agentCache = new Map<string, { agent: DeepAgentInstance, scaffold: AgentFilesystemScaffold }>()
   /** One model fallback notification per thread turn, even when cached agents retry/resume. */
   private fallbackNotifiedTurnKeys = new Set<string>()
 
@@ -148,6 +148,7 @@ export class AgentEngine {
     this.runtimeStore.deleteThread(threadId)
     this.activeRuns.delete(threadId)
     this._clearFallbackNotificationKeys(threadId)
+    this._deleteCachedAgentsForThread(threadId)
     this.checkpointerAdmin?.deleteThread(threadId)
   }
 
@@ -156,6 +157,7 @@ export class AgentEngine {
     this.runtimeStore.clear()
     this.activeRuns.clear()
     this.fallbackNotifiedTurnKeys.clear()
+    this._clearAgentCache()
     this.checkpointerAdmin?.clearAll()
   }
 
@@ -529,7 +531,7 @@ export class AgentEngine {
         }
 
         if (run.interrupts.length > 0) {
-          await this._handleInterrupt(threadId, run.interrupts[0].payload, partialMessage)
+          await this._handleInterrupt(threadId, run.interrupts[0]!.payload, partialMessage)
         } else {
           console.warn('[AgentEngine] run interrupted but no interrupts payload', { threadId })
         }
@@ -638,7 +640,10 @@ export class AgentEngine {
     if (!lcMessages.length) return
 
     const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
-    const interruptOnNames = this.strategies[domain].getInterruptOnNames()
+    const interruptOnNames = new Set([
+      ...this.strategies[domain].getInterruptOnNames(),
+      ...FILE_WRITE_INTERRUPT_ON_NAMES,
+    ])
 
     // Collect all tool_call_ids that already have a ToolMessage response
     const responded = new Set<string>()
@@ -686,7 +691,7 @@ export class AgentEngine {
 
   /** Clears the agent cache so the next turn rebuilds agents (e.g. after new skills are written). */
   invalidateAgentCache(): void {
-    this.agentCache.clear()
+    this._clearAgentCache()
   }
 
   // ── Private: agent cache ──────────────────────────────────────────────────
@@ -700,16 +705,23 @@ export class AgentEngine {
     thinkingLevel: AiThinkingLevel,
     language: DetectedInputLanguage = 'en-US',
   ): DeepAgentInstance {
-    const mounts = this._getFilesystemMounts(threadId)
+    const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
+    const includeSkills = domain === 'creative'
+    const filesystemFingerprint = `${workspacePath ?? ''}:${includeSkills ? 'skills' : 'no-skills'}`
     // Include apiKey and baseUrl in the key so that credential updates immediately
     // produce a new agent instance rather than reusing a stale one.
     const keyFingerprint = config.apiKey ? config.apiKey.slice(-8) : ''
-    const mountKey = mounts.map(mount => `${mount.virtualPath}:${mount.hostPath}:${mount.kind}`).join('|')
-    const cacheKey = `${threadId}:${config.id}:${domain}:${mode}:${modelId}:${thinkingLevel ?? ''}:${language}:${keyFingerprint}:${config.baseUrl ?? ''}:${config.fallbackModelId ?? ''}:${mountKey}`
-    if (this.agentCache.has(cacheKey)) return this.agentCache.get(cacheKey)!
+    const cacheKey = `${threadId}:${config.id}:${domain}:${mode}:${modelId}:${thinkingLevel ?? ''}:${language}:${keyFingerprint}:${config.baseUrl ?? ''}:${config.fallbackModelId ?? ''}:${filesystemFingerprint}`
+    const cached = this.agentCache.get(cacheKey)
+    if (cached) return cached.agent
 
+    const scaffold = buildAgentFilesystem({
+      workspacePath,
+      aiRootPath: this.aiRootPath,
+      includeSkills,
+    })
     const model = createChatModel(config, { modelId, thinkingLevel })
-    const capabilities = this.strategies[domain].buildCapabilities({ mode, mounts, language })
+    const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath, language })
 
     const fallbackModels: BaseChatModel[] = []
     if (config.fallbackModelId && config.fallbackModelId !== modelId) {
@@ -727,11 +739,10 @@ export class AgentEngine {
       model,
       systemPrompt: this.strategies[domain].getSystemPrompt(mode, language),
       tools: capabilities.tools,
-      backend: capabilities.backend,
-      skills: capabilities.skills,
+      backend: scaffold.backend,
       memory: this._buildMemoryPaths(domain),
       checkpointer: this.checkpointerInstance?.checkpointer,
-      interruptOn: capabilities.interruptOn,
+      interruptOn: { ...capabilities.interruptOn, ...scaffold.interruptOn },
       subagents: capabilities.subAgents,
       // Middleware ordering note:
       // createDeepAgent places its built-in SummarizationMiddleware BEFORE customMiddleware
@@ -742,6 +753,7 @@ export class AgentEngine {
       // to the summary LLM. HumanRespondMessage (inner) then strips the marker before the
       // main LLM call. Both LLMs remain marker-free; the invariant from Phase 4 §B1.4 holds.
       middleware: [
+        ...scaffold.middlewares,
         createOrphanToolCallStripperMiddleware(),
         createHumanRespondMessageMiddleware(),
         createTaskToolCompatMiddleware(),
@@ -757,7 +769,7 @@ export class AgentEngine {
       contextSchema: IWriterAgentContextSchema,
     })
 
-    this.agentCache.set(cacheKey, agent)
+    this.agentCache.set(cacheKey, { agent, scaffold })
     return agent
   }
 
@@ -794,13 +806,29 @@ export class AgentEngine {
     return this.runtimeStore.buildContext(threadId, domain)
   }
 
-  private _getFilesystemMounts(threadId: string): FilesystemMount[] {
-    const ctx = this.runtimeStore.getContext(threadId)
-    return buildFilesystemMounts(ctx?.workspacePath ?? null, {
-      textFilePaths: ctx?.attachmentTextFilePaths ?? [],
-      binaryFilePaths: ctx?.attachmentBinaryFilePaths ?? [],
-      directories: ctx?.attachmentDirectories ?? [],
-    })
+  private _cleanupScaffold(scaffold: AgentFilesystemScaffold): void {
+    for (const dir of scaffold.tempDirs) {
+      try {
+        fs.rmSync(dir, { recursive: true, force: true })
+      } catch {
+        // Best-effort cleanup only.
+      }
+    }
+  }
+
+  private _clearAgentCache(): void {
+    for (const cached of this.agentCache.values()) {
+      this._cleanupScaffold(cached.scaffold)
+    }
+    this.agentCache.clear()
+  }
+
+  private _deleteCachedAgentsForThread(threadId: string): void {
+    for (const [key, cached] of this.agentCache) {
+      if (!key.startsWith(`${threadId}:`)) continue
+      this._cleanupScaffold(cached.scaffold)
+      this.agentCache.delete(key)
+    }
   }
 
   private async _seedSummarizationBaseline(threadId: string): Promise<void> {
@@ -861,9 +889,9 @@ export class AgentEngine {
       const effectiveMessages = summarizationEvent?.summaryMessage
         ? [summarizationEvent.summaryMessage, ...rawMessages.slice(summarizationEvent.cutoffIndex ?? 0)]
         : rawMessages
-      const mounts = this._getFilesystemMounts(threadId)
       const language = this.runtimeStore.getContext(threadId)?.language ?? 'en-US'
-      const capabilities = this.strategies[domain].buildCapabilities({ mode, mounts, language })
+      const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
+      const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath, language })
       const systemPrompt = new SystemMessage(this.strategies[domain].getSystemPrompt(mode, language))
       return countTokensApproximately(
         [systemPrompt, ...effectiveMessages],

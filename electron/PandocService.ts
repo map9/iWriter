@@ -199,12 +199,12 @@ export class PandocService {
     let quote: '"' | "'" | null = null
 
     for (let i = 0; i < input.length; i++) {
-      const char = input[i]
+      const char = input[i] ?? ''
       if (quote) {
         if (char === quote) {
           quote = null
         } else if (char === '\\' && i + 1 < input.length) {
-          current += input[++i]
+          current += input[++i] ?? ''
         } else {
           current += char
         }

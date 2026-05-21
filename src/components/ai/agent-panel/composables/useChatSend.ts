@@ -11,7 +11,7 @@ const BINARY_EXTS = new Set([
   'pdf',
 ])
 
-/** Text file extensions that are listed in the system prompt <context_files> section. */
+/** Text file extensions that are listed in <attached_files> inside editor_state. */
 const TEXT_EXTS = new Set([
   'md', 'markdown', 'txt', 'iwt',
   'ts', 'tsx', 'js', 'jsx', 'vue', 'py', 'rb', 'go', 'rs', 'java',

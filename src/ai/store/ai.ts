@@ -40,6 +40,9 @@ import {
   createCreativeReviewModule,
 } from './modules/creativeReview'
 import {
+  createFilesystemReviewModule,
+} from './modules/filesystemReview'
+import {
   createRuntimeState,
 } from './modules/runtimeState'
 import { createRuntimeDisplay } from './modules/runtimeDisplay'
@@ -374,6 +377,7 @@ export const useAiStore = defineStore('ai', () => {
     streamingToolName,
     pendingEditProposals,
     pendingCreativeReviews,
+    pendingFilesystemReviews,
     liveTurnState,
     liveTurnThreadId,
     liveTurnTurnId,
@@ -431,6 +435,17 @@ export const useAiStore = defineStore('ai', () => {
   })
   _creativeDisplayOverrides = creativeReview.displayOverrides
 
+  const filesystemReview = createFilesystemReviewModule({
+    pendingFilesystemReviews,
+    interruptedThreadId: _interruptedThreadId,
+    interruptedTurnId: _interruptedTurnId,
+    threadRunState: _threadRunState,
+    currentThreadId: _currentThreadId,
+    currentTurnId: _currentTurnId,
+    liveTurnRef: _liveTurn,
+    ensureLiveTurn: _ensureLiveTurn,
+  })
+
   // ── Send Message ──────────────────────────────────────────────────────────
   async function sendMessage(userText: string, sendContext?: SendContext): Promise<boolean> {
     // Block new messages while actively streaming
@@ -444,6 +459,7 @@ export const useAiStore = defineStore('ai', () => {
     // Auto-reject any proposals still waiting for user approval
     _rejectAllPendingProposals()
     _rejectAllPendingCreativeReviews()
+    _rejectAllPendingFilesystemReviews()
 
     // Ensure there is an active thread
     let thread = activeThread.value
@@ -593,6 +609,15 @@ export const useAiStore = defineStore('ai', () => {
   } = editReview
 
   const {
+    isResumingFilesystemReview,
+    handleInterrupt: _handleFilesystemInterrupt,
+    resetReviewState: _resetFilesystemReviewState,
+    rejectAllPendingReviews: _rejectAllPendingFilesystemReviews,
+    approveFilesystemReview,
+    rejectFilesystemReview,
+  } = filesystemReview
+
+  const {
     isResumingCreativeReview,
     getCompletedCreativeRoundResult,
     handleInterrupt: _handleCreativeInterrupt,
@@ -619,6 +644,7 @@ export const useAiStore = defineStore('ai', () => {
     clearLiveTurn: _clearLiveTurn,
     handleEditInterrupt: _handleEditInterrupt,
     handleCreativeInterrupt: _handleCreativeInterrupt,
+    handleFilesystemInterrupt: _handleFilesystemInterrupt,
     resetEditReviewState: _resetEditReviewState,
     resetCreativeReviewState: _resetCreativeReviewState,
     notifyCreativeToolResult: _notifyCreativeToolResult,
@@ -666,6 +692,7 @@ export const useAiStore = defineStore('ai', () => {
     _clearRunPointers()
     _resetEditReviewState()
     _resetCreativeReviewState()
+    _resetFilesystemReviewState()
     _clearLiveTurn()
     notify.info('已停止生成')
   }
@@ -767,8 +794,10 @@ export const useAiStore = defineStore('ai', () => {
     latestPersistedAssistantMessageId,
     pendingEditProposals,
     pendingCreativeReviews,
+    pendingFilesystemReviews,
     isResumingReviewedEdits,
     isResumingCreativeReview,
+    isResumingFilesystemReview,
     reviewedToolCallStatuses,
     reviewedEditSignatures,
     reviewedBatchEntries,
@@ -791,6 +820,8 @@ export const useAiStore = defineStore('ai', () => {
     rejectCreativeReview,
     respondCreativeReview,
     approveAllCreativeReviews,
+    approveFilesystemReview,
+    rejectFilesystemReview,
     cancelStreaming,
     setDraftInput,
     init,

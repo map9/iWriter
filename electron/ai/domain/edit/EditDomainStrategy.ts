@@ -3,6 +3,7 @@ import { EDIT_SYSTEM_PROMPT } from '../../../../src/ai/thread/system-prompts/edi
 import { MINIMAL_SYSTEM_PROMPT } from '../../../../src/ai/thread/system-prompts/minimal'
 import { buildEditCapabilities, EDIT_INTERRUPT_ON_NAMES } from './buildEditCapabilities'
 import { buildProposalFromAction } from '../../ipc/MessageAdapter'
+import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { ThreadRuntimeStore } from '../../runtime/ThreadRuntimeStore'
 import type { AiAgentMode } from '../../../../src/types/ai'
@@ -23,8 +24,8 @@ export class EditDomainStrategy implements DomainStrategy {
   ) {}
 
   buildCapabilities(ctx: DomainBuildContext): DomainAgentCapabilities {
-    if (ctx.mode === 'minimal') return { tools: [], skills: [] }
-    return buildEditCapabilities(this.snapshotBroker, this.aiRootPath, ctx.mounts)
+    if (ctx.mode === 'minimal') return { tools: [] }
+    return buildEditCapabilities({ snapshotBroker: this.snapshotBroker })
   }
 
   getSystemPrompt(mode: AiAgentMode, _language: DetectedInputLanguage): string {
@@ -56,16 +57,30 @@ export class EditDomainStrategy implements DomainStrategy {
       BLOCK_EDIT_TOOLS.has(tc.name)
     )
 
-    return ctx.actionRequests.map((ar, index): DomainReviewItem => ({
-      kind: 'edit',
-      payload: buildProposalFromAction(
-        ar.name,
-        ar.args ?? {},
-        snapshot,
-        pendingEditToolCalls[index]?.id,
-        ctx.partialMessage?.id,
-        ctx.turnId,
-      ),
-    }))
+    return ctx.actionRequests.map((ar, index): DomainReviewItem => {
+      if (isFilesystemWriteTool(ar.name)) {
+        return {
+          kind: 'filesystem',
+          payload: buildFilesystemReviewItemFromAction(
+            ar,
+            ctx.partialMessage?.toolCalls?.find(tc => tc.name === ar.name)?.id,
+            ctx.partialMessage?.id,
+            ctx.turnId,
+          ),
+        }
+      }
+
+      return {
+        kind: 'edit',
+        payload: buildProposalFromAction(
+          ar.name,
+          ar.args ?? {},
+          snapshot,
+          pendingEditToolCalls[index]?.id,
+          ctx.partialMessage?.id,
+          ctx.turnId,
+        ),
+      }
+    })
   }
 }

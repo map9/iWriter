@@ -1,5 +1,6 @@
 <template>
-  <EditReviewSurface v-if="activeDomain === 'editing'" />
+  <FilesystemReviewSurface v-if="aiStore.pendingFilesystemReviews.length" />
+  <EditReviewSurface v-else-if="activeDomain === 'editing'" />
   <CreativeReviewSurface v-else-if="showFallbackCreativeReview" />
 </template>
 
@@ -10,6 +11,7 @@ import { useAiStore } from '@/ai/store/ai'
 import { buildCreativeSessionViewModel } from '@/ai/review/creativeSelectors'
 import EditReviewSurface from './edit/EditReviewSurface.vue'
 import CreativeReviewSurface from './creative/CreativeReviewSurface.vue'
+import FilesystemReviewSurface from './FilesystemReviewSurface.vue'
 
 const aiStore = useAiStore()
 

@@ -237,7 +237,8 @@ export class StreamEventAdapter {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private static async readStreamRole(msg: Record<string, any>): Promise<string | undefined> {
-    const iterator = msg?.[Symbol.asyncIterator]
+    const asyncIterable = msg as Partial<AsyncIterable<Record<string, unknown>>>
+    const iterator = asyncIterable[Symbol.asyncIterator]
     if (typeof iterator !== 'function') return undefined
 
     try {

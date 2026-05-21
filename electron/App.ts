@@ -205,7 +205,7 @@ export class App {
       // 2. 在理想范围内查找语义边界
       let semanticBoundaryIndex = -1
       for (let i = beforeText.length - 1; i >= 0; i--) {
-        if (BOUNDARY_CHARS.has(beforeText[i])) {
+        if (BOUNDARY_CHARS.has(beforeText[i] ?? '')) {
           semanticBoundaryIndex = i
           break
         }
@@ -223,7 +223,7 @@ export class App {
 
         // 在扩展范围内再次查找边界
         for (let i = extendedText.length - 1; i >= 0; i--) {
-          if (BOUNDARY_CHARS.has(extendedText[i])) {
+          if (BOUNDARY_CHARS.has(extendedText[i] ?? '')) {
             beforeContext = extendedText.substring(i + 1).trimStart()
             needPrefixEllipsis = maxStart > 0
             semanticBoundaryIndex = i
@@ -252,7 +252,7 @@ export class App {
       // 2. 在理想范围内查找语义边界
       let semanticBoundaryIndex = -1
       for (let i = 0; i < afterText.length; i++) {
-        if (BOUNDARY_CHARS.has(afterText[i])) {
+        if (BOUNDARY_CHARS.has(afterText[i] ?? '')) {
           semanticBoundaryIndex = i
           break
         }
@@ -270,7 +270,7 @@ export class App {
 
         // 在扩展范围内再次查找边界
         for (let i = 0; i < extendedText.length; i++) {
-          if (BOUNDARY_CHARS.has(extendedText[i])) {
+          if (BOUNDARY_CHARS.has(extendedText[i] ?? '')) {
             afterContext = extendedText.substring(0, i + 1).trimEnd()
             needSuffixEllipsis = maxEnd < text.length
             semanticBoundaryIndex = i
@@ -975,10 +975,10 @@ export class App {
             if ( menuItem.type !== 'radio' && menuItem.type !== 'checkbox' ) {
               menuItem.type = 'checkbox'
             }
-            menuItem.checked = item.checked !== false
+            menuItem.checked = item.checked
           }
           if (item.role) {
-            menuItem.role = item.role
+            menuItem.role = item.role as MenuItemConstructorOptions['role']
           }
           if (item.accelerator) {
             menuItem.accelerator = item.accelerator;
@@ -1355,7 +1355,7 @@ export class App {
       wState = this.windowManager.getWindowStateById(focusedWindow.id);
     }
 
-    if (wState) this.menuManager.setupMenu(wState, this.g);
+    if (wState) this.menuManager.setupMenu(wState);
   }
 
   run() {

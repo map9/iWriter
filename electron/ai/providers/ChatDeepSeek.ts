@@ -1,7 +1,9 @@
 import { BaseChatModel } from '@langchain/core/language_models/chat_models'
+import type { BaseChatModelCallOptions, BaseChatModelParams, BindToolsInput } from '@langchain/core/language_models/chat_models'
 import type { ModelProfile } from '@langchain/core/language_models/profile'
-import type { BaseMessage } from '@langchain/core/messages'
+import type { BaseMessage, OpenAIToolCall } from '@langchain/core/messages'
 import { AIMessage, AIMessageChunk, HumanMessage, SystemMessage, ToolMessage } from '@langchain/core/messages'
+import type { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager'
 import type { ChatGeneration, ChatResult } from '@langchain/core/outputs'
 import { ChatGenerationChunk } from '@langchain/core/outputs'
 import { convertLangChainToolCallToOpenAI, parseToolCall } from '@langchain/core/output_parsers/openai_tools'
@@ -26,7 +28,12 @@ interface DeepSeekToolChoice {
   }
 }
 
-interface ChatDeepSeekFields {
+interface ChatDeepSeekCallOptions extends BaseChatModelCallOptions {
+  tools?: DeepSeekTool[]
+  promptIndex?: number
+}
+
+interface ChatDeepSeekFields extends BaseChatModelParams {
   apiKey?: string
   model: string
   baseUrl?: string
@@ -205,7 +212,34 @@ function convertUsageToMetadata(usage?: DeepSeekUsage) {
   }
 }
 
-export class ChatDeepSeek extends BaseChatModel {
+function toOpenAIToolCalls(value: unknown): OpenAIToolCall[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((toolCall): OpenAIToolCall[] => {
+    if (!toolCall || typeof toolCall !== 'object') return []
+    const candidate = toolCall as {
+      id?: unknown
+      type?: unknown
+      function?: {
+        name?: unknown
+        arguments?: unknown
+      }
+    }
+    if (typeof candidate.id !== 'string') return []
+    if (typeof candidate.function?.name !== 'string') return []
+
+    return [{
+      id: candidate.id,
+      type: 'function',
+      function: {
+        name: candidate.function.name,
+        arguments: typeof candidate.function.arguments === 'string' ? candidate.function.arguments : '',
+      },
+    }]
+  })
+}
+
+export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
   apiKey: string
   model: string
   baseUrl: string
@@ -251,7 +285,7 @@ export class ChatDeepSeek extends BaseChatModel {
     }), {})
   }
 
-  invocationParams(options?: Record<string, unknown>): Record<string, unknown> {
+  invocationParams(options?: this['ParsedCallOptions']): Record<string, unknown> {
     return {
       model: this.model,
       stream: this.streaming,
@@ -259,15 +293,16 @@ export class ChatDeepSeek extends BaseChatModel {
     }
   }
 
-  bindTools(tools: Array<{ name: string; description?: string; schema: Record<string, unknown> } | DeepSeekTool>, kwargs?: Record<string, unknown>): RunnableBinding {
+  bindTools(tools: BindToolsInput[], kwargs?: Partial<ChatDeepSeekCallOptions>): RunnableBinding {
     const formattedTools = tools.map(tool => {
       if (isDeepSeekTool(tool)) return tool
+      const candidate = tool as { name?: string; description?: string; schema?: unknown }
       return {
         type: 'function',
         function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: toJsonSchema(tool.schema),
+          name: candidate.name ?? 'tool',
+          description: candidate.description,
+          parameters: toJsonSchema(candidate.schema as Parameters<typeof toJsonSchema>[0]),
         },
       } satisfies DeepSeekTool
     })
@@ -281,7 +316,7 @@ export class ChatDeepSeek extends BaseChatModel {
 
   async _generate(
     messages: BaseMessage[],
-    options: Record<string, unknown> = {},
+    options: this['ParsedCallOptions'],
   ): Promise<ChatResult> {
     const body = this.buildRequestBody(messages, options, false)
     const response = await this.fetchJson(body, options.signal)
@@ -303,12 +338,13 @@ export class ChatDeepSeek extends BaseChatModel {
     })
 
     const usageMetadata = convertUsageToMetadata(response.usage)
+    const rawToolCalls = toOpenAIToolCalls(message.tool_calls)
     const aiMessage = new AIMessage({
       content: text,
       tool_calls: toolCalls,
       additional_kwargs: {
         ...(reasoning ? { reasoning_content: reasoning } : {}),
-        ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}),
+        ...(rawToolCalls.length ? { tool_calls: rawToolCalls } : {}),
       },
       response_metadata: {
         model_provider: 'deepseek',
@@ -343,10 +379,8 @@ export class ChatDeepSeek extends BaseChatModel {
 
   async *_streamResponseChunks(
     messages: BaseMessage[],
-    options: Record<string, unknown> = {},
-    runManager?: {
-      handleLLMNewToken?: (token: string, ...args: unknown[]) => Promise<void> | void
-    },
+    options: this['ParsedCallOptions'],
+    runManager?: CallbackManagerForLLMRun,
   ): AsyncGenerator<ChatGenerationChunk> {
     const body = this.buildRequestBody(messages, options, true)
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -489,10 +523,10 @@ export class ChatDeepSeek extends BaseChatModel {
             toolCallAccumulators.set(index, accumulator)
 
             return {
-              id: accumulator.id,
+              id: accumulator.id ?? `tool_call_${index}`,
               index,
-              name: accumulator.name,
-              args: rawToolCall.function?.arguments,
+              name: accumulator.name ?? '',
+              args: rawToolCall.function?.arguments ?? '',
               type: 'tool_call_chunk' as const,
             }
           })
@@ -501,7 +535,7 @@ export class ChatDeepSeek extends BaseChatModel {
             message: new AIMessageChunk({
               content: '',
               tool_call_chunks: toolCallChunks,
-              additional_kwargs: { tool_calls: delta.tool_calls },
+              additional_kwargs: { tool_calls: delta.tool_calls as unknown as OpenAIToolCall[] },
               id: parsed.id,
             }),
             text: '',
@@ -541,7 +575,7 @@ export class ChatDeepSeek extends BaseChatModel {
 
   private buildRequestBody(
     messages: BaseMessage[],
-    options: Record<string, unknown>,
+    options: ChatDeepSeekCallOptions,
     stream: boolean,
   ): Record<string, unknown> {
     const body: Record<string, unknown> = {
@@ -579,7 +613,7 @@ export class ChatDeepSeek extends BaseChatModel {
       }
     }
 
-    return messages.flatMap(message => {
+    return messages.flatMap((message): DeepSeekMessageParam[] => {
       if (message instanceof SystemMessage || message._getType() === 'system') {
         return [{
           role: 'system',
@@ -609,11 +643,18 @@ export class ChatDeepSeek extends BaseChatModel {
         const typedMessage = message as LangChainMessageWithToolCalls
         const hasInvalidToolCalls = Array.isArray((message as { invalid_tool_calls?: unknown[] }).invalid_tool_calls)
           && (message as { invalid_tool_calls?: unknown[] }).invalid_tool_calls!.length > 0
-        const allRawToolCalls = Array.isArray(typedMessage.tool_calls) && typedMessage.tool_calls.length
-          ? typedMessage.tool_calls.map(convertLangChainToolCallToOpenAI)
-          : (!hasInvalidToolCalls && Array.isArray(message.additional_kwargs?.tool_calls) ? message.additional_kwargs.tool_calls : [])
+        const allRawToolCalls: OpenAIToolCall[] = Array.isArray(typedMessage.tool_calls) && typedMessage.tool_calls.length
+          ? typedMessage.tool_calls.map(toolCall => {
+              const converted = convertLangChainToolCallToOpenAI(toolCall as Parameters<typeof convertLangChainToolCallToOpenAI>[0])
+              return {
+                id: converted.id,
+                type: 'function',
+                function: converted.function,
+              } satisfies OpenAIToolCall
+            })
+          : (!hasInvalidToolCalls ? toOpenAIToolCalls(message.additional_kwargs?.tool_calls) : [])
         // Strip tool_calls that have no matching ToolMessage — sending them causes DeepSeek 400.
-        const rawToolCalls = (allRawToolCalls as Array<{ id?: string }>).filter(
+        const rawToolCalls = allRawToolCalls.filter(
           tc => !tc.id || respondedToolCallIds.has(tc.id)
         )
 
@@ -633,4 +674,4 @@ export class ChatDeepSeek extends BaseChatModel {
   }
 }
 
-type RunnableBinding = ReturnType<BaseChatModel['bind']>
+type RunnableBinding = ReturnType<BaseChatModel<ChatDeepSeekCallOptions>['withConfig']>

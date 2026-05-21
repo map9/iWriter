@@ -32,7 +32,7 @@ function ensureWorkspace(workspacePath: string | null): string | null {
   return path.resolve(workspacePath)
 }
 
-function gitError(errorCode: GitErrorCode, message: string): GitResult {
+function gitError(errorCode: GitErrorCode, message: string): Extract<GitResult, { ok: false }> {
   return { ok: false, errorCode, message }
 }
 

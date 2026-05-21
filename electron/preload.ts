@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { IpcRendererEvent } from 'electron'
 import type { ElectronAPI, PdfSaveOptions } from '../src/types/electron-api'
 import type { SendMessageRequest, CompactInputRequest, CompactInputResponse, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunContextCompressedEvent, RunModelFallbackEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
 import type { AiSettings } from '../src/types/ai'
@@ -120,8 +121,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on('menu-action', (_, action) => callback(action))
   },
   removeMenuActionListener: (listener?: unknown) => {
-    if (listener) {
-      ipcRenderer.removeListener('menu-action', listener)
+    if (typeof listener === 'function') {
+      ipcRenderer.removeListener('menu-action', listener as (event: IpcRendererEvent, ...args: unknown[]) => void)
     } else {
       ipcRenderer.removeAllListeners('menu-action')
     }
