@@ -1,6 +1,6 @@
 <template>
-  <div v-if="current" class="overflow-hidden rounded-box border border-warning/30 bg-base-100">
-    <div class="border-b border-warning/30 bg-warning/10 px-3 py-2.5">
+  <div v-if="current" class="overflow-hidden rounded-box border border-warning-content/15 bg-base-100">
+    <div class="border-b border-warning-content/15 bg-warning/10 px-3 py-2.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="min-w-0">
           <div class="text-xs font-medium text-warning-content">
@@ -14,7 +14,7 @@
           {{ currentIndex + 1 }} / {{ reviews.length }}
         </div>
       </div>
-      <div class="mt-2 rounded-md bg-warning/10 px-2 py-1.5 text-xs text-warning-content">
+      <div class="mt-2 rounded-box bg-warning/10 px-2 py-1.5 text-xs text-warning-content">
         This will modify a real host file. Review the path and content before approving.
       </div>
     </div>
@@ -27,7 +27,7 @@
       />
       <div v-else class="p-3">
         <div class="mb-1.5 text-xs font-medium text-base-content">New file content</div>
-        <pre class="max-h-88 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-warning/30 bg-warning/10 p-2 font-mono text-xs leading-relaxed text-base-content">{{ current.newContent }}</pre>
+        <pre class="max-h-88 overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-box border border-warning-content/15 bg-warning/10 p-2 font-mono text-xs leading-relaxed text-base-content">{{ current.newContent }}</pre>
       </div>
     </div>
 

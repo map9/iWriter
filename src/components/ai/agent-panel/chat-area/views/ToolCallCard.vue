@@ -57,7 +57,7 @@
     <div
       v-if="showDetail"
       class="bg-base-100 px-2.5 py-2 space-y-2"
-      :class="[detailBorderClass, groupDetailClass]"
+      :class="[detailBorderClass]"
     >
       <div v-if="detailType === 'outline' && outlineItems.length" class="space-y-1.5">
         <div class="text-xs font-medium text-base-content">{{ t('agentPanel.toolCall.outline') }}</div>
@@ -78,7 +78,7 @@
         </div>
       </div>
 
-      <div v-else-if="detailType === 'section' && parsedResult" class="space-y-2">
+      <div v-else-if="detailType === 'section' && parsedResult" class="space-y-2 text-base-content/70">
         <div v-if="sectionHeading" class="text-xs font-medium text-base-content">
           {{ sectionHeading }}
         </div>
@@ -88,7 +88,7 @@
           <span v-if="sectionWordCount">{{ sectionWordCount }}</span>
           <span v-if="sectionHasMore">{{ t('agentPanel.toolCall.hasMore') }}</span>
         </div>
-        <MarkdownContentView v-if="sectionContent" :content="sectionContent" mode="text" size="xs" />
+        <MarkdownContentView v-if="sectionContent" :content="sectionContent" mode="text" size="xs"/>
       </div>
 
       <div v-else-if="detailType === 'sections' && batchSectionItems.length" class="space-y-2">
@@ -116,7 +116,7 @@
               <span v-if="item.wordCount">{{ item.wordCount }}</span>
               <span v-if="item.hasMore">{{ t('agentPanel.toolCall.hasMore') }}</span>
             </div>
-            <div v-if="item.content" class="mt-1">
+            <div v-if="item.content" class="mt-1 text-base-content/70">
               <MarkdownContentView :content="item.content" mode="text" size="xs" />
             </div>
           </template>
@@ -133,7 +133,7 @@
             <span class="font-medium text-base-content">{b:{{ item.blockId }}}</span>
             <span class="text-base-content">{{ item.type }}</span>
           </div>
-          <div class="mt-1">
+          <div class="mt-1 text-base-content/70">
             <MarkdownContentView :content="item.content" mode="text" size="xs" />
           </div>
         </div>
@@ -151,7 +151,7 @@
             <span class="font-medium text-base-content">{b:{{ item.blockId }}}</span>
             <span class="text-base-content">{{ item.type }}</span>
           </div>
-          <div class="mt-1">
+          <div class="mt-1 text-base-content/70">
             <MarkdownContentView :content="item.content" mode="text" size="xs" />
           </div>
         </div>
@@ -170,7 +170,7 @@
             </div>
             <div class="shrink-0 text-2xs text-base-content">{{ t('agentPanel.toolCall.matched', { count: section.matchCount }) }}</div>
           </div>
-          <div v-if="section.preview" class="mt-1">
+          <div v-if="section.preview" class="mt-1 text-base-content/70">
             <MarkdownContentView :content="section.preview" mode="text" size="xs" />
           </div>
         </div>
@@ -202,14 +202,14 @@
             <div
               v-for="preview in file.previews"
               :key="`${file.filePath}-${preview.blockId}`"
-              class="rounded-box bg-base-200 px-2 py-1 border border-base-300"
+              class="rounded-box bg-base-200 px-2 py-1 border border-base-300 text-base-content/70"
             >
               <div class="text-2xs text-base-content mb-1">
                 <span v-if="preview.heading">{{ preview.heading }}</span>
                 <span v-else>{{ t('agentPanel.toolCall.unnamedSection') }}</span>
                 <span> · {b:{{ preview.blockId }}}</span>
               </div>
-              <MarkdownContentView :content="preview.preview" mode="text" size="xs" />
+              <MarkdownContentView :content="preview.preview" mode="text" size="xs"/>
             </div>
           </div>
         </div>
@@ -221,11 +221,11 @@
         </div>
         <div v-if="taskDescription" class="space-y-1">
           <div class="text-xs font-medium text-base-content">{{ t('agentPanel.toolCall.delegateDescription') }}</div>
-          <div class="rounded-box bg-base-200 px-2 py-1.5">
+          <div class="rounded-box bg-base-200 px-2 py-1.5 text-base-content/70">
             <MarkdownContentView :content="taskDescription" mode="text" size="xs" />
           </div>
         </div>
-        <div v-if="taskResult" class="space-y-1">
+        <div v-if="taskResult" class="space-y-1 text-base-content/70">
           <div class="text-xs font-medium text-base-content">{{ t('agentPanel.toolCall.subagentResult') }}</div>
           <MarkdownContentView :content="taskResult" mode="markdown" size="xs" />
         </div>
@@ -250,15 +250,15 @@
         </div>
       </div>
 
-      <div v-else-if="resultText" class="space-y-1">
+      <div v-else-if="resultText" class="space-y-1 text-base-content/70">
         <div class="text-xs font-medium text-base-content">{{ t('agentPanel.toolCall.resultDetails') }}</div>
-        <MarkdownContentView :content="resultText" mode="text" size="xs" />
+        <MarkdownContentView :content="resultText" mode="text" size="xs"/>
       </div>
 
-      <details v-if="showRawResult" class="group">
+      <details v-if="showRawResult" class="group text-base-content/70">
         <summary class="cursor-pointer text-xs text-base-content hover:text-base-content/50">{{ t('agentPanel.toolCall.viewRawResult') }}</summary>
         <div class="mt-2 rounded-box bg-base-200 px-2 py-1.5">
-          <MarkdownContentView :content="rawResult" mode="text" size="xs" />
+          <MarkdownContentView :content="rawResult" mode="text" size="xs"/>
         </div>
       </details>
     </div>
@@ -352,11 +352,6 @@ const groupDividerClass = computed(() => {
     default:
       return ''
   }
-})
-
-const groupDetailClass = computed(() => {
-  if (groupPosition.value === 'middle' || groupPosition.value === 'end') return 'border-t'
-  return ''
 })
 
 const detailBorderClass = computed(() => {

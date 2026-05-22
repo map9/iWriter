@@ -73,6 +73,15 @@ function escapeHtml(s: string) {
 
 /* ── Container ─────────────────────────────────────────────────── */
 .mcv {
+  --mcv-current-10: color-mix(in oklab, currentColor 10%, transparent);
+  --mcv-current-30: color-mix(in oklab, currentColor 30%, transparent);
+  --mcv-current-50: color-mix(in oklab, currentColor 50%, transparent);
+  --mcv-current-70: color-mix(in oklab, currentColor 70%, transparent);
+  --mcv-success-bg: color-mix(in oklab, var(--color-success) 30%, transparent);
+  --mcv-success-border: color-mix(in oklab, var(--color-success-content) 15%, transparent);
+  --mcv-warning-bg: color-mix(in oklab, var(--color-warning) 30%, transparent);
+  --mcv-warning-border: color-mix(in oklab, var(--color-warning-content) 15%, transparent);
+  color: inherit;
   font-size: var(--mcv-base, 0.75rem);
   line-height: 1.55;
   word-break: break-word;
@@ -178,7 +187,7 @@ function escapeHtml(s: string) {
   width: 0.85rem;
   height: 0.85rem;
   flex: 0 0 auto;
-  accent-color: #22c55e;
+  accent-color: var(--color-success);
   pointer-events: none;
 }
 .mcv-md :deep(li > input[type='checkbox']) {
@@ -186,7 +195,7 @@ function escapeHtml(s: string) {
   width: 0.85rem;
   height: 0.85rem;
   flex: 0 0 auto;
-  accent-color: #22c55e;
+  accent-color: var(--color-success);
   pointer-events: none;
 }
 .mcv-md :deep(li.task-list-item p) {
@@ -198,7 +207,7 @@ function escapeHtml(s: string) {
   white-space: nowrap;
 }
 .mcv-md :deep(.mcv-todo-status--progress) {
-  color: #b45309;
+  color: var(--color-warning-content);
   font-weight: 600;
 }
 
@@ -223,25 +232,25 @@ function escapeHtml(s: string) {
   align-items: center;
   justify-content: center;
   border-radius: 0.22rem;
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  border: 1px solid var(--mcv-current-30);
+  background: var(--mcv-current-10);
   font-size: 0.72rem;
   line-height: 1;
   margin-top: 0.12rem;
 }
 .mcv-md :deep(.mcv-todo-box--done) {
-  border-color: #22c55e;
-  background: #dcfce7;
-  color: #15803d;
+  border-color: var(--mcv-success-border);
+  background: var(--mcv-success-bg);
+  color: var(--color-success-content);
 }
 .mcv-md :deep(.mcv-todo-box--progress) {
-  border-color: #f59e0b;
-  background: #fef3c7;
-  color: #b45309;
+  border-color: var(--mcv-warning-border);
+  background: var(--mcv-warning-bg);
+  color: var(--color-warning-content);
 }
 .mcv-md :deep(.mcv-todo-box--pending) {
-  border-color: #cbd5e1;
-  background: #fff;
+  border-color: var(--mcv-current-30);
+  background: var(--mcv-current-10);
   color: transparent;
 }
 .mcv-md :deep(.mcv-todo-label) {
@@ -252,7 +261,7 @@ function escapeHtml(s: string) {
 .mcv-md :deep(code) {
   font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
   font-size: var(--mcv-code, 0.7rem);
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--mcv-current-10);
   border-radius: 0.2rem;
   padding: 0.1em 0.35em;
 }
@@ -261,7 +270,7 @@ function escapeHtml(s: string) {
 .mcv-md :deep(pre) {
   margin: 0.4em 0;
   border-radius: 0.3rem;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--mcv-current-10);
   padding: 0.5rem 0.75rem;
   overflow-x: auto;
   white-space: pre-wrap;
@@ -281,8 +290,8 @@ function escapeHtml(s: string) {
 .mcv-md :deep(blockquote) {
   margin: 0.35em 0;
   padding: 0.1em 0 0.1em 0.625rem;
-  border-left: 3px solid #d1d5db;
-  opacity: 0.75;
+  border-left: 3px solid var(--mcv-current-30);
+  color: var(--mcv-current-70);
 }
 .mcv-md :deep(blockquote p) {
   margin: 0;
@@ -291,17 +300,19 @@ function escapeHtml(s: string) {
 /* Horizontal rule */
 .mcv-md :deep(hr) {
   border: none;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--mcv-current-30);
   margin: 0.5em 0;
 }
 
 /* Links */
 .mcv-md :deep(a) {
-  color: #3b82f6;
-  text-decoration: none;
+  color: currentColor;
+  text-decoration: underline;
+  text-decoration-color: var(--mcv-current-50);
+  text-underline-offset: 0.12em;
 }
 .mcv-md :deep(a:hover) {
-  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 
 /* Tables */
@@ -313,13 +324,13 @@ function escapeHtml(s: string) {
 }
 .mcv-md :deep(th),
 .mcv-md :deep(td) {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--mcv-current-30);
   padding: 0.2rem 0.5rem;
   text-align: left;
   vertical-align: top;
 }
 .mcv-md :deep(th) {
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--mcv-current-10);
   font-weight: 600;
 }
 

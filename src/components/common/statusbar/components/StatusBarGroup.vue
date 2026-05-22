@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex items-center rounded-none bg-transparent transition-colors duration-150 hover:bg-neutral-content/30"
+    class="flex items-center rounded-none bg-transparent transition-colors duration-150 hover:bg-neutral-content/70"
     :class="[
       {
         'text-neutral-content': !props.group.color,

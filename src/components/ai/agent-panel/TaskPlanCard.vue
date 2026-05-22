@@ -142,8 +142,8 @@ function itemIcon(status: TaskPlanItem['status']): string {
 }
 
 function itemBadgeClass(status: TaskPlanItem['status']): string {
-  if (status === 'completed') return 'border-success/30 bg-success/20 text-success-content'
-  if (status === 'in_progress') return 'border-warning/30 bg-warning/20 text-warning-content'
+  if (status === 'completed') return 'border-success-content/15 bg-success/20 text-success-content'
+  if (status === 'in_progress') return 'border-warning-content/15 bg-warning/20 text-warning-content'
   return 'border-base-300 bg-base-100 text-transparent'
 }
 
