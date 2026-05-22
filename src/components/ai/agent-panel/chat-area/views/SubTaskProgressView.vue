@@ -31,16 +31,16 @@ function statusText(status: AiSubTaskProgress['status']): string {
         v-if="subTask.status === 'pending' || subTask.status === 'running'"
         class="loading loading-spinner loading-xs shrink-0 text-base-content/50"
       />
-      <span v-else-if="subTask.status === 'awaiting_approval'" class="shrink-0 text-warning text-sm leading-none">…</span>
-      <span v-else-if="subTask.status === 'done'" class="shrink-0 text-success text-sm leading-none">✓</span>
-      <span v-else-if="subTask.status === 'cancelled'" class="shrink-0 text-base-content/40 text-sm leading-none">×</span>
-      <span v-else class="shrink-0 text-error text-sm leading-none">!</span>
+      <span v-else-if="subTask.status === 'awaiting_approval'" class="shrink-0 text-warning-content text-sm leading-none">…</span>
+      <span v-else-if="subTask.status === 'done'" class="shrink-0 text-success-content text-sm leading-none">✓</span>
+      <span v-else-if="subTask.status === 'cancelled'" class="shrink-0 text-base-content/50 text-sm leading-none">×</span>
+      <span v-else class="shrink-0 text-error-content text-sm leading-none">!</span>
       <span class="font-medium text-base-content/70">{{ subTaskLabel(subTask.name) }}</span>
-      <span v-if="statusText(subTask.status)" class="text-base-content/40">{{ statusText(subTask.status) }}</span>
+      <span v-if="statusText(subTask.status)" class="text-base-content/50">{{ statusText(subTask.status) }}</span>
     </div>
     <div
       v-if="subTask.thinkingText"
-      class="mt-1 truncate text-base-content/40 italic"
+      class="mt-1 truncate text-base-content/50 italic"
     >{{ subTask.thinkingText.slice(0, 120) }}</div>
     <ToolCallCard
       v-for="tc in subTask.toolCalls"
@@ -51,11 +51,11 @@ function statusText(status: AiSubTaskProgress['status']): string {
     />
     <div
       v-if="subTask.text"
-      class="mt-1 truncate text-base-content/40"
+      class="mt-1 truncate text-base-content/50"
     >{{ subTask.text.slice(0, 100) }}</div>
     <div
       v-if="subTask.status === 'error' && subTask.errorText"
-      class="mt-1 truncate text-error/70"
+      class="mt-1 truncate text-error-content/70"
     >{{ subTask.errorText.slice(0, 120) }}</div>
   </div>
 </template>

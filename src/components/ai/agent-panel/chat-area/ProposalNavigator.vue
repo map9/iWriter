@@ -2,7 +2,7 @@
   <div class="overflow-hidden rounded-box border bg-base-100" :class="containerClass">
     <div
       v-if="navigatorVm.isBatchReview"
-      class="space-y-2 border-b border-warning/30 bg-warning/10 px-3 py-2.5"
+      class="space-y-2 border-b border-warning-content/15 bg-warning/50 px-3 py-2.5"
     >
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
@@ -38,12 +38,12 @@
               <div class="text-xs font-medium" :class="toneTitleClass">{{ navigatorVm.currentTitle }}</div>
               <span
                 v-if="currentIsDelete"
-                class="inline-flex items-center rounded-full bg-error/20 px-1.5 py-0.5 text-2xs font-medium text-error-content"
+                class="inline-flex items-center rounded-full bg-error/50 px-1.5 py-0.5 text-2xs font-medium text-error-content"
               >
                 高风险
               </span>
             </div>
-            <div class="mt-1 truncate text-sm font-medium text-base-content" :title="navigatorVm.currentLabel">
+            <div class="mt-1 truncate text-sm font-medium text-current" :title="navigatorVm.currentLabel">
               {{ navigatorVm.currentLabel }}
             </div>
           </div>
@@ -73,11 +73,11 @@
 
         <template v-else-if="current.type === 'delete'">
           <div class="p-3">
-            <div class="mb-2 rounded-md bg-error/15 px-2 py-1.5 text-xs text-error-content">
+            <div class="mb-2 rounded-md bg-error/50 px-2 py-1.5 text-xs text-error-content">
               {{ t('agentPanel.proposalNavigator.deleteWarning') }}
             </div>
             <div class="mb-1.5 text-xs font-medium text-base-content">{{ t('agentPanel.proposalNavigator.originalToDelete') }}</div>
-            <div class="rounded-md border border-error/30 bg-error/10 p-2">
+            <div class="rounded-md border border-error-content/15 bg-error/50 p-2 text-error-content">
               <MarkdownContentView :content="current.oldContent || t('agentPanel.proposalNavigator.emptyContent')" mode="markdown" />
             </div>
           </div>
@@ -95,14 +95,14 @@
                 v-if="isInsertEditing"
                 ref="insertEditorRef"
                 v-model="editedContent"
-                class="w-full min-h-32 max-h-88 h-full overflow-y-auto resize-none border-0 bg-transparent px-3 py-2.5 font-mono text-xs leading-relaxed text-base-content outline-none"
+                class="w-full min-h-32 max-h-88 h-full overflow-y-auto resize-none border-0 bg-transparent px-3 py-2.5 font-mono text-xs leading-relaxed text-current outline-none"
                 :placeholder="t('agentPanel.proposalNavigator.insertPlaceholder')"
                 @blur="deactivateInsertEditing"
                 @input="onEditorInput"
               />
               <pre
                 v-else
-                class="min-h-32 max-h-88 overflow-y-auto whitespace-pre-wrap warp-break-words px-1 py-1 font-mono text-xs leading-relaxed text-base-content"
+                class="min-h-32 max-h-88 overflow-y-auto whitespace-pre-wrap warp-break-words px-1 py-1 font-mono text-xs leading-relaxed text-current"
               >{{ editedContent }}</pre>
             </div>
           </div>
@@ -152,7 +152,7 @@
           <textarea
             v-model="reworkReason"
             rows="3"
-            class="mt-2 w-full resize-none rounded-field border border-base-300 bg-base-100 px-2 py-1 text-sm outline-none focus:border-primary"
+            class="mt-2 w-full resize-none rounded-field border border-base-300 bg-base-100 px-2 py-1 text-sm outline-none focus:border-base-content/50"
             :placeholder="t('agentPanel.proposalNavigator.reworkPlaceholder')"
           />
           <div class="mt-2 flex gap-1.5">
@@ -232,12 +232,12 @@ const navigatorVm = computed(() =>
 )
 
 const containerClass = computed(() =>
-  !navigatorVm.value.isBatchReview && currentIsDelete.value ? 'border-error/30' : 'border-warning/30'
+  !navigatorVm.value.isBatchReview && currentIsDelete.value ? 'border-error-content/15' : 'border-warning-content/15'
 )
-const tonePanelClass = computed(() => currentIsDelete.value ? 'border-error/30 bg-error/10' : 'border-warning/30 bg-warning/10')
+const tonePanelClass = computed(() => currentIsDelete.value ? 'border-error-content/15 bg-error/50 text-error-content' : 'border-warning-content/15 bg-warning/50 text-warning-content')
 const toneTitleClass = computed(() => currentIsDelete.value ? 'text-error-content' : 'text-warning-content')
-const toneDescriptionClass = computed(() => currentIsDelete.value ? 'text-error-content/80' : 'text-base-content/70')
-const toneRingClass = computed(() => currentIsDelete.value ? 'ring-2 ring-error/30' : 'ring-2 ring-warning/30')
+const toneDescriptionClass = computed(() => currentIsDelete.value ? 'text-error-content/70' : 'text-warning-content/70')
+const toneRingClass = computed(() => currentIsDelete.value ? 'ring-2 ring-error-content/15' : 'ring-2 ring-warning-content/15')
 
 function syncEditorHeight() {
   const el = insertEditorRef.value

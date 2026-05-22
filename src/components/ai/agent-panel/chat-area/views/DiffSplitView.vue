@@ -2,14 +2,14 @@
   <div class="text-xs leading-[1.55]">
     <!-- GitHub-style per-side header -->
     <div class="grid grid-cols-2 border-b border-base-300 bg-base-200">
-      <div class="flex items-center justify-between gap-2 border-r border-base-300 px-2.5 py-1.5 text-2xs text-base-content/60">
-        <span class="inline-flex items-center rounded bg-error/20 px-1.5 py-px font-mono font-semibold text-error">
+      <div class="flex items-center justify-between gap-2 border-r border-base-300 px-2.5 py-1.5 text-2xs text-base-content/70">
+        <span class="inline-flex items-center rounded bg-error/50 px-1.5 py-px font-mono font-semibold text-error-content">
           {{ t('agentPanel.diffSplit.removals', { count: removedLines }) }}
         </span>
         <span class="tabular-nums">{{ t('agentPanel.diffSplit.lines', { count: oldLineCount }) }}</span>
       </div>
-      <div class="flex items-center justify-between gap-2 px-2.5 py-1.5 text-2xs text-base-content/60">
-        <span class="inline-flex items-center rounded bg-success/20 px-1.5 py-px font-mono font-semibold text-success">
+      <div class="flex items-center justify-between gap-2 px-2.5 py-1.5 text-2xs text-base-content/70">
+        <span class="inline-flex items-center rounded bg-success/50 px-1.5 py-px font-mono font-semibold text-success-content">
           {{ t('agentPanel.diffSplit.additions', { count: addedLines }) }}
         </span>
         <span class="tabular-nums">{{ t('agentPanel.diffSplit.lines', { count: newLineCount }) }}{{ editableRight ? isEditing ? ` · ${t('agentPanel.diffSplit.editing')}` : ` · ${t('agentPanel.diffSplit.editable')}` : '' }}</span>
@@ -21,10 +21,10 @@
       v-if="editableRight && isEditing"
       class="grid max-h-88 grid-cols-2 items-stretch overflow-y-auto"
     >
-      <div class="min-h-32 overflow-hidden bg-error/10 px-2 py-1.5 text-error-content">
+      <div class="min-h-32 overflow-hidden bg-error/50 px-2 py-1.5 text-error-content">
         <pre class="m-0 whitespace-break-spaces wrap-break-word font-mono text-xs leading-relaxed">{{ oldContent }}</pre>
       </div>
-      <div class="min-h-32 overflow-hidden border-l-2 border-success bg-success/10">
+      <div class="min-h-32 overflow-hidden border-l-2 border-success-content/15 bg-success/50">
         <textarea
           ref="editorRef"
           :value="editableContent"
@@ -41,7 +41,7 @@
         <span
           v-for="(seg, i) in leftSegments"
           :key="i"
-          :class="seg.kind === 'removed' ? 'rounded-sm bg-error/30 text-error-content' : ''"
+          :class="seg.kind === 'removed' ? 'rounded-sm bg-error/50 text-error-content' : ''"
         >{{ seg.value }}</span>
       </div>
       <div
@@ -52,7 +52,7 @@
         <span
           v-for="(seg, i) in rightSegments"
           :key="i"
-          :class="seg.kind === 'added' ? 'rounded-sm bg-success/40 text-success-content' : ''"
+          :class="seg.kind === 'added' ? 'rounded-sm bg-success/70 text-success-content' : ''"
         >{{ seg.value }}</span>
       </div>
     </div>

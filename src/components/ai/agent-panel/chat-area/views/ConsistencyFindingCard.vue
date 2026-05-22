@@ -26,9 +26,9 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const toneClass = computed(() => {
-  if (props.finding.severity === 'major') return 'border-error bg-error/10'
-  if (props.finding.severity === 'minor') return 'border-warning bg-warning/10'
-  return 'border-info bg-info/10'
+  if (props.finding.severity === 'major') return 'border-error-content/15 bg-error/50 text-error-content'
+  if (props.finding.severity === 'minor') return 'border-warning-content/15 bg-warning/50 text-warning-content'
+  return 'border-info-content/15 bg-info/50 text-info-content'
 })
 
 const severityLabel = computed(() => t(`consistencyFinding.severity.${props.finding.severity}`))

@@ -100,24 +100,24 @@ const summaryLabel = computed(() => {
 })
 
 const containerClass = computed(() => {
-  if (props.result.failedToApply > 0) return 'border-error/30 bg-error/20 text-error-content hover:bg-error/35'
-  return 'border-warning/30 bg-warning/20 text-warning-content hover:bg-warning/35'
+  if (props.result.failedToApply > 0) return 'border-error-content/15 bg-error/50 text-error-content hover:bg-error/70'
+  return 'border-warning-content/15 bg-warning/50 text-warning-content hover:bg-warning/70'
 })
 
 const bodyClass = computed(() => {
-  if (props.result.failedToApply > 0) return 'border-error/30'
-  return 'border-warning/30'
+  if (props.result.failedToApply > 0) return 'border-error-content/15'
+  return 'border-warning-content/15'
 })
 
 const summaryChips = computed(() => {
   const chips: Array<{ label: string; className: string }> = []
   chips.push({ label: t('agentPanel.editSummary.chips.total', { count: props.result.total }), className: 'bg-base-200 text-base-content' })
-  if (props.result.applied > 0) chips.push({ label: t('agentPanel.editSummary.chips.applied', { count: props.result.applied }), className: 'bg-success/20 text-success-content' })
-  if (props.result.appliedEdited > 0) chips.push({ label: t('agentPanel.editSummary.chips.appliedEdited', { count: props.result.appliedEdited }), className: 'bg-info/20 text-info-content' })
+  if (props.result.applied > 0) chips.push({ label: t('agentPanel.editSummary.chips.applied', { count: props.result.applied }), className: 'bg-success/50 text-success-content' })
+  if (props.result.appliedEdited > 0) chips.push({ label: t('agentPanel.editSummary.chips.appliedEdited', { count: props.result.appliedEdited }), className: 'bg-info/50 text-info-content' })
   if (props.result.skipped > 0) chips.push({ label: t('agentPanel.editSummary.chips.skipped', { count: props.result.skipped }), className: 'bg-base-200 text-base-content' })
-  if (props.result.reworkRequested > 0) chips.push({ label: t('agentPanel.editSummary.chips.reworkRequested', { count: props.result.reworkRequested }), className: 'bg-warning/20 text-warning-content' })
+  if (props.result.reworkRequested > 0) chips.push({ label: t('agentPanel.editSummary.chips.reworkRequested', { count: props.result.reworkRequested }), className: 'bg-warning/50 text-warning-content' })
   if (props.result.ended > 0) chips.push({ label: t('agentPanel.editSummary.chips.ended', { count: props.result.ended }), className: 'bg-base-200 text-base-content' })
-  if (props.result.failedToApply > 0) chips.push({ label: t('agentPanel.editSummary.chips.failedToApply', { count: props.result.failedToApply }), className: 'bg-error/20 text-error-content' })
+  if (props.result.failedToApply > 0) chips.push({ label: t('agentPanel.editSummary.chips.failedToApply', { count: props.result.failedToApply }), className: 'bg-error/50 text-error-content' })
   return chips
 })
 
@@ -141,13 +141,13 @@ function stateLabel(state: EditRoundResultState): string {
 function stateBadgeClass(state: EditRoundResultState): string {
   switch (state) {
     case 'applied':
-      return 'bg-success/20 text-success-content'
+      return 'bg-success/50 text-success-content'
     case 'applied_edited':
-      return 'bg-info/20 text-info-content'
+      return 'bg-info/50 text-info-content'
     case 'rework_requested':
-      return 'bg-warning/20 text-warning-content'
+      return 'bg-warning/50 text-warning-content'
     case 'failed_to_apply':
-      return 'bg-error/20 text-error-content'
+      return 'bg-error/50 text-error-content'
     default:
       return 'bg-base-200 text-base-content'
   }
@@ -156,13 +156,13 @@ function stateBadgeClass(state: EditRoundResultState): string {
 function detailRowClass(state: EditRoundResultState): string {
   switch (state) {
     case 'applied':
-      return 'bg-success/5'
+      return 'bg-success/50'
     case 'applied_edited':
-      return 'bg-info/5'
+      return 'bg-info/50'
     case 'rework_requested':
-      return 'bg-warning/8'
+      return 'bg-warning/50'
     case 'failed_to_apply':
-      return 'bg-error/8'
+      return 'bg-error/50'
     default:
       return 'bg-base-100'
   }

@@ -1,5 +1,5 @@
 <template>
-  <div class="mt-1.5 w-full rounded-field border-l-4 border-primary bg-primary/5 p-3 text-base-content">
+  <div class="mt-1.5 w-full rounded-field border-l-4 border-primary-content/15 bg-primary/50 p-3 text-primary-content">
     <button
       class="flex w-full items-center justify-between gap-3 text-left text-xs"
       @click="expanded = !expanded"

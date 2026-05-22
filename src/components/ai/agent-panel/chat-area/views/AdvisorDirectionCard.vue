@@ -1,5 +1,5 @@
 <template>
-  <div class="rounded-field border border-primary/20 bg-base-100 px-3 py-2 text-xs">
+  <div class="rounded-field border border-primary-content/15 bg-primary/50 px-3 py-2 text-xs text-primary-content">
     <div class="flex flex-wrap items-center gap-2">
       <span class="badge badge-primary badge-sm">{{ typeLabel }}</span>
     </div>

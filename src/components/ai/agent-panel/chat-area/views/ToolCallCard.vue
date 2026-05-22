@@ -20,11 +20,11 @@
       <div class="min-w-0 flex-1 flex flex-col justify-center">
         <div
           v-if="inputLine"
-          class="min-w-0 text-2xs leading-4 text-base-content truncate"
+          class="min-w-0 text-2xs leading-4 truncate"
         >
           <button
             v-if="targetPath && targetLabel"
-            class="inline max-w-full truncate font-medium text-left text-base-content/50 underline underline-offset-2 hover:text-primary hover:decoration-primary cursor-pointer"
+            class="inline max-w-full truncate font-medium text-left opacity-70 underline underline-offset-2 hover:opacity-100 cursor-pointer"
             :title="targetPath"
             @click.stop="openTargetFile"
           >
@@ -35,7 +35,7 @@
 
         <div
           v-if="contextSummaryLine"
-          class="min-w-0 text-2xs leading-4 text-base-content truncate whitespace-nowrap opacity-50"
+          class="min-w-0 text-2xs leading-4 truncate whitespace-nowrap opacity-70"
           :class="inputLine ? 'mt-px' : ''"
           :title="contextSummaryLine"
         >
@@ -56,7 +56,7 @@
 
     <div
       v-if="showDetail"
-      class="border-t bg-base-100 px-2.5 py-2 space-y-2"
+      class="bg-base-100 px-2.5 py-2 space-y-2"
       :class="[detailBorderClass, groupDetailClass]"
     >
       <div v-if="detailType === 'outline' && outlineItems.length" class="space-y-1.5">
@@ -104,9 +104,9 @@
               </div>
               <div class="text-2xs text-base-content">heading {b:{{ item.headingBlockId }}}</div>
             </div>
-            <span v-if="item.error" class="shrink-0 text-2xs text-error">{{ t('agentPanel.displayNormalizer.status.failed') }}</span>
+            <span v-if="item.error" class="shrink-0 text-2xs text-error-content">{{ t('agentPanel.displayNormalizer.status.failed') }}</span>
           </div>
-          <div v-if="item.error" class="mt-1 text-xs text-error">
+          <div v-if="item.error" class="mt-1 text-xs text-error-content">
             {{ item.error }}
           </div>
           <template v-else>
@@ -145,7 +145,7 @@
           v-for="item in blockItems"
           :key="item.blockId"
           class="rounded-box px-2 py-1.5"
-          :class="item.blockId === centerBlockId ? 'bg-error/20 border border-info/30' : 'bg-base-100'"
+          :class="item.blockId === centerBlockId ? 'bg-info/50 border border-info-content/15 text-info-content' : 'bg-base-100'"
         >
           <div class="flex items-center justify-between gap-2 text-xs">
             <span class="font-medium text-base-content">{b:{{ item.blockId }}}</span>
@@ -185,7 +185,7 @@
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0">
               <button
-                class="inline max-w-full truncate font-medium text-left text-base-content/50 underline underline-offset-2 hover:text-primary hover:decoration-primary cursor-pointer"
+                class="inline max-w-full truncate font-medium text-left text-base-content/50 underline underline-offset-2 hover:text-base-content hover:decoration-base-content cursor-pointer"
                 :title="file.filePath"
                 @click.stop="openFilePath(file.filePath)"
               >
@@ -309,21 +309,21 @@ const containerClass = computed(() => {
   const isRunning = props.toolCall.status === 'in_progress' || props.toolCall.status === 'pending'
   const isRejected = props.toolCall.status === 'rejected'
   const isError = props.toolCall.isError || props.toolCall.status === 'failed'
-  if (isError) return 'border-error/30 bg-error/20 text-error-content hover:bg-error/35'
+  if (isError) return 'border-error-content/15 bg-error/50 text-error-content hover:bg-error/70'
   if (isRejected) return 'border-base-300 bg-base-100 text-base-content hover:bg-base-300'
-  if (isRunning) return 'border-info/30 bg-info/20 text-info-content'
+  if (isRunning) return 'border-info-content/15 bg-info/50 text-info-content'
   switch (props.toolCall.kind) {
     case 'edit':
     case 'delete':
-      return 'border-warning/30 bg-warning/20 text-warning-content hover:bg-warning/35'
+      return 'border-warning-content/15 bg-warning/50 text-warning-content hover:bg-warning/70'
     case 'execute':
-      return 'border-error/30 bg-error/10 text-base-content hover:bg-error/20'
+      return 'border-error-content/15 bg-error/50 text-error-content hover:bg-error/70'
     case 'search':
-      return 'border-info/30 bg-info/20 text-info-content hover:bg-info/35'
+      return 'border-info-content/15 bg-info/50 text-info-content hover:bg-info/70'
     case 'delegate':
-      return 'border-primary/30 bg-primary/20 text-primary-content hover:bg-primary/35'
+      return 'border-secondary-content/15 bg-secondary/50 text-secondary-content hover:bg-secondary/70'
     case 'read':
-      return 'border-success/30 bg-success/20 text-success-content hover:bg-success/35'
+      return 'border-success-content/15 bg-success/50 text-success-content hover:bg-success/70'
     case 'other':
     default:
       return 'border-base-300 bg-base-200 text-base-content hover:bg-base-300'
@@ -360,21 +360,21 @@ const groupDetailClass = computed(() => {
 })
 
 const detailBorderClass = computed(() => {
-  if (props.toolCall.isError || props.toolCall.status === 'failed') return 'border-error/30'
+  if (props.toolCall.isError || props.toolCall.status === 'failed') return 'border-error-content/15'
   if (props.toolCall.status === 'rejected') return 'border-base-300'
-  if (props.toolCall.status === 'pending' || props.toolCall.status === 'in_progress') return 'border-info/30'
+  if (props.toolCall.status === 'pending' || props.toolCall.status === 'in_progress') return 'border-info-content/15'
   switch (props.toolCall.kind) {
     case 'edit':
     case 'delete':
-      return 'border-warning/30'
+      return 'border-warning-content/15'
     case 'execute':
-      return 'border-error/30'
+      return 'border-error-content/15'
     case 'search':
-      return 'border-info/30'
+      return 'border-info-content/15'
     case 'delegate':
-      return 'border-primary/30'
+      return 'border-secondary-content/15'
     case 'read':
-      return 'border-success/30'
+      return 'border-success-content/15'
     case 'other':
     default:
       return 'border-base-300'
@@ -633,7 +633,7 @@ const todoItems = computed(() => {
         content,
         icon: '✓',
         statusLabel: t('agentPanel.toolCall.todo.completed'),
-        statusClass: 'border-success/40 bg-success/20 text-success-content',
+        statusClass: 'border-success-content/15 bg-success/50 text-success-content',
       }
     }
     if (status === 'in_progress') {
@@ -641,7 +641,7 @@ const todoItems = computed(() => {
         content,
         icon: '•',
         statusLabel: t('agentPanel.toolCall.todo.inProgress'),
-        statusClass: 'border-warning/40 bg-warning/20 text-warning-content',
+        statusClass: 'border-warning-content/15 bg-warning/50 text-warning-content',
       }
     }
     return {

@@ -43,7 +43,7 @@
         v-else-if="message.role === 'user' && message.content"
         class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word relative"
         :class="message.isError
-          ? 'bg-error/20 border border-error/30 '
+          ? 'bg-error/50 border border-error-content/15 text-error-content '
           : 'px-3 py-2 bg-primary text-primary-content'"
       >
         <div
@@ -76,7 +76,7 @@
               <div
                 v-if="part.kind === 'prose'"
                 class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word"
-                :class="[message.isError ? 'bg-error/20 border border-error/30  px-3 py-2' : 'text-base-content', (idx > 0 || partIdx > 0) ? 'mt-1.5' : '']"
+                :class="[message.isError ? 'bg-error/50 border border-error-content/15 text-error-content px-3 py-2' : 'text-base-content', (idx > 0 || partIdx > 0) ? 'mt-1.5' : '']"
               >
                 <MarkdownContentView :content="part.text" mode="markdown" size="sm" />
               </div>
@@ -87,7 +87,7 @@
               />
               <div
                 v-else-if="part.kind === 'pending'"
-                class="mt-1.5 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/60"
+                class="mt-1.5 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
               >
                 {{ t('consistencyFinding.pending') }}
               </div>
@@ -107,7 +107,7 @@
             />
             <div
               v-else-if="shouldShowTaskFallback(block.toolCallId)"
-              class="inline-flex items-center gap-2 rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/60"
+              class="inline-flex items-center gap-2 rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
               :class="contentBlockToolMarginClass(idx)"
             >
               <span class="loading loading-spinner loading-xs shrink-0" />
@@ -135,7 +135,7 @@
       <div
         v-else-if="message.role === 'assistant' && message.content"
         class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word"
-        :class="message.isError ? 'bg-error/20 border border-error/30  px-3 py-2' : 'text-base-content'"
+        :class="message.isError ? 'bg-error/50 border border-error-content/15 text-error-content px-3 py-2' : 'text-base-content'"
       >
         <template v-for="(part, partIdx) in splitAssistantText(message.content)" :key="partIdx">
           <MarkdownContentView
@@ -152,7 +152,7 @@
           />
           <div
             v-else-if="part.kind === 'pending'"
-            class="mt-1.5 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/60"
+            class="mt-1.5 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
           >
             {{ t('consistencyFinding.pending') }}
           </div>
@@ -181,7 +181,7 @@
           />
           <div
             v-else-if="shouldShowTaskFallback(tc.id)"
-            class="inline-flex items-center gap-2 rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/60"
+            class="inline-flex items-center gap-2 rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
             :class="idx > 0 ? 'mt-0' : ''"
           >
             <span class="loading loading-spinner loading-xs shrink-0" />

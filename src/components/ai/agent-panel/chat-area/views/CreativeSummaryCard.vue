@@ -90,22 +90,22 @@ const summaryLabel = computed(() => {
 })
 
 const containerClass = computed(() => {
-  if (props.result.failedToApply > 0) return 'border-error/30 bg-error/20 text-error-content hover:bg-error/35'
-  return 'border-warning/30 bg-warning/20 text-warning-content hover:bg-warning/35'
+  if (props.result.failedToApply > 0) return 'border-error-content/15 bg-error/50 text-error-content hover:bg-error/70'
+  return 'border-warning-content/15 bg-warning/50 text-warning-content hover:bg-warning/70'
 })
 
 const bodyClass = computed(() => {
-  if (props.result.failedToApply > 0) return 'border-error/30'
-  return 'border-warning/30'
+  if (props.result.failedToApply > 0) return 'border-error-content/15'
+  return 'border-warning-content/15'
 })
 
 const summaryChips = computed(() => {
   const chips: Array<{ label: string; className: string }> = []
   chips.push({ label: t('agentPanel.creativeSummary.chips.total', { count: props.result.total }), className: 'bg-base-200 text-base-content' })
-  if (props.result.applied > 0) chips.push({ label: t('agentPanel.creativeSummary.chips.applied', { count: props.result.applied }), className: 'bg-success/20 text-success-content' })
-  if (props.result.appliedEdited > 0) chips.push({ label: t('agentPanel.creativeSummary.chips.appliedEdited', { count: props.result.appliedEdited }), className: 'bg-info/20 text-info-content' })
+  if (props.result.applied > 0) chips.push({ label: t('agentPanel.creativeSummary.chips.applied', { count: props.result.applied }), className: 'bg-success/50 text-success-content' })
+  if (props.result.appliedEdited > 0) chips.push({ label: t('agentPanel.creativeSummary.chips.appliedEdited', { count: props.result.appliedEdited }), className: 'bg-info/50 text-info-content' })
   if (props.result.skipped > 0) chips.push({ label: t('agentPanel.creativeSummary.chips.skipped', { count: props.result.skipped }), className: 'bg-base-200 text-base-content' })
-  if (props.result.failedToApply > 0) chips.push({ label: t('agentPanel.creativeSummary.chips.failedToApply', { count: props.result.failedToApply }), className: 'bg-error/20 text-error-content' })
+  if (props.result.failedToApply > 0) chips.push({ label: t('agentPanel.creativeSummary.chips.failedToApply', { count: props.result.failedToApply }), className: 'bg-error/50 text-error-content' })
   return chips
 })
 
@@ -120,18 +120,18 @@ function stateLabel(state: CreativeRoundResultState): string {
 
 function stateBadgeClass(state: CreativeRoundResultState): string {
   switch (state) {
-    case 'applied': return 'bg-success/20 text-success-content'
-    case 'applied_edited': return 'bg-info/20 text-info-content'
-    case 'failed_to_apply': return 'bg-error/20 text-error-content'
+    case 'applied': return 'bg-success/50 text-success-content'
+    case 'applied_edited': return 'bg-info/50 text-info-content'
+    case 'failed_to_apply': return 'bg-error/50 text-error-content'
     default: return 'bg-base-200 text-base-content'
   }
 }
 
 function detailRowClass(state: CreativeRoundResultState): string {
   switch (state) {
-    case 'applied': return 'bg-success/5'
-    case 'applied_edited': return 'bg-info/5'
-    case 'failed_to_apply': return 'bg-error/8'
+    case 'applied': return 'bg-success/50'
+    case 'applied_edited': return 'bg-info/50'
+    case 'failed_to_apply': return 'bg-error/50'
     default: return 'bg-base-100'
   }
 }
