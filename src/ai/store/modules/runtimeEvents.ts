@@ -14,6 +14,7 @@ import type {
   StreamChunkEvent,
   DomainReviewItem,
 } from '@/ai/ipc'
+import { isHitlInterruptPayload } from '@/ai/hitl'
 import type { LiveSubTask, LiveTurn, ThreadRunState } from './runtimeState'
 
 interface RuntimeEventsDeps {
@@ -73,19 +74,193 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     currentRunHasError = false
   }
 
-  function updateSubTaskStatus(
+  function updateSubTask(
     liveTurn: LiveTurn,
     id: string | undefined,
-    status: LiveSubTask['status'],
-    output?: unknown,
+    update: Partial<Pick<LiveSubTask, 'status' | 'output' | 'errorText'>>,
   ): boolean {
     if (!id) return false
     const idx = liveTurn.subTasks.findIndex(st => st.invocationId === id)
     if (idx < 0) return false
+    const existing = liveTurn.subTasks[idx]!
     const updated = [...liveTurn.subTasks]
-    updated[idx] = { ...liveTurn.subTasks[idx]!, status, output }
+    updated[idx] = {
+      ...existing,
+      ...update,
+      output: update.output ?? existing.output,
+      errorText: update.errorText ?? existing.errorText,
+    }
     liveTurn.subTasks = updated
     return true
+  }
+
+  function isTerminalSubTaskStatus(status: LiveSubTask['status']): boolean {
+    return status === 'done' || status === 'error' || status === 'cancelled'
+  }
+
+  function taskSubagentName(toolCall: AiToolCall): string {
+    const type = toolCall.arguments['subagent_type']
+    return typeof type === 'string' && type.trim() ? type : 'task'
+  }
+
+  function ensureSubTaskForTaskTool(liveTurn: LiveTurn, toolCall: AiToolCall): void {
+    if (toolCall.name !== 'task') return
+    const idx = liveTurn.subTasks.findIndex(st => st.invocationId === toolCall.id)
+    const name = taskSubagentName(toolCall)
+    if (idx < 0) {
+      liveTurn.subTasks = [
+        ...liveTurn.subTasks,
+        {
+          invocationId: toolCall.id,
+          name,
+          taskInput: toolCall.arguments,
+          text: '',
+          thinkingText: '',
+          blocks: [],
+          status: 'pending',
+        },
+      ]
+      return
+    }
+
+    const existing = liveTurn.subTasks[idx]!
+    const updated = [...liveTurn.subTasks]
+    updated[idx] = {
+      ...existing,
+      name: existing.name || name,
+      taskInput: existing.taskInput ?? toolCall.arguments,
+      status: existing.status === 'awaiting_approval' ? 'running' : existing.status,
+    }
+    liveTurn.subTasks = updated
+  }
+
+  function applySubTaskDoneFromSubagentEnd(
+    liveTurn: LiveTurn,
+    id: string | undefined,
+    output?: unknown,
+  ): boolean {
+    if (!id) return false
+    const subTask = liveTurn.subTasks.find(st => st.invocationId === id)
+    if (!subTask) return false
+    if (subTask.status === 'awaiting_approval' || isTerminalSubTaskStatus(subTask.status)) {
+      return updateSubTask(liveTurn, id, { output })
+    }
+    return updateSubTask(liveTurn, id, { status: 'done', output })
+  }
+
+  function applyTaskToolEndToSubTask(liveTurn: LiveTurn, toolCall: AiToolCall): void {
+    if (toolCall.name !== 'task') return
+
+    if (isHitlInterruptPayload(toolCall.result)) {
+      updateSubTask(liveTurn, toolCall.id, {
+        status: 'awaiting_approval',
+        output: toolCall.result,
+      })
+      return
+    }
+
+    if (toolCall.status === 'rejected') {
+      updateSubTask(liveTurn, toolCall.id, {
+        status: 'cancelled',
+        output: toolCall.result,
+        errorText: toolCall.result,
+      })
+      return
+    }
+
+    if (toolCall.isError || toolCall.status === 'failed') {
+      updateSubTask(liveTurn, toolCall.id, {
+        status: 'error',
+        output: toolCall.result,
+        errorText: toolCall.result,
+      })
+      return
+    }
+
+    updateSubTask(liveTurn, toolCall.id, {
+      status: 'done',
+      output: toolCall.result,
+      errorText: '',
+    })
+  }
+
+  function isSettledToolCall(toolCall: AiToolCall): boolean {
+    return toolCall.status === 'completed' || toolCall.status === 'failed' || toolCall.status === 'rejected'
+  }
+
+  function mergeToolCallStart(existing: AiToolCall, incoming: AiToolCall): AiToolCall {
+    if (!isSettledToolCall(existing) || isSettledToolCall(incoming)) {
+      return incoming
+    }
+    return {
+      ...incoming,
+      status: existing.status,
+      result: existing.result,
+      isError: existing.isError,
+    }
+  }
+
+  function hasRootToolCall(liveTurn: LiveTurn, toolCallId: string): boolean {
+    return liveTurn.blocks.some(block =>
+      block.type === 'tool_call' && block.toolCall.id === toolCallId
+    )
+  }
+
+  function upsertRootToolCall(liveTurn: LiveTurn, toolCall: AiToolCall): void {
+    const idx = liveTurn.blocks.findIndex(block =>
+      block.type === 'tool_call' && block.toolCall.id === toolCall.id
+    )
+    if (idx >= 0) {
+      const updated = [...liveTurn.blocks]
+      const existing = liveTurn.blocks[idx]!
+      updated[idx] = {
+        type: 'tool_call',
+        toolCall: existing.type === 'tool_call'
+          ? mergeToolCallStart(existing.toolCall, toolCall)
+          : toolCall,
+      }
+      liveTurn.blocks = updated
+      return
+    }
+    liveTurn.blocks = [...liveTurn.blocks, { type: 'tool_call', toolCall }]
+  }
+
+  function upsertSubTask(liveTurn: LiveTurn, subTask: LiveSubTask): void {
+    const idx = liveTurn.subTasks.findIndex(st => st.invocationId === subTask.invocationId)
+    if (idx < 0) {
+      liveTurn.subTasks = [...liveTurn.subTasks, subTask]
+      return
+    }
+
+    const existing = liveTurn.subTasks[idx]!
+    const updated = [...liveTurn.subTasks]
+    updated[idx] = {
+      ...existing,
+      name: subTask.name,
+      taskInput: subTask.taskInput,
+    }
+    liveTurn.subTasks = updated
+  }
+
+  function upsertSubTaskToolCall(subTask: LiveSubTask, toolCall: AiToolCall): LiveSubTask {
+    const idx = subTask.blocks.findIndex(block =>
+      block.type === 'tool_call' && block.toolCall.id === toolCall.id
+    )
+    if (idx >= 0) {
+      const updatedBlocks = [...subTask.blocks]
+      const existing = subTask.blocks[idx]!
+      updatedBlocks[idx] = {
+        type: 'tool_call',
+        toolCall: existing.type === 'tool_call'
+          ? mergeToolCallStart(existing.toolCall, toolCall)
+          : toolCall,
+      }
+      return { ...subTask, blocks: updatedBlocks }
+    }
+    return {
+      ...subTask,
+      blocks: [...subTask.blocks, { type: 'tool_call', toolCall }],
+    }
   }
 
   function onStreamChunk(chunk: StreamChunkEvent) {
@@ -107,13 +282,14 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
         blocks: [],
         status: 'running',
       }
-      liveTurn.subTasks = [...liveTurn.subTasks, subTask]
+      upsertSubTask(liveTurn, subTask)
+      updateSubTask(liveTurn, invocationId, { status: 'running', errorText: '' })
       deps.liveTurn.value = { ...liveTurn }
       return
     }
 
     if (chunk.type === 'subagent_end') {
-      if (updateSubTaskStatus(liveTurn, chunk.subagentId, 'done', chunk.output)) {
+      if (applySubTaskDoneFromSubagentEnd(liveTurn, chunk.subagentId, chunk.output)) {
         deps.liveTurn.value = { ...liveTurn }
       }
       return
@@ -141,15 +317,16 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     }
 
     if (chunk.type === 'tool_call_start' && chunk.toolCall) {
-      if (liveTurn.currentText) {
-        liveTurn.blocks = [...liveTurn.blocks, { type: 'text', text: liveTurn.currentText }]
-        liveTurn.currentText = ''
-      }
       const enriched: AiToolCall = {
         ...chunk.toolCall,
         kind: deps.inferToolKind(chunk.toolCall.name),
       }
-      liveTurn.blocks = [...liveTurn.blocks, { type: 'tool_call', toolCall: enriched }]
+      ensureSubTaskForTaskTool(liveTurn, enriched)
+      if (!hasRootToolCall(liveTurn, enriched.id) && liveTurn.currentText) {
+        liveTurn.blocks = [...liveTurn.blocks, { type: 'text', text: liveTurn.currentText }]
+        liveTurn.currentText = ''
+      }
+      upsertRootToolCall(liveTurn, enriched)
       liveTurn.toolName = chunk.toolName ?? null
       deps.liveTurn.value = { ...liveTurn }
       return
@@ -162,7 +339,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
           : block
       )
       if (chunk.toolCall.name === 'task') {
-        updateSubTaskStatus(liveTurn, chunk.toolCallId, chunk.toolCall.isError ? 'error' : 'done', chunk.toolCall.result)
+        applyTaskToolEndToSubTask(liveTurn, chunk.toolCall)
       }
       liveTurn.toolName = null
       deps.liveTurn.value = { ...liveTurn }
@@ -194,7 +371,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     if (chunk.type === 'tool_call_start' && chunk.toolCall) {
       const enriched: AiToolCall = { ...chunk.toolCall, kind: deps.inferToolKind(chunk.toolCall.name) }
       const updated = [...liveTurn.subTasks]
-      updated[idx] = { ...subTask, blocks: [...subTask.blocks, { type: 'tool_call', toolCall: enriched }] }
+      updated[idx] = upsertSubTaskToolCall(subTask, enriched)
       liveTurn.subTasks = updated
       return
     }

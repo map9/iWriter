@@ -111,6 +111,8 @@ export interface ResumeRunRequest {
 
 // ── Main → Renderer ────────────────────────────────────────────────────────
 
+// subagentId is the parent task toolCallId. The renderer uses this shared id to
+// render one invocation instead of separate parent task and subagent cards.
 export type StreamChunkEvent =
   | { threadId: string; turnId?: string; type: 'text'; delta: string; subagentName?: string; subagentId?: string }
   | { threadId: string; turnId?: string; type: 'thinking'; delta: string; subagentName?: string; subagentId?: string }

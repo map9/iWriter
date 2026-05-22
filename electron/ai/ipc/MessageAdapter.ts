@@ -16,6 +16,7 @@ import type {
 } from '../../../src/types/ai'
 import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS, inferToolKind } from '../../../src/types/ai'
 import type { SerializedSnapshot } from './protocol'
+import { isHitlInterruptPayload } from '../../../src/ai/hitl'
 
 // ── Tool argument parsing ────────────────────────────────────────────────────
 
@@ -365,9 +366,10 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
         const tc = toolCalls.find(t => t.id === tcId)
         const resultText = extractToolResult(tc?.name ?? '', toolMsg.content)
         if (tc) {
-          const isError = isToolResultError(toolMsg, resultText)
+          const isHitlInterrupt = isHitlInterruptPayload(toolMsg.content) || isHitlInterruptPayload(resultText)
+          const isError = !isHitlInterrupt && isToolResultError(toolMsg, resultText)
           const isRejected = isToolResultRejected(toolMsg, resultText)
-          tc.status = isRejected ? 'rejected' : isError ? 'failed' : 'completed'
+          tc.status = isHitlInterrupt ? 'in_progress' : isRejected ? 'rejected' : isError ? 'failed' : 'completed'
           tc.result = resultText
           tc.isError = isError && !isRejected
         }
@@ -411,6 +413,7 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
 }
 
 function isToolResultError(output: unknown, result: string): boolean {
+  if (isHitlInterruptPayload(output) || isHitlInterruptPayload(result)) return false
   if (/^\s*Error:/i.test(result)) return true
   if (output && typeof output === 'object') {
     const maybe = output as { error?: unknown; content?: unknown; status?: unknown }

@@ -1,6 +1,7 @@
 import type { StreamChunkEvent } from './protocol'
 import type { AiToolCall, MessageContentBlock, ThreadMessage } from '../../../src/types/ai'
 import { inferToolKind } from '../../../src/types/ai'
+import { isHitlInterruptPayload } from '../../../src/ai/hitl'
 import { extractToolResult } from './MessageAdapter'
 import type { RendererEventBridge } from './RendererEventBridge'
 
@@ -71,13 +72,14 @@ export class StreamEventAdapter {
         const rawStatus = statusResult.status === 'fulfilled' ? statusResult.value : 'error'
         const rawOutput = outputResult.status === 'fulfilled' ? outputResult.value : undefined
         const rawError = errorResult.status === 'fulfilled' ? errorResult.value : undefined
-        const isError = rawStatus === 'error'
+        const isHitlInterrupt = rawStatus === 'error' && isHitlInterruptPayload(rawOutput)
+        const isError = rawStatus === 'error' && !isHitlInterrupt
         const result = isError
           ? (typeof rawError === 'string' && rawError ? rawError : extractToolResult(call.name, rawOutput))
           : extractToolResult(call.name, rawOutput)
         const tc = this.toolCalls.find(t => t.id === call.callId)
         if (tc) {
-          tc.status = isError ? 'failed' : 'completed'
+          tc.status = isHitlInterrupt ? 'in_progress' : isError ? 'failed' : 'completed'
           tc.result = result
           tc.isError = isError
           this._send({ threadId: this.threadId, turnId: this.turnId, type: 'tool_call_end', toolCallId: call.callId, toolCall: { ...tc }, subagentName })
@@ -117,10 +119,9 @@ export class StreamEventAdapter {
           await sub.output.catch(() => undefined)
           return
         }
-        // Deepagents' in-process SubagentRunStream does not expose the parent
-        // task call id, but run.toolCalls and run.subagents are both emitted
-        // from the same task-start events. Claim the next task call so the
-        // renderer can use the official toolCall id as the subagent identity.
+        // subagentId is intentionally the parent task toolCallId. This is the
+        // shared invocation id used by the renderer to merge the task card with
+        // the live subagent progress card.
         const invocationId = taskInvocation.toolCallId
         this.subagentEventCount += 1
         this.bridge.sendStreamChunk({
@@ -139,16 +140,21 @@ export class StreamEventAdapter {
           subAdapter.consumeToolCalls(sub.toolCalls, sub.name),
           subAdapter.consumeSubagents(sub.subagents),
         ])
-        await sub.output.catch(() => undefined)
-        this.subagentEventCount += 1
-        this.bridge.sendStreamChunk({
-          threadId: this.threadId,
-          turnId: this.turnId,
-          type: 'subagent_end',
-          subagentName: sub.name,
-          output: undefined,
-          subagentId: invocationId
-        })
+        const outputResult = await sub.output.then(
+          output => ({ status: 'fulfilled' as const, output }),
+          error => ({ status: 'rejected' as const, error }),
+        )
+        if (outputResult.status === 'fulfilled') {
+          this.subagentEventCount += 1
+          this.bridge.sendStreamChunk({
+            threadId: this.threadId,
+            turnId: this.turnId,
+            type: 'subagent_end',
+            subagentName: sub.name,
+            output: outputResult.output,
+            subagentId: invocationId
+          })
+        }
       }
       pending.push(handle())
     }
@@ -178,13 +184,6 @@ export class StreamEventAdapter {
   hasAnyAssistantSignal(): boolean {
     this._flushPendingText()
     return this.hasVisibleAssistantOutput() || !!this.thinkingContent.trim() || this.contentBlocks.length > 0
-  }
-
-  hasOnlyReasoningOutput(): boolean {
-    this._flushPendingText()
-    return !this.hasVisibleAssistantOutput()
-      && !!this.thinkingContent.trim()
-      && this.contentBlocks.length === 0
   }
 
   private async _consumeOneMessage(

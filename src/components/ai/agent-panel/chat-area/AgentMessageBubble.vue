@@ -100,8 +100,8 @@
           </template>
           <template v-else-if="block.type === 'tool_call' && block.toolCallId && isReadToolById(block.toolCallId)">
             <SubTaskProgressView
-              v-if="findRunningSubTaskFor(block.toolCallId)"
-              :sub-task="findRunningSubTaskFor(block.toolCallId)!"
+              v-if="findSubTaskFor(block.toolCallId)"
+              :sub-task="findSubTaskFor(block.toolCallId)!"
               class="w-full"
               :class="contentBlockToolMarginClass(idx)"
             />
@@ -175,8 +175,8 @@
           :key="tc.id"
         >
           <SubTaskProgressView
-            v-if="findRunningSubTaskFor(tc.id)"
-            :sub-task="findRunningSubTaskFor(tc.id)!"
+            v-if="findSubTaskFor(tc.id)"
+            :sub-task="findSubTaskFor(tc.id)!"
             :class="idx > 0 ? 'mt-0' : ''"
           />
           <div
@@ -446,15 +446,7 @@ function taskSubagentTypeOf(toolCallId: string): string | undefined {
 }
 
 function findSubTaskFor(toolCallId: string): AiSubTaskProgress | undefined {
-  return (props.message.subTasks ?? []).find(st =>st.invocationId === toolCallId
-  )
-}
-
-function findRunningSubTaskFor(toolCallId: string): AiSubTaskProgress | undefined {
-  const tc = toolCallById(toolCallId)
-  if (!tc || !isTaskRunning(tc)) return undefined
-  const subTask = findSubTaskFor(toolCallId)
-  return subTask?.status === 'running' ? subTask : undefined
+  return (props.message.subTasks ?? []).find(st => st.invocationId === toolCallId)
 }
 
 function shouldShowTaskFallback(toolCallId: string): boolean {

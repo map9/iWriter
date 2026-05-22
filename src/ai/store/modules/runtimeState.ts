@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import type { AiToolCall, FilesystemReviewItem } from '@/ai/types'
+import type { AiSubTaskProgressStatus, AiToolCall, FilesystemReviewItem } from '@/ai/types'
 import type { DomainReviewItem } from '@/ai/ipc'
 
 export type ThreadRunState = 'idle' | 'streaming' | 'interrupted'
@@ -9,14 +9,16 @@ export type StreamingBlock =
   | { type: 'tool_call'; toolCall: AiToolCall }
 
 export interface LiveSubTask {
+  /** Same value as the parent task toolCall.id / stream subagentId. */
   invocationId: string
   name: string
   taskInput: unknown
   text: string
   thinkingText: string
   blocks: StreamingBlock[]
-  status: 'running' | 'done' | 'error'
+  status: AiSubTaskProgressStatus
   output?: unknown
+  errorText?: string
 }
 
 export type LiveTurnState = 'streaming' | 'interrupted' | 'resuming'

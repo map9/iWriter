@@ -42,14 +42,6 @@ export function createInstrumentedFallbackMiddleware(
 
 export const MIDDLEWARE_CONFIG = {
   recursionLimit: 10000,
-  retry: {
-    maxRetries: 3,
-    backoffFactor: 2.0,
-    initialDelayMs: 500,
-    maxDelayMs: 8000,
-    jitter: true,
-    onFailure: 'continue' as const,
-  },
   modelCallLimit: {
     // creative 长 plan + 多轮 review 在 800-1200 calls 量级是常态，2000 留足边际
     threadLimit: 2000,

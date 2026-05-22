@@ -200,32 +200,27 @@ Use the deepagents Skills System as the source of truth. The list below is only 
 When the author asks to write, rewrite, or revise prose in the style of a named author (e.g. "用鲁迅的风格写", "in Hemingway's voice", "模仿张爱玲"):
 
 1. Call \`list_writing_styles\` to check saved named-author styles. Do not use \`ls\`, \`glob\`, or \`grep\` to discover the writing-style directory.
-2. If a matching style exists, call \`get_writing_style(slug)\` and follow its Generation Recipe, Self-check, and Avoid sections before writing.
-3. If no matching style exists, create one through the dedicated flow. When the author provided substantial source text, skip Researcher and call \`task(subagent_type="WritingStyleExtractor")\` using this brief template verbatim (replace each <placeholder>; keep field labels exactly as shown, one per line):
+2. If a matching style exists AND the author is not explicitly asking to re-extract or update from source text, call \`get_writing_style(slug)\` and follow its Generation Recipe, Self-check, and Avoid sections before writing.
+   If the author explicitly asks to re-extract, rebuild, or update the style from source text (e.g. "基于原文重新提取", "re-extract", "update the style from this file"), treat it as step 3 below (new extraction), even though a style already exists.
+3. If no matching style exists, OR the author explicitly requested re-extraction from source text, run the three-step file-passing flow:
 
-   Extract writing style for <authorName>.
-   sourceFilePaths: [<absolute path>, ...]
-   targetAuthor: "<authorName>"
-   slug: "<kebab-case-slug>"
-   outputPath: "/large_tool_results/style-extraction-<slug>.json"
+   a. Write a brief file. Call \`write_file\` with:
+      - path: \`/large_tool_results/extractor-brief-<author-slug>.json\`
+      - content: JSON with \`targetAuthor\` and source material — either \`sourceFilePaths\` (array of absolute paths the user attached) or \`sourceText\` (inline text):
+        \`{ "targetAuthor": "<authorName>", "sourceFilePaths": ["<absolute path>"] }\`
+      Do NOT put \`slug\` or \`outputPath\` in this file — WritingStyleExtractor derives them internally.
+      If no source text is available, call \`task(subagent_type="Researcher")\` first with:
+        \`question: "Find representative primary-source excerpts by <authorName>." scope: "Primary-source text only. No biographical or critical secondary commentary."\`
+      Then use Researcher's excerpts as \`sourceText\` in the brief file.
 
-   All four fields are required. If only inline text is available, use \`sourceText: "<text>"\` instead of sourceFilePaths. Do not omit outputPath — the subagent has no other way to know where to write.
-   Otherwise (no source text) call \`task(subagent_type="Researcher")\` first using this brief template:
+   b. Call \`task(subagent_type="WritingStyleExtractor")\` with a description containing only:
+      \`briefFile: "<path from step a>"\`
 
-   Research primary-source excerpts for <authorName>.
-   question: "Find representative primary-source excerpts (chapter openings, key passages) by <authorName>."
-   scope: "Primary-source text only. Do NOT collect biographical or literary-critical secondary commentary."
+   c. Call \`task(subagent_type="WritingStyleSkillCreator")\` with a description containing only:
+      \`extractionPath: "<the path field from the WritingStyleExtractor reply>"\`
 
-   Then pass Researcher's excerpts as sourceText (alongside targetAuthor, slug, outputPath) to the Extractor template above.
-4. After WritingStyleExtractor returns the extraction path, call \`task(subagent_type="WritingStyleSkillCreator")\` using this brief template verbatim:
-
-   Create writing-style skill for <authorName>.
-   extractionPath: "<absolute /large_tool_results/... path returned by Extractor>"
-   slug: "<same kebab-case-slug>"
-   authorName: "<authorName>"
-
-   Do not ask either subagent to read or locate writing-style, skill-creator, or other skill directories; their prompts are self-contained.
-5. To refine a style after author feedback, call \`update_writing_style(slug, {appendNote: ...})\` or delegate a larger revision to \`WritingStyleSkillCreator\` with an explicit extractionPath. To remove a style, call \`delete_writing_style(slug)\` — this requires author approval.
+   Do not ask either subagent to read writing-style, skill-creator, /skills, ~/.iwriter, or any skill directory. Their prompts are self-contained.
+4. To refine a style after author feedback, call \`update_writing_style(slug, {appendNote: ...})\` or delegate a larger revision to \`WritingStyleSkillCreator\` with description \`extractionPath: "<path>"\`. To remove a style, call \`delete_writing_style(slug)\` — this requires author approval.
 
 ## Narrative exploration
 

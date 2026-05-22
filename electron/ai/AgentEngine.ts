@@ -24,7 +24,6 @@ import {
   countTokensApproximately,
   modelCallLimitMiddleware,
   toolCallLimitMiddleware,
-  modelRetryMiddleware,
 } from 'langchain'
 
 import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage } from '../../src/types/ai'
@@ -543,7 +542,6 @@ export class AgentEngine {
     input: any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     runConfig: any,
-    retryCount = 0,
   ): Promise<void> {
     const abortController = this.activeRuns.get(threadId)
     const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
@@ -585,21 +583,10 @@ export class AgentEngine {
       }
 
       if (!adapter.hasVisibleAssistantOutput()) {
-        if (adapter.hasOnlyReasoningOutput() && retryCount < 1) {
-          console.warn('[AgentEngine] Only reasoning returned, retrying with nudge', { threadId, retryCount })
-          const nudgeInput = {
-            messages: [new HumanMessage('请基于你的分析，直接给出回答或执行工具调用。')],
-          }
-          await this._streamLoop(threadId, agent, nudgeInput, runConfig, retryCount + 1)
-          return
-        }
-
         const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
-        const errorMsg = adapter.hasOnlyReasoningOutput()
-          ? '模型仅生成了思考内容，未返回实际响应。请重试。'
-          : adapter.hasAnyAssistantSignal()
-            ? '模型没有返回可显示内容或可执行工具调用，可能生成了非法工具调用参数。请重试。'
-            : '模型没有返回可显示内容。请重试。'
+        const errorMsg = adapter.hasAnyAssistantSignal()
+          ? '模型没有返回可显示内容或可执行工具调用，可能生成了非法工具调用参数。请重试。'
+          : '模型没有返回可显示内容。请重试。'
         this.threadListQuery?.updateMeta(threadId, { hasError: true, updatedAt: Date.now() })
         this.rendererBridge.sendRunError({ threadId, turnId, error: errorMsg })
         this.rendererBridge.sendRunDone({ threadId, turnId })
@@ -899,7 +886,6 @@ export class AgentEngine {
         createTaskToolCompatMiddleware(),
         modelCallLimitMiddleware(MIDDLEWARE_CONFIG.modelCallLimit),
         toolCallLimitMiddleware(MIDDLEWARE_CONFIG.toolCallLimit),
-        modelRetryMiddleware(MIDDLEWARE_CONFIG.retry),
         ...(fallbackModels.length
           ? [createInstrumentedFallbackMiddleware(fallbackModels, (fallbackModelId) => {
               this._notifyModelFallbackOnce(threadId, fallbackModelId)

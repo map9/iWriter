@@ -429,13 +429,22 @@ export interface EditRoundResult {
 
 // ── Sub-Task Progress (live streaming, not persisted) ─────────────────────
 
+export type AiSubTaskProgressStatus =
+  | 'pending'
+  | 'running'
+  | 'awaiting_approval'
+  | 'done'
+  | 'error'
+  | 'cancelled'
+
 export interface AiSubTaskProgress {
   invocationId: string
   name: string
-  status: 'running' | 'done' | 'error'
+  status: AiSubTaskProgressStatus
   text: string
   thinkingText: string
   toolCalls: AiToolCall[]
+  errorText?: string
 }
 
 // ── Thread Message ─────────────────────────────────────────────────────────

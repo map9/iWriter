@@ -132,6 +132,52 @@ function mergePendingThinkingBackward(
   return false
 }
 
+function preferLongerText(a: string, b: string): string {
+  return b.length >= a.length ? b : a
+}
+
+function mergeToolCallsById(toolCalls: AiToolCall[]): AiToolCall[] {
+  const order: string[] = []
+  const byId = new Map<string, AiToolCall>()
+  for (const toolCall of toolCalls) {
+    if (!byId.has(toolCall.id)) order.push(toolCall.id)
+    byId.set(toolCall.id, toolCall)
+  }
+  return order
+    .map(id => byId.get(id))
+    .filter((toolCall): toolCall is AiToolCall => !!toolCall)
+}
+
+function mergeSubTaskStatus(
+  current: AiSubTaskProgress['status'],
+  next: AiSubTaskProgress['status'],
+): AiSubTaskProgress['status'] {
+  const priority: Record<AiSubTaskProgress['status'], number> = {
+    error: 5,
+    cancelled: 4,
+    awaiting_approval: 3,
+    running: 2,
+    pending: 1,
+    done: 0,
+  }
+  return priority[next] > priority[current] ? next : current
+}
+
+function mergeSubTaskProgress(
+  current: AiSubTaskProgress,
+  next: AiSubTaskProgress,
+): AiSubTaskProgress {
+  return {
+    ...current,
+    name: next.name || current.name,
+    status: mergeSubTaskStatus(current.status, next.status),
+    text: preferLongerText(current.text, next.text),
+    thinkingText: preferLongerText(current.thinkingText, next.thinkingText),
+    toolCalls: mergeToolCallsById([...current.toolCalls, ...next.toolCalls]),
+    errorText: next.errorText || current.errorText,
+  }
+}
+
 export function createRuntimeDisplay(deps: {
   liveTurn: Ref<LiveTurn | null>
   threadRunState: Ref<ThreadRunState>
@@ -144,7 +190,9 @@ export function createRuntimeDisplay(deps: {
     if (!liveTurn) return null
 
     const contentBlocks: MessageContentBlock[] = []
-    const toolCalls: AiToolCall[] = []
+    const toolCallOrder: string[] = []
+    const toolCallsById = new Map<string, AiToolCall>()
+    const contentBlockToolCallIds = new Set<string>()
     let content = ''
 
     for (const block of liveTurn.blocks) {
@@ -157,8 +205,14 @@ export function createRuntimeDisplay(deps: {
         if (deps.isResumingReviewedEdits.value && block.toolCall.kind === 'edit') {
           continue
         }
-        contentBlocks.push({ type: 'tool_call', toolCallId: block.toolCall.id })
-        toolCalls.push(block.toolCall)
+        if (!toolCallsById.has(block.toolCall.id)) {
+          toolCallOrder.push(block.toolCall.id)
+        }
+        toolCallsById.set(block.toolCall.id, block.toolCall)
+        if (!contentBlockToolCallIds.has(block.toolCall.id)) {
+          contentBlocks.push({ type: 'tool_call', toolCallId: block.toolCall.id })
+          contentBlockToolCallIds.add(block.toolCall.id)
+        }
       }
     }
 
@@ -167,16 +221,37 @@ export function createRuntimeDisplay(deps: {
       content += liveTurn.currentText
     }
 
-    const subTasks: AiSubTaskProgress[] = liveTurn.subTasks.map(st => ({
-      invocationId: st.invocationId,
-      name: st.name,
-      status: st.status,
-      text: st.text,
-      thinkingText: st.thinkingText,
-      toolCalls: st.blocks
-        .filter((b): b is { type: 'tool_call'; toolCall: AiToolCall } => b.type === 'tool_call')
-        .map(b => b.toolCall),
-    }))
+    const toolCalls = toolCallOrder
+      .map(id => toolCallsById.get(id))
+      .filter((toolCall): toolCall is AiToolCall => !!toolCall)
+
+    const subTaskOrder: string[] = []
+    const subTasksById = new Map<string, AiSubTaskProgress>()
+    for (const st of liveTurn.subTasks) {
+      const subTask: AiSubTaskProgress = {
+        invocationId: st.invocationId,
+        name: st.name,
+        status: st.status,
+        text: st.text,
+        thinkingText: st.thinkingText,
+        errorText: st.errorText,
+        toolCalls: mergeToolCallsById(
+          st.blocks
+            .filter((b): b is { type: 'tool_call'; toolCall: AiToolCall } => b.type === 'tool_call')
+            .map(b => b.toolCall),
+        ),
+      }
+      const existing = subTasksById.get(st.invocationId)
+      if (existing) {
+        subTasksById.set(st.invocationId, mergeSubTaskProgress(existing, subTask))
+      } else {
+        subTaskOrder.push(st.invocationId)
+        subTasksById.set(st.invocationId, subTask)
+      }
+    }
+    const subTasks = subTaskOrder
+      .map(id => subTasksById.get(id))
+      .filter((subTask): subTask is AiSubTaskProgress => !!subTask)
 
     if (!contentBlocks.length && !liveTurn.thinkingText && !subTasks.length) return null
 
