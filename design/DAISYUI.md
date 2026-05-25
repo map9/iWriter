@@ -133,7 +133,7 @@ root scrollbar gutter is excluded. `daisy-` prefix is used for all daisyUI class
   - border color: border-base-200, border-base-300, or border-base-content/10, 30, 50 以上一个比一个颜色深。
   - content color: text-base-content, text-base-content/90, 70, 50, 30, 以上一个比一个颜色浅。
 12. 方案二，xxx: primary, secondary, accent, netural; info, success, warning, error.
-  - background color: bg-xxx, bg-xxx/90, 70, 50, 30, like bg-primary-content/90, 以上一层比一层颜色浅。
+  - background color: bg-xxx, bg-xxx/90, 70, 50, like bg-primary-content/90, 以上一层比一层颜色浅。
   - border color: border-xxx-content/15, like border-primary-content/15。
   - content color: text-xxx-content, text-xxx-content/90, 70, 50, like text-primary-content/30, 以上一个比一个颜色浅。
 
