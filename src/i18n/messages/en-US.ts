@@ -449,6 +449,24 @@ export default {
         pending: '{count} pending',
       },
     },
+    subTask: {
+      status: {
+        pending: 'Pending',
+        running: 'Running',
+        awaiting_approval: 'Awaiting approval',
+        done: 'Done',
+        error: 'Error',
+        cancelled: 'Cancelled',
+      },
+      names: {
+        planner: 'Planner',
+        consistency_checker: 'Consistency checker',
+        explorer: 'Explorer',
+        Researcher: 'Researcher',
+        WritingStyleExtractor: 'Writing style extractor',
+        WritingStyleSkillCreator: 'Writing style skill creator',
+      },
+    },
     chatArea: {
       loadingSession: 'Loading session...',
       status: {

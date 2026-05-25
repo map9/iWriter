@@ -272,17 +272,11 @@ import {
   IconChevronUp,
   IconChevronDown,
   IconLoader2,
-  IconEye,
-  IconSearch,
-  IconPencil,
-  IconTrash,
-  IconTerminal2,
-  IconUsers,
-  IconTool,
 } from '@tabler/icons-vue'
 import { useAppStore } from '@/stores/app'
 import type { AiToolCall } from '@/ai/types'
 import MarkdownContentView from './MarkdownContentView.vue'
+import { kindToIcon } from './toolKindIcon'
 
 const props = defineProps<{
   toolCall: AiToolCall
@@ -379,16 +373,7 @@ const detailBorderClass = computed(() => {
 const completedKindIcon = computed(() => {
   if (props.toolCall.status !== 'completed') return null
   if (props.toolCall.isError) return null
-  switch (props.toolCall.kind) {
-    case 'read': return IconEye
-    case 'search': return IconSearch
-    case 'edit': return IconPencil
-    case 'delete': return IconTrash
-    case 'execute': return IconTerminal2
-    case 'delegate': return IconUsers
-    case 'other':
-    default: return IconTool
-  }
+  return kindToIcon(props.toolCall.kind)
 })
 
 const display = computed(() => props.toolCall.display ?? {})

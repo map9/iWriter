@@ -446,6 +446,24 @@ export default {
         pending: '待办 {count} 个',
       },
     },
+    subTask: {
+      status: {
+        pending: '待处理',
+        running: '运行中',
+        awaiting_approval: '等待确认',
+        done: '已完成',
+        error: '错误',
+        cancelled: '已取消',
+      },
+      names: {
+        planner: '规划器',
+        consistency_checker: '一致性检查',
+        explorer: '探索器',
+        Researcher: '研究员',
+        WritingStyleExtractor: '写作风格提取',
+        WritingStyleSkillCreator: '写作风格 Skill 创建',
+      },
+    },
     chatArea: {
       loadingSession: '正在加载会话...',
       status: {

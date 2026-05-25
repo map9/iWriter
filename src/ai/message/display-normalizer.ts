@@ -262,6 +262,16 @@ function summarizeTodoList(parsedResult: Record<string, unknown> | null): string
   return parts.join(' · ')
 }
 
+function writingStyleTargetLabel(toolCall: AiToolCall, parsedResult: Record<string, unknown> | null): string | undefined {
+  const args = toolCall.arguments
+  if (toolCall.name === 'create_writing_style') return toStringValue(args.authorName) ?? undefined
+
+  return toStringValue(args.slug)
+    ?? (parsedResult ? toStringValue(parsedResult.slug) : null)
+    ?? (parsedResult ? toStringValue(parsedResult.skillName) : null)
+    ?? undefined
+}
+
 function buildStatusSummary(toolCall: AiToolCall, completedSummary?: string): string | undefined {
   if (toolCall.status === 'rejected') return t('agentPanel.displayNormalizer.status.rejected')
   if (toolCall.isError || toolCall.status === 'failed') return t('agentPanel.displayNormalizer.status.failed')
@@ -538,6 +548,23 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         parsedResult,
         rawResult,
       }
+    case 'list_writing_styles':
+    case 'get_writing_style':
+    case 'save_writing_style_skill':
+    case 'create_writing_style':
+    case 'update_writing_style':
+    case 'delete_writing_style':
+      return {
+        actionLabel: toolNameLabel(toolCall.name),
+        targetLabel: writingStyleTargetLabel(toolCall, parsedResult),
+        summaryLabel: buildStatusSummary(
+          toolCall,
+          toolCall.status === 'completed' ? t('agentPanel.displayNormalizer.status.completed') : undefined
+        ),
+        detailType: parsedResult ? 'json' : 'text',
+        parsedResult,
+        rawResult,
+      }
     case 'advise_directions':
     case 'analyze_story_architecture':
     case 'search_draft':
@@ -744,6 +771,10 @@ export function normalizeThreadMessageForDisplay(
   const normalizedToolCalls = message.toolCalls?.map(toolCall =>
     normalizeToolCallForDisplay(toolCall, overrides)
   )
+  const normalizedSubTasks = message.subTasks?.map(subTask => ({
+    ...subTask,
+    toolCalls: subTask.toolCalls.map(toolCall => normalizeToolCallForDisplay(toolCall, overrides)),
+  }))
   const taskPlans = normalizedToolCalls
     ?.map(parseTaskPlanFromToolCall)
     .filter((plan): plan is { toolCallId?: string; items: TaskPlanItem[] } => !!plan)
@@ -757,6 +788,7 @@ export function normalizeThreadMessageForDisplay(
     toolResults: normalizeToolResults(message.toolResults, normalizedToolCalls),
     taskPlan,
     contentBlocks: normalizeContentBlocks(message, normalizedToolCalls),
+    subTasks: normalizedSubTasks?.length ? normalizedSubTasks : undefined,
   }
 }
 

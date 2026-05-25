@@ -41,7 +41,7 @@
       <!-- Normal display mode -->
       <div
         v-else-if="message.role === 'user' && message.content"
-        class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word relative"
+        class="inline-block rounded-box text-sm max-w-full text-left wrap-break-word relative"
         :class="message.isError
           ? 'bg-error/50 border border-error-content/15 text-error-content '
           : 'px-3 py-2 bg-primary text-primary-content'"
@@ -87,7 +87,7 @@
               />
               <div
                 v-else-if="part.kind === 'pending'"
-                class="mt-1.5 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
+                class="mt-1.5 w-full rounded-box border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
               >
                 {{ t('consistencyFinding.pending') }}
               </div>
@@ -102,12 +102,13 @@
             <SubTaskProgressView
               v-if="findSubTaskFor(block.toolCallId)"
               :sub-task="findSubTaskFor(block.toolCallId)!"
+              :group-position="contentBlockToolPosition(idx)"
               class="w-full"
               :class="contentBlockToolMarginClass(idx)"
             />
             <div
               v-else-if="shouldShowTaskFallback(block.toolCallId)"
-              class="inline-flex items-center gap-2 rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
+              class="inline-flex items-center gap-2 rounded-box border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
               :class="contentBlockToolMarginClass(idx)"
             >
               <span class="loading loading-spinner loading-xs shrink-0" />
@@ -123,7 +124,7 @@
           </template>
           <div
             v-else-if="block.type === 'agent_event' && (block.text || block.agentName)"
-            class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-field bg-base-100 border border-base-300 text-base-content text-xs"
+            class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-box bg-base-100 border border-base-300 text-base-content text-xs"
           >
             <span>🧩</span>
             <span>{{ block.text || `${block.agentName} ${block.status ?? ''}`.trim() }}</span>
@@ -134,7 +135,7 @@
       <!-- Path B: Legacy messages without contentBlocks -->
       <div
         v-else-if="message.role === 'assistant' && message.content"
-        class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word"
+        class="inline-block rounded-box text-sm max-w-full text-left wrap-break-word"
         :class="message.isError ? 'bg-error/50 border border-error-content/15 text-error-content px-3 py-2' : 'text-base-content'"
       >
         <template v-for="(part, partIdx) in splitAssistantText(message.content)" :key="partIdx">
@@ -152,7 +153,7 @@
           />
           <div
             v-else-if="part.kind === 'pending'"
-            class="mt-1.5 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
+            class="mt-1.5 w-full rounded-box border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
           >
             {{ t('consistencyFinding.pending') }}
           </div>
@@ -177,11 +178,12 @@
           <SubTaskProgressView
             v-if="findSubTaskFor(tc.id)"
             :sub-task="findSubTaskFor(tc.id)!"
+            :group-position="readToolPosition(idx)"
             :class="idx > 0 ? 'mt-0' : ''"
           />
           <div
             v-else-if="shouldShowTaskFallback(tc.id)"
-            class="inline-flex items-center gap-2 rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
+            class="inline-flex items-center gap-2 rounded-box border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
             :class="idx > 0 ? 'mt-0' : ''"
           >
             <span class="loading loading-spinner loading-xs shrink-0" />
@@ -213,7 +215,7 @@
 
       <div
         v-if="isPreview && previewStatusText"
-        class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-field text-base-300"
+        class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-box text-base-300"
       >
         <span v-if="showPreviewPulse" class="loading loading-dots loading-sm text-base-content opacity-50"></span>
         <span class="text-xs text-base-content opacity-50">{{ previewStatusText }}</span>

@@ -7,11 +7,25 @@ import ToolCallCard from './ToolCallCard.vue'
 import MarkdownContentView from './MarkdownContentView.vue'
 import ThinkingBlock from './ThinkingBlock.vue'
 import { toolGroupPosition } from './toolGroupPosition'
+import { kindToIcon } from './toolKindIcon'
+import { normalizeToolCallForDisplay } from '@/ai/message/display-normalizer'
 
-const props = defineProps<{ subTask: AiSubTaskProgress }>()
+const props = defineProps<{
+  subTask: AiSubTaskProgress
+  groupPosition?: 'single' | 'start' | 'middle' | 'end'
+}>()
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const expanded = ref(false)
+
+const groupContainerClass = computed(() => {
+  switch (props.groupPosition) {
+    case 'start': return 'rounded-t-box rounded-b-none border-b-0'
+    case 'middle': return 'rounded-none border-t-0 border-b-0'
+    case 'end': return 'rounded-b-box rounded-t-none border-t-0 shadow-sm'
+    default: return 'rounded-box'
+  }
+})
 
 const isSpinning = computed(() =>
   props.subTask.status === 'pending' || props.subTask.status === 'running',
@@ -28,21 +42,41 @@ const statusIcon = computed(() => {
 })
 
 const statusText = computed(() => {
-  switch (props.subTask.status) {
-    case 'pending': return 'Pending'
-    case 'running': return 'Running'
-    case 'awaiting_approval': return 'Awaiting approval'
-    case 'done': return 'Done'
-    case 'error': return 'Error'
-    case 'cancelled': return 'Cancelled'
-    default: return ''
-  }
+  return t(`agentPanel.subTask.status.${props.subTask.status}`)
 })
 
 const subTaskLabel = computed(() => {
   const name = props.subTask.name
-  return name.charAt(0).toUpperCase() + name.slice(1)
+  const key = `agentPanel.subTask.names.${name}`
+  if (te(key)) return t(key)
+  return name
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, char => char.toUpperCase())
 })
+
+const activeToolCall = computed(() => {
+  const tools = props.subTask.toolCalls ?? []
+  return tools.find(tc => tc.status === 'in_progress')
+    ?? tools.find(tc => tc.status === 'pending')
+    ?? null
+})
+
+const normalizedActiveToolCall = computed(() =>
+  activeToolCall.value ? normalizeToolCallForDisplay(activeToolCall.value) : null,
+)
+
+const activeKindIcon = computed(() =>
+  normalizedActiveToolCall.value ? kindToIcon(normalizedActiveToolCall.value.kind) : null,
+)
+
+const activeActionLabel = computed(() => {
+  const tc = normalizedActiveToolCall.value
+  if (!tc) return ''
+  return tc.display?.actionLabel || tc.title || tc.name
+})
+
+const activeTargetLabel = computed(() => normalizedActiveToolCall.value?.display?.targetLabel ?? '')
 
 const hasBody = computed(() =>
   !!(
@@ -81,7 +115,7 @@ function fallbackToolPosition(idx: number): 'single' | 'start' | 'middle' | 'end
 </script>
 
 <template>
-  <div class="overflow-hidden rounded-box text-xs border border-base-300 bg-base-100 text-base-content transition-colors">
+  <div class="overflow-hidden text-xs border border-base-300 bg-base-100 text-base-content transition-colors" :class="groupContainerClass">
     <!-- Header -->
     <div
       class="group flex items-center gap-2.5 px-2 py-0.5 cursor-pointer select-none"
@@ -98,9 +132,20 @@ function fallbackToolPosition(idx: number): 'single' | 'start' | 'middle' | 'end
         {{ subTaskLabel }}
       </div>
 
-      <div class="min-w-0 flex-1 text-2xs leading-4 truncate text-base-content/50">
-        {{ statusText }}
-      </div>
+      <template v-if="activeToolCall">
+        <component :is="activeKindIcon" class="icon-2xs shrink-0 opacity-70" />
+        <div class="shrink-0 text-xs leading-4 whitespace-nowrap">
+          {{ activeActionLabel }}
+        </div>
+        <div class="min-w-0 flex-1 text-2xs leading-4 truncate text-base-content/50">
+          {{ activeTargetLabel }}
+        </div>
+      </template>
+      <template v-else>
+        <div class="min-w-0 flex-1 text-2xs leading-4 truncate text-base-content/50">
+          {{ statusText }}
+        </div>
+      </template>
 
       <button
         v-if="hasBody"
