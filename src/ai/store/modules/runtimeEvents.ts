@@ -115,6 +115,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
           name,
           taskInput: toolCall.arguments,
           text: '',
+          currentText: '',
           thinkingText: '',
           blocks: [],
           status: 'pending',
@@ -278,6 +279,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
         name: chunk.subagentName,
         taskInput: chunk.taskInput,
         text: '',
+        currentText: '',
         thinkingText: '',
         blocks: [],
         status: 'running',
@@ -363,15 +365,19 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
 
     if (chunk.type === 'text' && chunk.delta) {
       const updated = [...liveTurn.subTasks]
-      updated[idx] = { ...subTask, text: subTask.text + chunk.delta }
+      updated[idx] = { ...subTask, text: subTask.text + chunk.delta, currentText: subTask.currentText + chunk.delta }
       liveTurn.subTasks = updated
       return
     }
 
     if (chunk.type === 'tool_call_start' && chunk.toolCall) {
       const enriched: AiToolCall = { ...chunk.toolCall, kind: deps.inferToolKind(chunk.toolCall.name) }
+      let flushed = subTask
+      if (subTask.currentText) {
+        flushed = { ...subTask, blocks: [...subTask.blocks, { type: 'text', text: subTask.currentText }], currentText: '' }
+      }
       const updated = [...liveTurn.subTasks]
-      updated[idx] = upsertSubTaskToolCall(subTask, enriched)
+      updated[idx] = upsertSubTaskToolCall(flushed, enriched)
       liveTurn.subTasks = updated
       return
     }

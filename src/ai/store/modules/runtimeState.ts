@@ -14,6 +14,7 @@ export interface LiveSubTask {
   name: string
   taskInput: unknown
   text: string
+  currentText: string
   thinkingText: string
   blocks: StreamingBlock[]
   status: AiSubTaskProgressStatus

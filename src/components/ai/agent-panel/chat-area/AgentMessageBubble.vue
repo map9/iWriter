@@ -75,7 +75,7 @@
             <template v-for="(part, partIdx) in splitAssistantText(block.text)" :key="`${idx}-${partIdx}`">
               <div
                 v-if="part.kind === 'prose'"
-                class="inline-block rounded-field text-sm max-w-full text-left wrap-break-word"
+                class="inline-block rounded-box text-sm max-w-full text-left wrap-break-word"
                 :class="[message.isError ? 'bg-error/50 border border-error-content/15 text-error-content px-3 py-2' : 'text-base-content', (idx > 0 || partIdx > 0) ? 'mt-1.5' : '']"
               >
                 <MarkdownContentView :content="part.text" mode="markdown" size="sm" />
@@ -204,24 +204,12 @@
         :is-preview="isPreview"
       />
 
-      <div
+      <ThinkingBlock
         v-if="shouldShowThinkingToggle"
-        class="mt-1 inline-flex max-w-full flex-col items-start gap-1"
-      >
-        <button
-          class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-base-content hover:bg-base-300 hover:text-base-content/50 transition-colors"
-          @click="thinkingExpanded = !thinkingExpanded"
-        >
-          <span>💭</span>
-          <span>{{ thinkingExpanded ? t('agentPanel.messageBubble.hideThinking') : t('agentPanel.messageBubble.showThinking') }}</span>
-        </button>
-        <div
-          v-if="thinkingExpanded"
-          class="w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-base-content"
-        >
-          <MarkdownContentView :content="thinkingContent" mode="markdown" size="xs" />
-        </div>
-      </div>
+        :content="thinkingContent"
+        size="xs"
+        class="mt-1"
+      />
 
       <div
         v-if="isPreview && previewStatusText"
@@ -291,6 +279,8 @@ import { useAiStore } from '@/ai/store/ai'
 import MarkdownContentView from './views/MarkdownContentView.vue'
 import ToolCallCard from './views/ToolCallCard.vue'
 import SubTaskProgressView from './views/SubTaskProgressView.vue'
+import ThinkingBlock from './views/ThinkingBlock.vue'
+import { toolGroupPosition } from './views/toolGroupPosition'
 import ConsistencyFindingsBlock from './views/ConsistencyFindingsBlock.vue'
 import AdvisorDirectionsBlock from './views/AdvisorDirectionsBlock.vue'
 import DomainMessageSession from '../domains/DomainMessageSession.vue'
@@ -334,7 +324,6 @@ const emit = defineEmits<{ resend: [messageId: string, newContent: string] }>()
 
 const aiStore = useAiStore()
 const { t, locale } = useI18n()
-const thinkingExpanded = ref(false)
 const isHovered = ref(false)
 const isEditing = ref(false)
 const editText = ref('')
@@ -457,13 +446,6 @@ function shouldShowTaskFallback(toolCallId: string): boolean {
 function isReadToolBlockAt(index: number): boolean {
   const block = visibleContentBlocks.value[index]
   return !!(block?.type === 'tool_call' && block.toolCallId && isReadToolById(block.toolCallId))
-}
-
-function toolGroupPosition(prevIsTool: boolean, nextIsTool: boolean): 'single' | 'start' | 'middle' | 'end' {
-  if (prevIsTool && nextIsTool) return 'middle'
-  if (prevIsTool) return 'end'
-  if (nextIsTool) return 'start'
-  return 'single'
 }
 
 function contentBlockToolPosition(index: number): 'single' | 'start' | 'middle' | 'end' {

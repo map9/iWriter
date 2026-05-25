@@ -444,6 +444,7 @@ export interface AiSubTaskProgress {
   text: string
   thinkingText: string
   toolCalls: AiToolCall[]
+  contentBlocks?: MessageContentBlock[]
   errorText?: string
 }
 

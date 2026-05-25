@@ -174,6 +174,7 @@ function mergeSubTaskProgress(
     text: preferLongerText(current.text, next.text),
     thinkingText: preferLongerText(current.thinkingText, next.thinkingText),
     toolCalls: mergeToolCallsById([...current.toolCalls, ...next.toolCalls]),
+    contentBlocks: next.contentBlocks ?? current.contentBlocks,
     errorText: next.errorText || current.errorText,
   }
 }
@@ -228,6 +229,14 @@ export function createRuntimeDisplay(deps: {
     const subTaskOrder: string[] = []
     const subTasksById = new Map<string, AiSubTaskProgress>()
     for (const st of liveTurn.subTasks) {
+      const orderedBlocks: MessageContentBlock[] = st.blocks.map(b =>
+        b.type === 'text'
+          ? { type: 'text' as const, text: b.text }
+          : { type: 'tool_call' as const, toolCallId: b.toolCall.id },
+      )
+      if (st.currentText) {
+        orderedBlocks.push({ type: 'text', text: st.currentText })
+      }
       const subTask: AiSubTaskProgress = {
         invocationId: st.invocationId,
         name: st.name,
@@ -240,6 +249,7 @@ export function createRuntimeDisplay(deps: {
             .filter((b): b is { type: 'tool_call'; toolCall: AiToolCall } => b.type === 'tool_call')
             .map(b => b.toolCall),
         ),
+        contentBlocks: orderedBlocks.length ? orderedBlocks : undefined,
       }
       const existing = subTasksById.get(st.invocationId)
       if (existing) {
