@@ -316,7 +316,7 @@
         <EditorContent
           v-if="editor"
           :editor="editor"
-          class="editor-content w-full max-w-3xl my-4 mx-auto"
+          class="editor-content w-full max-w-3xl my-4 mx-auto shadow-sm"
         />
     </div>
 
