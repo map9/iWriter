@@ -16,7 +16,7 @@ function hasRenderableTextBlocks(message: ThreadMessage): boolean {
 }
 
 function getReadToolCalls(message: ThreadMessage): AiToolCall[] {
-  return (message.toolCalls ?? []).filter(tc => !BLOCK_EDIT_TOOLS.has(tc.name) && tc.name !== 'write_todos')
+  return (message.toolCalls ?? []).filter(tc => tc.isInvalid || (!BLOCK_EDIT_TOOLS.has(tc.name) && tc.name !== 'write_todos'))
 }
 
 export function isRenderableAssistantMessage(message: ThreadMessage): boolean {

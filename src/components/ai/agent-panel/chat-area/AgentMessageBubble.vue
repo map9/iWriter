@@ -358,14 +358,14 @@ const effectiveToolCalls = computed<AiToolCall[]>(() => props.message.toolCalls 
 const thinkingContent = computed(() => props.message.thinkingContent?.trim() ?? '')
 const readToolCalls = computed(() =>
   effectiveToolCalls.value.filter(
-    tc => !BLOCK_EDIT_TOOLS.has(tc.name) && !CREATIVE_REVIEW_TOOLS.has(tc.name) && tc.name !== 'write_todos',
+    tc => tc.isInvalid || (!BLOCK_EDIT_TOOLS.has(tc.name) && !CREATIVE_REVIEW_TOOLS.has(tc.name) && tc.name !== 'write_todos'),
   )
 )
 const editToolCalls = computed(() =>
-  effectiveToolCalls.value.filter(tc => BLOCK_EDIT_TOOLS.has(tc.name))
+  effectiveToolCalls.value.filter(tc => !tc.isInvalid && BLOCK_EDIT_TOOLS.has(tc.name))
 )
 const creativeReviewToolCalls = computed(() =>
-  effectiveToolCalls.value.filter(tc => CREATIVE_REVIEW_TOOLS.has(tc.name))
+  effectiveToolCalls.value.filter(tc => !tc.isInvalid && CREATIVE_REVIEW_TOOLS.has(tc.name))
 )
 
 const isLatestAssistantMessage = computed(() => {
@@ -377,7 +377,7 @@ function toolCallById(id: string): AiToolCall | undefined {
 }
 function isReadToolById(id: string): boolean {
   const tc = toolCallById(id)
-  return !!tc && !BLOCK_EDIT_TOOLS.has(tc.name) && !CREATIVE_REVIEW_TOOLS.has(tc.name) && tc.name !== 'write_todos'
+  return !!tc && (tc.isInvalid || (!BLOCK_EDIT_TOOLS.has(tc.name) && !CREATIVE_REVIEW_TOOLS.has(tc.name) && tc.name !== 'write_todos'))
 }
 
 const visibleContentBlocks = computed(() =>

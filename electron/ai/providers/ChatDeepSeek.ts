@@ -8,6 +8,7 @@ import type { ChatGeneration, ChatResult } from '@langchain/core/outputs'
 import { ChatGenerationChunk } from '@langchain/core/outputs'
 import { convertLangChainToolCallToOpenAI, parseToolCall } from '@langchain/core/output_parsers/openai_tools'
 import { toJsonSchema } from '@langchain/core/utils/json_schema'
+import { APIConnectionError, APIConnectionTimeoutError, APIError, APIUserAbortError } from 'openai'
 import { getDefaultDeepSeekProfile } from '../../../src/ai/model-profiles'
 import type { AiThinkingLevel } from '../../../src/types/ai'
 import { normalizeThinkingLevel } from '../../../src/types/ai'
@@ -78,6 +79,7 @@ interface DeepSeekChoiceDelta {
 interface DeepSeekChatCompletionChunk {
   id?: string
   model?: string
+  error?: DeepSeekErrorPayload
   usage?: DeepSeekUsage
   choices?: Array<{
     index?: number
@@ -112,6 +114,28 @@ interface ToolCallAccumulator {
   id?: string
   name?: string
   arguments: string
+}
+
+interface DeepSeekErrorPayload {
+  message?: string
+  type?: string
+  param?: string | null
+  code?: string | number | null
+}
+
+interface DeepSeekStreamState {
+  receivedFirstChunk: boolean
+  receivedDoneMarker: boolean
+  chunkCount: number
+  totalBytes: number
+}
+
+type DeepSeekAugmentedError = Error & {
+  provider?: 'deepseek'
+  phase?: 'fetch' | 'read' | 'parse' | 'stream'
+  retryable?: boolean
+  streamState?: DeepSeekStreamState
+  rawMessage?: string
 }
 
 interface DeepSeekMessageParam {
@@ -159,6 +183,116 @@ function normalizeDeepSeekToolChoice(value: unknown): NormalizedDeepSeekToolChoi
   if (value === 'any') return 'required'
   if (isDeepSeekToolChoice(value)) return value
   return 'auto'
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function parseMaybeJson(text: string): unknown {
+  if (!text.trim()) return undefined
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
+function parseErrorBody(text: string): { json?: unknown, message?: string } {
+  const json = parseMaybeJson(text)
+  return json !== undefined ? { json } : { message: text || undefined }
+}
+
+function isAbortLikeError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === 'AbortError'
+    || err instanceof Error && err.name === 'AbortError'
+}
+
+function isTimeoutLikeError(err: unknown): boolean {
+  const errorText = err instanceof Error
+    ? `${err.name}: ${err.message} ${String(err.cause ?? '')}`
+    : String(err)
+  return /timed? ?out|etimeout|etimedout/i.test(errorText)
+}
+
+function isTerminatedReadTimeout(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  return err.name === 'TypeError'
+    && err.message === 'terminated'
+    && /etimedout|timed? ?out/i.test(String(err.cause ?? ''))
+}
+
+function augmentDeepSeekError<T extends Error>(
+  error: T,
+  metadata: Omit<DeepSeekAugmentedError, keyof Error>,
+): T & DeepSeekAugmentedError {
+  const augmented = error as T & DeepSeekAugmentedError
+  augmented.provider = 'deepseek'
+  if (metadata.phase) augmented.phase = metadata.phase
+  if (metadata.retryable !== undefined) augmented.retryable = metadata.retryable
+  if (metadata.streamState) augmented.streamState = metadata.streamState
+  if (metadata.rawMessage) augmented.rawMessage = metadata.rawMessage
+  return augmented
+}
+
+function isRetryableStatus(status?: number): boolean {
+  return status === 408 || status === 429 || status === 500 || status === 503 || (status != null && status >= 500)
+}
+
+function createDeepSeekHttpError(response: Response, bodyText: string, phase: DeepSeekAugmentedError['phase']): Error {
+  const parsed = parseErrorBody(bodyText)
+  const errorResponse = isRecord(parsed.json) ? parsed.json : undefined
+  const error = APIError.generate(response.status, errorResponse, parsed.message ?? response.statusText, response.headers)
+  const augmented = augmentDeepSeekError(error, {
+    phase,
+    retryable: isRetryableStatus(response.status),
+    rawMessage: bodyText,
+  })
+  if (response.status === 402) {
+    if (augmented.code == null) {
+      Object.defineProperty(augmented, 'code', {
+        value: 'insufficient_balance',
+        configurable: true,
+      })
+    }
+    augmented.retryable = false
+  }
+  return augmented
+}
+
+function createDeepSeekPayloadError(payload: DeepSeekErrorPayload, headers: Headers, phase: DeepSeekAugmentedError['phase']): Error {
+  const message = payload.message ?? 'DeepSeek API stream error.'
+  return augmentDeepSeekError(new APIError(undefined, payload, message, headers), {
+    phase,
+    retryable: false,
+  })
+}
+
+function createDeepSeekConnectionError(
+  err: unknown,
+  phase: DeepSeekAugmentedError['phase'],
+  signal?: AbortSignal,
+  streamState?: DeepSeekStreamState,
+): Error {
+  if (signal?.aborted || isAbortLikeError(err)) {
+    return augmentDeepSeekError(new APIUserAbortError(), { phase, retryable: false, streamState })
+  }
+
+  if (isTerminatedReadTimeout(err) || isTimeoutLikeError(err)) {
+    const error = new APIConnectionTimeoutError({
+      message: phase === 'read'
+        ? 'DeepSeek stream timed out before completion.'
+        : 'DeepSeek request timed out.',
+    })
+    if (err instanceof Error) error.cause = err
+    return augmentDeepSeekError(error, { phase, retryable: true, streamState })
+  }
+
+  const error = new APIConnectionError({
+    message: phase === 'read' ? 'DeepSeek stream connection error.' : 'DeepSeek connection error.',
+    cause: err instanceof Error ? err : new Error(String(err)),
+  })
+  return augmentDeepSeekError(error, { phase, retryable: true, streamState })
 }
 
 function extractTextContent(content: unknown): string {
@@ -383,22 +517,31 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
     runManager?: CallbackManagerForLLMRun,
   ): AsyncGenerator<ChatGenerationChunk> {
     const body = this.buildRequestBody(messages, options, true)
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal: options.signal,
-    })
+    let receivedFirstChunk = false
+    let receivedDoneMarker = false
+    let chunkCount = 0
+    let totalBytes = 0
+    let response: Response
+    try {
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: options.signal,
+      })
+    } catch (err) {
+      throw createDeepSeekConnectionError(err, 'fetch', options.signal)
+    }
 
     if (!response.ok) {
       let detail = response.statusText
       try {
         detail = await response.text()
       } catch { /* ignore */ }
-      throw new Error(`DeepSeek API error ${response.status}: ${detail}`)
+      throw createDeepSeekHttpError(response, detail, 'fetch')
     }
 
     if (!response.body) {
@@ -414,8 +557,37 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
     const toolCallAccumulators = new Map<number, ToolCallAccumulator>()
 
     while (true) {
-      const { value, done } = await reader.read()
-      if (done) break
+      let readResult: ReadableStreamReadResult<Uint8Array>
+      try {
+        readResult = await reader.read()
+      } catch (err) {
+        throw createDeepSeekConnectionError(err, 'read', options.signal, {
+          receivedFirstChunk,
+          receivedDoneMarker,
+          chunkCount,
+          totalBytes,
+        })
+      }
+      const { value, done } = readResult
+      if (done) {
+        // Flush the TextDecoder's internal buffer (handles multi-byte sequences split across chunks).
+        const flushed = decoder.decode()
+        if (flushed) buffer += flushed
+        // Process any final SSE line that arrived without a trailing newline (e.g. `data: [DONE]`).
+        for (const line of buffer.split('\n')) {
+          if (line.trim() === 'data: [DONE]') {
+            receivedDoneMarker = true
+            break
+          }
+        }
+        break
+      }
+
+      chunkCount += 1
+      totalBytes += value?.byteLength ?? 0
+      if (!receivedFirstChunk) {
+        receivedFirstChunk = true
+      }
 
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
@@ -427,6 +599,7 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
         const payload = trimmed.slice(6).trim()
         if (!payload) continue
         if (payload === '[DONE]') {
+          receivedDoneMarker = true
           if (!emittedResponseMetadata) {
             const metadataChunk = new ChatGenerationChunk({
               message: new AIMessageChunk({
@@ -448,8 +621,28 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
         let parsed: DeepSeekChatCompletionChunk
         try {
           parsed = JSON.parse(payload)
-        } catch {
-          continue
+        } catch (err) {
+          // Skip lines that are clearly not JSON objects/arrays (proxy heartbeats such as
+          // `data: ping` or `data: : keep-alive` that slip past the [DONE] guard).
+          if (!payload.startsWith('{') && !payload.startsWith('[')) continue
+          throw augmentDeepSeekError(new APIConnectionError({
+            message: 'DeepSeek stream returned invalid JSON.',
+            cause: err instanceof Error ? err : new Error(String(err)),
+          }), {
+            phase: 'parse',
+            retryable: true,
+            rawMessage: payload,
+            streamState: {
+              receivedFirstChunk,
+              receivedDoneMarker,
+              chunkCount,
+              totalBytes,
+            },
+          })
+        }
+
+        if (isRecord(parsed.error)) {
+          throw createDeepSeekPayloadError(parsed.error, response.headers, 'stream')
         }
 
         lastResponseId = parsed.id ?? lastResponseId
@@ -549,25 +742,43 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
         }
       }
     }
+
+    // Premature EOF: server closed the stream without sending [DONE].
+    // Any yielded content is incomplete — surface as a retryable connection error rather
+    // than letting a truncated response be persisted as a successful completion.
+    if (receivedFirstChunk && !receivedDoneMarker) {
+      throw augmentDeepSeekError(new APIConnectionError({
+        message: 'DeepSeek stream closed before [DONE] marker was received.',
+      }), {
+        phase: 'read',
+        retryable: true,
+        streamState: { receivedFirstChunk, receivedDoneMarker, chunkCount, totalBytes },
+      })
+    }
   }
 
   private async fetchJson(body: Record<string, unknown>, signal?: AbortSignal): Promise<DeepSeekChatCompletionResponse> {
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal,
-    })
+    let response: Response
+    try {
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal,
+      })
+    } catch (err) {
+      throw createDeepSeekConnectionError(err, 'fetch', signal)
+    }
 
     if (!response.ok) {
       let detail = response.statusText
       try {
         detail = await response.text()
       } catch { /* ignore */ }
-      throw new Error(`DeepSeek API error ${response.status}: ${detail}`)
+      throw createDeepSeekHttpError(response, detail, 'fetch')
     }
 
     return response.json() as Promise<DeepSeekChatCompletionResponse>

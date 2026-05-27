@@ -57,6 +57,10 @@ Keep the plan author-readable and concise.
 Keep logicAudit entries brief; each field should be one clear sentence.
 Every plan must include one line beginning "Theme tie:" that states how the plan serves the StoryBible Theme/Premise. If Theme/Premise is not established, say that directly.
 motivationTrace.derivation must reference the character psychology and, when available, Premise or Theme.
+alternatives MUST be an array of strings only. Do NOT use objects such as { "direction": "", "tradeoff": "" }.
+Use the exact logicAudit field names shown below. Do NOT use coreDesire, coreFear,
+category, flag, severity, or causalNecessity keys.
+commonSenseFlags[].dimension MUST be exactly one of "physical", "social", or "psychological"; do not translate these enum values.
 
 Your entire response MUST end with a single JSON code block and nothing after it:
 
@@ -66,9 +70,32 @@ Your entire response MUST end with a single JSON code block and nothing after it
   "rationale": "<why this direction>",
   "alternatives": ["<alt 1>", "<alt 2>"],
   "logicAudit": {
-    "motivationTraces": [{ "character": "", "coreDesire": "", "coreFear": "", "falseBelief": "", "derivation": "" }],
-    "causalChain": [{ "beat": "", "priorState": "", "trigger": "", "characterInterpretation": "", "decision": "", "consequence": "", "causalNecessity": "" }],
-    "commonSenseFlags": [{ "category": "physical|social|psychological", "flag": "", "severity": "info|minor|major" }]
+    "motivationTraces": [
+      {
+        "character": "",
+        "action": "",
+        "activatedDesireOrFear": "",
+        "falseBelief": "",
+        "derivation": ""
+      }
+    ],
+    "causalChain": [
+      {
+        "beat": "",
+        "priorState": "",
+        "trigger": "",
+        "characterInterpretation": "",
+        "decision": "",
+        "consequence": ""
+      }
+    ],
+    "commonSenseFlags": [
+      {
+        "dimension": "physical",
+        "issue": "",
+        "correction": ""
+      }
+    ]
   }
 }
 \`\`\`

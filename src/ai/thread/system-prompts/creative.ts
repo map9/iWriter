@@ -88,10 +88,11 @@ Before calling confirm_writing_plan for any scene with significant character act
 
    sceneBrief, characters, and targetChapter are required; do not omit them.
 3. Review the planner result:
-   - If the planner result is empty, says "Task completed", is not valid JSON, or is missing plan/rationale/logicAudit, retry task(planner) once with the complete brief in description. Do not create the plan yourself.
+   - If the planner result is empty, says "Task completed", is not valid JSON, or is missing plan/rationale/logicAudit, retry task(planner) once with the complete brief in description. The retry must ask for exactly one final JSON code block using plan, rationale, alternatives, and logicAudit. Do not create the plan yourself.
+   - If the planner retry also fails validation, call task with subagent_type="general-purpose" to produce the same plan/rationale/alternatives/logicAudit structure, then call confirm_writing_plan from that result. Do not draft the plan in the main agent prose.
    - If logicAudit.commonSenseFlags says character psychology is missing or incomplete, stop and ask the author to establish it before writing.
    - If correctable common-sense issues are flagged, incorporate the corrections into the plan.
-4. Call confirm_writing_plan using the planner's plan, rationale, alternatives, and logicAudit.
+4. Call confirm_writing_plan using the planner's plan, rationale, alternatives, and logicAudit. alternatives must be an array of strings only; never pass objects with direction/tradeoff keys.
 5. After receiving the planner response, call confirm_writing_plan immediately. Assistant text may contain only one short status line such as "已生成方案，请审批". Do not restate the plan body, rationale, alternatives, or logicAudit in assistant prose.
 
 Do NOT call confirm_writing_plan for character-action scenes without first calling task(planner).

@@ -15,12 +15,23 @@
  *    只通过 returnCommandWithStateUpdate 返回 messages，**不会**把 structuredResponse
  *    JSON-stringify 后回灌给父代理（参见 node_modules/deepagents/dist/index.js:2274-2302）。
  *    因此 langchain `responseFormat` 仅在「直接调用 subagent.invoke」的边路生效，
- *    `task` 工具下完全不生效。本中间件的 JSON.parse + Zod safeParse 是
+ *    `task` 工具下完全不生效。本中间件的 JSON block extraction + Zod safeParse 是
  *    实际唯一拦截 planner 非法输出的关卡，不能删除。
  */
-import { ToolMessage } from '@langchain/core/messages'
+import { HumanMessage, ToolMessage } from '@langchain/core/messages'
 import { createMiddleware } from 'langchain'
 import { PlannerResponseSchema } from '../domain/creative/subAgents/planner'
+
+const PLANNER_INVALID_RESULT_PREFIX = 'Error: Planner subagent returned an invalid or empty result.'
+
+interface PlannerValidationResult {
+  valid: boolean
+  reason?: 'empty' | 'json_parse_failed' | 'schema_failed' | 'empty_required_fields'
+  hasJsonBlock: boolean
+  jsonSourceLength: number
+  parseError?: string
+  schemaIssues?: Array<{ path: string, message: string }>
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -52,27 +63,116 @@ function extractToolContent(result: unknown): string {
   return messageContentToText(asRecord(firstMessage).content)
 }
 
-function isValidPlannerResult(content: string): boolean {
+function extractJsonSource(content: string): { source: string, hasJsonBlock: boolean } {
+  const matches = [...content.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)]
+  const lastMatch = matches.at(-1)
+  if (lastMatch) {
+    return { source: (lastMatch[1] ?? '').trim(), hasJsonBlock: true }
+  }
+  return { source: content.trim(), hasJsonBlock: false }
+}
+
+function validatePlannerResult(content: string): PlannerValidationResult {
+  if (!content.trim()) {
+    return {
+      valid: false,
+      reason: 'empty',
+      hasJsonBlock: false,
+      jsonSourceLength: 0,
+    }
+  }
+
+  const { source, hasJsonBlock } = extractJsonSource(content)
   let parsed: unknown
   try {
-    parsed = JSON.parse(content)
-  } catch {
-    return false
+    parsed = JSON.parse(source)
+  } catch (err) {
+    return {
+      valid: false,
+      reason: 'json_parse_failed',
+      hasJsonBlock,
+      jsonSourceLength: source.length,
+      parseError: err instanceof Error ? err.message : String(err),
+    }
   }
 
   const result = PlannerResponseSchema.safeParse(parsed)
-  if (!result.success) return false
-  return result.data.plan.trim().length > 0 && result.data.rationale.trim().length > 0
+  if (!result.success) {
+    return {
+      valid: false,
+      reason: 'schema_failed',
+      hasJsonBlock,
+      jsonSourceLength: source.length,
+      schemaIssues: result.error.issues.map(issue => ({
+        path: issue.path.join('.'),
+        message: issue.message,
+      })),
+    }
+  }
+  if (!result.data.plan.trim() || !result.data.rationale.trim()) {
+    return {
+      valid: false,
+      reason: 'empty_required_fields',
+      hasJsonBlock,
+      jsonSourceLength: source.length,
+    }
+  }
+  return {
+    valid: true,
+    hasJsonBlock,
+    jsonSourceLength: source.length,
+  }
 }
 
-function buildPlannerError(toolCallId: string | undefined): ToolMessage {
+function isHumanMessage(message: unknown): boolean {
+  if (message instanceof HumanMessage) return true
+  // Plain-object form produced by LangGraph checkpointer deserialization
+  return asRecord(message).type === 'human'
+}
+
+function countPriorPlannerValidationFailures(messages: unknown): number {
+  if (!Array.isArray(messages)) return 0
+  // Scope to the current user turn: only count planner failures that occurred after
+  // the most recent HumanMessage. Without this guard, a failure from a previous
+  // turn would make the very first planner call of the next turn look like a retry,
+  // skipping the one allowed planner retry and jumping straight to general-purpose fallback.
+  let scanFrom = 0
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (isHumanMessage(messages[i])) {
+      scanFrom = i + 1
+      break
+    }
+  }
+  return messages.slice(scanFrom).filter(message => {
+    if (message instanceof ToolMessage) {
+      return messageContentToText(message.content).startsWith(PLANNER_INVALID_RESULT_PREFIX)
+    }
+    return messageContentToText(asRecord(message).content).startsWith(PLANNER_INVALID_RESULT_PREFIX)
+  }).length
+}
+
+function buildPlannerError(toolCallId: string | undefined, priorFailures: number): ToolMessage {
+  const guidance = priorFailures > 0
+    ? [
+        'Planner retry also failed validation.',
+        'Use task with subagent_type="general-purpose" to produce the same plan/rationale/alternatives/logicAudit structure, then call confirm_writing_plan from that result.',
+        'Do not create the plan in the main agent yourself.',
+      ]
+    : [
+        'Retry task with subagent_type="planner" and put the complete planner brief in description.',
+        'The planner response must contain exactly one final ```json code block with keys plan, rationale, alternatives, and logicAudit.',
+        'alternatives must be an array of strings only; do not use objects with direction/tradeoff keys.',
+        'logicAudit must use motivationTraces[].action, motivationTraces[].activatedDesireOrFear, commonSenseFlags[].dimension, commonSenseFlags[].issue, and commonSenseFlags[].correction.',
+        'commonSenseFlags[].dimension MUST be exactly one of "physical", "social", or "psychological"; do not translate these enum values.',
+        'Do not call confirm_writing_plan from this result.',
+      ]
+
   return new ToolMessage({
     name: 'task',
     tool_call_id: toolCallId ?? '',
     content: [
-      'Error: Planner subagent returned an invalid or empty result.',
-      'Retry task with subagent_type="planner" and put the complete planner brief in description.',
-      'Do not call confirm_writing_plan from this result.',
+      PLANNER_INVALID_RESULT_PREFIX,
+      ...guidance,
     ].join(' '),
   })
 }
@@ -114,11 +214,13 @@ export function createTaskToolCompatMiddleware() {
       }
 
       const content = extractToolContent(result)
-      if (isValidPlannerResult(content)) {
+      const validation = validatePlannerResult(content)
+      if (validation.valid) {
         return result
       }
 
-      return buildPlannerError(request.toolCall.id)
+      const priorFailures = countPriorPlannerValidationFailures(request.state.messages)
+      return buildPlannerError(request.toolCall.id, priorFailures)
     },
   })
 }

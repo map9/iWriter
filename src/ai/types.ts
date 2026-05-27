@@ -121,6 +121,8 @@ export interface AiToolCall {
   /** Result summary shown in the UI (for read-type tools) */
   result?: string
   isError?: boolean
+  /** True when LangChain marked this call invalid (args were not valid JSON). The tool was never executed. */
+  isInvalid?: boolean
   display?: AiToolDisplayMeta
 }
 

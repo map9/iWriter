@@ -1,4 +1,4 @@
-import { ref, type ComputedRef, type Ref } from 'vue'
+import { ref, toRaw, type ComputedRef, type Ref } from 'vue'
 import type { AiThread, CreativeReviewItem, CreativeRoundResult, ThreadMessage } from '@/ai/types'
 import type { ResumeDecision, DomainReviewItem } from '@/ai/ipc'
 import { buildCreativeRoundResult, mergeCreativeRoundResults, type CreativeReviewBatch } from '@/ai/review/creativeSelectors'
@@ -165,6 +165,49 @@ function turnOutcomeKey(threadId: string, turnId: string | null | undefined): st
   return `${threadId}:${turnId}`
 }
 
+function toIpcCloneableValue(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
+  const raw = toRaw(value)
+  if (raw === null || typeof raw !== 'object') return raw
+
+  if (seen.has(raw)) return seen.get(raw)
+
+  if (Array.isArray(raw)) {
+    const copy: unknown[] = []
+    seen.set(raw, copy)
+    for (const item of raw) copy.push(toIpcCloneableValue(item, seen))
+    return copy
+  }
+
+  if (raw instanceof Date) return new Date(raw)
+
+  if (raw instanceof Map) {
+    const copy: Record<string, unknown> = {}
+    seen.set(raw, copy)
+    for (const [key, child] of raw.entries()) {
+      copy[String(key)] = toIpcCloneableValue(child, seen)
+    }
+    return copy
+  }
+
+  if (raw instanceof Set) {
+    const copy: unknown[] = []
+    seen.set(raw, copy)
+    for (const item of raw.values()) copy.push(toIpcCloneableValue(item, seen))
+    return copy
+  }
+
+  const copy: Record<string, unknown> = {}
+  seen.set(raw, copy)
+  for (const [key, child] of Object.entries(raw)) {
+    copy[key] = toIpcCloneableValue(child, seen)
+  }
+  return copy
+}
+
+function toIpcCloneableArgs(args: Record<string, unknown>): Record<string, unknown> {
+  return toIpcCloneableValue(args) as Record<string, unknown>
+}
+
 export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
   const interruptActionCount = ref(0)
   const isResumingCreativeReview = ref(false)
@@ -289,7 +332,7 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
       if (decision.kind === 'edited') {
         return {
           type: 'edited',
-          editedArgs: argsForReview(review, decision.editedArgs),
+          editedArgs: toIpcCloneableArgs(argsForReview(review, decision.editedArgs)),
         }
       }
       if (decision.kind === 'responded') {
@@ -340,7 +383,7 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
   async function editAndApproveCreativeReview(reviewId: string, editedArgs: Record<string, unknown>) {
     const review = findReview(reviewId)
     if (reviewBatch.value?.reviewsById[reviewId]) {
-      reviewBatch.value.decisionsById[reviewId] = { kind: 'edited', editedArgs }
+      reviewBatch.value.decisionsById[reviewId] = { kind: 'edited', editedArgs: toIpcCloneableArgs(editedArgs) }
     }
     if (review) threadSync.updateLocalCreativeToolCall(review, 'completed')
     removePendingReview(reviewId)

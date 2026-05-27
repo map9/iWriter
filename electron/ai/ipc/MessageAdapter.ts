@@ -300,6 +300,33 @@ function safeStringify(value: unknown): string {
 }
 
 /**
+ * Build a failed AiToolCall from a LangChain InvalidToolCall.
+ * Used by both streaming (StreamEventAdapter) and replay (convertLcMessages) so both produce identical cards.
+ */
+export function invalidToolCallToAiToolCall(
+  invalid: { id?: string; name?: string; args?: string; error?: string },
+  fallbackId: string,
+): AiToolCall {
+  const name = invalid.name || 'unknown'
+  const rawArgs = typeof invalid.args === 'string' ? invalid.args : ''
+  const preview = rawArgs.length > 500 ? `${rawArgs.slice(0, 500)}…` : rawArgs
+  return {
+    id: invalid.id || fallbackId,
+    name,
+    kind: inferToolKind(name),
+    title: name,
+    status: 'failed',
+    isError: true,
+    isInvalid: true,
+    arguments: {},
+    result:
+      '工具调用参数不是合法 JSON，未被执行。'
+      + (invalid.error ? `\n${invalid.error}` : '')
+      + (preview ? `\n原始参数: ${preview}` : ''),
+  }
+}
+
+/**
  * Convert raw LangChain messages from the checkpointer into renderer-friendly ThreadMessage[].
  * This is the single place responsible for the LangChain → ThreadMessage transformation.
  */
@@ -349,6 +376,14 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
         status: 'pending' as const,
         arguments: tc.args ?? {},
       }))
+
+      // Append invalid tool calls (never executed, no ToolMessage follows)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const lcInvalidCalls: any[] = msg.invalid_tool_calls ?? []
+      lcInvalidCalls.forEach((inv: unknown, idx: number) => {
+        const invalid = inv as { id?: string; name?: string; args?: string; error?: string }
+        toolCalls.push(invalidToolCallToAiToolCall(invalid, `invalid-${i}-${idx}`))
+      })
 
       // Consume following tool messages and attach results
       const toolResults: AiToolResult[] = []

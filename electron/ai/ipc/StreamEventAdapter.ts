@@ -2,7 +2,7 @@ import type { StreamChunkEvent } from './protocol'
 import type { AiToolCall, MessageContentBlock, ThreadMessage } from '../../../src/types/ai'
 import { inferToolKind } from '../../../src/types/ai'
 import { isHitlInterruptPayload } from '../../../src/ai/hitl'
-import { extractToolResult } from './MessageAdapter'
+import { extractToolResult, invalidToolCallToAiToolCall } from './MessageAdapter'
 import type { RendererEventBridge } from './RendererEventBridge'
 
 interface PendingSubagentInvocation {
@@ -232,6 +232,42 @@ export class StreamEventAdapter {
         this._send({ threadId: this.threadId, turnId: this.turnId, type: 'thinking', delta: fallback, subagentName })
       }
     }
+
+    // Surface any invalid tool calls as failed tool-call cards. The full AIMessage is available via
+    // msg.output after text/reasoning streams complete. Errors here are non-fatal; the run.output
+    // error path handles stream-level failures.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const aiMessage = await (msg as any).output
+      this._emitInvalidToolCalls(aiMessage, subagentName)
+    } catch {
+      // ignore — real failures surface through run.output
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _emitInvalidToolCalls(aiMessage: any, subagentName?: string): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let invalids: any[] = Array.isArray(aiMessage?.invalid_tool_calls) ? aiMessage.invalid_tool_calls : []
+    // Fallback: scan content blocks for type 'invalid_tool_call' (defensive, covers edge provider cases)
+    if (invalids.length === 0 && Array.isArray(aiMessage?.content)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      invalids = (aiMessage.content as any[]).filter((b: any) => b?.type === 'invalid_tool_call')
+    }
+    if (invalids.length === 0) return
+
+    this._flushPendingText()
+    invalids.forEach((inv: unknown, idx: number) => {
+      const invalid = inv as { id?: string; name?: string; args?: string; error?: string }
+      // Use toolCalls.length (position within this turn) as fallback so the ID is
+      // deterministic and doesn't shift across multiple _emitInvalidToolCalls calls.
+      const fallbackId = `invalid-stream-${this.toolCalls.length}-${idx}`
+      const toolCall = invalidToolCallToAiToolCall(invalid, fallbackId)
+      this.toolCalls.push(toolCall)
+      this.contentBlocks.push({ type: 'tool_call', toolCallId: toolCall.id })
+      this._send({ threadId: this.threadId, turnId: this.turnId, type: 'tool_call_start', toolName: toolCall.name, toolCallId: toolCall.id, toolCall, subagentName })
+      this._send({ threadId: this.threadId, turnId: this.turnId, type: 'tool_call_end', toolCallId: toolCall.id, toolCall, subagentName })
+    })
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

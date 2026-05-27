@@ -1,7 +1,7 @@
 <template>
   <section
     v-if="currentReview"
-    class="mx-3 mb-3 rounded-lg border border-base-300 bg-base-100 shadow-sm"
+    class="rounded-box border border-base-300 bg-base-100 shadow-sm"
   >
     <header class="flex items-start justify-between gap-3 border-b border-base-300 px-3 py-2">
       <div class="min-w-0">
