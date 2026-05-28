@@ -217,6 +217,8 @@ export interface FileCreateProposal extends BaseEditProposal {
   filename: string          // Desired tab name (without extension)
   content: string           // Full Markdown to inject into the new tab's editor
   toolCallId?: string
+  /** Absolute host path to the directory where the file should be written to disk (e.g. workspace/draft/). When set, executor writes the file before opening the tab. */
+  directory?: string
 }
 
 export type EditProposal = BlockEditProposal | FileCreateProposal
@@ -734,10 +736,7 @@ export const BLOCK_EDIT_TOOLS = new Set([
 
 export const CREATIVE_REVIEW_TOOLS = new Set([
   'confirm_writing_plan',
-  'write_to_chapter',
   'resolve_open_question',
-  'create_chapter',
-  'delete_chapter',
   'rename_chapter',
   'reorder_chapters',
   'replace_storybible_section',

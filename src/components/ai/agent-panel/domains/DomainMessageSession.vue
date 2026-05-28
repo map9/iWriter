@@ -1,18 +1,25 @@
 <template>
-  <EditMessageSession
-    v-if="activeDomain === 'editing'"
-    :message="message"
-    :edit-tool-calls="editToolCalls"
-    :is-latest-assistant-message="isLatestAssistantMessage"
-    :is-preview="isPreview"
-  />
-  <CreativeMessageSession
-    v-else
-    :message="message"
-    :edit-tool-calls="editToolCalls"
-    :creative-review-tool-calls="creativeReviewToolCalls"
-    :is-latest-assistant-message="isLatestAssistantMessage"
-  />
+  <template v-if="activeDomain === 'editing'">
+    <EditMessageSession
+      :message="message"
+      :edit-tool-calls="editToolCalls"
+      :is-latest-assistant-message="isLatestAssistantMessage"
+      :is-preview="isPreview"
+    />
+  </template>
+  <template v-else>
+    <CreativeMessageSession
+      :message="message"
+      :edit-tool-calls="editToolCalls"
+      :creative-review-tool-calls="creativeReviewToolCalls"
+      :is-latest-assistant-message="isLatestAssistantMessage"
+    />
+    <EditMessageSession
+      :message="message"
+      :edit-tool-calls="editToolCalls"
+      :is-latest-assistant-message="isLatestAssistantMessage"
+    />
+  </template>
 </template>
 
 <script setup lang="ts">

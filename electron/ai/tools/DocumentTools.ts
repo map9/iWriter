@@ -353,7 +353,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       block_ids,
       file_path,
     }: {
-      block_ids: number[]
+      block_ids?: number[]
       file_path?: string
     }, runtime) => {
       const resolved = resolveDocumentPathForRuntime(file_path, runtime)
@@ -366,19 +366,24 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           : 'Error: No document is currently open.'
       }
 
-      return BlockParser.getBlocks(snapshot, block_ids.map(Number).filter(n => !isNaN(n)))
+      const resolvedBlockIds = block_ids === undefined
+        ? snapshot.blockMap.map(entry => entry.displayId)
+        : block_ids.map(Number).filter(n => !isNaN(n))
+
+      return BlockParser.getBlocks(snapshot, resolvedBlockIds)
     },
     {
       name: 'get_blocks',
       description:
-        'Get the content of specific blocks by their block IDs. ' +
-        'Use when you need the exact content of known blocks (e.g., before editing them). ' +
+        'Get document blocks by block IDs, or omit block_ids to read all blocks. ' +
+        'Use when you need exact block-marked content (e.g., before editing). ' +
         'Returns each block\'s content with its {b:n} marker. ' +
         'With file_path, this reads that exact file on disk even if it is not open in the editor.',
       schema: z.object({
         block_ids: z
           .array(z.number())
-          .describe('Array of block display IDs (the numbers in {b:n} markers) to retrieve.'),
+          .optional()
+          .describe('Optional array of block display IDs (the numbers in {b:n} markers) to retrieve. Omit to retrieve all blocks.'),
         file_path: z
           .string()
           .optional()

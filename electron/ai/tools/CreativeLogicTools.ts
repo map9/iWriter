@@ -49,17 +49,28 @@ function findSection(content: string, level: number, names: string[]): string {
   return ''
 }
 
-function splitCharacterSections(charactersSection: string): Array<{ heading: string; body: string }> {
-  const matches = [...charactersSection.matchAll(/^###\s+(.+?)\s*$/gmi)]
+function splitByHeadingLevel(content: string, level: number): Array<{ heading: string; body: string }> {
+  const marker = '#'.repeat(level)
+  const matches = [...content.matchAll(new RegExp(`^${marker}\\s+(.+?)\\s*$`, 'gmi'))]
   if (!matches.length) return []
   return matches.map((match, index) => {
     const start = (match.index ?? 0) + match[0].length
-    const end = matches[index + 1]?.index ?? charactersSection.length
+    const end = matches[index + 1]?.index ?? content.length
     return {
       heading: match[1]?.trim() ?? '',
-      body: charactersSection.slice(start, end).trim(),
+      body: content.slice(start, end).trim(),
     }
   })
+}
+
+// Supports both nested format (## Characters → ### name) and flat format (## CharacterName——...)
+function collectCharacterSections(content: string): Array<{ heading: string; body: string }> {
+  const nestedContent = findSection(content, 2, ['Characters', '角色'])
+  if (nestedContent.trim()) {
+    const nested = splitByHeadingLevel(nestedContent, 3)
+    if (nested.length > 0) return nested
+  }
+  return splitByHeadingLevel(content, 2)
 }
 
 function pickCharacterSection(
@@ -80,11 +91,12 @@ function pickCharacterSection(
 function extractField(body: string, labels: string[]): string | undefined {
   for (const label of labels) {
     const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const colonPattern = new RegExp(`${escaped}\\s*[:：]\\s*([^\\n]+)`, 'i')
+    // Allow optional ** markdown bold closing marker between label and colon (e.g. **核心欲望**：value)
+    const colonPattern = new RegExp(`${escaped}\\s*\\*{0,2}\\s*[:：]\\s*([^\\n]+)`, 'i')
     const colonMatch = colonPattern.exec(body)
     if (colonMatch?.[1]?.trim()) return colonMatch[1].trim()
 
-    const bulletPattern = new RegExp(`^[\\s*>-]*${escaped}\\s*[:：]\\s*([^\\n]+)`, 'gmi')
+    const bulletPattern = new RegExp(`^[\\s*>-]*${escaped}\\s*\\*{0,2}\\s*[:：]\\s*([^\\n]+)`, 'gmi')
     const bulletMatch = bulletPattern.exec(body)
     if (bulletMatch?.[1]?.trim()) return bulletMatch[1].trim()
   }
@@ -95,7 +107,7 @@ function extractPsychology(body: string): CharacterPsychology {
   return {
     core_desire: extractField(body, ['核心欲望', 'core desire', 'core_desire']),
     core_fear: extractField(body, ['核心恐惧', 'core fear', 'core_fear']),
-    false_belief: extractField(body, ['虚假信念', 'false belief', 'false_belief']),
+    false_belief: extractField(body, ['虚假信念', '错误信念', 'false belief', 'false_belief']),
     current_state: extractField(body, ['当前状态', 'current state', 'current_state']),
   }
 }
@@ -131,8 +143,7 @@ export function buildCreativeLogicTools(options: {
       if (!workspacePath) return 'Error: Creative mode requires an open workspace folder.'
       const storyBiblePath = path.join(workspacePath, 'storybible.md')
       const content = fs.existsSync(storyBiblePath) ? fs.readFileSync(storyBiblePath, 'utf-8') : ''
-      const charactersSection = findSection(content, 2, ['Characters', '角色'])
-      const sections = splitCharacterSections(charactersSection)
+      const sections = collectCharacterSections(content)
       const characters: Record<string, CharacterPsychology> = {}
       const missing: string[] = []
       const missingFields: MissingFields[] = []

@@ -38,7 +38,7 @@ You do NOT plan exhaustively. You do NOT check logic or consistency. You explore
 
 Workflow:
 1. Call read_storybible. Note established constraints, character states, tone.
-2. Call read_chapter for the divergence context.
+2. Call get_blocks(file_path=<absolute path from divergenceContext>) to load the divergence context.
 3. Load: scene-structure, character-arc-planning, branch-comparison skills.
 4. Draft the exploration:
    - Sketch what happens in this direction: plot beats and key moments.
@@ -65,6 +65,7 @@ Your entire response MUST end with a single JSON code block and nothing after it
 export function buildExplorerSubAgent(
   explorerTools: StructuredTool[],
   language: DetectedInputLanguage = 'en-US',
+  options?: { skillsRoot?: string },
 ): SubAgent {
   return {
     name: 'explorer',
@@ -74,5 +75,6 @@ export function buildExplorerSubAgent(
     // responseFormat intentionally omitted: deepseek-reasoner (and some models) reject
     // tool_choice:"any" that langchain injects when responseFormat is set (langchain issue #31403).
     // The system prompt instructs the model to end with a JSON code block instead.
+    ...(options?.skillsRoot ? { skills: [`${options.skillsRoot}/_explorer`] } : {}),
   }
 }

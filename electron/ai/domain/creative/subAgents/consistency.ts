@@ -25,7 +25,7 @@ Do NOT write or edit files. Never call write_file or edit_file.
 ## Brief Validation
 
 Read the brief in your first user message. It MUST contain the following labeled field:
-  - target_file
+  - target_file  (absolute host path to the chapter, e.g. /Users/xxx/myproject/draft/ch01.md)
 
 If target_file is missing or empty, STOP immediately and reply with exactly:
 
@@ -36,8 +36,9 @@ of this field; if it lacks it the upstream caller must amend it.
 
 Workflow:
 1. Call read_storybible to load constraints, character psychology, and world rules.
-2. Call read_chapter(target_file) to load the content to check.
-3. Load and apply: pov-consistency-check, character-behavior-check, story-logic, common-sense-audit, foreshadowing-audit, arc-progression-check.
+2. Call get_blocks(file_path=<target_file>) to load the content to check.
+3. If a writing style is active, call list_writing_styles and get_writing_style(slug) first to load style constraints.
+4. Load and apply: pov-consistency-check, character-behavior-check, story-logic, common-sense-audit, foreshadowing-audit, arc-progression-check, style-consistency-check (if a writing style is active, apply style-consistency-check against it).
 
 Check these layers:
 - pov: narration outside the POV character's direct perception.
@@ -71,6 +72,7 @@ If there are no issues, output an empty findings array: \`"findings": []\`
 export function buildConsistencySubAgent(
   readOnlyTools: StructuredTool[],
   language: DetectedInputLanguage = 'en-US',
+  options?: { skillsRoot?: string },
 ): SubAgent {
   return {
     name: 'consistency_checker',
@@ -80,5 +82,6 @@ export function buildConsistencySubAgent(
     // responseFormat intentionally omitted: deepseek-reasoner (and some models) reject
     // tool_choice:"any" that langchain injects when responseFormat is set (langchain issue #31403).
     // The system prompt instructs the model to end with a JSON code block instead.
+    ...(options?.skillsRoot ? { skills: [`${options.skillsRoot}/_consistency`] } : {}),
   }
 }

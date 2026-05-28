@@ -407,6 +407,8 @@ export const useAiStore = defineStore('ai', () => {
 
   const editReview = createEditReviewModule({
     appStore,
+    saveFile: (content: string, absolutePath: string) =>
+      window.electronAPI.saveFile?.(content, absolutePath) ?? Promise.resolve(),
     activeThread,
     pendingEditProposals,
     interruptedThreadId: _interruptedThreadId,

@@ -35,7 +35,7 @@ Workflow:
 1. Call read_storybible.
 2. Call get_character_psychology for every character named in the brief.
    - If a character is missing or has an incomplete psychology triangle, include a psychological commonSenseFlag and ask the author to establish it first.
-3. Call read_chapter or search_draft for prior context as needed.
+3. Call get_section or get_blocks with the absolute chapter file path for prior context as needed.
 4. Load and apply these skills: behavior-from-psychology, causal-chain-construction, common-sense-audit, character-decision-logic, scene-structure.
 
 For each character with significant action:
@@ -104,6 +104,7 @@ Your entire response MUST end with a single JSON code block and nothing after it
 export function buildPlannerSubAgent(
   plannerTools: StructuredTool[],
   language: DetectedInputLanguage = 'en-US',
+  options?: { skillsRoot?: string },
 ): SubAgent {
   return {
     name: 'planner',
@@ -113,5 +114,6 @@ export function buildPlannerSubAgent(
     // responseFormat intentionally omitted: deepseek-reasoner (and some models) reject
     // tool_choice:"any" that langchain injects when responseFormat is set (langchain issue #31403).
     // The system prompt instructs the model to end with a JSON code block instead.
+    ...(options?.skillsRoot ? { skills: [`${options.skillsRoot}/_planner`] } : {}),
   }
 }

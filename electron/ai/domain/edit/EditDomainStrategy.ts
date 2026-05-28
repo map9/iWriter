@@ -1,4 +1,4 @@
-import { BLOCK_EDIT_TOOLS } from '../../../../src/types/ai'
+
 import { EDIT_SYSTEM_PROMPT } from '../../../../src/ai/thread/system-prompts/edit'
 import { MINIMAL_SYSTEM_PROMPT } from '../../../../src/ai/thread/system-prompts/minimal'
 import { buildEditCapabilities, EDIT_INTERRUPT_ON_NAMES } from './buildEditCapabilities'
@@ -53,17 +53,22 @@ export class EditDomainStrategy implements DomainStrategy {
       console.warn('[EditDomainStrategy] snapshot failed:', err)
     }
 
-    const pendingEditToolCalls = (ctx.partialMessage?.toolCalls ?? []).filter(tc =>
-      BLOCK_EDIT_TOOLS.has(tc.name)
-    )
+    // Per-name sequence counter: binds the Nth action of a given tool name
+    // to the Nth tool call with that name, handling mixed filesystem+edit batches correctly.
+    const consumedByName = new Map<string, number>()
+    const takeToolCallId = (name: string): string | undefined => {
+      const i = consumedByName.get(name) ?? 0
+      consumedByName.set(name, i + 1)
+      return ctx.partialMessage?.toolCalls?.filter(tc => tc.name === name)[i]?.id
+    }
 
-    return ctx.actionRequests.map((ar, index): DomainReviewItem => {
+    return ctx.actionRequests.map((ar): DomainReviewItem => {
       if (isFilesystemWriteTool(ar.name)) {
         return {
           kind: 'filesystem',
           payload: buildFilesystemReviewItemFromAction(
             ar,
-            ctx.partialMessage?.toolCalls?.find(tc => tc.name === ar.name)?.id,
+            takeToolCallId(ar.name),
             ctx.partialMessage?.id,
             ctx.turnId,
           ),
@@ -76,7 +81,7 @@ export class EditDomainStrategy implements DomainStrategy {
           ar.name,
           ar.args ?? {},
           snapshot,
-          pendingEditToolCalls[index]?.id,
+          takeToolCallId(ar.name),
           ctx.partialMessage?.id,
           ctx.turnId,
         ),

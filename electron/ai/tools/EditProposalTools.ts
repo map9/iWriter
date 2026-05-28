@@ -125,9 +125,10 @@ export function buildEditProposalTools() {
         'The user must approve before the file is created. ' +
         'Use when asked to write a new document or create a new file.',
       schema: z.object({
-        filename: z.string().describe('Desired filename. Extension is optional; .md will be used when omitted.'),
+        filename: z.string().describe('Desired filename (basename only, no directory). Extension is optional; .md will be used when omitted.'),
         content: z.string().describe('Full Markdown content for the new document.'),
         reason: z.string().optional().describe('Brief description of the document.'),
+        directory: z.string().optional().describe('Absolute host path to the directory where the file should be written on disk (e.g. /Users/xxx/myproject/draft/). When provided the file is saved to disk and opened; when omitted, an in-memory tab is created.'),
       }),
     }
   )

@@ -64,7 +64,10 @@
             {{ t('agentPanel.proposalNavigator.newFilePreview') }}
           </div>
           <div class="p-3">
-            <div class="mb-2 text-xs text-base-content/70">{{ t('agentPanel.proposalNavigator.fileName', { name: current.filename }) }}</div>
+            <div class="mb-1 text-xs text-base-content/70">{{ t('agentPanel.proposalNavigator.fileName', { name: current.filename }) }}</div>
+            <div v-if="current.directory" class="mb-2 truncate text-xs text-base-content/50" :title="current.directory + '/' + current.filename">
+              {{ t('agentPanel.proposalNavigator.fileTargetPath', { path: current.directory + '/' + current.filename }) }}
+            </div>
             <div class="rounded-md border p-2" :class="tonePanelClass">
               <MarkdownContentView :content="current.content" />
             </div>

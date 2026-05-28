@@ -2,7 +2,9 @@
 
 ## 0. 关于本文档与实施阶段的关系
 
-本文档描述的是 **目标态架构**——一个 MainAgent 协调 6 个专职 Sub-agent。
+本文档描述的是 **目标态架构**——一个 MainAgent 协调若干专职 Sub-agent，同时承载必须贴近对话入口的状态/顾问职责。
+
+> Phase 6 复审调整：StateAgent 与 AdvisorAgent 不再强制拆成独立 sub-agent；它们作为 MainAgent 的职责 lane 实现。WriterAgent 已拆出后，**MainAgent 不再持有正文 block edit 工具**；所有 draft 正文块级写入必须经 WriterAgent。`create_document` 暂时仍保留在 MainAgent 作为章节槽位工具，但它仍能携带正文内容，这是已知风险，后续需要收窄为只建空 stub/章节槽位。
 
 **当前实施阶段（Phase 1）不按本文档的 sub-agent 拆分形态落地**，而是采用单 LLM 实例 + 合并 system prompt 的方式，让一个 agent 同时承担 MainAgent / WriterAgent / StateAgent 三个角色的职责。理由参见 `05_独立双线与共享脚手架设计.md §9.3`「无独立 Orchestrator（当前阶段）」——deepagents 当前没有 sub-agent 编排能力，强行拆分会引入大量额外工程负担，而 system prompt + tool schema + interruptOn HITL 已经足以覆盖 Phase 1 需求。
 
@@ -15,6 +17,7 @@
 | 3 | 单 LLM 拓展工具 | + AdvisorAgent |
 | 4A | SubAgent 化 | PlannerAgent / ConsistencyAgent 独立上下文，专项加固逻辑质量 |
 | 5+ | SubAgent 编排扩展 | ExplorerAgent / 方向探索 / 语义搜索 / git 分支 |
+| 6（复审后） | Main + Writer/Planner/Consistency/Explorer 等 Sub-agent | WriterAgent 独立并独占正文 block edit；State/Advisor 保留在 MainAgent |
 
 下面对各 sub-agent 的角色描述，应理解为 **职责切片**——同一个 LLM 在不同的对话上下文中切换角色，而不是真的存在 6 个独立实例。
 
@@ -22,17 +25,17 @@
 
 ## 1. 总体架构（目标态）
 
-系统由一个主 Agent（面向作者）和若干专职 Sub-agent 组成。主 Agent 负责理解作者意图并协调工作；Sub-agent 各自专注一个领域，通过 skills 完成具体任务。
+系统由一个主 Agent（面向作者）和若干专职 Sub-agent 组成。主 Agent 负责理解作者意图、维护状态入口、提供顾问视角并协调工作；Sub-agent 各自专注一个领域，通过 skills 完成具体任务。
 
 ```
 作者
   ↕ 对话
-MainAgent（对话界面 + 路由 + plan 展示）
-  ├─→ StateAgent        会话启动时：读 diff、更新 StoryBible
+MainAgent（对话界面 + 路由 + 状态守护 + 顾问 + plan 展示）
+  ├─→ State lane        会话启动时：读 diff、更新 StoryBible（Main 内职责）
   ├─→ PlannerAgent      写作前：生成 plan，供作者确认
-  ├─→ WriterAgent       执行写作：生成正文
+  ├─→ WriterAgent       执行写作：生成/修改正文 block proposals
   ├─→ ConsistencyAgent  写作后：一致性检查
-  ├─→ AdvisorAgent      作者求助时：创意建议、方向探索
+  ├─→ Advisor lane      作者求助时：创意建议、方向探索（Main 内职责）
   └─→ ExplorerAgent     需要多方向对比时：生成探索草稿
 ```
 
@@ -47,11 +50,32 @@ MainAgent（对话界面 + 路由 + plan 展示）
 - 作者的唯一对话界面
 - 理解作者意图，判断路由到哪个 sub-agent
 - 负责 plan-first 流程：展示 plan → 等待确认 → 触发执行
-- 对小任务（短段落润色、单句调整）可直接处理，不必路由
+- 承担 State lane：会话启动时读取 diff / StoryBible / rebuild signal，必要时维护 StoryBible
+- 承担 Advisor lane：作者卡住、求方向，或 plan 前发现更强角度时给出 2-3 个方向
+- 管理章节槽位：重命名、重排、创建章节文件
+- 对小任务可直接在对话中给建议文本；**任何写入 draft 正文文件的动作都必须经 WriterAgent**
 
 ### 解决的问题
 
-作者不需要知道系统内部有多个 agent，只和 MainAgent 对话。MainAgent 决定"这件事该谁做"以及"做之前要不要先说打算"。
+作者不需要知道系统内部有多个 agent，只和 MainAgent 对话。MainAgent 决定「这件事该谁做」以及「做之前要不要先说打算」。MainAgent 不直接调用 `edit_block` / `insert_block` / `delete_block` / `replace_range` 修改正文；它只触发 WriterAgent 生成块级提案。
+
+### 工具边界
+
+MainAgent 保留：
+- 读工具：StoryBible、章节列表、DocumentTools、搜索、session diff
+- StoryBible 写工具：`patch_storybible` / `replace_storybible_section` / `rebuild_storybible` / `compress_storybible_history` / `resolve_open_question`
+- Plan-first HITL：`confirm_writing_plan`
+- 章节槽位：`rename_chapter` / `reorder_chapters` / `create_document`
+- Advisor / exploration metadata / git / writing-style 管理工具
+- `task` 触发 sub-agent
+
+MainAgent 不持有：
+- `edit_block`
+- `insert_block`
+- `delete_block`
+- `replace_range`
+
+`create_document` 风险：当前共享工具仍接受 `content`，因此 MainAgent 理论上仍可能用它创建带正文的新章。Phase 6 本轮先标记风险、不收窄实现；后续应改为 creative 专用的空章节 stub 工具或 schema 限制。
 
 ### 典型触发流程
 
@@ -60,22 +84,22 @@ MainAgent（对话界面 + 路由 + plan 展示）
   → MainAgent 理解意图
   → 分类：闲聊/问题/写作任务/创意求助/方向探索
   → 如是写作任务：
-      先触发 StateAgent（确保上下文最新）
+      先执行 State lane（确保上下文最新）
       再触发 PlannerAgent（生成 plan）
       展示 plan，等待确认
       确认后触发 WriterAgent
       完成后触发 ConsistencyAgent（后台）
-  → 如是创意求助：触发 AdvisorAgent
+  → 如是创意求助：执行 Advisor lane
   → 如是方向探索：触发 ExplorerAgent
 ```
 
 ---
 
-## 3. StateAgent（状态守护者）
+## 3. State lane（状态守护者，Main 内职责）
 
 ### 解决的问题
 
-每次会话开始，agent 需要知道"上次之后发生了什么"——作者在没有 agent 的情况下可能直接编辑了文稿，或者上次会话里写的内容还没有更新到 StoryBible。StateAgent 负责让项目状态保持最新。
+每次会话开始，agent 需要知道"上次之后发生了什么"——作者在没有 agent 的情况下可能直接编辑了文稿，或者上次会话里写的内容还没有更新到 StoryBible。State lane 负责让项目状态保持最新。它贴近 MainAgent 的路由入口，不强制拆成独立 sub-agent。
 
 ### 触发时机
 
@@ -163,12 +187,13 @@ MainAgent（对话界面 + 路由 + plan 展示）
 
 在 plan 确认后，真正写出好的正文。"好"的标准：角色有自己的声音、场景有质感、情节有逻辑、风格与整体一致。
 
-WriterAgent 是系统中对 craft 要求最高的 agent，skills 最多，质量直接决定作者体验。
+WriterAgent 是系统中对 craft 要求最高的 agent，skills 最多，质量直接决定作者体验。Phase 6 后，WriterAgent 也是**唯一正文 block edit 执行者**。
 
 ### 触发时机
 
 - PlannerAgent 的 plan 被作者确认后
 - 作者明确说"帮我写/续写/改写某段"且 plan 流程已完成
+- 小范围直接修订：MainAgent 判断不需要 plan approval 时，也必须通过 WriterAgent 的 quick/direct edit brief 执行
 
 ### 工作流程
 
@@ -182,7 +207,7 @@ WriterAgent 是系统中对 craft 要求最高的 agent，skills 最多，质量
 3. 按需搜索 draft/ 获取相邻场景的上下文（衔接感）
 4. 调用相关 writing skills 执行写作
 5. 自我检查：写完后先过一遍，明显问题自行修正
-6. 输出正文给 MainAgent
+6. 用 `edit_block` / `insert_block` / `delete_block` / `replace_range` 生成块级提案，交给 ProposalNavigator 审批
 ```
 
 ### 使用的 Skills
@@ -199,6 +224,19 @@ WriterAgent 是系统中对 craft 要求最高的 agent，skills 最多，质量
 | `pacing_control` | 通过句长、段落节奏、留白控制阅读体验 |
 | `foreshadowing_placement` | 自然植入伏笔，回收已有伏笔 |
 | `subtext_craft` | 角色说的不是全部，行为和停顿也在说话 |
+
+### 工具边界
+
+WriterAgent 保留：
+- `get_document_outline` / `get_section(s)` / `get_blocks` / `get_block_context` / 文档搜索
+- `read_storybible`
+- writing-style 只读工具
+- `edit_block` / `insert_block` / `delete_block` / `replace_range`
+
+WriterAgent 不持有：
+- `create_document`（章节槽位由 MainAgent 管理）
+- StoryBible 写工具
+- git / exploration metadata / advisor 工具
 
 ---
 
@@ -247,13 +285,13 @@ ConsistencyAgent 在 WriterAgent 完成后后台运行，不打断写作流程�
 
 ---
 
-## 7. AdvisorAgent（创作顾问）
+## 7. Advisor lane（创作顾问，Main 内职责）
 
 ### 解决的问题
 
 作者卡住了、想不清楚、需要创意输入的时候——不是让 agent 替作者决定，而是帮作者**看清楚自己的选择**。
 
-AdvisorAgent 有创作直觉：能从一个点延伸出多个方向，能发现作者没注意到的主题机会，能提出"如果这样会怎样"的问题。
+Advisor lane 有创作直觉：能从一个点延伸出多个方向，能发现作者没注意到的主题机会，能提出"如果这样会怎样"的问题。它保留在 MainAgent 内，因为其输出通常需要立即进入主对话并影响 plan 流程。
 
 ### 触发时机
 
@@ -276,7 +314,7 @@ AdvisorAgent 有创作直觉：能从一个点延伸出多个方向，能发现�
 
 ### 与 PlannerAgent 的区别
 
-| | PlannerAgent | AdvisorAgent |
+| | PlannerAgent | Advisor lane |
 |---|---|---|
 | 时机 | 已确定要写什么，规划怎么写 | 还没确定要写什么，探索可能性 |
 | 输出 | 一个具体的执行 plan | 多个方向/想法/问题 |
@@ -340,7 +378,7 @@ ExplorerAgent 不是多写几个版本那么简单，它需要让每个探索方
 ### 触发时机
 
 - 作者明确说"我想看看两种走向"
-- 作者在多个选项之间摇摆，AdvisorAgent 建议探索时
+- 作者在多个选项之间摇摆，Advisor lane 建议探索时
 - 高风险结构调整（改结局、调整人物弧光方向）前的预探索
 
 ### 工作流程
@@ -350,14 +388,15 @@ ExplorerAgent 不是多写几个版本那么简单，它需要让每个探索方
    - 分叉点（从哪里开始分叉）
    - 探索方向（2-3 个，不宜更多）
    - 深度（探索多少内容，通常是 1-2 个场景的量）
-2. 为每个方向触发一次 PlannerAgent + WriterAgent
+2. 为每个方向触发探索写作流程（可内部参考 Planner/Writer 的技法，但写入临时探索空间）
 3. 每个方向的写作在临时空间进行，不写入正式文稿
 4. 生成对比报告：
    - 每个方向的核心特征
    - 对后续故事的影响（作者需要承担什么代价）
    - agent 的观察（不是"哪个更好"，而是"两者的区别在哪里"）
 5. 作者选定方向后：
-   - 将选定内容通过 proposal 流程写入正式文稿
+   - MainAgent 读取选定探索稿，把它作为 source context 交给 WriterAgent
+   - WriterAgent 将选定方向转换为正式文稿的块级提案
    - 其余探索内容归档，不删除（供将来参考）
 ```
 
@@ -418,7 +457,7 @@ ExplorerAgent 本身是编排层，不直接写作。它调用：
 | `arc_progression_check` | 角色成长过快/过慢/方向偏移 | 追踪弧光推进节奏，发现偏离 |
 | `style_consistency_check` | 风格/基调在章节间漂移 | 对比 StoryBible 中的风格约束 |
 
-### 9.4 创意顾问 Skills（AdvisorAgent 使用）
+### 9.4 创意顾问 Skills（Advisor lane 使用）
 
 | Skill | 解决的问题 | 核心能力 |
 |---|---|---|
@@ -428,7 +467,7 @@ ExplorerAgent 本身是编排层，不直接写作。它调用：
 | `character_potential` | 人物感觉平面、没有惊喜 | 发现角色设定中未被探索的维度和关系张力 |
 | `conflict_design` | 冲突流于表面，没有触及人物核心 | 设计能暴露角色真实性的冲突形式 |
 
-### 9.5 状态管理 Skills（StateAgent 使用）
+### 9.5 状态管理 Skills（State lane 使用）
 
 | Skill | 解决的问题 | 核心能力 |
 |---|---|---|
@@ -445,7 +484,7 @@ ExplorerAgent 本身是编排层，不直接写作。它调用：
 ```
 MainAgent：收到意图，判断为写作任务，路由前先更新状态
   ↓
-StateAgent：
+State lane：
   - 读 diff（上次会话后作者修改了第二章末尾）
   - 更新 StoryBible（B 的某个细节有新信息）
   ↓
@@ -474,9 +513,9 @@ WriterAgent：
   - 调用 character_voice（A 和 B 各自的说话方式）
   - 调用 dialogue_craft（对话要有潜台词）
   - 调用 pacing_control（短句，张力）
-  - 写出场景
+  - 生成正文 block proposals，等待作者在 ProposalNavigator 审批
   ↓
-MainAgent：将正文展示给作者
+MainAgent：审批通过后继续协调后续检查
   ↓
 ConsistencyAgent（后台）：
   - 调用 pov_consistency_check：有无视角越界 → 通过
@@ -487,7 +526,7 @@ ConsistencyAgent（后台）：
       "A 有一处内心描写稍微直白，可以考虑更含蓄。另外 B 此处的信息优势
        如果后面有呼应会更好，要不要记下来？"
   ↓
-StateAgent（后台）：
+State lane（后台）：
   - 提取新事实：A 和 B 的关系状态更新、B 的信息优势已确立
   - Patch StoryBible
 ```
@@ -512,7 +551,7 @@ StateAgent（后台）：
 - WriterAgent 补充 skills（`dialogue_craft` / `pacing_control`）
 
 **Phase 3：创意顾问**
-- AdvisorAgent 完整版
+- Advisor lane 完整版
 - `plot_extrapolation` / `theme_recognition` / `structural_diagnosis`
 
 **Phase 4A：逻辑质量加固 / SubAgent 化**
@@ -522,6 +561,13 @@ StateAgent（后台）：
 
 **Phase 5：方向探索**
 - ExplorerAgent
-- StateAgent 全量重建机制完善
+- State lane 全量重建机制完善
+
+**Phase 6：Writer 独立与工具边界收敛**
+- WriterAgent 拆为独立 sub-agent，并独占正文 block edit 工具
+- MainAgent 移除 `edit_block` / `insert_block` / `delete_block` / `replace_range`
+- `promote_exploration` 不再直接写入 `draft/`；选定探索方向后交给 WriterAgent 生成块级提案
+- State lane / Advisor lane 保留在 MainAgent 内，避免无收益的额外往返
+- `create_document` 暂留 MainAgent 作为章节槽位工具，但标记为待收窄风险
 
 **持续**：每个 phase 内，skills 可以随时增补——增加一个 skill，对应维度的质量就提升一个层次，不影响整体架构。

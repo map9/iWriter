@@ -707,7 +707,23 @@ export class AgentEngine {
       return
     }
 
+    const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
+    const strategy = this.strategies[domain]
     const prepared = this._prepareActionRequestsForReview(threadId, actionRequests)
+
+    // Domain-specific mixed-kind guard: auto-reject non-dominant kinds before review
+    const mixedDecisions = strategy.preDecideMixed?.(prepared.reviewActionRequests, prepared.reviewActionOriginalIndices)
+    if (mixedDecisions) {
+      for (const [origIdxStr, decision] of Object.entries(mixedDecisions)) {
+        const origIdx = Number(origIdxStr)
+        prepared.autoDecisionsByIndex[origIdx] = decision
+        const pos = prepared.reviewActionOriginalIndices.indexOf(origIdx)
+        if (pos >= 0) {
+          prepared.reviewActionRequests.splice(pos, 1)
+          prepared.reviewActionOriginalIndices.splice(pos, 1)
+        }
+      }
+    }
 
     this.runtimeStore.setInterrupted(threadId, {
       actionRequestCount: actionRequests.length,
@@ -724,8 +740,7 @@ export class AgentEngine {
       return
     }
 
-    const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
-    const reviews = await this.strategies[domain].buildReviewItems({
+    const reviews = await strategy.buildReviewItems({
       threadId,
       turnId,
       actionRequests: prepared.reviewActionRequests,
@@ -781,7 +796,23 @@ export class AgentEngine {
 
     const turnId = `rehydrated-${crypto.randomUUID()}`
     this.runtimeStore.setCurrentTurnId(threadId, turnId)
+    const rehydrateStrategy = this.strategies[domain]
     const prepared = this._prepareActionRequestsForReview(threadId, actionRequests)
+
+    // Domain-specific mixed-kind guard
+    const mixedDecisions = rehydrateStrategy.preDecideMixed?.(prepared.reviewActionRequests, prepared.reviewActionOriginalIndices)
+    if (mixedDecisions) {
+      for (const [origIdxStr, decision] of Object.entries(mixedDecisions)) {
+        const origIdx = Number(origIdxStr)
+        prepared.autoDecisionsByIndex[origIdx] = decision
+        const pos = prepared.reviewActionOriginalIndices.indexOf(origIdx)
+        if (pos >= 0) {
+          prepared.reviewActionRequests.splice(pos, 1)
+          prepared.reviewActionOriginalIndices.splice(pos, 1)
+        }
+      }
+    }
+
     this.runtimeStore.setInterrupted(threadId, {
       actionRequestCount: actionRequests.length,
       actionNames: actionRequests.map((a) => a.name),
@@ -797,7 +828,7 @@ export class AgentEngine {
 
     let reviews: import('./domain/DomainStrategy').DomainReviewItem[] = []
     try {
-      reviews = await this.strategies[domain].buildReviewItems({
+      reviews = await rehydrateStrategy.buildReviewItems({
         threadId,
         turnId,
         actionRequests: prepared.reviewActionRequests,
@@ -1058,7 +1089,8 @@ export class AgentEngine {
       const sourceDir = path.join(this.bundledSkillsPath, entry.name)
       const targetDir = path.join(targetRoot, entry.name)
       fs.mkdirSync(targetDir, { recursive: true })
-      fs.cpSync(sourceDir, targetDir, { recursive: true })
+      // dereference: true resolves symlinks inside scoped source dirs (_consistency, _planner, etc.)
+      fs.cpSync(sourceDir, targetDir, { recursive: true, dereference: true })
     }
   }
 

@@ -2,6 +2,7 @@ import type { ThreadMessage } from '../../../src/types/ai'
 import type { DomainAgentCapabilities } from './types'
 import type { AiAgentMode, EditProposal, CreativeReviewItem, FilesystemReviewItem } from '../../../src/types/ai'
 import type { DetectedInputLanguage } from '../../../src/ai/message/detectInputLanguage'
+import type { ResumeDecision } from '../ipc/protocol'
 
 /** Unified review payload — renderer dispatches to edit or creative UI by kind. */
 export type DomainReviewItem =
@@ -49,4 +50,17 @@ export interface DomainStrategy {
 
   /** Tool names configured in interruptOn for this domain. Used to detect pending interrupts on thread reopen. */
   getInterruptOnNames(): Set<string>
+
+  /**
+   * Optional domain-level guard against mixed-kind interrupt batches.
+   * Called after filesystem pre-decisions, before buildReviewItems.
+   * Returns auto-reject decisions keyed by original actionRequests index for any
+   * actions that should not be reviewed (e.g. non-dominant kind in a mixed batch).
+   * Returned indices are removed from the review queue; the model receives the
+   * rejection message so it can resubmit in a separate turn.
+   */
+  preDecideMixed?(
+    reviewActionRequests: Array<{ name: string; args: Record<string, unknown> }>,
+    reviewActionOriginalIndices: number[],
+  ): Record<number, ResumeDecision> | undefined
 }

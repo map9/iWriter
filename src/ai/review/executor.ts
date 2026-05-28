@@ -215,12 +215,13 @@ function sortedDecisionIndexes(batch: ReviewBatchState): number[] {
 
 async function applyRecordedDecision(params: {
   appStore: ReviewExecutorAppStoreLike
+  saveFile?: (content: string, absolutePath: string) => Promise<unknown>
   batch: ReviewBatchState
   index: number
   updateLocalProposalToolCall: (proposalOrId: EditProposal | string, status: 'completed' | 'failed') => void
   setProposalDecision: (proposalId: string, kind: 'edited' | 'skipped' | 'failed_to_apply', options?: { editedArgs?: Record<string, unknown>; message?: string }) => void
 }) {
-  const { appStore, batch, index, updateLocalProposalToolCall, setProposalDecision } = params
+  const { appStore, saveFile, batch, index, updateLocalProposalToolCall, setProposalDecision } = params
   const proposalId = batch.order[index]
   if (!proposalId) return
   const decision = batch.decisionsById[proposalId]
@@ -229,6 +230,35 @@ async function applyRecordedDecision(params: {
 
   if (proposal.kind === 'create_file') {
     const createProposal = proposal as FileCreateProposal
+
+    // When a target directory is provided, write to disk first then open the saved file
+    if (createProposal.directory && saveFile) {
+      const dir = createProposal.directory
+      const filename = createProposal.filename
+      if (
+        !pathUtils.isAbsolutePath(dir) ||
+        dir.includes('..') ||
+        pathUtils.basename(filename) !== filename
+      ) {
+        updateLocalProposalToolCall(proposal, 'failed')
+        setProposalDecision(proposalId, 'failed_to_apply', {
+          message: `Document creation rejected: directory must be an absolute path with no ".." traversal and filename must be a basename. Got directory="${dir}", filename="${filename}".`,
+        })
+        return
+      }
+      const absolutePath = pathUtils.join(dir, filename)
+      try {
+        await saveFile(createProposal.content, absolutePath)
+      } catch (err) {
+        updateLocalProposalToolCall(proposal, 'failed')
+        setProposalDecision(proposalId, 'failed_to_apply', { message: `Document creation failed: could not write to disk. ${String(err)}` })
+        return
+      }
+      appStore.createTab(createProposal.filename, absolutePath, DocumentType.MARKDOWN_EDITOR)
+      updateLocalProposalToolCall(proposal, 'completed')
+      return
+    }
+
     appStore.createTab(createProposal.filename, undefined, DocumentType.MARKDOWN_EDITOR)
 
     const getEditor = (): Editor | undefined => appStore.activeTab?.editorInstance as Editor | undefined
@@ -285,6 +315,7 @@ async function applyRecordedDecision(params: {
 
 export async function flushReviewedBatch(params: {
   appStore: ReviewExecutorAppStoreLike
+  saveFile?: (content: string, absolutePath: string) => Promise<unknown>
   batch: ReviewBatchState
   updateLocalProposalToolCall: (proposalOrId: EditProposal | string, status: 'completed' | 'failed') => void
   setProposalDecision: (proposalId: string, kind: 'edited' | 'skipped' | 'failed_to_apply', options?: { editedArgs?: Record<string, unknown>; message?: string }) => void

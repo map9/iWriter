@@ -1,10 +1,13 @@
-import { CREATIVE_REVIEW_TOOLS } from '../../../../src/types/ai'
+import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS } from '../../../../src/types/ai'
+import type { ResumeDecision } from '../../ipc/protocol'
 import { buildCreativeSystemPrompt } from '../../../../src/ai/thread/system-prompts/creative'
 import { buildCreativeCapabilities, CREATIVE_INTERRUPT_ON_NAMES } from './buildCreativeCapabilities'
 import { buildCreativeReviewItemFromAction } from '../../ipc/CreativeReviewAdapter'
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
+import { buildProposalFromAction } from '../../ipc/MessageAdapter'
 import { computeWorkspaceHashes, getCreativeDb } from '../../db/CreativeDb'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
+import type { SerializedSnapshot } from '../../ipc/protocol'
 import type { ThreadRuntimeStore } from '../../runtime/ThreadRuntimeStore'
 import type { AiAgentMode } from '../../../../src/types/ai'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
@@ -48,36 +51,104 @@ export class CreativeDomainStrategy implements DomainStrategy {
     return CREATIVE_INTERRUPT_ON_NAMES
   }
 
-  async buildReviewItems(ctx: InterruptContext): Promise<DomainReviewItem[]> {
-    const workspacePath = this.runtimeStore.getContext(ctx.threadId)?.workspacePath ?? null
-    const pendingCreativeToolCalls = (ctx.partialMessage?.toolCalls ?? []).filter(tc =>
-      CREATIVE_REVIEW_TOOLS.has(tc.name)
-    )
+  preDecideMixed(
+    reviewActionRequests: Array<{ name: string; args: Record<string, unknown> }>,
+    reviewActionOriginalIndices: number[],
+  ): Record<number, ResumeDecision> | undefined {
+    const hasCreative = reviewActionRequests.some(ar => CREATIVE_REVIEW_TOOLS.has(ar.name))
+    const hasEdit = reviewActionRequests.some(ar => BLOCK_EDIT_TOOLS.has(ar.name))
+    if (!hasCreative || !hasEdit) return undefined
 
-    return ctx.actionRequests.map((ar, index): DomainReviewItem => {
+    // Dominant kind: edit over creative. Auto-reject creative review tools.
+    const result: Record<number, ResumeDecision> = {}
+    reviewActionRequests.forEach((ar, i) => {
+      const origIdx = reviewActionOriginalIndices[i]
+      if (CREATIVE_REVIEW_TOOLS.has(ar.name) && origIdx !== undefined) {
+        result[origIdx] = {
+          type: 'rejected',
+          message: `Mixed-kind action batch detected. '${ar.name}' was skipped because block-edit tools were present in the same turn. Please call plan/review tools and block-edit tools in separate turns.`,
+        }
+      }
+    })
+    return result
+  }
+
+  async buildReviewItems(ctx: InterruptContext): Promise<DomainReviewItem[]> {
+    const runtimeCtx = this.runtimeStore.getContext(ctx.threadId)
+    const workspacePath = runtimeCtx?.workspacePath ?? null
+    const activeFilePath = runtimeCtx?.activeFilePath ?? null
+
+    // Per-file snapshot cache: each file_path gets one snapshot across all block edit actions
+    const snapshotCache = new Map<string | null, SerializedSnapshot | null>()
+    const getSnapshot = async (filePath: string | null): Promise<SerializedSnapshot | null> => {
+      const key = filePath ?? null
+      if (snapshotCache.has(key)) return snapshotCache.get(key) ?? null
+      let snapshot: SerializedSnapshot | null = null
+      try {
+        const snapshotTarget = (filePath && filePath !== activeFilePath) ? filePath : null
+        snapshot = await this.snapshotBroker.requestSnapshot(snapshotTarget)
+      } catch (err) {
+        console.warn('[CreativeDomainStrategy] snapshot failed for', filePath, err)
+      }
+      snapshotCache.set(key, snapshot)
+      return snapshot
+    }
+
+    // Per-name sequence counter: correctly binds the Nth occurrence of a tool name
+    // to the Nth tool call with that name, preventing duplicate toolCallId binding.
+    const consumedByName = new Map<string, number>()
+    const takeToolCallId = (name: string): string | undefined => {
+      const i = consumedByName.get(name) ?? 0
+      consumedByName.set(name, i + 1)
+      return ctx.partialMessage?.toolCalls?.filter(tc => tc.name === name)[i]?.id
+    }
+
+    const results: DomainReviewItem[] = []
+
+    for (const ar of ctx.actionRequests) {
       if (isFilesystemWriteTool(ar.name)) {
-        return {
+        results.push({
           kind: 'filesystem',
           payload: buildFilesystemReviewItemFromAction(
             ar,
-            ctx.partialMessage?.toolCalls?.find(tc => tc.name === ar.name)?.id,
+            takeToolCallId(ar.name),
             ctx.partialMessage?.id,
             ctx.turnId,
           ),
-        }
+        })
+        continue
       }
 
-      return {
+      if (BLOCK_EDIT_TOOLS.has(ar.name)) {
+        const filePath = typeof ar.args?.file_path === 'string' ? ar.args.file_path : null
+        const snapshot = await getSnapshot(filePath)
+        results.push({
+          kind: 'edit',
+          payload: buildProposalFromAction(
+            ar.name,
+            ar.args ?? {},
+            snapshot,
+            takeToolCallId(ar.name),
+            ctx.partialMessage?.id,
+            ctx.turnId,
+          ),
+        })
+        continue
+      }
+
+      results.push({
         kind: 'creative',
         payload: buildCreativeReviewItemFromAction(
           ar,
-          pendingCreativeToolCalls[index]?.id,
+          takeToolCallId(ar.name),
           ctx.partialMessage?.id,
           ctx.turnId,
           workspacePath,
         ),
-      }
-    })
+      })
+    }
+
+    return results
   }
 
   onSessionComplete(ctx: SessionCompleteContext): void {

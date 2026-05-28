@@ -36,6 +36,7 @@ import type {
 
 interface EditReviewModuleDeps {
   appStore: ReviewExecutorAppStoreLike
+  saveFile?: (content: string, absolutePath: string) => Promise<unknown>
   activeThread: ComputedRef<AiThread | null>
   pendingEditProposals: ComputedRef<EditProposal[]>
   interruptedThreadId: Ref<string | null>
@@ -193,6 +194,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
 
     await flushReviewedBatch({
       appStore: deps.appStore,
+      saveFile: deps.saveFile,
       batch,
       updateLocalProposalToolCall: (proposalOrId, status) =>
         threadSync.updateLocalProposalToolCall(proposalOrId, status),

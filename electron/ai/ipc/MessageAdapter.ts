@@ -489,16 +489,18 @@ export function buildProposalFromAction(
     const filename = rawFilename && !/\.[^./\\]+$/.test(rawFilename)
       ? `${rawFilename}.md`
       : rawFilename
+    const directory = typeof args.directory === 'string' && args.directory ? args.directory : undefined
     return {
       id,
       kind: 'create_file',
-    status: 'pending',
-    sourceMessageId,
-    sourceTurnId,
-    filename,
+      status: 'pending',
+      sourceMessageId,
+      sourceTurnId,
+      filename,
       content: String(args.content ?? ''),
       toolCallId,
       description: description ?? `Create document: ${filename || args.filename}`,
+      directory,
     } satisfies FileCreateProposal
   }
 

@@ -1,12 +1,11 @@
 <template>
   <FilesystemReviewSurface v-if="aiStore.pendingFilesystemReviews.length" />
-  <EditReviewSurface v-else-if="activeDomain === 'editing'" />
+  <EditReviewSurface v-else-if="aiStore.pendingEditProposals.length" />
   <CreativeReviewSurface v-else-if="showFallbackCreativeReview" />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { AiAgentDomain } from '@/ai/types'
 import { useAiStore } from '@/ai/store/ai'
 import { buildCreativeSessionViewModel } from '@/ai/review/creativeSelectors'
 import EditReviewSurface from './edit/EditReviewSurface.vue'
@@ -14,8 +13,6 @@ import CreativeReviewSurface from './creative/CreativeReviewSurface.vue'
 import FilesystemReviewSurface from './FilesystemReviewSurface.vue'
 
 const aiStore = useAiStore()
-
-const activeDomain = computed<AiAgentDomain>(() => aiStore.activeThread?.domain ?? 'editing')
 
 const showFallbackCreativeReview = computed(() => {
   if (!aiStore.pendingCreativeReviews.length) return false
