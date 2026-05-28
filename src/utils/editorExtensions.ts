@@ -6,7 +6,7 @@
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
 import type { EditSetting } from '@/types'
 import { getHierarchicalIndexes, TableOfContents } from '@tiptap/extension-table-of-contents'
-import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus } from '@tiptap/extensions'
+import { UndoRedo, Dropcursor, Gapcursor, TrailingNode, Focus, Selection } from '@tiptap/extensions'
 
 import Document from '@tiptap/extension-document'
 import Heading from '@tiptap/extension-heading'
@@ -242,6 +242,9 @@ export function createMarkdownEditorExtensions(options: {
     UndoRedo, Dropcursor, Gapcursor, TrailingNode,
     Focus.configure({
       mode: 'deepest',
+    }),
+    Selection.configure({
+      className: 'iw-editor-blur-selection',
     }),
 
     // 基础节点
