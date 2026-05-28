@@ -56,11 +56,13 @@ Final response format:
 export function buildResearcherSubAgent(
   researcherTools: StructuredTool[],
   language: DetectedInputLanguage = 'en-US',
+  options?: { skillSources?: string[] },
 ): SubAgent {
   return {
     name: 'Researcher',
     description: 'General-purpose research agent for author/work analysis, creative source gathering, social/news/background material, places, professions, and other source-grounded research. It reports findings and sources; it does not create skills.',
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${RESEARCHER_SYSTEM_PROMPT}`,
     tools: researcherTools,
+    ...(options?.skillSources?.length ? { skills: options.skillSources } : {}),
   }
 }

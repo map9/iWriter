@@ -1,4 +1,5 @@
 import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS } from '../../../../src/types/ai'
+import * as path from 'path'
 import type { ResumeDecision } from '../../ipc/protocol'
 import { buildCreativeSystemPrompt } from '../../../../src/ai/thread/system-prompts/creative'
 import { buildCreativeCapabilities, CREATIVE_INTERRUPT_ON_NAMES } from './buildCreativeCapabilities'
@@ -41,6 +42,13 @@ export class CreativeDomainStrategy implements DomainStrategy {
 
   getSystemPrompt(_mode: AiAgentMode, language: DetectedInputLanguage): string {
     return buildCreativeSystemPrompt(language)
+  }
+
+  getSkillSources(aiRootPath: string): string[] {
+    return [
+      path.join(aiRootPath, 'skills', 'main'),
+      path.join(aiRootPath, 'skills', 'common'),
+    ]
   }
 
   getMemoryFileName(): string {

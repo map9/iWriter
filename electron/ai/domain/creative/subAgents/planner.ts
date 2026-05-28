@@ -104,7 +104,7 @@ Your entire response MUST end with a single JSON code block and nothing after it
 export function buildPlannerSubAgent(
   plannerTools: StructuredTool[],
   language: DetectedInputLanguage = 'en-US',
-  options?: { skillsRoot?: string },
+  options?: { skillSources?: string[] },
 ): SubAgent {
   return {
     name: 'planner',
@@ -114,6 +114,6 @@ export function buildPlannerSubAgent(
     // responseFormat intentionally omitted: deepseek-reasoner (and some models) reject
     // tool_choice:"any" that langchain injects when responseFormat is set (langchain issue #31403).
     // The system prompt instructs the model to end with a JSON code block instead.
-    ...(options?.skillsRoot ? { skills: [`${options.skillsRoot}/_planner`] } : {}),
+    ...(options?.skillSources?.length ? { skills: options.skillSources } : {}),
   }
 }

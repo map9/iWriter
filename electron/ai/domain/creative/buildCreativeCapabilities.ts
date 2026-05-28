@@ -32,6 +32,7 @@ export function buildCreativeCapabilities(input: {
   onSkillsMutated?: () => void,
 }): DomainAgentCapabilities {
   const skillsRoot = path.join(input.aiRootPath, 'skills')
+  const skillSources = (...names: string[]) => names.map(name => path.join(skillsRoot, name))
   const noop = () => {}
   const writingStyleTools = buildWritingStyleTools({
     skillsRoot,
@@ -56,11 +57,22 @@ export function buildCreativeCapabilities(input: {
   const mainCreativeTools = creativeTools.filter(t => !deprecatedCreativeToolNames.has(t.name))
   // MainAgent coordinates structure and approvals. Manuscript block edits are owned by WriterAgent.
   const mainEditProposalTools = editProposalTools.filter(t => t.name === 'create_document')
-  const mainExplorationTools = explorationTools.filter(t => t.name !== 'promote_exploration')
+  const mainExplorationTools = explorationTools.filter(t =>
+    t.name !== 'promote_exploration' &&
+    t.name !== 'write_exploration_draft'
+  )
+  const mainDocumentToolNames = new Set([
+    'get_document_outline',
+    'get_section',
+    'get_blocks',
+    'search_blocks_in_document',
+    'search_sections_in_document',
+  ])
+  const mainDocumentTools = docTools.filter(t => mainDocumentToolNames.has(t.name))
 
   const mainTools = [
     ...mainCreativeTools,
-    ...docTools,
+    ...mainDocumentTools,
     ...mainEditProposalTools,
     ...buildCreativeAnalysisTools({ workspacePath: input.workspacePath, creativeDb: input.creativeDb, snapshotBroker: input.snapshotBroker }),
     ...buildCreativeAdvisorTools({ workspacePath: input.workspacePath }),
@@ -117,16 +129,14 @@ export function buildCreativeCapabilities(input: {
     ...styleReadTools,
   ]
 
-  const subAgentOptions = { skillsRoot }
-
   return {
     tools: mainTools,
     subAgents: [
-      buildPlannerSubAgent(plannerTools, input.language ?? 'en-US', subAgentOptions),
-      buildConsistencySubAgent([...subAgentReadTools, ...styleReadTools], input.language ?? 'en-US', subAgentOptions),
-      buildExplorerSubAgent(explorerTools, input.language ?? 'en-US', subAgentOptions),
-      buildWriterSubAgent(writerTools, input.language ?? 'en-US', subAgentOptions),
-      buildResearcherSubAgent([...researcherTools], input.language ?? 'en-US'),
+      buildPlannerSubAgent(plannerTools, input.language ?? 'en-US', { skillSources: skillSources('common', 'planner') }),
+      buildConsistencySubAgent([...subAgentReadTools, ...styleReadTools], input.language ?? 'en-US', { skillSources: skillSources('common', 'consistency') }),
+      buildExplorerSubAgent(explorerTools, input.language ?? 'en-US', { skillSources: skillSources('common', 'explorer') }),
+      buildWriterSubAgent(writerTools, input.language ?? 'en-US', { skillSources: skillSources('common', 'writer') }),
+      buildResearcherSubAgent([...researcherTools], input.language ?? 'en-US', { skillSources: skillSources('researcher') }),
       buildWritingStyleExtractorSubAgent([], input.language ?? 'en-US'),
       buildWritingStyleSkillCreatorSubAgent(writingStyleSkillCreatorTools, input.language ?? 'en-US'),
     ],

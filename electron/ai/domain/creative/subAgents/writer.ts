@@ -75,7 +75,7 @@ Your response MUST end with this JSON code block and nothing after it.
 export function buildWriterSubAgent(
   writerTools: StructuredTool[],
   language: DetectedInputLanguage = 'en-US',
-  options?: { skillsRoot?: string },
+  options?: { skillSources?: string[] },
 ): SubAgent {
   return {
     name: 'writer',
@@ -84,6 +84,6 @@ export function buildWriterSubAgent(
     tools: writerTools,
     // responseFormat intentionally omitted: deepseek-reasoner rejects tool_choice:"any"
     // injected by langchain when responseFormat is set (langchain issue #31403).
-    ...(options?.skillsRoot ? { skills: [`${options.skillsRoot}/_writer`] } : {}),
+    ...(options?.skillSources?.length ? { skills: options.skillSources } : {}),
   }
 }

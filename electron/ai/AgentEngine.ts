@@ -864,8 +864,8 @@ export class AgentEngine {
     language: DetectedInputLanguage = 'en-US',
   ): DeepAgentInstance {
     const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
-    const includeSkills = domain === 'creative'
-    const filesystemFingerprint = `${workspacePath ?? ''}:${includeSkills ? 'skills' : 'no-skills'}`
+    const skillSources = this.strategies[domain].getSkillSources?.(this.aiRootPath) ?? []
+    const filesystemFingerprint = `${workspacePath ?? ''}:${skillSources.join('|') || 'no-skills'}`
     // Include apiKey and baseUrl in the key so that credential updates immediately
     // produce a new agent instance rather than reusing a stale one.
     const keyFingerprint = config.apiKey ? config.apiKey.slice(-8) : ''
@@ -876,7 +876,7 @@ export class AgentEngine {
     const scaffold = buildAgentFilesystem({
       workspacePath,
       aiRootPath: this.aiRootPath,
-      includeSkills,
+      skillSources,
     })
     const model = createChatModel(config, { modelId, thinkingLevel })
     const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath, language })
@@ -1071,6 +1071,14 @@ export class AgentEngine {
       this.aiRootPath,
       path.join(this.aiRootPath, 'memory'),
       path.join(this.aiRootPath, 'skills'),
+      path.join(this.aiRootPath, 'skills', 'common'),
+      path.join(this.aiRootPath, 'skills', 'main'),
+      path.join(this.aiRootPath, 'skills', 'planner'),
+      path.join(this.aiRootPath, 'skills', 'writer'),
+      path.join(this.aiRootPath, 'skills', 'consistency'),
+      path.join(this.aiRootPath, 'skills', 'explorer'),
+      path.join(this.aiRootPath, 'skills', 'researcher'),
+      path.join(this.aiRootPath, 'skills', 'writing-style'),
       path.join(this.aiRootPath, 'subagents'),
       path.join(this.aiRootPath, 'empty-fs'),
     ]
@@ -1083,13 +1091,55 @@ export class AgentEngine {
   private syncBundledSkills(): void {
     if (!fs.existsSync(this.bundledSkillsPath)) return
     const targetRoot = path.join(this.aiRootPath, 'skills')
+    const obsoleteTopLevelSkills = [
+      '_consistency',
+      '_explorer',
+      '_planner',
+      '_writer',
+      'arc-progression-check',
+      'behavior-from-psychology',
+      'brainstorm-quality',
+      'branch-comparison',
+      'causal-chain-construction',
+      'character-arc-planning',
+      'character-behavior-check',
+      'character-complexity',
+      'character-decision-logic',
+      'character-potential',
+      'character-voice',
+      'common-sense-audit',
+      'conflict-design',
+      'deep-pov',
+      'dialogue-craft',
+      'foreshadowing-audit',
+      'foreshadowing-placement',
+      'information-density',
+      'pacing-control',
+      'plot-extrapolation',
+      'pov-consistency-check',
+      'scene-structure',
+      'sensory-grounding',
+      'show-vs-tell',
+      'skill-creator',
+      'story-logic',
+      'structural-diagnosis',
+      'style-consistency-check',
+      'subtext-craft',
+      'thematic-depth',
+      'web-research',
+    ]
+    for (const name of obsoleteTopLevelSkills) {
+      fs.rmSync(path.join(targetRoot, name), { recursive: true, force: true })
+    }
+    fs.rmSync(path.join(targetRoot, 'writing-style', 'SKILL.md'), { force: true })
+
     const entries = fs.readdirSync(this.bundledSkillsPath, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
       const sourceDir = path.join(this.bundledSkillsPath, entry.name)
       const targetDir = path.join(targetRoot, entry.name)
       fs.mkdirSync(targetDir, { recursive: true })
-      // dereference: true resolves symlinks inside scoped source dirs (_consistency, _planner, etc.)
+      // dereference: true resolves any packaged symlinks inside scoped source dirs.
       fs.cpSync(sourceDir, targetDir, { recursive: true, dereference: true })
     }
   }

@@ -11,7 +11,7 @@ import type { AgentMiddleware, InterruptOnConfig } from 'langchain'
 export interface BuildAgentFilesystemInput {
   workspacePath: string | null
   aiRootPath: string
-  includeSkills: boolean
+  skillSources?: string[]
 }
 
 export interface AgentFilesystemScaffold {
@@ -49,14 +49,12 @@ export function buildAgentFilesystem(input: BuildAgentFilesystemInput): AgentFil
     },
   )
 
-  const middlewares = input.includeSkills
+  const skillSources = input.skillSources ?? []
+  const middlewares = skillSources.length
     ? [
         createSkillsMiddleware({
           backend: new FilesystemBackend(),
-          sources: [
-            path.join(input.aiRootPath, 'skills'),
-            path.join(input.aiRootPath, 'skills', 'writing-style'),
-          ],
+          sources: skillSources,
         }) as AgentMiddleware,
       ]
     : []
@@ -67,6 +65,6 @@ export function buildAgentFilesystem(input: BuildAgentFilesystemInput): AgentFil
     interruptOn: FILE_WRITE_INTERRUPT_ON,
     interruptOnNames: new Set(Object.keys(FILE_WRITE_INTERRUPT_ON)),
     tempDirs: [largeResultsDir, conversationHistoryDir],
-    fingerprint: `${input.workspacePath ?? ''}:${input.includeSkills ? 'skills' : 'no-skills'}`,
+    fingerprint: `${input.workspacePath ?? ''}:${skillSources.join('|') || 'no-skills'}`,
   }
 }
