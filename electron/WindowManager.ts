@@ -385,6 +385,8 @@ export class WindowManager {
             scale: pdfOptions.scale ?? 1,
             preferCSSPageSize: pdfOptions.preferCSSPageSize ?? true,
             margins: pdfOptions.margins ?? { top: 0, bottom: 0, left: 0, right: 0 },
+            generateDocumentOutline: true,
+            generateTaggedPDF: true,
           })
           await fs.promises.writeFile(filePath, Buffer.from(buffer))
           return { success: true, filePath }
