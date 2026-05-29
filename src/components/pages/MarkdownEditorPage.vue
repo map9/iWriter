@@ -311,8 +311,6 @@
           v-if="editor"
           :editor="editor"
           :scroll-container="editorScrollRef ?? null"
-          :insetLeft="8"
-          :insetRight="8"
         />
 
         <!-- Editor Content -->

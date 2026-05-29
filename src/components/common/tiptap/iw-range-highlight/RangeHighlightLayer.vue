@@ -34,10 +34,10 @@ const props = withDefaults(defineProps<Props>(), {
   scrollContainer: null,
   highlights: null,
   show: true,
-  insetTop: 0,
-  insetBottom: 0,
-  insetLeft: 0,
-  insetRight: 0,
+  insetTop: -8,
+  insetBottom: -8,
+  insetLeft: 8,
+  insetRight: 8,
 })
 
 const overlays = ref<OverlayBox[]>([])
@@ -97,13 +97,12 @@ function calculateHighlightStyle(
     }
 
     const editorRect = editor.view.dom.getBoundingClientRect()
-    const margin = 4
 
     return {
       left: `${editorRect.left - wrapperRect.left + scrollLeft + props.insetLeft}px`,
-      top: `${minTop - wrapperRect.top + scrollTop - margin + props.insetTop}px`,
+      top: `${minTop - wrapperRect.top + scrollTop + props.insetTop}px`,
       width: `${editorRect.width - props.insetLeft - props.insetRight}px`,
-      height: `${maxBottom - minTop + margin * 2 - props.insetTop - props.insetBottom}px`,
+      height: `${maxBottom - minTop - props.insetTop - props.insetBottom}px`,
     }
   } catch (error) {
     console.warn('Failed to calculate range highlight overlay:', error)
