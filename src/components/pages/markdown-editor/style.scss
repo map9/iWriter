@@ -39,6 +39,7 @@
   --iw-node-selection-blur-color: color-mix(in oklab, var(--color-primary) 50%, transparent);
   --iw-node-selection-blur-shadow: color-mix(in oklab, var(--color-primary) 10%, transparent);
 
+  background-color: transparent;
   line-height: var(--md-line-height);
   font-family: var(--md-font-family);
   color: var(--md-body-color);

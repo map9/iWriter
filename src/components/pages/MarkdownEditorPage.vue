@@ -310,16 +310,23 @@
         <RangeHighlightLayer
           v-if="editor"
           :editor="editor"
+          :scroll-container="editorScrollRef ?? null"
+          :insetLeft="8"
+          :insetRight="8"
         />
 
         <!-- Editor Content -->
         <div :class="editorPageStageClass">
-          <EditorContent
-            v-if="editor"
-            :editor="editor"
-            class="editor-content relative z-2 my-4 shadow-sm"
+          <div
+            class="editor-page-frame relative my-4 shadow-sm"
             :style="editorPageStyle"
-          />
+          >
+            <EditorContent
+              v-if="editor"
+              :editor="editor"
+              class="editor-content relative z-2"
+            />
+          </div>
         </div>
     </div>
 
@@ -395,7 +402,7 @@ import { onEditorMenuAction } from './markdown-editor/menu-action'
 import { useAppStore } from '@/stores/app'
 import type { WindowContentState } from '@/types'
 import { DocumentType } from '@/types'
-import { getAllMarkdownThemes } from '@/components/print/markdownThemes'
+import { getAllMarkdownThemes, getMarkdownThemeScreenBackground } from '@/components/print/markdownThemes'
 
 // Props
 interface Props {
@@ -428,23 +435,17 @@ const editorPageStageClass = computed(() => {
   return `${baseClass} min-w-max px-4`
 })
 const editorPageStyle = computed(() => {
+  const themeId = appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId
+  const backgroundColor = getMarkdownThemeScreenBackground(themeId) ?? 'var(--color-base-100)'
+
   switch (appStore.markdownEditorPageMode) {
     case 'fixed-1280':
-      return {
-        width: '1280px',
-        minWidth: '1280px',
-      }
+      return { width: '1280px', minWidth: '1280px', backgroundColor }
     case 'fluid':
-      return {
-        width: '100%',
-        minWidth: '480px',
-      }
+      return { width: '100%', minWidth: '480px', backgroundColor }
     case 'fixed-768':
     default:
-      return {
-        width: '768px',
-        minWidth: '768px',
-      }
+      return { width: '768px', minWidth: '768px', backgroundColor }
   }
 })
 

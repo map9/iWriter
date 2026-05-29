@@ -249,7 +249,6 @@ const GITHUB_SCREEN_CSS = `
     --md-alert-warning: #9a6700;
     --md-alert-tip: #1a7f37;
     --md-alert-caution: #d1242f;
-    background-color: #ffffff;
     font-size: 16px;
     font-weight: 400;
     word-wrap: break-word;
@@ -800,7 +799,6 @@ const GITHUB_DARK_SCREEN_CSS = `
     --md-alert-warning: #d29922;
     --md-alert-tip: #3fb950;
     --md-alert-caution: #f85149;
-    background-color: #0d1117;
     font-size: 16px;
     font-weight: 400;
     word-wrap: break-word;
@@ -1445,7 +1443,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
     id: 'github',
     name: 'GitHub',
     description: 'Technical document defaults inspired by GitHub Markdown.',
-    screen: { css: GITHUB_SCREEN_CSS },
+    screen: { css: GITHUB_SCREEN_CSS, backgroundColor: '#ffffff' },
     print: {
       css: `
         body {
@@ -1577,7 +1575,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
     id: 'github-dark',
     name: 'GitHub Dark',
     description: 'Dark variant of GitHub Markdown — faithful to GitHub\'s dark mode design tokens.',
-    screen: { css: GITHUB_DARK_SCREEN_CSS },
+    screen: { css: GITHUB_DARK_SCREEN_CSS, backgroundColor: '#0d1117' },
     print: {
       css: `
         body {
@@ -1953,6 +1951,10 @@ export function buildMarkdownThemeFromRaw(raw: RawCustomTheme): MarkdownTheme {
 
 export function getMarkdownThemeById(id: string): MarkdownTheme | undefined {
   return getAllMarkdownThemes().find(theme => theme.id === id)
+}
+
+export function getMarkdownThemeScreenBackground(themeId: string): string | undefined {
+  return getMarkdownThemeById(themeId)?.screen.backgroundColor
 }
 
 export function getEffectivePrintThemeId(preferences: MarkdownPrintPreferences | ResolvedMarkdownPrintSettings | MarkdownPrintPreferences['themeAssignment']): MarkdownThemeId {

@@ -159,6 +159,7 @@ export interface MarkdownTheme {
   tokens?: ThemeTokens
   screen: {
     css: string
+    backgroundColor?: string
   }
   print: {
     css: string

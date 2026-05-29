@@ -15,8 +15,13 @@ import type { EditorRangeHighlight } from './iwRangeHighlightExtension'
 
 interface Props {
   editor: Editor | null
+  scrollContainer?: HTMLElement | null
   highlights?: EditorRangeHighlight[] | null
   show?: boolean
+  insetTop?: number
+  insetBottom?: number
+  insetLeft?: number
+  insetRight?: number
 }
 
 interface OverlayBox {
@@ -26,8 +31,13 @@ interface OverlayBox {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  scrollContainer: null,
   highlights: null,
   show: true,
+  insetTop: 0,
+  insetBottom: 0,
+  insetLeft: 0,
+  insetRight: 0,
 })
 
 const overlays = ref<OverlayBox[]>([])
@@ -55,7 +65,7 @@ function calculateHighlightStyle(
     const { from, to } = highlight
     if (from >= to) return null
 
-    const wrapperElement = editor.view.dom.closest('.editor-content-wrapper') as HTMLElement | null
+    const wrapperElement = props.scrollContainer
     if (!wrapperElement) {
       return null
     }
@@ -90,10 +100,10 @@ function calculateHighlightStyle(
     const margin = 4
 
     return {
-      left: `${editorRect.left - wrapperRect.left + scrollLeft}px`,
-      top: `${minTop - wrapperRect.top + scrollTop - margin}px`,
-      width: `${editorRect.width}px`,
-      height: `${maxBottom - minTop + margin * 2}px`,
+      left: `${editorRect.left - wrapperRect.left + scrollLeft + props.insetLeft}px`,
+      top: `${minTop - wrapperRect.top + scrollTop - margin + props.insetTop}px`,
+      width: `${editorRect.width - props.insetLeft - props.insetRight}px`,
+      height: `${maxBottom - minTop + margin * 2 - props.insetTop - props.insetBottom}px`,
     }
   } catch (error) {
     console.warn('Failed to calculate range highlight overlay:', error)
@@ -167,7 +177,7 @@ watch(editorIdentity, () => {
 
   if (props.editor?.view) {
     editorDom = props.editor.view.dom
-    wrapperElement = props.editor.view.dom.closest('.editor-content-wrapper') as HTMLElement | null
+    wrapperElement = props.scrollContainer ?? null
     props.editor.on('update', refreshOverlays)
     props.editor.on('selectionUpdate', refreshOverlays)
     props.editor.on('transaction', refreshOverlays)
