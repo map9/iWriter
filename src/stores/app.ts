@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch, reactive } from 'vue'
 import { generateJSON, type Editor } from '@tiptap/core'
 import { undoDepth } from '@tiptap/pm/history'
-import type { FileTab, FileOperationResult, FileChange, EditSetting } from '@/types'
+import type { FileTab, FileOperationResult, FileChange, EditSetting, MarkdownEditorPageMode } from '@/types'
 import { SidebarMode, DocumentType } from '@/types'
 import type { ExportFormatId, ExportSettings, MarkdownPrintPreferences } from '@/types'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
@@ -67,6 +67,7 @@ export const useAppStore = defineStore('app', () => {
   const isCleanMode = ref(false)
   const isFocusMode = ref(false)
   const isTypewriterMode = ref(false)
+  const markdownEditorPageMode = ref<MarkdownEditorPageMode>('fixed-768')
   const showPreferencesDialog = ref(false)
   const preferencesInitialTab = ref<PreferencesTab>('editor')
   const showPrintPreviewDialog = ref(false)
@@ -328,7 +329,7 @@ export const useAppStore = defineStore('app', () => {
   }, { immediate: true })
 
   // update menu when left sidebar or right sidebar or statusbar visibility changes
-  watch(() => [isLeftSidebarVisible.value, isRightSidebarVisible.value, isStatusbarVisible.value, isCleanMode.value, isFocusMode.value, isTypewriterMode.value, locale.value], () => {
+  watch(() => [isLeftSidebarVisible.value, isRightSidebarVisible.value, isStatusbarVisible.value, isCleanMode.value, isFocusMode.value, isTypewriterMode.value, markdownEditorPageMode.value, locale.value], () => {
     if (window.electronAPI?.windowContentChange) {
       window.electronAPI?.windowContentChange?.({
         view: {
@@ -338,6 +339,7 @@ export const useAppStore = defineStore('app', () => {
           cleanMode: isCleanMode.value,
           focusMode: isFocusMode.value,
           typewriterMode: isTypewriterMode.value,
+          markdownEditorPageMode: markdownEditorPageMode.value,
           locale: locale.value,
         },
       })
@@ -367,6 +369,7 @@ export const useAppStore = defineStore('app', () => {
     isStatusbarVisible.value = uiState.isStatusbarVisible
     isFocusMode.value = uiState.isFocusMode
     isTypewriterMode.value = uiState.isTypewriterMode
+    markdownEditorPageMode.value = uiState.markdownEditorPageMode
     leftSidebarMode.value = uiState.leftSidebarMode
     leftSidebarWidth.value = uiState.leftSidebarWidth
     rightSidebarWidth.value = uiState.rightSidebarWidth ?? 288
@@ -474,6 +477,7 @@ export const useAppStore = defineStore('app', () => {
       isStatusbarVisible: isStatusbarVisible.value,
       isFocusMode: isFocusMode.value,
       isTypewriterMode: isTypewriterMode.value,
+      markdownEditorPageMode: markdownEditorPageMode.value,
       leftSidebarMode: leftSidebarMode.value,
       leftSidebarWidth: leftSidebarWidth.value,
       rightSidebarWidth: rightSidebarWidth.value
@@ -768,6 +772,11 @@ export const useAppStore = defineStore('app', () => {
 
   function toggleTypewriterMode() {
     setTypewriterMode(!isTypewriterMode.value)
+  }
+
+  function setMarkdownEditorPageMode(mode: MarkdownEditorPageMode) {
+    if (markdownEditorPageMode.value === mode) return
+    markdownEditorPageMode.value = mode
   }
 
   // Update window title based on current state
@@ -2843,6 +2852,15 @@ export const useAppStore = defineStore('app', () => {
       case 'view-toggle-typewriter-mode':
         toggleTypewriterMode()
         return true
+      case 'view-editor-page-fixed-768':
+        setMarkdownEditorPageMode('fixed-768')
+        return true
+      case 'view-editor-page-fixed-1280':
+        setMarkdownEditorPageMode('fixed-1280')
+        return true
+      case 'view-editor-page-fluid':
+        setMarkdownEditorPageMode('fluid')
+        return true
       case 'view-explorer':
       case 'view-search':
       case 'view-tag':
@@ -2909,7 +2927,7 @@ export const useAppStore = defineStore('app', () => {
     }
   )
 
-  watch([isFocusMode, isTypewriterMode], () => saveUIState())
+  watch([isFocusMode, isTypewriterMode, markdownEditorPageMode], () => saveUIState())
 
   // leftSidebarWidth / rightSidebarWidth 单独监听（拖拽时频繁变化，需要防抖）
   watch(leftSidebarWidth, () => saveUIState())
@@ -2984,6 +3002,7 @@ export const useAppStore = defineStore('app', () => {
     isCleanMode,
     isFocusMode,
     isTypewriterMode,
+    markdownEditorPageMode,
     showPreferencesDialog,
     preferencesInitialTab,
     leftSidebarMode,
@@ -3040,6 +3059,7 @@ export const useAppStore = defineStore('app', () => {
     toggleReadonlyMode,
     setTypewriterMode,
     toggleTypewriterMode,
+    setMarkdownEditorPageMode,
     setLeftSidebarMode,
     searchInFolder,
     searchInWorkspace,

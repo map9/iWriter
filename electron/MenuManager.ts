@@ -1576,6 +1576,38 @@ export class MenuManager {
           },
           { type: 'separator' },
           {
+            label: t('menu.view.pageWidth', 'Page Width'),
+            submenu: [
+              {
+                label: t('menu.view.pageWidthStandard', 'Standard'),
+                type: 'radio',
+                checked: (wState?.wContentState?.view?.markdownEditorPageMode ?? 'fixed-768') === 'fixed-768',
+                enabled: wState != null,
+                click: () => {
+                  this.sendMenuAction('view-editor-page-fixed-768')
+                }
+              },
+              {
+                label: t('menu.view.pageWidthLarge', 'Large'),
+                type: 'radio',
+                checked: wState?.wContentState?.view?.markdownEditorPageMode === 'fixed-1280',
+                enabled: wState != null,
+                click: () => {
+                  this.sendMenuAction('view-editor-page-fixed-1280')
+                }
+              },
+              {
+                label: t('menu.view.pageWidthFitWindow', 'Fit Window'),
+                type: 'radio',
+                checked: wState?.wContentState?.view?.markdownEditorPageMode === 'fluid',
+                enabled: wState != null,
+                click: () => {
+                  this.sendMenuAction('view-editor-page-fluid')
+                }
+              }
+            ]
+          },
+          {
             label: 'Appearance',
             submenu: [
               {

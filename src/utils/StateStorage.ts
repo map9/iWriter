@@ -1,4 +1,4 @@
-import type { EditSetting, ExportSettings, MarkdownPrintPreferences } from '@/types'
+import type { EditSetting, ExportSettings, MarkdownEditorPageMode, MarkdownPrintPreferences } from '@/types'
 import { SidebarMode, DocumentType } from '@/types'
 import { DEFAULT_WORKSPACE_IGNORE_RULES } from '@/services/workspace/filtering'
 import { DEFAULT_MARKDOWN_PRINT_PREFERENCES } from '@/components/print/markdownThemes'
@@ -29,6 +29,7 @@ export interface UIState {
   isStatusbarVisible: boolean
   isFocusMode: boolean
   isTypewriterMode: boolean
+  markdownEditorPageMode: MarkdownEditorPageMode
   // clean mode is deliberately not persisted; it is treated as a temporary
   // distraction-free overlay state instead of a restored workspace preference.
   leftSidebarMode: SidebarMode
@@ -52,6 +53,7 @@ export const DEFAULT_UI_STATE: UIState = {
   isStatusbarVisible: true,
   isFocusMode: false,
   isTypewriterMode: false,
+  markdownEditorPageMode: 'fixed-768',
   leftSidebarMode: SidebarMode.START,
   leftSidebarWidth: 288,
   rightSidebarWidth: 288

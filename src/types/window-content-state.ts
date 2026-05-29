@@ -24,11 +24,14 @@ export interface ViewState {
   cleanMode?: boolean
   focusMode?: boolean
   typewriterMode?: boolean
+  markdownEditorPageMode?: MarkdownEditorPageMode
   isFullscreen?: boolean
   locale?: string
   theme?: string // 支持任意主题ID
   themeType?: 'light' | 'dark' | 'system' // 主题类型
 }
+
+export type MarkdownEditorPageMode = 'fixed-768' | 'fixed-1280' | 'fluid'
 
 export interface UndoRedoState {
   undo: boolean

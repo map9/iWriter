@@ -1,5 +1,5 @@
 <template>
-  <div class="document-viewer-wrapper markdown-editor-page">
+  <div class="document-viewer-wrapper markdown-editor-page relative">
     <!-- Editor Toolbar -->
     <fieldset v-if="!appStore.isCleanMode" class="iw-toolbar" :disabled="isReadonly">
       <!-- Undo/Redo Group -->
@@ -305,7 +305,7 @@
     </fieldset>
     
     <!-- TipTap Editor -->
-    <div ref="editorScrollRef" class="editor-content-wrapper">
+    <div ref="editorScrollRef" class="editor-content-wrapper relative overflow-auto">
         <!-- Shared Range Highlight Layer -->
         <RangeHighlightLayer
           v-if="editor"
@@ -313,11 +313,14 @@
         />
 
         <!-- Editor Content -->
-        <EditorContent
-          v-if="editor"
-          :editor="editor"
-          class="editor-content w-full max-w-3xl my-4 mx-auto shadow-sm"
-        />
+        <div :class="editorPageStageClass">
+          <EditorContent
+            v-if="editor"
+            :editor="editor"
+            class="editor-content relative z-2 my-4 shadow-sm"
+            :style="editorPageStyle"
+          />
+        </div>
     </div>
 
     <!-- Search & Replace Panel -->
@@ -415,6 +418,35 @@ let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 // Toolbar state
 const currentHeading = ref('paragraph')
 const isReadonly = computed(() => appStore.isTabReadonly(props.tab))
+const editorPageStageClass = computed(() => {
+  const baseClass = 'editor-page-stage box-border flex w-full justify-center'
+
+  if (appStore.markdownEditorPageMode === 'fluid') {
+    return `${baseClass} min-w-0`
+  }
+
+  return `${baseClass} min-w-max px-4`
+})
+const editorPageStyle = computed(() => {
+  switch (appStore.markdownEditorPageMode) {
+    case 'fixed-1280':
+      return {
+        width: '1280px',
+        minWidth: '1280px',
+      }
+    case 'fluid':
+      return {
+        width: '100%',
+        minWidth: '480px',
+      }
+    case 'fixed-768':
+    default:
+      return {
+        width: '768px',
+        minWidth: '768px',
+      }
+  }
+})
 
 function syncEditMenuState(overrides: Partial<EditSetting> = {}) {
   window.electronAPI?.windowContentChange?.({
@@ -1040,22 +1072,3 @@ defineExpose({
   handleMenuAction,
 })
 </script>
-
-<style lang="scss">
-.markdown-editor-page {
-  position: relative;
-}
-
-.editor-content-wrapper {
-  position: relative;
-  overflow: auto;
-}
-
-// Editor content 需要透明背景，让下层的高亮层透出来
-.editor-content {
-  position: relative;
-  z-index: 2;
-  // 移除背景色，让高亮层可见
-  // background: transparent;
-}
-</style>
