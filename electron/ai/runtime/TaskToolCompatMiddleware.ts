@@ -22,7 +22,7 @@ import { HumanMessage, ToolMessage } from '@langchain/core/messages'
 import { createMiddleware } from 'langchain'
 import { PlannerResponseSchema } from '../domain/creative/subAgents/planner'
 
-const PLANNER_INVALID_RESULT_PREFIX = 'Error: Planner subagent returned an invalid or empty result.'
+export const PLANNER_INVALID_RESULT_PREFIX = 'Error: Planner subagent returned an invalid or empty result.'
 
 interface PlannerValidationResult {
   valid: boolean

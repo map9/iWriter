@@ -17,6 +17,33 @@ import type {
 import { isHitlInterruptPayload } from '@/ai/hitl'
 import type { LiveSubTask, LiveTurn, ThreadRunState } from './runtimeState'
 
+const KNOWN_TASK_VALIDATION_ERROR_PREFIXES = [
+  'Error: Planner subagent returned an invalid or empty result.',
+]
+
+export const LIVE_SUBTASK_STATUS_PRIORITY: Record<LiveSubTask['status'], number> = {
+  error: 6,
+  cancelled: 5,
+  awaiting_approval: 4,
+  done: 3,
+  running: 2,
+  pending: 1,
+}
+
+export function mergeLiveSubTaskStatus(
+  current: LiveSubTask['status'],
+  next: LiveSubTask['status'],
+): LiveSubTask['status'] {
+  return LIVE_SUBTASK_STATUS_PRIORITY[next] >= LIVE_SUBTASK_STATUS_PRIORITY[current]
+    ? next
+    : current
+}
+
+export function isKnownTaskValidationError(result: unknown): boolean {
+  return typeof result === 'string'
+    && KNOWN_TASK_VALIDATION_ERROR_PREFIXES.some(prefix => result.startsWith(prefix))
+}
+
 interface RuntimeEventsDeps {
   activeThread: ComputedRef<AiThread | null>
   threadRunState: Ref<ThreadRunState>
@@ -87,15 +114,14 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     updated[idx] = {
       ...existing,
       ...update,
+      status: update.status
+        ? mergeLiveSubTaskStatus(existing.status, update.status)
+        : existing.status,
       output: update.output ?? existing.output,
       errorText: update.errorText ?? existing.errorText,
     }
     liveTurn.subTasks = updated
     return true
-  }
-
-  function isTerminalSubTaskStatus(status: LiveSubTask['status']): boolean {
-    return status === 'done' || status === 'error' || status === 'cancelled'
   }
 
   function taskSubagentName(toolCall: AiToolCall): string {
@@ -130,7 +156,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
       ...existing,
       name: existing.name || name,
       taskInput: existing.taskInput ?? toolCall.arguments,
-      status: existing.status === 'awaiting_approval' ? 'running' : existing.status,
+      status: mergeLiveSubTaskStatus(existing.status, 'pending'),
     }
     liveTurn.subTasks = updated
   }
@@ -143,9 +169,6 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     if (!id) return false
     const subTask = liveTurn.subTasks.find(st => st.invocationId === id)
     if (!subTask) return false
-    if (subTask.status === 'awaiting_approval' || isTerminalSubTaskStatus(subTask.status)) {
-      return updateSubTask(liveTurn, id, { output })
-    }
     return updateSubTask(liveTurn, id, { status: 'done', output })
   }
 
@@ -169,7 +192,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
       return
     }
 
-    if (toolCall.isError || toolCall.status === 'failed') {
+    if (toolCall.isError || toolCall.status === 'failed' || isKnownTaskValidationError(toolCall.result)) {
       updateSubTask(liveTurn, toolCall.id, {
         status: 'error',
         output: toolCall.result,
@@ -297,6 +320,28 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
       return
     }
 
+    if (chunk.type === 'subagent_error') {
+      if (updateSubTask(liveTurn, chunk.subagentId, {
+        status: 'error',
+        output: chunk.error,
+        errorText: chunk.error,
+      })) {
+        deps.liveTurn.value = { ...liveTurn }
+      }
+      return
+    }
+
+    if (chunk.type === 'task_validation_failed') {
+      if (updateSubTask(liveTurn, chunk.toolCallId, {
+        status: 'error',
+        output: chunk.error,
+        errorText: chunk.error,
+      })) {
+        deps.liveTurn.value = { ...liveTurn }
+      }
+      return
+    }
+
     if (chunk.subagentName) {
       if (chunk.subagentId) {
         _applySubagentChunk(liveTurn, chunk as StreamChunkEvent & { subagentName: string }, chunk.subagentId)
@@ -335,18 +380,26 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     }
 
     if (chunk.type === 'tool_call_end' && chunk.toolCallId && chunk.toolCall) {
+      const isValidationError = chunk.toolCall.name === 'task' && isKnownTaskValidationError(chunk.toolCall.result)
+      const endedToolCall: AiToolCall = isValidationError
+        ? {
+            ...chunk.toolCall,
+            status: 'failed',
+            isError: true,
+          }
+        : chunk.toolCall
       liveTurn.blocks = liveTurn.blocks.map(block =>
         block.type === 'tool_call' && block.toolCall.id === chunk.toolCallId
-          ? { type: 'tool_call', toolCall: { ...block.toolCall, status: chunk.toolCall!.status, result: chunk.toolCall!.result, isError: chunk.toolCall!.isError } }
+          ? { type: 'tool_call', toolCall: { ...block.toolCall, status: endedToolCall.status, result: endedToolCall.result, isError: endedToolCall.isError } }
           : block
       )
-      if (chunk.toolCall.name === 'task') {
-        applyTaskToolEndToSubTask(liveTurn, chunk.toolCall)
+      if (endedToolCall.name === 'task') {
+        applyTaskToolEndToSubTask(liveTurn, endedToolCall)
       }
       liveTurn.toolName = null
       deps.liveTurn.value = { ...liveTurn }
-      if (chunk.toolCall?.isError && chunk.toolCall.name) {
-        deps.notifyCreativeToolResult(chunk.toolCall.name, true, chunk.toolCallId)
+      if (endedToolCall.isError && endedToolCall.name) {
+        deps.notifyCreativeToolResult(endedToolCall.name, true, chunk.toolCallId)
       }
     }
   }

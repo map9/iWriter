@@ -120,6 +120,8 @@ export type StreamChunkEvent =
   | { threadId: string; turnId?: string; type: 'tool_call_end'; toolCallId: string; toolCall: AiToolCall; subagentName?: string; subagentId?: string }
   | { threadId: string; turnId?: string; type: 'subagent_start'; subagentName: string; taskInput: unknown; subagentId?: string }
   | { threadId: string; turnId?: string; type: 'subagent_end'; subagentName: string; output: unknown; subagentId?: string }
+  | { threadId: string; turnId?: string; type: 'subagent_error'; subagentName: string; error: string; subagentId?: string }
+  | { threadId: string; turnId?: string; type: 'task_validation_failed'; toolCallId: string; error: string; subagentName?: string; subagentId?: string }
 
 /**
  * Emitted when the agent hits a HITL interrupt. Contains:

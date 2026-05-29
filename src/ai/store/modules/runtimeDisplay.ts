@@ -9,6 +9,7 @@ import type {
 import { BLOCK_EDIT_TOOLS } from '@/ai/types'
 import type { AiDisplayMessageEntry, AiDisplayThread } from '../ai'
 import type { LiveTurn, ThreadRunState } from './runtimeState'
+import { mergeLiveSubTaskStatus } from './runtimeEvents'
 
 function hasAssistantText(message: ThreadMessage): boolean {
   if (message.role !== 'assistant') return false
@@ -152,15 +153,7 @@ function mergeSubTaskStatus(
   current: AiSubTaskProgress['status'],
   next: AiSubTaskProgress['status'],
 ): AiSubTaskProgress['status'] {
-  const priority: Record<AiSubTaskProgress['status'], number> = {
-    error: 5,
-    cancelled: 4,
-    awaiting_approval: 3,
-    running: 2,
-    pending: 1,
-    done: 0,
-  }
-  return priority[next] > priority[current] ? next : current
+  return mergeLiveSubTaskStatus(current, next)
 }
 
 function mergeSubTaskProgress(
