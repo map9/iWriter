@@ -2906,10 +2906,15 @@ export const useAppStore = defineStore('app', () => {
         return true
       
       default:
+        if (action.startsWith('open-path:')) {
+          await openFile(action.slice('open-path:'.length))
+          return true
+        }
+
         if (action.startsWith('view-theme-')) {
           const theme = action.replace('view-theme-', '') as string
           setTheme(theme.toLowerCase())
-          return true          
+          return true
         }
 
         console.warn('Unhandled menu action in app:', action)
