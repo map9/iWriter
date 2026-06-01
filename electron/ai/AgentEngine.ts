@@ -95,7 +95,9 @@ export class AgentEngine {
     this.snapshotBroker = new SnapshotBroker(getWebContents)
     this.rendererBridge = new RendererEventBridge(getWebContents)
     this.aiRootPath = path.join(app.getPath('home'), '.iwriter', 'ai')
-    this.bundledSkillsPath = path.join(app.getAppPath(), 'electron', 'ai', 'builtin-skills')
+    this.bundledSkillsPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'builtin-skills')
+      : path.join(app.getAppPath(), 'electron', 'ai', 'builtin-skills')
     this.strategies = {
       editing: new EditDomainStrategy(this.snapshotBroker, this.aiRootPath, this.runtimeStore),
       creative: new CreativeDomainStrategy(

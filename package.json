@@ -154,10 +154,16 @@
       "output": "release",
       "buildResources": "assets"
     },
+    "extraResources": [
+      {
+        "from": "electron/ai/builtin-skills",
+        "to": "builtin-skills",
+        "filter": ["**/*.md", "!**/.DS_Store"]
+      }
+    ],
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "electron/ai/builtin-skills/**/SKILL.md",
       "!**/*.map",
       "!**/*.{ts,tsx,mts,cts}",
       "!**/.DS_Store",
