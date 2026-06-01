@@ -7,28 +7,28 @@
           @click="zoomOut"
           :disabled="zoom <= 0.1"
           class="iw-toolbar-btn btn-sm"
-          title="Zoom In (⌘+)"
+          :title="t('imageViewer.toolbar.zoomOut')"
         >
           <IconZoomOut class="icon-sm" />
         </button>
-        
+
         <div class="iw-stat">
           {{ Math.round(zoom * 100) }}%
         </div>
-        
+
         <button
           @click="zoomIn"
           :disabled="zoom >= 10"
           class="iw-toolbar-btn btn-sm"
-          title="Zoom Out (⌘-)"
+          :title="t('imageViewer.toolbar.zoomIn')"
         >
           <IconZoomIn class="icon-sm" />
         </button>
-        
+
         <button
           @click="zoomToFit"
           class="iw-toolbar-btn btn-sm"
-          title="Fit to Page"
+          :title="t('imageViewer.toolbar.fitToPage')"
         >
           <IconZoomReset class="icon-sm" />
         </button>
@@ -42,15 +42,15 @@
         <button
           @click="rotateLeft"
           class="iw-toolbar-btn btn-sm"
-          title="Rotate to Left"
+          :title="t('imageViewer.toolbar.rotateLeft')"
         >
           <IconRotate class="icon-sm" />
         </button>
-        
+
         <button
           @click="rotateRight"
           class="iw-toolbar-btn btn-sm"
-          title="Rotate to Right"
+          :title="t('imageViewer.toolbar.rotateRight')"
         >
           <IconRotateClockwise class="icon-sm" />
         </button>
@@ -100,7 +100,7 @@
     >
       <div class="text-center">
         <IconAlertCircle class="w-12 h-12 mx-auto mb-2" />
-        <div class="text-lg mb-2">图片加载失败</div>
+        <div class="text-lg mb-2">{{ t('imageViewer.loadFailed') }}</div>
         <div class="text-sm text-base-content/55">{{ error }}</div>
       </div>
     </div>
@@ -112,7 +112,7 @@
     >
       <div class="text-center">
         <span class="loading loading-spinner loading-lg mb-2"></span>
-        <div>加载中...</div>
+        <div>{{ t('imageViewer.loading') }}</div>
       </div>
     </div>
   </div>
@@ -120,6 +120,7 @@
 
 <script setup lang="ts">
 import { ref, toRef, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FileTab } from '@/types'
 import { 
   IconZoomIn, 
@@ -136,6 +137,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { t } = useI18n()
 
 // State
 const imageElement = ref<HTMLImageElement>()
@@ -322,7 +324,7 @@ function onImageLoad() {
 
 function onImageError() {
   loading.value = false
-  error.value = '无法加载图片文件'
+  error.value = t('imageViewer.loadFailedDetail')
 }
 
 // Handle menu actions

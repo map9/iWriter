@@ -7,28 +7,28 @@
           @click="zoomOut"
           :disabled="zoom <= 0.25"
           class="iw-toolbar-btn btn-sm"
-          title="Zoom In (⌘+)"
+          :title="t('pdfViewer.toolbar.zoomOut')"
         >
           <IconZoomOut class="icon-sm" />
         </button>
-        
+
         <div class="iw-stat">
           {{ Math.round(zoom * 100) }}%
         </div>
-        
+
         <button
           @click="zoomIn"
           :disabled="zoom >= 5"
           class="iw-toolbar-btn btn-sm"
-          title="Zoom Out (⌘-)"
+          :title="t('pdfViewer.toolbar.zoomIn')"
         >
           <IconZoomIn class="icon-sm" />
         </button>
-        
+
         <button
           @click="zoomToFit"
           class="iw-toolbar-btn btn-sm"
-          title="Fit to Page"
+          :title="t('pdfViewer.toolbar.fitToPage')"
         >
           <IconZoomReset class="icon-sm" />
         </button>
@@ -43,25 +43,25 @@
           @click="setDisplayMode('continuous')"
           class="iw-btn btn-ghost btn-sm px-3 normal-case"
           :class="{ 'btn-active': displayMode === 'continuous' }"
-          title="Continuous"
+          :title="t('pdfViewer.toolbar.continuous')"
         >
-          Continuous
+          {{ t('pdfViewer.toolbar.continuous') }}
         </button>
         <button
           @click="setDisplayMode('single')"
           class="iw-btn btn-ghost btn-sm px-3 normal-case"
           :class="{ 'btn-active': displayMode === 'single' }"
-          title="Single Page"
+          :title="t('pdfViewer.toolbar.singlePage')"
         >
-          Single Page
+          {{ t('pdfViewer.toolbar.singlePage') }}
         </button>
         <button
           @click="setDisplayMode('double')"
           class="iw-btn btn-ghost btn-sm px-3 normal-case"
           :class="{ 'btn-active': displayMode === 'double' }"
-          title="Double Page"
+          :title="t('pdfViewer.toolbar.doublePage')"
         >
-          Double Page
+          {{ t('pdfViewer.toolbar.doublePage') }}
         </button>
       </div>
 
@@ -74,7 +74,7 @@
           @click="previousPageCommand"
           :disabled="currentPage <= 1"
           class="iw-toolbar-btn btn-sm"
-          title="Last Page"
+          :title="t('pdfViewer.toolbar.previousPage')"
         >
           <IconChevronLeft class="icon-sm" />
         </button>
@@ -96,7 +96,7 @@
           @click="nextPageCommand"
           :disabled="currentPage >= totalPages"
           class="iw-toolbar-btn btn-sm"
-          title="Next Page"
+          :title="t('pdfViewer.toolbar.nextPage')"
         >
           <IconChevronRight class="icon-sm" />
         </button>
@@ -177,7 +177,7 @@
     >
       <div class="text-center">
         <IconAlertCircle class="w-12 h-12 mx-auto mb-2" />
-        <div class="text-lg mb-2">PDF Loading Failed</div>
+        <div class="text-lg mb-2">{{ t('pdfViewer.loadFailed') }}</div>
         <div class="text-sm text-base-content/55">{{ error }}</div>
       </div>
     </div>
@@ -189,7 +189,7 @@
     >
       <div class="text-center">
         <span class="loading loading-spinner loading-lg mb-2"></span>
-        <div>Loading PDF...</div>
+        <div>{{ t('pdfViewer.loading') }}</div>
       </div>
     </div>
   </div>
@@ -197,6 +197,7 @@
 
 <script setup lang="ts">
 import { ref, toRef, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FileTab } from '@/types'
 import { useAppStore } from '@/stores/app'
 import { PdfJsPageRenderProvider } from '@/services/pdf-render/PdfJsPageRenderProvider'
@@ -217,6 +218,7 @@ interface Props {
 
 const props = defineProps<Props>()
 const appStore = useAppStore()
+const { t } = useI18n()
 
 type DisplayMode = 'continuous' | 'single' | 'double'
 

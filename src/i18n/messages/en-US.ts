@@ -1258,4 +1258,30 @@ export default {
       },
     },
   },
+  imageViewer: {
+    toolbar: {
+      zoomOut: 'Zoom Out (⌘-)',
+      zoomIn: 'Zoom In (⌘+)',
+      fitToPage: 'Fit to Page (⌘0)',
+      rotateLeft: 'Rotate Left',
+      rotateRight: 'Rotate Right',
+    },
+    loading: 'Loading...',
+    loadFailed: 'Image Loading Failed',
+    loadFailedDetail: 'Failed to load image file',
+  },
+  pdfViewer: {
+    toolbar: {
+      zoomOut: 'Zoom Out (⌘-)',
+      zoomIn: 'Zoom In (⌘+)',
+      fitToPage: 'Fit to Page (⌘0)',
+      continuous: 'Continuous',
+      singlePage: 'Single Page',
+      doublePage: 'Double Page',
+      previousPage: 'Previous Page',
+      nextPage: 'Next Page',
+    },
+    loading: 'Loading PDF...',
+    loadFailed: 'PDF Loading Failed',
+  },
 }

@@ -1247,4 +1247,30 @@ export default {
       },
     },
   },
+  imageViewer: {
+    toolbar: {
+      zoomOut: '缩小 (⌘-)',
+      zoomIn: '放大 (⌘+)',
+      fitToPage: '适合页面 (⌘0)',
+      rotateLeft: '向左旋转',
+      rotateRight: '向右旋转',
+    },
+    loading: '加载中...',
+    loadFailed: '图片加载失败',
+    loadFailedDetail: '无法加载图片文件',
+  },
+  pdfViewer: {
+    toolbar: {
+      zoomOut: '缩小 (⌘-)',
+      zoomIn: '放大 (⌘+)',
+      fitToPage: '适合页面 (⌘0)',
+      continuous: '连续',
+      singlePage: '单页',
+      doublePage: '双页',
+      previousPage: '上一页',
+      nextPage: '下一页',
+    },
+    loading: '正在加载 PDF...',
+    loadFailed: 'PDF 加载失败',
+  },
 }
