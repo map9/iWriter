@@ -3,7 +3,8 @@ import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import electron from 'vite-plugin-electron'
 import renderer from 'vite-plugin-electron-renderer'
-import { resolve } from 'path'
+import { existsSync, readdirSync, rmSync } from 'fs'
+import { join, resolve } from 'path'
 
 const electronMainExternal = [
   'electron',
@@ -25,86 +26,117 @@ function getVendorChunkName(id: string): string | undefined {
   return 'vendor'
 }
 
-export default defineConfig({
-  server: {
-    port: 57173,
-  },
-  plugins: [
-    tailwindcss(),
-    vue(),
-    electron([
-      {
-        entry: 'electron/main.ts',
-        onstart(options) {
-          if (options.startup) {
-            options.startup()
-          } else {
-            options.reload()
-          }
-        },
-        vite: {
-          build: {
-            sourcemap: true,
-            minify: false,
-            outDir: 'dist-electron',
-            rollupOptions: {
-              // Native addons like better-sqlite3 must stay in node_modules.
-              // If Vite bundles them into dist-electron, bindings() resolves the
-              // .node binary from the wrong module root and SqliteSaver falls
-              // back to MemorySaver at runtime.
-              external: electronMainExternal
-            }
-          }
-        }
-      },
-      {
-        entry: 'electron/preload.ts',
-        vite: {
-          build: {
-            sourcemap: 'inline',
-            minify: false,
-            outDir: 'dist-electron',
-            rollupOptions: {
-              external: electronMainExternal
-            }
-          }
-        }
-      }
-    ]),
-    renderer()
-  ],
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src'),
+function removeFilesNamed(root: string, fileName: string): void {
+  if (!existsSync(root)) return
+
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const entryPath = join(root, entry.name)
+    if (entry.isDirectory()) {
+      removeFilesNamed(entryPath, fileName)
+    } else if (entry.name === fileName) {
+      rmSync(entryPath, { force: true })
     }
-  },
-  css: {
-    preprocessorOptions: {
-      scss: {
-        // 解决Sass弃用警告
-        // implementation: sass, // Removed because it's not supported by Vite
-      },
+  }
+}
+
+function pruneProductionArtifactsPlugin() {
+  return {
+    name: 'prune-production-artifacts',
+    apply: 'build' as const,
+    closeBundle() {
+      removeFilesNamed('dist', '.DS_Store')
+      removeFilesNamed('dist-electron', '.DS_Store')
+      rmSync('dist/dictionaries/en/readme.md', { force: true })
+      rmSync('dist/dictionaries/en/package.json', { force: true })
     },
-  },
-  optimizeDeps: {
-    include: ["nanoid", "typo-js"],
-  },
-  build: {
-    outDir: 'dist',
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          return getVendorChunkName(id)
+  }
+}
+
+export default defineConfig(({ command }) => {
+  const isProductionBuild = command === 'build'
+
+  return {
+    server: {
+      port: 57173,
+    },
+    plugins: [
+      tailwindcss(),
+      vue(),
+      electron([
+        {
+          entry: 'electron/main.ts',
+          onstart(options) {
+            if (options.startup) {
+              options.startup()
+            } else {
+              options.reload()
+            }
+          },
+          vite: {
+            build: {
+              sourcemap: isProductionBuild ? false : true,
+              minify: isProductionBuild ? true : false,
+              outDir: 'dist-electron',
+              rollupOptions: {
+                // Native addons like better-sqlite3 must stay in node_modules.
+                // If Vite bundles them into dist-electron, bindings() resolves the
+                // .node binary from the wrong module root and SqliteSaver falls
+                // back to MemorySaver at runtime.
+                external: electronMainExternal
+              }
+            }
+          }
         },
-        chunkFileNames: 'assets/js/[name]-[hash].js',
-        entryFileNames: 'assets/js/[name]-[hash].js',
-        assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
+        {
+          entry: 'electron/preload.ts',
+          vite: {
+            build: {
+              sourcemap: isProductionBuild ? false : 'inline',
+              minify: isProductionBuild ? true : false,
+              outDir: 'dist-electron',
+              rollupOptions: {
+                external: electronMainExternal
+              }
+            }
+          }
+        }
+      ]),
+      renderer(),
+      pruneProductionArtifactsPlugin()
+    ],
+    resolve: {
+      alias: {
+        '@': resolve(__dirname, 'src'),
+      }
+    },
+    css: {
+      preprocessorOptions: {
+        scss: {
+          // 解决Sass弃用警告
+          // implementation: sass, // Removed because it's not supported by Vite
+        },
       },
     },
-    // 调整警告阈值（从500KB提高到1000KB）
-    chunkSizeWarningLimit: 1000,
-  },
-  worker: {
-    format: 'es' // Specify ES module format for workers
-  },
+    optimizeDeps: {
+      include: ["nanoid", "typo-js"],
+    },
+    build: {
+      outDir: 'dist',
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            return getVendorChunkName(id)
+          },
+          chunkFileNames: 'assets/js/[name]-[hash].js',
+          entryFileNames: 'assets/js/[name]-[hash].js',
+          assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
+        },
+      },
+      // 调整警告阈值（从500KB提高到1000KB）
+      chunkSizeWarningLimit: 1000,
+    },
+    worker: {
+      format: 'es' // Specify ES module format for workers
+    },
+  }
 })

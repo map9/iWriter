@@ -92,7 +92,7 @@ export class WindowManager {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
-        webSecurity: false
+        webSecurity: !isDev
       },
       titleBarStyle: 'hiddenInset',
       trafficLightPosition: { x: 20, y: 10 },

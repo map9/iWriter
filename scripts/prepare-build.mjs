@@ -14,13 +14,15 @@ function updateIconConfig() {
   
   // Windows图标配置
   const winIco = 'assets/icons/win/icon.ico';
+  const winIcoBuilderPath = 'icons/win/icon.ico';
   const winPng = 'assets/icons/win/icon.png';
+  const winPngBuilderPath = 'icons/win/icon.png';
   
   if (fs.existsSync(winIco)) {
-    packageJson.build.win = { ...packageJson.build.win, icon: winIco };
+    packageJson.build.win = { ...packageJson.build.win, icon: winIcoBuilderPath };
     console.log(`✅ Windows: 使用ICO格式图标 (${winIco})`);
   } else if (fs.existsSync(winPng)) {
-    packageJson.build.win = { ...packageJson.build.win, icon: winPng };
+    packageJson.build.win = { ...packageJson.build.win, icon: winPngBuilderPath };
     console.log(`⚠️  Windows: 使用PNG格式图标 (${winPng})`);
   } else {
     console.warn('❌ Windows图标文件未找到');
@@ -28,13 +30,15 @@ function updateIconConfig() {
   
   // macOS图标配置
   const macIcns = 'assets/icons/mac/icon.icns';
+  const macIcnsBuilderPath = 'icons/mac/icon.icns';
   const macPngPattern = 'assets/icons/mac/icon_512x512.png';
+  const macPngBuilderPath = 'icons/mac';
   
   if (fs.existsSync(macIcns)) {
-    packageJson.build.mac = { ...packageJson.build.mac, icon: macIcns };
+    packageJson.build.mac = { ...packageJson.build.mac, icon: macIcnsBuilderPath };
     console.log(`✅ macOS: 使用ICNS格式图标 (${macIcns})`);
   } else if (fs.existsSync(macPngPattern)) {
-    packageJson.build.mac = { ...packageJson.build.mac, icon: 'assets/icons/mac' };
+    packageJson.build.mac = { ...packageJson.build.mac, icon: macPngBuilderPath };
     console.log(`⚠️  macOS: 使用PNG格式图标目录 (assets/icons/mac/)`);
   } else {
     console.warn('❌ macOS图标文件未找到');
@@ -42,8 +46,9 @@ function updateIconConfig() {
   
   // Linux图标配置
   const linuxDir = 'assets/icons/linux';
+  const linuxBuilderPath = 'icons/linux';
   if (fs.existsSync(linuxDir)) {
-    packageJson.build.linux = { ...packageJson.build.linux, icon: linuxDir };
+    packageJson.build.linux = { ...packageJson.build.linux, icon: linuxBuilderPath };
     console.log(`✅ Linux: 使用图标目录 (${linuxDir})`);
   } else {
     console.warn('❌ Linux图标目录未找到');
