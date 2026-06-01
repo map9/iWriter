@@ -137,9 +137,9 @@ export class TooltipManager {
         z-index: 10000;
         max-width: 400px;
         min-width: 100px;
-        background: var(--color-base-100, rgba(30, 30, 30, 0.95));
-        color: #cccccc;
-        border: var(--border, 1px) solid var(--color-base-300, #454545);
+        background: var(--color-neutral, rgba(30, 30, 30, 0.95));
+        color: var(--color-neutral-content, #cccccc);
+        border: var(--border, 1px) solid color-mix(in oklab, var(--color-neutral-content, #cccccc) 15%, transparent);
         border-radius: var(--radius-field, 4px);
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         font-size: 12px;
@@ -168,7 +168,7 @@ export class TooltipManager {
         transform: translateX(-50%);
         border-left: 6px solid transparent;
         border-right: 6px solid transparent;
-        border-top: 6px solid var(--color-base-100, rgba(30, 30, 30, 0.95));
+        border-top: 6px solid var(--color-neutral, rgba(30, 30, 30, 0.95));
       }
 
       /* Bottom placement: tooltip below target, arrow points up */
@@ -178,7 +178,7 @@ export class TooltipManager {
         transform: translateX(-50%);
         border-left: 6px solid transparent;
         border-right: 6px solid transparent;
-        border-bottom: 6px solid var(--color-base-100, rgba(30, 30, 30, 0.95));
+        border-bottom: 6px solid var(--color-neutral, rgba(30, 30, 30, 0.95));
       }
 
       /* Left placement: tooltip left of target, arrow points right */
@@ -188,7 +188,7 @@ export class TooltipManager {
         transform: translateY(-50%);
         border-top: 6px solid transparent;
         border-bottom: 6px solid transparent;
-        border-left: 6px solid var(--color-base-100, rgba(30, 30, 30, 0.95));
+        border-left: 6px solid var(--color-neutral, rgba(30, 30, 30, 0.95));
       }
 
       /* Right placement: tooltip right of target, arrow points left */
@@ -198,7 +198,7 @@ export class TooltipManager {
         transform: translateY(-50%);
         border-top: 6px solid transparent;
         border-bottom: 6px solid transparent;
-        border-right: 6px solid var(--color-base-100, rgba(30, 30, 30, 0.95));
+        border-right: 6px solid var(--color-neutral, rgba(30, 30, 30, 0.95));
       }
 
       /* Markdown content styles */
@@ -213,8 +213,8 @@ export class TooltipManager {
       }
 
       .iw-tooltip-content a {
-        color: var(--color-base-content, #4fc3f7);
-        text-decoration: none;
+        color: var(--color-neutral-content, #4fc3f7);
+        text-decoration: underline;
       }
 
       .iw-tooltip-content a:hover {
@@ -230,8 +230,8 @@ export class TooltipManager {
       }
 
       .iw-tooltip-content code {
-        background: #2d2d30;
-        border: 1px solid #454545;
+        background: color-mix(in oklab, var(--color-neutral-content) 15%, transparent);
+        border: 1px solid color-mix(in oklab, var(--color-neutral-content) 25%, transparent);
         border-radius: 3px;
         padding: 1px 4px;
         font-family: var(--font-mono, Consolas, "Courier New", monospace);

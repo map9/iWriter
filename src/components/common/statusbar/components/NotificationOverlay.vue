@@ -10,7 +10,7 @@
   >
     <div
       v-if="state.isVisible && state.currentNotification"
-      class="absolute inset-0 z-50 flex items-center gap-2 px-4 text-xs text-neutral-content"
+      class="absolute inset-0 z-50 flex items-center gap-2 px-4 text-xs"
       :class="[
         notificationClasses,
         state.displayOptions.flash ? 'animate-pulse' : ''
@@ -33,7 +33,7 @@
       <button
         v-if="isForceClose()"
         @click="close"
-        class="flex icon-sm shrink-0 items-center justify-center rounded-field bg-transparent hover:bg-neutral-content/30"
+        class="flex icon-sm shrink-0 items-center justify-center rounded-field bg-transparent hover:bg-[color-mix(in_oklab,currentColor_15%,transparent)]"
         :class="[
           {'animate-bounce' : isBounceClose()}
         ]"

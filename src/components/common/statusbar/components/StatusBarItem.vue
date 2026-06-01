@@ -6,7 +6,7 @@
     class="statusbar-item"
     :class="[
       'flex h-6 min-h-6 items-center gap-1 rounded-none border-none bg-transparent px-1 py-1',
-      'transition-colors duration-150 hover:bg-neutral-content/70',
+      'transition-colors duration-150 hover:bg-neutral-content/15',
       'cursor-pointer',
       'whitespace-nowrap',
       {
