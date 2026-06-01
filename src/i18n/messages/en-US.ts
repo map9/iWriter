@@ -1286,7 +1286,7 @@ export default {
   },
   statusBar: {
     fileStats: {
-      positionFormat: 'Ln {line}, Col {col} {type}',
+      positionFormat: 'Ln {line}, Col {col}, {type}',
       positionTooltip: 'Go to Line/Column',
       lineEndingTooltip: 'Select End of Line Sequence',
       statsSelection: 'Selection',

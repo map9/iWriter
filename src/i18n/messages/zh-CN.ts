@@ -1275,7 +1275,7 @@ export default {
   },
   statusBar: {
     fileStats: {
-      positionFormat: '行 {line}，列 {col} {type}',
+      positionFormat: '行 {line}，列 {col}，{type}',
       positionTooltip: '跳转到行/列',
       lineEndingTooltip: '选择行尾序列',
       statsSelection: '选中内容',
