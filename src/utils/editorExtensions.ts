@@ -484,7 +484,9 @@ export function createMarkdownEditorExtensions(options: {
             timeout: 8000
           }
         : { dictionaryPath: '/dictionaries' },
-      enabled: true,
+      // 仅当全局设置启用了 proofread 时才在 onCreate 创建 worker pool；
+      // 若初始为 false，后续通过 enableProofread() 命令懒初始化 service。
+      enabled: editSetting?.proofread ?? false,
       showErrors: true,
       debounceTime: 2000,
       maxWorkers: 4

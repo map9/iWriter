@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, nativeTheme } from 'electron'
 import type { Event, PrintToPDFOptions, WebContentsPrintOptions } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
@@ -12,6 +12,7 @@ import { isDev } from './utils'
 import type { WindowState, IApp } from './types'
 import { USE_CONFIRMATION_TIMEOUT, HELLO_TIMEOUT, CLOSE_WINDOW_CONFIRMATION_TIMEOUT } from './types'
 import { normalizeLocale } from './i18n'
+import { perfLog } from './perf'
 
 
 export class WindowManager {
@@ -83,11 +84,15 @@ export class WindowManager {
 
   // 创建一个新的窗口
   createWindow(): BrowserWindow {
+    perfLog('createWindow() start')
+    // 用系统颜色模式设置背景色，消除 ready-to-show 前的白屏闪烁
+    const backgroundColor = nativeTheme.shouldUseDarkColors ? '#1e1e1e' : '#f5f5f5'
     const window = new BrowserWindow({
       height: 800,
       width: 1200,
       minWidth: 800,
       minHeight: 600,
+      backgroundColor,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -181,12 +186,14 @@ export class WindowManager {
     })
 
     window.once('ready-to-show', () => {
+      perfLog('ready-to-show (window visible)')
       window.show()
       window.on('enter-full-screen', handleEnterFullScreen)
       window.on('leave-full-screen', handleLeaveFullScreen)
     })
 
     window.webContents.on('did-finish-load', () => {
+      perfLog('did-finish-load (renderer loaded)')
       window.webContents.send('window-id', window.id);
       this.loopHeartbeatCheck(windowState)
     });

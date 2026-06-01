@@ -343,6 +343,7 @@ import { undoDepth } from '@tiptap/pm/history'
 import { Transaction } from '@tiptap/pm/state'
 
 import 'katex/dist/katex.min.css'
+import '@/components/pages/markdown-editor/style.scss'
 import { migrateMathStrings } from '@tiptap/extension-mathematics'
 
 import SearchReplacePanel from '@/components/common/tiptap/iw-search-replace/components/SearchReplacePanel.vue'

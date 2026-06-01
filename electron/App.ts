@@ -14,8 +14,9 @@ import { MenuManager } from './MenuManager'
 import { WindowManager } from './WindowManager'
 import { UpdaterManager } from '../src/updater/UpdaterManager'
 import { PandocService } from './PandocService'
-import { AgentEngine } from './ai/AgentEngine'
+import type { AgentEngine } from './ai/AgentEngine'
 import { AiConfigStore } from './ai/config/AiConfigStore'
+import { perfLog } from './perf'
 import type { AiSettings } from '../src/types/ai'
 import { formatCodeInMain } from './CodeFormatService'
 import { createMainTranslator, formatMainText } from './i18n'
@@ -107,7 +108,7 @@ export class App {
   private windowManager: WindowManager
   private updaterManager: UpdaterManager | null
   private pandocService: PandocService
-  private agentEngine: AgentEngine
+  private _agentEngine: AgentEngine | null = null
   private customThemeLoader: CustomThemeLoader
   private appQuitTimer: Timer | null = null
   private _isAppQuitting: boolean
@@ -122,11 +123,25 @@ export class App {
     this.customThemeLoader = new CustomThemeLoader()
     this._isAppQuitting = false
     this._exitApp = false
-    this.agentEngine = new AgentEngine(
-      () => BrowserWindow.getAllWindows()[0]?.webContents ?? null
-    )
+    // AgentEngine（langchain/deepagents）懒加载：首次 AI IPC 调用时再构造
+    // 避免在 app.whenReady 之前同步求值整个 langchain 模块图
 
     this.setupIpcHandlers()
+    perfLog('App constructor done')
+  }
+
+  /**
+   * 懒加载 AgentEngine：首次调用时动态 import 并构造单例。
+   * 确保 langchain/deepagents/provider SDK 不在启动关键路径上求值。
+   */
+  private async _getAgentEngine(): Promise<AgentEngine> {
+    if (!this._agentEngine) {
+      const { AgentEngine: AgentEngineClass } = await import('./ai/AgentEngine')
+      this._agentEngine = new AgentEngineClass(
+        () => BrowserWindow.getAllWindows()[0]?.webContents ?? null
+      )
+    }
+    return this._agentEngine
   }
 
   /**
@@ -1218,24 +1233,24 @@ export class App {
 
   private registerAgentIpcHandlers() {
     ipcMain.handle('ai:send-message', async (_, req) => {
-      return this.agentEngine.sendMessage(req)
+      return (await this._getAgentEngine()).sendMessage(req)
     })
 
     ipcMain.handle('ai:compact-input', async (_, req) => {
-      return this.agentEngine.compactInput(req)
+      return (await this._getAgentEngine()).compactInput(req)
     })
 
     ipcMain.handle('ai:get-session-context-stats', async (_, req) => {
-      return this.agentEngine.getSessionContextStats(req)
+      return (await this._getAgentEngine()).getSessionContextStats(req)
     })
 
     ipcMain.handle('ai:cancel', async (_, { threadId }: { threadId: string }) => {
-      this.agentEngine.cancel(threadId)
+      ;(await this._getAgentEngine()).cancel(threadId)
     })
 
     // HITL resume — batch decisions array (approve / edit / reject)
     ipcMain.handle('ai:resume', async (_, req: import('./ai/ipc/protocol').ResumeRunRequest) => {
-      await this.agentEngine.resumeRun(req.threadId, req.decisions)
+      await (await this._getAgentEngine()).resumeRun(req.threadId, req.decisions)
     })
 
     ipcMain.handle('ai:get-config', async () => {
@@ -1247,19 +1262,19 @@ export class App {
     })
 
     ipcMain.handle('ai:get-threads', async () => {
-      return this.agentEngine.getThreads()
+      return (await this._getAgentEngine()).getThreads()
     })
 
     ipcMain.handle('ai:delete-thread', async (_, { threadId }: { threadId: string }) => {
-      this.agentEngine.deleteThread(threadId)
+      ;(await this._getAgentEngine()).deleteThread(threadId)
     })
 
     ipcMain.handle('ai:clear-threads', async () => {
-      this.agentEngine.clearThreads()
+      ;(await this._getAgentEngine()).clearThreads()
     })
 
     ipcMain.handle('ai:get-thread-messages', async (_, { threadId }: { threadId: string }) => {
-      return this.agentEngine.getThreadMessages(threadId)
+      return (await this._getAgentEngine()).getThreadMessages(threadId)
     })
   }
 
@@ -1277,6 +1292,11 @@ export class App {
       return this.customThemeLoader.load()
     })
 
+    // chokidar watcher 延迟到 app.whenReady 之后启动（见 startCustomThemeWatcher）
+  }
+
+  /** 在窗口创建后启动自定义主题文件监听（chokidar），避免阻塞冷启动路径 */
+  private startCustomThemeWatcher(): void {
     this.customThemeLoader.watchThemes((themes) => {
       for (const win of BrowserWindow.getAllWindows()) {
         if (!win.isDestroyed()) {
@@ -1424,6 +1444,7 @@ export class App {
     })
 
     app.whenReady().then(() => {
+      perfLog('app.whenReady fired')
       this.menuManager.setSendMenuAction((action: string) => {
         this.handleMenuAction(action)
       })
@@ -1431,8 +1452,11 @@ export class App {
       this.windowManager.setUpdateMenu(() => {
         this.handleUpdateMenu()
       })
-      
-      // 只在生产环境启用更新器
+
+      // 窗口创建后再启动主题文件监听（chokidar + ensureThemesDir）
+      this.startCustomThemeWatcher()
+
+      // 只在生产环境启用更新器（排在 createWindow 之后，不阻塞窗口创建）
       if (!isDev) {
         try {
           this.updaterManager = new UpdaterManager()
@@ -1445,6 +1469,9 @@ export class App {
         }
       } else {
         console.debug('UpdaterManager disabled in development mode')
+        // dev 模式下渲染端仍会调用这两个 IPC，注册 stub 避免 "No handler" 错误
+        ipcMain.handle('updater:get-state', () => ({ status: { type: 'idle', message: '' }, updateInfo: null }))
+        ipcMain.handle('updater:get-config', () => ({ autoCheck: false, autoDownload: false, skipVersion: null }))
       }
 
     })

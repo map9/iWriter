@@ -105,12 +105,14 @@ export class AgentEngine {
         () => this.invalidateAgentCache(),
       ),
     }
-    this.ensureAiDirectories()
+    // 目录初始化移至 initialize()（异步），不在构造函数同步执行
   }
 
   // ── Public: lifecycle ─────────────────────────────────────────────────────
 
   async initialize(): Promise<void> {
+    // 首次使用 AI 时初始化目录与技能（异步，不阻塞启动路径）
+    await this.ensureAiDirectories()
     const ci = await getCheckpointer()
     this.checkpointerInstance = ci
     this.checkpointerAdmin = new CheckpointerAdmin(ci)
@@ -1065,7 +1067,7 @@ export class AgentEngine {
     if (!this.checkpointerInstance) await this.initialize()
   }
 
-  private ensureAiDirectories(): void {
+  private async ensureAiDirectories(): Promise<void> {
     const dirs = [
       this.aiRootPath,
       path.join(this.aiRootPath, 'memory'),
@@ -1081,15 +1083,35 @@ export class AgentEngine {
       path.join(this.aiRootPath, 'subagents'),
       path.join(this.aiRootPath, 'empty-fs'),
     ]
-    for (const dir of dirs) {
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-    }
-    this.syncBundledSkills()
+    await Promise.all(dirs.map(dir => fs.promises.mkdir(dir, { recursive: true })))
+    await this.syncBundledSkills()
   }
 
-  private syncBundledSkills(): void {
+  /**
+   * 同步内置技能目录。
+   * 使用版本跳过：生产环境下若应用版本未变，则跳过递归拷贝，
+   * 避免每次启动都执行 ~40 次 rmSync + 若干次 cpSync 的磁盘操作。
+   */
+  private async syncBundledSkills(): Promise<void> {
     if (!fs.existsSync(this.bundledSkillsPath)) return
     const targetRoot = path.join(this.aiRootPath, 'skills')
+
+    // 版本跳过：生产环境下若版本文件匹配，则跳过全量同步
+    const versionFile = path.join(this.aiRootPath, '.skills-sync-version')
+    const currentVersion = app.getVersion()
+    const isDev = !app.isPackaged
+    if (!isDev) {
+      try {
+        const savedVersion = await fs.promises.readFile(versionFile, 'utf-8')
+        if (savedVersion.trim() === currentVersion) {
+          console.debug('[AgentEngine] Bundled skills already up to date, skipping sync')
+          return
+        }
+      } catch {
+        // 版本文件不存在或读取失败，继续执行同步
+      }
+    }
+
     const obsoleteTopLevelSkills = [
       '_consistency',
       '_explorer',
@@ -1127,20 +1149,25 @@ export class AgentEngine {
       'thematic-depth',
       'web-research',
     ]
-    for (const name of obsoleteTopLevelSkills) {
-      fs.rmSync(path.join(targetRoot, name), { recursive: true, force: true })
-    }
-    fs.rmSync(path.join(targetRoot, 'writing-style', 'SKILL.md'), { force: true })
+    await Promise.all(
+      obsoleteTopLevelSkills.map(name =>
+        fs.promises.rm(path.join(targetRoot, name), { recursive: true, force: true })
+      )
+    )
+    await fs.promises.rm(path.join(targetRoot, 'writing-style', 'SKILL.md'), { force: true })
 
     const entries = fs.readdirSync(this.bundledSkillsPath, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
       const sourceDir = path.join(this.bundledSkillsPath, entry.name)
       const targetDir = path.join(targetRoot, entry.name)
-      fs.mkdirSync(targetDir, { recursive: true })
+      await fs.promises.mkdir(targetDir, { recursive: true })
       // dereference: true resolves any packaged symlinks inside scoped source dirs.
       fs.cpSync(sourceDir, targetDir, { recursive: true, dereference: true })
     }
+
+    // 写入版本文件，下次启动（同版本）直接跳过
+    await fs.promises.writeFile(versionFile, currentVersion, 'utf-8')
   }
 
   private _buildMemoryPaths(domain: AiAgentDomain): string[] {

@@ -22,6 +22,10 @@ function getVendorChunkName(id: string): string | undefined {
   if (id.includes('/vue/') || id.includes('/@vue/')) return 'vue'
   if (id.includes('/vue-router/')) return 'vue-router'
   if (id.includes('/pinia/')) return 'pinia'
+  // 重但懒的库单独拆 chunk，配合页面懒加载避免混入首屏 vendor
+  if (id.includes('/marked/') || id.includes('/turndown') || id.includes('/turndown-plugin-gfm')) return 'markdown-convert'
+  if (id.includes('/lowlight/') || id.includes('/fault/') || id.includes('/highlight.js/')) return 'highlight'
+  if (id.includes('/pagedjs/')) return 'pagedjs-lib'
 
   return 'vendor'
 }
@@ -122,6 +126,8 @@ export default defineConfig(({ command }) => {
     },
     build: {
       outDir: 'dist',
+      // Electron 内置 Chromium 版本已知，esnext 减少不必要的语法降级与 polyfill
+      target: 'esnext',
       rollupOptions: {
         output: {
           manualChunks(id) {

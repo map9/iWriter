@@ -35,9 +35,19 @@ function applyRawCustomThemes(rawThemes: unknown[]): void {
 }
 
 onMounted(async () => {
+  // Phase 0: 渲染进程关键节点计时
+  const _perfEnabled = import.meta.env.DEV || import.meta.env.VITE_IWRITER_PERF === '1'
+  const _perfLog = (label: string) => {
+    if (!_perfEnabled) return
+    console.info(`[PERF][renderer] ${label}: +${performance.now().toFixed(1)}ms`)
+    performance.mark(label)
+  }
+  _perfLog('App.vue onMounted start')
+
   // Initialize
   ensureMarkdownScreenThemeStyleSheet()
   appStore.initial()
+  _perfLog('appStore.initial() done')
 
   if (window.electronAPI) {
     window.electronAPI.onMenuAction(async (action: string) => {

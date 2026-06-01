@@ -70,6 +70,22 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 	addCommands() {
 		return {
 			enableProofread: () => () => {
+				// 若 onCreate 被 enabled:false 门控跳过，这里懒初始化 service
+				if (!this.storage.proofreadService) {
+					try {
+						this.storage.proofreadService = new ProofreadService({
+							engineType: this.options.engineType,
+							language: this.options.language,
+							engineOptions: this.options.engineOptions,
+							maxWorkers: this.options.maxWorkers,
+							cacheSize: this.options.cacheSize,
+							cacheExpiry: this.options.cacheExpiry
+						})
+					} catch (error) {
+						console.warn('[iwProofreadExtension] Proofread lazy init skipped:', error)
+						return true
+					}
+				}
 				if (!this.storage.isEnabled) {
 					this.storage.isEnabled = true
 					this.storage.nodeProofreadMap.clear()
@@ -140,6 +156,8 @@ export const iwProofreadExtension = Extension.create<iwProofreadOptions, iwProof
 	},
 
 	onCreate() {
+		// 仅在 enabled 时创建 worker pool，避免每个编辑器无条件启动 workerpool
+		if (!this.options.enabled) return
 		try {
 			this.storage.proofreadService = new ProofreadService({
 				engineType: this.options.engineType,

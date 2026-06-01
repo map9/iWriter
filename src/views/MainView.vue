@@ -129,7 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useAiStore } from '@/ai/store/ai'
 import { DocumentType } from '@/types'
@@ -142,22 +142,28 @@ import LeftSidebar from '@/components/LeftSidebar.vue'
 import RightSidebar from '@/components/RightSidebar.vue'
 import StatusBar from '@/components/StatusBar.vue'
 import WelcomePage from '@/components/pages/WelcomePage.vue'
-import MarkdownEditorPage from '@/components/pages/MarkdownEditorPage.vue'
-import '@/components/pages/markdown-editor/style.scss'
-import ImageViewerPage from '@/components/pages/ImageViewerPage.vue'
-import PDFViewerPage from '@/components/pages/PDFViewerPage.vue'
-import UnknownPage from '@/components/pages/UnknownPage.vue'
-import UpdateDialog from '@/components/updater/UpdateDialog.vue'
-import PreferencesDialog from '@/components/preferences/PreferencesDialog.vue'
-import PrintDialog from '@/components/print/PrintDialog.vue'
+// 类型引入（仅用于 ref 类型标注，import type 零运行时开销）
+import type MarkdownEditorPageType from '@/components/pages/MarkdownEditorPage.vue'
+import type ImageViewerPageType from '@/components/pages/ImageViewerPage.vue'
+import type PDFViewerPageType from '@/components/pages/PDFViewerPage.vue'
+// 所有页面/对话框懒加载，减少初始 chunk：
+//   - MarkdownEditorPage 携带 TipTap/highlight/katex (~2.5MB)，onMounted 后立即预加载
+//   - PDFViewerPage 携带 pdfjs-dist (413KB)；PrintDialog 携带 pagedjs-lib (892KB)
+const MarkdownEditorPage = defineAsyncComponent(() => import('@/components/pages/MarkdownEditorPage.vue'))
+const ImageViewerPage = defineAsyncComponent(() => import('@/components/pages/ImageViewerPage.vue'))
+const PDFViewerPage = defineAsyncComponent(() => import('@/components/pages/PDFViewerPage.vue'))
+const UnknownPage = defineAsyncComponent(() => import('@/components/pages/UnknownPage.vue'))
+const UpdateDialog = defineAsyncComponent(() => import('@/components/updater/UpdateDialog.vue'))
+const PreferencesDialog = defineAsyncComponent(() => import('@/components/preferences/PreferencesDialog.vue'))
+const PrintDialog = defineAsyncComponent(() => import('@/components/print/PrintDialog.vue'))
 
 const appStore = useAppStore()
 const aiStore = useAiStore()
 
 // Refs for different page types
-const markdownEditorRefs = ref<InstanceType<typeof MarkdownEditorPage>[]>([])
-const imageViewerRefs = ref<InstanceType<typeof ImageViewerPage>[]>([])
-const pdfViewerRefs = ref<InstanceType<typeof PDFViewerPage>[]>([])
+const markdownEditorRefs = ref<InstanceType<typeof MarkdownEditorPageType>[]>([])
+const imageViewerRefs = ref<InstanceType<typeof ImageViewerPageType>[]>([])
+const pdfViewerRefs = ref<InstanceType<typeof PDFViewerPageType>[]>([])
 
 // Update dialog：可见性与数据都集中在 updaterService 中，此处只保留句柄
 // （模板直接读 updaterService.dialogVisible / updaterService.updateInfo）
@@ -275,6 +281,10 @@ function handleViewUpdateDetails() {
 // Lifecycle
 onMounted(() => {
   aiStore.init()
+
+  // MarkdownEditorPage 做了懒加载以缩短首屏时间（TipTap/highlight/katex ~2.5MB）。
+  // 这里立即触发预加载，确保绝大多数用户在打开第一个 markdown tab 前已加载完毕。
+  import('@/components/pages/MarkdownEditorPage.vue').catch(() => { /* ignore */ })
 
   document.addEventListener('keydown', handleWindowEscape, true)
   document.addEventListener('mousemove', handleWindowMouseMove, true)

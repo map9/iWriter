@@ -29,7 +29,7 @@ import {
   type PandocAvailabilityResult,
   type PandocExportRequest,
 } from '@/types'
-import { convertContentFrom, convertContentTo } from '@/import-export/'
+import { convertContentFrom, convertContentTo } from '@/import-export'
 import { PANDOC_EXPORT_EXTENSIONS, PANDOC_IMPORT_EXTENSIONS } from '@/import-export'
 import {
   DEFAULT_EXPORT_SETTING,
