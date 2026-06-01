@@ -2917,7 +2917,6 @@ export const useAppStore = defineStore('app', () => {
           return true
         }
 
-        console.warn('Unhandled menu action in app:', action)
         return false
     }
   }

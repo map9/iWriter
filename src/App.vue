@@ -55,7 +55,10 @@ onMounted(async () => {
       const isDone: boolean = await handleMenuAction(action)
       if (isDone == false) {
         // Fallback to app store for non-editor actions
-        appStore.handleMenuAction(action)
+        const handledByApp = await appStore.handleMenuAction(action)
+        if (!handledByApp) {
+          console.warn('Unhandled menu action:', action)
+        }
       }
     })
 

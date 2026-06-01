@@ -168,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import type { FileTreeNode, FileTreeCallbacks, FileTreeSortType } from '../common/tree'
@@ -553,7 +553,10 @@ const showSortContextMenu = async (event: MouseEvent) => {
   }
 
   try {
-    await window.electronAPI.showContextMenu(menuItems, position)
+    const action = await window.electronAPI.showContextMenu(menuItems, position)
+    if (action) {
+      await handleExplorerContextAction(action)
+    }
   } catch (error) {
     console.error('Error showing sort context menu:', error)
   }
@@ -660,9 +663,14 @@ const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent })
   currentContextNode.value = fileNode
 
   try {
-    await window.electronAPI.showContextMenu(menuItems, position)
+    const action = await window.electronAPI.showContextMenu(menuItems, position)
+    if (action) {
+      await handleExplorerContextAction(action)
+    }
   } catch (error) {
     console.error('Error showing context menu:', error)
+  } finally {
+    currentContextNode.value = null
   }
 }
 
@@ -707,8 +715,8 @@ const isNodeChildOf = (potentialChild: FileTreeNode, potentialParent: FileTreeNo
   return false
 }
 
-// 菜单动作处理器
-const handleMenuAction = async (action: string) => {
+// Explorer 右键菜单动作只在本组件内处理，不进入全局 menu-action 分发链。
+const handleExplorerContextAction = async (action: string) => {
   if (action.startsWith('filetree-sort-')) {
     const sortType = action.replace('filetree-sort-', '') as FileTreeSortType
     setSortOption(sortType)
@@ -766,9 +774,6 @@ const handleMenuAction = async (action: string) => {
     default:
       break
   }
-  
-  // 清除当前上下文节点
-  currentContextNode.value = null
 }
 
 // 鼠标事件处理函数
@@ -779,16 +784,6 @@ const handleTreeMouseEnter = () => {
 const handleTreeMouseLeave = () => {
   isTreeHovered.value = false
 }
-
-onMounted(() => {
-  // 监听菜单动作
-  window.electronAPI.onMenuAction(handleMenuAction)
-})
-
-onUnmounted(() => {
-  // 清理菜单动作监听器
-  window.electronAPI.removeMenuActionListener(handleMenuAction)
-})
 
 </script>
 

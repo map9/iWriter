@@ -964,7 +964,7 @@ export class App {
       }
 
       // 将菜单项转换为 Electron 菜单格式
-      const convertMenuItems = (items: ContextMenuItem[]): MenuItemConstructorOptions[] => {
+      const convertMenuItems = (items: ContextMenuItem[], onSelect: (id: string) => void): MenuItemConstructorOptions[] => {
         return items.map(item => {
           if (item.type === 'separator') {
             return { type: 'separator' };
@@ -1000,11 +1000,12 @@ export class App {
           }
 
           if (item.submenu && item.submenu.length > 0) {
-            menuItem.submenu = convertMenuItems(item.submenu);
+            menuItem.submenu = convertMenuItems(item.submenu, onSelect);
           } else {
             menuItem.click = () => {
-              if (item.id)
-                window.webContents.send('menu-action', item.id);
+              if (item.id) {
+                onSelect(item.id)
+              }
             };
           }
 
@@ -1013,15 +1014,21 @@ export class App {
       };
 
       try {
-        const menu = Menu.buildFromTemplate(convertMenuItems(menuItems));
-        
         return new Promise<string | null>((resolve) => {
+          let resolved = false
+          const done = (action: string | null) => {
+            if (resolved) return
+            resolved = true
+            resolve(action)
+          }
+          const menu = Menu.buildFromTemplate(convertMenuItems(menuItems, done))
+
           menu.popup({
             window,
             x: position.x,
             y: position.y,
             callback: () => {
-              resolve(null);
+              done(null);
             }
           });
         });

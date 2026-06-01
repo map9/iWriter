@@ -296,7 +296,6 @@ export async function onEditorMenuAction(editor: Editor | undefined, action: str
       return true
 
     default:
-      console.warn('Unhandled menu action in MarkdownEditor:', action)
       return false
   }
 }
