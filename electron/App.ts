@@ -1379,6 +1379,27 @@ export class App {
   }
 
   run() {
+    // Must be registered before app.whenReady() — macOS fires open-file for
+    // "Open Recent" selections (and Finder double-clicks) before or after ready.
+    app.on('open-file', (event, filePath) => {
+      event.preventDefault()
+      const send = (win: BrowserWindow) =>
+        win.webContents.send('menu-action', `open-path:${filePath}`)
+      const focused = BrowserWindow.getFocusedWindow()
+      if (focused) {
+        send(focused)
+      } else {
+        const [first] = BrowserWindow.getAllWindows()
+        if (first) {
+          send(first)
+        } else {
+          // No window yet — create one, then open the file once it's ready
+          const win = this.windowManager.createWindow()
+          win.webContents.once('did-finish-load', () => send(win))
+        }
+      }
+    })
+
     app.on('window-all-closed', () => {
       if (!isMac) app.quit()
     });
