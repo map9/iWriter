@@ -1,7 +1,7 @@
 <template>
   <div class="@container flex min-h-0 flex-1 flex-col overflow-y-auto" :class="containerClass">
     <section class="flex flex-col gap-5">
-      <h3 v-if="showSectionTitles" class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.print.themeGroup') }}</h3>
+      <h3 v-if="showSectionTitles" class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.print.themeGroup') }}</h3>
 
       <label class="flex items-center gap-3">
         <input
@@ -24,7 +24,7 @@
     </section>
 
     <section class="flex flex-col gap-5" :class="sectionGapClass">
-      <h3 v-if="showSectionTitles" class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.print.pageGroup') }}</h3>
+      <h3 v-if="showSectionTitles" class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.print.pageGroup') }}</h3>
 
       <div class="responsive-two-col-grid">
         <div class="flex flex-col gap-1.5">
@@ -105,7 +105,7 @@
     </section>
 
     <section class="flex flex-col gap-5" :class="sectionGapClass">
-      <h3 v-if="showSectionTitles" class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.print.paginationGroup') }}</h3>
+      <h3 v-if="showSectionTitles" class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.print.paginationGroup') }}</h3>
 
       <div class="responsive-inline-row">
         <label class="text-sm font-medium text-base-content">{{ t('preferences.print.chapterStartSide') }}</label>
@@ -215,7 +215,7 @@
     </section>
 
     <section class="flex flex-col gap-5" :class="sectionGapClass">
-      <h3 v-if="showSectionTitles" class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.print.headerFooterGroup') }}</h3>
+      <h3 v-if="showSectionTitles" class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.print.headerFooterGroup') }}</h3>
 
       <label class="responsive-option-item">
         <input v-model="settings.headerFooter.enabled" type="checkbox" class="checkbox checkbox-sm checkbox-primary" />
@@ -255,7 +255,7 @@
 
           <div
             v-if="getActiveSlots(group.key).length === 0"
-            class="rounded-box border border-dashed border-base-300 px-3 py-3 text-center text-xs text-base-content/60"
+            class="rounded-box border border-dashed border-base-300 px-3 py-3 text-center text-xs text-base-content/50"
           >
             {{ t('preferences.print.marginBoxEmptyTip') }}
           </div>
@@ -313,12 +313,12 @@
             </div>
           </div>
 
-          <p v-if="group.key === 'slots'" class="mt-2 text-xs text-base-content/65">
+          <p v-if="group.key === 'slots'" class="mt-2 text-xs text-base-content/50">
             {{ slotTemplateHelpText }}
           </p>
           <p
             v-if="group.key === 'slots' && (settings.headerFooter.differentFirstPage || settings.headerFooter.differentLeftRight)"
-            class="mt-1 text-xs text-base-content/65"
+            class="mt-1 text-xs text-base-content/50"
           >
             {{ t('preferences.print.marginBoxesCascadeHint') }}
           </p>

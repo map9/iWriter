@@ -314,7 +314,7 @@
       }
 
       .column-resize-handle {
-        background-color: #6a00f5;
+        background-color: var(--color-primary);
         bottom: -2px;
         pointer-events: none;
         position: absolute;

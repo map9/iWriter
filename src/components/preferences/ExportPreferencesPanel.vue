@@ -107,7 +107,7 @@
       </section>
 
       <section v-else-if="activeFormat" class="flex flex-col gap-5">
-        <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.export.configTitle') }}</h3>
+        <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.export.configTitle') }}</h3>
 
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.export.argsTitle') }}</label>

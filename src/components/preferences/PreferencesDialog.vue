@@ -10,7 +10,7 @@
       @click.stop
     >
       <aside class="drag-region flex w-52 shrink-0 flex-col border-r border-base-300 bg-base-200 px-3 py-4">
-        <div class="pb-4 text-xs font-semibold uppercase text-base-content/60">
+        <div class="pb-4 text-xs font-semibold uppercase text-base-content/70">
           {{ t('preferences.title') }}
         </div>
         <nav class="no-drag">
@@ -43,11 +43,11 @@
           </div>
           <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-7">
           <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.themes.languageTitle') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.languageTitle') }}</h3>
             <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
               <div class="min-w-0">
                 <div class="text-sm font-medium text-base-content">{{ t('locale.label') }}</div>
-                <div class="text-xs text-base-content/65">{{ t('preferences.themes.languageDescription') }}</div>
+                <div class="text-xs text-base-content/50">{{ t('preferences.themes.languageDescription') }}</div>
               </div>
               <select
                 class="iw-select w-52"
@@ -61,7 +61,7 @@
           </section>
 
           <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.themes.markdownThemeTitle') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.markdownThemeTitle') }}</h3>
             <div class="grid grid-cols-3 gap-3">
               <button
                 v-for="theme in markdownThemes"
@@ -73,7 +73,7 @@
                 @click="appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId = theme.id"
               >
                 <div class="text-sm font-medium text-base-content">{{ theme.name }}</div>
-                <div class="text-xs text-base-content/65">{{ theme.description }}</div>
+                <div class="text-xs text-base-content/50">{{ theme.description }}</div>
                 <span v-if="appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId === theme.id" class="badge badge-primary badge-sm w-fit">
                   {{ t('common.active') }}
                 </span>
@@ -83,7 +83,7 @@
 
           <section class="flex flex-col gap-3">
             <div class="flex items-center justify-between">
-              <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.themes.customMarkdownThemesTitle') }}</h3>
+              <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.customMarkdownThemesTitle') }}</h3>
               <div class="flex items-center gap-2">
                 <button class="iw-btn btn-ghost btn-xs gap-1.5" @click="handleCreateExampleTheme">
                   <IconPlus class="icon-xs" />
@@ -103,7 +103,7 @@
                 v-for="theme in rawCustomThemes"
                 :key="theme.id"
                 class="flex items-start gap-3 rounded-box border border-base-300 bg-base-100 px-4 py-3"
-                :class="theme.errors.length > 0 ? 'border-warning/40 bg-warning/5' : ''"
+                :class="theme.errors.length > 0 ? 'border-warning/30 bg-warning/10' : ''"
               >
                 <component
                   :is="theme.errors.length > 0 ? IconAlertTriangle : IconCheck"
@@ -122,7 +122,7 @@
           </section>
 
           <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.themes.appThemeTitle') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.appThemeTitle') }}</h3>
             <div class="grid grid-cols-3 gap-3">
               <button
                 v-for="theme in availableThemes"
@@ -159,11 +159,11 @@
           </div>
           <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-7">
             <section class="flex flex-col gap-3">
-              <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.workspace.rulesTitle') }}</h3>
+              <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.workspace.rulesTitle') }}</h3>
               <div class="flex flex-col gap-2 rounded-box border border-base-300 bg-base-100 px-4 py-3">
                 <div class="min-w-0">
                   <div class="text-sm font-medium text-base-content">{{ t('preferences.workspace.workspaceIgnoreRulesTitle') }}</div>
-                  <div class="text-xs text-base-content/65">{{ t('preferences.workspace.workspaceIgnoreRulesDesc') }}</div>
+                  <div class="text-xs text-base-content/50">{{ t('preferences.workspace.workspaceIgnoreRulesDesc') }}</div>
                 </div>
                 <textarea
                   class="min-h-32 w-full rounded-field resize-none border border-base-300 bg-base-100 px-3 py-2 text-sm outline-none focus:border-primary"
@@ -221,11 +221,11 @@
           </div>
           <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-7">
           <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.editor.saving') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.editor.saving') }}</h3>
             <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
               <div class="min-w-0">
                 <div class="text-sm font-medium text-base-content">{{ t('preferences.editor.autoSaveTitle') }}</div>
-                <div class="text-xs text-base-content/65">{{ t('preferences.editor.autoSaveDesc') }}</div>
+                <div class="text-xs text-base-content/50">{{ t('preferences.editor.autoSaveDesc') }}</div>
               </div>
               <label class="label cursor-pointer gap-3">
                 <input
@@ -240,7 +240,7 @@
             <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
               <div class="min-w-0">
                 <div class="text-sm font-medium text-base-content">{{ t('preferences.editor.autoSaveIntervalTitle') + formatAutoSaveInterval(appStore.autoSaveIntervalSeconds) }}</div>
-                <div class="text-xs text-base-content/65">{{ t('preferences.editor.autoSaveIntervalDesc') }}</div>
+                <div class="text-xs text-base-content/50">{{ t('preferences.editor.autoSaveIntervalDesc') }}</div>
               </div>
               <label class="label cursor-pointer gap-3">
                 <input
@@ -258,7 +258,7 @@
           </section>
 
           <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.editor.lineEnding') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.editor.lineEnding') }}</h3>
             <div class="flex flex-col gap-2">
               <label class="grid cursor-pointer grid-cols-[1rem_minmax(0,9rem)_minmax(0,1fr)] items-center gap-x-3 rounded-box border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/70">
                 <input
@@ -269,7 +269,7 @@
                   @change="appStore.globalEditSetting.lineEnding = 'LF'"
                 />
                 <span class="min-w-0 text-sm font-medium text-base-content">{{ t('preferences.editor.unixLF') }}</span>
-                <span class="min-w-0 text-xs leading-5 text-base-content/65 text-right">{{ t('preferences.editor.unixLFDesc') }}</span>
+                <span class="min-w-0 text-xs leading-5 text-base-content/50 text-right">{{ t('preferences.editor.unixLFDesc') }}</span>
               </label>
               <label class="grid cursor-pointer grid-cols-[1rem_minmax(0,9rem)_minmax(0,1fr)] items-center gap-x-3 rounded-box border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/70">
                 <input
@@ -280,17 +280,17 @@
                   @change="appStore.globalEditSetting.lineEnding = 'CRLF'"
                 />
                 <span class="min-w-0 text-sm font-medium text-base-content">{{ t('preferences.editor.windowsCRLF') }}</span>
-                <span class="min-w-0 text-xs leading-5 text-base-content/65 text-right">{{ t('preferences.editor.windowsCRLFDesc') }}</span>
+                <span class="min-w-0 text-xs leading-5 text-base-content/50 text-right">{{ t('preferences.editor.windowsCRLFDesc') }}</span>
               </label>
             </div>
           </section>
 
           <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.editor.display') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.editor.display') }}</h3>
             <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
               <div class="min-w-0">
                 <div class="text-sm font-medium text-base-content">{{ t('preferences.editor.firstLineIndentTitle') }}</div>
-                <div class="text-xs text-base-content/65">{{ t('preferences.editor.firstLineIndentDesc') }}</div>
+                <div class="text-xs text-base-content/50">{{ t('preferences.editor.firstLineIndentDesc') }}</div>
               </div>
               <label class="label cursor-pointer gap-3">
                 <input
@@ -304,7 +304,7 @@
             <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
               <div class="min-w-0">
                 <div class="text-sm font-medium text-base-content">{{ t('preferences.editor.invisibleCharsTitle') }}</div>
-                <div class="text-xs text-base-content/65">{{ t('preferences.editor.invisibleCharsDesc') }}</div>
+                <div class="text-xs text-base-content/50">{{ t('preferences.editor.invisibleCharsDesc') }}</div>
               </div>
               <label class="label cursor-pointer gap-3">
                 <input
@@ -318,11 +318,11 @@
           </section>
 
           <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.editor.textReplacement') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.editor.textReplacement') }}</h3>
             <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
               <div class="min-w-0">
                 <div class="text-sm font-medium text-base-content">{{ t('preferences.editor.smartPunctuationTitle') }}</div>
-                <div class="text-xs text-base-content/65">{{ t('preferences.editor.smartPunctuationDesc') }}</div>
+                <div class="text-xs text-base-content/50">{{ t('preferences.editor.smartPunctuationDesc') }}</div>
               </div>
               <label class="label cursor-pointer gap-3">
                 <input
@@ -351,11 +351,11 @@
           </div>
           <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-7">
           <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.spelling.checking') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.spelling.checking') }}</h3>
             <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
               <div class="min-w-0">
                 <div class="text-sm font-medium text-base-content">{{ t('preferences.spelling.checkWhileTypingTitle') }}</div>
-                <div class="text-xs text-base-content/65">{{ t('preferences.spelling.checkWhileTypingDesc') }}</div>
+                <div class="text-xs text-base-content/50">{{ t('preferences.spelling.checkWhileTypingDesc') }}</div>
               </div>
               <label class="label cursor-pointer gap-3">
                 <input
@@ -369,7 +369,7 @@
             <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
               <div class="min-w-0">
                 <div class="text-sm font-medium text-base-content">{{ t('preferences.spelling.showErrorsTitle') }}</div>
-                <div class="text-xs text-base-content/65">{{ t('preferences.spelling.showErrorsDesc') }}</div>
+                <div class="text-xs text-base-content/50">{{ t('preferences.spelling.showErrorsDesc') }}</div>
               </div>
               <label class="label cursor-pointer gap-3">
                 <input
@@ -383,8 +383,8 @@
           </section>
 
           <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.spelling.engine') }}</h3>
-            <div class="alert border-info/25 bg-info/10 text-info-content/80">
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.spelling.engine') }}</h3>
+            <div class="alert alert-info alert-soft">
               <IconInfoCircle class="icon-xs shrink-0" />
               <span>{{ t('preferences.spelling.engineHint') }}</span>
             </div>
@@ -398,7 +398,7 @@
                   @change="appStore.globalEditSetting.proofreadEngineType = 'languagetool'"
                 />
                 <span class="min-w-0 text-sm font-medium text-base-content">{{ t('preferences.spelling.languageTool') }}</span>
-                <span class="min-w-0 text-xs leading-5 text-base-content/65 text-right">{{ t('preferences.spelling.languageToolDesc') }}</span>
+                <span class="min-w-0 text-xs leading-5 text-base-content/50 text-right">{{ t('preferences.spelling.languageToolDesc') }}</span>
               </label>
               <label class="grid cursor-pointer grid-cols-[1rem_minmax(0,9rem)_minmax(0,1fr)] items-center gap-x-3 rounded-box border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/70">
                 <input
@@ -409,7 +409,7 @@
                   @change="appStore.globalEditSetting.proofreadEngineType = 'typo'"
                 />
                 <span class="min-w-0 text-sm font-medium text-base-content">{{ t('preferences.spelling.typo') }}</span>
-                <span class="min-w-0 text-xs leading-5 text-base-content/65 text-right">{{ t('preferences.spelling.typoDesc') }}</span>
+                <span class="min-w-0 text-xs leading-5 text-base-content/50 text-right">{{ t('preferences.spelling.typoDesc') }}</span>
               </label>
             </div>
           </section>
@@ -418,7 +418,7 @@
             v-if="appStore.globalEditSetting.proofreadEngineType !== 'typo'"
             class="flex flex-col gap-3"
           >
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.spelling.ltOptions') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.spelling.ltOptions') }}</h3>
             <div class="flex flex-col gap-1.5">
               <label class="text-sm font-medium text-base-content">{{ t('preferences.spelling.languageLabel') }}</label>
               <input
@@ -438,10 +438,10 @@
                 :value="appStore.globalEditSetting.proofreadApiUrl"
                 @input="appStore.globalEditSetting.proofreadApiUrl = ($event.target as HTMLInputElement).value"
               />
-              <span class="text-xs text-base-content/65">{{ t('preferences.spelling.apiUrlHint') }}</span>
+              <span class="text-xs text-base-content/50">{{ t('preferences.spelling.apiUrlHint') }}</span>
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-base-content">{{ t('preferences.spelling.apiKeyLabel') }} <span class="font-normal text-base-content/65">{{ t('preferences.spelling.optional') }}</span></label>
+              <label class="text-sm font-medium text-base-content">{{ t('preferences.spelling.apiKeyLabel') }} <span class="font-normal text-base-content/50">{{ t('preferences.spelling.optional') }}</span></label>
               <input
                 type="password"
                 class="iw-input"
@@ -449,7 +449,7 @@
                 :value="appStore.globalEditSetting.proofreadApiKey"
                 @input="appStore.globalEditSetting.proofreadApiKey = ($event.target as HTMLInputElement).value"
               />
-              <span class="text-xs text-base-content/65">{{ t('preferences.spelling.apiKeyHint') }}</span>
+              <span class="text-xs text-base-content/50">{{ t('preferences.spelling.apiKeyHint') }}</span>
             </div>
           </section>
           </div>
@@ -460,7 +460,7 @@
             <div class="flex h-full min-w-0 items-center pr-36">
               <div class="flex min-w-0 items-end gap-3">
                 <h2 class="shrink-0 text-xl font-semibold text-base-content">{{ t('preferences.ai.title') }}</h2>
-                <div class="truncate pb-0.5 text-sm text-base-content/65">{{ aiViewTitle }}</div>
+                <div class="truncate pb-0.5 text-sm text-base-content/50">{{ aiViewTitle }}</div>
               </div>
             </div>
             <button
@@ -502,11 +502,11 @@
 
           <template v-else>
             <section class="flex flex-col gap-3">
-              <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.updates.automaticUpdates') }}</h3>
+              <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.updates.automaticUpdates') }}</h3>
               <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
                 <div class="min-w-0">
                   <div class="text-sm font-medium text-base-content">{{ t('preferences.updates.enableAutoTitle') }}</div>
-                  <div class="text-xs text-base-content/65">{{ t('preferences.updates.enableAutoDesc') }}</div>
+                  <div class="text-xs text-base-content/50">{{ t('preferences.updates.enableAutoDesc') }}</div>
                 </div>
                 <label class="label cursor-pointer gap-3">
                   <input
@@ -520,7 +520,7 @@
               <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
                 <div class="min-w-0">
                   <div class="text-sm font-medium text-base-content">{{ t('preferences.updates.checkStartupTitle') }}</div>
-                  <div class="text-xs text-base-content/65">{{ t('preferences.updates.checkStartupDesc') }}</div>
+                  <div class="text-xs text-base-content/50">{{ t('preferences.updates.checkStartupDesc') }}</div>
                 </div>
                 <label class="label cursor-pointer gap-3">
                   <input
@@ -534,7 +534,7 @@
               <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
                 <div class="min-w-0">
                   <div class="text-sm font-medium text-base-content">{{ t('preferences.updates.autoDownloadTitle') }}</div>
-                  <div class="text-xs text-base-content/65">{{ t('preferences.updates.autoDownloadDesc') }}</div>
+                  <div class="text-xs text-base-content/50">{{ t('preferences.updates.autoDownloadDesc') }}</div>
                 </div>
                 <label class="label cursor-pointer gap-3">
                   <input
@@ -549,7 +549,7 @@
               <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
                 <div class="min-w-0">
                   <div class="text-sm font-medium text-base-content">{{ t('preferences.updates.autoInstallTitle') }}</div>
-                  <div class="text-xs text-base-content/65">{{ t('preferences.updates.autoInstallDesc') }}</div>
+                  <div class="text-xs text-base-content/50">{{ t('preferences.updates.autoInstallDesc') }}</div>
                 </div>
                 <label class="label cursor-pointer gap-3">
                   <input
@@ -564,7 +564,7 @@
             </section>
 
             <section class="flex flex-col gap-3">
-              <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.updates.channelTitle') }}</h3>
+              <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.updates.channelTitle') }}</h3>
               <div class="flex flex-col gap-2">
                 <label class="grid cursor-pointer grid-cols-[1rem_minmax(0,9rem)_minmax(0,1fr)] items-center gap-x-3 rounded-box border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/70">
                   <input
@@ -575,7 +575,7 @@
                     @change="patchUpdaterConfig({ channel: 'stable' })"
                   />
                   <span class="min-w-0 text-sm font-medium text-base-content">{{ t('preferences.updates.stable') }}</span>
-                  <span class="min-w-0 text-xs leading-5 text-base-content/65">{{ t('preferences.updates.stableDesc') }}</span>
+                  <span class="min-w-0 text-xs leading-5 text-base-content/50">{{ t('preferences.updates.stableDesc') }}</span>
                 </label>
                 <label class="grid cursor-pointer grid-cols-[1rem_minmax(0,9rem)_minmax(0,1fr)] items-center gap-x-3 rounded-box border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/70">
                   <input
@@ -586,13 +586,13 @@
                     @change="patchUpdaterConfig({ channel: 'beta' })"
                   />
                   <span class="min-w-0 text-sm font-medium text-base-content">{{ t('preferences.updates.beta') }}</span>
-                  <span class="min-w-0 text-xs leading-5 text-base-content/65">{{ t('preferences.updates.betaDesc') }}</span>
+                  <span class="min-w-0 text-xs leading-5 text-base-content/50">{{ t('preferences.updates.betaDesc') }}</span>
                 </label>
               </div>
             </section>
 
             <section class="flex flex-col gap-3">
-              <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.updates.checkIntervalTitle') }}</h3>
+              <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.updates.checkIntervalTitle') }}</h3>
               <div class="flex flex-col gap-1.5">
                 <label class="text-sm font-medium text-base-content">{{ t('preferences.updates.checkEveryHours') }}</label>
                 <input
@@ -608,7 +608,7 @@
             </section>
 
             <section class="flex flex-col gap-3">
-              <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.updates.actionsTitle') }}</h3>
+              <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.updates.actionsTitle') }}</h3>
               <div class="flex items-center gap-3">
                 <button class="iw-btn btn-outline btn-primary" @click="checkForUpdates">
                   {{ t('preferences.updates.checkNow') }}

@@ -101,7 +101,7 @@
       <div class="text-center">
         <IconAlertCircle class="w-12 h-12 mx-auto mb-2" />
         <div class="text-lg mb-2">{{ t('imageViewer.loadFailed') }}</div>
-        <div class="text-sm text-base-content/55">{{ error }}</div>
+        <div class="text-sm text-base-content/50">{{ error }}</div>
       </div>
     </div>
     

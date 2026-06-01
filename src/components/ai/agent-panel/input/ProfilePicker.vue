@@ -26,7 +26,7 @@
         class="fixed w-52 bg-base-100 border border-base-300 rounded-field shadow-sm z-1200 py-1.5 px-1.5"
         :style="menuStyle"
       >
-        <div class="px-1.5 pb-1.5 text-xs font-semibold text-base-content/40">
+        <div class="px-1.5 pb-1.5 text-xs font-semibold text-base-content/30">
           {{ t('agentPanel.modePicker.title') }}
         </div>
         <button
@@ -46,7 +46,7 @@
             <span :class="option.value === currentMode ? 'font-semibold text-base-content' : ''">
               {{ option.label }}
             </span>
-            <span class="text-base-content/40 leading-tight">{{ option.desc }}</span>
+            <span class="text-base-content/30 leading-tight">{{ option.desc }}</span>
           </div>
         </button>
       </div>

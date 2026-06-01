@@ -161,7 +161,7 @@
   }
 
   .empty-panel {
-    @apply flex flex-col w-full h-full items-center justify-center text-center text-base-content opacity-50;
+    @apply flex flex-col w-full h-full items-center justify-center text-center text-base-content/50;
   }
 
   .empty-panel-icon {

@@ -20,7 +20,7 @@
       @mouseleave="scheduleCleanModeChromeHide(500)"
     >
       <div class="no-drag flex items-center gap-3 rounded-full border border-base-300 bg-base-100/95 px-3 py-1.5 shadow-sm backdrop-blur-md">
-        <div class="max-w-80 truncate text-sm text-base-content/65">
+        <div class="max-w-80 truncate text-sm text-base-content/70">
           {{ activeDocumentTitle }}
         </div>
         <div class="h-4 w-px bg-base-300" />

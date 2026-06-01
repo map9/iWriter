@@ -217,8 +217,8 @@
         v-if="isPreview && previewStatusText"
         class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-box text-base-300"
       >
-        <span v-if="showPreviewPulse" class="loading loading-dots loading-sm text-base-content opacity-50"></span>
-        <span class="text-xs text-base-content opacity-50">{{ previewStatusText }}</span>
+        <span v-if="showPreviewPulse" class="loading loading-dots loading-sm text-base-content/50"></span>
+        <span class="text-xs text-base-content/50">{{ previewStatusText }}</span>
       </div>
 
       <!-- Toolbar / Timestamp row -->

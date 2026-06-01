@@ -20,7 +20,7 @@
         </button>
 
         <!-- Separator -->
-        <div class="flex h-9 w-4 items-center justify-center">
+        <div class="flex h-9 w-2 items-center justify-center">
           <div class="h-1/2 w-px bg-base-300"></div>
         </div>
 
@@ -61,7 +61,7 @@
         </div>
 
         <!-- Separator -->
-        <div class="join-item flex h-9 w-4 items-center justify-center">
+        <div class="join-item flex h-9 w-2 items-center justify-center">
           <div class="h-1/2 w-px bg-base-300"></div>
         </div>
 
@@ -95,12 +95,12 @@
       
       <!-- Empty State -->
       <div v-else class="p-4 text-center select-none">
-        <IconList class="mx-auto mb-2 h-12 w-12 text-base-content/60" />
-        <p class="text-sm font-medium text-base-content/75">{{ emptyStateMessage.title }}</p>
-        <p class="mt-1 text-xs leading-relaxed text-base-content/55">
+        <IconList class="mx-auto mb-2 h-12 w-12 text-base-content/30" />
+        <p class="text-sm font-medium text-base-content/70">{{ emptyStateMessage.title }}</p>
+        <p class="mt-1 text-xs leading-relaxed text-base-content/50">
           {{ emptyStateMessage.subtitle }}
         </p>
-        <div v-if="emptyStateMessage.showProvider" class="mt-3 border-t border-base-300 pt-2 text-base-content/55">
+        <div v-if="emptyStateMessage.showProvider" class="mt-3 border-t border-base-300 pt-2 text-base-content/50">
           <p class="text-xs">
             Provider: {{ providerInfo.name }}
           </p>

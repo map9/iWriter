@@ -11,7 +11,7 @@
     
     <!-- Content -->
     <div class="flex flex-1 flex-col justify-top p-2 gap-2">
-        <p class="text-left text-sm text-base-content opacity-50">{{ t('sidebar.noFolderOpened.description') }}</p>
+        <p class="text-left text-sm text-base-content/50">{{ t('sidebar.noFolderOpened.description') }}</p>
         <button
           @click="appStore.openFolder()"
           class="iw-btn btn-primary w-full h-9"
@@ -20,7 +20,7 @@
           <span>{{ t('sidebar.noFolderOpened.openFolder') }}</span>
         </button>
 
-        <p class="text-left text-sm text-base-content opacity-50">{{ t('sidebar.noFolderOpened.warning') }}</p>
+        <p class="text-left text-sm text-base-content/50">{{ t('sidebar.noFolderOpened.warning') }}</p>
     </div>
   </div>
 </template>

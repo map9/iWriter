@@ -10,8 +10,8 @@
     >
       <div class="flex-1 min-w-0 space-y-1.5">
         <div class="inline-flex items-center gap-2 rounded-field bg-base-200 px-3 py-2">
-          <span class="loading loading-dots loading-sm text-base-content opacity-50"></span>
-          <span class="text-xs text-base-content opacity-50">{{ t('agentPanel.chatArea.loadingSession') }}</span>
+          <span class="loading loading-dots loading-sm text-base-content/50"></span>
+          <span class="text-xs text-base-content/50">{{ t('agentPanel.chatArea.loadingSession') }}</span>
         </div>
       </div>
     </div>
@@ -30,8 +30,8 @@
     <div v-if="aiStore.isStreaming && !aiStore.streamingPreviewMessage" class="flex gap-2.5">
       <div class="flex-1 min-w-0 space-y-1.5">
         <div class="inline-flex items-center gap-2 rounded-field bg-base-200 px-3 py-2">
-          <span class="loading loading-dots loading-sm text-base-content opacity-50"></span>
-          <span class="text-xs text-base-content opacity-50">{{ streamingStatusLabel }} · {{ formattedElapsed }}</span>
+          <span class="loading loading-dots loading-sm text-base-content/50"></span>
+          <span class="text-xs text-base-content/50">{{ streamingStatusLabel }} · {{ formattedElapsed }}</span>
         </div>
       </div>
     </div>

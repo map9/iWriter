@@ -6,7 +6,7 @@
     <div class="mt-4 flex flex-col items-center">
       <IconBrain class="size-12 text-base-content" />
       <p class="mt-2 text-md font-medium text-base-content">{{ t('agentPanel.emptyState.brand') }}</p>
-      <p class="mt-1 max-w-xs text-xs leading-5 text-base-content opacity-50">
+      <p class="mt-1 max-w-xs text-xs leading-5 text-base-content/50">
         {{ t('agentPanel.emptyState.subtitle') }}
       </p>
     </div>

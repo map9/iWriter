@@ -171,7 +171,7 @@ function fallbackToolPosition(idx: number): 'single' | 'start' | 'middle' | 'end
             :content="block.text"
             mode="markdown"
             size="xs"
-            class="text-base-content/80"
+            class="text-base-content/90"
             :class="idx > 0 ? 'mt-1' : ''"
           />
           <ToolCallCard
@@ -191,7 +191,7 @@ function fallbackToolPosition(idx: number): 'single' | 'start' | 'middle' | 'end
           :content="subTask.text"
           mode="markdown"
           size="xs"
-          class="text-base-content/80"
+          class="text-base-content/90"
         />
         <ToolCallCard
           v-for="(tc, idx) in subTask.toolCalls"

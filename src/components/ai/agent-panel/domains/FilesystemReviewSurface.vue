@@ -10,7 +10,7 @@
             {{ current.targetPath }}
           </div>
         </div>
-        <div v-if="reviews.length > 1" class="text-xs text-base-content/60">
+        <div v-if="reviews.length > 1" class="text-xs text-base-content/70">
           {{ currentIndex + 1 }} / {{ reviews.length }}
         </div>
       </div>

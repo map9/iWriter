@@ -18,8 +18,8 @@
           <h2 class="truncate text-lg font-semibold text-base-content">{{ t('updateDialog.title') }}</h2>
           <p class="mt-0.5 text-sm text-base-content/70">
             {{ t('updateDialog.newVersion') }} <span class="font-medium text-base-content">{{ updateInfo.version }}</span>
-            <span class="mx-1 text-base-content/40">·</span>
-            <span class="text-base-content/55">{{ t('updateDialog.currentVersion') }} {{ updateInfo.currentVersion }}</span>
+            <span class="mx-1 text-base-content/30">·</span>
+            <span class="text-base-content/50">{{ t('updateDialog.currentVersion') }} {{ updateInfo.currentVersion }}</span>
           </p>
         </div>
         <button
@@ -37,19 +37,23 @@
         <!-- Release Info -->
         <div class="mb-5 flex flex-col divide-y divide-base-300 rounded-box border border-base-300 bg-base-200/40">
           <div class="flex items-center justify-between px-4 py-2.5 text-sm">
-            <span class="text-base-content/60">{{ t('updateDialog.releaseDate') }}</span>
+            <span class="text-base-content/70">{{ t('updateDialog.releaseDate') }}</span>
             <span class="text-base-content">{{ formatDate(updateInfo.releaseDate) }}</span>
           </div>
           <div v-if="downloadSize" class="flex items-center justify-between px-4 py-2.5 text-sm">
-            <span class="text-base-content/60">{{ t('updateDialog.downloadSize') }}</span>
+            <span class="text-base-content/70">{{ t('updateDialog.downloadSize') }}</span>
             <span class="text-base-content">{{ downloadSize }}</span>
           </div>
         </div>
 
         <!-- Release Notes -->
         <div>
-          <h3 class="mb-3 text-xs font-semibold uppercase tracking-wide text-base-content/60">{{ t('updateDialog.whatsNew') }}</h3>
-          <div class="update-notes text-sm leading-relaxed text-base-content/85" v-html="formattedReleaseNotes"></div>
+          <h3 class="mb-3 text-xs font-semibold uppercase tracking-wide text-base-content/70">{{ t('updateDialog.whatsNew') }}</h3>
+          <div
+            class="update-notes text-sm leading-relaxed text-base-content/90"
+            @click="handleReleaseNotesClick"
+            v-html="formattedReleaseNotes"
+          ></div>
         </div>
       </section>
 
@@ -64,7 +68,7 @@
             <IconCircleCheck v-else class="icon-xs text-success" />
             {{ progressLabel }}
           </span>
-          <span class="font-mono tabular-nums text-base-content/80">{{ downloadProgress }}%</span>
+          <span class="font-mono tabular-nums text-base-content/90">{{ downloadProgress }}%</span>
         </div>
         <progress
           class="progress progress-primary h-2 w-full"
@@ -189,6 +193,18 @@ const handleSkipVersion = () => {
 
 const handleViewDetails = () => {
   emit('view-details')
+}
+
+const handleReleaseNotesClick = (event: MouseEvent) => {
+  const target = event.target
+  if (!(target instanceof Element)) return
+
+  const link = target.closest('a')
+  const href = link?.getAttribute('href')
+  if (!href || !/^https?:\/\//i.test(href)) return
+
+  event.preventDefault()
+  void window.electronAPI?.openWithShell?.(href)
 }
 
 const closeDialog = () => {

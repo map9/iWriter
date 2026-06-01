@@ -209,6 +209,7 @@ class UpdaterService {
   formatReleaseNotes(notes: string): string {
     // 简单的 Markdown 到 HTML 转换
     return notes
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>')
       .replace(/### (.*)/g, '<h3>$1</h3>')
       .replace(/## (.*)/g, '<h2>$1</h2>')
       .replace(/# (.*)/g, '<h1>$1</h1>')

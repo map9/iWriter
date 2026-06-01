@@ -12,7 +12,7 @@
           {{ subtitle }}
         </div>
       </div>
-      <div class="shrink-0 text-[11px] text-base-content/40">
+      <div class="shrink-0 text-[11px] text-base-content/30">
         {{ currentIndex + 1 }} / {{ reviews.length }}
       </div>
     </header>
@@ -116,11 +116,11 @@
             :key="direction.name"
             class="rounded-md border border-base-300 bg-base-200 px-2 py-2 text-xs"
           >
-            <div class="font-semibold text-base-content/80">{{ direction.name }}</div>
+            <div class="font-semibold text-base-content/90">{{ direction.name }}</div>
             <p class="mt-1 whitespace-pre-wrap text-base-content/70">{{ direction.summary }}</p>
             <ul
               v-if="direction.narrativeConsequences.length"
-              class="mt-2 list-disc space-y-1 pl-5 text-base-content/65"
+              class="mt-2 list-disc space-y-1 pl-5 text-base-content/50"
             >
               <li
                 v-for="consequence in direction.narrativeConsequences"
@@ -146,13 +146,13 @@
       >
         <div class="grid gap-2 md:grid-cols-2">
           <section class="min-w-0 rounded-md border border-base-300 bg-base-200 px-2 py-2 text-xs">
-            <div class="mb-1 font-medium text-base-content/60">
+            <div class="mb-1 font-medium text-base-content/70">
               {{ t('agentPanel.creativeReview.beforeContent') }}
             </div>
             <pre class="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded bg-base-100 px-2 py-1.5 text-[11px] leading-relaxed text-base-content/70">{{ currentReview.beforeContent || t('agentPanel.creativeReview.emptyContent') }}</pre>
           </section>
           <section class="min-w-0 rounded-md border border-base-300 bg-base-200 px-2 py-2 text-xs">
-            <div class="mb-1 font-medium text-base-content/60">
+            <div class="mb-1 font-medium text-base-content/70">
               {{ t('agentPanel.creativeReview.afterContent') }}
             </div>
             <textarea
@@ -216,7 +216,7 @@
         </summary>
         <div class="mt-2 space-y-2">
           <section v-if="logicAudit.motivationTraces.length">
-            <div class="mb-1 font-medium text-base-content/60">
+            <div class="mb-1 font-medium text-base-content/70">
               {{ t('agentPanel.creativeReview.motivationTraces') }}
             </div>
             <ul class="space-y-1">
@@ -232,7 +232,7 @@
           </section>
 
           <section v-if="logicAudit.causalChain.length">
-            <div class="mb-1 font-medium text-base-content/60">
+            <div class="mb-1 font-medium text-base-content/70">
               {{ t('agentPanel.creativeReview.causalChain') }}
             </div>
             <ul class="space-y-1">
@@ -248,7 +248,7 @@
           </section>
 
           <section v-if="logicAudit.commonSenseFlags.length">
-            <div class="mb-1 font-medium text-base-content/60">
+            <div class="mb-1 font-medium text-base-content/70">
               {{ t('agentPanel.creativeReview.commonSenseFlags') }}
             </div>
             <ul class="space-y-1">

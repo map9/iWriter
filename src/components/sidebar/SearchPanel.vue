@@ -150,7 +150,7 @@
               <IconFileText class="icon-xs text-base-content shrink-0" />
               <div class="flex flex-1 min-w-0 items-baseline gap-1 overflow-hidden">
                 <span class="text-xs text-base-content font-medium shrink-0">{{ result.fileName }}</span>
-                <span v-if="getRelativeDir(result.relativePath)" class="text-xs text-base-content opacity-50 overflow-hidden text-ellipsis whitespace-nowrap shrink">{{ getRelativeDir(result.relativePath) }}</span>
+                <span v-if="getRelativeDir(result.relativePath)" class="text-xs text-base-content/50 overflow-hidden text-ellipsis whitespace-nowrap shrink">{{ getRelativeDir(result.relativePath) }}</span>
               </div>
               <span class="text-2xs text-base-content bg-base-100 border border-base-300 py-0.5 px-2 rounded-selector shrink-0 ml-auto mr-1.5">{{ result.totalMatches }}</span>
             </div>
@@ -178,7 +178,7 @@
               @click="jumpToResult(result, index)"
             >
               <div class="flex items-baseline gap-2 flex-1 min-w-0">
-                <span class="text-2xs text-base-content opacity-50 font-mono shrink-0">{{ match.position.from }}:</span>
+                <span class="text-2xs text-base-content/50 font-mono shrink-0">{{ match.position.from }}:</span>
                 <span class="text-xs text-base-content font-mono overflow-hidden text-ellipsis whitespace-nowrap" v-html="match.contextHtml"></span>
               </div>
               <div

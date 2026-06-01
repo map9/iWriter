@@ -5,7 +5,7 @@
         <div class="mb-8">
           <IconAlertTriangle class="size-20 mx-auto mb-4 text-warning" />
           <h1 class="text-xl font-semibold tracking-tight text-base-content mb-2">{{ t('unknownPage.title') }}</h1>
-          <p class="text-md text-base-content opacity-50">{{ t('unknownPage.desc') }}</p>
+          <p class="text-md text-base-content/50">{{ t('unknownPage.desc') }}</p>
         </div>
         
         <div class="flex flex-wrap justify-center gap-3">

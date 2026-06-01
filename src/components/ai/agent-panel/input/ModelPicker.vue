@@ -30,7 +30,7 @@
         class="fixed w-56 bg-base-100 border border-base-300 rounded-field shadow-sm z-1200 py-1.5 px-1.5"
         :style="menuStyle"
       >
-        <div class="px-1.5 pb-1.5 text-xs font-semibold text-base-content/40">
+        <div class="px-1.5 pb-1.5 text-xs font-semibold text-base-content/30">
           {{ t('agentPanel.modelPicker.title') }}
         </div>
         <div v-if="allModelItems.length > 10">
@@ -71,7 +71,7 @@
 
         <div class="my-1 border-t border-base-300" />
 
-        <div class="px-1.5 pb-1 text-xs font-semibold text-base-content/40">
+        <div class="px-1.5 pb-1 text-xs font-semibold text-base-content/30">
           {{ t('agentPanel.modelPicker.thinkingLevel') }}
         </div>
         <button

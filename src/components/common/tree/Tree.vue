@@ -1046,14 +1046,14 @@ defineExpose({
 }
 
 .tree-root:focus:not([data-has-focused-node="true"]) {
-  outline: var(--tree-focus-outline, 2px solid rgba(59, 130, 246, 0.5));
+  outline: var(--tree-focus-outline, 2px solid color-mix(in oklab, var(--color-primary) 45%, transparent));
   outline-offset: var(--tree-focus-outline-offset, -2px);
 }
 
 .tree-root.drag-over-root {
-  background-color: var(--tree-drop-background, rgba(34, 197, 94, 0.2));
-  border-color: var(--tree-drop-border-color, rgb(74, 222, 128));
-  outline: var(--tree-focus-outline, 2px solid rgba(59, 130, 246, 0.5));
+  background-color: var(--tree-drop-background, color-mix(in oklab, var(--color-success) 18%, transparent));
+  border-color: var(--tree-drop-border-color, color-mix(in oklab, var(--color-success) 60%, transparent));
+  outline: var(--tree-focus-outline, 2px solid color-mix(in oklab, var(--color-primary) 45%, transparent));
   outline-offset: var(--tree-focus-outline-offset, -2px);
 }
 

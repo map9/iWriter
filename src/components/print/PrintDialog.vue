@@ -24,7 +24,7 @@
         <!-- Zoom badge — click to reset to fit-page -->
         <button
           v-if="!isRendering && totalPages > 0"
-          class="absolute bottom-3 right-3 z-10 rounded-md bg-base-200/80 px-2 py-1 text-xs text-base-content/60 backdrop-blur-sm hover:bg-base-300 hover:text-base-content"
+          class="absolute bottom-3 right-3 z-10 rounded-md bg-base-200/80 px-2 py-1 text-xs text-base-content/70 backdrop-blur-sm hover:bg-base-300 hover:text-base-content"
           :title="t('dialog.printDialog.preview.zoomResetTitle')"
           @click="computeFitScale"
         >
@@ -100,8 +100,8 @@
               @click="showPageSettings = !showPageSettings"
             >
               <span class="text-sm font-medium">{{ t('dialog.printDialog.pageSettings') }}</span>
-              <IconChevronUp v-if="showPageSettings" class="icon-xs shrink-0 text-base-content/60" />
-              <IconChevronDown v-else class="icon-xs shrink-0 text-base-content/60" />
+              <IconChevronUp v-if="showPageSettings" class="icon-xs shrink-0 text-base-content/70" />
+              <IconChevronDown v-else class="icon-xs shrink-0 text-base-content/70" />
             </button>
 
             <template v-if="showPageSettings">
@@ -123,8 +123,8 @@
               @click="showMoreSettings = !showMoreSettings"
             >
               <span class="text-sm font-medium">{{ t('dialog.printDialog.moreSettings') }}</span>
-              <IconChevronUp v-if="showMoreSettings" class="icon-xs shrink-0 text-base-content/60" />
-              <IconChevronDown v-else class="icon-xs shrink-0 text-base-content/60" />
+              <IconChevronUp v-if="showMoreSettings" class="icon-xs shrink-0 text-base-content/70" />
+              <IconChevronDown v-else class="icon-xs shrink-0 text-base-content/70" />
             </button>
 
             <template v-if="showMoreSettings">
@@ -166,7 +166,7 @@
                     max="500"
                     class="iw-input flex-1 text-sm"
                   />
-                  <span class="shrink-0 text-sm text-base-content/60">%</span>
+                  <span class="shrink-0 text-sm text-base-content/70">%</span>
                 </div>
                 <p v-if="scaleMode === 'custom' && customScaleError" class="text-xs text-error">
                   {{ customScaleError }}
@@ -190,7 +190,7 @@
             <!-- System dialog link (hidden for PDF) -->
             <button
               v-if="isPrintMode && !isPdfPrinter"
-              class="flex w-full items-center justify-between px-5 py-3 text-left text-sm text-primary hover:bg-base-200 disabled:cursor-not-allowed disabled:text-base-content/40"
+              class="flex w-full items-center justify-between px-5 py-3 text-left text-sm text-primary hover:bg-base-200 disabled:cursor-not-allowed disabled:text-base-content/30"
               @click="handleSystemPrint"
               :disabled="isPrinting || !hasPrinters"
             >

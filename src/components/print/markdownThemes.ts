@@ -449,7 +449,7 @@ const GITHUB_SCREEN_CSS = `
   }
 
   .tiptap.markdown-theme-github .tableWrapper table .column-resize-handle {
-    background-color: var(--md-focus-color);
+    background-color: var(--color-primary, var(--md-focus-color));
   }
 
   .tiptap.markdown-theme-github code,
@@ -995,7 +995,7 @@ const GITHUB_DARK_SCREEN_CSS = `
   }
 
   .tiptap.markdown-theme-github-dark .tableWrapper table .column-resize-handle {
-    background-color: var(--md-focus-color);
+    background-color: var(--color-primary, var(--md-focus-color));
   }
 
   .tiptap.markdown-theme-github-dark code,

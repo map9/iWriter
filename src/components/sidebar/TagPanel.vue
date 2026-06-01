@@ -37,7 +37,7 @@
       <div
         v-for="tag in filteredTags"
         :key="tag.name"
-        class="border-b border-base-300/70"
+        class="border-b border-base-300"
       >
         <!-- Tag Header -->
         <div
@@ -74,10 +74,10 @@
       </div>
       
       <!-- Empty State -->
-      <div v-if="tags.length === 0" class="p-4 text-center text-base-content/55">
-        <IconTag :size="48" class="mx-auto mb-2 text-base-content/35" />
+      <div v-if="tags.length === 0" class="p-4 text-center text-base-content/50">
+        <IconTag :size="48" class="mx-auto mb-2 text-base-content/30" />
         <p class="text-sm">No tagged files found</p>
-        <p class="mt-1 text-xs text-base-content/40">
+        <p class="mt-1 text-xs text-base-content/30">
           Add tags to your markdown files using #tag syntax
         </p>
       </div>

@@ -5,7 +5,7 @@
         <div class="mb-8">
           <IconFileText class="size-20 mx-auto mb-4 text-primary" />
           <h1 class="text-xl font-semibold tracking-tight text-base-content mb-2">{{ t('welcomePage.title') }}</h1>
-          <p class="text-md text-base-content opacity-50">{{ t('welcomePage.desc') }}</p>
+          <p class="text-md text-base-content/50">{{ t('welcomePage.desc') }}</p>
         </div>
         
         <div class="flex flex-wrap justify-center gap-3">

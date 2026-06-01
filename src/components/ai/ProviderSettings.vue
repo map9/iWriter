@@ -3,7 +3,7 @@
     <div v-if="view === 'main'" class="flex-1 overflow-y-auto">
       <div class="px-7 py-6">
         <section class="flex flex-col gap-3">
-          <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.ai.providers') }}</h3>
+          <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.ai.providers') }}</h3>
         <div v-if="sortedLlmConfigs.length" class="flex flex-col gap-2">
           <div
             v-for="cfg in sortedLlmConfigs"
@@ -22,7 +22,7 @@
                 :class="cfg.id === aiStore.settings.activeProviderConfigId ? 'bg-primary' : 'bg-base-300'"
               />
               <span class="min-w-0 flex-1 truncate text-sm font-medium text-base-content">{{ getProviderDisplayLabel(cfg) }}</span>
-              <span class="max-w-25 shrink-0 truncate text-left text-xs text-base-content/65 hidden sm:block">
+              <span class="max-w-25 shrink-0 truncate text-left text-xs text-base-content/50 hidden sm:block">
                 {{ isProviderUsable(cfg) ? cfg.defaultModelId : t('preferences.ai.needConfiguration') }}
               </span>
               <button
@@ -36,20 +36,20 @@
             </div>
           </div>
 
-          <div v-else class="rounded-box border border-dashed border-base-300 bg-base-100 px-4 py-5 text-sm text-base-content/65">
+          <div v-else class="rounded-box border border-dashed border-base-300 bg-base-100 px-4 py-5 text-sm text-base-content/50">
             {{ t('preferences.ai.noProviders') }}
           </div>
         </section>
 
         <section class="mt-5 flex flex-col gap-3">
-          <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.ai.actions') }}</h3>
+          <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.ai.actions') }}</h3>
           <button
             @click="selectCustom()"
             class="flex w-full items-center gap-3 rounded-box border border-dashed border-base-300 bg-base-100 px-4 py-3 text-left transition-colors hover:border-primary hover:bg-primary/8"
           >
             <IconPlus class="icon-xs shrink-0 text-base-content" />
             <span class="min-w-0 flex-1 truncate text-sm font-medium text-base-content">{{ t('preferences.ai.addCustomProvider') }}</span>
-            <span class="max-w-25 shrink-0 truncate text-left text-xs text-base-content/65 hidden sm:block">{{ t('preferences.ai.addCustomProviderHint') }}</span>
+            <span class="max-w-25 shrink-0 truncate text-left text-xs text-base-content/50 hidden sm:block">{{ t('preferences.ai.addCustomProviderHint') }}</span>
           </button>
         </section>
       </div>
@@ -59,7 +59,7 @@
       <div class="flex-1 overflow-y-auto">
         <div class="px-7 py-5">
           <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.ai.identity') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.ai.identity') }}</h3>
 
             <div class="flex flex-col gap-1.5">
               <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.name') }}</label>
@@ -90,7 +90,7 @@
           </section>
 
           <section v-if="selectedPreset?.requiresApiKey !== false" class="mt-5 flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.ai.authentication') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.ai.authentication') }}</h3>
 
             <div class="flex flex-col gap-1.5">
               <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.apiKey') }}</label>
@@ -105,14 +105,14 @@
                   <IconEyeOff v-else class="icon-xs" />
                 </button>
               </label>
-              <p class="text-xs text-base-content/65">
+              <p class="text-xs text-base-content/50">
                 {{ t('preferences.ai.apiKeyHint') }}
               </p>
             </div>
           </section>
 
           <section class="mt-5 flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.ai.connection') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.ai.connection') }}</h3>
 
             <div v-if="form.type === 'openai-compat' || form.type === 'deepseek'" class="flex flex-col gap-1.5">
               <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.baseUrl') }}</label>
@@ -132,7 +132,7 @@
                 :placeholder="(selectedPreset?.models ?? []).join(', ')"
                 class="iw-input"
               />
-              <p class="text-xs text-base-content/65">{{ t('preferences.ai.modelsHint') }}</p>
+              <p class="text-xs text-base-content/50">{{ t('preferences.ai.modelsHint') }}</p>
             </div>
 
             <div v-if="selectedPreset?.id !== 'ollama'" class="flex flex-col gap-1.5">
@@ -147,44 +147,44 @@
               <datalist id="iw-fallback-models">
                 <option v-for="m in availableModels" :key="m" :value="m" />
               </datalist>
-              <p class="text-xs text-base-content/65">{{ t('preferences.ai.fallbackModelHint') }}</p>
+              <p class="text-xs text-base-content/50">{{ t('preferences.ai.fallbackModelHint') }}</p>
             </div>
 
             <div v-else class="flex flex-col gap-1.5">
               <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.models') }}</label>
-              <p class="rounded-box border border-base-300 bg-base-100 px-4 py-3 text-xs text-base-content/65">
+              <p class="rounded-box border border-base-300 bg-base-100 px-4 py-3 text-xs text-base-content/50">
                 {{ t('preferences.ai.ollamaModelsHint') }}
               </p>
             </div>
           </section>
 
           <section class="mt-5 flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/60">{{ t('preferences.ai.advanced') }}</h3>
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.ai.advanced') }}</h3>
 
             <div class="flex flex-col gap-3">
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div v-if="parameterSupport.temperature" class="flex flex-col gap-1.5">
                   <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.temperature') }}</label>
                   <input v-model.number="form.temperature" type="number" min="0" :max="temperatureMax" step="0.01" class="iw-input" />
-                  <span class="text-xs text-base-content/65">{{ t('preferences.ai.temperatureHint') }}</span>
+                  <span class="text-xs text-base-content/50">{{ t('preferences.ai.temperatureHint') }}</span>
                 </div>
 
                 <div v-if="parameterSupport.topP" class="flex flex-col gap-1.5">
                   <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.topP') }}</label>
                   <input v-model.number="form.topP" type="number" min="0" max="1" step="0.01" class="iw-input" />
-                  <span class="text-xs text-base-content/65">{{ t('preferences.ai.topPHint') }}</span>
+                  <span class="text-xs text-base-content/50">{{ t('preferences.ai.topPHint') }}</span>
                 </div>
 
                 <div v-if="parameterSupport.frequencyPenalty" class="flex flex-col gap-1.5">
                   <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.frequencyPenalty') }}</label>
                   <input v-model.number="form.frequencyPenalty" type="number" min="-2" max="2" step="0.01" class="iw-input" />
-                  <span class="text-xs text-base-content/65">{{ t('preferences.ai.frequencyPenaltyHint') }}</span>
+                  <span class="text-xs text-base-content/50">{{ t('preferences.ai.frequencyPenaltyHint') }}</span>
                 </div>
 
                 <div v-if="parameterSupport.presencePenalty" class="flex flex-col gap-1.5">
                   <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.presencePenalty') }}</label>
                   <input v-model.number="form.presencePenalty" type="number" min="-2" max="2" step="0.01" class="iw-input" />
-                  <span class="text-xs text-base-content/65">{{ t('preferences.ai.presencePenaltyHint') }}</span>
+                  <span class="text-xs text-base-content/50">{{ t('preferences.ai.presencePenaltyHint') }}</span>
                 </div>
               </div>
             </div>
@@ -206,7 +206,7 @@
 }'
                 class="min-h-40 w-full resize-y rounded-field border border-base-300 bg-base-100 px-3 py-2 font-mono text-sm text-base-content focus:border-primary focus:outline-none"
               />
-              <p class="text-xs" :class="modelProfilesError ? 'text-error' : 'text-base-content/65'">
+              <p class="text-xs" :class="modelProfilesError ? 'text-error' : 'text-base-content/50'">
                 {{ modelProfilesError || t('preferences.ai.modelProfilesHint') }}
               </p>
             </div>

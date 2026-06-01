@@ -16,10 +16,10 @@
     <!-- Thread List -->
     <div class="flex-1 overflow-y-auto px-2 pb-2 min-h-0">
       <!-- Empty States -->
-      <div v-if="!aiStore.threads.length" class="text-center py-8 text-xs text-base-content opacity-50">
+      <div v-if="!aiStore.threads.length" class="text-center py-8 text-xs text-base-content/50">
         {{ t('agentPanel.history.noSessions') }}
       </div>
-      <div v-else-if="!groupedThreads.length" class="text-center py-8 text-xs text-base-content opacity-50">
+      <div v-else-if="!groupedThreads.length" class="text-center py-8 text-xs text-base-content/50">
         {{ t('agentPanel.history.noSessionMatches') }}
       </div>
 

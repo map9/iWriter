@@ -57,12 +57,12 @@
           <span class="font-medium">{{ t('explorer.workspaceDeleted.title') }}</span>
         </div>
 
-        <p class="leading-6 text-base-content/75">
+        <p class="leading-6 text-base-content/70">
           {{ t('explorer.workspaceDeleted.description') }}
         </p>
 
-        <div class="rounded border border-base-300 bg-base-200 px-3 py-2 text-xs text-base-content/65">
-          <div class="mb-1 font-medium text-base-content/75">
+        <div class="rounded border border-base-300 bg-base-200 px-3 py-2 text-xs text-base-content/50">
+          <div class="mb-1 font-medium text-base-content/70">
             {{ t('explorer.workspaceDeleted.originalPath') }}
           </div>
           <div class="break-all font-mono">
