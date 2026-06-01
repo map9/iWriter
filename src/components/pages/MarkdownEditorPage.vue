@@ -440,6 +440,8 @@ const editorPageStyle = computed(() => {
   switch (appStore.markdownEditorPageMode) {
     case 'fixed-1280':
       return { width: '1280px', minWidth: '1280px', backgroundColor }
+    case 'fixed-1024':
+      return { width: '1024px', minWidth: '1024px', backgroundColor }
     case 'fluid':
       return { width: '100%', minWidth: '480px', backgroundColor }
     case 'fixed-768':

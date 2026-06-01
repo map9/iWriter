@@ -1588,6 +1588,15 @@ export class MenuManager {
                 }
               },
               {
+                label: t('menu.view.pageWidthMedium', 'Medium'),
+                type: 'radio',
+                checked: wState?.wContentState?.view?.markdownEditorPageMode === 'fixed-1024',
+                enabled: wState != null,
+                click: () => {
+                  this.sendMenuAction('view-editor-page-fixed-1024')
+                }
+              },
+              {
                 label: t('menu.view.pageWidthLarge', 'Large'),
                 type: 'radio',
                 checked: wState?.wContentState?.view?.markdownEditorPageMode === 'fixed-1280',

@@ -2855,6 +2855,9 @@ export const useAppStore = defineStore('app', () => {
       case 'view-editor-page-fixed-768':
         setMarkdownEditorPageMode('fixed-768')
         return true
+      case 'view-editor-page-fixed-1024':
+        setMarkdownEditorPageMode('fixed-1024')
+        return true
       case 'view-editor-page-fixed-1280':
         setMarkdownEditorPageMode('fixed-1280')
         return true

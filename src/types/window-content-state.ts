@@ -31,7 +31,7 @@ export interface ViewState {
   themeType?: 'light' | 'dark' | 'system' // 主题类型
 }
 
-export type MarkdownEditorPageMode = 'fixed-768' | 'fixed-1280' | 'fluid'
+export type MarkdownEditorPageMode = 'fixed-768' | 'fixed-1024' | 'fixed-1280' | 'fluid'
 
 export interface UndoRedoState {
   undo: boolean
