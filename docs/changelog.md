@@ -1,10 +1,10 @@
 # 更新日志
 
-> 适用版本：iWriter `0.1.12`
+> 适用版本：iWriter `0.1.13`
 >
 > 最后更新：2026-06-01
 
-## Unreleased
+## `0.1.13`
 
 - **AI Agent 架构重构**。Creative / Edit domain 拆分为独立策略，流式事件、工具调用、HITL 审批与审阅面板进一步统一，提升多轮任务的稳定性和可维护性。
 - **Creative 模式：SubAgent 编排增强**。Planner、Writer、Consistency、Explorer、Researcher、WritingStyleExtractor、WritingStyleSkillCreator 等子代理分工更清晰，子任务进度、思考内容、工具调用和结果会在右侧 AI 面板中分层展示。
