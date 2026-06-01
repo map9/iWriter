@@ -72,9 +72,8 @@ export function buildExplorerSubAgent(
     description: 'Generates a single narrative direction exploration. Reads story context, sketches the scene, writes a short exploratory draft, and reports narrative consequences. Does NOT plan exhaustively or check logic — the goal is to produce a vivid, credible draft so the author can see what this direction actually feels like.',
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${EXPLORER_SYSTEM_PROMPT}`,
     tools: explorerTools,
-    // responseFormat intentionally omitted: deepseek-reasoner (and some models) reject
-    // tool_choice:"any" that langchain injects when responseFormat is set (langchain issue #31403).
-    // The system prompt instructs the model to end with a JSON code block instead.
+    // responseFormat is intentionally not set: explorer produces fenced JSON via system prompt,
+    // and the fenced-block approach works reliably here without requiring structured output parsing.
     ...(options?.skillSources?.length ? { skills: options.skillSources } : {}),
   }
 }

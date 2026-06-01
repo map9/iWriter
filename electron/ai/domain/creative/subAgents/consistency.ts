@@ -79,9 +79,8 @@ export function buildConsistencySubAgent(
     description: 'Checks a draft chapter for POV, character behavior, plot logic, voice, pacing, continuity, and common-sense issues. Returns structured findings.',
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${CONSISTENCY_SYSTEM_PROMPT}`,
     tools: readOnlyTools,
-    // responseFormat intentionally omitted: deepseek-reasoner (and some models) reject
-    // tool_choice:"any" that langchain injects when responseFormat is set (langchain issue #31403).
-    // The system prompt instructs the model to end with a JSON code block instead.
+    // responseFormat is intentionally not set: consistency checker produces fenced JSON
+    // via system prompt, and the fenced-block approach works reliably here.
     ...(options?.skillSources?.length ? { skills: options.skillSources } : {}),
   }
 }

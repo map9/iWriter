@@ -450,14 +450,18 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
   function onRunInterrupted(event: RunInterruptedEvent) {
     deps.threadRunState.value = 'interrupted'
 
-    deps.startLiveTurn({
-      threadId: event.threadId,
-      turnId: event.turnId ?? deps.currentTurnId.value,
-      state: 'interrupted',
-      startedAt: deps.liveTurn.value?.turnId === (event.turnId ?? deps.currentTurnId.value)
-        ? deps.liveTurn.value.startedAt
-        : undefined,
-    })
+    // Transition liveTurn to interrupted state while preserving accumulated subTasks and blocks.
+    // startLiveTurn would reset subTasks to [], causing the subagent panel to flash on resume.
+    const existingLiveTurn = deps.liveTurn.value
+    if (existingLiveTurn && existingLiveTurn.threadId === event.threadId) {
+      deps.liveTurn.value = { ...existingLiveTurn, state: 'interrupted' }
+    } else {
+      deps.startLiveTurn({
+        threadId: event.threadId,
+        turnId: event.turnId ?? deps.currentTurnId.value,
+        state: 'interrupted',
+      })
+    }
 
     const editProposals = event.reviews
       .filter((r): r is Extract<DomainReviewItem, { kind: 'edit' }> => r.kind === 'edit')
@@ -491,21 +495,13 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
 
     const thread = deps.activeThread.value
     if (thread && thread.id === event.threadId) {
-      let updated = thread
-      if (event.partialMessage) {
-        const alreadyPresent = (updated.messages ?? []).some(message => message.id === event.partialMessage!.id)
-        if (!alreadyPresent) {
-          updated = deps.appendMessage(updated, deps.normalizeMessageForDisplay(event.partialMessage))
-        }
-      }
-      deps.updateThread({ ...updated, messagesLoaded: false })
+      deps.updateThread({ ...thread, messagesLoaded: false })
 
       window.electronAPI.aiGetThreadMessages?.(event.threadId)
         .then(messages => {
           if (!messages?.length) return
           const current = deps.activeThread.value
           if (current && current.id !== event.threadId) return
-          if (messages.length < (current?.messages?.length ?? 0)) return
           const normalizedMessages = deps.normalizeMessagesForDisplay(messages)
           if (event.turnId) {
             for (let i = normalizedMessages.length - 1; i >= 0; i--) {
@@ -517,6 +513,38 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
             }
           }
           deps.updateThread({ ...current!, messages: normalizedMessages, messagesLoaded: true })
+
+          // Reconcile liveTurn tool statuses with checkpoint data so that sibling
+          // root tool calls (e.g. patch_storybible) that were still in_progress when
+          // the interrupt fired now reflect their settled state from the checkpoint.
+          const liveTurn = deps.liveTurn.value
+          if (!liveTurn || liveTurn.threadId !== event.threadId) return
+          const checkpointToolCallMap = new Map<string, AiToolCall>()
+          for (const msg of normalizedMessages) {
+            if (msg.role === 'assistant') {
+              for (const tc of msg.toolCalls ?? []) {
+                if (tc.status === 'completed' || tc.status === 'failed' || tc.status === 'rejected') {
+                  checkpointToolCallMap.set(tc.id, tc)
+                }
+              }
+            }
+          }
+          if (!checkpointToolCallMap.size) return
+          const syncBlock = (block: { type: 'tool_call'; toolCall: AiToolCall }): { type: 'tool_call'; toolCall: AiToolCall } => {
+            const settled = checkpointToolCallMap.get(block.toolCall.id)
+            if (!settled) return block
+            return { type: 'tool_call', toolCall: { ...block.toolCall, status: settled.status, result: settled.result, isError: settled.isError } }
+          }
+          const updatedBlocks = liveTurn.blocks.map(b =>
+            b.type === 'tool_call' ? syncBlock(b) : b
+          )
+          const updatedSubTasks = liveTurn.subTasks.map(st => ({
+            ...st,
+            blocks: st.blocks.map(b =>
+              b.type === 'tool_call' ? syncBlock(b) : b
+            ),
+          }))
+          deps.liveTurn.value = { ...liveTurn, blocks: updatedBlocks, subTasks: updatedSubTasks }
         })
         .catch(() => { /* ignore */ })
     }

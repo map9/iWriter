@@ -3,20 +3,30 @@
  *
  * 处理 deepagents `task` 工具的两类兼容性问题：
  *
- * 1. `prompt → description` 归一化（wrapToolCall :68-85）
- *    deepagents 的 task 工具 schema 仅声明 `description` + `subagent_type` 两个参数
- *    （node_modules/deepagents/dist/index.js:2306-2309），但部分模型（DeepSeek、
- *    早期 GPT-4o）会幻觉出 `prompt` 字段。这里把 prompt 内容并入 description，
- *    避免子代理因参数名错位收到空 brief。
+ * 1. `prompt → description` 归一化（wrapToolCall）
+ *    deepagents 的 task 工具 schema 仅声明 `description` + `subagent_type` 两个参数，
+ *    但部分模型（DeepSeek、早期 GPT-4o）会幻觉出 `prompt` 字段。这里把 prompt 内容
+ *    并入 description，避免子代理因参数名错位收到空 brief。
  *
- * 2. Planner 子代理输出 schema 校验（wrapToolCall :92-101）
- *    虽然 buildPlannerSubAgent 已声明 `responseFormat: PlannerResponseSchema`，
- *    但 deepagents `createTaskTool` 在常规工具调用路径（即 config.toolCall?.id 存在）
- *    只通过 returnCommandWithStateUpdate 返回 messages，**不会**把 structuredResponse
- *    JSON-stringify 后回灌给父代理（参见 node_modules/deepagents/dist/index.js:2274-2302）。
- *    因此 langchain `responseFormat` 仅在「直接调用 subagent.invoke」的边路生效，
- *    `task` 工具下完全不生效。本中间件的 JSON block extraction + Zod safeParse 是
- *    实际唯一拦截 planner 非法输出的关卡，不能删除。
+ * 2. Planner 子代理输出三层防护（wrapToolCall）
+ *
+ *    背景：buildPlannerSubAgent 启用了 responseFormat: PlannerResponseSchema。
+ *    deepseek-reasoner 的 profile 声明 structuredOutput:true，langchain 因此走
+ *    ProviderStrategy（native），直接用 JSON.parse 解析 model 最终文本输出，
+ *    不强制 tool_choice:"any"（无 tool_choice 冲突）。当 ProviderStrategy.parse
+ *    成功时，deepagents 的 returnCommandWithStateUpdate 把 structuredResponse
+ *    JSON-stringify 后作为 ToolMessage content 回传——此时内容已是干净 JSON，
+ *    Zod safeParse 直接通过。
+ *
+ *    三层防护：
+ *    Layer 1 — Zod 校验（primary）：验证 ProviderStrategy 产出（或 model 直接输出）的 JSON。
+ *    Layer 2 — 宽容归一化（B 层）：Zod 失败时尝试修复常见形状偏差：
+ *              中文枚举别名（物理→physical 等）、alternatives 对象拍平为字符串、
+ *              键名别名（coreDesire→activatedDesireOrFear、category→dimension 等）。
+ *              归一化后再次 Zod 校验；通过则返回含规范 JSON 的合成 ToolMessage。
+ *    Layer 3 — 精准错误回灌（C 层）：归一化仍无法修复时，把真实错误原因
+ *              （reason/parseError/schemaIssues）写入错误消息，
+ *              引导模型定向自纠（而非盲目补充 brief）。
  */
 import { HumanMessage, ToolMessage } from '@langchain/core/messages'
 import { createMiddleware } from 'langchain'
@@ -70,6 +80,122 @@ function extractJsonSource(content: string): { source: string, hasJsonBlock: boo
     return { source: (lastMatch[1] ?? '').trim(), hasJsonBlock: true }
   }
   return { source: content.trim(), hasJsonBlock: false }
+}
+
+// ---------------------------------------------------------------------------
+// Layer 2 — Normalization (B layer)
+// Fixes common shape deviations before Zod validation so that
+// "almost correct" planner output survives without a retry round-trip.
+// ---------------------------------------------------------------------------
+
+/** Map of Chinese (and alternate English) dimension synonyms → canonical value */
+const DIMENSION_ALIASES: Record<string, 'physical' | 'social' | 'psychological'> = {
+  '物理': 'physical',
+  'physics': 'physical',
+  'physical': 'physical',
+  '社会': 'social',
+  'society': 'social',
+  'social': 'social',
+  '心理': 'psychological',
+  'psychology': 'psychological',
+  'psychological': 'psychological',
+  'mental': 'psychological',
+  '精神': 'psychological',
+}
+
+function normalizeDimension(value: unknown): string {
+  if (typeof value !== 'string') return String(value ?? '')
+  const lower = value.toLowerCase()
+  for (const [alias, canonical] of Object.entries(DIMENSION_ALIASES)) {
+    if (lower === alias.toLowerCase() || lower.includes(alias.toLowerCase())) return canonical
+  }
+  return value
+}
+
+function normalizeAlternative(alt: unknown): string {
+  if (typeof alt === 'string') return alt
+  if (alt && typeof alt === 'object' && !Array.isArray(alt)) {
+    const a = alt as Record<string, unknown>
+    // {direction, tradeoff} or {direction, rationale} or {name, description} etc.
+    const parts = [a.direction, a.tradeoff, a.rationale, a.description, a.text]
+      .filter(p => typeof p === 'string' && (p as string).trim())
+    return parts.join(': ')
+  }
+  return String(alt ?? '')
+}
+
+function normalizeRecord(obj: Record<string, unknown>): void {
+  // alternatives: array of strings only
+  if (Array.isArray(obj.alternatives)) {
+    obj.alternatives = obj.alternatives.map(normalizeAlternative)
+  }
+
+  // logicAudit sub-fields
+  const audit = obj.logicAudit
+  if (!audit || typeof audit !== 'object' || Array.isArray(audit)) return
+  const a = audit as Record<string, unknown>
+
+  // commonSenseFlags
+  if (Array.isArray(a.commonSenseFlags)) {
+    a.commonSenseFlags = a.commonSenseFlags.map(flag => {
+      if (!flag || typeof flag !== 'object' || Array.isArray(flag)) return flag
+      const f = { ...(flag as Record<string, unknown>) }
+      // dimension: normalize or fill from alias key "category"
+      if (typeof f.dimension === 'string') {
+        f.dimension = normalizeDimension(f.dimension)
+      } else if (typeof f.category === 'string') {
+        f.dimension = normalizeDimension(f.category)
+        delete f.category
+      }
+      // issue: fill from alias key "flag"
+      if (!f.issue && f.flag) { f.issue = f.flag; delete f.flag }
+      // correction: fill from alias key "severity" or "fix"
+      if (!f.correction && f.severity) { f.correction = f.severity; delete f.severity }
+      if (!f.correction && f.fix) { f.correction = f.fix; delete f.fix }
+      return f
+    })
+  }
+
+  // motivationTraces
+  if (Array.isArray(a.motivationTraces)) {
+    a.motivationTraces = a.motivationTraces.map(trace => {
+      if (!trace || typeof trace !== 'object' || Array.isArray(trace)) return trace
+      const t = { ...(trace as Record<string, unknown>) }
+      // activatedDesireOrFear: fill from coreDesire / coreFear aliases
+      if (!t.activatedDesireOrFear) {
+        const parts = [t.coreDesire, t.coreFear, t.desire, t.fear]
+          .filter(p => typeof p === 'string' && (p as string).trim())
+        if (parts.length) {
+          t.activatedDesireOrFear = (parts as string[]).join(' / ')
+          delete t.coreDesire; delete t.coreFear; delete t.desire; delete t.fear
+        }
+      }
+      return t
+    })
+  }
+}
+
+/**
+ * Attempt to normalize planner JSON content.
+ * Returns a normalized JSON string if parsing succeeds, or null if content is unparseable.
+ * The normalized string always contains bare JSON (no fences).
+ */
+function normalizePlannerJson(content: string): string | null {
+  const { source } = extractJsonSource(content)
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(source)
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+  const obj = parsed as Record<string, unknown>
+  normalizeRecord(obj)
+  try {
+    return JSON.stringify(obj)
+  } catch {
+    return null
+  }
 }
 
 function validatePlannerResult(content: string): PlannerValidationResult {
@@ -151,19 +277,57 @@ function countPriorPlannerValidationFailures(messages: unknown): number {
   }).length
 }
 
-function buildPlannerError(toolCallId: string | undefined, priorFailures: number): ToolMessage {
+function buildPlannerError(
+  toolCallId: string | undefined,
+  priorFailures: number,
+  validation?: PlannerValidationResult,
+): ToolMessage {
+  // Build a specific diagnosis from validation details (C layer — directed feedback).
+  const specificErrors: string[] = []
+  if (validation) {
+    switch (validation.reason) {
+      case 'empty':
+        specificErrors.push('The response was empty.')
+        break
+      case 'json_parse_failed':
+        specificErrors.push(
+          validation.hasJsonBlock
+            ? `JSON inside the code fence failed to parse: ${validation.parseError ?? 'unknown parse error'}.`
+            : `Response is not valid JSON: ${validation.parseError ?? 'unknown parse error'}.`,
+        )
+        break
+      case 'schema_failed':
+        if (validation.schemaIssues?.length) {
+          const details = validation.schemaIssues
+            .slice(0, 5)
+            .map(i => (i.path ? `"${i.path}": ${i.message}` : i.message))
+            .join('; ')
+          specificErrors.push(`Schema validation failed — ${details}.`)
+        } else {
+          specificErrors.push('Schema validation failed.')
+        }
+        break
+      case 'empty_required_fields':
+        specificErrors.push('Required fields "plan" and/or "rationale" are empty strings.')
+        break
+    }
+  }
+
+  // The brief is NOT the problem — the output format/field names are.
   const guidance = priorFailures > 0
     ? [
         'Planner retry also failed validation.',
         'Use task with subagent_type="general-purpose" to produce the same plan/rationale/alternatives/logicAudit structure, then call confirm_writing_plan from that result.',
+        'The logicAudit must be included — do NOT omit it.',
         'Do not create the plan in the main agent yourself.',
       ]
     : [
-        'Retry task with subagent_type="planner" and put the complete planner brief in description.',
-        'The planner response must contain exactly one final ```json code block with keys plan, rationale, alternatives, and logicAudit.',
-        'alternatives must be an array of strings only; do not use objects with direction/tradeoff keys.',
+        'Retry task with subagent_type="planner" with the same brief.',
+        'The problem is the OUTPUT FORMAT, not the brief content — do not expand or rewrite the brief.',
+        'The planner must output a bare JSON object only: no prose, no markdown fences.',
+        'Required keys: plan (string), rationale (string), alternatives (array of strings, not objects), logicAudit (object).',
         'logicAudit must use motivationTraces[].action, motivationTraces[].activatedDesireOrFear, commonSenseFlags[].dimension, commonSenseFlags[].issue, and commonSenseFlags[].correction.',
-        'commonSenseFlags[].dimension MUST be exactly one of "physical", "social", or "psychological"; do not translate these enum values.',
+        'commonSenseFlags[].dimension must be exactly one of "physical", "social", or "psychological" (English, not translated).',
         'Do not call confirm_writing_plan from this result.',
       ]
 
@@ -172,6 +336,7 @@ function buildPlannerError(toolCallId: string | undefined, priorFailures: number
     tool_call_id: toolCallId ?? '',
     content: [
       PLANNER_INVALID_RESULT_PREFIX,
+      ...specificErrors,
       ...guidance,
     ].join(' '),
   })
@@ -209,18 +374,57 @@ export function createTaskToolCompatMiddleware() {
         toolCall,
       })
 
+      // Layer D: when general-purpose is used as a planner fallback (after prior planner
+      // failures in the current turn), also run normalization so the parent agent receives
+      // schema-compliant JSON for confirm_writing_plan. If the general-purpose output
+      // fails validation even after normalization, pass it through unchanged so the
+      // agent can still attempt confirm_writing_plan with what it has.
       if (args.subagent_type !== 'planner') {
+        const priorPlannerFailures = countPriorPlannerValidationFailures(request.state.messages)
+        if (args.subagent_type === 'general-purpose' && priorPlannerFailures > 0) {
+          const gpContent = extractToolContent(result)
+          const gpNormalized = normalizePlannerJson(gpContent)
+          if (gpNormalized !== null) {
+            const gpValidation = validatePlannerResult(gpNormalized)
+            if (gpValidation.valid) {
+              return new ToolMessage({
+                name: 'task',
+                tool_call_id: request.toolCall.id ?? '',
+                content: gpNormalized,
+              })
+            }
+          }
+        }
         return result
       }
 
       const content = extractToolContent(result)
       const validation = validatePlannerResult(content)
+
+      // Layer 1: primary validation — passes when responseFormat/ProviderStrategy produced
+      // clean JSON, or when the model followed the bare-JSON system prompt instruction.
       if (validation.valid) {
         return result
       }
 
+      // Layer 2: normalization — attempt to repair common shape deviations (B layer).
+      // Handles Chinese dimension aliases, object-type alternatives, key renames, etc.
+      // Returns a synthetic ToolMessage with normalized JSON to avoid losing the plan.
+      const normalizedJson = normalizePlannerJson(content)
+      if (normalizedJson !== null) {
+        const normalizedValidation = validatePlannerResult(normalizedJson)
+        if (normalizedValidation.valid) {
+          return new ToolMessage({
+            name: 'task',
+            tool_call_id: request.toolCall.id ?? '',
+            content: normalizedJson,
+          })
+        }
+      }
+
+      // Layer 3: precise error feedback — tell the model exactly what is wrong (C layer).
       const priorFailures = countPriorPlannerValidationFailures(request.state.messages)
-      return buildPlannerError(request.toolCall.id, priorFailures)
+      return buildPlannerError(request.toolCall.id, priorFailures, validation)
     },
   })
 }

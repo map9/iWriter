@@ -751,7 +751,6 @@ export class AgentEngine {
       threadId,
       turnId,
       reviews,
-      partialMessage,
       actionRequests: prepared.reviewActionRequests,
     })
   }

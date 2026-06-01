@@ -62,9 +62,14 @@ Use the exact logicAudit field names shown below. Do NOT use coreDesire, coreFea
 category, flag, severity, or causalNecessity keys.
 commonSenseFlags[].dimension MUST be exactly one of "physical", "social", or "psychological"; do not translate these enum values.
 
-Your entire response MUST end with a single JSON code block and nothing after it:
+## Output Format
 
-\`\`\`json
+After completing all tool calls, your FINAL response must be a single valid json object.
+No explanatory prose before or after. No markdown code fences. No "` + '```' + `json" prefix.
+Output the raw json object directly — nothing else.
+
+The json object must have exactly these keys:
+
 {
   "plan": "<the full plan text>",
   "rationale": "<why this direction>",
@@ -98,7 +103,6 @@ Your entire response MUST end with a single JSON code block and nothing after it
     ]
   }
 }
-\`\`\`
 `.trim()
 
 export function buildPlannerSubAgent(
@@ -111,9 +115,14 @@ export function buildPlannerSubAgent(
     description: 'Produces a logic-first writing plan. Reads story context, derives character motivation from psychology triangles, builds causal beats, and performs common-sense checks. Returns plan, rationale, alternatives, and Logic Audit.',
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${PLANNER_SYSTEM_PROMPT}`,
     tools: plannerTools,
-    // responseFormat intentionally omitted: deepseek-reasoner (and some models) reject
-    // tool_choice:"any" that langchain injects when responseFormat is set (langchain issue #31403).
-    // The system prompt instructs the model to end with a JSON code block instead.
+    // responseFormat enables ProviderStrategy (native JSON parsing) in langchain 1.4.x.
+    // deepseek-reasoner declares structuredOutput:true in model-profiles.ts, so langchain
+    // routes through ProviderStrategy — which reads the model's text content directly with
+    // JSON.parse — rather than ToolStrategy, avoiding any tool_choice:"any" injection.
+    // The system prompt instructs the model to output bare JSON (no fences) so that
+    // ProviderStrategy.parse can extract the structured result without regex post-processing.
+    // TaskToolCompatMiddleware provides a normalization + Zod fallback for residual shape errors.
+    responseFormat: PlannerResponseSchema,
     ...(options?.skillSources?.length ? { skills: options.skillSources } : {}),
   }
 }

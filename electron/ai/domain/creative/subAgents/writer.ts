@@ -82,8 +82,8 @@ export function buildWriterSubAgent(
     description: 'Executes an approved writing plan or tightly scoped direct author instruction by proposing block-level edits to a draft chapter. Loads active writing-style constraints, reads craft skills, then proposes edit_block / insert_block / delete_block / replace_range changes. Returns a summary JSON with blocks modified.',
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${WRITER_SYSTEM_PROMPT}`,
     tools: writerTools,
-    // responseFormat intentionally omitted: deepseek-reasoner rejects tool_choice:"any"
-    // injected by langchain when responseFormat is set (langchain issue #31403).
+    // responseFormat is intentionally not set: writer uses tool calls (edit_block, etc.)
+    // for all output and does not need structured final-response parsing.
     ...(options?.skillSources?.length ? { skills: options.skillSources } : {}),
   }
 }
