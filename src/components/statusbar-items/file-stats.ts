@@ -1,4 +1,5 @@
 import { computed, watchEffect } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { pathUtils } from '@/utils/pathUtils'
 import { useStatusBar, StatusBarAlignment, setTablerIcon } from '@/components/common/statusbar'
 import { useAppStore } from '@/stores/app'
@@ -17,6 +18,7 @@ function formatFileSize(bytes: number): string {
 }
 
 export const createFileStatsStatusBarGroup = () => {
+  const { t } = useI18n()
   const statusBar = useStatusBar()
   const appStore = useAppStore()
   const { isEditable, getIconByExtension } = useDocumentTypeDetector()
@@ -27,7 +29,11 @@ export const createFileStatsStatusBarGroup = () => {
     const stats = appStore.activeTab?.fileStats
 
     if (stats) {
-      return `Ln ${stats.currentLine}, Col ${stats.currentColumn} ${stats.paragraphType.toUpperCase()}`
+      return t('statusBar.fileStats.positionFormat', {
+        line: stats.currentLine,
+        col: stats.currentColumn,
+        type: stats.paragraphType.toUpperCase()
+      })
     } else {
       return ''
     }
@@ -44,9 +50,9 @@ export const createFileStatsStatusBarGroup = () => {
     let result = ''
     if (stats) {
       if (stats.selectionCharCount > 0) {
-        result = `**Selection**<br>- **${stats.selectionCharCount}** characters<br>- **${stats.selectionWordCount}** words\n\n`
+        result = `**${t('statusBar.fileStats.statsSelection')}**<br>- **${stats.selectionCharCount}** ${t('statusBar.fileStats.statsCharacters')}<br>- **${stats.selectionWordCount}** ${t('statusBar.fileStats.statsWords')}\n\n`
       }
-      return result + `**Document**<br>- **${stats.totalCharCount}** characters<br>- **${stats.totalWordCount}** words<br>- **${stats.totalParagraphCount}** paragraphs`
+      return result + `**${t('statusBar.fileStats.statsDocument')}**<br>- **${stats.totalCharCount}** ${t('statusBar.fileStats.statsCharacters')}<br>- **${stats.totalWordCount}** ${t('statusBar.fileStats.statsWords')}<br>- **${stats.totalParagraphCount}** ${t('statusBar.fileStats.statsParagraphs')}`
     } else {
       return ''
     }
@@ -63,7 +69,7 @@ export const createFileStatsStatusBarGroup = () => {
   const autoSaveText = computed((): string => {
     const docType = appStore.activeTab?.documentType
     if (docType && isEditable(docType)) {
-      return appStore.autoSave ? 'Auto Save' : ''
+      return appStore.autoSave ? t('statusBar.fileStats.autoSave') : ''
     }
     return ''
   })
@@ -77,18 +83,18 @@ export const createFileStatsStatusBarGroup = () => {
     }
 
     if (!isEditable(docType)) {
-      return 'Viewer'
+      return t('statusBar.fileStats.viewer')
     }
 
     if (tab?.fileReadonly) {
-      return 'File Read-Only'
+      return t('statusBar.fileStats.fileReadonly')
     }
 
     if (tab?.editReadonly) {
-      return 'Read-Only Mode'
+      return t('statusBar.fileStats.readonlyMode')
     }
 
-    return 'Editable'
+    return t('statusBar.fileStats.editable')
   })
 
   const editableTooltip = computed((): string => {
@@ -100,18 +106,18 @@ export const createFileStatsStatusBarGroup = () => {
     }
 
     if (!isEditable(docType)) {
-      return 'Viewer. This document type is not editable.'
+      return t('statusBar.fileStats.viewerTooltip')
     }
 
     if (tab?.fileReadonly) {
-      return 'File Read-Only. This file is read-only on disk. Use Save As to create an editable copy.'
+      return t('statusBar.fileStats.fileReadonlyTooltip')
     }
 
     if (tab?.editReadonly) {
-      return 'Read-Only Mode. Click to disable it.'
+      return t('statusBar.fileStats.readonlyModeTooltip')
     }
 
-    return 'Editable. Click to enable read-only mode.'
+    return t('statusBar.fileStats.editableTooltip')
   })
 
   const fileType = computed((): string => {
@@ -154,14 +160,14 @@ export const createFileStatsStatusBarGroup = () => {
     //const positionItem = editorStatusBarGroup.createStatusBarItem(`position`)
     const positionItem = statusBar.createStatusBarItem({id: `position`, alignment: StatusBarAlignment.Right, priority: 100})
     positionItem.text = position.value
-    positionItem.tooltip = 'Go to Line/Column'
+    positionItem.tooltip = t('statusBar.fileStats.positionTooltip')
     positionItem.show()
 
     // lineEnding
     //const lineEndingItem = editorStatusBarGroup.createStatusBarItem(`line-ending`)
     const lineEndingItem = statusBar.createStatusBarItem({id: `line-ending`, alignment: StatusBarAlignment.Right, priority: 99})
     lineEndingItem.text = lineEnding.value
-    lineEndingItem.tooltip = 'Select End of Line Sequence'
+    lineEndingItem.tooltip = t('statusBar.fileStats.lineEndingTooltip')
     lineEndingItem.show()
 
     // stats
@@ -177,7 +183,7 @@ export const createFileStatsStatusBarGroup = () => {
     // autoSave
     const autoSaveItem = statusBar.createStatusBarItem({id: `auto-save`, alignment: StatusBarAlignment.Right, priority: 97})
     autoSaveItem.text = autoSaveText.value
-    autoSaveItem.tooltip = 'Auto Save'
+    autoSaveItem.tooltip = t('statusBar.fileStats.autoSaveTooltip')
     autoSaveItem.show()
 
     // editable
@@ -192,25 +198,28 @@ export const createFileStatsStatusBarGroup = () => {
     //const fileTypeItem = editorStatusBarGroup.createStatusBarItem(`file-type`)
     const fileTypeItem = statusBar.createStatusBarItem({id: `file-type`, alignment: StatusBarAlignment.Right, priority: 95})
     fileTypeItem.text = fileType.value
-    fileTypeItem.tooltip = 'File Type: ' + (appStore.activeTab?.documentType ?? '')
+    fileTypeItem.tooltip = t('statusBar.fileStats.fileTypeTooltip', { ext: appStore.activeTab?.documentType ?? '' })
     fileTypeItem.show()
 
     // fileSize
     //const fileSizeItem = editorStatusBarGroup.createStatusBarItem(`file-size`)
     const fileSizeItem = statusBar.createStatusBarItem({id: `file-size`, alignment: StatusBarAlignment.Right, priority: 94})
     fileSizeItem.text = fileSize.value
-    fileSizeItem.tooltip = 'File Size'
+    fileSizeItem.tooltip = t('statusBar.fileStats.fileSizeTooltip')
     fileSizeItem.show()
 
     watchEffect(() => {
       positionItem.text = position.value
+      positionItem.tooltip = t('statusBar.fileStats.positionTooltip')
       statsItem.visible = statsVisible.value
       statsItem.tooltip = {
         type: 'markdown',
         content: statsTooltip.value
       }
       lineEndingItem.text = lineEnding.value
+      lineEndingItem.tooltip = t('statusBar.fileStats.lineEndingTooltip')
       autoSaveItem.text = autoSaveText.value
+      autoSaveItem.tooltip = t('statusBar.fileStats.autoSaveTooltip')
       editableItem.text = editable.value
       editableItem.tooltip = editableTooltip.value
       editableItem.command = appStore.activeTab?.documentType && isEditable(appStore.activeTab.documentType) ? 'toggleReadonlyMode' : undefined
@@ -219,11 +228,12 @@ export const createFileStatsStatusBarGroup = () => {
         const extension = fileType.value.toUpperCase()
         setTablerIcon(extension, icon)
         fileTypeItem.text = `$(${extension}) ${extension}`
-        fileTypeItem.tooltip = `File Type: ${extension}`
+        fileTypeItem.tooltip = t('statusBar.fileStats.fileTypeTooltip', { ext: extension })
       } else {
         fileTypeItem.text = fileType.value
       }
       fileSizeItem.text = fileSize.value
+      fileSizeItem.tooltip = t('statusBar.fileStats.fileSizeTooltip')
     })
 
   } catch (error) {

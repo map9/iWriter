@@ -1,4 +1,5 @@
 import { watchEffect } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useStatusBar, StatusBarAlignment, setTablerIcon } from '@/components/common/statusbar'
 import updaterService from '@/updater/UpdaterService'
 import {
@@ -11,6 +12,7 @@ import {
 } from '@tabler/icons-vue'
 
 export const createUpdateStatusStatusBarItem = () => {
+  const { t } = useI18n()
   const statusBar = useStatusBar()
 
   setTablerIcon('idle', IconBellPause)
@@ -24,7 +26,7 @@ export const createUpdateStatusStatusBarItem = () => {
     // updateStatus
     const updateStatusItem = statusBar.createStatusBarItem({id: `update-status`, alignment: StatusBarAlignment.Left, priority: 100})
     updateStatusItem.text = '$(refresh)'
-    updateStatusItem.tooltip = 'Check for Updates'
+    updateStatusItem.tooltip = t('statusBar.updateStatus.check')
     updateStatusItem.command = 'checkForUpdates'
     updateStatusItem.show()
 
@@ -36,38 +38,38 @@ export const createUpdateStatusStatusBarItem = () => {
 
       if (updateStatus.type === 'idle') {
         updateStatusItem.text = '$(idle)'
-        updateStatusItem.tooltip = 'Update not available!'
+        updateStatusItem.tooltip = t('statusBar.updateStatus.idle')
       } else if (updateStatus.type === 'checking') {
         updateStatusItem.text = '$(refresh~spin)'
-        updateStatusItem.tooltip = 'Checking for updates...'
+        updateStatusItem.tooltip = t('statusBar.updateStatus.checking')
       } else if (updateStatus.type === 'available') {
         updateStatusItem.text = '$(check~pulse)'
         if (updateInfo) {
-          updateStatusItem.tooltip = `Update available!\nVersion:${updateInfo.version}\nRelease Date:${updateInfo.releaseDate}\nClick to view details.`
+          updateStatusItem.tooltip = t('statusBar.updateStatus.availableDetails', { version: updateInfo.version, date: updateInfo.releaseDate })
         } else {
-          updateStatusItem.tooltip = 'Update available!'
+          updateStatusItem.tooltip = t('statusBar.updateStatus.available')
         }
       } else if (updateStatus.type === 'downloading') {
         updateStatusItem.text = `$(refresh~spin) ${updateStatus.progress ?? 0}%`
-        updateStatusItem.tooltip = `Downloading update... ${updateStatus.progress ?? 0}%\nClick to open details.`
+        updateStatusItem.tooltip = t('statusBar.updateStatus.downloading', { progress: updateStatus.progress ?? 0 })
       } else if (updateStatus.type === 'downloaded') {
         updateStatusItem.text = '$(download~bounce)'
         if (updateInfo) {
-          updateStatusItem.tooltip = `Update downloaded!\nVersion:${updateInfo.version}\nRelease Date:${updateInfo.releaseDate}\nClick to install.`
+          updateStatusItem.tooltip = t('statusBar.updateStatus.downloadedDetails', { version: updateInfo.version, date: updateInfo.releaseDate })
         } else {
-          updateStatusItem.tooltip = `Update downloaded! Click to install.`
+          updateStatusItem.tooltip = t('statusBar.updateStatus.downloaded')
         }
       } else if (updateStatus.type === 'installing') {
         updateStatusItem.text = '$(load~spin)'
         if (updateInfo) {
-          updateStatusItem.tooltip = `Installing a new version...\nVersion:${updateInfo.version}\nRelease Date:${updateInfo.releaseDate}`
+          updateStatusItem.tooltip = t('statusBar.updateStatus.installingDetails', { version: updateInfo.version, date: updateInfo.releaseDate })
         } else {
-          updateStatusItem.tooltip = `Installing a new version...`
+          updateStatusItem.tooltip = t('statusBar.updateStatus.installing')
         }
       } else if (updateStatus.type === 'error') {
         updateStatusItem.text = '$(exclamation-circle)'
         updateStatusItem.color = '#ff4d4f'
-        updateStatusItem.tooltip = `Update error: ${updateStatus.message},\nClick to retry.`
+        updateStatusItem.tooltip = t('statusBar.updateStatus.error', { message: updateStatus.message })
       }
     })
 
