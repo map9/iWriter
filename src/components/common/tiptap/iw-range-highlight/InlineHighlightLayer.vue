@@ -51,14 +51,26 @@ function computeStyle(
     const scrollTop = wrapperElement.scrollTop
     const scrollLeft = wrapperElement.scrollLeft
 
-    const fromDOM = editor.view.domAtPos(from)
-    const toDOM = editor.view.domAtPos(to)
+    // Detect inline atom nodes (e.g. inline math) vs marks (e.g. link).
+    // nodeDOM() returns an Element for atom nodes, null for text/mark positions.
+    // For atom nodes, use that element directly — the same one the CSS :hover
+    // background paints — and suppress vertical inset expansion so the overlay
+    // matches the hover rect exactly.
+    const atomDOM = editor.view.nodeDOM(from)
+    const isAtomNode = atomDOM !== null && atomDOM.nodeType === Node.ELEMENT_NODE
 
-    const domRange = document.createRange()
-    domRange.setStart(fromDOM.node, fromDOM.offset)
-    domRange.setEnd(toDOM.node, toDOM.offset)
+    let rects: DOMRectList | DOMRect[]
+    if (isAtomNode) {
+      rects = (atomDOM as Element).getClientRects()
+    } else {
+      const fromDOM = editor.view.domAtPos(from)
+      const toDOM = editor.view.domAtPos(to)
+      const domRange = document.createRange()
+      domRange.setStart(fromDOM.node, fromDOM.offset)
+      domRange.setEnd(toDOM.node, toDOM.offset)
+      rects = domRange.getClientRects()
+    }
 
-    const rects = domRange.getClientRects()
     if (rects.length === 0) return []
 
     const inset = props.inset
