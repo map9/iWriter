@@ -231,7 +231,7 @@ const GITHUB_SCREEN_CSS = `
     --md-blockquote-color: #59636e;
     --md-blockquote-font-style: normal;
     --md-table-border-color: #d1d9e0;
-    --md-table-header-bg: #f6f8fa;
+    --md-table-header-bg: #eaeef2;
     --md-inline-code-bg: #818b981f;
     --md-inline-code-color: #1f2328;
     --md-code-block-bg: #f6f8fa;
@@ -428,6 +428,7 @@ const GITHUB_SCREEN_CSS = `
   }
 
   .tiptap.markdown-theme-github .tableWrapper table th {
+    background-color: var(--md-table-header-bg);
     font-weight: 600;
   }
 
@@ -783,7 +784,7 @@ const GITHUB_DARK_SCREEN_CSS = `
     --md-blockquote-color: #9198a1;
     --md-blockquote-font-style: normal;
     --md-table-border-color: #3d444d;
-    --md-table-header-bg: #151b23;
+    --md-table-header-bg: #262c36;
     --md-inline-code-bg: #656c7633;
     --md-inline-code-color: #f0f6fc;
     --md-code-block-bg: #151b23;
@@ -974,6 +975,7 @@ const GITHUB_DARK_SCREEN_CSS = `
   }
 
   .tiptap.markdown-theme-github-dark .tableWrapper table th {
+    background-color: var(--md-table-header-bg);
     font-weight: 600;
   }
 
@@ -1318,7 +1320,7 @@ const PROSE_SCREEN_CSS = `
     --md-blockquote-border: #cbd5e1;
     --md-blockquote-color: #475569;
     --md-table-border-color: #d6d3d1;
-    --md-table-header-bg: #f8fafc;
+    --md-table-header-bg: #eef2f7;
     --md-inline-code-bg: #f3f4f6;
     --md-inline-code-color: #9f1239;
     --md-code-block-bg: #111827;
@@ -1364,6 +1366,10 @@ const PROSE_SCREEN_CSS = `
     padding-bottom: 0.55rem;
   }
 
+  .tiptap.markdown-theme-prose .tableWrapper table th {
+    background-color: var(--md-table-header-bg);
+  }
+
   .tiptap.markdown-theme-prose pre {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
@@ -1387,7 +1393,7 @@ const NOVEL_SCREEN_CSS = `
     --md-blockquote-border: #c7c7c7;
     --md-blockquote-color: #4b5563;
     --md-table-border-color: rgba(82, 82, 91, 0.2);
-    --md-table-header-bg: rgba(82, 82, 91, 0.08);
+    --md-table-header-bg: rgba(82, 82, 91, 0.12);
     --md-inline-code-bg: #f5f5f4;
     --md-inline-code-color: #7c2d12;
     --md-code-block-bg: #1c1917;
@@ -1431,6 +1437,10 @@ const NOVEL_SCREEN_CSS = `
     background: rgba(120, 113, 108, 0.08);
     padding: 0.9rem 1rem;
     border-radius: 0.5rem;
+  }
+
+  .tiptap.markdown-theme-novel .tableWrapper table th {
+    background-color: var(--md-table-header-bg);
   }
 
   .tiptap.markdown-theme-novel pre {
@@ -1488,7 +1498,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         blockquote > :last-child { margin-bottom: 0; }
         table { border-collapse: collapse; width: 100%; margin: 0 0 1rem; font-size: 10.5pt; font-variant: tabular-nums; }
         th, td { border: 1px solid #d1d9e0; padding: 6px 13px; text-align: left; vertical-align: top; }
-        th { background: #f6f8fa; font-weight: 600; }
+        th { background: #eaeef2; font-weight: 600; }
         tr { background: #ffffff; border-top: 1px solid #d1d9e0b3; }
         tr:nth-child(even) td { background: #f6f8fa; }
         td > :last-child { margin-bottom: 0; }
@@ -1620,7 +1630,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         blockquote > :last-child { margin-bottom: 0; }
         table { border-collapse: collapse; width: 100%; margin: 0 0 1rem; font-size: 10.5pt; font-variant: tabular-nums; }
         th, td { border: 1px solid #3d444d; padding: 6px 13px; text-align: left; vertical-align: top; }
-        th { background: #151b23; font-weight: 600; }
+        th { background: #262c36; font-weight: 600; }
         tr { background: #0d1117; border-top: 1px solid #3d444db3; }
         tr:nth-child(even) td { background: #151b23; }
         td > :last-child { margin-bottom: 0; }
@@ -1748,7 +1758,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         }
         table { border-collapse: collapse; width: 100%; margin: 1.25em 0; font-size: 11pt; }
         th, td { border: 1px solid #d6d3d1; padding: 8px 14px; text-align: left; }
-        th { background: #f8fafc; font-weight: 600; }
+        th { background: #eef2f7; font-weight: 600; }
         tr:nth-child(even) td { background: #fafafa; }
         code {
           font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
@@ -1834,7 +1844,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         }
         table { border-collapse: collapse; width: 100%; margin: 1.5em 0; font-size: 11.5pt; }
         th, td { border: 1px solid rgba(82, 82, 91, 0.3); padding: 8px 14px; text-align: left; }
-        th { background: rgba(82, 82, 91, 0.08); font-weight: 600; }
+        th { background: rgba(82, 82, 91, 0.12); font-weight: 600; }
         tr:nth-child(even) td { background: rgba(82, 82, 91, 0.03); }
         code {
           font-family: 'SFMono-Regular', Consolas, Menlo, monospace;

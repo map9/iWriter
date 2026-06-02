@@ -203,7 +203,7 @@ export class CustomThemeLoader {
 
   /* ── Tables ──────────────────────────────────── */
   --md-table-border-color: #d1d5db;
-  --md-table-header-bg: #f9fafb;
+  --md-table-header-bg: #eef2f7;
 
   /* ── Inline code ─────────────────────────────── */
   --md-inline-code-bg: #f3f4f6;
@@ -274,7 +274,7 @@ blockquote {
 
 table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 11pt; }
 th, td { border: 1px solid #d1d5db; padding: 6px 12px; text-align: left; }
-th { background: #f9fafb; font-weight: 600; }
+th { background: #eef2f7; font-weight: 600; }
 tr:nth-child(even) td { background: #fafafa; }
 
 code {
