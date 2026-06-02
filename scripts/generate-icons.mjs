@@ -60,7 +60,14 @@ function shouldRegenerate() {
   try {
     const sourceStats = fs.statSync(sourceSvg);
     const outputStats = fs.statSync(outputDir);
-    return sourceStats.mtime > outputStats.mtime;
+    if (sourceStats.mtime > outputStats.mtime) return true;
+    // Directory mtime alone isn't enough — verify key output files exist
+    const keyFiles = [
+      path.join(outputDir, 'mac', 'icon.icns'),
+      path.join(outputDir, 'win', 'icon.ico'),
+      path.join(outputDir, 'linux', '256x256.png'),
+    ];
+    return keyFiles.some(f => !fs.existsSync(f));
   } catch {
     return true;
   }
@@ -74,7 +81,7 @@ async function generatePngFromSvg(size, outputPath) {
     throw new Error(`无效的尺寸: ${size}，必须是正整数`);
   }
 
-  await sharp(sourceSvg, { density: 300 })
+  await sharp(sourceSvg, { density: 72 })
     .resize(intSize, intSize, {
       fit: 'contain',
       background: { r: 0, g: 0, b: 0, alpha: 0 }
