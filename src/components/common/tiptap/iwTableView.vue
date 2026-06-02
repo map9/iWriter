@@ -459,8 +459,7 @@ const toggleHeaderColumn = (): void => {
 
 const copyTable = async (): Promise<void> => {
   try {
-    // 获取表格的HTML内容
-    const tableElement = props.editor.view.dom.querySelector('table')
+    const tableElement = tableRef.value
     if (tableElement) {
       // 创建一个临时的div来包含表格
       const tempDiv = document.createElement('div')
