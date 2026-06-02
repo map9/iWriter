@@ -66,7 +66,8 @@ marked.use({
 // Initialize markdown parser and converter
 const turndownService = new TurndownService({
   headingStyle: 'atx',
-  codeBlockStyle: 'fenced'
+  codeBlockStyle: 'fenced',
+  br: '<br>',
 })
 /*
 strikethrough (for converting <strike>, <s>, and <del> elements)

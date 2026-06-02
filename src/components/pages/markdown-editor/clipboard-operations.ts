@@ -7,7 +7,8 @@ import { notify } from '@/utils/notifications'
 // Initialize turndown service for HTML to Markdown conversion
 const turndownService = new TurndownService({
   headingStyle: 'atx',
-  codeBlockStyle: 'fenced'
+  codeBlockStyle: 'fenced',
+  br: '<br>',
 })
 turndownService.use(gfm)
 turndownService.addRule('inlineMath', {
