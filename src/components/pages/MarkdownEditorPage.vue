@@ -306,11 +306,17 @@
     
     <!-- TipTap Editor -->
     <div ref="editorScrollRef" class="editor-content-wrapper relative overflow-auto">
-        <!-- Shared Range Highlight Layer -->
-        <RangeHighlightLayer
+        <!-- Shared Range Highlight Layers -->
+        <BlockHighlightLayer
           v-if="editor"
           :editor="editor"
           :scroll-container="editorScrollRef ?? null"
+        />
+        <InlineHighlightLayer
+          v-if="editor"
+          :editor="editor"
+          :scroll-container="editorScrollRef ?? null"
+          :highlights="popupToolHighlights"
         />
 
         <!-- Editor Content -->
@@ -348,7 +354,8 @@ import { migrateMathStrings } from '@tiptap/extension-mathematics'
 
 import SearchReplacePanel from '@/components/common/tiptap/iw-search-replace/components/SearchReplacePanel.vue'
 import { createMarkdownEditorExtensions } from '@/utils/editorExtensions'
-import { RangeHighlightLayer } from '@/components/common/tiptap/iw-range-highlight'
+import { BlockHighlightLayer, InlineHighlightLayer, type EditorRangeHighlight } from '@/components/common/tiptap/iw-range-highlight'
+import { iwPopupToolsPluginKey } from '@/components/common/tiptap/iw-popup-tools/plugin'
 
 import {
   IconArrowBackUp,
@@ -423,6 +430,7 @@ let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 // Toolbar state
 const currentHeading = ref('paragraph')
+const popupToolHighlights = ref<EditorRangeHighlight[]>([])
 const isReadonly = computed(() => appStore.isTabReadonly(props.tab))
 const editorPageStageClass = computed(() => {
   const baseClass = 'editor-page-stage box-border flex w-full justify-center'
@@ -559,10 +567,15 @@ const editor = useEditor({
     }
 
     scheduleTypewriterSync()
+    syncPopupToolHighlight()
   },
   onSelectionUpdate: () => {
     updateEditorState()
     scheduleTypewriterSync()
+    syncPopupToolHighlight()
+  },
+  onTransaction: () => {
+    syncPopupToolHighlight()
   },
   onCreate: ({ editor }) => {
     migrateMathStrings(editor)
@@ -576,6 +589,7 @@ const editor = useEditor({
         syncEditMenuState()
       }
       scheduleTypewriterSync(true)
+      syncPopupToolHighlight()
     })
   },
   onFocus: () => {
@@ -949,6 +963,26 @@ function updateEditorState() {
     const stats = calculateFileStats(editor.value)
     appStore.updateTabState(props.tab.id, { fileStats: stats })
   }
+}
+
+function syncPopupToolHighlight() {
+  const currentEditor = editor.value
+  if (!currentEditor || currentEditor.isDestroyed) {
+    popupToolHighlights.value = []
+    return
+  }
+
+  const pluginState = iwPopupToolsPluginKey.getState(currentEditor.state)
+  const feature = pluginState?.visible && pluginState.shouldShowToolbar ? pluginState.feature : null
+
+  popupToolHighlights.value = feature
+    ? [{
+        id: `${feature.from}-${feature.to}`,
+        className: 'iw-range-highlight-popup-tools',
+        from: feature.from,
+        to: feature.to,
+      }]
+    : []
 }
 
 function setLineEnding(lineEnding: 'CRLF' | 'LF') {

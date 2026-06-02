@@ -2,7 +2,7 @@ import { Extension } from '@tiptap/core'
 import type { Editor, Range } from '@tiptap/core'
 import { Plugin, PluginKey, type Transaction } from '@tiptap/pm/state'
 
-const pluginKey = new PluginKey<EditorRangeHighlight[]>('iwRangeHighlight')
+export type RangeHighlightVariant = 'block' | 'inline'
 
 export interface EditorRangeHighlight extends Range {
   id: string
@@ -14,15 +14,16 @@ export interface RangeHighlightInput extends Range {
 }
 
 export interface RangeHighlightStorage {
-  highlights: EditorRangeHighlight[]
+  block: EditorRangeHighlight[]
+  inline: EditorRangeHighlight[]
 }
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     iwRangeHighlight: {
-      setRangeHighlights: (highlights: RangeHighlightInput[] | null, className: string) => ReturnType
-      addRangeHighlights: (highlights: RangeHighlightInput | RangeHighlightInput[], className: string) => ReturnType
-      removeRangeHighlights: (ids: string | string[], className: string) => ReturnType
+      setRangeHighlights: (highlights: RangeHighlightInput[] | null, className: string, variant?: RangeHighlightVariant) => ReturnType
+      addRangeHighlights: (highlights: RangeHighlightInput | RangeHighlightInput[], className: string, variant?: RangeHighlightVariant) => ReturnType
+      removeRangeHighlights: (ids: string | string[], className: string, variant?: RangeHighlightVariant) => ReturnType
     }
   }
 
@@ -32,9 +33,9 @@ declare module '@tiptap/core' {
 }
 
 type MetaPayload =
-  | { action: 'set'; highlights: EditorRangeHighlight[]; className: string }
-  | { action: 'add'; highlights: EditorRangeHighlight[]; className: string }
-  | { action: 'remove'; ids: string[]; className: string }
+  | { action: 'set'; highlights: EditorRangeHighlight[]; className: string; variant: RangeHighlightVariant }
+  | { action: 'add'; highlights: EditorRangeHighlight[]; className: string; variant: RangeHighlightVariant }
+  | { action: 'remove'; ids: string[]; className: string; variant: RangeHighlightVariant }
 
 function toArray<T>(value: T | T[]): T[] {
   return Array.isArray(value) ? value : [value]
@@ -68,51 +69,78 @@ function mapHighlights(highlights: EditorRangeHighlight[], tr: Transaction) {
     .filter(highlight => highlight.from < highlight.to)
 }
 
+function applyAction(list: EditorRangeHighlight[], meta: MetaPayload): EditorRangeHighlight[] {
+  switch (meta.action) {
+    case 'set':
+      return [
+        ...list.filter(h => h.className !== meta.className),
+        ...meta.highlights,
+      ]
+    case 'add': {
+      const additionsById = new Map(meta.highlights.map(h => [h.id, h]))
+      return [
+        ...list.filter(h => h.className !== meta.className || !additionsById.has(h.id)),
+        ...meta.highlights,
+      ]
+    }
+    case 'remove': {
+      const removeIds = new Set(meta.ids)
+      return list.filter(h => h.className !== meta.className || !removeIds.has(h.id))
+    }
+  }
+}
+
+const pluginKey = new PluginKey<RangeHighlightStorage>('iwRangeHighlight')
+
 export const iwRangeHighlightExtension = Extension.create({
   name: 'iwRangeHighlight',
 
   addStorage(): RangeHighlightStorage {
     return {
-      highlights: [],
+      block: [],
+      inline: [],
     }
   },
 
   addCommands() {
     return {
       setRangeHighlights:
-        (highlights, className) =>
+        (highlights, className, variant = 'block') =>
         ({ tr, dispatch }) => {
           if (dispatch) {
             dispatch(tr.setMeta(pluginKey, {
               action: 'set',
               highlights: normalizeHighlights(highlights, className),
               className,
+              variant,
             } satisfies MetaPayload))
           }
           return true
         },
 
       addRangeHighlights:
-        (highlights, className) =>
+        (highlights, className, variant = 'block') =>
         ({ tr, dispatch }) => {
           if (dispatch) {
             dispatch(tr.setMeta(pluginKey, {
               action: 'add',
               highlights: normalizeHighlights(toArray(highlights), className),
               className,
+              variant,
             } satisfies MetaPayload))
           }
           return true
         },
 
       removeRangeHighlights:
-        (ids, className) =>
+        (ids, className, variant = 'block') =>
         ({ tr, dispatch }) => {
           if (dispatch) {
             dispatch(tr.setMeta(pluginKey, {
               action: 'remove',
               ids: toArray(ids),
               className,
+              variant,
             } satisfies MetaPayload))
           }
           return true
@@ -124,44 +152,26 @@ export const iwRangeHighlightExtension = Extension.create({
     const storage = this.storage
 
     return [
-      new Plugin<EditorRangeHighlight[]>({
+      new Plugin<RangeHighlightStorage>({
         key: pluginKey,
         state: {
-          init: () => storage.highlights,
-          apply: (tr, currentHighlights) => {
-            let nextHighlights = mapHighlights(currentHighlights, tr)
-            const meta = tr.getMeta(pluginKey) as MetaPayload | undefined
+          init: () => ({ block: storage.block, inline: storage.inline }),
+          apply: (tr, current) => {
+            let block = mapHighlights(current.block, tr)
+            let inline = mapHighlights(current.inline, tr)
 
+            const meta = tr.getMeta(pluginKey) as MetaPayload | undefined
             if (meta) {
-              switch (meta.action) {
-                case 'set':
-                  nextHighlights = [
-                    ...nextHighlights.filter(highlight => highlight.className !== meta.className),
-                    ...meta.highlights,
-                  ]
-                  break
-                case 'add': {
-                  const additionsById = new Map(meta.highlights.map(highlight => [highlight.id, highlight]))
-                  nextHighlights = [
-                    ...nextHighlights.filter(highlight =>
-                      highlight.className !== meta.className || !additionsById.has(highlight.id)
-                    ),
-                    ...meta.highlights,
-                  ]
-                  break
-                }
-                case 'remove': {
-                  const removeIds = new Set(meta.ids)
-                  nextHighlights = nextHighlights.filter(highlight =>
-                    highlight.className !== meta.className || !removeIds.has(highlight.id)
-                  )
-                  break
-                }
+              if (meta.variant === 'inline') {
+                inline = applyAction(inline, meta)
+              } else {
+                block = applyAction(block, meta)
               }
             }
 
-            storage.highlights = nextHighlights
-            return nextHighlights
+            storage.block = block
+            storage.inline = inline
+            return { block, inline }
           },
         },
       }),
@@ -172,15 +182,17 @@ export const iwRangeHighlightExtension = Extension.create({
 export function setRangeHighlights(
   editor: Editor,
   highlights: RangeHighlightInput[] | null,
-  className: string
+  className: string,
+  variant: RangeHighlightVariant = 'block'
 ): void {
-  editor.commands.setRangeHighlights(highlights, className)
+  editor.commands.setRangeHighlights(highlights, className, variant)
 }
 
 export function removeRangeHighlights(
   editor: Editor,
   ids: string | string[],
-  className: string
+  className: string,
+  variant: RangeHighlightVariant = 'block'
 ): void {
-  editor.commands.removeRangeHighlights(ids, className)
+  editor.commands.removeRangeHighlights(ids, className, variant)
 }

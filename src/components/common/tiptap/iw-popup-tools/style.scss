@@ -1,19 +1,12 @@
 .tiptap {
   .popup-tools-highlight {
-    background: color-mix(in oklab, var(--color-base-100, 50%), #fff);
-    border-radius: var(--radius-box, 0.25rem);
-    position: relative;
-    
-    &::before {
-      content: '';
-      position: absolute;
-      top: -2px;
-      left: -2px;
-      right: -2px;
-      bottom: -2px;
-      border: var(--border-width, 1px) dashed color-mix(in oklab, var(--color-primary, 50%), #3b82f6);
-      border-radius: var(--radius-box, 0.25rem);
-      pointer-events: none;
-    }
+    background: transparent;
   }
+}
+
+.iw-range-highlight-popup-tools {
+  z-index: 3;
+  border: var(--border-width, 1px) dashed color-mix(in oklab, var(--color-primary, 50%), #3b82f6);
+  border-radius: var(--radius-box, 0.25rem);
+  background: color-mix(in oklab, var(--color-base-100, 50%), transparent 45%);
 }
