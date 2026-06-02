@@ -223,13 +223,39 @@ export class UpdaterManager {
   }
 
   private async buildUpdateInfo(info: Pick<ElectronUpdateInfo, 'version' | 'releaseNotes' | 'releaseDate' | 'files'>): Promise<UpdateInfo> {
+    const files = info.files || []
     return {
       version: info.version,
       currentVersion: app.getVersion(),
       releaseNotes: await this.resolveReleaseNotes(info.version, info.releaseNotes),
       releaseDate: info.releaseDate,
-      files: info.files || []
+      downloadSize: this.selectDownloadSize(files),
+      files
     }
+  }
+
+  private selectDownloadSize(files: UpdateInfo['files']): number | undefined {
+    if (!files.length) return undefined
+
+    // 排除增量下载用的 .blockmap
+    let candidates = files.filter(f => !f.url.endsWith('.blockmap'))
+
+    // 按当前架构过滤：arm64 取 url 含 'arm64' 的；x64 取不含 'arm64' 的
+    const isArm = process.arch === 'arm64'
+    const archMatched = candidates.filter(f =>
+      isArm ? f.url.includes('arm64') : !f.url.includes('arm64'))
+    if (archMatched.length) candidates = archMatched
+
+    // 按平台偏好实际下载的格式：mac 自动更新用 .zip，win 用 .exe，linux 用 .AppImage
+    const ext = process.platform === 'darwin' ? '.zip'
+      : process.platform === 'win32' ? '.exe'
+      : '.AppImage'
+    const formatMatched = candidates.filter(f => f.url.endsWith(ext))
+    if (formatMatched.length) candidates = formatMatched
+
+    // 兜底：取剩余候选里最大的单个文件，绝不求和
+    const sizes = candidates.map(f => f.size || 0).filter(s => s > 0)
+    return sizes.length ? Math.max(...sizes) : undefined
   }
 
   private async resolveReleaseNotes(version: string, releaseNotes: ElectronUpdateInfo['releaseNotes']): Promise<string> {

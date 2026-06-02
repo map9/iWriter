@@ -143,9 +143,13 @@ const showProgress = computed(() => isDownloading.value || isDownloaded.value)
 const downloadProgress = computed(() => updaterService.downloadProgress.value)
 
 const downloadSize = computed(() => {
-  if (props.updateInfo.files && props.updateInfo.files.length > 0) {
-    const totalSize = props.updateInfo.files.reduce((sum, file) => sum + (file.size || 0), 0)
-    return updaterService.formatFileSize(totalSize)
+  if (props.updateInfo.downloadSize && props.updateInfo.downloadSize > 0) {
+    return updaterService.formatFileSize(props.updateInfo.downloadSize)
+  }
+  const files = props.updateInfo.files
+  if (files && files.length > 0) {
+    const maxSize = Math.max(...files.map(f => f.size || 0))
+    return maxSize > 0 ? updaterService.formatFileSize(maxSize) : null
   }
   return null
 })
