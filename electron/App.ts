@@ -64,6 +64,59 @@ interface FileWatchingOptions {
   ignoreRulesText?: string
 }
 
+interface ResolveImageUrlResult {
+  ok: boolean
+  url?: string
+  contentType?: string
+  status?: number
+  error?: string
+}
+
+async function resolveImageUrl(url: string): Promise<ResolveImageUrlResult> {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return { ok: false, error: 'Invalid URL' }
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { ok: false, error: 'Only HTTP(S) image URLs can be resolved' }
+  }
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8000)
+
+  try {
+    const response = await fetch(parsed.toString(), {
+      method: 'GET',
+      redirect: 'follow',
+      headers: {
+        Range: 'bytes=0-0',
+      },
+      signal: controller.signal,
+    })
+
+    const contentType = response.headers.get('content-type') ?? ''
+    await response.body?.cancel()
+
+    return {
+      ok: response.ok && contentType.toLowerCase().startsWith('image/'),
+      url: response.url,
+      contentType,
+      status: response.status,
+      error: response.ok ? undefined : response.statusText,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 function createWorkspaceIgnoredPredicate(
   workspaceRoot: string,
   ignoreRulesText?: string
@@ -367,6 +420,7 @@ export class App {
     })
 
     ipcMain.handle('read-clipboard-text', () => clipboard.readText())
+    ipcMain.handle('resolve-image-url', async (_, url: string) => resolveImageUrl(url))
 
     ipcMain.handle('read-file', async (_, filePath: string) => {
       try {

@@ -60,6 +60,7 @@ import { iwTypography, iwPopupTools, iwLinkPopupTool, iwMathPopupTool } from '@/
 import { iwProofreadExtension } from '@/components/common/tiptap/iw-proofread'
 import { iwSearchReplaceExtension } from '@/components/common/tiptap/iw-search-replace'
 import { iwRangeHighlightExtension } from '@/components/common/tiptap/iw-range-highlight'
+import { extractBestImageUrl, isPlaceholderSvgImageUrl, normalizePastedImageHtml } from '@/components/common/tiptap/utils'
 
 // Custom node views (仅用于 MarkdownEditor，搜索服务不需要)
 import { iwTableView, iwImageView, iwCodeBlockView, iwMathBlockView } from '@/components/common/tiptap'
@@ -269,12 +270,33 @@ export function createMarkdownEditorExtensions(options: {
     Image.configure({
       allowBase64: true
     }).extend({
+      transformPastedHTML(html) {
+        return normalizePastedImageHtml(html)
+      },
+      parseHTML() {
+        return [
+          {
+            tag: 'img[src]',
+            getAttrs: element => {
+              if (!(element instanceof HTMLElement)) return {}
+
+              const src = element.getAttribute('src')
+              if (src && isPlaceholderSvgImageUrl(src) && !extractBestImageUrl(element)) {
+                return false
+              }
+
+              return {}
+            },
+          },
+        ]
+      },
       addAttributes() {
         return {
           src: {
             default: null,
             parseHTML: (element: HTMLElement) => {
-              let src = element.getAttribute('src')
+              const rawSrc = element.getAttribute('src')
+              let src = extractBestImageUrl(element) ?? (rawSrc && !isPlaceholderSvgImageUrl(rawSrc) ? rawSrc : null)
               // 使用外部提供的路径解析器
               if (src && filePathResolver) {
                 src = filePathResolver(src)

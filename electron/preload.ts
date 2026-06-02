@@ -115,6 +115,7 @@ const electronAPI: ElectronAPI = {
 
   // Clipboard
   readClipboardText: () => ipcRenderer.invoke('read-clipboard-text'),
+  resolveImageUrl: (url: string) => ipcRenderer.invoke('resolve-image-url', url),
 
   // Menu actions
   onMenuAction: (callback: (action: string) => void) => {

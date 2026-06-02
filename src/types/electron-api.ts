@@ -92,6 +92,9 @@ export interface ElectronAPI {
   // 剪贴板（主进程读取，绕过 renderer clipboard-read 权限限制）
   readClipboardText: () => Promise<string>
 
+  // 图片 URL（主进程解析，绕过 renderer CORS 限制）
+  resolveImageUrl: (url: string) => Promise<{ ok: boolean; url?: string; contentType?: string; status?: number; error?: string }>
+
   // 菜单操作
   onMenuAction: (callback: (action: string) => void) => void
   removeMenuActionListener: (listener?: unknown) => void

@@ -167,7 +167,7 @@ import { IconFolder, IconExternalLink, IconCopy, IconTrash, IconAlignLeft, IconA
 import { IMAGE_EXTENSIONS } from '@/types'
 import { notify } from '@/utils/notifications'
 import { pathUtils } from '@/utils/pathUtils'
-import { isImageUrl } from './utils/isImageUrl'
+import { resolveImageUrl } from './utils/isImageUrl'
 
 enum SrcStatus {
   EMPTY = 'empty',
@@ -191,6 +191,8 @@ const imageError = ref(false)
 const isDragOver = ref(false)
 const urlInput = ref('')
 const editableImagePath = ref('')
+const resolvingImageUrl = ref<string | null>(null)
+const resolvedImageFailures = new Set<string>()
 
 // Computed properties
 const imageAttrs = computed(() => props.node.attrs as ImageAttributes)
@@ -310,7 +312,38 @@ const handleImageLoad = (): void => {
   imageError.value = false
 }
 
-const handleImageError = (): void => {
+const handleImageError = async (): Promise<void> => {
+  const src = imageSrc.value
+
+  if (
+    (src.startsWith('http://') || src.startsWith('https://')) &&
+    resolvingImageUrl.value !== src &&
+    !resolvedImageFailures.has(src)
+  ) {
+    resolvingImageUrl.value = src
+
+    try {
+      const result = await resolveImageUrl(src)
+      if (imageSrc.value !== src) return
+
+      if (result.ok && result.url && result.url !== src) {
+        imageLoaded.value = false
+        imageError.value = false
+        props.updateAttributes({
+          src: result.url,
+          title: imageTitle.value || result.url,
+        })
+        return
+      }
+
+      resolvedImageFailures.add(src)
+    } finally {
+      if (resolvingImageUrl.value === src) {
+        resolvingImageUrl.value = null
+      }
+    }
+  }
+
   imageError.value = true
   imageLoaded.value = false
 }
@@ -532,12 +565,13 @@ const handleUrlInput = async (): Promise<void> => {
   }
 
   try {
-    const result = await isImageUrl(url)
-    if (result === false) {
+    const result = await resolveImageUrl(url)
+    if (!result.ok) {
       notify.error('Please enter a valid URL', 'Invalid URL')
     } else {
+      const resolvedUrl = result.url || url
       props.updateAttributes({
-        src: url,
+        src: resolvedUrl,
         alt: 'Image from URL',
         title: url
       })
@@ -584,12 +618,13 @@ const updateImageFromInput = async (): Promise<void> => {
   // 检查是否是URL
   if (newPath.startsWith('http://') || newPath.startsWith('https://')) {
     try {
-      const result = await isImageUrl(newPath)
-      if (result === false) {
+      const result = await resolveImageUrl(newPath)
+      if (!result.ok) {
         notify.error('Please enter a valid URL', 'URL Error')
       } else {
+        const resolvedUrl = result.url || newPath
         props.updateAttributes({
-          src: newPath,
+          src: resolvedUrl,
           alt: 'Image from URL',
           title: newPath
         })

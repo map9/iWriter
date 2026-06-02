@@ -1,5 +1,6 @@
 import { type Editor } from '@tiptap/core'
 import type { Node as ProsemirrorNode } from '@tiptap/pm/model'
+import { extractBestImageUrlFromHtml } from '@/components/common/tiptap/utils'
 
 export function onFileHandlerDrop(editor: Editor, files: File[], pos: number): void {
   if (!editor.isEditable) return
@@ -28,16 +29,14 @@ export function onFileHandlerPaste(editor: Editor, files: File[], pasteContent?:
   if (!editor.isEditable) return true
   // 如果剪贴板包含 HTML 内容但没有图片标签，忽略文件
   // 这通常意味着是从 Word/富文本编辑器复制的文字（Word 会额外添加文字的 PNG 截图）
-  if (pasteContent && pasteContent.length > 0 && !/<img\s+[^>]*src=/i.test(pasteContent)) {
+  if (pasteContent && pasteContent.length > 0 && !/<img\b[^>]*>/i.test(pasteContent)) {
     return false
   }
   
-  // 如果 HTML 包含图片标签，提取 URL
-  if (pasteContent && /<img\s+[^>]*src=/i.test(pasteContent)) {
-    const imgMatch = pasteContent.match(/<img[^>]+src=["']([^"']+)["']/i)
-    if (imgMatch && imgMatch[1]) {
-      const imgUrl = imgMatch[1]
-      // 只使用 URL，不转换为 base64
+  // 如果 HTML 包含图片标签，提取真实 URL，避开 lazy-load 占位图
+  if (pasteContent && /<img\b[^>]*>/i.test(pasteContent)) {
+    const imgUrl = extractBestImageUrlFromHtml(pasteContent)
+    if (imgUrl) {
       editor.chain().insertContentAt(editor.state.selection.anchor, {
         type: 'image',
         attrs: { src: imgUrl }
