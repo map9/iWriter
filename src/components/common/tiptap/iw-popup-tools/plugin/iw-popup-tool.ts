@@ -29,9 +29,13 @@ export class iwPopupTool {
   get editMode() {
     return this._editMode
   }
-  
+
   set editMode(value: boolean) {
     this._editMode = value
+  }
+
+  get editWidget() {
+    return this._editWidget
   }
 
   getEditableFeatureType(state: EditorState): 'mark' | 'node' | null {

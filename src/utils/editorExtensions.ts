@@ -216,13 +216,15 @@ export function createMarkdownEditorExtensions(options: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onFileHandlerPaste?: (currentEditor: any, files: File[], pasteContent?: string) => void | boolean
   editSetting?: EditSetting
+  onLinkOpen?: (url: string) => void | Promise<void>
 }) {
   const {
     tocUpdateCallback,
     filePathResolver,
     onFileHandlerDrop,
     onFileHandlerPaste,
-    editSetting
+    editSetting,
+    onLinkOpen,
   } = options
 
   // 完整语言支持（编辑器用）
@@ -477,7 +479,7 @@ export function createMarkdownEditorExtensions(options: {
 
     // Popup Tools
     iwPopupTools.configure({
-      tools: [new iwLinkPopupTool(), new iwMathPopupTool()]
+      tools: [new iwLinkPopupTool(onLinkOpen), new iwMathPopupTool()]
     }),
 
     // 链接

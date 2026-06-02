@@ -4,6 +4,9 @@
 
     &.inline-block {
       display: inline-block;
+      width: 0;
+      height: 0;
+      overflow: visible;
     }
     
     .hidden {
@@ -81,8 +84,7 @@
       }
 
       &.floating {
-        top: 5px;
-        left: -10px;
+        position: fixed; // positioned by JS via positionPopupPanel()
 
         // 小三角指示器
         &::before {
@@ -96,7 +98,7 @@
           border-width: 6px;
           border-color: transparent transparent var(--tiptap-toolbar-border) transparent;
         }
-        
+
         &::after {
           content: '';
           position: absolute;

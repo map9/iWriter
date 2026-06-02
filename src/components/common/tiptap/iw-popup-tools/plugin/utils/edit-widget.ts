@@ -31,6 +31,11 @@ export class EditWidget {
     this.floatingPanel.className = 'toolbar-controls floating'
     this.editWidget.appendChild(this.floatingPanel)
 
+    // Prevent mousemove from bubbling up to the editor, which would otherwise
+    // trigger the table column-resize handle (domCellAround walks up the DOM
+    // and finds the <td> ancestor of the toolbar-wrapper widget).
+    this.floatingPanel.addEventListener('mousemove', (e) => e.stopPropagation())
+
     this.toggleEditModeElements = []
     this.editButton = EditWidget.createButton({
       title: 'Edit',

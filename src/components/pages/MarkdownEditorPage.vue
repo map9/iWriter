@@ -312,12 +312,6 @@
           :editor="editor"
           :scroll-container="editorScrollRef ?? null"
         />
-        <InlineHighlightLayer
-          v-if="editor"
-          :editor="editor"
-          :scroll-container="editorScrollRef ?? null"
-          :highlights="popupToolHighlights"
-        />
 
         <!-- Editor Content -->
         <div :class="editorPageStageClass">
@@ -332,6 +326,14 @@
             />
           </div>
         </div>
+
+        <!-- Inline Highlight Layer: rendered after content so it floats on top -->
+        <InlineHighlightLayer
+          v-if="editor"
+          :editor="editor"
+          :scroll-container="editorScrollRef ?? null"
+          :highlights="popupToolHighlights"
+        />
     </div>
 
     <!-- Search & Replace Panel -->
@@ -400,8 +402,9 @@ import {
   insertTable,
   insertImage, 
   insertAudio, 
-  insertVideo, 
-  insertMathBlock, 
+  insertVideo,
+  insertMathBlock,
+  isValidUrl,
 } from './markdown-editor/insert'
 import { convertContentFrom } from '@/import-export'
 import { onEditorMenuAction } from './markdown-editor/menu-action'
@@ -540,6 +543,25 @@ const extensions = createMarkdownEditorExtensions({
     return onFileHandlerPaste(currentEditor, files, pasteContent)
   },
   editSetting: appStore.globalEditSetting,
+  // TODO: 后续在此处扩展「系统浏览器打开 / 应用内打开」的分支决策
+  onLinkOpen: async (url: string) => {
+    if (!url) {
+      notify.warning(t('notify.link.emptyUrl'), t('notify.link.openContext'))
+      return
+    }
+    // Normalize bare domains (e.g. "www.google.com" → "https://www.google.com")
+    const normalized = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(url) ? url : `https://${url}`
+    if (!isValidUrl(normalized)) {
+      notify.warning(t('notify.link.invalidUrl', { url }), t('notify.link.openContext'))
+      return
+    }
+    try {
+      await window.electronAPI?.openWithShell?.(normalized)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      notify.error(t('notify.link.openFailed', { error: message }), t('notify.link.openContext'))
+    }
+  },
 })
 
 // Create TipTap editor instance

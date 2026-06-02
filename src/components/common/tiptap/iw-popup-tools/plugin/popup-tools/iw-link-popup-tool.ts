@@ -7,13 +7,13 @@ import { iwPopupToolsPluginKey } from '../iwPopupToolsPlugin.ts'
 import { EditWidget, ElementDisplayMode, escapeHtml }  from '../utils/edit-widget.ts'
 
 export interface iwLinkPopupToolOptions extends iwPopupToolOptions {
-  openOnClickFun?: (url: string) => void
+  openOnClickFun?: (url: string) => void | Promise<void>
 }
 
 export class iwLinkPopupTool extends iwPopupTool {
-  private openOnClickFun?: (url: string) => void
+  private openOnClickFun?: (url: string) => void | Promise<void>
 
-  constructor() {
+  constructor(openOnClickFun?: (url: string) => void | Promise<void>) {
     super({
       type: "link",
       createEditWidget: (tool: iwPopupTool, from: number, to: number, element: Mark | Node, editor: Editor): EditWidget => {
@@ -57,7 +57,7 @@ export class iwLinkPopupTool extends iwPopupTool {
         })
         const confirmEdit = (): string => {
           const { state, dispatch } = editor.view
-          
+
           const tr = state.tr
           const pluginState = iwPopupToolsPluginKey.getState(state)
           let href = pluginState?.feature?.element.attrs.href
@@ -66,13 +66,13 @@ export class iwLinkPopupTool extends iwPopupTool {
             if (newHref !== href) {
               href = newHref
               tr.removeMark(from, to, linkMark.type)
-              tr.addMark(from, to, linkMark.type.create({ 
-                ...linkMark.attrs, 
-                href: href 
+              tr.addMark(from, to, linkMark.type.create({
+                ...linkMark.attrs,
+                href: href
               }))
             }
           }
-          
+
           // 用 tr.mapping.map(...) 把旧位置映射到当前事务文档；
           const rawPos = state.selection.from
           const mappedPos = tr.mapping.map(rawPos, -1)
@@ -89,7 +89,7 @@ export class iwLinkPopupTool extends iwPopupTool {
 
         const cancelEdit = () => {
           const { state, dispatch } = editor.view
-          
+
           const tr = state.tr
           const selection = TextSelection.create(state.doc, from)
           dispatch(tr.setSelection(selection).setMeta('exitPopupTool', true))
@@ -112,9 +112,9 @@ export class iwLinkPopupTool extends iwPopupTool {
           title: 'Open',
           icon: EditWidget.IconOutbound,
         })
-        const open = () => {
+        const open = async () => {
           const href = confirmEdit()
-          if (href) (tool as iwLinkPopupTool).openOnClickFun?.(href)
+          await (tool as iwLinkPopupTool).openOnClickFun?.(href)
         }
         openBtn.addEventListener('click', open)
         editWidget.appendChildToPanel(openBtn, ElementDisplayMode.ALWAYS)
@@ -163,7 +163,7 @@ export class iwLinkPopupTool extends iwPopupTool {
       }
 
     })
-    
-    this.openOnClickFun = (/*url: string*/) => {}
+
+    this.openOnClickFun = openOnClickFun
   }
 }

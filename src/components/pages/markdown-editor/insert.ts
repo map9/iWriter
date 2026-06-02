@@ -5,7 +5,7 @@ import { pathUtils } from '@/utils/pathUtils'
 import { IMAGE_EXTENSIONS } from '@/types/file-extension'
 import { notify } from '@/utils/notifications'
 
-function isValidUrl(text: string): boolean {
+export function isValidUrl(text: string): boolean {
   if (!text?.trim()) return false
   
   // 使用linkifyjs检测URL

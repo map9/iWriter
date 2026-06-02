@@ -1071,6 +1071,12 @@ export default {
     menu: {
       notImplemented: 'Not implemented',
     },
+    link: {
+      emptyUrl: 'Please enter a URL',
+      invalidUrl: '"{url}" is not a valid URL',
+      openFailed: 'Failed to open link: {error}',
+      openContext: 'Open link',
+    },
     search: {
       title: 'Search',
       hideReplace: 'Hide Replace',

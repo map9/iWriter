@@ -1065,6 +1065,12 @@ export default {
     menu: {
       notImplemented: '未实现',
     },
+    link: {
+      emptyUrl: '请输入 URL',
+      invalidUrl: '"{url}" 不是有效的 URL',
+      openFailed: '链接打开失败：{error}',
+      openContext: '打开链接',
+    },
     search: {
       title: '搜索',
       hideReplace: '隐藏替换',

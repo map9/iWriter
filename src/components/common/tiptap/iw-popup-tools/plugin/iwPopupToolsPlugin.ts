@@ -2,7 +2,9 @@ import type { EditorState } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { DecorationSet } from '@tiptap/pm/view'
+import type { EditorView } from '@tiptap/pm/view'
 import type { iwPopupToolsOptions, PopupToolsPluginState } from '../types.js'
+import { positionPopupPanel } from './utils/position-panel.js'
 
 export const iwPopupToolsPluginKey = new PluginKey<PopupToolsPluginState>('iwPopupTools')
 
@@ -75,6 +77,52 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
           feature: cur,
           popupTool: currentTool,
         }
+      }
+    },
+
+    view(initView: EditorView) {
+      let rafId: number | null = null
+      let scrollContainer: HTMLElement | null = null
+
+      function getScrollContainer(): HTMLElement | null {
+        if (!scrollContainer) {
+          scrollContainer = initView.dom.closest('.editor-content-wrapper') as HTMLElement | null
+        }
+        return scrollContainer
+      }
+
+      function reposition(view: EditorView): void {
+        const state = iwPopupToolsPluginKey.getState(view.state)
+        if (!state?.visible || !state.shouldShowToolbar || !state.feature || !state.popupTool) return
+        const panel = state.popupTool.editWidget?.panel
+        if (!panel) return
+        positionPopupPanel(view, state.feature.from, state.feature.to, panel)
+      }
+
+      function scheduleReposition(view: EditorView): void {
+        if (rafId !== null) cancelAnimationFrame(rafId)
+        rafId = requestAnimationFrame(() => {
+          rafId = null
+          reposition(view)
+        })
+      }
+
+      function handleScrollOrResize(): void {
+        reposition(initView)
+      }
+
+      getScrollContainer()?.addEventListener('scroll', handleScrollOrResize, { capture: true, passive: true })
+      window.addEventListener('resize', handleScrollOrResize, { passive: true })
+
+      return {
+        update(view: EditorView) {
+          scheduleReposition(view)
+        },
+        destroy() {
+          if (rafId !== null) cancelAnimationFrame(rafId)
+          getScrollContainer()?.removeEventListener('scroll', handleScrollOrResize, { capture: true })
+          window.removeEventListener('resize', handleScrollOrResize)
+        },
       }
     },
 

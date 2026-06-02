@@ -543,17 +543,14 @@ export class App {
     // Open with system default application handler
     ipcMain.handle('open-with-shell', async (event, filePath: string) => {
       try {
-        // 使用 shell.openPath 用系统默认应用程序打开文件
-        if (filePath.startsWith('http://') || filePath.startsWith('https://') || filePath.startsWith('https://')) {
+        if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
           await shell.openExternal(filePath)
+        } else {
+          await shell.openPath(filePath)
         }
-        else {
-          await shell.openPath(filePath);
-        }
-        
       } catch (error) {
-        console.error('Error opening file with shell:', error);
-        throw error;
+        console.error('Error opening file with shell:', error)
+        throw error
       }
     })
 
