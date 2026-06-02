@@ -18,6 +18,12 @@ import {
   moveColumnRight,
   copyTable,
   deleteTable,
+  addRowBefore,
+  addRowAfter,
+  addColumnBefore,
+  addColumnAfter,
+  deleteRow,
+  deleteColumn,
 } from '@/components/common/tiptap'
 import {
   copyAsPlainText,
@@ -123,16 +129,16 @@ export async function onEditorMenuAction(editor: Editor | undefined, action: str
       editor.chain().focus().toggleHeaderColumn().run()
       return true
     case 'table-insert-row-above':
-      editor.chain().focus().addRowBefore().run()
+      addRowBefore(editor)
       return true
     case 'table-insert-row-below':
-      editor.chain().focus().addRowAfter().run()
+      addRowAfter(editor)
       return true
     case 'table-insert-column-left':
-      editor.chain().focus().addColumnBefore().run()
+      addColumnBefore(editor)
       return true
     case 'table-insert-column-right':
-      editor.chain().focus().addColumnAfter().run()
+      addColumnAfter(editor)
       return true
     case 'table-move-row-above':
       moveRowAbove(editor)
@@ -147,10 +153,10 @@ export async function onEditorMenuAction(editor: Editor | undefined, action: str
       moveColumnRight(editor)
       return true
     case 'table-delete-row':
-      editor.chain().focus().deleteRow().run()
+      deleteRow(editor)
       return true
     case 'table-delete-column':
-      editor.chain().focus().deleteColumn().run()
+      deleteColumn(editor)
       return true
     case 'table-duplicate':
       return await copyTable(editor)

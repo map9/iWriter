@@ -9,6 +9,148 @@ import { TextSelection } from '@tiptap/pm/state'
  * 表格操作工具函数
  */
 
+interface HeaderNormalizationOptions {
+  cancelHeaderRow?: boolean
+  cancelHeaderColumn?: boolean
+}
+
+function isHeaderCell(cell: PMNode | null | undefined): boolean {
+  return cell?.type.name === 'tableHeader'
+}
+
+function isCompleteHeaderRow(row: PMNode): boolean {
+  if (row.childCount === 0) {
+    return false
+  }
+
+  for (let cellIndex = 0; cellIndex < row.childCount; cellIndex++) {
+    if (!isHeaderCell(row.child(cellIndex))) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function hasHeaderRowInNode(tableNode: PMNode): boolean {
+  return !!tableNode.firstChild && isCompleteHeaderRow(tableNode.firstChild)
+}
+
+function hasHeaderColumnInNode(tableNode: PMNode): boolean {
+  if (tableNode.childCount === 0) {
+    return false
+  }
+
+  for (let rowIndex = 0; rowIndex < tableNode.childCount; rowIndex++) {
+    const firstCell = tableNode.child(rowIndex).firstChild
+    if (!isHeaderCell(firstCell)) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function getCompleteHeaderColumns(tableNode: PMNode): Set<number> {
+  const headerColumns = new Set<number>()
+  const firstRow = tableNode.firstChild
+  if (!firstRow) {
+    return headerColumns
+  }
+
+  for (let columnIndex = 0; columnIndex < firstRow.childCount; columnIndex++) {
+    let allRowsHaveHeaderCell = true
+    for (let rowIndex = 0; rowIndex < tableNode.childCount; rowIndex++) {
+      const row = tableNode.child(rowIndex)
+      if (!isHeaderCell(row.maybeChild(columnIndex))) {
+        allRowsHaveHeaderCell = false
+        break
+      }
+    }
+
+    if (allRowsHaveHeaderCell) {
+      headerColumns.add(columnIndex)
+    }
+  }
+
+  return headerColumns
+}
+
+export function normalizeDisplacedTableHeaders(tableNode: PMNode, options: HeaderNormalizationOptions): PMNode {
+  if (!options.cancelHeaderRow && !options.cancelHeaderColumn) {
+    return tableNode
+  }
+
+  const tableCellType = tableNode.type.schema.nodes.tableCell
+  if (!tableCellType) {
+    return tableNode
+  }
+
+  const headerRows = new Set<number>()
+  const headerColumns = options.cancelHeaderColumn ? getCompleteHeaderColumns(tableNode) : new Set<number>()
+
+  if (options.cancelHeaderRow) {
+    for (let rowIndex = 0; rowIndex < tableNode.childCount; rowIndex++) {
+      if (isCompleteHeaderRow(tableNode.child(rowIndex))) {
+        headerRows.add(rowIndex)
+      }
+    }
+  }
+
+  if (headerRows.size === 0 && headerColumns.size === 0) {
+    return tableNode
+  }
+
+  let changed = false
+  const newRows: PMNode[] = []
+
+  for (let rowIndex = 0; rowIndex < tableNode.childCount; rowIndex++) {
+    const row = tableNode.child(rowIndex)
+    const newCells: PMNode[] = []
+
+    for (let cellIndex = 0; cellIndex < row.childCount; cellIndex++) {
+      const cell = row.child(cellIndex)
+      if (isHeaderCell(cell) && (headerRows.has(rowIndex) || headerColumns.has(cellIndex))) {
+        newCells.push(tableCellType.create(cell.attrs, cell.content, cell.marks))
+        changed = true
+      } else {
+        newCells.push(cell)
+      }
+    }
+
+    newRows.push(row.type.create(row.attrs, newCells, row.marks))
+  }
+
+  return changed ? tableNode.type.create(tableNode.attrs, newRows, tableNode.marks) : tableNode
+}
+
+function normalizeCurrentTableHeaders(editor: Editor, options: HeaderNormalizationOptions): boolean {
+  if (!options.cancelHeaderRow && !options.cancelHeaderColumn) {
+    return true
+  }
+
+  const { state } = editor
+  const table = findParentNodeClosestToPos(state.selection.$from, node => node.type.name === 'table')
+  if (!table) {
+    return true
+  }
+
+  const normalizedTable = normalizeDisplacedTableHeaders(table.node, options)
+  if (normalizedTable === table.node) {
+    return true
+  }
+
+  const tr = state.tr.replaceWith(table.pos, table.pos + table.node.nodeSize, normalizedTable)
+  const safeSelectionPos = Math.min(
+    Math.max(state.selection.from, table.pos + 1),
+    table.pos + normalizedTable.nodeSize - 1,
+    tr.doc.content.size
+  )
+  tr.setSelection(TextSelection.near(tr.doc.resolve(safeSelectionPos)))
+  editor.view.dispatch(tr)
+  return true
+}
+
 /**
  * 获取当前选择位置的表格和列信息
  */
@@ -105,6 +247,7 @@ function moveColumnLeftImpl(tr: Transaction): boolean {
   }
 
   const targetIndex = columnIndex - 1
+  const cancelHeaderColumn = hasHeaderColumnInNode(tableNode) && targetIndex === 0
 
   try {
     // 创建新的行
@@ -135,7 +278,9 @@ function moveColumnLeftImpl(tr: Transaction): boolean {
     }
 
     // 创建新的表格节点
-    const newTable = tableNode.type.create(tableNode.attrs, newRows)
+    const newTable = normalizeDisplacedTableHeaders(tableNode.type.create(tableNode.attrs, newRows), {
+      cancelHeaderColumn
+    })
     
     // 替换表格
     tr.replaceWith(tablePos, tablePos + tableNode.nodeSize, newTable)
@@ -183,6 +328,7 @@ function moveColumnRightImpl(tr: Transaction): boolean {
   }
 
   const targetIndex = columnIndex + 1
+  const cancelHeaderColumn = hasHeaderColumnInNode(tableNode) && columnIndex === 0
 
   try {
     // 创建新的行
@@ -213,7 +359,9 @@ function moveColumnRightImpl(tr: Transaction): boolean {
     }
 
     // 创建新的表格节点
-    const newTable = tableNode.type.create(tableNode.attrs, newRows)
+    const newTable = normalizeDisplacedTableHeaders(tableNode.type.create(tableNode.attrs, newRows), {
+      cancelHeaderColumn
+    })
     
     // 替换表格
     tr.replaceWith(tablePos, tablePos + tableNode.nodeSize, newTable)
@@ -348,6 +496,7 @@ function moveRowAboveImpl(tr: Transaction): boolean {
   }
 
   const targetIndex = rowIndex - 1
+  const cancelHeaderRow = hasHeaderRowInNode(tableNode) && targetIndex === 0
 
   try {
     // 获取所有行
@@ -361,7 +510,9 @@ function moveRowAboveImpl(tr: Transaction): boolean {
     allRows.splice(targetIndex, 0, movedRow!)
 
     // 创建新的表格节点
-    const newTable = tableNode.type.create(tableNode.attrs, allRows)
+    const newTable = normalizeDisplacedTableHeaders(tableNode.type.create(tableNode.attrs, allRows), {
+      cancelHeaderRow
+    })
     
     // 替换表格
     tr.replaceWith(tablePos, tablePos + tableNode.nodeSize, newTable)
@@ -401,6 +552,7 @@ function moveRowBelowImpl(tr: Transaction): boolean {
   }
 
   const targetIndex = rowIndex + 1
+  const cancelHeaderRow = hasHeaderRowInNode(tableNode) && rowIndex === 0
 
   try {
     // 获取所有行
@@ -414,7 +566,9 @@ function moveRowBelowImpl(tr: Transaction): boolean {
     allRows.splice(targetIndex, 0, movedRow!)
 
     // 创建新的表格节点
-    const newTable = tableNode.type.create(tableNode.attrs, allRows)
+    const newTable = normalizeDisplacedTableHeaders(tableNode.type.create(tableNode.attrs, allRows), {
+      cancelHeaderRow
+    })
     
     // 替换表格
     tr.replaceWith(tablePos, tablePos + tableNode.nodeSize, newTable)
@@ -577,6 +731,112 @@ export function canMoveRowBelow(editor: Editor): boolean {
     const { rowIndex, totalRows } = rowInfo
     return rowIndex < totalRows - 1 // 不是最下行
   } catch {
+    return false
+  }
+}
+
+export function addRowBefore(editor: Editor): boolean {
+  try {
+    if (!editor.isActive('table')) {
+      return false
+    }
+
+    const rowInfo = getRowInfo(editor.state.tr)
+    const cancelHeaderRow = !!rowInfo && rowInfo.rowIndex === 0 && hasHeaderRowInNode(rowInfo.tableNode)
+    const success = editor.chain().focus().addRowBefore().run()
+    if (success) {
+      normalizeCurrentTableHeaders(editor, { cancelHeaderRow })
+    }
+
+    return success
+  } catch (error) {
+    console.error('Add row before failed:', error)
+    return false
+  }
+}
+
+export function addRowAfter(editor: Editor): boolean {
+  try {
+    if (!editor.isActive('table')) {
+      return false
+    }
+
+    return editor.chain().focus().addRowAfter().run()
+  } catch (error) {
+    console.error('Add row after failed:', error)
+    return false
+  }
+}
+
+export function addColumnBefore(editor: Editor): boolean {
+  try {
+    if (!editor.isActive('table')) {
+      return false
+    }
+
+    const tableInfo = getTableInfo(editor.state.tr)
+    const cancelHeaderColumn = !!tableInfo && tableInfo.columnIndex === 0 && hasHeaderColumnInNode(tableInfo.tableNode)
+    const success = editor.chain().focus().addColumnBefore().run()
+    if (success) {
+      normalizeCurrentTableHeaders(editor, { cancelHeaderColumn })
+    }
+
+    return success
+  } catch (error) {
+    console.error('Add column before failed:', error)
+    return false
+  }
+}
+
+export function addColumnAfter(editor: Editor): boolean {
+  try {
+    if (!editor.isActive('table')) {
+      return false
+    }
+
+    return editor.chain().focus().addColumnAfter().run()
+  } catch (error) {
+    console.error('Add column after failed:', error)
+    return false
+  }
+}
+
+export function deleteRow(editor: Editor): boolean {
+  try {
+    if (!editor.isActive('table')) {
+      return false
+    }
+
+    const rowInfo = getRowInfo(editor.state.tr)
+    const cancelHeaderRow = !!rowInfo && rowInfo.rowIndex === 0 && hasHeaderRowInNode(rowInfo.tableNode)
+    const success = editor.chain().focus().deleteRow().run()
+    if (success) {
+      normalizeCurrentTableHeaders(editor, { cancelHeaderRow })
+    }
+
+    return success
+  } catch (error) {
+    console.error('Delete row failed:', error)
+    return false
+  }
+}
+
+export function deleteColumn(editor: Editor): boolean {
+  try {
+    if (!editor.isActive('table')) {
+      return false
+    }
+
+    const tableInfo = getTableInfo(editor.state.tr)
+    const cancelHeaderColumn = !!tableInfo && tableInfo.columnIndex === 0 && hasHeaderColumnInNode(tableInfo.tableNode)
+    const success = editor.chain().focus().deleteColumn().run()
+    if (success) {
+      normalizeCurrentTableHeaders(editor, { cancelHeaderColumn })
+    }
+
+    return success
+  } catch (error) {
+    console.error('Delete column failed:', error)
     return false
   }
 }

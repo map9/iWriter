@@ -207,7 +207,13 @@ import {
   canMoveColumnLeft,
   canMoveColumnRight,
   canMoveRowAbove,
-  canMoveRowBelow
+  canMoveRowBelow,
+  addColumnBefore,
+  addColumnAfter,
+  deleteColumn as deleteColumnUtil,
+  addRowBefore,
+  addRowAfter,
+  deleteRow as deleteRowUtil
 } from './utils/TableOperations'
 
 const props = defineProps(nodeViewProps)
@@ -509,7 +515,7 @@ const deleteTable = (): void => {
 const addColumnLeft = (): void => {
   if (!isSelectionInsideNode(props)) focusCell(0, 0)
   try {
-    props.editor.chain().focus().addColumnBefore().run()
+    addColumnBefore(props.editor)
   } catch (error) {
     notify.error(`${error instanceof Error ? error.message : String(error)}`, '添加左侧列错误')
   }
@@ -518,7 +524,7 @@ const addColumnLeft = (): void => {
 const addColumnRight = (): void => {
   if (!isSelectionInsideNode(props)) focusCell(0, 0)
   try {
-    props.editor.chain().focus().addColumnAfter().run()
+    addColumnAfter(props.editor)
   } catch (error) {
     notify.error(`${error instanceof Error ? error.message : String(error)}`, '添加右侧列错误')
   }
@@ -557,7 +563,7 @@ const moveColumnRight = (): void => {
 const deleteColumn = (): void => {
   if (!isSelectionInsideNode(props)) focusCell(0, 0)
   try {
-    props.editor.chain().focus().deleteColumn().run()
+    deleteColumnUtil(props.editor)
   } catch (error) {
     notify.error(`${error instanceof Error ? error.message : String(error)}`, '删除列错误')
   }
@@ -567,7 +573,7 @@ const deleteColumn = (): void => {
 const addRowAbove = (): void => {
   if (!isSelectionInsideNode(props)) focusCell(0, 0)
   try {
-    props.editor.chain().focus().addRowBefore().run()
+    addRowBefore(props.editor)
   } catch (error) {
     notify.error(`${error instanceof Error ? error.message : String(error)}`, '添加上方行错误')
   }
@@ -576,7 +582,7 @@ const addRowAbove = (): void => {
 const addRowBelow = (): void => {
   if (!isSelectionInsideNode(props)) focusCell(0, 0)
   try {
-    props.editor.chain().focus().addRowAfter().run()
+    addRowAfter(props.editor)
   } catch (error) {
     notify.error(`${error instanceof Error ? error.message : String(error)}`, '添加下方行错误')
   }
@@ -615,7 +621,7 @@ const moveRowBelow = (): void => {
 const deleteRow = (): void => {
   if (!isSelectionInsideNode(props)) focusCell(0, 0)
   try {
-    props.editor.chain().focus().deleteRow().run()
+    deleteRowUtil(props.editor)
   } catch (error) {
     notify.error(`${error instanceof Error ? error.message : String(error)}`, '删除行错误')
   }
