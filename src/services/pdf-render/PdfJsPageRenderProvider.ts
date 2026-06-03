@@ -24,8 +24,11 @@ export class PdfJsPageRenderProvider implements PageRenderProvider {
     const pdfData = await this.readPdfData(source)
     const loadingTask = pdfjsLib.getDocument({
       data: pdfData,
-      cMapUrl: '/cmaps/',
-      cMapPacked: true
+      cMapUrl: './cmaps/',
+      cMapPacked: true,
+      standardFontDataUrl: './standard_fonts/',
+      wasmUrl: './wasm/',
+      useSystemFonts: true
     })
 
     const pdf = await loadingTask.promise
