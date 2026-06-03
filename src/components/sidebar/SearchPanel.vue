@@ -32,7 +32,7 @@
                 v-model="searchQuery"
                 rows="1"
                 :placeholder="t('notify.search.findPlaceholder')"
-                class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 pr-22 pl-2 text-sm focus:border-primary rounded-field"
+                class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-1.5 pr-22 pl-2 text-xs focus:border-primary rounded-field"
                 @keydown="handleSearchKeydown"
                 @input="onSearchInput"
               />
@@ -76,7 +76,7 @@
                 v-model="replaceQuery"
                 rows="1"
                 :placeholder="t('notify.search.replacePlaceholder')"
-                class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-0.5 px-2 text-sm focus:border-primary rounded-field"
+                class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-1.5 px-2 text-xs focus:border-primary rounded-field"
                 @keydown="handleReplaceKeydown"
                 @input="onReplaceInput"
               />

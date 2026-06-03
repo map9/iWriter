@@ -98,7 +98,7 @@
                 v-if="isInsertEditing"
                 ref="insertEditorRef"
                 v-model="editedContent"
-                class="w-full min-h-32 max-h-88 h-full overflow-y-auto resize-none border-0 bg-transparent px-3 py-2.5 font-mono text-xs leading-relaxed text-current outline-none"
+                class="w-full min-h-32 max-h-88 h-full overflow-y-auto resize-none border-0 bg-transparent px-2 py-1.5 font-mono text-xs leading-relaxed text-current outline-none"
                 :placeholder="t('agentPanel.proposalNavigator.insertPlaceholder')"
                 @blur="deactivateInsertEditing"
                 @input="onEditorInput"
@@ -155,7 +155,7 @@
           <textarea
             v-model="reworkReason"
             rows="3"
-            class="mt-2 w-full resize-none rounded-field border border-base-300 bg-base-100 px-2 py-1 text-sm outline-none focus:border-base-content/50"
+            class="mt-2 w-full resize-none rounded-field border border-base-300 bg-base-100 px-2 py-1.5 text-xs outline-none focus:border-base-content/50"
             :placeholder="t('agentPanel.proposalNavigator.reworkPlaceholder')"
           />
           <div class="mt-2 flex gap-1.5">

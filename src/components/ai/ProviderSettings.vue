@@ -204,7 +204,7 @@
     "structuredOutput": true
   }
 }'
-                class="min-h-40 w-full resize-y rounded-field border border-base-300 bg-base-100 px-3 py-2 font-mono text-sm text-base-content focus:border-primary focus:outline-none"
+                class="min-h-40 w-full resize-none rounded-field border border-base-300 bg-base-100 px-3 py-2 font-mono text-xs text-base-content focus:border-primary focus:outline-none"
               />
               <p class="text-xs" :class="modelProfilesError ? 'text-error' : 'text-base-content/50'">
                 {{ modelProfilesError || t('preferences.ai.modelProfilesHint') }}
