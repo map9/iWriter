@@ -10,14 +10,29 @@ import router from './router'
 import { i18n } from './i18n'
 import './style.css'
 
-// pdfjs-dist 5.x 使用 Map.prototype.getOrInsertComputed（TC39 提案），
-// Electron 40（Chrome 130）尚未内置此 API，此处提前注入 polyfill。
+// pdfjs-dist 5.x 使用若干 TC39 提案 API，Electron 40（Chrome 130）尚未内置。
 // 必须在任何 pdfjs-dist 代码求值之前运行（pdfjs 已改为懒加载，此处 always-before）。
+
+// TC39 Upsert 提案：Map.prototype.getOrInsertComputed
 if (!('getOrInsertComputed' in Map.prototype)) {
   Object.defineProperty(Map.prototype, 'getOrInsertComputed', {
     value: function <K, V>(this: Map<K, V>, key: K, computeFn: (key: K) => V): V {
       if (!this.has(key)) this.set(key, computeFn(key))
       return this.get(key) as V
+    },
+    writable: true,
+    configurable: true,
+    enumerable: false,
+  })
+}
+
+// TC39 Math.sumPrecise 提案：用于 TrueType 字体坐标计算路径，缺失时导致 CJK 字体处理失败
+if (!('sumPrecise' in Math)) {
+  Object.defineProperty(Math, 'sumPrecise', {
+    value: (iterable: Iterable<number>): number => {
+      let sum = 0
+      for (const val of iterable) sum += val
+      return sum
     },
     writable: true,
     configurable: true,
