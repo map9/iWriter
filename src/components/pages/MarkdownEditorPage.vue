@@ -946,6 +946,7 @@ async function handleMenuAction(action: string): Promise<boolean> {
 
 // Update editor state to Main Menu and Tab Stats
 function updateEditorState() {
+  if (!props.tab.isActive) return
   if (window.electronAPI?.windowContentChange && editor.value) {
     const textAlign = getCurrentAlignment(editor.value)
 

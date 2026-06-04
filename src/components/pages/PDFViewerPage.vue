@@ -199,7 +199,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, toRef, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, toRef, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { FileTab } from '@/types'
 import { useAppStore } from '@/stores/app'
@@ -314,8 +314,13 @@ let pdfProvider: PdfJsPageRenderProvider | null = null
 let isUnmounted = false
 let resizeObserver: ResizeObserver | null = null
 let resizeRaf = 0
+let pendingScaleValue: string | null = null
+let pendingScaleRefresh = false
+let visibleRefreshScheduled = false
+let visibleRefreshRaf = 0
 
 const pdfUrl = computed(() => props.tab.path ?? '')
+const isActiveTab = computed(() => appStore.activeTabId === props.tab.id)
 
 // ── Zoom select computed value ─────────────────────────────────────────────────
 const zoomSelectValue = computed(() => {
@@ -334,11 +339,63 @@ function isScrollModeActive(sm: ScrollModeOption): boolean {
   return scrollMode.value === sm.scrollMode && !isPresentationMode.value
 }
 
+function isViewerVisible(): boolean {
+  return isActiveTab.value && !!pdfContainer.value?.offsetParent
+}
+
+function scheduleVisibleScaleRefresh() {
+  pendingScaleRefresh = true
+  if (!isActiveTab.value || visibleRefreshScheduled) return
+
+  visibleRefreshScheduled = true
+  void nextTick(() => {
+    if (isUnmounted) {
+      visibleRefreshScheduled = false
+      return
+    }
+    visibleRefreshRaf = requestAnimationFrame(() => {
+      visibleRefreshRaf = 0
+      visibleRefreshScheduled = false
+      flushPendingScale()
+    })
+  })
+}
+
+function setViewerScaleValue(value: string) {
+  pendingScaleValue = value
+  if (!pdfViewerInstance) return
+  if (!isViewerVisible()) {
+    scheduleVisibleScaleRefresh()
+    return
+  }
+
+  pendingScaleValue = null
+  pendingScaleRefresh = false
+  pdfViewerInstance.currentScaleValue = value
+}
+
+function flushPendingScale() {
+  if (!pdfViewerInstance || !isViewerVisible()) return
+
+  if (pendingScaleValue) {
+    const scaleValue = pendingScaleValue
+    pendingScaleValue = null
+    pendingScaleRefresh = false
+    pdfViewerInstance.currentScaleValue = scaleValue
+    return
+  }
+
+  if (pendingScaleRefresh && pdfViewerInstance.currentScaleValue) {
+    pendingScaleRefresh = false
+    pdfViewerInstance.currentScaleValue = pdfViewerInstance.currentScaleValue
+  }
+}
+
 // ── Zoom ───────────────────────────────────────────────────────────────────────
 function setZoomValue(value: string) {
   if (isPresentationMode.value) return
   if (!pdfViewerInstance) return
-  pdfViewerInstance.currentScaleValue = value
+  setViewerScaleValue(value)
 }
 
 function onZoomSelectChange(event: Event) {
@@ -364,31 +421,46 @@ function rotateLeft() {
   if (!pdfViewerInstance) return
   rotation.value = (rotation.value - 90 + 360) % 360
   pdfViewerInstance.pagesRotation = rotation.value
+  sendPdfViewState()
 }
 
 function rotateRight() {
   if (!pdfViewerInstance) return
   rotation.value = (rotation.value + 90) % 360
   pdfViewerInstance.pagesRotation = rotation.value
+  sendPdfViewState()
 }
 
 function applyDefaultZoom() {
   if (!pdfViewerInstance) return
   if (isPresentationMode.value) {
-    pdfViewerInstance.currentScaleValue = 'page-fit'
+    setViewerScaleValue('page-fit')
     return
   }
   switch (scrollMode.value) {
     case ScrollMode.HORIZONTAL:
-      pdfViewerInstance.currentScaleValue = 'page-height'
+      setViewerScaleValue('page-height')
       break
     case ScrollMode.VERTICAL:
     case ScrollMode.WRAPPED:
-      pdfViewerInstance.currentScaleValue = 'page-width'
+      setViewerScaleValue('page-width')
       break
     default: // PAGE
-      pdfViewerInstance.currentScaleValue = 'page-fit'
+      setViewerScaleValue('page-fit')
   }
+}
+
+// ── PDF view state → main process ─────────────────────────────────────────────
+function sendPdfViewState() {
+  if (!props.tab.isActive) return   // ← 新增：非活动标签不发送菜单状态
+  window.electronAPI?.windowContentChange?.({
+    pdf: {
+      scrollMode: scrollMode.value,
+      spreadMode: spreadMode.value,
+      isPresentationMode: isPresentationMode.value,
+      rotation: rotation.value,
+    },
+  })
 }
 
 // ── Scroll / Spread mode ──────────────────────────────────────────────────────
@@ -399,6 +471,7 @@ function applyScrollMode(mode: number, presentation = false) {
     pdfViewerInstance.scrollMode = mode
   }
   applyDefaultZoom()
+  sendPdfViewState()
 }
 
 function applySpreadMode(mode: number) {
@@ -406,6 +479,7 @@ function applySpreadMode(mode: number) {
   if (pdfViewerInstance) {
     pdfViewerInstance.spreadMode = mode
   }
+  sendPdfViewState()
 }
 
 // ── Pages init ─────────────────────────────────────────────────────────────────
@@ -419,6 +493,7 @@ function onPagesInit() {
   pdfViewerInstance.spreadMode = spreadMode.value
   applyDefaultZoom()
   syncTocActivePage(1)
+  sendPdfViewState()
   focusViewer()
 }
 
@@ -537,6 +612,7 @@ function goToPage() {
 
 // ── Focus / click ─────────────────────────────────────────────────────────────
 function focusViewer() {
+  if (!isViewerVisible()) return
   pdfContainer.value?.focus()
 }
 
@@ -615,16 +691,26 @@ function handleWheel(event: WheelEvent) {
 // ── Menu action ───────────────────────────────────────────────────────────────
 function handleMenuAction(action: string): boolean {
   switch (action) {
-    case 'zoom-in':       zoomIn(); return true
-    case 'zoom-out':      zoomOut(); return true
-    case 'zoom-to-fit':   setZoomValue('page-fit'); return true
-    case 'zoom-to-width': setZoomValue('page-width'); return true
-    case 'zoom-actual':   setZoomValue('page-actual'); return true
-    case 'zoom-auto':     setZoomValue('auto'); return true
-    case 'previous-page': previousPage(); return true
-    case 'next-page':     nextPage(); return true
-    case 'go-to-page':    return true
-    default:              return false
+    case 'zoom-in':                  zoomIn(); return true
+    case 'zoom-out':                 zoomOut(); return true
+    case 'zoom-to-fit':              setZoomValue('page-fit'); return true
+    case 'zoom-to-width':            setZoomValue('page-width'); return true
+    case 'zoom-actual':              setZoomValue('page-actual'); return true
+    case 'zoom-auto':                setZoomValue('auto'); return true
+    case 'previous-page':            previousPage(); return true
+    case 'next-page':                nextPage(); return true
+    case 'go-to-page':               return true
+    case 'pdf-scroll-vertical':      applyScrollMode(ScrollMode.VERTICAL); return true
+    case 'pdf-scroll-horizontal':    applyScrollMode(ScrollMode.HORIZONTAL); return true
+    case 'pdf-scroll-wrapped':       applyScrollMode(ScrollMode.WRAPPED); return true
+    case 'pdf-scroll-page':          applyScrollMode(ScrollMode.PAGE); return true
+    case 'pdf-scroll-presentation':  applyScrollMode(ScrollMode.PAGE, true); return true
+    case 'pdf-spread-none':          applySpreadMode(SpreadMode.NONE); return true
+    case 'pdf-spread-odd':           applySpreadMode(SpreadMode.ODD); return true
+    case 'pdf-spread-even':          applySpreadMode(SpreadMode.EVEN); return true
+    case 'pdf-rotate-left':          rotateLeft(); return true
+    case 'pdf-rotate-right':         rotateRight(); return true
+    default:                         return false
   }
 }
 
@@ -639,7 +725,11 @@ onMounted(() => {
       resizeRaf = requestAnimationFrame(() => {
         resizeRaf = 0
         if (pdfViewerInstance?.currentScaleValue) {
-          pdfViewerInstance.currentScaleValue = pdfViewerInstance.currentScaleValue
+          if (isViewerVisible()) {
+            pdfViewerInstance.currentScaleValue = pdfViewerInstance.currentScaleValue
+          } else {
+            scheduleVisibleScaleRefresh()
+          }
         }
       })
     })
@@ -647,9 +737,15 @@ onMounted(() => {
   }
 })
 
+watch(isActiveTab, active => {
+  if (active) scheduleVisibleScaleRefresh()
+})
+
 onBeforeUnmount(async () => {
   isUnmounted = true
+  visibleRefreshScheduled = false
   if (resizeRaf) { cancelAnimationFrame(resizeRaf); resizeRaf = 0 }
+  if (visibleRefreshRaf) { cancelAnimationFrame(visibleRefreshRaf); visibleRefreshRaf = 0 }
   resizeObserver?.disconnect()
   resizeObserver = null
   await destroyViewer()

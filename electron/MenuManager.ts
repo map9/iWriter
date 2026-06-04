@@ -80,23 +80,34 @@ export class MenuManager {
   setupMenu(wState: WindowState): void {
     const t = createMainTranslator(wState?.wContentState?.view?.locale)
 
+    const type = wState?.wContentState?.type
+    const hasFolderOpen = wState?.wContentState?.hasFolderOpen
+    const hasActiveDocument = wState?.wContentState?.hasActiveDocument
+
+    const isMarkdown = type === DocumentType.MARKDOWN_EDITOR
+    const isPdf = type === DocumentType.PDF_VIEWER
+    const pdfState = wState?.wContentState?.pdf
+
+    const edit = wState?.wContentState?.edit
+    const autoSave = wState?.wContentState?.autoSave
+    const hasSelection = wState?.wContentState?.hasSelection
+    const undoRedo = wState?.wContentState?.undoRedo
+
     // Build base menu template
     const baseTemplate: Electron.MenuItemConstructorOptions[] = [
-      // { role: 'appMenu' }
       {
         id: 'appMenu',
         label: 'iWriter',
         submenu: [
           { role: 'about' },
-          /*
-          { type: 'separator' },
+          { type: 'separator', visible: false },
           {
             label: 'License...',
+            visible: false,
             click: () => {
               this.sendMenuAction('license')
             }
           },
-          */
           { type: 'separator' },
           {
             label: t('menu.app.checkForUpdate', 'Check for update...'),
@@ -124,7 +135,8 @@ export class MenuManager {
       {
         id: 'fileMenu',
         label: t('menu.file.title', 'File'),
-        submenu: [
+        submenu: (() => {
+          return [
           {
             label: t('menu.file.newDocument', 'New Document'),
             accelerator: 'CmdOrCtrl+N',
@@ -133,16 +145,6 @@ export class MenuManager {
               this.sendMenuAction('new-file')
             }
           },
-          /*
-          {
-            label: 'New from Template...',
-            accelerator: 'CmdOrCtrl+Shift+N',
-            enabled: wState != null,
-            click: () => {
-              this.sendMenuAction('new-from-template')
-            }
-          },
-          */
           {
             id: 'new-window',
             label: t('menu.file.newWindow', 'New Window'),
@@ -180,8 +182,9 @@ export class MenuManager {
           {
             id: 'save',
             label: t('menu.file.save', 'Save'),
+            visible: isMarkdown,
             accelerator: 'CmdOrCtrl+S',
-            enabled: wState?.wContentState?.hasActiveDocument,
+            enabled: hasActiveDocument,
             click: () => {
               this.sendMenuAction('save')
             }
@@ -189,8 +192,9 @@ export class MenuManager {
           {
             id: 'save-as',
             label: t('menu.file.saveAs', 'Save As...'),
+            visible: isMarkdown,
             accelerator: 'CmdOrCtrl+Shift+S',
-            enabled: wState?.wContentState?.hasActiveDocument,
+            enabled: hasActiveDocument,
             click: () => {
               this.sendMenuAction('save-as')
             }
@@ -199,7 +203,7 @@ export class MenuManager {
             id: 'auto-save',
             label: t('menu.file.autoSave', 'Auto Save'),
             type: 'checkbox',
-            checked: (wState?.wContentState?.hasActiveDocument === true)? wState?.wContentState?.edit?.autoSave : wState?.wContentState?.autoSave,
+            checked: hasActiveDocument === true ? edit?.autoSave : autoSave,
             enabled: wState != null,
             click: () => {
               this.sendMenuAction('toggle-auto-save')
@@ -209,7 +213,7 @@ export class MenuManager {
             id: 'save-all',
             label: t('menu.file.saveAll', 'Save All'),
             accelerator: 'CmdOrCtrl+Alt+S',
-            enabled: wState?.wContentState?.hasActiveDocument,
+            enabled: hasActiveDocument,
             click: () => {
               this.sendMenuAction('save-all')
             }
@@ -218,13 +222,11 @@ export class MenuManager {
           {
             id: 'toggle-readonly',
             label: t('menu.file.readOnly', 'Read Only'),
+            visible: isMarkdown,
             accelerator: 'CmdOrCtrl+Shift+L',
             type: 'checkbox',
-            checked: wState?.wContentState?.edit?.readonly ? true : false,
-            enabled:
-              wState?.wContentState?.hasActiveDocument === true &&
-              wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR &&
-              wState?.wContentState?.edit?.fileReadonly !== true,
+            checked: edit?.readonly ? true : false,
+            enabled: hasActiveDocument === true && isMarkdown && edit?.fileReadonly !== true,
             click: () => {
               this.sendMenuAction('view-toggle-readonly')
             }
@@ -240,11 +242,11 @@ export class MenuManager {
           {
             id: 'export',
             label: t('menu.file.export', 'Export'),
-            enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+            enabled: isMarkdown,
             submenu: [
               {
                 label: t('menu.file.exportPdf', 'PDF...'),
-                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                enabled: isMarkdown,
                 click: () => {
                   this.sendMenuAction('export-pdf')
                 }
@@ -252,70 +254,70 @@ export class MenuManager {
               { type: 'separator' },
               {
                 label: t('menu.file.exportHtml', 'HTML...'),
-                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                enabled: isMarkdown,
                 click: () => {
                   this.sendMenuAction('export-html')
                 }
               },
               {
                 label: t('menu.file.exportWord', 'Word (.docx)...'),
-                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                enabled: isMarkdown,
                 click: () => {
                   this.sendMenuAction('export-word')
                 }
               },
               {
                 label: t('menu.file.exportOdt', 'OpenOffice (.odt)...'),
-                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                enabled: isMarkdown,
                 click: () => {
                   this.sendMenuAction('export-odt')
                 }
               },
               {
                 label: t('menu.file.exportRtf', 'RTF...'),
-                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                enabled: isMarkdown,
                 click: () => {
                   this.sendMenuAction('export-rtf')
                 }
               },
               {
                 label: t('menu.file.exportEpub', 'EPUB...'),
-                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                enabled: isMarkdown,
                 click: () => {
                   this.sendMenuAction('export-epub')
                 }
               },
               {
                 label: t('menu.file.exportLatex', 'LaTeX...'),
-                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                enabled: isMarkdown,
                 click: () => {
                   this.sendMenuAction('export-latex')
                 }
               },
               {
                 label: t('menu.file.exportMediawiki', 'MediaWiki...'),
-                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                enabled: isMarkdown,
                 click: () => {
                   this.sendMenuAction('export-mediawiki')
                 }
               },
               {
                 label: t('menu.file.exportRst', 'reStructuredText...'),
-                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                enabled: isMarkdown,
                 click: () => {
                   this.sendMenuAction('export-rst')
                 }
               },
               {
                 label: t('menu.file.exportTextile', 'Textile...'),
-                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                enabled: isMarkdown,
                 click: () => {
                   this.sendMenuAction('export-textile')
                 }
               },
               {
                 label: t('menu.file.exportOpml', 'OPML...'),
-                enabled: wState?.wContentState?.type === DocumentType.MARKDOWN_EDITOR,
+                enabled: isMarkdown,
                 click: () => {
                   this.sendMenuAction('export-opml')
                 }
@@ -326,7 +328,7 @@ export class MenuManager {
           {
             label: t('menu.file.print', 'Print...'),
             accelerator: 'CmdOrCtrl+P',
-            enabled: wState?.wContentState?.hasActiveDocument,
+            enabled: hasActiveDocument,
             click: () => {
               this.sendMenuAction('print')
             }
@@ -336,7 +338,7 @@ export class MenuManager {
             id: 'close-file',
             label: t('menu.file.closeFile', 'Close File'),
             accelerator: 'CmdOrCtrl+W',
-            enabled: wState?.wContentState?.hasActiveDocument,
+            enabled: hasActiveDocument,
             click: () => {
               this.sendMenuAction('close-file')
             }
@@ -344,7 +346,7 @@ export class MenuManager {
           {
             id: 'close-folder',
             label: t('menu.file.closeFolder', 'Close Folder'),
-            enabled: wState?.wContentState?.hasFolderOpen,
+            enabled: hasFolderOpen,
             click: () => {
               this.sendMenuAction('close-folder')
             }
@@ -362,7 +364,7 @@ export class MenuManager {
                 },
               ]),
           isMac ? { role: 'close' } : { role: 'quit' }
-        ]
+          ] })()
       },
       {
         id: 'editMenu-default',
@@ -381,11 +383,12 @@ export class MenuManager {
       {
         id: 'editMenu',
         label: 'Edit',
-        submenu: [
+        submenu: (() => {
+          return [
           {
             label: 'Undo',
             accelerator: 'CmdOrCtrl+Z',
-            enabled: wState?.wContentState?.undoRedo?.undo,
+            enabled: undoRedo?.undo,
             click: () => {
               this.sendMenuAction('undo')
             }
@@ -393,7 +396,7 @@ export class MenuManager {
           {
             label: 'Redo',
             accelerator: 'CmdOrCtrl+Shift+Z',
-            enabled: wState?.wContentState?.undoRedo?.redo,
+            enabled: undoRedo?.redo,
             click: () => {
               this.sendMenuAction('redo')
             }
@@ -408,10 +411,11 @@ export class MenuManager {
           {
             role: 'paste',
           },
-          { type: 'separator' },
+          { type: 'separator', visible: isMarkdown },
           {
             label: 'Copy as',
-            enabled: wState?.wContentState?.hasSelection,
+            enabled: hasSelection,
+            visible: isMarkdown,
             submenu: [
               {
                 label: 'Plain Text',
@@ -435,8 +439,9 @@ export class MenuManager {
           },
           {
             label: 'Paste as Text',
+            visible: isMarkdown,
             accelerator: 'CmdOrCtrl+Shift+V',
-            enabled: wState?.wContentState?.hasActiveDocument,
+            enabled: hasActiveDocument,
             click: () => {
               this.sendMenuAction('paste-as-text')
             }
@@ -449,15 +454,16 @@ export class MenuManager {
           {
             role: 'selectAll',
           },
-          { type: 'separator' },
+          { type: 'separator', visible: isMarkdown },
           {
             label: 'Line Ending',
-            enabled: wState?.wContentState?.hasActiveDocument,
+            visible: isMarkdown,
+            enabled: hasActiveDocument,
             submenu: [
               {
                 label: 'Windows CRLF',
                 type: 'checkbox',
-                checked: wState?.wContentState?.edit?.lineEnding === 'CRLF',
+                checked: edit?.lineEnding === 'CRLF',
                 click: () => {
                   this.sendMenuAction('line-ending-crlf')
                 }
@@ -465,7 +471,7 @@ export class MenuManager {
               {
                 label: 'Unix LF',
                 type: 'checkbox',
-                checked: wState?.wContentState?.edit?.lineEnding === 'LF',
+                checked: edit?.lineEnding === 'LF',
                 click: () => {
                   this.sendMenuAction('line-ending-lf')
                 }
@@ -474,12 +480,13 @@ export class MenuManager {
           },
           {
             label: 'Space and Line break',
-            enabled: wState?.wContentState?.hasActiveDocument,
+            visible: isMarkdown,
+            enabled: hasActiveDocument,
             submenu: [
               {
                 label: 'First line indent',
                 type: 'checkbox',
-                checked: wState?.wContentState?.edit?.firstLineIndent === true,
+                checked: edit?.firstLineIndent === true,
                 click: () => {
                   this.sendMenuAction('toggle-first-line-indent')
                 }
@@ -487,7 +494,7 @@ export class MenuManager {
               {
                 label: 'Space and Line break',
                 type: 'checkbox',
-                checked: wState?.wContentState?.edit?.invisibleCharacters === true,
+                checked: edit?.invisibleCharacters === true,
                 click: () => {
                   this.sendMenuAction('toggle-space-line-break')
                 }
@@ -496,11 +503,12 @@ export class MenuManager {
           },
           {
             label: 'Text Replacement',
+            visible: isMarkdown,
             submenu: [
               {
                 label: 'Smart Punctuation',
                 type: 'checkbox',
-                checked: wState?.wContentState?.edit?.smartPunctuation === true,
+                checked: edit?.smartPunctuation === true,
                 click: () => {
                   this.sendMenuAction('toggle-smart-punctuation')
                 }
@@ -522,11 +530,12 @@ export class MenuManager {
           },
           {
             label: 'Spelling and Grammar',
+            visible: isMarkdown,
             submenu: [
               {
                 label: 'Show Spelling and Grammar Errors',
                 type: 'checkbox',
-                checked: wState?.wContentState?.edit?.showProofreadErrors === true,
+                checked: edit?.showProofreadErrors === true,
                 accelerator: 'CmdOrCtrl+Shift+;',
                 click: () => {
                   this.sendMenuAction('toggle-spelling-grammar-errors')
@@ -542,7 +551,7 @@ export class MenuManager {
               {
                 label: 'Check Spelling and Grammar while Typing',
                 type: 'checkbox',
-                checked: wState?.wContentState?.edit?.proofread === true,
+                checked: edit?.proofread === true,
                 click: () => {
                   this.sendMenuAction('check-spelling-grammar-while-typing')
                 }
@@ -566,22 +575,27 @@ export class MenuManager {
           },
           {
             label: 'Replace',
+            visible: isMarkdown,
             accelerator: 'CmdOrCtrl+Alt+F',
             click: () => {
               this.sendMenuAction('replace')
             }
           },
-        ]
+          ] })()
       },
       {
         id: 'paragraphMenu',
         label: 'Paragraph',
-        submenu: [
+        submenu: (() => {
+          const content = wState?.wContentState?.content
+          const contentType = content?.type
+          const contentData = content?.data
+          return [
           {
             label: 'Heading 1',
             accelerator: 'CmdOrCtrl+1',
             type: 'checkbox',
-            checked: wState?.wContentState?.content?.type === 1,
+            checked: contentType === 1,
             click: () => {
               this.sendMenuAction('heading-1')
             }
@@ -590,7 +604,7 @@ export class MenuManager {
             label: 'Heading 2',
             accelerator: 'CmdOrCtrl+2',
             type: 'checkbox',
-            checked: wState?.wContentState?.content?.type === 2,
+            checked: contentType === 2,
             click: () => {
               this.sendMenuAction('heading-2')
             }
@@ -599,7 +613,7 @@ export class MenuManager {
             label: 'Heading 3',
             accelerator: 'CmdOrCtrl+3',
             type: 'checkbox',
-            checked: wState?.wContentState?.content?.type === 3,
+            checked: contentType === 3,
             click: () => {
               this.sendMenuAction('heading-3')
             }
@@ -608,7 +622,7 @@ export class MenuManager {
             label: 'Heading 4',
             accelerator: 'CmdOrCtrl+4',
             type: 'checkbox',
-            checked: wState?.wContentState?.content?.type === 4,
+            checked: contentType === 4,
             click: () => {
               this.sendMenuAction('heading-4')
             }
@@ -617,7 +631,7 @@ export class MenuManager {
             label: 'Heading 5',
             accelerator: 'CmdOrCtrl+5',
             type: 'checkbox',
-            checked: wState?.wContentState?.content?.type === 5,
+            checked: contentType === 5,
             click: () => {
               this.sendMenuAction('heading-5')
             }
@@ -626,7 +640,7 @@ export class MenuManager {
             label: 'Heading 6',
             accelerator: 'CmdOrCtrl+6',
             type: 'checkbox',
-            checked: wState?.wContentState?.content?.type === 6,
+            checked: contentType === 6,
             click: () => {
               this.sendMenuAction('heading-6')
             }
@@ -636,7 +650,7 @@ export class MenuManager {
             label: 'Paragraph',
             accelerator: 'CmdOrCtrl+0',
             type: 'checkbox',
-            checked: wState?.wContentState?.content?.type === 'paragraph',
+            checked: contentType === 'paragraph',
             click: () => {
               this.sendMenuAction('paragraph')
             }
@@ -646,11 +660,11 @@ export class MenuManager {
             label: 'Promote Heading',
             accelerator: 'CmdOrCtrl+]',
             enabled:
-              wState?.wContentState?.content?.type !== 1 &&
-              ((typeof wState?.wContentState?.content?.type === 'number' &&
-                wState?.wContentState?.content?.type >= 2 &&
-                wState?.wContentState?.content?.type <= 6) ||
-                wState?.wContentState?.content?.type === 'paragraph'),
+              contentType !== 1 &&
+              ((typeof contentType === 'number' &&
+                contentType >= 2 &&
+                contentType <= 6) ||
+                contentType === 'paragraph'),
             click: () => {
               this.sendMenuAction('promote-heading')
             }
@@ -659,10 +673,10 @@ export class MenuManager {
             label: 'Demote Heading',
             accelerator: 'CmdOrCtrl+[',
             enabled: 
-              wState?.wContentState?.content?.type !== 'paragraph' &&
-              (typeof wState?.wContentState?.content?.type === 'number' &&
-              wState?.wContentState?.content?.type >= 1 &&
-              wState?.wContentState?.content?.type <= 6),
+              contentType !== 'paragraph' &&
+              (typeof contentType === 'number' &&
+              contentType >= 1 &&
+              contentType <= 6),
             click: () => {
               this.sendMenuAction('demote-heading')
             }
@@ -682,8 +696,8 @@ export class MenuManager {
               {
                 label: 'Header Row',
                 type: 'checkbox',
-                enabled: wState?.wContentState?.content?.type === 'table',
-                checked: (wState?.wContentState?.content?.data as ParagraphStateTableData)?.hasHeaderRow,
+                enabled: contentType === 'table',
+                checked: (contentData as ParagraphStateTableData)?.hasHeaderRow,
                 click: (menuItem) => {
                   menuItem.checked = false
                   this.sendMenuAction('table-toggle-header-row')
@@ -692,8 +706,8 @@ export class MenuManager {
               {
                 label: 'Header Column',
                 type: 'checkbox',
-                enabled: wState?.wContentState?.content?.type === 'table',
-                checked: (wState?.wContentState?.content?.data as ParagraphStateTableData)?.hasHeaderColumn,
+                enabled: contentType === 'table',
+                checked: (contentData as ParagraphStateTableData)?.hasHeaderColumn,
                 click: (menuItem) => {
                   menuItem.checked = false
                   this.sendMenuAction('table-toggle-header-column')
@@ -702,14 +716,14 @@ export class MenuManager {
               { type: 'separator' },
               {
                 label: 'Insert Row Above',
-                enabled: wState?.wContentState?.content?.type === 'table',
+                enabled: contentType === 'table',
                 click: () => {
                   this.sendMenuAction('table-insert-row-above')
                 }
               },
               {
                 label: 'Insert Row Below',
-                enabled: wState?.wContentState?.content?.type === 'table',
+                enabled: contentType === 'table',
                 accelerator: 'CmdOrCtrl+Enter',
                 click: () => {
                   this.sendMenuAction('table-insert-row-below')
@@ -718,14 +732,14 @@ export class MenuManager {
               { type: 'separator' },
               {
                 label: 'Insert Column Left',
-                enabled: wState?.wContentState?.content?.type === 'table',
+                enabled: contentType === 'table',
                 click: () => {
                   this.sendMenuAction('table-insert-column-left')
                 }
               },
               {
                 label: 'Insert Column Right',
-                enabled: wState?.wContentState?.content?.type === 'table',
+                enabled: contentType === 'table',
                 click: () => {
                   this.sendMenuAction('table-insert-column-right')
                 }
@@ -734,8 +748,8 @@ export class MenuManager {
               {
                 label: 'Move Row Up',
                 enabled:
-                  wState?.wContentState?.content?.type === 'table' &&
-                  (wState?.wContentState?.content?.data as ParagraphStateTableData)?.canMoveAbove,
+                  contentType === 'table' &&
+                  (contentData as ParagraphStateTableData)?.canMoveAbove,
                 accelerator: 'CmdOrCtrl+Shift+Up',
                 click: () => {
                   this.sendMenuAction('table-move-row-above')
@@ -744,8 +758,8 @@ export class MenuManager {
               {
                 label: 'Move Row Down',
                 enabled:
-                  wState?.wContentState?.content?.type === 'table' &&
-                  (wState?.wContentState?.content?.data as ParagraphStateTableData)?.canMoveBelow,
+                  contentType === 'table' &&
+                  (contentData as ParagraphStateTableData)?.canMoveBelow,
                 accelerator: 'CmdOrCtrl+Shift+Down',
                 click: () => {
                   this.sendMenuAction('table-move-row-below')
@@ -754,8 +768,8 @@ export class MenuManager {
               {
                 label: 'Move Column Left',
                 enabled:
-                  wState?.wContentState?.content?.type === 'table' &&
-                  (wState?.wContentState?.content?.data as ParagraphStateTableData)?.canMoveLeft,
+                  contentType === 'table' &&
+                  (contentData as ParagraphStateTableData)?.canMoveLeft,
                 accelerator: 'CmdOrCtrl+Shift+Left',
                 click: () => {
                   this.sendMenuAction('table-move-column-left')
@@ -764,8 +778,8 @@ export class MenuManager {
               {
                 label: 'Move Column Right',
                 enabled:
-                  wState?.wContentState?.content?.type === 'table' &&
-                  (wState?.wContentState?.content?.data as ParagraphStateTableData)?.canMoveRight,
+                  contentType === 'table' &&
+                  (contentData as ParagraphStateTableData)?.canMoveRight,
                 accelerator: 'CmdOrCtrl+Shift+Right',
                 click: () => {
                   this.sendMenuAction('table-move-column-right')
@@ -774,7 +788,7 @@ export class MenuManager {
               { type: 'separator' },
               {
                 label: 'Delete Row',
-                enabled: wState?.wContentState?.content?.type === 'table',
+                enabled: contentType === 'table',
                 accelerator: 'CmdOrCtrl+Shift+Backspace',
                 click: () => {
                   this.sendMenuAction('table-delete-row')
@@ -782,7 +796,7 @@ export class MenuManager {
               },
               {
                 label: 'Delete Column',
-                enabled: wState?.wContentState?.content?.type === 'table',
+                enabled: contentType === 'table',
                 click: () => {
                   this.sendMenuAction('table-delete-column')
                 }
@@ -790,14 +804,14 @@ export class MenuManager {
               { type: 'separator' },
               {
                 label: 'Duplicate Table',
-                enabled: wState?.wContentState?.content?.type === 'table',
+                enabled: contentType === 'table',
                 click: () => {
                   this.sendMenuAction('table-duplicate')
                 }
               },
               {
                 label: 'Delete Table',
-                enabled: wState?.wContentState?.content?.type === 'table',
+                enabled: contentType === 'table',
                 click: () => {
                   this.sendMenuAction('table-delete')
                 }
@@ -808,7 +822,7 @@ export class MenuManager {
             label: 'Code Block',
             accelerator: 'CmdOrCtrl+Shift+C',
             type: 'checkbox',
-            checked: wState?.wContentState?.content?.type === 'codeBlock',
+            checked: contentType === 'codeBlock',
             click: () => {
               this.sendMenuAction('insert-code-block')
             }
@@ -820,7 +834,7 @@ export class MenuManager {
                 label: 'Format Selection',
                 enabled: 
                 (
-                  wState?.wContentState?.content?.type === 'codeBlock' &&
+                  contentType === 'codeBlock' &&
                   wState?.wContentState?.hasSelection
                 ),
                 click: () => {
@@ -829,7 +843,7 @@ export class MenuManager {
               },
               {
                 label: 'Format CodeBlock',
-                enabled: wState?.wContentState?.content?.type === 'codeBlock',
+                enabled: contentType === 'codeBlock',
                 click: () => {
                   this.sendMenuAction('code-format-codeblock')
                 }
@@ -885,7 +899,7 @@ export class MenuManager {
             label: 'Quote Block',
             accelerator: 'CmdOrCtrl+Shift+Q',
             type: 'checkbox',
-            checked: wState?.wContentState?.content?.type === 'blockquote',
+            checked: contentType === 'blockquote',
             click: () => {
               this.sendMenuAction('insert-quote-block')
             }
@@ -903,7 +917,7 @@ export class MenuManager {
             label: 'Ordered List',
             accelerator: 'CmdOrCtrl+Shift+O',
             type: 'checkbox',
-            checked: wState?.wContentState?.content?.type === 'orderedList',
+            checked: contentType === 'orderedList',
             click: () => {
               this.sendMenuAction('ordered-list')
             }
@@ -912,7 +926,7 @@ export class MenuManager {
             label: 'Bullet List',
             accelerator: 'CmdOrCtrl+Shift+U',
             type: 'checkbox',
-            checked: wState?.wContentState?.content?.type === 'bulletList',
+            checked: contentType === 'bulletList',
             click: () => {
               this.sendMenuAction('bullet-list')
             }
@@ -921,7 +935,7 @@ export class MenuManager {
             label: 'Task List',
             accelerator: 'CmdOrCtrl+Shift+X',
             type: 'checkbox',
-            checked: wState?.wContentState?.content?.type === 'taskList',
+            checked: contentType === 'taskList',
             click: () => {
               this.sendMenuAction('task-list')
             }
@@ -931,7 +945,7 @@ export class MenuManager {
             submenu: [
               {
                 label: 'Toggle Task Status',
-                enabled: wState?.wContentState?.content?.type === 'taskList',
+                enabled: contentType === 'taskList',
                 click: () => {
                   this.sendMenuAction('toggle-task-status')
                 }
@@ -942,8 +956,8 @@ export class MenuManager {
                 type: 'radio',
                 enabled: 
                 (
-                  wState?.wContentState?.content?.type === 'taskList' &&
-                  !(wState?.wContentState?.content?.data as ParagraphStateTaskListData)?.checked
+                  contentType === 'taskList' &&
+                  !(contentData as ParagraphStateTaskListData)?.checked
                 ),
                 click: () => {
                   this.sendMenuAction('complete-task')
@@ -954,8 +968,8 @@ export class MenuManager {
                 type: 'radio',
                 enabled: 
                 (
-                  wState?.wContentState?.content?.type === 'taskList' &&
-                  (wState?.wContentState?.content?.data as ParagraphStateTaskListData)?.checked
+                  contentType === 'taskList' &&
+                  (contentData as ParagraphStateTaskListData)?.checked
                 ),
                 click: () => {
                   this.sendMenuAction('uncomplete-task')
@@ -971,8 +985,8 @@ export class MenuManager {
                 accelerator: 'CmdOrCtrl+]',
                 enabled: 
                 (
-                  ['bulletList', 'orderedList', 'taskList'].includes(wState?.wContentState?.content?.type as string) &&
-                  (wState?.wContentState?.content?.data as ParagraphStateListData)?.canSink
+                  ['bulletList', 'orderedList', 'taskList'].includes(contentType as string) &&
+                  (contentData as ParagraphStateListData)?.canSink
                 ),
                 click: () => {
                   this.sendMenuAction('increase-indent')
@@ -983,8 +997,8 @@ export class MenuManager {
                 accelerator: 'CmdOrCtrl+[',
                 enabled: 
                 (
-                  ['bulletList', 'orderedList', 'taskList'].includes(wState?.wContentState?.content?.type as string) &&
-                  (wState?.wContentState?.content?.data as ParagraphStateListData)?.canLift
+                  ['bulletList', 'orderedList', 'taskList'].includes(contentType as string) &&
+                  (contentData as ParagraphStateListData)?.canLift
                 ),
                 click: () => {
                   this.sendMenuAction('decrease-indent')
@@ -1030,17 +1044,19 @@ export class MenuManager {
               this.sendMenuAction('horizontal-rule')
             }
           }
-        ]
+          ] })()
       },
       {
         id: 'formatMenu',
         label: 'Format',
-        submenu: [
+        submenu: (() => {
+          const formatting = wState?.wContentState?.formatting
+          return [
           {
             id: 'format-bold',
             label: 'Bold',
             type: 'checkbox',
-            checked: wState?.wContentState?.formatting?.bold,
+            checked: formatting?.bold,
             accelerator: 'CmdOrCtrl+B',
             click: (menuItem) => {
               // cancle toggled status
@@ -1052,7 +1068,7 @@ export class MenuManager {
             id: 'format-italic',
             label: 'Italic',
             type: 'checkbox',
-            checked: wState?.wContentState?.formatting?.italic,
+            checked: formatting?.italic,
             accelerator: 'CmdOrCtrl+I',
             click: (menuItem) => {
               // cancle toggled status
@@ -1064,7 +1080,7 @@ export class MenuManager {
             id: 'format-underline',
             label: 'Underline',
             type: 'checkbox',
-            checked: wState?.wContentState?.formatting?.underline,
+            checked: formatting?.underline,
             accelerator: 'CmdOrCtrl+U',
             click: (menuItem) => {
               // cancle toggled status
@@ -1076,7 +1092,7 @@ export class MenuManager {
             id: 'format-strikethrough',
             label: 'Strike Through',
             type: 'checkbox',
-            checked: wState?.wContentState?.formatting?.strikethrough,
+            checked: formatting?.strikethrough,
             accelerator: 'CmdOrCtrl+Shift+X',
             click: (menuItem) => {
               // cancle toggled status
@@ -1093,8 +1109,8 @@ export class MenuManager {
                 type: 'radio',
                 checked: 
                 (
-                  !wState?.wContentState?.formatting?.textAlign || 
-                  wState?.wContentState?.formatting?.textAlign === 'left'
+                  !formatting?.textAlign || 
+                  formatting?.textAlign === 'left'
                 ),
                 click: () => {
                   this.sendMenuAction('align-left')
@@ -1103,7 +1119,7 @@ export class MenuManager {
               {
                 label: 'Center Aligned',
                 type: 'radio',
-                checked: wState?.wContentState?.formatting?.textAlign === 'center',
+                checked: formatting?.textAlign === 'center',
                 click: () => {
                   this.sendMenuAction('align-center')
                 }
@@ -1111,7 +1127,7 @@ export class MenuManager {
               {
                 label: 'Right Aligned',
                 type: 'radio',
-                checked: wState?.wContentState?.formatting?.textAlign === 'right',
+                checked: formatting?.textAlign === 'right',
                 click: () => {
                   this.sendMenuAction('align-right')
                 }
@@ -1119,7 +1135,7 @@ export class MenuManager {
               {
                 label: 'Justified',
                 type: 'radio',
-                checked: wState?.wContentState?.formatting?.textAlign === 'justify',
+                checked: formatting?.textAlign === 'justify',
                 click: () => {
                   this.sendMenuAction('align-justify')
                 }
@@ -1139,7 +1155,7 @@ export class MenuManager {
             id: 'format-code',
             label: 'Inline Code',
             type: 'checkbox',
-            checked: wState?.wContentState?.formatting?.inlineCode,
+            checked: formatting?.inlineCode,
             accelerator: 'CmdOrCtrl+`',
             click: () => {
               this.sendMenuAction('inline-code')
@@ -1165,7 +1181,7 @@ export class MenuManager {
           {
             label: 'Superscript',
             type: 'checkbox',
-            checked: wState?.wContentState?.formatting?.script === 'superscript',
+            checked: formatting?.script === 'superscript',
             click: () => {
               this.sendMenuAction('superscript')
             }
@@ -1173,7 +1189,7 @@ export class MenuManager {
           {
             label: 'Subscript',
             type: 'checkbox',
-            checked: wState?.wContentState?.formatting?.script === 'subscript',
+            checked: formatting?.script === 'subscript',
             click: () => {
               this.sendMenuAction('subscript')
             }
@@ -1182,7 +1198,7 @@ export class MenuManager {
             label: 'Highlight',
             accelerator: 'CmdOrCtrl+Shift+H',
             type: 'checkbox',
-            checked: wState?.wContentState?.formatting?.highlight,
+            checked: formatting?.highlight,
             click: () => {
               this.sendMenuAction('highlight')
             }
@@ -1357,7 +1373,7 @@ export class MenuManager {
               this.sendMenuAction('clear-formatting')
             }
           }
-        ]
+          ] })()
       },
       /*
       {
@@ -1498,13 +1514,15 @@ export class MenuManager {
       {
         id: 'viewMenu',
         label: 'View',
-        submenu: [
+        submenu: (() => {
+          return [
           {
             label: 'Focus Mode',
             accelerator: 'CmdOrCtrl+Shift+F',
             type: 'checkbox',
             checked: wState?.wContentState?.view?.focusMode ? true : false,
             enabled: wState != null,
+            visible: isMarkdown,
             click: () => {
               this.sendMenuAction('view-toggle-focus-mode')
             }
@@ -1515,11 +1533,12 @@ export class MenuManager {
             type: 'checkbox',
             checked: wState?.wContentState?.view?.typewriterMode ? true : false,
             enabled: wState != null,
+            visible: isMarkdown,
             click: () => {
               this.sendMenuAction('view-toggle-typewriter-mode')
             }
           },
-          { type: 'separator' },
+          { type: 'separator', visible: isMarkdown },
           {
             label: 'Explorer',
             accelerator: 'CmdOrCtrl+Shift+1',
@@ -1536,20 +1555,19 @@ export class MenuManager {
               this.sendMenuAction('view-search')
             }
           },
-/*
           {
             label: 'Tag',
+            visible: false, // 暂时不支持
             accelerator: 'CmdOrCtrl+Shift+3',
             enabled: wState != null,
             click: () => {
               this.sendMenuAction('view-tag')
             }
           },
-*/
           {
             label: 'Table of Contents',
             accelerator: 'CmdOrCtrl+Shift+4',
-            enabled: wState != null,
+            enabled: isMarkdown || isPdf,
             click: () => {
               this.sendMenuAction('view-toc')
             }
@@ -1576,7 +1594,120 @@ export class MenuManager {
           },
           { type: 'separator' },
           {
+            label: 'Zoom',
+            visible: isPdf,
+            submenu: [
+              {
+                label: 'Zoom In',
+                accelerator: 'CmdOrCtrl+Plus',
+                enabled: !pdfState?.isPresentationMode,
+                click: () => { this.sendMenuAction('zoom-in') }
+              },
+              {
+                label: 'Zoom Out',
+                accelerator: 'CmdOrCtrl+-',
+                enabled: !pdfState?.isPresentationMode,
+                click: () => { this.sendMenuAction('zoom-out') }
+              },
+              { type: 'separator' },
+              {
+                label: 'Actual Size',
+                enabled: !pdfState?.isPresentationMode,
+                click: () => { this.sendMenuAction('zoom-actual') }
+              },
+              {
+                label: 'Page Fit',
+                enabled: !pdfState?.isPresentationMode,
+                click: () => { this.sendMenuAction('zoom-to-fit') }
+              },
+              {
+                label: 'Page Width',
+                enabled: !pdfState?.isPresentationMode,
+                click: () => { this.sendMenuAction('zoom-to-width') }
+              },
+              {
+                label: 'Automatic',
+                enabled: !pdfState?.isPresentationMode,
+                click: () => { this.sendMenuAction('zoom-auto') }
+              },
+            ]
+          },
+          {
+            label: 'Scroll Mode',
+            visible: isPdf,
+            submenu: [
+              {
+                label: 'Vertical Scrolling',
+                type: 'radio',
+                checked: pdfState?.scrollMode === 0 && !pdfState?.isPresentationMode,
+                click: () => { this.sendMenuAction('pdf-scroll-vertical') }
+              },
+              {
+                label: 'Horizontal Scrolling',
+                type: 'radio',
+                checked: pdfState?.scrollMode === 1 && !pdfState?.isPresentationMode,
+                click: () => { this.sendMenuAction('pdf-scroll-horizontal') }
+              },
+              {
+                label: 'Wrapped Scrolling',
+                type: 'radio',
+                checked: pdfState?.scrollMode === 2 && !pdfState?.isPresentationMode,
+                click: () => { this.sendMenuAction('pdf-scroll-wrapped') }
+              },
+              {
+                label: 'Page Scrolling',
+                type: 'radio',
+                checked: pdfState?.scrollMode === 3 && !pdfState?.isPresentationMode,
+                click: () => { this.sendMenuAction('pdf-scroll-page') }
+              },
+              {
+                label: 'Presentation',
+                type: 'radio',
+                checked: pdfState?.isPresentationMode === true,
+                click: () => { this.sendMenuAction('pdf-scroll-presentation') }
+              },
+            ]
+          },
+          {
+            label: 'Spread',
+            visible: isPdf,
+            submenu: [
+              {
+                label: 'Single Page View',
+                type: 'radio',
+                checked: pdfState?.spreadMode === 0,
+                enabled: !pdfState?.isPresentationMode,
+                click: () => { this.sendMenuAction('pdf-spread-none') }
+              },
+              {
+                label: 'Double Page View',
+                type: 'radio',
+                checked: pdfState?.spreadMode === 1,
+                enabled: !pdfState?.isPresentationMode,
+                click: () => { this.sendMenuAction('pdf-spread-odd') }
+              },
+              {
+                label: 'Book View',
+                type: 'radio',
+                checked: pdfState?.spreadMode === 2,
+                enabled: !pdfState?.isPresentationMode,
+                click: () => { this.sendMenuAction('pdf-spread-even') }
+              },
+            ]
+          },
+          {
+            label: 'Rotate Left',
+            visible: isPdf,
+            click: () => { this.sendMenuAction('pdf-rotate-left') }
+          },
+          {
+            label: 'Rotate Right',
+            visible: isPdf,
+            click: () => { this.sendMenuAction('pdf-rotate-right') }
+          },
+          {
             label: t('menu.view.pageWidth', 'Page Width'),
+            visible: isMarkdown,
             submenu: [
               {
                 label: t('menu.view.pageWidthStandard', 'Standard'),
@@ -1616,6 +1747,7 @@ export class MenuManager {
               }
             ]
           },
+          { type: 'separator', visible: isMarkdown || isPdf },
           {
             label: 'Appearance',
             submenu: [
@@ -1671,14 +1803,16 @@ export class MenuManager {
               this.sendMenuAction('view-theme-settings')
             }
           },
+          /* 去掉系统整体页面的缩放功能
           { type: 'separator' },
           { role: 'resetZoom' },
           { role: 'zoomIn' },
           { role: 'zoomOut' },
+           */
           { type: 'separator' },
           { role: 'forceReload' },
           { role: 'toggleDevTools' },
-        ]
+        ] })()
       },
       { role: 'windowMenu' },
       {
@@ -1713,26 +1847,6 @@ export class MenuManager {
               await shell.openExternal(docsUrl('/quick-start'))
             }
           },
-          /*
-          {
-            label: 'Online Guide and Course',
-            click: async () => {
-              await shell.openExternal(docsUrl('/docs/'))
-            }
-          },
-          {
-            label: 'Markdown Reference',
-            click: async () => {
-              await shell.openExternal(docsUrl('/docs/editor'))
-            }
-          },
-          {
-            label: 'Keyboard Shortcuts',
-            click: async () => {
-              await shell.openExternal(docsUrl('/faq'))
-            }
-          },
-          */
           { type: 'separator' },
           {
             label: t('menu.help.licenses', 'Licenses and Acknowledgements'),
@@ -1781,12 +1895,12 @@ export class MenuManager {
       
       // Filter out Edit, Paragraph and Format menus based on document state
       if (
-        !wState?.wContentState?.hasActiveDocument &&
+        (!hasActiveDocument || !isMarkdown) &&
         (item.id === 'editMenu' || item.id === 'paragraphMenu' || item.id === 'formatMenu')
       ) {
         return false
       } else if (
-        wState?.wContentState?.hasActiveDocument &&
+        hasActiveDocument && isMarkdown &&
         (item.id === 'editMenu-default')
       ) {
         return false

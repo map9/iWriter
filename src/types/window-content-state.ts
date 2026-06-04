@@ -76,6 +76,13 @@ export interface FormattingState {
   inlineCode: boolean
 }
 
+export interface PdfViewState {
+  scrollMode?: number
+  spreadMode?: number
+  isPresentationMode?: boolean
+  rotation?: number
+}
+
 // 窗口内容信息接口
 export interface WindowContentState {
   autoSave?: boolean
@@ -88,4 +95,5 @@ export interface WindowContentState {
   content?: ParagraphState
   formatting?: FormattingState
   view?: ViewState
+  pdf?: PdfViewState
 }
