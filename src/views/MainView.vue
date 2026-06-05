@@ -116,14 +116,25 @@
     @close="appStore.closePreferences()"
   />
 
-  <!-- Print Preview Dialog -->
+  <!-- Print Preview: Markdown HTML (mode print or export) -->
   <PrintDialog
+    v-if="appStore.printPreviewSource?.kind !== 'pdf'"
     :visible="appStore.showPrintPreviewDialog"
     :html="appStore.printPreviewHtml"
     :title="appStore.printPreviewTitle"
     :mode="appStore.printPreviewMode"
     :default-save-path="appStore.printPreviewDefaultSavePath"
     :skip-save-dialog="appStore.printPreviewSkipSaveDialog"
+    @close="appStore.closePrintPreview()"
+  />
+
+  <!-- Print Preview: PDF (print only) -->
+  <PdfPrintDialog
+    v-if="appStore.printPreviewSource?.kind === 'pdf'"
+    :visible="appStore.showPrintPreviewDialog"
+    :file-path="(appStore.printPreviewSource as { kind: 'pdf'; filePath: string; numPages: number }).filePath"
+    :num-pages="(appStore.printPreviewSource as { kind: 'pdf'; filePath: string; numPages: number }).numPages"
+    :title="appStore.printPreviewTitle"
     @close="appStore.closePrintPreview()"
   />
 </template>
@@ -156,6 +167,7 @@ const UnknownPage = defineAsyncComponent(() => import('@/components/pages/Unknow
 const UpdateDialog = defineAsyncComponent(() => import('@/components/updater/UpdateDialog.vue'))
 const PreferencesDialog = defineAsyncComponent(() => import('@/components/preferences/PreferencesDialog.vue'))
 const PrintDialog = defineAsyncComponent(() => import('@/components/print/PrintDialog.vue'))
+const PdfPrintDialog = defineAsyncComponent(() => import('@/components/print/PdfPrintDialog.vue'))
 
 const appStore = useAppStore()
 const aiStore = useAiStore()

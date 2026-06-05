@@ -76,6 +76,10 @@ export const useAppStore = defineStore('app', () => {
   const printPreviewMode = ref<'print' | 'export'>('print')
   const printPreviewDefaultSavePath = ref('')
   const printPreviewSkipSaveDialog = ref(false)
+  type PrintSource =
+    | { kind: 'html' }
+    | { kind: 'pdf'; filePath: string; numPages: number }
+  const printPreviewSource = ref<PrintSource | null>(null)
   const leftSidebarMode = ref<SidebarMode>(SidebarMode.START)
   const searchFolderPath = ref<string | null>(null)
   const searchIncludePattern = ref('')
@@ -2667,6 +2671,7 @@ export const useAppStore = defineStore('app', () => {
     title?: string,
     options?: { mode?: 'print' | 'export'; defaultSavePath?: string; skipSaveDialog?: boolean }
   ) {
+    printPreviewSource.value = { kind: 'html' }
     printPreviewHtml.value = html
     const activeTab = tabs.value.find(tab => tab.id === activeTabId.value)
     const previewTitle = title ?? activeTab?.name ?? 'Untitled'
@@ -2677,8 +2682,21 @@ export const useAppStore = defineStore('app', () => {
     showPrintPreviewDialog.value = true
   }
 
+  function openPdfPrintPreview(filePath: string, numPages: number, title?: string) {
+    printPreviewSource.value = { kind: 'pdf', filePath, numPages }
+    printPreviewHtml.value = ''
+    const activeTab = tabs.value.find(tab => tab.id === activeTabId.value)
+    const previewTitle = title ?? activeTab?.name ?? 'Untitled'
+    printPreviewTitle.value = pathUtils.basename(previewTitle, pathUtils.extension(previewTitle))
+    printPreviewMode.value = 'print'
+    printPreviewDefaultSavePath.value = ''
+    printPreviewSkipSaveDialog.value = false
+    showPrintPreviewDialog.value = true
+  }
+
   function closePrintPreview() {
     showPrintPreviewDialog.value = false
+    printPreviewSource.value = null
     printPreviewHtml.value = ''
     printPreviewTitle.value = ''
     printPreviewMode.value = 'print'
@@ -3086,12 +3104,14 @@ export const useAppStore = defineStore('app', () => {
     openPreferences,
     closePreferences,
     showPrintPreviewDialog,
+    printPreviewSource,
     printPreviewHtml,
     printPreviewTitle,
     printPreviewMode,
     printPreviewDefaultSavePath,
     printPreviewSkipSaveDialog,
     openPrintPreview,
+    openPdfPrintPreview,
     closePrintPreview,
 
     // File operations

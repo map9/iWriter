@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcRendererEvent } from 'electron'
-import type { ElectronAPI, PdfSaveOptions } from '../src/types/electron-api'
+import type { ElectronAPI, HtmlPrintReadyOptions, PdfSaveOptions } from '../src/types/electron-api'
 import type { SendMessageRequest, CompactInputRequest, CompactInputResponse, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunContextCompressedEvent, RunModelFallbackEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
 import type { AiSettings } from '../src/types/ai'
 import type { ContextMenuItem } from '../src/types/menu'
@@ -162,7 +162,8 @@ const electronAPI: ElectronAPI = {
   // Print API
   getPrinters: () => ipcRenderer.invoke('get-printers'),
   print: (options: Electron.WebContentsPrintOptions = {}) => ipcRenderer.invoke('print', options),
-  printFromHtml: (htmlContent: string, printOptions?: Electron.WebContentsPrintOptions) => ipcRenderer.invoke('print-from-html', htmlContent, printOptions),
+  printFromHtml: (htmlContent: string, printOptions?: Electron.WebContentsPrintOptions, readyOptions?: HtmlPrintReadyOptions) => ipcRenderer.invoke('print-from-html', htmlContent, printOptions, readyOptions),
+  printPdfFile: (filePath: string, printOptions?: Electron.WebContentsPrintOptions) => ipcRenderer.invoke('print-pdf-file', filePath, printOptions),
   saveToPdf: (printOptions?: Electron.PrintToPDFOptions, saveOptions?: PdfSaveOptions) => ipcRenderer.invoke('save-to-pdf', printOptions, saveOptions),
   saveToPdfFromHtml: (htmlContent: string, printOptions?: Electron.PrintToPDFOptions, saveOptions?: PdfSaveOptions) => ipcRenderer.invoke('save-to-pdf-from-html', htmlContent, printOptions, saveOptions),
 

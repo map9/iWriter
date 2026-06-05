@@ -710,6 +710,9 @@ function handleMenuAction(action: string): boolean {
     case 'pdf-spread-even':          applySpreadMode(SpreadMode.EVEN); return true
     case 'pdf-rotate-left':          rotateLeft(); return true
     case 'pdf-rotate-right':         rotateRight(); return true
+    case 'print':
+      appStore.openPdfPrintPreview(props.tab.path ?? '', totalPages.value, props.tab.name)
+      return true
     default:                         return false
   }
 }

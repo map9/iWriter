@@ -1252,6 +1252,28 @@ export default {
         pdfSaved: 'PDF 已保存',
       },
     },
+    pdfPrintDialog: {
+      preview: {
+        noPages: '未选择任何页面',
+      },
+      printer: {
+        ready: '就绪/闲置',
+        printing: '打印中.../忙',
+        offline: '离线',
+        unknown: '未知',
+      },
+      duplex: {
+        label: '双面打印',
+        options: {
+          simplex: '单面',
+          longEdge: '双面（沿长边翻转）',
+          shortEdge: '双面（沿短边翻转）',
+        },
+      },
+      notifications: {
+        printFailed: '打印失败',
+      },
+    },
   },
   imageViewer: {
     toolbar: {

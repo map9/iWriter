@@ -5,6 +5,13 @@ export interface PdfSaveOptions {
   skipDialog?: boolean
 }
 
+export interface HtmlPrintReadyOptions {
+  strategy?: 'pagedjs' | 'selector' | 'dom-ready'
+  selector?: string
+  timeoutMs?: number
+  settleMs?: number
+}
+
 export interface ElectronAPI {
   platform: string
 
@@ -123,7 +130,8 @@ export interface ElectronAPI {
 
   // 打印 API
   print: (options?: Electron.WebContentsPrintOptions) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
-  printFromHtml: (htmlContent: string, printOptions?: Electron.WebContentsPrintOptions) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
+  printFromHtml: (htmlContent: string, printOptions?: Electron.WebContentsPrintOptions, readyOptions?: HtmlPrintReadyOptions) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
+  printPdfFile: (filePath: string, printOptions?: Electron.WebContentsPrintOptions) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
   getPrinters: () => Promise<Electron.PrinterInfo[]>
   saveToPdf: (printOptions?: Electron.PrintToPDFOptions, saveOptions?: PdfSaveOptions) => Promise<{ success: boolean; cancelled?: boolean; error?: string; filePath?: string }>
   saveToPdfFromHtml: (htmlContent: string, printOptions?: Electron.PrintToPDFOptions, saveOptions?: PdfSaveOptions) => Promise<{ success: boolean; cancelled?: boolean; error?: string; filePath?: string }>

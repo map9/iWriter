@@ -36,7 +36,7 @@
       <div class="flex w-80 shrink-0 flex-col border-l border-base-300">
         <!-- Header -->
         <div class="flex shrink-0 items-center justify-between border-b border-base-300 px-5 py-4">
-          <h2 class="text-base font-semibold">{{ dialogTitle }}</h2>
+          <h2 class="text-base font-semibold max-w-48 whitespace-nowrap overflow-hidden text-ellipsis">{{ dialogTitle }}</h2>
           <span class="text-sm text-base-content/50">{{ t('dialog.printDialog.sheets', { count: physicalSheets }) }}</span>
         </div>
 
@@ -47,14 +47,21 @@
             <!-- Printer -->
             <div v-if="isPrintMode" class="flex items-center justify-between px-5 py-3">
               <label class="shrink-0 text-sm">{{ t('dialog.printDialog.printer.label') }}</label>
-              <select v-model="selectedPrinter" class="iw-select ml-3 w-44 text-sm" :disabled="!hasPrinters">
-                <option v-if="!hasPrinters" :value="''" disabled>
-                  {{ t('dialog.printDialog.printer.noPrinter') }}
-                </option>
-                <option v-for="p in printers" :key="p.name" :value="p.name">
-                  {{ p.displayName || p.name }}
-                </option>
-              </select>
+              <div class="ml-3 flex w-44 flex-col gap-1">
+                <select v-model="selectedPrinter" class="iw-select w-full text-sm" :disabled="!hasPrinters">
+                  <option v-if="!hasPrinters" :value="''" disabled>
+                    {{ t('dialog.printDialog.printer.noPrinter') }}
+                  </option>
+                  <option v-for="p in printers" :key="p.name" :value="p.name">
+                    {{ p.displayName || p.name }}
+                  </option>
+                </select>
+                <!-- Printer status indicator -->
+                <div v-if="hasPrinters && !isPdfPrinter" class="flex items-center gap-1.5 text-xs text-base-content/50">
+                  <div class="h-2 w-2 rounded-full" :class="printerStatusDotClass" />
+                  <span>{{ printerStatusText }}</span>
+                </div>
+              </div>
             </div>
 
             <!-- Page range -->
@@ -227,6 +234,16 @@ import { buildPreviewDocumentWithOptions } from './buildPreviewDoc'
 import { buildPrintCss } from './buildPrintCss'
 import PrintSharedSettingsForm from './PrintSharedSettingsForm.vue'
 import {
+  STANDARD_PAPER_SIZES,
+  ELECTRON_PRINT_KEYWORDS,
+  getPaperDimensionsMm,
+  detectColorSupport,
+  getPrinterPaperSizes,
+  getPrinterState,
+  isPrinterConnectable,
+  parseCustomPageRangeInput,
+} from './paperSpecs'
+import {
   getAllMarkdownThemes,
   cloneHeaderFooterSetup,
   clonePageSetup,
@@ -244,53 +261,6 @@ import type { PageSetup, PrintRuntimeOverrides, ResolvedMarkdownPrintSettings } 
 // Special sentinel value for "Save as PDF" pseudo-printer
 const PDF_PRINTER = '__pdf__'
 
-type PaperSpec = {
-  value: string
-  label: string
-  widthMm: number
-  heightMm: number
-  cupsMediaIds?: string[]
-  electronPrintKeyword?: boolean
-  showInUi?: boolean
-}
-
-const PAPER_SPECS: PaperSpec[] = [
-  { value: 'A0', label: 'A0 (841 × 1189 mm)', widthMm: 841, heightMm: 1189, cupsMediaIds: ['iso_a0_841x1189mm'], electronPrintKeyword: true, showInUi: false },
-  { value: 'A1', label: 'A1 (594 × 841 mm)', widthMm: 594, heightMm: 841, cupsMediaIds: ['iso_a1_594x841mm'], electronPrintKeyword: true, showInUi: false },
-  { value: 'A2', label: 'A2 (420 × 594 mm)', widthMm: 420, heightMm: 594, cupsMediaIds: ['iso_a2_420x594mm'], electronPrintKeyword: true, showInUi: false },
-  { value: 'A3', label: 'A3 (297 × 420 mm)', widthMm: 297, heightMm: 420, cupsMediaIds: ['iso_a3_297x420mm'], electronPrintKeyword: true, showInUi: true },
-  { value: 'A4', label: 'A4 (210 × 297 mm)', widthMm: 210, heightMm: 297, cupsMediaIds: ['iso_a4_210x297mm'], electronPrintKeyword: true, showInUi: true },
-  { value: 'A5', label: 'A5 (148 × 210 mm)', widthMm: 148, heightMm: 210, cupsMediaIds: ['iso_a5_148x210mm'], electronPrintKeyword: true, showInUi: true },
-  { value: 'A6', label: 'A6 (105 × 148 mm)', widthMm: 105, heightMm: 148, cupsMediaIds: ['iso_a6_105x148mm'], electronPrintKeyword: true, showInUi: true },
-  { value: 'A7', label: 'A7 (74 × 105 mm)', widthMm: 74, heightMm: 105, cupsMediaIds: ['iso_a7_74x105mm'], showInUi: true },
-  { value: 'A10', label: 'A10 (26 × 37 mm)', widthMm: 26, heightMm: 37, cupsMediaIds: ['iso_a10_26x37mm'], showInUi: true },
-  { value: 'B4', label: 'B4 (250 × 353 mm)', widthMm: 250, heightMm: 353, cupsMediaIds: ['iso_b4_250x353mm'], showInUi: true },
-  { value: 'B5', label: 'B5 (176 × 250 mm)', widthMm: 176, heightMm: 250, cupsMediaIds: ['iso_b5_176x250mm'], showInUi: true },
-  { value: 'Letter', label: 'Letter (8.5 × 11 in)', widthMm: 215.9, heightMm: 279.4, cupsMediaIds: ['na_letter_8.5x11in'], electronPrintKeyword: true, showInUi: true },
-  { value: 'Legal', label: 'Legal (8.5 × 14 in)', widthMm: 215.9, heightMm: 355.6, cupsMediaIds: ['na_legal_8.5x14in'], electronPrintKeyword: true, showInUi: true },
-  { value: 'Ledger', label: 'Ledger (11 × 17 in)', widthMm: 279.4, heightMm: 431.8, cupsMediaIds: ['na_ledger_11x17in'], showInUi: true },
-]
-
-const STANDARD_PAPER_SIZES = PAPER_SPECS
-  .filter(spec => spec.showInUi !== false)
-  .map(spec => ({ value: spec.value, label: spec.label }))
-
-const CUPS_MEDIA_MAP: Record<string, string> = Object.fromEntries(
-  PAPER_SPECS.flatMap(spec => (spec.cupsMediaIds ?? []).map(mediaId => [mediaId, spec.value])),
-)
-
-const PAPER_DIMS_MM: Record<string, { widthMm: number; heightMm: number }> = Object.fromEntries(
-  PAPER_SPECS.map(spec => [spec.value, { widthMm: spec.widthMm, heightMm: spec.heightMm }]),
-)
-
-const ELECTRON_PRINT_KEYWORDS = new Set(
-  PAPER_SPECS.filter(spec => spec.electronPrintKeyword).map(spec => spec.value),
-)
-
-function getPaperDimensionsMm(size: string): { widthMm: number; heightMm: number } {
-  return PAPER_DIMS_MM[size] ?? PAPER_DIMS_MM.A4 ?? { widthMm: 210, heightMm: 297 }
-}
-
 function getPagesPerSheetNumber(): number {
   return parseInt(pagesPerSheet.value, 10) || 1
 }
@@ -300,34 +270,6 @@ function getEffectiveSheetOrientation(): 'portrait' | 'landscape' {
   if (getPagesPerSheetNumber() <= 1) return orientation
   return orientation === 'portrait' ? 'landscape' : 'portrait'
 }
-
-function parseCustomPageRangeInput(input: string, pageCount: number): number[] {
-  if (pageCount <= 0) return []
-
-  const pages = new Set<number>()
-  for (const part of input.split(',')) {
-    const token = part.trim()
-    if (!token) continue
-    if (token.includes('-')) {
-      const segs = token.split('-')
-      const a = parseInt(segs[0]?.trim() ?? '')
-      const b = parseInt(segs[1]?.trim() ?? '')
-      if (!Number.isFinite(a) || !Number.isFinite(b)) continue
-      const start = Math.max(Math.min(a, b), 1)
-      const end = Math.min(Math.max(a, b), pageCount)
-      for (let page = start; page <= end; page += 1) pages.add(page)
-      continue
-    }
-
-    const page = parseInt(token)
-    if (Number.isFinite(page) && page >= 1 && page <= pageCount) {
-      pages.add(page)
-    }
-  }
-
-  return Array.from(pages).sort((a, b) => a - b)
-}
-
 
 const props = defineProps<{
   visible: boolean
@@ -428,6 +370,29 @@ const printerColorSupported = computed(() => {
   return detectColorSupport(selectedPrinterInfo.value)
 })
 
+// Printer status indicator
+const printerState = computed(() =>
+  isPdfPrinter.value ? 'unknown' : getPrinterState(selectedPrinterInfo.value)
+)
+
+const printerStatusDotClass = computed(() => {
+  switch (printerState.value) {
+    case 'ready':    return 'bg-success'
+    case 'printing': return 'bg-success'
+    case 'offline':  return 'bg-error'
+    default:         return 'bg-base-content/20'
+  }
+})
+
+const printerStatusText = computed(() => {
+  switch (printerState.value) {
+    case 'ready':    return t('dialog.pdfPrintDialog.printer.ready')
+    case 'printing': return t('dialog.pdfPrintDialog.printer.printing')
+    case 'offline':  return t('dialog.pdfPrintDialog.printer.offline')
+    default:         return t('dialog.pdfPrintDialog.printer.unknown')
+  }
+})
+
 // Whether the effective output (PDF or selected printer) honors a color choice.
 // PDF always renders in color; physical printers depend on capability.
 const effectiveColorSupported = computed(() => isPdfPrinter.value || printerColorSupported.value)
@@ -523,43 +488,6 @@ const previewFrameStyle = computed(() => ({
   transform: previewPanelHeight.value > 0 ? `translateX(-50%) scale(${previewScale.value})` : 'none',
 }))
 
-// ── Printer capability helpers ─────────────────────────────────────────────────
-
-function detectColorSupport(info: Electron.PrinterInfo | null): boolean {
-  if (!info) return true
-  const opts = (info.options ?? {}) as Record<string, string>
-  // CUPS printer-type bitmask: bit 3 (0x8) = color capability
-  const pt = opts['printer-type']
-  if (pt) {
-    const n = parseInt(pt, pt.toLowerCase().startsWith('0x') ? 16 : 10)
-    if (!isNaN(n)) return (n & 0x8) !== 0
-  }
-  // Explicit CUPS attribute
-  const cs = opts['color-supported']
-  if (cs !== undefined) return cs !== 'false' && cs !== '0'
-  return true
-}
-
-function getPrinterPaperSizes(info: Electron.PrinterInfo | null): typeof STANDARD_PAPER_SIZES {
-  if (!info) return STANDARD_PAPER_SIZES
-  const opts = (info.options ?? {}) as Record<string, string>
-  const mediaStr = opts['media-supported']
-  if (!mediaStr) return STANDARD_PAPER_SIZES
-
-  const seen = new Set<string>()
-  const result: typeof STANDARD_PAPER_SIZES = []
-
-  for (const id of mediaStr.split(/\s+/)) {
-    const val = CUPS_MEDIA_MAP[id.trim()]
-    if (!val || seen.has(val)) continue
-    seen.add(val)
-    const entry = STANDARD_PAPER_SIZES.find(s => s.value === val)
-    if (entry) result.push(entry)
-  }
-
-  return result.length > 0 ? result : STANDARD_PAPER_SIZES
-}
-
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 async function refreshPrinters() {
@@ -568,12 +496,17 @@ async function refreshPrinters() {
     printers.value = list
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const def = list.find((p: any) => p.isDefault)
-    selectedPrinter.value = def?.name ?? list[0]?.name ?? ''
+    const firstConnectable = list.find(isPrinterConnectable)
+    if (!selectedPrinter.value || !list.find(p => p.name === selectedPrinter.value)) {
+      selectedPrinter.value = def?.name ?? firstConnectable?.name ?? list[0]?.name ?? ''
+    }
   } catch {
     printers.value = []
     selectedPrinter.value = ''
   }
 }
+
+let printerRefreshInterval: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
   window.addEventListener('message', handleFrameMessage)
@@ -585,6 +518,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', handlePreviewViewportResize)
   previewScroll.value?.removeEventListener('wheel', handlePreviewWheel)
   if (previewRenderTimer) clearTimeout(previewRenderTimer)
+  if (printerRefreshInterval) clearInterval(printerRefreshInterval)
   if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl)
   lastPreviewHtml = ''
 })
@@ -602,12 +536,17 @@ watch(
         selectedPrinter.value = PDF_PRINTER
       } else {
         await refreshPrinters()
+        printerRefreshInterval = setInterval(refreshPrinters, 8000)
       }
       await nextTick()
       previewScroll.value?.addEventListener('wheel', handlePreviewWheel, { passive: false })
       if (props.html) renderPreview()
     } else {
       previewScroll.value?.removeEventListener('wheel', handlePreviewWheel)
+      if (printerRefreshInterval) {
+        clearInterval(printerRefreshInterval)
+        printerRefreshInterval = null
+      }
     }
   }
 )

@@ -6,7 +6,7 @@ import { merge } from 'lodash'
 
 import Timer from '../src/utils/Timer'
 import type { WindowContentState } from '../src/types/window-content-state'
-import type { PdfSaveOptions } from '../src/types/electron-api'
+import type { HtmlPrintReadyOptions, PdfSaveOptions } from '../src/types/electron-api'
 
 import { isDev } from './utils'
 import type { WindowState, IApp } from './types'
@@ -346,10 +346,35 @@ export class WindowManager {
       }
     })
 
-    ipcMain.handle('print-from-html', async (event, htmlContent: string, printOptions: WebContentsPrintOptions = {}) => {
+    ipcMain.handle('print-from-html', async (
+      event,
+      htmlContent: string,
+      printOptions: WebContentsPrintOptions = {},
+      readyOptions: HtmlPrintReadyOptions = {},
+    ) => {
       if (!BrowserWindow.fromWebContents(event.sender)) return { success: false, error: 'Window not found' }
       try {
         return await this.renderInHiddenHtmlWindow(htmlContent, (hidden) =>
+          new Promise((resolve) => {
+            hidden.webContents.print(printOptions, (success: boolean, errorType?: string) => {
+              resolve({
+                success,
+                error: errorType || (success ? null : 'Unknown print error'),
+                cancelled: this.isPrintCancelled(errorType),
+              })
+            })
+          }),
+          readyOptions,
+        )
+      } catch (err: unknown) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    })
+
+    ipcMain.handle('print-pdf-file', async (event, filePath: string, printOptions: WebContentsPrintOptions = {}) => {
+      if (!BrowserWindow.fromWebContents(event.sender)) return { success: false, error: 'Window not found' }
+      try {
+        return await this.renderInHiddenPdfWindow(filePath, (hidden) =>
           new Promise((resolve) => {
             hidden.webContents.print(printOptions, (success: boolean, errorType?: string) => {
               resolve({
@@ -462,9 +487,46 @@ export class WindowManager {
     return t.includes('cancel') || t.includes('user abort') || t.includes('abort')
   }
 
+  private async waitForHiddenHtmlReady(
+    hidden: BrowserWindow,
+    readyOptions: HtmlPrintReadyOptions = {},
+  ): Promise<void> {
+    const strategy = readyOptions.strategy ?? 'pagedjs'
+    const settleMs = readyOptions.settleMs ?? 600
+
+    if (strategy === 'dom-ready') {
+      await new Promise<void>(resolve => setTimeout(resolve, settleMs))
+      return
+    }
+
+    const selector = strategy === 'selector'
+      ? readyOptions.selector ?? '[data-iw-print-ready="true"]'
+      : readyOptions.selector ?? '.pagedjs_page, .pps_pages_sheet'
+    const timeoutMs = readyOptions.timeoutMs ?? 30000
+
+    await new Promise<void>((resolve, reject) => {
+      const deadline = Date.now() + timeoutMs
+      const poll = async () => {
+        if (Date.now() > deadline) {
+          reject(new Error(`html print rendering timeout: ${selector}`))
+          return
+        }
+        try {
+          const ready = await hidden.webContents.executeJavaScript(
+            `document.querySelector(${JSON.stringify(selector)}) !== null`
+          )
+          if (ready) { setTimeout(resolve, settleMs); return }
+        } catch { /* executeJavaScript may fail briefly after load */ }
+        setTimeout(poll, 300)
+      }
+      setTimeout(poll, 800)
+    })
+  }
+
   private async renderInHiddenHtmlWindow<T>(
     htmlContent: string,
-    action: (hidden: BrowserWindow) => Promise<T>
+    action: (hidden: BrowserWindow) => Promise<T>,
+    readyOptions: HtmlPrintReadyOptions = {},
   ): Promise<T> {
     const tmpFile = path.join(app.getPath('temp'), `iwriter-print-${Date.now()}.html`)
     await fs.promises.writeFile(tmpFile, htmlContent, 'utf-8')
@@ -476,25 +538,43 @@ export class WindowManager {
     })
     try {
       await hidden.loadFile(tmpFile)
-      // loadFile() resolves after did-finish-load; poll until paged.js renders its first page element
-      await new Promise<void>((resolve, reject) => {
-        const deadline = Date.now() + 30000
-        const poll = async () => {
-          if (Date.now() > deadline) { reject(new Error('pagedjs rendering timeout')); return }
-          try {
-            const ready = await hidden.webContents.executeJavaScript(
-              'document.querySelector(".pagedjs_page, .pps_pages_sheet") !== null'
-            )
-            if (ready) { setTimeout(resolve, 600); return }
-          } catch { /* executeJavaScript may fail briefly after load */ }
-          setTimeout(poll, 300)
-        }
-        setTimeout(poll, 800)
-      })
+      // loadFile() resolves after did-finish-load; callers choose how the HTML declares readiness.
+      await this.waitForHiddenHtmlReady(hidden, readyOptions)
       return await action(hidden)
     } finally {
       hidden.close()
       fs.promises.unlink(tmpFile).catch(() => {})
+    }
+  }
+
+  /**
+   * Load a native PDF file into an off-screen BrowserWindow (Chromium PDF viewer)
+   * and run an action against it.  We wait for did-finish-load + a settle delay
+   * because the Chromium PDF plugin renders asynchronously after navigation ends.
+   */
+  private async renderInHiddenPdfWindow<T>(
+    filePath: string,
+    action: (hidden: BrowserWindow) => Promise<T>
+  ): Promise<T> {
+    const hidden = new BrowserWindow({
+      show: false,
+      width: 1200,
+      height: 900,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        plugins: true,       // required for the built-in PDF viewer
+      },
+    })
+    try {
+      // loadURL resolves after did-finish-load
+      await hidden.loadURL(`file://${filePath}`)
+      // The PDF plugin renders asynchronously after navigation; give it time to settle.
+      // 1 500 ms works well in practice; increase if printers report blank pages.
+      await new Promise<void>(resolve => setTimeout(resolve, 1500))
+      return await action(hidden)
+    } finally {
+      hidden.close()
     }
   }
 

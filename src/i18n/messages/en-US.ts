@@ -1263,6 +1263,28 @@ export default {
         pdfSaved: 'PDF saved',
       },
     },
+    pdfPrintDialog: {
+      preview: {
+        noPages: 'No pages selected',
+      },
+      printer: {
+        ready: 'Idle / Ready',
+        printing: 'Printing...',
+        offline: 'Offline',
+        unknown: 'Unknown',
+      },
+      duplex: {
+        label: 'Two-sided',
+        options: {
+          simplex: 'One-sided',
+          longEdge: 'Two-sided (long edge)',
+          shortEdge: 'Two-sided (short edge)',
+        },
+      },
+      notifications: {
+        printFailed: 'Print failed',
+      },
+    },
   },
   imageViewer: {
     toolbar: {
