@@ -1127,14 +1127,6 @@ export default {
       notFound: '主题 {themeId} 不存在',
       settingsError: '主题设置错误',
     },
-    print: {
-      noDocument: '没有可打印的文档',
-      success: '{name} 打印成功',
-      context: '打印操作',
-      failed: '打印失败',
-      error: '打印错误',
-      unknownError: '未知错误',
-    },
     update: {
       saveSettingsFailed: '保存更新设置失败',
       checkFailed: '检查更新失败',

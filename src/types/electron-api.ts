@@ -129,11 +129,9 @@ export interface ElectronAPI {
   removeUpdaterListeners: () => void,
 
   // 打印 API
-  print: (options?: Electron.WebContentsPrintOptions) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
   printFromHtml: (htmlContent: string, printOptions?: Electron.WebContentsPrintOptions, readyOptions?: HtmlPrintReadyOptions) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
   printPdfFile: (filePath: string, printOptions?: Electron.WebContentsPrintOptions) => Promise<{ success: boolean; error?: string; cancelled?: boolean }>
   getPrinters: () => Promise<Electron.PrinterInfo[]>
-  saveToPdf: (printOptions?: Electron.PrintToPDFOptions, saveOptions?: PdfSaveOptions) => Promise<{ success: boolean; cancelled?: boolean; error?: string; filePath?: string }>
   saveToPdfFromHtml: (htmlContent: string, printOptions?: Electron.PrintToPDFOptions, saveOptions?: PdfSaveOptions) => Promise<{ success: boolean; cancelled?: boolean; error?: string; filePath?: string }>
 
   // ── AI Agent (main-process deepagents) ──────────────────────────────────────

@@ -309,33 +309,6 @@ export class WindowManager {
       return normalizedLocale
     })
 
-    // Print IPC handler
-    ipcMain.handle('print', async (event, options: WebContentsPrintOptions = {}) => {
-      const window = BrowserWindow.fromWebContents(event.sender);
-      if (!window) {
-        return { success: false, error: 'Window not found' };
-      }
-
-      return new Promise((resolve) => {
-        const printOptions: WebContentsPrintOptions = {
-          silent: false, // Show system print dialog
-          printBackground: true,
-          color: true,
-          pageSize: 'A4',
-          margins: { marginType: 'default' as const },
-          ...options // Allow custom options to override defaults
-        };
-
-        window.webContents.print(printOptions, (success: boolean, errorType?: string) => {
-          resolve({
-            success,
-            error: errorType || (success ? null : 'Unknown print error'),
-            cancelled: this.isPrintCancelled(errorType),
-          });
-        });
-      });
-    })
-
     ipcMain.handle('get-printers', async (event) => {
       const window = BrowserWindow.fromWebContents(event.sender)
       if (!window) return []
@@ -423,30 +396,6 @@ export class WindowManager {
           await fs.promises.writeFile(filePath, Buffer.from(buffer))
           return { success: true, filePath }
         })
-      } catch (err: unknown) {
-        return { success: false, error: err instanceof Error ? err.message : String(err) }
-      }
-    })
-
-    // Save current window content as PDF via native save dialog
-    ipcMain.handle('save-to-pdf', async (event, printOptions: PrintToPDFOptions = {}, saveOptions: PdfSaveOptions = {}) => {
-      const window = BrowserWindow.fromWebContents(event.sender)
-      if (!window) return { success: false, error: 'Window not found' }
-
-      const saveResult = await dialog.showSaveDialog(window, {
-        title: '保存为 PDF',
-        defaultPath: saveOptions.defaultName ?? 'document.pdf',
-        filters: [{ name: 'PDF 文件', extensions: ['pdf'] }],
-      })
-
-      if (saveResult.canceled || !saveResult.filePath) {
-        return { success: false, cancelled: true }
-      }
-
-      try {
-        const pdfBuffer = await window.webContents.printToPDF(printOptions)
-        await fs.promises.writeFile(saveResult.filePath, pdfBuffer)
-        return { success: true, filePath: saveResult.filePath }
       } catch (err: unknown) {
         return { success: false, error: err instanceof Error ? err.message : String(err) }
       }

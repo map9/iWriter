@@ -1136,14 +1136,6 @@ export default {
       notFound: 'Theme {themeId} does not exist',
       settingsError: 'Theme Error',
     },
-    print: {
-      noDocument: 'No document to print',
-      success: '{name} printed successfully',
-      context: 'Print',
-      failed: 'Print failed',
-      error: 'Print error',
-      unknownError: 'Unknown error',
-    },
     update: {
       saveSettingsFailed: 'Failed to save update settings',
       checkFailed: 'Update check failed',

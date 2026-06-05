@@ -1,33 +1,9 @@
 /**
- * imageAdapter.ts
- *
- * Builds the HTML body and print CSS for image printing through the HTML engine.
- * The resulting html + css pair is passed to buildPreviewDocumentWithOptions(),
- * which injects pagedjs and renders a single-page preview identical to
- * what is sent to the printer / PDF exporter.
+ * imageAdapter.ts — CSS builder for image printing through the HTML engine.
+ * The resulting CSS is combined with a simple <img> HTML body by the caller,
+ * then passed to buildPreviewDocumentWithOptions() which injects pagedjs.
  */
 import type { ImagePrintSettings } from '@/types/image-print'
-
-// ---------------------------------------------------------------------------
-// HTML body
-// ---------------------------------------------------------------------------
-
-/**
- * Returns a minimal HTML body fragment containing the image.
- * The actual layout (fit / rotation) is controlled by the CSS returned from
- * buildImagePrintCss(), so the HTML itself never needs to change when settings
- * change – only the CSS is rebuilt on each preview update.
- */
-export function buildImagePrintHtml(filePath: string): string {
-  // Normalise Windows back-slashes and ensure the path starts with exactly one slash.
-  const normalised = filePath.replace(/\\/g, '/').replace(/^([A-Za-z]:)/, (_, d) => `/${d}`)
-  const src = `file://${normalised}`
-  return `<div class="iw-image-page"><img class="iw-print-image" src="${src}" /></div>`
-}
-
-// ---------------------------------------------------------------------------
-// Print CSS
-// ---------------------------------------------------------------------------
 
 type MarginValue = 'default' | 'none' | 'minimum'
 

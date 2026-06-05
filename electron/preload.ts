@@ -161,10 +161,8 @@ const electronAPI: ElectronAPI = {
 
   // Print API
   getPrinters: () => ipcRenderer.invoke('get-printers'),
-  print: (options: Electron.WebContentsPrintOptions = {}) => ipcRenderer.invoke('print', options),
   printFromHtml: (htmlContent: string, printOptions?: Electron.WebContentsPrintOptions, readyOptions?: HtmlPrintReadyOptions) => ipcRenderer.invoke('print-from-html', htmlContent, printOptions, readyOptions),
   printPdfFile: (filePath: string, printOptions?: Electron.WebContentsPrintOptions) => ipcRenderer.invoke('print-pdf-file', filePath, printOptions),
-  saveToPdf: (printOptions?: Electron.PrintToPDFOptions, saveOptions?: PdfSaveOptions) => ipcRenderer.invoke('save-to-pdf', printOptions, saveOptions),
   saveToPdfFromHtml: (htmlContent: string, printOptions?: Electron.PrintToPDFOptions, saveOptions?: PdfSaveOptions) => ipcRenderer.invoke('save-to-pdf-from-html', htmlContent, printOptions, saveOptions),
 
   // ── Custom Markdown Themes ────────────────────────────────────────────────

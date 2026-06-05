@@ -2726,68 +2726,6 @@ export const useAppStore = defineStore('app', () => {
     printPreviewImageRotation.value = 0
   }
 
-  // Handle print functionality
-  async function handlePrint() {
-    const activeTab = tabs.value.find(tab => tab.id === activeTabId.value)
-    if (!activeTab) {
-      notify.warning(t('notify.print.noDocument'))
-      return
-    }
-
-    try {
-      // Prepare print options based on document type
-      const printOptions = preparePrintOptions(activeTab)
-      
-      // Call Electron's native print function
-      const result = await window.electronAPI.print(printOptions)
-      
-      if (result.success) {
-        notify.success(t('notify.print.success', { name: activeTab.name }), t('notify.print.context'))
-      } else if (result.cancelled) {
-        console.info('Print operation cancelled by user')
-      } else {
-        notify.error(result.error || t('notify.print.unknownError'), t('notify.print.failed'))
-      }
-      
-    } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.print.error'))
-    }
-  }
-
-  // Prepare print options based on document type
-  function preparePrintOptions(tab: FileTab) {
-    const printOptions: Electron.WebContentsPrintOptions = {
-      printBackground: true,
-      color: true,
-      pageSize: 'A4',
-      margins: { marginType: 'default' }
-    }
-
-    // Customize options based on document type
-    switch (tab.documentType) {
-      case DocumentType.MARKDOWN_EDITOR:
-        // Markdown/Text documents - ensure proper styling
-        printOptions.printBackground = true
-        printOptions.scaleFactor = 1.0
-        break
-      case DocumentType.IMAGE_VIEWER:
-        // Image documents - fit to page
-        printOptions.scaleFactor = 1.0
-        printOptions.landscape = false
-        break
-      case DocumentType.PDF_VIEWER:
-        // PDF documents - maintain original formatting
-        printOptions.printBackground = false
-        printOptions.scaleFactor = 1.0
-        break
-      default:
-        // Default settings for other document types
-        break
-    }
-
-    return printOptions
-  }
-
   // Handle menu actions for the application
   // There are Paragraph / Format Menu Actions handled in MarkdownEditor.vue
   async function handleMenuAction(action: string): Promise<boolean> {
@@ -2819,9 +2757,6 @@ export const useAppStore = defineStore('app', () => {
         return true
       case 'save-all':
         await saveAllTabs()
-        return true
-      case 'print':
-        await handlePrint()
         return true
       case 'export-pdf':
         if (activeTab.value?.documentType === DocumentType.MARKDOWN_EDITOR && activeTab.value.editorInstance) {
