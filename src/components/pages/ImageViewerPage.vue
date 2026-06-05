@@ -122,6 +122,7 @@
 import { ref, toRef, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { FileTab } from '@/types'
+import { useAppStore } from '@/stores/app'
 import { 
   IconZoomIn, 
   IconZoomOut, 
@@ -138,6 +139,7 @@ interface Props {
 
 const props = defineProps<Props>()
 const { t } = useI18n()
+const appStore = useAppStore()
 
 // State
 const imageElement = ref<HTMLImageElement>()
@@ -344,6 +346,22 @@ function handleMenuAction(action: string): boolean {
       return true
     case 'rotate-right':
       rotateRight()
+      return true
+    case 'print':
+      if (props.tab.path) {
+        appStore.openImagePrintPreview(props.tab.path, rotation.value, props.tab.name, { mode: 'print' })
+      }
+      return true
+    case 'export-pdf':
+      if (props.tab.path) {
+        const baseName = props.tab.name.replace(/\.[^.]+$/, '')
+        appStore.openImagePrintPreview(
+          props.tab.path,
+          rotation.value,
+          props.tab.name,
+          { mode: 'export', defaultSavePath: `${baseName}.pdf` },
+        )
+      }
       return true
     default:
       return false

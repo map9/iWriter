@@ -85,6 +85,7 @@ export class MenuManager {
     const hasActiveDocument = wState?.wContentState?.hasActiveDocument
 
     const isMarkdown = type === DocumentType.MARKDOWN_EDITOR
+    const isImage    = type === DocumentType.IMAGE_VIEWER
     const isPdf = type === DocumentType.PDF_VIEWER
     const pdfState = wState?.wContentState?.pdf
 
@@ -242,11 +243,11 @@ export class MenuManager {
           {
             id: 'export',
             label: t('menu.file.export', 'Export'),
-            enabled: isMarkdown,
+            enabled: isMarkdown || isImage,
             submenu: [
               {
                 label: t('menu.file.exportPdf', 'PDF...'),
-                enabled: isMarkdown,
+                enabled: isMarkdown || isImage,
                 click: () => {
                   this.sendMenuAction('export-pdf')
                 }

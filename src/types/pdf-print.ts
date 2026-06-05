@@ -1,16 +1,7 @@
 // PDF print settings – used by PdfPrintDialog / PdfPrintSettingsForm
+import type { BasePrintSettings } from './print-settings'
 
-export interface PdfPrintSettings {
-  /** Printer device name, or empty string for the default printer */
-  printer: string
-  pageRange: 'all' | 'odd' | 'even' | 'custom'
-  customPageRange: string
-  copies: number
-  pagesPerSheet: number
-  dpi: number
-  scaleMode: 'default' | 'custom'
-  customScale: number
-  color: 'color' | 'grayscale'
+export interface PdfPrintSettings extends BasePrintSettings {
   paperSize: string
   orientation: 'portrait' | 'landscape'
   margins: 'default' | 'none' | 'minimum'

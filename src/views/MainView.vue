@@ -116,7 +116,7 @@
     @close="appStore.closePreferences()"
   />
 
-  <!-- Print Preview: Markdown HTML (mode print or export) -->
+  <!-- Print Preview: HTML engine (markdown or image — mode print or export) -->
   <PrintDialog
     v-if="appStore.printPreviewSource?.kind !== 'pdf'"
     :visible="appStore.showPrintPreviewDialog"
@@ -125,6 +125,7 @@
     :mode="appStore.printPreviewMode"
     :default-save-path="appStore.printPreviewDefaultSavePath"
     :skip-save-dialog="appStore.printPreviewSkipSaveDialog"
+    :profile="appStore.printPreviewProfile"
     @close="appStore.closePrintPreview()"
   />
 

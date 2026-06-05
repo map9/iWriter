@@ -1274,6 +1274,16 @@ export default {
         printFailed: '打印失败',
       },
     },
+    imagePrintDialog: {
+      fit: {
+        label: '适应页面',
+        options: {
+          contain: '适应（留白）',
+          cover: '填充（裁剪）',
+          actual: '原始尺寸',
+        },
+      },
+    },
   },
   imageViewer: {
     toolbar: {

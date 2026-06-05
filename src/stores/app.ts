@@ -80,6 +80,10 @@ export const useAppStore = defineStore('app', () => {
     | { kind: 'html' }
     | { kind: 'pdf'; filePath: string; numPages: number }
   const printPreviewSource = ref<PrintSource | null>(null)
+  /** Active print profile: 'markdown' for HTML content, 'image' for image files */
+  const printPreviewProfile = ref<'markdown' | 'image'>('markdown')
+  /** Initial rotation (degrees) passed from ImageViewerPage for image printing */
+  const printPreviewImageRotation = ref(0)
   const leftSidebarMode = ref<SidebarMode>(SidebarMode.START)
   const searchFolderPath = ref<string | null>(null)
   const searchIncludePattern = ref('')
@@ -2669,9 +2673,13 @@ export const useAppStore = defineStore('app', () => {
   function openPrintPreview(
     html: string,
     title?: string,
-    options?: { mode?: 'print' | 'export'; defaultSavePath?: string; skipSaveDialog?: boolean }
+    options?: { mode?: 'print' | 'export'; defaultSavePath?: string; skipSaveDialog?: boolean },
+    profile: 'markdown' | 'image' = 'markdown',
+    imageRotation = 0,
   ) {
     printPreviewSource.value = { kind: 'html' }
+    printPreviewProfile.value = profile
+    printPreviewImageRotation.value = imageRotation
     printPreviewHtml.value = html
     const activeTab = tabs.value.find(tab => tab.id === activeTabId.value)
     const previewTitle = title ?? activeTab?.name ?? 'Untitled'
@@ -2694,6 +2702,18 @@ export const useAppStore = defineStore('app', () => {
     showPrintPreviewDialog.value = true
   }
 
+  function openImagePrintPreview(
+    filePath: string,
+    rotation: number,
+    title?: string,
+    options?: { mode?: 'print' | 'export'; defaultSavePath?: string; skipSaveDialog?: boolean },
+  ) {
+    // Produce a minimal HTML body; CSS is built per-render in PrintDialog via buildImagePrintCss.
+    const normalised = filePath.replace(/\\/g, '/').replace(/^([A-Za-z]:)/, (_, d: string) => `/${d}`)
+    const imgHtml = `<div class="iw-image-page"><img class="iw-print-image" src="file://${normalised}" /></div>`
+    openPrintPreview(imgHtml, title, options, 'image', rotation)
+  }
+
   function closePrintPreview() {
     showPrintPreviewDialog.value = false
     printPreviewSource.value = null
@@ -2702,6 +2722,8 @@ export const useAppStore = defineStore('app', () => {
     printPreviewMode.value = 'print'
     printPreviewDefaultSavePath.value = ''
     printPreviewSkipSaveDialog.value = false
+    printPreviewProfile.value = 'markdown'
+    printPreviewImageRotation.value = 0
   }
 
   // Handle print functionality
@@ -3112,7 +3134,10 @@ export const useAppStore = defineStore('app', () => {
     printPreviewSkipSaveDialog,
     openPrintPreview,
     openPdfPrintPreview,
+    openImagePrintPreview,
     closePrintPreview,
+    printPreviewProfile,
+    printPreviewImageRotation,
 
     // File operations
     openFile,

@@ -1285,6 +1285,16 @@ export default {
         printFailed: 'Print failed',
       },
     },
+    imagePrintDialog: {
+      fit: {
+        label: 'Fit to page',
+        options: {
+          contain: 'Fit (letterbox)',
+          cover: 'Fill (crop)',
+          actual: 'Actual size',
+        },
+      },
+    },
   },
   imageViewer: {
     toolbar: {
