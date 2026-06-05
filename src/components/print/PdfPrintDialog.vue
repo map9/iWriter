@@ -210,11 +210,18 @@ async function handlePrint() {
 }
 
 async function handleSystemPrint() {
-  isPrinting.value = true
+  // Capture before closing — props become stale once the dialog unmounts.
+  const options  = buildNativePrintOptions(false)
+  const filePath = props.filePath
+  // Close the print dialog so the OS system print dialog has the user's full attention.
+  emit('close')
   try {
-    await doPrint(false)  // always native path for system dialog
-  } finally {
-    isPrinting.value = false
+    const result = await window.electronAPI.printPdfFile(filePath, options)
+    if (!result.success && !result.cancelled) {
+      notify.error(result.error ?? t('dialog.pdfPrintDialog.notifications.printFailed'))
+    }
+  } catch (err: unknown) {
+    notify.error(err instanceof Error ? err.message : t('dialog.pdfPrintDialog.notifications.printFailed'))
   }
 }
 </script>

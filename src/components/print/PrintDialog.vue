@@ -572,10 +572,9 @@ function buildElectronPrintPageSize(): Electron.WebContentsPrintOptions['pageSiz
 }
 
 // ── Action handlers ───────────────────────────────────────────────────────────
-async function doPrint(silent: boolean) {
-  const htmlDoc = currentDocumentHtml.value || buildPreviewHtml()
-  const base    = activeBaseSettings()
-  const options: Electron.WebContentsPrintOptions = {
+function buildPrintOptions(silent: boolean): Electron.WebContentsPrintOptions {
+  const base = activeBaseSettings()
+  return {
     silent,
     printBackground: activeProfile.value === 'image' ? true : dialogPrintSettings.pageSetup.background,
     color:           effectiveColorMode.value === 'color',
@@ -586,6 +585,11 @@ async function doPrint(silent: boolean) {
     margins:         { marginType: 'none' },
     dpi:             { horizontal: base.dpi, vertical: base.dpi },
   }
+}
+
+async function doPrint(silent: boolean) {
+  const htmlDoc = currentDocumentHtml.value || buildPreviewHtml()
+  const options = buildPrintOptions(silent)
   let result: { success: boolean; error?: string; cancelled?: boolean }
   try {
     result = await window.electronAPI.printFromHtml(htmlDoc, options)
@@ -647,13 +651,19 @@ async function handlePrint() {
 }
 
 async function handleSystemPrint() {
-  isPrinting.value = true
+  // Capture document and options now — both go stale once the dialog closes
+  // (currentDocumentHtml is reset by the visible watcher; props.html is cleared by the store).
+  const htmlDoc  = currentDocumentHtml.value || buildPreviewHtml()
+  const options  = buildPrintOptions(false)
+  // Close the print dialog so the OS system print dialog has the user's full attention.
+  emit('close')
   try {
-    await doPrint(false)
+    const result = await window.electronAPI.printFromHtml(htmlDoc, options)
+    if (!result.success && !result.cancelled) {
+      notify.error(result.error ?? t('dialog.printDialog.notifications.printFailed'))
+    }
   } catch (err: unknown) {
     notify.error(err instanceof Error ? err.message : t('dialog.printDialog.notifications.printFailed'))
-  } finally {
-    isPrinting.value = false
   }
 }
 
