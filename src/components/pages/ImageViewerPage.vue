@@ -70,6 +70,7 @@
       @wheel="handleWheel"
       @mousedown="startDrag"
       @keydown="handleKeydown"
+      @contextmenu.prevent.stop="handleContextMenu"
     >
       <div
         class="flex min-h-full min-w-full"
@@ -121,7 +122,7 @@
 <script setup lang="ts">
 import { ref, toRef, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { FileTab } from '@/types'
+import type { ContextMenuItem, FileTab } from '@/types'
 import { useAppStore } from '@/stores/app'
 import { 
   IconZoomIn, 
@@ -229,6 +230,28 @@ const imageViewportClass = computed(() => ({
 }))
 
 // Methods
+async function handleContextMenu(event: MouseEvent) {
+  if (!window.electronAPI?.showContextMenu) return
+
+  imageContainer.value?.focus()
+
+  const menuItems: ContextMenuItem[] = [
+    { role: 'undo' },
+    { role: 'redo' },
+    { type: 'separator' },
+    { role: 'cut' },
+    { role: 'copy' },
+    { role: 'paste' },
+    { type: 'separator' },
+    { role: 'selectAll' },
+  ]
+
+  await window.electronAPI.showContextMenu(menuItems, {
+    x: event.clientX,
+    y: event.clientY,
+  })
+}
+
 function zoomIn() {
   zoom.value = Math.min(zoom.value * 1.2, 10)
 }

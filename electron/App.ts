@@ -1052,11 +1052,10 @@ export class App {
 
           if (item.submenu && item.submenu.length > 0) {
             menuItem.submenu = convertMenuItems(item.submenu, onSelect);
-          } else {
+          } else if (item.id) {
+            const itemId = item.id
             menuItem.click = () => {
-              if (item.id) {
-                onSelect(item.id)
-              }
+              onSelect(itemId)
             };
           }
 

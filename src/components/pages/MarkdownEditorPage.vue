@@ -323,6 +323,7 @@
               v-if="editor"
               :editor="editor"
               class="editor-content relative z-2"
+              @contextmenu.prevent.stop="handleContextMenu"
             />
           </div>
         </div>
@@ -388,7 +389,7 @@ import {
   IconPrinter
 } from '@tabler/icons-vue'
 
-import type { EditSetting, FileTab } from '@/types'
+import type { ContextMenuItem, EditSetting, FileTab } from '@/types'
 import { notify } from '@/utils/notifications'
 import pathUtils from '@/utils/pathUtils'
 import { computeFileContentHash } from '@/utils/fileContentHash'
@@ -888,6 +889,96 @@ function handleVisibilityChange() {
 function openPrintPreview() {
   if (editor.value) {
     appStore.openPrintPreview(editor.value.getHTML(), props.tab.name, { mode: 'print' })
+  }
+}
+
+async function handleContextMenu(event: MouseEvent) {
+  const currentEditor = editor.value
+  if (!currentEditor || !window.electronAPI?.showContextMenu) return
+
+  currentEditor.view.focus()
+
+  const hasSelection = !currentEditor.state.selection.empty
+  const canEdit = currentEditor.isEditable && !isReadonly.value
+  const menuItems: ContextMenuItem[] = [
+    {
+      id: 'undo',
+      label: 'Undo',
+      accelerator: 'CmdOrCtrl+Z',
+      enabled: currentEditor.can().undo(),
+    },
+    {
+      id: 'redo',
+      label: 'Redo',
+      accelerator: 'CmdOrCtrl+Shift+Z',
+      enabled: currentEditor.can().redo(),
+    },
+    { type: 'separator' },
+    {
+      role: 'cut',
+      enabled: canEdit && hasSelection,
+    },
+    {
+      role: 'copy',
+      enabled: hasSelection,
+    },
+    {
+      role: 'paste',
+      enabled: canEdit,
+    },
+    { type: 'separator' },
+    {
+      label: 'Copy as',
+      enabled: hasSelection,
+      submenu: [
+        {
+          id: 'copy-as-plain-text',
+          label: 'Plain Text',
+        },
+        {
+          id: 'copy-as-markdown',
+          label: 'Markdown',
+        },
+        {
+          id: 'copy-as-html',
+          label: 'Html',
+        },
+      ],
+    },
+    {
+      id: 'paste-as-text',
+      label: 'Paste as Text',
+      accelerator: 'CmdOrCtrl+Shift+V',
+      enabled: canEdit,
+    },
+    { type: 'separator' },
+    {
+      role: 'delete',
+      enabled: canEdit && hasSelection,
+    },
+    {
+      role: 'selectAll',
+    },
+    { type: 'separator' },
+    {
+      id: 'find',
+      label: 'Find',
+      accelerator: 'CmdOrCtrl+F',
+    },
+    {
+      id: 'replace',
+      label: 'Replace',
+      accelerator: 'CmdOrCtrl+Alt+F',
+    },
+  ]
+
+  const action = await window.electronAPI.showContextMenu(menuItems, {
+    x: event.clientX,
+    y: event.clientY,
+  })
+
+  if (action) {
+    await handleMenuAction(action)
   }
 }
 

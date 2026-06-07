@@ -169,6 +169,7 @@
       @wheel="handleWheel"
       @keydown="handleKeydown"
       @mousedown="focusViewer"
+      @contextmenu.prevent.stop="handleContextMenu"
     >
       <div ref="pdfViewerEl" class="pdfViewer"></div>
     </div>
@@ -201,7 +202,7 @@
 <script setup lang="ts">
 import { ref, toRef, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { FileTab } from '@/types'
+import type { ContextMenuItem, FileTab } from '@/types'
 import { useAppStore } from '@/stores/app'
 import { PdfJsPageRenderProvider } from '@/services/pdf-render/PdfJsPageRenderProvider'
 import {
@@ -689,6 +690,28 @@ function handleWheel(event: WheelEvent) {
 }
 
 // ── Menu action ───────────────────────────────────────────────────────────────
+async function handleContextMenu(event: MouseEvent) {
+  if (!window.electronAPI?.showContextMenu) return
+
+  focusViewer()
+
+  const menuItems: ContextMenuItem[] = [
+    { role: 'undo' },
+    { role: 'redo' },
+    { type: 'separator' },
+    { role: 'cut' },
+    { role: 'copy' },
+    { role: 'paste' },
+    { type: 'separator' },
+    { role: 'selectAll' },
+  ]
+
+  await window.electronAPI.showContextMenu(menuItems, {
+    x: event.clientX,
+    y: event.clientY,
+  })
+}
+
 function handleMenuAction(action: string): boolean {
   switch (action) {
     case 'zoom-in':                  zoomIn(); return true
