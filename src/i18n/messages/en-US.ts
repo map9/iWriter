@@ -1,4 +1,28 @@
 export default {
+  slashCommand: {
+    noResults: 'No results',
+    groups: {
+      headings: 'Headings',
+      lists: 'Lists',
+      blocks: 'Blocks',
+      table: 'Table',
+      media: 'Media',
+    },
+    items: {
+      heading1: { label: 'Heading 1', desc: 'Large section heading' },
+      heading2: { label: 'Heading 2', desc: 'Medium section heading' },
+      heading3: { label: 'Heading 3', desc: 'Small section heading' },
+      bulletList: { label: 'Bullet List', desc: 'Unordered list' },
+      orderedList: { label: 'Numbered List', desc: 'Ordered list' },
+      taskList: { label: 'Task List', desc: 'To-do checklist' },
+      blockquote: { label: 'Quote', desc: 'Block quotation' },
+      codeBlock: { label: 'Code Block', desc: 'Syntax-highlighted code' },
+      mathBlock: { label: 'Math Block', desc: 'LaTeX equation' },
+      horizontalRule: { label: 'Divider', desc: 'Horizontal rule' },
+      table: { label: 'Table', desc: '3×3 table' },
+      image: { label: 'Image', desc: 'Insert local image' },
+    },
+  },
   common: {
     close: 'Close',
     back: 'Back',

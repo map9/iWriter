@@ -111,6 +111,7 @@
     "@tiptap/extensions": "^3.24.0",
     "@tiptap/pm": "^3.24.0",
     "@tiptap/static-renderer": "^3.24.0",
+    "@tiptap/suggestion": "^3.24.0",
     "@tiptap/vue-3": "^3.24.0",
     "canvas": "^3.2.0",
     "diff": "^9.0.0",

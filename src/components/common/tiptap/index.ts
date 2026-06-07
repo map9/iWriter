@@ -2,6 +2,7 @@ import './style.scss'
 
 export * from './utils'
 export * from './iw-popup-tools'
+export * from './iw-slash-command'
 export * from './iwTextInputRule'
 export * from './iwTypography'
 export * from './iw-range-highlight'

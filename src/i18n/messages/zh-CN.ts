@@ -1,4 +1,28 @@
 export default {
+  slashCommand: {
+    noResults: '无匹配命令',
+    groups: {
+      headings: '标题',
+      lists: '列表',
+      blocks: '块',
+      table: '表格',
+      media: '媒体',
+    },
+    items: {
+      heading1: { label: '一级标题', desc: '最大的节标题' },
+      heading2: { label: '二级标题', desc: '中等节标题' },
+      heading3: { label: '三级标题', desc: '较小的节标题' },
+      bulletList: { label: '无序列表', desc: '项目符号列表' },
+      orderedList: { label: '有序列表', desc: '编号列表' },
+      taskList: { label: '任务列表', desc: '待办事项清单' },
+      blockquote: { label: '引用', desc: '块引用' },
+      codeBlock: { label: '代码块', desc: '语法高亮代码' },
+      mathBlock: { label: '数学公式', desc: 'LaTeX 公式块' },
+      horizontalRule: { label: '分隔线', desc: '水平分割线' },
+      table: { label: '表格', desc: '3×3 表格' },
+      image: { label: '图片', desc: '插入本地图片' },
+    },
+  },
   common: {
     close: '关闭',
     back: '返回',

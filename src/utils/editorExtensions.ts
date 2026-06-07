@@ -56,7 +56,7 @@ import UniqueID from '@tiptap/extension-unique-id'
 import { nanoid } from 'nanoid'
 
 // 自定义扩展
-import { iwTypography, iwPopupTools, iwLinkPopupTool, iwMathPopupTool } from '@/components/common/tiptap'
+import { iwTypography, iwPopupTools, iwLinkPopupTool, iwMathPopupTool, iwSlashCommand } from '@/components/common/tiptap'
 import { iwProofreadExtension } from '@/components/common/tiptap/iw-proofread'
 import { iwSearchReplaceExtension } from '@/components/common/tiptap/iw-search-replace'
 import { iwRangeHighlightExtension } from '@/components/common/tiptap/iw-range-highlight'
@@ -481,6 +481,9 @@ export function createMarkdownEditorExtensions(options: {
     iwPopupTools.configure({
       tools: [new iwLinkPopupTool(onLinkOpen), new iwMathPopupTool()]
     }),
+
+    // Slash Command 菜单（行首输入 / 触发）
+    iwSlashCommand,
 
     // 链接
     Link.configure({
