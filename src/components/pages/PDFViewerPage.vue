@@ -1,7 +1,7 @@
 <template>
   <div class="document-viewer-wrapper">
     <!-- PDF Toolbar -->
-    <div class="iw-toolbar" @click.capture="handleToolbarClick">
+    <div v-if="!appStore.isCleanMode" class="iw-toolbar" @click.capture="handleToolbarClick">
 
       <!-- Group 1: Zoom -->
       <div class="iw-toolbar-group">
@@ -164,7 +164,7 @@
     <div
       ref="pdfContainer"
       class="absolute bottom-0 left-0 right-0 overflow-auto outline-none bg-base-200"
-      style="top: 2.5rem"
+      :style="{ top: appStore.isCleanMode ? '0' : '2.5rem' }"
       tabindex="0"
       @wheel="handleWheel"
       @keydown="handleKeydown"

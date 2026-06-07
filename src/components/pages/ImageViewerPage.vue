@@ -1,7 +1,7 @@
 <template>
   <div class="document-viewer-wrapper">
     <!-- Image Toolbar -->
-    <div class="iw-toolbar">
+    <div v-if="!appStore.isCleanMode" class="iw-toolbar">
       <div class="iw-toolbar-group">
         <button
           @click="zoomOut"
