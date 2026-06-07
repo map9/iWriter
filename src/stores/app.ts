@@ -84,6 +84,8 @@ export const useAppStore = defineStore('app', () => {
   const printPreviewProfile = ref<'markdown' | 'image'>('markdown')
   /** Initial rotation (degrees) passed from ImageViewerPage for image printing */
   const printPreviewImageRotation = ref(0)
+  let cleanModeFullscreenBefore: boolean | null = null
+  let cleanModeFullscreenRequestId = 0
   const leftSidebarMode = ref<SidebarMode>(SidebarMode.START)
   const searchFolderPath = ref<string | null>(null)
   const searchIncludePattern = ref('')
@@ -719,7 +721,34 @@ export const useAppStore = defineStore('app', () => {
 
   function setCleanMode(enabled: boolean) {
     if (isCleanMode.value === enabled) return
+    const requestId = ++cleanModeFullscreenRequestId
     isCleanMode.value = enabled
+
+    if (!window.electronAPI?.getWindowFullscreen || !window.electronAPI?.setWindowFullscreen) return
+
+    if (enabled) {
+      void (async () => {
+        try {
+          const wasFullscreen = await window.electronAPI.getWindowFullscreen()
+          if (requestId !== cleanModeFullscreenRequestId || !isCleanMode.value) return
+          cleanModeFullscreenBefore = wasFullscreen
+          if (!wasFullscreen) {
+            await window.electronAPI.setWindowFullscreen(true)
+          }
+        } catch (error) {
+          console.error('Failed to enter fullscreen for clean mode:', error)
+        }
+      })()
+      return
+    }
+
+    const shouldRestoreFullscreen = cleanModeFullscreenBefore
+    cleanModeFullscreenBefore = null
+    if (shouldRestoreFullscreen === false) {
+      void window.electronAPI.setWindowFullscreen(false).catch(error => {
+        console.error('Failed to restore fullscreen after clean mode:', error)
+      })
+    }
   }
 
   function toggleCleanMode() {

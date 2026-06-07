@@ -109,6 +109,8 @@ export interface ElectronAPI {
   // 窗口状态
   onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => void
   removeWindowStateChangedListeners: () => void
+  getWindowFullscreen: () => Promise<boolean>
+  setWindowFullscreen: (enabled: boolean) => Promise<{ success: boolean; error?: string }>
 
   // 设置
   bootstrapWindowLocale: (locale: string) => Promise<string>

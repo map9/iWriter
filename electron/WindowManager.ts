@@ -309,6 +309,18 @@ export class WindowManager {
       return normalizedLocale
     })
 
+    ipcMain.handle('get-window-fullscreen', async (event) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      return window?.isFullScreen() ?? false
+    })
+
+    ipcMain.handle('set-window-fullscreen', async (event, enabled: boolean) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (!window) return { success: false, error: 'Window not found' }
+      window.setFullScreen(enabled)
+      return { success: true }
+    })
+
     ipcMain.handle('get-printers', async (event) => {
       const window = BrowserWindow.fromWebContents(event.sender)
       if (!window) return []
@@ -529,6 +541,8 @@ export class WindowManager {
 
   destroy(): void {
     ipcMain.removeHandler('update-window-title')
+    ipcMain.removeHandler('get-window-fullscreen')
+    ipcMain.removeHandler('set-window-fullscreen')
     ipcMain.removeHandler('window-content-changed')
   }
 }

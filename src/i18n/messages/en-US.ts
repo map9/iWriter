@@ -63,6 +63,9 @@ export default {
       folderUnsupported: 'Folders cannot be opened here. Open workspaces from Explorer.',
     },
   },
+  cleanMode: {
+    exit: 'Exit Clean Mode',
+  },
   preferences: {
     title: 'Preferences',
     tabs: {

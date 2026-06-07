@@ -63,6 +63,9 @@ export default {
       folderUnsupported: '文件夹不能在这里打开，请在资源管理器中打开工作区',
     },
   },
+  cleanMode: {
+    exit: '退出清爽模式',
+  },
   preferences: {
     title: '偏好设置',
     tabs: {

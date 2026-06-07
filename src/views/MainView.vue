@@ -28,7 +28,7 @@
           class="iw-btn btn-sm btn-ghost rounded-full px-3 normal-case"
           @click="appStore.setCleanMode(false)"
         >
-          Exit Clean Mode
+          {{ t('cleanMode.exit') }}
         </button>
       </div>
     </div>
@@ -142,6 +142,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAiStore } from '@/ai/store/ai'
 import { DocumentType } from '@/types'
@@ -172,6 +173,7 @@ const PdfPrintDialog = defineAsyncComponent(() => import('@/components/print/Pdf
 
 const appStore = useAppStore()
 const aiStore = useAiStore()
+const { t } = useI18n()
 
 // Refs for different page types
 const markdownEditorRefs = ref<InstanceType<typeof MarkdownEditorPageType>[]>([])

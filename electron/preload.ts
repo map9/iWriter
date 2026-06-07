@@ -136,6 +136,8 @@ const electronAPI: ElectronAPI = {
   removeWindowStateChangedListeners: () => {
     ipcRenderer.removeAllListeners('window-state-changed')
   },
+  getWindowFullscreen: () => ipcRenderer.invoke('get-window-fullscreen'),
+  setWindowFullscreen: (enabled: boolean) => ipcRenderer.invoke('set-window-fullscreen', enabled),
   
   // Menu state updates
   bootstrapWindowLocale: (locale: string) => ipcRenderer.invoke('window-bootstrap-locale', locale),
