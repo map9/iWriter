@@ -189,8 +189,7 @@
         }
 
         &:focus {
-          outline: 2px solid color-mix(in oklab, var(--color-neutral) 55%, transparent);
-          outline-offset: 2px;
+          outline: none;
         }
         
         &:hover:not(.disabled) {
