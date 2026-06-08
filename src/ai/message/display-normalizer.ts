@@ -142,6 +142,18 @@ function toolParamsText(toolCall: AiToolCall): string {
     }
     case 'create_document':
       return fname(args.file_path) || (typeof args.filename === 'string' ? args.filename : '')
+    case 'web_search':
+      return typeof args.query === 'string' ? `"${args.query}"` : ''
+    case 'get_pdf_outline':
+      return fname(args.file_path)
+    case 'get_pdf_pages': {
+      const start = typeof args.start_page === 'number' ? args.start_page : null
+      const end = typeof args.end_page === 'number' ? args.end_page : start
+      const rangeStr = start !== null
+        ? (start === end ? `p.${start}` : `p.${start}-${end}`)
+        : ''
+      return [fname(args.file_path), rangeStr].filter(Boolean).join(' ')
+    }
     default:
       return toolCall.paramsText ?? ''
   }
@@ -232,6 +244,43 @@ function summarizeSearchSections(parsedResult: Record<string, unknown> | null): 
   if (totalMatches !== null) parts.push(t('agentPanel.displayNormalizer.count.matches', { count: totalMatches }))
   if (totalSections !== null) parts.push(t('agentPanel.displayNormalizer.count.chapters', { count: totalSections }))
   return parts.join(' · ') || undefined
+}
+
+function summarizePdfOutline(parsedResult: Record<string, unknown> | null): string | undefined {
+  if (!parsedResult) return undefined
+  const totalPages = toNumber(parsedResult.total_pages)
+  const outline = Array.isArray(parsedResult.outline) ? parsedResult.outline : []
+  const parts: string[] = []
+  if (totalPages !== null) parts.push(t('agentPanel.displayNormalizer.count.pages', { count: totalPages }))
+  if (outline.length > 0) parts.push(t('agentPanel.displayNormalizer.count.chapters', { count: outline.length }))
+  return parts.join(' · ') || undefined
+}
+
+function summarizePdfPages(parsedResult: Record<string, unknown> | null): string | undefined {
+  if (!parsedResult) return undefined
+  const pages = Array.isArray(parsedResult.pages) ? parsedResult.pages : []
+  const totalPages = toNumber(parsedResult.total_pages)
+  if (!pages.length) return undefined
+  const firstPage = toNumber((pages[0] as Record<string, unknown>).page)
+  const lastPage = toNumber((pages[pages.length - 1] as Record<string, unknown>).page)
+  if (firstPage !== null && lastPage !== null && totalPages !== null) {
+    return t('agentPanel.displayNormalizer.summary.pdfPageRange', { start: firstPage, end: lastPage, total: totalPages })
+  }
+  return t('agentPanel.displayNormalizer.count.pages', { count: pages.length })
+}
+
+function webSearchEngineLabel(provider: unknown): string {
+  if (provider === 'tavily') return 'Tavily'
+  if (provider === 'searxng') return 'SearXNG'
+  if (provider === 'custom') return 'Custom'
+  return ''
+}
+
+function summarizeWebSearch(parsedResult: Record<string, unknown> | null): string | undefined {
+  if (!parsedResult) return undefined
+  const results = Array.isArray(parsedResult.results) ? parsedResult.results : []
+  if (!results.length) return undefined
+  return t('agentPanel.displayNormalizer.count.results', { count: results.length })
 }
 
 function summarizeWorkspaceSearch(parsedResult: Record<string, unknown> | null): string | undefined {
@@ -417,6 +466,46 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         parsedResult,
         rawResult,
       }
+    case 'web_search': {
+      const query = toStringValue(args.query)
+      const engineLabel = parsedResult ? webSearchEngineLabel(parsedResult.provider) : undefined
+      return {
+        actionLabel: toolNameLabel('web_search'),
+        targetLabel: query ? `"${query}"` : undefined,
+        contextLabel: engineLabel || undefined,
+        summaryLabel: buildStatusSummary(toolCall, summarizeWebSearch(parsedResult)),
+        detailType: parsedResult ? 'web_search' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    }
+    case 'get_pdf_outline':
+      return {
+        actionLabel: toolNameLabel('get_pdf_outline'),
+        targetLabel: fileLabel,
+        targetPath: pathArg || toolCall.file?.path,
+        summaryLabel: buildStatusSummary(toolCall, summarizePdfOutline(parsedResult)),
+        detailType: parsedResult ? 'pdf_outline' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    case 'get_pdf_pages': {
+      const startPage = typeof args.start_page === 'number' ? args.start_page : null
+      const endPage = typeof args.end_page === 'number' ? args.end_page : startPage
+      const rangeStr = startPage !== null
+        ? (startPage === endPage ? `p.${startPage}` : `p.${startPage}-${endPage}`)
+        : undefined
+      return {
+        actionLabel: toolNameLabel('get_pdf_pages'),
+        targetLabel: fileLabel,
+        targetPath: pathArg || toolCall.file?.path,
+        contextLabel: rangeStr,
+        summaryLabel: buildStatusSummary(toolCall, summarizePdfPages(parsedResult)),
+        detailType: parsedResult ? 'pdf_pages' : 'text',
+        parsedResult,
+        rawResult,
+      }
+    }
     case 'read_file':
       return {
         actionLabel: toolNameLabel('read_file'),

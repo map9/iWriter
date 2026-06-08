@@ -157,6 +157,11 @@ export const useAiStore = defineStore('ai', () => {
     window.electronAPI?.aiUpdateConfig?.(JSON.parse(JSON.stringify(toRaw(settings.value))))
   }
 
+  function updateWebSearch(patch: Partial<import('@/ai/types').WebSearchProviderConfig>) {
+    settings.value.webSearch = { ...(settings.value.webSearch ?? { type: 'tavily', enabled: true }), ...patch }
+    saveSettings()
+  }
+
   function addProviderConfig(config: AiProviderConfig) {
     settings.value.providerConfigs.push(config)
     if (!settings.value.activeProviderConfigId) {
@@ -759,6 +764,7 @@ export const useAiStore = defineStore('ai', () => {
     setCurrentThinkingLevel,
     setCurrentMode,
     saveSettings,
+    updateWebSearch,
 
     // Threads
     threads,

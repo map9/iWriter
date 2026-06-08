@@ -250,6 +250,53 @@
         </div>
       </div>
 
+      <div v-else-if="detailType === 'web_search' && webSearchItems.length" class="space-y-2">
+        <div
+          v-for="item in webSearchItems"
+          :key="item.url"
+          class="rounded-box bg-base-200 px-2 py-1.5"
+        >
+          <div class="min-w-0">
+            <div class="truncate text-xs font-medium text-base-content">{{ item.title }}</div>
+            <div class="truncate text-2xs text-base-content/50">{{ item.url }}</div>
+          </div>
+          <div v-if="item.snippet" class="mt-1 text-base-content/70">
+            <MarkdownContentView :content="item.snippet" mode="text" size="xs" />
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="detailType === 'pdf_outline' && pdfOutlineItems.length" class="space-y-1.5">
+        <div class="text-xs font-medium text-base-content">{{ t('agentPanel.toolCall.outline') }}</div>
+        <div
+          v-for="item in pdfOutlineItems"
+          :key="`${item.title}-${item.page}`"
+          class="flex items-start justify-between gap-2 rounded-box bg-base-100 px-2 py-1.5"
+          :style="{ paddingLeft: `${0.5 + (item.level - 1) * 0.75}rem` }"
+        >
+          <div class="min-w-0">
+            <div class="truncate text-base-content">{{ item.title || t('agentPanel.toolCall.unnamedTitle', { id: item.page }) }}</div>
+            <div class="text-2xs text-base-content">H{{ item.level }}</div>
+          </div>
+          <div class="shrink-0 text-2xs text-base-content text-right">
+            <div>{{ t('agentPanel.toolCall.pdfPage', { page: item.page }) }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="detailType === 'pdf_pages' && pdfPageItems.length" class="space-y-2">
+        <div
+          v-for="item in pdfPageItems"
+          :key="item.page"
+          class="rounded-box bg-base-200 px-2 py-1.5"
+        >
+          <div class="text-xs font-medium text-base-content">{{ t('agentPanel.toolCall.pdfPage', { page: item.page }) }}</div>
+          <div v-if="item.text" class="mt-1 text-base-content/70">
+            <MarkdownContentView :content="item.text" mode="text" size="xs" />
+          </div>
+        </div>
+      </div>
+
       <div v-else-if="resultText" class="space-y-1 text-base-content/70">
         <div class="text-xs font-medium text-base-content">{{ t('agentPanel.toolCall.resultDetails') }}</div>
         <MarkdownContentView :content="resultText" mode="text" size="xs"/>
@@ -409,6 +456,12 @@ const hasStructuredDetail = computed(() => {
       return todoItems.value.length > 0
     case 'subagent_task':
       return !!(taskDescription.value || taskResult.value)
+    case 'pdf_outline':
+      return pdfOutlineItems.value.length > 0
+    case 'pdf_pages':
+      return pdfPageItems.value.length > 0
+    case 'web_search':
+      return webSearchItems.value.length > 0
     default:
       return false
   }
@@ -629,6 +682,44 @@ const todoItems = computed(() => {
       icon: '',
       statusLabel: t('agentPanel.toolCall.todo.pending'),
       statusClass: 'border-base-300 bg-base-100 text-transparent',
+    }
+  })
+})
+
+const webSearchItems = computed(() => {
+  const results = parsedResult.value?.results
+  if (!Array.isArray(results)) return []
+  return results.map(item => {
+    const entry = item as Record<string, unknown>
+    return {
+      title: String(entry.title ?? ''),
+      url: String(entry.url ?? ''),
+      snippet: String(entry.snippet ?? ''),
+    }
+  })
+})
+
+const pdfOutlineItems = computed(() => {
+  const outline = parsedResult.value?.outline
+  if (!Array.isArray(outline)) return []
+  return outline.map(item => {
+    const entry = item as Record<string, unknown>
+    return {
+      title: String(entry.title ?? ''),
+      level: Number(entry.level ?? 1),
+      page: Number(entry.page ?? 0),
+    }
+  })
+})
+
+const pdfPageItems = computed(() => {
+  const pages = parsedResult.value?.pages
+  if (!Array.isArray(pages)) return []
+  return pages.map(item => {
+    const entry = item as Record<string, unknown>
+    return {
+      page: Number(entry.page ?? 0),
+      text: String(entry.text ?? ''),
     }
   })
 })

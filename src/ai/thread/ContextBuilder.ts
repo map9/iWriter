@@ -203,18 +203,30 @@ export function buildEditorStateBlock(
   }
 
   // Active document — full / file_changed / document_content
-  if (snapshot && (change === 'full' || change === 'file_changed' || change === 'document_content')) {
-    const pathAttr = ctx.filePath ? ` path="${ctx.filePath}"` : ''
-    const statusAttr = ctx.filePath
-      ? ` status="${ctx.isDirty ? 'unsaved' : 'saved'}"`
-      : ' status="unsaved_new"'
-    lines.push(`  <active_document${pathAttr}${statusAttr}>`)
-    lines.push('    <outline>')
-    lines.push(snapshot.view.outlineText)
-    lines.push('    </outline>')
-    if (sectionNode) appendCursorSectionXml(lines, sectionNode, '    ')
-    appendSelectionXml(lines, snapshot, builder, '    ')
-    lines.push('  </active_document>')
+  if (change === 'full' || change === 'file_changed' || change === 'document_content') {
+    if (snapshot) {
+      // Editor document (markdown / IWT / txt) — full outline + cursor context
+      const pathAttr = ctx.filePath ? ` path="${ctx.filePath}"` : ''
+      const statusAttr = ctx.filePath
+        ? ` status="${ctx.isDirty ? 'unsaved' : 'saved'}"`
+        : ' status="unsaved_new"'
+      lines.push(`  <active_document${pathAttr}${statusAttr}>`)
+      lines.push('    <outline>')
+      lines.push(snapshot.view.outlineText)
+      lines.push('    </outline>')
+      if (sectionNode) appendCursorSectionXml(lines, sectionNode, '    ')
+      appendSelectionXml(lines, snapshot, builder, '    ')
+      lines.push('  </active_document>')
+    } else if (ctx.filePath) {
+      // Non-editor file (PDF, image, …) — minimal entry so the Agent knows what is open.
+      // The Agent can call get_pdf_outline / get_pdf_pages without a file_path argument
+      // to operate on this active file.
+      const ext = ctx.filePath.split('.').pop()?.toLowerCase() ?? ''
+      const typeAttr = ext ? ` type="${ext}"` : ''
+      const pathAttr = ` path="${ctx.filePath}"`
+      const statusAttr = ` status="${ctx.isDirty ? 'unsaved' : 'saved'}"`
+      lines.push(`  <active_document${pathAttr}${typeAttr}${statusAttr} />`)
+    }
   }
 
   // Cursor section only — cursor_section change

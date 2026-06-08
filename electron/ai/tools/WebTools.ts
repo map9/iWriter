@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { DynamicStructuredTool } from '@langchain/core/tools'
 import TurndownService from 'turndown'
+import { AiConfigStore } from '../config/AiConfigStore'
 
 const SSRF_BLOCKED = /^(localhost|127\.|0\.0\.0\.0|169\.254\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/i
 
@@ -104,51 +105,97 @@ const fetchUrlTool = new DynamicStructuredTool({
 
 const webSearchTool = new DynamicStructuredTool({
   name: 'web_search',
-  description: 'Searches the web using Tavily. Requires TAVILY_API_KEY environment variable. Returns titles, URLs, and snippets for matching results.',
+  description: 'Searches the web using the configured search provider (Tavily, SearXNG, or custom). Returns titles, URLs, and snippets for matching results. Configure the provider in AI Preferences → Web Search Engine.',
   schema: z.object({
     query: z.string().min(1).describe('The search query'),
     max_results: z.number().int().min(1).max(10).default(5).describe('Number of results to return (default 5)'),
     topic: z.enum(['general', 'news']).optional().describe('Search topic type'),
   }),
   func: async ({ query, max_results = 5, topic }) => {
-    const apiKey = process.env.TAVILY_API_KEY
-    if (!apiKey) {
+    const cfg = AiConfigStore.loadSettings().webSearch
+
+    // Resolve provider type and credentials, falling back to env vars
+    const providerType = cfg?.type ?? 'tavily'
+    const enabled = cfg?.enabled !== false
+
+    if (!enabled) {
       return JSON.stringify({
-        error: 'TAVILY_API_KEY not configured',
-        hint: 'Set the TAVILY_API_KEY environment variable before launching iWriter to enable web search.',
+        error: 'Web search is disabled.',
+        hint: 'Enable it in AI Preferences → Web Search Engine.',
       })
     }
 
     try {
-      const body: Record<string, unknown> = {
-        api_key: apiKey,
-        query,
-        max_results,
-        search_depth: 'basic',
-        include_raw_content: false,
+      if (providerType === 'tavily') {
+        const apiKey = cfg?.apiKey?.trim() || process.env.TAVILY_API_KEY
+        if (!apiKey) {
+          return JSON.stringify({
+            error: 'Tavily API key not configured.',
+            hint: 'Set the API key in AI Preferences → Web Search Engine, or set TAVILY_API_KEY environment variable.',
+          })
+        }
+        const baseUrl = cfg?.baseUrl?.trim() || 'https://api.tavily.com/search'
+        const body: Record<string, unknown> = {
+          api_key: apiKey,
+          query,
+          max_results,
+          search_depth: 'basic',
+          include_raw_content: false,
+        }
+        if (topic) body.topic = topic
+
+        const response = await fetch(baseUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(15_000),
+        })
+        if (!response.ok) {
+          const text = await response.text().catch(() => '')
+          return JSON.stringify({ error: `Tavily API error ${response.status}: ${text.slice(0, 200)}` })
+        }
+        const data = await response.json() as { results?: { title: string; url: string; content: string }[] }
+        const results = (data.results ?? []).map(r => ({ title: r.title, url: r.url, snippet: r.content }))
+        console.log(`[web_search] tavily query="${query}" results=${results.length}`)
+        return JSON.stringify({ provider: 'tavily', results })
       }
-      if (topic) body.topic = topic
 
-      const response = await fetch('https://api.tavily.com/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(15_000),
-      })
+      if (providerType === 'searxng' || providerType === 'custom') {
+        const baseUrl = cfg?.baseUrl?.trim()
+        if (!baseUrl) {
+          return JSON.stringify({
+            error: `${providerType === 'searxng' ? 'SearXNG' : 'Custom'} search requires a base URL.`,
+            hint: 'Set the URL in AI Preferences → Web Search Engine.',
+          })
+        }
+        const url = new URL('/search', baseUrl)
+        url.searchParams.set('q', query)
+        url.searchParams.set('format', 'json')
+        url.searchParams.set('categories', topic === 'news' ? 'news' : 'general')
 
-      if (!response.ok) {
-        const text = await response.text().catch(() => '')
-        return JSON.stringify({ error: `Tavily API error ${response.status}: ${text.slice(0, 200)}` })
+        const headers: Record<string, string> = { 'Accept': 'application/json' }
+        if (cfg?.apiKey?.trim()) headers['Authorization'] = `Bearer ${cfg.apiKey.trim()}`
+
+        const response = await fetch(url.toString(), {
+          method: 'GET',
+          headers,
+          signal: AbortSignal.timeout(15_000),
+        })
+        if (!response.ok) {
+          const text = await response.text().catch(() => '')
+          return JSON.stringify({ error: `Search engine error ${response.status}: ${text.slice(0, 200)}` })
+        }
+        const data = await response.json() as { results?: { title: string; url: string; content?: string; snippet?: string }[] }
+        const results = (data.results ?? []).slice(0, max_results).map(r => ({
+          title: r.title,
+          url: r.url,
+          snippet: r.content ?? r.snippet ?? '',
+        }))
+        console.log(`[web_search] ${providerType} query="${query}" results=${results.length}`)
+        return JSON.stringify({ provider: providerType, results })
       }
 
-      const data = await response.json() as { results?: { title: string; url: string; content: string }[] }
-      const results = (data.results ?? []).map(r => ({
-        title: r.title,
-        url: r.url,
-        snippet: r.content,
-      }))
-      console.log(`[web_search] query="${query}" results=${results.length}`)
-      return JSON.stringify({ results })
+      return JSON.stringify({ error: `Unknown web search provider type: ${providerType}` })
     } catch (err: unknown) {
       return JSON.stringify({ error: String(err) })
     }

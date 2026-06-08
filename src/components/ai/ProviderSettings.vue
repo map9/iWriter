@@ -42,6 +42,71 @@
         </section>
 
         <section class="mt-5 flex flex-col gap-3">
+          <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.ai.webSearch.title') }}</h3>
+
+          <div class="flex flex-col gap-3 rounded-box border border-base-300 bg-base-100 px-4 py-3">
+            <div class="flex items-center justify-between gap-4">
+              <div class="min-w-0">
+                <div class="text-sm font-medium text-base-content">{{ t('preferences.ai.webSearch.enable') }}</div>
+                <div class="text-xs text-base-content/50">{{ t('preferences.ai.webSearch.enableHint') }}</div>
+              </div>
+              <label class="label cursor-pointer gap-3">
+                <input
+                  type="checkbox"
+                  class="toggle toggle-primary toggle-xs"
+                  :checked="aiStore.settings.webSearch?.enabled !== false"
+                  @change="aiStore.updateWebSearch({ enabled: ($event.target as HTMLInputElement).checked })"
+                />
+              </label>
+            </div>
+
+            <template v-if="aiStore.settings.webSearch?.enabled !== false">
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.webSearch.engineType') }}</label>
+                <select
+                  class="iw-select w-full px-3"
+                  :value="aiStore.settings.webSearch?.type ?? 'tavily'"
+                  @change="aiStore.updateWebSearch({ type: ($event.target as HTMLSelectElement).value as WebSearchProviderType })"
+                >
+                  <option value="tavily">Tavily</option>
+                  <option value="searxng">SearXNG</option>
+                  <option value="custom">{{ t('preferences.ai.webSearch.customEngine') }}</option>
+                </select>
+              </div>
+
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.webSearch.baseUrl') }}</label>
+                <input
+                  type="text"
+                  class="iw-input"
+                  :placeholder="webSearchUrlPlaceholder"
+                  :value="aiStore.settings.webSearch?.baseUrl ?? ''"
+                  @blur="aiStore.updateWebSearch({ baseUrl: ($event.target as HTMLInputElement).value || undefined })"
+                />
+                <p class="text-xs text-base-content/50">{{ t('preferences.ai.webSearch.baseUrlHint') }}</p>
+              </div>
+
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.webSearch.apiKey') }}</label>
+                <label class="iw-input">
+                  <input
+                    :type="showWebSearchKey ? 'text' : 'password'"
+                    :placeholder="t('preferences.ai.webSearch.apiKeyPlaceholder')"
+                    :value="aiStore.settings.webSearch?.apiKey ?? ''"
+                    @blur="aiStore.updateWebSearch({ apiKey: ($event.target as HTMLInputElement).value || undefined })"
+                  />
+                  <button type="button" @click="showWebSearchKey = !showWebSearchKey" class="iw-toolbar-btn btn-xs">
+                    <IconEye v-if="!showWebSearchKey" class="icon-xs" />
+                    <IconEyeOff v-else class="icon-xs" />
+                  </button>
+                </label>
+                <p class="text-xs text-base-content/50">{{ t('preferences.ai.webSearch.apiKeyHint') }}</p>
+              </div>
+            </template>
+          </div>
+        </section>
+
+        <section class="mt-5 flex flex-col gap-3">
           <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.ai.actions') }}</h3>
           <button
             @click="selectCustom()"
@@ -240,7 +305,7 @@ import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconTrash, IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/store/ai'
-import type { AiModelProfile, AiProviderConfig, AiProviderType } from '@/ai/types'
+import type { AiModelProfile, AiProviderConfig, AiProviderType, WebSearchProviderType } from '@/ai/types'
 import {
   DEFAULT_AI_PROVIDER_PARAMETERS,
   getProviderParameterSupport,
@@ -291,6 +356,14 @@ const editingId = ref<string | null>(null)
 const selectedPreset = ref<ProviderPreset | null>(null)
 const isPreset = computed(() => !!selectedPreset.value)
 const showKey = ref(false)
+const showWebSearchKey = ref(false)
+
+const webSearchUrlPlaceholder = computed(() => {
+  const type = aiStore.settings.webSearch?.type ?? 'tavily'
+  if (type === 'tavily') return 'https://api.tavily.com/search (optional)'
+  if (type === 'searxng') return 'https://your-searxng-instance.example.com'
+  return 'https://your-search-api.example.com'
+})
 
 // ── Form ──────────────────────────────────────────────────────────────────
 interface FormState {

@@ -86,6 +86,9 @@ export type AiToolDetailType =
   | 'workspace_search'
   | 'todo_list'
   | 'subagent_task'
+  | 'pdf_outline'
+  | 'pdf_pages'
+  | 'web_search'
   | 'text'
   | 'json'
 
@@ -547,12 +550,25 @@ export interface AiThread {
   workspaceInjected?: boolean
 }
 
+// Web Search Provider Config
+export type WebSearchProviderType = 'tavily' | 'searxng' | 'custom'
+
+export interface WebSearchProviderConfig {
+  type: WebSearchProviderType
+  /** Base URL for the search endpoint. Tavily: leave empty for default. SearXNG/custom: required. */
+  baseUrl?: string
+  /** API key. SearXNG self-hosted may be empty. */
+  apiKey?: string
+  enabled?: boolean
+}
+
 // Persisted AI settings
 export interface AiSettings {
   providerConfigs: AiProviderConfig[]
   activeProviderConfigId: string | null
   defaultMode: AiAgentMode
   toolPermissions: Record<string, AiToolPermission>
+  webSearch?: WebSearchProviderConfig
 }
 
 // Default AI settings
@@ -560,6 +576,7 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   providerConfigs: [],
   activeProviderConfigId: null,
   defaultMode: 'edit',
+  webSearch: { type: 'tavily', enabled: true },
   toolPermissions: {
     // Document access tools: always allowed (read-only)
     get_document_outline: 'allow',

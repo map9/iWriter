@@ -1,6 +1,8 @@
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import { buildDocumentTools } from '../../tools/DocumentTools'
 import { buildEditProposalTools } from '../../tools/EditProposalTools'
+import { buildWebTools } from '../../tools/WebTools'
+import { buildPdfTools } from '../../tools/PdfTools'
 import type { DomainAgentCapabilities } from '../types'
 import type { InterruptOnConfig } from 'langchain'
 
@@ -11,9 +13,11 @@ export function buildEditCapabilities({
 }): DomainAgentCapabilities {
   const docTools = buildDocumentTools(snapshotBroker)
   const editTools = buildEditProposalTools()
+  const webTools = buildWebTools()
+  const pdfTools = buildPdfTools()
 
   return {
-    tools: [...docTools, ...editTools],
+    tools: [...docTools, ...editTools, ...webTools, ...pdfTools],
     interruptOn: EDIT_INTERRUPT_ON_CONFIG,
   }
 }
