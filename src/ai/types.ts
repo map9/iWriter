@@ -562,6 +562,16 @@ export interface WebSearchProviderConfig {
   enabled?: boolean
 }
 
+// Fetch URL tool config
+export interface FetchUrlConfig {
+  /** Enable JS-render fallback via hidden BrowserWindow (default: true) */
+  jsRenderFallback?: boolean
+  /** Per-request timeout in ms (default: 15000) */
+  timeoutMs?: number
+  /** Default max_tokens budget if the Agent doesn't specify one (default: 8000) */
+  defaultMaxTokens?: number
+}
+
 // Persisted AI settings
 export interface AiSettings {
   providerConfigs: AiProviderConfig[]
@@ -569,6 +579,7 @@ export interface AiSettings {
   defaultMode: AiAgentMode
   toolPermissions: Record<string, AiToolPermission>
   webSearch?: WebSearchProviderConfig
+  fetchUrl?: FetchUrlConfig
 }
 
 // Default AI settings
@@ -577,6 +588,7 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   activeProviderConfigId: null,
   defaultMode: 'edit',
   webSearch: { type: 'tavily', enabled: true },
+  fetchUrl: { jsRenderFallback: true, timeoutMs: 15_000, defaultMaxTokens: 8_000 },
   toolPermissions: {
     // Document access tools: always allowed (read-only)
     get_document_outline: 'allow',
