@@ -3,7 +3,7 @@ import {
   IconH1, IconH2, IconH3,
   IconList, IconListNumbers, IconListCheck,
   IconQuote, IconCode, IconMath, IconMinus,
-  IconTable, IconPhoto,
+  IconTable, IconPhoto, IconChartDots,
 } from '@tabler/icons-vue'
 
 export interface SlashCommandItem {
@@ -104,6 +104,15 @@ export const slashCommands: SlashCommandItem[] = [
     icon: IconMath,
     keywords: ['math', 'equation', 'latex', '数学', '公式', '$$'],
     action: 'insert-math-block',
+  },
+  {
+    id: 'insert-mermaid-block',
+    labelKey: 'slashCommand.items.mermaidBlock.label',
+    descKey: 'slashCommand.items.mermaidBlock.desc',
+    groupKey: 'slashCommand.groups.blocks',
+    icon: IconChartDots,
+    keywords: ['mermaid', 'diagram', 'flowchart', 'sequence', 'graph', '图表', '流程图', '时序图'],
+    action: 'insert-mermaid-block',
   },
   {
     id: 'horizontal-rule',

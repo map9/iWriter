@@ -16,7 +16,7 @@
           <option value="page-actual">{{ t('pdfViewer.toolbar.zoomActual') }}</option>
           <option value="page-fit">{{ t('pdfViewer.toolbar.zoomPageFit') }}</option>
           <option value="page-width">{{ t('pdfViewer.toolbar.zoomPageWidth') }}</option>
-          <option disabled>────────</option>
+          <option disabled>─</option>
           <option value="custom">{{ Math.round(zoom * 100) }}%</option>
           <option value="0.5">50%</option>
           <option value="0.75">75%</option>

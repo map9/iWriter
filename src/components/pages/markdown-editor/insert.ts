@@ -114,6 +114,18 @@ export function insertMathBlock(editor: Editor | undefined) {
   editor.chain().focus().insertBlockMath({ latex: 'Please\\ input\\ \\LaTeX\\ expression...' }).run()
 }
 
+const MERMAID_TEMPLATE = `graph TD
+    A[Start] --> B[End]`
+
+export function insertMermaidBlock(editor: Editor | undefined) {
+  if (!editor?.isEditable) return
+  editor.chain().focus().insertContent({
+    type: 'codeBlock',
+    attrs: { language: 'mermaid' },
+    content: [{ type: 'text', text: MERMAID_TEMPLATE }]
+  }).run()
+}
+
 export function insertTable(editor: Editor | undefined) {
   if (!editor?.isEditable) return
   editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()

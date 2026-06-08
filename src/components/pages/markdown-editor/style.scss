@@ -423,34 +423,61 @@
     }
   }
 
-  .toolbar-wrapper.ProseMirror-selectednode,
-  .toolbar-wrapper.has-focus,
-  .toolbar-wrapper:has(.has-focus),
-  .toolbar-wrapper:has(.selectedCell) {
+  pre,
+  .mermaid-container,
+  .tiptap-mathematics-render[data-type='block-math'] {
+    margin-top: 0;
+    margin-bottom: 1rem;
+  }
+
+  .toolbar-wrapper.ProseMirror-selectednode:not(.editing),
+  .toolbar-wrapper.has-focus:not(.editing),
+  .toolbar-wrapper:has(.has-focus):not(.editing),
+  .toolbar-wrapper:has(.selectedCell):not(.editing) {
     > .image-container img,
     > .control-content-empty,
     > pre,
+    > .mermaid-container,
     > .tiptap-mathematics-render,
     > .tableWrapper {
       outline: 2px solid var(--iw-node-selection-color);
-      /*outline-offset: 3px;
-      box-shadow: 0 0 0 4px var(--iw-node-selection-shadow);*/
     }
+  }
+  .toolbar-wrapper.editing {
+    outline: 2px solid var(--iw-node-selection-color);
   }
 
   &:not(.ProseMirror-focused) {
-    .toolbar-wrapper.ProseMirror-selectednode,
-    .toolbar-wrapper.has-focus,
-    .toolbar-wrapper:has(.has-focus),
-    .toolbar-wrapper:has(.selectedCell) {
+    .toolbar-wrapper.ProseMirror-selectednode:not(.editing),
+    .toolbar-wrapper.has-focus:not(.editing),
+    .toolbar-wrapper:has(.has-focus):not(.editing),
+    .toolbar-wrapper:has(.selectedCell):not(.editing) {
       > .image-container img,
       > .control-content-empty,
       > pre,
+      > .mermaid-container,
       > .tiptap-mathematics-render,
       > .tableWrapper {
         outline-color: var(--iw-node-selection-blur-color);
-        /*box-shadow: 0 0 0 4px var(--iw-node-selection-blur-shadow);*/
       }
+    }
+  }
+
+  .toolbar-wrapper.editing:has(> .mermaid-container) {
+    margin-bottom: 1rem;
+
+    pre,
+    > .mermaid-container {
+      margin-bottom: 0;
+    }
+  }
+
+  /* MathBlock editing state: move external margin to wrapper */
+  .toolbar-wrapper.editing:has(.tiptap-mathematics-render) {
+    margin-bottom: 1rem;
+
+    .tiptap-mathematics-render[data-type='block-math'] {
+      margin-bottom: 0;
     }
   }
 

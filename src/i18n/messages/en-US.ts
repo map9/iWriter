@@ -18,6 +18,7 @@ export default {
       blockquote: { label: 'Quote', desc: 'Block quotation' },
       codeBlock: { label: 'Code Block', desc: 'Syntax-highlighted code' },
       mathBlock: { label: 'Math Block', desc: 'LaTeX equation' },
+      mermaidBlock: { label: 'Mermaid Diagram', desc: 'Flowchart / sequence / ER diagram' },
       horizontalRule: { label: 'Divider', desc: 'Horizontal rule' },
       table: { label: 'Table', desc: '3×3 table' },
       image: { label: 'Image', desc: 'Insert local image' },

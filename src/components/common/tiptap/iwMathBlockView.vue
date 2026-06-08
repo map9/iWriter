@@ -84,7 +84,7 @@ const mathContent = ref<HTMLDivElement>()
 const mathAttrs = computed(() => props.node.attrs as MathBlockAttributes)
 
 const shouldShowToolbar = computed((): boolean => {
-  return (props.selected || isHovered.value) && props.editor.isEditable
+  return (props.selected || isHovered.value || isEditing.value) && props.editor.isEditable
 })
 
 const currentLatex = computed((): string => {
@@ -232,7 +232,12 @@ onUnmounted(() => {
       border-radius: var(--radius-box);
       background: var(--math-block-surface);
       box-shadow: var(--math-block-shadow);
-      overflow: hidden;
+
+      .latex-input-area {
+        border-top-left-radius: var(--radius-box);
+        border-top-right-radius: var(--radius-box);
+        overflow: hidden;
+      }
     }
 
     .latex-input-area {

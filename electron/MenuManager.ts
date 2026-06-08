@@ -858,6 +858,12 @@ export class MenuManager {
               this.sendMenuAction('insert-math-block')
             }
           },
+          {
+            label: 'Mermaid Diagram',
+            click: () => {
+              this.sendMenuAction('insert-mermaid-block')
+            }
+          },
           /*
           {
             label: 'Alert',

@@ -2,8 +2,9 @@ import { type Editor } from '@tiptap/vue-3'
 import {
   toggleLink,
   toggleMath,
-  insertTable,  
-  insertMathBlock, 
+  insertTable,
+  insertMathBlock,
+  insertMermaidBlock,
   insertReferenceLink,
   insertFootnote,
   toggleTaskItemChecked,
@@ -169,6 +170,10 @@ export async function onEditorMenuAction(editor: Editor | undefined, action: str
 
     case 'insert-math-block':
       insertMathBlock(editor)
+      return true
+
+    case 'insert-mermaid-block':
+      insertMermaidBlock(editor)
       return true
       
     case 'insert-quote-block':
