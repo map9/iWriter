@@ -2,7 +2,11 @@
   <node-view-wrapper
     ref="codeBlockRef"
     class="toolbar-wrapper"
-    :class="{ editing: isMermaid && isEditing }"
+    :class="{
+      editing: isMermaid && isEditing,
+      'mermaid-edit-h': isMermaid && isEditing && mermaidLayout === 'horizontal',
+      'mermaid-edit-v': isMermaid && isEditing && mermaidLayout === 'vertical',
+    }"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
   >
@@ -36,6 +40,17 @@
           >
             <IconEdit class="control-button-icon" />
           </button>
+          <!-- 布局切换：仅编辑态可见 -->
+          <button
+            v-show="isEditing"
+            @click.stop="toggleMermaidLayout"
+            class="control-button"
+            :title="mermaidLayout === 'horizontal' ? 'Switch to vertical layout' : 'Switch to horizontal layout'"
+            contenteditable="false"
+          >
+            <IconLayoutRows v-if="mermaidLayout === 'horizontal'" class="control-button-icon" />
+            <IconLayoutColumns v-else class="control-button-icon" />
+          </button>
           <button
             @click.stop="copyCode"
             class="control-button"
@@ -43,6 +58,33 @@
             contenteditable="false"
           >
             <IconCopy class="control-button-icon" />
+          </button>
+        </div>
+        <!-- 缩放控制：编辑与预览态均可见 -->
+        <div class="control-group">
+          <button
+            @click.stop="zoomOut"
+            class="control-button"
+            title="Zoom Out"
+            contenteditable="false"
+          >
+            <IconZoomOut class="control-button-icon" />
+          </button>
+          <button
+            @click.stop="resetZoom"
+            class="control-button"
+            title="Reset Zoom"
+            contenteditable="false"
+          >
+            <IconZoomReset class="control-button-icon" />
+          </button>
+          <button
+            @click.stop="zoomIn"
+            class="control-button"
+            title="Zoom In"
+            contenteditable="false"
+          >
+            <IconZoomIn class="control-button-icon" />
           </button>
         </div>
         <button
@@ -109,23 +151,24 @@
     </div>
 
     <!-- 代码内容区域（始终挂载，Mermaid 预览模式时隐藏） -->
-    <pre v-show="!isMermaid || isEditing"><node-view-content as="code"/></pre>
+    <pre v-show="!isMermaid || isEditing" class="mermaid-source"><node-view-content as="code"/></pre>
 
-    <!-- Mermaid 渲染容器（Mermaid 模式时始终显示，编辑时位于源码下方作为实时预览） -->
+    <!-- Mermaid 渲染容器（Mermaid 模式时始终显示） -->
     <div
       v-if="isMermaid"
       ref="mermaidContainer"
       class="mermaid-container"
+      :style="{ '--mermaid-zoom': mermaidZoom }"
       contenteditable="false"
     >
-      <div v-if="mermaidState === 'loading'" class="mermaid-placeholder">Rendering…</div>
+      <!-- 优先显示已渲染的 SVG，防止刷新闪烁 -->
+      <div v-if="mermaidSvg" v-html="mermaidSvg" class="mermaid-svg-wrapper"></div>
+      <div v-else-if="mermaidState === 'loading'" class="mermaid-placeholder">Rendering…</div>
       <div v-else-if="mermaidState === 'empty'" class="mermaid-placeholder mermaid-empty">Empty diagram — click edit to add source.</div>
       <div v-else-if="mermaidState === 'error'" class="mermaid-error">
         <span class="mermaid-error-label">Mermaid error:</span>
         <pre class="mermaid-error-text">{{ mermaidError }}</pre>
       </div>
-      <!-- SVG 通过 v-html 注入 -->
-      <div v-else v-html="mermaidSvg" class="mermaid-svg-wrapper"></div>
     </div>
   </node-view-wrapper>
 </template>
@@ -133,7 +176,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NodeViewContent, nodeViewProps, NodeViewWrapper } from '@tiptap/vue-3'
-import { IconTrash, IconCode, IconCopy, IconEdit, IconCheck } from '@tabler/icons-vue'
+import {
+  IconTrash, IconCode, IconCopy, IconEdit, IconCheck,
+  IconLayoutColumns, IconLayoutRows,
+  IconZoomIn, IconZoomOut, IconZoomReset,
+} from '@tabler/icons-vue'
 import { formatCode, isLanguageSupported, type FormatResult } from "./utils/CodeFormatter"
 import { renderMermaid, initMermaid } from "./utils/mermaidRenderer"
 import { notify } from '@/utils/notifications'
@@ -146,6 +193,11 @@ const props = defineProps(nodeViewProps)
 
 const isHovered = ref(false)
 const isEditing = ref(false) // Mermaid 编辑模式
+
+// Mermaid 布局与缩放
+type MermaidLayout = 'horizontal' | 'vertical'
+const mermaidLayout = ref<MermaidLayout>('horizontal')
+const mermaidZoom = ref(1)
 
 // Mermaid 渲染状态
 type MermaidState = 'loading' | 'empty' | 'ok' | 'error'
@@ -203,7 +255,10 @@ const canFormat = computed((): boolean => {
 function scheduleRender(): void {
   if (!isMermaid.value) return
   if (renderTimer) clearTimeout(renderTimer)
-  mermaidState.value = 'loading'
+  // 仅在尚无 SVG 时才显示 loading 占位，避免刷新闪烁
+  if (!mermaidSvg.value) {
+    mermaidState.value = 'loading'
+  }
   renderTimer = setTimeout(() => {
     doRender()
   }, 300)
@@ -219,13 +274,16 @@ async function doRender(): Promise<void> {
   }
   const result = await renderMermaid(code)
   if ('svg' in result) {
+    // 渲染成功：原子替换 SVG，不经过空白状态
     mermaidSvg.value = result.svg
     mermaidError.value = ''
     mermaidState.value = 'ok'
   } else {
     mermaidError.value = result.error
-    mermaidSvg.value = ''
-    mermaidState.value = result.error ? 'error' : 'empty'
+    // 若已有旧图则保留，不闪烁到 error 状态；仅首次无图时才显示错误
+    if (!mermaidSvg.value) {
+      mermaidState.value = result.error ? 'error' : 'empty'
+    }
   }
 }
 
@@ -251,6 +309,23 @@ function setupThemeObserver(): void {
     }
   })
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+}
+
+// --- Mermaid layout & zoom ---
+function toggleMermaidLayout(): void {
+  mermaidLayout.value = mermaidLayout.value === 'horizontal' ? 'vertical' : 'horizontal'
+}
+
+function zoomIn(): void {
+  mermaidZoom.value = Math.min(3, +(mermaidZoom.value * 1.2).toFixed(3))
+}
+
+function zoomOut(): void {
+  mermaidZoom.value = Math.max(0.3, +(mermaidZoom.value / 1.2).toFixed(3))
+}
+
+function resetZoom(): void {
+  mermaidZoom.value = 1
 }
 
 // --- Mermaid edit mode ---
@@ -356,6 +431,54 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+// ── 左右分栏（默认） ──────────────────────────────────────────────
+.toolbar-wrapper.mermaid-edit-h {
+  display: flex;
+  flex-direction: row;
+  height: 384px; // h-96
+
+  > pre.mermaid-source {
+    flex: 0 0 256px; // w-48
+    width: 256px;
+    height: 100%;
+    overflow: auto;
+    margin: 0;
+    border-radius: 0;
+    border-right: var(--border) solid var(--color-base-300);
+  }
+
+  > .mermaid-container {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    overflow: auto;
+    min-height: unset;
+    align-items: flex-start;
+  }
+}
+
+// ── 上下分栏 ──────────────────────────────────────────────────────
+.toolbar-wrapper.mermaid-edit-v {
+  display: flex;
+  flex-direction: column;
+
+  > pre.mermaid-source {
+    max-height: 256px; // h-48
+    overflow: auto;
+    margin: 0;
+    border-radius: 0;
+    border-bottom: var(--border) solid var(--color-base-300);
+  }
+
+  > .mermaid-container {
+    height: 384px; // h-96
+    overflow: auto;
+    min-height: unset;
+    align-items: flex-start;
+  }
+}
+
+// ── Mermaid 渲染容器（通用） ──────────────────────────────────────
 .mermaid-container {
   padding: 12px 16px;
   min-height: 48px;
@@ -397,6 +520,8 @@ onUnmounted(() => {
     width: 100%;
     display: flex;
     justify-content: center;
+    // 缩放：使用 zoom 属性使布局尺寸随比例变化，overflow 可正确滚动
+    zoom: var(--mermaid-zoom, 1);
 
     :deep(svg) {
       max-width: 100%;

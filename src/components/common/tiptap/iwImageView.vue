@@ -3,14 +3,14 @@
     @mouseleave="handleMouseLeave">
     <!-- 图片工具栏：在图片内部 -->
     <div class="toolbar-controls inside-top" v-show="shouldShowToolbar">
-      <div class="control-group flex-grow">
+      <div class="control-group grow">
         <!-- 打开文件夹按钮 -->
         <button @click.stop="openFolder" class="control-button" title="Select image file" contenteditable="false">
           <IconFolder class="control-button-icon" />
         </button>
 
         <!-- 文件路径或URL编辑输入框 -->
-        <div class="control-group flex-grow" v-if="srcStatus !== SrcStatus.EMPTY">
+        <div class="control-group grow" v-if="srcStatus !== SrcStatus.EMPTY">
           <input type="text" class="control-input" v-model="editableImagePath"
             @keydown.enter="updateImageFromInput" :placeholder="displayPath" :title="imagePath"
             contenteditable="false" />
