@@ -498,7 +498,7 @@ export function buildProposalFromAction(
   if (toolName === 'create_document') {
     const rawFilename = String(args.filename ?? '')
     const directory = typeof args.directory === 'string' && args.directory ? args.directory : undefined
-    const filename = directory ? withDefaultMarkdownExtension(rawFilename) : rawFilename
+    const filename = withDefaultMarkdownExtension(rawFilename)
     return {
       id,
       kind: 'create_file',

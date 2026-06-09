@@ -2469,7 +2469,10 @@ export const useAppStore = defineStore('app', () => {
         if (text) {
           // Sanitize: remove characters not safe for filenames
           const safe = text.replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 20)
-          if (safe) return safe + "." + pathUtils.extension(defaultName)
+          if (safe) {
+            const ext = pathUtils.extension(defaultName)
+            return ext ? `${safe}.${ext}` : safe
+          }
         }
       }
     }
@@ -2495,15 +2498,19 @@ export const useAppStore = defineStore('app', () => {
     try {
       let originalPath: string | undefined = tab.path
       if (saveAs === true || !originalPath) {
-        const defaultPath = !originalPath ? (currentFolder.value ? currentFolder.value + '/' + getFileNameFromTabContent(tab) : '') : originalPath
+        const fileName = getFileNameFromTabContent(tab)
+        const defaultPath = !originalPath ? (currentFolder.value ? currentFolder.value + '/' + fileName : fileName) : originalPath
+        const defaultExt = pathUtils.extension(defaultPath).toLowerCase()
+        const specificFilters = [
+          { name: 'iWriter Files', extensions: [...TEXT_IWT_EXTENSIONS] },
+          { name: 'Markdown Files', extensions: [...TEXT_MD_EXTENSIONS] },
+          { name: 'Text Files', extensions: [...TEXT_TXT_EXTENSIONS] },
+        ]
+        const matchIndex = specificFilters.findIndex(f => (f.extensions as string[]).includes(defaultExt))
+        if (matchIndex > 0) specificFilters.unshift(specificFilters.splice(matchIndex, 1)[0]!)
         const result = await window.electronAPI.showSaveDialog({
           defaultPath,
-          filters: [
-            { name: 'iWriter Files', extensions: [...TEXT_IWT_EXTENSIONS] },
-            { name: 'Markdown Files', extensions: [...TEXT_MD_EXTENSIONS] },
-            { name: 'Text Files', extensions: [...TEXT_TXT_EXTENSIONS] },
-            { name: 'All Files', extensions: [...TEXT_EXTENSIONS] }
-          ]
+          filters: [...specificFilters, { name: 'All Files', extensions: [...TEXT_EXTENSIONS] }]
         })
         if (!result.canceled && result.filePath) {
           originalPath = result.filePath

@@ -58,7 +58,7 @@
         </div>
       </div>
 
-      <div class="min-h-52">
+      <div class="min-h-52" :class="tonePanelClass">
         <template v-if="current.kind === 'create_file'">
           <div class="border-b border-base-300 px-3 py-2 text-xs font-medium text-base-content">
             {{ t('agentPanel.proposalNavigator.newFilePreview') }}
@@ -68,7 +68,7 @@
             <div v-if="current.directory" class="mb-2 truncate text-xs text-base-content/50" :title="current.directory + '/' + current.filename">
               {{ t('agentPanel.proposalNavigator.fileTargetPath', { path: current.directory + '/' + current.filename }) }}
             </div>
-            <div class="rounded-md border p-2" :class="tonePanelClass">
+            <div class="rounded-md border p-2">
               <MarkdownContentView :content="current.content" />
             </div>
           </div>
