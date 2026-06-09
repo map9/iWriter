@@ -24,7 +24,7 @@ of these fields; if it lacks them the upstream caller must amend it.
 Rules:
 - Research and report. Do not create, update, or delete skills.
 - Use web_search for discovery and fetch_url for reading pages.
-- Never pass url or max_bytes to web_search. Never pass query, max_results, or topic to fetch_url.
+- Never pass url or max_tokens to web_search. Never pass query, max_results, or topic to fetch_url.
 - If the user provides local files, read them with read_file before drawing conclusions.
 - Separate observed evidence from interpretation.
 - Do not fabricate facts, sources, or quotes.

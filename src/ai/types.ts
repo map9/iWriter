@@ -217,7 +217,7 @@ export interface BlockEditProposal extends BaseEditProposal {
 /** File creation proposal — produced by create_document when no document is open. */
 export interface FileCreateProposal extends BaseEditProposal {
   kind: 'create_file'
-  filename: string          // Desired tab name (without extension)
+  filename: string          // In-memory tab title, or disk basename when directory is set
   content: string           // Full Markdown to inject into the new tab's editor
   toolCallId?: string
   /** Absolute host path to the directory where the file should be written to disk (e.g. workspace/draft/). When set, executor writes the file before opening the tab. */

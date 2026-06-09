@@ -1,4 +1,5 @@
 
+import * as path from 'path'
 import { EDIT_SYSTEM_PROMPT } from '../../../../src/ai/thread/system-prompts/edit'
 import { MINIMAL_SYSTEM_PROMPT } from '../../../../src/ai/thread/system-prompts/minimal'
 import { buildEditCapabilities, EDIT_INTERRUPT_ON_NAMES } from './buildEditCapabilities'
@@ -30,6 +31,10 @@ export class EditDomainStrategy implements DomainStrategy {
 
   getSystemPrompt(mode: AiAgentMode, _language: DetectedInputLanguage): string {
     return mode === 'minimal' ? MINIMAL_SYSTEM_PROMPT : EDIT_SYSTEM_PROMPT
+  }
+
+  getSkillSources(aiRootPath: string): string[] {
+    return [path.join(aiRootPath, 'skills', 'edit')]
   }
 
   getMemoryFileName(): string {

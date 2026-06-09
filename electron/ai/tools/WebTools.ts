@@ -14,6 +14,8 @@ const fetchUrlTool = tool(
       'Fetches the content of a URL and returns clean Markdown. ' +
       'Automatically handles static pages, JavaScript-rendered SPAs (via headless browser), and non-HTML content. ' +
       'Strips ads, navigation, and boilerplate — returns title, paragraphs, tables, and image links. ' +
+      'Image links extracted from the page are returned in the `imageLinks` field, preserved even when the page text is truncated. ' +
+      'For a direct image URL (e.g. a .jpg/.png link), returns an `isImage: true` validation result with the resolved `finalUrl` — use this to verify an image link is real before embedding it. ' +
       'For local PDF files use get_pdf_pages instead. ' +
       'Use for web pages, Wikipedia articles, documentation, blog posts, and other online text sources.',
     schema: z.object({
@@ -26,7 +28,7 @@ const fetchUrlTool = tool(
 
 const webSearchTool = new DynamicStructuredTool({
   name: 'web_search',
-  description: 'Searches the web using the configured search provider (Tavily, SearXNG, or custom). Returns titles, URLs, and snippets for matching results. Configure the provider in AI Preferences → Web Search Engine.',
+  description: 'Searches the web using the configured search provider (Tavily, SearXNG, or custom). Returns titles, URLs, and snippets for matching results. When using Tavily, also returns `image_urls` — a list of direct embeddable image links with descriptions — that can be used directly as `![alt](url)` in documents without further fetching. Configure the provider in AI Preferences → Web Search Engine.',
   schema: z.object({
     query: z.string().min(1).describe('The search query'),
     max_results: z.number().int().min(1).max(10).default(5).describe('Number of results to return (default 5)'),
@@ -62,6 +64,8 @@ const webSearchTool = new DynamicStructuredTool({
           max_results,
           search_depth: 'basic',
           include_raw_content: false,
+          include_images: true,
+          include_image_descriptions: true,
         }
         if (topic) body.topic = topic
 
@@ -75,10 +79,19 @@ const webSearchTool = new DynamicStructuredTool({
           const text = await response.text().catch(() => '')
           return JSON.stringify({ error: `Tavily API error ${response.status}: ${text.slice(0, 200)}` })
         }
-        const data = await response.json() as { results?: { title: string; url: string; content: string }[] }
+        const data = await response.json() as {
+          results?: { title: string; url: string; content: string }[]
+          images?: Array<string | { url: string; description?: string }>
+        }
         const results = (data.results ?? []).map(r => ({ title: r.title, url: r.url, snippet: r.content }))
-        console.log(`[web_search] tavily query="${query}" results=${results.length}`)
-        return JSON.stringify({ provider: 'tavily', results })
+        // Normalise images: Tavily returns strings when include_image_descriptions is unsupported,
+        // or { url, description } objects when supported. Always emit the richer form.
+        const rawImages = data.images ?? []
+        const image_urls = rawImages.map(img =>
+          typeof img === 'string' ? { url: img, description: '' } : { url: img.url, description: img.description ?? '' }
+        )
+        console.log(`[web_search] tavily query="${query}" results=${results.length} images=${image_urls.length}`)
+        return JSON.stringify({ provider: 'tavily', results, ...(image_urls.length ? { image_urls } : {}) })
       }
 
       if (providerType === 'searxng' || providerType === 'custom') {

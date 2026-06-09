@@ -1,18 +1,54 @@
-import { nextTick } from 'vue'
 import type { Editor } from '@tiptap/core'
 import type { BlockEditProposal, EditProposal, FileCreateProposal } from '@/ai/types'
-import { applyBlockEditProposal } from '@/ai/edit-agent/BlockEditApplier'
 import { UnifiedDocumentAccess } from '@/ai/edit-agent/UnifiedDocumentAccess'
 import { pathUtils } from '@/utils/pathUtils'
 import { DocumentType } from '@/types/document-type'
 import type { ReviewBatchState } from './types'
 
 export interface ReviewExecutorAppStoreLike {
+  tabs?: Array<{
+    name?: string
+    path?: string | null
+  }>
   activeTab?: {
     path?: string | null
     editorInstance?: unknown
   } | null
-  createTab: (name?: string, path?: string, documentType?: DocumentType, fileReadonly?: boolean) => unknown
+  createTab: (
+    name?: string,
+    path?: string,
+    documentType?: DocumentType,
+    fileReadonly?: boolean,
+    pendingImport?: { markdown: string; sourcePath?: string },
+  ) => unknown
+}
+
+function hasPathLikeExtension(value: string): boolean {
+  const basename = pathUtils.basename(value)
+  return /\.[^./\\]+$/.test(basename)
+}
+
+function normalizeCreateDocumentDiskFilename(filename: string): string {
+  const trimmed = filename.trim()
+  if (!trimmed) return ''
+  return hasPathLikeExtension(trimmed) ? trimmed : `${trimmed}.md`
+}
+
+function hasOpenCreateDocumentTarget(
+  appStore: ReviewExecutorAppStoreLike,
+  proposal: FileCreateProposal,
+): boolean {
+  const directory = proposal.directory ? pathUtils.normalize(proposal.directory) : undefined
+  const filename = directory
+    ? normalizeCreateDocumentDiskFilename(proposal.filename)
+    : proposal.filename.trim()
+  const targetPath = directory ? pathUtils.normalize(pathUtils.join(directory, filename)) : undefined
+
+  return (appStore.tabs ?? []).some(tab => {
+    const tabPath = tab.path ? pathUtils.normalize(tab.path) : undefined
+    if (targetPath && tabPath === targetPath) return true
+    return !targetPath && (tab.name ?? '').trim() === filename
+  })
 }
 
 export function buildProposalFailureMessage(proposal: BlockEditProposal, error: string): string {
@@ -230,11 +266,18 @@ async function applyRecordedDecision(params: {
 
   if (proposal.kind === 'create_file') {
     const createProposal = proposal as FileCreateProposal
+    if (hasOpenCreateDocumentTarget(appStore, createProposal)) {
+      updateLocalProposalToolCall(proposal, 'failed')
+      setProposalDecision(proposalId, 'failed_to_apply', {
+        message: `Document creation failed: "${createProposal.filename}" already exists or is already open.`,
+      })
+      return
+    }
 
     // When a target directory is provided, write to disk first then open the saved file
     if (createProposal.directory && saveFile) {
       const dir = createProposal.directory
-      const filename = createProposal.filename
+      const filename = normalizeCreateDocumentDiskFilename(createProposal.filename)
       if (
         !pathUtils.isAbsolutePath(dir) ||
         dir.includes('..') ||
@@ -259,36 +302,13 @@ async function applyRecordedDecision(params: {
       return
     }
 
-    appStore.createTab(createProposal.filename, undefined, DocumentType.MARKDOWN_EDITOR)
-
-    const getEditor = (): Editor | undefined => appStore.activeTab?.editorInstance as Editor | undefined
-    for (let i = 0; i < 20; i++) {
-      await nextTick()
-      if (getEditor()) break
-    }
-
-    const editor = getEditor()
-    if (!editor) {
-      updateLocalProposalToolCall(proposal, 'failed')
-      setProposalDecision(proposalId, 'failed_to_apply', { message: 'Document creation failed: editor not ready.' })
-      return
-    }
-
-    const insertProposal: BlockEditProposal = {
-      id: proposal.id,
-      kind: 'block',
-      type: 'insert',
-      status: 'pending',
-      afterNodeId: '0',
-      newContent: createProposal.content,
-    }
-    const result = await applyBlockEditProposal(editor, insertProposal)
-    if (!result.success) {
-      updateLocalProposalToolCall(proposal, 'failed')
-      setProposalDecision(proposalId, 'failed_to_apply', { message: `Document creation failed: ${result.error}` })
-      return
-    }
-
+    appStore.createTab(
+      createProposal.filename,
+      undefined,
+      DocumentType.MARKDOWN_EDITOR,
+      false,
+      { markdown: createProposal.content },
+    )
     updateLocalProposalToolCall(proposal, 'completed')
     return
   }

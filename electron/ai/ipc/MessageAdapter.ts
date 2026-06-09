@@ -20,6 +20,17 @@ import { isHitlInterruptPayload } from '../../../src/ai/hitl'
 
 // ── Tool argument parsing ────────────────────────────────────────────────────
 
+function hasPathLikeExtension(value: string): boolean {
+  const basename = value.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? value
+  return /\.[^./\\]+$/.test(basename)
+}
+
+function withDefaultMarkdownExtension(filename: string): string {
+  const trimmed = filename.trim()
+  if (!trimmed) return ''
+  return hasPathLikeExtension(trimmed) ? trimmed : `${trimmed}.md`
+}
+
 export function parseToolArguments(raw: unknown): Record<string, unknown> {
   if (raw == null) return {}
   if (typeof raw === 'string') { try { return JSON.parse(raw) } catch { return {} } }
@@ -486,10 +497,8 @@ export function buildProposalFromAction(
 
   if (toolName === 'create_document') {
     const rawFilename = String(args.filename ?? '')
-    const filename = rawFilename && !/\.[^./\\]+$/.test(rawFilename)
-      ? `${rawFilename}.md`
-      : rawFilename
     const directory = typeof args.directory === 'string' && args.directory ? args.directory : undefined
+    const filename = directory ? withDefaultMarkdownExtension(rawFilename) : rawFilename
     return {
       id,
       kind: 'create_file',

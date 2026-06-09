@@ -1082,6 +1082,7 @@ export class AgentEngine {
       path.join(this.aiRootPath, 'skills', 'explorer'),
       path.join(this.aiRootPath, 'skills', 'researcher'),
       path.join(this.aiRootPath, 'skills', 'writing-style'),
+      path.join(this.aiRootPath, 'skills', 'edit'),
       path.join(this.aiRootPath, 'subagents'),
       path.join(this.aiRootPath, 'empty-fs'),
     ]
