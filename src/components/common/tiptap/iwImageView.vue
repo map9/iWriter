@@ -131,13 +131,12 @@
       </div>
     </div>
 
-    <!-- 图片容器：包含img和loading overlay -->
+    <!-- 图片容器：包含loading占位框、img和resize手柄 -->
     <div v-else class="image-container" @dragover.prevent="handleDragOver" @drop.prevent="handleDrop"
       @dragleave="handleDragLeave">
-      <!-- 加载覆盖层 -->
-      <div v-if="srcStatus === SrcStatus.LOADING" class="loading-overlay">
+      <!-- 加载占位框：固定尺寸，与空节点风格一致 -->
+      <div v-if="srcStatus === SrcStatus.LOADING" class="control-content-loading">
         <div class="loading-content">
-          <!-- 加载动画 -->
           <div class="loading-spinner">
             <svg class="spinner-icon" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-dasharray="31.416"
@@ -153,9 +152,13 @@
         </div>
       </div>
 
-      <!-- 图片本体 -->
-      <img :src="imageSrc" :alt="imageAlt" :title="imageTitle" class="control-content"
-        :class="{ 'loading': srcStatus === SrcStatus.LOADING }" @error="handleImageError" @load="handleImageLoad" />
+      <!-- 图片本体（display:none 时仍在后台加载，触发 @load/@error） -->
+      <img v-show="srcStatus === SrcStatus.LOADED" ref="imgRef" :src="imageSrc" :alt="imageAlt" :title="imageTitle"
+        :style="imgStyle" class="control-content" @error="handleImageError" @load="handleImageLoad" />
+
+      <!-- 右下角 resize 手柄（仅已加载且选中/悬停时显示） -->
+      <span v-show="shouldShowResizeHandles" class="resize-handle br"
+        @pointerdown.stop.prevent="startResize($event)" contenteditable="false" />
     </div>
   </node-view-wrapper>
 </template>
@@ -194,6 +197,15 @@ const editableImagePath = ref('')
 const resolvingImageUrl = ref<string | null>(null)
 const resolvedImageFailures = new Set<string>()
 
+// Resize state
+const imgRef = ref<HTMLImageElement | null>(null)
+const liveWidth = ref<number | null>(null)
+let resizeStartX = 0
+let resizeStartWidth = 0
+let resizeRatio = 1
+let onResizeMoveHandler: ((e: PointerEvent) => void) | null = null
+let onResizeEndHandler: (() => void) | null = null
+
 // Computed properties
 const imageAttrs = computed(() => props.node.attrs as ImageAttributes)
 
@@ -222,6 +234,16 @@ const shouldShowToolbar = computed((): boolean => {
   if (srcStatus.value === SrcStatus.EMPTY) return false
 
   return (props.selected || isHovered.value)
+})
+
+const shouldShowResizeHandles = computed((): boolean => {
+  return srcStatus.value === SrcStatus.LOADED && (props.selected || isHovered.value)
+})
+
+const imgStyle = computed((): Record<string, string> => {
+  const w = liveWidth.value ?? (props.node.attrs.width ? Number(props.node.attrs.width) : null)
+  if (!w) return {}
+  return { width: `${w}px` }
 })
 
 // 获取图片路径
@@ -305,6 +327,40 @@ const handleMouseEnter = (): void => {
 
 const handleMouseLeave = (): void => {
   isHovered.value = false
+}
+
+const startResize = (e: PointerEvent): void => {
+  if (!imgRef.value) return
+  const rect = imgRef.value.getBoundingClientRect()
+  resizeStartX = e.clientX
+  resizeStartWidth = rect.width
+  resizeRatio = rect.height > 0 ? rect.width / rect.height : 1
+  liveWidth.value = resizeStartWidth
+
+  onResizeMoveHandler = (ev: PointerEvent) => {
+    const dx = ev.clientX - resizeStartX
+    // parentElement = .image-container (inline-block, = img width)
+    // parentElement.parentElement = node-view-wrapper (block, = editor content width)
+    const maxWidth = imgRef.value?.parentElement?.parentElement?.clientWidth ?? 2000
+    liveWidth.value = Math.max(50, Math.min(maxWidth, resizeStartWidth + dx))
+  }
+
+  onResizeEndHandler = () => {
+    if (liveWidth.value !== null && resizeRatio > 0) {
+      props.updateAttributes({
+        width: Math.round(liveWidth.value),
+        height: Math.round(liveWidth.value / resizeRatio),
+      })
+    }
+    liveWidth.value = null
+    if (onResizeMoveHandler) window.removeEventListener('pointermove', onResizeMoveHandler)
+    if (onResizeEndHandler) window.removeEventListener('pointerup', onResizeEndHandler)
+    onResizeMoveHandler = null
+    onResizeEndHandler = null
+  }
+
+  window.addEventListener('pointermove', onResizeMoveHandler)
+  window.addEventListener('pointerup', onResizeEndHandler)
 }
 
 const handleImageLoad = (): void => {
@@ -849,24 +905,31 @@ const updateImageFromInput = async (): Promise<void> => {
 
       .control-content {
         display: block;
-
-        &.loading {
-          opacity: 0.3;
-        }
       }
 
-      .loading-overlay {
+      .resize-handle {
         position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: var(--image-overlay);
+        width: 12px;
+        height: 12px;
+        background: var(--color-primary);
+        border: 2px solid var(--color-primary-content);
+        border-radius: 2px;
+        z-index: 20;
+
+        &.br { bottom: -6px; right: -6px; cursor: nwse-resize; }
+      }
+
+      .control-content-loading {
         display: flex;
         align-items: center;
         justify-content: center;
+        min-height: 280px;
+        min-width: 500px;
+        max-width: 100%;
+        padding: 40px;
+        background: var(--image-surface-muted);
+        border: var(--border) solid var(--image-border);
         border-radius: var(--radius-box);
-        z-index: 10;
 
         .loading-content {
           text-align: center;
@@ -889,6 +952,7 @@ const updateImageFromInput = async (): Promise<void> => {
           }
         }
       }
+
     }
 
     .control-content-empty {

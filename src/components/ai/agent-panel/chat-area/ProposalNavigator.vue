@@ -58,7 +58,7 @@
         </div>
       </div>
 
-      <div class="min-h-52" :class="tonePanelClass">
+      <div class="min-h-52">
         <template v-if="current.kind === 'create_file'">
           <div class="border-b border-base-300 px-3 py-2 text-xs font-medium text-base-content">
             {{ t('agentPanel.proposalNavigator.newFilePreview') }}

@@ -120,13 +120,20 @@ function applyLineEnding(content: string, lineEnding: 'LF' | 'CRLF' = 'LF'): str
   return lineEnding === 'CRLF' ? normalized.replace(/\n/g, '\r\n') : normalized
 }
 
+// marked wraps standalone images as <p><img></p>; since Image is a block node,
+// ProseMirror would otherwise split that paragraph and leave an empty one before
+// every image. Unwrap paragraphs that contain only a single image to avoid this.
+function unwrapBlockImages(html: string): string {
+  return html.replace(/<p>(\s*<img\b[^>]*>\s*)<\/p>/gi, '$1')
+}
+
 // Load content into editor
 export async function convertContentFrom(content: string, extension: string) {
   // @ts-expect-error don't report error
   if (TEXT_MD_EXTENSIONS.includes(extension)) {
     // Convert markdown to HTML for TipTap
     return {
-      content: await marked(content),
+      content: unwrapBlockImages(await marked(content)),
       lineEnding: detectLineEnding(content)
     }
   // @ts-expect-error don't report error
