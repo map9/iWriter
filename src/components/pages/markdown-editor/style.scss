@@ -125,6 +125,12 @@
     p {
       text-indent: 2em;
 
+      &[style*="text-align: center"],
+      &[style*="text-align: right"],
+      &[style*="text-align: justify"] {
+        text-indent: 0em;
+      }
+
       .tiptap-invisible-character {
         text-indent: 0em;
       }
