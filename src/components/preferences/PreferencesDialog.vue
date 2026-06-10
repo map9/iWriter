@@ -34,7 +34,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.themes.title') }}</h2>
             <button
-              class="iw-btn btn-ghost absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -258,7 +258,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.workspace.title') }}</h2>
             <button
-              class="iw-btn btn-ghost absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -288,7 +288,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.export.title') }}</h2>
             <button
-              class="iw-btn btn-ghost absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -304,7 +304,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.print.title') }}</h2>
             <button
-              class="iw-btn btn-ghost absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -320,7 +320,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.editor.title') }}</h2>
             <button
-              class="iw-btn btn-ghost absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -450,7 +450,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.spelling.title') }}</h2>
             <button
-              class="iw-btn btn-ghost absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -580,7 +580,7 @@
               <span>{{ t('common.back') }}</span>
             </button>
             <button
-              class="iw-btn btn-ghost absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -596,7 +596,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.updates.title') }}</h2>
             <button
-              class="iw-btn btn-ghost absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
