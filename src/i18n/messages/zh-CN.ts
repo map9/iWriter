@@ -171,6 +171,12 @@ export default {
       createExample: '创建示例主题',
       noCustomThemes: '暂无自定义主题，请将主题文件夹放置于 ~/.iwriter/markdown/themes/',
       appThemeTitle: '应用主题',
+      sectionGeneral: '通用',
+      sectionLightThemes: '浅色主题',
+      sectionDarkThemes: '深色主题',
+      sectionMarkdownThemes: 'MarkDown 主题',
+      sectionCustomMarkdownThemes: '自定义 MarkDown 主题',
+      customThemeLoaded: '已加载',
     },
     export: {
       title: '导出',

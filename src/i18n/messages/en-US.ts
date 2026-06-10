@@ -171,6 +171,12 @@ export default {
       createExample: 'Create Example',
       noCustomThemes: 'No custom markdown themes loaded. Place theme folders in ~/.iwriter/markdown/themes/',
       appThemeTitle: 'App Theme',
+      sectionGeneral: 'General',
+      sectionLightThemes: 'Light Themes',
+      sectionDarkThemes: 'Dark Themes',
+      sectionMarkdownThemes: 'Markdown Themes',
+      sectionCustomMarkdownThemes: 'Custom Markdown Themes',
+      customThemeLoaded: 'Loaded',
     },
     export: {
       title: 'Export',

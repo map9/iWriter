@@ -41,108 +41,207 @@
               <IconX class="icon-xs" />
             </button>
           </div>
-          <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-7">
-          <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.languageTitle') }}</h3>
-            <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
-              <div class="min-w-0">
-                <div class="text-sm font-medium text-base-content">{{ t('locale.label') }}</div>
-                <div class="text-xs text-base-content/50">{{ t('preferences.themes.languageDescription') }}</div>
+          <div class="flex min-h-0 flex-1 overflow-hidden">
+            <aside class="flex min-h-0 w-52 shrink-0 flex-col border-r border-base-300 bg-base-200/50">
+              <div class="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+                <ul class="space-y-1">
+                  <li>
+                    <button
+                      class="iw-btn btn-sm h-8 w-full justify-start border-none text-left"
+                      :class="activeThemeSection === 'general' ? 'btn-active' : 'btn-ghost'"
+                      @click="activeThemeSection = 'general'"
+                    >
+                      {{ t('preferences.themes.sectionGeneral') }}
+                    </button>
+                  </li>
+                </ul>
+                <div class="my-2 border-t border-base-300" />
+                <ul class="space-y-1">
+                  <li v-for="section in appThemeSections" :key="section.id">
+                    <button
+                      class="iw-btn btn-sm h-8 w-full justify-start border-none text-left"
+                      :class="activeThemeSection === section.id ? 'btn-active' : 'btn-ghost'"
+                      @click="activeThemeSection = section.id"
+                    >
+                      {{ section.label }}
+                    </button>
+                  </li>
+                </ul>
+                <div class="my-2 border-t border-base-300" />
+                <ul class="space-y-1">
+                  <li v-for="section in markdownThemeSections" :key="section.id">
+                    <button
+                      class="iw-btn btn-sm h-8 w-full justify-start border-none text-left"
+                      :class="activeThemeSection === section.id ? 'btn-active' : 'btn-ghost'"
+                      @click="activeThemeSection = section.id"
+                    >
+                      {{ section.label }}
+                    </button>
+                  </li>
+                </ul>
               </div>
-              <select
-                class="iw-select w-52"
-                :value="appStore.locale"
-                @change="appStore.setLocale(($event.target as HTMLSelectElement).value)"
-              >
-                <option value="en-US">{{ t('locale.enUS') }}</option>
-                <option value="zh-CN">{{ t('locale.zhCN') }}</option>
-              </select>
-            </div>
-          </section>
+            </aside>
 
-          <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.markdownThemeTitle') }}</h3>
-            <div class="grid grid-cols-3 gap-3">
-              <button
-                v-for="theme in markdownThemes"
-                :key="theme.id"
-                class="card gap-3 rounded-box border bg-base-100 p-3 text-left transition-colors"
-                :class="appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId === theme.id
-                  ? 'border-primary bg-primary/8'
-                  : 'border-base-300 hover:border-primary/40 hover:bg-base-200/60'"
-                @click="appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId = theme.id"
-              >
-                <div class="text-sm font-medium text-base-content">{{ theme.name }}</div>
-                <div class="text-xs text-base-content/50">{{ theme.description }}</div>
-                <span v-if="appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId === theme.id" class="badge badge-primary badge-sm w-fit">
-                  {{ t('common.active') }}
-                </span>
-              </button>
-            </div>
-          </section>
-
-          <section class="flex flex-col gap-3">
-            <div class="flex items-center justify-between">
-              <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.customMarkdownThemesTitle') }}</h3>
-              <div class="flex items-center gap-2">
-                <button class="iw-btn btn-ghost btn-xs gap-1.5" @click="handleCreateExampleTheme">
-                  <IconPlus class="icon-xs" />
-                  {{ t('preferences.themes.createExample') }}
-                </button>
-                <button class="iw-btn btn-ghost btn-xs gap-1.5" @click="openThemesFolder">
-                  <IconFolderOpen class="icon-xs" />
-                  {{ t('preferences.themes.openFolder') }}
-                </button>
-              </div>
-            </div>
-            <div v-if="rawCustomThemes.length === 0" class="rounded-box border border-dashed border-base-300 px-4 py-5 text-center text-sm text-base-content/50">
-              {{ t('preferences.themes.noCustomThemes') }}
-            </div>
-            <div v-else class="flex flex-col gap-2">
-              <div
-                v-for="theme in rawCustomThemes"
-                :key="theme.id"
-                class="flex items-start gap-3 rounded-box border border-base-300 bg-base-100 px-4 py-3"
-                :class="theme.errors.length > 0 ? 'border-warning/30 bg-warning/10' : ''"
-              >
-                <component
-                  :is="theme.errors.length > 0 ? IconAlertTriangle : IconCheck"
-                  class="icon-xs mt-0.5 shrink-0"
-                  :class="theme.errors.length > 0 ? 'text-warning' : 'text-success'"
-                />
-                <div class="min-w-0 flex-1">
-                  <div class="text-sm font-medium text-base-content">{{ theme.manifest.name }}</div>
-                  <div class="text-xs text-base-content/50">{{ theme.id }}</div>
-                  <ul v-if="theme.errors.length > 0" class="mt-1 space-y-0.5">
-                    <li v-for="(err, i) in theme.errors" :key="i" class="text-xs text-warning">{{ err }}</li>
-                  </ul>
+            <div class="min-w-0 flex-1 overflow-y-auto p-6">
+              <section v-if="activeThemeSection === 'general'" class="flex flex-col gap-6">
+                <div class="flex flex-col gap-3">
+                  <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.languageTitle') }}</h3>
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-sm font-medium text-base-content">{{ t('locale.label') }}</label>
+                    <select
+                      class="iw-select w-full"
+                      :value="appStore.locale"
+                      @change="appStore.setLocale(($event.target as HTMLSelectElement).value)"
+                    >
+                      <option value="en-US">{{ t('locale.enUS') }}</option>
+                      <option value="zh-CN">{{ t('locale.zhCN') }}</option>
+                    </select>
+                    <span class="text-xs text-base-content/50">{{ t('preferences.themes.languageDescription') }}</span>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </section>
 
-          <section class="flex flex-col gap-3">
-            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.appThemeTitle') }}</h3>
-            <div class="grid grid-cols-3 gap-3">
-              <button
-                v-for="theme in availableThemes"
-                :key="theme.id"
-                class="card gap-3 rounded-box border bg-base-100 p-3 text-left transition-colors"
-                :class="appStore.currentThemeId === theme.id
-                  ? 'border-primary bg-primary/8'
-                  : 'border-base-300 hover:border-primary/40 hover:bg-base-200/60'"
-                @click="appStore.setTheme(theme.id)"
-              >
-                <ThemePreviewSample :theme-id="themePreviewThemeId(theme.id)" />
-                <div class="flex items-center justify-between gap-2">
-                  <span class="min-w-0 whitespace-nowrap text-sm font-medium text-base-content">{{ theme.name }}</span>
-                  <span v-if="appStore.currentThemeId === theme.id" class="badge badge-primary badge-sm shrink-0">
-                    {{ t('common.active') }}
-                  </span>
+                <div class="flex flex-col gap-3">
+                  <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.appThemeTitle') }}</h3>
+                  <div class="grid grid-cols-2 gap-3">
+                    <button
+                      v-for="theme in generalAppThemes"
+                      :key="theme.id"
+                      class="flex h-44 flex-col gap-3 overflow-hidden rounded-box border bg-base-100 p-3 text-left transition-colors"
+                      :class="appStore.currentThemeId === theme.id
+                        ? 'border-primary bg-primary/8'
+                        : 'border-base-300 hover:border-primary/40 hover:bg-base-200/60'"
+                      @click="appStore.setTheme(theme.id)"
+                    >
+                      <ThemePreviewSample :theme-id="themePreviewThemeId(theme.id)" />
+                      <div class="mt-auto flex items-center justify-between gap-2">
+                        <span class="min-w-0 truncate text-sm font-medium text-base-content">{{ theme.name }}</span>
+                        <span v-if="appStore.currentThemeId === theme.id" class="badge badge-primary badge-sm shrink-0">
+                          {{ t('common.active') }}
+                        </span>
+                      </div>
+                    </button>
+                  </div>
                 </div>
-              </button>
+              </section>
+
+              <section v-else-if="activeThemeSection === 'light'" class="flex flex-col gap-3">
+                <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.sectionLightThemes') }}</h3>
+                <div class="grid grid-cols-2 gap-3">
+                  <button
+                    v-for="theme in lightAppThemes"
+                    :key="theme.id"
+                    class="flex h-44 flex-col gap-3 overflow-hidden rounded-box border bg-base-100 p-3 text-left transition-colors"
+                    :class="appStore.currentThemeId === theme.id
+                      ? 'border-primary bg-primary/8'
+                      : 'border-base-300 hover:border-primary/40 hover:bg-base-200/60'"
+                    @click="appStore.setTheme(theme.id)"
+                  >
+                    <ThemePreviewSample :theme-id="themePreviewThemeId(theme.id)" />
+                    <div class="mt-auto flex items-center justify-between gap-2">
+                      <span class="min-w-0 truncate text-sm font-medium text-base-content">{{ theme.name }}</span>
+                      <span v-if="appStore.currentThemeId === theme.id" class="badge badge-primary badge-sm shrink-0">
+                        {{ t('common.active') }}
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </section>
+
+              <section v-else-if="activeThemeSection === 'dark'" class="flex flex-col gap-3">
+                <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.sectionDarkThemes') }}</h3>
+                <div class="grid grid-cols-2 gap-3">
+                  <button
+                    v-for="theme in darkAppThemes"
+                    :key="theme.id"
+                    class="flex h-44 flex-col gap-3 overflow-hidden rounded-box border bg-base-100 p-3 text-left transition-colors"
+                    :class="appStore.currentThemeId === theme.id
+                      ? 'border-primary bg-primary/8'
+                      : 'border-base-300 hover:border-primary/40 hover:bg-base-200/60'"
+                    @click="appStore.setTheme(theme.id)"
+                  >
+                    <ThemePreviewSample :theme-id="themePreviewThemeId(theme.id)" />
+                    <div class="mt-auto flex items-center justify-between gap-2">
+                      <span class="min-w-0 truncate text-sm font-medium text-base-content">{{ theme.name }}</span>
+                      <span v-if="appStore.currentThemeId === theme.id" class="badge badge-primary badge-sm shrink-0">
+                        {{ t('common.active') }}
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </section>
+
+              <section v-else-if="activeThemeSection === 'markdown'" class="flex flex-col gap-3">
+                <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.sectionMarkdownThemes') }}</h3>
+                <div class="grid grid-cols-2 gap-3">
+                  <button
+                    v-for="theme in builtInMarkdownThemeOptions"
+                    :key="theme.id"
+                    class="flex h-44 flex-col gap-2 overflow-hidden rounded-box border bg-base-100 p-3 text-left transition-colors"
+                    :class="appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId === theme.id
+                      ? 'border-primary bg-primary/8'
+                      : 'border-base-300 hover:border-primary/40 hover:bg-base-200/60'"
+                    @click="appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId = theme.id"
+                  >
+                    <div class="text-sm font-medium text-base-content">{{ theme.name }}</div>
+                    <div class="min-h-0 overflow-hidden text-xs leading-5 text-base-content/50">{{ theme.description }}</div>
+                    <span
+                      v-if="appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId === theme.id"
+                      class="badge badge-primary badge-sm mt-auto w-fit"
+                    >
+                      {{ t('common.active') }}
+                    </span>
+                  </button>
+                </div>
+              </section>
+
+              <section v-else-if="activeThemeSection === 'custom-markdown'" class="flex flex-col gap-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.customMarkdownThemesTitle') }}</h3>
+                  <div class="flex items-center gap-2">
+                    <button class="iw-btn btn-ghost btn-xs gap-1.5" @click="handleCreateExampleTheme">
+                      <IconPlus class="icon-xs" />
+                      {{ t('preferences.themes.createExample') }}
+                    </button>
+                    <button class="iw-btn btn-ghost btn-xs gap-1.5" @click="openThemesFolder">
+                      <IconFolderOpen class="icon-xs" />
+                      {{ t('preferences.themes.openFolder') }}
+                    </button>
+                  </div>
+                </div>
+                <div v-if="rawCustomThemes.length === 0" class="rounded-box border border-dashed border-base-300 px-4 py-5 text-center text-sm text-base-content/50">
+                  {{ t('preferences.themes.noCustomThemes') }}
+                </div>
+                <div v-else class="grid grid-cols-2 gap-3">
+                  <div
+                    v-for="theme in rawCustomThemes"
+                    :key="theme.id"
+                    class="flex h-44 flex-col gap-2 overflow-hidden rounded-box border border-base-300 bg-base-100 p-3"
+                    :class="theme.errors.length > 0 ? 'border-warning/30 bg-warning/10' : ''"
+                  >
+                    <div class="flex min-w-0 items-start justify-between gap-2">
+                      <div class="min-w-0 flex-1">
+                        <div class="truncate text-sm font-medium text-base-content">{{ theme.manifest.name }}</div>
+                        <div class="truncate text-xs text-base-content/50">{{ theme.id }}</div>
+                      </div>
+                      <component
+                        :is="theme.errors.length > 0 ? IconAlertTriangle : IconCheck"
+                        class="icon-xs mt-0.5 shrink-0"
+                        :class="theme.errors.length > 0 ? 'text-warning' : 'text-success'"
+                      />
+                    </div>
+                    <p v-if="theme.manifest.description" class="min-h-0 overflow-hidden text-xs leading-5 text-base-content/50">
+                      {{ theme.manifest.description }}
+                    </p>
+                    <span v-if="theme.errors.length === 0" class="badge badge-success badge-sm mt-auto w-fit">
+                      {{ t('preferences.themes.customThemeLoaded') }}
+                    </span>
+                    <ul v-else class="min-h-0 space-y-0.5 overflow-y-auto">
+                      <li v-for="(err, i) in theme.errors" :key="i" class="text-xs leading-5 text-warning">{{ err }}</li>
+                    </ul>
+                  </div>
+                </div>
+              </section>
             </div>
-          </section>
           </div>
         </div>
 
@@ -646,7 +745,8 @@ import {
 import { useAppStore } from '@/stores/app'
 import ThemePreviewSample from '@/components/preferences/ThemePreviewSample.vue'
 import { availableThemes, getThemePreviewThemeId } from '@/utils/themes'
-import { getAllMarkdownThemes, getRawCustomThemes } from '@/components/print/markdownThemes'
+import type { ThemeOption } from '@/utils/themes'
+import { builtInMarkdownThemes, getRawCustomThemes } from '@/components/print/markdownThemes'
 import type { RawCustomTheme } from '@/types'
 import updaterService from '@/updater/UpdaterService'
 import type { UpdaterConfig } from '@/updater/types'
@@ -656,6 +756,7 @@ import ExportPreferencesPanel from '@/components/preferences/ExportPreferencesPa
 import PrintPreferencesPanel from '@/components/preferences/PrintPreferencesPanel.vue'
 
 type TabId = 'workspace' | 'editor' | 'spelling' | 'themes' | 'print' | 'export' | 'ai' | 'updates'
+type ThemeSectionId = 'general' | 'light' | 'dark' | 'markdown' | 'custom-markdown'
 type AiView = 'main' | 'configure'
 
 interface Props {
@@ -671,8 +772,28 @@ const emit = defineEmits<{ close: [] }>()
 const { t } = useI18n()
 
 const appStore = useAppStore()
-const markdownThemes = computed(() => getAllMarkdownThemes())
+const activeThemeSection = ref<ThemeSectionId>('general')
+const generalAppThemes = computed(() => availableThemes.filter((theme) => theme.id === 'system' || theme.id === 'light' || theme.id === 'dark'))
+const lightAppThemes = computed(() => sortThemeOptionsByName(availableThemes.filter((theme) => theme.scheme === 'light')))
+const darkAppThemes = computed(() => sortThemeOptionsByName(availableThemes.filter((theme) => theme.scheme === 'dark')))
+const builtInMarkdownThemeOptions = computed(() => builtInMarkdownThemes)
 const rawCustomThemes = computed<readonly RawCustomTheme[]>(() => getRawCustomThemes())
+const appThemeSections = computed(() => [
+  { id: 'light' as ThemeSectionId, label: formatThemeSectionLabel(t('preferences.themes.sectionLightThemes'), lightAppThemes.value.length) },
+  { id: 'dark' as ThemeSectionId, label: formatThemeSectionLabel(t('preferences.themes.sectionDarkThemes'), darkAppThemes.value.length) },
+])
+const markdownThemeSections = computed(() => [
+  { id: 'markdown' as ThemeSectionId, label: formatThemeSectionLabel(t('preferences.themes.sectionMarkdownThemes'), builtInMarkdownThemeOptions.value.length) },
+  { id: 'custom-markdown' as ThemeSectionId, label: formatThemeSectionLabel(t('preferences.themes.sectionCustomMarkdownThemes'), rawCustomThemes.value.length) },
+])
+
+function formatThemeSectionLabel(label: string, count: number): string {
+  return count > 0 ? `${label}(${count})` : label
+}
+
+function sortThemeOptionsByName(themes: ThemeOption[]): ThemeOption[] {
+  return [...themes].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+}
 
 async function openThemesFolder(): Promise<void> {
   await window.electronAPI?.customThemes?.openFolder()
