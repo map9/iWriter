@@ -194,50 +194,59 @@
                 </div>
               </section>
 
-              <section v-else-if="activeThemeSection === 'custom-markdown'" class="flex flex-col gap-4">
-                <div class="flex flex-wrap items-center justify-between gap-2">
+              <section v-else-if="activeThemeSection === 'custom-markdown'" class="flex flex-col gap-6">
+                <div class="flex flex-col gap-3">
                   <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.customMarkdownThemesTitle') }}</h3>
-                  <div class="flex items-center gap-2">
-                    <button class="iw-btn btn-ghost btn-xs gap-1.5" @click="handleCreateExampleTheme">
-                      <IconPlus class="icon-xs" />
-                      {{ t('preferences.themes.createExample') }}
-                    </button>
-                    <button class="iw-btn btn-ghost btn-xs gap-1.5" @click="openThemesFolder">
-                      <IconFolderOpen class="icon-xs" />
-                      {{ t('preferences.themes.openFolder') }}
+                  <div v-if="rawCustomThemes.length === 0" class="rounded-box border border-dashed border-base-300 px-4 py-5 text-center text-sm text-base-content/50">
+                    {{ t('preferences.themes.noCustomThemes') }}
+                  </div>
+                  <div v-else class="grid grid-cols-2 gap-3">
+                    <button
+                      v-for="theme in rawCustomThemes"
+                      :key="theme.id"
+                      class="flex h-44 flex-col gap-2 overflow-hidden rounded-box border bg-base-100 p-3 text-left transition-colors disabled:cursor-not-allowed"
+                      :class="theme.errors.length > 0
+                        ? 'border-error/30 bg-error/10'
+                        : appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId === theme.id
+                          ? 'border-primary bg-primary/8'
+                          : 'border-base-300 hover:border-primary/40 hover:bg-base-200/60'"
+                      :disabled="theme.errors.length > 0"
+                      @click="appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId = theme.id"
+                    >
+                      <div class="flex min-w-0 items-start justify-between gap-2">
+                        <div class="min-w-0 flex-1">
+                          <div class="truncate text-sm font-medium text-base-content">{{ theme.manifest.name }}</div>
+                        </div>
+                        <span v-if="theme.errors.length > 0" class="badge badge-error badge-sm shrink-0">
+                          {{ t('preferences.themes.customThemeErrorBadge') }}
+                        </span>
+                      </div>
+                      <div class="text-xs text-base-content/50">{{ theme.id }}</div>
+                      <div v-if="theme.manifest.description" class="min-h-0 overflow-hidden text-xs leading-5 text-base-content/50">{{ theme.manifest.description }}</div>
+                      <span
+                        v-if="theme.errors.length === 0 && appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId === theme.id"
+                        class="badge badge-primary badge-sm mt-auto w-fit"
+                      >
+                        {{ t('common.active') }}
+                      </span>
+                      <ul v-if="theme.errors.length > 0" class="mt-auto min-h-0 space-y-0.5 overflow-y-auto">
+                        <li v-for="(err, i) in theme.errors" :key="i" class="text-xs leading-5 text-error">{{ err }}</li>
+                      </ul>
                     </button>
                   </div>
                 </div>
-                <div v-if="rawCustomThemes.length === 0" class="rounded-box border border-dashed border-base-300 px-4 py-5 text-center text-sm text-base-content/50">
-                  {{ t('preferences.themes.noCustomThemes') }}
-                </div>
-                <div v-else class="grid grid-cols-2 gap-3">
-                  <div
-                    v-for="theme in rawCustomThemes"
-                    :key="theme.id"
-                    class="flex h-44 flex-col gap-2 overflow-hidden rounded-box border border-base-300 bg-base-100 p-3"
-                    :class="theme.errors.length > 0 ? 'border-warning/30 bg-warning/10' : ''"
-                  >
-                    <div class="flex min-w-0 items-start justify-between gap-2">
-                      <div class="min-w-0 flex-1">
-                        <div class="truncate text-sm font-medium text-base-content">{{ theme.manifest.name }}</div>
-                        <div class="truncate text-xs text-base-content/50">{{ theme.id }}</div>
-                      </div>
-                      <component
-                        :is="theme.errors.length > 0 ? IconAlertTriangle : IconCheck"
-                        class="icon-xs mt-0.5 shrink-0"
-                        :class="theme.errors.length > 0 ? 'text-warning' : 'text-success'"
-                      />
-                    </div>
-                    <p v-if="theme.manifest.description" class="min-h-0 overflow-hidden text-xs leading-5 text-base-content/50">
-                      {{ theme.manifest.description }}
-                    </p>
-                    <span v-if="theme.errors.length === 0" class="badge badge-success badge-sm mt-auto w-fit">
-                      {{ t('preferences.themes.customThemeLoaded') }}
-                    </span>
-                    <ul v-else class="min-h-0 space-y-0.5 overflow-y-auto">
-                      <li v-for="(err, i) in theme.errors" :key="i" class="text-xs leading-5 text-warning">{{ err }}</li>
-                    </ul>
+
+                <div class="flex flex-col gap-3">
+                  <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.customThemeActionsTitle') }}</h3>
+                  <div class="grid grid-cols-2 gap-3">
+                    <button class="iw-btn btn-outline h-9" @click="handleCreateExampleTheme">
+                      <IconPlus class="icon-xs shrink-0" />
+                      <span class="text-sm font-medium text-base-content">{{ t('preferences.themes.createExample') }}</span>
+                    </button>
+                    <button class="iw-btn btn-outline h-9" @click="openThemesFolder">
+                      <IconFolderOpen class="icon-xs shrink-0" />
+                      <span class="text-sm font-medium text-base-content">{{ t('preferences.themes.openFolder') }}</span>
+                    </button>
                   </div>
                 </div>
               </section>
@@ -709,7 +718,7 @@
             <section class="flex flex-col gap-3">
               <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.updates.actionsTitle') }}</h3>
               <div class="flex items-center gap-3">
-                <button class="iw-btn btn-outline btn-primary" @click="checkForUpdates">
+                <button class="iw-btn btn-outline h-9" @click="checkForUpdates">
                   {{ t('preferences.updates.checkNow') }}
                 </button>
               </div>
@@ -739,8 +748,6 @@ import {
   IconX,
   IconFolderOpen,
   IconPlus,
-  IconCheck,
-  IconAlertTriangle,
 } from '@tabler/icons-vue'
 import { useAppStore } from '@/stores/app'
 import ThemePreviewSample from '@/components/preferences/ThemePreviewSample.vue'

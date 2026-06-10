@@ -30,7 +30,9 @@ async function handleMenuAction(action: string): Promise<boolean> {
 
 function applyRawCustomThemes(rawThemes: unknown[]): void {
   const raw = rawThemes as RawCustomTheme[]
-  const themes = raw.map(buildMarkdownThemeFromRaw)
+  const themes = raw
+    .filter(theme => theme.errors.length === 0)
+    .map(buildMarkdownThemeFromRaw)
   registerCustomThemes(themes, raw)
 }
 

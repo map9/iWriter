@@ -165,7 +165,6 @@ export default {
       title: '显示',
       languageTitle: '界面语言',
       languageDescription: '选择应用界面显示语言',
-      markdownThemeTitle: 'Markdown 屏幕主题',
       customMarkdownThemesTitle: '自定义 Markdown 主题',
       openFolder: '打开主题文件夹',
       createExample: '创建示例主题',
@@ -176,7 +175,8 @@ export default {
       sectionDarkThemes: '深色主题',
       sectionMarkdownThemes: 'MarkDown 主题',
       sectionCustomMarkdownThemes: '自定义 MarkDown 主题',
-      customThemeLoaded: '已加载',
+      customThemeActionsTitle: '操作',
+      customThemeErrorBadge: '错误',
     },
     export: {
       title: '导出',

@@ -165,7 +165,6 @@ export default {
       title: 'Display',
       languageTitle: 'Language',
       languageDescription: 'Choose the app display language',
-      markdownThemeTitle: 'Markdown Theme',
       customMarkdownThemesTitle: 'Custom Markdown Themes',
       openFolder: 'Open Folder',
       createExample: 'Create Example',
@@ -176,7 +175,8 @@ export default {
       sectionDarkThemes: 'Dark Themes',
       sectionMarkdownThemes: 'Markdown Themes',
       sectionCustomMarkdownThemes: 'Custom Markdown Themes',
-      customThemeLoaded: 'Loaded',
+      customThemeActionsTitle: 'Actions',
+      customThemeErrorBadge: 'Error',
     },
     export: {
       title: 'Export',

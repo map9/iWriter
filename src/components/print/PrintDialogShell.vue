@@ -30,11 +30,11 @@
 
         <!-- Footer -->
         <div class="flex shrink-0 items-center justify-end gap-3 border-t border-base-300 px-5 py-3">
-          <button class="iw-btn btn-ghost btn-sm" @click="emit('close')">
+          <button class="iw-btn btn-ghost h-9" @click="emit('close')">
             {{ t('dialog.printDialog.actions.cancel') }}
           </button>
           <button
-            class="iw-btn btn-primary btn-sm"
+            class="iw-btn btn-primary h-9"
             :disabled="submitDisabled"
             @click="emit('submit')"
           >
