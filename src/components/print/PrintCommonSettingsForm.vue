@@ -17,20 +17,25 @@
     <!-- Printer (hidden in export mode) -->
     <div v-if="isPrintMode" class="flex items-center justify-between px-5 py-3">
       <label class="shrink-0 text-sm">{{ t('dialog.printDialog.printer.label') }}</label>
-      <div class="ml-3 flex w-44 flex-col gap-1">
-        <select v-model="settings.printer" class="iw-select w-full text-sm" :disabled="!hasPrinters">
+      <div class="ml-3 w-44">
+        <select
+          v-model="settings.printer"
+          class="iw-select w-full truncate text-sm"
+          :class="printerSelectClass"
+          :disabled="!hasPrinters"
+        >
           <option v-if="!hasPrinters" value="" disabled>
             {{ t('dialog.printDialog.printer.noPrinter') }}
           </option>
-          <option v-for="p in printers" :key="p.name" :value="p.name">
-            {{ p.displayName || p.name }}
+          <option
+            v-for="p in printers"
+            :key="p.name"
+            :value="p.name"
+            :class="getPrinterOptionTextClass(p)"
+          >
+            {{ formatPrinterOptionLabel(p) }}
           </option>
         </select>
-        <!-- Printer status indicator (hidden for PDF pseudo-printer) -->
-        <div v-if="hasPrinters && !isPdfPrinter" class="flex items-center gap-1.5 text-xs text-base-content/50">
-          <div class="h-2 w-2 rounded-full" :class="printerStatusDotClass" />
-          <span>{{ printerStatusText }}</span>
-        </div>
       </div>
     </div>
 
@@ -162,7 +167,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconChevronUp, IconChevronDown, IconExternalLink } from '@tabler/icons-vue'
-import { detectColorSupport, getPrinterState, isPrinterConnectable } from './paperSpecs'
+import { detectColorSupport, getPrinterState, isPrinterConnectable, type PrinterState } from './paperSpecs'
 import type { BasePrintSettings } from '@/types/print-settings'
 
 const props = defineProps<{
@@ -191,30 +196,48 @@ const selectedPrinterInfo = computed<Electron.PrinterInfo | null>(() =>
   props.printers.find(p => p.name === props.settings.printer) ?? null
 )
 
-const printerState = computed(() => getPrinterState(selectedPrinterInfo.value))
-
-const printerStatusDotClass = computed(() => {
-  switch (printerState.value) {
-    case 'ready':    return 'bg-success'
-    case 'printing': return 'bg-success'
-    case 'offline':  return 'bg-error'
-    default:         return 'bg-base-content/20'
-  }
-})
-
-const printerStatusText = computed(() => {
-  switch (printerState.value) {
-    case 'ready':    return t('dialog.pdfPrintDialog.printer.ready')
-    case 'printing': return t('dialog.pdfPrintDialog.printer.printing')
-    case 'offline':  return t('dialog.pdfPrintDialog.printer.offline')
-    default:         return t('dialog.pdfPrintDialog.printer.unknown')
-  }
+const printerSelectClass = computed(() => {
+  if (!hasPrinters.value || props.isPdfPrinter) return ''
+  return getPrinterOptionTextClass(selectedPrinterInfo.value)
 })
 
 const printerColorSupported = computed(() => {
   if (props.isPdfPrinter) return false
   return detectColorSupport(selectedPrinterInfo.value)
 })
+
+function getPrinterStateIcon(state: PrinterState): string {
+  switch (state) {
+    case 'ready':    return '●'
+    case 'printing': return '●'
+    case 'offline':  return '○'
+    default:         return '◎'
+  }
+}
+
+function getPrinterStateText(state: PrinterState): string {
+  switch (state) {
+    case 'ready':    return t('dialog.pdfPrintDialog.printer.ready')
+    case 'printing': return t('dialog.pdfPrintDialog.printer.printing')
+    case 'offline':  return t('dialog.pdfPrintDialog.printer.offline')
+    default:         return t('dialog.pdfPrintDialog.printer.unknown')
+  }
+}
+
+function getPrinterOptionTextClass(info: Electron.PrinterInfo | null): string {
+  switch (getPrinterState(info)) {
+    case 'ready':    return 'text-success'
+    case 'printing': return 'text-success'
+    case 'offline':  return 'text-error'
+    default:         return 'text-base-content/50'
+  }
+}
+
+function formatPrinterOptionLabel(info: Electron.PrinterInfo): string {
+  const state = getPrinterState(info)
+  const displayName = info.displayName || info.name
+  return `${getPrinterStateIcon(state)} ${getPrinterStateText(state)} - ${displayName}`
+}
 
 // Ensure at least one connectable printer is selected when list refreshes.
 // Called by the parent dialog when printers change.

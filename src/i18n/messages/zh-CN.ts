@@ -1291,7 +1291,7 @@ export default {
         zoomResetTitle: '点击恢复适合页面 (Ctrl+滚轮 缩放)',
       },
       printer: {
-        label: '目标打印机',
+        label: '打印机',
         saveAsPdf: '另存为 PDF',
         noPrinter: '未连接打印机',
       },
@@ -1377,8 +1377,8 @@ export default {
         noPages: '未选择任何页面',
       },
       printer: {
-        ready: '就绪/闲置',
-        printing: '打印中.../忙',
+        ready: '闲置',
+        printing: '忙',
         offline: '离线',
         unknown: '未知',
       },

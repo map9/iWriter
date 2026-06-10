@@ -1388,8 +1388,8 @@ export default {
         noPages: 'No pages selected',
       },
       printer: {
-        ready: 'Idle / Ready',
-        printing: 'Printing...',
+        ready: 'Idle',
+        printing: 'Printing',
         offline: 'Offline',
         unknown: 'Unknown',
       },
