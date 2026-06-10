@@ -18,9 +18,18 @@
       <!-- Right: Settings panel -->
       <div class="flex w-80 shrink-0 flex-col border-l border-base-300">
         <!-- Header -->
-        <div class="flex shrink-0 items-center justify-between border-b border-base-300 px-5 py-4">
-          <h2 class="text-base font-semibold max-w-48 whitespace-nowrap overflow-hidden text-ellipsis">{{ title }}</h2>
-          <span class="text-sm text-base-content/50">{{ sheetCountLabel }}</span>
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-base-300 px-5 py-4">
+          <div class="flex min-w-0 items-baseline gap-2">
+            <h2 class="min-w-0 truncate text-base font-semibold">{{ title }}</h2>
+            <span v-if="sheetCountLabel" class="shrink-0 text-sm text-base-content/50">{{ sheetCountLabel }}</span>
+          </div>
+          <button
+            class="iw-toolbar-btn btn-sm shrink-0 px-2"
+            :aria-label="t('common.close')"
+            @click="emit('close')"
+          >
+            <IconX class="icon-xs" />
+          </button>
         </div>
 
         <!-- Settings body -->
@@ -49,6 +58,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { IconX } from '@tabler/icons-vue'
 
 const props = defineProps<{
   visible: boolean
