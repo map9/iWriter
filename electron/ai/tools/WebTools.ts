@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { tool, DynamicStructuredTool } from '@langchain/core/tools'
 import { AiConfigStore } from '../config/AiConfigStore'
 import { fetchUrl, DEFAULT_MAX_TOKENS } from './HtmlFetcher'
+import { getDefaultWebSearchProviderConfig } from '../../../src/types/ai'
 
 const fetchUrlTool = tool(
   async ({ url, max_tokens = DEFAULT_MAX_TOKENS }) => {
@@ -35,29 +36,28 @@ const webSearchTool = new DynamicStructuredTool({
     topic: z.enum(['general', 'news']).optional().describe('Search topic type'),
   }),
   func: async ({ query, max_results = 5, topic }) => {
-    const cfg = AiConfigStore.loadSettings().webSearch
+    const settings = AiConfigStore.loadSettings()
+    const cfg = getDefaultWebSearchProviderConfig(settings.webSearchProviderConfigs)
 
-    // Resolve provider type and credentials, falling back to env vars
-    const providerType = cfg?.type ?? 'tavily'
-    const enabled = cfg?.enabled !== false
-
-    if (!enabled) {
+    if (!cfg) {
       return JSON.stringify({
-        error: 'Web search is disabled.',
-        hint: 'Enable it in AI Preferences → Web Search Engine.',
+        error: 'Web search is unavailable.',
+        hint: 'Configure at least one usable search engine in AI Preferences → Web Search.',
       })
     }
 
+    const providerType = cfg.type
+
     try {
       if (providerType === 'tavily') {
-        const apiKey = cfg?.apiKey?.trim() || process.env.TAVILY_API_KEY
+        const apiKey = cfg.apiKey?.trim() ?? ''
         if (!apiKey) {
           return JSON.stringify({
             error: 'Tavily API key not configured.',
-            hint: 'Set the API key in AI Preferences → Web Search Engine, or set TAVILY_API_KEY environment variable.',
+            hint: 'Set the API key in AI Preferences → Web Search.',
           })
         }
-        const baseUrl = cfg?.baseUrl?.trim() || 'https://api.tavily.com/search'
+        const baseUrl = cfg.baseUrl?.trim() || 'https://api.tavily.com/search'
         const body: Record<string, unknown> = {
           api_key: apiKey,
           query,
@@ -95,11 +95,11 @@ const webSearchTool = new DynamicStructuredTool({
       }
 
       if (providerType === 'searxng' || providerType === 'custom') {
-        const baseUrl = cfg?.baseUrl?.trim()
+        const baseUrl = cfg.baseUrl?.trim()
         if (!baseUrl) {
           return JSON.stringify({
             error: `${providerType === 'searxng' ? 'SearXNG' : 'Custom'} search requires a base URL.`,
-            hint: 'Set the URL in AI Preferences → Web Search Engine.',
+            hint: 'Set the URL in AI Preferences → Web Search.',
           })
         }
         const url = new URL('/search', baseUrl)
@@ -108,7 +108,7 @@ const webSearchTool = new DynamicStructuredTool({
         url.searchParams.set('categories', topic === 'news' ? 'news' : 'general')
 
         const headers: Record<string, string> = { 'Accept': 'application/json' }
-        if (cfg?.apiKey?.trim()) headers['Authorization'] = `Bearer ${cfg.apiKey.trim()}`
+        if (cfg.apiKey?.trim()) headers['Authorization'] = `Bearer ${cfg.apiKey.trim()}`
 
         const response = await fetch(url.toString(), {
           method: 'GET',
