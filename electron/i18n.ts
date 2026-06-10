@@ -229,6 +229,8 @@ const zhMenuLabelMap: MenuLabelMap = {
   'Follow System': '跟随系统',
   Light: '浅色',
   Dark: '深色',
+  'Light Themes': '浅色主题',
+  'Dark Themes': '深色主题',
   'More Theme...': '更多主题...',
   // PDF viewer menu
   'Zoom': '缩放',

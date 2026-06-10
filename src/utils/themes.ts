@@ -1,4 +1,4 @@
-export type DaisyThemeId = 'light' | 'dark' | 'cupcake' | 'sunset' | 'caramellatte' | 'abyss' | 'dracula'
+export type DaisyThemeId = 'light' | 'dark' | 'cupcake' | 'bumblebee' | 'emerald' | 'corporate' | 'synthwave' | 'retro' | 'cyberpunk' | 'valentine' | 'halloween' | 'garden' | 'forest' | 'aqua' | 'pastel' | 'black' | 'luxury' | 'dracula' | 'autumn' | 'business' | 'lemonade' | 'night' | 'coffee' | 'winter' | 'dim' | 'nord' | 'sunset' | 'caramellatte' | 'abyss' | 'silk'
 export type ThemeId = 'system' | DaisyThemeId
 export type ResolvedThemeId = 'light' | 'dark'
 
@@ -37,6 +37,121 @@ export const availableThemes: ThemeOption[] = [
     scheme: 'light',
   },
   {
+    id: 'bumblebee',
+    name: 'Bumblebee',
+    scheme: 'light',
+  },
+  {
+    id: 'emerald',
+    name: 'Emerald',
+    scheme: 'light',
+  },
+  {
+    id: 'corporate',
+    name: 'Corporate',
+    scheme: 'light',
+  },
+  {
+    id: 'synthwave',
+    name: 'Synthwave',
+    scheme: 'dark',
+  },
+  {
+    id: 'retro',
+    name: 'Retro',
+    scheme: 'dark',
+  },
+  {
+    id: 'cyberpunk',
+    name: 'Cyberpunk',
+    scheme: 'dark',
+  },
+  {    
+    id: 'valentine',
+    name: 'Valentine',
+    scheme: 'light',
+  },
+  {
+    id: 'halloween',
+    name: 'Halloween',
+    scheme: 'dark',
+  },
+  {    
+    id: 'garden',
+    name: 'Garden',
+    scheme: 'light',
+  },
+  {
+    id: 'forest',
+    name: 'Forest',
+    scheme: 'dark',
+  },
+  {
+    id: 'aqua',
+    name: 'Aqua',
+    scheme: 'dark',
+  },
+  {
+    id: 'pastel',
+    name: 'Pastel',
+    scheme: 'light',
+  },
+  {
+    id: 'black',
+    name: 'Black',
+    scheme: 'dark',
+  },
+  {
+    id: 'luxury',
+    name: 'Luxury',
+    scheme: 'dark',
+  },
+  {
+    id: 'dracula',
+    name: 'Dracula',
+    scheme: 'dark',
+  },
+  {
+    id: 'autumn',
+    name: 'Autumn',
+    scheme: 'light',
+  },
+  {
+    id: 'business',
+    name: 'Business',
+    scheme: 'dark',
+  },
+  {
+    id: 'lemonade',
+    name: 'Lemonade',
+    scheme: 'light',
+  },
+  {
+    id: 'night',
+    name: 'Night',
+    scheme: 'dark',
+  },
+  {
+    id: 'coffee',
+    name: 'Coffee',
+    scheme: 'dark',
+  },
+  {
+    id: 'winter',
+    name: 'Winter',
+    scheme: 'light',
+  },
+  {
+    id: 'dim',
+    name: 'Dim',
+    scheme: 'dark',
+  },
+  {
+    id: 'nord',
+    name: 'Nord',
+    scheme: 'dark',
+  },
+  {
     id: 'sunset',
     name: 'Sunset',
     scheme: 'dark',
@@ -52,10 +167,10 @@ export const availableThemes: ThemeOption[] = [
     scheme: 'dark',
   },
   {
-    id: 'dracula',
-    name: 'Dracula',
-    scheme: 'dark',
-  },
+    id: 'silk',
+    name: 'Silk',
+    scheme: 'light',
+  }
 ]
 
 export function getThemeById(id: string): ThemeOption | undefined {

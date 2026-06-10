@@ -1919,16 +1919,30 @@ export class MenuManager {
     // Insert additional daisyUI themes dynamically
     const customThemes = getCustomThemes()
     if (customThemes.length > 0) {
+      const customThemeMenuItems = (scheme: 'light' | 'dark'): Electron.MenuItemConstructorOptions[] => {
+        return [...customThemes]
+          .filter((theme) => theme.scheme === scheme)
+          .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+          .map((theme) => ({
+            label: theme.name,
+            type: 'radio' as const,
+            checked: wState?.wContentState?.view?.theme === theme.id,
+            click: () => {
+              this.sendMenuAction(`view-theme-${theme.id}`)
+            }
+          }))
+      }
+
       const insertThemeItems: Electron.MenuItemConstructorOptions[] = [
         { type: 'separator' },
-        ...customThemes.map((theme) => ({
-          label: theme.name,
-          type: 'radio' as const,
-          checked: wState?.wContentState?.view?.theme === theme.id,
-          click: () => {
-            this.sendMenuAction(`view-theme-${theme.id}`)
-          }
-        }))
+        {
+          label: 'Light Themes',
+          submenu: customThemeMenuItems('light')
+        },
+        {
+          label: 'Dark Themes',
+          submenu: customThemeMenuItems('dark')
+        }
       ]
 
       const result = insertInTemplate(baseTemplate, undefined, 'viewThemeDark', insertThemeItems);
