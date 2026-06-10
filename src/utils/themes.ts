@@ -59,12 +59,12 @@ export const availableThemes: ThemeOption[] = [
   {
     id: 'retro',
     name: 'Retro',
-    scheme: 'dark',
+    scheme: 'light',
   },
   {
     id: 'cyberpunk',
     name: 'Cyberpunk',
-    scheme: 'dark',
+    scheme: 'light',
   },
   {    
     id: 'valentine',
@@ -149,7 +149,7 @@ export const availableThemes: ThemeOption[] = [
   {
     id: 'nord',
     name: 'Nord',
-    scheme: 'dark',
+    scheme: 'light',
   },
   {
     id: 'sunset',

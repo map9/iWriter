@@ -82,8 +82,8 @@
               </div>
             </aside>
 
-            <div class="min-w-0 flex-1 overflow-y-auto p-6">
-              <section v-if="activeThemeSection === 'general'" class="flex flex-col gap-6">
+            <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
+              <section v-show="activeThemeSection === 'general'" class="flex h-full min-w-0 flex-col gap-6 overflow-y-auto p-6">
                 <div class="flex flex-col gap-3">
                   <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.languageTitle') }}</h3>
                   <div class="flex flex-col gap-1.5">
@@ -124,7 +124,7 @@
                 </div>
               </section>
 
-              <section v-else-if="activeThemeSection === 'light'" class="flex flex-col gap-3">
+              <section v-show="activeThemeSection === 'light'" class="flex h-full min-w-0 flex-col gap-3 overflow-y-auto p-6">
                 <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.sectionLightThemes') }}</h3>
                 <div class="grid grid-cols-2 gap-3">
                   <button
@@ -147,7 +147,7 @@
                 </div>
               </section>
 
-              <section v-else-if="activeThemeSection === 'dark'" class="flex flex-col gap-3">
+              <section v-show="activeThemeSection === 'dark'" class="flex h-full min-w-0 flex-col gap-3 overflow-y-auto p-6">
                 <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.sectionDarkThemes') }}</h3>
                 <div class="grid grid-cols-2 gap-3">
                   <button
@@ -170,7 +170,7 @@
                 </div>
               </section>
 
-              <section v-else-if="activeThemeSection === 'markdown'" class="flex flex-col gap-3">
+              <section v-show="activeThemeSection === 'markdown'" class="flex h-full min-w-0 flex-col gap-3 overflow-y-auto p-6">
                 <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.sectionMarkdownThemes') }}</h3>
                 <div class="grid grid-cols-2 gap-3">
                   <button
@@ -194,7 +194,7 @@
                 </div>
               </section>
 
-              <section v-else-if="activeThemeSection === 'custom-markdown'" class="flex flex-col gap-6">
+              <section v-show="activeThemeSection === 'custom-markdown'" class="flex h-full min-w-0 flex-col gap-6 overflow-y-auto p-6">
                 <div class="flex flex-col gap-3">
                   <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.customMarkdownThemesTitle') }}</h3>
                   <div v-if="rawCustomThemes.length === 0" class="rounded-box border border-dashed border-base-300 px-4 py-5 text-center text-sm text-base-content/50">
