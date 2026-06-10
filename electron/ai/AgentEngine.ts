@@ -1075,14 +1075,16 @@ export class AgentEngine {
       path.join(this.aiRootPath, 'memory'),
       path.join(this.aiRootPath, 'skills'),
       path.join(this.aiRootPath, 'skills', 'common'),
-      path.join(this.aiRootPath, 'skills', 'main'),
-      path.join(this.aiRootPath, 'skills', 'planner'),
-      path.join(this.aiRootPath, 'skills', 'writer'),
-      path.join(this.aiRootPath, 'skills', 'consistency'),
-      path.join(this.aiRootPath, 'skills', 'explorer'),
-      path.join(this.aiRootPath, 'skills', 'researcher'),
-      path.join(this.aiRootPath, 'skills', 'writing-style'),
       path.join(this.aiRootPath, 'skills', 'edit'),
+      path.join(this.aiRootPath, 'skills', 'creative'),
+      path.join(this.aiRootPath, 'skills', 'creative', 'common'),
+      path.join(this.aiRootPath, 'skills', 'creative', 'main'),
+      path.join(this.aiRootPath, 'skills', 'creative', 'planner'),
+      path.join(this.aiRootPath, 'skills', 'creative', 'writer'),
+      path.join(this.aiRootPath, 'skills', 'creative', 'consistency'),
+      path.join(this.aiRootPath, 'skills', 'creative', 'explorer'),
+      path.join(this.aiRootPath, 'skills', 'creative', 'researcher'),
+      path.join(this.aiRootPath, 'skills', 'creative', 'writing-style'),
       path.join(this.aiRootPath, 'subagents'),
       path.join(this.aiRootPath, 'empty-fs'),
     ]
@@ -1115,7 +1117,29 @@ export class AgentEngine {
       }
     }
 
+    // 旧版按 creative 子代理平铺在顶层的目录，整体迁移到 skills/creative/* 下。
+    // writing-style 含用户生成数据，先迁移再清理。
+    const oldWritingStyleDir = path.join(targetRoot, 'writing-style')
+    const newWritingStyleDir = path.join(targetRoot, 'creative', 'writing-style')
+    if (fs.existsSync(oldWritingStyleDir)) {
+      await fs.promises.mkdir(newWritingStyleDir, { recursive: true })
+      const styleEntries = fs.readdirSync(oldWritingStyleDir, { withFileTypes: true })
+      for (const entry of styleEntries) {
+        if (!entry.isDirectory()) continue
+        const from = path.join(oldWritingStyleDir, entry.name)
+        const to = path.join(newWritingStyleDir, entry.name)
+        if (!fs.existsSync(to)) {
+          await fs.promises.rename(from, to)
+        }
+      }
+    }
+
+    const legacyTopLevelCreativeDirs = ['main', 'planner', 'writer', 'consistency', 'explorer', 'researcher', 'writing-style']
     const obsoleteTopLevelSkills = [
+      ...legacyTopLevelCreativeDirs,
+      // 旧顶层 common 含 story-craft skills，新顶层 common 改为 web-research，语义已变，
+      // 先清空再由 bundled creative/common、common 重新填充。
+      'common',
       '_consistency',
       '_explorer',
       '_planner',
@@ -1157,7 +1181,6 @@ export class AgentEngine {
         fs.promises.rm(path.join(targetRoot, name), { recursive: true, force: true })
       )
     )
-    await fs.promises.rm(path.join(targetRoot, 'writing-style', 'SKILL.md'), { force: true })
 
     const entries = fs.readdirSync(this.bundledSkillsPath, { withFileTypes: true })
     for (const entry of entries) {

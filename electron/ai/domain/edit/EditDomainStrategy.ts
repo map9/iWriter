@@ -32,7 +32,7 @@ export class EditDomainStrategy implements DomainStrategy {
   }
 
   getSkillSources(aiRootPath: string): string[] {
-    return [path.join(aiRootPath, 'skills', 'edit')]
+    return [path.join(aiRootPath, 'skills', 'common'), path.join(aiRootPath, 'skills', 'edit')]
   }
 
   getMemoryFileName(): string {

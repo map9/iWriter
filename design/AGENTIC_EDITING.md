@@ -128,6 +128,16 @@ Creative 模式的核心目标是生成和维护项目级资产，例如：
 - 工作区存在时：`<workspace>/.iwriter/story/...`
 - 无工作区时：`~/.iwriter/ai/projects/<threadId>/story/...`
 
+## Skills 目录结构
+
+`electron/ai/builtin-skills/`（运行时同步到 `<aiRoot>/skills/`）按域分三个顶层桶：
+
+- `common/` —— Edit + Creative 公用技能，目前含 `web-research`。Edit 域与 Creative 的 `researcher` 子代理都从这里加载；未来 researcher 升级为跨域公用 agent 时也以此为技能源。
+- `edit/` —— 仅 Edit 域使用，目前含 `image-sourcing`。
+- `creative/` —— 仅 Creative 域使用，内部结构对应各子代理：`common`（story-craft 公共技能）、`main`、`planner`、`writer`、`consistency`、`explorer`、`researcher`、`writing-style`（含运行时生成的作者文风技能）。
+
+`EditDomainStrategy.getSkillSources()` 返回 `[skills/common, skills/edit]`；`CreativeDomainStrategy.getSkillSources()` 返回 `[skills/creative/main, skills/creative/common, skills/common]`；各 Creative 子代理在 `buildCreativeCapabilities.ts` 中从 `skills/creative/<role>` + `skills/creative/common`（`researcher` 从 `skills/common`）加载。
+
 ## 文档快照与编辑执行
 
 当前文档编辑链路：

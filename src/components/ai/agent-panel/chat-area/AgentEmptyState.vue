@@ -7,7 +7,7 @@
       <IconBrain class="size-12 text-base-content" />
       <p class="mt-2 text-md font-medium text-base-content">{{ brand }}</p>
       <p class="mt-1 max-w-xs text-xs leading-5 text-base-content/50">
-        {{ t('agentPanel.emptyState.subtitle') }}
+        {{ subtitle }}
       </p>
     </div>
 
@@ -71,105 +71,33 @@ const brand = computed(() =>
     ? t('agentPanel.emptyState.brandCreative')
     : t('agentPanel.emptyState.brandEdit'),
 )
+const subtitle = computed(() =>
+  currentMode.value === 'creative'
+    ? t('agentPanel.emptyState.subtitleCreative')
+    : t('agentPanel.emptyState.subtitleEdit'),
+)
 const activeGroupIndex = ref(0)
 let carouselTimer: ReturnType<typeof setInterval> | null = null
 
-const promptGroups = computed<PromptGroup[]>(() => {
-  if (hasActiveDocument.value) {
-    return [
-      {
-        title: t('agentPanel.emptyState.withDocument.group1.title'),
-        prompts: [
-          t('agentPanel.emptyState.withDocument.group1.prompts.1'),
-          t('agentPanel.emptyState.withDocument.group1.prompts.2'),
-          t('agentPanel.emptyState.withDocument.group1.prompts.3'),
-          t('agentPanel.emptyState.withDocument.group1.prompts.4'),
-          t('agentPanel.emptyState.withDocument.group1.prompts.5'),
-          t('agentPanel.emptyState.withDocument.group1.prompts.6'),
-        ],
-      },
-      {
-        title: t('agentPanel.emptyState.withDocument.group2.title'),
-        prompts: [
-          t('agentPanel.emptyState.withDocument.group2.prompts.1'),
-          t('agentPanel.emptyState.withDocument.group2.prompts.2'),
-          t('agentPanel.emptyState.withDocument.group2.prompts.3'),
-          t('agentPanel.emptyState.withDocument.group2.prompts.4'),
-          t('agentPanel.emptyState.withDocument.group2.prompts.5'),
-          t('agentPanel.emptyState.withDocument.group2.prompts.6'),
-        ],
-      },
-      {
-        title: t('agentPanel.emptyState.withDocument.group3.title'),
-        prompts: [
-          t('agentPanel.emptyState.withDocument.group3.prompts.1'),
-          t('agentPanel.emptyState.withDocument.group3.prompts.2'),
-          t('agentPanel.emptyState.withDocument.group3.prompts.3'),
-          t('agentPanel.emptyState.withDocument.group3.prompts.4'),
-          t('agentPanel.emptyState.withDocument.group3.prompts.5'),
-          t('agentPanel.emptyState.withDocument.group3.prompts.6'),
-        ],
-      },
-      {
-        title: t('agentPanel.emptyState.withDocument.group4.title'),
-        prompts: [
-          t('agentPanel.emptyState.withDocument.group4.prompts.1'),
-          t('agentPanel.emptyState.withDocument.group4.prompts.2'),
-          t('agentPanel.emptyState.withDocument.group4.prompts.3'),
-          t('agentPanel.emptyState.withDocument.group4.prompts.4'),
-          t('agentPanel.emptyState.withDocument.group4.prompts.5'),
-          t('agentPanel.emptyState.withDocument.group4.prompts.6'),
-        ],
-      },
-      {
-        title: t('agentPanel.emptyState.withDocument.group5.title'),
-        prompts: [
-          t('agentPanel.emptyState.withDocument.group5.prompts.1'),
-          t('agentPanel.emptyState.withDocument.group5.prompts.2'),
-          t('agentPanel.emptyState.withDocument.group5.prompts.3'),
-          t('agentPanel.emptyState.withDocument.group5.prompts.4'),
-          t('agentPanel.emptyState.withDocument.group5.prompts.5'),
-          t('agentPanel.emptyState.withDocument.group5.prompts.6'),
-        ],
-      },
-    ]
-  }
+// Number of example groups per mode/context. Matches the i18n structure under
+// `agentPanel.emptyState.<mode>.<withDocument|noDocument>.group<N>`.
+const GROUP_COUNTS: Record<'edit' | 'creative', { withDocument: number; noDocument: number }> = {
+  edit: { withDocument: 3, noDocument: 3 },
+  creative: { withDocument: 5, noDocument: 3 },
+}
 
-  return [
-    {
-      title: t('agentPanel.emptyState.noDocument.group1.title'),
-      prompts: [
-        t('agentPanel.emptyState.noDocument.group1.prompts.1'),
-        t('agentPanel.emptyState.noDocument.group1.prompts.2'),
-        t('agentPanel.emptyState.noDocument.group1.prompts.3'),
-        t('agentPanel.emptyState.noDocument.group1.prompts.4'),
-        t('agentPanel.emptyState.noDocument.group1.prompts.5'),
-        t('agentPanel.emptyState.noDocument.group1.prompts.6'),
-      ],
-    },
-    {
-      title: t('agentPanel.emptyState.noDocument.group2.title'),
-      prompts: [
-        t('agentPanel.emptyState.noDocument.group2.prompts.1'),
-        t('agentPanel.emptyState.noDocument.group2.prompts.2'),
-        t('agentPanel.emptyState.noDocument.group2.prompts.3'),
-        t('agentPanel.emptyState.noDocument.group2.prompts.4'),
-        t('agentPanel.emptyState.noDocument.group2.prompts.5'),
-        t('agentPanel.emptyState.noDocument.group2.prompts.6'),
-      ],
-    },
-    {
-      title: t('agentPanel.emptyState.noDocument.group3.title'),
-      prompts: [
-        t('agentPanel.emptyState.noDocument.group3.prompts.1'),
-        t('agentPanel.emptyState.noDocument.group3.prompts.2'),
-        t('agentPanel.emptyState.noDocument.group3.prompts.3'),
-        t('agentPanel.emptyState.noDocument.group3.prompts.4'),
-        t('agentPanel.emptyState.noDocument.group3.prompts.5'),
-        t('agentPanel.emptyState.noDocument.group3.prompts.6'),
-      ],
-    },
-  ]
+const promptGroups = computed<PromptGroup[]>(() => {
+  const mode = currentMode.value === 'creative' ? 'creative' : 'edit'
+  const context = hasActiveDocument.value ? 'withDocument' : 'noDocument'
+  const groupCount = GROUP_COUNTS[mode][context]
+
+  return Array.from({ length: groupCount }, (_, index) => {
+    const groupKey = `agentPanel.emptyState.${mode}.${context}.group${index + 1}`
+    return {
+      title: t(`${groupKey}.title`),
+      prompts: Array.from({ length: 6 }, (_, promptIndex) => t(`${groupKey}.prompts.${promptIndex + 1}`)),
+    }
+  })
 })
 
 const currentGroup = computed(() => promptGroups.value[activeGroupIndex.value] ?? promptGroups.value[0]!)

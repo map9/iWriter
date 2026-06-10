@@ -588,96 +588,171 @@ export default {
     emptyState: {
       brandEdit: 'iWriter AI',
       brandCreative: 'AI StoryMate',
-      subtitle: 'Pick an editing type, then start from one of the examples below.',
-      withDocument: {
-        group1: {
-          title: '1. Basic Editing',
-          prompts: {
-            1: 'Rewrite this paragraph to sound more natural',
-            2: 'Expand the emotional details in this section',
-            3: 'Condense this paragraph while keeping key information',
-            4: 'Edit the ending of Chapter Three — no need to open it first',
-            5: 'Improve the pacing of this paragraph',
-            6: 'Polish this section to read more smoothly',
+      subtitleEdit: 'Start from an example below, or just describe what you’d like to do.',
+      subtitleCreative: 'Start from an example below, or describe what you’d like for your novel.',
+      edit: {
+        withDocument: {
+          group1: {
+            title: '1. Polishing',
+            prompts: {
+              1: 'Polish this paragraph to sound more natural',
+              2: 'Condense this section while keeping the key points',
+              3: 'Expand this paragraph with more details and examples',
+              4: 'Make the tone of this paragraph more formal',
+              5: 'Rewrite this section to be more concise',
+              6: 'Unify the wording style across this section',
+            },
+          },
+          group2: {
+            title: '2. Structure & Summary',
+            prompts: {
+              1: 'Generate an outline for this document',
+              2: 'Summarize the key points of this section',
+              3: 'Add a new section about X here',
+              4: 'Reorder the headings in this document',
+              5: 'Add a summary to this document',
+              6: 'Split this section into smaller subsections',
+            },
+          },
+          group3: {
+            title: '3. Cleanup & Proofreading',
+            prompts: {
+              1: 'Check this document for grammar and spelling',
+              2: 'Unify terminology usage throughout the document',
+              3: 'Translate this section into English',
+              4: 'Extract all to-do items from this document',
+              5: 'Check this document for factual consistency',
+              6: 'Make this informal text sound more formal',
+            },
           },
         },
-        group2: {
-          title: '2. Style Tuning',
-          prompts: {
-            1: 'Rewrite Chapter One in the style of Charles Dickens',
-            2: 'Rewrite this dialogue to be more restrained and cold',
-            3: 'Check whether this chapter matches the active writing style',
-            4: 'Increase the suspense in this section',
-            5: 'Make this paragraph feel more cinematic',
-            6: 'Make the writing style cleaner and sharper',
+        noDocument: {
+          group1: {
+            title: '1. Research & Writing',
+            prompts: {
+              1: 'Research X and write it up as a document',
+              2: 'Compare these two options and write a comparison doc',
+              3: 'Organize these materials into a note',
+              4: 'Gather the latest information on X and summarize it',
+              5: 'Write a brief introduction to X',
+              6: 'Summarize the key points from these articles',
+            },
           },
-        },
-        group3: {
-          title: '3. Character Tuning',
-          prompts: {
-            1: 'Remove traces of Dolores from this chapter',
-            2: 'Strengthen the protagonist’s sense of pressure in this chapter',
-            3: 'Reduce the supporting character’s presence here',
-            4: 'Make the character relationships more tense',
-            5: 'Strengthen the character motivation in this section',
-            6: 'Make each character’s speech better match their identity',
+          group2: {
+            title: '2. Plans & Guides',
+            prompts: {
+              1: 'Make a travel plan for a trip to X',
+              2: 'Write a technical guide for X',
+              3: 'Generate a meeting notes template',
+              4: 'Help me draft a project plan checklist',
+              5: 'Write an onboarding guide for new members',
+              6: 'Design a study plan for me',
+            },
           },
-        },
-        group4: {
-          title: '4. Scene Tuning',
-          prompts: {
-            1: 'Move the fight scene to a morning market tavern',
-            2: 'Change this scene to a rainy mountain path at night',
-            3: 'Make the current scene more crowded and noisy',
-            4: 'Make the environment description feel colder',
-            5: 'Move this section to an indoor secret meeting',
-            6: 'Increase the immediacy of this scene',
-          },
-        },
-        group5: {
-          title: '5. Plot Tuning',
-          prompts: {
-            1: 'Change this plot beat to be driven by misunderstanding',
-            2: 'Escalate the conflict in this section',
-            3: 'Adjust this paragraph so the ending leaves suspense',
-            4: 'Reorder this chapter’s events for tighter momentum',
-            5: 'Make the turning point in this section feel more natural',
-            6: 'Rewrite this paragraph as a foreshadow payoff',
+          group3: {
+            title: '3. Knowledge Base Management',
+            prompts: {
+              1: 'Organize the notes in this workspace and build an index',
+              2: 'Generate a reading list for me',
+              3: 'Summarize all documents on this topic',
+              4: 'Help me tag and categorize these files',
+              5: 'Find everything in the workspace related to X',
+              6: 'Find duplicate content across these notes',
+            },
           },
         },
       },
-      noDocument: {
-        group1: {
-          title: '1. Opening Concepts',
-          prompts: {
-            1: 'Give me three story opening ideas',
-            2: 'Design a protagonist for this genre',
-            3: 'Create a three-act outline for this novel',
-            4: 'Suggest a more gripping opening scene',
-            5: 'Help me design the core conflict',
-            6: 'Give me three setup directions with different styles',
+      creative: {
+        withDocument: {
+          group1: {
+            title: '1. Basic Editing',
+            prompts: {
+              1: 'Rewrite this paragraph to sound more natural',
+              2: 'Expand the emotional details in this section',
+              3: 'Condense this paragraph while keeping key information',
+              4: 'Edit the ending of Chapter Three — no need to open it first',
+              5: 'Improve the pacing of this paragraph',
+              6: 'Polish this section to read more smoothly',
+            },
+          },
+          group2: {
+            title: '2. Style Tuning',
+            prompts: {
+              1: 'Rewrite Chapter One in the style of Charles Dickens',
+              2: 'Rewrite this dialogue to be more restrained and cold',
+              3: 'Check whether this chapter matches the active writing style',
+              4: 'Increase the suspense in this section',
+              5: 'Make this paragraph feel more cinematic',
+              6: 'Make the writing style cleaner and sharper',
+            },
+          },
+          group3: {
+            title: '3. Character Tuning',
+            prompts: {
+              1: 'Remove traces of Dolores from this chapter',
+              2: 'Strengthen the protagonist’s sense of pressure in this chapter',
+              3: 'Reduce the supporting character’s presence here',
+              4: 'Make the character relationships more tense',
+              5: 'Strengthen the character motivation in this section',
+              6: 'Make each character’s speech better match their identity',
+            },
+          },
+          group4: {
+            title: '4. Scene Tuning',
+            prompts: {
+              1: 'Move the fight scene to a morning market tavern',
+              2: 'Change this scene to a rainy mountain path at night',
+              3: 'Make the current scene more crowded and noisy',
+              4: 'Make the environment description feel colder',
+              5: 'Move this section to an indoor secret meeting',
+              6: 'Increase the immediacy of this scene',
+            },
+          },
+          group5: {
+            title: '5. Plot Tuning',
+            prompts: {
+              1: 'Change this plot beat to be driven by misunderstanding',
+              2: 'Escalate the conflict in this section',
+              3: 'Adjust this paragraph so the ending leaves suspense',
+              4: 'Reorder this chapter’s events for tighter momentum',
+              5: 'Make the turning point in this section feel more natural',
+              6: 'Rewrite this paragraph as a foreshadow payoff',
+            },
           },
         },
-        group2: {
-          title: '2. Style Drafting',
-          prompts: {
-            1: 'Expand this idea into a draft paragraph',
-            2: 'Write an opening in a restrained, cold style',
-            3: 'Write the first paragraph in a more visual way',
-            4: 'Write a character entrance paragraph',
-            5: 'Rewrite this setup to feel more like novel prose',
-            6: 'Create the next chapter and write the opening scene',
+        noDocument: {
+          group1: {
+            title: '1. Opening Concepts',
+            prompts: {
+              1: 'Give me three story opening ideas',
+              2: 'Design a protagonist for this genre',
+              3: 'Create a three-act outline for this novel',
+              4: 'Suggest a more gripping opening scene',
+              5: 'Help me design the core conflict',
+              6: 'Give me three setup directions with different styles',
+            },
           },
-        },
-        group3: {
-          title: '3. Structure Progression',
-          prompts: {
-            1: 'Outline the chapter-one plot progression',
-            2: 'Design conflict escalation for this part',
-            3: 'Add a twist to this chapter',
-            4: 'Add a more logical motivation chain',
-            5: 'Tighten this story beat',
-            6: 'Design a suspenseful ending',
+          group2: {
+            title: '2. Style Drafting',
+            prompts: {
+              1: 'Expand this idea into a draft paragraph',
+              2: 'Write an opening in a restrained, cold style',
+              3: 'Write the first paragraph in a more visual way',
+              4: 'Write a character entrance paragraph',
+              5: 'Rewrite this setup to feel more like novel prose',
+              6: 'Create the next chapter and write the opening scene',
+            },
+          },
+          group3: {
+            title: '3. Structure Progression',
+            prompts: {
+              1: 'Outline the chapter-one plot progression',
+              2: 'Design conflict escalation for this part',
+              3: 'Add a twist to this chapter',
+              4: 'Add a more logical motivation chain',
+              5: 'Tighten this story beat',
+              6: 'Design a suspenseful ending',
+            },
           },
         },
       },

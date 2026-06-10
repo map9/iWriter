@@ -32,10 +32,11 @@ export function buildCreativeCapabilities(input: {
   onSkillsMutated?: () => void,
 }): DomainAgentCapabilities {
   const skillsRoot = path.join(input.aiRootPath, 'skills')
+  const creativeSkillsRoot = path.join(skillsRoot, 'creative')
   const skillSources = (...names: string[]) => names.map(name => path.join(skillsRoot, name))
   const noop = () => {}
   const writingStyleTools = buildWritingStyleTools({
-    skillsRoot,
+    skillsRoot: creativeSkillsRoot,
     onSkillsMutated: input.onSkillsMutated ?? noop,
   })
   const webTools = buildWebTools()
@@ -132,11 +133,11 @@ export function buildCreativeCapabilities(input: {
   return {
     tools: mainTools,
     subAgents: [
-      buildPlannerSubAgent(plannerTools, input.language ?? 'en-US', { skillSources: skillSources('common', 'planner') }),
-      buildConsistencySubAgent([...subAgentReadTools, ...styleReadTools], input.language ?? 'en-US', { skillSources: skillSources('common', 'consistency') }),
-      buildExplorerSubAgent(explorerTools, input.language ?? 'en-US', { skillSources: skillSources('common', 'explorer') }),
-      buildWriterSubAgent(writerTools, input.language ?? 'en-US', { skillSources: skillSources('common', 'writer') }),
-      buildResearcherSubAgent([...researcherTools], input.language ?? 'en-US', { skillSources: skillSources('researcher') }),
+      buildPlannerSubAgent(plannerTools, input.language ?? 'en-US', { skillSources: skillSources('creative/common', 'creative/planner') }),
+      buildConsistencySubAgent([...subAgentReadTools, ...styleReadTools], input.language ?? 'en-US', { skillSources: skillSources('creative/common', 'creative/consistency') }),
+      buildExplorerSubAgent(explorerTools, input.language ?? 'en-US', { skillSources: skillSources('creative/common', 'creative/explorer') }),
+      buildWriterSubAgent(writerTools, input.language ?? 'en-US', { skillSources: skillSources('creative/common', 'creative/writer') }),
+      buildResearcherSubAgent([...researcherTools], input.language ?? 'en-US', { skillSources: skillSources('common') }),
       buildWritingStyleExtractorSubAgent([], input.language ?? 'en-US'),
       buildWritingStyleSkillCreatorSubAgent(writingStyleSkillCreatorTools, input.language ?? 'en-US'),
     ],

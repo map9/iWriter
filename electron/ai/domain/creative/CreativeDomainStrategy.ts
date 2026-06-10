@@ -46,7 +46,8 @@ export class CreativeDomainStrategy implements DomainStrategy {
 
   getSkillSources(aiRootPath: string): string[] {
     return [
-      path.join(aiRootPath, 'skills', 'main'),
+      path.join(aiRootPath, 'skills', 'creative', 'main'),
+      path.join(aiRootPath, 'skills', 'creative', 'common'),
       path.join(aiRootPath, 'skills', 'common'),
     ]
   }
