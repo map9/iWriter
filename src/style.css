@@ -98,7 +98,7 @@
   }
 
   .iw-sidebar {
-    @apply relative flex h-full shrink-0 flex-col overflow-hidden border-base-300 bg-base-100 min-w-64;
+    @apply relative flex h-full shrink-0 flex-col overflow-hidden border-base-300 bg-base-100 min-w-72;
   }
 
   .iw-left-sidebar {
@@ -106,7 +106,7 @@
   }
 
   .iw-right-sidebar {
-    @apply border-l;
+    @apply border-l  min-w-80;
   }
   
   .iw-statusbar {

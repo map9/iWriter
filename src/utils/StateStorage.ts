@@ -56,7 +56,7 @@ export const DEFAULT_UI_STATE: UIState = {
   markdownEditorPageMode: 'fixed-768',
   leftSidebarMode: SidebarMode.START,
   leftSidebarWidth: 288,
-  rightSidebarWidth: 288
+  rightSidebarWidth: 320
 }
 
 export const DEFAULT_EDIT_SETTING: EditSetting = {
