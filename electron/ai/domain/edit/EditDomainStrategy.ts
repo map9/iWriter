@@ -1,7 +1,6 @@
 
 import * as path from 'path'
 import { EDIT_SYSTEM_PROMPT } from '../../../../src/ai/thread/system-prompts/edit'
-import { MINIMAL_SYSTEM_PROMPT } from '../../../../src/ai/thread/system-prompts/minimal'
 import { buildEditCapabilities, EDIT_INTERRUPT_ON_NAMES } from './buildEditCapabilities'
 import { buildProposalFromAction } from '../../ipc/MessageAdapter'
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
@@ -24,13 +23,12 @@ export class EditDomainStrategy implements DomainStrategy {
     private readonly runtimeStore: ThreadRuntimeStore,
   ) {}
 
-  buildCapabilities(ctx: DomainBuildContext): DomainAgentCapabilities {
-    if (ctx.mode === 'minimal') return { tools: [] }
+  buildCapabilities(_ctx: DomainBuildContext): DomainAgentCapabilities {
     return buildEditCapabilities({ snapshotBroker: this.snapshotBroker })
   }
 
-  getSystemPrompt(mode: AiAgentMode, _language: DetectedInputLanguage): string {
-    return mode === 'minimal' ? MINIMAL_SYSTEM_PROMPT : EDIT_SYSTEM_PROMPT
+  getSystemPrompt(_mode: AiAgentMode, _language: DetectedInputLanguage): string {
+    return EDIT_SYSTEM_PROMPT
   }
 
   getSkillSources(aiRootPath: string): string[] {

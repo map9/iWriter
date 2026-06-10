@@ -457,11 +457,11 @@ export default {
       switchMode: 'Switch Agent Mode',
       options: {
         edit: 'Edit',
-        editDesc: 'Precise edits with full document context',
-        minimal: 'Minimal',
-        minimalDesc: 'Concise responses, less explanation',
+        editDesc: 'General docs & knowledge base — research, organize, write, edit',
         creative: 'Creative',
-        creativeDesc: 'Imaginative writing, takes creative liberties',
+        creativeDesc: 'Novel-writing partner — from idea to finished draft',
+        creativeDisabledDesc: 'Open a workspace folder to use Creative mode.',
+        creativeDisabledTooltip: 'Creative mode requires an open workspace folder.',
       },
     },
     sendButton: {
@@ -586,7 +586,8 @@ export default {
       },
     },
     emptyState: {
-      brand: 'AI StoryMate',
+      brandEdit: 'iWriter AI',
+      brandCreative: 'AI StoryMate',
       subtitle: 'Pick an editing type, then start from one of the examples below.',
       withDocument: {
         group1: {

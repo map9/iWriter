@@ -57,7 +57,7 @@
 <script setup lang="ts">
 import { type Component, computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconChevronDown, IconMinus, IconPencil, IconSparkles } from '@tabler/icons-vue'
+import { IconChevronDown, IconPencil, IconSparkles } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/store/ai'
 import { useAppStore } from '@/stores/app'
 import type { AiAgentMode } from '@/ai/types'
@@ -74,7 +74,6 @@ const menuWidth = 208
 
 const MODE_ICONS: Record<AiAgentMode, Component> = {
   edit: IconPencil,
-  minimal: IconMinus,
   creative: IconSparkles,
 }
 
@@ -93,13 +92,12 @@ const modeOptions = computed<Array<{ value: AiAgentMode; label: string; desc: st
   const creativeDisabled = !appStore.currentFolder
   return [
     { value: 'edit', label: t('agentPanel.modePicker.options.edit'), desc: t('agentPanel.modePicker.options.editDesc') },
-    { value: 'minimal', label: t('agentPanel.modePicker.options.minimal'), desc: t('agentPanel.modePicker.options.minimalDesc') },
     {
       value: 'creative',
       label: t('agentPanel.modePicker.options.creative'),
-      desc: creativeDisabled ? 'Open a workspace folder to use Creative mode.' : t('agentPanel.modePicker.options.creativeDesc'),
+      desc: creativeDisabled ? t('agentPanel.modePicker.options.creativeDisabledDesc') : t('agentPanel.modePicker.options.creativeDesc'),
       disabled: creativeDisabled,
-      tooltip: creativeDisabled ? 'Creative mode requires an open workspace folder.' : undefined,
+      tooltip: creativeDisabled ? t('agentPanel.modePicker.options.creativeDisabledTooltip') : undefined,
     },
   ]
 })

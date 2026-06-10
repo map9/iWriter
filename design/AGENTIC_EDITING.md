@@ -12,17 +12,17 @@ iWriter 的 AI 运行时已经切换到：
 - 文档编辑域与创作域分离
 - 文档修改统一走 block edit proposal / HITL 审批
 
-当前只保留 3 个模式：
+当前只保留 2 个模式（默认 `Edit`，`Creative` 为专用模式）：
 
 | 模式 | 目标 | 可用能力 |
 | --- | --- | --- |
-| `Edit` | 先读后改的文档编辑 | document tools + read-only `exec_shell` + edit proposal tools |
+| `Edit` | 通用文档创建/编辑与个人知识库管理：先读后改的文档编辑、研究整理、写作 | document/search/web/PDF tools + edit proposal tools |
 | `Creative` | 小说创作 / 世界观 / 人设 / 故事线 | skills + story asset tools + backend |
-| `Minimal` | 最小对话模式 | 无工具 |
 
 说明：
 
 - 不再有独立 `Ask` 模式。`Edit` 本身就是 ask-then-edit 工作流。
+- 不再有 `Minimal` 模式。
 - 不再有旧的 ACP Agent 主链路。
 - 不再使用旧的 renderer-side `AgentRunner` / `ProviderRegistry` 作为主运行时。
 
@@ -46,13 +46,13 @@ iWriter 的 AI 运行时已经切换到：
 ### 工具层
 
 - `electron/ai/tools/DocumentTools.ts`
-  读取活动文档或指定文件的 block-aware 工具
+  读取活动文档或指定文件的 block-aware 工具，含文档/章节/目录内容搜索
 - `electron/ai/tools/EditProposalTools.ts`
   生成需要审批的文档编辑 proposal
-- `electron/ai/tools/WorkspaceShellTools.ts`
-  只读 shell 工具，用于工作目录下的文件发现
-- `electron/ai/tools/CreativeArtifactTools.ts`
-  创作资产读写工具，面向 story bible / brainstorm 结果
+- `electron/ai/tools/WebTools.ts`
+  `web_search` / `fetch_url`，网页搜索与抓取
+- `electron/ai/tools/PdfTools.ts`
+  只读 PDF 大纲/分页读取工具
 
 ### Renderer AI Domain
 
@@ -66,8 +66,6 @@ iWriter 的 AI 运行时已经切换到：
   Edit 模式 prompt
 - `src/ai/thread/system-prompts/creative.ts`
   Creative 模式 prompt
-- `src/ai/thread/system-prompts/minimal.ts`
-  Minimal 模式 prompt
 
 兼容桥接仍然保留在：
 
@@ -89,16 +87,12 @@ Edit 模式的原则是：
 
 Edit 模式当前可用工具：
 
-- `get_document_outline`
-- `get_section`
-- `get_blocks`
-- `get_block_context`
-- `exec_shell`
-- `edit_block`
-- `insert_block`
-- `delete_block`
-- `replace_range`
-- `create_document`
+- 文档读取/检索：`get_document_outline`、`get_section`、`get_sections`、`get_blocks`、`get_block_context`
+- 内容搜索：`search_blocks_in_document`、`search_sections_in_document`、`search_in_directory`
+- 编辑 proposal：`edit_block`、`insert_block`、`delete_block`、`replace_range`、`create_document`
+- 网络：`web_search`、`fetch_url`
+- PDF（只读）：`get_pdf_outline`、`get_pdf_pages`
+- deepagents 内置：`ls`、`read_file`、`write_file`、`edit_file`、`glob`、`grep`、`execute`（shell，仅按 prompt 约定用于发现，无硬只读限制）、`write_todos`、`task`
 
 关键约束：
 

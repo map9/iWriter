@@ -5,7 +5,7 @@ export type AiProviderType = 'openai-compat' | 'deepseek' | 'anthropic' | 'gemin
 
 export type AiAgentDomain = 'editing' | 'creative'
 
-export type AiAgentMode = 'edit' | 'minimal' | 'creative'
+export type AiAgentMode = 'edit' | 'creative'
 
 export type AiThinkingLevel = 'low' | 'medium' | 'high' | 'extra_high'
 
@@ -672,7 +672,6 @@ export function getDefaultModeForDomain(domain: AiAgentDomain): AiAgentMode {
 
 export function normalizeAgentMode(mode: string | undefined): AiAgentMode {
   if (mode === 'creative') return 'creative'
-  if (mode === 'minimal') return 'minimal'
   if (mode === 'edit') return 'edit'
   return 'edit'
 }
@@ -684,7 +683,7 @@ export function normalizeModeForDomain(
   if (domain === 'creative') {
     return 'creative'
   }
-  if (mode === 'minimal' || mode === 'edit') {
+  if (mode === 'edit') {
     return mode
   }
   return 'edit'

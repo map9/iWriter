@@ -454,11 +454,11 @@ export default {
       switchMode: '切换智能体模式',
       options: {
         edit: '编辑',
-        editDesc: '精准编辑，充分感知文档上下文',
-        minimal: '精简',
-        minimalDesc: '简洁回复，减少冗余说明',
+        editDesc: '通用文档与知识库：研究、整理、撰写与编辑',
         creative: '创作',
-        creativeDesc: '富有想象力，大胆发挥创意',
+        creativeDesc: '小说创作伙伴：从灵感到成稿',
+        creativeDisabledDesc: '需要打开工作空间文件夹才能使用创作模式。',
+        creativeDisabledTooltip: '创作模式需要打开一个工作空间文件夹。',
       },
     },
     sendButton: {
@@ -583,7 +583,8 @@ export default {
       },
     },
     emptyState: {
-      brand: 'AI StoryMate',
+      brandEdit: 'iWriter AI',
+      brandCreative: 'AI StoryMate',
       subtitle: '选择一种编辑类型，再从下面的示例开始。',
       withDocument: {
         group1: {

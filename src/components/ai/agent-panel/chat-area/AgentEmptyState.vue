@@ -5,7 +5,7 @@
   >
     <div class="mt-4 flex flex-col items-center">
       <IconBrain class="size-12 text-base-content" />
-      <p class="mt-2 text-md font-medium text-base-content">{{ t('agentPanel.emptyState.brand') }}</p>
+      <p class="mt-2 text-md font-medium text-base-content">{{ brand }}</p>
       <p class="mt-1 max-w-xs text-xs leading-5 text-base-content/50">
         {{ t('agentPanel.emptyState.subtitle') }}
       </p>
@@ -65,6 +65,12 @@ const { t } = useI18n()
 const emit = defineEmits<{ suggest: [prompt: string] }>()
 
 const hasActiveDocument = computed(() => !!appStore.activeTab)
+const currentMode = computed(() => aiStore.activeThread?.mode ?? aiStore.settings.defaultMode)
+const brand = computed(() =>
+  currentMode.value === 'creative'
+    ? t('agentPanel.emptyState.brandCreative')
+    : t('agentPanel.emptyState.brandEdit'),
+)
 const activeGroupIndex = ref(0)
 let carouselTimer: ReturnType<typeof setInterval> | null = null
 
