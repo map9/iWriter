@@ -276,6 +276,7 @@ export default {
       title: 'AI',
       providers: '模型提供方',
       addCustomProvider: '添加自定义模型提供方',
+      defaultCustomProviderName: '我的模型提供方',
       removeProvider: '移除自定义模型提供方',
       webSearch: {
         title: 'Web 搜索引擎',
@@ -290,6 +291,7 @@ export default {
         enabledHint: '禁用的引擎不会参与默认搜索引擎选择。',
         removeEngine: '移除搜索引擎',
         addCustomEngine: '添加自定义搜索引擎',
+        defaultCustomEngineName: '我的搜索引擎',
       },
       identity: '基本信息',
       name: '名称',

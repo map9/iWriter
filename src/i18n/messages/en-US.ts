@@ -276,6 +276,7 @@ export default {
       title: 'AI',
       providers: 'Model Providers',
       addCustomProvider: 'Add Custom Model Provider',
+      defaultCustomProviderName: 'My Model Provider',
       removeProvider: 'Remove Model Provider',
       webSearch: {
         title: 'Web Search Engine',
@@ -290,6 +291,7 @@ export default {
         enabledHint: 'Disabled engines are skipped when choosing the default search engine.',
         removeEngine: 'Remove Search Engine',
         addCustomEngine: 'Add Custom Search Engine',
+        defaultCustomEngineName: 'My Search Engine',
       },
       identity: 'Identity',
       name: 'Name',
