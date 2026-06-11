@@ -3,6 +3,7 @@ import type {
   RunContextCompressedEvent,
   RunDoneEvent,
   RunErrorEvent,
+  RunFilesystemAutoRejectEvent,
   RunInterruptedEvent,
   RunModelFallbackEvent,
   StreamChunkEvent,
@@ -33,5 +34,9 @@ export class RendererEventBridge {
 
   sendRunModelFallback(event: RunModelFallbackEvent): void {
     this.getWebContents()?.send('ai:model-fallback', event)
+  }
+
+  sendRunFilesystemAutoReject(event: RunFilesystemAutoRejectEvent): void {
+    this.getWebContents()?.send('ai:filesystem-auto-reject', event)
   }
 }

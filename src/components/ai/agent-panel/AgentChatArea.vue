@@ -26,12 +26,14 @@
       @resend="handleResend"
     />
 
-    <!-- Streaming fallback when no preview message is available -->
-    <div v-if="aiStore.isStreaming && !aiStore.streamingPreviewMessage" class="flex gap-2.5">
+    <!-- Streaming/interrupted fallback when no preview message is available -->
+    <div v-if="(aiStore.isStreaming || aiStore.isInterrupted) && !aiStore.streamingPreviewMessage" class="flex gap-2.5">
       <div class="flex-1 min-w-0 space-y-1.5">
         <div class="inline-flex items-center gap-2 rounded-field bg-base-200 px-3 py-2">
-          <span class="loading loading-dots loading-sm text-base-content/50"></span>
-          <span class="text-xs text-base-content/50">{{ streamingStatusLabel }} · {{ formattedElapsed }}</span>
+          <span v-if="!aiStore.isInterrupted" class="loading loading-dots loading-sm text-base-content/50"></span>
+          <span class="text-xs text-base-content/50">
+            {{ streamingStatusLabel }}<template v-if="!aiStore.isInterrupted"> · {{ formattedElapsed }}</template>
+          </span>
         </div>
       </div>
     </div>
@@ -72,6 +74,7 @@ watch(isSessionActive, active => {
     }
     if (!elapsedInterval) {
       elapsedInterval = setInterval(() => {
+        if (aiStore.isInterrupted) return
         elapsedMs.value = Math.max(0, Date.now() - runStartedAt)
       }, 1000)
     }
@@ -123,6 +126,9 @@ function humanizeToolName(toolName: string | null | undefined): string {
 }
 
 const streamingStatusLabel = computed(() => {
+  if (aiStore.isInterrupted) {
+    return t('agentPanel.panel.waitingApproval')
+  }
   if (aiStore.liveTurnState === 'resuming') {
     return t('agentPanel.chatArea.status.resuming')
   }

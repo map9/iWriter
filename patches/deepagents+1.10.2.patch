@@ -1,0 +1,82 @@
+diff --git a/node_modules/deepagents/dist/index.cjs b/node_modules/deepagents/dist/index.cjs
+index 2d35034..da08e79 100644
+--- a/node_modules/deepagents/dist/index.cjs
++++ b/node_modules/deepagents/dist/index.cjs
+@@ -7106,7 +7106,8 @@ function createSubagentTransformer(path) {
+ 		const pendingByNamespaceSegment = /* @__PURE__ */ new Map();
+ 		const latestValuesByNamespaceSegment = /* @__PURE__ */ new Map();
+ 		const subagentsByName = /* @__PURE__ */ new Map();
+-		/** Maps tools-node namespace segment to subagent name. */
++		let subagentAnonSeq = 0;
++		/** Maps tools-node namespace segment to subagent invocation key. */
+ 		const toolsNodeToName = /* @__PURE__ */ new Map();
+ 		const childToolCalls = /* @__PURE__ */ new Map();
+ 		/** Active ChatModelStreamImpl per subagent (keyed by subagent name). */
+@@ -7148,6 +7149,7 @@ function createSubagentTransformer(path) {
+ 						const rawInput = data.input;
+ 						const input = typeof rawInput === "string" ? JSON.parse(rawInput) : rawInput ?? {};
+ 						const subagentName = input.subagent_type ?? "unknown";
++						const subagentKey = toolCallId ? `task:${toolCallId}` : `anon:${subagentName}:${subagentAnonSeq++}`;
+ 						const taskDescription = input.description ?? "";
+ 						let resolveTaskInput;
+ 						let resolveOutput;
+@@ -7169,15 +7171,15 @@ function createSubagentTransformer(path) {
+ 						if (toolCallId) pendingByCallId.set(toolCallId, pending);
+ 						resolveTaskInput(taskDescription);
+ 						if (depth === 1) {
+-							toolsNodeToName.set(ns[path.length], subagentName);
++							toolsNodeToName.set(ns[path.length], subagentKey);
+ 							pendingByNamespaceSegment.set(ns[path.length], pending);
+ 						}
+ 						if (toolCallId) {
+ 							const taskSegment = `tools:${toolCallId}`;
+-							toolsNodeToName.set(taskSegment, subagentName);
++							toolsNodeToName.set(taskSegment, subagentKey);
+ 							pendingByNamespaceSegment.set(taskSegment, pending);
+ 						}
+-						const logs = getOrCreateSubagentLogs(subagentName);
++						const logs = getOrCreateSubagentLogs(subagentKey);
+ 						subagentsLog.push({
+ 							name: subagentName,
+ 							taskInput,
+diff --git a/node_modules/deepagents/dist/index.js b/node_modules/deepagents/dist/index.js
+index 15128fe..9c97e46 100644
+--- a/node_modules/deepagents/dist/index.js
++++ b/node_modules/deepagents/dist/index.js
+@@ -7067,7 +7067,8 @@ function createSubagentTransformer(path) {
+ 		const pendingByNamespaceSegment = /* @__PURE__ */ new Map();
+ 		const latestValuesByNamespaceSegment = /* @__PURE__ */ new Map();
+ 		const subagentsByName = /* @__PURE__ */ new Map();
+-		/** Maps tools-node namespace segment to subagent name. */
++		let subagentAnonSeq = 0;
++		/** Maps tools-node namespace segment to subagent invocation key. */
+ 		const toolsNodeToName = /* @__PURE__ */ new Map();
+ 		const childToolCalls = /* @__PURE__ */ new Map();
+ 		/** Active ChatModelStreamImpl per subagent (keyed by subagent name). */
+@@ -7109,6 +7110,7 @@ function createSubagentTransformer(path) {
+ 						const rawInput = data.input;
+ 						const input = typeof rawInput === "string" ? JSON.parse(rawInput) : rawInput ?? {};
+ 						const subagentName = input.subagent_type ?? "unknown";
++						const subagentKey = toolCallId ? `task:${toolCallId}` : `anon:${subagentName}:${subagentAnonSeq++}`;
+ 						const taskDescription = input.description ?? "";
+ 						let resolveTaskInput;
+ 						let resolveOutput;
+@@ -7130,15 +7132,15 @@ function createSubagentTransformer(path) {
+ 						if (toolCallId) pendingByCallId.set(toolCallId, pending);
+ 						resolveTaskInput(taskDescription);
+ 						if (depth === 1) {
+-							toolsNodeToName.set(ns[path.length], subagentName);
++							toolsNodeToName.set(ns[path.length], subagentKey);
+ 							pendingByNamespaceSegment.set(ns[path.length], pending);
+ 						}
+ 						if (toolCallId) {
+ 							const taskSegment = `tools:${toolCallId}`;
+-							toolsNodeToName.set(taskSegment, subagentName);
++							toolsNodeToName.set(taskSegment, subagentKey);
+ 							pendingByNamespaceSegment.set(taskSegment, pending);
+ 						}
+-						const logs = getOrCreateSubagentLogs(subagentName);
++						const logs = getOrCreateSubagentLogs(subagentKey);
+ 						subagentsLog.push({
+ 							name: subagentName,
+ 							taskInput,

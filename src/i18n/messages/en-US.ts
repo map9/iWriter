@@ -1112,6 +1112,7 @@ export default {
     ai: {
       contextCompressed: 'Conversation history was automatically compressed to save context space',
       modelFallback: 'Primary model unavailable, switched to fallback model: {modelId}',
+      filesystemAutoReject: 'File write rejected by policy, run continued automatically: {toolName} → {filePath}',
     },
     editor: {
       loadFailed: 'Failed to load document {filepath}: {error}',

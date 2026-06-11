@@ -1109,6 +1109,7 @@ export default {
     ai: {
       contextCompressed: '会话历史已自动压缩以节省 context 空间',
       modelFallback: '主模型不可用，已切换至备用模型: {modelId}',
+      filesystemAutoReject: '文件写入被策略拒绝，已自动继续: {toolName} → {filePath}',
     },
     editor: {
       loadFailed: '加载文档 {filepath} 失败: {error}',

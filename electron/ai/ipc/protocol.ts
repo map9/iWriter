@@ -181,6 +181,14 @@ export interface RunModelFallbackEvent {
   fallbackModelId: string
 }
 
+/** Fired when a filesystem write/edit tool call was auto-rejected by policy and the run auto-resumed. */
+export interface RunFilesystemAutoRejectEvent {
+  threadId: string
+  toolName: string
+  filePath: string
+  message: string
+}
+
 /** Main requests a serialized document snapshot from renderer */
 export interface SnapshotRequestEvent {
   requestId: string

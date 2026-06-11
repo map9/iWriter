@@ -17,6 +17,7 @@ export type {
   RunErrorEvent,
   RunContextCompressedEvent,
   RunModelFallbackEvent,
+  RunFilesystemAutoRejectEvent,
   SnapshotRequestEvent,
   SnapshotResponse,
   SerializedSnapshot,

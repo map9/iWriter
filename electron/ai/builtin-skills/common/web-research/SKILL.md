@@ -24,17 +24,17 @@ Use this skill when you need to:
 
 Before delegating to subagents, you MUST:
 
-1. **Create a research folder** - Organize all research files in a dedicated folder relative to the current working directory:
+1. **Create a research folder** - Organize all research files in a dedicated folder under the internal virtual filesystem, using an absolute path:
 
    ```
-   mkdir research_[topic_name]
+   mkdir /large_tool_results/research_[topic_name]
    ```
 
-   This keeps files organized and prevents clutter in the working directory.
+   This keeps files organized, prevents clutter in the user's workspace, and avoids requiring file-write approval.
 
 2. **Analyze the research question** - Break it down into distinct, non-overlapping subtopics
 
-3. **Write a research plan file** - Use the `write_file` tool to create `research_[topic_name]/research_plan.md` containing:
+3. **Write a research plan file** - Use the `write_file` tool to create `/large_tool_results/research_[topic_name]/research_plan.md` containing:
    - The main research question
    - 2-5 specific subtopics to investigate
    - Expected information from each subtopic
@@ -52,7 +52,7 @@ For each subtopic in your plan:
 
 1. **Use the `task` tool** to spawn a research subagent with:
    - Clear, specific research question (no acronyms)
-   - Instructions to write findings to a file: `research_[topic_name]/findings_[subtopic].md`
+   - Instructions to write findings to a file: `/large_tool_results/research_[topic_name]/findings_[subtopic].md`
    - Budget: 3-5 web searches maximum
 
 2. **Run up to 3 subagents in parallel** for efficient research
@@ -61,7 +61,7 @@ For each subtopic in your plan:
 
 ```
 Research [SPECIFIC TOPIC]. Use the web_search tool to gather information.
-After completing your research, use write_file to save your findings to research_[topic_name]/findings_[subtopic].md.
+After completing your research, use write_file to save your findings to /large_tool_results/research_[topic_name]/findings_[subtopic].md.
 Include key facts, relevant quotes, and source URLs.
 Use 3-5 web searches maximum.
 ```
@@ -70,9 +70,9 @@ Use 3-5 web searches maximum.
 
 After all subagents complete:
 
-1. **Review the findings files** that were saved locally:
-   - First run `ls(path="research_[topic_name]")` to see what files were created
-   - Then use `read_file` with the **file paths** (e.g., `research_[topic_name]/findings_*.md`)
+1. **Review the findings files** that were saved:
+   - First run `ls(path="/large_tool_results/research_[topic_name]")` to see what files were created
+   - Then use `read_file` with the **file paths** (e.g., `/large_tool_results/research_[topic_name]/findings_*.md`)
    - **Important**: Use `read_file` for LOCAL files only, not URLs
 
 2. **Synthesize the information** - Create a comprehensive response that:
@@ -81,7 +81,7 @@ After all subagents complete:
    - Cites specific sources with URLs (from the findings files)
    - Identifies any gaps or limitations
 
-3. **Write final report** (optional) - Use `write_file` to create `research_[topic_name]/research_report.md` if requested
+3. **Write final report** (optional) - Use `write_file` to create `/large_tool_results/research_[topic_name]/research_report.md` if requested
 
 **Note**: If you need to fetch additional information from URLs, use the `fetch_url` tool, not `read_file`.
 

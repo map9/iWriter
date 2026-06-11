@@ -777,6 +777,9 @@ export const useAiStore = defineStore('ai', () => {
     window.electronAPI.onAiModelFallback?.((e) => {
       notify.warning(i18n.global.t('notify.ai.modelFallback', { modelId: e.fallbackModelId }))
     })
+    window.electronAPI.onAiFilesystemAutoReject?.((e) => {
+      notify.warning(i18n.global.t('notify.ai.filesystemAutoReject', { toolName: e.toolName, filePath: e.filePath }))
+    })
   }
 
   function teardown() {

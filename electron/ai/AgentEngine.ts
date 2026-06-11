@@ -506,11 +506,15 @@ export class AgentEngine {
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
+    const turnId = this.runtimeStore.getCurrentTurnId(threadId)
     const runConfig = {
       configurable: this._buildRunConfigurable(threadId),
       context: this._buildRunContext(threadId, domain),
       signal: abortController.signal,
       recursionLimit: MIDDLEWARE_CONFIG.recursionLimit,
+      runName: `${domain}:initial`,
+      metadata: { threadId, turnId, phase: 'initial' },
+      tags: ['phase:initial'],
     }
 
     await this._seedSummarizationBaseline(threadId)
@@ -531,11 +535,15 @@ export class AgentEngine {
     const abortController = new AbortController()
     this.activeRuns.set(threadId, abortController)
 
+    const turnId = this.runtimeStore.getCurrentTurnId(threadId)
     const runConfig = {
       configurable: this._buildRunConfigurable(threadId),
       context: this._buildRunContext(threadId, domain),
       signal: abortController.signal,
       recursionLimit: MIDDLEWARE_CONFIG.recursionLimit,
+      runName: `${domain}:resume`,
+      metadata: { threadId, turnId, phase: 'resume' },
+      tags: ['phase:resume'],
     }
 
     await this._seedSummarizationBaseline(threadId)
@@ -646,11 +654,13 @@ export class AgentEngine {
     reviewActionRequests: HitlActionRequest[]
     reviewActionOriginalIndices: number[]
     autoDecisionsByIndex: Record<number, ResumeDecision>
+    autoRejects: Array<{ toolName: string; filePath: string; message: string }>
   } {
     const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
     const reviewActionRequests: HitlActionRequest[] = []
     const reviewActionOriginalIndices: number[] = []
     const autoDecisionsByIndex: Record<number, ResumeDecision> = {}
+    const autoRejects: Array<{ toolName: string; filePath: string; message: string }> = []
     let hasAutoReject = false
 
     actionRequests.forEach((actionRequest, index) => {
@@ -673,7 +683,14 @@ export class AgentEngine {
       }
 
       autoDecisionsByIndex[index] = decision.decision
-      if (decision.kind === 'auto-reject') hasAutoReject = true
+      if (decision.kind === 'auto-reject') {
+        hasAutoReject = true
+        autoRejects.push({
+          toolName: actionRequest.name,
+          filePath: typeof actionRequest.args?.file_path === 'string' ? actionRequest.args.file_path : '',
+          message: decision.decision.message ?? decision.reason,
+        })
+      }
     })
 
     if (hasAutoReject) {
@@ -688,6 +705,7 @@ export class AgentEngine {
         reviewActionRequests: [],
         reviewActionOriginalIndices: [],
         autoDecisionsByIndex,
+        autoRejects,
       }
     }
 
@@ -695,6 +713,7 @@ export class AgentEngine {
       reviewActionRequests,
       reviewActionOriginalIndices,
       autoDecisionsByIndex,
+      autoRejects,
     }
   }
 
@@ -741,6 +760,14 @@ export class AgentEngine {
     })
 
     if (!prepared.reviewActionRequests.length) {
+      for (const autoReject of prepared.autoRejects) {
+        this.rendererBridge.sendRunFilesystemAutoReject({
+          threadId,
+          toolName: autoReject.toolName,
+          filePath: autoReject.filePath,
+          message: autoReject.message,
+        })
+      }
       setTimeout(() => {
         this.resumeRun(threadId, []).catch(err => console.error('[AgentEngine] auto resumeRun error:', err))
       }, 0)
@@ -828,6 +855,14 @@ export class AgentEngine {
     })
 
     if (!prepared.reviewActionRequests.length) {
+      for (const autoReject of prepared.autoRejects) {
+        this.rendererBridge.sendRunFilesystemAutoReject({
+          threadId,
+          toolName: autoReject.toolName,
+          filePath: autoReject.filePath,
+          message: autoReject.message,
+        })
+      }
       await this.resumeRun(threadId, [])
       return
     }
