@@ -20,7 +20,18 @@
                     @keydown.enter.prevent="startEdit(cfg)"
                     @keydown.space.prevent="startEdit(cfg)"
                   >
-                    <span class="min-w-0 flex-1 truncate">{{ getProviderDisplayLabel(cfg) }}</span>
+                    <span
+                      class="min-w-0 flex-1 truncate"
+                      :class="isLlmConfigUsable(cfg) ? 'text-base-content' : 'text-base-content/50'"
+                    >
+                      {{ getProviderDisplayLabel(cfg) }}
+                    </span>
+                    <span
+                      v-if="!isLlmConfigUsable(cfg)"
+                      class="shrink-0 text-[11px] font-normal text-base-content/50"
+                    >
+                      {{ t('preferences.ai.notConfigured') }}
+                    </span>
                     <button
                       v-if="!cfg.presetId"
                       class="iw-toolbar-btn btn-xs text-error opacity-0 transition-opacity focus:opacity-100 hover:bg-error hover:text-error-content group-hover/ai-row:opacity-100"
@@ -34,7 +45,7 @@
                 </li>
                 <li>
                   <button
-                    class="iw-btn btn-ghost btn-sm h-8 w-full justify-start border-none text-left font-normal group/ai-row"
+                    class="iw-btn btn-outline btn-sm btn-primary h-8 w-full justify-start text-left font-normal group/ai-row"
                     @click="addCustomProvider"
                   >
                     <IconPlus class="icon-2xs shrink-0" />
@@ -62,7 +73,18 @@
                     @keydown.enter.prevent="startWebEdit(cfg)"
                     @keydown.space.prevent="startWebEdit(cfg)"
                   >
-                    <span class="min-w-0 flex-1 truncate">{{ cfg.label }}</span>
+                    <span
+                      class="min-w-0 flex-1 truncate"
+                      :class="isWebSearchConfigUsable(cfg) ? 'text-base-content' : 'text-base-content/50'"
+                    >
+                      {{ cfg.label }}
+                    </span>
+                    <span
+                      v-if="!isWebSearchConfigUsable(cfg)"
+                      class="shrink-0 text-[11px] font-normal text-base-content/50"
+                    >
+                      {{ t('preferences.ai.notConfigured') }}
+                    </span>
                   </div>
                 </li>
               </ul>
@@ -308,6 +330,8 @@ import {
   DEFAULT_AI_PROVIDER_PARAMETERS,
   getActiveWebSearchProviderConfig,
   getProviderParameterSupport,
+  isAiProviderUsable,
+  isWebSearchProviderUsable,
   normalizeProviderParameters,
 } from '@/ai/types'
 import {
@@ -350,6 +374,23 @@ const activePaneKey = computed(() => getActiveNodeKey(activeNode.value))
 function getProviderDisplayLabel(cfg: AiProviderConfig): string {
   if (!cfg.presetId) return cfg.label
   return getProviderPresetById(cfg.presetId)?.label ?? cfg.label
+}
+
+function getLlmConfigWithPresetDefaults(cfg: AiProviderConfig): AiProviderConfig {
+  const preset = getProviderPresetById(cfg.presetId)
+  return {
+    ...cfg,
+    defaultModelId: cfg.defaultModelId || preset?.defaultModelId || '',
+    models: cfg.models?.length ? cfg.models : preset?.models,
+  }
+}
+
+function isLlmConfigUsable(cfg: AiProviderConfig): boolean {
+  return isAiProviderUsable(getLlmConfigWithPresetDefaults(cfg))
+}
+
+function isWebSearchConfigUsable(cfg: WebSearchProviderConfig): boolean {
+  return isWebSearchProviderUsable(cfg)
 }
 
 const sortedLlmConfigs = computed(() => {
@@ -781,10 +822,14 @@ const headerTitle = computed(() => {
   if (!node) return ''
   if (node.kind === 'llm-config') {
     const cfg = aiStore.settings.providerConfigs.find(item => item.id === node.id)
-    return cfg ? `${getProviderDisplayLabel(cfg)} ${t('preferences.ai.configurationSuffix')}` : ''
+    if (!cfg) return ''
+    const status = isLlmConfigUsable(cfg) ? '' : ` · ${t('preferences.ai.notConfigured')}`
+    return `${getProviderDisplayLabel(cfg)} ${t('preferences.ai.configurationSuffix')}${status}`
   }
   const cfg = aiStore.settings.webSearchProviderConfigs.find(item => item.id === node.id)
-  return cfg ? `${cfg.label} ${t('preferences.ai.configurationSuffix')}` : ''
+  if (!cfg) return ''
+  const status = isWebSearchConfigUsable(cfg) ? '' : ` · ${t('preferences.ai.notConfigured')}`
+  return `${cfg.label} ${t('preferences.ai.configurationSuffix')}${status}`
 })
 
 watch(

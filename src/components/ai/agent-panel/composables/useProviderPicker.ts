@@ -1,6 +1,7 @@
 import { ref, computed, nextTick } from 'vue'
 import { useAiStore } from '@/ai/store/ai'
 import type { AiProviderConfig } from '@/ai/types'
+import { isAiProviderUsable } from '@/ai/types'
 import { getProviderPresetById } from '@/ai/providers/provider-presets'
 
 export function useProviderPicker() {
@@ -9,10 +10,12 @@ export function useProviderPicker() {
   const providerSearchEl = ref<HTMLInputElement>()
 
   function isLlmProviderUsable(cfg: AiProviderConfig): boolean {
-    const models = cfg.models ?? []
-    if (models.length) return true
     const preset = getProviderPresetById(cfg.presetId)
-    return (preset?.models ?? []).length > 0
+    return isAiProviderUsable({
+      ...cfg,
+      models: cfg.models?.length ? cfg.models : preset?.models,
+      defaultModelId: cfg.defaultModelId || preset?.defaultModelId || '',
+    })
   }
 
   function getProviderDisplayLabel(cfg: AiProviderConfig): string {

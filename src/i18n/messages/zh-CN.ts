@@ -278,6 +278,7 @@ export default {
       addCustomProvider: '添加自定义模型提供方',
       defaultCustomProviderName: '我的模型提供方',
       removeProvider: '移除自定义模型提供方',
+      notConfigured: '未配置',
       webSearch: {
         title: 'Web 搜索引擎',
         baseUrl: '端点 URL',
@@ -461,7 +462,7 @@ export default {
       },
     },
     webSearchPicker: {
-      title: '网络搜索引擎',
+      title: 'Web 搜索引擎',
       noEngineConfigured: '未配置搜索引擎',
       goToPreferences: '前往 AI 偏好设置进行配置',
     },

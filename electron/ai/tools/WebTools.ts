@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { tool, DynamicStructuredTool } from '@langchain/core/tools'
-import { AiConfigStore } from '../config/AiConfigStore'
+import { AiConfigStore, resolveAiApiKeyEnvVar } from '../config/AiConfigStore'
 import { fetchUrl, DEFAULT_MAX_TOKENS } from './HtmlFetcher'
-import { getActiveWebSearchProviderConfig } from '../../../src/types/ai'
+import { getActiveWebSearchProviderConfig, resolveApiKeyReference } from '../../../src/types/ai'
 
 const fetchUrlTool = tool(
   async ({ url, max_tokens = DEFAULT_MAX_TOKENS }) => {
@@ -50,7 +50,11 @@ const webSearchTool = new DynamicStructuredTool({
   }),
   func: async ({ query, max_results = 5, topic }) => {
     const settings = AiConfigStore.loadSettings()
-    const cfg = getActiveWebSearchProviderConfig(settings.webSearchProviderConfigs, settings.activeWebSearchProviderConfigId)
+    const cfg = getActiveWebSearchProviderConfig(
+      settings.webSearchProviderConfigs,
+      settings.activeWebSearchProviderConfigId,
+      { resolveApiKey: resolveAiApiKeyEnvVar },
+    )
 
     if (!cfg) {
       return JSON.stringify({
@@ -59,7 +63,7 @@ const webSearchTool = new DynamicStructuredTool({
       })
     }
 
-    const apiKey = cfg.apiKey?.trim() ?? ''
+    const apiKey = resolveApiKeyReference(cfg.apiKey, resolveAiApiKeyEnvVar)
     if (!apiKey) {
       return JSON.stringify({
         error: `${cfg.label} API key not configured.`,

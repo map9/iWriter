@@ -239,11 +239,11 @@
                 <div class="flex flex-col gap-3">
                   <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.customThemeActionsTitle') }}</h3>
                   <div class="grid grid-cols-2 gap-3">
-                    <button class="iw-btn btn-outline h-9" @click="handleCreateExampleTheme">
+                    <button class="iw-btn btn-outline btn-primaryh-9" @click="handleCreateExampleTheme">
                       <IconPlus class="icon-xs shrink-0" />
                       <span class="text-sm font-medium text-base-content">{{ t('preferences.themes.createExample') }}</span>
                     </button>
-                    <button class="iw-btn btn-outline h-9" @click="openThemesFolder">
+                    <button class="iw-btn btn-outline btn-primary h-9" @click="openThemesFolder">
                       <IconFolderOpen class="icon-xs shrink-0" />
                       <span class="text-sm font-medium text-base-content">{{ t('preferences.themes.openFolder') }}</span>
                     </button>
@@ -568,7 +568,7 @@
             <div class="flex h-full min-w-0 items-center pr-36">
               <div class="flex min-w-0 items-end gap-3">
                 <h2 class="shrink-0 text-xl font-semibold text-base-content">{{ t('preferences.ai.title') }}</h2>
-                <div class="truncate pb-0.5 text-sm text-base-content/50">{{ aiViewTitle }}</div>
+                <div class="truncate pb-0.5 text-sm text-base-content/40">{{ aiViewTitle }}</div>
               </div>
             </div>
             <button
@@ -718,7 +718,7 @@
             <section class="flex flex-col gap-3">
               <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.updates.actionsTitle') }}</h3>
               <div class="flex items-center gap-3">
-                <button class="iw-btn btn-outline h-9" @click="checkForUpdates">
+                <button class="iw-btn btn-outline btn-primaryh-9" @click="checkForUpdates">
                   {{ t('preferences.updates.checkNow') }}
                 </button>
               </div>

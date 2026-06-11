@@ -2,11 +2,14 @@ import type { AiAgentDomain, AiAgentMode, AiProviderConfig, AiSettings, AiThinki
 import {
   getDefaultModeForDomain,
   DEFAULT_THINKING_LEVEL,
+  getActiveAiProviderConfig,
   normalizeAgentMode,
   normalizeModeForDomain,
   normalizeThinkingLevel,
+  resolveAiProviderModelId,
   resolveAgentDomain,
 } from '../../../src/types/ai'
+import { resolveAiApiKeyEnvVar } from '../config/AiConfigStore'
 import type { SendMessageRequest } from '../ipc/protocol'
 import type { ThreadMeta } from '../thread/ThreadListQuery'
 
@@ -27,11 +30,18 @@ export function resolveThreadRuntime(
   const metaProviderId = meta?.providerConfigId
   const activeProviderId = settings.activeProviderConfigId ?? undefined
   const providerId = requestedProviderId || metaProviderId || activeProviderId
-  const providerConfig = settings.providerConfigs.find(c => c.id === providerId && c.enabled)
-    ?? settings.providerConfigs.find(c => c.enabled)
+  const preferredModelId = req?.threadRuntime?.modelId || meta?.modelId
+  const providerConfig = getActiveAiProviderConfig(
+    settings.providerConfigs,
+    providerId,
+    {
+      preferredModelId,
+      resolveApiKey: resolveAiApiKeyEnvVar,
+    },
+  )
 
   if (!providerConfig) {
-    throw new Error('No active AI provider configured. Please add a provider in settings.')
+    throw new Error('No usable AI provider configured. Please add an API key and model in settings.')
   }
 
   const requestedMode = req?.mode ? normalizeAgentMode(req.mode) : undefined
@@ -49,12 +59,7 @@ export function resolveThreadRuntime(
     domain,
   )
   const modelId =
-    req?.threadRuntime?.modelId
-    || meta?.modelId
-    || providerConfig.lastSelectedModelId
-    || providerConfig.defaultModelId
-    || providerConfig.models?.[0]
-    || ''
+    resolveAiProviderModelId(providerConfig, preferredModelId)
   const thinkingLevel = normalizeThinkingLevel(
     req?.threadRuntime?.thinkingLevel
     ?? meta?.thinkingLevel

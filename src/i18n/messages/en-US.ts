@@ -278,6 +278,7 @@ export default {
       addCustomProvider: 'Add Custom Model Provider',
       defaultCustomProviderName: 'My Model Provider',
       removeProvider: 'Remove Model Provider',
+      notConfigured: 'Not configured',
       webSearch: {
         title: 'Web Search Engine',
         baseUrl: 'Endpoint URL',

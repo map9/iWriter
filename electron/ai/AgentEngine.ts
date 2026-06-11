@@ -27,6 +27,7 @@ import {
 } from 'langchain'
 
 import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage } from '../../src/types/ai'
+import { isAiProviderUsable, resolveApiKeyReference } from '../../src/types/ai'
 import { getModelBudgetInfo } from '../../src/ai/model-budget'
 import { estimateTextTokens } from '../../src/ai/token-estimation'
 import { createChatModel } from './providers/ModelFactory'
@@ -49,7 +50,7 @@ import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore, type InterruptedRun } from './runtime/ThreadRuntimeStore'
 import { buildAgentFilesystem, FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './runtime/filesystem/AgentFilesystem'
 import { decideFilesystemWriteApproval, isFilesystemWriteToolName } from './runtime/filesystem/FilesystemApprovalPolicy'
-import { AiConfigStore } from './config/AiConfigStore'
+import { AiConfigStore, resolveAiApiKeyEnvVar } from './config/AiConfigStore'
 import { generateThreadTitle } from '../../src/ai/thread/title'
 import { IWriterAgentContextSchema, type IWriterAgentContext } from './runtime/AgentContext'
 import { createTaskToolCompatMiddleware } from './runtime/TaskToolCompatMiddleware'
@@ -310,8 +311,10 @@ export class AgentEngine {
     await this._ensureInitialized()
 
     const settings = AiConfigStore.loadSettings()
-    const hasEnabledProvider = settings.providerConfigs.some(config => config.enabled)
-    if (!hasEnabledProvider) {
+    const hasUsableProvider = settings.providerConfigs.some(config =>
+      isAiProviderUsable(config, { resolveApiKey: resolveAiApiKeyEnvVar })
+    )
+    if (!hasUsableProvider) {
       return {
         visible: false,
         currentTokens: 0,
@@ -871,7 +874,8 @@ export class AgentEngine {
     const filesystemFingerprint = `${workspacePath ?? ''}:${skillSources.join('|') || 'no-skills'}`
     // Include apiKey and baseUrl in the key so that credential updates immediately
     // produce a new agent instance rather than reusing a stale one.
-    const keyFingerprint = config.apiKey ? config.apiKey.slice(-8) : ''
+    const resolvedApiKey = resolveApiKeyReference(config.apiKey, resolveAiApiKeyEnvVar)
+    const keyFingerprint = resolvedApiKey ? resolvedApiKey.slice(-8) : ''
     const cacheKey = `${threadId}:${config.id}:${domain}:${mode}:${modelId}:${thinkingLevel ?? ''}:${language}:${keyFingerprint}:${config.baseUrl ?? ''}:${config.fallbackModelId ?? ''}:${filesystemFingerprint}`
     const cached = this.agentCache.get(cacheKey)
     if (cached) return cached.agent

@@ -2,7 +2,7 @@ import { watch, nextTick, computed, ref } from 'vue'
 import type { Ref } from 'vue'
 import { useAiStore } from '@/ai/store/ai'
 import type { SendContext } from '@/ai/types'
-import { resolveAgentDomain } from '@/ai/types'
+import { resolveAgentDomain, resolveAiProviderModelId } from '@/ai/types'
 import { pathUtils } from '@/utils/pathUtils'
 
 /** Binary file extensions that are sent as inline multimodal content. */
@@ -50,8 +50,9 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     const thread = aiStore.activeThread
     const domain = thread?.domain ?? resolveAgentDomain(aiStore.settings.defaultMode)
     const mode = thread?.mode ?? aiStore.settings.defaultMode
-    const providerId = thread?.providerConfigId || aiStore.effectiveProviderConfig?.id
-    const modelId = thread?.modelId || aiStore.effectiveProviderConfig?.defaultModelId
+    const provider = aiStore.effectiveProviderConfig
+    const providerId = provider?.id
+    const modelId = provider ? resolveAiProviderModelId(provider, thread?.modelId) : ''
     if (!providerId || !modelId) {
       showCompact.value = false
       currentSessionTokens.value = 0
@@ -132,8 +133,9 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     const thread = aiStore.activeThread
     const domain = thread?.domain ?? resolveAgentDomain(aiStore.settings.defaultMode)
     const mode = thread?.mode ?? aiStore.settings.defaultMode
-    const providerId = thread?.providerConfigId || aiStore.effectiveProviderConfig?.id
-    const modelId = thread?.modelId || aiStore.effectiveProviderConfig?.defaultModelId
+    const provider = aiStore.effectiveProviderConfig
+    const providerId = provider?.id
+    const modelId = provider ? resolveAiProviderModelId(provider, thread?.modelId) : ''
 
     isCompacting.value = true
     try {

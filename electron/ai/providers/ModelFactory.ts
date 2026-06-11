@@ -16,7 +16,9 @@ import {
   isOpenAIResponsesProtocol,
   normalizeProviderParameters,
   normalizeThinkingLevel,
+  resolveApiKeyReference,
 } from '../../../src/types/ai'
+import { resolveAiApiKeyEnvVar } from '../config/AiConfigStore'
 import { ChatDeepSeek } from './ChatDeepSeek'
 
 export interface ChatModelRuntimeOptions {
@@ -87,11 +89,12 @@ export function createChatModel(
   const modelId = runtime.modelId || config.lastSelectedModelId || config.defaultModelId
   const thinkingLevel = normalizeThinkingLevel(runtime.thinkingLevel ?? config.lastSelectedThinkingLevel)
   const parameters = normalizeProviderParameters(config.parameters)
-    const parameterSupport = getProviderParameterSupport(config.type, config.baseUrl)
+  const parameterSupport = getProviderParameterSupport(config.type, config.baseUrl)
+  const resolvedApiKey = resolveApiKeyReference(config.apiKey, resolveAiApiKeyEnvVar)
 
   switch (config.type) {
     case 'openai-compat': {
-      const key = config.apiKey || 'no-key'
+      const key = resolvedApiKey || 'no-key'
       const isTrueOpenAI = isOpenAIResponsesProtocol(config.type, config.baseUrl)
       const reasoningEffort = mapThinkingLevelToOpenAIReasoningEffort(thinkingLevel)
       const model = new ChatOpenAI({
@@ -123,7 +126,7 @@ export function createChatModel(
     }
 
     case 'deepseek': {
-      const key = config.apiKey || 'no-key'
+      const key = resolvedApiKey || 'no-key'
       const model = new ChatDeepSeek({
         model: modelId,
         apiKey: key,
@@ -142,7 +145,7 @@ export function createChatModel(
       const thinkingBudget = mapThinkingLevelToBudget(thinkingLevel)
       return applyProfileOverride(new ChatAnthropic({
         model: modelId,
-        anthropicApiKey: config.apiKey,
+        anthropicApiKey: resolvedApiKey,
         streaming: true,
         ...(parameterSupport.topP && normalizeAnthropicThinkingTopP(parameters.topP) != null
           ? { topP: normalizeAnthropicThinkingTopP(parameters.topP) }
@@ -158,7 +161,7 @@ export function createChatModel(
     case 'gemini': {
       return applyProfileOverride(new ChatGoogleGenerativeAI({
         model: modelId,
-        apiKey: config.apiKey,
+        apiKey: resolvedApiKey,
         streaming: true,
         ...(parameterSupport.temperature ? { temperature: parameters.temperature } : {}),
         ...(parameterSupport.topP ? { topP: parameters.topP } : {}),

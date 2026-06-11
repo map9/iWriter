@@ -17,10 +17,12 @@ import {
   DEFAULT_AI_SETTINGS,
   DEFAULT_AI_PROVIDER_PARAMETERS,
   DEFAULT_THINKING_LEVEL,
+  getActiveAiProviderConfig,
   normalizeAgentMode,
   normalizeModeForDomain,
   normalizeProviderParameters,
   normalizeThinkingLevel,
+  resolveAiProviderModelId,
   resolveAgentDomain,
 } from '@/ai/types'
 import { getProviderPresetById, getProviderPresets, type ProviderPreset } from '@/ai/providers/provider-presets'
@@ -136,16 +138,20 @@ export const useAiStore = defineStore('ai', () => {
   const settings = ref<AiSettings>(_initialSettings)
 
   const activeProviderConfig = computed<AiProviderConfig | null>(() => {
-    const configs = settings.value.providerConfigs
-    if (!configs.length) return null
-    if (!settings.value.activeProviderConfigId) return configs[0] ?? null
-    return configs.find(c => c.id === settings.value.activeProviderConfigId) ?? configs[0] ?? null
+    return getActiveAiProviderConfig(
+      settings.value.providerConfigs,
+      settings.value.activeProviderConfigId,
+    )
   })
 
   const effectiveProviderConfig = computed<AiProviderConfig | null>(() => {
     const threadProviderId = activeThread.value?.providerConfigId
     if (threadProviderId) {
-      return settings.value.providerConfigs.find(c => c.id === threadProviderId) ?? activeProviderConfig.value
+      return getActiveAiProviderConfig(
+        settings.value.providerConfigs,
+        threadProviderId,
+        { preferredModelId: activeThread.value?.modelId },
+      ) ?? activeProviderConfig.value
     }
     return activeProviderConfig.value
   })
@@ -157,7 +163,8 @@ export const useAiStore = defineStore('ai', () => {
     if (config.models?.length) return config.models
     const preset = getProviderPresetById(config.presetId)
     const presetModels = preset?.models ?? []
-    return presetModels.length ? presetModels : [config.defaultModelId].filter(Boolean)
+    if (presetModels.length) return presetModels
+    return [resolveAiProviderModelId(config)].filter(Boolean)
   })
 
   function saveSettings() {
@@ -286,14 +293,18 @@ export const useAiStore = defineStore('ai', () => {
     }
   }
 
-  function createNewThread(): AiThread {
+  function createNewThread(): AiThread | null {
     _purgeEmptyThreads()
     const config = activeProviderConfig.value
+    if (!config) {
+      notify.error('请先配置可用的 AI Provider（API Key、模型等）')
+      return null
+    }
     const thread = createThread(
-      config?.id ?? '',
-      config?.defaultModelId ?? '',
+      config.id,
+      resolveAiProviderModelId(config),
       settings.value.defaultMode,
-      normalizeThinkingLevel(config?.lastSelectedThinkingLevel),
+      normalizeThinkingLevel(config.lastSelectedThinkingLevel),
     )
     threads.value.unshift(thread)
     activeThreadId.value = thread.id
@@ -478,8 +489,9 @@ export const useAiStore = defineStore('ai', () => {
     // Block new messages while actively streaming
     if (_threadRunState.value === 'streaming') return false
 
-    if (!activeProviderConfig.value) {
-      notify.error('请先配置 AI Provider（API Key 等）')
+    const runtimeProvider = effectiveProviderConfig.value
+    if (!runtimeProvider) {
+      notify.error('请先配置可用的 AI Provider（API Key、模型等）')
       return false
     }
 
@@ -492,6 +504,7 @@ export const useAiStore = defineStore('ai', () => {
     let thread = activeThread.value
     if (!thread) {
       thread = createNewThread()
+      if (!thread) return false
     }
 
     // Append user message locally for immediate display; clear any previous error flag.
@@ -563,8 +576,8 @@ export const useAiStore = defineStore('ai', () => {
         domain: thread.domain,
         mode: thread.mode,
         threadRuntime: {
-          providerConfigId: thread.providerConfigId || activeProviderConfig.value?.id,
-          modelId: thread.modelId || activeProviderConfig.value?.defaultModelId,
+          providerConfigId: runtimeProvider.id,
+          modelId: resolveAiProviderModelId(runtimeProvider, thread.modelId),
           thinkingLevel: normalizeThinkingLevel(
             thread.thinkingLevel
             ?? effectiveProviderConfig.value?.lastSelectedThinkingLevel

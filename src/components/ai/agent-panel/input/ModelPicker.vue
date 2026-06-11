@@ -214,7 +214,7 @@ const currentThinkingLevelLabelKey = computed(() => {
 })
 
 const usableWebSearchConfigs = computed(() =>
-  aiStore.settings.webSearchProviderConfigs.filter(isWebSearchProviderUsable)
+  aiStore.settings.webSearchProviderConfigs.filter(cfg => isWebSearchProviderUsable(cfg))
 )
 
 const currentWebSearchConfigId = computed(() => {

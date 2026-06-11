@@ -56,3 +56,7 @@ export const AiConfigStore = {
     this.saveSettings({ ...current, ...partial })
   },
 }
+
+export function resolveAiApiKeyEnvVar(name: string): string | undefined {
+  return process.env[name]
+}
