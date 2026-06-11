@@ -551,35 +551,44 @@ export interface AiThread {
 }
 
 // Web Search Provider Config
-export type WebSearchProviderType = 'tavily' | 'searxng' | 'custom'
-export type WebSearchProviderPresetId = 'tavily' | 'searxng'
+export type WebSearchProviderType = 'bocha' | 'exa' | 'serper' | 'tavily'
+export type WebSearchProviderPresetId = 'bocha' | 'exa' | 'serper' | 'tavily'
 
 export interface WebSearchProviderConfig {
   id: string
   type: WebSearchProviderType
   label: string
-  enabled: boolean
   presetId?: WebSearchProviderPresetId
-  /** Base URL for the search endpoint. Tavily: leave empty for default. SearXNG/custom: required. */
+  /** Base URL for the search endpoint. Leave empty to use the provider's default endpoint. */
   baseUrl?: string
-  /** API key. SearXNG self-hosted may be empty. */
+  /** API key. */
   apiKey?: string
 }
 
 export const DEFAULT_WEB_SEARCH_PROVIDER_CONFIGS: WebSearchProviderConfig[] = [
   {
+    id: 'web-search-bocha',
+    type: 'bocha',
+    label: 'Bocha',
+    presetId: 'bocha',
+  },
+  {
+    id: 'web-search-exa',
+    type: 'exa',
+    label: 'Exa',
+    presetId: 'exa',
+  },
+  {
+    id: 'web-search-serper',
+    type: 'serper',
+    label: 'Serper',
+    presetId: 'serper',
+  },
+  {
     id: 'web-search-tavily',
     type: 'tavily',
     label: 'Tavily',
-    enabled: true,
     presetId: 'tavily',
-  },
-  {
-    id: 'web-search-searxng',
-    type: 'searxng',
-    label: 'SearXNG',
-    enabled: true,
-    presetId: 'searxng',
   },
 ]
 
@@ -588,15 +597,53 @@ export function cloneDefaultWebSearchProviderConfigs(): WebSearchProviderConfig[
 }
 
 export function isWebSearchProviderUsable(config: WebSearchProviderConfig): boolean {
-  if (!config.enabled) return false
-  if (config.type === 'tavily') return !!config.apiKey?.trim()
-  return !!config.baseUrl?.trim()
+  return !!config.apiKey?.trim()
 }
 
 export function getDefaultWebSearchProviderConfig(
   configs: readonly WebSearchProviderConfig[]
 ): WebSearchProviderConfig | null {
   return configs.find(isWebSearchProviderUsable) ?? null
+}
+
+/**
+ * Resolve the active web search provider config: prefer the one matching
+ * `activeId` if it is usable, otherwise fall back to the first usable config.
+ */
+export function getActiveWebSearchProviderConfig(
+  configs: readonly WebSearchProviderConfig[],
+  activeId: string | null | undefined
+): WebSearchProviderConfig | null {
+  if (activeId) {
+    const active = configs.find(config => config.id === activeId)
+    if (active && isWebSearchProviderUsable(active)) return active
+  }
+  return getDefaultWebSearchProviderConfig(configs)
+}
+
+/**
+ * Normalize persisted web search provider configs: drop unknown/legacy types
+ * (e.g. removed `searxng`/`custom`), strip legacy fields (e.g. `enabled`),
+ * and merge any preserved `apiKey`/`baseUrl` into the current default presets.
+ * Always returns the 4 default presets in their canonical order.
+ */
+export function normalizeWebSearchProviderConfigs(
+  configs: readonly (WebSearchProviderConfig & { enabled?: boolean })[] | undefined | null
+): WebSearchProviderConfig[] {
+  const byPresetId = new Map<string, WebSearchProviderConfig & { enabled?: boolean }>()
+  for (const config of configs ?? []) {
+    if (config?.presetId) byPresetId.set(config.presetId, config)
+  }
+  return DEFAULT_WEB_SEARCH_PROVIDER_CONFIGS.map(preset => {
+    const existing = byPresetId.get(preset.presetId!)
+    if (!existing) return { ...preset }
+    return {
+      ...preset,
+      label: existing.label || preset.label,
+      baseUrl: existing.baseUrl,
+      apiKey: existing.apiKey,
+    }
+  })
 }
 
 // Fetch URL tool config
@@ -616,6 +663,7 @@ export interface AiSettings {
   defaultMode: AiAgentMode
   toolPermissions: Record<string, AiToolPermission>
   webSearchProviderConfigs: WebSearchProviderConfig[]
+  activeWebSearchProviderConfigId: string | null
   fetchUrl?: FetchUrlConfig
 }
 
@@ -625,6 +673,7 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   activeProviderConfigId: null,
   defaultMode: 'edit',
   webSearchProviderConfigs: cloneDefaultWebSearchProviderConfigs(),
+  activeWebSearchProviderConfigId: null,
   fetchUrl: { jsRenderFallback: true, timeoutMs: 15_000, defaultMaxTokens: 8_000 },
   toolPermissions: {
     // Document access tools: always allowed (read-only)

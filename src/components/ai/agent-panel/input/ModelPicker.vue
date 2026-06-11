@@ -71,9 +71,43 @@
 
         <div class="my-1 border-t border-base-300" />
 
-        <div class="px-1.5 pb-1 text-xs font-semibold text-base-content/30">
-          {{ t('agentPanel.modelPicker.thinkingLevel') }}
+        <div
+          ref="thinkingTriggerEl"
+          @mouseenter="openSubmenu('thinking')"
+          @mouseleave="scheduleCloseSubmenu"
+          class="w-full flex items-center gap-2 px-2 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300 text-left cursor-default"
+          :class="activeSubmenu === 'thinking' ? 'bg-base-300' : ''"
+        >
+          <span class="truncate flex-1">
+            {{ t('agentPanel.modelPicker.thinkingLevel') }}: {{ t(currentThinkingLevelLabelKey) }}
+          </span>
+          <IconChevronRight class="icon-2xs shrink-0 text-base-content" />
         </div>
+
+        <div
+          ref="webSearchTriggerEl"
+          @mouseenter="openSubmenu('websearch')"
+          @mouseleave="scheduleCloseSubmenu"
+          class="w-full flex items-center gap-2 px-2 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300 text-left cursor-default"
+          :class="activeSubmenu === 'websearch' ? 'bg-base-300' : ''"
+        >
+          <span class="truncate flex-1">
+            {{ t('agentPanel.webSearchPicker.title') }}: {{ currentWebSearchLabel || t('agentPanel.webSearchPicker.noEngineConfigured') }}
+          </span>
+          <IconChevronRight class="icon-2xs shrink-0 text-base-content" />
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="isOpen && activeSubmenu === 'thinking'"
+        ref="submenuEl"
+        @mouseenter="cancelCloseSubmenu"
+        @mouseleave="scheduleCloseSubmenu"
+        class="fixed w-40 bg-base-100 border border-base-300 rounded-field shadow-sm z-1200 py-1.5 px-1.5"
+        :style="submenuStyle"
+      >
         <button
           v-for="option in thinkingLevelItems"
           :key="option.value"
@@ -88,6 +122,38 @@
           >{{ t(option.labelKey) }}</span>
         </button>
       </div>
+
+      <div
+        v-if="isOpen && activeSubmenu === 'websearch'"
+        ref="submenuEl"
+        @mouseenter="cancelCloseSubmenu"
+        @mouseleave="scheduleCloseSubmenu"
+        class="fixed w-52 bg-base-100 border border-base-300 rounded-field shadow-sm z-1200 py-1.5 px-1.5"
+        :style="submenuStyle"
+      >
+        <button
+          v-for="cfg in usableWebSearchConfigs"
+          :key="cfg.id"
+          @click="doSelectWebSearchEngine(cfg.id)"
+          class="w-full flex items-center gap-2 px-2 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300 text-left"
+        >
+          <span class="icon-dot shrink-0"
+            :class="cfg.id === currentWebSearchConfigId ? 'bg-primary' : 'bg-transparent'"
+          />
+          <span class="truncate flex-1"
+            :class="cfg.id === currentWebSearchConfigId ? 'font-semibold text-base-content' : ''"
+          >{{ cfg.label }}</span>
+        </button>
+
+        <button
+          v-if="!usableWebSearchConfigs.length"
+          @click="goToWebSearchPreferences"
+          class="w-full flex flex-col items-start gap-0.5 px-2 py-1.5 rounded-field text-xs text-left hover:bg-base-300"
+        >
+          <span class="text-base-content">{{ t('agentPanel.webSearchPicker.noEngineConfigured') }}</span>
+          <span class="text-base-content/50">{{ t('agentPanel.webSearchPicker.goToPreferences') }}</span>
+        </button>
+      </div>
     </Teleport>
   </div>
 </template>
@@ -95,13 +161,18 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconChevronDown, IconCloud, IconCube, IconDownload } from '@tabler/icons-vue'
+import { IconChevronDown, IconChevronRight, IconCloud, IconCube, IconDownload } from '@tabler/icons-vue'
 import { useModelPicker } from '../composables/useModelPicker'
-import type { AiThinkingLevel } from '@/ai/types'
+import { useAiStore } from '@/ai/store/ai'
+import { useAppStore } from '@/stores/app'
+import { isWebSearchProviderUsable, type AiThinkingLevel } from '@/ai/types'
 
 const props = defineProps<{ isOpen: boolean; compact?: boolean }>()
 const emit = defineEmits<{ open: []; close: [] }>()
 const { t } = useI18n()
+
+const aiStore = useAiStore()
+const appStore = useAppStore()
 
 const {
   modelSearch,
@@ -121,6 +192,11 @@ const triggerEl = ref<HTMLElement | null>(null)
 const menuEl = ref<HTMLElement | null>(null)
 const menuWidth = 224
 
+const thinkingTriggerEl = ref<HTMLElement | null>(null)
+const webSearchTriggerEl = ref<HTMLElement | null>(null)
+const submenuEl = ref<HTMLElement | null>(null)
+const activeSubmenu = ref<'thinking' | 'websearch' | null>(null)
+
 const menuStyle = computed(() => {
   if (!props.isOpen || !triggerEl.value) return {}
   const rect = triggerEl.value.getBoundingClientRect()
@@ -132,9 +208,67 @@ const menuStyle = computed(() => {
   }
 })
 
+const currentThinkingLevelLabelKey = computed(() => {
+  return thinkingLevelItems.find(option => option.value === currentThinkingLevel.value)?.labelKey
+    ?? thinkingLevelItems[0]!.labelKey
+})
+
+const usableWebSearchConfigs = computed(() =>
+  aiStore.settings.webSearchProviderConfigs.filter(isWebSearchProviderUsable)
+)
+
+const currentWebSearchConfigId = computed(() => {
+  const activeId = aiStore.settings.activeWebSearchProviderConfigId
+  if (activeId && usableWebSearchConfigs.value.some(cfg => cfg.id === activeId)) return activeId
+  return usableWebSearchConfigs.value[0]?.id ?? null
+})
+
+const currentWebSearchLabel = computed(() => {
+  return usableWebSearchConfigs.value.find(cfg => cfg.id === currentWebSearchConfigId.value)?.label ?? ''
+})
+
+const submenuWidth = computed(() => activeSubmenu.value === 'websearch' ? 208 : 160)
+
+const submenuStyle = computed(() => {
+  const triggerRef = activeSubmenu.value === 'websearch' ? webSearchTriggerEl.value : thinkingTriggerEl.value
+  if (!props.isOpen || !activeSubmenu.value || !triggerRef) return {}
+  const rect = triggerRef.getBoundingClientRect()
+  const left = Math.max(8, Math.min(rect.right + 4, window.innerWidth - submenuWidth.value - 8))
+  const bottom = Math.max(8, window.innerHeight - rect.bottom)
+  return {
+    left: `${left}px`,
+    bottom: `${bottom}px`,
+  }
+})
+
 function onToggle() {
   if (props.isOpen) emit('close')
   else emit('open')
+}
+
+let closeSubmenuTimer: ReturnType<typeof setTimeout> | null = null
+
+function openSubmenu(name: 'thinking' | 'websearch') {
+  if (closeSubmenuTimer) {
+    clearTimeout(closeSubmenuTimer)
+    closeSubmenuTimer = null
+  }
+  activeSubmenu.value = name
+}
+
+function cancelCloseSubmenu() {
+  if (closeSubmenuTimer) {
+    clearTimeout(closeSubmenuTimer)
+    closeSubmenuTimer = null
+  }
+}
+
+function scheduleCloseSubmenu() {
+  if (closeSubmenuTimer) clearTimeout(closeSubmenuTimer)
+  closeSubmenuTimer = setTimeout(() => {
+    activeSubmenu.value = null
+    closeSubmenuTimer = null
+  }, 150)
 }
 
 function doSelect(id: string) {
@@ -144,6 +278,19 @@ function doSelect(id: string) {
 
 function doSelectThinkingLevel(level: AiThinkingLevel) {
   selectThinkingLevel(level)
+  activeSubmenu.value = null
+  emit('close')
+}
+
+function doSelectWebSearchEngine(id: string) {
+  aiStore.setActiveWebSearchProviderConfig(id)
+  activeSubmenu.value = null
+  emit('close')
+}
+
+function goToWebSearchPreferences() {
+  appStore.openPreferences('ai')
+  activeSubmenu.value = null
   emit('close')
 }
 
@@ -153,6 +300,12 @@ watch(() => props.isOpen, async (open) => {
     nextTick(() => {
       modelSearchEl.value?.focus()
     })
+  } else {
+    if (closeSubmenuTimer) {
+      clearTimeout(closeSubmenuTimer)
+      closeSubmenuTimer = null
+    }
+    activeSubmenu.value = null
   }
 })
 
@@ -161,6 +314,7 @@ function handlePointerDown(event: MouseEvent) {
   if (!target) return
   if (triggerEl.value?.contains(target)) return
   if (menuEl.value?.contains(target)) return
+  if (submenuEl.value?.contains(target)) return
   if (props.isOpen) emit('close')
 }
 
@@ -174,5 +328,6 @@ watch(() => props.isOpen, open => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', handlePointerDown)
+  if (closeSubmenuTimer) clearTimeout(closeSubmenuTimer)
 })
 </script>

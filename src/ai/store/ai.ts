@@ -12,7 +12,7 @@ import type {
   SendContext,
 } from '@/ai/types'
 import {
-  cloneDefaultWebSearchProviderConfigs,
+  normalizeWebSearchProviderConfigs,
   inferToolKind,
   DEFAULT_AI_SETTINGS,
   DEFAULT_AI_PROVIDER_PARAMETERS,
@@ -74,14 +74,13 @@ function _loadSettings(): AiSettings {
     if (!raw) {
       return {
         ...DEFAULT_AI_SETTINGS,
-        webSearchProviderConfigs: cloneDefaultWebSearchProviderConfigs(),
+        webSearchProviderConfigs: normalizeWebSearchProviderConfigs(undefined),
       }
     }
     const merged = { ...DEFAULT_AI_SETTINGS, ...JSON.parse(raw) } as AiSettings
     merged.defaultMode = normalizeAgentMode(merged.defaultMode)
-    merged.webSearchProviderConfigs = Array.isArray(merged.webSearchProviderConfigs)
-      ? merged.webSearchProviderConfigs
-      : cloneDefaultWebSearchProviderConfigs()
+    merged.webSearchProviderConfigs = normalizeWebSearchProviderConfigs(merged.webSearchProviderConfigs)
+    merged.activeWebSearchProviderConfigId = merged.activeWebSearchProviderConfigId ?? null
     merged.providerConfigs = (merged.providerConfigs ?? []).map(cfg => {
       const preset = getProviderPresetById(cfg.presetId)
       return {
@@ -167,11 +166,6 @@ export const useAiStore = defineStore('ai', () => {
     window.electronAPI?.aiUpdateConfig?.(JSON.parse(JSON.stringify(toRaw(settings.value))))
   }
 
-  function addWebSearchProviderConfig(config: WebSearchProviderConfig) {
-    settings.value.webSearchProviderConfigs.push(config)
-    saveSettings()
-  }
-
   function updateWebSearchProviderConfig(id: string, updates: Partial<WebSearchProviderConfig>) {
     const idx = settings.value.webSearchProviderConfigs.findIndex(c => c.id === id)
     if (idx >= 0) {
@@ -183,8 +177,8 @@ export const useAiStore = defineStore('ai', () => {
     }
   }
 
-  function removeWebSearchProviderConfig(id: string) {
-    settings.value.webSearchProviderConfigs = settings.value.webSearchProviderConfigs.filter(c => c.id !== id)
+  function setActiveWebSearchProviderConfig(id: string | null) {
+    settings.value.activeWebSearchProviderConfigId = id
     saveSettings()
   }
 
@@ -790,9 +784,8 @@ export const useAiStore = defineStore('ai', () => {
     setCurrentThinkingLevel,
     setCurrentMode,
     saveSettings,
-    addWebSearchProviderConfig,
     updateWebSearchProviderConfig,
-    removeWebSearchProviderConfig,
+    setActiveWebSearchProviderConfig,
 
     // Threads
     threads,

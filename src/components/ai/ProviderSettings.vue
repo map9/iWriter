@@ -63,25 +63,7 @@
                     @keydown.space.prevent="startWebEdit(cfg)"
                   >
                     <span class="min-w-0 flex-1 truncate">{{ cfg.label }}</span>
-                    <button
-                      v-if="!cfg.presetId"
-                      class="iw-toolbar-btn btn-xs text-error opacity-0 transition-opacity focus:opacity-100 hover:bg-error hover:text-error-content group-hover/ai-row:opacity-100"
-                      :title="t('preferences.ai.webSearch.removeEngine')"
-                      @click.stop="removeWebSearchConfig(cfg)"
-                      @keydown.stop
-                    >
-                      <IconTrash class="icon-2xs" />
-                    </button>
                   </div>
-                </li>
-                <li>
-                  <button
-                    class="iw-btn btn-ghost btn-sm h-8 w-full justify-start border-none text-left font-normal"
-                    @click="addCustomWebSearch"
-                  >
-                    <IconPlus class="icon-2xs shrink-0" />
-                    <span>{{ t('preferences.ai.webSearch.addCustomEngine') }}</span>
-                  </button>
                 </li>
               </ul>
             </details>
@@ -261,40 +243,14 @@
               <section class="flex flex-col gap-3">
                 <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.ai.identity') }}</h3>
 
-                <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
-                  <div class="min-w-0">
-                    <div class="text-sm font-medium text-base-content">{{ t('preferences.ai.webSearch.enabled') }}</div>
-                    <div class="text-xs text-base-content/50">{{ t('preferences.ai.webSearch.enabledHint') }}</div>
-                  </div>
-                  <label class="label cursor-pointer gap-3">
-                    <input v-model="pane.form.enabled" type="checkbox" class="toggle toggle-primary toggle-xs" />
-                  </label>
-                </div>
-
                 <div class="flex flex-col gap-1.5">
                   <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.name') }}</label>
                   <input
                     v-model="pane.form.label"
                     type="text"
-                    :readonly="isWebSearchPanePreset(pane)"
-                    :placeholder="t('preferences.ai.webSearch.customEngine')"
-                    class="iw-input"
-                    :class="isWebSearchPanePreset(pane) ? 'cursor-default bg-base-200 text-base-content' : ''"
+                    readonly
+                    class="iw-input cursor-default bg-base-200 text-base-content"
                   />
-                </div>
-
-                <div class="flex flex-col gap-1.5">
-                  <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.webSearch.engineType') }}</label>
-                  <select
-                    v-model="pane.form.type"
-                    :disabled="isWebSearchPanePreset(pane)"
-                    class="iw-select w-full px-3"
-                    :class="isWebSearchPanePreset(pane) ? 'cursor-default bg-base-100 text-base-content' : ''"
-                  >
-                    <option value="tavily">Tavily</option>
-                    <option value="searxng">SearXNG</option>
-                    <option value="custom">{{ t('preferences.ai.webSearch.customEngine') }}</option>
-                  </select>
                 </div>
               </section>
 
@@ -347,11 +303,10 @@ import type {
   AiProviderConfig,
   AiProviderType,
   WebSearchProviderConfig,
-  WebSearchProviderType,
 } from '@/ai/types'
 import {
   DEFAULT_AI_PROVIDER_PARAMETERS,
-  getDefaultWebSearchProviderConfig,
+  getActiveWebSearchProviderConfig,
   getProviderParameterSupport,
   normalizeProviderParameters,
 } from '@/ai/types'
@@ -407,21 +362,19 @@ const sortedLlmConfigs = computed(() => {
 })
 
 const webSearchPresetOrder: Record<string, number> = {
-  tavily: 0,
-  searxng: 1,
+  bocha: 0,
+  exa: 1,
+  serper: 2,
+  tavily: 3,
 }
 
 const sortedWebSearchConfigs = computed(() => {
   const cfgs = aiStore.settings.webSearchProviderConfigs
-  const presets = cfgs
-    .filter(c => !!c.presetId)
-    .sort((a, b) => (webSearchPresetOrder[a.presetId ?? ''] ?? 99) - (webSearchPresetOrder[b.presetId ?? ''] ?? 99))
-  const custom = cfgs.filter(c => !c.presetId).sort((a, b) => a.label.localeCompare(b.label))
-  return [...presets, ...custom]
+  return [...cfgs].sort((a, b) => (webSearchPresetOrder[a.presetId ?? ''] ?? 99) - (webSearchPresetOrder[b.presetId ?? ''] ?? 99))
 })
 
 const defaultWebSearchConfig = computed(() =>
-  getDefaultWebSearchProviderConfig(sortedWebSearchConfigs.value)
+  getActiveWebSearchProviderConfig(sortedWebSearchConfigs.value, aiStore.settings.activeWebSearchProviderConfigId)
 )
 
 interface LlmPane {
@@ -598,12 +551,6 @@ function getNextLlmConfigAfter(id: string): AiProviderConfig | null {
   return configs[index + 1] ?? configs[index - 1] ?? null
 }
 
-function getNextWebSearchConfigAfter(id: string): WebSearchProviderConfig | null {
-  const configs = sortedWebSearchConfigs.value
-  const index = configs.findIndex(config => config.id === id)
-  return configs[index + 1] ?? configs[index - 1] ?? null
-}
-
 function selectDefaultLlmNode() {
   const config = sortedLlmConfigs.value.find(item => item.id === aiStore.settings.activeProviderConfigId)
     ?? sortedLlmConfigs.value[0]
@@ -618,9 +565,7 @@ function selectDefaultWebSearchNode() {
   const config = defaultWebSearchConfig.value ?? sortedWebSearchConfigs.value[0]
   if (config) {
     startWebEdit(config)
-    return
   }
-  addCustomWebSearch()
 }
 
 function getUniqueLabel(labels: readonly string[], baseLabel: string): string {
@@ -716,9 +661,7 @@ function syncLlmPaneForms() {
 }
 
 interface WebSearchFormState {
-  type: WebSearchProviderType
   label: string
-  enabled: boolean
   baseUrl: string
   apiKey: string
 }
@@ -730,28 +673,16 @@ const webSearchPaneViews = computed<WebSearchPaneView[]>(() =>
   webSearchPanes.value.map(pane => ({ ...pane, form: getWebSearchForm(pane) }))
 )
 
-function defaultWebSearchForm(): WebSearchFormState {
-  return {
-    type: 'custom',
-    label: t('preferences.ai.webSearch.customEngine'),
-    enabled: true,
-    baseUrl: '',
-    apiKey: '',
-  }
-}
-
 function webSearchFormFromConfig(cfg: WebSearchProviderConfig): WebSearchFormState {
   return {
-    type: cfg.type,
     label: cfg.label,
-    enabled: cfg.enabled,
     baseUrl: cfg.baseUrl ?? '',
     apiKey: cfg.apiKey ?? '',
   }
 }
 
 function ensureWebSearchPaneState(pane: WebSearchPane) {
-  webForms[pane.key] ??= pane.config ? webSearchFormFromConfig(pane.config) : defaultWebSearchForm()
+  webForms[pane.key] ??= webSearchFormFromConfig(pane.config)
   webShowKeys[pane.key] ??= false
 }
 
@@ -761,7 +692,7 @@ function getWebSearchForm(pane: WebSearchPane): WebSearchFormState {
 }
 
 function resetWebSearchPaneState(pane: WebSearchPane) {
-  webForms[pane.key] = pane.config ? webSearchFormFromConfig(pane.config) : defaultWebSearchForm()
+  webForms[pane.key] = webSearchFormFromConfig(pane.config)
   webShowKeys[pane.key] = false
 }
 
@@ -775,15 +706,14 @@ function pruneWebSearchPaneState(panes: readonly WebSearchPane[]) {
   }
 }
 
-function isWebSearchPanePreset(pane: WebSearchPane): boolean {
-  return !!pane.config?.presetId
-}
-
 function getWebSearchUrlPlaceholder(pane: WebSearchPane): string {
-  const type = getWebSearchForm(pane).type
-  if (type === 'tavily') return 'https://api.tavily.com/search (optional)'
-  if (type === 'searxng') return 'https://your-searxng-instance.example.com'
-  return 'https://your-search-api.example.com'
+  switch (pane.config.type) {
+    case 'tavily': return 'https://api.tavily.com/search (optional)'
+    case 'bocha': return 'https://api.bochaai.com/v1/web-search (optional)'
+    case 'serper': return 'https://google.serper.dev/search (optional)'
+    case 'exa': return 'https://api.exa.ai/search (optional)'
+    default: return ''
+  }
 }
 
 function isWebSearchKeyVisible(pane: WebSearchPane): boolean {
@@ -794,47 +724,15 @@ function toggleWebSearchKeyVisibility(pane: WebSearchPane) {
   webShowKeys[pane.key] = !isWebSearchKeyVisible(pane)
 }
 
-function addCustomWebSearch() {
-  const id = `web-search-${Date.now()}`
-  aiStore.addWebSearchProviderConfig({
-    id,
-    type: 'custom',
-    label: getUniqueLabel(aiStore.settings.webSearchProviderConfigs.map(config => config.label), t('preferences.ai.webSearch.defaultCustomEngineName')),
-    enabled: true,
-  })
-  activeNode.value = { kind: 'web-config', id }
-}
-
 function startWebEdit(cfg: WebSearchProviderConfig) {
   activeNode.value = { kind: 'web-config', id: cfg.id }
 }
 
-function removeWebSearchConfig(cfg: WebSearchProviderConfig) {
-  if (cfg.presetId) return
-  const nextConfig = getNextWebSearchConfigAfter(cfg.id)
-  const node = activeNode.value
-  const shouldMoveSelection = node?.kind === 'web-config' && node.id === cfg.id
-  aiStore.removeWebSearchProviderConfig(cfg.id)
-  if (shouldMoveSelection) {
-    if (nextConfig) startWebEdit(nextConfig)
-    else selectDefaultWebSearchNode()
-  }
-}
-
 function syncWebSearchPaneForm(pane: WebSearchPane) {
-  if (!pane.config) return
   const form = getWebSearchForm(pane)
   const patch: Partial<WebSearchProviderConfig> = {
-    enabled: form.enabled,
     baseUrl: form.baseUrl.trim() || undefined,
     apiKey: form.apiKey.trim() || undefined,
-  }
-
-  if (!isWebSearchPanePreset(pane)) {
-    patch.type = form.type
-    if (form.label.trim()) {
-      patch.label = form.label.trim()
-    }
   }
 
   aiStore.updateWebSearchProviderConfig(pane.config.id, patch)

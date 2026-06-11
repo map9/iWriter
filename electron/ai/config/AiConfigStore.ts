@@ -7,7 +7,7 @@
 
 import Store from 'electron-store'
 import type { AiSettings } from '../../../src/types/ai'
-import { DEFAULT_AI_SETTINGS } from '../../../src/types/ai'
+import { DEFAULT_AI_SETTINGS, normalizeWebSearchProviderConfigs } from '../../../src/types/ai'
 
 interface ConfigStoreSchema {
   settings: AiSettings
@@ -33,7 +33,10 @@ export const AiConfigStore = {
       const stored = getStore().get('settings') as AiSettings | undefined
       if (!stored) return { ...DEFAULT_AI_SETTINGS }
       // Merge with defaults to handle new fields added in updates
-      return { ...DEFAULT_AI_SETTINGS, ...stored }
+      const merged = { ...DEFAULT_AI_SETTINGS, ...stored }
+      merged.webSearchProviderConfigs = normalizeWebSearchProviderConfigs(merged.webSearchProviderConfigs)
+      merged.activeWebSearchProviderConfigId = merged.activeWebSearchProviderConfigId ?? null
+      return merged
     } catch (err) {
       console.error('[AiConfigStore] Failed to load settings:', err)
       return { ...DEFAULT_AI_SETTINGS }

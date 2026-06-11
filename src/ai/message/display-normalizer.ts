@@ -271,8 +271,9 @@ function summarizePdfPages(parsedResult: Record<string, unknown> | null): string
 
 function webSearchEngineLabel(provider: unknown): string {
   if (provider === 'tavily') return 'Tavily'
-  if (provider === 'searxng') return 'SearXNG'
-  if (provider === 'custom') return 'Custom'
+  if (provider === 'bocha') return 'Bocha'
+  if (provider === 'exa') return 'Exa'
+  if (provider === 'serper') return 'Serper'
   return ''
 }
 

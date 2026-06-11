@@ -99,7 +99,7 @@ You have access to:
 
 Each subagent you spawn will have access to:
 
-- **web_search**: Search the web using Tavily (parameters: query, max_results, topic)
+- **web_search**: Search the web using the configured search provider (parameters: query, max_results, topic)
 - **write_file**: Save their findings to the filesystem
 
 ## Best Practices
