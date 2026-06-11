@@ -191,6 +191,33 @@ export function extractBestImageUrlFromHtml(html: string): string | null {
   return null
 }
 
+function unwrapStandaloneImageParagraphs(doc: Document): boolean {
+  let changed = false
+  const paragraphs = Array.from(doc.body.querySelectorAll('p'))
+
+  for (const paragraph of paragraphs) {
+    const childElements = Array.from(paragraph.children)
+    const onlyElement = childElements[0]
+    if (childElements.length !== 1 || onlyElement?.tagName.toLowerCase() !== 'img') {
+      continue
+    }
+
+    const nonImageText = Array.from(paragraph.childNodes)
+      .filter(node => node !== onlyElement)
+      .map(node => node.textContent ?? '')
+      .join('')
+
+    if (nonImageText.trim()) {
+      continue
+    }
+
+    paragraph.replaceWith(onlyElement)
+    changed = true
+  }
+
+  return changed
+}
+
 export function normalizePastedImageHtml(html: string): string {
   if (!/<img\b/i.test(html)) return html
 
@@ -218,6 +245,8 @@ export function normalizePastedImageHtml(html: string): string {
       changed = true
     }
   }
+
+  changed = unwrapStandaloneImageParagraphs(doc) || changed
 
   return changed ? doc.body.innerHTML : html
 }

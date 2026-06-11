@@ -105,6 +105,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     liveTurn: LiveTurn,
     id: string | undefined,
     update: Partial<Pick<LiveSubTask, 'status' | 'output' | 'errorText'>>,
+    options?: { force?: boolean },
   ): boolean {
     if (!id) return false
     const idx = liveTurn.subTasks.findIndex(st => st.invocationId === id)
@@ -115,7 +116,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
       ...existing,
       ...update,
       status: update.status
-        ? mergeLiveSubTaskStatus(existing.status, update.status)
+        ? (options?.force ? update.status : mergeLiveSubTaskStatus(existing.status, update.status))
         : existing.status,
       output: update.output ?? existing.output,
       errorText: update.errorText ?? existing.errorText,
@@ -175,7 +176,11 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
   function applyTaskToolEndToSubTask(liveTurn: LiveTurn, toolCall: AiToolCall): void {
     if (toolCall.name !== 'task') return
 
-    if (isHitlInterruptPayload(toolCall.result)) {
+    // A HITL interrupt payload here only reflects a transient pause (e.g. an internal
+    // /large_tool_results/ write awaiting auto-approval/resume), not a final state.
+    // Once the resumed run settles this same task tool call, the branches below must
+    // be able to override it - hence `force` on every other branch.
+    if (toolCall.status === 'in_progress' && isHitlInterruptPayload(toolCall.result)) {
       updateSubTask(liveTurn, toolCall.id, {
         status: 'awaiting_approval',
         output: toolCall.result,
@@ -188,7 +193,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
         status: 'cancelled',
         output: toolCall.result,
         errorText: toolCall.result,
-      })
+      }, { force: true })
       return
     }
 
@@ -197,7 +202,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
         status: 'error',
         output: toolCall.result,
         errorText: toolCall.result,
-      })
+      }, { force: true })
       return
     }
 
@@ -205,7 +210,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
       status: 'done',
       output: toolCall.result,
       errorText: '',
-    })
+    }, { force: true })
   }
 
   function isSettledToolCall(toolCall: AiToolCall): boolean {
