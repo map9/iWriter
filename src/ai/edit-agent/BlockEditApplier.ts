@@ -14,6 +14,7 @@ import type { JSONContent } from '@tiptap/core'
 import { marked } from 'marked'
 import type { BlockEditProposal } from '@/ai/types'
 import { DocumentViewBuilder, nodeToMarkdown } from './DocumentViewBuilder'
+import { unwrapBlockImages } from '@/import-export/formatConverter'
 
 export interface ApplyResult {
   success: boolean
@@ -120,7 +121,7 @@ async function markdownToContent(
   editor: Editor,
   markdown: string
 ): Promise<JSONContent[]> {
-  const html = await marked.parse(markdown, { async: true })
+  const html = unwrapBlockImages(await marked.parse(markdown, { async: true }))
   // Use TipTap's built-in HTML parser via a temporary content parse
   const { generateJSON } = await import('@tiptap/core')
   const doc = generateJSON(html, editor.extensionManager.baseExtensions)

@@ -123,7 +123,7 @@ function applyLineEnding(content: string, lineEnding: 'LF' | 'CRLF' = 'LF'): str
 // marked wraps standalone images as <p><img></p>; since Image is a block node,
 // ProseMirror would otherwise split that paragraph and leave an empty one before
 // every image. Unwrap paragraphs that contain only a single image to avoid this.
-function unwrapBlockImages(html: string): string {
+export function unwrapBlockImages(html: string): string {
   return html.replace(/<p>(\s*<img\b[^>]*>\s*)<\/p>/gi, '$1')
 }
 
