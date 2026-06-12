@@ -61,9 +61,17 @@ export function useModelPicker() {
     return !!aiStore.effectiveProviderConfig
   })
 
+  const currentModelCandidates = computed(() => {
+    if (isOllamaProvider.value) return allModelItems.value.map(m => m.id)
+    return aiStore.availableModels
+  })
+
   const currentModelId = computed(() => {
     const candidate = aiStore.activeThread?.modelId || aiStore.effectiveProviderConfig?.defaultModelId || ''
-    const models = aiStore.availableModels
+    const models = currentModelCandidates.value
+    if (isOllamaProvider.value && candidate && !models.includes(candidate) && !ollamaFetchedModels.value.length) {
+      return candidate
+    }
     if (models.length && (!candidate || !models.includes(candidate))) {
       return models[0]!
     }
