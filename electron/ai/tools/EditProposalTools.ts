@@ -36,7 +36,7 @@ export function buildEditProposalTools() {
           .describe('Exact current Markdown of the target block (without the {b:n} marker), usually copied from get_blocks.'),
         reason: z.string().optional().describe('Brief reason for the edit.'),
         file_path: z.string().optional().describe(
-          'Real absolute host path to a disk file. Never pass a basename, workspace-relative path, or virtual mount path. Omit to edit the active editor document.'
+          'Required. Absolute host path to a disk file, or virtual_id (e.g. "untitled:...") for an in-memory unsaved document (status="unsaved_new"), from <active_document>/<open_tabs>. Never pass a basename, workspace-relative path, or virtual mount path.'
         ),
       }),
     }
@@ -62,7 +62,7 @@ export function buildEditProposalTools() {
           .optional()
           .describe('Exact current Markdown of the anchor block (without the {b:n} marker), usually copied from get_blocks.'),
         reason: z.string().optional().describe('Brief reason for the insertion.'),
-        file_path: z.string().optional().describe('Real absolute host path to a disk file. Never pass a basename, workspace-relative path, or virtual mount path. Omit for the active editor.'),
+        file_path: z.string().optional().describe('Required. Absolute host path to a disk file, or virtual_id (e.g. "untitled:...") for an in-memory unsaved document (status="unsaved_new"), from <active_document>/<open_tabs>. Never pass a basename, workspace-relative path, or virtual mount path.'),
       }),
     }
   )
@@ -84,7 +84,7 @@ export function buildEditProposalTools() {
           .optional()
           .describe('Exact current Markdown of the target block (without the {b:n} marker), usually copied from get_blocks.'),
         reason: z.string().optional().describe('Brief reason for the deletion.'),
-        file_path: z.string().optional().describe('Real absolute host path to a disk file. Never pass a basename, workspace-relative path, or virtual mount path. Omit for the active editor.'),
+        file_path: z.string().optional().describe('Required. Absolute host path to a disk file, or virtual_id (e.g. "untitled:...") for an in-memory unsaved document (status="unsaved_new"), from <active_document>/<open_tabs>. Never pass a basename, workspace-relative path, or virtual mount path.'),
       }),
     }
   )
@@ -109,7 +109,7 @@ export function buildEditProposalTools() {
           .optional()
           .describe('Exact current Markdown of the whole target range (without {b:n} markers), usually copied from get_blocks.'),
         reason: z.string().optional().describe('Brief reason for the replacement.'),
-        file_path: z.string().optional().describe('Real absolute host path to a disk file. Never pass a basename, workspace-relative path, or virtual mount path. Omit for the active editor.'),
+        file_path: z.string().optional().describe('Required. Absolute host path to a disk file, or virtual_id (e.g. "untitled:...") for an in-memory unsaved document (status="unsaved_new"), from <active_document>/<open_tabs>. Never pass a basename, workspace-relative path, or virtual mount path.'),
       }),
     }
   )

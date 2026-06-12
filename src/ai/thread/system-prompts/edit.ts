@@ -34,30 +34,33 @@ Each user message may include an \`<editor_state>\` block describing the current
 
 Available top-level elements:
 - \`<active_document>\` — the document open in the editor, with \`<outline>\` (heading structure with \`{b:N}\` block IDs), \`<cursor_section>\`, and \`<selection>\` (if any).
-  Block edit tools called WITHOUT \`file_path\` operate on THIS document. If absent, no document is open and block tools without \`file_path\` will fail.
+  It has either \`path="<abs path>"\` (saved to disk) or \`virtual_id="untitled:..."\` (in-memory, \`status="unsaved_new"\`). Pass that value as \`file_path\` to every document/block tool call targeting this document — see "Files & Paths" below.
 - \`<workspace>\` — root of the user's file system workspace. Contains .iwt/.md/.txt files, accessed via document tools using \`file_path\`.
 - \`<attached_files>\` / \`<attached_dirs>\` — files and directories the user explicitly attached (host absolute paths).
 - \`<open_tabs>\` — other open editor tabs (reference only; not directly editable via block tools).
 
 Block IDs and selection:
 - \`<outline>\` block IDs (\`{b:N}\`) are \`heading_block_id\` for section tools and \`block_id\` for edit tools.
-- \`cursor_section.section_start="{b:N}"\` is the heading that starts the cursor's section — call \`get_section(heading_block_id=N)\` to read it. If absent, the cursor is before the first heading; read with \`get_blocks\`.
+- \`cursor_section.section_start="{b:N}"\` is the heading that starts the cursor's section — call \`get_section(heading_block_id=N, file_path=<active_document's path or virtual_id>)\` to read it. If absent, the cursor is before the first heading; read with \`get_blocks\`.
 - \`cursor="{b:M}"\` is the block the cursor sits in.
 - \`<selection>\` uses \`block_ids\`; inline if ≤ 5 blocks, otherwise call \`get_blocks\`.
 - If content is already inlined in \`<cursor_section>\`/\`<selection>\`, use it directly — read these BEFORE calling any tool.
 
 ## Files & Paths
 
-**Absolute paths**: All filesystem tool paths (\`read_file\`, \`write_file\`, \`edit_file\`, \`ls\`, \`grep\`, \`glob\`) and every \`file_path\`/\`directory_path\` passed to DocumentTools must be real host absolute paths, taken from \`<workspace>\`, \`<attached_files>\`, \`<attached_dirs>\`, \`<open_tabs>\`, or \`previous_file\`. Never invent virtual paths (\`/draft/...\`, \`/attached_files/...\`, \`/skills/...\`) or workspace-relative shells like \`/chapter1.iwt\`.
+**file_path is required**: every \`file_path\` passed to DocumentTools and block edit tools must be either a real host absolute path, taken from \`<workspace>\`, \`<attached_files>\`, \`<attached_dirs>\`, \`<active_document>\`, \`<open_tabs>\`, or \`previous_file\` — OR, for an in-memory unsaved document (\`status="unsaved_new"\`), its \`virtual_id="untitled:..."\` shown in \`<active_document>\`/\`<open_tabs>\`. Never omit \`file_path\`. Never invent virtual paths (\`/draft/...\`, \`/attached_files/...\`, \`/skills/...\`) or workspace-relative shells like \`/chapter1.iwt\`. A \`virtual_id\` only remains valid until that document is saved to disk — after saving, use the new absolute path from the latest \`<editor_state>\`.
+
+**Absolute paths**: All filesystem tool paths (\`read_file\`, \`write_file\`, \`edit_file\`, \`ls\`, \`grep\`, \`glob\`) must be real host absolute paths, taken from \`<workspace>\`, \`<attached_files>\`, or \`<attached_dirs>\` — OR a tool-scratch virtual path under \`/large_tool_results/\` or \`/conversation_history/\` (used for intermediate research notes, subagent findings, etc.).
 
 **Document files (.iwt/.md/.txt) — always use DocumentTools, never raw file tools**:
+This rule applies only to user-facing documents reachable via \`<workspace>\`, \`<attached_files>\`, \`<active_document>\`, or \`<open_tabs>\`. Scratch/tool-result files under \`/large_tool_results/\` or \`/conversation_history/\` (e.g. research findings, drafts-in-progress saved by a subagent) are plain files — read/write them with \`read_file\`/\`write_file\`, never via DocumentTools or \`create_document\`, and they never require user approval.
 - .iwt files on disk are JSON (\`{ version, content: "<html>...", metadata }\`), not plain text.
 - Reading: \`get_document_outline(file_path=...)\` for structure + block IDs, then \`get_section(heading_block_id=N, file_path=...)\` or \`get_sections(requests=[...], file_path=...)\` for content.
-- Writing: ALWAYS use block edit tools (\`edit_block\`/\`insert_block\`/\`replace_range\`/\`delete_block\`) with \`file_path=<abs path>\` (omit \`file_path\` only when the file IS the active document). NEVER use \`read_file\`/\`write_file\`/\`edit_file\` or shell commands for .iwt/.md/.txt — if block tools fail, report the error instead of falling back to raw writes.
+- Writing: ALWAYS use block edit tools (\`edit_block\`/\`insert_block\`/\`replace_range\`/\`delete_block\`) with \`file_path=<abs path or virtual_id>\`. NEVER use \`read_file\`/\`write_file\`/\`edit_file\` or shell commands for .iwt/.md/.txt — if block tools fail, report the error instead of falling back to raw writes.
 - If \`get_document_outline\` returns \`total_blocks: 0\` for a non-empty file, do not switch to generic file tools — report that the file could not be parsed for block editing and ask whether to open or convert it first.
 - Other file types: explain that document tools only support .iwt/.md/.txt; offer to inspect with generic file tools if useful.
 
-**file_path propagation**: once you read a file via \`file_path\`, ALL edit tool calls targeting that file MUST pass the same \`file_path\`. Omitting it edits the active document instead — or fails if none is open. Block IDs from \`get_document_outline(file_path=...)\` are valid only for THAT file; never mix them with the active document's block IDs.
+**file_path propagation**: once you read a file via \`file_path\`, ALL edit tool calls targeting that file MUST pass the same \`file_path\` (or \`virtual_id\`). Block IDs from \`get_document_outline(file_path=...)\` are valid only for THAT file; never mix them with another document's block IDs.
 
 **Workspace discovery**: \`ls\`, \`glob\`, \`grep\`, and \`execute\` (shell) are available for finding files and folders in the workspace. By convention use them only for read-only discovery — never to read or write document content; document content always goes through DocumentTools as described above.
 

@@ -116,6 +116,8 @@ function appendSelectionXml(
 
 export interface EditorStateContext {
   filePath: string | null
+  /** FileTab.id of the active tab — used to build virtual_id when filePath is null (unsaved_new). */
+  tabId: string | null
   isDirty: boolean
   folderPath: string | null
   openTabs: OpenTabInfo[]
@@ -206,7 +208,9 @@ export function buildEditorStateBlock(
   if (change === 'full' || change === 'file_changed' || change === 'document_content') {
     if (snapshot) {
       // Editor document (markdown / IWT / txt) — full outline + cursor context
-      const pathAttr = ctx.filePath ? ` path="${ctx.filePath}"` : ''
+      const pathAttr = ctx.filePath
+        ? ` path="${ctx.filePath}"`
+        : ctx.tabId ? ` virtual_id="untitled:${ctx.tabId}"` : ''
       const statusAttr = ctx.filePath
         ? ` status="${ctx.isDirty ? 'unsaved' : 'saved'}"`
         : ' status="unsaved_new"'
@@ -241,7 +245,7 @@ export function buildEditorStateBlock(
       if (tab.path) {
         lines.push(`    <tab path="${tab.path}" status="${tab.isDirty ? 'unsaved' : 'saved'}" />`)
       } else {
-        lines.push(`    <tab name="${tab.name}" status="unsaved_new" />`)
+        lines.push(`    <tab virtual_id="untitled:${tab.id}" name="${tab.name}" status="unsaved_new" />`)
       }
     }
     lines.push('  </open_tabs>')

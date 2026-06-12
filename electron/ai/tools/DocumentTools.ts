@@ -14,6 +14,7 @@ import { BlockParser } from '../document/BlockParser'
 import { DocumentSearch, listWorkspaceDocumentPaths, SUPPORTED_DOC_EXTS, type DocumentSearchOptions } from '../document/DocumentSearch'
 import type { IWriterAgentContext } from '../runtime/AgentContext'
 import type { SerializedSnapshot } from '../ipc/protocol'
+import { parseUntitledTabId } from '../document/virtualId'
 
 function getExt(filePath: string): string {
   return filePath.split('.').pop()?.toLowerCase() ?? ''
@@ -21,10 +22,6 @@ function getExt(filePath: string): string {
 
 function getRuntimeActiveFilePath(runtime: unknown): string | null {
   return (runtime as { context?: IWriterAgentContext } | undefined)?.context?.activeFilePath ?? null
-}
-
-function normalizePath(p: string): string {
-  return p.replace(/\\/g, '/').toLowerCase()
 }
 
 function isVirtualDocumentPath(requested: string): boolean {
@@ -36,16 +33,26 @@ function isVirtualDocumentPath(requested: string): boolean {
 }
 
 type DocumentPathResolution =
-  | { ok: true; filePath: string | null }
+  | { ok: true; filePath: string | null; tabId?: string }
   | { ok: false; error: string }
 
 function resolveDocumentPathForRuntime(argFilePath: string | undefined, runtime: unknown): DocumentPathResolution {
   const activeFilePath = getRuntimeActiveFilePath(runtime)
-  const requested = BlockParser.resolveFilePath(argFilePath, activeFilePath)
-  if (requested === null) return { ok: true, filePath: null }
+  const requested = argFilePath?.trim() || null
 
-  if (activeFilePath && normalizePath(activeFilePath) === normalizePath(requested)) {
-    return { ok: true, filePath: activeFilePath }
+  if (requested === null) {
+    if (activeFilePath === null) return { ok: true, filePath: null }
+    return {
+      ok: false,
+      error:
+        'Error: file_path is required. The active document has a path — pass the absolute path shown in <active_document>/<open_tabs>. ' +
+        'Omitting file_path (or passing its virtual_id) is only valid when targeting an in-memory unsaved document (status="unsaved_new").',
+    }
+  }
+
+  const untitledTabId = parseUntitledTabId(requested)
+  if (untitledTabId !== undefined) {
+    return { ok: true, filePath: null, tabId: untitledTabId }
   }
 
   if (isVirtualDocumentPath(requested)) {
@@ -151,7 +158,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         }
       }
 
-      const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
+      const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
       if (!snapshot) {
         return resolvedPath
           ? `Error: Could not load document "${resolvedPath}".`
@@ -166,14 +173,13 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         'Get the document outline (heading structure with block count and word count per section). ' +
         'Always call this first to understand the document structure before editing or reading sections. ' +
         'Use the returned block_ids to call get_section or get_blocks for detailed content. ' +
-        'Pass file_path to read a specific local file by absolute path, whether or not it is currently open in the editor. ' +
-        'Omit file_path only when you intentionally want the active editor document.',
+        'file_path is required: pass the absolute path (or virtual_id for an unsaved document) shown in <active_document>/<open_tabs>.',
       schema: z.object({
         file_path: z
           .string()
           .optional()
           .describe(
-            'Real absolute host path to a local .md/.txt/.iwt file. Never pass a basename, workspace-relative path, workspace-root virtual path like "/foo.iwt", or virtual mount path like "/attached_dirs/...". Omit to use the active editor document.'
+            'Required. Absolute host path to a local .md/.txt/.iwt file, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead. Never pass a basename, workspace-relative path, workspace-root virtual path like "/foo.iwt", or virtual mount path like "/attached_dirs/...".'
           ),
       }),
     }
@@ -194,13 +200,13 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       file_path?: string
     }, runtime) => {
       const resolved = resolveDocumentPathForRuntime(file_path, runtime)
-      if (!resolved.ok) throw new Error(resolved.error.replace(/^Error:\s*/i, ''))
+      if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
-      const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
+      const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
       if (!snapshot) {
-        throw new Error(resolvedPath
+        return resolvedPath
           ? `Error: Could not load document "${resolvedPath}".`
-          : 'Error: No document is currently open.')
+          : 'Error: No document is currently open.'
       }
 
       return BlockParser.getSection(
@@ -216,7 +222,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         'Get the content of a document section starting from a heading block. ' +
         'Returns the heading and all blocks until the next same/higher-level heading, ' +
         'with block IDs ({b:n}) for targeted editing. Supports pagination. ' +
-        'With file_path, this reads that exact file on disk even if it is not open in the editor.',
+        'file_path is required: pass the absolute path (or virtual_id for an unsaved document) shown in <active_document>/<open_tabs>.',
       schema: z.object({
         heading_block_id: z
           .number()
@@ -226,7 +232,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Real absolute host path to the target document file. Omit to use the active editor document.'),
+          .describe('Required. Absolute host path to the target document, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead.'),
       }),
     }
   )
@@ -265,9 +271,9 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           }
 
           const resolvedPath = resolved.filePath
-          const cacheKey = resolvedPath ?? '__active__'
+          const cacheKey = resolvedPath ?? (resolved.tabId ? `__tab:${resolved.tabId}__` : '__active__')
           if (!snapshotCache.has(cacheKey)) {
-            snapshotCache.set(cacheKey, await snapshotBroker.requestSnapshot(resolvedPath))
+            snapshotCache.set(cacheKey, await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId))
           }
 
           const snapshot = snapshotCache.get(cacheKey)
@@ -333,7 +339,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
             file_path: z
               .string()
               .optional()
-              .describe('Real absolute host path to the target document file. Omit to use the top-level file_path or active editor document.'),
+              .describe('Absolute host path (or virtual_id) for this request. Omit to use the top-level file_path.'),
           }))
           .min(1)
           .max(12)
@@ -341,7 +347,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Real absolute host path shared by all requests. Omit to use the active editor document.'),
+          .describe('Required (unless every request provides its own file_path). Absolute host path, or virtual_id (e.g. "untitled:...") for an in-memory unsaved document, from <active_document>/<open_tabs>, shared by all requests.'),
       }),
     }
   )
@@ -359,7 +365,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       const resolved = resolveDocumentPathForRuntime(file_path, runtime)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
-      const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
+      const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
       if (!snapshot) {
         return resolvedPath
           ? `Error: Could not load document "${resolvedPath}".`
@@ -387,7 +393,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Real absolute host path to the target document file. Omit to use the active editor document.'),
+          .describe('Required. Absolute host path to the target document, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead.'),
       }),
     }
   )
@@ -407,7 +413,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       const resolved = resolveDocumentPathForRuntime(file_path, runtime)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
-      const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
+      const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
       if (!snapshot) {
         return resolvedPath
           ? `Error: Could not load document "${resolvedPath}".`
@@ -435,7 +441,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Real absolute host path to the target document file. Omit to use the active editor document.'),
+          .describe('Required. Absolute host path to the target document, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead.'),
       }),
     }
   )
@@ -459,7 +465,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       const resolved = resolveDocumentPathForRuntime(file_path, runtime)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
-      const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
+      const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
       if (!snapshot) {
         return resolvedPath
           ? `Error: Could not load document "${resolvedPath}".`
@@ -484,7 +490,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Real absolute host path to the target document file. Omit to use the active editor document.'),
+          .describe('Required. Absolute host path to the target document, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Match whole words only.'),
         regex: z.boolean().optional().describe('Treat query as a regular expression.'),
@@ -514,7 +520,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       const resolved = resolveDocumentPathForRuntime(file_path, runtime)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
-      const snapshot = await snapshotBroker.requestSnapshot(resolvedPath)
+      const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
       if (!snapshot) {
         return resolvedPath
           ? `Error: Could not load document "${resolvedPath}".`
@@ -540,7 +546,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Real absolute host path to the target document file. Omit to use the active editor document.'),
+          .describe('Required. Absolute host path to the target document, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Match whole words only.'),
         regex: z.boolean().optional().describe('Treat query as a regular expression.'),

@@ -42,9 +42,10 @@ export class SnapshotBroker {
    * Request a document snapshot from the renderer.
    *
    * @param filePath - null = active editor, string = specific disk file
+   * @param tabId - when set, target the open tab with this FileTab.id (in-memory unsaved_new document)
    * @returns SerializedSnapshot, or null on timeout/error
    */
-  async requestSnapshot(filePath: string | null): Promise<SerializedSnapshot | null> {
+  async requestSnapshot(filePath: string | null, tabId?: string): Promise<SerializedSnapshot | null> {
     const webContents = this.getWebContents()
     if (!webContents) {
       console.warn('[SnapshotBroker] No webContents available')
@@ -64,7 +65,7 @@ export class SnapshotBroker {
 
       this.pendingRequests.set(requestId, { resolve, timer })
 
-      const event: SnapshotRequestEvent = { requestId, filePath }
+      const event: SnapshotRequestEvent = { requestId, filePath, tabId }
       webContents.send('ai:request-snapshot', event)
     })
   }

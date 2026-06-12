@@ -6,6 +6,7 @@ import { buildCreativeCapabilities, CREATIVE_INTERRUPT_ON_NAMES } from './buildC
 import { buildCreativeReviewItemFromAction } from '../../ipc/CreativeReviewAdapter'
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
 import { buildProposalFromAction } from '../../ipc/MessageAdapter'
+import { parseUntitledTabId } from '../../document/virtualId'
 import { computeWorkspaceHashes, getCreativeDb } from '../../db/CreativeDb'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { SerializedSnapshot } from '../../ipc/protocol'
@@ -94,8 +95,9 @@ export class CreativeDomainStrategy implements DomainStrategy {
       if (snapshotCache.has(key)) return snapshotCache.get(key) ?? null
       let snapshot: SerializedSnapshot | null = null
       try {
-        const snapshotTarget = (filePath && filePath !== activeFilePath) ? filePath : null
-        snapshot = await this.snapshotBroker.requestSnapshot(snapshotTarget)
+        const untitledTabId = parseUntitledTabId(filePath)
+        const snapshotTarget = (!untitledTabId && filePath && filePath !== activeFilePath) ? filePath : null
+        snapshot = await this.snapshotBroker.requestSnapshot(snapshotTarget, untitledTabId)
       } catch (err) {
         console.warn('[CreativeDomainStrategy] snapshot failed for', filePath, err)
       }

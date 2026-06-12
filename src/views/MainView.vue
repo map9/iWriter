@@ -309,7 +309,11 @@ onMounted(() => {
     let editor: TipTapEditor | null = null
     let editorFilePath: string | null = null
 
-    if (!req.filePath) {
+    if (req.tabId) {
+      const matchingTab = appStore.tabs.find(tab => tab.id === req.tabId)
+      editor = matchingTab?.editorInstance as TipTapEditor | null ?? null
+      editorFilePath = matchingTab?.path ?? null
+    } else if (!req.filePath) {
       const activeTab = appStore.activeTab
       editor = activeTab?.editorInstance as TipTapEditor | null ?? null
       editorFilePath = activeTab?.path ?? null

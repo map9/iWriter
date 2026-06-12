@@ -4,6 +4,7 @@ import { EDIT_SYSTEM_PROMPT } from '../../../../src/ai/thread/system-prompts/edi
 import { buildEditCapabilities, EDIT_INTERRUPT_ON_NAMES } from './buildEditCapabilities'
 import { buildProposalFromAction } from '../../ipc/MessageAdapter'
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
+import { parseUntitledTabId } from '../../document/virtualId'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { ThreadRuntimeStore } from '../../runtime/ThreadRuntimeStore'
 import type { AiAgentMode } from '../../../../src/types/ai'
@@ -47,11 +48,12 @@ export class EditDomainStrategy implements DomainStrategy {
     const firstArgs = ctx.actionRequests[0]?.args ?? {}
     const argFilePath = typeof firstArgs.file_path === 'string' ? firstArgs.file_path : null
     const activeFilePath = this.runtimeStore.getContext(ctx.threadId)?.activeFilePath ?? null
-    const snapshotTargetPath = (argFilePath && argFilePath !== activeFilePath) ? argFilePath : null
+    const untitledTabId = parseUntitledTabId(argFilePath)
+    const snapshotTargetPath = (!untitledTabId && argFilePath && argFilePath !== activeFilePath) ? argFilePath : null
 
     let snapshot = null
     try {
-      snapshot = await this.snapshotBroker.requestSnapshot(snapshotTargetPath)
+      snapshot = await this.snapshotBroker.requestSnapshot(snapshotTargetPath, untitledTabId)
     } catch (err) {
       console.warn('[EditDomainStrategy] snapshot failed:', err)
     }

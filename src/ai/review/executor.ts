@@ -5,10 +5,15 @@ import { pathUtils } from '@/utils/pathUtils'
 import { DocumentType } from '@/types/document-type'
 import type { ReviewBatchState } from './types'
 
+/** Prefix for the virtual_id of an in-memory unsaved_new document, e.g. "untitled:<tab.id>". */
+const UNTITLED_PREFIX = 'untitled:'
+
 export interface ReviewExecutorAppStoreLike {
   tabs?: Array<{
+    id?: string
     name?: string
     path?: string | null
+    editorInstance?: unknown
   }>
   activeTab?: {
     path?: string | null
@@ -194,12 +199,27 @@ async function applyBlockProposalToTarget(
   appStore: ReviewExecutorAppStoreLike,
   proposal: BlockEditProposal,
 ) {
-  if (proposal.filePath) {
-    const currentFilePath = appStore.activeTab?.path
-    const isActiveFile = !!currentFilePath
-      && pathUtils.normalize(currentFilePath) === pathUtils.normalize(proposal.filePath)
+  if (proposal.filePath?.startsWith(UNTITLED_PREFIX)) {
+    const tabId = proposal.filePath.slice(UNTITLED_PREFIX.length)
+    const tab = (appStore.tabs ?? []).find(t => t.id === tabId)
+    const editor = tab?.editorInstance as Editor | undefined
+    if (!editor) return { success: false as const, error: `未找到虚拟引用 "${proposal.filePath}" 对应的未保存文档`}
 
-    if (!isActiveFile) {
+    const handle = UnifiedDocumentAccess.fromEditor(editor, tab?.path ?? undefined)
+    const result = await handle.applyBlockProposal(proposal)
+    return result.success
+      ? { success: true as const }
+      : { success: false as const, error: result.error }
+  }
+
+  if (proposal.filePath) {
+    const normalizedTarget = pathUtils.normalize(proposal.filePath)
+    const matchingTab = (appStore.tabs ?? []).find(
+      t => t.path && pathUtils.normalize(t.path) === normalizedTarget
+    )
+    const editor = matchingTab?.editorInstance as Editor | undefined
+
+    if (!editor) {
       const handle = await UnifiedDocumentAccess.createFreshFromFile(proposal.filePath)
       if ('error' in handle) return { success: false as const, error: handle.error }
       const result = await handle.applyBlockProposal(proposal)
@@ -208,6 +228,12 @@ async function applyBlockProposalToTarget(
         ? { success: true as const }
         : { success: false as const, error: result.error }
     }
+
+    const handle = UnifiedDocumentAccess.fromEditor(editor, matchingTab?.path ?? undefined)
+    const result = await handle.applyBlockProposal(proposal)
+    return result.success
+      ? { success: true as const }
+      : { success: false as const, error: result.error }
   }
 
   const editor = appStore.activeTab?.editorInstance as Editor | undefined

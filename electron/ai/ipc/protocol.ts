@@ -193,6 +193,8 @@ export interface RunFilesystemAutoRejectEvent {
 export interface SnapshotRequestEvent {
   requestId: string
   filePath: string | null      // null = active editor
+  /** When set, target the open tab whose FileTab.id matches this (in-memory unsaved_new document). */
+  tabId?: string
 }
 
 /** Renderer responds to a snapshot request */

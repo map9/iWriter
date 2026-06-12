@@ -630,6 +630,7 @@ export interface SendContext {
 
 /** Info about an open editor tab (for environment context in system prompt). */
 export interface OpenTabInfo {
+  id: string           // FileTab.id, used to build virtual_id for unsaved new files
   path?: string        // absolute file path (undefined for unsaved new files)
   name: string         // tab display name
   isDirty: boolean     // has unsaved changes

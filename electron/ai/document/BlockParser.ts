@@ -140,27 +140,4 @@ export class BlockParser {
 
     return JSON.stringify({ blocks, centerBlockId: blockId }, null, 2)
   }
-
-  /**
-   * Resolve a file_path argument:
-   * - null / '' → use active editor snapshot (filePath null)
-   * - matches current active file → use active editor snapshot
-   * - different file → return the filePath for SnapshotBroker to fetch
-   */
-  static resolveFilePath(
-    argFilePath: string | null | undefined,
-    activeFilePath: string | null
-  ): string | null {
-    if (!argFilePath || !argFilePath.trim()) {
-      return null
-    }
-    if (activeFilePath && normalizePath(argFilePath) === normalizePath(activeFilePath)) {
-      return null
-    }
-    return argFilePath
-  }
-}
-
-function normalizePath(p: string): string {
-  return p.replace(/\\/g, '/').toLowerCase()
 }

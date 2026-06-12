@@ -532,7 +532,7 @@ export const useAiStore = defineStore('ai', () => {
     // Collect open tabs (exclude active one)
     const openTabs = appStore.tabs
       .filter(t => t.id !== activeTab?.id)
-      .map(t => ({ path: t.path ?? undefined, name: t.name, isDirty: t.isDirty ?? false }))
+      .map(t => ({ id: t.id, path: t.path ?? undefined, name: t.name, isDirty: t.isDirty ?? false }))
 
     // Build rich <editor_state> XML at send time using the active editor snapshot
     const activeEditor = activeTab?.editorInstance as Editor | null ?? null
@@ -543,6 +543,7 @@ export const useAiStore = defineStore('ai', () => {
     const editorStateResult = thread.domain === 'editing'
       ? buildEditorStateBlock(thread, snapshot, {
         filePath: currentFilePath,
+        tabId: activeTab?.id ?? null,
         isDirty: activeTab?.isDirty ?? false,
         folderPath: appStore.currentFolder ?? null,
         openTabs,
