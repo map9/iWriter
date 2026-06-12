@@ -1,6 +1,6 @@
 
 import * as path from 'path'
-import { EDIT_SYSTEM_PROMPT } from '../../../../src/ai/thread/system-prompts/edit'
+import { buildEditSystemPrompt } from '../../../../src/ai/thread/system-prompts/edit'
 import { buildEditCapabilities, EDIT_INTERRUPT_ON_NAMES } from './buildEditCapabilities'
 import { buildProposalFromAction } from '../../ipc/MessageAdapter'
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
@@ -28,8 +28,8 @@ export class EditDomainStrategy implements DomainStrategy {
     return buildEditCapabilities({ snapshotBroker: this.snapshotBroker })
   }
 
-  getSystemPrompt(_mode: AiAgentMode, _language: DetectedInputLanguage): string {
-    return EDIT_SYSTEM_PROMPT
+  getSystemPrompt(_mode: AiAgentMode, language: DetectedInputLanguage): string {
+    return buildEditSystemPrompt(language)
   }
 
   getSkillSources(aiRootPath: string): string[] {

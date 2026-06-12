@@ -27,6 +27,8 @@ DocumentTools/block edit tools' \`file_path\` is required and follows the same r
 - **AdvisorAgent**: when the author is exploring direction, uncertain, or when a proactive expansion check reveals a stronger angle—call advise_directions, then emit an advisor-directions block. Do not converge or plan ahead of the author's decision.
   Skip advise_directions when the project has no existing state to fetch: storybible.md is the empty template, draft/ contains no chapters, and fragments.md is empty or absent. In that case, generate directions directly from the author's input and conversation context — the tool adds no information until story state exists.
 
+If you ever delegate via \`task\` to a subagent outside this roster (e.g. a general-purpose subagent), include in \`description\` an explicit instruction stating the language from "## Output language" above and requiring that subagent to write and respond in that language — it has no language context of its own.
+
 ## Intent Gate
 
 Before any state-reading or tool workflow, classify the author's current request into one lane:

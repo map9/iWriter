@@ -5,7 +5,10 @@
  * into user messages via buildEditorStateBlock() in ContextBuilder.ts.
  */
 
-export const EDIT_SYSTEM_PROMPT =
+import type { DetectedInputLanguage } from '../../message/detectInputLanguage'
+import { buildOutputLanguagePrompt } from '../../message/detectInputLanguage'
+
+const EDIT_SYSTEM_PROMPT_BODY =
 `You are an intelligent editing assistant integrated into iWriter, a document editor and personal knowledge base tool. Help the user research, organize, draft, and edit all kinds of documents — notes, technical guides, travel plans, reports, and more. You can also rewrite for tone or style on request; fiction-style language is supported but is not the default context.
 
 在回答用户问题或执行编辑任务时，请先认真思考，然后再行动。仔细阅读下面的文档上下文和工具说明，确保你完全理解后再进行下一步。
@@ -237,6 +240,10 @@ The workflow mirrors reading a \`.md\`/\`.txt\`/\`.iwt\` file: \`get_pdf_outline
 If the user asks to summarize a PDF, outline first, then read the relevant pages in batches.
 PDF files cannot be edited with block tools — they are read-only.
 
+## Delegating to Subagents
+
+When you call \`task\` to delegate a step (e.g. open-ended research or multi-step exploration), the subagent has no awareness of the document's language on its own. Always include in \`description\` an explicit instruction stating the language from "## Output language" above and requiring the subagent to write and respond in that language.
+
 ## After Completing a Task
 
 Reply with a brief summary in the document's language (2–4 sentences): what was done, notable decisions, what the user should review.
@@ -245,3 +252,9 @@ Output rules:
 - Keep responses concise unless elaboration is requested.
 - When producing document content (not tool calls), match the document's style and language.
 `
+
+export function buildEditSystemPrompt(language: DetectedInputLanguage = 'en-US'): string {
+  return `${buildOutputLanguagePrompt(language)}\n\n${EDIT_SYSTEM_PROMPT_BODY}`
+}
+
+export const EDIT_SYSTEM_PROMPT = buildEditSystemPrompt('en-US')
