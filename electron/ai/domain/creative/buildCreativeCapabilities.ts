@@ -9,6 +9,7 @@ import { buildCreativeGitTools } from '../../tools/CreativeGitTools'
 import { buildCreativeLogicTools } from '../../tools/CreativeLogicTools'
 import { buildDocumentTools } from '../../tools/DocumentTools'
 import { buildEditProposalTools } from '../../tools/EditProposalTools'
+import { buildFilesystemMutationTools } from '../../tools/FilesystemMutationTools'
 import { buildWebTools } from '../../tools/WebTools'
 import { buildWritingStyleTools } from '../../tools/WritingStyleTools'
 import { EDIT_INTERRUPT_ON_CONFIG } from '../edit/buildEditCapabilities'
@@ -45,6 +46,7 @@ export function buildCreativeCapabilities(input: {
   const explorationTools = buildCreativeExplorationTools({ workspacePath: input.workspacePath, creativeDb: input.creativeDb })
   const docTools = buildDocumentTools(input.snapshotBroker)
   const editProposalTools = buildEditProposalTools()
+  const fsMutationTools = buildFilesystemMutationTools()
 
   const mainWritingStyleTools = writingStyleTools.filter(t =>
     t.name === 'list_writing_styles' ||
@@ -75,6 +77,7 @@ export function buildCreativeCapabilities(input: {
     ...mainCreativeTools,
     ...mainDocumentTools,
     ...mainEditProposalTools,
+    ...fsMutationTools,
     ...buildCreativeAnalysisTools({ workspacePath: input.workspacePath, creativeDb: input.creativeDb, snapshotBroker: input.snapshotBroker }),
     ...buildCreativeAdvisorTools({ workspacePath: input.workspacePath }),
     ...buildCreativeGitTools({ workspacePath: input.workspacePath }),

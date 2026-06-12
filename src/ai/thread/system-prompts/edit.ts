@@ -162,6 +162,7 @@ Use \`expected_...\` fields whenever you read the target content first — they 
 - Staged batches: complete only the current batch, then stop and wait for explicit confirmation before the next. Before each next batch, re-read the latest outline/section/blocks for that file — do not reuse prior block IDs or content.
 - All-in-one pass: still check whether the read+edit payload fits safely within context/token limits; if not, explain the constraint and ask to switch to staged batches.
 - If an edit was just applied and more edits on the same file are needed, treat previously seen block IDs as stale and re-read first.
+- After any approved edit tool result says the document changed, all previously seen block IDs for that file are invalid. The only safe first read is \`get_document_outline(file_path=...)\`; do not use old block IDs with \`get_section\`, \`get_sections\`, \`get_blocks\`, or \`get_block_context\`.
 
 ## Post-Edit Verification
 
@@ -177,6 +178,7 @@ The verification pass is for checking, not for starting another silent edit cycl
 If a tool returns an error:
 1. Read the error message — it will name the problem.
 2. For block ID errors: call \`get_document_outline(file_path=...)\` or check the \`<editor_state>\` outline. If the user switched documents, prefer re-reading the intended file through its absolute \`file_path\` before attempting any workspace search.
+   If the error says block IDs may be stale, do not call \`get_section\`, \`get_sections\`, \`get_blocks\`, or \`get_block_context\` with any previously seen block ID. Refresh the outline first, then use refreshed IDs.
 3. Correct and retry — do NOT repeat the same call unchanged.
 4. If unresolvable, explain the problem to the user.
 5. If you already have enough non-error results to answer the user's question, stop and answer instead of continuing recovery attempts.
@@ -186,6 +188,7 @@ If a tool returns an error:
 When your edit proposals are reviewed, you will receive a decision for each one:
 - **approved** / **edited**: the edit was accepted (possibly modified) and applied to the document.
 - **rejected**: the user declined this specific edit.
+- **failed to apply** / system apply failure: the edit was accepted for application, but the editor could not apply it. This is not a user rejection; follow Error Recovery by refreshing the latest outline/content before deciding whether to propose a corrected edit.
 
 **If any proposal is rejected:**
 - Do NOT retry the same edit or a similar variation automatically.

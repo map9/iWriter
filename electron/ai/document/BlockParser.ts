@@ -102,9 +102,13 @@ export class BlockParser {
       return `Error: block_ids must be a non-empty array of numbers. The document has ${snapshot.totalBlocks} block(s).`
     }
 
+    const missingBlockIds: number[] = []
     const blocks = blockIds.map(id => {
       const entry = snapshot.blockMap.find(b => b.displayId === id)
-      if (!entry) return { blockId: id, type: 'unknown', content: '(block not found)' }
+      if (!entry) {
+        missingBlockIds.push(id)
+        return { blockId: id, type: 'unknown', content: '(block not found)' }
+      }
       return {
         blockId: id,
         type: entry.nodeType,
@@ -112,7 +116,18 @@ export class BlockParser {
       }
     })
 
-    return JSON.stringify({ blocks }, null, 2)
+    return JSON.stringify({
+      blocks,
+      ...(missingBlockIds.length
+        ? {
+            status: 'partial_error',
+            missing_block_ids: missingBlockIds,
+            error:
+              'Some block IDs were not found. The block IDs may be stale after document edits. ' +
+              'Call get_document_outline(file_path=...) first, then retry with refreshed block IDs. Do not repeat the same call unchanged.',
+          }
+        : {}),
+    }, null, 2)
   }
 
   /**

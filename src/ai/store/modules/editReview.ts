@@ -209,6 +209,14 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
       const proposalId = currentBatch.order[index]
       const record = proposalId ? currentBatch.decisionsById[proposalId] : undefined
       if (!record) return { type: 'rejected', message: 'User rejected.' }
+      if (record.kind === 'failed_to_apply') {
+        return {
+          type: 'responded',
+          message:
+            record.message ??
+            'The edit failed to apply. This is a system apply failure, not a user rejection. Re-read the latest document outline/content before deciding whether to retry.',
+        }
+      }
       return {
         type: record.kind === 'approved' ? 'approved' : record.kind === 'edited' ? 'edited' : 'rejected',
         editedArgs: record.editedArgs,

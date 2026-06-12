@@ -4,9 +4,16 @@
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="min-w-0">
           <div class="text-xs font-medium text-warning-content">
-            {{ current.toolName === 'write_file' ? 'File write requires approval' : 'File edit requires approval' }}
+            {{ reviewTitle }}
           </div>
-          <div class="mt-1 truncate text-sm font-medium text-base-content" :title="current.targetPath">
+          <div
+            v-if="current.toolName === 'rename_file' || current.toolName === 'move_file'"
+            class="mt-1 truncate text-sm font-medium text-base-content"
+            :title="`${current.targetPath} → ${current.destPath}`"
+          >
+            {{ current.targetPath }} → {{ current.destPath }}
+          </div>
+          <div v-else class="mt-1 truncate text-sm font-medium text-base-content" :title="current.targetPath">
             {{ current.targetPath }}
           </div>
         </div>
@@ -15,7 +22,7 @@
         </div>
       </div>
       <div class="mt-2 rounded-box bg-warning/10 px-2 py-1.5 text-xs text-warning-content">
-        This will modify a real host file. Review the path and content before approving.
+        {{ reviewWarning }}
       </div>
     </div>
 
@@ -25,9 +32,21 @@
         :old-content="current.oldString || ''"
         :new-content="current.newString || ''"
       />
-      <div v-else class="p-3">
+      <div v-else-if="current.toolName === 'write_file'" class="p-3">
         <div class="mb-1.5 text-xs font-medium text-base-content">New file content</div>
         <pre class="max-h-88 overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-box border border-warning-content/15 bg-warning/10 p-2 font-mono text-xs leading-relaxed text-base-content">{{ current.newContent }}</pre>
+      </div>
+      <div v-else class="p-3 text-sm text-base-content/80">
+        <template v-if="current.toolName === 'delete_file'">
+          <p>This will permanently delete:</p>
+          <p class="mt-1 break-all font-mono text-xs">{{ current.targetPath }}</p>
+          <p v-if="current.recursive" class="mt-2 text-warning-content">This is a directory — deleting it will also remove all of its contents.</p>
+        </template>
+        <template v-else>
+          <p>{{ current.toolName === 'rename_file' ? 'This will rename:' : 'This will move:' }}</p>
+          <p class="mt-1 break-all font-mono text-xs">{{ current.targetPath }}</p>
+          <p class="mt-1 break-all font-mono text-xs">→ {{ current.destPath }}</p>
+        </template>
       </div>
     </div>
 
@@ -61,6 +80,25 @@ const aiStore = useAiStore()
 const currentIndex = ref(0)
 const reviews = computed(() => aiStore.pendingFilesystemReviews)
 const current = computed(() => reviews.value[currentIndex.value] ?? null)
+
+const REVIEW_TITLES: Record<string, string> = {
+  write_file: 'File write requires approval',
+  edit_file: 'File edit requires approval',
+  rename_file: 'File rename requires approval',
+  move_file: 'File move requires approval',
+  delete_file: 'File delete requires approval',
+}
+
+const REVIEW_WARNINGS: Record<string, string> = {
+  write_file: 'This will modify a real host file. Review the path and content before approving.',
+  edit_file: 'This will modify a real host file. Review the path and content before approving.',
+  rename_file: 'This will rename a real host file or directory.',
+  move_file: 'This will move a real host file or directory to a new location.',
+  delete_file: 'This will permanently delete a real host file or directory. This action cannot be undone.',
+}
+
+const reviewTitle = computed(() => current.value ? REVIEW_TITLES[current.value.toolName] ?? 'File operation requires approval' : '')
+const reviewWarning = computed(() => current.value ? REVIEW_WARNINGS[current.value.toolName] ?? 'Review carefully before approving.' : '')
 
 watch(() => reviews.value.length, length => {
   if (currentIndex.value >= length) currentIndex.value = Math.max(0, length - 1)

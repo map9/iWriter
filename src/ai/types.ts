@@ -483,12 +483,15 @@ export interface FilesystemReviewItem {
   id: string
   kind: 'filesystem'
   status: 'pending' | 'applied' | 'rejected'
-  toolName: 'write_file' | 'edit_file'
+  toolName: 'write_file' | 'edit_file' | 'rename_file' | 'delete_file' | 'move_file'
   targetPath: string
   newContent?: string
   oldString?: string
   newString?: string
   replaceAll?: boolean
+  sourcePath?: string
+  destPath?: string
+  recursive?: boolean
   sourceMessageId?: string
   sourceTurnId?: string
   toolCallId?: string

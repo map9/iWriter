@@ -672,7 +672,7 @@ export class AgentEngine {
 
       const decision = decideFilesystemWriteApproval({
         toolName: actionRequest.name,
-        filePath: actionRequest.args?.file_path,
+        args: actionRequest.args ?? {},
         workspacePath,
       })
 
@@ -685,9 +685,10 @@ export class AgentEngine {
       autoDecisionsByIndex[index] = decision.decision
       if (decision.kind === 'auto-reject') {
         hasAutoReject = true
+        const primaryPath = actionRequest.args?.file_path ?? actionRequest.args?.source_path
         autoRejects.push({
           toolName: actionRequest.name,
-          filePath: typeof actionRequest.args?.file_path === 'string' ? actionRequest.args.file_path : '',
+          filePath: typeof primaryPath === 'string' ? primaryPath : '',
           message: decision.decision.message ?? decision.reason,
         })
       }

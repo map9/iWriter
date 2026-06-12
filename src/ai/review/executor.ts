@@ -56,18 +56,23 @@ function hasOpenCreateDocumentTarget(
   })
 }
 
+function buildApplyFailureRecoveryMessage(target: string): string {
+  return `This is a system apply failure, not a user rejection. The target block IDs for ${target} may be stale after prior edits. Call get_document_outline(file_path=...) first, then read the updated target section or blocks before deciding whether to retry. Do not repeat the same edit call unchanged.`
+}
+
 export function buildProposalFailureMessage(proposal: BlockEditProposal, error: string): string {
   const target = proposal.filePath ? `file "${proposal.filePath}"` : 'the active document'
+  const recovery = buildApplyFailureRecoveryMessage(target)
   switch (proposal.type) {
     case 'edit':
     case 'delete':
-      return `Edit failed on ${target} for block_id=${proposal.displayBlockId ?? 'unknown'}: ${error} Re-read the latest document content with get_blocks or get_section before deciding whether to retry.`
+      return `Edit failed on ${target} for block_id=${proposal.displayBlockId ?? 'unknown'}: ${error} ${recovery}`
     case 'insert':
-      return `Insert failed on ${target} after block_id=${proposal.displayBlockId ?? 0}: ${error} Re-read the latest document content with get_blocks or get_section before deciding whether to retry.`
+      return `Insert failed on ${target} after block_id=${proposal.displayBlockId ?? 0}: ${error} ${recovery}`
     case 'replace_range':
-      return `Replace failed on ${target} for block_ids=${proposal.startDisplayBlockId ?? 'unknown'}-${proposal.endDisplayBlockId ?? 'unknown'}: ${error} Re-read the latest document content with get_blocks or get_section before deciding whether to retry.`
+      return `Replace failed on ${target} for block_ids=${proposal.startDisplayBlockId ?? 'unknown'}-${proposal.endDisplayBlockId ?? 'unknown'}: ${error} ${recovery}`
     default:
-      return `Edit failed on ${target}: ${error} Re-read the latest document content before deciding whether to retry.`
+      return `Edit failed on ${target}: ${error} ${recovery}`
   }
 }
 

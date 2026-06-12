@@ -14,11 +14,15 @@
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 
+function documentChangedMessage(): string {
+  return 'The document has changed, so all previously seen block IDs for this file are stale. If you need any further read or edit on the same file, call get_document_outline(file_path=...) first, then use the refreshed block IDs. Do not call get_section/get_blocks/get_block_context with old IDs.'
+}
+
 export function buildEditProposalTools() {
   const editBlock = tool(
     async ({ block_id, file_path }: { block_id: number; new_content: string; expected_current_content?: string; reason?: string; file_path?: string }) => {
       const target = file_path ? `file "${file_path}"` : 'the active document'
-      return `Edit applied to ${target} at block {b:${block_id}}. The document has changed, so block IDs for this file may now be stale. If you need more edits on the same file, call get_document_outline, get_section, or get_blocks again before editing.`
+      return `Edit applied to ${target} at block {b:${block_id}}. ${documentChangedMessage()}`
     },
     {
       name: 'edit_block',
@@ -45,7 +49,7 @@ export function buildEditProposalTools() {
   const insertBlock = tool(
     async ({ after_block_id, file_path }: { after_block_id: number; new_content: string; expected_anchor_content?: string; reason?: string; file_path?: string }) => {
       const target = file_path ? `file "${file_path}"` : 'the active document'
-      return `Insert applied to ${target} after block {b:${after_block_id}}. The document has changed, so block IDs for this file may now be stale. If you need more edits on the same file, call get_document_outline, get_section, or get_blocks again before editing.`
+      return `Insert applied to ${target} after block {b:${after_block_id}}. ${documentChangedMessage()}`
     },
     {
       name: 'insert_block',
@@ -70,7 +74,7 @@ export function buildEditProposalTools() {
   const deleteBlock = tool(
     async ({ block_id, file_path }: { block_id: number; expected_current_content?: string; reason?: string; file_path?: string }) => {
       const target = file_path ? `file "${file_path}"` : 'the active document'
-      return `Delete applied to ${target} at block {b:${block_id}}. The document has changed, so block IDs for this file may now be stale. If you need more edits on the same file, call get_document_outline, get_section, or get_blocks again before editing.`
+      return `Delete applied to ${target} at block {b:${block_id}}. ${documentChangedMessage()}`
     },
     {
       name: 'delete_block',
@@ -92,7 +96,7 @@ export function buildEditProposalTools() {
   const replaceRange = tool(
     async ({ start_block_id, end_block_id, file_path }: { start_block_id: number; end_block_id: number; new_content: string; expected_old_content?: string; reason?: string; file_path?: string }) => {
       const target = file_path ? `file "${file_path}"` : 'the active document'
-      return `Replace applied to ${target} for blocks {b:${start_block_id}}–{b:${end_block_id}}. The document has changed, so block IDs for this file may now be stale. If you need more edits on the same file, call get_document_outline, get_section, or get_blocks again before editing.`
+      return `Replace applied to ${target} for blocks {b:${start_block_id}}–{b:${end_block_id}}. ${documentChangedMessage()}`
     },
     {
       name: 'replace_range',

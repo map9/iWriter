@@ -36,6 +36,18 @@ type DocumentPathResolution =
   | { ok: true; filePath: string | null; tabId?: string }
   | { ok: false; error: string }
 
+function asErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+function blockIdRecoveryMessage(): string {
+  return 'The block IDs may be stale after document edits. Call get_document_outline(file_path=...) first, then retry with refreshed block IDs. Do not repeat the same call unchanged.'
+}
+
+function formatBlockToolError(toolName: string, invalidArgument: string, reason: string): string {
+  return `Error: ${toolName} failed. Invalid argument: ${invalidArgument}. Reason: ${reason} Recovery: ${blockIdRecoveryMessage()}`
+}
+
 function resolveDocumentPathForRuntime(argFilePath: string | undefined, runtime: unknown): DocumentPathResolution {
   const activeFilePath = getRuntimeActiveFilePath(runtime)
   const requested = argFilePath?.trim() || null
@@ -209,12 +221,16 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           : 'Error: No document is currently open.'
       }
 
-      return BlockParser.getSection(
-        snapshot,
-        heading_block_id,
-        offset !== undefined ? Math.max(0, offset) : 0,
-        limit !== undefined ? Math.max(1, limit) : 20
-      )
+      try {
+        return BlockParser.getSection(
+          snapshot,
+          heading_block_id,
+          offset !== undefined ? Math.max(0, offset) : 0,
+          limit !== undefined ? Math.max(1, limit) : 20
+        )
+      } catch (err) {
+        return formatBlockToolError('get_section', `heading_block_id=${heading_block_id}`, asErrorMessage(err))
+      }
     },
     {
       name: 'get_section',
@@ -303,7 +319,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           sections.push({
             heading_block_id: headingBlockId,
             status: 'error',
-            error: err instanceof Error ? err.message : String(err),
+            error: `${asErrorMessage(err)} ${blockIdRecoveryMessage()}`,
           })
         }
       }
@@ -420,11 +436,14 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           : 'Error: No document is currently open.'
       }
 
-      return BlockParser.getBlockContext(
+      const result = BlockParser.getBlockContext(
         snapshot,
         block_id,
         windowSize !== undefined ? Math.max(1, windowSize) : 3
       )
+      return result.startsWith('Error:')
+        ? formatBlockToolError('get_block_context', `block_id=${block_id}`, result.replace(/^Error:\s*/i, ''))
+        : result
     },
     {
       name: 'get_block_context',

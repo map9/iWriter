@@ -26,6 +26,9 @@ export interface AgentFilesystemScaffold {
 const FILE_WRITE_INTERRUPT_ON: Record<string, InterruptOnConfig> = {
   write_file: { allowedDecisions: ['approve', 'reject'] },
   edit_file: { allowedDecisions: ['approve', 'reject'] },
+  rename_file: { allowedDecisions: ['approve', 'reject'] },
+  delete_file: { allowedDecisions: ['approve', 'reject'] },
+  move_file: { allowedDecisions: ['approve', 'reject'] },
 }
 
 export const FILE_WRITE_INTERRUPT_ON_NAMES = new Set(Object.keys(FILE_WRITE_INTERRUPT_ON))
