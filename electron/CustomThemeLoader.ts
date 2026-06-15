@@ -221,6 +221,7 @@ export class CustomThemeLoader {
 }
 
 /* Add any additional element-specific styles below */
+.tiptap.markdown-theme-my-first-theme img { max-width: 100%; height: auto; display: block; margin-left: auto; margin-right: auto; border-radius: var(--md-image-radius); }
 /* .tiptap.markdown-theme-my-first-theme h1 { } */
 `
     fs.writeFileSync(path.join(exampleDir, 'screen.css'), screenCss, 'utf-8')

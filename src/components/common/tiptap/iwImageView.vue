@@ -292,7 +292,7 @@ const displayPath = computed((): string => {
 
 // 获取当前对齐方式
 const textAlign = computed((): string => {
-  return props.node.attrs.textAlign || 'left'
+  return props.node.attrs.textAlign || 'center'
 })
 
 // 用于按钮高亮状态

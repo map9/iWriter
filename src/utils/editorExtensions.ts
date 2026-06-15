@@ -320,13 +320,13 @@ export function createMarkdownEditorExtensions(options: {
             default: null,
           },
           textAlign: {
-            default: 'left',
+            default: 'center',
             parseHTML: (element: HTMLElement) => {
               const align = element.style.textAlign
-              return ['left', 'center', 'right', 'justify'].includes(align) ? align : 'left'
+              return ['left', 'center', 'right', 'justify'].includes(align) ? align : 'center'
             },
             renderHTML: (attributes: Record<string, string>) => {
-              if (!attributes.textAlign || attributes.textAlign === 'left') {
+              if (!attributes.textAlign || attributes.textAlign === 'center') {
                 return {}
               }
               return { style: `text-align: ${attributes.textAlign}` }

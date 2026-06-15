@@ -512,6 +512,11 @@ const GITHUB_SCREEN_CSS = `
   }
 
   .tiptap.markdown-theme-github img {
+    display: block;
+    height: auto;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
     box-sizing: content-box;
     border-style: none;
     background-color: transparent;
@@ -1060,6 +1065,11 @@ const GITHUB_DARK_SCREEN_CSS = `
   }
 
   .tiptap.markdown-theme-github-dark img {
+    display: block;
+    height: auto;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
     box-sizing: content-box;
     border-style: none;
     background-color: transparent;

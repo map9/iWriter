@@ -72,6 +72,10 @@ const BASE_PRINT_CSS = `
 
   img {
     max-width: 100%;
+    height: auto;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   ul, ol {
@@ -357,6 +361,8 @@ function buildImageFitCss(pageSetup: PageSetup, zoomFactor: number): string {
       max-width: 100%;
       width: auto !important;
       height: auto;
+      margin-left: auto;
+      margin-right: auto;
       object-fit: contain;
     }
     .iw-print-scale-root figure {
