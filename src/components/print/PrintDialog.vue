@@ -99,6 +99,7 @@ import {
   STANDARD_PAPER_SIZES,
   ELECTRON_PRINT_KEYWORDS,
   getPaperDimensionsMm,
+  getPageContentHeightPx,
   detectColorSupport,
   getPrinterPaperSizes,
   isPrinterConnectable,
@@ -519,6 +520,7 @@ function buildPreviewHtml(): string {
   const effectivePageSelectionMode = basePrintSettings.pageRange === 'custom' && !customPageRangeValidation.value.effectiveValue
     ? 'all'
     : basePrintSettings.pageRange
+  const resolvedSettings = resolveMarkdownPrintSettings(appStore.globalMarkdownPrintSetting, getDialogRuntimeOverrides())
   return buildPreviewDocumentWithOptions(props.html, printCss.css, {
     pagesPerSheet:     basePrintSettings.pagesPerSheet,
     orientation:       dialogPrintSettings.pageSetup.orientation,
@@ -528,6 +530,8 @@ function buildPreviewHtml(): string {
     enablePageNumberFix:     printCss.enablePageNumberFix,
     pageNumberTemplatesByBox: printCss.pageNumberTemplatesByBox,
     bodyBackground:    bgColor,
+    pageContentHeightPx: getPageContentHeightPx(resolvedSettings.pageSetup),
+    repeatTableHeader: resolvedSettings.pagination.repeatTableHeader,
   })
 }
 

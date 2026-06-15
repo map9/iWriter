@@ -178,6 +178,11 @@
         </div>
       </div>
 
+      <label class="responsive-option-item">
+        <input v-model="settings.pagination.repeatTableHeader" type="checkbox" class="checkbox checkbox-sm checkbox-primary" />
+        <span class="text-sm">{{ t('preferences.print.repeatTableHeader') }}</span>
+      </label>
+
       <div class="responsive-two-col-grid">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.print.widows') }}</label>
@@ -619,6 +624,7 @@ watch(
     settings.pagination.orphans,
     settings.pagination.chapterStartSide,
     settings.pagination.blankPageBehavior,
+    settings.pagination.repeatTableHeader,
   ],
   () => {
     if (suppressModeCoupling) return

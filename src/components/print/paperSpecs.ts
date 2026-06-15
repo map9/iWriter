@@ -48,6 +48,38 @@ export function getPaperDimensionsMm(size: string): { widthMm: number; heightMm:
   return PAPER_DIMS_MM[size] ?? PAPER_DIMS_MM['A4'] ?? { widthMm: 210, heightMm: 297 }
 }
 
+const MM_PER_IN = 25.4
+const PX_PER_IN = 96
+
+/** Converts a CSS length string (mm/cm/in/pt/px) to CSS pixels. Unitless values are treated as px. */
+function lengthToPx(value: string): number {
+  const match = /^([\d.]+)\s*(mm|cm|in|pt|px)?$/.exec(value.trim())
+  if (!match) return 0
+  const num = parseFloat(match[1] ?? '0')
+  switch (match[2] || 'px') {
+    case 'mm': return num / MM_PER_IN * PX_PER_IN
+    case 'cm': return num * 10 / MM_PER_IN * PX_PER_IN
+    case 'in': return num * PX_PER_IN
+    case 'pt': return num / 72 * PX_PER_IN
+    default: return num
+  }
+}
+
+/**
+ * Computes the page content-box height in CSS px (pre-zoom), used by the print/PDF
+ * pagedjs runner to decide whether a table/row/image is taller than one page.
+ */
+export function getPageContentHeightPx(pageSetup: {
+  size: string
+  orientation: 'portrait' | 'landscape'
+  margins: { top: string; bottom: string }
+}): number {
+  const dims = getPaperDimensionsMm(pageSetup.size)
+  const heightMm = pageSetup.orientation === 'landscape' ? dims.widthMm : dims.heightMm
+  const pageHeightPx = heightMm / MM_PER_IN * PX_PER_IN
+  return pageHeightPx - lengthToPx(pageSetup.margins.top) - lengthToPx(pageSetup.margins.bottom)
+}
+
 export function detectColorSupport(info: Electron.PrinterInfo | null): boolean {
   if (!info) return true
   const opts = (info.options ?? {}) as Record<string, string>

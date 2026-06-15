@@ -110,6 +110,7 @@ export const PAGINATION_MODE_PRESETS: Record<PaginationModePreset, Omit<Paginati
     orphans: 2,
     chapterStartSide: 'auto',
     blankPageBehavior: 'suppress-header-footer',
+    repeatTableHeader: true,
   },
   compact: {
     keepWithNext: { headings: true, figureCaption: false, tableCaption: false },
@@ -126,6 +127,7 @@ export const PAGINATION_MODE_PRESETS: Record<PaginationModePreset, Omit<Paginati
     orphans: 1,
     chapterStartSide: 'auto',
     blankPageBehavior: 'allow',
+    repeatTableHeader: false,
   },
   'strict-book': {
     keepWithNext: { headings: true, figureCaption: true, tableCaption: true },
@@ -142,6 +144,7 @@ export const PAGINATION_MODE_PRESETS: Record<PaginationModePreset, Omit<Paginati
     orphans: 3,
     chapterStartSide: 'recto',
     blankPageBehavior: 'suppress-header-footer',
+    repeatTableHeader: true,
   },
 }
 
@@ -156,6 +159,7 @@ export function applyPaginationModePreset(
   target.orphans = preset.orphans
   target.chapterStartSide = preset.chapterStartSide
   target.blankPageBehavior = preset.blankPageBehavior
+  target.repeatTableHeader = preset.repeatTableHeader
 }
 
 export function createPaginationSetup(overrides: Partial<PaginationSetup> = {}): PaginationSetup {
@@ -175,6 +179,7 @@ export function createPaginationSetup(overrides: Partial<PaginationSetup> = {}):
     orphans: overrides.orphans ?? preset.orphans,
     chapterStartSide: overrides.chapterStartSide ?? preset.chapterStartSide,
     blankPageBehavior: overrides.blankPageBehavior ?? preset.blankPageBehavior,
+    repeatTableHeader: overrides.repeatTableHeader ?? preset.repeatTableHeader,
   }
 }
 
@@ -441,6 +446,7 @@ const GITHUB_SCREEN_CSS = `
     background-color: #f6f8fa;
   }
 
+  .tiptap.markdown-theme-github .tableWrapper table th > :last-child,
   .tiptap.markdown-theme-github .tableWrapper table td > :last-child {
     margin-bottom: 0;
   }
@@ -988,6 +994,7 @@ const GITHUB_DARK_SCREEN_CSS = `
     background-color: #151b23;
   }
 
+  .tiptap.markdown-theme-github-dark .tableWrapper table th > :last-child,
   .tiptap.markdown-theme-github-dark .tableWrapper table td > :last-child {
     margin-bottom: 0;
   }
@@ -1501,7 +1508,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         th { background: #eaeef2; font-weight: 600; }
         tr { background: #ffffff; border-top: 1px solid #d1d9e0b3; }
         tr:nth-child(even) td { background: #f6f8fa; }
-        td > :last-child { margin-bottom: 0; }
+        th > :last-child, td > :last-child { margin-bottom: 0; }
         code {
           font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
           font-size: 85%;
@@ -1633,7 +1640,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         th { background: #262c36; font-weight: 600; }
         tr { background: #0d1117; border-top: 1px solid #3d444db3; }
         tr:nth-child(even) td { background: #151b23; }
-        td > :last-child { margin-bottom: 0; }
+        th > :last-child, td > :last-child { margin-bottom: 0; }
         code {
           font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
           font-size: 85%;
@@ -1718,14 +1725,16 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
     id: 'prose',
     name: 'Prose',
     description: 'Comfortable reading defaults for general articles.',
-    screen: { css: PROSE_SCREEN_CSS },
+    screen: { css: PROSE_SCREEN_CSS, backgroundColor: '#ffffff' },
     print: {
       css: `
         body {
+          color-scheme: light;
+          background: #ffffff;
+          color: #18181b;
           font-family: Georgia, "Times New Roman", serif;
           font-size: 12pt;
           line-height: 1.72;
-          color: #18181b;
         }
         h1, h2, h3, h4, h5, h6 {
           font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
@@ -1760,6 +1769,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         th, td { border: 1px solid #d6d3d1; padding: 8px 14px; text-align: left; }
         th { background: #eef2f7; font-weight: 600; }
         tr:nth-child(even) td { background: #fafafa; }
+        th > :last-child, td > :last-child { margin-bottom: 0; }
         code {
           font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
           font-size: 0.875em;
@@ -1807,14 +1817,16 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
     id: 'novel',
     name: 'Novel',
     description: 'Loose body spacing for long-form and book-style output.',
-    screen: { css: NOVEL_SCREEN_CSS },
+    screen: { css: NOVEL_SCREEN_CSS, backgroundColor: '#ffffff' },
     print: {
       css: `
         body {
+          color-scheme: light;
+          background: #ffffff;
+          color: #111111;
           font-family: "Iowan Old Style", Georgia, "Times New Roman", serif;
           font-size: 12.5pt;
           line-height: 1.85;
-          color: #111111;
         }
         h1, h2, h3, h4, h5, h6 {
           font-family: "Baskerville", Georgia, serif;
@@ -1846,6 +1858,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         th, td { border: 1px solid rgba(82, 82, 91, 0.3); padding: 8px 14px; text-align: left; }
         th { background: rgba(82, 82, 91, 0.12); font-weight: 600; }
         tr:nth-child(even) td { background: rgba(82, 82, 91, 0.03); }
+        th > :last-child, td > :last-child { margin-bottom: 0; }
         code {
           font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
           font-size: 0.85em;
@@ -2170,6 +2183,7 @@ export function deriveMarkdownPrintOverrides(
   if (current.pagination.orphans !== base.pagination.orphans) pagination.orphans = current.pagination.orphans
   if (current.pagination.chapterStartSide !== base.pagination.chapterStartSide) pagination.chapterStartSide = current.pagination.chapterStartSide
   if (current.pagination.blankPageBehavior !== base.pagination.blankPageBehavior) pagination.blankPageBehavior = current.pagination.blankPageBehavior
+  if (current.pagination.repeatTableHeader !== base.pagination.repeatTableHeader) pagination.repeatTableHeader = current.pagination.repeatTableHeader
   const keepWithNext = Object.fromEntries(
     Object.entries(current.pagination.keepWithNext).filter(([key, value]) => value !== base.pagination.keepWithNext[key as keyof typeof base.pagination.keepWithNext]),
   )

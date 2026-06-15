@@ -7,6 +7,7 @@ import type {
   PaginationSetup,
   RunningTitleSetup,
 } from '@/types'
+import { getPaperDimensionsMm } from './paperSpecs'
 
 export const PRINT_THEME_PAGE_NUMBER_TOKEN = '__IW_PAGE_NUMBER__'
 
@@ -337,6 +338,36 @@ function buildHeaderFooterCss(
   }
 }
 
+// Caps images (and figures) to the page content-box height so an oversized image
+// scales down to fit a single page instead of being clipped or halting pagedjs'
+// layout (it cannot fragment a monolithic element taller than the page).
+function buildImageFitCss(pageSetup: PageSetup, zoomFactor: number): string {
+  const dims = getPaperDimensionsMm(pageSetup.size)
+  const pageHeightMm = pageSetup.orientation === 'landscape' ? dims.widthMm : dims.heightMm
+  // Both single and facing margin shapes carry top/bottom.
+  const margins = pageSetup.margins as { top: string; bottom: string }
+  const zoom = Number.isFinite(zoomFactor) && zoomFactor > 0 ? zoomFactor : 1
+  // 6mm safety margin absorbs rounding/figcaption/fill-threshold slack; dividing by
+  // zoom compensates for the `.iw-print-scale-root { zoom }` wrapper around the content.
+  const cap = `calc((${pageHeightMm}mm - ${margins.top} - ${margins.bottom} - 6mm) / ${zoom})`
+
+  return `
+    .iw-print-scale-root img {
+      max-height: ${cap};
+      max-width: 100%;
+      width: auto !important;
+      height: auto;
+      object-fit: contain;
+    }
+    .iw-print-scale-root figure {
+      max-height: ${cap};
+    }
+    .iw-print-scale-root figure img {
+      max-height: 100%;
+    }
+  `
+}
+
 function buildDialogOverrideCss(options: BuildPrintCssOptions): string {
   const grayscaleRule = options.colorMode === 'grayscale'
     ? 'html { filter: grayscale(1); }'
@@ -364,6 +395,7 @@ export function buildPrintCss(options: BuildPrintCssOptions): BuildPrintCssResul
       buildPaginationCss(options.pagination),
       headerFooterCss.css,
       buildDialogOverrideCss(options),
+      buildImageFitCss(options.pageSetup, options.zoomFactor),
     ].join('\n'),
     enablePageNumberFix: Object.keys(headerFooterCss.pageNumberTemplatesByBox).length > 0,
     pageNumberTemplatesByBox: headerFooterCss.pageNumberTemplatesByBox,

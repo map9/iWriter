@@ -81,6 +81,8 @@ function buildRunner(options: {
   enablePageNumberFix: boolean
   pageNumberTemplatesByBox: Record<string, string>
   bodyBackground?: string,
+  pageContentHeightPx: number
+  repeatTableHeader: boolean
 }): string {
   const serializedOptions = JSON.stringify(options)
   return `;(async () => {
@@ -91,6 +93,90 @@ function buildRunner(options: {
     const wrapper = document.createElement('div');
     wrapper.id = 'paged-preview-root';
     document.body.appendChild(wrapper);
+
+    // --- Long image / long table pagination fixes -------------------------
+    // pagedjs cannot fragment a monolithic element (a single img/tr taller than
+    // a page): such elements either get clipped or, combined with
+    // break-inside:avoid, halt the whole layout and drop all later content
+    // (pagedjs#274/#271). This handler:
+    //  (a) marks a lone <th> header row so it can be found and repeated later
+    //      (NOT promoted to a real <thead>: pagedjs 0.4.3's native thead
+    //      handling produces malformed split fragments — an empty <thead>
+    //      plus an orphaned header <tr> reparented directly under the page
+    //      wrapper — which crashes findOverflow's parentOf(...).querySelector);
+    //  (b) repeats that marked row on each continuation fragment of a split table;
+    //  (c) clears break-inside:avoid on elements taller than the page content
+    //      box so they can never trigger the layout halt.
+    var PAGE_CONTENT_H = Number(previewOptions.pageContentHeightPx) || 0;
+    var REPEAT_HEADERS = !!previewOptions.repeatTableHeader;
+    var IwTableImageHandler = class extends Handler {
+      // (a) structural fixups on the parsed source fragment, before layout.
+      afterParsed(content) {
+        Array.prototype.forEach.call(content.querySelectorAll('table'), function (table) {
+          // Avoid wrapper margins displacing the whole table instead of
+          // letting it split (pagedjs#202).
+          table.style.marginTop = '0';
+          table.style.marginBottom = '0';
+          var wrap = table.closest('.tableWrapper');
+          if (wrap) { wrap.style.marginTop = '0'; wrap.style.marginBottom = '0'; }
+
+          if (!table.querySelector('thead')) {
+            var firstRow = table.querySelector('tr');
+            if (firstRow && firstRow.querySelector('th')) {
+              firstRow.setAttribute('data-iw-header-row', 'true');
+            }
+          }
+        });
+      }
+
+      // (b) repeat the marked header row on continuation fragments of split tables.
+      afterPageLayout(pageElement, page, breakToken, chunker) {
+        if (!REPEAT_HEADERS) return;
+        var self = this;
+        Array.prototype.forEach.call(pageElement.querySelectorAll('table[data-split-from]'), function (table) {
+          if (table.querySelector('tr[data-iw-repeated]')) return;
+          // If the fragment's first row is already the header row, the whole
+          // table moved to this page intact (break before the table, not a
+          // mid-table split) — it already has its header, don't duplicate it.
+          var firstRow = table.querySelector('tr');
+          if (firstRow && firstRow.hasAttribute('data-iw-header-row')) return;
+          var original = self.findOriginalHeaderRow(table.getAttribute('data-ref'), chunker);
+          if (!original) return;
+          var clone = original.cloneNode(true);
+          // Strip data-ref attributes so the clone can't be mistaken for the
+          // source row by pagedjs's ref-based element lookups on later pages.
+          clone.removeAttribute('data-ref');
+          Array.prototype.forEach.call(clone.querySelectorAll('[data-ref]'), function (el) { el.removeAttribute('data-ref'); });
+          clone.setAttribute('data-iw-repeated', 'true');
+          var tbody = table.querySelector('tbody');
+          var insertParent = tbody || table;
+          insertParent.insertBefore(clone, insertParent.firstChild);
+        });
+      }
+
+      findOriginalHeaderRow(ref, chunker) {
+        if (!ref) return null;
+        var root = (chunker && chunker.pagesArea) || document;
+        var rows = root.querySelectorAll('table[data-ref="' + ref + '"] tr[data-iw-header-row]:not([data-iw-repeated])');
+        return rows && rows.length ? rows[0] : null;
+      }
+
+      // (c) safety net: clear avoid-break on rendered nodes taller than the page.
+      renderNode(clone) {
+        if (!PAGE_CONTENT_H || !clone || !clone.tagName) return;
+        var tag = clone.tagName.toLowerCase();
+        if (tag === 'table' || tag === 'tr' || tag === 'img' || tag === 'figure') {
+          var h = clone.offsetHeight || (clone.getBoundingClientRect && clone.getBoundingClientRect().height) || 0;
+          if (h > PAGE_CONTENT_H) {
+            clone.style.breakInside = 'auto';
+            clone.style.pageBreakInside = 'auto';
+          }
+        }
+      }
+    };
+    registerHandlers(IwTableImageHandler);
+    // ------------------------------------------------------------------------
+
     const previewer = new Previewer();
     previewer.on('rendering', () => {
       if (previewOptions.bodyBackground) {
@@ -315,7 +401,8 @@ function buildRunner(options: {
       notifyMetrics('paged-ready');
     });
   } catch (err) {
-    window.parent.postMessage({ type: 'paged-error', error: String(err) }, '*');
+    const message = err && err.stack ? String(err.stack) : String(err);
+    window.parent.postMessage({ type: 'paged-error', error: message }, '*');
   }
 })();`
 }
@@ -332,6 +419,8 @@ export function buildPreviewDocumentWithOptions(
     enablePageNumberFix?: boolean
     pageNumberTemplatesByBox?: Record<string, string>
     bodyBackground?: string,
+    pageContentHeightPx?: number
+    repeatTableHeader?: boolean
   } = {},
 ): string {
   // Pre-render KaTeX math nodes so formulas appear in print/PDF contexts that
@@ -362,6 +451,8 @@ export function buildPreviewDocumentWithOptions(
       enablePageNumberFix: options.enablePageNumberFix ?? false,
       pageNumberTemplatesByBox: options.pageNumberTemplatesByBox ?? {},
       bodyBackground: options.bodyBackground,
+      pageContentHeightPx: options.pageContentHeightPx ?? 0,
+      repeatTableHeader: options.repeatTableHeader ?? true,
     }), '\n', TAG_CLOSE,
     '</body></html>',
   ].join('')

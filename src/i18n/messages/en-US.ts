@@ -248,6 +248,7 @@ export default {
       avoidBreakTableRow: 'Avoid breaking table rows',
       avoidBreakImage: 'Avoid breaking images',
       avoidBreakListItem: 'Avoid breaking list items',
+      repeatTableHeader: 'Repeat table header row on each page',
       widows: 'Widows (min lines at top)',
       orphans: 'Orphans (min lines at bottom)',
       widowsPlaceholder: 'Empty = no constraint',

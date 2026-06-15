@@ -130,6 +130,8 @@ export interface PaginationSetup {
   orphans: number | null
   chapterStartSide: 'auto' | 'recto' | 'verso'
   blankPageBehavior: 'allow' | 'suppress-header-footer'
+  /** Repeat the table header row on each page a table continues onto. */
+  repeatTableHeader: boolean
 }
 
 export interface MarginBoxContent {

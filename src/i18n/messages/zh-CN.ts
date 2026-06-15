@@ -248,6 +248,7 @@ export default {
       avoidBreakTableRow: '避免拆分页表格行',
       avoidBreakImage: '避免拆分页图片',
       avoidBreakListItem: '避免拆分页列表项',
+      repeatTableHeader: '跨页时重复表头',
       widows: '页首最少行数 (widows)',
       orphans: '页尾最少行数 (orphans)',
       widowsPlaceholder: '留空表示不限制',
