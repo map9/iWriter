@@ -178,7 +178,7 @@ const zhMenuLabelMap: MenuLabelMap = {
   'Format Selection': '格式化选中内容',
   'Format CodeBlock': '格式化代码块',
   'Math Block': '公式块',
-  'Mermaid Diagram': 'Mermaid 图表',
+  'Mermaid Diagram': 'Mermaid 图',
   'Quote Block': '引用块',
   'Ordered List': '有序列表',
   'Bullet List': '无序列表',

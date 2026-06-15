@@ -22,6 +22,8 @@ export function initMermaid(): void {
     startOnLoad: false,
     securityLevel: 'strict',
     theme,
+    // 全局关闭 HTML 标签，避免 foreignObject 文本在 max-width/zoom 缩放下被裁切（影响所有图表类型）
+    htmlLabels: false,
   })
 }
 

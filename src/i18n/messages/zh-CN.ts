@@ -18,7 +18,7 @@ export default {
       blockquote: { label: '引用', desc: '块引用' },
       codeBlock: { label: '代码块', desc: '语法高亮代码' },
       mathBlock: { label: '数学公式', desc: 'LaTeX 公式块' },
-      mermaidBlock: { label: 'Mermaid 图表', desc: '流程图 / 时序图 / ER 图' },
+      mermaidBlock: { label: 'Mermaid 图', desc: '流程图 / 时序图 / ER 图' },
       horizontalRule: { label: '分隔线', desc: '水平分割线' },
       table: { label: '表格', desc: '3×3 表格' },
       image: { label: '图片', desc: '插入本地图片' },
