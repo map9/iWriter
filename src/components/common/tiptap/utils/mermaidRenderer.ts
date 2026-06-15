@@ -28,6 +28,15 @@ export function initMermaid(): void {
 }
 
 /**
+ * Forces the next initMermaid() call to re-initialize Mermaid.
+ * Call after temporarily overriding the global Mermaid config (e.g. for
+ * print rendering with a fixed theme) so the editor's theme isn't left stale.
+ */
+export function resetMermaidInit(): void {
+  initializedTheme = null
+}
+
+/**
  * Render a Mermaid diagram source string to an SVG string.
  * Returns { svg } on success or { error } on parse/render failure.
  */

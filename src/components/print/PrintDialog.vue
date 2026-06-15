@@ -343,7 +343,7 @@ watch(
       }
 
       await nextTick()
-      currentDocumentHtml.value = buildPreviewHtml()
+      currentDocumentHtml.value = await buildPreviewHtml()
     } else {
       if (printerRefreshInterval) {
         clearInterval(printerRefreshInterval)
@@ -362,7 +362,7 @@ watch(
   async (val) => {
     if (props.visible && val) {
       await nextTick()
-      currentDocumentHtml.value = buildPreviewHtml()
+      currentDocumentHtml.value = await buildPreviewHtml()
     }
   },
 )
@@ -496,7 +496,7 @@ function generatePrintCSS(): { css: string; enablePageNumberFix: boolean; pageNu
 }
 
 // ── Preview document builder ──────────────────────────────────────────────────
-function buildPreviewHtml(): string {
+async function buildPreviewHtml(): Promise<string> {
   if (!props.html) return ''
   const printCss = generatePrintCSS()
   const bgColor  = htmlPreviewRef.value?.getContainerBgColor() ?? ''
@@ -540,7 +540,7 @@ function schedulePreviewRender() {
   if (previewRenderTimer) clearTimeout(previewRenderTimer)
   previewRenderTimer = setTimeout(() => {
     previewRenderTimer = null
-    currentDocumentHtml.value = buildPreviewHtml()
+    void buildPreviewHtml().then(html => { currentDocumentHtml.value = html })
   }, PREVIEW_RENDER_DEBOUNCE_MS)
 }
 
@@ -592,7 +592,7 @@ function buildPrintOptions(silent: boolean): Electron.WebContentsPrintOptions {
 }
 
 async function doPrint(silent: boolean) {
-  const htmlDoc = currentDocumentHtml.value || buildPreviewHtml()
+  const htmlDoc = currentDocumentHtml.value || await buildPreviewHtml()
   const options = buildPrintOptions(silent)
   let result: { success: boolean; error?: string; cancelled?: boolean }
   try {
@@ -611,7 +611,7 @@ async function doPrint(silent: boolean) {
 async function handleSaveToPDF() {
   isPrinting.value = true
   try {
-    const htmlDoc = currentDocumentHtml.value || buildPreviewHtml()
+    const htmlDoc = currentDocumentHtml.value || await buildPreviewHtml()
     const pdfOptions: Electron.PrintToPDFOptions = {
       printBackground: activeProfile.value === 'image' ? true : dialogPrintSettings.pageSetup.background,
       preferCSSPageSize: true,
@@ -657,7 +657,7 @@ async function handlePrint() {
 async function handleSystemPrint() {
   // Capture document and options now — both go stale once the dialog closes
   // (currentDocumentHtml is reset by the visible watcher; props.html is cleared by the store).
-  const htmlDoc  = currentDocumentHtml.value || buildPreviewHtml()
+  const htmlDoc  = currentDocumentHtml.value || await buildPreviewHtml()
   const options  = buildPrintOptions(false)
   // Close the print dialog so the OS system print dialog has the user's full attention.
   emit('close')

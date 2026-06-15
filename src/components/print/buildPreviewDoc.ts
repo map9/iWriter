@@ -6,6 +6,26 @@
 import pagedJsRaw from '../../../node_modules/pagedjs/dist/paged.esm.js?raw'
 import { KATEX_INLINE_CSS } from './katexAssets'
 import { renderMathInHtml } from './mathRenderer'
+import { renderMermaidInHtml } from './mermaidPrintRenderer'
+
+const MERMAID_PRINT_CSS = `
+.mermaid-print {
+  display: flex;
+  justify-content: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.mermaid-print svg {
+  max-width: 100%;
+  height: auto;
+}
+.mermaid-print-error {
+  font-family: monospace;
+  font-size: 11px;
+  color: #c0392b;
+  white-space: pre-wrap;
+}
+`
 
 // media="screen" is critical: pagedjs's removeStyles() skips <style media~="screen"> elements,
 // so these visual-only rules stay in the DOM via normal cascade without being processed by pagedjs.
@@ -407,7 +427,7 @@ function buildRunner(options: {
 })();`
 }
 
-export function buildPreviewDocumentWithOptions(
+export async function buildPreviewDocumentWithOptions(
   html: string,
   printCss: string,
   options: {
@@ -422,10 +442,12 @@ export function buildPreviewDocumentWithOptions(
     pageContentHeightPx?: number
     repeatTableHeader?: boolean
   } = {},
-): string {
+): Promise<string> {
   // Pre-render KaTeX math nodes so formulas appear in print/PDF contexts that
   // don't run the Vue NodeView (editor.getHTML() emits empty containers only).
-  const renderedHtml = renderMathInHtml(html)
+  const mathHtml = renderMathInHtml(html)
+  // Pre-render Mermaid code blocks into SVG for the same reason.
+  const renderedHtml = await renderMermaidInHtml(mathHtml)
   // Prevent any </script sequences in user HTML from breaking the iframe document
   const safeHtml = renderedHtml.split('</script').join('<\\/script')
 
@@ -439,6 +461,7 @@ export function buildPreviewDocumentWithOptions(
     // CSS so theme rules can override spacing/background without specificity fights.
     '<style>', KATEX_INLINE_CSS, '</style>',
     '<style media="screen">', PREVIEW_STYLES, '</style>',
+    '<style>', MERMAID_PRINT_CSS, '</style>',
     '<style>', printCss, '</style>',
     '</head><body>',
     safeHtml,
