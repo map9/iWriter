@@ -342,8 +342,23 @@ function closeMermaidEdit(): void {
 // Click outside closes edit
 const codeBlockRef = ref()
 
+// 记录 mousedown 是否发生在编辑区域内，避免拖拽选中文字到外部松开鼠标时
+// 触发的 click 事件被误判为"点击外部"而关闭编辑模式
+let mouseDownInside = false
+
+function handleMouseDownCapture(event: MouseEvent): void {
+  if (!isMermaid.value || !isEditing.value || !codeBlockRef.value) return
+  const target = event.target as Element
+  const domElement = codeBlockRef.value.$el || codeBlockRef.value
+  mouseDownInside = !!domElement?.contains(target)
+}
+
 function handleClickOutside(event: MouseEvent): void {
   if (!isMermaid.value || !isEditing.value || !codeBlockRef.value) return
+  if (mouseDownInside) {
+    mouseDownInside = false
+    return
+  }
   const target = event.target as Element
   const domElement = codeBlockRef.value.$el || codeBlockRef.value
   if (!domElement?.contains(target)) {
@@ -420,12 +435,14 @@ onMounted(() => {
     doRender()
   }
   setupThemeObserver()
+  document.addEventListener('mousedown', handleMouseDownCapture, true)
   document.addEventListener('click', handleClickOutside, true)
 })
 
 onUnmounted(() => {
   if (renderTimer) clearTimeout(renderTimer)
   themeObserver?.disconnect()
+  document.removeEventListener('mousedown', handleMouseDownCapture, true)
   document.removeEventListener('click', handleClickOutside, true)
 })
 </script>
