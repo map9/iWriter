@@ -154,9 +154,9 @@ Creative 模式的核心目标是生成和维护项目级资产，例如：
 
 - `electron/ai/document/SnapshotBroker.ts`
 - `src/ai/snapshot/SnapshotSerializer.ts`
-- `src/ai/edit-agent/DocumentViewBuilder.ts`
-- `src/ai/edit-agent/BlockEditApplier.ts`
-- `src/ai/edit-agent/UnifiedDocumentAccess.ts`
+- `src/ai/edit/DocumentViewBuilder.ts`
+- `src/ai/edit/BlockEditApplier.ts`
+- `src/ai/edit/UnifiedDocumentAccess.ts`
 
 ## 已废弃或不再作为现状的设计
 

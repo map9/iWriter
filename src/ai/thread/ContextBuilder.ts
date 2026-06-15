@@ -8,7 +8,7 @@
 
 import type { AiThread, OpenTabInfo } from '@/ai/types'
 import type { Editor } from '@tiptap/core'
-import { DocumentViewBuilder, type DocumentView } from '../edit-agent/DocumentViewBuilder'
+import { DocumentViewBuilder, type DocumentView } from '../edit/DocumentViewBuilder'
 
 // ── Document View Cache ────────────────────────────────────────────────────
 

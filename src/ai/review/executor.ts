@@ -1,6 +1,6 @@
 import type { Editor } from '@tiptap/core'
 import type { BlockEditProposal, EditProposal, FileCreateProposal } from '@/ai/types'
-import { UnifiedDocumentAccess } from '@/ai/edit-agent/UnifiedDocumentAccess'
+import { UnifiedDocumentAccess } from '@/ai/edit/UnifiedDocumentAccess'
 import { pathUtils } from '@/utils/pathUtils'
 import { DocumentType } from '@/types/document-type'
 import type { ReviewBatchState } from './types'
