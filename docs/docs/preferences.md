@@ -2,7 +2,7 @@
 
 > 适用版本：iWriter `0.1.17`
 >
-> 最后更新：2026-06-07
+> 最后更新：2026-06-15
 
 `偏好设置` 用于管理 iWriter 的编辑体验、拼写与语法检查、主题、导入导出、AI 提供方以及应用更新行为。当前界面分为 `通用`、`编辑器`、`拼写与语法`、`显示`、`打印与PDF输出`、`导出`、`AI`、`更新` 八个分组。
 
@@ -13,7 +13,8 @@
 - 想切换应用主题或跟随系统外观
 - 想选择 Markdown 屏幕预览或打印主题，或管理自定义主题
 - 想配置导出目录、Pandoc 路径与不同格式的输出参数
-- 想配置 AI Provider、模型与自定义接口
+- 想配置 AI Provider、模型、备用模型、模型能力与自定义接口
+- 想配置 AI 使用的 Web Search Provider
 - 想控制自动更新、更新通道与检查频率
 
 ## 编辑器
@@ -208,9 +209,19 @@ AI 分组用于管理内置和自定义 Provider。
 - 已启用的 Provider 会显示当前模型
 - 支持添加自定义提供方
 - 自定义接口类型支持 `OpenAI`、`Anthropic`、`Gemini`
-- Provider 配置通常包括 API Key、Base URL、模型列表，以及更细的模型能力配置
+- Provider 配置通常包括 API Key、Base URL、模型列表、备用模型，以及更细的模型能力配置
+- 自定义 Provider 支持用 JSON 为每个模型配置上下文长度、输出长度、reasoning 输出、工具调用、工具选择和结构化输出能力
 - `Ollama` 的模型列表会自动从本地服务读取，更适合本地模型工作流
 - `DeepSeek`、`GLM` 等预设更适合直接套用官方接口或兼容网关
+
+### Web Search
+
+AI 分组左侧还包含 Web Search 配置区，用于给 AI 工具调用提供联网搜索能力。
+
+- 支持 `Bocha`、`Exa`、`Serper`、`Tavily`
+- 每个搜索服务可配置 API Key 和 Base URL
+- 未配置 API Key 的搜索服务会显示“未配置”
+- 配置可用后，Edit / Creative 模式中的网页研究工具会使用当前可用的搜索服务
 
 ![AI 偏好项：Provider 列表](/images/docs/preferences/preferences-ai-providers.png)
 
