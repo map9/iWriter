@@ -101,9 +101,30 @@ export async function formatCodeInMain(
     }
   } catch (error) {
     console.error('[CodeFormatService] Code formatting error:', error)
+    const msg = error instanceof Error ? error.message : 'Unknown formatting error'
+    // Extract first line only (removes the code-frame block that prettier appends)
+    const firstLine = msg.split('\n')[0] ?? msg
+    // Extract loc from error object or fall back to parsing the "(line:col)" in the message
+    let loc: { line: number; column: number } | undefined
+    const errAny = error as Record<string, unknown>
+    if (
+      errAny.loc &&
+      typeof (errAny.loc as Record<string, unknown>).start === 'object' &&
+      (errAny.loc as Record<string, unknown>).start !== null
+    ) {
+      const start = (errAny.loc as Record<string, unknown>).start as Record<string, unknown>
+      if (typeof start.line === 'number' && typeof start.column === 'number') {
+        loc = { line: start.line, column: start.column }
+      }
+    }
+    if (!loc) {
+      const m = firstLine.match(/\((\d+):(\d+)\)/)
+      if (m) loc = { line: Number(m[1]), column: Number(m[2]) }
+    }
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown formatting error',
+      error: firstLine,
+      loc,
     }
   }
 }

@@ -4,6 +4,7 @@ import {
   type CodeFormatResult,
   type SupportedCodeFormatLanguage,
 } from '@/types/code-format'
+import { notify } from '@/utils/notifications'
 
 export const SUPPORTED_LANGUAGES = SUPPORTED_CODE_FORMAT_LANGUAGES
 export type SupportedLanguage = SupportedCodeFormatLanguage
@@ -24,7 +25,12 @@ export async function formatCode(
     }
   }
 
-  return window.electronAPI.formatCode(code, language)
+  const result = await window.electronAPI.formatCode(code, language)
+  if (!result.success) {
+    const where = result.loc ? `Line ${result.loc.line}, Col ${result.loc.column}: ` : ''
+    notify.error(`${where}${result.error || 'Unknown error'}`, 'Format failed')
+  }
+  return result
 }
 
 export async function formatCodeSync(

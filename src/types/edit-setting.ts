@@ -15,4 +15,5 @@ export interface EditSetting {
   proofreadApiUrl?: string
   proofreadApiKey?: string
   workspaceIgnoreRules?: string
+  codeBlockLanguageScope?: 'common' | 'all'
 }

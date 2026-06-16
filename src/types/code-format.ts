@@ -29,6 +29,7 @@ export interface CodeFormatResult {
   success: boolean
   formattedCode?: string
   error?: string
+  loc?: { line: number; column: number }
 }
 
 export function isSupportedCodeFormatLanguage(

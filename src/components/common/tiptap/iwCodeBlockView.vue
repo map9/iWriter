@@ -107,9 +107,12 @@
           @click.stop
         >
           <option :value="null">auto</option>
+          <option v-if="selectedLanguage" :value="selectedLanguage">
+            {{ selectedLanguage }}{{ isLanguageSupported(selectedLanguage) ? ' ✦' : '' }}
+          </option>
           <option disabled>—</option>
-          <option v-for="(language, index) in languages" :value="language" :key="index">
-            {{ language }}
+          <option v-for="lang in scopedLanguages" :value="lang" :key="lang">
+            {{ lang }}{{ isLanguageSupported(lang) ? ' ✦' : '' }}
           </option>
         </select>
 
@@ -185,6 +188,13 @@ import {
 import { formatCode, isLanguageSupported, type FormatResult } from "./utils/CodeFormatter"
 import { renderMermaid, initMermaid } from "./utils/mermaidRenderer"
 import { notify } from '@/utils/notifications'
+import { useAppStore } from '@/stores/app'
+import { createLowlight, common } from 'lowlight'
+
+const appStore = useAppStore()
+
+// Set of "common" language names from lowlight's built-in common bundle (~37 languages)
+const COMMON_LANGUAGE_SET = new Set(createLowlight(common).listLanguages())
 
 interface NodeAttributes {
   language: string
@@ -246,6 +256,18 @@ const isMermaid = computed(() => selectedLanguage.value === 'mermaid')
 
 const shouldShowToolbar = computed((): boolean => {
   return props.selected || isHovered.value || isEditing.value
+})
+
+// Language scope: 'common' (default) shows ~37 common languages; 'all' shows the full set
+const languageScope = computed(() => appStore.globalEditSetting.codeBlockLanguageScope ?? 'common')
+
+// Scoped language list: filtered by scope, current language excluded (shown separately at top)
+const scopedLanguages = computed<string[]>(() => {
+  const current = selectedLanguage.value
+  const base = languageScope.value === 'common'
+    ? languages.value.filter(l => COMMON_LANGUAGE_SET.has(l))
+    : languages.value
+  return base.filter(l => l !== current)
 })
 
 const canFormat = computed((): boolean => {

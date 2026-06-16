@@ -443,6 +443,31 @@
             </div>
           </section>
 
+          <section class="flex flex-col gap-3">
+            <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.editor.codeBlockLanguageScopeTitle') }}</h3>
+            <div class="text-xs text-base-content/50 -mt-1">{{ t('preferences.editor.codeBlockLanguageScopeDesc') }}</div>
+            <div class="flex flex-col gap-2">
+              <label class="grid cursor-pointer grid-cols-[1rem_minmax(0,1fr)] items-center gap-x-3 rounded-box border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/70">
+                <input
+                  type="radio"
+                  class="radio radio-primary radio-xs"
+                  :checked="(appStore.globalEditSetting.codeBlockLanguageScope ?? 'common') === 'common'"
+                  @change="appStore.globalEditSetting.codeBlockLanguageScope = 'common'"
+                />
+                <span class="min-w-0 text-sm font-medium text-base-content">{{ t('preferences.editor.codeBlockLanguageScopeCommon') }}</span>
+              </label>
+              <label class="grid cursor-pointer grid-cols-[1rem_minmax(0,1fr)] items-center gap-x-3 rounded-box border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/70">
+                <input
+                  type="radio"
+                  class="radio radio-primary radio-xs"
+                  :checked="appStore.globalEditSetting.codeBlockLanguageScope === 'all'"
+                  @change="appStore.globalEditSetting.codeBlockLanguageScope = 'all'"
+                />
+                <span class="min-w-0 text-sm font-medium text-base-content">{{ t('preferences.editor.codeBlockLanguageScopeAll') }}</span>
+              </label>
+            </div>
+          </section>
+
           </div>
         </div>
 

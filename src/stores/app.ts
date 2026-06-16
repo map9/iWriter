@@ -106,6 +106,7 @@ export const useAppStore = defineStore('app', () => {
     showProofreadErrors: true,
     proofread: true,
     workspaceIgnoreRules: DEFAULT_WORKSPACE_IGNORE_RULES,
+    codeBlockLanguageScope: 'common',
   })
   const globalExportSetting = reactive<ExportSettings>(structuredClone(DEFAULT_EXPORT_SETTING))
   const globalMarkdownPrintSetting = reactive<MarkdownPrintPreferences>(structuredClone(DEFAULT_MARKDOWN_PRINT_PREFERENCES))
