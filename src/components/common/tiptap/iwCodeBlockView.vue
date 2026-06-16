@@ -158,6 +158,7 @@
       v-if="isMermaid"
       ref="mermaidContainer"
       class="mermaid-container"
+      :class="{ 'no-select': isEditing }"
       :style="{ '--mermaid-zoom': mermaidZoom }"
       contenteditable="false"
     >
@@ -329,12 +330,23 @@ function resetZoom(): void {
 }
 
 // --- Mermaid edit mode ---
+// 同步 mermaidEditing 节点属性，供方向键导航插件判断是否允许移入/移出该块
+function setMermaidEditingAttr(value: boolean): void {
+  const pos = props.getPos()
+  if (pos === undefined) return
+  const tr = props.editor.state.tr.setNodeAttribute(pos, 'mermaidEditing', value)
+  tr.setMeta('addToHistory', false)
+  props.editor.view.dispatch(tr)
+}
+
 function openMermaidEdit(): void {
   isEditing.value = true
+  setMermaidEditingAttr(true)
 }
 
 function closeMermaidEdit(): void {
   isEditing.value = false
+  setMermaidEditingAttr(false)
   // re-render immediately on close
   doRender()
 }
@@ -448,6 +460,13 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+// 编辑模式下预览区不参与文本选择，避免 Ctrl+A / 右键"全部选择"选中预览图中的文字
+// 非编辑模式下不能加此限制，否则 ProseMirror 无法在点击时建立 NodeSelection（无法 focus）
+.mermaid-container.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 // ── 左右分栏（默认） ──────────────────────────────────────────────
 .toolbar-wrapper.mermaid-edit-h {
   display: flex;
