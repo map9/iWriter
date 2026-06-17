@@ -7,10 +7,7 @@
  */
 
 import type { AiModelProfile, AiProviderType } from '@/ai/types'
-import {
-  DEFAULT_DEEPSEEK_MODEL_PROFILES,
-  DEFAULT_OPENAI_MODEL_PROFILES,
-} from '@/ai/model-profiles'
+import { DEFAULT_DEEPSEEK_MODEL_PROFILES } from '@/ai/model-profiles'
 import { i18n } from '@/i18n'
 
 export interface ProviderPreset {
@@ -154,11 +151,10 @@ const PROVIDER_PRESET_TEMPLATES: ProviderPresetTemplate[] = [
     baseUrl: 'https://api.openai.com/v1',
     defaultModelId: '',
     models: [
-      'gpt-5.4-2026-03-05', 'gpt-5.4-pro-2026-03-05',
-      'gpt-5-mini-2025-08-07', 'gpt-5-nano-2025-08-07', 'gpt-5-2025-08-07',
-      'gpt-4.1-2025-04-14'
+      'gpt-5.4', 'gpt-5.4-pro',
+      'gpt-5-mini', 'gpt-5-nano', 'gpt-5',
+      'gpt-4.1'
     ],
-    modelProfiles: DEFAULT_OPENAI_MODEL_PROFILES,
     requiresApiKey: true,
     editableBaseUrl: true,
   },

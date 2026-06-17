@@ -70,6 +70,35 @@ export interface AiDisplayThread {
 
 // ── Settings localStorage helpers ──────────────────────────────────────────
 const _STORAGE_KEY_SETTINGS = 'iwriter-ai-settings'
+
+function resolveDefaultModelProfiles(
+  cfg: AiProviderConfig,
+  preset?: ProviderPreset,
+): AiProviderConfig['modelProfiles'] {
+  if (preset?.id === 'openai') return undefined
+  return cfg.modelProfiles ?? preset?.modelProfiles
+}
+
+function normalizeOpenAiPresetConfig(
+  cfg: AiProviderConfig,
+  preset: ProviderPreset,
+): AiProviderConfig {
+  const presetModels = preset.models ?? []
+  const isPresetModel = (modelId: string | undefined): boolean => {
+    const normalized = modelId?.trim()
+    return !!normalized && presetModels.includes(normalized)
+  }
+
+  return {
+    ...cfg,
+    defaultModelId: isPresetModel(cfg.defaultModelId) ? cfg.defaultModelId : preset.defaultModelId,
+    models: presetModels,
+    modelProfiles: undefined,
+    lastSelectedModelId: isPresetModel(cfg.lastSelectedModelId) ? cfg.lastSelectedModelId : undefined,
+    fallbackModelId: isPresetModel(cfg.fallbackModelId) ? cfg.fallbackModelId : undefined,
+  }
+}
+
 function _loadSettings(): AiSettings {
   try {
     const raw = localStorage.getItem(_STORAGE_KEY_SETTINGS)
@@ -85,11 +114,14 @@ function _loadSettings(): AiSettings {
     merged.activeWebSearchProviderConfigId = merged.activeWebSearchProviderConfigId ?? null
     merged.providerConfigs = (merged.providerConfigs ?? []).map(cfg => {
       const preset = getProviderPresetById(cfg.presetId)
+      const normalizedPresetConfig = preset?.id === 'openai'
+        ? normalizeOpenAiPresetConfig(cfg, preset)
+        : cfg
       return {
-        ...cfg,
-        modelProfiles: cfg.modelProfiles ?? preset?.modelProfiles,
-        lastSelectedThinkingLevel: normalizeThinkingLevel(cfg.lastSelectedThinkingLevel),
-        parameters: normalizeProviderParameters(cfg.parameters),
+        ...normalizedPresetConfig,
+        modelProfiles: resolveDefaultModelProfiles(normalizedPresetConfig, preset),
+        lastSelectedThinkingLevel: normalizeThinkingLevel(normalizedPresetConfig.lastSelectedThinkingLevel),
+        parameters: normalizeProviderParameters(normalizedPresetConfig.parameters),
       }
     })
     return merged
@@ -127,7 +159,7 @@ export const useAiStore = defineStore('ai', () => {
         defaultModelId: p.defaultModelId,
         presetId: p.id,
         models: p.models,
-        modelProfiles: p.modelProfiles,
+        modelProfiles: p.id === 'openai' ? undefined : p.modelProfiles,
         lastSelectedThinkingLevel: DEFAULT_THINKING_LEVEL,
         parameters: { ...DEFAULT_AI_PROVIDER_PARAMETERS },
       }))

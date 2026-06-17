@@ -116,7 +116,7 @@ export function buildPlannerSubAgent(
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${PLANNER_SYSTEM_PROMPT}`,
     tools: plannerTools,
     // responseFormat enables ProviderStrategy (native JSON parsing) in langchain 1.4.x.
-    // deepseek-reasoner declares structuredOutput:true in model-profiles.ts, so langchain
+    // DeepSeek's app-level profile declares structuredOutput:true, so langchain
     // routes through ProviderStrategy — which reads the model's text content directly with
     // JSON.parse — rather than ToolStrategy, avoiding any tool_choice:"any" injection.
     // The system prompt instructs the model to output bare JSON (no fences) so that

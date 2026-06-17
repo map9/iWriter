@@ -863,7 +863,7 @@ export interface AiProviderParameterSupportOptions {
 
 function isOpenAIReasoningModelName(modelId: string): boolean {
   const normalized = modelId.trim().toLowerCase()
-  return normalized.startsWith('gpt-5') || /^o\d(?:-|$)/.test(normalized)
+  return normalized.startsWith('gpt-5') || normalized.startsWith('gpt5') || /^o\d(?:-|$)/.test(normalized)
 }
 
 export function isOpenAIReasoningModel(

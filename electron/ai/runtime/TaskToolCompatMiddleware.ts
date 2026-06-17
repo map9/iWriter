@@ -11,7 +11,7 @@
  * 2. Planner 子代理输出三层防护（wrapToolCall）
  *
  *    背景：buildPlannerSubAgent 启用了 responseFormat: PlannerResponseSchema。
- *    deepseek-reasoner 的 profile 声明 structuredOutput:true，langchain 因此走
+ *    DeepSeek 的应用层 profile 声明 structuredOutput:true，langchain 因此走
  *    ProviderStrategy（native），直接用 JSON.parse 解析 model 最终文本输出，
  *    不强制 tool_choice:"any"（无 tool_choice 冲突）。当 ProviderStrategy.parse
  *    成功时，deepagents 的 returnCommandWithStateUpdate 把 structuredResponse

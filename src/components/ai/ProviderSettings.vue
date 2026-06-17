@@ -236,10 +236,10 @@
                     v-model="pane.form.modelProfilesStr"
                     rows="8"
                     placeholder='{
-  "deepseek-chat": {
-    "maxInputTokens": 128000,
-    "maxOutputTokens": 8000,
-    "reasoningOutput": false,
+  "deepseek-v4-pro": {
+    "maxInputTokens": 1000000,
+    "maxOutputTokens": 384000,
+    "reasoningOutput": true,
     "toolCalling": true,
     "toolChoice": true,
     "structuredOutput": true

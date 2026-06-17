@@ -56,17 +56,31 @@ function getProfileOverride(config: AiProviderConfig, modelId: string): ModelPro
   return config.modelProfiles?.[modelId] as ModelProfile | undefined
 }
 
+function readModelProfile(model: BaseChatModel): ModelProfile {
+  try {
+    const profile = (model as BaseChatModel & { profile?: ModelProfile }).profile
+    return profile && typeof profile === 'object' ? profile : {}
+  } catch {
+    return {}
+  }
+}
+
+function hasModelProfile(profile: ModelProfile): boolean {
+  return Object.keys(profile).length > 0
+}
+
+function shouldUseProfileOverride(
+  config: AiProviderConfig,
+  model: BaseChatModel,
+): boolean {
+  if (!isOpenAIResponsesProtocol(config.type, config.baseUrl)) return true
+  return !hasModelProfile(readModelProfile(model))
+}
+
 function applyProfileOverride<T extends BaseChatModel>(model: T, profile?: ModelProfile): T {
   if (!profile || Object.keys(profile).length === 0) return model
 
-  const baseProfile = (() => {
-    try {
-      const current = (model as T & { profile?: ModelProfile }).profile
-      return current && typeof current === 'object' ? current : {}
-    } catch {
-      return {}
-    }
-  })()
+  const baseProfile = readModelProfile(model)
 
   Object.defineProperty(model, 'profile', {
     configurable: true,
@@ -125,7 +139,9 @@ export function createChatModel(
               },
             }),
       }) as BaseChatModel
-      return applyProfileOverride(model, getProfileOverride(config, modelId))
+      return shouldUseProfileOverride(config, model)
+        ? applyProfileOverride(model, getProfileOverride(config, modelId))
+        : model
     }
 
     case 'deepseek': {
