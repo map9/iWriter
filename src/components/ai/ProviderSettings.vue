@@ -544,7 +544,19 @@ function getLlmPaneAvailableModels(pane: LlmPane): string[] {
 
 function getLlmPaneParameterSupport(pane: LlmPane) {
   const form = getLlmForm(pane)
-  return getProviderParameterSupport(form.type, form.baseUrl)
+  const modelProfiles = (() => {
+    if (isLlmPanePreset(pane)) return pane.preset?.modelProfiles
+    if (!form.modelProfilesStr.trim()) return pane.config?.modelProfiles
+    try {
+      return JSON.parse(form.modelProfilesStr) as Record<string, AiModelProfile>
+    } catch {
+      return pane.config?.modelProfiles
+    }
+  })()
+  return getProviderParameterSupport(form.type, form.baseUrl, {
+    modelId: getLlmPaneAvailableModels(pane)[0],
+    modelProfiles,
+  })
 }
 
 function isLlmPanePreset(pane: LlmPane): boolean {

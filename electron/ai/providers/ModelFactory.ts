@@ -89,7 +89,10 @@ export function createChatModel(
   const modelId = runtime.modelId || config.lastSelectedModelId || config.defaultModelId
   const thinkingLevel = normalizeThinkingLevel(runtime.thinkingLevel ?? config.lastSelectedThinkingLevel)
   const parameters = normalizeProviderParameters(config.parameters)
-  const parameterSupport = getProviderParameterSupport(config.type, config.baseUrl)
+  const parameterSupport = getProviderParameterSupport(config.type, config.baseUrl, {
+    modelId,
+    modelProfiles: config.modelProfiles,
+  })
   const resolvedApiKey = resolveApiKeyReference(config.apiKey, resolveAiApiKeyEnvVar)
 
   switch (config.type) {
@@ -127,12 +130,14 @@ export function createChatModel(
 
     case 'deepseek': {
       const key = resolvedApiKey || 'no-key'
+      const thinkingBudget = mapThinkingLevelToBudget(thinkingLevel)
       const model = new ChatDeepSeek({
         model: modelId,
         apiKey: key,
         baseUrl: config.baseUrl,
         streaming: true,
         thinkingLevel,
+        budgetTokens: thinkingBudget,
         ...(parameterSupport.temperature ? { temperature: parameters.temperature } : {}),
         ...(parameterSupport.topP ? { topP: parameters.topP } : {}),
         ...(parameterSupport.frequencyPenalty ? { frequencyPenalty: parameters.frequencyPenalty } : {}),

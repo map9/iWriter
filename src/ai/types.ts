@@ -856,8 +856,44 @@ export function isOpenAIResponsesProtocol(type: AiProviderType, baseUrl?: string
   return /api\.openai\.com/i.test(baseUrl)
 }
 
-export function getProviderParameterSupport(type: AiProviderType, baseUrl?: string): AiProviderParameterSupport {
+export interface AiProviderParameterSupportOptions {
+  modelId?: string | null
+  modelProfiles?: Record<string, AiModelProfile> | null
+}
+
+function isOpenAIReasoningModelName(modelId: string): boolean {
+  const normalized = modelId.trim().toLowerCase()
+  return normalized.startsWith('gpt-5') || /^o\d(?:-|$)/.test(normalized)
+}
+
+export function isOpenAIReasoningModel(
+  type: AiProviderType,
+  baseUrl?: string,
+  options: AiProviderParameterSupportOptions = {},
+): boolean {
+  if (!isOpenAIResponsesProtocol(type, baseUrl)) return false
+
+  const modelId = options.modelId?.trim() ?? ''
+  if (!modelId) return false
+
+  if (options.modelProfiles?.[modelId]?.reasoningOutput === true) return true
+  return isOpenAIReasoningModelName(modelId)
+}
+
+export function getProviderParameterSupport(
+  type: AiProviderType,
+  baseUrl?: string,
+  options: AiProviderParameterSupportOptions = {},
+): AiProviderParameterSupport {
   if (isOpenAIResponsesProtocol(type, baseUrl)) {
+    if (isOpenAIReasoningModel(type, baseUrl, options)) {
+      return {
+        temperature: false,
+        topP: false,
+        frequencyPenalty: false,
+        presencePenalty: false,
+      }
+    }
     return {
       temperature: true,
       topP: true,

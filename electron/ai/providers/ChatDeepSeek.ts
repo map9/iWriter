@@ -46,6 +46,7 @@ interface ChatDeepSeekFields extends BaseChatModelParams {
   presencePenalty?: number
   profile?: ModelProfile
   thinkingLevel?: AiThinkingLevel
+  budgetTokens?: number
 }
 
 interface DeepSeekUsage {
@@ -385,6 +386,7 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
   presencePenalty?: number
   profileOverride?: ModelProfile
   thinkingLevel: AiThinkingLevel
+  budgetTokens?: number
 
   constructor(fields: ChatDeepSeekFields) {
     super(fields)
@@ -399,6 +401,7 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
     this.presencePenalty = fields.presencePenalty
     this.profileOverride = fields.profile
     this.thinkingLevel = normalizeThinkingLevel(fields.thinkingLevel)
+    this.budgetTokens = fields.budgetTokens
   }
 
   get profile(): ModelProfile {
@@ -798,7 +801,10 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
     if (stream) {
       body.stream_options = { include_usage: true }
     }
-    body.thinking = { type: 'enabled' }
+    body.thinking = {
+      type: 'enabled',
+      ...(this.budgetTokens != null ? { budget_tokens: this.budgetTokens } : {}),
+    }
     body.reasoning_effort = this.thinkingLevel === 'extra_high' ? 'max' : 'high'
     if (Array.isArray(options.tools) && options.tools.length) {
       body.tools = options.tools
