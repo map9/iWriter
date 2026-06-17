@@ -94,4 +94,24 @@ assert.deepEqual(reasoningAndParallelToolBlocks, [
   },
 ])
 
+const mixedIndexedContentBlocks = await collectFinishedBlocks([
+  new ChatGenerationChunk({
+    message: new AIMessageChunk({
+      content: [{ type: 'text', text: 'visible', index: 0 }],
+    }),
+    text: '',
+  }),
+  new ChatGenerationChunk({
+    message: new AIMessageChunk({
+      content: [{ type: 'reasoning', reasoning: 'hidden', index: 0 }],
+    }),
+    text: '',
+  }),
+])
+
+assert.deepEqual(mixedIndexedContentBlocks, [
+  { type: 'text', text: 'visible', index: 0 },
+  { type: 'reasoning', reasoning: 'hidden', index: 0 },
+])
+
 console.log('LangChain patch verification passed')
