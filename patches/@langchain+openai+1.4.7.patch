@@ -1,0 +1,38 @@
+diff --git a/node_modules/@langchain/openai/dist/converters/responses.cjs b/node_modules/@langchain/openai/dist/converters/responses.cjs
+index 3a87dc4..a529449 100644
+--- a/node_modules/@langchain/openai/dist/converters/responses.cjs
++++ b/node_modules/@langchain/openai/dist/converters/responses.cjs
+@@ -753,13 +753,9 @@ const convertStandardContentMessageToResponsesInput = (message) => {
+ 			}];
+ 			const reasoningItem = {
+ 				type: "reasoning",
+-				id: block.id ?? "",
++				...(block.id ? { id: block.id } : {}),
+ 				summary
+ 			};
+-			if (block.reasoning) reasoningItem.content = [{
+-				type: "reasoning_text",
+-				text: block.reasoning
+-			}];
+ 			return reasoningItem;
+ 		};
+ 		const convertFunctionCall = (block) => ({
+diff --git a/node_modules/@langchain/openai/dist/converters/responses.js b/node_modules/@langchain/openai/dist/converters/responses.js
+index 6480cac..23fa949 100644
+--- a/node_modules/@langchain/openai/dist/converters/responses.js
++++ b/node_modules/@langchain/openai/dist/converters/responses.js
+@@ -753,13 +753,9 @@ const convertStandardContentMessageToResponsesInput = (message) => {
+ 			}];
+ 			const reasoningItem = {
+ 				type: "reasoning",
+-				id: block.id ?? "",
++				...(block.id ? { id: block.id } : {}),
+ 				summary
+ 			};
+-			if (block.reasoning) reasoningItem.content = [{
+-				type: "reasoning_text",
+-				text: block.reasoning
+-			}];
+ 			return reasoningItem;
+ 		};
+ 		const convertFunctionCall = (block) => ({
