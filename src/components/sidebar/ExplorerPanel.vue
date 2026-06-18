@@ -800,8 +800,9 @@ const handleTreeMouseLeave = () => {
   --tree-selected-background: var(--color-primary);
   --tree-selected-color: var(--color-primary-content);
 
-  --tree-focus-outline: 1px solid var(--color-primary);
-  --tree-focus-outline-offset: -2px;
+  --tree-focus-ring-border: 1px solid var(--color-primary);
+  --tree-focus-ring-border-selected: 1px solid var(--color-primary-content);
+  --tree-focus-ring-inset: 0px;
 
   --tree-selected-focused-background: var(--color-primary);
   --tree-selected-focused-color: var(--color-primary-content);
@@ -811,6 +812,8 @@ const handleTreeMouseLeave = () => {
 
   --tree-badge-background: var(--color-base-100);
   --tree-badge-color: var(--color-base-content);
+  --tree-badge-selected-background: color-mix(in oklab, var(--color-primary-content) 30%, transparent);
+  --tree-badge-selected-color: var(--color-primary-content);
   --tree-badge-font-size: 10px;
   --tree-badge-height: 20px;
   --tree-badge-border-radius: var(--radius-selector);

@@ -87,6 +87,9 @@
       >
         {{ rightContent }}
       </div>
+
+      <!-- Focus Ring (overlay, paints above label/badge regardless of outline-offset quirks) -->
+      <div class="focus-ring" aria-hidden="true"></div>
     </div>
 
     <!-- Children -->
@@ -431,10 +434,11 @@ const createCustomDragImage = (e: DragEvent) => {
   dragImage.style.top = '-1000px' // Move off-screen
   dragImage.style.left = '-1000px'
   
-  // Use the same theme tokens as selected items.
-  dragImage.style.background = 'color-mix(in oklab, var(--color-primary) 12%, var(--color-base-100))'
-  dragImage.style.color = 'var(--color-base-content)'
-  dragImage.style.border = '1px solid color-mix(in oklab, var(--color-primary) 45%, var(--color-base-300))'
+  // Plain fallback colors (this element is appended to document.body, outside
+  // the tree's own scoped --tree-* custom properties, so it can't inherit them).
+  dragImage.style.background = 'rgba(37, 99, 235, 0.1)'
+  dragImage.style.color = '#111827'
+  dragImage.style.border = '1px solid rgba(37, 99, 235, 0.5)'
   dragImage.style.padding = '2px 4px'
   dragImage.style.fontSize = '12px'
   dragImage.style.fontFamily = 'inherit'
@@ -685,7 +689,7 @@ defineExpose({
 }
 
 .tree-node:not(.disabled) .tree-node-content:not(.selected-status).tree-node-content:hover {
-  background-color: var(--tree-hover-color, var(--color-base-200));
+  background-color: var(--tree-hover-color, #e5e7eb);
 }
 
 .tree-node-content .button-wrapper {
@@ -747,7 +751,7 @@ defineExpose({
   outline: none;
   height: auto;
   background: var(--tree-input-background, transparent);
-  border: var(--tree-input-border, var(--border) solid var(--color-base-300));
+  border: var(--tree-input-border, 1px solid #d1d5db);
   border-radius: var(--tree-border-radius, 0px);
   padding: var(--tree-input-padding, 2px 4px);
   font-size: inherit;
@@ -757,8 +761,8 @@ defineExpose({
 .tree-node-content .badge {
   white-space: nowrap;
   height: var(--tree-badge-height, auto);
-  background: var(--tree-badge-background, var(--color-base-200));
-  color: var(--tree-badge-color, color-mix(in oklab, var(--color-base-content) 70%, transparent));
+  background: var(--tree-badge-background, #e5e7eb);
+  color: var(--tree-badge-color, rgba(0, 0, 0, 0.7));
   font-size: var(--tree-badge-font-size, inherit);
   padding: var(--tree-badge-padding, 4px 8px);
   border-radius: var(--tree-badge-border-radius, 12px);
@@ -766,14 +770,28 @@ defineExpose({
   margin-right: var(--tree-badge-spacing, 4px);
 }
 
+.tree-node-content.selected-status .badge {
+  background: var(--tree-badge-selected-background, rgba(255, 255, 255, 0.3));
+  color: var(--tree-badge-selected-color, #ffffff);
+}
+
+.tree-node-content .focus-ring {
+  display: none;
+  position: absolute;
+  inset: var(--tree-focus-ring-inset, 0px);
+  border: var(--tree-focus-ring-border, 1px solid rgba(37, 99, 235, 0.5));
+  border-radius: inherit;
+  pointer-events: none;
+}
+
 .tree-node.dragged {
   opacity: var(--tree-drag-opacity, 0.6);
-  background-color: var(--tree-drag-background, color-mix(in oklab, var(--color-primary) 10%, transparent));
+  background-color: var(--tree-drag-background, rgba(37, 99, 235, 0.1));
 }
 
 .tree-node.drag-over {
-  background-color: var(--tree-drop-background, color-mix(in oklab, var(--color-success) 18%, transparent));
-  border-color: var(--tree-drop-border-color, color-mix(in oklab, var(--color-success) 60%, transparent));
+  background-color: var(--tree-drop-background, rgba(22, 163, 74, 0.15));
+  border-color: var(--tree-drop-border-color, rgba(22, 163, 74, 0.7));
 }
 
 .tree-node-content.drop-target {
@@ -783,11 +801,11 @@ defineExpose({
 }
 
 .tree-node-content.drop-target.drop-background {
-  background-color: var(--tree-drop-background, color-mix(in oklab, var(--color-success) 18%, transparent));
+  background-color: var(--tree-drop-background, rgba(22, 163, 74, 0.15));
 }
 
 .tree-node-content.drop-target.drop-border {
-  border-color: var(--tree-drop-border-color, color-mix(in oklab, var(--color-success) 60%, transparent));
+  border-color: var(--tree-drop-border-color, rgba(22, 163, 74, 0.7));
 }
 
 .tree-node-content.drop-border-top::before {
@@ -797,7 +815,7 @@ defineExpose({
   left: 0;
   right: 0;
   height: 4px;
-  background: var(--tree-drop-indicator, linear-gradient(90deg, var(--color-success), color-mix(in oklab, var(--color-success) 30%, transparent)));
+  background: var(--tree-drop-indicator, linear-gradient(90deg, #16a34a, rgba(22, 163, 74, 0.3)));
   border-radius: 2px;
 }
 
@@ -808,25 +826,26 @@ defineExpose({
   left: 0;
   right: 0;
   height: 4px;
-  background: var(--tree-drop-indicator, linear-gradient(90deg, var(--color-success), color-mix(in oklab, var(--color-success) 30%, transparent)));
+  background: var(--tree-drop-indicator, linear-gradient(90deg, #16a34a, rgba(22, 163, 74, 0.3)));
   border-radius: 2px;
 }
 
 .tree-node-content.selected-status {
-  color: var(--tree-selected-color, var(--color-primary));
-  background-color: var(--tree-selected-background, color-mix(in oklab, var(--color-primary) 12%, var(--color-base-100)));
+  color: var(--tree-selected-color, #2563eb);
+  background-color: var(--tree-selected-background, rgba(37, 99, 235, 0.1));
 }
 
-.tree-node-content.focused-status {
-  outline: var(--tree-focus-outline, 2px solid color-mix(in oklab, var(--color-primary) 45%, transparent));
-  outline-offset: var(--tree-focus-outline-offset, -2px);
+.tree-node-content.focused-status .focus-ring {
+  display: block;
 }
 
 .tree-node-content.focused-status.selected-status {
-  color: var(--tree-selected-focused-color, var(--color-primary));
-  background-color: var(--tree-selected-focused-background, color-mix(in oklab, var(--color-primary) 12%, var(--color-base-100)));
-  outline: var(--tree-focus-outline, 2px solid color-mix(in oklab, var(--color-primary) 45%, transparent));
-  outline-offset: var(--tree-focus-outline-offset, -2px);
+  color: var(--tree-selected-focused-color, #2563eb);
+  background-color: var(--tree-selected-focused-background, rgba(37, 99, 235, 0.1));
+}
+
+.tree-node-content.focused-status.selected-status .focus-ring {
+  border: var(--tree-focus-ring-border-selected, var(--tree-focus-ring-border, 2px solid rgba(37, 99, 235, 0.5)));
 }
 
 .tree-children.dragged {

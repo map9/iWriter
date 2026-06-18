@@ -1,38 +1,43 @@
 <template>
-  <div 
-    ref="treeRoot" 
-    class="tree-root" 
-    :class="{
-      'drag-over-root': isDragOverRoot && canDropToRoot,
-    }"
-    :data-has-focused-node="hasFocusedNode"
-    tabindex="0"
-    @keydown="handleKeyDown"
-    @click="handleTreeRootClick"
-    @focus="handleTreeFocus"
-    @blur="handleTreeBlur"
-    @dragover.prevent="handleRootDragOver"
-    @dragleave="handleRootDragLeave"
-    @drop="handleRootDrop"
-  >
-    <TreeNode
-      v-for="node in visibleNodes"
-      :key="node.id"
-      :ref="(el: any) => setNodeRef(node.id, el)"
-      :node="node"
-      :callbacks="callbacks"
-      :initialDepth="initialDepth"
-      :drop-mode="dropMode"
-      :item-click-mode="itemClickMode"
-      @node-click="(data: any) => handleNodeClick(data.node, data.event)"
-      @node-check="handleNodeCheck"
-      @node-rename="handleNodeRename"
-      @node-drag="handleNodeDrag"
-      @node-drop="handleNodeDrop"
-      @node-contextmenu="handleNodeContextMenu"
-      @node-ref="setNodeRef"
-      @first-level-fallback="handleFirstLevelFallback"
-    />
+  <div class="tree-wrapper">
+    <div
+      ref="treeRoot"
+      class="tree-root"
+      :class="{
+        'drag-over-root': isDragOverRoot && canDropToRoot,
+      }"
+      :data-has-focused-node="hasFocusedNode"
+      tabindex="0"
+      @keydown="handleKeyDown"
+      @click="handleTreeRootClick"
+      @focus="handleTreeFocus"
+      @blur="handleTreeBlur"
+      @dragover.prevent="handleRootDragOver"
+      @dragleave="handleRootDragLeave"
+      @drop="handleRootDrop"
+    >
+      <TreeNode
+        v-for="node in visibleNodes"
+        :key="node.id"
+        :ref="(el: any) => setNodeRef(node.id, el)"
+        :node="node"
+        :callbacks="callbacks"
+        :initialDepth="initialDepth"
+        :drop-mode="dropMode"
+        :item-click-mode="itemClickMode"
+        @node-click="(data: any) => handleNodeClick(data.node, data.event)"
+        @node-check="handleNodeCheck"
+        @node-rename="handleNodeRename"
+        @node-drag="handleNodeDrag"
+        @node-drop="handleNodeDrop"
+        @node-contextmenu="handleNodeContextMenu"
+        @node-ref="setNodeRef"
+        @first-level-fallback="handleFirstLevelFallback"
+      />
+    </div>
+    <!-- Sibling of the scrolling .tree-root (not a child of it), so the ring
+         stays pinned to the viewport instead of scrolling with the content -->
+    <div class="root-focus-ring" aria-hidden="true"></div>
   </div>
 </template>
 
@@ -1031,6 +1036,11 @@ defineExpose({
 </script>
 
 <style scoped>
+.tree-wrapper {
+  position: relative;
+  height: 100%;
+}
+
 .tree-root {
   height: 100%;
   overflow-y: auto;
@@ -1045,16 +1055,26 @@ defineExpose({
   outline: none;
 }
 
-.tree-root:focus:not([data-has-focused-node="true"]) {
-  outline: var(--tree-focus-outline, 2px solid color-mix(in oklab, var(--color-primary) 45%, transparent));
-  outline-offset: var(--tree-focus-outline-offset, -2px);
+.root-focus-ring {
+  display: none;
+  position: absolute;
+  inset: var(--tree-focus-ring-inset, 0px);
+  border: var(--tree-focus-ring-border, 1px solid rgba(37, 99, 235, 0.5));
+  border-radius: var(--tree-container-border-radius, 0px);
+  pointer-events: none;
+}
+
+.tree-root:focus:not([data-has-focused-node="true"]) ~ .root-focus-ring {
+  display: block;
 }
 
 .tree-root.drag-over-root {
-  background-color: var(--tree-drop-background, color-mix(in oklab, var(--color-success) 18%, transparent));
-  border-color: var(--tree-drop-border-color, color-mix(in oklab, var(--color-success) 60%, transparent));
-  outline: var(--tree-focus-outline, 2px solid color-mix(in oklab, var(--color-primary) 45%, transparent));
-  outline-offset: var(--tree-focus-outline-offset, -2px);
+  background-color: var(--tree-drop-background, rgba(22, 163, 74, 0.15));
+  border-color: var(--tree-drop-border-color, rgba(22, 163, 74, 0.7));
+}
+
+.tree-root.drag-over-root ~ .root-focus-ring {
+  display: block;
 }
 
 </style>
