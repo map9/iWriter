@@ -882,6 +882,7 @@ export default {
       endRound: '结束本轮修改',
       locateHint: '定位到文稿中的这处内容',
       locate: '定位原文',
+      locateFailed: '未能定位到原文，目标文档可能已不存在',
       newFilePreview: '新建文档预览',
       fileName: '文件名：{name}',
       fileTargetPath: '目标路径：{path}',

@@ -6,7 +6,7 @@ import { DocumentType } from '@/types/document-type'
 import type { ReviewBatchState } from './types'
 
 /** Prefix for the virtual_id of an in-memory unsaved_new document, e.g. "untitled:<tab.id>". */
-const UNTITLED_PREFIX = 'untitled:'
+export const UNTITLED_PREFIX = 'untitled:'
 
 export interface ReviewExecutorAppStoreLike {
   tabs?: Array<{

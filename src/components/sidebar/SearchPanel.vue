@@ -230,6 +230,7 @@ import {
   IconReplaceFilled
 } from '@tabler/icons-vue'
 import { iwSearchReplaceInFilesService, type SearchReplaceInFilesSearchResult } from '@/components/common/tiptap/iw-search-replace'
+import { waitForEditorReady } from '@/components/common/tiptap/utils'
 import type { Editor } from '@tiptap/core'
 import { notify } from '@/utils/notifications'
 import type { FileChange } from '@/types'
@@ -455,7 +456,7 @@ async function jumpToResult(fileResult: SearchReplaceInFilesSearchResult, matchI
     await appStore.openFile(fileResult.filePath)
 
     // 2. 等待编辑器实例就绪（包括内容加载完成）
-    const editor = await waitForEditorReady(fileResult.filePath)
+    const editor = await waitForEditorReady(() => appStore.tabs.find(t => t.path === fileResult.filePath))
     if (!editor) {
       notify.error(t('notify.search.failedOpenEditor'))
       return
@@ -482,45 +483,6 @@ async function jumpToResult(fileResult: SearchReplaceInFilesSearchResult, matchI
     console.error('Error jumping to result:', error)
     notify.error(t('notify.search.failedJump'))
   }
-}
-
-/**
- * 等待编辑器实例就绪
- * 文件打开后，编辑器实例需要时间完成初始化和内容加载
- *
- * 检查条件：
- * 1. tab 存在且有 editorInstance
- * 2. editor.state 和 editor.view 已初始化
- * 3. 文档内容已加载（doc.content.size > 2，空文档的 size 为 2）
- *
- * @param filePath 文件路径
- * @param maxAttempts 最大尝试次数（默认 40 次，共 2 秒）
- * @returns Editor 实例或 null
- */
-async function waitForEditorReady(filePath: string, maxAttempts: number = 40): Promise<Editor | null> {
-  for (let i = 0; i < maxAttempts; i++) {
-    await nextTick()
-
-    const tab = appStore.tabs.find(t => t.path === filePath)
-    if (tab?.editorInstance) {
-      const editor = tab.editorInstance as Editor
-
-      // 确保编辑器已完全初始化
-      if (editor.state && editor.view && editor.view.dom) {
-        // 关键检查：文档内容已加载
-        // 空文档的 size 为 2（开始和结束标记）
-        // 有内容的文档 size > 2
-        if (editor.state.doc.content.size > 2) {
-          return editor
-        }
-      }
-    }
-
-    // 等待 50ms 后重试
-    await new Promise(resolve => setTimeout(resolve, 50))
-  }
-
-  return null
 }
 
 function replaceNext() {

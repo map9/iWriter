@@ -48,6 +48,7 @@
             </div>
           </div>
           <button
+            v-if="canLocate"
             class="iw-btn btn-xs"
             :title="t('agentPanel.proposalNavigator.locateHint')"
             @click="scrollToCurrentBlock"
@@ -175,13 +176,17 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { EditProposal } from '@/ai/types'
+import type { BlockEditProposal, EditProposal } from '@/ai/types'
 import { buildProposalNavigatorViewModel } from '@/ai/review/selectors'
 import type { ProposalReviewSummary } from '@/ai/store/ai'
 import type { Editor } from '@tiptap/core'
 import { useAppStore } from '@/stores/app'
 import { findNodeById } from '@/ai/edit/BlockEditApplier'
 import { setRangeHighlights, removeRangeHighlights } from '@/components/common/tiptap/iw-range-highlight'
+import { waitForEditorReady } from '@/components/common/tiptap/utils'
+import { UNTITLED_PREFIX } from '@/ai/review/executor'
+import { pathUtils } from '@/utils/pathUtils'
+import { notify } from '@/utils/notifications'
 import MarkdownContentView from './views/MarkdownContentView.vue'
 import DiffSplitView from './views/DiffSplitView.vue'
 
@@ -298,7 +303,68 @@ function next() {
   if (currentIndex.value < props.proposals.length - 1) currentIndex.value++
 }
 
-function scrollToProposal(proposal: EditProposal | null | undefined) {
+/** Whether a proposal can be located at all (independent of where its document currently lives). */
+function canLocateProposal(proposal: EditProposal | null | undefined): boolean {
+  if (!proposal || proposal.kind !== 'block') return false
+  if (proposal.filePath?.startsWith(UNTITLED_PREFIX)) {
+    // Unsaved in-memory document: only locatable while its tab still exists.
+    const tabId = proposal.filePath.slice(UNTITLED_PREFIX.length)
+    return useAppStore().tabs.some(t => t.id === tabId)
+  }
+  return true
+}
+
+const canLocate = computed(() => canLocateProposal(current.value))
+
+/**
+ * Resolves the editor instance that holds the proposal's target document.
+ * - No filePath -> the active editor.
+ * - "untitled:<tabId>" -> the matching unsaved tab.
+ * - Real path -> a tab already open for it, otherwise opened from disk (when allowed).
+ * When allowDocumentSwitch is false, only returns an editor that is already active —
+ * it never switches tabs or opens files (used for passive auto-scroll while paging proposals).
+ */
+async function resolveTargetEditor(proposal: BlockEditProposal, allowDocumentSwitch: boolean): Promise<Editor | undefined> {
+  const appStore = useAppStore()
+  const filePath = proposal.filePath
+
+  if (!filePath) {
+    return appStore.activeTab?.editorInstance as Editor | undefined
+  }
+
+  if (filePath.startsWith(UNTITLED_PREFIX)) {
+    const tabId = filePath.slice(UNTITLED_PREFIX.length)
+    const tab = appStore.tabs.find(t => t.id === tabId)
+    if (!tab) return undefined
+    if (tab.id !== appStore.activeTabId) {
+      if (!allowDocumentSwitch) return undefined
+      appStore.setActiveTab(tab.id)
+    }
+    return tab.editorInstance as Editor | undefined
+  }
+
+  const normalizedTarget = pathUtils.normalize(filePath)
+  const isTargetTab = (t: { path?: string | null }) => !!t.path && pathUtils.normalize(t.path) === normalizedTarget
+  const matchingTab = appStore.tabs.find(isTargetTab)
+
+  if (matchingTab?.editorInstance) {
+    if (matchingTab.id !== appStore.activeTabId) {
+      if (!allowDocumentSwitch) return undefined
+      appStore.setActiveTab(matchingTab.id)
+    }
+    return matchingTab.editorInstance as Editor
+  }
+
+  if (!allowDocumentSwitch) return undefined
+
+  await appStore.openFile(filePath)
+  return (await waitForEditorReady(() => appStore.tabs.find(isTargetTab))) ?? undefined
+}
+
+/** Editor that currently carries the proposal highlight, so it can be cleared even after switching documents. */
+let highlightedEditor: Editor | undefined
+
+async function scrollToProposal(proposal: EditProposal | null | undefined, allowDocumentSwitch: boolean) {
   if (!proposal || proposal.kind !== 'block') return
 
   const nodeId =
@@ -307,9 +373,11 @@ function scrollToProposal(proposal: EditProposal | null | undefined) {
     proposal.nodeId
   if (!nodeId || nodeId === '0') return
 
-  const appStore = useAppStore()
-  const editor = appStore.activeTab?.editorInstance as Editor | undefined
-  if (!editor) return
+  const editor = await resolveTargetEditor(proposal, allowDocumentSwitch)
+  if (!editor) {
+    if (allowDocumentSwitch) notify.error(t('agentPanel.proposalNavigator.locateFailed'))
+    return
+  }
 
   let highlightRange: { from: number; to: number } | null = null
   let scrollTarget = findNodeById(editor.state.doc, nodeId)
@@ -326,8 +394,16 @@ function scrollToProposal(proposal: EditProposal | null | undefined) {
     }
   }
 
-  if (!scrollTarget) return
+  if (!scrollTarget) {
+    if (allowDocumentSwitch) notify.error(t('agentPanel.proposalNavigator.locateFailed'))
+    return
+  }
   if (!highlightRange) highlightRange = { from: scrollTarget.from, to: scrollTarget.to }
+
+  if (highlightedEditor && highlightedEditor !== editor) {
+    removeRangeHighlights(highlightedEditor, PROPOSAL_HIGHLIGHT_ID, PROPOSAL_HIGHLIGHT_CLASS)
+  }
+  highlightedEditor = editor
 
   setRangeHighlights(editor, [{ id: PROPOSAL_HIGHLIGHT_ID, ...highlightRange }], PROPOSAL_HIGHLIGHT_CLASS)
 
@@ -337,13 +413,14 @@ function scrollToProposal(proposal: EditProposal | null | undefined) {
 }
 
 function scrollToCurrentBlock() {
-  scrollToProposal(current.value)
+  scrollToProposal(current.value, true)
 }
 
 function clearHighlight() {
-  const appStore = useAppStore()
-  const editor = appStore.activeTab?.editorInstance as Editor | undefined
-  if (editor) removeRangeHighlights(editor, PROPOSAL_HIGHLIGHT_ID, PROPOSAL_HIGHLIGHT_CLASS)
+  if (highlightedEditor) {
+    removeRangeHighlights(highlightedEditor, PROPOSAL_HIGHLIGHT_ID, PROPOSAL_HIGHLIGHT_CLASS)
+    highlightedEditor = undefined
+  }
 }
 
 function activateInsertEditing() {
@@ -368,7 +445,7 @@ watch(
     editedContent.value = proposal?.kind === 'block' ? proposal.newContent || '' : ''
 
     await nextTick()
-    scrollToProposal(proposal)
+    scrollToProposal(proposal, false)
   },
   { immediate: true, flush: 'post' }
 )

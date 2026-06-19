@@ -885,6 +885,7 @@ export default {
       endRound: 'End Round',
       locateHint: 'Locate this content in the document',
       locate: 'Locate Source',
+      locateFailed: 'Could not locate the source content; the target document may no longer exist',
       newFilePreview: 'New File Preview',
       fileName: 'File: {name}',
       fileTargetPath: 'Target path: {path}',
