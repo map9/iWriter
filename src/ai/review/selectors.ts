@@ -285,7 +285,6 @@ export function buildProposalNavigatorViewModel(input: {
   const batchTotal = reviewSummary?.total ?? proposals.length
   const isBatchReview = batchTotal > 1
   const resolvedCount = reviewSummary?.resolved ?? 0
-  const hasReviewProgress = resolvedCount > 0
   const currentIsDelete = current?.kind === 'block' && current.type === 'delete'
   const currentTitle = isBatchReview
     ? `[${Math.min(resolvedCount + currentIndex + 1, batchTotal)} / ${batchTotal}] 当前建议`
@@ -299,17 +298,15 @@ export function buildProposalNavigatorViewModel(input: {
       ? '接受本条删除'
       : hasEditedContent ? '修改后接受本条' : '接受本条'
 
-  const skipButtonLabel = isBatchReview ? '跳过本条' : '跳过'
-  const reworkButtonLabel = isBatchReview ? '重做本条' : '重做'
-  const primaryBatchActionLabel = hasReviewProgress ? '跳过剩余建议并继续' : '接受所有建议'
+  const skipButtonLabel = isBatchReview ? '拒绝本条' : '拒绝'
+  const approveAllButtonLabel = '全部接受'
+  const rejectAllButtonLabel = '全部拒绝'
   const batchHint = isStreaming
     ? `正在生成建议，当前已有 ${proposals.length} 条。`
-    : hasReviewProgress
-      ? '批次级动作会影响剩余未审核建议；当前建议的接受、跳过、重做只影响这一条。'
-      : '你现在在审核这一批建议。批次级动作会作用于整批待审核建议。'
+    : '你现在在审核这一批建议。全部接受/全部拒绝会覆盖整批建议；当前建议的接受、拒绝只影响这一条。'
   const actionHint = isBatchReview
-    ? '接受、跳过、重做都只影响当前这条建议；左右箭头只负责切换查看。'
-    : '接受会采纳当前建议，跳过会保留原文不变，重做只会退回这一条建议。'
+    ? '接受、拒绝都只影响当前这条建议；左右箭头只负责切换查看。'
+    : '接受会采纳当前建议，拒绝会保留原文不变。'
 
   const accepted = (reviewSummary?.approved ?? 0) + (reviewSummary?.edited ?? 0)
   const skipped = (reviewSummary?.rejected ?? 0) + (reviewSummary?.ended ?? 0)
@@ -318,7 +315,7 @@ export function buildProposalNavigatorViewModel(input: {
     ? current.filename
     : current?.filePath ? pathUtils.basename(current.filePath) : '当前文档'
   const batchSummaryParts = [currentFileLabel || '当前文档', `共 ${batchTotal} 条建议`, `待审核 ${proposals.length} 条`]
-  if (skipped > 0) batchSummaryParts.push(`跳过 ${skipped} 条`)
+  if (skipped > 0) batchSummaryParts.push(`拒绝 ${skipped} 条`)
   if (accepted > 0) batchSummaryParts.push(`将修改 ${accepted} 条`)
   if (rework > 0) batchSummaryParts.push(`重做 ${rework} 条`)
 
@@ -326,13 +323,12 @@ export function buildProposalNavigatorViewModel(input: {
     isBatchReview,
     batchTotal,
     resolvedCount,
-    hasReviewProgress,
     currentTitle,
     currentLabel: current ? proposalSummaryLabel(current) : '',
     approveButtonLabel,
     skipButtonLabel,
-    reworkButtonLabel,
-    primaryBatchActionLabel,
+    approveAllButtonLabel,
+    rejectAllButtonLabel,
     batchHint,
     actionHint,
     batchSummaryLine: batchSummaryParts.join(' · '),

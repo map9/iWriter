@@ -174,6 +174,27 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
     await maybeFlushResume()
   }
 
+  /** Decides every filesystem review in the batch (overriding any already-made per-item decision) and submits the whole round. */
+  async function decideAllFilesystemReviews(type: 'approved' | 'rejected') {
+    const batch = reviewBatch.value
+    if (!batch) return
+    for (const reviewId of batch.filesystemIds) {
+      batch.decisionsById[reviewId] = type === 'approved'
+        ? { type: 'approved' }
+        : { type: 'rejected', message: 'User rejected all file operations in this batch.' }
+      removePendingReview(reviewId)
+    }
+    await maybeFlushResume()
+  }
+
+  async function approveAllFilesystemReviews() {
+    await decideAllFilesystemReviews('approved')
+  }
+
+  async function rejectAllFilesystemReviews() {
+    await decideAllFilesystemReviews('rejected')
+  }
+
   return {
     interruptActionCount,
     isResumingFilesystemReview,
@@ -182,5 +203,7 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
     rejectAllPendingReviews,
     approveFilesystemReview,
     rejectFilesystemReview,
+    approveAllFilesystemReviews,
+    rejectAllFilesystemReviews,
   }
 }

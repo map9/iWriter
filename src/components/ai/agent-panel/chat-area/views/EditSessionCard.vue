@@ -9,9 +9,7 @@
       @reject="$emit('reject', $event)"
       @edit-approve="$emit('editApprove', $event)"
       @approve-all="$emit('approveAll')"
-      @skip-remaining="$emit('skipRemaining')"
-      @rework="$emit('rework', $event)"
-      @end-round="$emit('endRound', $event)"
+      @reject-all="$emit('rejectAll')"
     />
 
     <EditSummaryCard
@@ -38,9 +36,7 @@ defineEmits<{
   reject: [payload: { id: string; message?: string }]
   editApprove: [payload: { id: string; editedArgs: Record<string, unknown> }]
   approveAll: []
-  skipRemaining: []
-  rework: [payload: { id: string; reason: string }]
-  endRound: [payload?: { id?: string }]
+  rejectAll: []
 }>()
 
 </script>

@@ -674,11 +674,8 @@ export const useAiStore = defineStore('ai', () => {
     approveEditProposal,
     editAndApproveProposal,
     rejectEditProposal,
-    requestProposalRework,
-    skipRemainingProposalsAndContinue,
     approveAllProposals,
     rejectAllProposals,
-    endReviewRound,
   } = editReview
 
   const {
@@ -688,6 +685,8 @@ export const useAiStore = defineStore('ai', () => {
     rejectAllPendingReviews: _rejectAllPendingFilesystemReviews,
     approveFilesystemReview,
     rejectFilesystemReview,
+    approveAllFilesystemReviews,
+    rejectAllFilesystemReviews,
   } = filesystemReview
 
   const {
@@ -888,11 +887,8 @@ export const useAiStore = defineStore('ai', () => {
     approveEditProposal,
     editAndApproveProposal,
     rejectEditProposal,
-    requestProposalRework,
-    skipRemainingProposalsAndContinue,
     approveAllProposals,
     rejectAllProposals,
-    endReviewRound,
     approveCreativeReview,
     editAndApproveCreativeReview,
     rejectCreativeReview,
@@ -900,6 +896,8 @@ export const useAiStore = defineStore('ai', () => {
     approveAllCreativeReviews,
     approveFilesystemReview,
     rejectFilesystemReview,
+    approveAllFilesystemReviews,
+    rejectAllFilesystemReviews,
     cancelStreaming,
     setDraftInput,
     init,

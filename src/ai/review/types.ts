@@ -65,13 +65,12 @@ export interface ProposalNavigatorViewModel {
   isBatchReview: boolean
   batchTotal: number
   resolvedCount: number
-  hasReviewProgress: boolean
   currentTitle: string
   currentLabel: string
   approveButtonLabel: string
   skipButtonLabel: string
-  reworkButtonLabel: string
-  primaryBatchActionLabel: string
+  approveAllButtonLabel: string
+  rejectAllButtonLabel: string
   batchHint: string
   actionHint: string
   batchSummaryLine: string

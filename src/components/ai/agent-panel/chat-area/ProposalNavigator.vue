@@ -19,13 +19,12 @@
         <div class="flex shrink-0 flex-wrap gap-1.5">
           <button
             class="iw-btn btn-xs btn-warning"
-            @click="handlePrimaryBatchAction"
-          >{{ navigatorVm.primaryBatchActionLabel }}</button>
+            @click="$emit('approveAll')"
+          >{{ navigatorVm.approveAllButtonLabel }}</button>
           <button
-            class="iw-btn btn-xs btn-ghost"
-            :title="t('agentPanel.proposalNavigator.endRoundHint')"
-            @click="$emit('endRound')"
-          >{{ t('agentPanel.proposalNavigator.endRound') }}</button>
+            class="iw-btn btn-xs btn-error"
+            @click="$emit('rejectAll')"
+          >{{ navigatorVm.rejectAllButtonLabel }}</button>
         </div>
       </div>
     </div>
@@ -128,7 +127,6 @@
             {{ navigatorVm.approveButtonLabel }}
           </button>
           <button class="iw-btn btn-xs btn-ghost" @click="skipCurrent">{{ navigatorVm.skipButtonLabel }}</button>
-          <button class="iw-btn btn-xs btn-warning" @click="openReworkComposer">{{ navigatorVm.reworkButtonLabel }}</button>
           <button
             type="button"
             class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-base-300 bg-base-100 text-2xs text-base-content/70"
@@ -146,27 +144,6 @@
             :disabled="currentIndex >= proposals.length - 1"
             @click="next"
           >→</button>
-        </div>
-
-        <div v-if="showReworkComposer" class="mt-3 rounded-md border p-3" :class="tonePanelClass">
-          <div class="text-xs font-medium" :class="toneTitleClass">{{ t('agentPanel.proposalNavigator.reworkTitle') }}</div>
-          <div class="mt-1 text-xs" :class="toneDescriptionClass">
-            {{ t('agentPanel.proposalNavigator.reworkHint') }}
-          </div>
-          <textarea
-            v-model="reworkReason"
-            rows="3"
-            class="mt-2 w-full resize-none rounded-field border border-base-300 bg-base-100 px-2 py-1.5 text-xs outline-none focus:border-base-content/50"
-            :placeholder="t('agentPanel.proposalNavigator.reworkPlaceholder')"
-          />
-          <div class="mt-2 flex gap-1.5">
-            <button
-              class="iw-btn btn-xs btn-warning"
-              :disabled="!reworkReason.trim()"
-              @click="submitRework"
-            >{{ t('agentPanel.proposalNavigator.submitFeedback') }}</button>
-            <button class="iw-btn btn-xs btn-ghost" @click="cancelReworkComposer">{{ t('agentPanel.common.cancel') }}</button>
-          </div>
         </div>
       </div>
     </section>
@@ -205,17 +182,13 @@ const emit = defineEmits<{
   reject: [payload: { id: string; message?: string }]
   editApprove: [payload: { id: string; editedArgs: Record<string, unknown> }]
   approveAll: []
-  skipRemaining: []
-  rework: [payload: { id: string; reason: string }]
-  endRound: [payload?: { id?: string }]
+  rejectAll: []
 }>()
 
 const currentIndex = ref(0)
 const editedContent = ref('')
 const isInsertEditing = ref(false)
 const insertEditorRef = ref<HTMLTextAreaElement | null>(null)
-const showReworkComposer = ref(false)
-const reworkReason = ref('')
 
 watch(() => props.proposals.length, length => {
   if (currentIndex.value >= length) currentIndex.value = Math.max(0, length - 1)
@@ -258,11 +231,6 @@ function onEditorInput(_event: Event) {
   syncEditorHeight()
 }
 
-function handlePrimaryBatchAction() {
-  if (navigatorVm.value.hasReviewProgress) emit('skipRemaining')
-  else emit('approveAll')
-}
-
 function approve() {
   if (!current.value) return
   if (hasEditedContent.value && current.value.kind === 'block') {
@@ -278,21 +246,6 @@ function approve() {
 function skipCurrent() {
   if (!current.value) return
   emit('reject', { id: current.value.id, message: t('agentPanel.proposalNavigator.userSkipped') })
-}
-
-function openReworkComposer() {
-  showReworkComposer.value = true
-}
-
-function cancelReworkComposer() {
-  showReworkComposer.value = false
-  reworkReason.value = ''
-}
-
-function submitRework() {
-  if (!current.value || !reworkReason.value.trim()) return
-  emit('rework', { id: current.value.id, reason: reworkReason.value.trim() })
-  cancelReworkComposer()
 }
 
 function prev() {
@@ -440,8 +393,6 @@ watch(
   current,
   async proposal => {
     isInsertEditing.value = false
-    showReworkComposer.value = false
-    reworkReason.value = ''
     editedContent.value = proposal?.kind === 'block' ? proposal.newContent || '' : ''
 
     await nextTick()

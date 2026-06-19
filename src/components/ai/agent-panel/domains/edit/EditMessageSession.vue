@@ -9,9 +9,7 @@
     @reject="({ id, message }) => aiStore.rejectEditProposal(id, message)"
     @edit-approve="({ id, editedArgs }) => aiStore.editAndApproveProposal(id, editedArgs)"
     @approve-all="aiStore.approveAllProposals"
-    @skip-remaining="aiStore.skipRemainingProposalsAndContinue"
-    @rework="({ id, reason }) => aiStore.requestProposalRework(id, reason)"
-    @end-round="payload => aiStore.endReviewRound(payload?.id)"
+    @reject-all="aiStore.rejectAllProposals"
   />
 </template>
 

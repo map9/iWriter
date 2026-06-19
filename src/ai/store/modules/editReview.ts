@@ -21,7 +21,6 @@ import {
 import {
   createReviewBatchState,
   findProposalInBatch,
-  getProposalDecision as getProposalDecisionFromBatch,
   getProposalIndex as getProposalIndexFromBatch,
   setProposalDecisionInBatch,
 } from '@/ai/review/state'
@@ -83,10 +82,6 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
 
   function setReviewBatch(batch: ReviewBatchState | null) {
     reviewBatch.value = batch
-  }
-
-  function getProposalDecision(proposalId: string) {
-    return getProposalDecisionFromBatch(getReviewBatch(), proposalId)
   }
 
   function getProposalIndex(proposalId: string): number {
@@ -293,48 +288,14 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
     await maybeFlushResume()
   }
 
-  async function requestProposalRework(proposalId: string, reason: string) {
-    if (getProposalIndex(proposalId) >= 0) {
-      setProposalDecision(proposalId, 'rework_requested', {
-        message: `User requested a revision for this edit only. Keep other proposal decisions unchanged. After the current review round finishes, propose an updated change for this item using this feedback: ${reason}`,
-      })
-    }
-    threadSync.updateLocalProposalToolCall(proposalId, 'rejected')
-    removePendingProposal(proposalId)
-    await maybeFlushResume()
-  }
-
-  async function skipRemainingProposalsAndContinue() {
-    const skipMessage = 'User skipped the remaining proposals in this batch. Continue from the already reviewed decisions without ending the whole round.'
-    for (const proposal of deps.pendingEditProposals.value) {
-      if (getProposalIndex(proposal.id) >= 0 && !getProposalDecision(proposal.id)) {
-        setProposalDecision(proposal.id, 'skipped', { message: skipMessage })
-      }
-      threadSync.updateLocalProposalToolCall(proposal.id, 'rejected')
-    }
-
-    const liveTurn = deps.ensureLiveTurn()
-    if (liveTurn) {
-      liveTurn.reviews = liveTurn.reviews.filter((r: DomainReviewItem) => r.kind !== 'edit')
-      deps.liveTurnRef.value = { ...liveTurn }
-    }
-
-    await maybeFlushResume()
-  }
-
-  async function endReviewRound(fromProposalId?: string) {
-    const endMessage = 'The user ended this review round. Do not make further edits in this batch. Briefly summarize the outcome and finish.'
-    for (const proposal of deps.pendingEditProposals.value) {
-      if (getProposalIndex(proposal.id) >= 0 && !getProposalDecision(proposal.id)) {
-        setProposalDecision(proposal.id, 'round_ended', { message: endMessage })
-      }
-      threadSync.updateLocalProposalToolCall(proposal.id, 'rejected')
-    }
-
-    if (fromProposalId && !deps.pendingEditProposals.value.some(proposal => proposal.id === fromProposalId)) {
-      if (getProposalIndex(fromProposalId) >= 0 && !getProposalDecision(fromProposalId)) {
-        setProposalDecision(fromProposalId, 'round_ended', { message: endMessage })
-      }
+  /** Decides every proposal in the batch (overriding any already-made per-item decision) and submits the whole round. */
+  async function decideAllProposals(kind: 'approved' | 'skipped') {
+    const batch = getReviewBatch()
+    if (!batch) return
+    const message = kind === 'skipped' ? 'User rejected all proposals in this batch.' : undefined
+    for (const proposalId of batch.order) {
+      setProposalDecision(proposalId, kind, { message })
+      if (kind === 'skipped') threadSync.updateLocalProposalToolCall(proposalId, 'rejected')
     }
 
     const liveTurn = deps.ensureLiveTurn()
@@ -361,12 +322,11 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
   }
 
   async function approveAllProposals() {
-    const ids = [...deps.pendingEditProposals.value].map(proposal => proposal.id)
-    for (const id of ids) await approveEditProposal(id)
+    await decideAllProposals('approved')
   }
 
   async function rejectAllProposals() {
-    await endReviewRound()
+    await decideAllProposals('skipped')
   }
 
   return {
@@ -385,10 +345,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
     approveEditProposal,
     editAndApproveProposal,
     rejectEditProposal,
-    requestProposalRework,
-    skipRemainingProposalsAndContinue,
     approveAllProposals,
     rejectAllProposals,
-    endReviewRound,
   }
 }
