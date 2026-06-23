@@ -876,7 +876,7 @@ export default {
       },
       pdfPage: '第 {page} 页',
     },
-    proposalNavigator: {
+    blockEditReviewSurface: {
       reviewTitle: '建议审核',
       locateHint: '定位到文稿中的这处内容',
       locate: '定位原文',
@@ -889,7 +889,7 @@ export default {
       emptyContent: '(空)',
       insertSuggestion: '建议插入内容',
       insertPlaceholder: '按 Markdown 编辑将要插入的内容',
-      userSkipped: '用户跳过了这条建议。',
+      userRejected: '用户拒绝了这条建议。',
       highRisk: '高风险',
     },
     filesystemReview: {
@@ -906,10 +906,7 @@ export default {
       warningDeleteFile: '这会永久删除一个真实的本地文件或目录，此操作无法撤销。',
       warningDefault: '请在批准前仔细检查。',
       newFileContent: '新文件内容',
-      deletePermanently: '这将永久删除：',
       deleteDirectoryHint: '这是一个目录 —— 删除后将连同其全部内容一起移除。',
-      rename: '这将重命名：',
-      move: '这将移动：',
       approve: '接受',
       reject: '拒绝',
       approveAll: '全部接受',

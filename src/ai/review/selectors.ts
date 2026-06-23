@@ -5,7 +5,7 @@ import type {
   EditSessionPhase,
   EditSessionViewModel,
   ProposalDecision,
-  ProposalNavigatorViewModel,
+  BlockEditReviewSurfaceViewModel,
   ProposalReviewEntry,
   ProposalReviewSummary,
   ReviewBatchState,
@@ -265,14 +265,14 @@ export function mergeEditRoundResults(
   })
 }
 
-export function buildProposalNavigatorViewModel(input: {
+export function buildBlockEditReviewSurfaceViewModel(input: {
   proposals: EditProposal[]
   reviewSummary?: ProposalReviewSummary | null
   currentIndex: number
   current: EditProposal | null
   isStreaming?: boolean
   hasEditedContent: boolean
-}): ProposalNavigatorViewModel {
+}): BlockEditReviewSurfaceViewModel {
   const {
     proposals,
     reviewSummary = null,
@@ -298,7 +298,7 @@ export function buildProposalNavigatorViewModel(input: {
       ? '接受本条删除'
       : hasEditedContent ? '修改后接受本条' : '接受本条'
 
-  const skipButtonLabel = isBatchReview ? '拒绝本条' : '拒绝'
+  const rejectButtonLabel = isBatchReview ? '拒绝本条' : '拒绝'
   const approveAllButtonLabel = '全部接受'
   const rejectAllButtonLabel = '全部拒绝'
   const batchHint = isStreaming
@@ -326,7 +326,7 @@ export function buildProposalNavigatorViewModel(input: {
     currentTitle,
     currentLabel: current ? proposalSummaryLabel(current) : '',
     approveButtonLabel,
-    skipButtonLabel,
+    rejectButtonLabel,
     approveAllButtonLabel,
     rejectAllButtonLabel,
     batchHint,

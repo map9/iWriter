@@ -1,72 +1,73 @@
 <template>
-  <div class="overflow-hidden rounded-box border bg-base-100" :class="containerClass">
-    <div
-      v-if="navigatorVm.isBatchReview"
-      class="space-y-2 border-b border-warning-content/15 bg-warning/50 px-3 py-2.5"
-    >
-      <div class="flex items-start justify-between gap-3">
+  <ReviewSurfaceShell
+    v-if="current"
+    :is-batch="navigatorVm.isBatchReview"
+    :index="currentIndex"
+    :total="proposals.length"
+    :is-delete="currentIsDelete"
+    :approve-label="navigatorVm.approveButtonLabel"
+    :reject-label="navigatorVm.rejectButtonLabel"
+    :approve-all-label="navigatorVm.approveAllButtonLabel"
+    :reject-all-label="navigatorVm.rejectAllButtonLabel"
+    @approve="approve"
+    @reject="rejectCurrent"
+    @approve-all="$emit('approveAll')"
+    @reject-all="$emit('rejectAll')"
+    @prev="prev"
+    @next="next"
+  >
+    <template #batch-summary>
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          <div class="text-sm font-semibold text-warning-content">{{ t('agentPanel.blockEditReviewSurface.reviewTitle') }}</div>
+          <button
+            type="button"
+            class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-base-300 bg-base-100 text-2xs text-base-content/70"
+            :title="navigatorVm.batchHint"
+          >?</button>
+        </div>
+        <div class="mt-1 text-xs text-warning-content">{{ navigatorVm.batchSummaryLine }}</div>
+      </div>
+    </template>
+
+    <template #header="{ toneTitleClass, toneDescriptionClass }">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="min-w-0">
           <div class="flex items-center gap-2">
-            <div class="text-sm font-semibold text-warning-content">{{ t('agentPanel.proposalNavigator.reviewTitle') }}</div>
-            <button
-              type="button"
-              class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-base-300 bg-base-100 text-2xs text-base-content/70"
-              :title="navigatorVm.batchHint"
-            >?</button>
+            <div class="text-xs font-medium" :class="toneTitleClass">{{ navigatorVm.currentTitle }}</div>
+            <span
+              v-if="currentIsDelete"
+              class="inline-flex items-center rounded-full bg-error/50 px-1.5 py-0.5 text-2xs font-medium text-error-content"
+            >
+              {{ t('agentPanel.blockEditReviewSurface.highRisk') }}
+            </span>
           </div>
-          <div class="mt-1 text-xs text-warning-content">{{ navigatorVm.batchSummaryLine }}</div>
-        </div>
-        <div class="flex shrink-0 flex-wrap gap-1.5">
-          <button
-            class="iw-btn btn-xs btn-warning"
-            @click="$emit('approveAll')"
-          >{{ navigatorVm.approveAllButtonLabel }}</button>
-          <button
-            class="iw-btn btn-xs btn-error"
-            @click="$emit('rejectAll')"
-          >{{ navigatorVm.rejectAllButtonLabel }}</button>
-        </div>
-      </div>
-    </div>
-
-    <section v-if="current" class="min-w-0 bg-base-100">
-      <div class="border-b border-base-300 px-3 py-2.5" :class="tonePanelClass">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div class="min-w-0">
-            <div class="flex items-center gap-2">
-              <div class="text-xs font-medium" :class="toneTitleClass">{{ navigatorVm.currentTitle }}</div>
-              <span
-                v-if="currentIsDelete"
-                class="inline-flex items-center rounded-full bg-error/50 px-1.5 py-0.5 text-2xs font-medium text-error-content"
-              >
-                高风险
-              </span>
-            </div>
-            <div class="mt-1 truncate text-sm font-medium text-current" :title="navigatorVm.currentLabel">
-              {{ navigatorVm.currentLabel }}
-            </div>
+          <div class="mt-1 truncate text-sm font-medium text-current" :title="navigatorVm.currentLabel">
+            {{ navigatorVm.currentLabel }}
           </div>
-          <button
-            v-if="canLocate"
-            class="iw-btn btn-xs"
-            :title="t('agentPanel.proposalNavigator.locateHint')"
-            @click="scrollToCurrentBlock"
-          >{{ t('agentPanel.proposalNavigator.locate') }}</button>
         </div>
-        <div v-if="current.description" class="mt-2 text-xs" :class="toneDescriptionClass">
-          {{ current.description }}
-        </div>
+        <button
+          v-if="canLocate"
+          class="iw-btn btn-xs"
+          :title="t('agentPanel.blockEditReviewSurface.locateHint')"
+          @click="scrollToCurrentBlock"
+        >{{ t('agentPanel.blockEditReviewSurface.locate') }}</button>
       </div>
+      <div v-if="current.description" class="mt-2 text-xs" :class="toneDescriptionClass">
+        {{ current.description }}
+      </div>
+    </template>
 
+    <template #default="{ tonePanelClass, toneRingClass }">
       <div class="min-h-52">
         <template v-if="current.kind === 'create_file'">
           <div class="border-b border-base-300 px-3 py-2 text-xs font-medium text-base-content">
-            {{ t('agentPanel.proposalNavigator.newFilePreview') }}
+            {{ t('agentPanel.blockEditReviewSurface.newFilePreview') }}
           </div>
           <div class="p-3">
-            <div class="mb-1 text-xs text-base-content/70">{{ t('agentPanel.proposalNavigator.fileName', { name: current.filename }) }}</div>
+            <div class="mb-1 text-xs text-base-content/70">{{ t('agentPanel.blockEditReviewSurface.fileName', { name: current.filename }) }}</div>
             <div v-if="current.directory" class="mb-2 truncate text-xs text-base-content/50" :title="current.directory + '/' + current.filename">
-              {{ t('agentPanel.proposalNavigator.fileTargetPath', { path: current.directory + '/' + current.filename }) }}
+              {{ t('agentPanel.blockEditReviewSurface.fileTargetPath', { path: current.directory + '/' + current.filename }) }}
             </div>
             <div class="rounded-md border p-2">
               <MarkdownContentView :content="current.content" />
@@ -77,18 +78,18 @@
         <template v-else-if="current.type === 'delete'">
           <div class="p-3">
             <div class="mb-2 rounded-md bg-error/50 px-2 py-1.5 text-xs text-error-content">
-              {{ t('agentPanel.proposalNavigator.deleteWarning') }}
+              {{ t('agentPanel.blockEditReviewSurface.deleteWarning') }}
             </div>
-            <div class="mb-1.5 text-xs font-medium text-base-content">{{ t('agentPanel.proposalNavigator.originalToDelete') }}</div>
+            <div class="mb-1.5 text-xs font-medium text-base-content">{{ t('agentPanel.blockEditReviewSurface.originalToDelete') }}</div>
             <div class="rounded-md border border-error-content/15 bg-error/50 p-2 text-error-content">
-              <MarkdownContentView :content="current.oldContent || t('agentPanel.proposalNavigator.emptyContent')" mode="markdown" />
+              <MarkdownContentView :content="current.oldContent || t('agentPanel.blockEditReviewSurface.emptyContent')" mode="markdown" />
             </div>
           </div>
         </template>
 
         <template v-else-if="current.type === 'insert'">
           <div class="p-3">
-            <div class="mb-2 text-xs font-medium text-base-content">{{ t('agentPanel.proposalNavigator.insertSuggestion') }}</div>
+            <div class="mb-2 text-xs font-medium text-base-content">{{ t('agentPanel.blockEditReviewSurface.insertSuggestion') }}</div>
             <div
             class="min-h-32 max-h-88 rounded-field border"
               :class="[tonePanelClass, isInsertEditing ? toneRingClass : 'cursor-text']"
@@ -99,7 +100,7 @@
                 ref="insertEditorRef"
                 v-model="editedContent"
                 class="w-full min-h-32 max-h-88 h-full overflow-y-auto resize-none border-0 bg-transparent px-2 py-1.5 font-mono text-xs leading-relaxed text-current outline-none"
-                :placeholder="t('agentPanel.proposalNavigator.insertPlaceholder')"
+                :placeholder="t('agentPanel.blockEditReviewSurface.insertPlaceholder')"
                 @blur="deactivateInsertEditing"
                 @input="onEditorInput"
               />
@@ -120,41 +121,23 @@
           />
         </template>
       </div>
+    </template>
 
-      <div class="border-t border-base-300 px-3 py-2.5">
-        <div class="flex flex-wrap items-center gap-1.5">
-          <button class="iw-btn btn-xs" :class="currentIsDelete ? 'btn-error' : 'btn-warning'" @click="approve">
-            {{ navigatorVm.approveButtonLabel }}
-          </button>
-          <button class="iw-btn btn-xs btn-ghost" @click="skipCurrent">{{ navigatorVm.skipButtonLabel }}</button>
-          <button
-            type="button"
-            class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-base-300 bg-base-100 text-2xs text-base-content/70"
-            :title="navigatorVm.actionHint"
-          >?</button>
-          <button
-            v-if="navigatorVm.isBatchReview"
-            class="iw-btn btn-xs btn-ghost"
-            :disabled="currentIndex === 0"
-            @click="prev"
-          >←</button>
-          <button
-            v-if="navigatorVm.isBatchReview"
-            class="iw-btn btn-xs btn-ghost"
-            :disabled="currentIndex >= proposals.length - 1"
-            @click="next"
-          >→</button>
-        </div>
-      </div>
-    </section>
-  </div>
+    <template #footer-extra>
+      <button
+        type="button"
+        class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-base-300 bg-base-100 text-2xs text-base-content/70"
+        :title="navigatorVm.actionHint"
+      >?</button>
+    </template>
+  </ReviewSurfaceShell>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { BlockEditProposal, EditProposal } from '@/ai/types'
-import { buildProposalNavigatorViewModel } from '@/ai/review/selectors'
+import { buildBlockEditReviewSurfaceViewModel } from '@/ai/review/selectors'
 import type { ProposalReviewSummary } from '@/ai/store/ai'
 import type { Editor } from '@tiptap/core'
 import { useAppStore } from '@/stores/app'
@@ -166,6 +149,7 @@ import { pathUtils } from '@/utils/pathUtils'
 import { notify } from '@/utils/notifications'
 import MarkdownContentView from './views/MarkdownContentView.vue'
 import DiffSplitView from './views/DiffSplitView.vue'
+import ReviewSurfaceShell from './views/ReviewSurfaceShell.vue'
 
 const PROPOSAL_HIGHLIGHT_ID = 'ai-proposal-current-id'
 const PROPOSAL_HIGHLIGHT_CLASS = 'range-highlight-proposal'
@@ -202,7 +186,7 @@ const hasEditedContent = computed(() =>
   && editedContent.value !== (current.value.newContent || '')
 )
 const navigatorVm = computed(() =>
-  buildProposalNavigatorViewModel({
+  buildBlockEditReviewSurfaceViewModel({
     proposals: props.proposals,
     reviewSummary: props.reviewSummary,
     currentIndex: currentIndex.value,
@@ -211,14 +195,6 @@ const navigatorVm = computed(() =>
     hasEditedContent: hasEditedContent.value,
   })
 )
-
-const containerClass = computed(() =>
-  !navigatorVm.value.isBatchReview && currentIsDelete.value ? 'border-error-content/15' : 'border-warning-content/15'
-)
-const tonePanelClass = computed(() => currentIsDelete.value ? 'border-error-content/15 bg-error/50 text-error-content' : 'border-warning-content/15 bg-warning/50 text-warning-content')
-const toneTitleClass = computed(() => currentIsDelete.value ? 'text-error-content' : 'text-warning-content')
-const toneDescriptionClass = computed(() => currentIsDelete.value ? 'text-error-content/70' : 'text-warning-content/70')
-const toneRingClass = computed(() => currentIsDelete.value ? 'ring-2 ring-error-content/15' : 'ring-2 ring-warning-content/15')
 
 function syncEditorHeight() {
   const el = insertEditorRef.value
@@ -243,9 +219,9 @@ function approve() {
   emit('approve', current.value.id)
 }
 
-function skipCurrent() {
+function rejectCurrent() {
   if (!current.value) return
-  emit('reject', { id: current.value.id, message: t('agentPanel.proposalNavigator.userSkipped') })
+  emit('reject', { id: current.value.id, message: t('agentPanel.blockEditReviewSurface.userRejected') })
 }
 
 function prev() {
@@ -328,7 +304,7 @@ async function scrollToProposal(proposal: EditProposal | null | undefined, allow
 
   const editor = await resolveTargetEditor(proposal, allowDocumentSwitch)
   if (!editor) {
-    if (allowDocumentSwitch) notify.error(t('agentPanel.proposalNavigator.locateFailed'))
+    if (allowDocumentSwitch) notify.error(t('agentPanel.blockEditReviewSurface.locateFailed'))
     return
   }
 
@@ -348,7 +324,7 @@ async function scrollToProposal(proposal: EditProposal | null | undefined, allow
   }
 
   if (!scrollTarget) {
-    if (allowDocumentSwitch) notify.error(t('agentPanel.proposalNavigator.locateFailed'))
+    if (allowDocumentSwitch) notify.error(t('agentPanel.blockEditReviewSurface.locateFailed'))
     return
   }
   if (!highlightRange) highlightRange = { from: scrollTarget.from, to: scrollTarget.to }

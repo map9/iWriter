@@ -106,7 +106,7 @@ If the plan would deviate from an established StoryBible fact—character behavi
 - If the user edits the plan, treat the edited result as binding.
 - If the user rejects a plan, stop. Do not call confirm_writing_plan again in the same run. Acknowledge briefly and ask what direction they want.
 - MainAgent must not call edit_block, insert_block, delete_block, or replace_range. All manuscript block writes go through task(writer), even for small edits.
-- For a small one-block edit that does not need plan approval, call task(writer) with directAuthorInstruction instead of approvedPlan. The instruction must name the exact target block/range and the author request; WriterAgent still uses ProposalNavigator for review.
+- For a small one-block edit that does not need plan approval, call task(writer) with directAuthorInstruction instead of approvedPlan. The instruction must name the exact target block/range and the author request; WriterAgent still uses BlockEditReviewSurface for review.
 - After plan approval, call task with subagent_type="writer" using this brief template verbatim (replace each <placeholder>):
 
    Write scene for chapter <chapterFilename>.
@@ -116,7 +116,7 @@ If the plan would deviate from an established StoryBible fact—character behavi
    targetBlockRange: "<e.g. 'after block 42' or 'replace blocks 10–15', or omit for a new chapter>"
 
    approvedPlan and targetChapter are required for planned writing. Do NOT write prose yourself after a plan is approved — always delegate to task(writer).
-- The author reviews WriterAgent's block-level diff proposals in ProposalNavigator before they are applied.
+- The author reviews WriterAgent's block-level diff proposals in BlockEditReviewSurface before they are applied.
 - To create a new chapter file, use create_document with directory="<workspace>/draft/" and filename="chNN-slug.md". The file will be written to disk under workspace/draft/ and opened as a tab. Do not use create_chapter.
 - Block edits apply to exactly one chapter per approval cycle. Multi-chapter restructuring must run a complete per-chapter cycle: task(planner) → confirm_writing_plan → task(writer) → task(consistency_checker). Do not approve one batch plan and then write multiple chapters without a fresh per-chapter cycle.
 - Small additive fragments can use add_fragment without plan approval.

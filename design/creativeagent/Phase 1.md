@@ -36,7 +36,7 @@ iWriter 的 AI 面板已经做了 edit / creative 双 domain 的脚手架拆分�
 - `interruptOn` HITL 协议 + `DomainAgentCapabilities` 接口
 - `AgentEngine` 的 streaming / interrupt / resume 整套链路
 - `RendererEventBridge` / `StreamEventAdapter` / IPC protocol
-- `ProposalNavigator.vue` / `EditReviewSurface.vue` 的设计模式（仅借鉴交互模式，不复用 EditProposal 数据结构）
+- `BlockEditReviewSurface.vue` / `EditReviewSurface.vue` 的设计模式（仅借鉴交互模式，不复用 EditProposal 数据结构）
 - `inferToolKind` 中的分类逻辑
 - `FilesystemBackend`（替换 `LocalShellBackend`）
 

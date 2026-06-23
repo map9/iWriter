@@ -879,7 +879,7 @@ export default {
       },
       pdfPage: 'p.{page}',
     },
-    proposalNavigator: {
+    blockEditReviewSurface: {
       reviewTitle: 'Suggestion Review',
       locateHint: 'Locate this content in the document',
       locate: 'Locate Source',
@@ -892,7 +892,7 @@ export default {
       emptyContent: '(empty)',
       insertSuggestion: 'Suggested Insert Content',
       insertPlaceholder: 'Edit content to insert in Markdown',
-      userSkipped: 'User skipped this proposal.',
+      userRejected: 'User rejected this proposal.',
       highRisk: 'High risk',
     },
     filesystemReview: {
@@ -909,10 +909,7 @@ export default {
       warningDeleteFile: 'This will permanently delete a real host file or directory. This action cannot be undone.',
       warningDefault: 'Review carefully before approving.',
       newFileContent: 'New file content',
-      deletePermanently: 'This will permanently delete:',
       deleteDirectoryHint: 'This is a directory — deleting it will also remove all of its contents.',
-      rename: 'This will rename:',
-      move: 'This will move:',
       approve: 'Approve',
       reject: 'Reject',
       approveAll: 'Approve All',

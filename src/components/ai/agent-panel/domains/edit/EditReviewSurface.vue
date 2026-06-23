@@ -1,6 +1,6 @@
 <template>
-  <ProposalNavigator
-    v-if="showFallbackProposalNavigator"
+  <BlockEditReviewSurface
+    v-if="showFallbackBlockEditReviewSurface"
     :proposals="aiStore.pendingEditProposals"
     :review-summary="aiStore.reviewBatchSummary"
     :is-streaming="aiStore.isStreaming"
@@ -16,11 +16,11 @@
 import { computed } from 'vue'
 import { resolveProposalHostMessageId } from '@/ai/review/selectors'
 import { useAiStore } from '@/ai/store/ai'
-import ProposalNavigator from '../../chat-area/ProposalNavigator.vue'
+import BlockEditReviewSurface from '../../chat-area/BlockEditReviewSurface.vue'
 
 const aiStore = useAiStore()
 
-const showFallbackProposalNavigator = computed(() => {
+const showFallbackBlockEditReviewSurface = computed(() => {
   if (!aiStore.pendingEditProposals.length) return false
 
   const hostMessageId = resolveProposalHostMessageId({

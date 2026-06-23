@@ -10,7 +10,7 @@ import { useAiStore } from '@/ai/store/ai'
 import { buildCreativeSessionViewModel } from '@/ai/review/creativeSelectors'
 import EditReviewSurface from './edit/EditReviewSurface.vue'
 import CreativeReviewSurface from './creative/CreativeReviewSurface.vue'
-import FilesystemReviewSurface from './FilesystemReviewSurface.vue'
+import FilesystemReviewSurface from '../chat-area/FilesystemReviewSurface.vue'
 
 const aiStore = useAiStore()
 

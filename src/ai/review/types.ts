@@ -61,14 +61,14 @@ export type EditSessionViewModel =
     result: EditRoundResult
   }
 
-export interface ProposalNavigatorViewModel {
+export interface BlockEditReviewSurfaceViewModel {
   isBatchReview: boolean
   batchTotal: number
   resolvedCount: number
   currentTitle: string
   currentLabel: string
   approveButtonLabel: string
-  skipButtonLabel: string
+  rejectButtonLabel: string
   approveAllButtonLabel: string
   rejectAllButtonLabel: string
   batchHint: string

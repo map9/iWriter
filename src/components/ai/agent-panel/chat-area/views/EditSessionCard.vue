@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-1.5">
-    <ProposalNavigator
+    <BlockEditReviewSurface
       v-if="session.kind === 'proposal_review' && session.proposals.length"
       :proposals="session.proposals"
       :review-summary="reviewSummary"
@@ -23,7 +23,7 @@
 import type { EditSessionViewModel } from '@/ai/review/types'
 import type { ProposalReviewSummary } from '@/ai/store/ai'
 import EditSummaryCard from './EditSummaryCard.vue'
-import ProposalNavigator from '../ProposalNavigator.vue'
+import BlockEditReviewSurface from '../BlockEditReviewSurface.vue'
 
 defineProps<{
   session: EditSessionViewModel

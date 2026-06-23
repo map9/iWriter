@@ -9,11 +9,11 @@
 
 混在一起分别修改。
 
-虽然文件名仍沿用 `proposal-navigator-ux-spec.md`，但本文档现在描述的是更完整的 Agent Chat 设计规范，`ProposalNavigator` 只是其中一个子系统。
+虽然文件名仍沿用 `proposal-navigator-ux-spec.md`，但本文档现在描述的是更完整的 Agent Chat 设计规范，`BlockEditReviewSurface` 只是其中一个子系统。
 
 适用文件：
 
-- `src/components/ai/agent-panel/chat-area/ProposalNavigator.vue`
+- `src/components/ai/agent-panel/chat-area/BlockEditReviewSurface.vue`
 - `src/components/ai/agent-panel/chat-area/AgentMessageBubble.vue`
 - `src/components/ai/agent-panel/chat-area/views/ToolCallCard.vue`
 - `src/components/ai/agent-panel/chat-area/views/EditSessionCard.vue`
@@ -47,7 +47,7 @@ Agent Chat 的核心目标不是原样复刻底层 message 数据，而是稳定
 不允许分别在：
 
 - `AgentMessageBubble`
-- `ProposalNavigator`
+- `BlockEditReviewSurface`
 - `EditSummaryCard`
 - `TaskPlanCard`
 - `runtimeDisplay`
@@ -74,7 +74,7 @@ Agent Chat 中 assistant 的可见输出，统一分成 4 类：
 
 1. 正文 bubble
 2. `TaskPlanCard`
-3. `EditSummaryCard` / `ProposalNavigator`
+3. `EditSummaryCard` / `BlockEditReviewSurface`
 4. `ToolCallCard`
 
 不同类别有不同的 thinking 挂载规则。
@@ -129,14 +129,14 @@ edit 相关 tool call 不直接显示成普通 `ToolCallCard`。
 
 它们统一映射到 edit domain UI：
 
-- 审核中：`ProposalNavigator`
+- 审核中：`BlockEditReviewSurface`
 - 审核完成后：`EditSummaryCard`
 
 ### 6.2 thinking 挂载
 
 与 edit proposal / edit summary 相关的 thinking，必须挂到 edit 宿主上：
 
-- 审核阶段挂到 `ProposalNavigator` 所在宿主
+- 审核阶段挂到 `BlockEditReviewSurface` 所在宿主
 - 结果阶段挂到 `EditSummaryCard` 所在宿主
 
 在 `AgentMessageBubble` 内，这类 edit tool call 本体应视为不可见内容。
@@ -212,7 +212,7 @@ edit 相关 tool call 不直接显示成普通 `ToolCallCard`。
 
 ## 9. Proposal 审核体验规范
 
-以下内容保留原有 `ProposalNavigator` 规范，并作为 Agent Chat 编辑域的一部分执行。
+以下内容保留原有 `BlockEditReviewSurface` 规范，并作为 Agent Chat 编辑域的一部分执行。
 
 ### 9.1 交互模型
 

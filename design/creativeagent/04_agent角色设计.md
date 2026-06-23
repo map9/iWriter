@@ -207,7 +207,7 @@ WriterAgent 是系统中对 craft 要求最高的 agent，skills 最多，质量
 3. 按需搜索 draft/ 获取相邻场景的上下文（衔接感）
 4. 调用相关 writing skills 执行写作
 5. 自我检查：写完后先过一遍，明显问题自行修正
-6. 用 `edit_block` / `insert_block` / `delete_block` / `replace_range` 生成块级提案，交给 ProposalNavigator 审批
+6. 用 `edit_block` / `insert_block` / `delete_block` / `replace_range` 生成块级提案，交给 BlockEditReviewSurface 审批
 ```
 
 ### 使用的 Skills
@@ -513,7 +513,7 @@ WriterAgent：
   - 调用 character_voice（A 和 B 各自的说话方式）
   - 调用 dialogue_craft（对话要有潜台词）
   - 调用 pacing_control（短句，张力）
-  - 生成正文 block proposals，等待作者在 ProposalNavigator 审批
+  - 生成正文 block proposals，等待作者在 BlockEditReviewSurface 审批
   ↓
 MainAgent：审批通过后继续协调后续检查
   ↓

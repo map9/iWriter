@@ -8,7 +8,7 @@
 
 ## 背景
 
-实际代码已超出 Phase 5（6 sub-agent + 31 skill + writing-style 嵌套）。基于两份真实 trace（`conversion01/02.json`，字节完全相同）、真实 workspace（`私人笔记/小说`）、ProposalNavigator / AgentEmptyState UI 用例做架构级诊断。
+实际代码已超出 Phase 5（6 sub-agent + 31 skill + writing-style 嵌套）。基于两份真实 trace（`conversion01/02.json`，字节完全相同）、真实 workspace（`私人笔记/小说`）、BlockEditReviewSurface / AgentEmptyState UI 用例做架构级诊断。
 
 trace 还原：作者「依据 storybible 重写第一章」→「完全不是鲁迅风格，要大改」。流程形状正确，但每次写入撞墙（2 次自然语言拒绝 + 1 次 anchor 报错 + 1 次盲目 offset 越界），每次请求退化成 2-3 次整章（26-37k 字符）重生成。
 
@@ -29,14 +29,14 @@ creative 域重新实现了一套比 edit 域更弱的文档访问层：
 |---|---|---|
 | 读 | `get_document_outline/section(s)/blocks/block_context/search_*`，块级 `{b:n}`、分页、跨文件（SnapshotBroker） | `read_chapter/read_fragments/search_draft`，整章字符串，无块 ID |
 | 写 | `edit_block/insert_block/delete_block/replace_range/create_document`，**块级提案**，`expected_*` 过期保护，resume 前应用到 TipTap | `write_to_chapter`（字符串 anchor，无整章覆盖），工具体内 `fs.writeFileSync` 直写 |
-| 复审 UX | `ProposalNavigator.vue`：diff 视图 + 定位 + skip + **rework 带理由** + edit-approve | 整章内容卡，拒绝 = 整章重生成 |
+| 复审 UX | `BlockEditReviewSurface.vue`：diff 视图 + 定位 + skip + **rework 带理由** + edit-approve | 整章内容卡，拒绝 = 整章重生成 |
 
 后果：无块 ID、anchor 脆弱（trace 报错根因）、无过期保护、直写磁盘、**拒绝即全文重生成**。
 
 ### 改造目标
 
 - **不合并**两个用户可见 mode（creative 的 StoryBible/planner/skill 认知层是 edit 用户不需要的）。
-- **抽出共享「文档基座」**（读：DocumentTools；块级写：EditProposalTools；复审：ProposalNavigator），让 creative **消费**而非自建。
+- **抽出共享「文档基座」**（读：DocumentTools；块级写：EditProposalTools；复审：BlockEditReviewSurface），让 creative **消费**而非自建。
 - **废弃 creative 自有文档工具**：`read_chapter/read_fragments/search_draft/write_to_chapter` 全部下线，改用文档基座的块级读写。
 - **`create_chapter` 映射到 `create_document`**（已定决策）：creative 不保留任何自有文档写工具；章节编号 / `draft/` 目录约定逻辑由外层（capability 装配或主 agent 编排）补齐，不下放进工具体。
 - **保留 creative 专属层**：StoryBible 工具、story-state 智能（session diff、rebuild signal、character psychology、logic audit）、sub-agent、skills、plan-first HITL 编排。
@@ -53,13 +53,13 @@ creative 域重新实现了一套比 edit 域更弱的文档访问层：
 
 **但复用非零摩擦，以下为本需求附带的必做改造（实施计划阶段 B 细化）**：
 
-- **渲染分流**：`DomainReviewSurface.vue` / `DomainMessageSession.vue` 现按 `activeDomain==='editing'` 才挂 ProposalNavigator；需改为按「是否存在 pending 块级 review」分流，creative 的 `kind:'edit'` review 才能进入统一复审 UI。
+- **渲染分流**：`DomainReviewSurface.vue` / `DomainMessageSession.vue` 现按 `activeDomain==='editing'` 才挂 BlockEditReviewSurface；需改为按「是否存在 pending 块级 review」分流，creative 的 `kind:'edit'` review 才能进入统一复审 UI。
 - **store 批次状态机**：`runtimeEvents.onRunInterrupted` 现为单路径分发（filesystem→creative→edit 三选一），同 turn 混合多 kind 会丢弃块级 proposal；需支持多 kind 共存的 review 批次。
 - **create_document 落盘**：现有 `create_document` 经 `buildProposalFromAction` 只产出 in-memory tab（`create_file`），未落 `workspace/draft/`；需扩展落盘并补章节编号/目录约定（与「`create_chapter→create_document`」决策配套）。
 
 ### 验收
 
-「重写第一章」走块级 `replace_range`/`edit_block`，在 ProposalNavigator 显示 diff；以「不够鲁迅」rework 时携带理由做**局部修订**而非整章重生成；draft/ch01.md 即使未打开也能编辑。
+「重写第一章」走块级 `replace_range`/`edit_block`，在 BlockEditReviewSurface 显示 diff；以「不够鲁迅」rework 时携带理由做**局部修订**而非整章重生成；draft/ch01.md 即使未打开也能编辑。
 
 ---
 
@@ -133,7 +133,7 @@ creative 域重新实现了一套比 edit 域更弱的文档访问层：
 - `electron/ai/domain/creative/subAgents/{planner,consistency}.ts` + 新建 `{writer,state,advisor}.ts` — 输出契约 + Writer/State/Advisor 下沉 + 风格一致性
 - `electron/ai/builtin-skills/style-consistency-check/SKILL.md` — 新建
 - `src/ai/thread/system-prompts/creative.ts` — lane 条件化、写作流程改块编辑、风格注入、移除重试梯子
-- `src/components/ai/agent-panel/chat-area/ProposalNavigator.vue` — 复用的统一复审 UI
+- `src/components/ai/agent-panel/chat-area/BlockEditReviewSurface.vue` — 复用的统一复审 UI
 - `src/components/ai/agent-panel/domains/{DomainReviewSurface,DomainMessageSession}.vue` — 渲染分流改造（按 pending review 而非 domain 挂载）
 - `src/ai/store/modules/runtimeEvents.ts` — review 批次多 kind 共存改造
 - `electron/ai/ipc/MessageAdapter.ts` / `src/ai/review/executor.ts` — `create_document` 落盘到 `workspace/draft/`

@@ -187,7 +187,7 @@ Agent Chat 的前端显示规则，不再由单个组件各自决定，而是以
 
 其中已经包含：
 
-- `ProposalNavigator` / `EditSummaryCard` 的编辑域规范
+- `BlockEditReviewSurface` / `EditSummaryCard` 的编辑域规范
 - `TaskPlanCard` 的归属规则
 - 普通 `ToolCallCard` 的分组规则
 - thinking 的挂载规则
