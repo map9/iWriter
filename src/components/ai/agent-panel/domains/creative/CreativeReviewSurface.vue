@@ -196,74 +196,6 @@
         />
       </label>
 
-      <label
-        v-if="currentReview.kind === 'creative_plan'"
-        class="block"
-      >
-        <span class="mb-1 block text-[11px] font-medium text-base-content/50">{{ t('agentPanel.creativeReview.rationale') }}</span>
-        <textarea
-          v-model="rationaleDraft"
-          class="min-h-20 w-full resize-y rounded-md border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
-        />
-      </label>
-
-      <details
-        v-if="logicAudit"
-        class="rounded-md border border-base-300 bg-base-200 px-2 py-1.5 text-xs"
-      >
-        <summary class="cursor-pointer select-none font-medium text-base-content/70">
-          {{ t('agentPanel.creativeReview.logicAudit') }}
-        </summary>
-        <div class="mt-2 space-y-2">
-          <section v-if="logicAudit.motivationTraces.length">
-            <div class="mb-1 font-medium text-base-content/70">
-              {{ t('agentPanel.creativeReview.motivationTraces') }}
-            </div>
-            <ul class="space-y-1">
-              <li
-                v-for="(trace, index) in logicAudit.motivationTraces"
-                :key="`motivation-${index}`"
-                class="rounded border border-base-300 bg-base-100 px-2 py-1"
-              >
-                <div class="font-medium">{{ trace.character }} · {{ trace.action }}</div>
-                <div class="text-base-content/70">{{ trace.derivation }}</div>
-              </li>
-            </ul>
-          </section>
-
-          <section v-if="logicAudit.causalChain.length">
-            <div class="mb-1 font-medium text-base-content/70">
-              {{ t('agentPanel.creativeReview.causalChain') }}
-            </div>
-            <ul class="space-y-1">
-              <li
-                v-for="(beat, index) in logicAudit.causalChain"
-                :key="`causal-${index}`"
-                class="rounded border border-base-300 bg-base-100 px-2 py-1"
-              >
-                <div class="font-medium">{{ beat.beat }}</div>
-                <div class="text-base-content/70">{{ beat.trigger }} → {{ beat.decision }} → {{ beat.consequence }}</div>
-              </li>
-            </ul>
-          </section>
-
-          <section v-if="logicAudit.commonSenseFlags.length">
-            <div class="mb-1 font-medium text-base-content/70">
-              {{ t('agentPanel.creativeReview.commonSenseFlags') }}
-            </div>
-            <ul class="space-y-1">
-              <li
-                v-for="(flag, index) in logicAudit.commonSenseFlags"
-                :key="`common-sense-${index}`"
-                class="rounded border border-base-300 bg-base-100 px-2 py-1"
-              >
-                <div class="font-medium">{{ flag.dimension }} · {{ flag.issue }}</div>
-                <div class="text-base-content/70">{{ flag.correction }}</div>
-              </li>
-            </ul>
-          </section>
-        </div>
-      </details>
     </div>
 
     <div
@@ -350,12 +282,8 @@ const { t } = useI18n()
 const reviews = computed(() => aiStore.pendingCreativeReviews)
 const currentIndex = ref(0)
 const currentReview = computed(() => reviews.value[currentIndex.value] ?? null)
-const logicAudit = computed(() =>
-  currentReview.value?.kind === 'creative_plan' ? currentReview.value.logicAudit : undefined
-)
 
 const bodyDraft = ref('')
-const rationaleDraft = ref('')
 const approvedPlanDraft = ref('')
 const filesDraft = ref('')
 const tagMessageDraft = ref('')
@@ -422,7 +350,7 @@ const hasEditedContent = computed(() => {
   const review = currentReview.value
   if (!review) return false
   if (review.kind === 'creative_plan') {
-    return bodyDraft.value !== review.plan || rationaleDraft.value !== review.rationale
+    return bodyDraft.value !== review.plan
   }
   if (review.kind === 'creative_write') {
     return bodyDraft.value !== review.newContent || approvedPlanDraft.value !== review.approvedPlan
@@ -461,7 +389,6 @@ watch(currentReview, review => {
   respondMessage.value = ''
   if (!review) {
     bodyDraft.value = ''
-    rationaleDraft.value = ''
     approvedPlanDraft.value = ''
     filesDraft.value = ''
     tagMessageDraft.value = ''
@@ -469,7 +396,6 @@ watch(currentReview, review => {
   }
   if (review.kind === 'creative_plan') {
     bodyDraft.value = review.plan
-    rationaleDraft.value = review.rationale
     approvedPlanDraft.value = ''
     filesDraft.value = ''
     tagMessageDraft.value = ''
@@ -478,14 +404,12 @@ watch(currentReview, review => {
   if (review.kind === 'creative_write') {
     bodyDraft.value = review.newContent
     approvedPlanDraft.value = review.approvedPlan
-    rationaleDraft.value = ''
     filesDraft.value = ''
     tagMessageDraft.value = ''
     return
   }
   if (review.kind === 'creative_chapter_structure' || review.kind === 'creative_exploration_start' || review.kind === 'creative_exploration_delete' || review.kind === 'creative_compress') {
     bodyDraft.value = ''
-    rationaleDraft.value = ''
     approvedPlanDraft.value = ''
     filesDraft.value = ''
     tagMessageDraft.value = ''
@@ -494,7 +418,6 @@ watch(currentReview, review => {
   if (review.kind === 'creative_git_commit') {
     bodyDraft.value = review.message
     filesDraft.value = review.files.join('\n')
-    rationaleDraft.value = ''
     approvedPlanDraft.value = ''
     tagMessageDraft.value = ''
     return
@@ -502,14 +425,12 @@ watch(currentReview, review => {
   if (review.kind === 'creative_git_tag') {
     bodyDraft.value = review.name
     tagMessageDraft.value = review.message ?? ''
-    rationaleDraft.value = ''
     approvedPlanDraft.value = ''
     filesDraft.value = ''
     return
   }
   if (review.kind === 'creative_exploration_compare') {
     bodyDraft.value = review.comparisonReport
-    rationaleDraft.value = ''
     approvedPlanDraft.value = ''
     filesDraft.value = ''
     tagMessageDraft.value = ''
@@ -517,14 +438,12 @@ watch(currentReview, review => {
   }
   if (review.kind === 'creative_exploration_merge') {
     bodyDraft.value = review.newContent ?? ''
-    rationaleDraft.value = ''
     approvedPlanDraft.value = ''
     filesDraft.value = ''
     tagMessageDraft.value = ''
     return
   }
   bodyDraft.value = review.newContent
-  rationaleDraft.value = ''
   approvedPlanDraft.value = ''
 }, { immediate: true })
 
@@ -532,12 +451,7 @@ function editedArgs() {
   const review = currentReview.value
   if (!review) return {}
   if (review.kind === 'creative_plan') {
-    return {
-      plan: bodyDraft.value,
-      rationale: rationaleDraft.value,
-      alternatives: review.alternatives,
-      logicAudit: review.logicAudit,
-    }
+    return { plan: bodyDraft.value }
   }
   if (review.kind === 'creative_write') {
     return {

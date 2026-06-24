@@ -48,6 +48,6 @@ export function buildOutputLanguagePrompt(language: DetectedInputLanguage): stri
   return `
 ## Output language
 
-The author writes in ${languageName}. Respond in ${languageName}, including narrative prose, plan text, rationale, logicAudit fields, and consistency-findings description and suggestion. Tool names and JSON keys remain English. Do not switch languages mid-response.
+The author writes in ${languageName}. Respond in ${languageName}, including narrative prose, Markdown plans, consistency findings, exploration summaries, and craft notes. Tool names and structured tool argument keys remain English. Do not switch languages mid-response.
 `.trim()
 }

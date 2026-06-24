@@ -930,7 +930,6 @@ export default {
       titleStoryBibleSection: 'Review StoryBible Section',
       planFirstApproval: 'Plan-first approval',
       approvedPlan: 'Approved plan',
-      rationale: 'Rationale',
       content: 'Content',
       plan: 'Plan',
       draftContent: 'Draft content',
@@ -978,10 +977,6 @@ export default {
       planSummary: 'Writing plan',
       writeSummary: 'Write {filename}',
       storyBibleSummary: 'StoryBible',
-      logicAudit: 'Logic Audit',
-      motivationTraces: 'Motivation Traces',
-      causalChain: 'Causal Chain',
-      commonSenseFlags: 'Common Sense Flags',
     },
     creativeSummary: {
       summary: {

@@ -1,6 +1,4 @@
 // AI Provider Types
-import type { LogicAudit } from './creative/logicAudit'
-
 export type AiProviderType = 'openai-compat' | 'deepseek' | 'anthropic' | 'gemini'
 
 export type AiAgentDomain = 'editing' | 'creative'
@@ -365,9 +363,6 @@ export interface CreativePlanReviewItem extends BaseCreativeReviewItem {
   kind: 'creative_plan'
   toolName: 'confirm_writing_plan'
   plan: string
-  rationale: string
-  alternatives?: string[]
-  logicAudit?: LogicAudit
 }
 
 export interface CreativeWriteReviewItem extends BaseCreativeReviewItem {

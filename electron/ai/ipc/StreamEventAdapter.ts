@@ -4,7 +4,6 @@ import { inferToolKind } from '../../../src/types/ai'
 import { isHitlInterruptPayload } from '../../../src/ai/hitl'
 import { extractToolResult, invalidToolCallToAiToolCall } from './MessageAdapter'
 import type { RendererEventBridge } from './RendererEventBridge'
-import { PLANNER_INVALID_RESULT_PREFIX } from '../runtime/TaskToolCompatMiddleware'
 
 interface PendingSubagentInvocation {
   toolCallId: string
@@ -78,23 +77,12 @@ export class StreamEventAdapter {
         const result = isError
           ? (typeof rawError === 'string' && rawError ? rawError : extractToolResult(call.name, rawOutput))
           : extractToolResult(call.name, rawOutput)
-        const isValidationError = this._isKnownTaskValidationError(call.name, result)
         const tc = this.toolCalls.find(t => t.id === call.callId)
         if (tc) {
-          tc.status = isHitlInterrupt ? 'in_progress' : (isError || isValidationError) ? 'failed' : 'completed'
+          tc.status = isHitlInterrupt ? 'in_progress' : isError ? 'failed' : 'completed'
           tc.result = result
-          tc.isError = isError || isValidationError
+          tc.isError = isError
           this._send({ threadId: this.threadId, turnId: this.turnId, type: 'tool_call_end', toolCallId: call.callId, toolCall: { ...tc }, subagentName })
-          if (isValidationError) {
-            this._send({
-              threadId: this.threadId,
-              turnId: this.turnId,
-              type: 'task_validation_failed',
-              toolCallId: call.callId,
-              error: result,
-              subagentName,
-            })
-          }
         }
       })
       pending.push(settle)
@@ -373,7 +361,4 @@ export class StreamEventAdapter {
     )
   }
 
-  private _isKnownTaskValidationError(toolName: string, result: string | undefined): boolean {
-    return toolName === 'task' && typeof result === 'string' && result.startsWith(PLANNER_INVALID_RESULT_PREFIX)
-  }
 }

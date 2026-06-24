@@ -927,7 +927,6 @@ export default {
       titleStoryBibleSection: '审核 StoryBible 章节',
       planFirstApproval: '计划优先审批',
       approvedPlan: '已批准计划',
-      rationale: '理由',
       content: '内容',
       plan: '计划',
       draftContent: '草稿内容',
@@ -975,10 +974,6 @@ export default {
       planSummary: '写作计划',
       writeSummary: '写入 {filename}',
       storyBibleSummary: 'StoryBible',
-      logicAudit: '逻辑审计',
-      motivationTraces: '动机推导',
-      causalChain: '因果链',
-      commonSenseFlags: '常识检查',
     },
     creativeSummary: {
       summary: {

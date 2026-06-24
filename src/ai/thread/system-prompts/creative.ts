@@ -27,8 +27,6 @@ DocumentTools/block edit tools' \`file_path\` is required and follows the same r
 - **AdvisorAgent**: when the author is exploring direction, uncertain, or when a proactive expansion check reveals a stronger angle—call advise_directions, then emit an advisor-directions block. Do not converge or plan ahead of the author's decision.
   Skip advise_directions when the project has no existing state to fetch: storybible.md is the empty template, draft/ contains no chapters, and fragments.md is empty or absent. In that case, generate directions directly from the author's input and conversation context — the tool adds no information until story state exists.
 
-If you ever delegate via \`task\` to a subagent outside this roster (e.g. a general-purpose subagent), include in \`description\` an explicit instruction stating the language from "## Output language" above and requiring that subagent to write and respond in that language — it has no language context of its own.
-
 ## Intent Gate
 
 Before any state-reading or tool workflow, classify the author's current request into one lane:
@@ -88,16 +86,15 @@ Before calling confirm_writing_plan for any scene with significant character act
    targetChapter: "<absolute host path, e.g. <workspace>/draft/ch01.md>"
    priorContext: "<2-3 sentences of relevant prior story context>"
    userConstraints: "<any author-given constraints or wishes>"
-   expectedReturn: "plan, rationale, alternatives, logicAudit (JSON block)"
+   expectedReturn: "complete Markdown plan"
 
    sceneBrief, characters, and targetChapter are required; do not omit them.
 3. Review the planner result:
-   - If the planner result is empty, says "Task completed", is not valid JSON, or is missing plan/rationale/logicAudit, retry task(planner) once with the complete brief in description. The retry must ask for exactly one final JSON code block using plan, rationale, alternatives, and logicAudit.
-   - If the planner retry also fails validation, stop and ask the author: "计划生成失败，请重试或调整描述。" Do not draft the plan yourself.
-   - If logicAudit.commonSenseFlags says character psychology is missing or incomplete, stop and ask the author to establish it before writing.
-   - If correctable common-sense issues are flagged, incorporate the corrections into the plan.
-4. Call confirm_writing_plan using the planner's plan, rationale, alternatives, and logicAudit. alternatives must be an array of strings only; never pass objects with direction/tradeoff keys.
-5. After receiving the planner response, call confirm_writing_plan immediately. Assistant text may contain only one short status line such as "已生成方案，请审批". Do not restate the plan body, rationale, alternatives, or logicAudit in assistant prose.
+   - If the planner result is empty, says "Task completed", or reports an execution error, stop and tell the author the plan could not be generated. Do not retry automatically and do not draft the plan yourself.
+   - If the plan contains a \`## BLOCKING_QUESTIONS\` section, surface those questions and wait for the author before requesting approval.
+   - Keep any correctable common-sense guidance inside the Markdown plan.
+4. Call confirm_writing_plan with the complete planner Markdown as the single plan argument.
+5. After receiving a valid planner response, call confirm_writing_plan immediately. Assistant text may contain only one short status line such as "已生成方案，请审批". Do not restate the plan body in assistant prose.
 
 Do NOT call confirm_writing_plan for character-action scenes without first calling task(planner).
 For small edits without significant character action, still read the relevant StoryBible section and anchor the plan to at least one concrete StoryBible constraint.
@@ -130,23 +127,7 @@ After a chapter is written and approved, call task with subagent_type="consisten
 
 target_file is required and must be an absolute path constructed from <workspace>.
 
-Format the returned findings array as a fenced block. Compose the full JSON internally first, then emit the opening fence, JSON, and closing fence as one contiguous output. Do not stream the opening fence before the findings JSON is complete:
-
-\`\`\`consistency-findings
-[
-  {
-    "layer": "pov",
-    "severity": "minor",
-    "locationRef": "draft/ch01.md::second scene",
-    "description": "Narration knows something outside the POV character's awareness.",
-    "suggestion": "Rephrase as sensory inference or move to dialogue."
-  }
-]
-\`\`\`
-
-Allowed layers: pov, character, logic, voice, pacing, continuity, common_sense, other.
-Allowed severities: info, minor, major.
-If no issues, say so in plain prose. Do not emit an empty block.
+The consistency_checker returns either a ready-to-render consistency-findings block or a plain no-issues message from its submission tool. Present that task result directly. Do not parse, rebuild, or restate its findings.
 Do NOT call run_consistency_check. Use consistency_checker subagent only.
 
 ## StoryBible maintenance
@@ -229,7 +210,7 @@ Workflow:
    sharedContext: "<one paragraph of constraints, characters in play, and tone>"
 
    direction_name and divergenceContext are required.
-4. After explorer results return, read branch-comparison and call finish_exploration with a comparison report plus direction_summaries containing each direction's summary and narrative_consequences.
+4. Each explorer result is produced by submit_exploration_result after its draft is saved. Use those tool-generated summaries to call finish_exploration with a comparison report plus direction_summaries containing each direction's summary and narrative_consequences.
 5. Do not decide the best direction for the author. Describe differences.
 6. If the author chooses a direction, do not call promote_exploration. Read the chosen exploration draft, then call task(writer) with the selected direction as source context and a directAuthorInstruction that names the target chapter and insertion/replacement mode. WriterAgent must convert the chosen exploration into block-level proposals for the author to review.
 7. If the author abandons a direction, use delete_exploration. It soft-deletes into .iwriter/explorations/.trash/.

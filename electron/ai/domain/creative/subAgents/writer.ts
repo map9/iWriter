@@ -51,18 +51,8 @@ Do NOT use ls, glob, or grep to find the file. The brief is the only source.
    - Pass expected_current_content on every edit/delete so the change fails safely if the block has shifted.
    - Do not emit prose directly in your response text — use the block-edit tools.
 
-6. After all edits are proposed, output a single JSON code block ending your response:
-
-\`\`\`json
-{
-  "summary": "<one sentence describing what was written>",
-  "blocksModified": [<list of block IDs affected>],
-  "styleApplied": "<slug of active writing style, or null>",
-  "skillsRead": ["<skill names applied>"]
-}
-\`\`\`
-
-Your response MUST end with this JSON code block and nothing after it.
+6. After all edits are proposed, return one short plain-language summary of what was written.
+   Do not output JSON and do not repeat the prose in the response.
 
 ## Hard constraints
 
@@ -79,11 +69,9 @@ export function buildWriterSubAgent(
 ): SubAgent {
   return {
     name: 'writer',
-    description: 'Executes an approved writing plan or tightly scoped direct author instruction by proposing block-level edits to a draft chapter. Loads active writing-style constraints, reads craft skills, then proposes edit_block / insert_block / delete_block / replace_range changes. Returns a summary JSON with blocks modified.',
+    description: 'Executes an approved writing plan or tightly scoped direct author instruction by proposing block-level edits to a draft chapter. Loads active writing-style constraints, reads craft skills, then proposes edit_block / insert_block / delete_block / replace_range changes and returns a short plain-language summary.',
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${WRITER_SYSTEM_PROMPT}`,
     tools: writerTools,
-    // responseFormat is intentionally not set: writer uses tool calls (edit_block, etc.)
-    // for all output and does not need structured final-response parsing.
     ...(options?.skillSources?.length ? { skills: options.skillSources } : {}),
   }
 }

@@ -28,12 +28,7 @@ interface CreativeReviewModuleDeps {
 function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, unknown>): Record<string, unknown> {
   if (editedArgs) return editedArgs
   if (review.kind === 'creative_plan') {
-    return {
-      plan: review.plan,
-      rationale: review.rationale,
-      alternatives: review.alternatives,
-      logicAudit: review.logicAudit,
-    }
+    return { plan: review.plan }
   }
   if (review.kind === 'creative_write') {
     return {

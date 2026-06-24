@@ -1,16 +1,7 @@
 import type { StructuredTool } from '@langchain/core/tools'
 import type { SubAgent } from 'deepagents'
-import { z } from 'zod'
-import { LogicAuditSchema } from '../../../../../src/ai/creative/logicAudit'
 import type { DetectedInputLanguage } from '../../../../../src/ai/message/detectInputLanguage'
 import { buildOutputLanguagePrompt } from '../../../../../src/ai/message/detectInputLanguage'
-
-export const PlannerResponseSchema = z.object({
-  plan: z.string(),
-  rationale: z.string(),
-  alternatives: z.array(z.string()).max(3).optional(),
-  logicAudit: LogicAuditSchema,
-})
 
 const PLANNER_SYSTEM_PROMPT = `
 You are PlannerAgent. Your sole function is rigorous logic-first story planning.
@@ -34,7 +25,7 @@ the only source of these fields; if it lacks them the upstream caller must amend
 Workflow:
 1. Call read_storybible.
 2. Call get_character_psychology for every character named in the brief.
-   - If a character is missing or has an incomplete psychology triangle, include a psychological commonSenseFlag and ask the author to establish it first.
+   - If a character is missing or has an incomplete psychology triangle, add a \`## BLOCKING_QUESTIONS\` section explaining what must be established before writing.
 3. Call get_section or get_blocks with the absolute chapter file path for prior context as needed.
 4. Load and apply these skills: behavior-from-psychology, causal-chain-construction, common-sense-audit, character-decision-logic, scene-structure.
 
@@ -54,55 +45,38 @@ Common sense check, max 5 flags:
 - Psychological: reaction proportionality, decision complexity under stress.
 
 Keep the plan author-readable and concise.
-Keep logicAudit entries brief; each field should be one clear sentence.
-Every plan must include one line beginning "Theme tie:" that states how the plan serves the StoryBible Theme/Premise. If Theme/Premise is not established, say that directly.
-motivationTrace.derivation must reference the character psychology and, when available, Premise or Theme.
-alternatives MUST be an array of strings only. Do NOT use objects such as { "direction": "", "tradeoff": "" }.
-Use the exact logicAudit field names shown below. Do NOT use coreDesire, coreFear,
-category, flag, severity, or causalNecessity keys.
-commonSenseFlags[].dimension MUST be exactly one of "physical", "social", or "psychological"; do not translate these enum values.
+Every plan must state how it serves the StoryBible Theme/Premise. If Theme/Premise is not established, say that directly.
 
 ## Output Format
 
-After completing all tool calls, your FINAL response must be a single valid json object.
-No explanatory prose before or after. No markdown code fences. No "` + '```' + `json" prefix.
-Output the raw json object directly — nothing else.
+After completing all tool calls, return one concise Markdown plan. Translate the
+headings into the required output language while preserving this structure, except
+for the exact machine-detectable heading \`## BLOCKING_QUESTIONS\`:
 
-The json object must have exactly these keys:
+# Chapter Plan
 
-{
-  "plan": "<the full plan text>",
-  "rationale": "<why this direction>",
-  "alternatives": ["<alt 1>", "<alt 2>"],
-  "logicAudit": {
-    "motivationTraces": [
-      {
-        "character": "",
-        "action": "",
-        "activatedDesireOrFear": "",
-        "falseBelief": "",
-        "derivation": ""
-      }
-    ],
-    "causalChain": [
-      {
-        "beat": "",
-        "priorState": "",
-        "trigger": "",
-        "characterInterpretation": "",
-        "decision": "",
-        "consequence": ""
-      }
-    ],
-    "commonSenseFlags": [
-      {
-        "dimension": "physical",
-        "issue": "",
-        "correction": ""
-      }
-    ]
-  }
-}
+## Story Direction
+State what happens, whose POV governs the scene, the central conflict, and the emotional turn.
+
+## Plot Steps
+Use a numbered list with no more than 8 concrete steps.
+
+## Character Motivation
+For each significant character, connect desire or fear, false belief, interpretation, and action.
+
+## Causality and Common-Sense Check
+Briefly cover causal necessity, physical/social/psychological plausibility, and information boundaries.
+
+## Theme Connection
+State how the direction serves the StoryBible Theme/Premise, or note that it is not established.
+
+## Alternative Directions
+List up to 3 short alternatives. Omit this section when there are no useful alternatives.
+
+## BLOCKING_QUESTIONS
+Include this section only when missing character psychology or another unresolved fact makes writing unsafe.
+
+Do not output JSON. Do not wrap the Markdown in a code fence.
 `.trim()
 
 export function buildPlannerSubAgent(
@@ -112,17 +86,9 @@ export function buildPlannerSubAgent(
 ): SubAgent {
   return {
     name: 'planner',
-    description: 'Produces a logic-first writing plan. Reads story context, derives character motivation from psychology triangles, builds causal beats, and performs common-sense checks. Returns plan, rationale, alternatives, and Logic Audit.',
+    description: 'Produces a concise logic-first Markdown writing plan. Reads story context, derives character motivation from psychology triangles, builds causal steps, and performs common-sense checks.',
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${PLANNER_SYSTEM_PROMPT}`,
     tools: plannerTools,
-    // responseFormat enables ProviderStrategy (native JSON parsing) in langchain 1.4.x.
-    // DeepSeek's app-level profile declares structuredOutput:true, so langchain
-    // routes through ProviderStrategy — which reads the model's text content directly with
-    // JSON.parse — rather than ToolStrategy, avoiding any tool_choice:"any" injection.
-    // The system prompt instructs the model to output bare JSON (no fences) so that
-    // ProviderStrategy.parse can extract the structured result without regex post-processing.
-    // TaskToolCompatMiddleware provides a normalization + Zod fallback for residual shape errors.
-    responseFormat: PlannerResponseSchema,
     ...(options?.skillSources?.length ? { skills: options.skillSources } : {}),
   }
 }

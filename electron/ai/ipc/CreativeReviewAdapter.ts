@@ -1,7 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import type { CreativeReviewItem } from '../../../src/types/ai'
-import { parseLogicAudit } from '../../../src/ai/creative/logicAudit'
 
 interface ActionRequest {
   name: string
@@ -100,9 +99,6 @@ export function buildCreativeReviewItemFromAction(
       toolName: 'confirm_writing_plan',
       status: 'pending',
       plan: asString(args.plan),
-      rationale: asString(args.rationale),
-      alternatives: asStringArray(args.alternatives),
-      logicAudit: parseLogicAudit(args.logicAudit),
       toolCallId,
       sourceMessageId,
       sourceTurnId,

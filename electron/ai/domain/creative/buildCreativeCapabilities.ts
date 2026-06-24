@@ -16,8 +16,14 @@ import { EDIT_INTERRUPT_ON_CONFIG } from '../edit/buildEditCapabilities'
 import type { CreativeDb } from '../../db/CreativeDb'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import { buildPlannerSubAgent } from './subAgents/planner'
-import { buildConsistencySubAgent } from './subAgents/consistency'
-import { buildExplorerSubAgent } from './subAgents/explorer'
+import {
+  buildConsistencySubAgent,
+  buildSubmitConsistencyFindingsTool,
+} from './subAgents/consistency'
+import {
+  buildExplorerSubAgent,
+  buildSubmitExplorationResultTool,
+} from './subAgents/explorer'
 import { buildWriterSubAgent } from './subAgents/writer'
 import { buildResearcherSubAgent } from './subAgents/researcher'
 import { buildWritingStyleExtractorSubAgent } from './subAgents/writingStyleExtractor'
@@ -132,17 +138,26 @@ export function buildCreativeCapabilities(input: {
     ...writerReadStorybibleTools,
     ...styleReadTools,
   ]
+  const language = input.language ?? 'en-US'
 
   return {
     tools: mainTools,
     subAgents: [
-      buildPlannerSubAgent(plannerTools, input.language ?? 'en-US', { skillSources: skillSources('creative/common', 'creative/planner') }),
-      buildConsistencySubAgent([...subAgentReadTools, ...styleReadTools], input.language ?? 'en-US', { skillSources: skillSources('creative/common', 'creative/consistency') }),
-      buildExplorerSubAgent(explorerTools, input.language ?? 'en-US', { skillSources: skillSources('creative/common', 'creative/explorer') }),
-      buildWriterSubAgent(writerTools, input.language ?? 'en-US', { skillSources: skillSources('creative/common', 'creative/writer') }),
-      buildResearcherSubAgent([...researcherTools], input.language ?? 'en-US', { skillSources: skillSources('common') }),
-      buildWritingStyleExtractorSubAgent([], input.language ?? 'en-US'),
-      buildWritingStyleSkillCreatorSubAgent(writingStyleSkillCreatorTools, input.language ?? 'en-US'),
+      buildPlannerSubAgent(plannerTools, language, { skillSources: skillSources('creative/common', 'creative/planner') }),
+      buildConsistencySubAgent(
+        [...subAgentReadTools, ...styleReadTools, buildSubmitConsistencyFindingsTool(language)],
+        language,
+        { skillSources: skillSources('creative/common', 'creative/consistency') },
+      ),
+      buildExplorerSubAgent(
+        [...explorerTools, buildSubmitExplorationResultTool()],
+        language,
+        { skillSources: skillSources('creative/common', 'creative/explorer') },
+      ),
+      buildWriterSubAgent(writerTools, language, { skillSources: skillSources('creative/common', 'creative/writer') }),
+      buildResearcherSubAgent([...researcherTools], language, { skillSources: skillSources('common') }),
+      buildWritingStyleExtractorSubAgent([], language),
+      buildWritingStyleSkillCreatorSubAgent(writingStyleSkillCreatorTools, language),
     ],
     interruptOn: CREATIVE_INTERRUPT_ON_CONFIG,
   }

@@ -1,4 +1,4 @@
-import type { StructuredTool } from '@langchain/core/tools'
+import { tool, type StructuredTool } from '@langchain/core/tools'
 import type { SubAgent } from 'deepagents'
 import { z } from 'zod'
 import type { DetectedInputLanguage } from '../../../../../src/ai/message/detectInputLanguage'
@@ -7,15 +7,35 @@ import { buildOutputLanguagePrompt } from '../../../../../src/ai/message/detectI
 const ConsistencyFindingSchema = z.object({
   layer: z.enum(['pov', 'character', 'logic', 'voice', 'pacing', 'continuity', 'common_sense', 'other']),
   severity: z.enum(['info', 'minor', 'major']),
-  locationRef: z.string(),
-  description: z.string(),
-  suggestion: z.string(),
+  locationRef: z.string().optional(),
+  description: z.string().min(1),
+  suggestion: z.string().optional(),
 })
 
-export const ConsistencyResponseSchema = z.object({
-  findings: z.array(ConsistencyFindingSchema),
-  checkedLayers: z.array(z.string()),
-})
+export function buildSubmitConsistencyFindingsTool(
+  language: DetectedInputLanguage = 'en-US',
+): StructuredTool {
+  return tool(
+    async ({ findings }: { findings: z.infer<typeof ConsistencyFindingSchema>[] }) => {
+      if (!findings.length) {
+        return language === 'zh-CN'
+          ? '未发现需要处理的一致性问题。'
+          : language === 'ja-JP'
+            ? '対応が必要な整合性の問題は見つかりませんでした。'
+            : 'No consistency issues require attention.'
+      }
+      return `\`\`\`consistency-findings\n${JSON.stringify(findings, null, 2)}\n\`\`\``
+    },
+    {
+      name: 'submit_consistency_findings',
+      description: 'Submit the final consistency findings. Call exactly once after completing the review, including an empty findings array when no issues were found.',
+      schema: z.object({
+        findings: z.array(ConsistencyFindingSchema),
+      }),
+      returnDirect: true,
+    },
+  )
+}
 
 const CONSISTENCY_SYSTEM_PROMPT = `
 You are ConsistencyAgent. Your sole function is finding consistency problems.
@@ -55,18 +75,9 @@ Severity:
 
 Report only findings that matter. Do not generate findings for coverage.
 
-Your entire response MUST end with a single JSON code block and nothing after it:
-
-\`\`\`json
-{
-  "findings": [
-    { "layer": "pov|character|logic|voice|pacing|continuity|common_sense|other", "severity": "info|minor|major", "locationRef": "", "description": "", "suggestion": "" }
-  ],
-  "checkedLayers": ["pov", "character", "logic", "voice", "pacing", "continuity", "common_sense"]
-}
-\`\`\`
-
-If there are no issues, output an empty findings array: \`"findings": []\`
+After completing the review, call submit_consistency_findings exactly once.
+Pass only findings that matter. Use an empty findings array when there are no issues.
+Do not hand-write JSON or repeat the submitted findings in response text.
 `.trim()
 
 export function buildConsistencySubAgent(
@@ -79,8 +90,6 @@ export function buildConsistencySubAgent(
     description: 'Checks a draft chapter for POV, character behavior, plot logic, voice, pacing, continuity, and common-sense issues. Returns structured findings.',
     systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${CONSISTENCY_SYSTEM_PROMPT}`,
     tools: readOnlyTools,
-    // responseFormat is intentionally not set: consistency checker produces fenced JSON
-    // via system prompt, and the fenced-block approach works reliably here.
     ...(options?.skillSources?.length ? { skills: options.skillSources } : {}),
   }
 }

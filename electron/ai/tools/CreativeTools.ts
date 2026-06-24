@@ -7,7 +7,6 @@ import type { SnapshotBroker } from '../document/SnapshotBroker'
 import { DocumentSearch, listWorkspaceDocumentPaths } from '../document/DocumentSearch'
 import type { IWriterAgentContext } from '../runtime/AgentContext'
 import { countWordDelta, countWords } from '../../../src/utils/textStats'
-import { LogicAuditSchema, type LogicAudit } from '../../../src/ai/creative/logicAudit'
 
 const STORYBIBLE_TEMPLATE = `# StoryBible
 
@@ -757,32 +756,14 @@ export function buildCreativeTools(options: {
   )
 
   const confirmWritingPlan = tool(
-    async ({
-      plan,
-      rationale,
-      alternatives,
-      logicAudit,
-    }: {
-      plan: string
-      rationale: string
-      alternatives?: string[]
-      logicAudit?: LogicAudit
-    }) => {
-      return JSON.stringify({
-        approved_plan: plan,
-        rationale,
-        alternatives: alternatives ?? [],
-        ...(logicAudit && { logicAudit }),
-      }, null, 2)
+    async ({ plan }: { plan: string }) => {
+      return JSON.stringify({ approved_plan: plan }, null, 2)
     },
     {
       name: 'confirm_writing_plan',
       description: 'Ask the user to approve or edit a writing plan before drafting a scene/chapter or large rewrite.',
       schema: z.object({
-        plan: z.string().describe('Concrete writing plan.'),
-        rationale: z.string().describe('Why this plan fits the current story and craft goals.'),
-        alternatives: z.array(z.string()).optional().describe('Optional alternative directions.'),
-        logicAudit: LogicAuditSchema.optional().describe('Optional PlannerAgent logic audit for character motivation, causal chain, and common-sense checks.'),
+        plan: z.string().describe('Complete author-readable Markdown writing plan.'),
       }),
     }
   )

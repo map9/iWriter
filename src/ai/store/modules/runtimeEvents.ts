@@ -331,17 +331,6 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
       return
     }
 
-    if (chunk.type === 'task_validation_failed') {
-      if (updateSubTask(liveTurn, chunk.toolCallId, {
-        status: 'error',
-        output: chunk.error,
-        errorText: chunk.error,
-      })) {
-        deps.liveTurn.value = { ...liveTurn }
-      }
-      return
-    }
-
     if (chunk.subagentName) {
       if (chunk.subagentId) {
         _applySubagentChunk(liveTurn, chunk as StreamChunkEvent & { subagentName: string }, chunk.subagentId)

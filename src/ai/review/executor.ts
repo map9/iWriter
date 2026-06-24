@@ -1,24 +1,19 @@
 import type { Editor } from '@tiptap/core'
 import type { BlockEditProposal, EditProposal, FileCreateProposal } from '@/ai/types'
+import type { FileTab } from '@/types'
 import { UnifiedDocumentAccess } from '@/ai/edit/UnifiedDocumentAccess'
 import { pathUtils } from '@/utils/pathUtils'
 import { DocumentType } from '@/types/document-type'
+import { notify } from '@/utils/notifications'
 import type { ReviewBatchState } from './types'
 
 /** Prefix for the virtual_id of an in-memory unsaved_new document, e.g. "untitled:<tab.id>". */
 export const UNTITLED_PREFIX = 'untitled:'
 
 export interface ReviewExecutorAppStoreLike {
-  tabs?: Array<{
-    id?: string
-    name?: string
-    path?: string | null
-    editorInstance?: unknown
-  }>
-  activeTab?: {
-    path?: string | null
-    editorInstance?: unknown
-  } | null
+  tabs?: FileTab[]
+  activeTab?: FileTab | null
+  saveTab?: (tab: FileTab, saveAs?: boolean, silent?: boolean) => Promise<boolean>
   createTab: (
     name?: string,
     path?: string,
@@ -26,6 +21,24 @@ export interface ReviewExecutorAppStoreLike {
     fileReadonly?: boolean,
     pendingImport?: { markdown: string; sourcePath?: string },
   ) => unknown
+}
+
+async function saveAppliedOpenTab(
+  appStore: ReviewExecutorAppStoreLike,
+  tab: FileTab,
+): Promise<void> {
+  if (!tab.path || !appStore.saveTab) return
+
+  try {
+    const saved = await appStore.saveTab(tab, false, true)
+    if (!saved) {
+      notify.warning(`AI edit was applied in the editor but could not be saved to "${tab.path}". Save the document manually.`)
+    }
+  } catch (error) {
+    notify.warning(
+      `AI edit was applied in the editor but could not be saved to "${tab.path}": ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
 }
 
 function hasPathLikeExtension(value: string): boolean {
@@ -236,16 +249,23 @@ async function applyBlockProposalToTarget(
 
     const handle = UnifiedDocumentAccess.fromEditor(editor, matchingTab?.path ?? undefined)
     const result = await handle.applyBlockProposal(proposal)
+    if (result.success && matchingTab) {
+      await saveAppliedOpenTab(appStore, matchingTab)
+    }
     return result.success
       ? { success: true as const }
       : { success: false as const, error: result.error }
   }
 
-  const editor = appStore.activeTab?.editorInstance as Editor | undefined
-  if (!editor) return { success: false as const, error: '没有活动的编辑器文档' }
+  const activeTab = appStore.activeTab
+  const editor = activeTab?.editorInstance as Editor | undefined
+  if (!activeTab || !editor) return { success: false as const, error: '没有活动的编辑器文档' }
 
-  const handle = UnifiedDocumentAccess.fromEditor(editor, appStore.activeTab?.path ?? undefined)
+  const handle = UnifiedDocumentAccess.fromEditor(editor, activeTab.path)
   const result = await handle.applyBlockProposal(proposal)
+  if (result.success) {
+    await saveAppliedOpenTab(appStore, activeTab)
+  }
   return result.success
     ? { success: true as const }
     : { success: false as const, error: result.error }
