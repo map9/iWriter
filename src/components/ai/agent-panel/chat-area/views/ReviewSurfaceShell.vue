@@ -81,7 +81,7 @@ defineEmits<{
 }>()
 
 const containerClass = computed(() =>
-  !props.isBatch && props.isDelete ? 'border-error-content/15' : 'border-warning-content/15'
+  !props.isBatch && props.isDelete ? 'border-error/50' : 'border-warning/50'
 )
 const tonePanelClass = computed(() => props.isDelete
   ? 'border-error-content/15 bg-error/50 text-error-content'

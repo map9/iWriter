@@ -54,7 +54,7 @@
       />
       <div v-else class="p-3">
         <div class="mb-1.5 text-xs font-medium text-base-content">{{ t('agentPanel.filesystemReview.newFileContent') }}</div>
-        <pre class="max-h-88 overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-box border border-warning-content/15 bg-warning/50 p-2 font-mono text-xs leading-relaxed text-warning-content">{{ current.newContent }}</pre>
+        <pre class="max-h-88 overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-box border border-base-300 p-2 font-mono text-xs leading-relaxed text-base-content">{{ current.newContent }}</pre>
       </div>
     </div>
   </ReviewSurfaceShell>

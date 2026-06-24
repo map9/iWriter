@@ -58,7 +58,7 @@
       </div>
     </template>
 
-    <template #default="{ tonePanelClass, toneRingClass }">
+    <template #default>
       <div class="min-h-52">
         <template v-if="current.kind === 'create_file'">
           <div class="border-b border-base-300 px-3 py-2 text-xs font-medium text-base-content">
@@ -69,7 +69,7 @@
             <div v-if="current.directory" class="mb-2 truncate text-xs text-base-content/50" :title="current.directory + '/' + current.filename">
               {{ t('agentPanel.blockEditReviewSurface.fileTargetPath', { path: current.directory + '/' + current.filename }) }}
             </div>
-            <div class="rounded-md border p-2">
+            <div class="rounded-md border border-base-300 p-2">
               <MarkdownContentView :content="current.content" />
             </div>
           </div>
@@ -91,8 +91,10 @@
           <div class="p-3">
             <div class="mb-2 text-xs font-medium text-base-content">{{ t('agentPanel.blockEditReviewSurface.insertSuggestion') }}</div>
             <div
-            class="min-h-32 max-h-88 rounded-field border"
-              :class="[tonePanelClass, isInsertEditing ? toneRingClass : 'cursor-text']"
+              class="min-h-32 max-h-88 rounded-field border"
+              :class="isInsertEditing
+                ? 'border-success-content/15 bg-success/50 text-success-content ring-2 ring-success-content/15'
+                : 'border-base-300 text-base-content cursor-text'"
               @click="activateInsertEditing"
             >
               <textarea
