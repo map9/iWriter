@@ -42,12 +42,14 @@ import { detectPreferredLocale, i18n, resolveLocale, setAppLocale, type AppLocal
 import { DEFAULT_MARKDOWN_PRINT_PREFERENCES } from '@/components/print/markdownThemes'
 import { computeFileContentHash } from '@/utils/fileContentHash'
 import {
+  buildWorkspaceIgnoreRules,
   DEFAULT_WORKSPACE_IGNORE_RULES,
+  GITIGNORE_FILENAME,
   getWorkspaceEntriesRaw,
   listWorkspaceEntries,
-  mergeWorkspaceIgnoreRules,
   parseWorkspaceIgnoreRules,
   shouldIncludeWorkspaceEntry,
+  shouldTraverseWorkspaceDirectory,
   toWorkspaceRelativePath,
   WORKSPACE_IGNORE_FILENAME,
 } from '@/services/workspace/filtering'
@@ -55,7 +57,16 @@ import {
 export const useAppStore = defineStore('app', () => {
   type PreferencesTab = 'editor' | 'spelling' | 'themes' | 'print' | 'export' | 'ai' | 'updates'
   type WorkspaceStatus = 'available' | 'deleted'
+  type FileTreePerfStats = { directories: number; files: number; skippedDirectories: number }
   const t = i18n.global.t
+  const perfEnabled = import.meta.env.DEV || import.meta.env.VITE_IWRITER_PERF === '1'
+
+  function perfLog(label: string, startedAt?: number): void {
+    if (!perfEnabled) return
+    const now = performance.now()
+    const duration = startedAt === undefined ? '' : ` (${(now - startedAt).toFixed(1)}ms)`
+    console.info(`[PERF][renderer] ${label}: +${now.toFixed(1)}ms${duration}`)
+  }
 
   // 文件监听和类型检测
   const { detectFromPath } = useDocumentTypeDetector()
@@ -106,6 +117,7 @@ export const useAppStore = defineStore('app', () => {
     showProofreadErrors: true,
     proofread: true,
     workspaceIgnoreRules: DEFAULT_WORKSPACE_IGNORE_RULES,
+    useGitignoreAsWorkspaceIgnore: true,
     codeBlockLanguageScope: 'common',
   })
   const globalExportSetting = reactive<ExportSettings>(structuredClone(DEFAULT_EXPORT_SETTING))
@@ -418,18 +430,29 @@ export const useAppStore = defineStore('app', () => {
    * 恢复工作区（文件夹和标签页）
    */
   async function restoreWorkspace() {
+    const restoreStartedAt = performance.now()
+    perfLog('restoreWorkspace start')
     const workspaceState = StateStorage.loadWorkspaceState()
+    perfLog(
+      `restoreWorkspace state loaded folder=${workspaceState.currentFolder ? 'yes' : 'no'} tabs=${workspaceState.tabs?.length ?? 0}`,
+      restoreStartedAt
+    )
 
     // 恢复文件夹
     if (workspaceState.currentFolder && window.electronAPI) {
       try {
         // 检查文件夹是否存在
+        const existsStartedAt = performance.now()
         const exists = await window.electronAPI.pathExists(workspaceState.currentFolder)
+        perfLog(`restoreWorkspace pathExists done exists=${exists}`, existsStartedAt)
         if (exists) {
           currentFolder.value = workspaceState.currentFolder
           workspaceStatus.value = 'available'
+          const loadTreeStartedAt = performance.now()
           await loadFileTree()
+          perfLog('restoreWorkspace loadFileTree awaited', loadTreeStartedAt)
           startAdvancedFileWatching()
+          perfLog('restoreWorkspace startAdvancedFileWatching scheduled')
           leftSidebarMode.value = SidebarMode.EXPLORER
         } else {
           console.warn('Saved folder no longer exists:', workspaceState.currentFolder)
@@ -448,6 +471,9 @@ export const useAppStore = defineStore('app', () => {
 
     // 恢复标签页（只恢复有路径的文件）
     if (workspaceState.tabs && workspaceState.tabs.length > 0) {
+      const tabsStartedAt = performance.now()
+      let restoredTabs = 0
+      let missingTabs = 0
       for (const tabData of workspaceState.tabs) {
         try {
           if (tabData.path && window.electronAPI) {
@@ -455,7 +481,9 @@ export const useAppStore = defineStore('app', () => {
             const exists = await window.electronAPI.pathExists(tabData.path)
             if (exists) {
               await openFile(tabData.path)
+              restoredTabs += 1
             } else {
+              missingTabs += 1
               console.warn('Saved file no longer exists:', tabData.path)
             }
           }
@@ -471,7 +499,10 @@ export const useAppStore = defineStore('app', () => {
           setActiveTab(tab.id)
         }
       }
+      perfLog(`restoreWorkspace tabs restored restored=${restoredTabs} missing=${missingTabs}`, tabsStartedAt)
     }
+
+    perfLog('restoreWorkspace done', restoreStartedAt)
   }
 
   // ===== 状态保存 =====
@@ -502,9 +533,10 @@ export const useAppStore = defineStore('app', () => {
     StateStorage.saveEditSetting(globalEditSetting)
   }, 500)
 
-  const reloadFileTreeForFiltersDebounced = debounce(async () => {
+  const reloadWorkspaceFiltersDebounced = debounce(async () => {
     if (!currentFolder.value || isWorkspaceDeleted.value) return
     await loadFileTree()
+    await startAdvancedFileWatching()
   }, 300)
 
   const saveAutoSaveDebounced = debounce(() => {
@@ -1223,10 +1255,17 @@ export const useAppStore = defineStore('app', () => {
     if (!currentFolder.value || !window.electronAPI) return
     if (isWorkspaceDeleted.value) return
 
+    const startedAt = performance.now()
+    perfLog('loadFileTree start')
+
     try {
+      const ignoreStartedAt = performance.now()
       const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
+      perfLog('loadFileTree ignore rules loaded', ignoreStartedAt)
       // 使用 await 等待异步操作完成
+      const rootStartedAt = performance.now()
       const files = await window.electronAPI.getFiles(currentFolder.value, true)
+      perfLog('loadFileTree root metadata loaded', rootStartedAt)
       if (!files || files.length === 0 || !files[0] || files[0].isDirectory === false) {
         throw(new Error(t('notify.file.notDirectory')))
       }
@@ -1250,13 +1289,21 @@ export const useAppStore = defineStore('app', () => {
       }
 
       // 使用 await 等待异步操作完成
-      fileTree.value.children = await traverseFileTree(currentFolder.value, fileTree.value, effectiveIgnoreRules)
+      const traverseStartedAt = performance.now()
+      const stats: FileTreePerfStats = { directories: 1, files: 0, skippedDirectories: 0 }
+      fileTree.value.children = await traverseFileTree(currentFolder.value, fileTree.value, effectiveIgnoreRules, stats)
+      perfLog(
+        `loadFileTree traverse done dirs=${stats.directories} files=${stats.files} skippedDirs=${stats.skippedDirectories}`,
+        traverseStartedAt
+      )
+      perfLog('loadFileTree done', startedAt)
     } catch (error) {
       const exists = await window.electronAPI.pathExists(currentFolder.value)
       if (!exists) {
         enterWorkspaceDeletedState()
         return []
       }
+      perfLog('loadFileTree failed', startedAt)
       notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.treeLoadError'))
       return []
     }
@@ -1264,21 +1311,41 @@ export const useAppStore = defineStore('app', () => {
 
   async function getEffectiveWorkspaceIgnoreRules(workspaceRoot: string): Promise<string> {
     const preferenceRules = globalEditSetting.workspaceIgnoreRules ?? DEFAULT_WORKSPACE_IGNORE_RULES
+    const gitignoreFilePath = pathUtils.join(workspaceRoot, GITIGNORE_FILENAME)
     const ignoreFilePath = pathUtils.join(workspaceRoot, WORKSPACE_IGNORE_FILENAME)
+    let gitignoreRules: string | undefined
+    let workspaceRules: string | undefined
 
     try {
-      const exists = await window.electronAPI?.pathExists(ignoreFilePath)
-      if (!exists) return preferenceRules
+      if (globalEditSetting.useGitignoreAsWorkspaceIgnore !== false) {
+        const gitignoreExists = await window.electronAPI?.pathExists(gitignoreFilePath)
+        if (gitignoreExists) {
+          gitignoreRules = await window.electronAPI?.readFileSilent(gitignoreFilePath) ?? undefined
+        }
+      }
 
-      const workspaceRules = await window.electronAPI?.readFileSilent(ignoreFilePath)
-      return mergeWorkspaceIgnoreRules(preferenceRules, workspaceRules)
+      const ignoreExists = await window.electronAPI?.pathExists(ignoreFilePath)
+      if (ignoreExists) {
+        workspaceRules = await window.electronAPI?.readFileSilent(ignoreFilePath) ?? undefined
+      }
     } catch (error) {
-      console.warn(`Failed to load ${WORKSPACE_IGNORE_FILENAME}:`, error)
-      return preferenceRules
+      console.warn('Failed to load workspace ignore rules:', error)
     }
+
+    return buildWorkspaceIgnoreRules({
+      preferenceRules,
+      gitignoreRules,
+      workspaceRules,
+      useGitignoreAsWorkspaceIgnore: globalEditSetting.useGitignoreAsWorkspaceIgnore,
+    })
   }
 
-  async function traverseFileTree(dirPath: string, parent?: FileTreeNode, effectiveIgnoreRules?: string): Promise<FileTreeNode[] | undefined> {
+  async function traverseFileTree(
+    dirPath: string,
+    parent?: FileTreeNode,
+    effectiveIgnoreRules?: string,
+    stats?: FileTreePerfStats
+  ): Promise<FileTreeNode[] | undefined> {
     if (!dirPath || !window.electronAPI) return undefined
     
     try {
@@ -1293,7 +1360,14 @@ export const useAppStore = defineStore('app', () => {
           files.map(async (file) => {
             let children: FileTreeNode[] | undefined
             if (file.isDirectory) {
-              children = await traverseFileTree(file.path, undefined, ignoreRules)
+              if (!shouldTraverseWorkspaceDirectory(file, matcher)) {
+                if (stats) stats.skippedDirectories += 1
+                return null
+              }
+              if (stats) stats.directories += 1
+              children = await traverseFileTree(file.path, undefined, ignoreRules, stats)
+            } else if (stats) {
+              stats.files += 1
             }
 
             const shouldIncludeNode = shouldIncludeWorkspaceEntry(file, matcher)
@@ -1754,20 +1828,29 @@ export const useAppStore = defineStore('app', () => {
   async function startAdvancedFileWatching() {
     if (!currentFolder.value || !window.electronAPI) return
     if (isWorkspaceDeleted.value) return
-    
+
+    const startedAt = performance.now()
+    perfLog('startAdvancedFileWatching start')
+
     try {
       ensureFileWatchListeners()
 
+      const ignoreStartedAt = performance.now()
       const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
+      perfLog('startAdvancedFileWatching ignore rules loaded', ignoreStartedAt)
 
       // 启动原生文件监听
+      const ipcStartedAt = performance.now()
       const result = await window.electronAPI.startFileWatching(currentFolder.value, {
         ignoreRulesText: effectiveIgnoreRules,
       })
+      perfLog(`startAdvancedFileWatching IPC returned success=${result.success}`, ipcStartedAt)
       if (!result.success) {
         notify.warning(result.error ?? 'File watcher failed to start', t('notify.file.watchStartError'))
       }
+      perfLog('startAdvancedFileWatching done', startedAt)
     } catch (error) {
+      perfLog('startAdvancedFileWatching failed', startedAt)
       notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.watchStartError'))
     }
   }
@@ -2243,8 +2326,12 @@ export const useAppStore = defineStore('app', () => {
     const isWorkspaceIgnoreFile = isInWorkspace &&
       !!currentFolder.value &&
       change.path === pathUtils.join(currentFolder.value, WORKSPACE_IGNORE_FILENAME)
+    const isGitignoreFile = isInWorkspace &&
+      !!currentFolder.value &&
+      globalEditSetting.useGitignoreAsWorkspaceIgnore !== false &&
+      change.path === pathUtils.join(currentFolder.value, GITIGNORE_FILENAME)
 
-    if (isWorkspaceIgnoreFile) {
+    if (isWorkspaceIgnoreFile || isGitignoreFile) {
       await loadFileTree()
       await startAdvancedFileWatching()
       if (!affectsOpenTab) return
@@ -2956,8 +3043,8 @@ export const useAppStore = defineStore('app', () => {
   watch(globalEditSetting, () => saveEditSettingDebounced(), { deep: true })
   watch(globalExportSetting, () => StateStorage.saveExportSetting(globalExportSetting), { deep: true })
   watch(globalMarkdownPrintSetting, () => StateStorage.saveMarkdownPrintSetting(globalMarkdownPrintSetting), { deep: true })
-  watch(() => globalEditSetting.workspaceIgnoreRules, () => {
-    reloadFileTreeForFiltersDebounced()
+  watch([() => globalEditSetting.workspaceIgnoreRules, () => globalEditSetting.useGitignoreAsWorkspaceIgnore], () => {
+    reloadWorkspaceFiltersDebounced()
   })
   watch([autoSaveEnabled, autoSaveIntervalSeconds], () => saveAutoSaveDebounced())
 

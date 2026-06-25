@@ -6,9 +6,21 @@ export const DEFAULT_WORKSPACE_IGNORE_RULES = [
   '# One rule per line. Syntax is similar to .gitignore.',
   '.DS_Store',
   '**/.DS_Store',
+  '.git/',
+  'node_modules/',
+  'dist/',
+  'dist-electron/',
+  'release/',
+  'coverage/',
+  '.vite/',
+  '.cache/',
+  'docs/.vitepress/dist/',
+  'docs/.vitepress/.temp/',
+  'docs/.vitepress/cache/',
 ].join('\n')
 
 export const WORKSPACE_IGNORE_FILENAME = '.iwtignore'
+export const GITIGNORE_FILENAME = '.gitignore'
 
 export interface WorkspaceIgnoreRule {
   pattern: string
@@ -46,8 +58,35 @@ export function mergeWorkspaceIgnoreRules(...ruleSets: Array<string | undefined 
     .join('\n')
 }
 
-function hasNegatedRules(matcher: WorkspaceIgnoreMatcher): boolean {
-  return matcher.rules.some(rule => rule.negated)
+export function buildWorkspaceIgnoreRules(options: {
+  preferenceRules?: string | null
+  gitignoreRules?: string | null
+  workspaceRules?: string | null
+  useGitignoreAsWorkspaceIgnore?: boolean | null
+}): string {
+  return mergeWorkspaceIgnoreRules(
+    options.preferenceRules,
+    options.useGitignoreAsWorkspaceIgnore === false ? undefined : options.gitignoreRules,
+    options.workspaceRules
+  )
+}
+
+function negatedRuleCanMatchDescendant(rule: WorkspaceIgnoreRule, directoryPath: string): boolean {
+  if (!rule.negated) return false
+  if (rule.basenameOnly) return true
+
+  const normalizedDirectory = directoryPath.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '')
+  const normalizedPattern = rule.pattern.replace(/^\/+/, '').replace(/\/+$/, '')
+  if (!normalizedDirectory || !normalizedPattern) return false
+
+  if (normalizedPattern === normalizedDirectory || normalizedPattern.startsWith(`${normalizedDirectory}/`)) {
+    return true
+  }
+
+  const firstSegment = normalizedPattern.split('/')[0] ?? ''
+  if (!firstSegment || /[*?]/.test(firstSegment)) return true
+
+  return normalizedDirectory === firstSegment || normalizedDirectory.startsWith(`${firstSegment}/`)
 }
 
 function trimInlineComment(line: string): string {
@@ -229,6 +268,16 @@ export function shouldIncludeWorkspaceEntry(
   return true
 }
 
+export function shouldTraverseWorkspaceDirectory(
+  entry: Pick<WorkspaceEntry, 'relativePath' | 'isDirectory'>,
+  matcher: WorkspaceIgnoreMatcher
+): boolean {
+  if (!entry.isDirectory) return false
+  if (!matcher.ignores(entry.relativePath, true)) return true
+
+  return matcher.rules.some(rule => negatedRuleCanMatchDescendant(rule, entry.relativePath))
+}
+
 export function toWorkspaceRelativePath(workspaceRoot: string, filePath: string): string {
   const normalizedRoot = pathUtils.normalize(workspaceRoot)
   const normalizedPath = pathUtils.normalize(filePath)
@@ -284,15 +333,16 @@ export async function collectWorkspaceTextFiles(
   const directoryPath = options.directoryPath ?? workspaceRoot
   const results: WorkspaceEntry[] = []
   const matcher = parseWorkspaceIgnoreRules(options.ignoreRulesText)
-  const shouldTraverseIgnoredDirectories = hasNegatedRules(matcher)
-
   async function walk(currentDirPath: string): Promise<void> {
     const entries = await getWorkspaceEntriesRaw(currentDirPath, workspaceRoot)
 
     await Promise.all(entries.map(async (entry) => {
       if (entry.isDirectory) {
         const shouldIncludeDirectory = shouldIncludeWorkspaceEntry(entry, matcher, undefined, options.excludePattern)
-        if (!shouldIncludeDirectory && !shouldTraverseIgnoredDirectories) {
+        if (!shouldIncludeDirectory) {
+          if (matcher.ignores(entry.relativePath, true) && shouldTraverseWorkspaceDirectory(entry, matcher)) {
+            await walk(entry.path)
+          }
           return
         }
         await walk(entry.path)

@@ -25,6 +25,7 @@ import {
   WORKSPACE_IGNORE_FILENAME,
   parseWorkspaceIgnoreRules,
   shouldIncludeWorkspaceEntry,
+  shouldTraverseWorkspaceDirectory,
 } from '../src/services/workspace/filtering'
 import type { ContextMenuItem } from '../src/types/menu'
 import { CustomThemeLoader } from './CustomThemeLoader'
@@ -125,7 +126,6 @@ function createWorkspaceIgnoredPredicate(
 
   const normalizedRoot = path.resolve(workspaceRoot)
   const matcher = parseWorkspaceIgnoreRules(ignoreRulesText)
-  const hasNegatedRules = matcher.rules.some(rule => rule.negated)
 
   return (filePath: string, stats?: fs.Stats): boolean => {
     const absolutePath = path.resolve(filePath)
@@ -141,7 +141,7 @@ function createWorkspaceIgnoredPredicate(
 
     if (!stats) return false
 
-    if (stats.isDirectory() && hasNegatedRules) {
+    if (stats.isDirectory() && shouldTraverseWorkspaceDirectory({ relativePath, isDirectory: true }, matcher)) {
       return false
     }
 

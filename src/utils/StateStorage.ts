@@ -71,6 +71,7 @@ export const DEFAULT_EDIT_SETTING: EditSetting = {
   proofreadApiUrl: 'https://api.languagetool.org/v2/check',
   proofreadApiKey: '',
   workspaceIgnoreRules: DEFAULT_WORKSPACE_IGNORE_RULES,
+  useGitignoreAsWorkspaceIgnore: true,
   codeBlockLanguageScope: 'common',
 }
 

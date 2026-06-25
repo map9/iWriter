@@ -106,6 +106,8 @@ export default {
     workspace: {
       title: '工作区',
       rulesTitle: '文件规则',
+      useGitignoreTitle: '将 .gitignore 用作工作区过滤规则',
+      useGitignoreDesc: '开启后，资源管理器、跨文件搜索和文件监听会同时套用工作区根目录的 .gitignore。',
       workspaceIgnoreRulesTitle: '默认文件过滤规则',
       workspaceIgnoreRulesDesc: '用于资源管理器和跨文件搜索。语法与 .gitignore 类似，后续会再叠加工作区专用规则文件。',
       workspaceIgnoreRulesPlaceholder: '# 每行一条规则\n.DS_Store\nnode_modules/\n*.log\n!important.log',

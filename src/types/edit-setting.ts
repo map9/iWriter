@@ -15,5 +15,6 @@ export interface EditSetting {
   proofreadApiUrl?: string
   proofreadApiKey?: string
   workspaceIgnoreRules?: string
+  useGitignoreAsWorkspaceIgnore?: boolean
   codeBlockLanguageScope?: 'common' | 'all'
 }

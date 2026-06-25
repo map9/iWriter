@@ -268,6 +268,20 @@
           <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-7">
             <section class="flex flex-col gap-3">
               <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.workspace.rulesTitle') }}</h3>
+              <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
+                <div class="min-w-0">
+                  <div class="text-sm font-medium text-base-content">{{ t('preferences.workspace.useGitignoreTitle') }}</div>
+                  <div class="text-xs text-base-content/50">{{ t('preferences.workspace.useGitignoreDesc') }}</div>
+                </div>
+                <label class="label cursor-pointer gap-3">
+                  <input
+                    type="checkbox"
+                    class="toggle toggle-primary toggle-xs"
+                    :checked="appStore.globalEditSetting.useGitignoreAsWorkspaceIgnore !== false"
+                    @change="appStore.globalEditSetting.useGitignoreAsWorkspaceIgnore = ($event.target as HTMLInputElement).checked"
+                  />
+                </label>
+              </div>
               <div class="flex flex-col gap-2 rounded-box border border-base-300 bg-base-100 px-4 py-3">
                 <div class="min-w-0">
                   <div class="text-sm font-medium text-base-content">{{ t('preferences.workspace.workspaceIgnoreRulesTitle') }}</div>

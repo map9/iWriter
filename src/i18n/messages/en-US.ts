@@ -106,6 +106,8 @@ export default {
     workspace: {
       title: 'Workspace',
       rulesTitle: 'File Rules',
+      useGitignoreTitle: 'Use .gitignore as workspace filter rules',
+      useGitignoreDesc: 'When enabled, Explorer, search across files, and file watching also apply the workspace root .gitignore.',
       workspaceIgnoreRulesTitle: 'Default File Filter Rules',
       workspaceIgnoreRulesDesc: 'Used by Explorer and search across files. The syntax is similar to .gitignore, and workspace-specific rule files can be layered in later.',
       workspaceIgnoreRulesPlaceholder: '# One rule per line\n.DS_Store\nnode_modules/\n*.log\n!important.log',
