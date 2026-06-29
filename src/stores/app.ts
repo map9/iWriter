@@ -2520,8 +2520,24 @@ export const useAppStore = defineStore('app', () => {
         break
       }
     }
-  
+
     return result
+  }
+
+  async function closeOtherTabs(keepTabId: string): Promise<boolean> {
+    const ids = tabs.value.filter(t => t.id !== keepTabId).map(t => t.id)
+    for (const id of ids) {
+      if (await closeTab(id) === false) return false
+    }
+    return true
+  }
+
+  async function closeSavedTabs(): Promise<boolean> {
+    const ids = tabs.value.filter(t => !t.isDirty).map(t => t.id)
+    for (const id of ids) {
+      if (await closeTab(id) === false) return false
+    }
+    return true
   }
 
   function setActiveTab(tabId: string) {
@@ -3224,6 +3240,8 @@ export const useAppStore = defineStore('app', () => {
     moveTab,
     closeTab,
     closeAllTab,
+    closeOtherTabs,
+    closeSavedTabs,
     saveTab,
     setActiveTab,
     saveActiveTab,

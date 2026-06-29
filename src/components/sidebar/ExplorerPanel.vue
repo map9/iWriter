@@ -231,6 +231,16 @@ const fileClipboard = ref<{
 } | null>(null)
 const hasRootFolder = computed(() => appStore.fileTree !== null)
 
+function toRelativePath(absPath: string): string {
+  const root = appStore.currentFolder
+  if (!root) return absPath
+  const nRoot = pathUtils.normalize(root).replace(/[\\/]+$/, '')
+  const nPath = pathUtils.normalize(absPath)
+  if (nPath === nRoot) return pathUtils.basename(nPath)
+  const prefix = nRoot + '/'
+  return nPath.startsWith(prefix) ? nPath.slice(prefix.length) : nPath
+}
+
 // Get root folder's children to display in the tree (not the root folder itself)
 const rootChildren = computed(() => {
   if (!hasRootFolder.value || !appStore.fileTree || !appStore.fileTree.children) {
@@ -604,6 +614,7 @@ const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent })
         id: 'explorer-copy',
         label: t('explorer.menu.copy'),
       },
+      { type: 'separator' },
     )
   }
 
@@ -617,6 +628,18 @@ const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent })
       { type: 'separator' },
     )
   }
+
+  menuItems.push(
+    {
+      id: 'explorer-copy-path',
+      label: t('explorer.menu.copyPath'),
+    },
+    {
+      id: 'explorer-copy-relative-path',
+      label: t('explorer.menu.copyRelativePath'),
+    },
+    { type: 'separator' },
+  )
   
   if (fileNode) {
     menuItems.push(
@@ -734,6 +757,16 @@ const handleExplorerContextAction = async (action: string) => {
     case 'explorer-copy':
       if (node) {
         setClipboardFromNode(node, 'copy')
+      }
+      break
+    case 'explorer-copy-path':
+      if (node) {
+        await window.electronAPI.writeClipboardText(node.path)
+      }
+      break
+    case 'explorer-copy-relative-path':
+      if (node) {
+        await window.electronAPI.writeClipboardText(toRelativePath(node.path))
       }
       break
     case 'explorer-paste':

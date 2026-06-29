@@ -74,6 +74,7 @@
               @dragstart="handleTabDragStart($event, tab.id)"
               @dragend="clearDragState()"
               @click="switchTab(tab.id)"
+              @contextmenu.prevent.stop="handleTabContextMenu($event, tab)"
               :title="getTabTitle(tab)"
             >
               <!-- 文档类型图标（固定宽度） -->
@@ -144,10 +145,13 @@ import { computed, ref, onMounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import type { FileTab } from '@/types'
+import type { ContextMenuItem } from '@/types/menu'
 import { SidebarMode } from '@/types'
 import pathUtils from '@/utils/pathUtils'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { notify } from '@/utils/notifications'
+import { DocumentType } from '@/types'
+import { PANDOC_IMPORT_EXTENSIONS } from '@/import-export'
 import AiStatusButton from './AiStatusButton.vue'
 import {
   IconLayoutSidebarLeftCollapse,
@@ -260,6 +264,73 @@ function switchTab(tabId: string) {
   nextTick(() => {
     scrollActiveTabIntoView()
   })
+}
+
+function toRelativePath(absPath: string): string {
+  const root = appStore.currentFolder
+  if (!root) return absPath
+  const nRoot = pathUtils.normalize(root).replace(/[\\/]+$/, '')
+  const nPath = pathUtils.normalize(absPath)
+  if (nPath === nRoot) return pathUtils.basename(nPath)
+  const prefix = nRoot + '/'
+  return nPath.startsWith(prefix) ? nPath.slice(prefix.length) : nPath
+}
+
+function isTabImportable(tab: FileTab): boolean {
+  if (tab.documentType !== DocumentType.OFFICE_VIEWER || !tab.path) return false
+  const ext = pathUtils.extension(tab.name).toLowerCase()
+  return PANDOC_IMPORT_EXTENSIONS.includes(ext)
+}
+
+async function handleTabContextMenu(e: MouseEvent, tab: FileTab) {
+  const importable = isTabImportable(tab)
+  const items: ContextMenuItem[] = [
+    { id: 'tab-close', label: t('titlebar.tabMenu.close') },
+    { id: 'tab-close-others', label: t('titlebar.tabMenu.closeOthers'), enabled: appStore.tabs.length > 1 },
+    { id: 'tab-close-saved', label: t('titlebar.tabMenu.closeSaved') },
+    { id: 'tab-close-all', label: t('titlebar.tabMenu.closeAll') },
+    { type: 'separator' },
+    { id: 'tab-reveal', label: t('titlebar.tabMenu.revealInFolder'), enabled: !!tab.path },
+    { type: 'separator' },
+    { id: 'tab-copy-path', label: t('titlebar.tabMenu.copyPath'), enabled: !!tab.path },
+    { id: 'tab-copy-relative-path', label: t('titlebar.tabMenu.copyRelativePath'), enabled: !!tab.path },
+    ...(importable ? [
+      { type: 'separator' as const },
+      { id: 'tab-import-file', label: t('titlebar.tabMenu.importFile') },
+    ] : []),
+  ]
+
+  try {
+    const action = await window.electronAPI.showContextMenu(items, { x: e.clientX, y: e.clientY })
+    switch (action) {
+      case 'tab-close':
+        await appStore.closeTab(tab.id)
+        break
+      case 'tab-close-others':
+        await appStore.closeOtherTabs(tab.id)
+        break
+      case 'tab-close-saved':
+        await appStore.closeSavedTabs()
+        break
+      case 'tab-close-all':
+        await appStore.closeAllTab()
+        break
+      case 'tab-reveal':
+        if (tab.path) window.electronAPI.revealInFolder(tab.path)
+        break
+      case 'tab-copy-path':
+        if (tab.path) await window.electronAPI.writeClipboardText(tab.path)
+        break
+      case 'tab-copy-relative-path':
+        if (tab.path) await window.electronAPI.writeClipboardText(toRelativePath(tab.path))
+        break
+      case 'tab-import-file':
+        if (tab.path) await appStore.importOfficeToMarkdown(tab.path)
+        break
+    }
+  } catch (error) {
+    console.error('Error showing tab context menu:', error)
+  }
 }
 
 function scrollActiveTabIntoView() {

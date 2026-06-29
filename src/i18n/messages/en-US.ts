@@ -84,6 +84,16 @@ export default {
       externalModifiedTitle: '{name}\nFile was modified on disk',
       deletedTitle: '{name}\nFile was deleted from disk',
     },
+    tabMenu: {
+      close: 'Close',
+      closeOthers: 'Close Others',
+      closeSaved: 'Close Saved',
+      closeAll: 'Close All',
+      revealInFolder: 'Reveal in Folder',
+      copyPath: 'Copy Path',
+      copyRelativePath: 'Copy Relative Path',
+      importFile: 'Import as Markdown',
+    },
     drop: {
       folderUnsupported: 'Folders cannot be opened here. Open workspaces from Explorer.',
     },
@@ -1081,6 +1091,8 @@ export default {
       paste: 'Paste',
       delete: 'Delete',
       rename: 'Rename...',
+      copyPath: 'Copy Path',
+      copyRelativePath: 'Copy Relative Path',
     },
   },
   sidebar: {

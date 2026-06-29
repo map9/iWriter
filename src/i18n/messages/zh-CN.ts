@@ -84,6 +84,16 @@ export default {
       externalModifiedTitle: '{name}\n磁盘文件已被外部修改',
       deletedTitle: '{name}\n文件已从磁盘删除',
     },
+    tabMenu: {
+      close: '关闭',
+      closeOthers: '关闭其他',
+      closeSaved: '关闭已保存',
+      closeAll: '关闭全部',
+      revealInFolder: '打开所在文件夹',
+      copyPath: '复制路径',
+      copyRelativePath: '复制相对路径',
+      importFile: '导入当前文件',
+    },
     drop: {
       folderUnsupported: '文件夹不能在这里打开，请在资源管理器中打开工作区',
     },
@@ -1078,6 +1088,8 @@ export default {
       paste: '粘贴',
       delete: '删除',
       rename: '重命名...',
+      copyPath: '复制路径',
+      copyRelativePath: '复制相对路径',
     },
   },
   sidebar: {
