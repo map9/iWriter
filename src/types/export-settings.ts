@@ -12,12 +12,15 @@ export type ExportFormatId =
 
 export type ExportFolderMode = 'prompt' | 'same-directory' | 'custom'
 export type PandocPathMode = 'auto' | 'custom'
+export type LibreOfficePathMode = 'auto' | 'custom'
 
 export interface ExportCommonSettings {
   defaultFolderMode: ExportFolderMode
   customFolderPath: string
   pandocPathMode: PandocPathMode
   pandocPath: string
+  libreOfficePathMode: LibreOfficePathMode
+  libreOfficePath: string
   afterExportActions: {
     reveal: boolean
     open: boolean

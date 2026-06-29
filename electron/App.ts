@@ -14,6 +14,7 @@ import { MenuManager } from './MenuManager'
 import { WindowManager } from './WindowManager'
 import { UpdaterManager } from '../src/updater/UpdaterManager'
 import { PandocService } from './PandocService'
+import { LibreOfficeService } from './LibreOfficeService'
 import type { AgentEngine } from './ai/AgentEngine'
 import { AiConfigStore } from './ai/config/AiConfigStore'
 import { perfLog } from './perf'
@@ -161,6 +162,7 @@ export class App {
   private windowManager: WindowManager
   private updaterManager: UpdaterManager | null
   private pandocService: PandocService
+  private libreOfficeService: LibreOfficeService
   private _agentEngine: AgentEngine | null = null
   private customThemeLoader: CustomThemeLoader
   private appQuitTimer: Timer | null = null
@@ -173,6 +175,7 @@ export class App {
     this.windowManager = new WindowManager(this)
     this.updaterManager = null
     this.pandocService = new PandocService()
+    this.libreOfficeService = new LibreOfficeService()
     this.customThemeLoader = new CustomThemeLoader()
     this._isAppQuitting = false
     this._exitApp = false
@@ -391,6 +394,7 @@ export class App {
     this.registerExecShellHandler()
     this.registerCodeFormatHandler()
     this.registerPandocHandlers()
+    this.registerLibreOfficeHandlers()
     this.registerAgentIpcHandlers()
     this.registerCustomThemeHandlers()
     ipcMain.on('hello', (_, windowId: number) => {
@@ -1288,6 +1292,24 @@ export class App {
     })
   }
 
+  private registerLibreOfficeHandlers() {
+    ipcMain.handle('office:check', async (_, req?: { sofficePath?: string }) => {
+      return this.libreOfficeService.checkAvailability(req?.sofficePath)
+    })
+
+    ipcMain.handle('office:convert', async (_, req: { inputPath: string; sofficePath?: string }) => {
+      return this.libreOfficeService.convertToPdf(req)
+    })
+
+    ipcMain.handle('open-external', async (_, url: string) => {
+      await shell.openExternal(url)
+    })
+
+    ipcMain.handle('write-clipboard-text', async (_, text: string) => {
+      clipboard.writeText(text)
+    })
+  }
+
   private registerAgentIpcHandlers() {
     ipcMain.handle('ai:send-message', async (_, req) => {
       return (await this._getAgentEngine()).sendMessage(req)
@@ -1369,6 +1391,10 @@ export class App {
     ipcMain.removeHandler('pandoc:check')
     ipcMain.removeHandler('pandoc:import-file')
     ipcMain.removeHandler('pandoc:export-file')
+    ipcMain.removeHandler('office:check')
+    ipcMain.removeHandler('office:convert')
+    ipcMain.removeHandler('open-external')
+    ipcMain.removeHandler('write-clipboard-text')
     ipcMain.removeHandler('hello')
     ipcMain.removeHandler('read-file')
     ipcMain.removeHandler('read-file-silent')
@@ -1510,8 +1536,10 @@ export class App {
         console.error('Error stopping all file watchers:', error);
       }
       this.removeAllHandler()
+      // 清理 Office 临时 PDF 缓存
+      await this.libreOfficeService.cleanupCache()
     });
-      
+
     app.on('activate', () =>{
       if (
         this._exitApp === false &&

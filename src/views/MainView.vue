@@ -75,12 +75,19 @@
             />
             
             <!-- PDF Viewer Page -->
-            <PDFViewerPage 
+            <PDFViewerPage
               v-else-if="tab.documentType === DocumentType.PDF_VIEWER"
               ref="pdfViewerRefs"
               :tab="tab"
             />
-            
+
+            <!-- Office Viewer Page -->
+            <OfficeViewerPage
+              v-else-if="tab.documentType === DocumentType.OFFICE_VIEWER"
+              ref="officeViewerRefs"
+              :tab="tab"
+            />
+
             <!-- Fallback for unknown types -->
             <UnknownPage v-else
               :tab="tab"
@@ -159,12 +166,14 @@ import WelcomePage from '@/components/pages/WelcomePage.vue'
 import type MarkdownEditorPageType from '@/components/pages/MarkdownEditorPage.vue'
 import type ImageViewerPageType from '@/components/pages/ImageViewerPage.vue'
 import type PDFViewerPageType from '@/components/pages/PDFViewerPage.vue'
+import type OfficeViewerPageType from '@/components/pages/OfficeViewerPage.vue'
 // 所有页面/对话框懒加载，减少初始 chunk：
 //   - MarkdownEditorPage 携带 TipTap/highlight/katex (~2.5MB)，onMounted 后立即预加载
 //   - PDFViewerPage 携带 pdfjs-dist (413KB)；PrintDialog 携带 pagedjs-lib (892KB)
 const MarkdownEditorPage = defineAsyncComponent(() => import('@/components/pages/MarkdownEditorPage.vue'))
 const ImageViewerPage = defineAsyncComponent(() => import('@/components/pages/ImageViewerPage.vue'))
 const PDFViewerPage = defineAsyncComponent(() => import('@/components/pages/PDFViewerPage.vue'))
+const OfficeViewerPage = defineAsyncComponent(() => import('@/components/pages/OfficeViewerPage.vue'))
 const UnknownPage = defineAsyncComponent(() => import('@/components/pages/UnknownPage.vue'))
 const UpdateDialog = defineAsyncComponent(() => import('@/components/updater/UpdateDialog.vue'))
 const PreferencesDialog = defineAsyncComponent(() => import('@/components/preferences/PreferencesDialog.vue'))
@@ -179,6 +188,7 @@ const { t } = useI18n()
 const markdownEditorRefs = ref<InstanceType<typeof MarkdownEditorPageType>[]>([])
 const imageViewerRefs = ref<InstanceType<typeof ImageViewerPageType>[]>([])
 const pdfViewerRefs = ref<InstanceType<typeof PDFViewerPageType>[]>([])
+const officeViewerRefs = ref<InstanceType<typeof OfficeViewerPageType>[]>([])
 
 // Update dialog：可见性与数据都集中在 updaterService 中，此处只保留句柄
 // （模板直接读 updaterService.dialogVisible / updaterService.updateInfo）
@@ -235,6 +245,8 @@ function getActivePageRef() {
       return imageViewerRefs.value.find(ref => ref && ref.tab?.id === activeTab.value?.id)
     case DocumentType.PDF_VIEWER:
       return pdfViewerRefs.value.find(ref => ref && ref.tab?.id === activeTab.value?.id)
+    case DocumentType.OFFICE_VIEWER:
+      return officeViewerRefs.value.find(ref => ref && ref.tab?.id === activeTab.value?.id)
     default:
       return null
   }

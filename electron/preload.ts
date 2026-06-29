@@ -7,6 +7,7 @@ import type { ContextMenuItem } from '../src/types/menu'
 import type { FileChange } from '../src/types/file-operation'
 import type { WindowContentState } from '../src/types/window-content-state'
 import type { PandocAvailabilityResult, PandocImportRequest, PandocImportResult, PandocExportRequest, PandocExportResult } from '../src/types/pandoc'
+import type { LibreOfficeAvailabilityResult, OfficeConvertRequest, OfficeConvertResult } from '../src/types/libreoffice'
 import type { UpdaterConfig, UpdaterStateMessage } from '../src/updater/types'
 
 const electronAPI: ElectronAPI = {
@@ -113,8 +114,15 @@ const electronAPI: ElectronAPI = {
   pandocImportFile: (req: PandocImportRequest): Promise<PandocImportResult> => ipcRenderer.invoke('pandoc:import-file', req),
   pandocExportFile: (req: PandocExportRequest): Promise<PandocExportResult> => ipcRenderer.invoke('pandoc:export-file', req),
 
+  officeCheck: (req?: { sofficePath?: string }): Promise<LibreOfficeAvailabilityResult> => ipcRenderer.invoke('office:check', req),
+  officeConvertToPdf: (req: OfficeConvertRequest): Promise<OfficeConvertResult> => ipcRenderer.invoke('office:convert', req),
+
   // Clipboard
   readClipboardText: () => ipcRenderer.invoke('read-clipboard-text'),
+  writeClipboardText: (text: string): Promise<void> => ipcRenderer.invoke('write-clipboard-text', text),
+
+  // Shell: open external URL in default browser
+  openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open-external', url),
   resolveImageUrl: (url: string) => ipcRenderer.invoke('resolve-image-url', url),
 
   // Menu actions

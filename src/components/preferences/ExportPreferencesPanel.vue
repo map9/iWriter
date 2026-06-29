@@ -83,6 +83,26 @@
           </div>
         </div>
 
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium text-base-content">{{ t('preferences.export.libreOfficePathTitle') }}</label>
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              class="iw-input flex-1"
+              :placeholder="t('preferences.export.libreOfficePathAutoPlaceholder')"
+              :value="appStore.globalExportSetting.common.libreOfficePathMode === 'auto' ? '' : appStore.globalExportSetting.common.libreOfficePath"
+              @input="handleLibreOfficePathInput(($event.target as HTMLInputElement).value)"
+            />
+            <button
+              class="iw-toolbar-btn btn-xs"
+              :aria-label="t('preferences.export.browseFolder')"
+              @click="browseLibreOfficeFolder"
+            >
+              <IconFolderOpen class="icon-xs" />
+            </button>
+          </div>
+        </div>
+
         <div class="flex flex-col gap-3">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.export.afterExportTitle') }}</label>
           <label class="flex items-center gap-3">
@@ -285,6 +305,27 @@ async function browsePandocFolder() {
     appStore.globalExportSetting.common.pandocPathMode = 'custom'
     appStore.globalExportSetting.common.pandocPath = result.filePaths[0]
   }
+}
+
+async function browseLibreOfficeFolder() {
+  const result = await window.electronAPI.showOpenDialog({
+    properties: ['openDirectory'],
+  })
+  if (!result.canceled && result.filePaths[0]) {
+    appStore.globalExportSetting.common.libreOfficePathMode = 'custom'
+    appStore.globalExportSetting.common.libreOfficePath = result.filePaths[0]
+  }
+}
+
+function handleLibreOfficePathInput(value: string) {
+  const trimmed = value.trim()
+  if (trimmed.length === 0) {
+    appStore.globalExportSetting.common.libreOfficePathMode = 'auto'
+    appStore.globalExportSetting.common.libreOfficePath = ''
+    return
+  }
+  appStore.globalExportSetting.common.libreOfficePathMode = 'custom'
+  appStore.globalExportSetting.common.libreOfficePath = value
 }
 
 function handleDefaultFolderModeChange(value: string) {

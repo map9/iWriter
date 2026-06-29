@@ -26,6 +26,7 @@ import {
   TEXT_EXTENSIONS,
   IMAGE_EXTENSIONS,
   PDF_EXTENSIONS,
+  OFFICE_EXTENSIONS,
   type PandocAvailabilityResult,
   type PandocExportRequest,
 } from '@/types'
@@ -1009,6 +1010,45 @@ export const useAppStore = defineStore('app', () => {
     return configured || undefined
   }
 
+  function getConfiguredSofficePath(): string | undefined {
+    if (globalExportSetting.common.libreOfficePathMode !== 'custom') return undefined
+    const configured = globalExportSetting.common.libreOfficePath.trim()
+    return configured || undefined
+  }
+
+  async function importOfficeToMarkdown(filePath: string): Promise<boolean> {
+    if (!window.electronAPI?.pandocImportFile) return false
+
+    const pandocAvailability = await window.electronAPI.pandocCheck?.({
+      pandocPath: getConfiguredPandocPath(),
+    })
+    if (!pandocAvailability?.available) {
+      notify.error(
+        pandocAvailability?.error || t('notify.pandoc.unavailableTitle'),
+        t('notify.office.importFailed'),
+      )
+      return false
+    }
+
+    const importResult = await window.electronAPI.pandocImportFile({
+      inputPath: filePath,
+      pandocPath: getConfiguredPandocPath(),
+    })
+    if (!importResult.success || !importResult.markdown) {
+      notify.error(importResult.error || t('notify.pandoc.unsupportedSource'), t('notify.office.importFailed'))
+      return false
+    }
+
+    const sourceBaseName = pathUtils.basename(filePath)
+    const nameWithoutExt = sourceBaseName.replace(/\.[^.]+$/, '')
+    createTab(`${nameWithoutExt}.md`, undefined, DocumentType.MARKDOWN_EDITOR, false, {
+      markdown: importResult.markdown,
+      sourcePath: filePath,
+    })
+    notify.success(t('notify.office.importSuccess', { name: sourceBaseName }), t('notify.file.operation'))
+    return true
+  }
+
   function getPreferredExportDirectory(tab?: FileTab | null): string | undefined {
     switch (globalExportSetting.common.defaultFolderMode) {
       case 'same-directory':
@@ -1516,12 +1556,14 @@ export const useAppStore = defineStore('app', () => {
         { name: 'Text and Markdown Files', extensions: [...TEXT_EXTENSIONS] },
         { name: 'Image Files', extensions: [...IMAGE_EXTENSIONS] },
         { name: 'PDF Files', extensions: [...PDF_EXTENSIONS] },
-        { 
+        { name: 'Office Files', extensions: [...OFFICE_EXTENSIONS] },
+        {
           name: 'All Files',
           extensions: [
             ...TEXT_EXTENSIONS,
             ...IMAGE_EXTENSIONS,
             ...PDF_EXTENSIONS,
+            ...OFFICE_EXTENSIONS,
           ]
         }
       ]
@@ -3242,6 +3284,10 @@ export const useAppStore = defineStore('app', () => {
     saveAllTabs,
     cleanTab,
     updateTabState,
+
+    // Office operations
+    importOfficeToMarkdown,
+    getConfiguredSofficePath,
 
     // Menu actions
     handleMenuAction,

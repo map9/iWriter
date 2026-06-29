@@ -11,6 +11,7 @@ export * from './window-content-state'
 export * from './electron-api'
 export * from './pandoc'
 export * from './export-settings'
+export * from './libreoffice'
 export * from './markdown-theme'
 
 export {}

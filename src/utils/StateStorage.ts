@@ -87,6 +87,8 @@ export const DEFAULT_EXPORT_SETTING: ExportSettings = {
     customFolderPath: '',
     pandocPathMode: 'auto',
     pandocPath: '',
+    libreOfficePathMode: 'auto',
+    libreOfficePath: '',
     afterExportActions: {
       reveal: false,
       open: false,

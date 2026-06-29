@@ -1,5 +1,5 @@
 import type { DocumentType } from '@/types'
-import { DocumentType as DocType, IMAGE_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS } from '@/types'
+import { DocumentType as DocType, IMAGE_EXTENSIONS, OFFICE_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS } from '@/types'
 import {
   IconFile,
   IconFileCode,
@@ -12,6 +12,8 @@ import {
   IconFileTypeDoc,
   IconFileTypeDocx,
   IconFileTypePdf,
+  IconFileTypePpt,
+  IconFileTypeXls,
   IconFileZip,
   IconBrandJavascript,
   IconBrandHtml5,
@@ -66,6 +68,11 @@ export class DefaultDocumentTypeDetector {
       return DocType.IMAGE_VIEWER
     }
 
+    // @ts-expect-error: OFFICE_EXTENSIONS may not be typed as string[] but is used as such here
+    if (OFFICE_EXTENSIONS.includes(normalizedExt)) {
+      return DocType.OFFICE_VIEWER
+    }
+
     return DocType.UNKNOWN
   }
 
@@ -103,6 +110,7 @@ export class DefaultDocumentTypeDetector {
       ...TEXT_EXTENSIONS,
       ...IMAGE_EXTENSIONS,
       ...PDF_EXTENSIONS,
+      ...OFFICE_EXTENSIONS,
     ]
   }
 
@@ -135,6 +143,8 @@ export class DefaultDocumentTypeDetector {
         return 'PDF 查看器'
       case DocType.IMAGE_VIEWER:
         return '图片查看器'
+      case DocType.OFFICE_VIEWER:
+        return 'Office 查看器'
       case DocType.UNKNOWN:
       default:
         return '未知类型'
@@ -152,6 +162,8 @@ export class DefaultDocumentTypeDetector {
         return IconFileTypePdf
       case DocType.IMAGE_VIEWER:
         return IconPhoto
+      case DocType.OFFICE_VIEWER:
+        return IconFileTypeDocx
       case DocType.UNKNOWN:
       default:
         return IconFile
@@ -236,6 +248,14 @@ export class DefaultDocumentTypeDetector {
       case 'docx':
         return IconFileTypeDocx
 
+      case 'xls':
+      case 'xlsx':
+        return IconFileTypeXls
+
+      case 'ppt':
+      case 'pptx':
+        return IconFileTypePpt
+
       case 'pdf':
         return IconFileTypePdf
       
@@ -281,7 +301,11 @@ export class DefaultDocumentTypeDetector {
    * 检查文件是否只读
    */
   isReadOnly(documentType: DocumentType): boolean {
-    return documentType === DocType.PDF_VIEWER || documentType === DocType.IMAGE_VIEWER
+    return (
+      documentType === DocType.PDF_VIEWER ||
+      documentType === DocType.IMAGE_VIEWER ||
+      documentType === DocType.OFFICE_VIEWER
+    )
   }
 }
 

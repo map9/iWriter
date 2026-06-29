@@ -7,5 +7,6 @@ export const CODE_EXTENSIONS = ['js', 'mjs', 'ts', 'tsx', 'jsx', 'vue', 'html', 
 export const TEXT_EXTENSIONS = [...TEXT_MD_EXTENSIONS, ...TEXT_TXT_EXTENSIONS, ...TEXT_IWT_EXTENSIONS, ...CODE_EXTENSIONS] as const
 export const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'ico'] as const
 export const PDF_EXTENSIONS = ['pdf'] as const
+export const OFFICE_EXTENSIONS = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'] as const
 export const AUDIO_EXTENSIONS = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'] as const
 export const VIDEO_EXTENSIONS = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv'] as const

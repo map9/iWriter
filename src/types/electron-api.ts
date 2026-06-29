@@ -96,8 +96,15 @@ export interface ElectronAPI {
   pandocImportFile: (req: import('@/types').PandocImportRequest) => Promise<import('@/types').PandocImportResult>
   pandocExportFile: (req: import('@/types').PandocExportRequest) => Promise<import('@/types').PandocExportResult>
 
-  // 剪贴板（主进程读取，绕过 renderer clipboard-read 权限限制）
+  officeCheck: (req?: { sofficePath?: string }) => Promise<import('@/types').LibreOfficeAvailabilityResult>
+  officeConvertToPdf: (req: import('@/types').OfficeConvertRequest) => Promise<import('@/types').OfficeConvertResult>
+
+  // 剪贴板（主进程读取/写入，绕过 renderer clipboard 权限限制）
   readClipboardText: () => Promise<string>
+  writeClipboardText: (text: string) => Promise<void>
+
+  // Shell：在默认浏览器中打开外部 URL
+  openExternal: (url: string) => Promise<void>
 
   // 图片 URL（主进程解析，绕过 renderer CORS 限制）
   resolveImageUrl: (url: string) => Promise<{ ok: boolean; url?: string; contentType?: string; status?: number; error?: string }>
