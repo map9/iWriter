@@ -1102,6 +1102,30 @@ export default {
       openFolder: 'Open Folder',
       warning: 'Opening a folder will close all currently open editors.',
     },
+    toc: {
+      title: 'Outline',
+      toggleNumbering: 'Show or hide numbering',
+      collapseToLevel: 'Collapse to {level} level',
+      expandAllLevels: 'Expand all levels',
+      scrollToTop: 'Scroll to top',
+      loading: 'Loading table of contents...',
+      provider: 'Provider: {name}',
+      noProvider: 'No Provider',
+      empty: {
+        noDocument: {
+          title: 'No document open',
+          subtitle: 'Open a Markdown document to see its outline',
+        },
+        noHeadings: {
+          title: 'No headings found',
+          subtitle: 'Add headings (# ## ###) to your document to see the outline',
+        },
+        unsupported: {
+          title: 'No table of contents',
+          subtitle: 'This document type may not support outline generation',
+        },
+      },
+    },
   },
   menu: {
     app: {

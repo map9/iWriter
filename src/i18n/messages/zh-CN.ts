@@ -1099,6 +1099,30 @@ export default {
       openFolder: '打开文件夹',
       warning: '打开文件夹会关闭当前所有已打开的编辑器。',
     },
+    toc: {
+      title: '大纲',
+      toggleNumbering: '显示或隐藏编号',
+      collapseToLevel: '折叠到 {level} 层级',
+      expandAllLevels: '展开全部层级',
+      scrollToTop: '滚动到顶部',
+      loading: '正在加载目录...',
+      provider: '提供方：{name}',
+      noProvider: '无提供方',
+      empty: {
+        noDocument: {
+          title: '未打开文档',
+          subtitle: '打开 Markdown 文档后可查看大纲',
+        },
+        noHeadings: {
+          title: '未找到标题',
+          subtitle: '在文档中添加标题（# ## ###）后可查看大纲',
+        },
+        unsupported: {
+          title: '无目录',
+          subtitle: '此文档类型可能不支持生成大纲',
+        },
+      },
+    },
   },
   menu: {
     app: {

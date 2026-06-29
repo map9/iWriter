@@ -4,7 +4,7 @@
     <div class="iw-sidebar-section border-b border-base-300">
       <div class="flex items-center gap-2">
         <span class="iw-sidebar-section-header">
-          Outline
+          {{ t('sidebar.toc.title') }}
         </span>
       </div>
       
@@ -14,7 +14,7 @@
           @click="toggleNumbering"
           class="iw-toolbar-btn btn-xs"
           :class="{ 'iw-toolbar-btn-active': showNumbering }"
-          title="Toggle Numbering"
+          :title="t('sidebar.toc.toggleNumbering')"
         >
           <IconNumbers class="icon-xs" />
         </button>
@@ -30,7 +30,7 @@
             @click="setExpandLevel(2)"
             class="iw-toolbar-btn btn-xs join-item"
             :class="{ 'iw-toolbar-btn-active': expandLevel === 2 }"
-            title="Collapse to H2 level"
+            :title="t('sidebar.toc.collapseToLevel', { level: 'H2' })"
           >
             <p class="icon-xs text-xs">H2</p>
           </button>
@@ -38,7 +38,7 @@
             @click="setExpandLevel(3)"
             class="iw-toolbar-btn btn-xs join-item"
             :class="{ 'iw-toolbar-btn-active': expandLevel === 3 }"
-            title="Collapse to H3 level"
+            :title="t('sidebar.toc.collapseToLevel', { level: 'H3' })"
           >
             <p class="icon-xs text-xs">H3</p>
           </button>
@@ -46,7 +46,7 @@
             @click="setExpandLevel(4)"
             class="iw-toolbar-btn btn-xs join-item"
             :class="{ 'iw-toolbar-btn-active': expandLevel === 4 }"
-            title="Collapse to H4 level"
+            :title="t('sidebar.toc.collapseToLevel', { level: 'H4' })"
           >
             <p class="icon-xs text-xs">H4</p>
           </button>
@@ -54,7 +54,7 @@
             @click="setExpandLevel(6)"
             class="iw-toolbar-btn btn-xs join-item"
             :class="{ 'iw-toolbar-btn-active': expandLevel === 6 }"
-            title="Expand all levels"
+            :title="t('sidebar.toc.expandAllLevels')"
           >
             <p class="icon-xs text-xs">All</p>
           </button>
@@ -68,7 +68,7 @@
         <button
           @click="scrollToTop"
           class="iw-toolbar-btn btn-xs"
-          title="Scroll to Top"
+          :title="t('sidebar.toc.scrollToTop')"
         >
           <IconArrowUp class="icon-xs" />
         </button>
@@ -80,7 +80,7 @@
       <!-- Loading State -->
       <div v-if="isLoading" class="p-4 text-center text-base-content">
         <span class="loading loading-spinner loading-md mb-2"></span>
-        <p class="text-sm">Loading table of contents...</p>
+        <p class="text-sm">{{ t('sidebar.toc.loading') }}</p>
       </div>
       
       <!-- TOC Tree -->
@@ -102,7 +102,7 @@
         </p>
         <div v-if="emptyStateMessage.showProvider" class="mt-3 border-t border-base-300 pt-2 text-base-content/50">
           <p class="text-xs">
-            Provider: {{ providerInfo.name }}
+            {{ t('sidebar.toc.provider', { name: providerInfo.name }) }}
           </p>
         </div>
       </div>
@@ -112,6 +112,7 @@
 
 <script setup lang="ts">
 import { computed, ref, reactive, toRefs, watch, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import Tree from '@/components/common/tree/Tree.vue'
 import type { TreeNode, TreeCallbacks } from '@/components/common/tree'
@@ -133,9 +134,10 @@ interface NodeData{
 
 // 使用app store获取活跃标签页
 const appStore = useAppStore()
+const { t } = useI18n()
 
 // 组件状态
-const showNumbering = ref(true)
+const showNumbering = ref(false)
 const expandLevel = ref(6) // 默认展开所有级别
 const treeRef = ref<InstanceType<typeof Tree>>()
 
@@ -360,7 +362,7 @@ const collapseToLevel = (level: number) => {
 // 计算属性 - 提供者信息和空状态消息
 const providerInfo = computed(() => {
   if (!tocProvider.value) {
-    return { type: 'none', name: 'No Provider' }
+    return { type: 'none', name: t('sidebar.toc.noProvider') }
   }
   
   return { 
@@ -374,20 +376,20 @@ const emptyStateMessage = computed(() => {
   const info = providerInfo.value
   if (info.type === 'none') {
     return {
-      title: 'No document open',
-      subtitle: 'Open a Markdown document to see its outline',
+      title: t('sidebar.toc.empty.noDocument.title'),
+      subtitle: t('sidebar.toc.empty.noDocument.subtitle'),
       showProvider: false
     }
   } else if (info.type === 'markdown') {
     return {
-      title: 'No headings found',
-      subtitle: 'Add headings (# ## ###) to your document to see the outline',
+      title: t('sidebar.toc.empty.noHeadings.title'),
+      subtitle: t('sidebar.toc.empty.noHeadings.subtitle'),
       showProvider: true
     }
   } else {
     return {
-      title: 'No table of contents',
-      subtitle: 'This document type may not support outline generation',
+      title: t('sidebar.toc.empty.unsupported.title'),
+      subtitle: t('sidebar.toc.empty.unsupported.subtitle'),
       showProvider: true
     }
   }
