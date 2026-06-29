@@ -149,6 +149,7 @@ export const useAppStore = defineStore('app', () => {
   const externalChangePromptPaths = new Set<string>()
   const ignoredExternalChangePaths = new Set<string>()
   const openDocumentWatchDirs = new Set<string>()
+  const inFlightAddPaths = new Map<string, Promise<boolean>>()
   let fileWatchListenersRegistered = false
   let workspaceRestoreCheckTimer: ReturnType<typeof setInterval> | null = null
 
@@ -2004,85 +2005,93 @@ export const useAppStore = defineStore('app', () => {
   // 向文件树添加节点
   async function addNodeToFileTreeByFilePath(filePath: string): Promise<boolean> {
     if (!window.electronAPI) return false
-    // 文件或者文件夹已经存在
-    const node = findNodeByPath(filePath)
-    if (node) return false
+    if (findNodeByPath(filePath)) return false
 
-    try {
-      const parentPath = pathUtils.dirname(filePath)
-      const parentNode = findNodeByPath(parentPath)
-      if (!parentNode) {
-        if (currentFolder.value && isPathInsideWorkspace(parentPath, currentFolder.value)) {
-          const parentAdded = await addNodeToFileTreeByFilePath(parentPath)
-          if (!parentAdded && !findNodeByPath(parentPath)) {
+    // Deduplicate concurrent adds for the same path to prevent duplicate tree nodes
+    // when chokidar fires addDir/add events for a parent and all its children simultaneously.
+    const key = pathUtils.normalize(filePath)
+    const inFlight = inFlightAddPaths.get(key)
+    if (inFlight) return inFlight
+
+    const promise = (async (): Promise<boolean> => {
+      try {
+        const parentPath = pathUtils.dirname(filePath)
+        const parentNode = findNodeByPath(parentPath)
+        if (!parentNode) {
+          if (currentFolder.value && isPathInsideWorkspace(parentPath, currentFolder.value)) {
+            const parentAdded = await addNodeToFileTreeByFilePath(parentPath)
+            if (!parentAdded && !findNodeByPath(parentPath)) {
+              await loadFileTree()
+              return !!findNodeByPath(filePath)
+            }
+          } else {
             await loadFileTree()
             return !!findNodeByPath(filePath)
           }
-        } else {
-          await loadFileTree()
-          return !!findNodeByPath(filePath)
         }
-      }
-      const resolvedParentNode = findNodeByPath(parentPath)
-      if (!resolvedParentNode) return false
-      if (findNodeByPath(filePath)) return false
-      
-      // 使用 await 等待异步操作完成
-      const files = await window.electronAPI.getFiles(filePath, true)
-      if (!files || files.length === 0 || !files[0]) {
-        throw new Error(`获取 ${parentPath} 信息失败`)
-      }
+        const resolvedParentNode = findNodeByPath(parentPath)
+        if (!resolvedParentNode) return false
+        if (findNodeByPath(filePath)) return false
 
-      if (currentFolder.value) {
-        const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
-        const entries = await listWorkspaceEntries(parentPath, {
-          workspaceRoot: currentFolder.value,
-          ignoreRulesText: effectiveIgnoreRules,
-          includeDirectories: true,
-        })
-        const existsAfterFiltering = entries.some(entry => entry.path === filePath)
-        if (!existsAfterFiltering) {
-          return false
+        // 使用 await 等待异步操作完成
+        const files = await window.electronAPI.getFiles(filePath, true)
+        if (!files || files.length === 0 || !files[0]) {
+          throw new Error(`获取 ${filePath} 信息失败`)
         }
-      }
 
-      const newNode: FileTreeNode = {
-        id: generateId(),
-        label: files[0].name,
-        path: files[0].path,
-        type: files[0].isDirectory ? 'folder' : 'file',
-        parent: resolvedParentNode,
-        isVisible: true,
-        isEnabled: true,
-        data: {},
-        size: files[0].size || 0,
-        isHidden: files[0].isHidden ?? files[0].name.startsWith('.'),
-        isWritable: files[0].isWritable,
-        isReadonly: files[0].isWritable === false,
-        created: files[0].created,
-        modified: files[0].modified,
-      }
-      if (files[0].isDirectory) {
-        const effectiveIgnoreRules = currentFolder.value
-          ? await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
-          : undefined
-        newNode.children = await traverseFileTree(files[0].path, newNode, effectiveIgnoreRules)
-      }
-      if (!resolvedParentNode.children) {
-        resolvedParentNode.children = []
-      }
-      resolvedParentNode.children.push(newNode)
+        if (currentFolder.value) {
+          const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
+          const entries = await listWorkspaceEntries(parentPath, {
+            workspaceRoot: currentFolder.value,
+            ignoreRulesText: effectiveIgnoreRules,
+            includeDirectories: true,
+          })
+          const existsAfterFiltering = entries.some(entry => entry.path === filePath)
+          if (!existsAfterFiltering) {
+            return false
+          }
+        }
 
-      notify.success(t('notify.tree.nodeAdded', { path: filePath }), t('notify.tree.context'))
+        const newNode: FileTreeNode = {
+          id: generateId(),
+          label: files[0].name,
+          path: files[0].path,
+          type: files[0].isDirectory ? 'folder' : 'file',
+          parent: resolvedParentNode,
+          isVisible: true,
+          isEnabled: true,
+          data: {},
+          size: files[0].size || 0,
+          isHidden: files[0].isHidden ?? files[0].name.startsWith('.'),
+          isWritable: files[0].isWritable,
+          isReadonly: files[0].isWritable === false,
+          created: files[0].created,
+          modified: files[0].modified,
+        }
+        if (files[0].isDirectory) {
+          const effectiveIgnoreRules = currentFolder.value
+            ? await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
+            : undefined
+          newNode.children = await traverseFileTree(files[0].path, newNode, effectiveIgnoreRules)
+        }
+        if (!resolvedParentNode.children) {
+          resolvedParentNode.children = []
+        }
+        resolvedParentNode.children.push(newNode)
 
-      // Sort children based on current sort type
-      //sortFileTreeNodes(parentNode.children as FileTreeNode[], currentFileTreeSortType.value)
-      
-      return true
-    } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.tree.updateError'))
-      return false
-    }
+        notify.success(t('notify.tree.nodeAdded', { path: filePath }), t('notify.tree.context'))
+
+        // Sort children based on current sort type
+        //sortFileTreeNodes(parentNode.children as FileTreeNode[], currentFileTreeSortType.value)
+
+        return true
+      } catch (error) {
+        notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.tree.updateError'))
+        return false
+      }
+    })()
+    inFlightAddPaths.set(key, promise)
+    return promise.finally(() => inFlightAddPaths.delete(key))
   }
 
   // 通过文件路径，更新fileTree中path=给定path的FileTreeNode的状态size，created，modified
