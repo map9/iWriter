@@ -21,6 +21,7 @@ export interface ReviewExecutorAppStoreLike {
     fileReadonly?: boolean,
     pendingImport?: { markdown: string; sourcePath?: string },
   ) => unknown
+  findExistingTab?: (key: { path?: string; name?: string; documentType?: import('@/types/document-type').DocumentType }) => FileTab | undefined
 }
 
 async function saveAppliedOpenTab(
@@ -62,6 +63,16 @@ function hasOpenCreateDocumentTarget(
     : proposal.filename.trim()
   const targetPath = directory ? pathUtils.normalize(pathUtils.join(directory, filename)) : undefined
 
+  // 优先使用 store 的共享去重 helper
+  if (appStore.findExistingTab) {
+    return !!appStore.findExistingTab(
+      targetPath
+        ? { path: targetPath, documentType: DocumentType.MARKDOWN_EDITOR }
+        : { name: filename, documentType: DocumentType.MARKDOWN_EDITOR }
+    )
+  }
+
+  // 降级：直接检查 tabs（兼容测试 mock）
   return (appStore.tabs ?? []).some(tab => {
     const tabPath = tab.path ? pathUtils.normalize(tab.path) : undefined
     if (targetPath && tabPath === targetPath) return true

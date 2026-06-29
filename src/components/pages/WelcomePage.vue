@@ -53,7 +53,7 @@ const appStore = useAppStore()
 const { t } = useI18n()
 
 function createNewDocument() {
-  appStore.createTab(undefined, undefined, DocumentType.MARKDOWN_EDITOR)
+  appStore.createOrActivateTab(undefined, undefined, DocumentType.MARKDOWN_EDITOR)
 }
 
 function openFile() {

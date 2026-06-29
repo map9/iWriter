@@ -174,6 +174,7 @@ import { useAppStore } from '@/stores/app'
 import type { FileTreeNode, FileTreeCallbacks, FileTreeSortType } from '../common/tree'
 import type { ContextMenuItem } from '@/types'
 import { TEXT_IWT_EXTENSION } from '@/types'
+import { generateUntitledName } from '@/utils/untitledName'
 import Tree from '../common/tree/Tree.vue'
 import pathUtils from '@/utils/pathUtils'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
@@ -247,29 +248,6 @@ const rootChildren = computed(() => {
   return children
 })
 
-// Generate unique name for file system
-const generateUniqueFileSystemName = (baseName: string, parentNode: FileTreeNode, type: string): string => {
-  if (!parentNode.children || parentNode.children.length === 0) {
-    return type === 'folder' ? `${baseName}-01` : `${baseName}-01.${type}`
-  }
-  
-  const existingLabels = new Set(parentNode.children.map(child => child.label))
-  
-  let counter = 1
-  let newLabel = type === 'folder' ? 
-    `${baseName}-${counter.toString().padStart(2, '0')}` : 
-    `${baseName}-${counter.toString().padStart(2, '0')}.${type}`
-  
-  while (existingLabels.has(newLabel)) {
-    counter++
-    newLabel = type === 'folder' ? 
-      `${baseName}-${counter.toString().padStart(2, '0')}` : 
-      `${baseName}-${counter.toString().padStart(2, '0')}.${type}`
-  }
-  
-  return newLabel
-}
-
 // File callbacks
 const fileCallbacks: FileTreeCallbacks = {
   canRename: () => props.allowRename,
@@ -324,11 +302,11 @@ const fileCallbacks: FileTreeCallbacks = {
   },
   getDefaultChildLabel: (parentNode) => {
     const fileParentNode = parentNode as FileTreeNode
-    
-    if (currentCreateType.value === 'folder') {
-      return generateUniqueFileSystemName('Untitled', fileParentNode, 'folder')
-    }
-    return generateUniqueFileSystemName('Untitled', fileParentNode, TEXT_IWT_EXTENSION)
+    const existingNames = fileParentNode.children?.map(c => (c as FileTreeNode).label)
+    return generateUntitledName({
+      type: currentCreateType.value === 'folder' ? 'folder' : TEXT_IWT_EXTENSION,
+      existingNames,
+    })
   },
   onExpand: () => {
   },

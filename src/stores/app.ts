@@ -42,6 +42,7 @@ import {
 import { detectPreferredLocale, i18n, resolveLocale, setAppLocale, type AppLocale } from '@/i18n'
 import { DEFAULT_MARKDOWN_PRINT_PREFERENCES } from '@/components/print/markdownThemes'
 import { computeFileContentHash } from '@/utils/fileContentHash'
+import { generateUntitledName } from '@/utils/untitledName'
 import {
   buildWorkspaceIgnoreRules,
   DEFAULT_WORKSPACE_IGNORE_RULES,
@@ -140,17 +141,16 @@ export const useAppStore = defineStore('app', () => {
   const fileTree = ref<FileTreeNode | null>(null)
   const selectedItem = ref<FileTreeNode | null>(null)
   const currentFileTreeSortType = ref<FileTreeSortType>('type-asc')
-  const filetreeUntitledCounter = ref<Map<string, number>>(new Map<string, number>)
 
   // Tabs
   const tabs = ref<FileTab[]>([])
   const activeTabId = ref<string | null>(null)
-  const untitledCounter = ref(1)
   const pendingOpenPaths = new Set<string>()
   const externalChangePromptPaths = new Set<string>()
   const ignoredExternalChangePaths = new Set<string>()
   const openDocumentWatchDirs = new Set<string>()
   const inFlightAddPaths = new Map<string, Promise<boolean>>()
+  let tabIdSeq = 0
   let fileWatchListenersRegistered = false
   let workspaceRestoreCheckTimer: ReturnType<typeof setInterval> | null = null
 
@@ -933,6 +933,16 @@ export const useAppStore = defineStore('app', () => {
     if (result.canceled || result.filePaths.length === 0) return false
 
     const sourcePath = result.filePaths[0]!
+    const sourceBaseName = pathUtils.basename(sourcePath)
+    const targetName = `${pathUtils.basename(sourcePath, pathUtils.extname(sourcePath))}.md`
+
+    // 已有同名且来源相同的无路径 tab（之前导入的）→ 直接激活，跳过转换
+    const existingTab = findExistingTab({ name: targetName, documentType: DocumentType.MARKDOWN_EDITOR })
+    if (existingTab && existingTab.pendingImport?.sourcePath === sourcePath) {
+      setActiveTab(existingTab.id)
+      return true
+    }
+
     const importResult = await window.electronAPI.pandocImportFile({
       inputPath: sourcePath,
       pandocPath: getConfiguredPandocPath(),
@@ -942,9 +952,7 @@ export const useAppStore = defineStore('app', () => {
       return false
     }
 
-    const sourceBaseName = pathUtils.basename(sourcePath)
-    const nameWithoutExt = sourceBaseName.replace(/\.[^.]+$/, '')
-    createTab(`${nameWithoutExt}.md`, undefined, DocumentType.MARKDOWN_EDITOR, false, {
+    createTab(targetName, undefined, DocumentType.MARKDOWN_EDITOR, false, {
       markdown: importResult.markdown,
       sourcePath,
     })
@@ -1019,6 +1027,16 @@ export const useAppStore = defineStore('app', () => {
   async function importOfficeToMarkdown(filePath: string): Promise<boolean> {
     if (!window.electronAPI?.pandocImportFile) return false
 
+    const sourceBaseName = pathUtils.basename(filePath)
+    const targetName = `${pathUtils.basename(filePath, pathUtils.extname(filePath))}.md`
+
+    // 已有同名且来源相同的无路径 tab（之前导入的）→ 直接激活，跳过转换
+    const existingTab = findExistingTab({ name: targetName, documentType: DocumentType.MARKDOWN_EDITOR })
+    if (existingTab && existingTab.pendingImport?.sourcePath === filePath) {
+      setActiveTab(existingTab.id)
+      return true
+    }
+
     const pandocAvailability = await window.electronAPI.pandocCheck?.({
       pandocPath: getConfiguredPandocPath(),
     })
@@ -1039,9 +1057,7 @@ export const useAppStore = defineStore('app', () => {
       return false
     }
 
-    const sourceBaseName = pathUtils.basename(filePath)
-    const nameWithoutExt = sourceBaseName.replace(/\.[^.]+$/, '')
-    createTab(`${nameWithoutExt}.md`, undefined, DocumentType.MARKDOWN_EDITOR, false, {
+    createTab(targetName, undefined, DocumentType.MARKDOWN_EDITOR, false, {
       markdown: importResult.markdown,
       sourcePath: filePath,
     })
@@ -1454,22 +1470,6 @@ export const useAppStore = defineStore('app', () => {
     return Math.random().toString(36).substring(2, 11)
   }
 
-  // Generate untitled name with counter
-  function generateUntitledName(type: string, parentPath: string): string {
-    const key = `${parentPath}/${type}`
-    const counter = filetreeUntitledCounter.value.get(key) || 0
-    const newCounter = counter + 1
-    filetreeUntitledCounter.value.set(key, newCounter)
-
-    const paddedNumber = newCounter.toString().padStart(2, '0')
-    
-    if (type === 'folder') {
-      return `Untitled-${paddedNumber}`
-    } else {
-      return `Untitled-${paddedNumber}.${type}`
-    }
-  }
-
   function sortFileTreeNodes(nodes: FileTreeNode[], sortType: FileTreeSortType) {
     // Sort current level
     nodes.sort((a, b) => {
@@ -1573,108 +1573,7 @@ export const useAppStore = defineStore('app', () => {
     }
   }
   
-  // Create a new file
-  async function createFile(parentNode: FileTreeNode, customName?: string): Promise<FileTreeNode | null> {
-    if (!window.electronAPI) return null
-    if (!ensureWorkspaceFeatureAvailable(t('notify.workspace.features.fileTree'))) return null
-
-    try {
-      if (parentNode.type !== 'folder') {
-        throw new Error(t('notify.file.invalidDirectory'))
-      }
-
-      const fileName = customName || generateUntitledName('txt', parentNode.path)
-      const filePath = await window.electronAPI.createFile(parentNode.path, fileName)
-      if (filePath) {
-        const date = new Date()
-
-        const newNode: FileTreeNode = {
-          id: generateId(),
-          label: pathUtils.basename(filePath),
-          path: filePath,
-          type: 'file',
-          parent: parentNode,
-          isVisible: true,
-          isEnabled: true,
-          data: {},
-          size: 0,
-          isHidden: pathUtils.basename(filePath).startsWith('.'),
-          isWritable: true,
-          isReadonly: false,
-          created: date,
-          modified: date,
-        }
-
-        if (!parentNode.children) {
-          parentNode.children = []
-        }
-        parentNode.children.push(newNode)
-        //sortFileTreeNodes(parentNode.children as FileTreeNode[], currentFileTreeSortType.value)
-        setSelectedItem(newNode)
-        notify.success(t('notify.file.createSuccess', { name: fileName }), t('notify.file.operation'))
-
-        return newNode
-      }
-
-      return null;
-    } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.createError'))
-      return null
-    }
-  }
-  
-  // Create a new folder
-  async function createFolder(parentNode: FileTreeNode, customName?: string): Promise<FileTreeNode | null> {
-    if (!window.electronAPI) return null
-    if (!ensureWorkspaceFeatureAvailable(t('notify.workspace.features.fileTree'))) return null
-
-    try {
-      if (parentNode.type !== 'folder') {
-        throw new Error(t('notify.file.invalidDirectory'))
-      }
-
-      const folderName = customName || generateUntitledName('folder', parentNode.path)
-      const folderPath = await window.electronAPI.createFolder(parentNode.path, folderName)
-      if (folderPath) {
-        const date = new Date()
-
-        const newNode: FileTreeNode = {
-          id: generateId(),
-          label: pathUtils.basename(folderPath),
-          path: folderPath,
-          type: 'folder',
-          parent: parentNode,
-          children: [],
-          isVisible: true,
-          isEnabled: true,
-          data: {},
-          isHidden: pathUtils.basename(folderPath).startsWith('.'),
-          isWritable: true,
-          isReadonly: false,
-          created: date,
-          modified: date,
-        }
-
-        if (!parentNode.children) {
-          parentNode.children = []
-        }
-
-        parentNode.children.push(newNode)
-        //sortFileTreeNodes(parentNode.children as FileTreeNode[], currentFileTreeSortType.value)
-        setSelectedItem(newNode)
-        notify.success(t('notify.file.createSuccess', { name: folderName }), t('notify.file.operation'))
-        
-        return newNode
-      }
-
-      return null;
-    } catch (error) {
-      notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.createFolderError'))
-      return null
-    }
-  }
-
-    // Create a file or folder by input node parameters
+  // Create a file or folder by input node parameters
   async function CreateFileOrFolder(parentNode: FileTreeNode, childNode: FileTreeNode): Promise<boolean> {
     if (!window.electronAPI) return false
     if (!ensureWorkspaceFeatureAvailable(t('notify.workspace.features.fileTree'))) return false
@@ -2422,16 +2321,12 @@ export const useAppStore = defineStore('app', () => {
     pendingImport?: FileTab['pendingImport'],
     insertIndex?: number
   ) {
-    const id = Date.now().toString()
+    const id = `${Date.now()}-${++tabIdSeq}`
     
     // Generate untitled name if not provided
     let tabName = name
     if (!tabName) {
-      const formattedNumber = untitledCounter.value.toString().padStart(2, '0')
-      tabName = `Untitled-${formattedNumber}.${TEXT_IWT_EXTENSION}`
-      
-      // Increment counter and cycle back to 01 after 99
-      untitledCounter.value = untitledCounter.value >= 99 ? 1 : untitledCounter.value + 1
+      tabName = generateUntitledName({ existingNames: tabs.value.map(t => t.name) })
     }
     
     const newTab: FileTab = {
@@ -2463,6 +2358,58 @@ export const useAppStore = defineStore('app', () => {
     notify.success(t('notify.file.opened', { name: path ? path : tabName }), t('notify.file.operation'))
     
     return newTab
+  }
+
+  /**
+   * 查找已存在的 tab：
+   * - 有 path → 按规范化路径 + documentType 匹配（用于磁盘文件）
+   * - 无 path，有 name → 按名称 + documentType 匹配无路径的内存 tab（用于导入/新建未保存 tab）
+   */
+  function findExistingTab({ path, name, documentType }: { path?: string; name?: string; documentType?: DocumentType }): FileTab | undefined {
+    if (path) {
+      const normalized = pathUtils.normalize(path)
+      return tabs.value.find(t =>
+        t.path &&
+        pathUtils.normalize(t.path) === normalized &&
+        (!documentType || t.documentType === documentType)
+      )
+    }
+    if (name) {
+      return tabs.value.find(t =>
+        !t.path &&
+        t.name === name &&
+        (!documentType || t.documentType === documentType)
+      )
+    }
+    return undefined
+  }
+
+  /**
+   * 新建空白 tab 的去重网关，与 openFileAt（打开磁盘文件的网关）平级。
+   * 仅处理新建空白文档（不含 pendingImport 内容的场景）；导入文档直接调 createTab。
+   * - 指定 path/name → 去重命中则激活已有 tab，不创建。
+   * - 未指定 name → 生成不与现有 tab 冲突的唯一 Untitled 名称。
+   * - 未命中 → 委托 createTab 创建。
+   */
+  function createOrActivateTab(
+    name?: string,
+    path?: string,
+    documentType?: DocumentType,
+  ): FileTab {
+    // 去重：命中已有 tab 则激活并返回，不创建新 tab
+    const existing = findExistingTab({ path, name, documentType })
+    if (existing) {
+      setActiveTab(existing.id)
+      return existing
+    }
+
+    // 唯一命名：未提供 name 时，生成不与现有 tab 冲突的 Untitled 名
+    let resolvedName = name
+    if (!resolvedName) {
+      resolvedName = generateUntitledName({ existingNames: tabs.value.map(t => t.name) })
+    }
+
+    return createTab(resolvedName, path, documentType)
   }
 
   function moveTab(tabId: string, insertIndex: number) {
@@ -2907,7 +2854,7 @@ export const useAppStore = defineStore('app', () => {
     switch (action) {
       // File Menu Actions
       case 'new-file':
-        createTab(undefined, undefined, DocumentType.MARKDOWN_EDITOR)
+        createOrActivateTab(undefined, undefined, DocumentType.MARKDOWN_EDITOR)
         return true
       case 'new-from-template':
         notify.error(`${action}`, t('notify.menu.notImplemented'))
@@ -3261,8 +3208,6 @@ export const useAppStore = defineStore('app', () => {
     queryFileTreeNodes,
     setSelectedItem,
     openFileDialog,
-    createFile,
-    createFolder,
     CreateFileOrFolder,
     deleteFileOrFolder,
     renameFileOrFolder,
@@ -3273,7 +3218,9 @@ export const useAppStore = defineStore('app', () => {
     findNodeByPath,
 
     // Tab operations
+    findExistingTab,
     createTab,
+    createOrActivateTab,
     moveTab,
     closeTab,
     closeAllTab,

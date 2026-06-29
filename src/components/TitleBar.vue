@@ -117,7 +117,7 @@
       <!-- New Tab Button - 固定在标签右侧 -->
       <div class="flex items-center px-2 no-drag">
         <button
-          @click="appStore.createTab(undefined, undefined)"
+          @click="appStore.createOrActivateTab(undefined, undefined)"
           class="iw-toolbar-btn btn-sm"
           :title="t('titlebar.newTab')"
         >
