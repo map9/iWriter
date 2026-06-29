@@ -1100,7 +1100,7 @@ export default {
       warning: '打开文件夹会关闭当前所有已打开的编辑器。',
     },
     toc: {
-      title: '大纲',
+      title: '目录',
       toggleNumbering: '显示或隐藏编号',
       collapseToLevel: '折叠到 {level} 层级',
       expandAllLevels: '展开全部层级',
@@ -1111,15 +1111,15 @@ export default {
       empty: {
         noDocument: {
           title: '未打开文档',
-          subtitle: '打开 Markdown 文档后可查看大纲',
+          subtitle: '打开 Markdown 文档后可查看目录',
         },
         noHeadings: {
           title: '未找到标题',
-          subtitle: '在文档中添加标题（# ## ###）后可查看大纲',
+          subtitle: '在文档中添加标题（# ## ###）后可查看目录',
         },
         unsupported: {
           title: '无目录',
-          subtitle: '此文档类型可能不支持生成大纲',
+          subtitle: '此文档类型可能不支持生成目录',
         },
       },
     },
