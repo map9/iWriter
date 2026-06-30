@@ -218,8 +218,7 @@ function findReleaseAsset(assets: ReleaseAsset[], currentTarget: DownloadTarget)
   switch (currentTarget) {
     case 'windows':
       return (
-        assets.find(asset => /setup .*\.exe$/i.test(asset.name)) ||
-        assets.find(asset => asset.name.toLowerCase().endsWith('.exe')) ||
+        assets.find(asset => /(^|[ ._-])(setup|installer)([ ._-]|).*\.exe$/i.test(asset.name)) ||
         null
       )
     case 'mac-arm64':
