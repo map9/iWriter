@@ -4,7 +4,7 @@
     :style="{ width: `${appStore.leftSidebarWidth}px` }"
   >
     <div class="drag-region flex h-10 items-center border-b border-base-300 bg-base-200 px-2">
-      <!-- Window Controls - handled by system traffic lights -->
+      <!-- macOS traffic lights are handled by the system -->
       <div v-if="shouldReserveMacTrafficLights" class="flex items-center pl-20"></div>
       <AppMenuButton
         v-if="showAppMenuButton"

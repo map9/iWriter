@@ -77,6 +77,12 @@ export default {
     nextTab: '下一个标签页',
     closeTab: '关闭标签页',
     newTab: '新建标签页',
+    window: {
+      minimize: '最小化',
+      maximize: '最大化',
+      restore: '还原',
+      close: '关闭窗口',
+    },
     readonly: {
       file: '文件只读',
       edit: '只读模式',

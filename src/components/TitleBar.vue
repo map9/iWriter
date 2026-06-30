@@ -5,7 +5,8 @@
     @dragleave="handleDocumentDragLeave"
     @drop.prevent="handleDocumentDrop"
   >
-    <!-- Window Controls - handled by system traffic lights -->
+    <div v-if="showCustomWindowControls" class="iw-titlebar-resizer" aria-hidden="true"></div>
+    <!-- macOS traffic lights are handled by the system -->
     <div v-if="shouldReserveMacTrafficLights" class="flex items-center pl-20"></div>
     <AppMenuButton
       v-if="showAppMenuButton"
@@ -141,11 +142,36 @@
     ></div>
 
     <AiStatusButton />
-    <div
-      v-if="shouldReserveWindowControls"
-      class="pointer-events-none h-full w-[138px] shrink-0"
-      aria-hidden="true"
-    ></div>
+    <div v-if="showCustomWindowControls" class="iw-window-controls no-drag">
+      <button
+        type="button"
+        class="iw-window-control-btn"
+        :title="t('titlebar.window.minimize')"
+        :aria-label="t('titlebar.window.minimize')"
+        @click="minimizeWindow"
+      >
+        <IconMinus class="icon-sm" />
+      </button>
+      <button
+        type="button"
+        class="iw-window-control-btn"
+        :title="isMaximized ? t('titlebar.window.restore') : t('titlebar.window.maximize')"
+        :aria-label="isMaximized ? t('titlebar.window.restore') : t('titlebar.window.maximize')"
+        @click="toggleMaximizeWindow"
+      >
+        <IconRestore v-if="isMaximized" class="icon-sm" />
+        <IconSquare v-else class="icon-xs" />
+      </button>
+      <button
+        type="button"
+        class="iw-window-control-btn iw-window-close-btn"
+        :title="t('titlebar.window.close')"
+        :aria-label="t('titlebar.window.close')"
+        @click="closeAppWindow"
+      >
+        <IconX class="icon-sm" />
+      </button>
+    </div>
   </div>
 </template>
 
@@ -170,6 +196,9 @@ import {
   IconChevronRight,
   IconX,
   IconPlus,
+  IconMinus,
+  IconRestore,
+  IconSquare,
 } from '@tabler/icons-vue'
 
 type DragMode = 'file-open' | 'tab-reorder' | null
@@ -206,9 +235,34 @@ const draggedTabId = ref<string | null>(null)
 const { getIconByExtension } = useDocumentTypeDetector()
 
 const isMacPlatform = computed(() => window.electronAPI?.platform === 'darwin')
+const showCustomWindowControls = computed(() => !isMacPlatform.value)
 const showAppMenuButton = computed(() => !isMacPlatform.value && !appStore.isLeftSidebarVisible)
 const shouldReserveMacTrafficLights = computed(() => isMacPlatform.value && !isMaximized.value && !appStore.isLeftSidebarVisible)
-const shouldReserveWindowControls = computed(() => !isMacPlatform.value)
+
+async function minimizeWindow() {
+  const result = await window.electronAPI.minimizeWindow()
+  if (!result.success) {
+    console.warn('Failed to minimize window:', result.error)
+  }
+}
+
+async function toggleMaximizeWindow() {
+  const result = await window.electronAPI.toggleMaximizeWindow()
+  if (result.success) {
+    if (typeof result.maximized === 'boolean') {
+      isMaximized.value = result.maximized
+    }
+  } else {
+    console.warn('Failed to toggle maximize window:', result.error)
+  }
+}
+
+async function closeAppWindow() {
+  const result = await window.electronAPI.closeWindow()
+  if (!result.success) {
+    console.warn('Failed to close window:', result.error)
+  }
+}
 
 function setTabRef(tabId: string, el: HTMLElement | null, isActive: boolean) {
   if (el) {
@@ -657,7 +711,12 @@ onMounted(() => {
       })
     }
 
-    isMaximized.value = false
+    window.electronAPI.getWindowMaximized().then(maximized => {
+      isMaximized.value = maximized
+    }).catch(error => {
+      console.warn('Failed to get window maximized state:', error)
+      isMaximized.value = false
+    })
   }
 
   checkAndSwitchMode()

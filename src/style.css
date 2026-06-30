@@ -94,7 +94,23 @@
 
 @layer components {
   .iw-titlebar {
-    @apply drag-region flex h-10 w-full shrink-0 items-center overflow-hidden border-b border-base-300 bg-base-200 px-2 backdrop-blur;
+    @apply drag-region relative flex h-10 w-full shrink-0 items-center overflow-hidden border-b border-base-300 bg-base-200 px-2 text-base-content backdrop-blur;
+  }
+
+  .iw-titlebar-resizer {
+    @apply no-drag absolute inset-x-0 top-0 z-20 h-1;
+  }
+
+  .iw-window-controls {
+    @apply -mr-2 flex h-full shrink-0 items-stretch;
+  }
+
+  .iw-window-control-btn {
+    @apply flex h-full w-11 items-center justify-center text-base-content/80 transition-colors hover:bg-base-300 hover:text-base-content;
+  }
+
+  .iw-window-close-btn {
+    @apply hover:bg-error hover:text-error-content;
   }
 
   .iw-sidebar {

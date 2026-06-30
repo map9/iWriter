@@ -147,6 +147,10 @@ const electronAPI: ElectronAPI = {
   removeWindowStateChangedListeners: () => {
     ipcRenderer.removeAllListeners('window-state-changed')
   },
+  minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
+  toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
+  closeWindow: () => ipcRenderer.invoke('window-close'),
+  getWindowMaximized: () => ipcRenderer.invoke('get-window-maximized'),
   getWindowFullscreen: () => ipcRenderer.invoke('get-window-fullscreen'),
   setWindowFullscreen: (enabled: boolean) => ipcRenderer.invoke('set-window-fullscreen', enabled),
   
@@ -154,7 +158,6 @@ const electronAPI: ElectronAPI = {
   bootstrapWindowLocale: (locale: string) => ipcRenderer.invoke('window-bootstrap-locale', locale),
   windowContentChange: (wContentState: Partial<WindowContentState>) => ipcRenderer.invoke('window-content-changed', wContentState),
   updateWindowTitle: (title: string) => ipcRenderer.invoke('update-window-title', title),
-  updateTitleBarOverlay: (colors: { backgroundColor: string; symbolColor: string }) => ipcRenderer.invoke('update-titlebar-overlay', colors),
 
   // Updater API
   checkForUpdates: () => ipcRenderer.invoke('updater:check-for-updates'),

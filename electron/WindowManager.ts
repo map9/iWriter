@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, nativeTheme } from 'electron'
-import type { Event, PrintToPDFOptions, WebContentsPrintOptions } from 'electron'
+import type { BrowserWindowConstructorOptions, Event, PrintToPDFOptions, WebContentsPrintOptions } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import { merge } from 'lodash'
@@ -9,12 +9,30 @@ import type { WindowContentState } from '../src/types/window-content-state'
 import type { HtmlPrintReadyOptions, PdfSaveOptions } from '../src/types/electron-api'
 
 import { isDev, isMac } from './utils'
-import { resolveTitleBarOverlayColors, type RendererTitleBarColors } from './titleBarOverlay'
 import type { WindowState, IApp } from './types'
 import { USE_CONFIRMATION_TIMEOUT, HELLO_TIMEOUT, CLOSE_WINDOW_CONFIRMATION_TIMEOUT } from './types'
 import { normalizeLocale } from './i18n'
 import { perfLog } from './perf'
 
+type WindowChromeOptions = Pick<
+  BrowserWindowConstructorOptions,
+  'autoHideMenuBar' | 'frame' | 'titleBarStyle' | 'trafficLightPosition'
+>
+
+export function buildWindowChromeOptions(platform: NodeJS.Platform): WindowChromeOptions {
+  if (platform === 'darwin') {
+    return {
+      titleBarStyle: 'hiddenInset',
+      trafficLightPosition: { x: 20, y: 10 },
+    }
+  }
+
+  return {
+    titleBarStyle: 'hidden',
+    frame: false,
+    autoHideMenuBar: true,
+  }
+}
 
 export class WindowManager {
   private appInstance: IApp
@@ -88,9 +106,6 @@ export class WindowManager {
     perfLog('createWindow() start')
     // 用系统颜色模式设置背景色，消除 ready-to-show 前的白屏闪烁
     const backgroundColor = nativeTheme.shouldUseDarkColors ? '#1e1e1e' : '#f5f5f5'
-    const titleBarOverlayColors = resolveTitleBarOverlayColors({
-      prefersDark: nativeTheme.shouldUseDarkColors,
-    })
     const window = new BrowserWindow({
       height: 800,
       width: 1200,
@@ -103,19 +118,7 @@ export class WindowManager {
         preload: path.join(__dirname, 'preload.js'),
         webSecurity: !isDev
       },
-      titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
-      ...(isMac
-        ? {
-            trafficLightPosition: { x: 20, y: 10 },
-          }
-        : {
-            autoHideMenuBar: true,
-            titleBarOverlay: {
-              height: 40,
-              color: titleBarOverlayColors.color,
-              symbolColor: titleBarOverlayColors.symbolColor,
-            },
-          }),
+      ...buildWindowChromeOptions(process.platform),
       show: false
     })
 
@@ -143,6 +146,14 @@ export class WindowManager {
     }
 
     const handleLeaveFullScreen = () => {
+      window.webContents.send('window-state-changed', { maximized: window.isMaximized() })
+    }
+
+    const handleMaximize = () => {
+      window.webContents.send('window-state-changed', { maximized: true })
+    }
+
+    const handleUnmaximize = () => {
       window.webContents.send('window-state-changed', { maximized: false })
     }
 
@@ -187,6 +198,8 @@ export class WindowManager {
       
       window.removeListener('enter-full-screen', handleEnterFullScreen)
       window.removeListener('leave-full-screen', handleLeaveFullScreen)
+      window.removeListener('maximize', handleMaximize)
+      window.removeListener('unmaximize', handleUnmaximize)
       window.removeListener('focus', handleFocus)
       window.removeListener('close', handleWindowClose)
 
@@ -210,6 +223,8 @@ export class WindowManager {
       window.show()
       window.on('enter-full-screen', handleEnterFullScreen)
       window.on('leave-full-screen', handleLeaveFullScreen)
+      window.on('maximize', handleMaximize)
+      window.on('unmaximize', handleUnmaximize)
     })
 
     window.webContents.on('did-finish-load', () => {
@@ -306,25 +321,50 @@ export class WindowManager {
       return { success: false, error: 'Window not found' };
     })
 
-    ipcMain.handle('update-titlebar-overlay', async (event, colors: RendererTitleBarColors) => {
+    ipcMain.handle('window-minimize', async (event) => {
       const window = BrowserWindow.fromWebContents(event.sender)
       if (!window) return { success: false, error: 'Window not found' }
-      if (isMac) return { success: true }
 
       try {
-        const overlayColors = resolveTitleBarOverlayColors({
-          prefersDark: nativeTheme.shouldUseDarkColors,
-          rendererColors: colors,
-        })
-        window.setTitleBarOverlay({
-          height: 40,
-          color: overlayColors.color,
-          symbolColor: overlayColors.symbolColor,
-        })
+        window.minimize()
         return { success: true }
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) }
       }
+    })
+
+    ipcMain.handle('window-toggle-maximize', async (event) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (!window) return { success: false, error: 'Window not found' }
+
+      try {
+        if (window.isMaximized()) {
+          window.unmaximize()
+        } else {
+          window.maximize()
+        }
+        return { success: true, maximized: window.isMaximized() }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    })
+
+    ipcMain.handle('window-close', async (event) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (!window) return { success: false, error: 'Window not found' }
+
+      try {
+        window.close()
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    })
+
+    ipcMain.handle('get-window-maximized', async (event) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (!window) return false
+      return window.isMaximized()
     })
 
     ipcMain.handle('window-bootstrap-locale', async (event, locale: string) => {
@@ -584,6 +624,10 @@ export class WindowManager {
     ipcMain.removeHandler('update-window-title')
     ipcMain.removeHandler('get-window-fullscreen')
     ipcMain.removeHandler('set-window-fullscreen')
+    ipcMain.removeHandler('window-minimize')
+    ipcMain.removeHandler('window-toggle-maximize')
+    ipcMain.removeHandler('window-close')
+    ipcMain.removeHandler('get-window-maximized')
     ipcMain.removeHandler('window-content-changed')
   }
 }

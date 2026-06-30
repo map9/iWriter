@@ -77,6 +77,12 @@ export default {
     nextTab: 'Next Tab',
     closeTab: 'Close Tab',
     newTab: 'New Tab',
+    window: {
+      minimize: 'Minimize',
+      maximize: 'Maximize',
+      restore: 'Restore',
+      close: 'Close Window',
+    },
     readonly: {
       file: 'File is read-only',
       edit: 'Read-only mode',
