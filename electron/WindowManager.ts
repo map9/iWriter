@@ -8,7 +8,7 @@ import Timer from '../src/utils/Timer'
 import type { WindowContentState } from '../src/types/window-content-state'
 import type { HtmlPrintReadyOptions, PdfSaveOptions } from '../src/types/electron-api'
 
-import { isDev } from './utils'
+import { isDev, isMac } from './utils'
 import type { WindowState, IApp } from './types'
 import { USE_CONFIRMATION_TIMEOUT, HELLO_TIMEOUT, CLOSE_WINDOW_CONFIRMATION_TIMEOUT } from './types'
 import { normalizeLocale } from './i18n'
@@ -99,10 +99,26 @@ export class WindowManager {
         preload: path.join(__dirname, 'preload.js'),
         webSecurity: !isDev
       },
-      titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 20, y: 10 },
+      titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+      ...(isMac
+        ? {
+            trafficLightPosition: { x: 20, y: 10 },
+          }
+        : {
+            autoHideMenuBar: true,
+            titleBarOverlay: {
+              height: 40,
+              color: backgroundColor,
+              symbolColor: nativeTheme.shouldUseDarkColors ? '#f5f5f5' : '#1f2937',
+            },
+          }),
       show: false
     })
+
+    if (!isMac) {
+      window.setAutoHideMenuBar(true)
+      window.setMenuBarVisibility(false)
+    }
 
     const windowId = window.id;
     const startUrl = isDev

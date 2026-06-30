@@ -3,7 +3,8 @@ import type { IpcRendererEvent } from 'electron'
 import type { ElectronAPI, HtmlPrintReadyOptions, PdfSaveOptions } from '../src/types/electron-api'
 import type { SendMessageRequest, CompactInputRequest, CompactInputResponse, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunContextCompressedEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
 import type { AiSettings } from '../src/types/ai'
-import type { ContextMenuItem } from '../src/types/menu'
+import { createAppMenuRequest, createContextMenuRequest } from '../src/types/menu'
+import type { ContextMenuItem, MenuPosition } from '../src/types/menu'
 import type { FileChange } from '../src/types/file-operation'
 import type { WindowContentState } from '../src/types/window-content-state'
 import type { PandocAvailabilityResult, PandocImportRequest, PandocImportResult, PandocExportRequest, PandocExportResult } from '../src/types/pandoc'
@@ -103,7 +104,9 @@ const electronAPI: ElectronAPI = {
 
   // Context menu
   showContextMenu: (menuItems: ContextMenuItem[], position: { x: number; y: number }) =>
-    ipcRenderer.invoke('show-context-menu', menuItems, position),
+    ipcRenderer.invoke('show-menu', createContextMenuRequest(menuItems, position)),
+  showAppMenu: (position: MenuPosition) =>
+    ipcRenderer.invoke('show-menu', createAppMenuRequest(position)).then(() => undefined),
 
   // Shell execution (read-only commands only)
   execShell: (command: string, cwd?: string) =>

@@ -71,6 +71,7 @@ export default {
     zhCN: '简体中文',
   },
   titlebar: {
+    appMenu: '应用菜单',
     toggleSidebar: '切换侧边栏',
     previousTab: '上一个标签页',
     nextTab: '下一个标签页',

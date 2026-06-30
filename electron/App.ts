@@ -28,7 +28,7 @@ import {
   shouldIncludeWorkspaceEntry,
   shouldTraverseWorkspaceDirectory,
 } from '../src/services/workspace/filtering'
-import type { ContextMenuItem } from '../src/types/menu'
+import type { ContextMenuItem, MenuPosition, ShowMenuRequest } from '../src/types/menu'
 import { CustomThemeLoader } from './CustomThemeLoader'
 
 interface WorkspaceSearchOptions {
@@ -1011,8 +1011,8 @@ export class App {
       };
     })
 
-    // Context menu handler
-    ipcMain.handle('show-context-menu', async (event, menuItems: ContextMenuItem[], position: { x: number; y: number }) => {
+    // Menu popup handler
+    ipcMain.handle('show-menu', async (event, request: ShowMenuRequest) => {
       const window = BrowserWindow.fromWebContents(event.sender);
       if (!window) {
         return null;
@@ -1067,7 +1067,7 @@ export class App {
         });
       };
 
-      try {
+      const popupContextMenu = (menuItems: ContextMenuItem[], position: MenuPosition) => {
         return new Promise<string | null>((resolve) => {
           let resolved = false
           const done = (action: string | null) => {
@@ -1085,9 +1085,25 @@ export class App {
               done(null);
             }
           });
-        });
+        })
+      }
+
+      const popupAppMenu = (position: MenuPosition) => {
+        if (!isMac) {
+          window.setMenuBarVisibility(false)
+        }
+
+        return this.menuManager.popupAppMenu(window, position)
+      }
+
+      try {
+        if (request.kind === 'app') {
+          return popupAppMenu(request.position)
+        }
+
+        return popupContextMenu(request.items, request.position)
       } catch (error) {
-        console.error('Error showing context menu:', error);
+        console.error('Error showing menu:', error);
         return null;
       }
     })
@@ -1415,7 +1431,7 @@ export class App {
     ipcMain.removeHandler('stop-file-watching')
     ipcMain.removeHandler('stop-all-file-watching')
     ipcMain.removeHandler('get-file-watching-status')
-    ipcMain.removeHandler('show-context-menu')
+    ipcMain.removeHandler('show-menu')
     ipcMain.removeHandler('search-in-files')
 
     ipcMain.removeAllListeners('hello');
@@ -1458,7 +1474,12 @@ export class App {
       wState = this.windowManager.getWindowStateById(focusedWindow.id);
     }
 
-    if (wState) this.menuManager.setupMenu(wState);
+    if (wState) {
+      this.menuManager.setupMenu(wState);
+      if (!isMac && focusedWindow) {
+        focusedWindow.setMenuBarVisibility(false)
+      }
+    }
   }
 
   run() {

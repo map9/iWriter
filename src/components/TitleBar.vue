@@ -6,7 +6,11 @@
     @drop.prevent="handleDocumentDrop"
   >
     <!-- Window Controls - handled by system traffic lights -->
-    <div v-if="!isMaximized && !appStore.isLeftSidebarVisible" class="flex items-center pl-20"></div>
+    <div v-if="shouldReserveMacTrafficLights" class="flex items-center pl-20"></div>
+    <AppMenuButton
+      v-if="showAppMenuButton"
+      class="no-drag shrink-0"
+    />
     <!-- Left Sidebar Toggle -->
     <div class="no-drag flex items-center">
       <button
@@ -137,6 +141,11 @@
     ></div>
 
     <AiStatusButton />
+    <div
+      v-if="shouldReserveWindowControls"
+      class="pointer-events-none h-full w-[138px] shrink-0"
+      aria-hidden="true"
+    ></div>
   </div>
 </template>
 
@@ -152,6 +161,7 @@ import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { notify } from '@/utils/notifications'
 import { DocumentType } from '@/types'
 import { PANDOC_IMPORT_EXTENSIONS } from '@/import-export'
+import AppMenuButton from './AppMenuButton.vue'
 import AiStatusButton from './AiStatusButton.vue'
 import {
   IconLayoutSidebarLeftCollapse,
@@ -194,6 +204,11 @@ const dropIndicatorLeft = ref(0)
 const draggedTabId = ref<string | null>(null)
 
 const { getIconByExtension } = useDocumentTypeDetector()
+
+const isMacPlatform = computed(() => window.electronAPI?.platform === 'darwin')
+const showAppMenuButton = computed(() => !isMacPlatform.value && !appStore.isLeftSidebarVisible)
+const shouldReserveMacTrafficLights = computed(() => isMacPlatform.value && !isMaximized.value && !appStore.isLeftSidebarVisible)
+const shouldReserveWindowControls = computed(() => !isMacPlatform.value)
 
 function setTabRef(tabId: string, el: HTMLElement | null, isActive: boolean) {
   if (el) {

@@ -5,6 +5,7 @@ type MenuRoleLabelMap = Record<string, string>
 const enUS: LocaleMessages = {
   'menu.app.checkForUpdate': 'Check for update...',
   'menu.app.preferences': 'Preferences...',
+  'menu.app.quit': 'Quit iWriter',
   'menu.file.preferences': 'Preferences...',
   'menu.help.about': 'About iWriter',
   'menu.help.checkForUpdate': 'Check for Updates...',
@@ -66,6 +67,7 @@ const enUS: LocaleMessages = {
 const zhCN: LocaleMessages = {
   'menu.app.checkForUpdate': '检查更新...',
   'menu.app.preferences': '偏好设置...',
+  'menu.app.quit': '退出 iWriter',
   'menu.file.preferences': '偏好设置...',
   'menu.help.about': '关于 iWriter',
   'menu.help.checkForUpdate': '检查更新...',

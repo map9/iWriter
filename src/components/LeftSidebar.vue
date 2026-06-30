@@ -5,7 +5,11 @@
   >
     <div class="drag-region flex h-10 items-center border-b border-base-300 bg-base-200 px-2">
       <!-- Window Controls - handled by system traffic lights -->
-      <div v-if="!isMaximized" class="flex items-center pl-20"></div>
+      <div v-if="shouldReserveMacTrafficLights" class="flex items-center pl-20"></div>
+      <AppMenuButton
+        v-if="showAppMenuButton"
+        class="no-drag shrink-0"
+      />
       
       <!-- Sidebar Mode Navigation - only show when sidebar is visible -->
       <div class="flex flex-1 items-center">
@@ -92,6 +96,7 @@ import {
 } from '@tabler/icons-vue'
 
 import { SidebarMode } from '@/types'
+import AppMenuButton from './AppMenuButton.vue'
 import NoFolderOpened from './sidebar/NoFolderOpened.vue'
 import ExplorerPanel from './sidebar/ExplorerPanel.vue'
 import SearchPanel from './sidebar/SearchPanel.vue'
@@ -103,6 +108,10 @@ const isMaximized = ref(false)
 const isResizing = ref(false)
 const startX = ref(0)
 const startWidth = ref(0)
+
+const isMacPlatform = computed(() => window.electronAPI?.platform === 'darwin')
+const showAppMenuButton = computed(() => !isMacPlatform.value)
+const shouldReserveMacTrafficLights = computed(() => isMacPlatform.value && !isMaximized.value)
 
 const mainSidebarModes = computed(() => [
   {

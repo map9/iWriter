@@ -5,6 +5,8 @@ import type {
   ParagraphStateTableData
 } from '../src/types/window-content-state'
 import { DocumentType } from '../src/types'
+import { createDesktopAppMenuTemplate } from '../src/types/menu'
+import type { DesktopAppMenuTemplateItem } from '../src/types/menu'
 import { getCustomThemes } from '../src/utils/themes'
 import { isMac } from './utils'
 import type { WindowState } from './types'
@@ -66,11 +68,13 @@ function insertInTemplate(
 
 export class MenuManager {
   private sendMenuAction: (action: string) => void
+  private appPopupMenu: Menu | null
 
   constructor() {
     // 提升性能，先去除默认菜单
     Menu.setApplicationMenu(null)
     this.sendMenuAction = () => {}
+    this.appPopupMenu = null
   }
 
   setSendMenuAction(callback: (action: string) => void) {
@@ -357,6 +361,7 @@ export class MenuManager {
             : [
                 { type: 'separator' as const },
                 {
+                  id: 'file-preferences',
                   label: t('menu.file.preferences', 'Preferences...'),
                   accelerator: 'CmdOrCtrl+,',
                   click: () => {
@@ -364,7 +369,7 @@ export class MenuManager {
                   }
                 },
               ]),
-          isMac ? { role: 'close' } : { role: 'quit' }
+          isMac ? { role: 'close' } : { id: 'file-quit', role: 'quit' }
           ] })()
       },
       {
@@ -1830,6 +1835,7 @@ export class MenuManager {
             ? []
             : [
                 {
+                  id: 'help-about',
                   label: t('menu.help.about', 'About iWriter'),
                   role: 'about' as const,
                 },
@@ -1958,6 +1964,47 @@ export class MenuManager {
 
     const menu = Menu.buildFromTemplate(filteredTemplate)
     Menu.setApplicationMenu(menu)
+    const appPopupTemplate = isMac
+      ? null
+      : createDesktopAppMenuTemplate(
+          filteredTemplate as unknown as DesktopAppMenuTemplateItem[],
+          [
+            {
+              id: 'app-preferences',
+              label: t('menu.app.preferences', 'Preferences...'),
+              accelerator: 'CmdOrCtrl+,',
+              click: () => {
+                this.sendMenuAction('preferences')
+              }
+            },
+            {
+              id: 'app-about',
+              label: t('menu.help.about', 'About iWriter'),
+              role: 'about',
+            },
+            {
+              id: 'app-quit',
+              label: t('menu.app.quit', 'Quit iWriter'),
+              role: 'quit',
+            },
+          ] as DesktopAppMenuTemplateItem[]
+        ) as Electron.MenuItemConstructorOptions[]
+
+    this.appPopupMenu = appPopupTemplate ? Menu.buildFromTemplate(appPopupTemplate) : null
+  }
+
+  popupAppMenu(window: Electron.BrowserWindow, position: { x: number; y: number }): Promise<null> {
+    const menu = this.appPopupMenu ?? Menu.getApplicationMenu()
+    if (!menu) return Promise.resolve(null)
+
+    return new Promise<null>((resolve) => {
+      menu.popup({
+        window,
+        x: position.x,
+        y: position.y,
+        callback: () => resolve(null)
+      })
+    })
   }
 
   destroy(): void {
