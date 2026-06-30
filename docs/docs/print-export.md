@@ -2,9 +2,9 @@
 
 > 适用版本：iWriter `0.1.21`
 >
-> 最后更新：2026-06-22
+> 最后更新：2026-06-30
 
-iWriter 提供两套文档输出路径：**打印与 PDF 导出**（基于 paged.js 分页渲染，从 `File -> Print...` 进入）和**格式导出**（基于 Pandoc 转换引擎，从 `File -> Export` 进入）。两者各有侧重，适合不同场景。
+iWriter 提供两套文档输出路径：**打印与 PDF 导出**（基于 paged.js 分页渲染，从 `File -> Print...` 进入）和**格式导出**（基于 Pandoc 转换引擎，从 `File -> Export` 进入）。Office 文档还可以通过 LibreOffice 转换为 PDF 进行只读预览。两者各有侧重，适合不同场景。
 
 ## 打印与 PDF 导出
 
@@ -349,6 +349,28 @@ pandoc -f gfm -s -o <outputPath> -t <targetFormat> [自定义参数...]
 5. 新文件自动在编辑器中打开
 
 导入过程中的任何错误都会以通知方式提示，包括不支持的格式、Pandoc 未安装、转换失败等情况。
+
+## Office 文档预览
+
+iWriter 可以打开 `.doc`、`.docx`、`.xls`、`.xlsx`、`.ppt`、`.pptx` 文件。Office 文档不会直接进入编辑器，而是通过 LibreOffice 转换为临时 PDF 后，使用内置 PDF 查看器预览。
+
+### LibreOffice 依赖
+
+Office 预览需要系统安装 LibreOffice。未检测到 LibreOffice 时，预览页会显示安装命令、LibreOffice 下载入口、重新检测按钮，以及“用系统应用打开”的备用操作。
+
+默认检测路径：
+
+- **macOS**：优先检测 `/Applications/LibreOffice.app/Contents/MacOS/soffice`，再回退到 PATH
+- **Windows**：优先检测 `C:\Program Files\LibreOffice\program\soffice.exe` 和 `C:\Program Files (x86)\LibreOffice\program\soffice.exe`
+- **Linux**：检测 PATH 中的 `soffice`
+
+如果 LibreOffice 安装在非默认位置，可在 [偏好设置 - 导出](/docs/preferences#导出) 中手动指定 LibreOffice 路径。
+
+### 预览与导入
+
+- 预览转换结果会缓存在系统临时目录中，源文件内容或修改时间变化后会重新转换。
+- 转换失败时，页面会显示错误信息，并提供重新尝试和用系统应用打开。
+- `.docx` 文件可从 Office 预览页或标签页右键菜单导入为 Markdown 草稿。导入仍依赖 Pandoc，并会避免对同一来源重复创建同名导入标签。
 
 ## 常见问题
 

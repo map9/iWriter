@@ -2,7 +2,7 @@
 
 > 适用版本：iWriter `0.1.21`
 >
-> 最后更新：2026-06-22
+> 最后更新：2026-06-30
 
 ## 与阶段定位的关系
 
@@ -18,7 +18,7 @@
 - 文件/文件夹：新建、重命名、移动、删除
 - 外部文件变更监听与同步
 - 多标签页与重启后状态恢复
-- 支持 `.iwtignore` 工作区忽略规则
+- 支持 `.iwtignore` 工作区忽略规则，并可将工作区根目录的 `.gitignore` 纳入过滤
 - 支持自动保存、另存为、全部保存与只读模式
 - 支持在工作区内执行跨文件搜索与替换
 - 支持通过 include / exclude 模式过滤跨文件搜索范围
@@ -36,7 +36,7 @@
 - 支持图片尺寸拖拽调整、图片地址编辑、复制、外部打开，以及左 / 中 / 右 / 两端对齐
 - 支持图片粘贴、富文本粘贴与“粘贴为纯文本”场景
 - 支持 mermaid 图在编辑器、打印预览和 PDF 导出中渲染
-- 支持页面级右键菜单，Markdown、图片与 PDF 页面会显示对应文档类型的常用操作
+- 支持页面级右键菜单，Markdown、图片、PDF 页面和文件标签会显示对应文档类型的常用操作
 - 支持 `Clean Mode`、`Focus Mode`、`Typewriter Mode`
 - 支持 Markdown 屏幕主题与打印主题，内置 `github`、`github-dark`、`prose`、`novel` 四套主题
 - 屏幕主题与打印主题可独立选择，打印主题可选择"跟随屏幕主题"
@@ -57,10 +57,12 @@
 - 支持导出为 HTML、Word、ODT、RTF、EPUB、LaTeX、MediaWiki、reStructuredText、Textile、OPML 等 10 种格式
 - 每种导出格式可独立配置自定义参数、参考文档、CSS 样式等
 
-## 图片 / PDF 查看
+## 图片 / PDF / Office 查看
 
 - 图片：缩放、旋转、拖拽平移、适配窗口
 - PDF：连续/单页/双页模式、缩放、跳页、懒加载
+- Office：支持打开 `.doc`、`.docx`、`.xls`、`.xlsx`、`.ppt`、`.pptx`，通过 LibreOffice 转换为 PDF 后在 iWriter 内预览
+- `.docx` 可从 Office 预览页或标签页右键菜单导入为 Markdown 草稿
 
 ## AI 三模式
 
@@ -70,6 +72,7 @@
 - 支持会话历史持久化
 - 支持将文本文件、目录、图片、PDF 作为上下文附件
 - 支持上下文 token 统计与输入压缩
+- 支持显示本次会话真实 token 用量，包含主 Agent、子 Agent 和缓存命中统计
 
 ## 更新机制
 
@@ -85,7 +88,7 @@
   - Markdown 自定义主题（Create Example、Open Folder）
   - 应用主题选择
 - 拼写与语法检查引擎切换（`LanguageTool` / `Typo.js`）
-- 导出设置（默认目录、Pandoc 路径、格式级参数）
+- 导出设置（默认目录、Pandoc 路径、LibreOffice 路径、格式级参数）
 - AI Provider、API Key、模型、Base URL、备用模型与模型能力配置
 - Web Search Provider、API Key 与 Base URL
 - 更新策略控制（自动下载、自动安装、检查频率）

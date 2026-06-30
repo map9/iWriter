@@ -2,7 +2,7 @@
 
 > 适用版本：iWriter `0.1.21`
 >
-> 最后更新：2026-06-22
+> 最后更新：2026-06-30
 
 iWriter 的编辑器基于 Tiptap / ProseMirror 构建，同时支持 Markdown 语法输入和可视化富文本编辑，两种方式可以混用。
 
@@ -22,6 +22,8 @@ iWriter 的编辑器基于 Tiptap / ProseMirror 构建，同时支持 Markdown �
 | `.iwt` | iWriter 原生格式，完整保留样式信息 |
 | `.md` / `.markdown` | 标准 Markdown，与其他工具互通 |
 | `.txt` | 纯文本，无格式 |
+
+Office 文档（`.doc`、`.docx`、`.xls`、`.xlsx`、`.ppt`、`.pptx`）会以只读预览方式打开，不会直接进入 Markdown 编辑器。若要继续编辑 `.docx` 内容，可在 Office 预览页或标签页右键菜单中选择导入为 Markdown。
 
 ## 行内格式
 
@@ -101,7 +103,7 @@ mermaid 图使用 `mermaid` 语言代码块保存，适合流程图、时序图�
 
 ### 右键菜单
 
-编辑器正文支持页面级右键菜单。右键菜单会根据当前文档类型提供常用编辑、插入和视图操作；图片查看器与 PDF 查看器也有各自的页面菜单。
+编辑器正文支持页面级右键菜单。右键菜单会根据当前文档类型提供常用编辑、插入和视图操作；图片查看器与 PDF 查看器也有各自的页面菜单。文件标签页也支持右键菜单，可关闭其他标签、关闭已保存标签、定位文件、复制路径，或将可导入的 Office 文件转换为 Markdown 草稿。
 
 ## 视图与写作模式
 
@@ -153,6 +155,7 @@ mermaid 图使用 `mermaid` 语言代码块保存，适合流程图、时序图�
 
 - 支持从 `File -> Import Document...` 导入常见文稿格式（Word、ODT、RTF、EPUB、HTML、LaTeX 等）
 - 导入后的内容转换为 GFM（GitHub Flavored Markdown），在 iWriter 中继续编辑
+- 打开 `.docx` 文件时，也可以从 Office 预览页或标签页右键菜单直接导入为 Markdown
 - 如果需要自定义 Pandoc 路径，可在 [偏好设置](/docs/preferences#导出) 中配置
 
 ## 快捷键速查
