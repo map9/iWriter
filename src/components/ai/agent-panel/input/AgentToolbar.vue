@@ -102,6 +102,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TooltipContent } from '@/components/common/statusbar'
 import { tooltipManager } from '@/components/common/statusbar'
+import type { ThreadUsage } from '@/ai/types'
 import AttachPicker from './AttachPicker.vue'
 import ProviderPicker from './ProviderPicker.vue'
 import ModelPicker from './ModelPicker.vue'
@@ -118,6 +119,8 @@ const props = defineProps<{
   compactProgressRatio: number
   compactTriggerTokens: number
   maxInputTokens: number | null
+  /** Real accumulated token usage for this thread (null if no run yet). */
+  sessionUsage: ThreadUsage | null
 }>()
 const { t } = useI18n()
 
@@ -170,17 +173,42 @@ async function updateLayout() {
 }
 const showCompactButton = computed(() => props.showCompact)
 
-const compactTooltip = computed<TooltipContent>(() => ({
-  type: 'markdown',
-  content: [
+const compactTooltip = computed<TooltipContent>(() => {
+  const parts: string[] = [
     `**${t('agentPanel.toolbar.contextWindow')}:**<br>`,
     t('agentPanel.toolbar.progressFull', { percent: Math.round(props.compactProgressRatio * 100) }) + '<br>',
     t('agentPanel.toolbar.tokensUsed', {
       current: formatCompactTokens(props.currentSessionTokens),
       max: formatCompactTokens(props.maxInputTokens ?? 0),
     }),
-  ].join(''),
-}))
+  ]
+
+  const usage = props.sessionUsage
+  if (usage && (usage.main.inputTokens > 0 || usage.subagents.inputTokens > 0)) {
+    parts.push('<br><br>')
+    parts.push(`**${t('agentPanel.toolbar.realUsage')}:**<br>`)
+    parts.push(t('agentPanel.toolbar.inOut', {
+      input: formatCompactTokens(usage.main.inputTokens),
+      output: formatCompactTokens(usage.main.outputTokens),
+    }))
+    if (usage.main.cacheReadTokens > 0 || usage.main.cacheCreationTokens > 0) {
+      parts.push('<br>')
+      parts.push(t('agentPanel.toolbar.cacheHit', {
+        read: formatCompactTokens(usage.main.cacheReadTokens),
+        created: formatCompactTokens(usage.main.cacheCreationTokens),
+      }))
+    }
+    if (usage.subagents.inputTokens > 0) {
+      parts.push('<br>')
+      parts.push(t('agentPanel.toolbar.subAgents', {
+        input: formatCompactTokens(usage.subagents.inputTokens),
+        output: formatCompactTokens(usage.subagents.outputTokens),
+      }))
+    }
+  }
+
+  return { type: 'markdown', content: parts.join('') }
+})
 
 function openMenu(name: MenuName) {
   activeMenu.value = name

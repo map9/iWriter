@@ -111,6 +111,21 @@ export interface ResumeRunRequest {
 
 // ── Main → Renderer ────────────────────────────────────────────────────────
 
+/**
+ * Normalized token usage from a single LLM response.
+ * Sourced from LangChain's standardized `usage_metadata` field (works across
+ * Anthropic, OpenAI, Gemini, and DeepSeek providers).
+ */
+export interface NormalizedUsage {
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  /** Tokens served from provider cache (Anthropic cache_read_input_tokens, DeepSeek cached_tokens). */
+  cacheReadTokens: number
+  /** Tokens written into provider cache (Anthropic cache_creation_input_tokens). */
+  cacheCreationTokens: number
+}
+
 // subagentId is the parent task toolCallId. The renderer uses this shared id to
 // render one invocation instead of separate parent task and subagent cards.
 export type StreamChunkEvent =
@@ -121,6 +136,8 @@ export type StreamChunkEvent =
   | { threadId: string; turnId?: string; type: 'subagent_start'; subagentName: string; taskInput: unknown; subagentId?: string }
   | { threadId: string; turnId?: string; type: 'subagent_end'; subagentName: string; output: unknown; subagentId?: string }
   | { threadId: string; turnId?: string; type: 'subagent_error'; subagentName: string; error: string; subagentId?: string }
+  /** Real token usage from one LLM call. subagentId present ⇒ emitted by a sub-agent. */
+  | { threadId: string; turnId?: string; type: 'usage'; messageId?: string; usage: NormalizedUsage; subagentName?: string; subagentId?: string }
 
 /**
  * Emitted when the agent hits a HITL interrupt. Contains:

@@ -503,6 +503,10 @@ export default {
       contextWindow: 'Context window',
       progressFull: '{percent}% full',
       tokensUsed: '{current} / {max} tokens used',
+      realUsage: 'Real usage (session)',
+      inOut: '↑{input} in / ↓{output} out',
+      cacheHit: 'Cache: {read} read • {created} created',
+      subAgents: 'Sub-agents: ↑{input} / ↓{output}',
     },
     taskPlan: {
       title: 'Task Plan',

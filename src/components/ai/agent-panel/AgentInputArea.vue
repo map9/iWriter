@@ -31,6 +31,7 @@
       :compact-progress-ratio="compactProgressRatio"
       :compact-trigger-tokens="compactTriggerTokens"
       :max-input-tokens="maxInputTokens"
+      :session-usage="sessionUsage"
       @browse-files="browseFiles"
       @browse-folder="browseFolder"
       @compact="compactInput"
@@ -65,6 +66,7 @@ const {
   compactTriggerTokens,
   compactProgressRatio,
   maxInputTokens,
+  sessionUsage,
   handleKeydown,
   sendMessage,
   compactInput,

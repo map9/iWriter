@@ -500,6 +500,10 @@ export default {
       contextWindow: '上下文窗口',
       progressFull: '已使用 {percent}%',
       tokensUsed: '已使用 {current} / {max} tokens',
+      realUsage: '真实用量（本次会话）',
+      inOut: '↑{input} 输入 / ↓{output} 输出',
+      cacheHit: '缓存：{read} 命中 • {created} 创建',
+      subAgents: '子 Agent：↑{input} / ↓{output}',
     },
     taskPlan: {
       title: '任务计划',

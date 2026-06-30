@@ -391,6 +391,7 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   function deleteThread(id: string) {
+    runtimeEvents.clearThreadUsage(id)
     threads.value = threads.value.filter(t => t.id !== id)
     window.electronAPI.aiDeleteThread?.(id)
     if (activeThreadId.value === id) {
@@ -399,6 +400,7 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   function clearAllThreads() {
+    runtimeEvents.clearAllUsage()
     threads.value = []
     activeThreadId.value = null
     window.electronAPI.aiClearThreads?.()
@@ -727,6 +729,7 @@ export const useAiStore = defineStore('ai', () => {
     getCompletedRoundResult,
     getCompletedCreativeRoundResult,
     appendMessage,
+    getThreadById: (threadId: string) => threads.value.find(t => t.id === threadId) ?? null,
     updateThread,
     notifyError: notify.error,
     makeErrorMessage: ({ turnId, content }) => ({

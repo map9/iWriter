@@ -634,6 +634,26 @@ export interface OpenTabInfo {
   isDirty: boolean     // has unsaved changes
 }
 
+// ── Thread-level token usage ───────────────────────────────────────────────
+
+/** Accumulated token counts for one participant (main agent or all sub-agents combined). */
+export interface UsageTotals {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheCreationTokens: number
+}
+
+/**
+ * Real cumulative token usage for a thread, split by main agent vs. sub-agents.
+ * Populated from provider-reported `usage_metadata` during runs.
+ * In-memory only — resets on app restart.
+ */
+export interface ThreadUsage {
+  main: UsageTotals
+  subagents: UsageTotals
+}
+
 // A thread (one conversation)
 export interface AiThread {
   id: string
@@ -671,6 +691,11 @@ export interface AiThread {
   lastSectionHeading?: string | null
   /** Whether the workspace path has already been injected (only on first message). */
   workspaceInjected?: boolean
+  /**
+   * Accumulated real token usage (main agent + sub-agents).
+   * Populated from provider `usage_metadata` during streaming; in-memory only.
+   */
+  usage?: ThreadUsage
 }
 
 // Web Search Provider Config

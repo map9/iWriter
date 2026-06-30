@@ -1,7 +1,7 @@
 import { watch, nextTick, computed, ref } from 'vue'
 import type { Ref } from 'vue'
 import { useAiStore } from '@/ai/store/ai'
-import type { SendContext } from '@/ai/types'
+import type { SendContext, ThreadUsage } from '@/ai/types'
 import { resolveAgentDomain, resolveAiProviderModelId } from '@/ai/types'
 import { pathUtils } from '@/utils/pathUtils'
 
@@ -41,6 +41,7 @@ export function useChatSend(contextFiles: Ref<string[]>) {
   const currentSessionTokens = ref(0)
   const compactTriggerTokens = ref(0)
   const maxInputTokens = ref<number | null>(null)
+  const sessionUsage = computed<ThreadUsage | null>(() => aiStore.activeThread?.usage ?? null)
   const compactProgressRatio = computed(() => {
     if (compactTriggerTokens.value <= 0) return 0
     return Math.max(0, Math.min(1, currentSessionTokens.value / compactTriggerTokens.value))
@@ -191,6 +192,7 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     compactTriggerTokens,
     compactProgressRatio,
     maxInputTokens,
+    sessionUsage,
     handleKeydown,
     executeSend,
     sendMessage,

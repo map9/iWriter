@@ -24,6 +24,7 @@ import { ChatDeepSeek } from './ChatDeepSeek'
 export interface ChatModelRuntimeOptions {
   modelId?: string
   thinkingLevel?: AiThinkingLevel
+  disableThinking?: boolean
 }
 
 type ChatAnthropicFields = ConstructorParameters<typeof ChatAnthropic>[0]
@@ -96,12 +97,14 @@ function applyProfileOverride<T extends BaseChatModel>(model: T, profile?: Model
   return model
 }
 
+
 export function createChatModel(
   config: AiProviderConfig,
   runtime: ChatModelRuntimeOptions = {},
 ): BaseChatModel {
   const modelId = runtime.modelId || config.lastSelectedModelId || config.defaultModelId
   const thinkingLevel = normalizeThinkingLevel(runtime.thinkingLevel ?? config.lastSelectedThinkingLevel)
+  const disableThinking = runtime.disableThinking === true
   const parameters = normalizeProviderParameters(config.parameters)
   const parameterSupport = getProviderParameterSupport(config.type, config.baseUrl, {
     modelId,
@@ -123,7 +126,7 @@ export function createChatModel(
         streaming: true,
         ...(parameterSupport.temperature ? { temperature: parameters.temperature } : {}),
         ...(parameterSupport.topP ? { topP: parameters.topP } : {}),
-        ...(isTrueOpenAI
+        ...(!disableThinking && isTrueOpenAI
           ? {
               useResponsesApi: true,
               reasoning: {
@@ -131,13 +134,15 @@ export function createChatModel(
                 effort: reasoningEffort,
               },
             }
-          : {
+          : !disableThinking
+            ? {
               modelKwargs: {
                 reasoning_effort: reasoningEffort,
                 ...(parameterSupport.frequencyPenalty ? { frequency_penalty: parameters.frequencyPenalty } : {}),
                 ...(parameterSupport.presencePenalty ? { presence_penalty: parameters.presencePenalty } : {}),
               },
-            }),
+            }
+            : {}),
       }) as BaseChatModel
       return shouldUseProfileOverride(config, model)
         ? applyProfileOverride(model, getProfileOverride(config, modelId))
@@ -154,6 +159,7 @@ export function createChatModel(
         streaming: true,
         thinkingLevel,
         budgetTokens: thinkingBudget,
+        disableThinking,
         ...(parameterSupport.temperature ? { temperature: parameters.temperature } : {}),
         ...(parameterSupport.topP ? { topP: parameters.topP } : {}),
         ...(parameterSupport.frequencyPenalty ? { frequencyPenalty: parameters.frequencyPenalty } : {}),
@@ -171,11 +177,15 @@ export function createChatModel(
         ...(parameterSupport.topP && normalizeAnthropicThinkingTopP(parameters.topP) != null
           ? { topP: normalizeAnthropicThinkingTopP(parameters.topP) }
           : {}),
-        maxTokens: thinkingBudget + 2048,
-        thinking: {
-          type: 'enabled',
-          budget_tokens: thinkingBudget,
-        },
+        maxTokens: disableThinking ? 2048 : thinkingBudget + 2048,
+        ...(!disableThinking
+          ? {
+              thinking: {
+                type: 'enabled',
+                budget_tokens: thinkingBudget,
+              },
+            }
+          : {}),
       } as ChatAnthropicFields) as BaseChatModel, getProfileOverride(config, modelId))
     }
 
@@ -188,9 +198,13 @@ export function createChatModel(
         ...(parameterSupport.topP ? { topP: parameters.topP } : {}),
         ...(parameterSupport.frequencyPenalty ? { frequencyPenalty: parameters.frequencyPenalty } : {}),
         ...(parameterSupport.presencePenalty ? { presencePenalty: parameters.presencePenalty } : {}),
-        thinkingConfig: {
-          thinkingBudget: mapThinkingLevelToBudget(thinkingLevel),
-        },
+        ...(!disableThinking
+          ? {
+              thinkingConfig: {
+                thinkingBudget: mapThinkingLevelToBudget(thinkingLevel),
+              },
+            }
+          : {}),
       } as ChatGoogleGenerativeAIFields) as BaseChatModel, getProfileOverride(config, modelId))
     }
 

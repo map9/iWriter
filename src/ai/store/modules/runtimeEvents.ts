@@ -6,6 +6,8 @@ import type {
   CreativeRoundResult,
   EditProposal,
   ThreadMessage,
+  ThreadUsage,
+  UsageTotals,
 } from '@/ai/types'
 import type {
   RunDoneEvent,
@@ -89,13 +91,27 @@ interface RuntimeEventsDeps {
   getCompletedRoundResult: (threadId: string | null | undefined, turnId: string | null | undefined) => ThreadMessage['editRoundResult'] | null
   getCompletedCreativeRoundResult: (threadId: string | null | undefined, turnId: string | null | undefined) => CreativeRoundResult | null
   appendMessage: (thread: AiThread, message: ThreadMessage) => AiThread
+  getThreadById: (threadId: string) => AiThread | null
   updateThread: (thread: AiThread) => void
   notifyError: (message: string) => void
   makeErrorMessage: (input: { turnId?: string | null; content: string }) => ThreadMessage
 }
 
+function makeEmptyUsageTotals(): UsageTotals {
+  return { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 }
+}
+
+function makeEmptyThreadUsage(): ThreadUsage {
+  return { main: makeEmptyUsageTotals(), subagents: makeEmptyUsageTotals() }
+}
+
 export function createRuntimeEvents(deps: RuntimeEventsDeps) {
   let currentRunHasError = false
+
+  /** Per-thread cumulative token usage. Key = threadId. */
+  const threadUsageMap = new Map<string, ThreadUsage>()
+  /** De-dup messageIds so resume/retry doesn't double-count. Key = `${threadId}:${messageId}`. */
+  const seenUsageIds = new Set<string>()
 
   function resetRunErrorFlag() {
     currentRunHasError = false
@@ -287,7 +303,56 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     }
   }
 
+  function _handleUsageChunk(chunk: Extract<StreamChunkEvent, { type: 'usage' }>): void {
+    // De-dup by messageId (covers resume/retry cases where the same AIMessage re-streams)
+    if (chunk.messageId) {
+      const key = `${chunk.threadId}:${chunk.messageId}`
+      if (seenUsageIds.has(key)) return
+      seenUsageIds.add(key)
+    }
+
+    let acc = threadUsageMap.get(chunk.threadId)
+    if (!acc) {
+      acc = makeEmptyThreadUsage()
+      threadUsageMap.set(chunk.threadId, acc)
+    }
+
+    // Sub-agent events carry subagentId; main-agent events do not
+    const target: UsageTotals = chunk.subagentId ? acc.subagents : acc.main
+    target.inputTokens += chunk.usage.inputTokens
+    target.outputTokens += chunk.usage.outputTokens
+    target.cacheReadTokens += chunk.usage.cacheReadTokens
+    target.cacheCreationTokens += chunk.usage.cacheCreationTokens
+
+    // Push updated totals to the owning thread so switching away mid-run does not leave
+    // the tooltip stale when the user returns.
+    const thread = deps.getThreadById(chunk.threadId)
+    if (thread) {
+      deps.updateThread({ ...thread, usage: { main: { ...acc.main }, subagents: { ...acc.subagents } } })
+    }
+  }
+
+  function clearThreadUsage(threadId: string): void {
+    threadUsageMap.delete(threadId)
+    const prefix = `${threadId}:`
+    for (const key of seenUsageIds) {
+      if (key.startsWith(prefix)) seenUsageIds.delete(key)
+    }
+  }
+
+  function clearAllUsage(): void {
+    threadUsageMap.clear()
+    seenUsageIds.clear()
+  }
+
   function onStreamChunk(chunk: StreamChunkEvent) {
+    // Handle usage events before ensureLiveTurn (avoids side effects; sub-agent usage would
+    // be swallowed by the subagentName early-return below if not caught here first).
+    if (chunk.type === 'usage') {
+      _handleUsageChunk(chunk)
+      return
+    }
+
     const liveTurn = deps.ensureLiveTurn({
       state: deps.threadRunState.value === 'interrupted' ? 'interrupted' : 'streaming',
     })
@@ -604,6 +669,8 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
 
   return {
     resetRunErrorFlag,
+    clearThreadUsage,
+    clearAllUsage,
     onStreamChunk,
     onRunInterrupted,
     onRunDone,

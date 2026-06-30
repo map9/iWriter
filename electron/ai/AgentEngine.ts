@@ -16,12 +16,12 @@ import * as fs from 'fs'
 import { app } from 'electron'
 import type { WebContents } from 'electron'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
+import type { BaseMessage } from '@langchain/core/messages'
 import type { ModelProfile } from '@langchain/core/language_models/profile'
 import { createDeepAgent, type DeepAgentRunStream } from 'deepagents'
 import { Command } from '@langchain/langgraph'
 import { HumanMessage, SystemMessage, isAIMessage, isToolMessage, isHumanMessage } from '@langchain/core/messages'
 import {
-  countTokensApproximately,
   modelCallLimitMiddleware,
   toolCallLimitMiddleware,
 } from 'langchain'
@@ -67,6 +67,16 @@ import { detectInputLanguage, type DetectedInputLanguage } from '../../src/ai/me
 
 type DeepAgentInstance = { streamEvents: unknown }
 type HitlActionRequest = { name: string; args: Record<string, unknown> }
+type TokenCounter = (messages: BaseMessage[], tools?: unknown) => number
+type SummarizationMiddlewareOptions = {
+  model: BaseChatModel
+  tokenCounter: TokenCounter
+}
+type CreateDeepAgentWithSummarization = (
+  params: Parameters<typeof createDeepAgent>[0] & {
+    summarizationMiddlewareOptions?: SummarizationMiddlewareOptions
+  },
+) => DeepAgentInstance
 
 export class AgentEngine {
   private snapshotBroker: SnapshotBroker
@@ -936,11 +946,19 @@ export class AgentEngine {
       }
     }
 
-    const agent = createDeepAgent({
+    const summarizationMiddlewareOptions: SummarizationMiddlewareOptions = {
+      // Summary generation should be plain text. Reusing the agent thinking level here
+      // wastes reasoning budget and can make summaries contain non-text content blocks.
+      model: createChatModel(config, { modelId, thinkingLevel, disableThinking: true }),
+      tokenCounter: this._makeCjkTokenCounter(),
+    }
+
+    const agent = (createDeepAgent as unknown as CreateDeepAgentWithSummarization)({
       model,
       systemPrompt: this.strategies[domain].getSystemPrompt(mode, language),
       tools: capabilities.tools,
       backend: scaffold.backend,
+      summarizationMiddlewareOptions,
       memory: this._buildMemoryPaths(domain),
       checkpointer: this.checkpointerInstance?.checkpointer,
       interruptOn: { ...capabilities.interruptOn, ...scaffold.interruptOn },
@@ -1093,7 +1111,7 @@ export class AgentEngine {
       const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
       const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath, language })
       const systemPrompt = new SystemMessage(this.strategies[domain].getSystemPrompt(mode, language))
-      return countTokensApproximately(
+      return this._countTokensCjkAware(
         [systemPrompt, ...effectiveMessages],
         capabilities.tools as unknown as Array<Record<string, unknown>>
       )
@@ -1101,6 +1119,40 @@ export class AgentEngine {
       console.warn('[AgentEngine] Failed to compute current session tokens:', err)
       return 0
     }
+  }
+
+  private _makeCjkTokenCounter(): TokenCounter {
+    return (messages: BaseMessage[], tools?: unknown): number =>
+      this._countTokensCjkAware(messages, (tools as Array<Record<string, unknown>>) ?? [])
+  }
+
+  private _countTokensCjkAware(
+    messages: BaseMessage[],
+    tools: Array<Record<string, unknown>>,
+  ): number {
+    let total = 0
+    for (const tool of tools ?? []) {
+      total += estimateTextTokens(JSON.stringify(tool))
+    }
+    for (const msg of messages) {
+      let text = ''
+      if (typeof msg.content === 'string') {
+        text = msg.content
+      } else if (Array.isArray(msg.content)) {
+        for (const block of msg.content as Array<Record<string, unknown>>) {
+          if (block['type'] === 'text') text += (block['text'] as string) ?? ''
+          if (block['type'] === 'reasoning') text += (block['reasoning'] as string) ?? ''
+          if (block['type'] === 'thinking') text += (block['thinking'] as string) ?? ''
+          if (block['type'] === 'tool_call') text += JSON.stringify(block['args'] ?? {})
+          if (block['type'] === 'tool_use') text += JSON.stringify(block['input'] ?? {})
+        }
+      }
+      if (isAIMessage(msg) && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) {
+        text += JSON.stringify(msg.tool_calls)
+      }
+      total += estimateTextTokens(text)
+    }
+    return total
   }
 
   // ── Private: init ─────────────────────────────────────────────────────────

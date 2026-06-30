@@ -1,4 +1,4 @@
-import type { StreamChunkEvent } from './protocol'
+import type { NormalizedUsage, StreamChunkEvent } from './protocol'
 import type { AiToolCall, MessageContentBlock, ThreadMessage } from '../../../src/types/ai'
 import { inferToolKind } from '../../../src/types/ai'
 import { isHitlInterruptPayload } from '../../../src/ai/hitl'
@@ -246,16 +246,67 @@ export class StreamEventAdapter {
       }
     }
 
-    // Surface any invalid tool calls as failed tool-call cards. The full AIMessage is available via
-    // msg.output after text/reasoning streams complete. Errors here are non-fatal; the run.output
-    // error path handles stream-level failures.
+    // Surface any invalid tool calls as failed tool-call cards, and read real token usage.
+    // The full AIMessage is available via msg.output after text/reasoning streams complete.
+    // Errors here are non-fatal; the run.output error path handles stream-level failures.
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const aiMessage = await (msg as any).output
       this._emitInvalidToolCalls(aiMessage, subagentName)
     } catch {
+      // ignore — invalid tool-call cards are best-effort
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const aiMessage = await (msg as any).output
+      this._emitUsage(aiMessage, subagentName)
+    } catch {
       // ignore — real failures surface through run.output
     }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _emitUsage(aiMessage: any, subagentName?: string): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const meta: any = aiMessage?.usage_metadata
+    if (!meta || typeof meta.input_tokens !== 'number') return
+
+    const usage: NormalizedUsage = {
+      inputTokens: meta.input_tokens ?? 0,
+      outputTokens: meta.output_tokens ?? 0,
+      totalTokens: meta.total_tokens ?? 0,
+      // LangChain normalises provider-specific cache fields into input_token_details
+      cacheReadTokens: meta.input_token_details?.cache_read ?? 0,
+      cacheCreationTokens: meta.input_token_details?.cache_creation ?? 0,
+    }
+
+    this._send({
+      threadId: this.threadId,
+      turnId: this.turnId,
+      type: 'usage',
+      messageId: typeof aiMessage?.id === 'string'
+        ? aiMessage.id
+        : this._fallbackUsageMessageId(aiMessage, usage, subagentName),
+      usage,
+      subagentName,
+    })
+  }
+
+  private _fallbackUsageMessageId(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    aiMessage: any,
+    usage: NormalizedUsage,
+    subagentName?: string,
+  ): string {
+    return `fallback-${StreamEventAdapter.stableHash(JSON.stringify({
+      turnId: this.turnId,
+      subagentName,
+      subagentId: this.subagentId,
+      content: aiMessage?.content ?? null,
+      toolCalls: aiMessage?.tool_calls ?? null,
+      usage,
+    }))}`
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -359,6 +410,14 @@ export class StreamEventAdapter {
         ? { ...chunk, subagentId: this.subagentId } as StreamChunkEvent
         : chunk,
     )
+  }
+
+  private static stableHash(input: string): string {
+    let hash = 0
+    for (let i = 0; i < input.length; i += 1) {
+      hash = ((hash << 5) - hash + input.charCodeAt(i)) | 0
+    }
+    return Math.abs(hash).toString(36)
   }
 
 }
