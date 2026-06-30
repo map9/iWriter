@@ -134,6 +134,7 @@ export const useAppStore = defineStore('app', () => {
   const systemPrefersDark = ref(false)
   let systemThemeMediaQuery: MediaQueryList | null = null
   let systemThemeChangeHandler: ((event: MediaQueryListEvent) => void) | null = null
+  let titleBarOverlayUpdateFrame: number | null = null
   
   // Folder and Files
   const currentFolder = ref<string | null>(null)
@@ -643,6 +644,10 @@ export const useAppStore = defineStore('app', () => {
     if (sayHelloTimeout) {
       clearTimeout(sayHelloTimeout)
       sayHelloTimeout = null
+    }
+    if (titleBarOverlayUpdateFrame !== null) {
+      cancelAnimationFrame(titleBarOverlayUpdateFrame)
+      titleBarOverlayUpdateFrame = null
     }
     if (window.electronAPI) {
       window.electronAPI.removeMenuActionListener()
@@ -2789,6 +2794,45 @@ export const useAppStore = defineStore('app', () => {
   
   function applyCurrentTheme() {
     applyThemeSelection(currentThemeId.value, systemPrefersDark.value)
+    scheduleTitleBarOverlayUpdate()
+  }
+
+  function getTitleBarStyleProbe(): { element: HTMLElement; removeAfterRead: boolean } {
+    const existingTitleBar = document.querySelector<HTMLElement>('.iw-titlebar')
+    if (existingTitleBar) return { element: existingTitleBar, removeAfterRead: false }
+
+    const probe = document.createElement('div')
+    probe.className = 'iw-titlebar'
+    probe.style.position = 'fixed'
+    probe.style.visibility = 'hidden'
+    probe.style.pointerEvents = 'none'
+    probe.style.inset = '0 auto auto 0'
+    document.body.appendChild(probe)
+    return { element: probe, removeAfterRead: true }
+  }
+
+  function scheduleTitleBarOverlayUpdate() {
+    if (window.electronAPI.platform === 'darwin' || !window.electronAPI.updateTitleBarOverlay) return
+    if (titleBarOverlayUpdateFrame !== null) {
+      cancelAnimationFrame(titleBarOverlayUpdateFrame)
+    }
+
+    titleBarOverlayUpdateFrame = requestAnimationFrame(() => {
+      titleBarOverlayUpdateFrame = null
+      const { element: titleBar, removeAfterRead } = getTitleBarStyleProbe()
+      const computedStyle = window.getComputedStyle(titleBar)
+
+      window.electronAPI.updateTitleBarOverlay({
+        backgroundColor: computedStyle.backgroundColor,
+        symbolColor: computedStyle.color,
+      }).catch(error => {
+        console.warn('Failed to update title bar overlay colors:', error)
+      })
+
+      if (removeAfterRead) {
+        titleBar.remove()
+      }
+    })
   }
   
   function getCurrentTheme(): ThemeOption | undefined {

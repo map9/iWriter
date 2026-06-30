@@ -88,9 +88,9 @@ export class MenuManager {
     const hasFolderOpen = wState?.wContentState?.hasFolderOpen
     const hasActiveDocument = wState?.wContentState?.hasActiveDocument
 
-    const isMarkdown = type === DocumentType.MARKDOWN_EDITOR
-    const isImage    = type === DocumentType.IMAGE_VIEWER
-    const isPdf = type === DocumentType.PDF_VIEWER
+    const isMarkdown = (type === DocumentType.MARKDOWN_EDITOR) && hasActiveDocument
+    const isImage    = (type === DocumentType.IMAGE_VIEWER) && hasActiveDocument
+    const isPdf = (type === DocumentType.PDF_VIEWER) && hasActiveDocument
     const pdfState = wState?.wContentState?.pdf
 
     const edit = wState?.wContentState?.edit
@@ -447,7 +447,6 @@ export class MenuManager {
             label: 'Paste as Text',
             visible: isMarkdown,
             accelerator: 'CmdOrCtrl+Shift+V',
-            enabled: hasActiveDocument,
             click: () => {
               this.sendMenuAction('paste-as-text')
             }
@@ -464,7 +463,6 @@ export class MenuManager {
           {
             label: 'Line Ending',
             visible: isMarkdown,
-            enabled: hasActiveDocument,
             submenu: [
               {
                 label: 'Windows CRLF',
@@ -487,7 +485,6 @@ export class MenuManager {
           {
             label: 'Space and Line break',
             visible: isMarkdown,
-            enabled: hasActiveDocument,
             submenu: [
               {
                 label: 'First line indent',
@@ -1784,7 +1781,7 @@ export class MenuManager {
               { type: 'separator' },
               {
                 label: 'Follow System',
-                type: 'radio',
+                type: 'checkbox',
                 checked: wState?.wContentState?.view?.theme === 'system',
                 click: () => {
                   this.sendMenuAction('view-theme-follow-system')
@@ -1792,7 +1789,7 @@ export class MenuManager {
               },
               {
                 label: 'Light',
-                type: 'radio',
+                type: 'checkbox',
                 checked: wState?.wContentState?.view?.theme === 'light',
                 click: () => {
                   this.sendMenuAction('view-theme-light')
@@ -1801,7 +1798,7 @@ export class MenuManager {
               {
                 id: 'viewThemeDark',
                 label: 'Dark',
-                type: 'radio',
+                type: 'checkbox',
                 checked: wState?.wContentState?.view?.theme === 'dark',
                 click: () => {
                   this.sendMenuAction('view-theme-dark')
@@ -1908,12 +1905,12 @@ export class MenuManager {
       
       // Filter out Edit, Paragraph and Format menus based on document state
       if (
-        (!hasActiveDocument || !isMarkdown) &&
+        !isMarkdown &&
         (item.id === 'editMenu' || item.id === 'paragraphMenu' || item.id === 'formatMenu')
       ) {
         return false
       } else if (
-        hasActiveDocument && isMarkdown &&
+        isMarkdown &&
         (item.id === 'editMenu-default')
       ) {
         return false
@@ -1931,7 +1928,7 @@ export class MenuManager {
           .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
           .map((theme) => ({
             label: theme.name,
-            type: 'radio' as const,
+            type: 'checkbox' as const,
             checked: wState?.wContentState?.view?.theme === theme.id,
             click: () => {
               this.sendMenuAction(`view-theme-${theme.id}`)

@@ -124,6 +124,7 @@ export interface ElectronAPI {
   bootstrapWindowLocale: (locale: string) => Promise<string>
   windowContentChange: (wContentState: Partial<import('@/types').WindowContentState>) => Promise<void>
   updateWindowTitle: (title: string) => Promise<{ success: boolean; error?: string }>
+  updateTitleBarOverlay: (colors: { backgroundColor: string; symbolColor: string }) => Promise<{ success: boolean; error?: string }>
 
   // 更新器 API
   checkForUpdates: () => Promise<import('@/updater/types').UpdateCheckResult>

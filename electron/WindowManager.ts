@@ -9,6 +9,7 @@ import type { WindowContentState } from '../src/types/window-content-state'
 import type { HtmlPrintReadyOptions, PdfSaveOptions } from '../src/types/electron-api'
 
 import { isDev, isMac } from './utils'
+import { resolveTitleBarOverlayColors, type RendererTitleBarColors } from './titleBarOverlay'
 import type { WindowState, IApp } from './types'
 import { USE_CONFIRMATION_TIMEOUT, HELLO_TIMEOUT, CLOSE_WINDOW_CONFIRMATION_TIMEOUT } from './types'
 import { normalizeLocale } from './i18n'
@@ -87,6 +88,9 @@ export class WindowManager {
     perfLog('createWindow() start')
     // 用系统颜色模式设置背景色，消除 ready-to-show 前的白屏闪烁
     const backgroundColor = nativeTheme.shouldUseDarkColors ? '#1e1e1e' : '#f5f5f5'
+    const titleBarOverlayColors = resolveTitleBarOverlayColors({
+      prefersDark: nativeTheme.shouldUseDarkColors,
+    })
     const window = new BrowserWindow({
       height: 800,
       width: 1200,
@@ -108,8 +112,8 @@ export class WindowManager {
             autoHideMenuBar: true,
             titleBarOverlay: {
               height: 40,
-              color: backgroundColor,
-              symbolColor: nativeTheme.shouldUseDarkColors ? '#f5f5f5' : '#1f2937',
+              color: titleBarOverlayColors.color,
+              symbolColor: titleBarOverlayColors.symbolColor,
             },
           }),
       show: false
@@ -300,6 +304,27 @@ export class WindowManager {
         return { success: true };
       }
       return { success: false, error: 'Window not found' };
+    })
+
+    ipcMain.handle('update-titlebar-overlay', async (event, colors: RendererTitleBarColors) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (!window) return { success: false, error: 'Window not found' }
+      if (isMac) return { success: true }
+
+      try {
+        const overlayColors = resolveTitleBarOverlayColors({
+          prefersDark: nativeTheme.shouldUseDarkColors,
+          rendererColors: colors,
+        })
+        window.setTitleBarOverlay({
+          height: 40,
+          color: overlayColors.color,
+          symbolColor: overlayColors.symbolColor,
+        })
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
     })
 
     ipcMain.handle('window-bootstrap-locale', async (event, locale: string) => {

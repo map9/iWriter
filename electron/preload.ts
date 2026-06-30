@@ -154,6 +154,7 @@ const electronAPI: ElectronAPI = {
   bootstrapWindowLocale: (locale: string) => ipcRenderer.invoke('window-bootstrap-locale', locale),
   windowContentChange: (wContentState: Partial<WindowContentState>) => ipcRenderer.invoke('window-content-changed', wContentState),
   updateWindowTitle: (title: string) => ipcRenderer.invoke('update-window-title', title),
+  updateTitleBarOverlay: (colors: { backgroundColor: string; symbolColor: string }) => ipcRenderer.invoke('update-titlebar-overlay', colors),
 
   // Updater API
   checkForUpdates: () => ipcRenderer.invoke('updater:check-for-updates'),
