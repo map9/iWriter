@@ -1,10 +1,10 @@
 # 更新日志
 
-> 适用版本：iWriter `0.1.21`
+> 适用版本：iWriter `0.1.22`
 >
 > 最后更新：2026-06-30
 
-## Unreleased
+## `0.1.22`
 
 - 新增 Office 文档查看支持，打开 Word、Excel、PowerPoint 文件时可通过 LibreOffice 转换为 PDF 预览；未检测到 LibreOffice 时会显示安装指引，并保留用系统应用打开的入口。
 - 改进 Office 导入流程，`.docx` 文件可从 Office 预览页或标签页右键菜单导入为 Markdown 草稿，并避免同一来源重复生成同名导入标签。
