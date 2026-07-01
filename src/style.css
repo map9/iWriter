@@ -62,9 +62,25 @@
 }
 
 @layer base {
+  /* Webkit/Blink scrollbar override — makes scrollbars overlay-style on Windows,
+     matching macOS auto-hide behavior. When ::-webkit-scrollbar is defined,
+     scrollbar-width/color are ignored by Chromium, so this fully replaces them. */
   * {
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in oklab, var(--color-base-content) 20%, transparent) transparent;
+    &::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: transparent;
+      border-radius: 3px;
+    }
+  }
+
+  *:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--color-base-content) 20%, transparent);
   }
 
   html {

@@ -415,11 +415,13 @@ const GITHUB_SCREEN_CSS = `
     border-top: 0;
   }
 
+  .tiptap.markdown-theme-github .tableWrapper {
+    overflow-x: auto;
+  }
+
   .tiptap.markdown-theme-github .tableWrapper table {
     display: block;
     width: max-content;
-    max-width: 100%;
-    overflow: auto;
     border-spacing: 0;
     border-collapse: collapse;
     font-variant: tabular-nums;
@@ -968,11 +970,13 @@ const GITHUB_DARK_SCREEN_CSS = `
     border-top: 0;
   }
 
+  .tiptap.markdown-theme-github-dark .tableWrapper {
+    overflow-x: auto;
+  }
+
   .tiptap.markdown-theme-github-dark .tableWrapper table {
     display: block;
     width: max-content;
-    max-width: 100%;
-    overflow: auto;
     border-spacing: 0;
     border-collapse: collapse;
     font-variant: tabular-nums;
