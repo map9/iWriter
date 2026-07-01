@@ -8,6 +8,7 @@
 
 - 确认目录权限可读写。
 - 确认目录未被系统安全策略拦截。
+- Windows 工作区包含联接点、符号链接或其他 NTFS 重解析点时，iWriter 会跳过无法读取的系统对象；如果仍反复报错，可以先缩小打开目录，或在 `.iwtignore` 中排除对应路径。
 
 ## 跨文件搜索无结果
 
@@ -24,6 +25,7 @@
 - 检查文件是否损坏。
 - 检查是否属于支持格式。
 - Office 文件预览需要安装 LibreOffice；未安装时可按预览页提示安装，或在偏好设置中手动指定 LibreOffice 路径。
+- Windows 上如果已安装 LibreOffice 但仍提示不可用，尝试在偏好设置的“导出”分组中指定 `C:\Program Files\LibreOffice\program\soffice.exe` 或对应 `program` 目录，而不是只填写 `soffice`。
 - 如果 Office 转换失败，可先用系统应用打开原文件，确认文件本身是否能被 LibreOffice 或办公套件正常读取。
 
 ## 更新失败

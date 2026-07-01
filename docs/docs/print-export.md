@@ -364,7 +364,7 @@ Office 预览需要系统安装 LibreOffice。未检测到 LibreOffice 时，预
 - **Windows**：优先检测 `C:\Program Files\LibreOffice\program\soffice.exe` 和 `C:\Program Files (x86)\LibreOffice\program\soffice.exe`
 - **Linux**：检测 PATH 中的 `soffice`
 
-如果 LibreOffice 安装在非默认位置，可在 [偏好设置 - 导出](/docs/preferences#导出) 中手动指定 LibreOffice 路径。
+如果 LibreOffice 安装在非默认位置，可在 [偏好设置 - 导出](/docs/preferences#导出) 中手动指定 LibreOffice 路径。Windows 上建议填写 `...\LibreOffice\program\soffice.exe` 或对应 `program` 目录的绝对路径，iWriter 会从该目录启动转换，减少转换 PDF 时找不到 LibreOffice 组件的情况。
 
 ### 预览与导入
 
