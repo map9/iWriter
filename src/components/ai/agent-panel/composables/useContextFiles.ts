@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { i18n } from '@/i18n'
+import pathUtils from '@/utils/pathUtils'
 
 export function useContextFiles() {
   const appStore = useAppStore()
@@ -8,7 +9,7 @@ export function useContextFiles() {
   const contextFiles = ref<string[]>([])
 
   function fileName(path: string): string {
-    return path.split('/').pop() ?? path
+    return pathUtils.basename(path)
   }
 
   function removeContextFile(i: number) {

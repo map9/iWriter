@@ -17,16 +17,17 @@
 
 <script setup lang="ts">
 import { IconFile, IconFolder, IconX } from '@tabler/icons-vue'
+import pathUtils from '@/utils/pathUtils'
 
 defineProps<{ files: string[] }>()
 defineEmits<{ remove: [index: number] }>()
 
 function fileName(path: string): string {
-  return path.split('/').pop() ?? path
+  return pathUtils.basename(path)
 }
 
 function isFolder(path: string): boolean {
-  const name = path.split('/').pop() ?? path
+  const name = pathUtils.basename(path)
   return !name.includes('.')
 }
 </script>

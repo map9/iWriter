@@ -216,7 +216,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const folderName = computed(() => {
   if (!appStore.currentFolder) return t('explorer.noFolder')
-  return appStore.currentFolder.split('/').pop() || t('explorer.rootFolder')
+  return appStore.fileTree?.label || pathUtils.basename(appStore.currentFolder) || t('explorer.rootFolder')
 })
 
 // State
