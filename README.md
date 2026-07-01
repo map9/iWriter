@@ -1,19 +1,30 @@
 # iWriter
 
-> 代码校对日期：2026-05-04  
-> 本 README 以当前工程实现为准（`src/` + `electron/` + `package.json`），不以 `docs/` 中历史方案文档为准。
+> 当前版本：`0.1.23`
+> 最后更新：2026-07-01
+> 官网与文档：<https://map9.github.io/iWriter/>
+
+本 README 是项目概览与开发入口。完整用户指南、下载说明、更新日志和故障排查请查看上方文档站点。
+
+## 快速入口
+
+- 文档首页：<https://map9.github.io/iWriter/>
+- 下载与安装：<https://map9.github.io/iWriter/download>
+- 快速开始：<https://map9.github.io/iWriter/quick-start>
+- 更新日志：<https://map9.github.io/iWriter/changelog>
+- GitHub Releases：<https://github.com/map9/iWriter/releases>
 
 ## 项目定位
 
-iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 Electron + Vue 3 + TypeScript 构建。
+iWriter 是一个本地文件优先的跨平台 AI 写作与文档工作台，基于 Electron + Vue 3 + TypeScript 构建。
 
 当前版本聚焦五类能力：
 
-- 本地文件工作区管理（文件树、标签页、跨文件搜索、监听刷新）
-- 富文本/Markdown 写作（TipTap 编辑器 + 大纲 + 拼写校对 + 搜索替换）
-- Markdown 主题系统（内置主题 + 自定义 CSS 主题 + 屏幕/打印独立主题）
-- 打印、PDF 与文档导出（paged.js 分页渲染 + Pandoc 多格式转换）
-- AI 辅助写作与编辑（Edit / Creative / Minimal，多 Provider，编辑提案审批流）
+- 本地工作区管理：文件树、标签页、跨文件搜索、外部变更监听、忽略规则。
+- 富文本 / Markdown 写作：TipTap 编辑器、斜杠菜单、表格、图片、数学公式、mermaid 图和 TOC。
+- 多格式查看与转换：图片、PDF、Office 预览，Pandoc 导入 / 导出。
+- Markdown 主题、打印与 PDF 输出：屏幕 / 打印主题、自定义 CSS 主题、分页预览、N-up 打印。
+- AI 辅助写作与编辑：Edit / Creative / Minimal 三模式，多 Provider，提案审批后落地。
 
 ## 设计定位（阶段）
 
@@ -34,24 +45,34 @@ iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 El
 
 ## 当前能力总览
 
-### 1) 文档与文件能力
+### 1) 工作区与文件管理
 
 - 支持打开文件夹并构建树形工作区
-- 支持文件新建、文件夹新建、重命名、移动、删除
+- 支持文件 / 文件夹新建、重命名、移动、删除和拖拽调整目录
 - 支持多标签页与状态恢复（重启后恢复工作区与已打开文件）
-- 支持自动保存、另存为、全部保存、只读模式
+- 支持自动保存、另存为、全部保存和只读模式
 - 支持外部文件变更监听并同步到文件树
-- 支持跨文件全文搜索与替换（含正则/大小写/整词）
+- 支持跨文件全文搜索与替换，并可通过 include / exclude 模式过滤范围
+- 支持 `.iwtignore` 工作区忽略规则，也可将工作区根目录的 `.gitignore` 纳入过滤
+- 默认跳过 `.git/`、`node_modules/`、构建产物、缓存目录和 VitePress 缓存，减少大型项目扫描压力
+- 资源管理器与标签页右键菜单支持复制路径、定位文件、关闭其他标签、关闭已保存标签等操作
+- Windows / Linux 使用应用内标题栏窗口按钮和应用菜单，macOS 保留系统菜单栏与交通灯窗口按钮
 
-### 2) 编辑器能力（MarkdownEditor）
+### 2) Markdown / 富文本编辑
 
-- 标题、段落、粗斜体、下划线、删除线、高亮、链接、行内代码
-- 引用、代码块、数学公式（行内/块）、任务列表、有序/无序列表
-- 表格（插入、结构调整、移动、删除）
-- 图片插入、媒体插入（音频/视频链接）
-- 搜索替换面板（文内）
+- 支持 Markdown 语法输入与所见即所得富文本编辑混用
+- 支持标题、粗斜体、下划线、删除线、高亮、链接、行内代码、引用、任务列表、有序 / 无序列表
+- 支持表格、数学公式、代码块、mermaid 图、分隔线、图片等结构内容
+- 支持通过 `/` 打开斜杠菜单，快速插入标题、列表、引用、代码块、数学公式、mermaid 图、表格和图片
+- 图片支持尺寸拖拽、路径 / URL 编辑、复制、外部打开，以及左 / 中 / 右 / 两端对齐
+- 代码块语言列表可在常用语言与全部支持语言之间切换
+- mermaid 图可在编辑器中预览，也会在打印预览与 PDF 导出时渲染为图形
+- 支持富文本粘贴、图片粘贴和“粘贴为纯文本”
+- 支持页面级右键菜单，Markdown、图片、PDF 页面和文件标签会显示对应文档类型的常用操作
+- 支持文内搜索替换面板
 - 拼写与语法检查（LanguageTool / Typo.js 引擎切换）
 - TOC（目录）联动与定位
+- 支持 Clean Mode、Focus Mode、Typewriter Mode
 
 ### 3) Markdown 主题系统
 
@@ -67,7 +88,7 @@ iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 El
 
 **打印与 PDF：**
 - 基于 paged.js 分页渲染，打印对话框提供实时预览
-- 支持 11 种纸张大小、纵向/横向、普通边距/对页边距模式
+- 支持 11 种纸张大小、纵向 / 横向、普通边距 / 对页边距模式
 - 三种分页策略预设（Balanced / Compact / Strict Book）+ 自定义模式（7 种避免断页规则）
 - 支持 16 个页眉页脚位置（margin box），6 个模板变量（documentTitle / chapterTitle / sectionTitle / printDate / pageNo / totalPages）
 - 支持首页不同、奇偶页不同的页眉页脚，运行标题自动提取章节信息
@@ -83,22 +104,28 @@ iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 El
 ### 5) 多类型文档查看
 
 - 图片查看器：缩放、旋转、拖拽平移、适配窗口
-- PDF 查看器：连续/单页/双页模式，缩放，跳页，懒加载渲染
+- PDF 查看器：连续 / 单页 / 双页模式，缩放，跳页，懒加载渲染
+- Office 查看：支持打开 `.doc`、`.docx`、`.xls`、`.xlsx`、`.ppt`、`.pptx`
+- Office 文档通过 LibreOffice 转换为临时 PDF 后在内置 PDF 查看器中预览
+- `.docx` 可从 Office 预览页或标签页右键菜单导入为 Markdown 草稿
 - 不支持类型会进入 `Unknown` 页面兜底
 
-### 6) AI 能力（主进程 Runtime）
+### 6) AI 能力
 
 - 会话线程持久化（SQLite Checkpointer）
 - 三种模式：
-  - `edit`：面向文档编辑，支持“先读后改”工具链
-  - `creative`：面向创作素材生成与保存
-  - `minimal`：最小对话模式（无业务工具）
+  - `Edit`：面向文档编辑和改写，支持提案审批流
+  - `Creative`：面向长线小说创作，支持规划、起草、一致性检查、叙事方向探索和 StoryBible 维护
+  - `Minimal`：轻量对话模式，不加载业务工具链
 - Edit 模式支持 proposal/HITL 审批：
-  - 模型先提出编辑提案（编辑/插入/删除/范围替换/新建文档）
-  - 用户可逐项 `approve / edit / reject`
+  - 模型先提出编辑提案（编辑、插入、删除、范围替换、新建文档、文件操作等）
+  - 用户可逐项或整批接受 / 拒绝，也可在提案中直接编辑内容
+  - 支持“定位原文”切换到目标文档并高亮对应位置
   - 审批后再落地到文档
-- 支持上下文附件：文本文件、二进制文件（图片/PDF）、目录
+- Creative 模式的写文件、章节管理、git commit / tag 等操作也需要作者明确审批
+- 支持上下文附件：文本文件、目录、图片、PDF
 - 支持输入压缩（compact input）与上下文 token 统计
+- 支持显示真实 token 用量，包含主 Agent、子 Agent 和缓存命中统计
 
 ### 7) AI Provider 与模型配置
 
@@ -111,6 +138,11 @@ iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 El
 - Ollama（通过 OpenAI-compatible 方式）
 - GLM（通过 OpenAI-compatible 方式）
 
+额外配置能力：
+
+- 支持备用模型、模型能力 JSON 配置和部分 Provider 的模型列表读取
+- Web Search 支持 Bocha、Exa、Serper、Tavily，可为 AI 工具调用提供搜索结果
+
 ### 8) 界面与体验
 
 - 左侧栏：Explorer / Search / Tag / TOC
@@ -120,14 +152,17 @@ iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 El
 - 主题系统：内置 Markdown 主题 + 自定义 CSS 主题 + 应用 UI 主题 + 系统主题跟随
 - 打印与导出：打印预览对话框 + 偏好设置中的打印/导出默认值配置
 - 语言：`en-US` / `zh-CN`
+- 更新机制：生产环境支持自动更新、手动检查、跳过版本、发布说明、stable / beta 通道和检查间隔配置
 
 ## 重要边界（基于当前代码）
 
-- `TagPanel` 目前是示例数据实现（mock），不是完整标签索引系统
-- AI 编辑是”提案审批后执行”，不是模型直接无确认写盘
-- 导入/导出功能依赖系统安装 Pandoc（[pandoc.org](https://pandoc.org/)），未安装时功能不可用
+- `TagPanel` 目前仍是示例标签数据，不是完整标签索引系统
+- AI 编辑与 Creative 写入是“提案 / 操作审批后执行”，不是模型直接无确认写盘
+- 导入 / 导出功能依赖系统安装 Pandoc（[pandoc.org](https://pandoc.org/)），未安装时功能不可用
+- Office 预览依赖系统安装 LibreOffice；未检测到时会显示安装指引，并保留“用系统应用打开”的备用入口
 - 自动更新仅在生产环境启用（开发环境关闭）
 - 自动更新依赖 GitHub Releases（`map9/iWriter`）与可用网络/权限
+- 当前不提供 iPad、iPhone、Android 等移动设备安装包
 - 打包签名与 notarize（macOS）依赖本机证书和 Apple 凭证
 
 ## 支持的文件类型
@@ -135,11 +170,13 @@ iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 El
 - 文本编辑：`md` `markdown` `txt` `iwt` + 常见代码文件（如 `ts` `js` `vue` `py` `go` `rs` `json` `yaml` 等）
 - 图片查看：`jpg` `jpeg` `png` `gif` `bmp` `svg` `webp` `ico`
 - PDF 查看：`pdf`
+- Office 预览：`doc` `docx` `xls` `xlsx` `ppt` `pptx`
 
 说明：
 
 - `.iwt` 为 iWriter 自有格式，内容为 JSON（含 HTML 文档内容与元信息）
-- 通过 Pandoc 可导入/导出更多格式：`docx` `odt` `rtf` `epub` `html` `tex` `mediawiki` `rst` `textile` `opml`
+- 通过 Pandoc 可导入 / 导出更多格式：`docx` `odt` `rtf` `epub` `html` `tex` `mediawiki` `rst` `textile` `opml`
+- Office 预览与 `.docx` 导入为 Markdown 是两条流程：预览依赖 LibreOffice，导入仍依赖 Pandoc
 
 ## 技术栈
 
@@ -149,9 +186,11 @@ iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 El
 - 路由：Vue Router
 - 编辑器：TipTap 3 + ProseMirror
 - 样式：Tailwind CSS 4 + Sass + daisyUI
-- AI Runtime：deepagents + LangGraph + better-sqlite3
+- AI Runtime：LangChain + LangGraph + deepagents + better-sqlite3
 - 打印引擎：paged.js（分页渲染与预览）
+- PDF 渲染：pdfjs-dist
 - 文档转换：Pandoc（导入/导出多格式转换）
+- Office 预览：LibreOffice CLI 转 PDF + 内置 PDF 查看器
 - 更新：electron-updater
 - 构建：Vite + electron-builder
 
@@ -171,8 +210,10 @@ iWriter 是一个本地文件优先的桌面写作与编辑工作台，基于 El
 │  ├─ ai/
 │  ├─ updater/
 │  └─ main.ts
+├─ docs/                      # VitePress 文档站点
 ├─ public/                    # 静态资源（含 pdf worker / cmaps）
 ├─ scripts/                   # 构建与发布辅助脚本
+├─ tests/                     # Node 测试与回归用例
 ├─ assets/                    # 应用图标等打包资源
 └─ package.json
 ```
@@ -199,20 +240,25 @@ npm run dev
 ### 3. 类型检查与构建
 
 ```bash
+npm run check-deps
+npm run lint
 npm run type-check
 npm run build:quick
 ```
-
-本次校对实测结果：
-
-- `npm run type-check` 通过
-- `npm run build:quick` 通过
 
 ## 文档站点
 
 文档站点基于 `VitePress`，源码位于 `docs/`。
 
 线上地址：<https://map9.github.io/iWriter/>
+
+常用入口：
+
+- 文档中心：<https://map9.github.io/iWriter/docs/>
+- 下载与安装：<https://map9.github.io/iWriter/download>
+- 快速开始：<https://map9.github.io/iWriter/quick-start>
+- 功能总览：<https://map9.github.io/iWriter/features>
+- 更新日志：<https://map9.github.io/iWriter/changelog>
 
 本地预览与构建：
 
@@ -276,20 +322,6 @@ cp .env.simple .env
 - `GH_TOKEN`：GitHub 发布/更新相关
 - `APPLE_ID` `APPLE_APP_SPECIFIC_PASSWORD` `APPLE_TEAM_ID`：macOS notarize
 - `LANGSMITH_*`：LangSmith 观测相关
-
-## 生产文档建议
-
-如果要继续建设面对用户的帮助中心/官网文档，建议优先从这里拆分：
-
-1. 快速上手（打开文件夹、创建文档、AI 对话）
-2. 编辑器指南（格式、搜索替换、拼写检查、TOC）
-3. Markdown 主题系统（内置主题、自定义主题、CSS 变量参考）→ 已有初稿 `docs/docs/markdown-themes.md`
-4. 打印、PDF 与导出（打印预览、分页策略、页眉页脚、Pandoc 导出）→ 已有初稿 `docs/docs/print-export.md`
-5. 工作区指南（文件树、监听、跨文件搜索）
-6. AI 指南（三模式、Provider 配置、审批流）
-7. 下载与更新（安装、更新策略、常见问题）
-
-`docs/WEBSITE_PLAN_VITEPRESS.md` 已按当前实现更新了提纲，可直接作为官网文档骨架。
 
 ## 许可证
 
