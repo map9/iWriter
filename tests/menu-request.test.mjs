@@ -100,4 +100,34 @@ describe('menu requests', () => {
       ['whats-new'],
     )
   })
+
+  it('removes hidden desktop app menu items before pruning separators', async () => {
+    const { createDesktopAppMenuTemplate } = await loadMenuModule()
+    const template = [
+      {
+        id: 'fileMenu',
+        label: 'File',
+        submenu: [
+          { id: 'new-file', label: 'New File' },
+          { type: 'separator' },
+          { id: 'hidden-save', label: 'Save', visible: false },
+          { id: 'hidden-save-as', label: 'Save As...', visible: false },
+          { id: 'auto-save', label: 'Auto Save' },
+          { type: 'separator' },
+          { id: 'hidden-readonly', label: 'Read Only', visible: false },
+          { type: 'separator' },
+          { id: 'import-document', label: 'Import Document...' },
+          { type: 'separator' },
+          { id: 'hidden-trailing', label: 'Hidden trailing item', visible: false },
+        ],
+      },
+    ]
+
+    const result = createDesktopAppMenuTemplate(template, [])
+
+    assert.deepEqual(
+      result[0].submenu.map((item) => item.id ?? item.type),
+      ['new-file', 'separator', 'auto-save', 'separator', 'import-document'],
+    )
+  })
 })

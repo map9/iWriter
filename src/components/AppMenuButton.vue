@@ -1,7 +1,8 @@
 <template>
   <button
     ref="buttonRef"
-    class="iw-toolbar-btn btn-sm w-auto gap-2 px-1"
+    type="button"
+    class="flex h-full w-16 items-center justify-center gap-1 text-base-content/80 transition-colors hover:bg-base-300 hover:text-base-content"
     :title="t('titlebar.appMenu')"
     :aria-label="t('titlebar.appMenu')"
     @click="handleClick"

@@ -8,7 +8,7 @@
       <div v-if="shouldReserveMacTrafficLights" class="flex items-center pl-20"></div>
       <AppMenuButton
         v-if="showAppMenuButton"
-        class="no-drag shrink-0"
+        class="no-drag -ml-2 shrink-0"
       />
       
       <!-- Sidebar Mode Navigation - only show when sidebar is visible -->

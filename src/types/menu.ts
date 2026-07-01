@@ -88,6 +88,7 @@ function pruneMenuSeparators<T extends DesktopAppMenuTemplateItem>(items: T[]): 
 }
 
 function cloneWithoutExtractedItems<T extends DesktopAppMenuTemplateItem>(item: T): T | null {
+  if (item.visible === false) return null
   if (shouldExtractDesktopAppMenuItem(item)) return null
 
   const cloned = { ...item } as T
