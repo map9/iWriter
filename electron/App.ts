@@ -957,8 +957,15 @@ export class App {
             });
           })
           .on('error', (error) => {
+            // On Windows, junction points and NTFS reparse points cause lstat to fail
+            // with UNKNOWN errors. These are benign filesystem quirks, not real failures.
+            const nodeError = error as NodeJS.ErrnoException
+            if (nodeError.code === 'UNKNOWN' && nodeError.syscall === 'lstat') {
+              console.debug('File watcher: skipping UNKNOWN lstat error (Windows reparse point):', nodeError.path)
+              return
+            }
             event.sender.send('file-watch-error', {
-              message: error instanceof Error ? error.message : error instanceof Error ? error.message : String(error),
+              message: error instanceof Error ? error.message : String(error),
               path: folderPath,
               timestamp: new Date()
             });
