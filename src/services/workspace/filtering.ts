@@ -4,19 +4,11 @@ import { pathUtils } from '../../utils/pathUtils'
 
 export const DEFAULT_WORKSPACE_IGNORE_RULES = [
   '# One rule per line. Syntax is similar to .gitignore.',
+  '._*',
+  '__MACOSX',
   '.DS_Store',
   '**/.DS_Store',
-  '.git/',
-  'node_modules/',
-  'dist/',
-  'dist-electron/',
-  'release/',
-  'coverage/',
-  '.vite/',
-  '.cache/',
-  'docs/.vitepress/dist/',
-  'docs/.vitepress/.temp/',
-  'docs/.vitepress/cache/',
+  '.git/'
 ].join('\n')
 
 export const WORKSPACE_IGNORE_FILENAME = '.iwtignore'
