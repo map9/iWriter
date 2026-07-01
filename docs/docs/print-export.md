@@ -1,8 +1,8 @@
 # 打印、PDF 与导出
 
-> 适用版本：iWriter `0.1.22`
+> 适用版本：iWriter `0.1.23`
 >
-> 最后更新：2026-06-30
+> 最后更新：2026-07-01
 
 iWriter 提供两套文档输出路径：**打印与 PDF 导出**（基于 paged.js 分页渲染，从 `File -> Print...` 进入）和**格式导出**（基于 Pandoc 转换引擎，从 `File -> Export` 进入）。Office 文档还可以通过 LibreOffice 转换为 PDF 进行只读预览。两者各有侧重，适合不同场景。
 
