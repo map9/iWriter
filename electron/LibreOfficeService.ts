@@ -24,11 +24,13 @@ export class LibreOfficeService {
   async checkAvailability(sofficePath?: string): Promise<LibreOfficeAvailabilityResult> {
     try {
       const executablePath = await this.resolveExecutable(sofficePath)
-      const { stdout } = await this.run(executablePath, ['--version'])
-      const versionLine = stdout.split(/\r?\n/, 1)[0]?.trim()
+      // On Windows, resolveExecutable falls back to bare 'soffice' when the
+      // executable is not found at known locations — treat that as not installed.
+      if (process.platform === 'win32' && !path.isAbsolute(executablePath)) {
+        throw new Error('not found')
+      }
       return {
         available: true,
-        version: versionLine || undefined,
         executablePath,
         installHint: this.getInstallHint(),
         installCommand: this.getInstallCommand(),
@@ -198,10 +200,19 @@ export class LibreOfficeService {
 
   private run(executable: string, args: string[]) {
     return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+      const dir = path.dirname(executable)
       execFile(
         executable,
         args,
-        { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024, timeout: 120_000 },
+        {
+          encoding: 'utf8',
+          maxBuffer: 20 * 1024 * 1024,
+          timeout: 120_000,
+          windowsHide: true,
+          // LO on Windows resolves its own resources relative to its program dir;
+          // without this, it fails with "Could not find platform independent libraries"
+          cwd: dir !== '.' ? dir : undefined,
+        },
         (error, stdout, stderr) => {
           if (error) {
             // 优先展示 LibreOffice 的 stderr 诊断信息
