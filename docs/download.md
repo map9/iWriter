@@ -2,7 +2,7 @@
 
 > 适用版本：iWriter `0.1.22`
 >
-> 最后更新：2026-06-30
+> 最后更新：2026-07-01
 
 <SmartDownloadButton />
 
@@ -23,7 +23,7 @@
 
 - 推荐包类型：`.exe` 安装包
 - 适合：Windows 桌面系统
-- 下载方式：前往 GitHub Releases 选择最新的 Windows 安装包
+- 下载方式：页面顶部的智能下载按钮会优先选择文件名包含 `setup` 或 `installer` 的 Windows `.exe` 安装包；如果未能直接下载，请前往 GitHub Releases 手动选择对应安装包
 
 <div id="macos-apple-silicon"></div>
 
