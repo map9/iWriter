@@ -29,7 +29,7 @@ const MERMAID_PRINT_CSS = `
 
 // media="screen" is critical: pagedjs's removeStyles() skips <style media~="screen"> elements,
 // so these visual-only rules stay in the DOM via normal cascade without being processed by pagedjs.
-const PREVIEW_STYLES = 
+const PREVIEW_STYLES =
 `:root {
   --color-mbox : rgba(0,0,0,0.2);
   --margin: 4px;

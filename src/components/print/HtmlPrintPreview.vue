@@ -6,10 +6,10 @@
     </div>
 
     <!-- Scroll area containing scaled iframe -->
-    <div ref="previewScroll" class="flex-1 overflow-y-auto overflow-x-hidden">
-      <!-- wrapper sets the scrollable height = natural height × scale -->
+    <div ref="previewScroll" class="flex-1 overflow-auto">
+      <!-- wrapper sets the scrollable size = natural size × scale -->
       <div :style="previewWrapperStyle">
-        <iframe ref="previewFrame" :style="previewFrameStyle" />
+        <iframe ref="previewFrame" scrolling="no" :style="previewFrameStyle" />
       </div>
     </div>
 
@@ -63,12 +63,13 @@ const PREVIEW_GUTTER_PX = 80
 // ── Computed styles ─────────────────────────────────────────────────────────────
 const previewWrapperStyle = computed(() => ({
   position: 'relative' as const,
-  width: '100%',
+  width: previewPanelWidth.value > 0
+    ? `max(100%, ${Math.ceil(previewPanelWidth.value * previewScale.value)}px)`
+    : '100%',
   height: previewPanelHeight.value > 0
     ? `${Math.ceil(previewPanelHeight.value * previewScale.value)}px`
     : '0px',
   margin: '0 auto',
-  overflow: 'hidden',
 }))
 
 const previewFrameStyle = computed(() => ({
