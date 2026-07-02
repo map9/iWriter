@@ -42,10 +42,10 @@ const displayMode = computed<'open' | 'idle' | 'running' | 'waiting'>(() => {
 })
 
 const robotButtonTitle = computed(() => {
-  if (appStore.isRightSidebarVisible) return 'Close AI StoryMate Chat'
-  if (closedStatus.value === 'waiting') return 'AI StoryMate Chat：Waiting for your confirmation, click to open'
-  if (closedStatus.value === 'running') return 'AI StoryMate Chat：Processing, click to open'
-  return 'Open AI StoryMate Chat'
+  if (appStore.isRightSidebarVisible) return 'Close AI Writing Buddy Chat'
+  if (closedStatus.value === 'waiting') return 'AI Writing Buddy Chat：Waiting for your confirmation, click to open'
+  if (closedStatus.value === 'running') return 'AI Writing Buddy Chat：Processing, click to open'
+  return 'Open AI Writing Buddy Chat'
 })
 </script>
 

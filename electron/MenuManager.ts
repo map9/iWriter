@@ -1593,7 +1593,7 @@ export class MenuManager {
             }
           },
           {
-            label: 'AI StoryMate',
+            label: 'AI Writing Buddy',
             accelerator: 'CmdOrCtrl+Shift+R',
             type: 'checkbox',
             checked: wState?.wContentState?.view?.rightSidebar? true : false,

@@ -224,7 +224,7 @@ const zhMenuLabelMap: MenuLabelMap = {
   Tag: '标签',
   'Table of Contents': '目录',
   'Clean Mode': '清爽模式',
-  'AI StoryMate': 'AI 写作搭子',
+  'AI Writing Buddy': 'AI 全能创作搭子',
   Appearance: '外观',
   'Left Side Bar': '左侧边栏',
   'Status Bar': '状态栏',

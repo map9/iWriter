@@ -621,7 +621,7 @@ export default {
     },
     emptyState: {
       brandEdit: 'iWriter AI',
-      brandCreative: 'AI StoryMate',
+      brandCreative: 'AI Writing Buddy',
       subtitleEdit: '从下面的示例开始，或直接描述你想做的事。',
       subtitleCreative: '从下面的示例开始，或描述你的小说创作需求。',
       edit: {

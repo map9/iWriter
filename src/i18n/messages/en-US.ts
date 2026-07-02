@@ -624,7 +624,7 @@ export default {
     },
     emptyState: {
       brandEdit: 'iWriter AI',
-      brandCreative: 'AI StoryMate',
+      brandCreative: 'AI Writing Buddy',
       subtitleEdit: 'Start from an example below, or just describe what you’d like to do.',
       subtitleCreative: 'Start from an example below, or describe what you’d like for your novel.',
       edit: {

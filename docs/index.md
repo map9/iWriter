@@ -28,13 +28,13 @@ hero:
 <section class="home-feature-stack">
   <div class="home-feature-row">
     <div class="home-feature-text">
-      <p class="home-feature-text-eyebrow">StoryMate</p>
+      <p class="home-feature-text-eyebrow">Writing Buddy</p>
       <h2>你的专属创作搭子</h2>
       <p>
-        扩写、缩写、续写，更换行文风格，修改故事情节，调整角色个性，改变故事场景，StoryMate 将您脑中妙思转成文字。
+        扩写、缩写、续写，更换行文风格，修改故事情节，调整角色个性，改变故事场景，Writing Buddy 将您脑中妙思转成文字。
       </p>
       <p>
-        StoryMate 的所有编辑，都需要等您审核后才落地。
+        Writing Buddy 的所有编辑，都需要等您审核后才落地。
       </p>
       <p>
         支持 Anthropic、DeepSeek、Gemini、GLM、OpenAI 等常见 AI 服务商配置。
@@ -45,8 +45,8 @@ hero:
         :items="[
           {
             type: 'video',
-            src: '/videos/home/storymate-demo.mp4',
-            alt: 'StoryMate 创作演示视频',
+            src: '/videos/home/writing-buddy-demo.mp4',
+            alt: 'Writing Buddy 创作演示视频',
             size: 'hero'
           }
         ]"
