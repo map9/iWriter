@@ -1248,6 +1248,7 @@ export default {
       copyError: 'File copy error',
       saveSuccess: '{path} saved successfully',
       saveError: 'File save error',
+      externalModifiedSaveBlocked: 'The file was modified on disk. Reload it or use Save As before saving to avoid overwriting external changes.',
       treeLoadError: 'File tree load error',
       watchWarning: 'File watching',
       watchStartError: 'Failed to start file watching',

@@ -12,6 +12,10 @@ export interface HtmlPrintReadyOptions {
   settleMs?: number
 }
 
+export interface SaveFileOptions {
+  expectedHash?: string
+}
+
 export interface ElectronAPI {
   platform: string
 
@@ -30,7 +34,7 @@ export interface ElectronAPI {
   readFile: (filePath: string) => Promise<string | null>
   readFileSilent: (filePath: string) => Promise<string | null>
   readFileBinary: (filePath: string) => Promise<string | null>
-  saveFile: (content: string, filePath?: string) => Promise<boolean>
+  saveFile: (content: string, filePath?: string, options?: SaveFileOptions) => Promise<boolean>
 
   pathExists: (filePath: string) => Promise<boolean>
   ensureDirectory: (folderPath: string) => Promise<boolean>

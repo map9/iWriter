@@ -22,6 +22,10 @@ import type { AiSettings } from '../src/types/ai'
 import { formatCodeInMain } from './CodeFormatService'
 import { createMainTranslator, formatMainText } from './i18n'
 import {
+  computeFileContentHash,
+  FILE_CONTENT_CHANGED_ON_DISK_ERROR,
+} from '../src/utils/fileContentHash'
+import {
   DEFAULT_WORKSPACE_IGNORE_RULES,
   WORKSPACE_IGNORE_FILENAME,
   parseWorkspaceIgnoreRules,
@@ -66,12 +70,50 @@ interface FileWatchingOptions {
   ignoreRulesText?: string
 }
 
+interface SaveFileOptions {
+  expectedHash?: string
+}
+
 interface ResolveImageUrlResult {
   ok: boolean
   url?: string
   contentType?: string
   status?: number
   error?: string
+}
+
+function assertExpectedFileContent(filePath: string, expectedHash?: string): void {
+  if (!expectedHash || !fs.existsSync(filePath)) return
+
+  const currentContent = fs.readFileSync(filePath, 'utf8')
+  const currentHash = computeFileContentHash(currentContent)
+  if (currentHash !== expectedHash) {
+    throw new Error(FILE_CONTENT_CHANGED_ON_DISK_ERROR)
+  }
+}
+
+function writeTextFileAtomicSync(filePath: string, content: string): void {
+  const dir = path.dirname(filePath)
+  fs.mkdirSync(dir, { recursive: true })
+
+  const tempPath = path.join(
+    dir,
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`
+  )
+
+  try {
+    fs.writeFileSync(tempPath, content, 'utf8')
+    fs.renameSync(tempPath, filePath)
+  } catch (error) {
+    try {
+      if (fs.existsSync(tempPath)) {
+        fs.unlinkSync(tempPath)
+      }
+    } catch {
+      // Best effort cleanup only; preserve the original save error.
+    }
+    throw error
+  }
 }
 
 async function resolveImageUrl(url: string): Promise<ResolveImageUrlResult> {
@@ -457,10 +499,10 @@ export class App {
       }
     })
 
-    ipcMain.handle('save-file', async (_, content: string, filePath: string) => {
+    ipcMain.handle('save-file', async (_, content: string, filePath: string, options?: SaveFileOptions) => {
       try {
-        fs.mkdirSync(path.dirname(filePath), { recursive: true })
-        fs.writeFileSync(filePath, content, 'utf8')
+        assertExpectedFileContent(filePath, options?.expectedHash)
+        writeTextFileAtomicSync(filePath, content)
         app.addRecentDocument(filePath)
       } catch (error) {
         console.error('Error saving file:', error)

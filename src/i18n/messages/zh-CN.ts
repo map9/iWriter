@@ -1243,6 +1243,7 @@ export default {
       copyError: '文件复制错误',
       saveSuccess: '{path} 保存成功',
       saveError: '文件保存错误',
+      externalModifiedSaveBlocked: '磁盘文件已被外部修改。请先重新加载或另存为，避免覆盖外部更改。',
       treeLoadError: '文件树加载错误',
       watchWarning: '文件监听',
       watchStartError: '文件监听无法启动',

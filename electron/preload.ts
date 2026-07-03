@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcRendererEvent } from 'electron'
-import type { ElectronAPI, HtmlPrintReadyOptions, PdfSaveOptions } from '../src/types/electron-api'
+import type { ElectronAPI, HtmlPrintReadyOptions, PdfSaveOptions, SaveFileOptions } from '../src/types/electron-api'
 import type { SendMessageRequest, CompactInputRequest, CompactInputResponse, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunContextCompressedEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
 import type { AiSettings } from '../src/types/ai'
 import { createAppMenuRequest, createContextMenuRequest } from '../src/types/menu'
@@ -37,8 +37,8 @@ const electronAPI: ElectronAPI = {
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   readFileSilent: (filePath: string) => ipcRenderer.invoke('read-file-silent', filePath),
   readFileBinary: (filePath: string) => ipcRenderer.invoke('read-file-binary', filePath),
-  saveFile: (content: string, filePath?: string) => 
-    ipcRenderer.invoke('save-file', content, filePath),
+  saveFile: (content: string, filePath?: string, options?: SaveFileOptions) =>
+    ipcRenderer.invoke('save-file', content, filePath, options),
 
   pathExists: (filePath: string) => ipcRenderer.invoke('path-exists', filePath),
   ensureDirectory: (folderPath: string) => ipcRenderer.invoke('ensure-directory', folderPath),

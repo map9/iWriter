@@ -41,7 +41,11 @@ import {
 } from '@/utils/StateStorage'
 import { detectPreferredLocale, i18n, resolveLocale, setAppLocale, type AppLocale } from '@/i18n'
 import { DEFAULT_MARKDOWN_PRINT_PREFERENCES } from '@/components/print/markdownThemes'
-import { computeFileContentHash } from '@/utils/fileContentHash'
+import {
+  computeFileContentHash,
+  isFileContentChangedOnDiskError,
+  isSuspiciousEmptyExternalContent,
+} from '@/utils/fileContentHash'
 import { generateUntitledName } from '@/utils/untitledName'
 import {
   buildWorkspaceIgnoreRules,
@@ -150,6 +154,7 @@ export const useAppStore = defineStore('app', () => {
   const ignoredExternalChangePaths = new Set<string>()
   const openDocumentWatchDirs = new Set<string>()
   const inFlightAddPaths = new Map<string, Promise<boolean>>()
+  const suspiciousEmptyExternalChangeRetries = new Map<string, number>()
   let tabIdSeq = 0
   let fileWatchListenersRegistered = false
   let workspaceRestoreCheckTimer: ReturnType<typeof setInterval> | null = null
@@ -287,6 +292,50 @@ export const useAppStore = defineStore('app', () => {
 
   function buildSavedHash(content: string): string {
     return computeFileContentHash(content)
+  }
+
+  const EXTERNAL_FILE_STABLE_READ_DELAY_MS = 150
+  const EXTERNAL_FILE_CHANGED_READ_DELAY_MS = 300
+  const SUSPICIOUS_EMPTY_EXTERNAL_RETRY_DELAY_MS = 1000
+  const MAX_SUSPICIOUS_EMPTY_EXTERNAL_RETRIES = 3
+
+  function wait(ms: number): Promise<void> {
+    return new Promise(resolve => window.setTimeout(resolve, ms))
+  }
+
+  async function readExistingFileContent(filePath: string): Promise<string> {
+    const content = await window.electronAPI?.readFile(filePath)
+    if (content === null || content === undefined) {
+      throw new Error(`Failed to read file from disk: ${filePath}`)
+    }
+    return content
+  }
+
+  async function readStableExternalFileContent(filePath: string): Promise<string> {
+    const first = await readExistingFileContent(filePath)
+    await wait(EXTERNAL_FILE_STABLE_READ_DELAY_MS)
+
+    const second = await readExistingFileContent(filePath)
+    if (second === first) return second
+
+    await wait(EXTERNAL_FILE_CHANGED_READ_DELAY_MS)
+    return readExistingFileContent(filePath)
+  }
+
+  function scheduleSuspiciousEmptyExternalRetry(filePath: string, normalizedPath: string): boolean {
+    const retryCount = suspiciousEmptyExternalChangeRetries.get(normalizedPath) ?? 0
+    if (retryCount >= MAX_SUSPICIOUS_EMPTY_EXTERNAL_RETRIES) {
+      suspiciousEmptyExternalChangeRetries.delete(normalizedPath)
+      return false
+    }
+
+    suspiciousEmptyExternalChangeRetries.set(normalizedPath, retryCount + 1)
+    window.setTimeout(() => {
+      if (!suspiciousEmptyExternalChangeRetries.has(normalizedPath)) return
+      void handleOpenTabExternalChange(filePath)
+    }, SUSPICIOUS_EMPTY_EXTERNAL_RETRY_DELAY_MS)
+
+    return true
   }
 
   function syncReadonlyWindowState(tab: FileTab | null | undefined) {
@@ -1937,8 +1986,10 @@ export const useAppStore = defineStore('app', () => {
     for (const tab of getOpenTabsAffectedByPath(targetPath, includeChildren)) {
       updateTabState(tab.id, { diskState: 'deleted' })
       if (tab.path) {
-        ignoredExternalChangePaths.delete(pathUtils.normalize(tab.path))
-        externalChangePromptPaths.delete(pathUtils.normalize(tab.path))
+        const normalizedPath = pathUtils.normalize(tab.path)
+        ignoredExternalChangePaths.delete(normalizedPath)
+        externalChangePromptPaths.delete(normalizedPath)
+        suspiciousEmptyExternalChangeRetries.delete(normalizedPath)
       }
     }
   }
@@ -2080,10 +2131,7 @@ export const useAppStore = defineStore('app', () => {
     const editor = tab.editorInstance as Editor | undefined
     if (!editor) return false
 
-    const content = rawContent ?? await window.electronAPI.readFile(tab.path)
-    if (content === null) {
-      throw new Error(`Failed to read file from disk: ${tab.path}`)
-    }
+    const content = rawContent ?? await readExistingFileContent(tab.path)
     const savedHash = buildSavedHash(content)
 
     const contentConverted = await convertContentFrom(content, pathUtils.extension(tab.path))
@@ -2115,6 +2163,7 @@ export const useAppStore = defineStore('app', () => {
       const normalizedPath = pathUtils.normalize(tab.path)
       ignoredExternalChangePaths.delete(normalizedPath)
       externalChangePromptPaths.delete(normalizedPath)
+      suspiciousEmptyExternalChangeRetries.delete(normalizedPath)
     }
     return true
   }
@@ -2127,11 +2176,19 @@ export const useAppStore = defineStore('app', () => {
 
     if (ignoredExternalChangePaths.has(normalizedPath)) return
 
-    const content = rawContent ?? await window.electronAPI?.readFile(filePath)
-    if (content === null || content === undefined) {
-      throw new Error(`Failed to read changed file from disk: ${filePath}`)
-    }
+    const content = rawContent ?? await readStableExternalFileContent(filePath)
     const changedHash = buildSavedHash(content)
+
+    if (isSuspiciousEmptyExternalContent(content, tab.lastSavedHash)) {
+      updateTabState(tab.id, { diskState: 'external-modified' })
+      if (rawContent === undefined && scheduleSuspiciousEmptyExternalRetry(filePath, normalizedPath)) {
+        return
+      }
+      suspiciousEmptyExternalChangeRetries.delete(normalizedPath)
+      await promptReloadForExternalChange(tab, normalizedPath, filePath)
+      return
+    }
+    suspiciousEmptyExternalChangeRetries.delete(normalizedPath)
 
     if (tab.diskState === 'deleted') {
       if (tab.isDirty) {
@@ -2490,6 +2547,7 @@ export const useAppStore = defineStore('app', () => {
       const normalizedTabPath = pathUtils.normalize(tab.path)
       ignoredExternalChangePaths.delete(normalizedTabPath)
       externalChangePromptPaths.delete(normalizedTabPath)
+      suspiciousEmptyExternalChangeRetries.delete(normalizedTabPath)
     }
     tabs.value.splice(index, 1)
     
@@ -2630,10 +2688,12 @@ export const useAppStore = defineStore('app', () => {
         if (content === null) {
           throw new Error('Unsupport file format')
         }
-        const savedHash = buildSavedHash(content)
-        const result = await window.electronAPI.saveFile(content, originalPath)
+        const expectedHash = saveAs ? undefined : tab.lastSavedHash
+
+        const result = await window.electronAPI.saveFile(content, originalPath, { expectedHash })
 
         if (result === true) {
+          const savedHash = buildSavedHash(content)
           tab.path = originalPath
           tab.isDirty = false
           tab.fileReadonly = false
@@ -2646,6 +2706,7 @@ export const useAppStore = defineStore('app', () => {
           const normalizedPath = pathUtils.normalize(originalPath)
           ignoredExternalChangePaths.delete(normalizedPath)
           externalChangePromptPaths.delete(normalizedPath)
+          suspiciousEmptyExternalChangeRetries.delete(normalizedPath)
 
           if (!silent) {
             notify.success(t('notify.file.saveSuccess', { path: originalPath }), t('notify.file.operation'))
@@ -2657,6 +2718,12 @@ export const useAppStore = defineStore('app', () => {
         }
       }
     } catch(error) {
+      if (isFileContentChangedOnDiskError(error)) {
+        tab.diskState = 'external-modified'
+        notify.warning(t('notify.file.externalModifiedSaveBlocked'), t('notify.file.saveError'))
+        return false
+      }
+
       notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.saveError'))
     }
 
