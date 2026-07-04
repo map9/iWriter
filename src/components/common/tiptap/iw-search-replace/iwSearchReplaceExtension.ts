@@ -400,6 +400,12 @@ export const iwSearchReplaceExtension = Extension.create<
     return [createSearchReplacePlugin(this.editor, this.options, this.storage)]
   },
 
+  onTransaction({ transaction }) {
+    if (transaction.docChanged && this.storage.isOpen) {
+      syncCurrentSearchResultHighlight(this.editor, this.storage)
+    }
+  },
+
   onDestroy() {
     // 清理定时器
     if (this.storage.debounceTimer) {
