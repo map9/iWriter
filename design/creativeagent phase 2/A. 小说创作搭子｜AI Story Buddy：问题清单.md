@@ -1,4 +1,4 @@
-# A. 小说创作搭子 | AI Story Buddy：问题清单
+# A. 小说创作搭子｜AI  Story Buddy：问题清单
 
 当前 `AI Writing Buddy` 的 Creative Domain 实现存在以下的几个方面的问题：
 
