@@ -1044,6 +1044,10 @@ defineExpose({
 .tree-root {
   height: 100%;
   overflow-y: auto;
+  /* Explicitly disable horizontal scrolling: with only overflow-y set, the
+     spec computes overflow-x to `auto`, which let long items scroll/clip
+     sideways instead of showing the label's text-overflow ellipsis. */
+  overflow-x: hidden;
   background: var(--tree-container-background, transparent);
   border: var(--tree-container-border, none);
   border-radius: var(--tree-container-border-radius, 0px);

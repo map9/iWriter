@@ -735,6 +735,10 @@ defineExpose({
 
 .tree-node-content .label {
   flex: 1;
+  /* Force block formatting: daisyUI's global `.label` sets display:inline-flex,
+     which would turn this into a flex container and make text-overflow:ellipsis
+     a no-op (text would hard-clip). Keep it a block so ellipsis works. */
+  display: block;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
