@@ -1714,6 +1714,9 @@ export const useAppStore = defineStore('app', () => {
         if (openTab) {
           openTab.path = newPath
           openTab.name = pathUtils.basename(newPath)
+          if (activeTab.value?.id === openTab.id) {
+            updateWindowTitle()
+          }
         }
         updateFileTreeNodePath(node, pathUtils.dirname(newPath), pathUtils.basename(newPath))
 
