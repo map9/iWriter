@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { tool, DynamicStructuredTool } from '@langchain/core/tools'
-import { AiConfigStore, resolveAiApiKeyEnvVar } from '../config/AiConfigStore'
+import { AiConfigStore, resolveAiApiKeyEnvVar } from '../../config/AiConfigStore'
 import { fetchUrl, DEFAULT_MAX_TOKENS } from './HtmlFetcher'
-import { getActiveWebSearchProviderConfig, resolveApiKeyReference } from '../../../src/types/ai'
+import { getActiveWebSearchProviderConfig, resolveApiKeyReference } from '../../../../src/types/ai'
 
 const fetchUrlTool = tool(
   async ({ url, max_tokens = DEFAULT_MAX_TOKENS }) => {

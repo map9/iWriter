@@ -1,4 +1,4 @@
-import type { AiModelProfile } from './types'
+import type { AiModelProfile } from '../types'
 
 export const DEFAULT_DEEPSEEK_MODEL_PROFILES: Record<string, AiModelProfile> = {
   'deepseek-v4-pro': {

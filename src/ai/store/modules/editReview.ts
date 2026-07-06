@@ -11,27 +11,27 @@ import {
   flushReviewedBatch,
   normalizeEditedArgsForProposal,
   type ReviewExecutorAppStoreLike,
-} from '@/ai/review/executor'
+} from '@/ai/review/common/executor'
 import {
   buildEditRoundResult,
   mergeEditRoundResults,
   buildProposalReviewEntries,
   buildProposalReviewSummary,
-} from '@/ai/review/selectors'
+} from '@/ai/review/common/selectors'
 import {
   createReviewBatchState,
   findProposalInBatch,
   getProposalIndex as getProposalIndexFromBatch,
   setProposalDecisionInBatch,
-} from '@/ai/review/state'
-import { createReviewThreadSync } from '@/ai/review/threadSync'
+} from '@/ai/review/common/state'
+import { createReviewThreadSync } from '@/ai/review/common/threadSync'
 import type { LiveTurn } from './runtimeState'
 import type {
   ProposalDecisionKind,
   ProposalReviewEntry,
   ProposalReviewSummary,
   ReviewBatchState,
-} from '@/ai/review/types'
+} from '@/ai/review/common/types'
 
 interface EditReviewModuleDeps {
   appStore: ReviewExecutorAppStoreLike

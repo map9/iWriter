@@ -8,8 +8,8 @@
  */
 
 import type { Editor } from '@tiptap/core'
-import { UnifiedDocumentAccess } from '@/ai/edit/UnifiedDocumentAccess'
-import { nodeToMarkdown } from '@/ai/edit/DocumentViewBuilder'
+import { UnifiedDocumentAccess } from '@/ai/document/UnifiedDocumentAccess'
+import { nodeToMarkdown } from '@/ai/document/DocumentViewBuilder'
 import type {
   SerializedSnapshot,
   SerializedBlockEntry,
@@ -32,7 +32,7 @@ export async function buildSerializedSnapshot(
   cursorBlockId: number | null = null
 ): Promise<SerializedSnapshot | null> {
   try {
-    let handle: import('@/ai/edit/UnifiedDocumentAccess').DocumentHandle | null = null
+    let handle: import('@/ai/document/UnifiedDocumentAccess').DocumentHandle | null = null
 
     const targetPath = filePath?.replace(/\\/g, '/') ?? null
 

@@ -10,7 +10,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { AiToolCall, ThreadMessage } from '@/ai/types'
-import { buildCreativeSessionViewModel } from '@/ai/review/creativeSelectors'
+import { buildCreativeSessionViewModel } from '@/ai/review/domains/creative/creativeSelectors'
 import { useAiStore } from '@/ai/store/ai'
 import CreativeSessionCard from '../../chat-area/views/CreativeSessionCard.vue'
 

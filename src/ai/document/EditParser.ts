@@ -5,7 +5,7 @@
  * Used by AgentRunner during streaming to track in-progress tool calls and
  * fire callbacks when a complete tool invocation is ready.
  */
-import type { AgentChunk } from '../providers/types'
+import type { AgentChunk } from '../model/providers/types'
 
 export interface PendingToolCall {
   id: string

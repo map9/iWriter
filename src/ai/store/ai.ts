@@ -25,7 +25,7 @@ import {
   resolveAiProviderModelId,
   resolveAgentDomain,
 } from '@/ai/types'
-import { getProviderPresetById, getProviderPresets, type ProviderPreset } from '@/ai/providers/provider-presets'
+import { getProviderPresetById, getProviderPresets, type ProviderPreset } from '@/ai/model/providers/provider-presets'
 import { createThread, appendMessage, createMessage } from '@/ai/thread/Thread'
 import {
   normalizeThreadMessageForDisplay,
@@ -55,7 +55,7 @@ import { createRuntimeEvents } from './modules/runtimeEvents'
 export type {
   ProposalReviewEntry,
   ProposalReviewSummary,
-} from '@/ai/review/types'
+} from '@/ai/review/common/types'
 
 export interface AiDisplayMessageEntry {
   key: string

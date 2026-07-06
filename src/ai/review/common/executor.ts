@@ -1,7 +1,7 @@
 import type { Editor } from '@tiptap/core'
 import type { BlockEditProposal, EditProposal, FileCreateProposal } from '@/ai/types'
 import type { FileTab } from '@/types'
-import { UnifiedDocumentAccess } from '@/ai/edit/UnifiedDocumentAccess'
+import { UnifiedDocumentAccess } from '@/ai/document/UnifiedDocumentAccess'
 import { pathUtils } from '@/utils/pathUtils'
 import { DocumentType } from '@/types/document-type'
 import { notify } from '@/utils/notifications'

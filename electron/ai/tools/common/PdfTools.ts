@@ -15,7 +15,7 @@ import { createRequire } from 'module'
 import { pathToFileURL } from 'url'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
-import type { IWriterAgentContext } from '../runtime/AgentContext'
+import type { IWriterAgentContext } from '../../runtime/AgentContext'
 
 // ── pdf.js lazy loader (avoids loading ~3 MB at module init) ─────────────
 
@@ -61,7 +61,7 @@ async function getPdfLib(): Promise<PdfLib> {
     // Fallback: derive path relative to this file's location.
     const workerPath = path.resolve(
       path.dirname(new URL(import.meta.url).pathname),
-      '../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
+      '../../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
     )
     mod.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href
   }

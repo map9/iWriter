@@ -17,7 +17,7 @@ import { JSDOM } from 'jsdom'
 import { Readability } from '@mozilla/readability'
 import TurndownService from 'turndown'
 import { gfm } from '@guyplusplus/turndown-plugin-gfm'
-import { estimateTextTokens } from '../../../src/ai/token-estimation'
+import { estimateTextTokens } from '../../../../src/ai/model/token-estimation'
 
 // ── Turndown singleton ────────────────────────────────────────────────────────
 

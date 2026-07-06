@@ -337,7 +337,7 @@ import {
 import {
   getProviderPresetById,
   type ProviderPreset,
-} from '@/ai/providers/provider-presets'
+} from '@/ai/model/providers/provider-presets'
 
 type View = 'main' | 'configure'
 

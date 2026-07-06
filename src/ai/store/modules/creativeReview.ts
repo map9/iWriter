@@ -1,8 +1,8 @@
 import { ref, toRaw, type ComputedRef, type Ref } from 'vue'
 import type { AiThread, CreativeReviewItem, CreativeRoundResult, ThreadMessage } from '@/ai/types'
 import type { ResumeDecision, DomainReviewItem } from '@/ai/ipc'
-import { buildCreativeRoundResult, mergeCreativeRoundResults, type CreativeReviewBatch } from '@/ai/review/creativeSelectors'
-import { createCreativeThreadSync } from '@/ai/review/creativeThreadSync'
+import { buildCreativeRoundResult, mergeCreativeRoundResults, type CreativeReviewBatch } from '@/ai/review/domains/creative/creativeSelectors'
+import { createCreativeThreadSync } from '@/ai/review/domains/creative/creativeThreadSync'
 import type { ToolCallStatusOverrides } from '@/ai/message/display-normalizer'
 import type { LiveTurn, ThreadRunState } from './runtimeState'
 

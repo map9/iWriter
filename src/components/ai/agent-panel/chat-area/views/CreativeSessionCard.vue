@@ -12,7 +12,7 @@
 </template>
 
 <script setup lang="ts">
-import type { CreativeSessionViewModel } from '@/ai/review/creativeSelectors'
+import type { CreativeSessionViewModel } from '@/ai/review/domains/creative/creativeSelectors'
 import CreativeReviewSurface from '../../domains/creative/CreativeReviewSurface.vue'
 import CreativeSummaryCard from './CreativeSummaryCard.vue'
 

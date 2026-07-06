@@ -1,4 +1,4 @@
-import type { AiModelProfile } from './types'
+import type { AiModelProfile } from '../types'
 
 export const SUMMARIZATION_TRIGGER_FRACTION = 0.85
 export const SUMMARIZATION_KEEP_FRACTION = 0.1

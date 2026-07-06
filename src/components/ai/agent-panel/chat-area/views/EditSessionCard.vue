@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import type { EditSessionViewModel } from '@/ai/review/types'
+import type { EditSessionViewModel } from '@/ai/review/common/types'
 import type { ProposalReviewSummary } from '@/ai/store/ai'
 import EditSummaryCard from './EditSummaryCard.vue'
 import BlockEditReviewSurface from '../BlockEditReviewSurface.vue'

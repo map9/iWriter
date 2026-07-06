@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { CreativeDb } from '../db/CreativeDb'
 import { STORYBIBLE_REBUILD_WORD_THRESHOLD } from '../db/CreativeDb'
 import type { SnapshotBroker } from '../document/SnapshotBroker'
-import { estimateTextTokens } from '../../../src/ai/token-estimation'
+import { estimateTextTokens } from '../../../src/ai/model/token-estimation'
 import type { IWriterAgentContext } from '../runtime/AgentContext'
 import { getLastGitTagInfo } from './CreativeGitTools'
 

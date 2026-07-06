@@ -16,7 +16,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { AiToolCall, ThreadMessage } from '@/ai/types'
-import { buildEditSessionViewModel } from '@/ai/review/selectors'
+import { buildEditSessionViewModel } from '@/ai/review/common/selectors'
 import { useAiStore } from '@/ai/store/ai'
 import EditSessionCard from '../../chat-area/views/EditSessionCard.vue'
 

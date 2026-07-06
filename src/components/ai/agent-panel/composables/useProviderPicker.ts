@@ -2,7 +2,7 @@ import { ref, computed, nextTick } from 'vue'
 import { useAiStore } from '@/ai/store/ai'
 import type { AiProviderConfig } from '@/ai/types'
 import { isAiProviderUsable } from '@/ai/types'
-import { getProviderPresetById } from '@/ai/providers/provider-presets'
+import { getProviderPresetById } from '@/ai/model/providers/provider-presets'
 
 export function useProviderPicker() {
   const aiStore = useAiStore()

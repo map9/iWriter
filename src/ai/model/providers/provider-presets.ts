@@ -7,7 +7,7 @@
  */
 
 import type { AiModelProfile, AiProviderType } from '@/ai/types'
-import { DEFAULT_DEEPSEEK_MODEL_PROFILES } from '@/ai/model-profiles'
+import { DEFAULT_DEEPSEEK_MODEL_PROFILES } from '@/ai/model/model-profiles'
 import { i18n } from '@/i18n'
 
 export interface ProviderPreset {

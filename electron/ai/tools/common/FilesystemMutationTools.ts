@@ -13,7 +13,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
-import type { IWriterAgentContext } from '../runtime/AgentContext'
+import type { IWriterAgentContext } from '../../runtime/AgentContext'
 
 function getWorkspacePath(runtime: unknown): string | null {
   const wp = (runtime as { context?: IWriterAgentContext } | undefined)?.context?.workspacePath

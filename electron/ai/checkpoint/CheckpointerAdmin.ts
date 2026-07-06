@@ -18,7 +18,7 @@
  */
 import type { Database } from 'better-sqlite3'
 import type { CheckpointerInstance } from './CheckpointerFactory'
-import { RESPOND_MARKER } from '../runtime/HumanRespondMessageMiddleware'
+import { RESPOND_MARKER } from '../scaffold/middleware/HumanRespondMessageMiddleware'
 
 export class CheckpointerAdmin {
   private readonly db: Database | null
