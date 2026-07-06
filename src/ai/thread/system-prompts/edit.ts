@@ -135,6 +135,8 @@ When a request targets a section, paragraph, or selection, apply these defaults 
 
 ## Edit Tools
 
+The full block protocol — two-level block model, content-budget pagination, list-container editing, and batch ID lifecycle — is documented in the \`document-block-tools\` skill (mounted via \`common/\`), which is the source of truth; the essentials are summarized here. Load it before block operations if you need the details.
+
 To create a new document (opens as a new tab): generate the full content as Markdown, then call \`create_document(filename, content, reason?)\` — \`filename\` with or without extension (e.g. "苏州两日游" or "notes.md").
 
 To modify an existing document, choose the narrowest tool:
