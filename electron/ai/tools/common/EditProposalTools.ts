@@ -14,15 +14,29 @@
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 
-function documentChangedMessage(): string {
-  return 'The document has changed, so all previously seen block IDs for this file are stale. If you need any further read or edit on the same file, call get_document_outline(file_path=...) first, then use the refreshed block IDs. Do not call get_section/get_blocks/get_block_context with old IDs.'
+/**
+ * ID-lifecycle contract (A4.3, design 5): block IDs are valid for one snapshot
+ * (one read). Within a turn you may issue MULTIPLE edits to the same file from a
+ * single read — they are reviewed and applied together as one batch, in the correct
+ * order (the engine applies them in reverse document position, so earlier edits do
+ * not shift later ones). Do NOT re-read between edits of the same batch. Only after a
+ * batch is applied has the document changed and block IDs shifted — re-read then.
+ */
+function batchAppliedMessage(): string {
+  return 'The batch has been applied, so block IDs for this file have now shifted. Before making a NEW round of edits to it, re-read with get_document_outline / get_section to get fresh block IDs. (Within a single turn you can edit multiple times from one read without re-reading — they are applied together in the correct order.)'
 }
+
+/** Shared batching guidance appended to every block-edit tool description (A4.3). */
+const BATCH_NOTE =
+  ' BATCHING: to make several changes to the same file, call the edit tools multiple ' +
+  'times in ONE turn using block IDs from a single read — they are reviewed and applied ' +
+  'together in the correct order. Do not re-read between them; re-read only after the batch is applied.'
 
 export function buildEditProposalTools() {
   const editBlock = tool(
     async ({ block_id, file_path }: { block_id: number; new_content: string; expected_current_content?: string; reason?: string; file_path?: string }) => {
       const target = file_path ? `file "${file_path}"` : 'the active document'
-      return `Edit applied to ${target} at block {b:${block_id}}. ${documentChangedMessage()}`
+      return `Edit applied to ${target} at block {b:${block_id}}. ${batchAppliedMessage()}`
     },
     {
       name: 'edit_block',
@@ -34,7 +48,8 @@ export function buildEditProposalTools() {
         'LIST EDITING: to change a single list item\'s text, edit that item block. ' +
         'For a structural list change (add/remove/reorder/nest items), edit the LIST CONTAINER block ' +
         '(its block_id is shown in the `containers` sidecar of get_section, or as container_block_id on get_blocks) ' +
-        'and pass the complete new list markdown as new_content — the whole list is replaced atomically.',
+        'and pass the complete new list markdown as new_content — the whole list is replaced atomically.' +
+        BATCH_NOTE,
       schema: z.object({
         block_id: z.number().describe('The {b:n} block ID to edit.'),
         new_content: z.string().describe('The new Markdown content to replace the block with.'),
@@ -53,7 +68,7 @@ export function buildEditProposalTools() {
   const insertBlock = tool(
     async ({ after_block_id, file_path }: { after_block_id: number; new_content: string; expected_anchor_content?: string; reason?: string; file_path?: string }) => {
       const target = file_path ? `file "${file_path}"` : 'the active document'
-      return `Insert applied to ${target} after block {b:${after_block_id}}. ${documentChangedMessage()}`
+      return `Insert applied to ${target} after block {b:${after_block_id}}. ${batchAppliedMessage()}`
     },
     {
       name: 'insert_block',
@@ -61,7 +76,8 @@ export function buildEditProposalTools() {
         'Insert new content after a specific block. ' +
         'Use after_block_id=0 to insert before the first block (document start). ' +
         'The user must approve before the change is applied. ' +
-        'When inserting after an existing block, pass expected_anchor_content when available so the insert fails if the anchor moved.',
+        'When inserting after an existing block, pass expected_anchor_content when available so the insert fails if the anchor moved.' +
+        BATCH_NOTE,
       schema: z.object({
         after_block_id: z.number().describe('Insert after this block ID. Use 0 to insert at document start.'),
         new_content: z.string().describe('Markdown content of the new block(s) to insert.'),
@@ -78,13 +94,14 @@ export function buildEditProposalTools() {
   const deleteBlock = tool(
     async ({ block_id, file_path }: { block_id: number; expected_current_content?: string; reason?: string; file_path?: string }) => {
       const target = file_path ? `file "${file_path}"` : 'the active document'
-      return `Delete applied to ${target} at block {b:${block_id}}. ${documentChangedMessage()}`
+      return `Delete applied to ${target} at block {b:${block_id}}. ${batchAppliedMessage()}`
     },
     {
       name: 'delete_block',
       description:
         'Delete an existing block. The user must approve before the change is applied. ' +
-        'Pass expected_current_content when available so the delete fails safely if the block changed.',
+        'Pass expected_current_content when available so the delete fails safely if the block changed.' +
+        BATCH_NOTE,
       schema: z.object({
         block_id: z.number().describe('The {b:n} block ID to delete.'),
         expected_current_content: z
@@ -100,14 +117,15 @@ export function buildEditProposalTools() {
   const replaceRange = tool(
     async ({ start_block_id, end_block_id, file_path }: { start_block_id: number; end_block_id: number; new_content: string; expected_old_content?: string; reason?: string; file_path?: string }) => {
       const target = file_path ? `file "${file_path}"` : 'the active document'
-      return `Replace applied to ${target} for blocks {b:${start_block_id}}–{b:${end_block_id}}. ${documentChangedMessage()}`
+      return `Replace applied to ${target} for blocks {b:${start_block_id}}–{b:${end_block_id}}. ${batchAppliedMessage()}`
     },
     {
       name: 'replace_range',
       description:
         'Replace a range of blocks from start_block_id to end_block_id (inclusive) ' +
         'with new content. Useful for rewriting multiple consecutive blocks at once. ' +
-        'Pass expected_old_content when available so the replacement fails if the range changed.',
+        'Pass expected_old_content when available so the replacement fails if the range changed.' +
+        BATCH_NOTE,
       schema: z.object({
         start_block_id: z.number().describe('First block ID in the range to replace.'),
         end_block_id: z.number().describe('Last block ID in the range to replace (inclusive).'),

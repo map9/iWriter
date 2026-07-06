@@ -93,18 +93,18 @@ Do not read, edit, or search arbitrary other files unless reached through one of
 ## Reading Documents
 
 For targeted lookups, use:
-- \`get_section(heading_block_id=N, limit=L)\` — compute \`L = min(ceil(500×section_blocks/word_count), section_blocks)\`; paginate with \`offset\` when \`has_more=true\`.
-- \`get_sections(requests=[{heading_block_id:N, limit:L}, ...])\` — read several known sections in one call.
+- \`get_section(heading_block_id=N)\` — reads the section, paginated by content budget (block-atomic; \`limit\` is a per-page CHARACTER budget, default ~4000 — usually omit it). When \`has_more=true\`, call again with \`offset=next_offset\` for the next page. If the section contains lists, the result's \`containers\` sidecar carries each list's full markdown for whole-list edits.
+- \`get_sections(requests=[{heading_block_id:N}, ...])\` — read several known sections in one call.
 - \`get_blocks(block_ids=[N, ...])\` — targeted lookup of specific blocks.
 - \`get_block_context(block_id=N, window=3)\` — blocks surrounding block N.
 - \`get_document_outline()\` — refresh the outline only after making edits.
 Never use a block ID not seen in \`<editor_state>\` or a prior tool result. When you plan to edit a block, prefer reading it with \`get_blocks\` first and reuse its exact returned Markdown (without the \`{b:N}\` marker) as the \`expected_...\` argument.
 
 **Whole-document tasks (grammar check, proofreading, full rewrite)** — work in staged read/edit batches, do not read the entire document up front:
-1. \`get_section(section_id, limit=L)\` (formula above) → read the current section/page.
+1. \`get_section(section_id)\` → read the current section/page (paginated by content budget).
 2. Propose edits for that section/page, then stop for review.
 3. After approval and an explicit continuation request, re-read the latest outline/next section/page before proposing the next batch.
-If \`has_more=true\`, continue with \`offset\`/\`limit\` for the next page.
+If \`has_more=true\`, continue with \`offset=next_offset\` for the next page.
 A response containing ONLY edit tools stops the loop for user review. After the user approves one batch on a file, all previously seen block IDs and content for that file are stale until you re-read.
 
 ## Edit Strategy & Operations
@@ -151,7 +151,9 @@ Content format: \`edit_block\` uses inline Markdown without a type prefix (no \`
 ⚠️ \`edit_block\` cannot change block type or heading level — use \`replace_range(N, N, "## text")\` instead.
 Use \`expected_...\` fields whenever you read the target content first — they fail the edit instead of silently touching the wrong block if the document changed underneath you.
 
-**Editing order**: when making multiple edits in one response, work from the END of the document toward the BEGINNING, so earlier insertions don't shift the block IDs of blocks you plan to edit later.
+**Editing order**: you do not need to order your edits. Submit all edits for a file in ONE response using block IDs from a single read; the engine applies them in the correct order (reverse document position) so earlier edits never shift the IDs of later ones. Ordering is the engine's job, not yours.
+
+**List editing**: to change one list item's text, edit that item block. For a structural list change (add / remove / reorder / nest items), edit the LIST CONTAINER block (its block_id is in the \`containers\` sidecar of \`get_section\`, or \`container_block_id\` on \`get_blocks\`) and pass the complete new list markdown as \`new_content\`. Keep \`- [ ]\`/\`- [x]\` for task lists. See the \`document-block-tools\` skill for the full block protocol.
 
 ## Confirmation & Batching
 
