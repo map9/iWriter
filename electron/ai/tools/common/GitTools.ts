@@ -3,8 +3,12 @@ import * as path from 'path'
 import { execFile, type ExecFileException } from 'child_process'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
-import type { IWriterAgentContext } from '../runtime/AgentContext'
-import { isInside } from './CreativeTools'
+import type { IWriterAgentContext } from '../../runtime/AgentContext'
+
+// Generalized git tools (B1): moved from the storybible-specific CreativeGitTools to the
+// common tool面, workspace-generic (no storybible.md/draft defaults). Adds git_init and
+// git_restore (04.4 §3 / FR-1.6 / FR-6.4). Version tracking operates on the markdown object
+// tree at the workspace root; derived AI artifacts under `.iwriter/` are gitignored.
 
 const MAX_BUFFER = 20 * 1024 * 1024
 const READ_TIMEOUT_MS = 15000
@@ -21,6 +25,11 @@ type GitErrorCode =
 type GitResult =
   | { ok: true; stdout: string; stderr: string }
   | { ok: false; errorCode: GitErrorCode; message: string }
+
+function isInside(parent: string, child: string): boolean {
+  const rel = path.relative(parent, child)
+  return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel)
+}
 
 function getWorkspacePath(runtime: unknown, fallbackWorkspacePath?: string | null): string | null {
   const wp = (runtime as { context?: IWriterAgentContext } | undefined)?.context?.workspacePath
@@ -79,7 +88,7 @@ function runGit(workspacePath: string, args: string[], timeout: number): Promise
 
 async function preflightGit(workspacePath: string, timeout = READ_TIMEOUT_MS): Promise<GitResult> {
   if (!fs.existsSync(path.join(workspacePath, '.git'))) {
-    return gitError('NOT_A_REPO', 'Not a git repository — git tools require the workspace to be initialized with git init.')
+    return gitError('NOT_A_REPO', 'Not a git repository — call git_init first to start version tracking.')
   }
   return runGit(workspacePath, ['--version'], timeout)
 }
@@ -87,6 +96,7 @@ async function preflightGit(workspacePath: string, timeout = READ_TIMEOUT_MS): P
 function resolveGitFile(workspacePath: string, file: string): { ok: true; relativePath: string } | { ok: false; message: string } {
   const trimmed = file.trim()
   if (!trimmed) return { ok: false, message: 'Git file path cannot be empty.' }
+  if (trimmed === '.') return { ok: true, relativePath: '.' }
   if (path.isAbsolute(trimmed) || trimmed.startsWith('~') || /^[a-zA-Z]:[\\/]/.test(trimmed)) {
     return { ok: false, message: 'Git file paths must be relative to the workspace.' }
   }
@@ -157,16 +167,41 @@ export function getLastGitTagInfo(workspacePath: string): Promise<{
   })()
 }
 
-export function buildCreativeGitTools(options: {
+const NO_WORKSPACE = 'Error: this action requires an open workspace folder.'
+
+export function buildGitTools(options: {
   workspacePath?: string | null
 }) {
   const resolveWorkspace = (runtime: unknown): string | null =>
     ensureWorkspace(getWorkspacePath(runtime, options.workspacePath))
 
+  const gitInit = tool(
+    async (_input: Record<string, never>, runtime) => {
+      const workspacePath = resolveWorkspace(runtime)
+      if (!workspacePath) return NO_WORKSPACE
+      if (fs.existsSync(path.join(workspacePath, '.git'))) {
+        return JSON.stringify({ ok: true, already_initialized: true, message: 'Workspace is already a git repository.' }, null, 2)
+      }
+      const init = await runGit(workspacePath, ['init'], WRITE_TIMEOUT_MS)
+      if (!init.ok) return formatGitError(init)
+      // Derived AI engineering state under .iwriter/ must not be tracked (04.1 §1.2).
+      const gitignorePath = path.join(workspacePath, '.gitignore')
+      if (!fs.existsSync(gitignorePath)) {
+        await fs.promises.writeFile(gitignorePath, ['.iwriter/', '.DS_Store', ''].join('\n'), 'utf8')
+      }
+      return JSON.stringify({ ok: true, message: 'Initialized empty git repository (with .gitignore for derived AI artifacts).' }, null, 2)
+    },
+    {
+      name: 'git_init',
+      description: 'Initialize a git repository in the workspace (with a .gitignore for derived AI artifacts under .iwriter/) after user approval. Use once when starting version tracking for a project.',
+      schema: z.object({}),
+    }
+  )
+
   const gitStatus = tool(
     async (_input: Record<string, never>, runtime) => {
       const workspacePath = resolveWorkspace(runtime)
-      if (!workspacePath) return 'Error: Creative mode requires an open workspace folder.'
+      if (!workspacePath) return NO_WORKSPACE
       const preflight = await preflightGit(workspacePath)
       if (!preflight.ok) return formatGitError(preflight)
       const result = await runGit(workspacePath, ['status', '--porcelain=v1'], READ_TIMEOUT_MS)
@@ -175,7 +210,7 @@ export function buildCreativeGitTools(options: {
     },
     {
       name: 'git_status',
-      description: 'Read git status for the creative workspace. Returns staged, unstaged, and untracked file lists.',
+      description: 'Read git status for the workspace. Returns staged, unstaged, and untracked file lists.',
       schema: z.object({}),
     }
   )
@@ -183,7 +218,7 @@ export function buildCreativeGitTools(options: {
   const gitLog = tool(
     async ({ limit }: { limit?: number }, runtime) => {
       const workspacePath = resolveWorkspace(runtime)
-      if (!workspacePath) return 'Error: Creative mode requires an open workspace folder.'
+      if (!workspacePath) return NO_WORKSPACE
       const preflight = await preflightGit(workspacePath)
       if (!preflight.ok) return formatGitError(preflight)
       const safeLimit = String(Math.max(1, Math.min(limit ?? 10, 50)))
@@ -197,7 +232,7 @@ export function buildCreativeGitTools(options: {
     },
     {
       name: 'git_log',
-      description: 'Read recent git commits for the creative workspace.',
+      description: 'Read recent git commits for the workspace.',
       schema: z.object({
         limit: z.number().optional().describe('Number of commits to return. Default 10, max 50.'),
       }),
@@ -207,7 +242,7 @@ export function buildCreativeGitTools(options: {
   const gitDiff = tool(
     async ({ from, to }: { from?: string; to?: string }, runtime) => {
       const workspacePath = resolveWorkspace(runtime)
-      if (!workspacePath) return 'Error: Creative mode requires an open workspace folder.'
+      if (!workspacePath) return NO_WORKSPACE
       const preflight = await preflightGit(workspacePath)
       if (!preflight.ok) return formatGitError(preflight)
       if (to && !from) return formatGitError(gitError('COMMAND_FAILED', 'git_diff requires from when to is provided.'))
@@ -232,7 +267,7 @@ export function buildCreativeGitTools(options: {
   const gitCommit = tool(
     async ({ message, files }: { message: string; files?: string[] }, runtime) => {
       const workspacePath = resolveWorkspace(runtime)
-      if (!workspacePath) return 'Error: Creative mode requires an open workspace folder.'
+      if (!workspacePath) return NO_WORKSPACE
       const preflight = await preflightGit(workspacePath, WRITE_TIMEOUT_MS)
       if (!preflight.ok) return formatGitError(preflight)
       if (fs.existsSync(path.join(workspacePath, '.git', 'index.lock'))) {
@@ -242,7 +277,8 @@ export function buildCreativeGitTools(options: {
       if (authorError) return formatGitError(authorError as Extract<GitResult, { ok: false }>)
       const cleanMessage = message.trim()
       if (!cleanMessage) return formatGitError(gitError('COMMAND_FAILED', 'Commit message is required.'))
-      const requestedFiles = files?.length ? files : ['storybible.md', 'draft/']
+      // Default: stage the whole workspace ('.') — .gitignore excludes derived AI artifacts.
+      const requestedFiles = files?.length ? files : ['.']
       const resolvedFiles: string[] = []
       for (const file of requestedFiles) {
         const resolved = resolveGitFile(workspacePath, file)
@@ -267,10 +303,10 @@ export function buildCreativeGitTools(options: {
     },
     {
       name: 'git_commit',
-      description: 'Stage selected creative files and create a git commit after user approval. Defaults to storybible.md and draft/.',
+      description: 'Stage workspace files and create a git commit after user approval. Defaults to staging the whole workspace ("."); derived AI artifacts are gitignored.',
       schema: z.object({
         message: z.string().describe('Commit message. The user may edit this before approval.'),
-        files: z.array(z.string()).optional().describe('Workspace-relative files or directories to stage. Default ["storybible.md", "draft/"].'),
+        files: z.array(z.string()).optional().describe('Workspace-relative files or directories to stage. Default ["."] (whole workspace).'),
       }),
     }
   )
@@ -278,7 +314,7 @@ export function buildCreativeGitTools(options: {
   const gitTag = tool(
     async ({ name, message }: { name: string; message?: string }, runtime) => {
       const workspacePath = resolveWorkspace(runtime)
-      if (!workspacePath) return 'Error: Creative mode requires an open workspace folder.'
+      if (!workspacePath) return NO_WORKSPACE
       const preflight = await preflightGit(workspacePath, WRITE_TIMEOUT_MS)
       if (!preflight.ok) return formatGitError(preflight)
       if (fs.existsSync(path.join(workspacePath, '.git', 'index.lock'))) {
@@ -304,5 +340,41 @@ export function buildCreativeGitTools(options: {
     }
   )
 
-  return [gitStatus, gitLog, gitDiff, gitCommit, gitTag] as const
+  const gitRestore = tool(
+    async ({ files, ref }: { files: string[]; ref?: string }, runtime) => {
+      const workspacePath = resolveWorkspace(runtime)
+      if (!workspacePath) return NO_WORKSPACE
+      const preflight = await preflightGit(workspacePath, WRITE_TIMEOUT_MS)
+      if (!preflight.ok) return formatGitError(preflight)
+      if (fs.existsSync(path.join(workspacePath, '.git', 'index.lock'))) {
+        return formatGitError(gitError('INDEX_LOCKED', 'Git index is locked by another process.'))
+      }
+      if (!files?.length) return formatGitError(gitError('COMMAND_FAILED', 'git_restore requires at least one file.'))
+      if (ref !== undefined && !isSafeGitRef(ref)) {
+        return formatGitError(gitError('COMMAND_FAILED', 'git_restore ref cannot be empty, whitespace, or option-like.'))
+      }
+      const resolvedFiles: string[] = []
+      for (const file of files) {
+        const resolved = resolveGitFile(workspacePath, file)
+        if (!resolved.ok) return formatGitError(gitError('COMMAND_FAILED', resolved.message))
+        resolvedFiles.push(resolved.relativePath)
+      }
+      const args = ref
+        ? ['restore', '--source', ref, '--', ...resolvedFiles]
+        : ['restore', '--', ...resolvedFiles]
+      const result = await runGit(workspacePath, args, WRITE_TIMEOUT_MS)
+      if (!result.ok) return formatGitError(result)
+      return JSON.stringify({ ok: true, restored: resolvedFiles, source: ref ?? 'index/HEAD' }, null, 2)
+    },
+    {
+      name: 'git_restore',
+      description: 'Restore workspace file(s) to their committed state, or to a specific commit/tag (ref), after user approval. Used for version rollback (FR-6.4). Discards working-tree changes to the named files.',
+      schema: z.object({
+        files: z.array(z.string()).min(1).describe('Workspace-relative files or directories to restore.'),
+        ref: z.string().optional().describe('Optional commit/tag to restore from. Omit to restore to the last committed state.'),
+      }),
+    }
+  )
+
+  return [gitInit, gitStatus, gitLog, gitDiff, gitCommit, gitTag, gitRestore] as const
 }

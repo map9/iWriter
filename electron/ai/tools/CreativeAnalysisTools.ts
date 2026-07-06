@@ -7,7 +7,7 @@ import { STORYBIBLE_REBUILD_WORD_THRESHOLD } from '../db/CreativeDb'
 import type { SnapshotBroker } from '../document/SnapshotBroker'
 import { estimateTextTokens } from '../../../src/ai/model/token-estimation'
 import type { IWriterAgentContext } from '../runtime/AgentContext'
-import { getLastGitTagInfo } from './CreativeGitTools'
+import { getLastGitTagInfo } from './common/GitTools'
 
 function getWorkspacePath(runtime: unknown, fallbackWorkspacePath?: string | null): string | null {
   const wp = (runtime as { context?: IWriterAgentContext } | undefined)?.context?.workspacePath

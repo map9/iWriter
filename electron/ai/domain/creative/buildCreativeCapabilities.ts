@@ -5,7 +5,7 @@ import { buildCreativeTools } from '../../tools/CreativeTools'
 import { buildCreativeAnalysisTools } from '../../tools/CreativeAnalysisTools'
 import { buildCreativeAdvisorTools } from '../../tools/CreativeAdvisorTools'
 import { buildCreativeExplorationTools } from '../../tools/CreativeExplorationTools'
-import { buildCreativeGitTools } from '../../tools/CreativeGitTools'
+import { buildGitTools } from '../../tools/common/GitTools'
 import { buildCreativeLogicTools } from '../../tools/CreativeLogicTools'
 import { buildDocumentTools } from '../../tools/common/DocumentTools'
 import { buildEditProposalTools } from '../../tools/common/EditProposalTools'
@@ -86,7 +86,7 @@ export function buildCreativeCapabilities(input: {
     ...fsMutationTools,
     ...buildCreativeAnalysisTools({ workspacePath: input.workspacePath, creativeDb: input.creativeDb, snapshotBroker: input.snapshotBroker }),
     ...buildCreativeAdvisorTools({ workspacePath: input.workspacePath }),
-    ...buildCreativeGitTools({ workspacePath: input.workspacePath }),
+    ...buildGitTools({ workspacePath: input.workspacePath }),
     ...mainExplorationTools,
     ...mainWritingStyleTools,
   ]
@@ -173,8 +173,10 @@ export const CREATIVE_INTERRUPT_ON_CONFIG: Record<string, InterruptOnConfig> = {
   replace_storybible_section:  { allowedDecisions: ['approve', 'reject'] },
   rebuild_storybible:          { allowedDecisions: ['approve', 'reject'] },
   compress_storybible_history: { allowedDecisions: ['approve', 'reject'] },
+  git_init:                    { allowedDecisions: ['approve', 'reject'] },
   git_commit:                  { allowedDecisions: ['approve', 'edit', 'reject'] },
   git_tag:                     { allowedDecisions: ['approve', 'reject'] },
+  git_restore:                 { allowedDecisions: ['approve', 'reject'] },
   start_exploration:           { allowedDecisions: ['approve', 'reject'] },
   finish_exploration:          { allowedDecisions: ['approve', 'reject'] },
   delete_exploration:          { allowedDecisions: ['approve', 'reject'] },
