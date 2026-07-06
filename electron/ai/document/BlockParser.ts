@@ -117,7 +117,8 @@ export class BlockParser {
         const itemBlockIds = sectionBlocks
           .filter(b => b.containerId === c.displayId)
           .map(b => b.displayId)
-        return { block_id: c.displayId, type: c.nodeType, item_block_ids: itemBlockIds }
+        // Include the whole current list markdown so a structural edit needs no second read.
+        return { block_id: c.displayId, type: c.nodeType, item_block_ids: itemBlockIds, markdown: c.content }
       })
       .filter(c => c.item_block_ids.some(id => pageIds.has(id)))
 
@@ -138,7 +139,7 @@ export class BlockParser {
           ? {
               containers,
               containers_hint:
-                'For structural list changes (add/remove/reorder/nest items), call edit_block on the container block_id with the whole list markdown as new_content. For a single item text tweak, edit its item block_id directly.',
+                'These are list containers in this section. For a structural change (add/remove/reorder/nest items), take the container\'s `markdown` (already provided here — no need to read it again), apply your change, and call edit_block on the container block_id with the result as new_content. For a single item text tweak, edit that item block_id directly. Preserve `- [ ]`/`- [x]` for task lists.',
             }
           : {}),
         word_count: heading?.wordCount ?? 0,

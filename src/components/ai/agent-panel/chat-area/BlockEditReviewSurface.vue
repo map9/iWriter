@@ -143,7 +143,7 @@ import { buildBlockEditReviewSurfaceViewModel } from '@/ai/review/common/selecto
 import type { ProposalReviewSummary } from '@/ai/store/ai'
 import type { Editor } from '@tiptap/core'
 import { useAppStore } from '@/stores/app'
-import { findNodeById } from '@/ai/document/BlockEditApplier'
+import { findNodeById, findBlockOrContainer } from '@/ai/document/BlockEditApplier'
 import { setRangeHighlights, removeRangeHighlights } from '@/components/common/tiptap/iw-range-highlight'
 import { waitForEditorReady } from '@/components/common/tiptap/utils'
 import { UNTITLED_PREFIX } from '@/ai/review/common/executor'
@@ -311,7 +311,8 @@ async function scrollToProposal(proposal: EditProposal | null | undefined, allow
   }
 
   let highlightRange: { from: number; to: number } | null = null
-  let scrollTarget = findNodeById(editor.state.doc, nodeId)
+  // findBlockOrContainer resolves both normal blocks and "list:<id>" container blocks (A4.2).
+  let scrollTarget = findBlockOrContainer(editor.state.doc, nodeId)
 
   if (proposal.type === 'replace_range' && proposal.startNodeId && proposal.endNodeId) {
     const startFound = findNodeById(editor.state.doc, proposal.startNodeId)

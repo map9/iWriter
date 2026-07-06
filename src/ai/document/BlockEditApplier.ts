@@ -116,6 +116,21 @@ function findListContainerByItemId(
 }
 
 /**
+ * Resolve a block reference to a node, handling both normal UniqueID blocks and
+ * container blocks addressed as "list:<firstItemId>" (A4.2). Used by the review
+ * surface to locate/highlight the original block for any edit proposal.
+ */
+export function findBlockOrContainer(
+  doc: PmNode,
+  nodeId: string
+): { node: PmNode; from: number; to: number } | null {
+  if (nodeId.startsWith('list:')) {
+    return findListContainerByItemId(doc, nodeId.slice('list:'.length))
+  }
+  return findNodeById(doc, nodeId)
+}
+
+/**
  * Find a node by its UniqueID (attrs.id) in the document.
  * Returns the node and its ProseMirror positions.
  */
@@ -147,11 +162,34 @@ async function markdownToContent(
   editor: Editor,
   markdown: string
 ): Promise<JSONContent[]> {
-  const html = unwrapBlockImages(await marked.parse(markdown, { async: true }))
+  // Task lists: GFM `- [x]` does not round-trip to TipTap's taskList (which needs
+  // ul[data-type="taskList"]); marked would degrade it to a bulletList and drop the
+  // checked state. Build the taskList HTML directly for a flat task list (A4.2).
+  const taskHtml = await tryBuildTaskListHtml(markdown)
+  const html = taskHtml ?? unwrapBlockImages(await marked.parse(markdown, { async: true }))
   // Use TipTap's built-in HTML parser via a temporary content parse
   const { generateJSON } = await import('@tiptap/core')
   const doc = generateJSON(html, editor.extensionManager.baseExtensions)
   return doc.content ?? []
+}
+
+/**
+ * If `markdown` is a flat task list (every non-empty line is `- [ ]`/`- [x]`),
+ * build the TipTap-compatible taskList HTML so the type and checked state survive.
+ * Returns null for anything else (including nested task lists) → caller falls back to marked.
+ */
+async function tryBuildTaskListHtml(markdown: string): Promise<string | null> {
+  const lines = markdown.replace(/\r\n/g, '\n').split('\n').filter(l => l.trim().length > 0)
+  if (!lines.length) return null
+  const items: string[] = []
+  for (const line of lines) {
+    const m = line.match(/^\s*[-*+]\s+\[([ xX])\]\s+(.*)$/)
+    if (!m) return null // not a pure flat task list
+    const checked = m[1]!.toLowerCase() === 'x'
+    const inlineHtml = await marked.parseInline(m[2]!, { async: true })
+    items.push(`<li data-type="taskItem" data-checked="${checked}"><p>${inlineHtml}</p></li>`)
+  }
+  return `<ul data-type="taskList">${items.join('')}</ul>`
 }
 
 /**
