@@ -73,9 +73,14 @@ export class BlockParser {
       }
     }
 
-    const sectionBlocks = snapshot.blockMap.filter(
+    const sectionAll = snapshot.blockMap.filter(
       b => b.displayId >= headingBlockId && b.displayId <= sectionEnd
     )
+    // Container blocks (lists) are addressable-only; they do not participate in the
+    // linear content flow (their item leaves render individually). They are surfaced
+    // via the `containers` sidecar so the LLM can target whole-list edits (A4.2).
+    const sectionBlocks = sectionAll.filter(b => !b.isContainer)
+    const sectionContainers = sectionAll.filter(b => b.isContainer)
 
     // Block-atomic content-budget pagination
     const startIdx = Math.min(Math.max(0, offset), sectionBlocks.length)
@@ -103,6 +108,19 @@ export class BlockParser {
 
     const heading = snapshot.outline.find(h => h.displayId === headingBlockId)
 
+    // Container sidecar: for each list container whose items appear on this page,
+    // expose { block_id, type, item_block_ids } so the LLM can do a whole-list edit
+    // (structural change) by calling edit_block on the container block_id.
+    const pageIds = new Set(page.map(p => p.displayId))
+    const containers = sectionContainers
+      .map(c => {
+        const itemBlockIds = sectionBlocks
+          .filter(b => b.containerId === c.displayId)
+          .map(b => b.displayId)
+        return { block_id: c.displayId, type: c.nodeType, item_block_ids: itemBlockIds }
+      })
+      .filter(c => c.item_block_ids.some(id => pageIds.has(id)))
+
     return JSON.stringify(
       {
         heading: heading?.text ?? `Block ${headingBlockId}`,
@@ -116,6 +134,13 @@ export class BlockParser {
         chars_returned: used,
         blocks_returned: page.length,
         total_section_blocks: sectionBlocks.length,
+        ...(containers.length
+          ? {
+              containers,
+              containers_hint:
+                'For structural list changes (add/remove/reorder/nest items), call edit_block on the container block_id with the whole list markdown as new_content. For a single item text tweak, edit its item block_id directly.',
+            }
+          : {}),
         word_count: heading?.wordCount ?? 0,
       },
       null,
@@ -145,6 +170,10 @@ export class BlockParser {
         blockId: id,
         type: entry.nodeType,
         content: `{b:${id}}\n${entry.content}`,
+        // Two-level model (A4.2): a list container returns the whole list markdown;
+        // a list item exposes its container so structural edits can target it.
+        ...(entry.isContainer ? { is_container: true } : {}),
+        ...(entry.containerId !== undefined ? { container_block_id: entry.containerId } : {}),
       }
     })
 

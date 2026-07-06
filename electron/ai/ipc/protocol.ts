@@ -258,6 +258,14 @@ export interface SerializedBlockEntry {
   charCount: number
   /** Heading level (1-6), only set for heading blocks */
   headingLevel?: number
+  /**
+   * Two-level block model (A4.2). A container block wraps a whole list; its
+   * `content` is the full list markdown, editable via container-level edit_block
+   * (whole-list replace). Container blocks are skipped in the linear content flow.
+   */
+  isContainer?: boolean
+  /** For list-item leaf blocks: the displayId of the enclosing top-level list container. */
+  containerId?: number
 }
 
 export interface SerializedOutlineEntry {

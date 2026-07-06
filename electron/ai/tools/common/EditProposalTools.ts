@@ -30,7 +30,11 @@ export function buildEditProposalTools() {
         'Replace the content of an existing block. ' +
         'The user must approve the change before it is applied. ' +
         'Always call get_blocks first to see the current content before editing, ' +
-        'and pass expected_current_content when available so the edit can fail safely if the block changed.',
+        'and pass expected_current_content when available so the edit can fail safely if the block changed. ' +
+        'LIST EDITING: to change a single list item\'s text, edit that item block. ' +
+        'For a structural list change (add/remove/reorder/nest items), edit the LIST CONTAINER block ' +
+        '(its block_id is shown in the `containers` sidecar of get_section, or as container_block_id on get_blocks) ' +
+        'and pass the complete new list markdown as new_content — the whole list is replaced atomically.',
       schema: z.object({
         block_id: z.number().describe('The {b:n} block ID to edit.'),
         new_content: z.string().describe('The new Markdown content to replace the block with.'),

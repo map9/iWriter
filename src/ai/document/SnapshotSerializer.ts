@@ -68,6 +68,8 @@ export async function buildSerializedSnapshot(
         content,
         charCount: content.length,
         headingLevel: headingMatch,
+        ...(entry.isContainer ? { isContainer: true } : {}),
+        ...(entry.containerId !== undefined ? { containerId: entry.containerId } : {}),
       }
     })
 

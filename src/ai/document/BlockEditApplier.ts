@@ -87,7 +87,33 @@ function getRangeMarkdown(editor: Editor, startNodeId: string, endNodeId: string
     .join('\n\n')
 }
 
+// List container node types (two-level model, A4.2)
+const LIST_CONTAINER_TYPES = new Set(['bulletList', 'orderedList', 'taskList'])
+
 // ── Node Lookup ────────────────────────────────────────────────────────────
+
+/**
+ * Locate the top-level list container that encloses a given list item.
+ * Container blocks are addressed as "list:<firstItemId>" (A4.2); this resolves
+ * that to the outermost enclosing list node for whole-list replacement.
+ */
+function findListContainerByItemId(
+  doc: PmNode,
+  itemId: string
+): { node: PmNode; from: number; to: number } | null {
+  const item = findNodeById(doc, itemId)
+  if (!item) return null
+  const $pos = doc.resolve(item.from)
+  // Ascend from shallowest depth to pick the OUTERMOST list container (parent === doc).
+  for (let d = 1; d <= $pos.depth; d++) {
+    const anc = $pos.node(d)
+    if (LIST_CONTAINER_TYPES.has(anc.type.name)) {
+      const from = $pos.before(d)
+      return { node: anc, from, to: from + anc.nodeSize }
+    }
+  }
+  return null
+}
 
 /**
  * Find a node by its UniqueID (attrs.id) in the document.
@@ -165,6 +191,38 @@ export async function applyEditBlock(
   const { nodeId, nodeType, newContent } = proposal
   if (!nodeId || !nodeType || newContent === undefined) {
     return { success: false, error: 'Missing nodeId, nodeType, or newContent' }
+  }
+
+  // Container-level edit (A4.2): nodeId "list:<firstItemId>" targets a whole list.
+  // new_content is the complete list markdown; replace the entire list node atomically
+  // (robust for structural changes: add/remove/reorder/nest items).
+  if (nodeId.startsWith('list:')) {
+    const firstItemId = nodeId.slice('list:'.length)
+    const container = findListContainerByItemId(editor.state.doc, firstItemId)
+    if (!container) {
+      return { success: false, error: `List container ${nodeId} not found in document` }
+    }
+    const expectedListContent = resolveExpectedContent(
+      proposal.oldContent,
+      proposal.expectedCurrentContent
+    )
+    if (expectedListContent !== undefined) {
+      const currentContent = nodeToMarkdown(container.node)
+      if (normalizeExpectedMarkdown(currentContent) !== normalizeExpectedMarkdown(expectedListContent)) {
+        logContentMismatch(`list ${nodeId}`, currentContent, expectedListContent)
+        return { success: false, error: contentMismatchError('content_mismatch', `list ${nodeId}`) }
+      }
+    }
+    const listNodes = await markdownToContent(editor, newContent)
+    if (!listNodes.length) {
+      return { success: false, error: 'Markdown produced empty content' }
+    }
+    editor.chain()
+      .focus()
+      .deleteRange({ from: container.from, to: container.to })
+      .insertContentAt(container.from, listNodes)
+      .run()
+    return { success: true }
   }
 
   const found = findNodeById(editor.state.doc, nodeId)

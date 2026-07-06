@@ -20,11 +20,23 @@ import type { Node as PmNode } from '@tiptap/pm/model'
 
 export interface BlockViewMapping {
   displayId: number     // Sequential number shown to LLM as {b:n}
-  nodeId: string        // TipTap node.attrs.id (nanoid 8-char)
+  nodeId: string        // TipTap node.attrs.id (nanoid 8-char); for container blocks: "list:<firstItemId>"
   nodeType: string      // paragraph / heading / codeBlock / etc.
   from: number          // ProseMirror position (start of node)
   to: number            // ProseMirror position (end of node)
+  /**
+   * Two-level block model (A4.2): a container block wraps a whole list
+   * (bulletList/orderedList/taskList). Container blocks are addressable for
+   * container-level edit_block (whole-list replace) but are skipped in the
+   * linear content flow (their child leaves render individually).
+   */
+  isContainer?: boolean
+  /** For list-item leaf blocks: the displayId of the enclosing top-level list container. */
+  containerId?: number
 }
+
+// List container node types (two-level model, A4.2)
+const LIST_CONTAINER_TYPES = new Set(['bulletList', 'orderedList', 'taskList'])
 
 export interface OutlineEntry {
   displayId: number
@@ -72,6 +84,8 @@ export class DocumentViewBuilder {
     const blockMap: BlockViewMapping[] = []
     const viewParts: string[] = []
     let displayId = 0
+    // Active top-level list containers, for tagging item leaves with containerId.
+    const containers: { from: number; to: number; displayId: number }[] = []
 
     doc.descendants((node, pos, parent) => {
       const typeName = node.type.name
@@ -83,8 +97,26 @@ export class DocumentViewBuilder {
         return false
       }
 
-      // List containers (no UniqueID): descend to find listItems
-      if (['bulletList', 'orderedList', 'taskList'].includes(typeName)) {
+      // List containers: emit a container block for TOP-LEVEL lists only
+      // (nested lists live inside a listItem and are covered by the top container's
+      // whole-list replace). Then descend to register item leaves.
+      if (LIST_CONTAINER_TYPES.has(typeName)) {
+        if (parentType === 'doc') {
+          const firstItemId: string = node.firstChild?.attrs?.id ?? ''
+          if (firstItemId) {
+            displayId++
+            blockMap.push({
+              displayId,
+              nodeId: `list:${firstItemId}`,
+              nodeType: typeName,
+              from: pos,
+              to: pos + node.nodeSize,
+              isContainer: true,
+            })
+            containers.push({ from: pos, to: pos + node.nodeSize, displayId })
+            // Container is addressable-only: not pushed to viewParts (its items render individually).
+          }
+        }
         return true
       }
 
@@ -97,12 +129,17 @@ export class DocumentViewBuilder {
         }
 
         displayId++
+        const isListLeaf = typeName === 'listItem' || typeName === 'taskItem'
+        const containerId = isListLeaf
+          ? containers.find(c => pos >= c.from && pos < c.to)?.displayId
+          : undefined
         blockMap.push({
           displayId,
           nodeId,
           nodeType: typeName,
           from: pos,
           to: pos + node.nodeSize,
+          ...(containerId !== undefined ? { containerId } : {}),
         })
 
         const md = nodeToMarkdown(node)
@@ -309,6 +346,11 @@ export function nodeToMarkdown(node: PmNode): string {
     case 'table':
       return tableToMarkdown(node)
 
+    case 'bulletList':
+    case 'orderedList':
+    case 'taskList':
+      return listToMarkdown(node, 0)
+
     case 'listItem': {
       const firstPara = node.firstChild
       const text = firstPara?.type.name === 'paragraph'
@@ -329,6 +371,53 @@ export function nodeToMarkdown(node: PmNode): string {
     default:
       return node.textContent
   }
+}
+
+// ── List container → Markdown (recursive, handles nesting) ────────────────
+
+/**
+ * Render a whole list container (bulletList/orderedList/taskList) to Markdown,
+ * including nested sublists. Used for container-level blocks (A4.2): the content
+ * of a list container block is the full list markdown, which the LLM edits and
+ * replaces atomically for structural changes (add/remove/reorder/nest items).
+ */
+function listToMarkdown(listNode: PmNode, depth: number): string {
+  const indent = '  '.repeat(depth)
+  const ordered = listNode.type.name === 'orderedList'
+  const lines: string[] = []
+  let index = (listNode.attrs?.start as number) ?? 1
+
+  listNode.forEach(item => {
+    const itemType = item.type.name
+    if (itemType !== 'listItem' && itemType !== 'taskItem') return
+
+    // First paragraph = the item's own text; deeper block children (nested lists) recurse.
+    let itemText = ''
+    const nested: string[] = []
+    item.forEach(child => {
+      const childType = child.type.name
+      if (childType === 'paragraph' && itemText === '') {
+        itemText = inlineToMarkdown(child)
+      } else if (LIST_CONTAINER_TYPES.has(childType)) {
+        nested.push(listToMarkdown(child, depth + 1))
+      }
+    })
+
+    let marker: string
+    if (itemType === 'taskItem') {
+      marker = `- ${item.attrs.checked ? '[x]' : '[ ]'}`
+    } else if (ordered) {
+      marker = `${index}.`
+      index++
+    } else {
+      marker = '-'
+    }
+
+    lines.push(`${indent}${marker} ${itemText}`)
+    if (nested.length) lines.push(nested.join('\n'))
+  })
+
+  return lines.join('\n')
 }
 
 // ── Inline content → Markdown ─────────────────────────────────────────────
@@ -444,6 +533,8 @@ function buildOutline(blockMap: BlockViewMapping[], doc: PmNode): OutlineEntry[]
     let wordCount = 0
     const sectionEntries = blockMap.filter(b => b.displayId >= h.displayId && b.displayId <= sectionEnd)
     for (const entry of sectionEntries) {
+      // Skip container blocks: their text is already counted via the item leaves.
+      if (entry.isContainer) continue
       const n = doc.nodeAt(entry.from)
       if (n) wordCount += countWords(n.textContent)
     }
