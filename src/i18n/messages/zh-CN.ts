@@ -945,6 +945,8 @@ export default {
       titleChapterStructure: '审核章节结构',
       titleGitCommit: '审核 Git 提交',
       titleGitTag: '审核 Git 标签',
+      titleGitInit: '初始化 Git 仓库',
+      titleGitRestore: '审核 Git 回退',
       titleExplorationStart: '审核方向探索',
       titleExplorationCompare: '审核探索对比',
       titleExplorationMerge: '审核探索融合',

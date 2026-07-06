@@ -298,6 +298,8 @@ const title = computed(() => {
   if (review.kind === 'creative_chapter_structure') return t('agentPanel.creativeReview.titleChapterStructure')
   if (review.kind === 'creative_git_commit') return t('agentPanel.creativeReview.titleGitCommit')
   if (review.kind === 'creative_git_tag') return t('agentPanel.creativeReview.titleGitTag')
+  if (review.kind === 'creative_git_init') return t('agentPanel.creativeReview.titleGitInit')
+  if (review.kind === 'creative_git_restore') return t('agentPanel.creativeReview.titleGitRestore')
   if (review.kind === 'creative_exploration_start') return t('agentPanel.creativeReview.titleExplorationStart')
   if (review.kind === 'creative_exploration_compare') return t('agentPanel.creativeReview.titleExplorationCompare')
   if (review.kind === 'creative_exploration_merge') return t('agentPanel.creativeReview.titleExplorationMerge')
@@ -316,6 +318,8 @@ const subtitle = computed(() => {
   if (review.kind === 'creative_storybible') return review.section ?? 'storybible.md'
   if (review.kind === 'creative_git_commit') return review.files.join(', ')
   if (review.kind === 'creative_git_tag') return review.name
+  if (review.kind === 'creative_git_init') return ''
+  if (review.kind === 'creative_git_restore') return review.ref ? `${review.files.join(', ')} · ${review.ref}` : review.files.join(', ')
   if (review.kind === 'creative_exploration_start') return t('agentPanel.creativeReview.explorationDirections', { count: review.directions.length })
   if (review.kind === 'creative_exploration_compare') return t('agentPanel.creativeReview.explorationComparison')
   if (review.kind === 'creative_exploration_merge') return `${review.directionName} → ${review.targetChapter} · ${review.mode}`
@@ -363,6 +367,7 @@ const hasEditedContent = computed(() => {
     return bodyDraft.value !== review.name || tagMessageDraft.value !== (review.message ?? '')
   }
   if (review.kind === 'creative_exploration_start' || review.kind === 'creative_exploration_delete' || review.kind === 'creative_compress') return false
+  if (review.kind === 'creative_git_init' || review.kind === 'creative_git_restore') return false
   if (review.kind === 'creative_exploration_compare') return bodyDraft.value !== review.comparisonReport
   if (review.kind === 'creative_exploration_merge') return bodyDraft.value !== (review.newContent ?? '')
   return bodyDraft.value !== review.newContent
@@ -408,7 +413,7 @@ watch(currentReview, review => {
     tagMessageDraft.value = ''
     return
   }
-  if (review.kind === 'creative_chapter_structure' || review.kind === 'creative_exploration_start' || review.kind === 'creative_exploration_delete' || review.kind === 'creative_compress') {
+  if (review.kind === 'creative_chapter_structure' || review.kind === 'creative_exploration_start' || review.kind === 'creative_exploration_delete' || review.kind === 'creative_compress' || review.kind === 'creative_git_init' || review.kind === 'creative_git_restore') {
     bodyDraft.value = ''
     approvedPlanDraft.value = ''
     filesDraft.value = ''

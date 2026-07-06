@@ -167,6 +167,14 @@
           "**/*.md",
           "!**/.DS_Store"
         ]
+      },
+      {
+        "from": "electron/ai/builtin-subagents",
+        "to": "builtin-subagents",
+        "filter": [
+          "**/*.md",
+          "!**/.DS_Store"
+        ]
       }
     ],
     "files": [

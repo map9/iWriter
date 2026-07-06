@@ -5,6 +5,7 @@ import { buildEditCapabilities, EDIT_INTERRUPT_ON_NAMES } from './buildEditCapab
 import { buildProposalFromAction } from '../../ipc/MessageAdapter'
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
 import { parseUntitledTabId } from '../../document/virtualId'
+import { withProjectSkills } from '../../scaffold/skills/SkillsMount'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { ThreadRuntimeStore } from '../../runtime/ThreadRuntimeStore'
 import type { AiAgentMode } from '../../../../src/types/ai'
@@ -32,8 +33,12 @@ export class EditDomainStrategy implements DomainStrategy {
     return buildEditSystemPrompt(language)
   }
 
-  getSkillSources(aiRootPath: string): string[] {
-    return [path.join(aiRootPath, 'skills', 'common'), path.join(aiRootPath, 'skills', 'edit')]
+  getSkillSources(aiRootPath: string, workspacePath: string | null): string[] {
+    // common（跨域，含 document-block-tools）→ edit → 项目级末位（last-wins）。
+    return withProjectSkills(
+      [path.join(aiRootPath, 'skills', 'common'), path.join(aiRootPath, 'skills', 'edit')],
+      workspacePath,
+    )
   }
 
   getMemoryDir(): string {

@@ -241,6 +241,32 @@ export function buildCreativeReviewItemFromAction(
     }
   }
 
+  if (action.name === 'git_init') {
+    return {
+      id,
+      kind: 'creative_git_init',
+      toolName: 'git_init',
+      status: 'pending',
+      toolCallId,
+      sourceMessageId,
+      sourceTurnId,
+    }
+  }
+
+  if (action.name === 'git_restore') {
+    return {
+      id,
+      kind: 'creative_git_restore',
+      toolName: 'git_restore',
+      status: 'pending',
+      files: asStringArray(args.files) ?? [],
+      ref: asOptionalString(args.ref),
+      toolCallId,
+      sourceMessageId,
+      sourceTurnId,
+    }
+  }
+
   if (action.name === 'start_exploration') {
     return {
       id,

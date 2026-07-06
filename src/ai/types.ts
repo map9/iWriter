@@ -419,6 +419,18 @@ export interface CreativeGitTagReviewItem extends BaseCreativeReviewItem {
   message?: string
 }
 
+export interface CreativeGitInitReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_git_init'
+  toolName: 'git_init'
+}
+
+export interface CreativeGitRestoreReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_git_restore'
+  toolName: 'git_restore'
+  files: string[]
+  ref?: string
+}
+
 export interface CreativeExplorationCompareReviewItem extends BaseCreativeReviewItem {
   kind: 'creative_exploration_compare'
   toolName: 'finish_exploration'
@@ -466,6 +478,8 @@ export type CreativeReviewItem =
   | CreativeChapterStructureReviewItem
   | CreativeGitCommitReviewItem
   | CreativeGitTagReviewItem
+  | CreativeGitInitReviewItem
+  | CreativeGitRestoreReviewItem
   | CreativeExplorationCompareReviewItem
   | CreativeExplorationMergeReviewItem
   | CreativeExplorationStartReviewItem
@@ -1037,20 +1051,14 @@ export const BLOCK_EDIT_TOOLS = new Set([
   'create_document',
 ])
 
+// Phase 2 M0: the retired storybible/exploration/chapter review tools are removed. Live
+// creative-review tools are the plan gate and the git checkpoint/restore/init actions.
 export const CREATIVE_REVIEW_TOOLS = new Set([
   'confirm_writing_plan',
-  'resolve_open_question',
-  'rename_chapter',
-  'reorder_chapters',
-  'replace_storybible_section',
-  'rebuild_storybible',
-  'compress_storybible_history',
+  'git_init',
   'git_commit',
   'git_tag',
-  'start_exploration',
-  'finish_exploration',
-  'promote_exploration',
-  'delete_exploration',
+  'git_restore',
 ])
 
 /** Human-readable labels for BlockEditProposal types. */

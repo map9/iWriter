@@ -32,8 +32,12 @@ export interface DomainStrategy {
   /** Build domain capabilities. Filesystem backend, skills middleware, and file HITL live in AgentFilesystem. */
   buildCapabilities(ctx: DomainBuildContext): DomainAgentCapabilities
 
-  /** Skill source directories to expose to the main agent. Empty by default. */
-  getSkillSources?(aiRootPath: string): string[]
+  /**
+   * Skill source directories to expose to the main agent, in last-wins order.
+   * The project-level `{workspace}/.iwriter/skills` dir belongs末位 (highest priority).
+   * Empty by default.
+   */
+  getSkillSources?(aiRootPath: string, workspacePath: string | null): string[]
 
   /** System prompt for the current domain + mode combination. */
   getSystemPrompt(mode: AiAgentMode, language: DetectedInputLanguage): string

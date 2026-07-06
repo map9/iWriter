@@ -12,6 +12,8 @@ export function isCreativeReviewItem(value: unknown): value is CreativeReviewIte
       item.kind === 'creative_chapter_structure' ||
       item.kind === 'creative_git_commit' ||
       item.kind === 'creative_git_tag' ||
+      item.kind === 'creative_git_init' ||
+      item.kind === 'creative_git_restore' ||
       item.kind === 'creative_exploration_start' ||
       item.kind === 'creative_exploration_compare' ||
       item.kind === 'creative_exploration_merge' ||

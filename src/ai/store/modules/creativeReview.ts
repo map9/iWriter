@@ -76,6 +76,15 @@ function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, u
       ...(review.message !== undefined && { message: review.message }),
     }
   }
+  if (review.kind === 'creative_git_init') {
+    return {}
+  }
+  if (review.kind === 'creative_git_restore') {
+    return {
+      files: review.files,
+      ...(review.ref !== undefined && { ref: review.ref }),
+    }
+  }
   if (review.kind === 'creative_exploration_start') {
     return {
       context: review.context,
@@ -145,6 +154,12 @@ function defaultRejectMessage(review: CreativeReviewItem): string {
   }
   if (review.kind === 'creative_git_commit' || review.kind === 'creative_git_tag') {
     return 'The user rejected this git checkpoint. Do not commit or tag, and do not retry the same git action automatically. Briefly acknowledge the rejection.'
+  }
+  if (review.kind === 'creative_git_init') {
+    return 'The user declined to initialize a git repository. Do not call git_init again automatically. Continue without version tracking and briefly acknowledge.'
+  }
+  if (review.kind === 'creative_git_restore') {
+    return 'The user rejected this git restore. Do not restore files or retry the same restore automatically. Briefly acknowledge the rejection.'
   }
   if (review.kind.startsWith('creative_exploration')) {
     return 'The user rejected this exploration action. Do not modify exploration or draft files, and do not retry the same action automatically. Briefly acknowledge the rejection.'

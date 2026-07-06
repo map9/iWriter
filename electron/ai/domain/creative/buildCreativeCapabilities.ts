@@ -1,186 +1,77 @@
 import * as path from 'path'
 import type { DomainAgentCapabilities } from '../types'
 import type { InterruptOnConfig } from 'langchain'
-import { buildCreativeTools } from '../../tools/CreativeTools'
-import { buildCreativeAnalysisTools } from '../../tools/CreativeAnalysisTools'
-import { buildCreativeAdvisorTools } from '../../tools/CreativeAdvisorTools'
-import { buildCreativeExplorationTools } from '../../tools/CreativeExplorationTools'
+import type { StructuredTool } from '@langchain/core/tools'
 import { buildGitTools } from '../../tools/common/GitTools'
-import { buildCreativeLogicTools } from '../../tools/CreativeLogicTools'
 import { buildDocumentTools } from '../../tools/common/DocumentTools'
 import { buildEditProposalTools } from '../../tools/common/EditProposalTools'
 import { buildFilesystemMutationTools } from '../../tools/common/FilesystemMutationTools'
 import { buildWebTools } from '../../tools/common/WebTools'
-import { buildWritingStyleTools } from '../../tools/WritingStyleTools'
+import { buildConfirmWritingPlanTool } from '../../tools/creative/ConfirmWritingPlan'
 import { EDIT_INTERRUPT_ON_CONFIG } from '../edit/buildEditCapabilities'
-import type { CreativeDb } from '../../db/CreativeDb'
+import { ToolRegistry } from '../../tools/ToolRegistry'
+import { assembleSubagents } from '../../scaffold/subagents/SubagentAssembler'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
-import { buildPlannerSubAgent } from './subAgents/planner'
-import {
-  buildConsistencySubAgent,
-  buildSubmitConsistencyFindingsTool,
-} from './subAgents/consistency'
-import {
-  buildExplorerSubAgent,
-  buildSubmitExplorationResultTool,
-} from './subAgents/explorer'
-import { buildWriterSubAgent } from './subAgents/writer'
-import { buildResearcherSubAgent } from './subAgents/researcher'
-import { buildWritingStyleExtractorSubAgent } from './subAgents/writingStyleExtractor'
-import { buildWritingStyleSkillCreatorSubAgent } from './subAgents/writingStyleSkillCreator'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
 
+// Phase 2 M0 (B1剩余 + A1): the creative域 tool面 is now the general common + git tools plus
+// the single creative专用 tool `confirm_writing_plan`. The storybible/sqlite object model and
+// its ~34 tools are retired; the object model is a markdown file tree the agent builds lazily
+// via the generic document/filesystem tools. Sub-agents are assembled declaratively from
+// `~/.iwriter/ai/subagents/{common,creative}/*/agent.md` (see SubagentAssembler).
 export function buildCreativeCapabilities(input: {
   aiRootPath: string,
   workspacePath: string | null,
-  creativeDb: CreativeDb | null,
   snapshotBroker: SnapshotBroker,
   language?: DetectedInputLanguage,
-  onSkillsMutated?: () => void,
 }): DomainAgentCapabilities {
   const skillsRoot = path.join(input.aiRootPath, 'skills')
-  const creativeSkillsRoot = path.join(skillsRoot, 'creative')
-  const skillSources = (...names: string[]) => names.map(name => path.join(skillsRoot, name))
-  const noop = () => {}
-  const writingStyleTools = buildWritingStyleTools({
-    skillsRoot: creativeSkillsRoot,
-    onSkillsMutated: input.onSkillsMutated ?? noop,
-  })
-  const webTools = buildWebTools()
-
-  const creativeTools = buildCreativeTools({ workspacePath: input.workspacePath, creativeDb: input.creativeDb, snapshotBroker: input.snapshotBroker })
-  const explorationTools = buildCreativeExplorationTools({ workspacePath: input.workspacePath, creativeDb: input.creativeDb })
-  const docTools = buildDocumentTools(input.snapshotBroker)
-  const editProposalTools = buildEditProposalTools()
-  const fsMutationTools = buildFilesystemMutationTools()
-
-  const mainWritingStyleTools = writingStyleTools.filter(t =>
-    t.name === 'list_writing_styles' ||
-    t.name === 'get_writing_style' ||
-    t.name === 'update_writing_style' ||
-    t.name === 'delete_writing_style',
-  )
-
-  // B4: deprecated tools removed from agent; create_chapter/delete_chapter redirected to create_document per B4b
-  const deprecatedCreativeToolNames = new Set(['read_chapter', 'read_fragments', 'search_draft', 'write_to_chapter', 'create_chapter', 'delete_chapter'])
-  const mainCreativeTools = creativeTools.filter(t => !deprecatedCreativeToolNames.has(t.name))
-  // MainAgent coordinates structure and approvals. Manuscript block edits are owned by WriterAgent.
-  const mainEditProposalTools = editProposalTools.filter(t => t.name === 'create_document')
-  const mainExplorationTools = explorationTools.filter(t =>
-    t.name !== 'promote_exploration' &&
-    t.name !== 'write_exploration_draft'
-  )
-  const mainDocumentToolNames = new Set([
-    'get_document_outline',
-    'get_section',
-    'get_blocks',
-    'search_blocks_in_document',
-    'search_sections_in_document',
-  ])
-  const mainDocumentTools = docTools.filter(t => mainDocumentToolNames.has(t.name))
-
-  const mainTools = [
-    ...mainCreativeTools,
-    ...mainDocumentTools,
-    ...mainEditProposalTools,
-    ...fsMutationTools,
-    ...buildCreativeAnalysisTools({ workspacePath: input.workspacePath, creativeDb: input.creativeDb, snapshotBroker: input.snapshotBroker }),
-    ...buildCreativeAdvisorTools({ workspacePath: input.workspacePath }),
-    ...buildGitTools({ workspacePath: input.workspacePath }),
-    ...mainExplorationTools,
-    ...mainWritingStyleTools,
-  ]
-
-  // Sub-agent read tools: storybible/session from creativeTools + DocumentTools (no read_chapter/read_fragments/search_draft)
-  // Main agent keeps old creative read tools until B4 removes them.
-  const creativeReadToolNames = new Set(['read_storybible', 'list_chapters', 'get_session_diff'])
-  const creativeReadOnlyTools = creativeTools.filter(tool => creativeReadToolNames.has(tool.name))
-  const docReadToolNames = new Set([
-    'get_document_outline', 'get_section', 'get_sections',
-    'get_blocks', 'get_block_context',
-    'search_blocks_in_document', 'search_sections_in_document',
-  ])
-  const docReadSubAgentTools = docTools.filter(t => docReadToolNames.has(t.name))
-  // Combined read-only tool set for sub-agents (absolute-path aware)
-  const subAgentReadTools = [...creativeReadOnlyTools, ...docReadSubAgentTools]
-
-  const styleReadTools = writingStyleTools.filter(t =>
-    t.name === 'list_writing_styles' || t.name === 'get_writing_style',
-  )
-  const plannerTools = [
-    ...subAgentReadTools,
-    ...buildCreativeLogicTools({ workspacePath: input.workspacePath }),
-  ]
-  const explorerToolNames = new Set([
-    'read_storybible', 'list_chapters', 'get_session_diff',
-    'write_exploration_draft',
-  ])
-  const explorerTools = [
-    ...creativeTools.filter(tool => explorerToolNames.has(tool.name)),
-    ...explorationTools.filter(tool => explorerToolNames.has(tool.name)),
-    ...docReadSubAgentTools,
-  ]
-
-  const writingStyleSkillCreatorTools = writingStyleTools.filter(t =>
-    t.name === 'list_writing_styles' ||
-    t.name === 'get_writing_style' ||
-    t.name === 'save_writing_style_skill' ||
-    t.name === 'update_writing_style',
-  )
-  const researcherTools = webTools
-
-  // WriterAgent: block read/write (no create_document) + storybible read + style read
-  const writerReadStorybibleTools = creativeTools.filter(t => t.name === 'read_storybible')
-  const writerEditToolNames = new Set(['edit_block', 'insert_block', 'delete_block', 'replace_range'])
-  const writerTools = [
-    ...docTools,
-    ...editProposalTools.filter(t => writerEditToolNames.has(t.name)),
-    ...writerReadStorybibleTools,
-    ...styleReadTools,
-  ]
+  const subagentsRoot = path.join(input.aiRootPath, 'subagents')
   const language = input.language ?? 'en-US'
 
+  // Build the general tool面. deepagents filesystem tools (read_file/write_file/ls/grep/glob)
+  // come from the backend and are NOT registered here.
+  const tools: StructuredTool[] = [
+    ...buildDocumentTools(input.snapshotBroker),
+    ...buildEditProposalTools(),
+    ...buildFilesystemMutationTools(),
+    ...buildWebTools(),
+    ...buildGitTools({ workspacePath: input.workspacePath }),
+    buildConfirmWritingPlanTool(),
+  ]
+
+  const registry = new ToolRegistry(tools)
+
+  const subAgents = assembleSubagents({
+    subagentsRoot,
+    skillsRoot,
+    workspacePath: input.workspacePath,
+    domain: 'creative',
+    language,
+    registry,
+  })
+
   return {
-    tools: mainTools,
-    subAgents: [
-      buildPlannerSubAgent(plannerTools, language, { skillSources: skillSources('creative/common', 'creative/planner') }),
-      buildConsistencySubAgent(
-        [...subAgentReadTools, ...styleReadTools, buildSubmitConsistencyFindingsTool(language)],
-        language,
-        { skillSources: skillSources('creative/common', 'creative/consistency') },
-      ),
-      buildExplorerSubAgent(
-        [...explorerTools, buildSubmitExplorationResultTool()],
-        language,
-        { skillSources: skillSources('creative/common', 'creative/explorer') },
-      ),
-      buildWriterSubAgent(writerTools, language, { skillSources: skillSources('creative/common', 'creative/writer') }),
-      buildResearcherSubAgent([...researcherTools], language, { skillSources: skillSources('common') }),
-      buildWritingStyleExtractorSubAgent([], language),
-      buildWritingStyleSkillCreatorSubAgent(writingStyleSkillCreatorTools, language),
-    ],
+    // A00 (main控) draws the broadest tool面; per-object write restrictions (manuscript block
+    // edits owned by SA02, etc.) are enforced by prompt/red-lines and the write-session policy,
+    // not by removing tools A00 needs for non-manuscript objects (S03/S04/S11).
+    tools: registry.all(),
+    subAgents,
     interruptOn: CREATIVE_INTERRUPT_ON_CONFIG,
   }
 }
 
 export const CREATIVE_INTERRUPT_ON_CONFIG: Record<string, InterruptOnConfig> = {
-  // Block-level document edit tools (shared with edit domain)
+  // Block-level document edit tools (shared with edit domain).
   ...EDIT_INTERRUPT_ON_CONFIG,
-  confirm_writing_plan:        { allowedDecisions: ['approve', 'edit', 'reject'] },
-  resolve_open_question:       { allowedDecisions: ['approve', 'edit', 'reject'] },
-  rename_chapter:              { allowedDecisions: ['approve', 'reject'] },
-  reorder_chapters:            { allowedDecisions: ['approve', 'reject'] },
-  replace_storybible_section:  { allowedDecisions: ['approve', 'reject'] },
-  rebuild_storybible:          { allowedDecisions: ['approve', 'reject'] },
-  compress_storybible_history: { allowedDecisions: ['approve', 'reject'] },
-  git_init:                    { allowedDecisions: ['approve', 'reject'] },
-  git_commit:                  { allowedDecisions: ['approve', 'edit', 'reject'] },
-  git_tag:                     { allowedDecisions: ['approve', 'reject'] },
-  git_restore:                 { allowedDecisions: ['approve', 'reject'] },
-  start_exploration:           { allowedDecisions: ['approve', 'reject'] },
-  finish_exploration:          { allowedDecisions: ['approve', 'reject'] },
-  delete_exploration:          { allowedDecisions: ['approve', 'reject'] },
-  delete_writing_style:        { allowedDecisions: ['approve', 'reject'] },
+  // Creative专用: plan authorization gate (§5 write-session).
+  confirm_writing_plan: { allowedDecisions: ['approve', 'edit', 'reject'] },
+  // Version tracking (04.4 §3 / FR-1.6 / FR-6.4). File-mutation tools (delete/rename/move_file)
+  // interrupt via the scaffold FILE_WRITE_INTERRUPT_ON config, merged in AgentEngine.
+  git_init:    { allowedDecisions: ['approve', 'reject'] },
+  git_commit:  { allowedDecisions: ['approve', 'edit', 'reject'] },
+  git_tag:     { allowedDecisions: ['approve', 'reject'] },
+  git_restore: { allowedDecisions: ['approve', 'reject'] },
 }
 
 export const CREATIVE_INTERRUPT_ON_NAMES = new Set(Object.keys(CREATIVE_INTERRUPT_ON_CONFIG))

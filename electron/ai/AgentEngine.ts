@@ -84,6 +84,7 @@ export class AgentEngine {
   private rendererBridge: RendererEventBridge
   private aiRootPath: string
   private bundledSkillsPath: string
+  private bundledSubagentsPath: string
 
   /** One AbortController per active streaming threadId */
   private activeRuns = new Map<string, AbortController>()
@@ -110,13 +111,15 @@ export class AgentEngine {
     this.bundledSkillsPath = app.isPackaged
       ? path.join(process.resourcesPath, 'builtin-skills')
       : path.join(app.getAppPath(), 'electron', 'ai', 'builtin-skills')
+    this.bundledSubagentsPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'builtin-subagents')
+      : path.join(app.getAppPath(), 'electron', 'ai', 'builtin-subagents')
     this.strategies = {
       editing: new EditDomainStrategy(this.snapshotBroker, this.aiRootPath, this.runtimeStore),
       creative: new CreativeDomainStrategy(
         this.snapshotBroker,
         this.aiRootPath,
         this.runtimeStore,
-        () => this.invalidateAgentCache(),
       ),
     }
     // 目录初始化移至 initialize()（异步），不在构造函数同步执行
@@ -917,7 +920,7 @@ export class AgentEngine {
     language: DetectedInputLanguage = 'en-US',
   ): DeepAgentInstance {
     const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
-    const skillSources = this.strategies[domain].getSkillSources?.(this.aiRootPath) ?? []
+    const skillSources = this.strategies[domain].getSkillSources?.(this.aiRootPath, workspacePath) ?? []
     const filesystemFingerprint = `${workspacePath ?? ''}:${skillSources.join('|') || 'no-skills'}`
     // Include apiKey and baseUrl in the key so that credential updates immediately
     // produce a new agent instance rather than reusing a stale one.
@@ -1177,19 +1180,22 @@ export class AgentEngine {
       path.join(this.aiRootPath, 'skills', 'common'),
       path.join(this.aiRootPath, 'skills', 'edit'),
       path.join(this.aiRootPath, 'skills', 'creative'),
-      path.join(this.aiRootPath, 'skills', 'creative', 'common'),
+      // creative 技能按执行途径分组（04.3 §3 挂载矩阵）
       path.join(this.aiRootPath, 'skills', 'creative', 'main'),
-      path.join(this.aiRootPath, 'skills', 'creative', 'planner'),
-      path.join(this.aiRootPath, 'skills', 'creative', 'writer'),
-      path.join(this.aiRootPath, 'skills', 'creative', 'consistency'),
-      path.join(this.aiRootPath, 'skills', 'creative', 'explorer'),
-      path.join(this.aiRootPath, 'skills', 'creative', 'researcher'),
-      path.join(this.aiRootPath, 'skills', 'creative', 'writing-style'),
+      path.join(this.aiRootPath, 'skills', 'creative', 'ideation'),
+      path.join(this.aiRootPath, 'skills', 'creative', 'prose'),
+      path.join(this.aiRootPath, 'skills', 'creative', 'review'),
+      path.join(this.aiRootPath, 'skills', 'creative', 'delegated'),
+      path.join(this.aiRootPath, 'skills', 'creative', 'reference'),
+      // 声明式子 Agent 定义（A1 装配器扫描目标）
       path.join(this.aiRootPath, 'subagents'),
+      path.join(this.aiRootPath, 'subagents', 'common'),
+      path.join(this.aiRootPath, 'subagents', 'creative'),
       path.join(this.aiRootPath, 'empty-fs'),
     ]
     await Promise.all(dirs.map(dir => fs.promises.mkdir(dir, { recursive: true })))
     await this.syncBundledSkills()
+    await this.syncBundledSubagents()
   }
 
   /**
@@ -1217,76 +1223,16 @@ export class AgentEngine {
       }
     }
 
-    // 旧版按 creative 子代理平铺在顶层的目录，整体迁移到 skills/creative/* 下。
-    // writing-style 含用户生成数据，先迁移再清理。
-    const oldWritingStyleDir = path.join(targetRoot, 'writing-style')
-    const newWritingStyleDir = path.join(targetRoot, 'creative', 'writing-style')
-    if (fs.existsSync(oldWritingStyleDir)) {
-      await fs.promises.mkdir(newWritingStyleDir, { recursive: true })
-      const styleEntries = fs.readdirSync(oldWritingStyleDir, { withFileTypes: true })
-      for (const entry of styleEntries) {
-        if (!entry.isDirectory()) continue
-        const from = path.join(oldWritingStyleDir, entry.name)
-        const to = path.join(newWritingStyleDir, entry.name)
-        if (!fs.existsSync(to)) {
-          await fs.promises.rename(from, to)
-        }
-      }
-    }
-
-    const legacyTopLevelCreativeDirs = ['main', 'planner', 'writer', 'consistency', 'explorer', 'researcher', 'writing-style']
-    const obsoleteTopLevelSkills = [
-      ...legacyTopLevelCreativeDirs,
-      // 旧顶层 common 含 story-craft skills，新顶层 common 改为 web-research，语义已变，
-      // 先清空再由 bundled creative/common、common 重新填充。
-      'common',
-      '_consistency',
-      '_explorer',
-      '_planner',
-      '_writer',
-      'arc-progression-check',
-      'behavior-from-psychology',
-      'brainstorm-quality',
-      'branch-comparison',
-      'causal-chain-construction',
-      'character-arc-planning',
-      'character-behavior-check',
-      'character-complexity',
-      'character-decision-logic',
-      'character-potential',
-      'character-voice',
-      'common-sense-audit',
-      'conflict-design',
-      'deep-pov',
-      'dialogue-craft',
-      'foreshadowing-audit',
-      'foreshadowing-placement',
-      'information-density',
-      'pacing-control',
-      'plot-extrapolation',
-      'pov-consistency-check',
-      'scene-structure',
-      'sensory-grounding',
-      'show-vs-tell',
-      'skill-creator',
-      'story-logic',
-      'structural-diagnosis',
-      'style-consistency-check',
-      'subtext-craft',
-      'thematic-depth',
-      'web-research',
-    ]
-    await Promise.all(
-      obsoleteTopLevelSkills.map(name =>
-        fs.promises.rm(path.join(targetRoot, name), { recursive: true, force: true })
-      )
-    )
-
+    // Phase 2 重组：内置技能目录纯 bundled 派生（writing-style 动态技能已退役，风格改为
+    // styles/{slug}.md 工程对象）。每个顶层目录做「清空后镜像」，确保上一版遗留的旧分组
+    // 子目录（creative/{planner,writer,consistency,common} 及旧 main 技法技能）不会残留在
+    // 用户根被误挂载。项目级自定义技能在 {workspace}/.iwriter/skills，不在此根，不受影响。
     const entries = fs.readdirSync(this.bundledSkillsPath, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
       const sourceDir = path.join(this.bundledSkillsPath, entry.name)
       const targetDir = path.join(targetRoot, entry.name)
+      await fs.promises.rm(targetDir, { recursive: true, force: true })
       await fs.promises.mkdir(targetDir, { recursive: true })
       // dereference: true resolves any packaged symlinks inside scoped source dirs.
       fs.cpSync(sourceDir, targetDir, { recursive: true, dereference: true })
@@ -1294,6 +1240,25 @@ export class AgentEngine {
 
     // 写入版本文件，下次启动（同版本）直接跳过
     await fs.promises.writeFile(versionFile, currentVersion, 'utf-8')
+  }
+
+  /**
+   * 同步内置子 Agent 定义（A1 声明式装配的分发路径）。
+   * 与技能同款「清空后镜像」：`builtin-subagents/{common,creative}/{name}/agent.md`
+   * → `~/.iwriter/ai/subagents/`。子 Agent 定义不开放作者覆盖（不设 {workspace}/subagents/）。
+   */
+  private async syncBundledSubagents(): Promise<void> {
+    if (!fs.existsSync(this.bundledSubagentsPath)) return
+    const targetRoot = path.join(this.aiRootPath, 'subagents')
+    const entries = fs.readdirSync(this.bundledSubagentsPath, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const sourceDir = path.join(this.bundledSubagentsPath, entry.name)
+      const targetDir = path.join(targetRoot, entry.name)
+      await fs.promises.rm(targetDir, { recursive: true, force: true })
+      await fs.promises.mkdir(targetDir, { recursive: true })
+      fs.cpSync(sourceDir, targetDir, { recursive: true, dereference: true })
+    }
   }
 
   private _buildMemoryPaths(domain: AiAgentDomain): string[] {

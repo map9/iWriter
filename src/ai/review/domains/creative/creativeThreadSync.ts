@@ -25,6 +25,12 @@ function creativeToolSignature(review: CreativeReviewItem): string {
   if (review.kind === 'creative_git_tag') {
     return `git_tag:${stableStringify({ name: review.name })}`
   }
+  if (review.kind === 'creative_git_init') {
+    return `git_init:${stableStringify({})}`
+  }
+  if (review.kind === 'creative_git_restore') {
+    return `git_restore:${stableStringify({ files: review.files, ref: review.ref ?? null })}`
+  }
   if (review.kind === 'creative_exploration_start') {
     return `start_exploration:${stableStringify({ context: review.context })}`
   }

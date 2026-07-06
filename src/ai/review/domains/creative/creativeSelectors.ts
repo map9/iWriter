@@ -57,6 +57,8 @@ function reviewLabel(review: CreativeReviewItem): string {
   }
   if (review.kind === 'creative_git_commit') return `git commit · ${review.message}`
   if (review.kind === 'creative_git_tag') return `git tag · ${review.name}`
+  if (review.kind === 'creative_git_init') return 'git init'
+  if (review.kind === 'creative_git_restore') return `git restore · ${review.files.join(', ')}`
   if (review.kind === 'creative_exploration_start') return 'start exploration'
   if (review.kind === 'creative_exploration_compare') return 'exploration comparison'
   if (review.kind === 'creative_exploration_merge') return `${review.directionName} → ${review.targetChapter}`
@@ -83,6 +85,8 @@ function finalContent(review: CreativeReviewItem, decision: CreativeDecision): s
   if (review.kind === 'creative_chapter_structure') return review.order?.join('\n') ?? review.filename
   if (review.kind === 'creative_git_commit') return review.message
   if (review.kind === 'creative_git_tag') return review.message ?? review.name
+  if (review.kind === 'creative_git_init') return undefined
+  if (review.kind === 'creative_git_restore') return review.files.join('\n')
   if (review.kind === 'creative_exploration_start') return review.directions.map(direction => `${direction.name}: ${direction.description}`).join('\n')
   if (review.kind === 'creative_exploration_compare') return review.comparisonReport
   if (review.kind === 'creative_exploration_merge') return review.newContent

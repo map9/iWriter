@@ -948,6 +948,8 @@ export default {
       titleChapterStructure: 'Review Chapter Structure',
       titleGitCommit: 'Review Git Commit',
       titleGitTag: 'Review Git Tag',
+      titleGitInit: 'Initialize Git Repository',
+      titleGitRestore: 'Review Git Restore',
       titleExplorationStart: 'Review Exploration',
       titleExplorationCompare: 'Review Exploration Comparison',
       titleExplorationMerge: 'Review Exploration Merge',

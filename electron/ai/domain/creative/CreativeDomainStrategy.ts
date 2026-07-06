@@ -7,7 +7,7 @@ import { buildCreativeReviewItemFromAction } from '../../ipc/CreativeReviewAdapt
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
 import { buildProposalFromAction } from '../../ipc/MessageAdapter'
 import { parseUntitledTabId } from '../../document/virtualId'
-import { computeWorkspaceHashes, getCreativeDb } from '../../db/CreativeDb'
+import { withProjectSkills } from '../../scaffold/skills/SkillsMount'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { SerializedSnapshot } from '../../ipc/protocol'
 import type { ThreadRuntimeStore } from '../../runtime/ThreadRuntimeStore'
@@ -18,7 +18,6 @@ import type {
   DomainBuildContext,
   InterruptContext,
   DomainReviewItem,
-  SessionCompleteContext,
 } from '../DomainStrategy'
 import type { DomainAgentCapabilities } from '../types'
 
@@ -27,17 +26,14 @@ export class CreativeDomainStrategy implements DomainStrategy {
     private readonly snapshotBroker: SnapshotBroker,
     private readonly aiRootPath: string,
     private readonly runtimeStore: ThreadRuntimeStore,
-    private readonly onSkillsMutated?: () => void,
   ) {}
 
   buildCapabilities(ctx: DomainBuildContext): DomainAgentCapabilities {
     return buildCreativeCapabilities({
       aiRootPath: this.aiRootPath,
       workspacePath: ctx.workspacePath,
-      creativeDb: ctx.workspacePath ? getCreativeDb(ctx.workspacePath) : null,
       snapshotBroker: this.snapshotBroker,
       language: ctx.language,
-      onSkillsMutated: this.onSkillsMutated,
     })
   }
 
@@ -45,12 +41,15 @@ export class CreativeDomainStrategy implements DomainStrategy {
     return buildCreativeSystemPrompt(language)
   }
 
-  getSkillSources(aiRootPath: string): string[] {
-    return [
-      path.join(aiRootPath, 'skills', 'creative', 'main'),
-      path.join(aiRootPath, 'skills', 'creative', 'common'),
+  getSkillSources(aiRootPath: string, workspacePath: string | null): string[] {
+    // A00 挂载矩阵（04.3 §3），last-wins 顺序：common → creative/reference → creative/main
+    // → creative/delegated → {workspace}/.iwriter/skills（末位，项目级覆盖内置）。
+    return withProjectSkills([
       path.join(aiRootPath, 'skills', 'common'),
-    ]
+      path.join(aiRootPath, 'skills', 'creative', 'reference'),
+      path.join(aiRootPath, 'skills', 'creative', 'main'),
+      path.join(aiRootPath, 'skills', 'creative', 'delegated'),
+    ], workspacePath)
   }
 
   getMemoryDir(): string {
@@ -160,17 +159,5 @@ export class CreativeDomainStrategy implements DomainStrategy {
     }
 
     return results
-  }
-
-  onSessionComplete(ctx: SessionCompleteContext): void {
-    if (!ctx.workspacePath) return
-    try {
-      getCreativeDb(ctx.workspacePath).upsertSession(
-        ctx.workspacePath,
-        computeWorkspaceHashes(ctx.workspacePath),
-      )
-    } catch (err) {
-      console.warn('[CreativeDomainStrategy] onSessionComplete failed:', err)
-    }
   }
 }
