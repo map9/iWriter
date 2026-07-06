@@ -155,6 +155,7 @@ export function buildEditProposalTools() {
         content: z.string().describe('Full Markdown content for the new document.'),
         reason: z.string().optional().describe('Brief description of the document.'),
         directory: z.string().optional().describe('Absolute host path to the directory where the file should be written on disk (e.g. /Users/xxx/myproject/draft/). When provided the file is saved to disk and opened; when omitted, an in-memory tab is created.'),
+        open_in_editor: z.boolean().optional().describe('Whether to open the created file as an editor tab. Default true. Set false when creating scaffold/skeleton objects that should be written to disk without opening (e.g. project bootstrap creating multiple empty objects). Only applies when directory is set.'),
       }),
     }
   )

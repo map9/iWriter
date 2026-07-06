@@ -344,6 +344,8 @@ export interface FileCreateProposal extends BaseEditProposal {
   toolCallId?: string
   /** Absolute host path to the directory where the file should be written to disk (e.g. workspace/draft/). When set, executor writes the file before opening the tab. */
   directory?: string
+  /** When false, write the file to disk without opening it as an editor tab. Default true. Only applies when directory is set. */
+  openInEditor?: boolean
 }
 
 export type EditProposal = BlockEditProposal | FileCreateProposal

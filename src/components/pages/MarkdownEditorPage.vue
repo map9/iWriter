@@ -428,6 +428,11 @@ const EDITOR_BASE_CLASS = 'flex-1 shrink-0 p-[3rem] pb-[30vh] focus:outline-none
 
 // Loading flag for this editor
 const isLoading = ref(false)
+// True once the initial disk content has been loaded into the editor. Guards autosave from
+// writing an empty/partial buffer to disk before the file has been read — e.g. when a batch of
+// createTab() calls (AI create_document) rapidly deactivates a freshly-opened tab whose async
+// loadTabContent() has not finished yet, the isActive watcher's flushAutoSave() must NOT run.
+const contentLoaded = ref(false)
 const editorScrollRef = ref<HTMLElement | null>(null)
 let typewriterSyncFrame = 0
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
@@ -808,6 +813,8 @@ async function loadTabContent(editorInstance: Editor) {
       savedCheckPoint: loadedPendingImport ? -1 : undoDepth(editorInstance.state)
     })
     setLineEnding(lineEnding)
+    // Content is now in the editor; autosave may write to disk from here on.
+    contentLoaded.value = true
   } catch (error) {
     notify.error(
       t('notify.editor.loadFailed', { filepath: props.tab.path || 'Unknown File', error: error instanceof Error ? error.message : String(error) }),
@@ -869,6 +876,9 @@ async function flushAutoSave(allowInactive: boolean = false) {
     autoSaveTimer = null
   }
 
+  // Never autosave before the initial disk content has been loaded, or while a (re)load is in
+  // flight — otherwise an empty/partial editor buffer would overwrite the file on disk.
+  if (isLoading.value || !contentLoaded.value) return
   if (!appStore.canRunAutoSave(props.tab)) return
   if (!allowInactive && !props.tab.isActive) return
 

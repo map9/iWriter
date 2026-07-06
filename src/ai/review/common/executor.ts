@@ -359,7 +359,11 @@ async function applyRecordedDecision(params: {
         setProposalDecision(proposalId, 'failed_to_apply', { message: `Document creation failed: could not write to disk. ${String(err)}` })
         return
       }
-      appStore.createTab(createProposal.filename, absolutePath, DocumentType.MARKDOWN_EDITOR)
+      // Skeleton/scaffold objects (e.g. project bootstrap) are written to disk without opening
+      // a tab — avoids cluttering the editor with empty objects. Content is already persisted.
+      if (createProposal.openInEditor !== false) {
+        appStore.createTab(createProposal.filename, absolutePath, DocumentType.MARKDOWN_EDITOR)
+      }
       updateLocalProposalToolCall(proposal, 'completed')
       return
     }

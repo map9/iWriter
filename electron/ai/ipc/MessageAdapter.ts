@@ -510,6 +510,7 @@ export function buildProposalFromAction(
       toolCallId,
       description: description ?? `Create document: ${filename || args.filename}`,
       directory,
+      ...(args.open_in_editor === false ? { openInEditor: false } : {}),
     } satisfies FileCreateProposal
   }
 

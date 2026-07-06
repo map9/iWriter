@@ -15,6 +15,7 @@ A00 executes this directly. Initialization must be author-confirmed — never si
 3. **Version baseline**: if the workspace has no git repo, call `git_init` (goes through approval) — the host never creates a repo silently; if a repo exists, skip.
 4. Write `project.md` via `create_document` (goes through approval).
 5. **Lazily create the required object skeletons**: `worldbuilding/worldbuilding.md`, `characters/characters.md`, `outline/master-outline.md`, each as a field-title skeleton per its schema (load `worldbuilding-schema` / `character-schema` / `outline-schema`), with the outline marked `status: 草稿中`. Do not pre-create any optional object (lazy-creation principle). Content is filled later by the ideation/authoring flows.
+   - Create these skeleton objects with `create_document(open_in_editor=false)` — they are written to disk but not opened as tabs, so the editor is not cluttered with empty scaffolds. (`project.md` may open normally.)
 6. Suggest an initial `git_commit` to fix the init baseline (the author may decline).
 7. **Ongoing maintenance**: `project.md` field edits and version-advance recommendations belong here too — read the relevant deliverables, state the basis and gaps, propose advance/hold, and on confirmation `edit_block` the change. No separate flow.
 
