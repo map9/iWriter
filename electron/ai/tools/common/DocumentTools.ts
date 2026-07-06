@@ -226,7 +226,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           snapshot,
           heading_block_id,
           offset !== undefined ? Math.max(0, offset) : 0,
-          limit !== undefined ? Math.max(1, limit) : 20
+          limit !== undefined ? Math.max(1, limit) : undefined
         )
       } catch (err) {
         return formatBlockToolError('get_section', `heading_block_id=${heading_block_id}`, asErrorMessage(err))
@@ -237,14 +237,15 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       description:
         'Get the content of a document section starting from a heading block. ' +
         'Returns the heading and all blocks until the next same/higher-level heading, ' +
-        'with block IDs ({b:n}) for targeted editing. Supports pagination. ' +
+        'with block IDs ({b:n}) for targeted editing. Paginates by content budget (block-atomic); ' +
+        'when has_more is true, pass offset=next_offset to fetch the next page. ' +
         'file_path is required: pass the absolute path (or virtual_id for an unsaved document) shown in <active_document>/<open_tabs>.',
       schema: z.object({
         heading_block_id: z
           .number()
           .describe('The block_id of the heading that starts the section (from get_document_outline).'),
-        offset: z.number().optional().describe('Paragraph offset for pagination (default: 0).'),
-        limit: z.number().optional().describe('Max paragraphs per page (default: 20).'),
+        offset: z.number().optional().describe('Block offset within the section for pagination (default: 0). Use the returned next_offset to page forward.'),
+        limit: z.number().optional().describe('Content budget in characters per page (default: 4000). Blocks are never split; a single over-budget block occupies its own page.'),
         file_path: z
           .string()
           .optional()
@@ -308,7 +309,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
             snapshot,
             headingBlockId,
             request.offset !== undefined ? Math.max(0, request.offset) : 0,
-            request.limit !== undefined ? Math.max(1, request.limit) : 20
+            request.limit !== undefined ? Math.max(1, request.limit) : undefined
           )
           sections.push({
             heading_block_id: headingBlockId,
@@ -342,7 +343,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       description:
         'Get multiple document sections in a single tool call. ' +
         'Use this when you need to read several known heading_block_id sections before answering or editing. ' +
-        'Each request supports heading_block_id, offset, limit, and optional file_path. ' +
+        'Each request supports heading_block_id, offset, limit (char budget), and optional file_path. ' +
         'The top-level file_path applies to every request that does not provide its own file_path.',
       schema: z.object({
         requests: z
@@ -350,8 +351,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
             heading_block_id: z
               .number()
               .describe('The block_id of the heading that starts the section (from get_document_outline).'),
-            offset: z.number().optional().describe('Paragraph offset for pagination (default: 0).'),
-            limit: z.number().optional().describe('Max paragraphs per page (default: 20).'),
+            offset: z.number().optional().describe('Block offset within the section for pagination (default: 0). Use the returned next_offset to page forward.'),
+            limit: z.number().optional().describe('Content budget in characters per page (default: 4000). Blocks are never split.'),
             file_path: z
               .string()
               .optional()

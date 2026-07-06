@@ -254,6 +254,8 @@ export interface SerializedBlockEntry {
   nodeType: string
   /** Markdown content of this block (already rendered by nodeToMarkdown) */
   content: string
+  /** Character length of `content` — the unit for content-budget pagination (A4.1). */
+  charCount: number
   /** Heading level (1-6), only set for heading blocks */
   headingLevel?: number
 }

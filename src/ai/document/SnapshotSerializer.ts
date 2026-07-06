@@ -66,6 +66,7 @@ export async function buildSerializedSnapshot(
         nodeId: entry.nodeId,
         nodeType: entry.nodeType,
         content,
+        charCount: content.length,
         headingLevel: headingMatch,
       }
     })

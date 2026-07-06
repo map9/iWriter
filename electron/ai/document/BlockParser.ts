@@ -7,6 +7,13 @@
 
 import type { SerializedSnapshot } from '../ipc/protocol'
 
+/**
+ * 单页内容预算（字符数），块级读写协议 A4.1。
+ * 分页以"内容预算"而非"段数"为单位，以块为最小单位聚集、绝不切开块
+ * （修复缺陷①读得太碎、②分页不自适应）。超出预算的单个大块独占一页。
+ */
+export const DEFAULT_PAGE_BUDGET = 4000
+
 export class BlockParser {
   /**
    * Returns the document outline (headings + stats).
@@ -32,12 +39,17 @@ export class BlockParser {
 
   /**
    * Returns the content of a section starting from a heading block.
+   *
+   * Pagination is block-atomic and by content budget (A4.1): starting at block
+   * index `offset` within the section, blocks are accumulated until adding the
+   * next block would exceed `budget` characters. A block is never split; a single
+   * over-budget block occupies its own page. `next_offset` cursors the next page.
    */
   static getSection(
     snapshot: SerializedSnapshot,
     headingBlockId: number,
     offset = 0,
-    limit = 20
+    budget = DEFAULT_PAGE_BUDGET
   ): string {
     const headingEntry = snapshot.blockMap.find(
       b => b.displayId === headingBlockId && b.nodeType === 'heading'
@@ -65,13 +77,29 @@ export class BlockParser {
       b => b.displayId >= headingBlockId && b.displayId <= sectionEnd
     )
 
-    const allLines = sectionBlocks
-      .map(entry => `{b:${entry.displayId}}\n${entry.content}`)
-      .join('\n\n')
-      .split('\n\n')
+    // Block-atomic content-budget pagination
+    const startIdx = Math.min(Math.max(0, offset), sectionBlocks.length)
+    const effectiveBudget = Math.max(1, budget)
+    const page: typeof sectionBlocks = []
+    let used = 0
+    let cursor = startIdx
+    for (; cursor < sectionBlocks.length; cursor++) {
+      const entry = sectionBlocks[cursor]!
+      const size = entry.charCount ?? entry.content.length
+      // Always include at least one block; otherwise stop before exceeding budget.
+      if (page.length > 0 && used + size > effectiveBudget) break
+      page.push(entry)
+      used += size
+      // A single over-budget block occupies its own page.
+      if (size >= effectiveBudget) { cursor++; break }
+    }
+    const nextOffset = cursor
+    const hasMore = nextOffset < sectionBlocks.length
 
-    const paged = allLines.slice(offset, offset + limit)
-    const hasMore = offset + limit < allLines.length
+    const content = page.map(entry => `{b:${entry.displayId}}\n${entry.content}`).join('\n\n')
+    const pageRange: [number, number] = page.length
+      ? [page[0]!.displayId, page[page.length - 1]!.displayId]
+      : [headingBlockId, headingBlockId]
 
     const heading = snapshot.outline.find(h => h.displayId === headingBlockId)
 
@@ -79,11 +107,15 @@ export class BlockParser {
       {
         heading: heading?.text ?? `Block ${headingBlockId}`,
         block_id_range: [headingBlockId, sectionEnd],
-        content: paged.join('\n\n'),
+        page_block_id_range: pageRange,
+        content,
         has_more: hasMore,
-        offset,
-        limit,
-        total_lines: allLines.length,
+        offset: startIdx,
+        next_offset: nextOffset,
+        budget: effectiveBudget,
+        chars_returned: used,
+        blocks_returned: page.length,
+        total_section_blocks: sectionBlocks.length,
         word_count: heading?.wordCount ?? 0,
       },
       null,
