@@ -53,8 +53,8 @@ export class CreativeDomainStrategy implements DomainStrategy {
     ]
   }
 
-  getMemoryFileName(): string {
-    return 'AGENTS.creative.md'
+  getMemoryDir(): string {
+    return 'creative'
   }
 
   getInterruptOnNames(): Set<string> {

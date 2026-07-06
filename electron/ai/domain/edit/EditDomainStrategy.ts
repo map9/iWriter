@@ -36,8 +36,8 @@ export class EditDomainStrategy implements DomainStrategy {
     return [path.join(aiRootPath, 'skills', 'common'), path.join(aiRootPath, 'skills', 'edit')]
   }
 
-  getMemoryFileName(): string {
-    return 'AGENTS.edit.md'
+  getMemoryDir(): string {
+    return 'edit'
   }
 
   getInterruptOnNames(): Set<string> {

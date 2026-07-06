@@ -38,8 +38,11 @@ export interface DomainStrategy {
   /** System prompt for the current domain + mode combination. */
   getSystemPrompt(mode: AiAgentMode, language: DetectedInputLanguage): string
 
-  /** AGENTS.md filename (basename only, without directory path). */
-  getMemoryFileName(): string
+  /**
+   * 该 domain 的用户级协作记忆目录名（`~/.iwriter/ai/memory/{dir}/memory.md`）。
+   * 与 getSkillSources 一致，由各 domain 自持目录名。
+   */
+  getMemoryDir(): string
 
   /**
    * Map actionRequests from a HITL interrupt to unified DomainReviewItem[].

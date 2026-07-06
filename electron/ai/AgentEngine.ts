@@ -58,6 +58,7 @@ import { createOrphanToolCallStripperMiddleware } from './scaffold/middleware/Or
 import { createHumanRespondMessageMiddleware, RESPOND_MARKER } from './scaffold/middleware/HumanRespondMessageMiddleware'
 import { CheckpointerAdmin } from './checkpoint/CheckpointerAdmin'
 import { MIDDLEWARE_CONFIG, createInstrumentedFallbackMiddleware } from './scaffold/middleware/middleware-config'
+import { buildMemorySources, createReadonlyMemoryMiddleware } from './scaffold/memory/MemorySources'
 import type { DomainStrategy } from './domain/DomainStrategy'
 import { EditDomainStrategy } from './domain/edit/EditDomainStrategy'
 import { CreativeDomainStrategy } from './domain/creative/CreativeDomainStrategy'
@@ -933,6 +934,7 @@ export class AgentEngine {
     })
     const model = createChatModel(config, { modelId, thinkingLevel })
     const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath, language })
+    const memorySources = this._buildMemoryPaths(domain)
 
     const fallbackModels: BaseChatModel[] = []
     if (config.fallbackModelId && config.fallbackModelId !== modelId) {
@@ -959,7 +961,8 @@ export class AgentEngine {
       tools: capabilities.tools,
       backend: scaffold.backend,
       summarizationMiddlewareOptions,
-      memory: this._buildMemoryPaths(domain),
+      // 记忆改由脚手架的只读中间件承载（本期记忆只读，见 scaffold/memory/MemorySources），
+      // 不使用 deepagents 内置 `memory` 选项——后者注入的提示会鼓励 agent 自动写入记忆。
       checkpointer: this.checkpointerInstance?.checkpointer,
       interruptOn: { ...capabilities.interruptOn, ...scaffold.interruptOn },
       subagents: capabilities.subAgents,
@@ -978,6 +981,9 @@ export class AgentEngine {
         createTaskToolCompatMiddleware(),
         modelCallLimitMiddleware(MIDDLEWARE_CONFIG.modelCallLimit),
         toolCallLimitMiddleware(MIDDLEWARE_CONFIG.toolCallLimit),
+        ...(memorySources.length
+          ? [createReadonlyMemoryMiddleware({ backend: scaffold.backend, sources: memorySources })]
+          : []),
         ...(fallbackModels.length
           ? [createInstrumentedFallbackMiddleware(fallbackModels, (fallbackModelId) => {
               this._notifyModelFallbackOnce(threadId, fallbackModelId)
@@ -1165,6 +1171,8 @@ export class AgentEngine {
     const dirs = [
       this.aiRootPath,
       path.join(this.aiRootPath, 'memory'),
+      path.join(this.aiRootPath, 'memory', 'edit'),
+      path.join(this.aiRootPath, 'memory', 'creative'),
       path.join(this.aiRootPath, 'skills'),
       path.join(this.aiRootPath, 'skills', 'common'),
       path.join(this.aiRootPath, 'skills', 'edit'),
@@ -1289,8 +1297,7 @@ export class AgentEngine {
   }
 
   private _buildMemoryPaths(domain: AiAgentDomain): string[] {
-    return [path.join(this.aiRootPath, 'memory', this.strategies[domain].getMemoryFileName())]
-      .filter(fs.existsSync)
+    return buildMemorySources(this.aiRootPath, this.strategies[domain].getMemoryDir())
   }
 
   private _assertWithinBudget(
