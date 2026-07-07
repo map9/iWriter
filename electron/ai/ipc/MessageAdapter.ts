@@ -369,8 +369,8 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
     }
 
     if (type === 'ai') {
-      const content = lcMsgText(msg.content)
-      const thinkingContent = lcMsgThinking(
+      let content = lcMsgText(msg.content)
+      let thinkingContent = lcMsgThinking(
         msg.content,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (msg as any).additional_kwargs
@@ -395,6 +395,18 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
         const invalid = inv as { id?: string; name?: string; args?: string; error?: string }
         toolCalls.push(invalidToolCallToAiToolCall(invalid, `invalid-${i}-${idx}`))
       })
+
+      // DeepSeek V4/reasoner instability: the final answer sometimes lands entirely in
+      // reasoning_content with empty content (200 + finish_reason=stop, no tool calls). Promote
+      // the reasoning to the visible answer so it isn't lost/hidden. Move (not copy) so the
+      // prose and the collapsible thinking block never render the same text twice. Scoped to the
+      // terminal case (no tool calls): messages that carry tool calls keep their reasoning as
+      // genuine CoT — the model round-trip (ChatDeepSeek.convertMessages) is untouched, so V4's
+      // "pass reasoning_content back with tool_calls" requirement is unaffected.
+      if (!content.trim() && thinkingContent.trim() && toolCalls.length === 0) {
+        content = thinkingContent
+        thinkingContent = ''
+      }
 
       // Consume following tool messages and attach results
       const toolResults: AiToolResult[] = []

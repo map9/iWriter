@@ -814,10 +814,15 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
     if (Array.isArray(options.tools) && options.tools.length) {
       body.tools = options.tools
     }
-    if (this.temperature != null) body.temperature = this.temperature
-    if (this.topP != null) body.top_p = this.topP
-    if (this.frequencyPenalty != null) body.frequency_penalty = this.frequencyPenalty
-    if (this.presencePenalty != null) body.presence_penalty = this.presencePenalty
+    // Sampling params are unsupported in thinking mode (deepseek-reasoner / V4 thinking): the API
+    // docs mark temperature/top_p/frequency_penalty/presence_penalty as having no effect there.
+    // Only send them in non-thinking mode.
+    if (this.disableThinking) {
+      if (this.temperature != null) body.temperature = this.temperature
+      if (this.topP != null) body.top_p = this.topP
+      if (this.frequencyPenalty != null) body.frequency_penalty = this.frequencyPenalty
+      if (this.presencePenalty != null) body.presence_penalty = this.presencePenalty
+    }
     if (this.maxTokens >= 0) body.max_tokens = this.maxTokens
 
     return body
@@ -880,11 +885,17 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
           tc => !tc.id || respondedToolCallIds.has(tc.id)
         )
 
+        // DeepSeek V3.2/V4 thinking mode requires that an assistant message carrying tool_calls
+        // ALSO carries reasoning_content when it is re-sent in a later request, otherwise the API
+        // 400s ("reasoning_content must be passed back"). Always include the field for tool-call
+        // messages (empty string if the CoT was lost in a round-trip); include it for plain
+        // messages only when non-empty.
+        const mustSendReasoning = rawToolCalls.length > 0
         return [{
           role: 'assistant',
           content: text,
           ...(rawToolCalls.length ? { tool_calls: rawToolCalls } : {}),
-          ...(reasoning ? { reasoning_content: reasoning } : {}),
+          ...(reasoning || mustSendReasoning ? { reasoning_content: reasoning } : {}),
         }]
       }
 
