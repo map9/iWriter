@@ -18,9 +18,9 @@ export function buildConfirmWritingPlanTool(): StructuredTool {
     },
     {
       name: 'confirm_writing_plan',
-      description: 'Ask the author to approve or edit a writing plan before drafting a scene/chapter or a large rewrite/restructure. The approved (or author-edited) plan is the writer\'s brief and the fidelity baseline for later review.',
+      description: 'Ask the author to approve or edit a beat-level writing plan before drafting a chapter or a large rewrite/restructure. The approved (or author-edited) plan is the writer\'s brief and the fidelity baseline for later review.',
       schema: z.object({
-        plan: z.string().describe('Complete author-readable Markdown writing plan: scenes covered, POV, conflict, emotional turn, and how it fits the story.'),
+        plan: z.string().describe('Complete author-readable Markdown writing plan at BEAT granularity: for each confirmed outline scene, the 2-5 beats it breaks into, each a one-line core point (核心点) that is causally necessary. This is beat-level intent (what to write), not line-by-line wording. The writer expands these approved beats into prose.'),
       }),
     },
   ) as unknown as StructuredTool

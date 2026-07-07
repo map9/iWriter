@@ -7,6 +7,10 @@ description: Load when writing or editing worldbuilding or character objects (wo
 
 A00 executes this directly. The job is to turn a **converged** setting or character decision into a well-formed object file, and to flag its impact when it touches confirmed material.
 
+## Input readiness (gate 0 → this stage feeds gate 1)
+
+`project.md`'s premise (protagonist/goal/obstacle/stakes) and theme must hold before authoring settings — if not, fill them first (S11) or converge in ideation (S02); don't invent settings on thin footing. Write settings rich enough that the *next* stage can lean on them: a master outline is a blueprint of conflict, and conflict grows from character. So a main character's psychology triangle (desire/fear/false-belief) must be concrete enough that behavior can be *derived* from it — that is what gate 1 (settings → master outline) checks. See `story-development-flow`.
+
 ## Problem it solves
 
 A setting written as a flat list of "what exists" gives the writer nothing to derive behavior from. This skill produces settings whose constraints are *load-bearing* — a forbidden zone that states *why* it exists, a character whose psychology triangle drives action — so later prose and outline work can lean on them.
