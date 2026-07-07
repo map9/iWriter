@@ -50,6 +50,7 @@ import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore, type InterruptedRun } from './runtime/ThreadRuntimeStore'
 import { buildAgentFilesystem, FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './scaffold/filesystem/AgentFilesystem'
 import { decideFilesystemWriteApproval, isFilesystemWriteToolName } from './scaffold/approval/FilesystemApprovalPolicy'
+import { WritingSessionRegistry, decideWritingSessionApproval, isBlockEditToolName } from './scaffold/approval/WritingSessionRegistry'
 import { AiConfigStore, resolveAiApiKeyEnvVar } from './config/AiConfigStore'
 import { generateThreadTitle } from '../../src/ai/thread/title'
 import { IWriterAgentContextSchema, type IWriterAgentContext } from './runtime/AgentContext'
@@ -90,6 +91,16 @@ export class AgentEngine {
   private activeRuns = new Map<string, AbortController>()
   /** Thread-scoped runtime data: editor context + pending interrupts. */
   private runtimeStore = new ThreadRuntimeStore()
+
+  // Write-session authorization (04.1 §6 Stage 2). Baseline capturer is the M0 disk read;
+  // M1b-3 upgrades it to single-routing (open file → editor buffer, else disk).
+  private writingSessions = new WritingSessionRegistry((_threadId, targetFile) => {
+    try {
+      return fs.readFileSync(targetFile, 'utf-8')
+    } catch {
+      return null
+    }
+  })
 
   /** Agent cache keyed by thread + runtime + filesystem fingerprint. */
   private agentCache = new Map<string, { agent: DeepAgentInstance, scaffold: AgentFilesystemScaffold }>()
@@ -169,6 +180,7 @@ export class AgentEngine {
     this.activeRuns.delete(threadId)
     this._clearFallbackNotificationKeys(threadId)
     this._deleteCachedAgentsForThread(threadId)
+    this.writingSessions.clearThread(threadId)
     this.checkpointerAdmin?.deleteThread(threadId)
   }
 
@@ -178,6 +190,7 @@ export class AgentEngine {
     this.activeRuns.clear()
     this.fallbackNotifiedTurnKeys.clear()
     this._clearAgentCache()
+    this.writingSessions.clearAll()
     this.checkpointerAdmin?.clearAll()
   }
 
@@ -407,6 +420,9 @@ export class AgentEngine {
 
     const fullDecisions = this._mergeResumeDecisions(interrupted, decisions)
 
+    // An approved confirm_writing_plan opens the write-session authorization (04.1 §6 Stage 2).
+    this._registerApprovedWritingPlans(threadId, interrupted, fullDecisions)
+
     // Map decisions[] → LangGraph HITLResponse decisions.
     // decisions[i] corresponds to actionRequests[i] — array position is the contract.
     const lgDecisions = fullDecisions.map((d, idx) => {
@@ -487,6 +503,44 @@ export class AgentEngine {
     })
 
     return fullDecisions
+  }
+
+  /** Collect confirm_writing_plan args by original index, to register the write-session authorization at resume. */
+  private _stashConfirmPlanArgs(
+    actionRequests: HitlActionRequest[],
+  ): Record<number, { plan: string; targetFiles: string[] }> {
+    const out: Record<number, { plan: string; targetFiles: string[] }> = {}
+    actionRequests.forEach((ar, i) => {
+      if (ar.name !== 'confirm_writing_plan') return
+      const plan = typeof ar.args?.plan === 'string' ? ar.args.plan : ''
+      const raw = ar.args?.target_files
+      const targetFiles = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []
+      out[i] = { plan, targetFiles }
+    })
+    return out
+  }
+
+  /** On resume, an approved/edited confirm_writing_plan opens a write-session authorization (edited args win — 改完即契约). */
+  private _registerApprovedWritingPlans(
+    threadId: string,
+    interrupted: InterruptedRun,
+    fullDecisions: ResumeDecision[],
+  ): void {
+    const argsByIndex = interrupted.confirmPlanArgsByIndex
+    if (!argsByIndex) return
+    for (const [idxStr, stashed] of Object.entries(argsByIndex)) {
+      const idx = Number(idxStr)
+      const decision = fullDecisions[idx]
+      if (!decision || (decision.type !== 'approved' && decision.type !== 'edited')) continue
+      let plan = stashed.plan
+      let targetFiles = stashed.targetFiles
+      if (decision.type === 'edited' && decision.editedArgs) {
+        if (typeof decision.editedArgs.plan === 'string') plan = decision.editedArgs.plan
+        const raw = decision.editedArgs.target_files
+        if (Array.isArray(raw)) targetFiles = raw.filter((x): x is string => typeof x === 'string')
+      }
+      this.writingSessions.registerAuthorization(threadId, plan, targetFiles)
+    }
   }
 
   private _cloneResumeDecision(decision: ResumeDecision): ResumeDecision {
@@ -669,12 +723,16 @@ export class AgentEngine {
     reviewActionOriginalIndices: number[]
     autoDecisionsByIndex: Record<number, ResumeDecision>
     autoRejects: Array<{ toolName: string; filePath: string; message: string }>
+    /** Original indices of block edits inside an active write-session scope — the renderer applies them silently (M1b Stage 2). */
+    autoApplyOriginalIndices: Set<number>
   } {
     const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
     const reviewActionRequests: HitlActionRequest[] = []
     const reviewActionOriginalIndices: number[] = []
     const autoDecisionsByIndex: Record<number, ResumeDecision> = {}
     const autoRejects: Array<{ toolName: string; filePath: string; message: string }> = []
+    const autoApplyOriginalIndices = new Set<number>()
+    const authorizedFiles = this.writingSessions.getAuthorizedFiles(threadId)
 
     // Stage 1 pre-scan — resolve every filesystem-write tool up front so batch poisoning
     // (Stage 4, triggered *only* by a Stage-1 safety reject) is known before Stage 2 mutates
@@ -717,7 +775,7 @@ export class AgentEngine {
           message: 'Skipped because another filesystem operation in this batch was rejected by policy.',
         }
       })
-      return { reviewActionRequests: [], reviewActionOriginalIndices: [], autoDecisionsByIndex, autoRejects }
+      return { reviewActionRequests: [], reviewActionOriginalIndices: [], autoDecisionsByIndex, autoRejects, autoApplyOriginalIndices }
     }
 
     actionRequests.forEach((actionRequest, index) => {
@@ -733,13 +791,23 @@ export class AgentEngine {
         return
       }
 
-      // Stage 2 — write-session authorization is NOT wired into the live pipeline yet. Block-edit
-      // tool bodies do not mutate the document; the renderer applies the TipTap mutation only for
-      // items in the review batch (executor.flushReviewedBatch). Auto-approving a block edit here
-      // would mark it applied to LangGraph while the document stays unchanged (phantom edit). So
-      // every block edit falls through to human review until M1 builds the renderer auto-apply +
-      // chapter-finalize path. The WritingSessionRegistry (scaffold/approval) + its pure verdict
-      // are the unit-tested M0 skeleton that M1 wires here.
+      // Stage 2 — write-session authorization. A block edit whose target file is inside an active
+      // write-session scope is destined for silent auto-apply: lazy-activate the session (capturing
+      // the baseline exactly once) and flag its index. It STILL enters the review batch — the
+      // renderer, not the host, applies the TipTap mutation (executor.flushReviewedBatch); marking
+      // it as auto-apply here lets the renderer flush it without a card. Host-side auto-approval
+      // WITHOUT a renderer apply would be a phantom edit, so we never route it to autoDecisionsByIndex.
+      if (isBlockEditToolName(actionRequest.name)) {
+        const verdict = decideWritingSessionApproval({
+          toolName: actionRequest.name,
+          args: actionRequest.args ?? {},
+          authorizedFiles,
+        })
+        if (verdict.kind === 'auto-approve') {
+          this.writingSessions.ensureActiveSession(threadId, verdict.activateFile)
+          autoApplyOriginalIndices.add(index)
+        }
+      }
       reviewActionRequests.push(actionRequest)
       reviewActionOriginalIndices.push(index)
     })
@@ -749,6 +817,7 @@ export class AgentEngine {
       reviewActionOriginalIndices,
       autoDecisionsByIndex,
       autoRejects,
+      autoApplyOriginalIndices,
     }
   }
 
@@ -792,6 +861,7 @@ export class AgentEngine {
       turnId,
       reviewActionOriginalIndices: prepared.reviewActionOriginalIndices,
       autoDecisionsByIndex: prepared.autoDecisionsByIndex,
+      confirmPlanArgsByIndex: this._stashConfirmPlanArgs(actionRequests),
     })
 
     if (!prepared.reviewActionRequests.length) {
@@ -887,6 +957,7 @@ export class AgentEngine {
       turnId,
       reviewActionOriginalIndices: prepared.reviewActionOriginalIndices,
       autoDecisionsByIndex: prepared.autoDecisionsByIndex,
+      confirmPlanArgsByIndex: this._stashConfirmPlanArgs(actionRequests),
     })
 
     if (!prepared.reviewActionRequests.length) {

@@ -9,6 +9,8 @@ interface InterruptedRun {
   turnId?: string
   reviewActionOriginalIndices?: number[]
   autoDecisionsByIndex?: Record<number, ResumeDecision>
+  /** confirm_writing_plan args by original index — read at resume to register the write-session authorization (04.1 §6 Stage 2). */
+  confirmPlanArgsByIndex?: Record<number, { plan: string; targetFiles: string[] }>
 }
 
 interface ThreadExecutionContext {
