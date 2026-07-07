@@ -367,46 +367,6 @@ export interface CreativePlanReviewItem extends BaseCreativeReviewItem {
   plan: string
 }
 
-export interface CreativeWriteReviewItem extends BaseCreativeReviewItem {
-  kind: 'creative_write'
-  toolName: 'write_to_chapter'
-  filename: string
-  mode: 'append' | 'insert_at' | 'replace_range'
-  approvedPlan: string
-  newContent: string
-  insertAnchor?: string
-  replaceStartAnchor?: string
-  replaceEndAnchor?: string
-}
-
-export interface CreativeStoryBibleReviewItem extends BaseCreativeReviewItem {
-  kind: 'creative_storybible'
-  toolName: 'replace_storybible_section' | 'rebuild_storybible' | 'resolve_open_question'
-  section?: string
-  newContent: string
-  question?: string
-  targetSection?: string
-}
-
-export interface CreativeChapterStructureEntry {
-  filename: string
-  h1?: string
-  wordCount?: number
-}
-
-export interface CreativeChapterStructureReviewItem extends BaseCreativeReviewItem {
-  kind: 'creative_chapter_structure'
-  toolName: 'create_chapter' | 'delete_chapter' | 'rename_chapter' | 'reorder_chapters'
-  operation: 'create' | 'delete' | 'rename' | 'reorder'
-  filename?: string
-  newFilename?: string
-  afterFilename?: string
-  cascadeRenumber?: boolean
-  order?: string[]
-  before?: CreativeChapterStructureEntry[]
-  after?: CreativeChapterStructureEntry[]
-}
-
 export interface CreativeGitCommitReviewItem extends BaseCreativeReviewItem {
   kind: 'creative_git_commit'
   toolName: 'git_commit'
@@ -433,60 +393,12 @@ export interface CreativeGitRestoreReviewItem extends BaseCreativeReviewItem {
   ref?: string
 }
 
-export interface CreativeExplorationCompareReviewItem extends BaseCreativeReviewItem {
-  kind: 'creative_exploration_compare'
-  toolName: 'finish_exploration'
-  comparisonReport: string
-  directionSummaries?: Array<{
-    name: string
-    summary: string
-    narrativeConsequences: string[]
-  }>
-}
-
-export interface CreativeExplorationMergeReviewItem extends BaseCreativeReviewItem {
-  kind: 'creative_exploration_merge'
-  toolName: 'promote_exploration'
-  directionName: string
-  targetChapter: string
-  mode: 'append' | 'replace'
-  beforeContent?: string
-  newContent?: string
-}
-
-export interface CreativeExplorationStartReviewItem extends BaseCreativeReviewItem {
-  kind: 'creative_exploration_start'
-  toolName: 'start_exploration'
-  context: string
-  directions: Array<{ name: string; description: string }>
-}
-
-export interface CreativeExplorationDeleteReviewItem extends BaseCreativeReviewItem {
-  kind: 'creative_exploration_delete'
-  toolName: 'delete_exploration'
-  directionName: string
-}
-
-export interface CreativeCompressReviewItem extends BaseCreativeReviewItem {
-  kind: 'creative_compress'
-  toolName: 'compress_storybible_history'
-  completedChapters: string[]
-}
-
 export type CreativeReviewItem =
   | CreativePlanReviewItem
-  | CreativeWriteReviewItem
-  | CreativeStoryBibleReviewItem
-  | CreativeChapterStructureReviewItem
   | CreativeGitCommitReviewItem
   | CreativeGitTagReviewItem
   | CreativeGitInitReviewItem
   | CreativeGitRestoreReviewItem
-  | CreativeExplorationCompareReviewItem
-  | CreativeExplorationMergeReviewItem
-  | CreativeExplorationStartReviewItem
-  | CreativeExplorationDeleteReviewItem
-  | CreativeCompressReviewItem
 
 // ── Filesystem Review Items ───────────────────────────────────────────────
 

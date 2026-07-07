@@ -30,40 +30,6 @@ function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, u
   if (review.kind === 'creative_plan') {
     return { plan: review.plan }
   }
-  if (review.kind === 'creative_write') {
-    return {
-      filename: review.filename,
-      mode: review.mode,
-      content: review.newContent,
-      approved_plan: review.approvedPlan,
-      ...(review.insertAnchor !== undefined && { insert_anchor: review.insertAnchor }),
-      ...(review.replaceStartAnchor !== undefined && { replace_start_anchor: review.replaceStartAnchor }),
-      ...(review.replaceEndAnchor !== undefined && { replace_end_anchor: review.replaceEndAnchor }),
-    }
-  }
-  if (review.kind === 'creative_chapter_structure') {
-    if (review.toolName === 'create_chapter') {
-      return {
-        filename: review.filename,
-        ...(review.afterFilename !== undefined && { after_filename: review.afterFilename }),
-      }
-    }
-    if (review.toolName === 'delete_chapter') {
-      return {
-        filename: review.filename,
-        ...(review.cascadeRenumber !== undefined && { cascade_renumber: review.cascadeRenumber }),
-      }
-    }
-    if (review.toolName === 'rename_chapter') {
-      return {
-        filename: review.filename,
-        new_filename: review.newFilename,
-      }
-    }
-    return {
-      order: review.order ?? [],
-    }
-  }
   if (review.kind === 'creative_git_commit') {
     return {
       message: review.message,
@@ -79,78 +45,15 @@ function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, u
   if (review.kind === 'creative_git_init') {
     return {}
   }
-  if (review.kind === 'creative_git_restore') {
-    return {
-      files: review.files,
-      ...(review.ref !== undefined && { ref: review.ref }),
-    }
-  }
-  if (review.kind === 'creative_exploration_start') {
-    return {
-      context: review.context,
-      directions: review.directions,
-    }
-  }
-  if (review.kind === 'creative_exploration_compare') {
-    return {
-      comparison_report: review.comparisonReport,
-      ...(review.directionSummaries !== undefined && {
-        direction_summaries: review.directionSummaries.map(direction => ({
-          name: direction.name,
-          summary: direction.summary,
-          narrative_consequences: direction.narrativeConsequences,
-        })),
-      }),
-    }
-  }
-  if (review.kind === 'creative_exploration_merge') {
-    return {
-      direction_name: review.directionName,
-      target_chapter: review.targetChapter,
-      mode: review.mode,
-      ...(review.newContent !== undefined && { content: review.newContent }),
-    }
-  }
-  if (review.kind === 'creative_exploration_delete') {
-    return {
-      direction_name: review.directionName,
-    }
-  }
-  if (review.kind === 'creative_compress') {
-    return {
-      completed_chapters: review.completedChapters,
-    }
-  }
-  if (review.toolName === 'resolve_open_question') {
-    return {
-      question: review.question,
-      resolution: review.newContent,
-      target_section: review.targetSection ?? review.section,
-    }
-  }
-  if (review.toolName === 'replace_storybible_section') {
-    return {
-      section: review.section,
-      content: review.newContent,
-    }
-  }
   return {
-    content: review.newContent,
+    files: review.files,
+    ...(review.ref !== undefined && { ref: review.ref }),
   }
 }
 
 function defaultRejectMessage(review: CreativeReviewItem): string {
   if (review.kind === 'creative_plan') {
     return 'The user rejected this writing plan. Do not write, do not call confirm_writing_plan again in this run, and do not automatically propose a replacement plan. Briefly acknowledge the rejection and ask what direction the user wants next.'
-  }
-  if (review.kind === 'creative_write') {
-    return 'The user rejected this draft. Do not write to the chapter, do not retry the same draft, and do not automatically propose another draft. Briefly acknowledge the rejection and ask what should change.'
-  }
-  if (review.toolName === 'rebuild_storybible') {
-    return 'The user rejected the StoryBible rebuild. Do not modify storybible.md and do not retry the rebuild. Briefly acknowledge the rejection.'
-  }
-  if (review.kind === 'creative_chapter_structure') {
-    return 'The user rejected this chapter structure change. Do not modify draft chapter files or retry the same structure change automatically. Briefly acknowledge the rejection.'
   }
   if (review.kind === 'creative_git_commit' || review.kind === 'creative_git_tag') {
     return 'The user rejected this git checkpoint. Do not commit or tag, and do not retry the same git action automatically. Briefly acknowledge the rejection.'
@@ -160,12 +63,6 @@ function defaultRejectMessage(review: CreativeReviewItem): string {
   }
   if (review.kind === 'creative_git_restore') {
     return 'The user rejected this git restore. Do not restore files or retry the same restore automatically. Briefly acknowledge the rejection.'
-  }
-  if (review.kind.startsWith('creative_exploration')) {
-    return 'The user rejected this exploration action. Do not modify exploration or draft files, and do not retry the same action automatically. Briefly acknowledge the rejection.'
-  }
-  if (review.kind === 'creative_compress') {
-    return 'The user rejected StoryBible compression. Do not modify storybible.md and do not retry compression automatically. Briefly acknowledge the rejection.'
   }
   return 'The user rejected this Creative tool call. Do not retry the same action automatically. Briefly acknowledge the rejection and wait for the user to redirect.'
 }

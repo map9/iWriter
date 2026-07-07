@@ -49,22 +49,10 @@ export interface CreativeReviewBatch {
 
 function reviewLabel(review: CreativeReviewItem): string {
   if (review.kind === 'creative_plan') return 'writing plan'
-  if (review.kind === 'creative_write') return `${review.filename} · ${review.mode}`
-  if (review.kind === 'creative_chapter_structure') {
-    if (review.toolName === 'rename_chapter') return `${review.filename} → ${review.newFilename}`
-    if (review.toolName === 'reorder_chapters') return 'chapter order'
-    return review.filename ? `${review.operation} ${review.filename}` : review.operation
-  }
   if (review.kind === 'creative_git_commit') return `git commit · ${review.message}`
   if (review.kind === 'creative_git_tag') return `git tag · ${review.name}`
   if (review.kind === 'creative_git_init') return 'git init'
-  if (review.kind === 'creative_git_restore') return `git restore · ${review.files.join(', ')}`
-  if (review.kind === 'creative_exploration_start') return 'start exploration'
-  if (review.kind === 'creative_exploration_compare') return 'exploration comparison'
-  if (review.kind === 'creative_exploration_merge') return `${review.directionName} → ${review.targetChapter}`
-  if (review.kind === 'creative_exploration_delete') return `delete exploration · ${review.directionName}`
-  if (review.kind === 'creative_compress') return `compress · ${review.completedChapters.join(', ')}`
-  return review.section ? `storybible.md · ${review.section}` : 'storybible.md'
+  return `git restore · ${review.files.join(', ')}`
 }
 
 function stateForDecision(kind: CreativeDecision['kind']): CreativeRoundResultState {
@@ -82,17 +70,10 @@ function finalContent(review: CreativeReviewItem, decision: CreativeDecision): s
     if (typeof plan === 'string') return plan
   }
   if (review.kind === 'creative_plan') return review.plan
-  if (review.kind === 'creative_chapter_structure') return review.order?.join('\n') ?? review.filename
   if (review.kind === 'creative_git_commit') return review.message
   if (review.kind === 'creative_git_tag') return review.message ?? review.name
   if (review.kind === 'creative_git_init') return undefined
-  if (review.kind === 'creative_git_restore') return review.files.join('\n')
-  if (review.kind === 'creative_exploration_start') return review.directions.map(direction => `${direction.name}: ${direction.description}`).join('\n')
-  if (review.kind === 'creative_exploration_compare') return review.comparisonReport
-  if (review.kind === 'creative_exploration_merge') return review.newContent
-  if (review.kind === 'creative_exploration_delete') return review.directionName
-  if (review.kind === 'creative_compress') return review.completedChapters.join('\n')
-  return (review as { newContent?: string }).newContent
+  return review.files.join('\n')
 }
 
 export function buildCreativeRoundResult(batch: CreativeReviewBatch | null): CreativeRoundResult | null {

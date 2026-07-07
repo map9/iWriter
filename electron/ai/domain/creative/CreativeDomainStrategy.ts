@@ -84,7 +84,6 @@ export class CreativeDomainStrategy implements DomainStrategy {
 
   async buildReviewItems(ctx: InterruptContext): Promise<DomainReviewItem[]> {
     const runtimeCtx = this.runtimeStore.getContext(ctx.threadId)
-    const workspacePath = runtimeCtx?.workspacePath ?? null
     const activeFilePath = runtimeCtx?.activeFilePath ?? null
 
     // Per-file snapshot cache: each file_path gets one snapshot across all block edit actions
@@ -153,7 +152,6 @@ export class CreativeDomainStrategy implements DomainStrategy {
           takeToolCallId(ar.name),
           ctx.partialMessage?.id,
           ctx.turnId,
-          workspacePath,
         ),
       })
     }

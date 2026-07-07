@@ -80,22 +80,6 @@
               >
                 <MarkdownContentView :content="part.text" mode="markdown" size="sm" />
               </div>
-              <ConsistencyFindingsBlock
-                v-else-if="part.kind === 'findings'"
-                :findings="part.findings"
-                class="max-w-full"
-              />
-              <div
-                v-else-if="part.kind === 'pending'"
-                class="mt-1.5 w-full rounded-box border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
-              >
-                {{ t('consistencyFinding.pending') }}
-              </div>
-              <AdvisorDirectionsBlock
-                v-else-if="part.kind === 'directions'"
-                :directions="part.directions"
-                class="max-w-full"
-              />
             </template>
           </template>
           <template v-else-if="block.type === 'tool_call' && block.toolCallId && isReadToolById(block.toolCallId)">
@@ -145,22 +129,6 @@
             mode="markdown"
             size="sm"
             :class="partIdx > 0 ? 'mt-1.5' : ''"
-          />
-          <ConsistencyFindingsBlock
-            v-else-if="part.kind === 'findings'"
-            :findings="part.findings"
-            class="max-w-full"
-          />
-          <div
-            v-else-if="part.kind === 'pending'"
-            class="mt-1.5 w-full rounded-box border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
-          >
-            {{ t('consistencyFinding.pending') }}
-          </div>
-          <AdvisorDirectionsBlock
-            v-else-if="part.kind === 'directions'"
-            :directions="part.directions"
-            class="max-w-full"
           />
         </template>
       </div>
@@ -283,33 +251,12 @@ import ToolCallCard from './views/ToolCallCard.vue'
 import SubTaskProgressView from './views/SubTaskProgressView.vue'
 import ThinkingBlock from './views/ThinkingBlock.vue'
 import { toolGroupPosition } from './views/toolGroupPosition'
-import ConsistencyFindingsBlock from './views/ConsistencyFindingsBlock.vue'
-import AdvisorDirectionsBlock from './views/AdvisorDirectionsBlock.vue'
 import DomainMessageSession from '../domains/DomainMessageSession.vue'
-import { parseFindings } from '@/ai/message/consistency-findings'
-import type { ConsistencyFinding } from '@/ai/message/consistency-findings'
-import type { AdvisorDirection } from '@/ai/message/advisor-directions'
-import { parseDirections } from '@/ai/message/advisor-directions'
-import { splitTextWithFences } from '@/ai/message/fenced-blocks'
 
-type AssistantTextPart =
-  | { kind: 'prose'; text: string }
-  | { kind: 'findings'; findings: ConsistencyFinding[] }
-  | { kind: 'pending'; name: string }
-  | { kind: 'directions'; directions: AdvisorDirection[] }
+type AssistantTextPart = { kind: 'prose'; text: string }
 
 function splitAssistantText(text: string): AssistantTextPart[] {
-  const parts = splitTextWithFences(text, {
-    'consistency-findings': parseFindings,
-    'advisor-directions': parseDirections,
-  }, { placeholderForOpenFence: true })
-  return parts.flatMap<AssistantTextPart>((p) => {
-    if (p.kind === 'prose') return p
-    if (p.kind === 'pending') return p
-    if (!('data' in p)) return []
-    if (p.kind === 'consistency-findings') return { kind: 'findings' as const, findings: p.data as ConsistencyFinding[] }
-    return { kind: 'directions' as const, directions: p.data as AdvisorDirection[] }
-  })
+  return [{ kind: 'prose', text }]
 }
 
 const props = withDefaults(defineProps<{
