@@ -148,8 +148,15 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
   }) {
     deps.interruptedThreadId.value = params.threadId
     deps.interruptedTurnId.value = params.turnId ?? deps.currentTurnId.value
+    // Count spans ALL proposals (auto-apply + manual) — the resume decisions array must cover them.
     interruptActionCount.value = params.proposals.length
     isResumingReviewedEdits.value = false
+
+    // Write-session auto-apply proposals (04.1 §6 Stage 2) apply silently: no review card, and
+    // a pre-set 'approved' decision so the batch flushes and applies them via the renderer
+    // (executor.flushReviewedBatch → applyBlockProposalToTarget). Only manual proposals show cards.
+    const autoApplyProposals = params.proposals.filter(p => p.autoApply)
+    const manualProposals = params.proposals.filter(p => !p.autoApply)
 
     const liveTurn = deps.ensureLiveTurn({
       threadId: params.threadId,
@@ -157,15 +164,25 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
       state: 'interrupted',
     })
     if (liveTurn) {
-      liveTurn.reviews = params.proposals.map((p): DomainReviewItem => ({ kind: 'edit', payload: p }))
+      liveTurn.reviews = manualProposals.map((p): DomainReviewItem => ({ kind: 'edit', payload: p }))
       deps.liveTurnRef.value = { ...liveTurn }
     }
 
-    setReviewBatch(createReviewBatchState(
+    let batch = createReviewBatchState(
       params.threadId,
       params.turnId ?? deps.currentTurnId.value,
       params.proposals,
-    ))
+    )
+    for (const p of autoApplyProposals) {
+      batch = setProposalDecisionInBatch(batch, p.id, 'approved') ?? batch
+    }
+    setReviewBatch(batch)
+
+    // Pure auto-apply batch → flush immediately (no card, no wait). Mixed batch → flush waits
+    // until the manual proposals are decided (maybeFlushResume gates on all decisions present).
+    if (autoApplyProposals.length) {
+      void maybeFlushResume()
+    }
   }
 
   function findProposal(proposalId: string): EditProposal | undefined {

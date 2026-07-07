@@ -303,6 +303,9 @@ interface BaseEditProposal {
   sourceTurnId?: string
   /** True if the user modified the proposal args before approving (edit decision). */
   wasEdited?: boolean
+  /** True if this block edit is inside an active write-session scope — the renderer applies it
+   *  silently (no review card), 04.1 §6 Stage 2. Only ever set on block edits by the host. */
+  autoApply?: boolean
 }
 
 /** Block-level edit proposal — produced by Native LLM block edit tools. */

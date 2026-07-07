@@ -520,6 +520,21 @@ export class AgentEngine {
     return out
   }
 
+  /** Flag the review items that are write-session auto-apply, so the renderer applies them silently (no card). */
+  private _markAutoApplyReviews(
+    reviews: import('./domain/DomainStrategy').DomainReviewItem[],
+    reviewOriginalIndices: number[],
+    autoApplyOriginalIndices: Set<number>,
+  ): void {
+    if (!autoApplyOriginalIndices.size) return
+    reviews.forEach((r, i) => {
+      const origIdx = reviewOriginalIndices[i]
+      if (r.kind === 'edit' && origIdx !== undefined && autoApplyOriginalIndices.has(origIdx)) {
+        r.payload.autoApply = true
+      }
+    })
+  }
+
   /** On resume, an approved/edited confirm_writing_plan opens a write-session authorization (edited args win — 改完即契约). */
   private _registerApprovedWritingPlans(
     threadId: string,
@@ -885,6 +900,7 @@ export class AgentEngine {
       actionRequests: prepared.reviewActionRequests,
       partialMessage,
     })
+    this._markAutoApplyReviews(reviews, prepared.reviewActionOriginalIndices, prepared.autoApplyOriginalIndices)
 
     this.rendererBridge.sendRunInterrupted({
       threadId,
@@ -983,6 +999,7 @@ export class AgentEngine {
     } catch (err) {
       console.warn('[AgentEngine] _maybeRehydrateInterrupt: buildReviewItems failed:', err)
     }
+    this._markAutoApplyReviews(reviews, prepared.reviewActionOriginalIndices, prepared.autoApplyOriginalIndices)
 
     this.rendererBridge.sendRunInterrupted({
       threadId,
