@@ -50,6 +50,7 @@ import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore, type InterruptedRun } from './runtime/ThreadRuntimeStore'
 import { buildAgentFilesystem, FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './scaffold/filesystem/AgentFilesystem'
 import { decideFilesystemWriteApproval, isFilesystemWriteToolName } from './scaffold/approval/FilesystemApprovalPolicy'
+import { WritingSessionRegistry, decideWritingSessionApproval, isBlockEditToolName } from './scaffold/approval/WritingSessionRegistry'
 import { AiConfigStore, resolveAiApiKeyEnvVar } from './config/AiConfigStore'
 import { generateThreadTitle } from '../../src/ai/thread/title'
 import { IWriterAgentContextSchema, type IWriterAgentContext } from './runtime/AgentContext'
@@ -90,6 +91,10 @@ export class AgentEngine {
   private activeRuns = new Map<string, AbortController>()
   /** Thread-scoped runtime data: editor context + pending interrupts. */
   private runtimeStore = new ThreadRuntimeStore()
+  /** Stage 2 写作会话登记（04.1 §6，域无关脚手架）：授权登记 + 懒激活 + 累积。 */
+  private writingSessions = new WritingSessionRegistry(
+    (threadId, targetFile) => this._captureWritingSessionBaseline(threadId, targetFile),
+  )
 
   /** Agent cache keyed by thread + runtime + filesystem fingerprint. */
   private agentCache = new Map<string, { agent: DeepAgentInstance, scaffold: AgentFilesystemScaffold }>()
@@ -166,6 +171,7 @@ export class AgentEngine {
   deleteThread(threadId: string): void {
     this.threadListQuery?.deleteMeta(threadId)
     this.runtimeStore.deleteThread(threadId)
+    this.writingSessions.clearThread(threadId)
     this.activeRuns.delete(threadId)
     this._clearFallbackNotificationKeys(threadId)
     this._deleteCachedAgentsForThread(threadId)
@@ -175,6 +181,7 @@ export class AgentEngine {
   clearThreads(): void {
     this.threadListQuery?.clearMetas()
     this.runtimeStore.clear()
+    this.writingSessions.clearAll()
     this.activeRuns.clear()
     this.fallbackNotifiedTurnKeys.clear()
     this._clearAgentCache()
@@ -406,6 +413,22 @@ export class AgentEngine {
     }
 
     const fullDecisions = this._mergeResumeDecisions(interrupted, decisions)
+
+    // Stage 2 授权登记（04.1 §6）：confirm_writing_plan 被 approve/edit → 登记写作会话授权域。
+    // edit（含 author-edited target_files）优先于原 args。
+    if (interrupted.confirmPlanArgsByIndex) {
+      for (const [idxStr, stashed] of Object.entries(interrupted.confirmPlanArgsByIndex)) {
+        const idx = Number(idxStr)
+        const d = fullDecisions[idx]
+        if (!d || (d.type !== 'approved' && d.type !== 'edited')) continue
+        const editedArgs = d.type === 'edited' ? d.editedArgs : undefined
+        const plan = typeof editedArgs?.plan === 'string' ? editedArgs.plan : stashed.plan
+        const files = Array.isArray(editedArgs?.target_files)
+          ? editedArgs.target_files.filter((f): f is string => typeof f === 'string')
+          : stashed.target_files
+        this.writingSessions.registerAuthorization(threadId, plan, files)
+      }
+    }
 
     // Map decisions[] → LangGraph HITLResponse decisions.
     // decisions[i] corresponds to actionRequests[i] — array position is the contract.
@@ -675,28 +698,20 @@ export class AgentEngine {
     const reviewActionOriginalIndices: number[] = []
     const autoDecisionsByIndex: Record<number, ResumeDecision> = {}
     const autoRejects: Array<{ toolName: string; filePath: string; message: string }> = []
+
+    // Stage 1 pre-scan — resolve every filesystem-write tool up front so batch poisoning
+    // (Stage 4, triggered *only* by a Stage-1 safety reject) is known before Stage 2 mutates
+    // any write-session accumulation. Non-poisoned batches then decide in original index order.
+    const fsDecisions = new Map<number, ReturnType<typeof decideFilesystemWriteApproval>>()
     let hasAutoReject = false
-
     actionRequests.forEach((actionRequest, index) => {
-      if (!isFilesystemWriteToolName(actionRequest.name)) {
-        reviewActionRequests.push(actionRequest)
-        reviewActionOriginalIndices.push(index)
-        return
-      }
-
+      if (!isFilesystemWriteToolName(actionRequest.name)) return
       const decision = decideFilesystemWriteApproval({
         toolName: actionRequest.name,
         args: actionRequest.args ?? {},
         workspacePath,
       })
-
-      if (decision.kind === 'requires-review') {
-        reviewActionRequests.push(actionRequest)
-        reviewActionOriginalIndices.push(index)
-        return
-      }
-
-      autoDecisionsByIndex[index] = decision.decision
+      fsDecisions.set(index, decision)
       if (decision.kind === 'auto-reject') {
         hasAutoReject = true
         const primaryPath = actionRequest.args?.file_path ?? actionRequest.args?.source_path
@@ -708,21 +723,62 @@ export class AgentEngine {
       }
     })
 
+    // Stage 4 — batch poisoning: a Stage-1 safety reject fails the whole batch (半批落地会造成
+    // 不一致状态). Nothing reaches Stage 2, so no session accumulation happens on a poisoned batch.
     if (hasAutoReject) {
       actionRequests.forEach((_actionRequest, index) => {
-        if (autoDecisionsByIndex[index]) return
+        const fsDecision = fsDecisions.get(index)
+        // Preserve Stage-1 auto decisions (auto-reject keeps its message; auto-approve of an
+        // internal virtual path stays approved — ephemeral scratch, not a half-batch landing);
+        // everything else is poisoned to rejected.
+        if (fsDecision && fsDecision.kind !== 'requires-review') {
+          autoDecisionsByIndex[index] = fsDecision.decision
+          return
+        }
         autoDecisionsByIndex[index] = {
           type: 'rejected',
           message: 'Skipped because another filesystem operation in this batch was rejected by policy.',
         }
       })
-      return {
-        reviewActionRequests: [],
-        reviewActionOriginalIndices: [],
-        autoDecisionsByIndex,
-        autoRejects,
-      }
+      return { reviewActionRequests: [], reviewActionOriginalIndices: [], autoDecisionsByIndex, autoRejects }
     }
+
+    actionRequests.forEach((actionRequest, index) => {
+      // Stage 1 — filesystem path policy (auto-approve virtual paths, else human review).
+      const fsDecision = fsDecisions.get(index)
+      if (fsDecision) {
+        if (fsDecision.kind === 'requires-review') {
+          reviewActionRequests.push(actionRequest)
+          reviewActionOriginalIndices.push(index)
+        } else {
+          autoDecisionsByIndex[index] = fsDecision.decision
+        }
+        return
+      }
+
+      // Stage 2 — write-session authorization (block-edit tools only): a block edit whose target
+      // file is in an active authorization auto-accumulates; first hit lazily activates the session
+      // (captures baseline once). Everything else falls through to human review.
+      if (isBlockEditToolName(actionRequest.name)) {
+        const ws = decideWritingSessionApproval({
+          toolName: actionRequest.name,
+          args: actionRequest.args ?? {},
+          authorizedFiles: this.writingSessions.getAuthorizedFiles(threadId),
+        })
+        if (ws.kind === 'auto-approve') {
+          this.writingSessions.recordAccumulation(threadId, ws.activateFile, {
+            toolName: actionRequest.name,
+            args: actionRequest.args ?? {},
+            at: Date.now(),
+          })
+          autoDecisionsByIndex[index] = ws.decision
+          return
+        }
+      }
+
+      reviewActionRequests.push(actionRequest)
+      reviewActionOriginalIndices.push(index)
+    })
 
     return {
       reviewActionRequests,
@@ -730,6 +786,39 @@ export class AgentEngine {
       autoDecisionsByIndex,
       autoRejects,
     }
+  }
+
+  /**
+   * 懒激活时取写作会话基线快照（04.1 §6 / §5 设计 7 单一路由）。
+   * M0：磁盘同步读取（best-effort）。M1 扩展为单一路由——打开的文件取编辑器缓冲、未打开取磁盘。
+   */
+  private _captureWritingSessionBaseline(_threadId: string, targetFile: string): string | null {
+    try {
+      return fs.readFileSync(targetFile, 'utf8')
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Stash `confirm_writing_plan` args (keyed by original action index) so resumeRun can register
+   * the write-session authorization when the plan is approved/edited (04.1 §6 Stage 2).
+   */
+  private _stashConfirmPlanArgs(
+    actionRequests: HitlActionRequest[],
+  ): Record<number, { plan: string; target_files: string[] }> | undefined {
+    let out: Record<number, { plan: string; target_files: string[] }> | undefined
+    actionRequests.forEach((ar, index) => {
+      if (ar.name !== 'confirm_writing_plan') return
+      const args = ar.args ?? {}
+      const plan = typeof args.plan === 'string' ? args.plan : ''
+      const target_files = Array.isArray(args.target_files)
+        ? args.target_files.filter((f): f is string => typeof f === 'string')
+        : []
+      out ??= {}
+      out[index] = { plan, target_files }
+    })
+    return out
   }
 
   private async _handleInterrupt(
@@ -772,6 +861,7 @@ export class AgentEngine {
       turnId,
       reviewActionOriginalIndices: prepared.reviewActionOriginalIndices,
       autoDecisionsByIndex: prepared.autoDecisionsByIndex,
+      confirmPlanArgsByIndex: this._stashConfirmPlanArgs(actionRequests),
     })
 
     if (!prepared.reviewActionRequests.length) {
@@ -867,6 +957,7 @@ export class AgentEngine {
       turnId,
       reviewActionOriginalIndices: prepared.reviewActionOriginalIndices,
       autoDecisionsByIndex: prepared.autoDecisionsByIndex,
+      confirmPlanArgsByIndex: this._stashConfirmPlanArgs(actionRequests),
     })
 
     if (!prepared.reviewActionRequests.length) {
