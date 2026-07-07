@@ -53,8 +53,12 @@ the author edited concurrently), re-read that region and reissue.
 
 ## Creating documents
 
-`create_document(filename, content, directory?)` — create a new file (with `directory`,
-written to disk and opened; without it, an in-memory tab). Requires approval.
+`create_document(filename, content, directory?, open_in_editor?)` — create a new file. Requires approval.
+
+- `filename` is a **basename only** — no path separators. A separator (e.g. `sub/file.md`) is rejected. Put the subfolder in `directory`, never in `filename`.
+- `directory` is the **absolute host path** of the containing folder. **With `directory` the file is written to disk**; **without it the file is NOT written to disk** — it becomes an unsaved in-memory tab. To create a real object on disk, always pass `directory`.
+- `open_in_editor` (default `true`, only applies when `directory` is set): pass `false` to write to disk without opening a tab — use for scaffold/skeleton objects created in bulk.
+- Example: `create_document(filename="worldbuilding.md", directory="/abs/workspace/worldbuilding", open_in_editor=false)`.
 
 ## Approval
 

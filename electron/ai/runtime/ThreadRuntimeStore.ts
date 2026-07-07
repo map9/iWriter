@@ -9,12 +9,6 @@ interface InterruptedRun {
   turnId?: string
   reviewActionOriginalIndices?: number[]
   autoDecisionsByIndex?: Record<number, ResumeDecision>
-  /**
-   * Stashed args of `confirm_writing_plan` action(s) in this interrupt, keyed by original index.
-   * On resume, when the action is approved/edited, the host registers the write-session
-   * authorization from these args (04.1 §6 Stage 2). Only stashed for the plan tool.
-   */
-  confirmPlanArgsByIndex?: Record<number, { plan: string; target_files: string[] }>
 }
 
 interface ThreadExecutionContext {

@@ -9,11 +9,17 @@ import type { ResumeDecision } from '../../ipc/protocol'
 //      {计划文本, 章节清单}（普通 S05 清单长度 1，S07 重构为多章）。
 //   2. 块级编辑首次命中授权清单中某正文文件 → ensureActiveSession 懒激活：此刻按 §5 设计 7
 //      的单一路由取基线快照（消除批准到动笔之间的基线陈旧）→ 自动放行并计入累积。
-//   3. 会话闭合触发整章终审（基线 vs 现状聚合 diff 卡）。**闭合/终审卡属 M1 联调（S05/SA02）**；
-//      本文件是 M0 机制骨架 + 纯裁决函数：登记 / 懒激活 / 累积 / 关闭数据结构就位。
+//   3. 会话闭合触发整章终审（基线 vs 现状聚合 diff 卡）。
 //
 // 授权域**只含计划声明的正文文件**——章纲及其它对象永不自动放行（SA02 越界即现形、照常人工
 // 评审，越权面最小化）。会话内 create_document 造新章不进本段自动放行（新建面风险高于就地编辑）。
+//
+// ⚠️ M0 状态：本模块是**已单测的机制骨架，尚未接入 live 审批管线**。原因见 AgentEngine
+// `_prepareActionRequestsForReview` 的 Stage 2 注释——块级编辑工具体不改文档，真实 TipTap
+// 变更由 renderer 只对"评审批次"里的项应用（executor.flushReviewedBatch）；若在 host 侧
+// auto-approve 一个块编辑，会对 LangGraph 记为已应用而文档实际未变（幻影编辑）。故写作会话的
+// auto-approve 必须与 M1 的 renderer 自动应用批次 + 整章终审一起落地；届时 AgentEngine 在
+// Stage 1 与 Stage 3 之间接入本模块（登记 / 懒激活 / 累积 / 关闭已就位）。
 
 /** 参与写作会话自动累积的块级编辑工具（create_document 排除，见 04.1 §6）。 */
 const BLOCK_EDIT_TOOL_NAMES = new Set([
