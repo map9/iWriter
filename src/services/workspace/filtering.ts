@@ -8,11 +8,14 @@ export const DEFAULT_WORKSPACE_IGNORE_RULES = [
   '__MACOSX',
   '.DS_Store',
   '**/.DS_Store',
-  '.git/'
+  '.git/',
+  '.iwriter/'
 ].join('\n')
 
 export const WORKSPACE_IGNORE_FILENAME = '.iwtignore'
 export const GITIGNORE_FILENAME = '.gitignore'
+
+export type WorkspaceFilterScope = 'explorer' | 'search' | 'watcher'
 
 export interface WorkspaceIgnoreRule {
   pattern: string
@@ -54,11 +57,11 @@ export function buildWorkspaceIgnoreRules(options: {
   preferenceRules?: string | null
   gitignoreRules?: string | null
   workspaceRules?: string | null
-  useGitignoreAsWorkspaceIgnore?: boolean | null
+  useGitignore?: boolean | null
 }): string {
   return mergeWorkspaceIgnoreRules(
     options.preferenceRules,
-    options.useGitignoreAsWorkspaceIgnore === false ? undefined : options.gitignoreRules,
+    options.useGitignore === true ? options.gitignoreRules : undefined,
     options.workspaceRules
   )
 }

@@ -27,6 +27,7 @@ import {
 } from '../src/utils/fileContentHash'
 import {
   DEFAULT_WORKSPACE_IGNORE_RULES,
+  GITIGNORE_FILENAME,
   WORKSPACE_IGNORE_FILENAME,
   parseWorkspaceIgnoreRules,
   shouldIncludeWorkspaceEntry,
@@ -178,7 +179,10 @@ function createWorkspaceIgnoredPredicate(
       return false
     }
 
-    if (path.basename(absolutePath) === WORKSPACE_IGNORE_FILENAME) {
+    if (
+      path.basename(absolutePath) === WORKSPACE_IGNORE_FILENAME ||
+      path.basename(absolutePath) === GITIGNORE_FILENAME
+    ) {
       return false
     }
 

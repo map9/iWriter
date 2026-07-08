@@ -261,6 +261,7 @@ const searchResults = ref<SearchReplaceInFilesSearchResult[]>([])
 const isSearching = ref(false)
 const isReplacing = ref(false)
 const expandedFiles = ref<Set<string>>(new Set())
+const searchIgnoreRules = ref('')
 
 // 加载用户配置
 function loadConfig() {
@@ -301,6 +302,7 @@ function saveConfig() {
 
 onMounted(() => {
   loadConfig()
+  void refreshSearchIgnoreRules()
 })
 
 watch(
@@ -322,7 +324,23 @@ const totalMatches = computed(() => {
   return searchResults.value.reduce((sum, file) => sum + file.totalMatches, 0)
 })
 
-const workspaceIgnoreRules = computed(() => appStore.globalEditSetting.workspaceIgnoreRules)
+const workspaceFilterState = computed(() => ({
+  workspaceIgnoreRules: appStore.globalEditSetting.workspaceIgnoreRules,
+  useGitignoreForSearch: appStore.globalEditSetting.useGitignoreForSearch === true,
+  revision: appStore.workspaceSearchFilterRevision,
+  currentFolder: appStore.currentFolder,
+}))
+
+async function refreshSearchIgnoreRules(): Promise<string> {
+  if (!appStore.currentFolder) {
+    searchIgnoreRules.value = ''
+    return ''
+  }
+
+  const rules = await appStore.getEffectiveWorkspaceIgnoreRules(appStore.currentFolder, 'search')
+  searchIgnoreRules.value = rules
+  return rules
+}
 
 function toggleReplaceMode() {
   showReplace.value = !showReplace.value
@@ -685,7 +703,10 @@ function scheduleSearch() {
 watch(searchQuery, scheduleSearch)
 watch([includePattern, excludePattern], scheduleSearch)
 watch(options, scheduleSearch, { deep: true })
-watch(workspaceIgnoreRules, scheduleSearch)
+watch(workspaceFilterState, () => {
+  void refreshSearchIgnoreRules()
+  scheduleSearch()
+}, { deep: true })
 
 // 监听配置变化，自动保存到 localStorage
 watch([searchQuery, replaceQuery, includePattern, excludePattern, options], () => {
@@ -812,6 +833,9 @@ async function performSearch() {
   isSearching.value = true
 
   try {
+    const ignoreRules = await refreshSearchIgnoreRules()
+    if (myId !== currentSearchId) return
+
     // 使用 TipTap 搜索服务，传递打开的 tabs 以优先搜索编辑器内容
     const results = await iwSearchReplaceInFilesService.searchInWorkspace(
       appStore.searchFolderPath || appStore.currentFolder,
@@ -827,7 +851,7 @@ async function performSearch() {
       appStore.tabs,  // 传递 tabs
       undefined,
       appStore.currentFolder,
-      workspaceIgnoreRules.value
+      ignoreRules
     )
 
     if (myId !== currentSearchId) return
@@ -920,7 +944,7 @@ function isFileInSearchScope(filePath: string): boolean {
       isHidden: pathUtils.basename(filePath).startsWith('.'),
     },
     appStore.currentFolder,
-    workspaceIgnoreRules.value,
+    searchIgnoreRules.value,
     includePattern.value || undefined,
     excludePattern.value || undefined
   )
@@ -1039,7 +1063,7 @@ async function getFilesInDirectory(dirPath: string): Promise<string[]> {
     const files = await collectWorkspaceTextFiles({
       workspaceRoot: appStore.currentFolder,
       directoryPath: dirPath,
-      ignoreRulesText: workspaceIgnoreRules.value,
+      ignoreRulesText: searchIgnoreRules.value,
       includePattern: includePattern.value || undefined,
       excludePattern: excludePattern.value || undefined,
     })

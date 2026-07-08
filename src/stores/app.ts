@@ -57,6 +57,7 @@ import {
   shouldIncludeWorkspaceEntry,
   shouldTraverseWorkspaceDirectory,
   toWorkspaceRelativePath,
+  type WorkspaceFilterScope,
   WORKSPACE_IGNORE_FILENAME,
 } from '@/services/workspace/filtering'
 
@@ -108,6 +109,7 @@ export const useAppStore = defineStore('app', () => {
   const searchIncludePattern = ref('')
   const searchExcludePattern = ref('')
   const searchRequestKey = ref(0)
+  const workspaceSearchFilterRevision = ref(0)
   const leftSidebarWidth = ref(288) // 默认宽度
   const minSidebarWidth = 256 // 最小宽度 - 对应TOC按钮右边缘
   const rightSidebarWidth = ref(288) // 默认宽度
@@ -123,7 +125,9 @@ export const useAppStore = defineStore('app', () => {
     showProofreadErrors: true,
     proofread: true,
     workspaceIgnoreRules: DEFAULT_WORKSPACE_IGNORE_RULES,
-    useGitignoreAsWorkspaceIgnore: true,
+    useGitignoreForExplorer: false,
+    useGitignoreForSearch: false,
+    useGitignoreForWatcher: false,
     codeBlockLanguageScope: 'common',
   })
   const globalExportSetting = reactive<ExportSettings>(structuredClone(DEFAULT_EXPORT_SETTING))
@@ -584,9 +588,41 @@ export const useAppStore = defineStore('app', () => {
     StateStorage.saveEditSetting(globalEditSetting)
   }, 500)
 
-  const reloadWorkspaceFiltersDebounced = debounce(async () => {
+  function isGitignoreFilterScopeEnabled(scope: WorkspaceFilterScope): boolean {
+    switch (scope) {
+      case 'explorer':
+        return globalEditSetting.useGitignoreForExplorer === true
+      case 'search':
+        return globalEditSetting.useGitignoreForSearch === true
+      case 'watcher':
+        return globalEditSetting.useGitignoreForWatcher === true
+    }
+  }
+
+  function isAnyGitignoreFilterScopeEnabled(): boolean {
+    return globalEditSetting.useGitignoreForExplorer === true ||
+      globalEditSetting.useGitignoreForSearch === true ||
+      globalEditSetting.useGitignoreForWatcher === true
+  }
+
+  function notifyWorkspaceSearchFiltersChanged(): void {
+    workspaceSearchFilterRevision.value += 1
+  }
+
+  const reloadAllWorkspaceFiltersDebounced = debounce(async () => {
     if (!currentFolder.value || isWorkspaceDeleted.value) return
     await loadFileTree()
+    await startAdvancedFileWatching()
+    notifyWorkspaceSearchFiltersChanged()
+  }, 300)
+
+  const reloadExplorerFiltersDebounced = debounce(async () => {
+    if (!currentFolder.value || isWorkspaceDeleted.value) return
+    await loadFileTree()
+  }, 300)
+
+  const reloadWatcherFiltersDebounced = debounce(async () => {
+    if (!currentFolder.value || isWorkspaceDeleted.value) return
     await startAdvancedFileWatching()
   }, 300)
 
@@ -1366,7 +1402,7 @@ export const useAppStore = defineStore('app', () => {
 
     try {
       const ignoreStartedAt = performance.now()
-      const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
+      const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value, 'explorer')
       perfLog('loadFileTree ignore rules loaded', ignoreStartedAt)
       // 使用 await 等待异步操作完成
       const rootStartedAt = performance.now()
@@ -1415,7 +1451,7 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function getEffectiveWorkspaceIgnoreRules(workspaceRoot: string): Promise<string> {
+  async function getEffectiveWorkspaceIgnoreRules(workspaceRoot: string, scope: WorkspaceFilterScope): Promise<string> {
     const preferenceRules = globalEditSetting.workspaceIgnoreRules ?? DEFAULT_WORKSPACE_IGNORE_RULES
     const gitignoreFilePath = pathUtils.join(workspaceRoot, GITIGNORE_FILENAME)
     const ignoreFilePath = pathUtils.join(workspaceRoot, WORKSPACE_IGNORE_FILENAME)
@@ -1423,7 +1459,7 @@ export const useAppStore = defineStore('app', () => {
     let workspaceRules: string | undefined
 
     try {
-      if (globalEditSetting.useGitignoreAsWorkspaceIgnore !== false) {
+      if (isGitignoreFilterScopeEnabled(scope)) {
         const gitignoreExists = await window.electronAPI?.pathExists(gitignoreFilePath)
         if (gitignoreExists) {
           gitignoreRules = await window.electronAPI?.readFileSilent(gitignoreFilePath) ?? undefined
@@ -1442,7 +1478,7 @@ export const useAppStore = defineStore('app', () => {
       preferenceRules,
       gitignoreRules,
       workspaceRules,
-      useGitignoreAsWorkspaceIgnore: globalEditSetting.useGitignoreAsWorkspaceIgnore,
+      useGitignore: isGitignoreFilterScopeEnabled(scope),
     })
   }
 
@@ -1456,7 +1492,7 @@ export const useAppStore = defineStore('app', () => {
     
     try {
       const workspaceRoot = currentFolder.value ?? dirPath
-      const ignoreRules = effectiveIgnoreRules ?? await getEffectiveWorkspaceIgnoreRules(workspaceRoot)
+      const ignoreRules = effectiveIgnoreRules ?? await getEffectiveWorkspaceIgnoreRules(workspaceRoot, 'explorer')
       const matcher = parseWorkspaceIgnoreRules(ignoreRules)
       const files = await getWorkspaceEntriesRaw(dirPath, workspaceRoot)
 
@@ -1830,7 +1866,7 @@ export const useAppStore = defineStore('app', () => {
       ensureFileWatchListeners()
 
       const ignoreStartedAt = performance.now()
-      const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
+      const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value, 'watcher')
       perfLog('startAdvancedFileWatching ignore rules loaded', ignoreStartedAt)
 
       // 启动原生文件监听
@@ -2035,7 +2071,7 @@ export const useAppStore = defineStore('app', () => {
         }
 
         if (currentFolder.value) {
-          const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
+          const effectiveIgnoreRules = await getEffectiveWorkspaceIgnoreRules(currentFolder.value, 'explorer')
           const entries = await listWorkspaceEntries(parentPath, {
             workspaceRoot: currentFolder.value,
             ignoreRulesText: effectiveIgnoreRules,
@@ -2065,7 +2101,7 @@ export const useAppStore = defineStore('app', () => {
         }
         if (files[0].isDirectory) {
           const effectiveIgnoreRules = currentFolder.value
-            ? await getEffectiveWorkspaceIgnoreRules(currentFolder.value)
+            ? await getEffectiveWorkspaceIgnoreRules(currentFolder.value, 'explorer')
             : undefined
           newNode.children = await traverseFileTree(files[0].path, newNode, effectiveIgnoreRules)
         }
@@ -2338,12 +2374,25 @@ export const useAppStore = defineStore('app', () => {
       change.path === pathUtils.join(currentFolder.value, WORKSPACE_IGNORE_FILENAME)
     const isGitignoreFile = isInWorkspace &&
       !!currentFolder.value &&
-      globalEditSetting.useGitignoreAsWorkspaceIgnore !== false &&
       change.path === pathUtils.join(currentFolder.value, GITIGNORE_FILENAME)
 
-    if (isWorkspaceIgnoreFile || isGitignoreFile) {
+    if (isWorkspaceIgnoreFile) {
       await loadFileTree()
       await startAdvancedFileWatching()
+      notifyWorkspaceSearchFiltersChanged()
+      if (!affectsOpenTab) return
+    }
+
+    if (isGitignoreFile && isAnyGitignoreFilterScopeEnabled()) {
+      if (isGitignoreFilterScopeEnabled('explorer')) {
+        await loadFileTree()
+      }
+      if (isGitignoreFilterScopeEnabled('watcher')) {
+        await startAdvancedFileWatching()
+      }
+      if (isGitignoreFilterScopeEnabled('search')) {
+        notifyWorkspaceSearchFiltersChanged()
+      }
       if (!affectsOpenTab) return
     }
 
@@ -3127,9 +3176,10 @@ export const useAppStore = defineStore('app', () => {
   watch(globalEditSetting, () => saveEditSettingDebounced(), { deep: true })
   watch(globalExportSetting, () => StateStorage.saveExportSetting(globalExportSetting), { deep: true })
   watch(globalMarkdownPrintSetting, () => StateStorage.saveMarkdownPrintSetting(globalMarkdownPrintSetting), { deep: true })
-  watch([() => globalEditSetting.workspaceIgnoreRules, () => globalEditSetting.useGitignoreAsWorkspaceIgnore], () => {
-    reloadWorkspaceFiltersDebounced()
-  })
+  watch(() => globalEditSetting.workspaceIgnoreRules, () => reloadAllWorkspaceFiltersDebounced())
+  watch(() => isGitignoreFilterScopeEnabled('explorer'), () => reloadExplorerFiltersDebounced())
+  watch(() => isGitignoreFilterScopeEnabled('search'), () => notifyWorkspaceSearchFiltersChanged())
+  watch(() => isGitignoreFilterScopeEnabled('watcher'), () => reloadWatcherFiltersDebounced())
   watch([autoSaveEnabled, autoSaveIntervalSeconds], () => saveAutoSaveDebounced())
 
   // 监听主题变化
@@ -3200,6 +3250,7 @@ export const useAppStore = defineStore('app', () => {
     searchIncludePattern,
     searchExcludePattern,
     searchRequestKey,
+    workspaceSearchFilterRevision,
     leftSidebarWidth,
     minSidebarWidth,
     rightSidebarWidth,
@@ -3290,6 +3341,7 @@ export const useAppStore = defineStore('app', () => {
     rebuildWorkspaceDirectory,
     checkWorkspaceDirectoryRestored,
     loadFileTree,
+    getEffectiveWorkspaceIgnoreRules,
     sortFileTreeNodes,
     queryFileTreeNodes,
     setSelectedItem,

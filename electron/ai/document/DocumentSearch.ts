@@ -3,6 +3,8 @@ import * as path from 'path'
 import type { SerializedSnapshot } from '../ipc/protocol'
 import {
   DEFAULT_WORKSPACE_IGNORE_RULES,
+  WORKSPACE_IGNORE_FILENAME,
+  mergeWorkspaceIgnoreRules,
   parseWorkspaceIgnoreRules,
   shouldIncludeWorkspaceEntry,
 } from '../../../src/services/workspace/filtering'
@@ -152,6 +154,21 @@ function aggregateSections(blockMatches: BlockMatch[]): SectionMatch[] {
   return Array.from(sections.values())
 }
 
+function getDefaultWorkspaceDocumentIgnoreRules(workspacePath: string): string {
+  const workspaceIgnorePath = path.join(workspacePath, WORKSPACE_IGNORE_FILENAME)
+  let workspaceRules: string | undefined
+
+  try {
+    if (fs.existsSync(workspaceIgnorePath)) {
+      workspaceRules = fs.readFileSync(workspaceIgnorePath, 'utf8')
+    }
+  } catch {
+    workspaceRules = undefined
+  }
+
+  return mergeWorkspaceIgnoreRules(DEFAULT_WORKSPACE_IGNORE_RULES, workspaceRules)
+}
+
 export function listWorkspaceDocumentPaths(
   workspacePath: string,
   includeGlob?: string,
@@ -159,7 +176,7 @@ export function listWorkspaceDocumentPaths(
   maxFiles = 200
 ): string[] {
   const results: string[] = []
-  const matcher = parseWorkspaceIgnoreRules(DEFAULT_WORKSPACE_IGNORE_RULES)
+  const matcher = parseWorkspaceIgnoreRules(getDefaultWorkspaceDocumentIgnoreRules(workspacePath))
 
   function walk(dirPath: string): void {
     if (results.length >= maxFiles) return

@@ -268,19 +268,40 @@
           <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-7">
             <section class="flex flex-col gap-3">
               <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.workspace.rulesTitle') }}</h3>
-              <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
+              <div class="flex flex-col gap-3 rounded-box border border-base-300 bg-base-100 px-4 py-3">
                 <div class="min-w-0">
                   <div class="text-sm font-medium text-base-content">{{ t('preferences.workspace.useGitignoreTitle') }}</div>
                   <div class="text-xs text-base-content/50">{{ t('preferences.workspace.useGitignoreDesc') }}</div>
                 </div>
-                <label class="label cursor-pointer gap-3">
-                  <input
-                    type="checkbox"
-                    class="toggle toggle-primary toggle-xs"
-                    :checked="appStore.globalEditSetting.useGitignoreAsWorkspaceIgnore !== false"
-                    @change="appStore.globalEditSetting.useGitignoreAsWorkspaceIgnore = ($event.target as HTMLInputElement).checked"
-                  />
-                </label>
+                <div class="flex flex-col gap-2">
+                  <label class="flex cursor-pointer items-center justify-between gap-4">
+                    <span class="text-xs text-base-content">{{ t('preferences.workspace.useGitignoreExplorerTitle') }}</span>
+                    <input
+                      type="checkbox"
+                      class="toggle toggle-primary toggle-xs"
+                      :checked="isGitignoreFilterScopeEnabled('explorer')"
+                      @change="setGitignoreFilterScope('explorer', ($event.target as HTMLInputElement).checked)"
+                    />
+                  </label>
+                  <label class="flex cursor-pointer items-center justify-between gap-4">
+                    <span class="text-xs text-base-content">{{ t('preferences.workspace.useGitignoreSearchTitle') }}</span>
+                    <input
+                      type="checkbox"
+                      class="toggle toggle-primary toggle-xs"
+                      :checked="isGitignoreFilterScopeEnabled('search')"
+                      @change="setGitignoreFilterScope('search', ($event.target as HTMLInputElement).checked)"
+                    />
+                  </label>
+                  <label class="flex cursor-pointer items-center justify-between gap-4">
+                    <span class="text-xs text-base-content">{{ t('preferences.workspace.useGitignoreWatcherTitle') }}</span>
+                    <input
+                      type="checkbox"
+                      class="toggle toggle-primary toggle-xs"
+                      :checked="isGitignoreFilterScopeEnabled('watcher')"
+                      @change="setGitignoreFilterScope('watcher', ($event.target as HTMLInputElement).checked)"
+                    />
+                  </label>
+                </div>
               </div>
               <div class="flex flex-col gap-2 rounded-box border border-base-300 bg-base-100 px-4 py-3">
                 <div class="min-w-0">
@@ -800,6 +821,7 @@ import { notify } from '@/utils/notifications'
 import ProviderSettings from '@/components/ai/ProviderSettings.vue'
 import ExportPreferencesPanel from '@/components/preferences/ExportPreferencesPanel.vue'
 import PrintPreferencesPanel from '@/components/preferences/PrintPreferencesPanel.vue'
+import type { WorkspaceFilterScope } from '@/services/workspace/filtering'
 
 type TabId = 'workspace' | 'editor' | 'spelling' | 'themes' | 'print' | 'export' | 'ai' | 'updates'
 type ThemeSectionId = 'general' | 'light' | 'dark' | 'markdown' | 'custom-markdown'
@@ -824,6 +846,30 @@ const lightAppThemes = computed(() => sortThemeOptionsByName(availableThemes.fil
 const darkAppThemes = computed(() => sortThemeOptionsByName(availableThemes.filter((theme) => theme.scheme === 'dark')))
 const builtInMarkdownThemeOptions = computed(() => builtInMarkdownThemes)
 const rawCustomThemes = computed<readonly RawCustomTheme[]>(() => getRawCustomThemes())
+function isGitignoreFilterScopeEnabled(scope: WorkspaceFilterScope): boolean {
+  switch (scope) {
+    case 'explorer':
+      return appStore.globalEditSetting.useGitignoreForExplorer === true
+    case 'search':
+      return appStore.globalEditSetting.useGitignoreForSearch === true
+    case 'watcher':
+      return appStore.globalEditSetting.useGitignoreForWatcher === true
+  }
+}
+
+function setGitignoreFilterScope(scope: WorkspaceFilterScope, enabled: boolean): void {
+  switch (scope) {
+    case 'explorer':
+      appStore.globalEditSetting.useGitignoreForExplorer = enabled
+      return
+    case 'search':
+      appStore.globalEditSetting.useGitignoreForSearch = enabled
+      return
+    case 'watcher':
+      appStore.globalEditSetting.useGitignoreForWatcher = enabled
+  }
+}
+
 const appThemeSections = computed(() => [
   { id: 'light' as ThemeSectionId, label: formatThemeSectionLabel(t('preferences.themes.sectionLightThemes'), lightAppThemes.value.length) },
   { id: 'dark' as ThemeSectionId, label: formatThemeSectionLabel(t('preferences.themes.sectionDarkThemes'), darkAppThemes.value.length) },

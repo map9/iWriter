@@ -9,7 +9,7 @@
 - 修复 Windows 路径显示与解析：资源管理器标题、AI 上下文附件和路径工具现在能正确处理盘符路径与 UNC 共享路径。
 - 修复 Windows 工作区监听遇到 NTFS 联接点或重解析点时可能出现 `UNKNOWN: lstat` 报错的问题，无法读取的系统对象会被跳过，不再打断普通文件监听。
 - 修复 Windows 上 LibreOffice 转换 Office 文档为 PDF 时可能找不到组件或误判可用性的情况，标准安装路径和手动配置的绝对路径更可靠。
-- 调整新建工作区默认忽略规则：默认保留 `.git/` 与 macOS 系统元数据过滤，不再自动排除 `node_modules/`、构建产物和缓存目录；需要时可继续通过 `.iwtignore` 或 `.gitignore` 自定义。
+- 调整工作区过滤语义：`.iwtignore` 作为 iWriter 工作区规则，`.gitignore` 默认不再参与资源管理器、跨文件搜索和文件监听；需要复用 Git 忽略规则时，可在偏好设置中按功能分别开启。默认过滤规则保留 `.git/`、`.iwriter/` 与 macOS 系统元数据过滤，不再自动排除 `node_modules/`、构建产物和缓存目录。
 - 改进 GitHub / GitHub Dark Markdown 屏幕主题的宽表格显示，宽表会在编辑器内横向滚动，减少页面布局被撑开的情况。
 
 ## `0.1.23`

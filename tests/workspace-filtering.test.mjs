@@ -23,7 +23,7 @@ async function loadFilteringModule() {
 }
 
 describe('workspace filtering', () => {
-  it('ignores heavy development directories by default', async () => {
+  it('ignores built-in workspace metadata by default', async () => {
     const {
       DEFAULT_WORKSPACE_IGNORE_RULES,
       parseWorkspaceIgnoreRules,
@@ -33,12 +33,13 @@ describe('workspace filtering', () => {
     const matcher = parseWorkspaceIgnoreRules(DEFAULT_WORKSPACE_IGNORE_RULES)
 
     assert.equal(shouldIncludeWorkspaceEntry({ relativePath: '.git', isDirectory: true }, matcher), false)
-    assert.equal(shouldIncludeWorkspaceEntry({ relativePath: 'node_modules', isDirectory: true }, matcher), false)
-    assert.equal(shouldIncludeWorkspaceEntry({ relativePath: 'dist-electron', isDirectory: true }, matcher), false)
-    assert.equal(shouldIncludeWorkspaceEntry({ relativePath: 'docs/.vitepress/cache', isDirectory: true }, matcher), false)
+    assert.equal(shouldIncludeWorkspaceEntry({ relativePath: '.iwriter', isDirectory: true }, matcher), false)
+    assert.equal(shouldIncludeWorkspaceEntry({ relativePath: '.DS_Store', isDirectory: false }, matcher), false)
+    assert.equal(shouldIncludeWorkspaceEntry({ relativePath: 'node_modules', isDirectory: true }, matcher), true)
+    assert.equal(shouldIncludeWorkspaceEntry({ relativePath: 'dist-electron', isDirectory: true }, matcher), true)
   })
 
-  it('merges .gitignore rules only when the persisted setting is enabled', async () => {
+  it('merges .gitignore rules only when the scope asks for them', async () => {
     const { buildWorkspaceIgnoreRules, parseWorkspaceIgnoreRules, shouldIncludeWorkspaceEntry } = await loadFilteringModule()
 
     assert.equal(typeof buildWorkspaceIgnoreRules, 'function')
@@ -47,7 +48,7 @@ describe('workspace filtering', () => {
       preferenceRules: '',
       gitignoreRules: 'draft-cache/',
       workspaceRules: '',
-      useGitignoreAsWorkspaceIgnore: false,
+      useGitignore: false,
     }))
     assert.equal(shouldIncludeWorkspaceEntry({ relativePath: 'draft-cache', isDirectory: true }, disabledMatcher), true)
 
@@ -55,7 +56,7 @@ describe('workspace filtering', () => {
       preferenceRules: '',
       gitignoreRules: 'draft-cache/',
       workspaceRules: '',
-      useGitignoreAsWorkspaceIgnore: true,
+      useGitignore: true,
     }))
     assert.equal(shouldIncludeWorkspaceEntry({ relativePath: 'draft-cache', isDirectory: true }, enabledMatcher), false)
   })
