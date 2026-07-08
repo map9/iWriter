@@ -65,6 +65,12 @@ export interface AiProviderConfig {
   parameters?: AiProviderParameters
   /** Optional fallback model ID used by modelFallbackMiddleware when the primary model call fails. */
   fallbackModelId?: string
+  /**
+   * Optional hard per-request token ceiling (TPM-safety backstop). When set, overrides the global
+   * HARD_REQUEST_CEILING_TOKENS for this provider — raise it for high-TPM accounts or local models,
+   * lower it for tight budgets. Omit to use the global default.
+   */
+  maxRequestTokens?: number
 }
 
 export type ApiKeyResolver = (name: string) => string | undefined

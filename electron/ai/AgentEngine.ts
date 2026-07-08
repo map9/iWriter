@@ -28,7 +28,7 @@ import {
 
 import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage } from '../../src/types/ai'
 import { isAiProviderUsable, resolveApiKeyReference } from '../../src/types/ai'
-import { getModelBudgetInfo } from '../../src/ai/model/model-budget'
+import { getModelBudgetInfo, HARD_REQUEST_CEILING_TOKENS } from '../../src/ai/model/model-budget'
 import { estimateTextTokens } from '../../src/ai/model/token-estimation'
 import { createChatModel } from './providers/ModelFactory'
 import { SnapshotBroker } from './document/SnapshotBroker'
@@ -56,6 +56,7 @@ import { generateThreadTitle } from '../../src/ai/thread/title'
 import { IWriterAgentContextSchema, type IWriterAgentContext } from './runtime/AgentContext'
 import { createTaskToolCompatMiddleware } from './scaffold/middleware/TaskToolCompatMiddleware'
 import { createOrphanToolCallStripperMiddleware } from './scaffold/middleware/OrphanToolCallStripperMiddleware'
+import { createRateLimitRetryMiddleware } from './scaffold/middleware/RateLimitRetryMiddleware'
 import { createHumanRespondMessageMiddleware, RESPOND_MARKER } from './scaffold/middleware/HumanRespondMessageMiddleware'
 import { CheckpointerAdmin } from './checkpoint/CheckpointerAdmin'
 import { MIDDLEWARE_CONFIG, createInstrumentedFallbackMiddleware } from './scaffold/middleware/middleware-config'
@@ -64,6 +65,17 @@ import type { DomainStrategy } from './domain/DomainStrategy'
 import { EditDomainStrategy } from './domain/edit/EditDomainStrategy'
 import { CreativeDomainStrategy } from './domain/creative/CreativeDomainStrategy'
 import { detectInputLanguage, type DetectedInputLanguage } from '../../src/ai/message/detectInputLanguage'
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+/**
+ * Success message host-synthesized (via the respond channel) for an approved block-edit that lands
+ * in a poisoned resume batch — the renderer already applied the mutation, so this reads as a plain
+ * success to the LLM while guaranteeing the tool_call is answered. See resumeRun's poisoned-batch guard.
+ */
+const BLOCK_EDIT_APPLIED_MESSAGE =
+  'The edit was applied successfully by the editor. Block IDs for this file have now shifted — ' +
+  're-read with get_document_outline / get_section before starting a new round of edits.'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -248,7 +260,7 @@ export class AgentEngine {
     }
 
     const userContent = buildUserMessage(req)
-    this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language)
+    await this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language, threadId)
 
     // If this thread was left in an interrupted state (e.g., app restart during HITL),
     // clear the stale in-memory entry so the new message starts a fresh run.
@@ -423,13 +435,39 @@ export class AgentEngine {
     // An approved confirm_writing_plan opens the write-session authorization (04.1 §6 Stage 2).
     this._registerApprovedWritingPlans(threadId, interrupted, fullDecisions)
 
+    // Poisoned-batch orphan guard. LangChain HITL sets jumpTo:"model" whenever ANY decision in
+    // the batch is a reject/respond, which SKIPS ToolNode for the WHOLE batch. Approved block-edit
+    // tool calls then never get a ToolMessage and dangle as orphan tool_calls → OpenAI 400
+    // "No tool output found for function call ...". Block-edit tools are pure acks (the renderer has
+    // ALREADY applied the mutation before ai:resume — see EditProposalTools), so for an approved
+    // block-edit in a poisoned batch we host-synthesize a success ToolMessage via the respond
+    // channel: every tool_call gets answered, the applied edit stays in history, and we no longer
+    // depend on ToolNode running. Non-poisoned batches keep the normal approve→ToolNode path, and
+    // non-block-edit tools (e.g. filesystem writes that do real work on execution) are never
+    // synthesized — they must still execute via ToolNode.
+    const batchPoisoned = fullDecisions.some(d => d.type === 'rejected' || d.type === 'responded')
+
     // Map decisions[] → LangGraph HITLResponse decisions.
     // decisions[i] corresponds to actionRequests[i] — array position is the contract.
     const lgDecisions = fullDecisions.map((d, idx) => {
       if (d.type === 'approved') {
+        if (batchPoisoned && isBlockEditToolName(interrupted.actionNames[idx] ?? '')) {
+          return {
+            type: 'reject' as const,
+            message: `${RESPOND_MARKER}${BLOCK_EDIT_APPLIED_MESSAGE}`,
+          }
+        }
         return { type: 'approve' as const }
       }
       if (d.type === 'edited' && d.editedArgs) {
+        // Same poisoned-batch guard as 'approved': an edited block-edit is also applied by the
+        // renderer, so route it through the respond channel to avoid an orphan tool_call.
+        if (batchPoisoned && isBlockEditToolName(interrupted.actionNames[idx] ?? '')) {
+          return {
+            type: 'reject' as const,
+            message: `${RESPOND_MARKER}${BLOCK_EDIT_APPLIED_MESSAGE}`,
+          }
+        }
         return {
           type: 'edit' as const,
           editedAction: {
@@ -1100,6 +1138,9 @@ export class AgentEngine {
               this._notifyModelFallbackOnce(threadId, fallbackModelId)
             })]
           : []),
+        // Innermost: honor provider Retry-After on transient 429s and retry the SAME model before
+        // a persistent limit degrades to the fallback model (fallback wraps this, so it runs after).
+        createRateLimitRetryMiddleware(),
       ],
       contextSchema: IWriterAgentContextSchema,
     })
@@ -1373,7 +1414,7 @@ export class AgentEngine {
     return buildMemorySources(this.aiRootPath, this.strategies[domain].getMemoryDir())
   }
 
-  private _assertWithinBudget(
+  private async _assertWithinBudget(
     config: AiProviderConfig,
     domain: AiAgentDomain,
     mode: AiAgentMode,
@@ -1381,17 +1422,34 @@ export class AgentEngine {
     thinkingLevel: AiThinkingLevel,
     userContent: string,
     language: DetectedInputLanguage = 'en-US',
-  ): void {
+    threadId?: string,
+  ): Promise<void> {
     const systemPrompt = this.strategies[domain].getSystemPrompt(mode, language)
-    const inputTokens = estimateTextTokens(systemPrompt) + estimateTextTokens(userContent)
+    const userContentTokens = estimateTextTokens(userContent)
+    const inputTokens = estimateTextTokens(systemPrompt) + userContentTokens
     const model = createChatModel(config, { modelId, thinkingLevel })
     const budgetInfo = getModelBudgetInfo((model as BaseChatModel & { profile?: ModelProfile }).profile)
-    const allowedBudget = budgetInfo.triggerTokens
 
-    if (inputTokens <= allowedBudget) return
+    // New input alone must fit under the summarization trigger (nothing to compact yet if it doesn't).
+    if (inputTokens > budgetInfo.triggerTokens) {
+      throw new Error(
+        `当前请求预计约 ${inputTokens} tokens，已超过摘要触发预算 ${budgetInfo.triggerTokens}。请先点击 Compact 压缩输入，或减少附件与上下文。`
+      )
+    }
 
-    throw new Error(
-      `当前请求预计约 ${inputTokens} tokens，已超过摘要触发预算 ${allowedBudget}。请先点击 Compact 压缩输入，或减少附件与上下文。`
-    )
+    // Hard TPM-safety backstop: the profile-based summarization trigger can sit far above the org's
+    // per-minute token budget, so the accumulated request (history + input) must also clear a hard
+    // ceiling. Fail fast with an actionable hint rather than hitting an opaque 429/400 mid-run.
+    // _getCurrentSessionTokens already includes the system prompt + tools + existing messages, so we
+    // add ONLY the new user input here — never the system prompt again (it would double-count and
+    // false-trip long sessions near the ceiling). The provider may override the global default.
+    const ceiling = config.maxRequestTokens ?? HARD_REQUEST_CEILING_TOKENS
+    const sessionTokens = await this._getCurrentSessionTokens(threadId, domain, mode)
+    const projectedTokens = sessionTokens + userContentTokens
+    if (projectedTokens > ceiling) {
+      throw new Error(
+        `本轮请求预计约 ${projectedTokens} tokens（历史 ${sessionTokens} + 新输入 ${userContentTokens}），已超过单次请求硬上限 ${ceiling}。请点击 Compact 压缩，或开启新会话继续。`
+      )
+    }
   }
 }

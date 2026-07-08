@@ -21,8 +21,8 @@
       :key="entry.key"
       :message="entry.message"
       :is-preview="entry.isPreview"
-      :preview-status-text="entry.isPreview ? `${streamingStatusLabel} · ${formattedElapsed}` : ''"
-      :show-preview-pulse="!!entry.isPreview"
+      :preview-status-text="entry.isPreview ? (aiStore.isInterrupted ? streamingStatusLabel : `${streamingStatusLabel} · ${formattedElapsed}`) : ''"
+      :show-preview-pulse="!!entry.isPreview && !aiStore.isInterrupted"
       @resend="handleResend"
     />
 

@@ -746,6 +746,7 @@ export const useAiStore = defineStore('ai', () => {
   const runtimeDisplay = createRuntimeDisplay({
     liveTurn: _liveTurn,
     threadRunState: _threadRunState,
+    activeThreadId,
     persistedMessages,
     isResumingReviewedEdits,
     normalizeMessageForDisplay: _normalizeMessageForDisplay,

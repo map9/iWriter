@@ -175,6 +175,7 @@ function mergeSubTaskProgress(
 export function createRuntimeDisplay(deps: {
   liveTurn: Ref<LiveTurn | null>
   threadRunState: Ref<ThreadRunState>
+  activeThreadId: Ref<string | null>
   persistedMessages: ComputedRef<ThreadMessage[]>
   isResumingReviewedEdits: Ref<boolean>
   normalizeMessageForDisplay: (message: ThreadMessage) => ThreadMessage
@@ -273,11 +274,45 @@ export function createRuntimeDisplay(deps: {
 
   const displayThread = computed<AiDisplayThread>(() => {
     const persisted = deps.persistedMessages.value
+    const liveTurn = deps.liveTurn.value
+
+    // The preview is decoupled from threadRunState: it renders for the active thread's live turn in
+    // BOTH streaming and interrupted states. Gating on 'streaming' alone made the current assistant /
+    // subagent bubble vanish during the async checkpoint fetch at an interrupt (and stay vanished if
+    // aiGetThreadMessages failed). It is only shown for the active thread — a background thread's live
+    // turn must never leak into the thread currently on screen. At run-done liveTurn is cleared, so
+    // streamingPreviewMessage becomes null and the persisted messages are the single source again.
+    const sameThread = !!liveTurn && liveTurn.threadId === deps.activeThreadId.value
+    const preview = sameThread ? streamingPreviewMessage.value : null
+
+    // Dedup: while a live preview is shown it is the authoritative, still-updating render for the
+    // current turn, so the persisted copy of that same turn (fetched mid-turn at an interrupt) must
+    // be dropped — otherwise the turn renders twice after interrupt→resume (duplicated bubbles /
+    // subagent cards). Prefer matching by the live turn's turnId; checkpoint messages are not
+    // reliably turnId-tagged though, so fall back to "everything after the last user message" (which
+    // is exactly the current turn). liveTurn is preserved across the interrupt (ensureLiveTurn keeps
+    // blocks/subTasks) so the preview is a complete superset of the turn; dropping persisted loses nothing.
+    const liveTurnId = liveTurn?.turnId ?? undefined
+    let lastUserIndex = -1
+    if (preview) {
+      for (let i = persisted.length - 1; i >= 0; i--) {
+        if (persisted[i]!.role === 'user') { lastUserIndex = i; break }
+      }
+    }
+    const isCurrentTurnMessage = (msg: ThreadMessage, index: number): boolean => {
+      if (!preview) return false
+      if (liveTurnId && msg.turnId === liveTurnId) return true
+      return lastUserIndex >= 0 && index > lastUserIndex
+    }
+
     const entries: AiDisplayMessageEntry[] = []
     let pendingThinking: ThreadMessage[] = []
 
     for (let index = 0; index < persisted.length; index += 1) {
       const msg = persisted[index]!
+      if (isCurrentTurnMessage(msg, index)) {
+        continue
+      }
       if (isThinkingOnlyMessage(msg)) {
         pendingThinking.push(msg)
         continue
@@ -340,8 +375,7 @@ export function createRuntimeDisplay(deps: {
       pendingThinking = []
     }
 
-    if (deps.threadRunState.value === 'streaming' && streamingPreviewMessage.value) {
-      const preview = streamingPreviewMessage.value
+    if (preview) {
       entries.push({
         key: `preview:${preview.id}:${preview.turnId ?? 'live'}`,
         message: preview,
