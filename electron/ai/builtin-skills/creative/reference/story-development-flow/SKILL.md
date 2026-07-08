@@ -10,7 +10,7 @@ The creative pipeline is NOT enforced by a state machine — the author may iter
 ## The default pipeline
 
 ```
-project.md ─闸0→ 设定/角色 ⇄ ─闸1→ 总纲 →[卷纲]─闸2→ 章纲 ─闸3→ beat计划(confirm) ─闸4→ 正文 → 审校/重构
+project.md ─闸0→ 设定/角色 ⇄ ─闸1→ 总纲 →[卷纲]─闸2→ 章纲 ─闸3→ beat哨兵(confirm→A00落哨兵) ─闸4→ 哨兵下正文 → 审校/重构
 ```
 
 Levels differ in granularity — **event-level** (总纲/卷纲: structure nodes) vs **scene-level** (章纲: goal/conflict/outcome three-part; beat: in-scene 节拍). The dividing line is the chapter outline: **an event-level master outline never substitutes for a scene-level chapter outline.**
@@ -40,7 +40,7 @@ Each gate's sharpest test is the **reverse judgment**: "if I force the next step
 - **反向判断**：拿着章纲还要不要自己现编冲突和结果？要 → 章纲不合格，补 S04 并确认后再写。
 - 一旦作品分章节，写第 N 章前该章章纲必须先成形并确认；不必一次建全部章纲，但绝不从事件级总纲直接写正文。
 
-**闸4 beat 计划就绪（→ 写/改正文）** — beat 计划从已确认章纲场景展开、每 beat 核心点、因果必然 → `confirm_writing_plan` 确认。写章节前置状态机与重写保护见 `writing-plan-authoring`。
+**闸4 beat 就绪（→ 写/改正文）** — beat 从已确认章纲场景展开、每 beat 核心点、因果必然 → `confirm_writing_plan` 确认 → A00 把 beat 写成**正文文件里的哨兵**（`> [场景-{N}-节拍-{M}] 核心点`，beat 唯一真源；章纲不含 beat）；writer 只写哨兵下正文。两轴（节拍层是否变 / 是否委派 writer）、写章节前置状态机与重写保护见 `writing-plan-authoring`。
 
 ## Adjustments bubble as reminders, never auto-cascade
 
