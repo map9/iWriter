@@ -37,13 +37,34 @@ The two combine into the pre-write state machine below.
 
 ## Drafting the beat plan
 
-Read the confirmed chapter outline's scenes. For each scene, break it into **2–5 beats**, each a single-line core point (`核心点`) that is causally necessary (load `scene-and-plot-construction` for causal necessity, `character-believability` for grounding). Assemble them as the `plan` for `confirm_writing_plan` — this is **beat-level intent, not line-by-line wording**. Fragment check as in S03/S04 (attach a merge proposal for a hitting 未采用 fragment). You may plan several related chapters at once (multi-chapter authorization).
+Read the confirmed chapter outline's scenes. For each scene, break it into **2–5 beats**, each a single-line core point (`核心点`) that is causally necessary (load `scene-and-plot-construction` for causal necessity, `character-believability` for grounding). This is **beat-level intent, not line-by-line wording**. Fragment check as in S03/S04 (attach a merge proposal for a hitting 未采用 fragment). You may plan several related chapters at once (multi-chapter authorization).
 
-`confirm_writing_plan`'s approval is the write-session authorization switch (先批意图) and records the confirmed intent; the durable, authoritative form of the beats is the sentinels you then write into the manuscript.
+**Author the plan directly in the canonical sentinel format below** — the `plan` you pass to `confirm_writing_plan` IS the sentinel skeleton, so materialization is a verbatim copy with zero reformatting (no separate table/bullet form to convert). `confirm_writing_plan`'s approval is the write-session authorization switch (先批意图) and records the confirmed intent; the durable, authoritative form of the beats is the sentinels you then write into the manuscript.
+
+## Canonical beat/sentinel format (MUST follow exactly — do not improvise)
+
+The **only** allowed beat representation, used identically in the `confirm_writing_plan` `plan` AND in the manuscript, is:
+
+```
+# 第{N}章
+
+> [场景-1-节拍-1] 一句话核心点
+> [场景-1-节拍-2] 一句话核心点
+
+* * *
+
+> [场景-2-节拍-1] 一句话核心点
+```
+
+Rules — every run must produce the same shape:
+- One sentinel per line, a Markdown blockquote `> [场景-{N}-节拍-{M}] 核心点`. **Never** a table, bullet list, or prose paragraph, and **never** the `{N}-{M}` short form — always the full `场景-{N}-节拍-{M}` label so plan and sentinel numbering can never diverge.
+- Scenes are separated by a `* * *` thematic break; beats within a scene are consecutive sentinel lines.
+- `核心点` = one sentence, a **causally necessary** beat point (什么发生 + 转折). No explanatory tail (don't "translate" a character's/faction's inner logic for the reader — that's the recurring mistake), no style/craft instruction (style lives in the writer brief / `prose-craft-by-example`), no line-by-line wording.
+- On disk the Markdown pipeline may render the brackets escaped (`> \[场景-1-节拍-1\] …`); that is the SAME sentinel — treat `[` and `\[` as equivalent.
 
 ## Materializing the beats as sentinels
 
-After `confirm_writing_plan` is approved (approved/edited — edited text wins), write the confirmed beats into the target file as sentinel lines, faithfully mirroring the approved plan:
+After `confirm_writing_plan` is approved (approved/edited — edited text wins), write the confirmed sentinels into the target file **verbatim** from the approved `plan`:
 
 - **New chapter** → `create_document` (basename `ch{NNN}.md`, `directory` = the workspace `manuscript/` dir) whose content is the sentinel skeleton — sentinels only, no prose. A 节拍-only chapter is a valid, first-class state (some authors design all beats before any prose).
 - **Existing chapter** → block edits (`insert_block` / `edit_block` / `delete_block`) that add / reword / reorder / remove the sentinel lines in place, preserving the prose under unchanged beats. Because the write-session is already authorized, these sentinel edits auto-accumulate (no per-edit card). Removing a beat whose prose should also go is a deliberate `delete_block` of both.
@@ -52,7 +73,17 @@ Never make the writer author or edit sentinels — that is your job and the writ
 
 ## Delegating the writer (axis B only)
 
-When prose must be (re)written, `task(subagent_type="writer")` with a thin brief: the expansion link, the `targetChapter` absolute path, and the **scope** — which scenes/beats to expand (a new chapter = all sentinels not yet realized; a case-5 change = just the affected ones). Do NOT transcribe the beats into the brief; they are the sentinels in `targetChapter`. For a pure prose polish (case 3) use the revision link with the intent + range.
+When prose must be (re)written, `task(subagent_type="writer")` with a thin brief. The brief **MUST** contain the `targetChapter` as an **absolute host path** (never a bare "ch001" — without it the writer cannot locate the file and will either stop with `MISSING_FIELDS` or waste a round hunting). Concretely:
+
+```
+task(subagent_type="writer", description="""
+展开链路。
+targetChapter: /abs/workspace/manuscript/ch001.md
+范围: 全部未落笔的哨兵      (case 5 时改为: 场景-2-节拍-3、场景-2-节拍-4)
+""")
+```
+
+Give only link + `targetChapter` (absolute) + scope. Do NOT transcribe the beats into the brief; they are the sentinels already in `targetChapter`. Any prose-style guidance belongs here (it is not in the sentinels). For a pure prose polish (case 3) use the revision link with the intent + range.
 
 ## Red lines
 

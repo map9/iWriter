@@ -6,6 +6,7 @@ import type { InterruptOnConfig } from 'langchain'
 import type { ToolRegistry } from '../../tools/ToolRegistry'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
 import { buildOutputLanguagePrompt } from '../../../../src/ai/message/detectInputLanguage'
+import { createSubagentTraceTagMiddleware } from '../middleware/SubagentTraceTagMiddleware'
 
 /**
  * SubagentAssembler (04.1 §2 / 03 §2.10, plan A1) — the declarative装配 mechanism that
@@ -173,6 +174,9 @@ export function assembleSubagents(options: AssembleOptions): SubAgent[] {
       name: frontmatter.name,
       description: frontmatter.description,
       systemPrompt: `${buildOutputLanguagePrompt(options.language)}\n\n${body}`,
+      // Stamp this subagent's model calls with a distinct LangSmith identity (runName/tags/metadata)
+      // so its nested trace is filterable/exportable for analysis. Pure trace metadata, no behavior.
+      middleware: [createSubagentTraceTagMiddleware(frontmatter.name)],
       ...(frontmatter.tools
         ? { tools: options.registry.select(frontmatter.tools, `subagent "${frontmatter.name}"`) }
         : {}),
