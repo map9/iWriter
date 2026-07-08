@@ -123,6 +123,7 @@ export class AgentEngine {
   private checkpointerInstance: CheckpointerInstance | null = null
   private checkpointerAdmin: CheckpointerAdmin | null = null
   private threadListQuery: ThreadListQuery | null = null
+  private initializationPromise: Promise<void> | null = null
 
   /** Domain strategy table — add new domains here only. AgentEngine itself never branches on domain. */
   private readonly strategies: Record<AiAgentDomain, DomainStrategy>
@@ -1316,7 +1317,13 @@ export class AgentEngine {
   // ── Private: init ─────────────────────────────────────────────────────────
 
   private async _ensureInitialized(): Promise<void> {
-    if (!this.checkpointerInstance) await this.initialize()
+    if (this.checkpointerInstance) return
+    if (!this.initializationPromise) {
+      this.initializationPromise = this.initialize().finally(() => {
+        this.initializationPromise = null
+      })
+    }
+    await this.initializationPromise
   }
 
   private async ensureAiDirectories(): Promise<void> {

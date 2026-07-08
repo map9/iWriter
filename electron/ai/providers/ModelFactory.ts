@@ -29,6 +29,11 @@ export interface ChatModelRuntimeOptions {
 
 type ChatAnthropicFields = ConstructorParameters<typeof ChatAnthropic>[0]
 type ChatGoogleGenerativeAIFields = ConstructorParameters<typeof ChatGoogleGenerativeAI>[0]
+type GeminiBindableModel = BaseChatModel & {
+  bindTools?: (...args: unknown[]) => unknown
+  invocationParams?: (...args: unknown[]) => Record<string, unknown>
+}
+type JsonRecord = Record<string, unknown>
 
 function mapThinkingLevelToOpenAIReasoningEffort(thinkingLevel?: AiThinkingLevel): 'low' | 'medium' | 'high' | 'xhigh' {
   const normalized = normalizeThinkingLevel(thinkingLevel)
@@ -93,6 +98,55 @@ function applyProfileOverride<T extends BaseChatModel>(model: T, profile?: Model
       }
     },
   })
+
+  return model
+}
+
+function isPlainRecord(value: unknown): value is JsonRecord {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function sanitizeGeminiToolSchema(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sanitizeGeminiToolSchema)
+  }
+
+  if (!isPlainRecord(value)) return value
+
+  const sanitized: JsonRecord = {}
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'exclusiveMinimum' || key === 'exclusiveMaximum') continue
+    sanitized[key] = sanitizeGeminiToolSchema(child)
+  }
+  return sanitized
+}
+
+function sanitizeGeminiToolsParam<T extends Record<string, unknown>>(params: T): T {
+  if (!Array.isArray(params.tools)) return params
+  return {
+    ...params,
+    tools: sanitizeGeminiToolSchema(params.tools),
+  }
+}
+
+function applyGeminiToolSchemaSanitizer<T extends BaseChatModel>(model: T): T {
+  const geminiModel = model as GeminiBindableModel
+  const originalBindTools = geminiModel.bindTools?.bind(geminiModel)
+  if (originalBindTools) {
+    geminiModel.bindTools = ((...args: unknown[]) => {
+      const bound = originalBindTools(...args)
+      if (isPlainRecord(bound) && isPlainRecord(bound.config)) {
+        bound.config = sanitizeGeminiToolsParam(bound.config)
+      }
+      return bound
+    }) as GeminiBindableModel['bindTools']
+  }
+
+  const originalInvocationParams = geminiModel.invocationParams?.bind(geminiModel)
+  if (originalInvocationParams) {
+    geminiModel.invocationParams = ((...args: unknown[]) =>
+      sanitizeGeminiToolsParam(originalInvocationParams(...args))) as GeminiBindableModel['invocationParams']
+  }
 
   return model
 }
@@ -190,7 +244,7 @@ export function createChatModel(
     }
 
     case 'gemini': {
-      return applyProfileOverride(new ChatGoogleGenerativeAI({
+      return applyProfileOverride(applyGeminiToolSchemaSanitizer(new ChatGoogleGenerativeAI({
         model: modelId,
         apiKey: resolvedApiKey,
         streaming: true,
@@ -205,7 +259,7 @@ export function createChatModel(
               },
             }
           : {}),
-      } as ChatGoogleGenerativeAIFields) as BaseChatModel, getProfileOverride(config, modelId))
+      } as ChatGoogleGenerativeAIFields) as BaseChatModel), getProfileOverride(config, modelId))
     }
 
     default:
