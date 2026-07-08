@@ -283,22 +283,39 @@ export function createRuntimeDisplay(deps: {
     // turn must never leak into the thread currently on screen. At run-done liveTurn is cleared, so
     // streamingPreviewMessage becomes null and the persisted messages are the single source again.
     const sameThread = !!liveTurn && liveTurn.threadId === deps.activeThreadId.value
-    const preview = sameThread ? streamingPreviewMessage.value : null
 
-    // Dedup: while a live preview is shown it is the authoritative, still-updating render for the
-    // current turn, so the persisted copy of that same turn (fetched mid-turn at an interrupt) must
-    // be dropped — otherwise the turn renders twice after interrupt→resume (duplicated bubbles /
-    // subagent cards). Prefer matching by the live turn's turnId; checkpoint messages are not
-    // reliably turnId-tagged though, so fall back to "everything after the last user message" (which
-    // is exactly the current turn). liveTurn is preserved across the interrupt (ensureLiveTurn keeps
-    // blocks/subTasks) so the preview is a complete superset of the turn; dropping persisted loses nothing.
-    const liveTurnId = liveTurn?.turnId ?? undefined
+    // Current-turn boundary = everything after the last user message.
     let lastUserIndex = -1
-    if (preview) {
-      for (let i = persisted.length - 1; i >= 0; i--) {
-        if (persisted[i]!.role === 'user') { lastUserIndex = i; break }
-      }
+    for (let i = persisted.length - 1; i >= 0; i--) {
+      if (persisted[i]!.role === 'user') { lastUserIndex = i; break }
     }
+    // Has the checkpoint fetch already landed the current turn into persisted? persisted is NOT
+    // updated mid-stream — only onRunInterrupted / onRunDone fetch it (runtimeEvents), so a message
+    // after the last user message means the interrupt snapshot has arrived.
+    const persistedHasCurrentTurn = lastUserIndex < persisted.length - 1
+    const interrupted = deps.threadRunState.value === 'interrupted'
+
+    // Preview vs persisted authority:
+    // - streaming/resuming: the live turn is AHEAD of persisted (persisted isn't updated mid-stream,
+    //   and after a resume it's a stale interrupt snapshot) → preview is authoritative; show it and
+    //   drop the persisted copy of the current turn to avoid a double render.
+    // - interrupted, checkpoint fetch still pending: persisted lacks the current turn → keep the
+    //   preview so the assistant/subagent bubble doesn't vanish during the async gap.
+    // - interrupted, checkpoint landed: PERSISTED is authoritative and complete — it carries the
+    //   inline review card (review_ready host message) and every settled bubble — so hide the preview
+    //   and render persisted. Dropping persisted here instead would drop the review-hosting message,
+    //   and the fallback review surface defers to it, so the review vanishes and the flow appears
+    //   stuck (the 178f19b regression). See DomainReviewSurface.showFallbackCreativeReview.
+    const preview = (sameThread && !(interrupted && persistedHasCurrentTurn))
+      ? streamingPreviewMessage.value
+      : null
+
+    // Dedup: while a live preview is the authoritative render (streaming/resuming, or the interrupt
+    // async gap), drop the persisted copy of the current turn so it does not render twice. Prefer the
+    // live turn's turnId; checkpoint messages are not reliably turnId-tagged, so fall back to
+    // "everything after the last user message". When preview is null (interrupted + persisted landed),
+    // nothing is dropped and persisted renders in full.
+    const liveTurnId = liveTurn?.turnId ?? undefined
     const isCurrentTurnMessage = (msg: ThreadMessage, index: number): boolean => {
       if (!preview) return false
       if (liveTurnId && msg.turnId === liveTurnId) return true
