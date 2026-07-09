@@ -762,7 +762,7 @@ export class AgentEngine {
       signal: abortController.signal,
       recursionLimit: MIDDLEWARE_CONFIG.recursionLimit,
       runName: `${domain}:initial`,
-      metadata: { threadId, turnId, phase: 'initial' },
+      metadata: { thread_id: threadId, turn_id: turnId, phase: 'initial' },
       tags: ['phase:initial'],
     }
 
@@ -791,7 +791,7 @@ export class AgentEngine {
       signal: abortController.signal,
       recursionLimit: MIDDLEWARE_CONFIG.recursionLimit,
       runName: `${domain}:resume`,
-      metadata: { threadId, turnId, phase: 'resume' },
+      metadata: { thread_id: threadId, turn_id: turnId, phase: 'resume' },
       tags: ['phase:resume'],
     }
 
