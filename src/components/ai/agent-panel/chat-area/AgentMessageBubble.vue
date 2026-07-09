@@ -92,7 +92,7 @@
             />
             <div
               v-else-if="shouldShowTaskFallback(block.toolCallId)"
-              class="inline-flex items-center gap-2 rounded-box border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
+              class="flex w-full items-center gap-2 rounded-box border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
               :class="contentBlockToolMarginClass(idx)"
             >
               <span class="loading loading-spinner loading-xs shrink-0" />
@@ -108,7 +108,7 @@
           </template>
           <div
             v-else-if="block.type === 'agent_event' && (block.text || block.agentName)"
-            class="mt-1.5 inline-flex items-center gap-2 px-3 py-2 rounded-box bg-base-100 border border-base-300 text-base-content text-xs"
+            class="mt-1.5 flex w-full items-center gap-2 px-3 py-2 rounded-box bg-base-100 border border-base-300 text-base-content text-xs"
           >
             <span>🧩</span>
             <span>{{ block.text || `${block.agentName} ${block.status ?? ''}`.trim() }}</span>
@@ -151,7 +151,7 @@
           />
           <div
             v-else-if="shouldShowTaskFallback(tc.id)"
-            class="inline-flex items-center gap-2 rounded-box border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
+            class="flex w-full items-center gap-2 rounded-box border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
             :class="idx > 0 ? 'mt-0' : ''"
           >
             <span class="loading loading-spinner loading-xs shrink-0" />
