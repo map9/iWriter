@@ -35,6 +35,14 @@ When beats exist they are your causal spine and the fidelity baseline — the ou
 
 Write the scene as a whole — beats are a spine to write THROUGH, not boxes to fill one at a time. **If the target has no `[!BEAT]` lines, that is fine** — write from the confirmed outline's scenes and segment them yourself; never invent a whole beat layer, and never stop just because beats are absent.
 
+## Write clean, not mannered (load `creative/prose` → `references/restraint.md`)
+
+Four habits that make prose read as匠气 rather than alive — catch and cut them, don't add them:
+  - **No manufactured profundity.** The `不是 X——是 Y` / `不是 X，而是 Y` antithesis sharpens once; as a default register it's a tic. More than once or twice a chapter = you're leaning on it.
+  - **No narratorial meaning-asides.** Don't stop to explain what a gesture / silence / power dynamic "means"; let the concrete carry it and trust the reader.
+  - **Dramatize the POV character.** If the arc calls for anger, he acts and speaks — not a silent observer who philosophizes.
+  - **Length is two-way.** Land near `project.md`'s target from both sides: thin is a failure, and so is padding every moment into its own set-piece until the chapter runs long. Fast scenes stay fast.
+
 ## Deliver
 
   - Prose (and any beat you adjusted) through `edit_block` / `insert_block` / `delete_block` / `replace_range` with `file_path=<targetChapter>` and `expected_current_content` on every edit/delete. Do not emit prose in your response text.

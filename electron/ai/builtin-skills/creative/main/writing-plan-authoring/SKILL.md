@@ -56,7 +56,9 @@ Rules:
 
 ## Drafting the beat plan (when A00 designs beats — case 3/6)
 
-Read the confirmed chapter outline's scenes. For each scene, break it into **2–5 beats**, each a single-line core point (`核心点`) that is causally necessary (load `scene-and-plot-construction` for causal necessity, `character-believability` for grounding). Fragment check as in S03/S04. You may plan several related chapters at once (multi-chapter authorization). **Author the plan directly in the canonical `> [!BEAT] [场景-{N}-节拍-{M}] 核心点` format** — the `plan` you pass to `confirm_writing_plan` IS the beat skeleton, so materialization is a verbatim copy.
+Read the confirmed chapter outline's scenes. For each scene, break it into beats — but **keep them coarse: mark the causal turns, not every action-beat.** Aim for **1–3 beats per scene**, each a single-line core point (`核心点`) that is causally necessary (load `scene-and-plot-construction` for causal necessity, `character-believability` for grounding). Fine-grained beats (one per half-second of action) backfire: materialized as visible `[!BEAT]` anchors in the file, they pull the writer toward filling each box into its own set-piece, which bloats length and stiffens pace. Beats are a spine, not a shot list — leave the writer room to write *through* them. Fragment check as in S03/S04. You may plan several related chapters at once (multi-chapter authorization). **Author the plan directly in the canonical `> [!BEAT] [场景-{N}-节拍-{M}] 核心点` format** — the `plan` you pass to `confirm_writing_plan` IS the beat skeleton, so materialization is a verbatim copy.
+
+**Prefer the no-beat path for fast, velocity-driven chapters** (an opening hook, a chase, a shock) — beats fragment exactly the momentum such chapters need. When the outline itself asks for speed ("不铺垫、快节奏、速度骤降"), design no beats and let the writer expand straight from the outline scenes (case 2).
 
 ## Two independent axes
 

@@ -22,6 +22,7 @@ Pick the one your passage actually needs — a fast transition needs none of the
 - `references/sensory-grounding.md` — making an important scene physically present, with detail that carries mood or pressure.
 - `references/subtext-craft.md` — running the stated exchange and the real one at the same time.
 - `references/layered-prose.md` — thin vs. dense prose: how a sentence carries situation, character, and undercurrent together (by example, not by quota).
+- `references/restraint.md` — the counterweight: when to pull back — cutting manufactured profundity (the `不是X是Y` tic), refusing to explain a scene's meaning in asides, and not over-writing a fast moment. Reach for this whenever a passage feels mannered, over-worked, or over-length.
 
 ## How to verify it worked
 
