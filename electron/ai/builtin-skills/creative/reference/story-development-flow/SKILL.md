@@ -10,10 +10,11 @@ The creative pipeline is NOT enforced by a state machine — the author may iter
 ## The default pipeline
 
 ```
-project.md ─闸0→ 设定/角色 ⇄ ─闸1→ 总纲 →[卷纲]─闸2→ 章纲 ─闸3→ beat哨兵(confirm→A00落哨兵) ─闸4→ 哨兵下正文 → 审校/重构
+project.md ─闸0→ 设定/角色 ⇄ ─闸1→ 总纲 →[卷纲]─闸2→ 章纲 ─闸3→ 正文 → 随写随评(编辑·好不好·一轮) → 整章终审 → 审校/重构
+                （正文前可选先设计 beat：作者写 / A00 辅助 / 无。有 beat 按 beat 参照，无 beat 直接从章纲场景写）
 ```
 
-Levels differ in granularity — **event-level** (总纲/卷纲: structure nodes) vs **scene-level** (章纲: goal/conflict/outcome three-part; beat: in-scene 节拍). The dividing line is the chapter outline: **an event-level master outline never substitutes for a scene-level chapter outline.**
+Levels differ in granularity — **event-level** (总纲/卷纲: structure nodes) vs **scene-level** (章纲: goal/conflict/outcome three-part; beat: in-scene 节拍, **optional**). The dividing line is the chapter outline: **an event-level master outline never substitutes for a scene-level chapter outline.** The hard prerequisite for prose is 闸3 章纲已确认; **beat 是可选辅助，不是门槛**。
 
 ## The soft/hard principle (reconciling gates with author autonomy)
 
@@ -40,11 +41,17 @@ Each gate's sharpest test is the **reverse judgment**: "if I force the next step
 - **反向判断**：拿着章纲还要不要自己现编冲突和结果？要 → 章纲不合格，补 S04 并确认后再写。
 - 一旦作品分章节，写第 N 章前该章章纲必须先成形并确认；不必一次建全部章纲，但绝不从事件级总纲直接写正文。
 
-**闸4 beat 就绪（→ 写/改正文）** — beat 从已确认章纲场景展开、每 beat 核心点、因果必然 → `confirm_writing_plan` 确认 → A00 把 beat 写成**正文文件里的哨兵**（`> [场景-{N}-节拍-{M}] 核心点`，beat 唯一真源；章纲不含 beat）；writer 只写哨兵下正文。两轴（节拍层是否变 / 是否委派 writer）、写章节前置状态机与重写保护见 `writing-plan-authoring`。
+**闸4 不是门槛 —— beat 是可选辅助** — 写正文的授权由 `confirm_writing_plan` 承载（泛化为写作会话授权，可含 beat 也可为一句轻量写作意图）。beat 三种来源：作者自己写 / A00 辅助设计 / 没有。有 beat → writer 按 beat 参照；无 beat → writer 直接从章纲场景写、自行分段。beat（若设计）由 A00 写成正文文件里的 **GFM Alert**（`> [!BEAT] [场景-{N}-节拍-{M}] 一句话提纲`——`[!BEAT]` 是固定提取标记，场景坐标 A00 生成必带、作者手写可省；章纲不含 beat）。两轴（beat 层是否变 / 是否委派 writer）、写章节前置状态机与重写保护见 `writing-plan-authoring`。
+
+## Quality: the editorial review loop
+
+Prose isn't done at "written". Quality is guarded by four things: input maturity (闸1-3), the writer's own craft, the **editorial review loop**, and the author's finalize.
+- **Mode A (random review, in-flow, automatic)**: after the writer returns a draft, A00 delegates ONE `editorial-review` critic for a "好不好" read (drama / character & voice / POV / prose / structure & pacing / theme / reader experience), the writer revises ONCE, then the author does the whole-chapter finalize. Consistency is NOT checked here. The critic's opinions are transient — not persisted to `review-findings.md`.
+- **Mode B (author-triggered)**: when the author asks to check quality / consistency / 全视角, A00 delegates editorial-review (好不好) and/or the consistency-checker (对不对); results persist to `process/review-findings.md`. Consistency runs only here.
 
 ## Adjustments bubble as reminders, never auto-cascade
 
-小调整 = 场景 → beat（单章内）；大调整 = 多章场景需要动。改一层是否/如何向上/向下传播、是否重写正文 = **提醒作者，不主动做**（FR-6.2）。可一次规划相关几章的章纲+beat 再动笔。
+小调整 = 场景 → beat（单章内）；大调整 = 多章场景需要动。改一层是否/如何向上/向下传播、是否重写正文 = **提醒作者，不主动做**（FR-6.2）。可一次规划相关几章的章纲（+ 可选 beat）再动笔。**提交时一致性提醒**：`git_commit` 若回头改已定稿章 / 走过重构 / 多章变更，则提醒先查一致性（改动章+影响面，非全书；提醒非硬锁）。
 
 ## status.md is a derived ledger, not truth
 
