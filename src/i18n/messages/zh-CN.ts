@@ -619,6 +619,7 @@ export default {
         rename_chapter: '重命名章节',
         reorder_chapters: '重排章节',
         confirm_writing_plan: '确认写作计划',
+        finalize_chapter: '章节定稿',
         write_to_chapter: '写入章节',
         replace_storybible_section: '替换 StoryBible 章节',
         rebuild_storybible: '重建 StoryBible',

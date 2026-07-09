@@ -622,6 +622,7 @@ export default {
         rename_chapter: 'Rename chapter',
         reorder_chapters: 'Reorder chapters',
         confirm_writing_plan: 'Confirm writing plan',
+        finalize_chapter: 'Finalize chapter',
         write_to_chapter: 'Write chapter',
         replace_storybible_section: 'Replace StoryBible section',
         rebuild_storybible: 'Rebuild StoryBible',

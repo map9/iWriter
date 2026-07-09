@@ -33,6 +33,8 @@ than the page budget occupies its own page.
 Always read the current content before editing, and pass the `expected_*` fields
 (copied from what you read) so an edit fails safely if the block changed underneath you.
 
+**`{b:n}` is a display-only marker, never content.** `get_blocks` / `get_section` prefix each block with its `{b:n}` ID so you can address it — the marker is NOT part of the block's markdown. When you copy content into an `expected_*` field, and above all when you write `new_content` (or `create_document` content), **strip the leading `{b:n}` marker**. Written documents must contain zero `{b:n}` tokens — leaking the marker into prose is a bug.
+
 ## Editing lists — decision tree
 
 - **Change one item's text** → `edit_block` on that **item** block_id, with the new item text.
