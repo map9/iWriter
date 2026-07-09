@@ -435,8 +435,9 @@ export class AgentEngine {
 
     const fullDecisions = this._mergeResumeDecisions(interrupted, decisions)
 
-    // An approved confirm_writing_plan opens the write-session authorization (04.1 §6 Stage 2).
-    this._registerApprovedWritingPlans(threadId, interrupted, fullDecisions)
+    // An approved confirm_writing_plan opens the write-session authorization (04.1 §6 Stage 2) and
+    // anchors the finalize baseline at write-session start (before the writer touches the chapter).
+    await this._registerApprovedWritingPlans(threadId, interrupted, fullDecisions)
 
     // A finalize_chapter decision closes/restores the write-session (M1b-3).
     this._handleFinalizeDecisions(threadId, interrupted, fullDecisions)
@@ -605,9 +606,10 @@ export class AgentEngine {
 
   /**
    * Fill baseline/current on finalize review cards (M1b-3). baseline = the write-session's
-   * lazy-activation snapshot (falls back to current when no session is active); current = the
-   * chapter read through the unified snapshot route (editor buffer if open, else disk). Mutates the
-   * review payloads in place, mirroring _markAutoApplyReviews.
+   * session-start snapshot (captured when confirm_writing_plan was approved, i.e. before the writer
+   * wrote — see _registerApprovedWritingPlans; falls back to current when no session is active);
+   * current = the chapter read through the unified snapshot route (editor buffer if open, else disk).
+   * Mutates the review payloads in place, mirroring _markAutoApplyReviews.
    */
   private async _enrichFinalizeReviews(
     reviews: import('./domain/DomainStrategy').DomainReviewItem[],
@@ -680,12 +682,25 @@ export class AgentEngine {
     })
   }
 
-  /** On resume, an approved/edited confirm_writing_plan opens a write-session authorization (edited args win — 改完即契约). */
-  private _registerApprovedWritingPlans(
+  /**
+   * On resume, an approved/edited confirm_writing_plan opens a write-session authorization (edited
+   * args win — 改完即契约) AND anchors the finalize baseline at write-session start.
+   *
+   * Baseline anchor: we pre-activate the session here and capture the baseline *now* — before the
+   * writer touches the chapter — so the finalize card's「起点」reflects the pre-writing content.
+   * (Stage-2 lazy activation used to capture the baseline at the first auto-approved block edit,
+   * which slipped to "after writing" whenever the writer's initial draft bypassed lazy activation —
+   * e.g. new chapters landed via create_document, or relative target_files that never matched the
+   * authorization set.) Since ensureActiveSession is idempotent, the later Stage-2 capture is
+   * skipped. Targets are resolved to absolute paths so relative target_files still register and
+   * match subsequent block edits. A not-yet-created chapter captures null → '' (empty = the correct
+   * "before writing" baseline).
+   */
+  private async _registerApprovedWritingPlans(
     threadId: string,
     interrupted: InterruptedRun,
     fullDecisions: ResumeDecision[],
-  ): void {
+  ): Promise<void> {
     const argsByIndex = interrupted.confirmPlanArgsByIndex
     if (!argsByIndex) return
     for (const [idxStr, stashed] of Object.entries(argsByIndex)) {
@@ -699,7 +714,13 @@ export class AgentEngine {
         const raw = decision.editedArgs.target_files
         if (Array.isArray(raw)) targetFiles = raw.filter((x): x is string => typeof x === 'string')
       }
-      this.writingSessions.registerAuthorization(threadId, plan, targetFiles)
+      const resolvedTargets = targetFiles.map(f => this._resolveChapterPath(threadId, f) ?? f)
+      this.writingSessions.registerAuthorization(threadId, plan, resolvedTargets)
+      for (const target of resolvedTargets) {
+        if (!path.isAbsolute(target)) continue
+        const baseline = (await this._captureChapterBaseline(target)) ?? ''
+        this.writingSessions.ensureActiveSession(threadId, target, baseline)
+      }
     }
   }
 
