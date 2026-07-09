@@ -52,7 +52,8 @@ function reviewLabel(review: CreativeReviewItem): string {
   if (review.kind === 'creative_git_commit') return `git commit · ${review.message}`
   if (review.kind === 'creative_git_tag') return `git tag · ${review.name}`
   if (review.kind === 'creative_git_init') return 'git init'
-  return `git restore · ${review.files.join(', ')}`
+  if (review.kind === 'creative_git_restore') return `git restore · ${review.files.join(', ')}`
+  return `finalize · ${review.chapter}`
 }
 
 function stateForDecision(kind: CreativeDecision['kind']): CreativeRoundResultState {
@@ -73,7 +74,8 @@ function finalContent(review: CreativeReviewItem, decision: CreativeDecision): s
   if (review.kind === 'creative_git_commit') return review.message
   if (review.kind === 'creative_git_tag') return review.message ?? review.name
   if (review.kind === 'creative_git_init') return undefined
-  return review.files.join('\n')
+  if (review.kind === 'creative_git_restore') return review.files.join('\n')
+  return review.summary ?? review.chapter
 }
 
 export function buildCreativeRoundResult(batch: CreativeReviewBatch | null): CreativeRoundResult | null {

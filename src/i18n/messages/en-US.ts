@@ -953,6 +953,7 @@ export default {
       titleGitTag: 'Review Git Tag',
       titleGitInit: 'Initialize Git Repository',
       titleGitRestore: 'Review Git Restore',
+      titleFinalize: 'Finalize Chapter',
       titleExplorationStart: 'Review Exploration',
       titleExplorationCompare: 'Review Exploration Comparison',
       titleExplorationMerge: 'Review Exploration Merge',
@@ -1009,6 +1010,14 @@ export default {
       planSummary: 'Writing plan',
       writeSummary: 'Write {filename}',
       storyBibleSummary: 'StoryBible',
+      finalizeAccept: 'Accept chapter',
+      finalizeRework: 'Send back to rewrite',
+      finalizeReject: 'Discard & restore',
+      finalizeBaseline: 'Baseline (session start)',
+      finalizeCurrent: 'Current chapter',
+      finalizeBaselineChars: '{count} chars at start',
+      finalizeCurrentChars: '{count} chars now',
+      finalizeShowDiff: 'Show baseline vs. current',
     },
     creativeSummary: {
       summary: {

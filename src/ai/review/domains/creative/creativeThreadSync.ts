@@ -22,7 +22,10 @@ function creativeToolSignature(review: CreativeReviewItem): string {
   if (review.kind === 'creative_git_init') {
     return `git_init:${stableStringify({})}`
   }
-  return `git_restore:${stableStringify({ files: review.files, ref: review.ref ?? null })}`
+  if (review.kind === 'creative_git_restore') {
+    return `git_restore:${stableStringify({ files: review.files, ref: review.ref ?? null })}`
+  }
+  return `finalize_chapter:${stableStringify({ chapter: review.chapter })}`
 }
 
 function reviewMatchesToolCall(review: CreativeReviewItem, toolCall: AiToolCall): boolean {

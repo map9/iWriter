@@ -402,12 +402,25 @@ export interface CreativeGitRestoreReviewItem extends BaseCreativeReviewItem {
   ref?: string
 }
 
+// Phase 2 M1b-3: whole-chapter finalize card closing a write-session. `baseline`/`current` are
+// filled by the host (AgentEngine._enrichFinalizeReviews) — baseline = session-start snapshot,
+// current = chapter on disk — so the surface can show a baseline-vs-current diff.
+export interface CreativeChapterFinalizeReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_chapter_finalize'
+  toolName: 'finalize_chapter'
+  chapter: string
+  summary?: string
+  baseline: string
+  current: string
+}
+
 export type CreativeReviewItem =
   | CreativePlanReviewItem
   | CreativeGitCommitReviewItem
   | CreativeGitTagReviewItem
   | CreativeGitInitReviewItem
   | CreativeGitRestoreReviewItem
+  | CreativeChapterFinalizeReviewItem
 
 // ── Filesystem Review Items ───────────────────────────────────────────────
 
@@ -978,6 +991,7 @@ export const BLOCK_EDIT_TOOLS = new Set([
 // creative-review tools are the plan gate and the git checkpoint/restore/init actions.
 export const CREATIVE_REVIEW_TOOLS = new Set([
   'confirm_writing_plan',
+  'finalize_chapter',
   'git_init',
   'git_commit',
   'git_tag',

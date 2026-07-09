@@ -84,6 +84,23 @@ export function buildCreativeReviewItemFromAction(
     }
   }
 
+  if (action.name === 'finalize_chapter') {
+    return {
+      id,
+      kind: 'creative_chapter_finalize',
+      toolName: 'finalize_chapter',
+      status: 'pending',
+      chapter: asString(args.chapter),
+      summary: asOptionalString(args.summary),
+      // Filled by the host on interrupt (AgentEngine._enrichFinalizeReviews).
+      baseline: '',
+      current: '',
+      toolCallId,
+      sourceMessageId,
+      sourceTurnId,
+    }
+  }
+
   if (action.name === 'git_restore') {
     return {
       id,

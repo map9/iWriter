@@ -950,6 +950,7 @@ export default {
       titleGitTag: '审核 Git 标签',
       titleGitInit: '初始化 Git 仓库',
       titleGitRestore: '审核 Git 回退',
+      titleFinalize: '整章终审',
       titleExplorationStart: '审核方向探索',
       titleExplorationCompare: '审核探索对比',
       titleExplorationMerge: '审核探索融合',
@@ -1006,6 +1007,14 @@ export default {
       planSummary: '写作计划',
       writeSummary: '写入 {filename}',
       storyBibleSummary: 'StoryBible',
+      finalizeAccept: '接受定稿',
+      finalizeRework: '打回重写',
+      finalizeReject: '拒绝回退',
+      finalizeBaseline: '基线（会话起点）',
+      finalizeCurrent: '当前章节',
+      finalizeBaselineChars: '起点 {count} 字',
+      finalizeCurrentChars: '当前 {count} 字',
+      finalizeShowDiff: '查看基线与当前对比',
     },
     creativeSummary: {
       summary: {

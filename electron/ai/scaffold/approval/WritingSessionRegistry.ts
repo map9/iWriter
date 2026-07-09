@@ -14,12 +14,12 @@ import type { ResumeDecision } from '../../ipc/protocol'
 // 授权域**只含计划声明的正文文件**——章纲及其它对象永不自动放行（SA02 越界即现形、照常人工
 // 评审，越权面最小化）。会话内 create_document 造新章不进本段自动放行（新建面风险高于就地编辑）。
 //
-// ⚠️ M0 状态：本模块是**已单测的机制骨架，尚未接入 live 审批管线**。原因见 AgentEngine
-// `_prepareActionRequestsForReview` 的 Stage 2 注释——块级编辑工具体不改文档，真实 TipTap
-// 变更由 renderer 只对"评审批次"里的项应用（executor.flushReviewedBatch）；若在 host 侧
-// auto-approve 一个块编辑，会对 LangGraph 记为已应用而文档实际未变（幻影编辑）。故写作会话的
-// auto-approve 必须与 M1 的 renderer 自动应用批次 + 整章终审一起落地；届时 AgentEngine 在
-// Stage 1 与 Stage 3 之间接入本模块（登记 / 懒激活 / 累积 / 关闭已就位）。
+// 接入状态（M1b-3 已 live）：AgentEngine 在 `_prepareActionRequestsForReview` 的 Stage 2 里
+// registerAuthorization（confirm_writing_plan approve/edit 时）/ ensureActiveSession + recordAccumulation
+// （块编辑命中授权域时懒激活并累积，标 autoApply 交 renderer 静默应用，host 不 auto-approve 以免幻影编辑）;
+// finalize_chapter 裁决（`_handleFinalizeDecisions`）approve→closeSession、reject→回写 baselineSnapshot
+// 到磁盘 restore + closeSession、rework→保持会话开着。基线捕获 M1b-3 仍是磁盘读；单一路由（打开文件取
+// 编辑器缓冲）为 M1b-4。
 
 /** 参与写作会话自动累积的块级编辑工具（create_document 排除，见 04.1 §6）。 */
 const BLOCK_EDIT_TOOL_NAMES = new Set([

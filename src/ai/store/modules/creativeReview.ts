@@ -45,9 +45,15 @@ function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, u
   if (review.kind === 'creative_git_init') {
     return {}
   }
+  if (review.kind === 'creative_git_restore') {
+    return {
+      files: review.files,
+      ...(review.ref !== undefined && { ref: review.ref }),
+    }
+  }
   return {
-    files: review.files,
-    ...(review.ref !== undefined && { ref: review.ref }),
+    chapter: review.chapter,
+    ...(review.summary !== undefined && { summary: review.summary }),
   }
 }
 
@@ -63,6 +69,9 @@ function defaultRejectMessage(review: CreativeReviewItem): string {
   }
   if (review.kind === 'creative_git_restore') {
     return 'The user rejected this git restore. Do not restore files or retry the same restore automatically. Briefly acknowledge the rejection.'
+  }
+  if (review.kind === 'creative_chapter_finalize') {
+    return 'The user REJECTED this chapter finalize: the write-session\'s writing has been discarded and the chapter restored to its baseline. Do not re-finalize or re-draft automatically. Briefly acknowledge and ask what direction the user wants for this chapter.'
   }
   return 'The user rejected this Creative tool call. Do not retry the same action automatically. Briefly acknowledge the rejection and wait for the user to redirect.'
 }

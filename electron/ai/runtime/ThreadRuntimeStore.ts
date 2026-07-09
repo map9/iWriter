@@ -11,6 +11,8 @@ interface InterruptedRun {
   autoDecisionsByIndex?: Record<number, ResumeDecision>
   /** confirm_writing_plan args by original index — read at resume to register the write-session authorization (04.1 §6 Stage 2). */
   confirmPlanArgsByIndex?: Record<number, { plan: string; targetFiles: string[] }>
+  /** finalize_chapter args by original index — read at resume to close/restore the write-session (M1b-3). */
+  finalizeArgsByIndex?: Record<number, { chapter: string; summary?: string }>
 }
 
 interface ThreadExecutionContext {

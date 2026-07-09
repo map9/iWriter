@@ -51,6 +51,41 @@
         />
       </label>
 
+      <div
+        v-if="currentReview.kind === 'creative_chapter_finalize'"
+        class="space-y-2"
+      >
+        <p
+          v-if="currentReview.summary"
+          class="text-xs leading-relaxed text-base-content/70"
+        >
+          {{ currentReview.summary }}
+        </p>
+        <div class="flex flex-wrap items-center gap-1.5 text-[11px] text-base-content/50">
+          <span>{{ t('agentPanel.creativeReview.finalizeBaselineChars', { count: baselineChars }) }}</span>
+          <span>→</span>
+          <span>{{ t('agentPanel.creativeReview.finalizeCurrentChars', { count: currentChars }) }}</span>
+          <span :class="charDelta >= 0 ? 'text-success' : 'text-warning'">
+            {{ charDelta >= 0 ? '+' : '' }}{{ charDelta }}
+          </span>
+        </div>
+        <details class="rounded-md border border-base-300 bg-base-200">
+          <summary class="cursor-pointer px-2 py-1 text-[11px] text-base-content/60">
+            {{ t('agentPanel.creativeReview.finalizeShowDiff') }}
+          </summary>
+          <div class="grid grid-cols-1 gap-2 px-2 py-2 sm:grid-cols-2">
+            <div class="min-w-0">
+              <div class="mb-1 text-[11px] font-medium text-base-content/50">{{ t('agentPanel.creativeReview.finalizeBaseline') }}</div>
+              <pre class="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-base-100 p-2 text-[11px] leading-relaxed">{{ currentReview.baseline || t('agentPanel.creativeReview.emptyContent') }}</pre>
+            </div>
+            <div class="min-w-0">
+              <div class="mb-1 text-[11px] font-medium text-base-content/50">{{ t('agentPanel.creativeReview.finalizeCurrent') }}</div>
+              <pre class="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-base-100 p-2 text-[11px] leading-relaxed">{{ currentReview.current || t('agentPanel.creativeReview.emptyContent') }}</pre>
+            </div>
+          </div>
+        </details>
+      </div>
+
     </div>
 
     <div
@@ -92,13 +127,13 @@
         class="iw-btn btn-xs btn-ghost"
         @click="reject"
       >
-        {{ t('agentPanel.creativeReview.reject') }}
+        {{ rejectLabel }}
       </button>
       <button
         class="iw-btn btn-xs btn-ghost"
         @click="isRespondOpen = true"
       >
-        {{ t('agentPanel.creativeReview.respond') }}
+        {{ respondLabel }}
       </button>
       <button
         v-if="reviews.length > 1"
@@ -151,8 +186,15 @@ const title = computed(() => {
   if (review.kind === 'creative_git_commit') return t('agentPanel.creativeReview.titleGitCommit')
   if (review.kind === 'creative_git_tag') return t('agentPanel.creativeReview.titleGitTag')
   if (review.kind === 'creative_git_init') return t('agentPanel.creativeReview.titleGitInit')
-  return t('agentPanel.creativeReview.titleGitRestore')
+  if (review.kind === 'creative_git_restore') return t('agentPanel.creativeReview.titleGitRestore')
+  if (review.kind === 'creative_chapter_finalize') return t('agentPanel.creativeReview.titleFinalize')
+  return t('agentPanel.creativeReview.titlePlan')
 })
+
+function basename(filePath: string): string {
+  const parts = filePath.split(/[\\/]/)
+  return parts[parts.length - 1] || filePath
+}
 
 const subtitle = computed(() => {
   const review = currentReview.value
@@ -161,8 +203,28 @@ const subtitle = computed(() => {
   if (review.kind === 'creative_git_tag') return review.name
   if (review.kind === 'creative_git_init') return ''
   if (review.kind === 'creative_git_restore') return review.ref ? `${review.files.join(', ')} · ${review.ref}` : review.files.join(', ')
+  if (review.kind === 'creative_chapter_finalize') return basename(review.chapter)
   return t('agentPanel.creativeReview.planFirstApproval')
 })
+
+const baselineChars = computed(() =>
+  currentReview.value?.kind === 'creative_chapter_finalize' ? currentReview.value.baseline.length : 0
+)
+const currentChars = computed(() =>
+  currentReview.value?.kind === 'creative_chapter_finalize' ? currentReview.value.current.length : 0
+)
+const charDelta = computed(() => currentChars.value - baselineChars.value)
+
+const rejectLabel = computed(() =>
+  currentReview.value?.kind === 'creative_chapter_finalize'
+    ? t('agentPanel.creativeReview.finalizeReject')
+    : t('agentPanel.creativeReview.reject')
+)
+const respondLabel = computed(() =>
+  currentReview.value?.kind === 'creative_chapter_finalize'
+    ? t('agentPanel.creativeReview.finalizeRework')
+    : t('agentPanel.creativeReview.respond')
+)
 
 const bodyLabel = computed(() => {
   const review = currentReview.value
@@ -196,11 +258,14 @@ const hasEditedContent = computed(() => {
   return false
 })
 
-const approveLabel = computed(() =>
-  hasEditedContent.value
+const approveLabel = computed(() => {
+  if (currentReview.value?.kind === 'creative_chapter_finalize') {
+    return t('agentPanel.creativeReview.finalizeAccept')
+  }
+  return hasEditedContent.value
     ? t('agentPanel.creativeReview.approveEdited')
     : t('agentPanel.creativeReview.approve')
-)
+})
 
 watch(() => reviews.value.length, length => {
   if (currentIndex.value >= length) currentIndex.value = Math.max(0, length - 1)

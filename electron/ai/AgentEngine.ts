@@ -436,6 +436,9 @@ export class AgentEngine {
     // An approved confirm_writing_plan opens the write-session authorization (04.1 §6 Stage 2).
     this._registerApprovedWritingPlans(threadId, interrupted, fullDecisions)
 
+    // A finalize_chapter decision closes/restores the write-session (M1b-3).
+    this._handleFinalizeDecisions(threadId, interrupted, fullDecisions)
+
     // Poisoned-batch orphan guard. LangChain HITL sets jumpTo:"model" whenever ANY decision in
     // the batch is a reject/respond, which SKIPS ToolNode for the WHOLE batch. Approved block-edit
     // tool calls then never get a ToolMessage and dangle as orphan tool_calls → OpenAI 400
@@ -557,6 +560,98 @@ export class AgentEngine {
       out[i] = { plan, targetFiles }
     })
     return out
+  }
+
+  /** Collect finalize_chapter args by original index, to close/restore the write-session at resume (M1b-3). */
+  private _stashFinalizeArgs(
+    actionRequests: HitlActionRequest[],
+  ): Record<number, { chapter: string; summary?: string }> {
+    const out: Record<number, { chapter: string; summary?: string }> = {}
+    actionRequests.forEach((ar, i) => {
+      if (ar.name !== 'finalize_chapter') return
+      const chapter = typeof ar.args?.chapter === 'string' ? ar.args.chapter : ''
+      const summary = typeof ar.args?.summary === 'string' ? ar.args.summary : undefined
+      out[i] = { chapter, summary }
+    })
+    return out
+  }
+
+  /** Resolve a finalize_chapter `chapter` arg to an absolute disk path (relative → resolved against the workspace). */
+  private _resolveChapterPath(threadId: string, chapter: string): string | null {
+    const trimmed = chapter.trim()
+    if (!trimmed) return null
+    if (path.isAbsolute(trimmed)) return path.resolve(trimmed)
+    const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
+    if (!workspacePath) return null
+    return path.resolve(workspacePath, trimmed)
+  }
+
+  private _readChapterDisk(chapterPath: string): string {
+    try {
+      return fs.readFileSync(chapterPath, 'utf-8')
+    } catch {
+      return ''
+    }
+  }
+
+  /**
+   * Fill baseline/current on finalize review cards (M1b-3). baseline = the write-session's
+   * lazy-activation snapshot (falls back to disk when no session is active); current = the chapter
+   * on disk now. Mutates the review payloads in place, mirroring _markAutoApplyReviews.
+   */
+  private _enrichFinalizeReviews(
+    reviews: import('./domain/DomainStrategy').DomainReviewItem[],
+    threadId: string,
+  ): void {
+    for (const r of reviews) {
+      if (r.kind !== 'creative') continue
+      const payload = r.payload
+      if (payload.kind !== 'creative_chapter_finalize') continue
+      const chapterPath = this._resolveChapterPath(threadId, payload.chapter)
+      const current = chapterPath ? this._readChapterDisk(chapterPath) : ''
+      const session = chapterPath ? this.writingSessions.getActiveSession(threadId, chapterPath) : undefined
+      payload.baseline = session?.baselineSnapshot ?? current
+      payload.current = current
+    }
+  }
+
+  /**
+   * On resume, apply the finalize_chapter decision's host side effects (M1b-3):
+   *   approve/edit → close the write-session (accepted chapter stays on disk);
+   *   responded    → rework: keep the session open (writer revises, A00 finalizes again);
+   *   rejected     → restore the session baseline to disk and close the session.
+   *
+   * NOTE (v1): restore writes disk directly. If the chapter file is open, the editor buffer may be
+   * stale and re-save over the restore — the single-route baseline (editor buffer) is M1b-4.
+   */
+  private _handleFinalizeDecisions(
+    threadId: string,
+    interrupted: InterruptedRun,
+    fullDecisions: ResumeDecision[],
+  ): void {
+    const argsByIndex = interrupted.finalizeArgsByIndex
+    if (!argsByIndex) return
+    for (const [idxStr, stashed] of Object.entries(argsByIndex)) {
+      const idx = Number(idxStr)
+      const decision = fullDecisions[idx]
+      if (!decision) continue
+      // Rework: keep the write-session open so the next pass keeps auto-accumulating.
+      if (decision.type === 'responded') continue
+      const chapterPath = this._resolveChapterPath(threadId, stashed.chapter)
+      if (!chapterPath) continue
+      if (decision.type === 'rejected') {
+        const session = this.writingSessions.getActiveSession(threadId, chapterPath)
+        if (session?.baselineSnapshot != null) {
+          try {
+            fs.writeFileSync(chapterPath, session.baselineSnapshot, 'utf-8')
+          } catch (err) {
+            console.error('[AgentEngine] finalize reject restore failed:', err)
+          }
+        }
+      }
+      // approve / edit / reject all close the session.
+      this.writingSessions.closeSession(threadId, chapterPath)
+    }
   }
 
   /** Flag the review items that are write-session auto-apply, so the renderer applies them silently (no card). */
@@ -859,6 +954,13 @@ export class AgentEngine {
         })
         if (verdict.kind === 'auto-approve') {
           this.writingSessions.ensureActiveSession(threadId, verdict.activateFile)
+          // Record the accumulated edit so the whole-chapter finalize card (M1b-3) can report the
+          // session's diff and SS11 fidelity checks can trace what the session wrote.
+          this.writingSessions.recordAccumulation(threadId, verdict.activateFile, {
+            toolName: actionRequest.name,
+            args: actionRequest.args ?? {},
+            at: Date.now(),
+          })
           autoApplyOriginalIndices.add(index)
         }
       }
@@ -916,6 +1018,7 @@ export class AgentEngine {
       reviewActionOriginalIndices: prepared.reviewActionOriginalIndices,
       autoDecisionsByIndex: prepared.autoDecisionsByIndex,
       confirmPlanArgsByIndex: this._stashConfirmPlanArgs(actionRequests),
+      finalizeArgsByIndex: this._stashFinalizeArgs(actionRequests),
     })
 
     if (!prepared.reviewActionRequests.length) {
@@ -940,6 +1043,7 @@ export class AgentEngine {
       partialMessage,
     })
     this._markAutoApplyReviews(reviews, prepared.reviewActionOriginalIndices, prepared.autoApplyOriginalIndices)
+    this._enrichFinalizeReviews(reviews, threadId)
 
     this.rendererBridge.sendRunInterrupted({
       threadId,
@@ -1013,6 +1117,7 @@ export class AgentEngine {
       reviewActionOriginalIndices: prepared.reviewActionOriginalIndices,
       autoDecisionsByIndex: prepared.autoDecisionsByIndex,
       confirmPlanArgsByIndex: this._stashConfirmPlanArgs(actionRequests),
+      finalizeArgsByIndex: this._stashFinalizeArgs(actionRequests),
     })
 
     if (!prepared.reviewActionRequests.length) {
@@ -1039,6 +1144,7 @@ export class AgentEngine {
       console.warn('[AgentEngine] _maybeRehydrateInterrupt: buildReviewItems failed:', err)
     }
     this._markAutoApplyReviews(reviews, prepared.reviewActionOriginalIndices, prepared.autoApplyOriginalIndices)
+    this._enrichFinalizeReviews(reviews, threadId)
 
     this.rendererBridge.sendRunInterrupted({
       threadId,

@@ -8,6 +8,7 @@ import { buildEditProposalTools } from '../../tools/common/EditProposalTools'
 import { buildFilesystemMutationTools } from '../../tools/common/FilesystemMutationTools'
 import { buildWebTools } from '../../tools/common/WebTools'
 import { buildConfirmWritingPlanTool } from '../../tools/creative/ConfirmWritingPlan'
+import { buildFinalizeChapterTool } from '../../tools/creative/FinalizeChapter'
 import { EDIT_INTERRUPT_ON_CONFIG } from '../edit/buildEditCapabilities'
 import { ToolRegistry } from '../../tools/ToolRegistry'
 import { assembleSubagents } from '../../scaffold/subagents/SubagentAssembler'
@@ -38,6 +39,7 @@ export function buildCreativeCapabilities(input: {
     ...buildWebTools(),
     ...buildGitTools({ workspacePath: input.workspacePath }),
     buildConfirmWritingPlanTool(),
+    buildFinalizeChapterTool(),
   ]
 
   const registry = new ToolRegistry(tools)
@@ -66,6 +68,9 @@ export const CREATIVE_INTERRUPT_ON_CONFIG: Record<string, InterruptOnConfig> = {
   ...EDIT_INTERRUPT_ON_CONFIG,
   // Creative专用: plan authorization gate (§5 write-session).
   confirm_writing_plan: { allowedDecisions: ['approve', 'edit', 'reject'] },
+  // Creative专用: whole-chapter finalize gate closing the write-session (M1b-3). approve=accept,
+  // reject=discard+restore baseline; rework routes through the reject channel with RESPOND_MARKER.
+  finalize_chapter: { allowedDecisions: ['approve', 'reject'] },
   // Version tracking (04.4 §3 / FR-1.6 / FR-6.4). File-mutation tools (delete/rename/move_file)
   // interrupt via the scaffold FILE_WRITE_INTERRUPT_ON config, merged in AgentEngine.
   git_init:    { allowedDecisions: ['approve', 'reject'] },
