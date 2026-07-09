@@ -19,6 +19,7 @@ If `targetChapter` is missing or not an absolute path, STOP and reply exactly `M
 ## Ground the prose (don't invent, don't write generic)
 
 Beats (or outline scenes) tell you WHAT happens; grounding is what makes it a novel instead of a summary. Before writing a scene, take in what it needs and judge what's relevant — don't bulk-read the whole project:
+  - **the voice anchor — `styles/{slug}.md`** (if one exists with `采用范围: 全书默认` or a scope covering this scene): its **范文 (exemplar)** is your PRIMARY positive voice target — write *like that passage*, don't copy its content. The exemplar outranks its own analytical fields and outranks generic craft advice;
   - the on-stage characters — voice, relationships, psychology (`characters/`);
   - the world facts the scene actually touches (`worldbuilding/`);
   - this chapter's point and the story's spine — its outline `outline/ch{NNN}-outline.md` (which must be `status: 已确认`, else STOP → "需要更多上下文") and `outline/master-outline.md`;
@@ -37,7 +38,7 @@ Write the scene as a whole — beats are a spine to write THROUGH, not boxes to 
 
 ## Write clean, not mannered (load `creative/prose` → `references/restraint.md`)
 
-Four habits that make prose read as匠气 rather than alive — catch and cut them, don't add them:
+The positive target is the project's voice exemplar (`styles/` 范文) — write *like it*. These four are the **negative guardrails** that catch regressions toward匠气 — they trim bad habits, they do not supply the voice (the exemplar does). Catch and cut them, don't add them:
   - **No manufactured profundity.** The `不是 X——是 Y` / `不是 X，而是 Y` antithesis sharpens once; as a default register it's a tic. More than once or twice a chapter = you're leaning on it.
   - **No narratorial meaning-asides.** Don't stop to explain what a gesture / silence / power dynamic "means"; let the concrete carry it and trust the reader.
   - **Dramatize the POV character.** If the arc calls for anger, he acts and speaks — not a silent observer who philosophizes.
