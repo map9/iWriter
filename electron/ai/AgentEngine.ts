@@ -104,8 +104,10 @@ export class AgentEngine {
   /** Thread-scoped runtime data: editor context + pending interrupts. */
   private runtimeStore = new ThreadRuntimeStore()
 
-  // Write-session authorization (04.1 §6 Stage 2). Baseline capturer is the M0 disk read;
-  // M1b-3 upgrades it to single-routing (open file → editor buffer, else disk).
+  // Write-session authorization (04.1 §6 Stage 2). Baselines are captured through the unified
+  // snapshot route (_captureChapterBaseline: editor buffer if the chapter is open, else disk) and
+  // passed explicitly into recordAccumulation; this disk-read capturer is only a last-resort
+  // fallback for callers that don't supply a baseline (tests / degraded paths).
   private writingSessions = new WritingSessionRegistry((_threadId, targetFile) => {
     try {
       return fs.readFileSync(targetFile, 'utf-8')
@@ -586,29 +588,37 @@ export class AgentEngine {
     return path.resolve(workspacePath, trimmed)
   }
 
-  private _readChapterDisk(chapterPath: string): string {
+  /** Read a chapter's content through the unified snapshot route (editor buffer if open, else disk). */
+  private async _captureChapterBaseline(chapterPath: string): Promise<string | null> {
+    try {
+      const snapshot = await this.snapshotBroker.requestSnapshot(chapterPath)
+      if (snapshot?.viewMarkdown != null) return snapshot.viewMarkdown
+    } catch (err) {
+      console.warn('[AgentEngine] snapshot baseline capture failed, falling back to disk:', err)
+    }
     try {
       return fs.readFileSync(chapterPath, 'utf-8')
     } catch {
-      return ''
+      return null
     }
   }
 
   /**
    * Fill baseline/current on finalize review cards (M1b-3). baseline = the write-session's
-   * lazy-activation snapshot (falls back to disk when no session is active); current = the chapter
-   * on disk now. Mutates the review payloads in place, mirroring _markAutoApplyReviews.
+   * lazy-activation snapshot (falls back to current when no session is active); current = the
+   * chapter read through the unified snapshot route (editor buffer if open, else disk). Mutates the
+   * review payloads in place, mirroring _markAutoApplyReviews.
    */
-  private _enrichFinalizeReviews(
+  private async _enrichFinalizeReviews(
     reviews: import('./domain/DomainStrategy').DomainReviewItem[],
     threadId: string,
-  ): void {
+  ): Promise<void> {
     for (const r of reviews) {
       if (r.kind !== 'creative') continue
       const payload = r.payload
       if (payload.kind !== 'creative_chapter_finalize') continue
       const chapterPath = this._resolveChapterPath(threadId, payload.chapter)
-      const current = chapterPath ? this._readChapterDisk(chapterPath) : ''
+      const current = chapterPath ? (await this._captureChapterBaseline(chapterPath) ?? '') : ''
       const session = chapterPath ? this.writingSessions.getActiveSession(threadId, chapterPath) : undefined
       payload.baseline = session?.baselineSnapshot ?? current
       payload.current = current
@@ -621,8 +631,9 @@ export class AgentEngine {
    *   responded    → rework: keep the session open (writer revises, A00 finalizes again);
    *   rejected     → restore the session baseline to disk and close the session.
    *
-   * NOTE (v1): restore writes disk directly. If the chapter file is open, the editor buffer may be
-   * stale and re-save over the restore — the single-route baseline (editor buffer) is M1b-4.
+   * The reject restore writes disk directly, like the git_restore tool: an open chapter tab is a
+   * clean tab (the auto-applied edits were saved via saveAppliedOpenTab), so the file watcher's
+   * external-change handler (handleOpenTabExternalChange) reloads it from disk — no autosave race.
    */
   private _handleFinalizeDecisions(
     threadId: string,
@@ -864,17 +875,17 @@ export class AgentEngine {
 
   // ── Private: interrupt handling ───────────────────────────────────────────
 
-  private _prepareActionRequestsForReview(
+  private async _prepareActionRequestsForReview(
     threadId: string,
     actionRequests: HitlActionRequest[],
-  ): {
+  ): Promise<{
     reviewActionRequests: HitlActionRequest[]
     reviewActionOriginalIndices: number[]
     autoDecisionsByIndex: Record<number, ResumeDecision>
     autoRejects: Array<{ toolName: string; filePath: string; message: string }>
     /** Original indices of block edits inside an active write-session scope — the renderer applies them silently (M1b Stage 2). */
     autoApplyOriginalIndices: Set<number>
-  } {
+  }> {
     const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
     const reviewActionRequests: HitlActionRequest[] = []
     const reviewActionOriginalIndices: number[] = []
@@ -927,7 +938,8 @@ export class AgentEngine {
       return { reviewActionRequests: [], reviewActionOriginalIndices: [], autoDecisionsByIndex, autoRejects, autoApplyOriginalIndices }
     }
 
-    actionRequests.forEach((actionRequest, index) => {
+    for (let index = 0; index < actionRequests.length; index++) {
+      const actionRequest = actionRequests[index]!
       // Stage 1 — filesystem path policy (auto-approve virtual paths, else human review).
       const fsDecision = fsDecisions.get(index)
       if (fsDecision) {
@@ -937,7 +949,7 @@ export class AgentEngine {
         } else {
           autoDecisionsByIndex[index] = fsDecision.decision
         }
-        return
+        continue
       }
 
       // Stage 2 — write-session authorization. A block edit whose target file is inside an active
@@ -953,20 +965,24 @@ export class AgentEngine {
           authorizedFiles,
         })
         if (verdict.kind === 'auto-approve') {
-          this.writingSessions.ensureActiveSession(threadId, verdict.activateFile)
-          // Record the accumulated edit so the whole-chapter finalize card (M1b-3) can report the
-          // session's diff and SS11 fidelity checks can trace what the session wrote.
+          // Capture the pre-edit baseline through the unified snapshot route (editor buffer if the
+          // chapter is open, else disk) the first time this file activates — the renderer has not
+          // applied the edit yet at interrupt time, so the snapshot is the true "before". Also record
+          // the accumulated edit so the finalize card (M1b-3) can report the session's diff.
+          const baseline = this.writingSessions.getActiveSession(threadId, verdict.activateFile)
+            ? undefined
+            : await this._captureChapterBaseline(verdict.activateFile)
           this.writingSessions.recordAccumulation(threadId, verdict.activateFile, {
             toolName: actionRequest.name,
             args: actionRequest.args ?? {},
             at: Date.now(),
-          })
+          }, baseline)
           autoApplyOriginalIndices.add(index)
         }
       }
       reviewActionRequests.push(actionRequest)
       reviewActionOriginalIndices.push(index)
-    })
+    }
 
     return {
       reviewActionRequests,
@@ -995,7 +1011,7 @@ export class AgentEngine {
 
     const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
     const strategy = this.strategies[domain]
-    const prepared = this._prepareActionRequestsForReview(threadId, actionRequests)
+    const prepared = await this._prepareActionRequestsForReview(threadId, actionRequests)
 
     // Domain-specific mixed-kind guard: auto-reject non-dominant kinds before review
     const mixedDecisions = strategy.preDecideMixed?.(prepared.reviewActionRequests, prepared.reviewActionOriginalIndices)
@@ -1043,7 +1059,7 @@ export class AgentEngine {
       partialMessage,
     })
     this._markAutoApplyReviews(reviews, prepared.reviewActionOriginalIndices, prepared.autoApplyOriginalIndices)
-    this._enrichFinalizeReviews(reviews, threadId)
+    await this._enrichFinalizeReviews(reviews, threadId)
 
     this.rendererBridge.sendRunInterrupted({
       threadId,
@@ -1094,7 +1110,7 @@ export class AgentEngine {
     const turnId = `rehydrated-${crypto.randomUUID()}`
     this.runtimeStore.setCurrentTurnId(threadId, turnId)
     const rehydrateStrategy = this.strategies[domain]
-    const prepared = this._prepareActionRequestsForReview(threadId, actionRequests)
+    const prepared = await this._prepareActionRequestsForReview(threadId, actionRequests)
 
     // Domain-specific mixed-kind guard
     const mixedDecisions = rehydrateStrategy.preDecideMixed?.(prepared.reviewActionRequests, prepared.reviewActionOriginalIndices)
@@ -1144,7 +1160,7 @@ export class AgentEngine {
       console.warn('[AgentEngine] _maybeRehydrateInterrupt: buildReviewItems failed:', err)
     }
     this._markAutoApplyReviews(reviews, prepared.reviewActionOriginalIndices, prepared.autoApplyOriginalIndices)
-    this._enrichFinalizeReviews(reviews, threadId)
+    await this._enrichFinalizeReviews(reviews, threadId)
 
     this.rendererBridge.sendRunInterrupted({
       threadId,

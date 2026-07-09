@@ -18,8 +18,8 @@ import type { ResumeDecision } from '../../ipc/protocol'
 // registerAuthorization（confirm_writing_plan approve/edit 时）/ ensureActiveSession + recordAccumulation
 // （块编辑命中授权域时懒激活并累积，标 autoApply 交 renderer 静默应用，host 不 auto-approve 以免幻影编辑）;
 // finalize_chapter 裁决（`_handleFinalizeDecisions`）approve→closeSession、reject→回写 baselineSnapshot
-// 到磁盘 restore + closeSession、rework→保持会话开着。基线捕获 M1b-3 仍是磁盘读；单一路由（打开文件取
-// 编辑器缓冲）为 M1b-4。
+// 到磁盘 restore + closeSession、rework→保持会话开着。基线经统一快照路由捕获（`_captureChapterBaseline`：
+// 打开的章节取编辑器缓冲、否则磁盘），显式传入 recordAccumulation；本类内置的同步磁盘 capturer 仅作降级兜底。
 
 /** 参与写作会话自动累积的块级编辑工具（create_document 排除，见 04.1 §6）。 */
 const BLOCK_EDIT_TOOL_NAMES = new Set([
@@ -170,8 +170,11 @@ export class WritingSessionRegistry {
   /**
    * 懒激活：首次命中授权正文文件时激活会话并**恰好一次**捕获基线快照；后续命中返回同一会话。
    * 幂等——重复调用不重取基线。
+   *
+   * `baseline` 显式传入时用它（调用方经统一快照路由取"编辑器缓冲优先、否则磁盘"的基线，见
+   * AgentEngine._captureChapterBaseline）；未传入则回落到构造时注入的同步 capturer（测试/降级用）。
    */
-  ensureActiveSession(threadId: string, targetFile: string): ActiveWritingSession {
+  ensureActiveSession(threadId: string, targetFile: string, baseline?: string | null): ActiveWritingSession {
     const state = this._ensure(threadId)
     const key = normalizeFilePath(targetFile)
     if (!key) throw new Error('[WritingSessionRegistry] ensureActiveSession requires an absolute file path')
@@ -179,7 +182,7 @@ export class WritingSessionRegistry {
     if (!session) {
       session = {
         targetFile: key,
-        baselineSnapshot: this.captureBaseline(threadId, key),
+        baselineSnapshot: baseline !== undefined ? baseline : this.captureBaseline(threadId, key),
         accumulated: [],
       }
       state.activeSessions.set(key, session)
@@ -187,9 +190,9 @@ export class WritingSessionRegistry {
     return session
   }
 
-  /** 记录一条自动放行的块级编辑到活动会话累积。 */
-  recordAccumulation(threadId: string, targetFile: string, edit: AccumulatedEdit): void {
-    const session = this.ensureActiveSession(threadId, targetFile)
+  /** 记录一条自动放行的块级编辑到活动会话累积（首次命中时按 baseline 懒激活）。 */
+  recordAccumulation(threadId: string, targetFile: string, edit: AccumulatedEdit, baseline?: string | null): void {
+    const session = this.ensureActiveSession(threadId, targetFile, baseline)
     session.accumulated.push(edit)
   }
 
