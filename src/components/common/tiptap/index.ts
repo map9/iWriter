@@ -6,6 +6,7 @@ export * from './iw-slash-command'
 export * from './iwTextInputRule'
 export * from './iwTypography'
 export * from './iw-range-highlight'
+export * from './iw-alert-blockquote'
 
 import iwCodeBlockView from './iwCodeBlockView.vue'
 import iwTableView from './iwTableView.vue'

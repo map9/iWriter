@@ -21,7 +21,6 @@ import Image from '@tiptap/extension-image'
 import Youtube from '@tiptap/extension-youtube'
 import FileHandler from '@tiptap/extension-file-handler'
 
-import Blockquote from '@tiptap/extension-blockquote'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import css from 'highlight.js/lib/languages/css'
 import js from 'highlight.js/lib/languages/javascript'
@@ -59,7 +58,15 @@ import { DecorationSet } from '@tiptap/pm/view'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 
 // 自定义扩展
-import { iwTypography, iwPopupTools, iwLinkPopupTool, iwMathPopupTool, iwSlashCommand } from '@/components/common/tiptap'
+import {
+  iwAlertBlockquote,
+  iwAlertBlockquoteWithView,
+  iwTypography,
+  iwPopupTools,
+  iwLinkPopupTool,
+  iwMathPopupTool,
+  iwSlashCommand,
+} from '@/components/common/tiptap'
 import { iwProofreadExtension } from '@/components/common/tiptap/iw-proofread'
 import { iwSearchReplaceExtension } from '@/components/common/tiptap/iw-search-replace'
 import { iwRangeHighlightExtension } from '@/components/common/tiptap/iw-range-highlight'
@@ -195,7 +202,7 @@ export function createBaseExtensions() {
     }),
 
     // 块级元素
-    Blockquote,
+    iwAlertBlockquote,
     CodeBlockLowlight.configure({ lowlight }),
 
     // 数学公式
@@ -480,7 +487,7 @@ export function createMarkdownEditorExtensions(options: {
     }),
 
     // 块级元素
-    Blockquote,
+    iwAlertBlockquoteWithView,
     CodeBlockLowlight.extend({
       addAttributes() {
         return {

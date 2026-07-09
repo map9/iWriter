@@ -3,6 +3,7 @@ import { generateHTML } from '@tiptap/core'
 import TurndownService from 'turndown'
 import { gfm } from '@guyplusplus/turndown-plugin-gfm'
 import { notify } from '@/utils/notifications'
+import { configureAlertTurndown } from '@/utils/markdownAlerts'
 
 // Initialize turndown service for HTML to Markdown conversion
 const turndownService = new TurndownService({
@@ -11,6 +12,7 @@ const turndownService = new TurndownService({
   br: '<br>',
 })
 turndownService.use(gfm)
+configureAlertTurndown(turndownService)
 turndownService.addRule('inlineMath', {
   filter: (node) =>
     node.nodeName === 'SPAN' && (node as HTMLElement).getAttribute('data-type') === 'inline-math',

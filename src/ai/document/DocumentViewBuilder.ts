@@ -15,6 +15,7 @@
 
 import type { Editor } from '@tiptap/core'
 import type { Node as PmNode } from '@tiptap/pm/model'
+import { normalizeAlertType } from '@/utils/markdownAlerts'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -340,7 +341,9 @@ export function nodeToMarkdown(node: PmNode): string {
           lines.push('> ' + inlineToMarkdown(child))
         }
       })
-      return lines.join('\n>\n') || '> '
+      const content = lines.join('\n>\n') || '> '
+      const alertType = normalizeAlertType(node.attrs.alertType)
+      return alertType ? `> [!${alertType}]\n${content}` : content
     }
 
     case 'table':

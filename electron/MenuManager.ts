@@ -2,6 +2,7 @@ import { Menu, shell } from 'electron'
 import type {
   ParagraphStateListData,
   ParagraphStateTaskListData,
+  ParagraphStateBlockquoteData,
   ParagraphStateTableData
 } from '../src/types/window-content-state'
 import { DocumentType } from '../src/types'
@@ -593,6 +594,7 @@ export class MenuManager {
           const content = wState?.wContentState?.content
           const contentType = content?.type
           const contentData = content?.data
+          const alertType = (contentData as ParagraphStateBlockquoteData | undefined)?.alertType ?? null
           return [
           {
             label: 'Heading 1',
@@ -866,52 +868,77 @@ export class MenuManager {
               this.sendMenuAction('insert-mermaid-block')
             }
           },
-          /*
-          {
-            label: 'Alert',
-            submenu: [
-              {
-                label: 'Information',
-                click: () => {
-                  this.sendMenuAction('insert-alert-information')
-                }
-              },
-              {
-                label: 'Suggestion',
-                click: () => {
-                  this.sendMenuAction('insert-alert-suggestion')
-                }
-              },
-              {
-                label: 'Important',
-                click: () => {
-                  this.sendMenuAction('insert-alert-important')
-                }
-              },
-              {
-                label: 'Warning',
-                click: () => {
-                  this.sendMenuAction('insert-alert-warning')
-                }
-              },
-              {
-                label: 'Notification',
-                click: () => {
-                  this.sendMenuAction('insert-alert-notification')
-                }
-              }
-            ]
-          },
           { type: 'separator' },
-          */
           {
-            label: 'Quote Block',
+            label: t('menu.paragraph.quoteBlock', 'Quote Block'),
             accelerator: 'CmdOrCtrl+Shift+Q',
             type: 'checkbox',
-            checked: contentType === 'blockquote',
+            checked: contentType === 'blockquote' && !alertType,
             click: () => {
               this.sendMenuAction('insert-quote-block')
             }
+          },
+          {
+            label: t('menu.paragraph.alertBlock', 'Alert Block'),
+            submenu: [
+              {
+                label: t('menu.paragraph.alert.note', 'Note'),
+                type: 'checkbox',
+                checked: contentType === 'blockquote' && alertType === 'NOTE',
+                click: () => {
+                  this.sendMenuAction('set-alert-note')
+                }
+              },
+              {
+                label: t('menu.paragraph.alert.tip', 'Tip'),
+                type: 'checkbox',
+                checked: contentType === 'blockquote' && alertType === 'TIP',
+                click: () => {
+                  this.sendMenuAction('set-alert-tip')
+                }
+              },
+              {
+                label: t('menu.paragraph.alert.important', 'Important'),
+                type: 'checkbox',
+                checked: contentType === 'blockquote' && alertType === 'IMPORTANT',
+                click: () => {
+                  this.sendMenuAction('set-alert-important')
+                }
+              },
+              {
+                label: t('menu.paragraph.alert.warning', 'Warning'),
+                type: 'checkbox',
+                checked: contentType === 'blockquote' && alertType === 'WARNING',
+                click: () => {
+                  this.sendMenuAction('set-alert-warning')
+                }
+              },
+              {
+                label: t('menu.paragraph.alert.caution', 'Caution'),
+                type: 'checkbox',
+                checked: contentType === 'blockquote' && alertType === 'CAUTION',
+                click: () => {
+                  this.sendMenuAction('set-alert-caution')
+                }
+              },
+              { type: 'separator' },
+              {
+                label: t('menu.paragraph.alert.beat', 'Beat'),
+                type: 'checkbox',
+                checked: contentType === 'blockquote' && alertType === 'BEAT',
+                click: () => {
+                  this.sendMenuAction('set-alert-beat')
+                }
+              },
+              {
+                label: t('menu.paragraph.alert.comment', 'Comment'),
+                type: 'checkbox',
+                checked: contentType === 'blockquote' && alertType === 'COMMENT',
+                click: () => {
+                  this.sendMenuAction('set-alert-comment')
+                }
+              },
+            ]
           },
           /*
           {

@@ -26,8 +26,14 @@ export function getContentState(editor: Editor | undefined) : ParagraphState {
 
   if (editor?.isActive('heading'))
     type = editor?.getAttributes('heading').level
-  else if (editor?.isActive('blockquote'))
-    type = 'blockquote'
+  else if (editor?.isActive('blockquote')) {
+    return {
+      type: 'blockquote',
+      data: {
+        alertType: editor.getAttributes('blockquote').alertType ?? null
+      }
+    }
+  }
   else if (editor?.isActive('bulletList')) {
     return {
       type: 'bulletList',

@@ -1,6 +1,6 @@
 # GFM Alert Extension
 
-本文档描述 iWriter 支持 GFM Alert（GitHub 官方 Quote 扩展）以及自定义 Alert 类型的设计方案。
+本文档描述 iWriter 支持 GFM Alert（GitHub 官方 Quote 扩展）以及 iWriter 内置扩展 Alert 类型的设计方案。
 
 核心原则：Alert 是 blockquote 的语义增强，而不是与 blockquote 并列的全新块类型。iWriter 应保持 Markdown 源码兼容、编辑体验稳定、Agent 可读写，并允许创作流使用 `[!BEAT]`、批注流使用 `[!COMMENT]` 等扩展类型。
 
@@ -98,7 +98,7 @@ Markdown 形态：
 - 保留 blockquote 的编辑和选择行为。
 - Agent 现有的 blockquote opaque block 模型可以小幅扩展，不必重建块模型。
 - 普通 blockquote 与 Alert 可以互相切换。
-- 项目内置扩展类型天然兼容，例如 `[!BEAT]`、`[!COMMENT]`；用户仍可输入 `[!IDEA]` 等自定义类型。
+- 项目内置扩展类型天然兼容，例如 `[!BEAT]`、`[!COMMENT]`；任意用户自定义类型不作为本期目标。
 - 可以复用现有 GitHub theme 中已经写好的 `.markdown-alert` 样式。
 
 ## Alert 类型规则
@@ -120,19 +120,12 @@ const IWRITER_ALERT_TYPES = ['BEAT', 'COMMENT'] as const
 - `BEAT`：创作 Agent 和作者共同使用的节拍层标记，用于在正文文件中表达场景或段落的写作骨架。
 - `COMMENT`：作者、审阅流或 Agent 留下的行内块级批注，用于表达暂不直接进入正文的意见、疑问、修改建议或上下文说明。
 
-用户自定义类型：
-
-```ts
-type CustomAlertType = string
-```
-
 类型集合：
 
 ```ts
 type AlertType =
   | typeof GITHUB_ALERT_TYPES[number]
   | typeof IWRITER_ALERT_TYPES[number]
-  | CustomAlertType
 ```
 
 校验规则：
@@ -145,8 +138,8 @@ type AlertType =
 
 - 写入 Markdown marker 时统一大写：`[!beat]` 保存为 `[!BEAT]`，`[!comment]` 保存为 `[!COMMENT]`。
 - CSS class 使用小写并做 slug 化：`markdown-alert-beat`。
-- GitHub 官方类型和 iWriter 项目内置扩展类型可以出现在菜单与 slash command 中。
-- 用户自定义类型只通过 `Custom...` 或手工输入创建，不需要提前注册。
+- GitHub 官方类型和 iWriter 项目内置扩展类型可以出现在菜单、slash command 与块内工具中。
+- 不提供 `Custom...` 入口，不创建任意自定义 Alert 类型。
 - 不符合规则的 marker 不识别为 Alert，继续作为普通 blockquote 内容保留，避免破坏用户原文。
 
 ## Label 显示规则
@@ -157,9 +150,8 @@ Alert 的 label 不独立编辑。原因是 GFM Alert 的 Markdown 源码只表�
 
 - label 由 `alertType` 派生。
 - 内置类型使用本地化显示名，例如 `NOTE -> Note` / `提示`。
-- iWriter 项目内置扩展类型使用固定显示名，例如 `BEAT -> Beat`、`COMMENT -> Comment`。
-- 用户自定义类型使用 Title Case 或原规范化类型显示，例如 `QUESTION -> Question`。
-- 如果用户想要不同 label，应通过不同类型表达，例如 `[!QUESTION]`，而不是编辑独立 label。
+- iWriter 项目内置扩展类型使用本地化显示名，例如 `BEAT -> Beat` / `节拍`、`COMMENT -> Comment` / `批注`。
+- 如果需要新增类型，应先注册为 iWriter 内置扩展类型，再进入菜单、工具和 i18n 映射。
 - `alertLabel` 不作为持久化属性写入 `.md` 或 `.iwt`。如实现中需要，可作为运行时计算结果或 i18n 映射，不进入文档模型。
 
 ## Markdown 读入
@@ -198,7 +190,7 @@ Markdown
   > 内容
   ```
 
-- 支持 marker 与正文同一行，主要用于自定义单行结构：
+- 支持 marker 与正文同一行，主要用于 iWriter 扩展类型的单行结构：
 
   ```markdown
   > [!BEAT] [场景-1-节拍-1] 核心点
@@ -283,14 +275,13 @@ const iwAlertBlockquote = Blockquote.extend({
 - `unsetAlertType()`：保留 blockquote，但去掉 Alert 类型。
 - `toggleAlert(type: string)`：如果当前同类型 Alert，则转回普通 blockquote；否则转为该类型 Alert。
 - `insertAlert(type: string)`：插入一个空 Alert 或把当前块转换为 Alert。
-- `setAlertCustomType(type: string)`：校验并设置用户自定义类型。
 
 输入规则：
 
 - 行首输入 `> [!NOTE] ` 后转换为 Alert。
 - 行首输入 `> [!BEAT] ` 后转换为 Beat Alert。
 - 行首输入 `> [!COMMENT] ` 后转换为 Comment Alert。
-- 其他合法 `> [!TYPE] ` 后转换为自定义 Alert。
+- 其他未注册的 `> [!TYPE] ` 不转换为 Alert，保留为普通引用内容。
 - 普通 `>` 仍走 blockquote。
 
 粘贴规则：
@@ -308,7 +299,6 @@ const iwAlertBlockquote = Blockquote.extend({
 - 普通引用块切换为 Alert。
 - Alert 切换类型。
 - Alert 转回普通引用块。
-- 自定义 Alert 类型。
 
 推荐交互以块内 NodeView tool 为主，菜单为辅。
 
@@ -318,11 +308,10 @@ Alert 与 code block 的语言、Mermaid 的编辑/预览、公式块的 LaTeX �
 
 `iwAlertBlockquoteView.vue` 推荐提供：
 
-- 类型下拉：`Note`、`Tip`、`Important`、`Warning`、`Caution`、`Beat`、`Comment`、`Custom...`。
+- 类型下拉使用分隔项组织：`Quote Block`、`-`、`Note`、`Tip`、`Important`、`Warning`、`Caution`、`-`、`Beat`、`Comment`。
 - 转普通引用按钮。
 - 复制为 Markdown 按钮可选。
 - 删除块按钮可选。
-- `Custom...` 触发轻量输入，校验通过后设置 `alertType`。
 
 显示行为参考现有 NodeView：
 
@@ -376,19 +365,18 @@ Alert 与 code block 的语言、Mermaid 的编辑/预览、公式块的 LaTeX �
   - `.markdown-alert-caution`
   - `.markdown-alert-beat`
   - `.markdown-alert-comment`
-  - 未知类型 fallback
+  - 未注册类型降级为普通 blockquote
 - GitHub / GitHub Dark 主题继续使用现有颜色变量。
 - Prose / Novel 主题可以先使用中性引用样式增强，不必完全 GitHub 化。
 - 打印 CSS 支持 Alert 标题、颜色和 `break-inside: avoid`。
-- 自定义主题可通过 `.markdown-alert-${type}` 覆盖自定义 Alert 样式。
+- 自定义主题可通过 `.markdown-alert-${type}` 覆盖已注册 Alert 类型样式。
 
-默认自定义类型样式：
+项目扩展类型样式：
 
 - border 使用 blockquote 默认边框色。
 - 标题使用正文次级色。
 - `[!BEAT]` 使用项目内置扩展样式。建议视觉上弱于 `IMPORTANT/WARNING`，但比普通引用更容易被识别，避免它看起来像正式正文。
 - `[!COMMENT]` 使用项目内置扩展样式。建议接近批注/审阅气质，颜色保持克制，避免和错误或警告混淆。
-- 其他自定义类型使用 fallback。
 
 ## Agent 支持
 
@@ -438,7 +426,7 @@ Alert：
 - Alert 是 blockquote 的语义扩展。
 - 修改 Alert 内容时保留 `> [!TYPE]` marker，除非用户明确要求改类型或转普通引用。
 - 项目内置扩展类型合法，例如 creative 写作中的 `[!BEAT]`，以及审阅批注中的 `[!COMMENT]`。
-- 其他用户自定义类型也合法，只要符合类型校验规则。
+- 其他未注册类型不作为 Alert 编辑目标。
 - 改 Alert 类型就是改 marker。
 
 creative 相关 skill 已使用 `[!BEAT]` 作为正文中的 GFM Alert。编辑器支持后，不需要为 `[!BEAT]` 单独建特殊节点；它是 iWriter 项目内置扩展 Alert 类型。
@@ -451,16 +439,17 @@ creative 相关 skill 已使用 `[!BEAT]` 作为正文中的 GFM Alert。编辑�
 
 ```txt
 Paragraph
-  Alert
+  -
+  Quote Block
+  Alert Block
     Note
     Tip
     Important
     Warning
     Caution
+    -
     Beat
     Comment
-    Custom...
-  Quote Block
 ```
 
 行为：
@@ -472,13 +461,12 @@ Paragraph
 - `Caution` 发送 `set-alert-caution`。
 - `Beat` 发送 `set-alert-beat`。
 - `Comment` 发送 `set-alert-comment`。
-- `Custom...` 发送 `set-alert-custom`，由 renderer 弹出输入。
 - 当前 block 为同类 Alert 时菜单 checked。
 - 当前 block 为普通 blockquote 时只 checked `Quote Block`。
 
 菜单只是入口，不是唯一修改方式。用户在 Alert 块内时，推荐通过块内工具修改类型。
 
-`src/components/pages/markdown-editor/menu-action.ts` 负责将菜单 action 映射到 TipTap 命令。`set-alert-custom` 可以复用块内工具的自定义类型输入逻辑，避免菜单和 NodeView 各自维护一套校验。
+`src/components/pages/markdown-editor/menu-action.ts` 负责将菜单 action 映射到 TipTap 命令。
 
 Slash command 增加：
 
@@ -489,14 +477,13 @@ Slash command 增加：
 - `Alert: Caution`
 - `Alert: Beat`
 - `Alert: Comment`
-- `Alert: Custom`
 
 ## Copy & Paste
 
 复制为 Markdown：
 
 - Alert 必须输出 GFM marker。
-- iWriter 项目内置扩展类型和用户自定义类型必须输出 `[!TYPE]`。
+- GitHub 官方类型和 iWriter 项目内置扩展类型必须输出 `[!TYPE]`。
 
 复制为 HTML：
 
@@ -540,6 +527,7 @@ Slash command 增加：
 - `> [!COMMENT] text` 读入后保留 `COMMENT`，正文保留 text。
 - 普通 `> quote` 不变成 Alert。
 - 非法 marker `> [!123]` 保持普通 blockquote。
+- 未注册 marker `> [!IDEA]` 保持普通 blockquote。
 
 ### 编辑器测试
 
@@ -548,7 +536,6 @@ Slash command 增加：
 - 通过块内类型下拉把 `NOTE` 改成 `COMMENT` 后，Markdown 输出 `[!COMMENT]`。
 - 通过菜单把普通 quote 转成 `BEAT` 后，正文不丢失。
 - Alert 转普通引用不丢正文。
-- 自定义类型输入校验正确。
 - Alert 的 label 不能独立编辑，显示名由类型派生。
 - Alert 内普通 quote 保留为普通 quote，不被提升为子 Alert。
 - Alert 内 `[!NOTE]` marker 不创建嵌套 Alert。
@@ -582,7 +569,7 @@ Slash command 增加：
 4. 补齐编辑器 screen 样式与打印样式。
 5. 接入 Agent `DocumentViewBuilder` 和 `BlockEditApplier`。
 6. 恢复并完善菜单、slash command 和 i18n。
-7. 增加覆盖官方五类、项目内置扩展 `[!BEAT]` / `[!COMMENT]`、以及用户自定义类型的回归测试。
+7. 增加覆盖官方五类、项目内置扩展 `[!BEAT]` / `[!COMMENT]`、以及未注册类型降级行为的回归测试。
 
 ## 非目标
 

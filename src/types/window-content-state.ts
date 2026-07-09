@@ -58,10 +58,14 @@ export interface ParagraphStateTableData {
   canMoveBelow: boolean
 }
 
+export interface ParagraphStateBlockquoteData {
+  alertType?: string | null
+}
+
 // 文字内容类型信息
 export interface ParagraphState {
   type?: string | number
-  data?: ParagraphStateListData | ParagraphStateTaskListData | ParagraphStateTableData
+  data?: ParagraphStateListData | ParagraphStateTaskListData | ParagraphStateTableData | ParagraphStateBlockquoteData
 }
 
 // 文字内容格式化状态接口

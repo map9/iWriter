@@ -15,6 +15,7 @@ import { marked } from 'marked'
 import type { BlockEditProposal } from '@/ai/types'
 import { DocumentViewBuilder, nodeToMarkdown } from './DocumentViewBuilder'
 import { unwrapBlockImages } from '@/import-export/formatConverter'
+import { transformAlertBlockquotesInHtml } from '@/utils/markdownAlerts'
 
 export interface ApplyResult {
   success: boolean
@@ -166,7 +167,8 @@ async function markdownToContent(
   // ul[data-type="taskList"]); marked would degrade it to a bulletList and drop the
   // checked state. Build the taskList HTML directly for a flat task list (A4.2).
   const taskHtml = await tryBuildTaskListHtml(markdown)
-  const html = taskHtml ?? unwrapBlockImages(await marked.parse(markdown, { async: true }))
+  const parsedHtml = await marked.parse(markdown, { async: true })
+  const html = taskHtml ?? transformAlertBlockquotesInHtml(unwrapBlockImages(parsedHtml))
   // Use TipTap's built-in HTML parser via a temporary content parse
   const { generateJSON } = await import('@tiptap/core')
   const doc = generateJSON(html, editor.extensionManager.baseExtensions)

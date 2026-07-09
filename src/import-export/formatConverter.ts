@@ -4,6 +4,7 @@ import type { Tokens } from 'marked'
 import TurndownService from 'turndown'
 import { gfm } from '@guyplusplus/turndown-plugin-gfm'
 import { renderInlineMathHtml, renderBlockMathHtml } from '@/utils/mathDelimiters'
+import { configureAlertTurndown, transformAlertBlockquotesInHtml } from '@/utils/markdownAlerts'
 
 import { TEXT_MD_EXTENSIONS, TEXT_TXT_EXTENSIONS, TEXT_IWT_EXTENSIONS, CODE_EXTENSIONS } from '@/types'
 
@@ -76,6 +77,7 @@ taskListItems
 gfm (which applies all of the above)
 */
 turndownService.use(gfm)
+configureAlertTurndown(turndownService)
 turndownService.addRule('inlineMath', {
   filter: (node) =>
     node.nodeName === 'SPAN' && (node as HTMLElement).getAttribute('data-type') === 'inline-math',
@@ -127,13 +129,17 @@ export function unwrapBlockImages(html: string): string {
   return html.replace(/<p>(\s*<img\b[^>]*>\s*)<\/p>/gi, '$1')
 }
 
+function prepareMarkdownHtml(html: string): string {
+  return transformAlertBlockquotesInHtml(unwrapBlockImages(html))
+}
+
 // Load content into editor
 export async function convertContentFrom(content: string, extension: string) {
   // @ts-expect-error don't report error
   if (TEXT_MD_EXTENSIONS.includes(extension)) {
     // Convert markdown to HTML for TipTap
     return {
-      content: unwrapBlockImages(await marked(content)),
+      content: prepareMarkdownHtml(await marked(content)),
       lineEnding: detectLineEnding(content)
     }
   // @ts-expect-error don't report error

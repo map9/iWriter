@@ -23,6 +23,13 @@
   --md-blockquote-border: #3b82f6;
   --md-blockquote-color: #64748b;
   --md-blockquote-font-style: italic;
+  --md-alert-note: #0969da;
+  --md-alert-important: #8250df;
+  --md-alert-warning: #9a6700;
+  --md-alert-tip: #1a7f37;
+  --md-alert-caution: #d1242f;
+  --md-alert-beat: #57606a;
+  --md-alert-comment: #6e7781;
   --md-table-border-color: rgba(61, 37, 20, .12);
   --md-table-header-bg: rgba(61, 37, 20, .08);
   --md-inline-code-bg: #f1f5f9;
@@ -269,6 +276,81 @@
     padding-left: 1rem;
     font-style: var(--md-blockquote-font-style);
     color: var(--md-blockquote-color);
+
+    &.markdown-alert {
+      color: inherit;
+      font-style: normal;
+      padding: 0.5rem 1rem;
+
+      &::before {
+        content: attr(data-alert-type);
+        display: block;
+        font-weight: 600;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+      }
+
+      > blockquote {
+        margin-top: 0.5rem;
+        margin-bottom: 0;
+      }
+    }
+
+    &.markdown-alert-note {
+      border-left-color: var(--md-alert-note);
+
+      &::before {
+        color: var(--md-alert-note);
+      }
+    }
+
+    &.markdown-alert-important {
+      border-left-color: var(--md-alert-important);
+
+      &::before {
+        color: var(--md-alert-important);
+      }
+    }
+
+    &.markdown-alert-warning {
+      border-left-color: var(--md-alert-warning);
+
+      &::before {
+        color: var(--md-alert-warning);
+      }
+    }
+
+    &.markdown-alert-tip {
+      border-left-color: var(--md-alert-tip);
+
+      &::before {
+        color: var(--md-alert-tip);
+      }
+    }
+
+    &.markdown-alert-caution {
+      border-left-color: var(--md-alert-caution);
+
+      &::before {
+        color: var(--md-alert-caution);
+      }
+    }
+
+    &.markdown-alert-beat {
+      border-left-color: var(--md-alert-beat);
+
+      &::before {
+        color: var(--md-alert-beat);
+      }
+    }
+
+    &.markdown-alert-comment {
+      border-left-color: var(--md-alert-comment);
+
+      &::before {
+        color: var(--md-alert-comment);
+      }
+    }
   }
 
   /* Table-specific styling */

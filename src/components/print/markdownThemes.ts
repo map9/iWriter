@@ -254,6 +254,8 @@ const GITHUB_SCREEN_CSS = `
     --md-alert-warning: #9a6700;
     --md-alert-tip: #1a7f37;
     --md-alert-caution: #d1242f;
+    --md-alert-beat: #57606a;
+    --md-alert-comment: #6e7781;
     font-size: 16px;
     font-weight: 400;
     word-wrap: break-word;
@@ -629,18 +631,27 @@ const GITHUB_SCREEN_CSS = `
     margin-bottom: 0;
   }
 
-  .tiptap.markdown-theme-github .markdown-alert .markdown-alert-title {
+  .tiptap.markdown-theme-github .markdown-alert > blockquote {
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+  }
+
+  .tiptap.markdown-theme-github .markdown-alert .markdown-alert-title,
+  .tiptap.markdown-theme-github .markdown-alert::before {
+    content: attr(data-alert-type);
     display: flex;
     align-items: center;
     font-weight: 500;
     line-height: 1;
+    margin-bottom: 0.5rem;
   }
 
   .tiptap.markdown-theme-github .markdown-alert.markdown-alert-note {
     border-left-color: var(--md-alert-note);
   }
 
-  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-note .markdown-alert-title {
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-note .markdown-alert-title,
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-note::before {
     color: var(--md-alert-note);
   }
 
@@ -648,7 +659,8 @@ const GITHUB_SCREEN_CSS = `
     border-left-color: var(--md-alert-important);
   }
 
-  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-important .markdown-alert-title {
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-important .markdown-alert-title,
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-important::before {
     color: var(--md-alert-important);
   }
 
@@ -656,7 +668,8 @@ const GITHUB_SCREEN_CSS = `
     border-left-color: var(--md-alert-warning);
   }
 
-  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-warning .markdown-alert-title {
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-warning .markdown-alert-title,
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-warning::before {
     color: var(--md-alert-warning);
   }
 
@@ -664,7 +677,8 @@ const GITHUB_SCREEN_CSS = `
     border-left-color: var(--md-alert-tip);
   }
 
-  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-tip .markdown-alert-title {
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-tip .markdown-alert-title,
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-tip::before {
     color: var(--md-alert-tip);
   }
 
@@ -672,8 +686,25 @@ const GITHUB_SCREEN_CSS = `
     border-left-color: #cf222e;
   }
 
-  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-caution .markdown-alert-title {
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-caution .markdown-alert-title,
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-caution::before {
     color: var(--md-alert-caution);
+  }
+
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-beat {
+    border-left-color: var(--md-alert-beat);
+  }
+
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-beat::before {
+    color: var(--md-alert-beat);
+  }
+
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-comment {
+    border-left-color: var(--md-alert-comment);
+  }
+
+  .tiptap.markdown-theme-github .markdown-alert.markdown-alert-comment::before {
+    color: var(--md-alert-comment);
   }
 
   .tiptap.markdown-theme-github .tiptap-mathematics-render[data-type='inline-math'] {
@@ -813,6 +844,8 @@ const GITHUB_DARK_SCREEN_CSS = `
     --md-alert-warning: #d29922;
     --md-alert-tip: #3fb950;
     --md-alert-caution: #f85149;
+    --md-alert-beat: #8b949e;
+    --md-alert-comment: #9198a1;
     font-size: 16px;
     font-weight: 400;
     word-wrap: break-word;
@@ -1184,18 +1217,27 @@ const GITHUB_DARK_SCREEN_CSS = `
     margin-bottom: 0;
   }
 
-  .tiptap.markdown-theme-github-dark .markdown-alert .markdown-alert-title {
+  .tiptap.markdown-theme-github-dark .markdown-alert > blockquote {
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+  }
+
+  .tiptap.markdown-theme-github-dark .markdown-alert .markdown-alert-title,
+  .tiptap.markdown-theme-github-dark .markdown-alert::before {
+    content: attr(data-alert-type);
     display: flex;
     align-items: center;
     font-weight: 500;
     line-height: 1;
+    margin-bottom: 0.5rem;
   }
 
   .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-note {
     border-left-color: #1f6feb;
   }
 
-  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-note .markdown-alert-title {
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-note .markdown-alert-title,
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-note::before {
     color: var(--md-alert-note);
   }
 
@@ -1203,7 +1245,8 @@ const GITHUB_DARK_SCREEN_CSS = `
     border-left-color: #8957e5;
   }
 
-  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-important .markdown-alert-title {
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-important .markdown-alert-title,
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-important::before {
     color: var(--md-alert-important);
   }
 
@@ -1211,7 +1254,8 @@ const GITHUB_DARK_SCREEN_CSS = `
     border-left-color: #9e6a03;
   }
 
-  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-warning .markdown-alert-title {
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-warning .markdown-alert-title,
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-warning::before {
     color: var(--md-alert-warning);
   }
 
@@ -1219,7 +1263,8 @@ const GITHUB_DARK_SCREEN_CSS = `
     border-left-color: #238636;
   }
 
-  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-tip .markdown-alert-title {
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-tip .markdown-alert-title,
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-tip::before {
     color: var(--md-alert-tip);
   }
 
@@ -1227,8 +1272,25 @@ const GITHUB_DARK_SCREEN_CSS = `
     border-left-color: #da3633;
   }
 
-  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-caution .markdown-alert-title {
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-caution .markdown-alert-title,
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-caution::before {
     color: var(--md-alert-caution);
+  }
+
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-beat {
+    border-left-color: var(--md-alert-beat);
+  }
+
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-beat::before {
+    color: var(--md-alert-beat);
+  }
+
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-comment {
+    border-left-color: var(--md-alert-comment);
+  }
+
+  .tiptap.markdown-theme-github-dark .markdown-alert.markdown-alert-comment::before {
+    color: var(--md-alert-comment);
   }
 
   .tiptap.markdown-theme-github-dark .tiptap-mathematics-render[data-type='inline-math'] {
@@ -1581,17 +1643,22 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         .markdown-alert { padding: 0.5rem 1rem; margin-bottom: 1rem; color: inherit; border-left: 0.25em solid #d1d9e0; }
         .markdown-alert > :first-child { margin-top: 0; }
         .markdown-alert > :last-child { margin-bottom: 0; }
-        .markdown-alert .markdown-alert-title { display: flex; align-items: center; font-weight: 500; line-height: 1; }
+        .markdown-alert > blockquote { margin-top: 0.5rem; margin-bottom: 0; }
+        .markdown-alert .markdown-alert-title, .markdown-alert::before { content: attr(data-alert-type); display: flex; align-items: center; font-weight: 500; line-height: 1; margin-bottom: 0.5rem; }
         .markdown-alert.markdown-alert-note { border-left-color: #0969da; }
-        .markdown-alert.markdown-alert-note .markdown-alert-title { color: #0969da; }
+        .markdown-alert.markdown-alert-note .markdown-alert-title, .markdown-alert.markdown-alert-note::before { color: #0969da; }
         .markdown-alert.markdown-alert-important { border-left-color: #8250df; }
-        .markdown-alert.markdown-alert-important .markdown-alert-title { color: #8250df; }
+        .markdown-alert.markdown-alert-important .markdown-alert-title, .markdown-alert.markdown-alert-important::before { color: #8250df; }
         .markdown-alert.markdown-alert-warning { border-left-color: #9a6700; }
-        .markdown-alert.markdown-alert-warning .markdown-alert-title { color: #9a6700; }
+        .markdown-alert.markdown-alert-warning .markdown-alert-title, .markdown-alert.markdown-alert-warning::before { color: #9a6700; }
         .markdown-alert.markdown-alert-tip { border-left-color: #1a7f37; }
-        .markdown-alert.markdown-alert-tip .markdown-alert-title { color: #1a7f37; }
+        .markdown-alert.markdown-alert-tip .markdown-alert-title, .markdown-alert.markdown-alert-tip::before { color: #1a7f37; }
         .markdown-alert.markdown-alert-caution { border-left-color: #cf222e; }
-        .markdown-alert.markdown-alert-caution .markdown-alert-title { color: #d1242f; }
+        .markdown-alert.markdown-alert-caution .markdown-alert-title, .markdown-alert.markdown-alert-caution::before { color: #d1242f; }
+        .markdown-alert.markdown-alert-beat { border-left-color: #57606a; }
+        .markdown-alert.markdown-alert-beat::before { color: #57606a; }
+        .markdown-alert.markdown-alert-comment { border-left-color: #6e7781; }
+        .markdown-alert.markdown-alert-comment::before { color: #6e7781; }
         .tiptap-mathematics-render[data-type="block-math"] { display: block; margin: 0 0 1rem; padding: 1rem; text-align: center; background: #f6f8fa; border-radius: 6px; }
       `,
       pageDefaults: createPageSetup({
@@ -1713,17 +1780,22 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         .markdown-alert { padding: 0.5rem 1rem; margin-bottom: 1rem; color: inherit; border-left: 0.25em solid #3d444d; }
         .markdown-alert > :first-child { margin-top: 0; }
         .markdown-alert > :last-child { margin-bottom: 0; }
-        .markdown-alert .markdown-alert-title { display: flex; align-items: center; font-weight: 500; line-height: 1; }
+        .markdown-alert > blockquote { margin-top: 0.5rem; margin-bottom: 0; }
+        .markdown-alert .markdown-alert-title, .markdown-alert::before { content: attr(data-alert-type); display: flex; align-items: center; font-weight: 500; line-height: 1; margin-bottom: 0.5rem; }
         .markdown-alert.markdown-alert-note { border-left-color: #1f6feb; }
-        .markdown-alert.markdown-alert-note .markdown-alert-title { color: #4493f8; }
+        .markdown-alert.markdown-alert-note .markdown-alert-title, .markdown-alert.markdown-alert-note::before { color: #4493f8; }
         .markdown-alert.markdown-alert-important { border-left-color: #8957e5; }
-        .markdown-alert.markdown-alert-important .markdown-alert-title { color: #ab7df8; }
+        .markdown-alert.markdown-alert-important .markdown-alert-title, .markdown-alert.markdown-alert-important::before { color: #ab7df8; }
         .markdown-alert.markdown-alert-warning { border-left-color: #9e6a03; }
-        .markdown-alert.markdown-alert-warning .markdown-alert-title { color: #d29922; }
+        .markdown-alert.markdown-alert-warning .markdown-alert-title, .markdown-alert.markdown-alert-warning::before { color: #d29922; }
         .markdown-alert.markdown-alert-tip { border-left-color: #238636; }
-        .markdown-alert.markdown-alert-tip .markdown-alert-title { color: #3fb950; }
+        .markdown-alert.markdown-alert-tip .markdown-alert-title, .markdown-alert.markdown-alert-tip::before { color: #3fb950; }
         .markdown-alert.markdown-alert-caution { border-left-color: #da3633; }
-        .markdown-alert.markdown-alert-caution .markdown-alert-title { color: #f85149; }
+        .markdown-alert.markdown-alert-caution .markdown-alert-title, .markdown-alert.markdown-alert-caution::before { color: #f85149; }
+        .markdown-alert.markdown-alert-beat { border-left-color: #8b949e; }
+        .markdown-alert.markdown-alert-beat::before { color: #8b949e; }
+        .markdown-alert.markdown-alert-comment { border-left-color: #9198a1; }
+        .markdown-alert.markdown-alert-comment::before { color: #9198a1; }
         .tiptap-mathematics-render[data-type="block-math"] { display: block; margin: 0 0 1rem; padding: 1rem; text-align: center; background: #151b23; border-radius: 6px; }
       `,
       pageDefaults: createPageSetup({

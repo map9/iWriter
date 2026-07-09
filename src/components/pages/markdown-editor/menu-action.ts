@@ -180,12 +180,26 @@ export async function onEditorMenuAction(editor: Editor | undefined, action: str
       editor.chain().focus().toggleBlockquote().run()
       return true
 
-    case 'insert-alert-information':
-    case 'insert-alert-suggestion':
-    case 'insert-alert-important':
-    case 'insert-alert-warning':
-    case 'insert-alert-notification':
-      console.info(`Unsupported menu command: ${action}`)
+    case 'set-alert-note':
+      editor.chain().focus().setAlertType('NOTE').run()
+      return true
+    case 'set-alert-tip':
+      editor.chain().focus().setAlertType('TIP').run()
+      return true
+    case 'set-alert-important':
+      editor.chain().focus().setAlertType('IMPORTANT').run()
+      return true
+    case 'set-alert-warning':
+      editor.chain().focus().setAlertType('WARNING').run()
+      return true
+    case 'set-alert-caution':
+      editor.chain().focus().setAlertType('CAUTION').run()
+      return true
+    case 'set-alert-beat':
+      editor.chain().focus().setAlertType('BEAT').run()
+      return true
+    case 'set-alert-comment':
+      editor.chain().focus().setAlertType('COMMENT').run()
       return true
     
     // Lists
