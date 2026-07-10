@@ -7,6 +7,7 @@ import pagedJsRaw from '../../../node_modules/pagedjs/dist/paged.esm.js?raw'
 import { KATEX_INLINE_CSS } from './katexAssets'
 import { renderMathInHtml } from './mathRenderer'
 import { renderMermaidInHtml } from './mermaidPrintRenderer'
+import { MARKDOWN_ALERT_ICON_CSS } from './markdownThemes'
 
 const MERMAID_PRINT_CSS = `
 .mermaid-print {
@@ -464,6 +465,9 @@ export async function buildPreviewDocumentWithOptions(
     '<style media="screen">', PREVIEW_STYLES, '</style>',
     '<style>', MERMAID_PRINT_CSS, '</style>',
     '<style>', printCss, '</style>',
+    // Alert title icons — layered after theme CSS; only adds ::after + padding-left,
+    // so it augments each print theme's alert titles without overriding them.
+    '<style>', MARKDOWN_ALERT_ICON_CSS, '</style>',
     '</head><body>',
     safeHtml,
     TAG_OPEN, '\n', pagedJsRaw, '\n', buildRunner({
