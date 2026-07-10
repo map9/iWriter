@@ -555,6 +555,12 @@ const GITHUB_SCREEN_CSS = `
 
   .tiptap.markdown-theme-github ul[data-type='taskList'] label {
     font-weight: 400;
+    display: inline;
+    box-sizing: content-box;
+    width: auto;
+    margin-left: 0;
+    margin-right: 0.5rem;
+    padding-right: 0;
   }
 
   .tiptap.markdown-theme-github ul[data-type='taskList'] input[type='checkbox'] {
@@ -617,7 +623,7 @@ const GITHUB_SCREEN_CSS = `
   }
 
   .tiptap.markdown-theme-github .markdown-alert {
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 1rem 0;
     margin-bottom: 1rem;
     color: inherit;
     border-left: 0.25em solid #d1d9e0;
@@ -1141,6 +1147,12 @@ const GITHUB_DARK_SCREEN_CSS = `
 
   .tiptap.markdown-theme-github-dark ul[data-type='taskList'] label {
     font-weight: 400;
+    display: inline;
+    box-sizing: content-box;
+    width: auto;
+    margin-left: 0;
+    margin-right: 0.5rem;
+    padding-right: 0;
   }
 
   .tiptap.markdown-theme-github-dark ul[data-type='taskList'] input[type='checkbox'] {
@@ -1203,7 +1215,7 @@ const GITHUB_DARK_SCREEN_CSS = `
   }
 
   .tiptap.markdown-theme-github-dark .markdown-alert {
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 1rem 0;
     margin-bottom: 1rem;
     color: inherit;
     border-left: 0.25em solid #3d444d;
@@ -1531,7 +1543,117 @@ const NOVEL_SCREEN_CSS = `
   }
 `
 
+// System theme — follows the current daisyUI app theme by mapping the `--md-*`
+// color tokens onto daisyUI's semantic `--color-*` variables. Because those are
+// live CSS custom properties, switching the app theme (`<html data-theme>`)
+// recolors the editor automatically with no JS. Only colors are redefined here;
+// layout/spacing is inherited from the base `.tiptap` rules in style.scss.
+const SYSTEM_SCREEN_CSS = `
+  .tiptap.markdown-theme-system {
+    --md-body-color: var(--color-base-content);
+    --md-heading-color: var(--color-base-content);
+    --md-hr-color: var(--color-base-300);
+    --md-mark-bg: color-mix(in oklab, var(--color-warning) 30%, transparent);
+    --md-mark-color: var(--color-base-content);
+    --md-link-color: var(--color-primary);
+    --md-link-hover-color: color-mix(in oklab, var(--color-primary) 80%, var(--color-base-content));
+    --md-blockquote-border: var(--color-primary);
+    --md-blockquote-color: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+    --md-table-border-color: var(--color-base-300);
+    --md-table-header-bg: var(--color-base-200);
+    --md-inline-code-bg: var(--color-base-200);
+    --md-inline-code-color: var(--color-base-content);
+    --md-alert-note: var(--color-info);
+    --md-alert-important: var(--color-secondary);
+    --md-alert-warning: var(--color-warning);
+    --md-alert-tip: var(--color-success);
+    --md-alert-caution: var(--color-error);
+    --md-alert-beat: var(--color-neutral);
+    --md-alert-comment: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+    /* Intentionally NOT overriding --md-code-block-bg / --md-code-block-color:
+       the base dark code block + hljs palette stays legible under any app theme. */
+  }
+`
+
+// System theme prints in a fixed neutral light style (paper is white) regardless
+// of the current app theme — layers over BASE_PRINT_CSS in buildPrintCss.ts.
+const SYSTEM_PRINT_CSS = `
+  body {
+    color-scheme: light;
+    background: #ffffff;
+    color: #1f2328;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    font-size: 11pt;
+    font-weight: 400;
+    line-height: 1.6;
+    word-wrap: break-word;
+  }
+  body > *:first-child { margin-top: 0 !important; }
+  body > *:last-child { margin-bottom: 0 !important; }
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    color: #1f2328;
+    line-height: 1.25;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  h1 { font-size: 22pt; margin-top: 0; }
+  h2 { font-size: 16.5pt; }
+  h3 { font-size: 13.75pt; }
+  h4 { font-size: 11pt; }
+  h5 { font-size: 9.75pt; }
+  h6 { font-size: 9.5pt; color: #59636e; }
+  p, blockquote, ul, ol, dl, table, pre, details { margin-top: 0; margin-bottom: 1rem; }
+  li > p { margin-top: 1rem; }
+  li + li { margin-top: 0.25em; }
+  blockquote { border-left: 4px solid #d1d9e0; padding: 0 1em; color: #59636e; margin: 0 0 1rem; }
+  blockquote > :first-child { margin-top: 0; }
+  blockquote > :last-child { margin-bottom: 0; }
+  th { background: #eaeef2; font-weight: 600; }
+  tr:nth-child(even) td { background: #f6f8fa; }
+  code { background: #818b981f; color: #1f2328; padding: 0.2em 0.4em; border-radius: 6px; }
+  pre { background: #f6f8fa; color: #1f2328; border-radius: 6px; }
+  pre code { background: transparent; color: inherit; }
+  mark { background: #fff8c5; color: #1f2328; padding: 0.1em 0.15em; }
+  a { color: #0969da; text-decoration: none; text-underline-offset: 0.2rem; }
+  a:hover { text-decoration: underline; }
+  del { color: #59636e; }
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+  .markdown-alert { padding: 0.5rem 1rem 0; margin-bottom: 1rem; color: inherit; border-left: 0.25em solid #d1d9e0; }
+  .markdown-alert > :first-child { margin-top: 0; }
+  .markdown-alert > :last-child { margin-bottom: 0; }
+  .markdown-alert .markdown-alert-title, .markdown-alert::before { content: attr(data-alert-type); display: flex; align-items: center; font-weight: 500; line-height: 1; margin-bottom: 0.5rem; }
+  .markdown-alert.markdown-alert-note { border-left-color: #0969da; }
+  .markdown-alert.markdown-alert-note .markdown-alert-title, .markdown-alert.markdown-alert-note::before { color: #0969da; }
+  .markdown-alert.markdown-alert-important { border-left-color: #8250df; }
+  .markdown-alert.markdown-alert-important .markdown-alert-title, .markdown-alert.markdown-alert-important::before { color: #8250df; }
+  .markdown-alert.markdown-alert-warning { border-left-color: #9a6700; }
+  .markdown-alert.markdown-alert-warning .markdown-alert-title, .markdown-alert.markdown-alert-warning::before { color: #9a6700; }
+  .markdown-alert.markdown-alert-tip { border-left-color: #1a7f37; }
+  .markdown-alert.markdown-alert-tip .markdown-alert-title, .markdown-alert.markdown-alert-tip::before { color: #1a7f37; }
+  .markdown-alert.markdown-alert-caution { border-left-color: #cf222e; }
+  .markdown-alert.markdown-alert-caution .markdown-alert-title, .markdown-alert.markdown-alert-caution::before { color: #d1242f; }
+  .markdown-alert.markdown-alert-beat { border-left-color: #57606a; }
+  .markdown-alert.markdown-alert-beat::before { color: #57606a; }
+  .markdown-alert.markdown-alert-comment { border-left-color: #6e7781; }
+  .markdown-alert.markdown-alert-comment::before { color: #6e7781; }
+`
+
 export const builtInMarkdownThemes: MarkdownTheme[] = [
+  {
+    id: 'system',
+    name: 'System',
+    description: 'Follows the current app theme colors; layout matches the editor default.',
+    screen: { css: SYSTEM_SCREEN_CSS, backgroundColor: 'var(--color-base-100)' },
+    print: {
+      css: SYSTEM_PRINT_CSS,
+      pageDefaults: createPageSetup(),
+      paginationDefaults: createPaginationSetup(),
+      headerFooterDefaults: createHeaderFooterSetup(),
+      runningTitleDefaults: createRunningTitleSetup(),
+    },
+  },
   {
     id: 'github',
     name: 'GitHub',
@@ -1640,7 +1762,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         .footnotes ol { padding-left: 1rem; }
         [data-footnote-ref]::before { content: "["; }
         [data-footnote-ref]::after { content: "]"; }
-        .markdown-alert { padding: 0.5rem 1rem; margin-bottom: 1rem; color: inherit; border-left: 0.25em solid #d1d9e0; }
+        .markdown-alert { padding: 0.5rem 1rem 0; margin-bottom: 1rem; color: inherit; border-left: 0.25em solid #d1d9e0; }
         .markdown-alert > :first-child { margin-top: 0; }
         .markdown-alert > :last-child { margin-bottom: 0; }
         .markdown-alert > blockquote { margin-top: 0.5rem; margin-bottom: 0; }
@@ -1777,7 +1899,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         .footnotes ol { padding-left: 1rem; }
         [data-footnote-ref]::before { content: "["; }
         [data-footnote-ref]::after { content: "]"; }
-        .markdown-alert { padding: 0.5rem 1rem; margin-bottom: 1rem; color: inherit; border-left: 0.25em solid #3d444d; }
+        .markdown-alert { padding: 0.5rem 1rem 0; margin-bottom: 1rem; color: inherit; border-left: 0.25em solid #3d444d; }
         .markdown-alert > :first-child { margin-top: 0; }
         .markdown-alert > :last-child { margin-bottom: 0; }
         .markdown-alert > blockquote { margin-top: 0.5rem; margin-bottom: 0; }
@@ -2371,8 +2493,8 @@ export function ensureMarkdownScreenThemeStyleSheet(): void {
 
 export const DEFAULT_MARKDOWN_PRINT_PREFERENCES: MarkdownPrintPreferences = {
   themeAssignment: {
-    screenThemeId: 'github',
-    printThemeId: 'github',
+    screenThemeId: 'system',
+    printThemeId: 'system',
     printUsesScreenTheme: false,
   },
   printOverrides: {},

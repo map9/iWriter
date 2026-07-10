@@ -14,8 +14,8 @@
   --md-p-margin: 1rem 0;
   --md-list-margin: 1.25rem 1rem 1.25rem 0.4rem;
   --md-list-padding-x: 1rem;
-  --md-bullet-margin: 1rem;
-  --md-bullet-padding-left: 1.25rem;
+  --md-bullet-margin: 1rem 0;
+  --md-bullet-padding-left: 2em;
   --md-hr-color: #e2e8f0;
   --md-mark-bg: #fef08a;
   --md-link-color: #3b82f6;
@@ -143,10 +143,8 @@
       }
     }
 
-    ul {
-      padding-left: 2.25rem;
-    }
-
+    // Lists keep their normal position; only paragraph first lines indent,
+    // landing exactly on the list text column (both at --md-bullet-padding-left).
     ul,
     ol {
       li p {
@@ -214,16 +212,27 @@
   /* Task list styles */
   ul[data-type="taskList"] {
     list-style: none;
-    margin-left: 0;
-    padding: 0;
-    
+    margin: var(--md-bullet-margin);
+    padding-left: var(--md-bullet-padding-left);
+
     li {
       display: flex;
       align-items: flex-start;
-      
+
+      // Checkbox hangs in the marker gutter so the text column lines up
+      // exactly with the bullet/ordered text (all at --md-bullet-padding-left).
       > label {
         flex: 0 0 auto;
-        margin-right: 0.5rem;
+        box-sizing: border-box;
+        width: var(--md-bullet-padding-left);
+        margin-left: calc(-1 * var(--md-bullet-padding-left));
+        // Match one line box and center the checkbox in it so it lines up
+        // vertically with the first line of text (adapts to line-height).
+        height: calc(var(--md-line-height) * 1em);
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 0.4em;
         user-select: none;
       }
 
@@ -280,7 +289,7 @@
     &.markdown-alert {
       color: inherit;
       font-style: normal;
-      padding: 0.5rem 1rem;
+      padding: 0.5rem 1rem 0;
 
       &::before {
         content: attr(data-alert-type);

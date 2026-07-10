@@ -1,4 +1,4 @@
-export type BuiltInMarkdownThemeId = 'github' | 'github-dark' | 'prose' | 'novel'
+export type BuiltInMarkdownThemeId = 'system' | 'github' | 'github-dark' | 'prose' | 'novel'
 export type MarkdownThemeId = string
 
 export interface CustomThemeManifestPrint {
