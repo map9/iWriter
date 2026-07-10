@@ -372,7 +372,9 @@ export function createMarkdownEditorExtensions(options: {
       resizable: true
     }).extend({
       addNodeView() {
-        return VueNodeViewRenderer(iwTableView)
+        return VueNodeViewRenderer(iwTableView, {
+          contentDOMElementTag: 'tbody',
+        })
       }
     }),
 

@@ -142,7 +142,8 @@ function buildRunner(options: {
 
           if (!table.querySelector('thead')) {
             var firstRow = table.querySelector('tr');
-            if (firstRow && firstRow.querySelector('th')) {
+            var cells = firstRow && firstRow.cells;
+            if (cells && cells.length && Array.prototype.every.call(cells, function (cell) { return cell.tagName === 'TH'; })) {
               firstRow.setAttribute('data-iw-header-row', 'true');
             }
           }

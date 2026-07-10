@@ -166,12 +166,8 @@
       </button>
     </div>
     
-    <div class="tableWrapper">
-      <table ref="tableRef">
-        <colgroup ref="colgroupRef">
-        </colgroup>
-        <node-view-content as="tbody" />
-      </table>
+    <div ref="tableContainerRef" class="tableWrapper">
+      <node-view-content as="table" />
     </div>
   </node-view-wrapper>
 </template>
@@ -213,7 +209,8 @@ import {
   deleteColumn as deleteColumnUtil,
   addRowBefore,
   addRowAfter,
-  deleteRow as deleteRowUtil
+  deleteRow as deleteRowUtil,
+  copyTable as copyTableUtil
 } from './utils/TableOperations'
 
 const props = defineProps(nodeViewProps)
@@ -340,8 +337,27 @@ watchEffect(() => {
 })
 
 // DOM引用
+const tableContainerRef = ref<HTMLElement>()
 const tableRef = ref<HTMLTableElement>()
-const colgroupRef = ref<HTMLElement>()
+const colgroupRef = ref<HTMLTableColElement>()
+
+const initializeTableElements = (): boolean => {
+  const table = tableContainerRef.value?.querySelector<HTMLTableElement>('table[data-node-view-content]')
+  if (!table) {
+    return false
+  }
+
+  tableRef.value = table
+
+  let colgroup = table.querySelector<HTMLTableColElement>(':scope > colgroup')
+  if (!colgroup) {
+    colgroup = document.createElement('colgroup')
+    tableRef.value.insertBefore(colgroup, tableRef.value.firstChild)
+  }
+  colgroupRef.value = colgroup
+
+  return true
+}
 
 // 手动更新列（模拟TableView的updateColumns函数）
 const updateColumns = () => {
@@ -411,7 +427,9 @@ const updateColumns = () => {
 // 生命周期管理
 onMounted(() => {
   nextTick(() => {
-    updateColumns()
+    if (initializeTableElements()) {
+      updateColumns()
+    }
   })
 })
 
@@ -464,32 +482,13 @@ const toggleHeaderColumn = (): void => {
 }
 
 const copyTable = async (): Promise<void> => {
+  if (!isSelectionInsideNode(props)) focusCell(0, 0)
+
   try {
-    const tableElement = tableRef.value
-    if (tableElement) {
-      // 创建一个临时的div来包含表格
-      const tempDiv = document.createElement('div')
-      tempDiv.appendChild(tableElement.cloneNode(true))
-      
-      // 同时复制HTML和纯文本格式
-      const htmlContent = tempDiv.innerHTML
-      const textContent = tableElement.innerText || tableElement.textContent || ''
-      
-      // 使用 Clipboard API 复制多种格式
-      if (navigator.clipboard && navigator.clipboard.write) {
-        const clipboardItem = new ClipboardItem({
-          'text/html': new Blob([htmlContent], { type: 'text/html' }),
-          'text/plain': new Blob([textContent], { type: 'text/plain' })
-        })
-        await navigator.clipboard.write([clipboardItem])
-      } else {
-        // 降级方案：只复制纯文本
-        await navigator.clipboard.writeText(textContent)
-      }
-      
+    if (await copyTableUtil(props.editor)) {
       notify.success('表格已复制到剪贴板')
     } else {
-      notify.warning('未找到表格内容')
+      notify.warning('复制表格失败')
     }
   } catch (error) {
     notify.error(`${error instanceof Error ? error.message : String(error)}`, '表格复制错误')
