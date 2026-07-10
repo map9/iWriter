@@ -129,8 +129,19 @@ export function unwrapBlockImages(html: string): string {
   return html.replace(/<p>(\s*<img\b[^>]*>\s*)<\/p>/gi, '$1')
 }
 
+// marked (per CommonMark) always appends a trailing '\n' to fenced code content.
+// TipTap's CodeBlock parses <pre> with preserveWhitespace: 'full', so that newline
+// survives as a text node and renders as an empty last line inside the code block.
+// Strip the single trailing newline (not trimEnd — keep intentional blank lines).
+export function stripCodeBlockTrailingNewline(html: string): string {
+  return html.replace(
+    /(<pre><code[^>]*>)([\s\S]*?)(<\/code><\/pre>)/gi,
+    (_, open, code, close) => open + code.replace(/\n$/, '') + close
+  )
+}
+
 function prepareMarkdownHtml(html: string): string {
-  return transformAlertBlockquotesInHtml(unwrapBlockImages(html))
+  return transformAlertBlockquotesInHtml(stripCodeBlockTrailingNewline(unwrapBlockImages(html)))
 }
 
 // Load content into editor
