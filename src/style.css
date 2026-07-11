@@ -246,18 +246,17 @@
 
   .iw-input {
     @apply input input-sm h-7 w-full;
+    /* 边框对齐 textarea：纯 base-300 边框、无 daisyUI 深度内阴影 */
+    --input-color: var(--color-base-300);
+    box-shadow: none;
   }
 
   .iw-input:focus,
   .iw-input:focus-within {
     --input-color: var(--color-primary);
     outline: none;
+    box-shadow: none;
     isolation: isolate;
-  }
-
-  /* 侧栏自增高文本输入（search / replace / commit）：统一边框、圆角、字号、聚焦色。水平内距由各处按需追加 */
-  .iw-textarea {
-    @apply w-full min-h-7 resize-none overflow-hidden rounded-field border border-base-300 bg-base-100 py-1.5 text-xs outline-none focus:border-primary;
   }
 
   .iw-btn:focus,

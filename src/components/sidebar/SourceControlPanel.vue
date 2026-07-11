@@ -84,7 +84,7 @@
           <textarea
             v-model="gitStore.commitMessage"
             rows="1"
-            class="iw-textarea px-2"
+            class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-1.5 px-2 text-xs focus:border-primary rounded-field"
             :placeholder="t('sourceControl.commitPlaceholder')"
             @keydown="onCommitKey"
             @input="autoGrow"
