@@ -1,10 +1,10 @@
 <template>
   <div class="flex h-full min-h-0 flex-col text-xs">
     <!-- 无活动文件 / 无仓库（顶部对齐提示，避免高度塌陷不显示） -->
-    <p v-if="!activePath" class="p-3 text-left text-base-content/50">{{ t('explorer.timeline.noFile') }}</p>
-    <p v-else-if="!gitStore.isRepo" class="p-3 text-left text-base-content/50">{{ t('explorer.timeline.noRepo') }}</p>
-    <div v-else-if="loading" class="p-3"><span class="loading loading-spinner loading-sm"></span></div>
-    <p v-else-if="!commits.length" class="p-3 text-left text-base-content/50">{{ t('explorer.timeline.empty') }}</p>
+    <p v-if="!activePath" class="sidebar-empty">{{ t('explorer.timeline.noFile') }}</p>
+    <p v-else-if="!gitStore.isRepo" class="sidebar-empty">{{ t('explorer.timeline.noRepo') }}</p>
+    <div v-else-if="loading" class="sidebar-empty"><span class="loading loading-spinner loading-sm"></span></div>
+    <p v-else-if="!commits.length" class="sidebar-empty">{{ t('explorer.timeline.empty') }}</p>
     <ul v-else class="py-1">
       <li
         v-for="c in commits"

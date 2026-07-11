@@ -199,8 +199,8 @@ const folderName = computed(() => {
 
 // Viewer 面板：工作区（必选、不可折叠、永久显示）+ 时间线（可选、可折叠）
 const viewerPanes = ref<SplitPane[]>([
-  { id: 'workspace', title: t('explorer.view.workspace'), closable: false, collapsible: false, size: 3 },
-  { id: 'timeline', title: t('explorer.view.timeline'), closable: true, collapsed: true, size: 1 },
+  { id: 'workspace', title: t('explorer.view.workspace'), collapsible: false, size: 3 },
+  { id: 'timeline', title: t('explorer.view.timeline'), collapsed: true, size: 1 },
 ])
 // 工作区标题跟随文件夹名
 watchEffect(() => {

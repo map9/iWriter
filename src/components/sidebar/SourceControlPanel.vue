@@ -56,15 +56,20 @@
     <!-- 状态 C：仓库 → 三 viewer -->
     <SplitView v-else :panes="viewerPanes" :close-title="t('common.close')" class="min-h-0 flex-1">
       <!-- Repositories -->
+      <template #repositories-actions>
+        <button class="iw-toolbar-btn btn-xs" :title="t('sourceControl.moreActions')" @click.stop="showBranchMenu">
+          <IconDots class="icon-2xs" />
+        </button>
+      </template>
       <template #repositories>
-        <button class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-base-200" @click="showBranchMenu">
+        <div class="flex w-full items-center gap-2 px-3 py-2 text-xs">
           <IconGitBranch class="icon-xs text-base-content/60 shrink-0" />
           <span class="font-medium truncate">{{ folderName }}</span>
           <span class="text-base-content/60 truncate">{{ gitStore.branch?.current }}</span>
           <span class="ml-auto shrink-0 tabular-nums text-base-content/50">
             ↑{{ gitStore.branch?.ahead ?? 0 }} ↓{{ gitStore.branch?.behind ?? 0 }}
           </span>
-        </button>
+        </div>
       </template>
 
       <!-- Changes -->
@@ -79,7 +84,7 @@
           <textarea
             v-model="gitStore.commitMessage"
             rows="1"
-            class="w-full min-h-7 resize-none overflow-hidden rounded-field border border-base-300 bg-base-100 px-2 py-1.5 text-xs outline-none focus:border-primary"
+            class="iw-textarea px-2"
             :placeholder="t('sourceControl.commitPlaceholder')"
             @keydown="onCommitKey"
             @input="autoGrow"
@@ -99,7 +104,7 @@
           </div>
         </div>
 
-        <div v-if="!gitStore.hasChanges" class="empty-panel px-4 py-6 text-xs">
+        <div v-if="!gitStore.hasChanges" class="sidebar-empty">
           {{ t('sourceControl.noChanges') }}
         </div>
         <div v-else class="py-1 text-xs">
@@ -116,10 +121,10 @@
 
       <!-- Graph -->
       <template #graph>
-        <div v-if="gitStore.graphLoading" class="empty-panel px-4 py-6 text-xs">
+        <div v-if="gitStore.graphLoading" class="sidebar-empty">
           <span class="loading loading-spinner loading-sm"></span>
         </div>
-        <div v-else-if="!gitStore.commits.length" class="empty-panel px-4 py-6 text-xs">
+        <div v-else-if="!gitStore.commits.length" class="sidebar-empty">
           {{ t('sourceControl.noCommits') }}
         </div>
         <ul v-else class="py-1 text-xs">
@@ -209,9 +214,9 @@ const untrackedLabel = computed(() => t('sourceControl.untracked'))
 const mergeLabel = computed(() => t('sourceControl.mergeChanges'))
 
 const viewerPanes = ref<SplitPane[]>([
-  { id: 'repositories', title: t('sourceControl.view.repositories'), closable: false, collapsed: true, size: 1 },
-  { id: 'changes', title: t('sourceControl.view.changes'), closable: false, size: 3 },
-  { id: 'graph', title: t('sourceControl.view.graph'), closable: true, collapsed: true, size: 2 },
+  { id: 'repositories', title: t('sourceControl.view.repositories'), collapsed: true, size: 1 },
+  { id: 'changes', title: t('sourceControl.view.changes'), collapsible: false, size: 3 },
+  { id: 'graph', title: t('sourceControl.view.graph'), collapsed: true, size: 2 },
 ])
 
 function onFileOpen(file: GitFileChange) {

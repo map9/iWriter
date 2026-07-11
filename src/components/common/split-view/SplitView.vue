@@ -24,12 +24,12 @@
         <!-- 头部：折叠切换 / 标题 / 徽标 / 操作 / 关闭 -->
         <header
           class="group/head flex h-7 shrink-0 items-center gap-1 bg-base-200 px-1.5 select-none"
-          :class="collapsible(item.pane) ? 'cursor-pointer hover:bg-base-300' : ''"
-          @click="collapsible(item.pane) && toggleCollapse(item.pane)"
+          :class="item.canCollapse ? 'cursor-pointer hover:bg-base-300' : ''"
+          @click="item.canCollapse && toggleCollapse(item.pane)"
         >
           <component
             :is="item.expanded ? IconChevronDown : IconChevronRight"
-            v-if="collapsible(item.pane)"
+            v-if="item.canCollapse"
             class="icon-2xs shrink-0 text-base-content/50"
           />
           <component :is="item.pane.icon" v-if="item.pane.icon" class="icon-2xs shrink-0 text-base-content/60" />
@@ -44,7 +44,7 @@
           <div class="hidden shrink-0 items-center gap-0.5 group-hover/head:flex" @click.stop>
             <slot :name="`${item.pane.id}-actions`" :pane="item.pane" />
             <button
-              v-if="item.pane.closable"
+              v-if="item.canCollapse"
               class="iw-toolbar-btn btn-xs"
               :title="closeTitle"
               @click.stop="close(item.pane)"
@@ -87,21 +87,27 @@ const emit = defineEmits<{
 // 可见 pane
 const visiblePanes = computed(() => props.panes.filter(p => p.visible !== false))
 
-// 渲染项：标注是否展开、是否需要在其上方画分隔条、上方展开 pane 的 id
+// 锚点集合：显式 `collapsible:false` 的 pane；若一个都没有，则第一个可见 pane 兜底为锚点。
+// 锚点永不折叠、无折叠图标/关闭按钮、标题不可点击 —— 保证内容区始终至少一个 view 可见。
+const anchorIds = computed(() => {
+  const explicit = visiblePanes.value.filter(p => p.collapsible === false)
+  if (explicit.length) return new Set(explicit.map(p => p.id))
+  const first = visiblePanes.value[0]
+  return new Set(first ? [first.id] : [])
+})
+
+// 渲染项：标注是否可折叠 / 是否展开 / 是否需要在其上方画分隔条、上方展开 pane 的 id
 const renderItems = computed(() => {
   let lastExpandedId: string | null = null
   return visiblePanes.value.map(pane => {
-    const expanded = !pane.collapsed
+    const canCollapse = !anchorIds.value.has(pane.id)
+    const expanded = canCollapse ? !pane.collapsed : true
     const splitter = expanded && lastExpandedId !== null
     const prevId = splitter ? lastExpandedId : null
     if (expanded) lastExpandedId = pane.id
-    return { pane, expanded, splitter, prevId }
+    return { pane, canCollapse, expanded, splitter, prevId }
   })
 })
-
-function collapsible(pane: SplitPane) {
-  return pane.collapsible !== false
-}
 
 function toggleCollapse(pane: SplitPane) {
   pane.collapsed = !pane.collapsed

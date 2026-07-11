@@ -185,6 +185,11 @@
     @apply size-12 opacity-50;
   }
 
+  /* 侧栏子视图（timeline / changes / graph 等）空状态：与文件树一致，顶部左对齐、text-xs、muted */
+  .sidebar-empty {
+    @apply p-3 text-left text-xs text-base-content/50;
+  }
+
 
   .iw-toolbar {
     @apply flex h-10 w-full min-w-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-b border-base-300 bg-base-100 px-3 scrollbar-hide;
@@ -248,6 +253,11 @@
     --input-color: var(--color-primary);
     outline: none;
     isolation: isolate;
+  }
+
+  /* 侧栏自增高文本输入（search / replace / commit）：统一边框、圆角、字号、聚焦色。水平内距由各处按需追加 */
+  .iw-textarea {
+    @apply w-full min-h-7 resize-none overflow-hidden rounded-field border border-base-300 bg-base-100 py-1.5 text-xs outline-none focus:border-primary;
   }
 
   .iw-btn:focus,
