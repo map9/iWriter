@@ -565,7 +565,7 @@ export const useAiStore = defineStore('ai', () => {
       .map(t => ({ id: t.id, path: t.path ?? undefined, name: t.name, isDirty: t.isDirty ?? false }))
 
     // Build rich <editor_state> XML at send time using the active editor snapshot
-    const activeEditor = activeTab?.editorInstance as Editor | null ?? null
+    const activeEditor = activeTab?.docState?.editorInstance as Editor | null ?? null
     const snapshot = thread.domain === 'editing' && activeEditor
       ? buildSnapshot(activeEditor, undefined, currentFilePath ?? undefined)
       : null

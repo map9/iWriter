@@ -233,7 +233,7 @@ async function applyBlockProposalToTarget(
   if (proposal.filePath?.startsWith(UNTITLED_PREFIX)) {
     const tabId = proposal.filePath.slice(UNTITLED_PREFIX.length)
     const tab = (appStore.tabs ?? []).find(t => t.id === tabId)
-    const editor = tab?.editorInstance as Editor | undefined
+    const editor = tab?.docState?.editorInstance as Editor | undefined
     if (!editor) return { success: false as const, error: `未找到虚拟引用 "${proposal.filePath}" 对应的未保存文档`}
 
     const handle = UnifiedDocumentAccess.fromEditor(editor, tab?.path ?? undefined)
@@ -248,7 +248,7 @@ async function applyBlockProposalToTarget(
     const matchingTab = (appStore.tabs ?? []).find(
       t => t.path && pathUtils.normalize(t.path) === normalizedTarget
     )
-    const editor = matchingTab?.editorInstance as Editor | undefined
+    const editor = matchingTab?.docState?.editorInstance as Editor | undefined
 
     if (!editor) {
       const handle = await UnifiedDocumentAccess.createFreshFromFile(proposal.filePath)
@@ -271,7 +271,7 @@ async function applyBlockProposalToTarget(
   }
 
   const activeTab = appStore.activeTab
-  const editor = activeTab?.editorInstance as Editor | undefined
+  const editor = activeTab?.docState?.editorInstance as Editor | undefined
   if (!activeTab || !editor) return { success: false as const, error: '没有活动的编辑器文档' }
 
   const handle = UnifiedDocumentAccess.fromEditor(editor, activeTab.path)

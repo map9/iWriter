@@ -26,7 +26,7 @@ export const createFileStatsStatusBarGroup = () => {
   setTablerIcon('sum', IconSum)
 
   const position = computed((): string => {
-    const stats = appStore.activeTab?.fileStats
+    const stats = appStore.activeTab?.docState?.fileStats
 
     if (stats) {
       return t('statusBar.fileStats.positionFormat', {
@@ -40,12 +40,12 @@ export const createFileStatsStatusBarGroup = () => {
   })
 
   const statsVisible = computed((): boolean => {
-    const stats = appStore.activeTab?.fileStats
+    const stats = appStore.activeTab?.docState?.fileStats
     return !!stats
   })
 
   const statsTooltip = computed((): string => {
-    const stats = appStore.activeTab?.fileStats
+    const stats = appStore.activeTab?.docState?.fileStats
 
     let result = ''
     if (stats) {
@@ -62,7 +62,7 @@ export const createFileStatsStatusBarGroup = () => {
     if (appStore.activeTab?.documentType !== DocumentType.MARKDOWN_EDITOR) {
       return ''
     }
-    const lineEnding = appStore.activeTab?.editState?.lineEnding
+    const lineEnding = appStore.activeTab?.docState?.editState?.lineEnding
     return lineEnding ? lineEnding : ''
   })
 

@@ -68,9 +68,9 @@ export async function loadDocument(
   const extension = pathUtils.extension(filePath)
 
   const openTab = openTabs?.find(tab => tab.path === filePath)
-  if (openTab?.editorInstance) {
-    const editor = openTab.editorInstance as Editor
-    const lineEnding: 'LF' | 'CRLF' = openTab.editState?.lineEnding ?? 'LF'
+  if (openTab?.docState?.editorInstance) {
+    const editor = openTab.docState.editorInstance as Editor
+    const lineEnding: 'LF' | 'CRLF' = openTab.docState.editState?.lineEnding ?? 'LF'
     return {
       editor,
       doc: editor.state.doc,

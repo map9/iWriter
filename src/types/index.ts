@@ -1,5 +1,6 @@
 export * from './ai'
 export * from './document-type'
+export * from './tab-kind'
 export * from './notification'
 export * from './menu'
 export * from './file-extension'

@@ -4,8 +4,8 @@ import { ref, computed, watch, reactive } from 'vue'
 import { useGitStore } from './git'
 import { generateJSON, type Editor } from '@tiptap/core'
 import { undoDepth } from '@tiptap/pm/history'
-import type { FileTab, FileOperationResult, FileChange, EditSetting, MarkdownEditorPageMode } from '@/types'
-import { SidebarMode, DocumentType } from '@/types'
+import type { FileTab, TabStateUpdate, FileOperationResult, FileChange, EditSetting, MarkdownEditorPageMode } from '@/types'
+import { SidebarMode, DocumentType, tabKind } from '@/types'
 import type { ExportFormatId, ExportSettings, MarkdownPrintPreferences } from '@/types'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { pathUtils } from '@/utils/pathUtils'
@@ -195,11 +195,11 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function canEditTab(tab: FileTab | null | undefined): boolean {
-    return !!tab && tab.documentType === DocumentType.MARKDOWN_EDITOR && !isTabReadonly(tab)
+    return !!tab && tabKind(tab).editable && !isTabReadonly(tab)
   }
 
   function canSaveTab(tab: FileTab | null | undefined): boolean {
-    return !!tab && isFileReadonly(tab) === false && isEditReadonly(tab) === false
+    return !!tab && tabKind(tab).saveable && isFileReadonly(tab) === false && isEditReadonly(tab) === false
   }
 
   function canRunAutoSave(tab: FileTab | null | undefined): boolean {
@@ -888,7 +888,7 @@ export const useAppStore = defineStore('app', () => {
   async function toggleReadonlyMode() {
     const tab = activeTab.value
     if (!tab) return
-    if (tab.documentType !== DocumentType.MARKDOWN_EDITOR) return
+    if (!tabKind(tab).editable) return
 
     if (isFileReadonly(tab)) {
       notify.warning(t('notify.readonly.fileReadonlyMessage'), t('notify.readonly.fileReadonlyContext'))
@@ -1051,12 +1051,12 @@ export const useAppStore = defineStore('app', () => {
     if (!(await ensurePandocAvailable())) return false
 
     const tab = activeTab.value
-    if (!tab || tab.documentType !== DocumentType.MARKDOWN_EDITOR || !tab.editorInstance) {
+    if (!tab || tab.documentType !== DocumentType.MARKDOWN_EDITOR || !tab.docState?.editorInstance) {
       notify.warning(t('notify.pandoc.noActiveEditor'), t('notify.pandoc.exportFailed'))
       return false
     }
 
-    const markdown = convertContentTo(tab.editorInstance as import('@tiptap/core').Editor, 'md')
+    const markdown = convertContentTo(tab.docState.editorInstance as import('@tiptap/core').Editor, 'md')
     if (markdown == null || markdown.trim().length === 0) {
       notify.warning(t('notify.pandoc.emptyDocument'), t('notify.pandoc.exportFailed'))
       return false
@@ -2169,11 +2169,11 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function reloadOpenMarkdownTabFromDisk(tab: FileTab, rawContent?: string): Promise<boolean> {
-    if (!window.electronAPI || !tab.path || tab.documentType !== DocumentType.MARKDOWN_EDITOR) {
+    if (!window.electronAPI || !tab.path || !tabKind(tab).watchesDisk) {
       return false
     }
 
-    const editor = tab.editorInstance as Editor | undefined
+    const editor = tab.docState?.editorInstance as Editor | undefined
     if (!editor) return false
 
     const content = rawContent ?? await readExistingFileContent(tab.path)
@@ -2215,7 +2215,7 @@ export const useAppStore = defineStore('app', () => {
 
   async function handleOpenTabExternalChange(filePath: string, rawContent?: string) {
     const tab = getOpenTabByPath(filePath)
-    if (!tab || tab.documentType !== DocumentType.MARKDOWN_EDITOR) return
+    if (!tab || !tabKind(tab).watchesDisk) return
 
     const normalizedPath = pathUtils.normalize(filePath)
 
@@ -2457,7 +2457,7 @@ export const useAppStore = defineStore('app', () => {
       isActive: true,
       documentType: documentType || (path ? detectFromPath(path) : DocumentType.MARKDOWN_EDITOR),
       pendingImport,
-      editState: { ...globalEditSetting },
+      docState: { editState: { ...globalEditSetting } },
       fileReadonly: fileReadonly ?? false,
       editReadonly: false,
       diskState: 'normal'
@@ -2675,9 +2675,9 @@ export const useAppStore = defineStore('app', () => {
   function getFileNameFromTabContent(tab: FileTab): string {
     const defaultName = tab.name || `Untitled.${TEXT_IWT_EXTENSION}`
 
-    if (!tab.editorInstance) return defaultName
+    if (!tab.docState?.editorInstance) return defaultName
 
-    const editor = tab.editorInstance as import('@tiptap/core').Editor
+    const editor = tab.docState.editorInstance as import('@tiptap/core').Editor
     const json = editor.getJSON()
     const nodes = json.content ?? []
 
@@ -2744,9 +2744,9 @@ export const useAppStore = defineStore('app', () => {
 
       if (originalPath != null) {
         const content = convertContentTo(
-          tab.editorInstance as import('@tiptap/core').Editor,
+          tab.docState?.editorInstance as import('@tiptap/core').Editor,
           pathUtils.extension(originalPath),
-          tab.editState?.lineEnding ?? 'LF'
+          tab.docState?.editState?.lineEnding ?? 'LF'
         )
         if (content === null) {
           throw new Error('Unsupport file format')
@@ -2765,7 +2765,9 @@ export const useAppStore = defineStore('app', () => {
           tab.diskState = 'normal'
           syncReadonlyWindowState(tab)
           tab.name = pathUtils.basename(originalPath)
-          tab.savedCheckPoint = undoDepth((tab.editorInstance as import('@tiptap/core').Editor).state)
+          if (tab.docState?.editorInstance) {
+            tab.docState.savedCheckPoint = undoDepth((tab.docState.editorInstance as import('@tiptap/core').Editor).state)
+          }
           const normalizedPath = pathUtils.normalize(originalPath)
           ignoredExternalChangePaths.delete(normalizedPath)
           externalChangePromptPaths.delete(normalizedPath)
@@ -2843,26 +2845,32 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  function updateTabState(tabId: string, updates: Partial<FileTab>) {
+  function updateTabState(tabId: string, updates: TabStateUpdate) {
     const tab = tabs.value.find(t => t.id === tabId)
-    if (tab) {
-      // Toc providers are class instances. Deep-merging them corrupts their internal shape
-      // when switching between provider implementations (for example PDF -> Markdown).
-      if (Object.prototype.hasOwnProperty.call(updates, 'tocProvider') && tab.tocProvider !== updates.tocProvider) {
-        tab.tocProvider?.destroy()
-      }
+    if (!tab) return
 
-      const { editState, ...otherUpdates } = updates
-
-      if (editState) {
-        tab.editState = {
-          ...tab.editState,
-          ...editState
-        }
-      }
-
-      Object.assign(tab, otherUpdates)
+    // Toc providers are class instances. Deep-merging them corrupts their internal shape
+    // when switching between provider implementations (for example PDF -> Markdown).
+    if (Object.prototype.hasOwnProperty.call(updates, 'tocProvider') && tab.tocProvider !== updates.tocProvider) {
+      tab.tocProvider?.destroy()
     }
+
+    // L3 文档编辑态字段路由进 docState（调用方仍平铺传入）。
+    const has = (k: string) => Object.prototype.hasOwnProperty.call(updates, k)
+    if (has('editState') || has('editorInstance') || has('savedCheckPoint') || has('fileStats')) {
+      const ds = tab.docState ?? (tab.docState = {})
+      if (has('editState')) ds.editState = { ...ds.editState, ...updates.editState }
+      if (has('editorInstance')) ds.editorInstance = updates.editorInstance
+      if (has('savedCheckPoint')) ds.savedCheckPoint = updates.savedCheckPoint
+      if (has('fileStats')) ds.fileStats = updates.fileStats
+    }
+
+    const otherUpdates = { ...updates }
+    delete otherUpdates.editState
+    delete otherUpdates.editorInstance
+    delete otherUpdates.savedCheckPoint
+    delete otherUpdates.fileStats
+    Object.assign(tab, otherUpdates)
   }
 
   function cleanTab(tabId: string) {
@@ -2871,8 +2879,8 @@ export const useAppStore = defineStore('app', () => {
       tab.tocProvider.destroy()
       tab.tocProvider = undefined
     }
-    if (tab?.editorInstance) {
-      tab.editorInstance = undefined
+    if (tab?.docState?.editorInstance) {
+      tab.docState.editorInstance = undefined
     }
   }
 
@@ -3027,7 +3035,7 @@ export const useAppStore = defineStore('app', () => {
         await saveAllTabs()
         return true
       case 'export-pdf':
-        if (activeTab.value?.documentType === DocumentType.MARKDOWN_EDITOR && activeTab.value.editorInstance) {
+        if (activeTab.value?.documentType === DocumentType.MARKDOWN_EDITOR && activeTab.value.docState?.editorInstance) {
           const baseName = (activeTab.value.path ? pathUtils.basename(activeTab.value.path) : activeTab.value.name).replace(/\.[^.]+$/, '')
           const preferredDirectory = getPreferredExportDirectory(activeTab.value)
           const skipSaveDialog =
@@ -3035,7 +3043,7 @@ export const useAppStore = defineStore('app', () => {
             (globalExportSetting.common.defaultFolderMode === 'custom' && !!preferredDirectory)
           const defaultSavePath = preferredDirectory ? pathUtils.join(preferredDirectory, `${baseName}.pdf`) : `${baseName}.pdf`
           openPrintPreview(
-            (activeTab.value.editorInstance as import('@tiptap/core').Editor).getHTML(),
+            (activeTab.value.docState.editorInstance as import('@tiptap/core').Editor).getHTML(),
             activeTab.value.name,
             { mode: 'export', defaultSavePath, skipSaveDialog }
           )
@@ -3205,7 +3213,8 @@ export const useAppStore = defineStore('app', () => {
   // 监听工作区状态变化（使用计算属性）
   const workspaceStateSnapshot = computed(() => {
     const tabsData = tabs.value
-      .filter(tab => tab.path)
+      // 仅持久化 persistable 的文件型 tab；参数型（如 diff, persistable=false）不进快照。
+      .filter(tab => tab.path && tabKind(tab).persistable)
       .map(tab => ({
         path: tab.path!,
         documentType: tab.documentType

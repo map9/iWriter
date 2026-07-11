@@ -54,42 +54,15 @@
           <!-- Welcome Page (No tabs open) -->
           <WelcomePage v-if="appStore.tabs.length === 0" />
           
-          <!-- Document Pages for each tab -->
-          <div 
-            v-for="tab in appStore.tabs" 
+          <!-- Document Pages for each tab：单一动态组件，按 documentType 映射 Page -->
+          <div
+            v-for="tab in appStore.tabs"
             :key="tab.id"
             :class="tab.isActive ? 'document-page' : 'hidden'"
           >
-            <!-- Markdown Editor Page -->
-            <MarkdownEditorPage 
-              v-if="tab.documentType === DocumentType.MARKDOWN_EDITOR"
-              ref="markdownEditorRefs"
-              :tab="tab"
-            />
-            
-            <!-- Image Viewer Page -->
-            <ImageViewerPage 
-              v-else-if="tab.documentType === DocumentType.IMAGE_VIEWER"
-              ref="imageViewerRefs"
-              :tab="tab"
-            />
-            
-            <!-- PDF Viewer Page -->
-            <PDFViewerPage
-              v-else-if="tab.documentType === DocumentType.PDF_VIEWER"
-              ref="pdfViewerRefs"
-              :tab="tab"
-            />
-
-            <!-- Office Viewer Page -->
-            <OfficeViewerPage
-              v-else-if="tab.documentType === DocumentType.OFFICE_VIEWER"
-              ref="officeViewerRefs"
-              :tab="tab"
-            />
-
-            <!-- Fallback for unknown types -->
-            <UnknownPage v-else
+            <component
+              :is="pageComponentFor(tab)"
+              :ref="(el: unknown) => setPageRef(tab.id, el)"
               :tab="tab"
             />
           </div>
@@ -153,12 +126,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAiStore } from '@/ai/store/ai'
 import { useGitStore } from '@/stores/git'
 import { DocumentType } from '@/types'
+import type { FileTab } from '@/types'
 import type { SnapshotRequestEvent } from '@/ai/ipc'
 import { notify } from '@/utils/notifications'
 import updaterService from '@/updater/UpdaterService'
@@ -168,11 +142,6 @@ import LeftSidebar from '@/components/LeftSidebar.vue'
 import RightSidebar from '@/components/RightSidebar.vue'
 import StatusBar from '@/components/StatusBar.vue'
 import WelcomePage from '@/components/pages/WelcomePage.vue'
-// 类型引入（仅用于 ref 类型标注，import type 零运行时开销）
-import type MarkdownEditorPageType from '@/components/pages/MarkdownEditorPage.vue'
-import type ImageViewerPageType from '@/components/pages/ImageViewerPage.vue'
-import type PDFViewerPageType from '@/components/pages/PDFViewerPage.vue'
-import type OfficeViewerPageType from '@/components/pages/OfficeViewerPage.vue'
 // 所有页面/对话框懒加载，减少初始 chunk：
 //   - MarkdownEditorPage 携带 TipTap/highlight/katex (~2.5MB)，onMounted 后立即预加载
 //   - PDFViewerPage 携带 pdfjs-dist (413KB)；PrintDialog 携带 pagedjs-lib (892KB)
@@ -194,11 +163,31 @@ const aiStore = useAiStore()
 const gitStore = useGitStore()
 const { t } = useI18n()
 
-// Refs for different page types
-const markdownEditorRefs = ref<InstanceType<typeof MarkdownEditorPageType>[]>([])
-const imageViewerRefs = ref<InstanceType<typeof ImageViewerPageType>[]>([])
-const pdfViewerRefs = ref<InstanceType<typeof PDFViewerPageType>[]>([])
-const officeViewerRefs = ref<InstanceType<typeof OfficeViewerPageType>[]>([])
+// Page 组件按 documentType 映射（渲染层的懒加载映射，替代 tab-kind 中的 component 字段）
+const PAGE_COMPONENTS: Partial<Record<DocumentType, Component>> = {
+  [DocumentType.MARKDOWN_EDITOR]: MarkdownEditorPage,
+  [DocumentType.IMAGE_VIEWER]: ImageViewerPage,
+  [DocumentType.PDF_VIEWER]: PDFViewerPage,
+  [DocumentType.OFFICE_VIEWER]: OfficeViewerPage,
+}
+function pageComponentFor(tab: FileTab): Component {
+  return (tab.documentType && PAGE_COMPONENTS[tab.documentType]) || UnknownPage
+}
+
+// 各 Page 通过 defineExpose 暴露的最小接口
+interface PageExposed {
+  tab?: FileTab
+  handleMenuAction?: (action: string) => Promise<boolean>
+  updateMenuFormattingState?: (...args: unknown[]) => void
+}
+
+// tab.id → 已挂载 Page 实例（替代 4 个 typed ref 数组）。
+// 非激活 tab 以 hidden class 保持挂载，其实例仍留在表中。
+const pageRefs = new Map<string, PageExposed>()
+function setPageRef(tabId: string, el: unknown) {
+  if (el) pageRefs.set(tabId, el as PageExposed)
+  else pageRefs.delete(tabId)
+}
 
 // Update dialog：可见性与数据都集中在 updaterService 中，此处只保留句柄
 // （模板直接读 updaterService.dialogVisible / updaterService.updateInfo）
@@ -245,21 +234,9 @@ function handleWindowMouseMove(event: MouseEvent) {
   }
 }
 
-function getActivePageRef() {
+function getActivePageRef(): PageExposed | null {
   if (!activeTab.value) return null
-
-  switch (activeTab.value.documentType) {
-    case DocumentType.MARKDOWN_EDITOR:
-      return markdownEditorRefs.value.find(ref => ref && ref.tab?.id === activeTab.value?.id)
-    case DocumentType.IMAGE_VIEWER:
-      return imageViewerRefs.value.find(ref => ref && ref.tab?.id === activeTab.value?.id)
-    case DocumentType.PDF_VIEWER:
-      return pdfViewerRefs.value.find(ref => ref && ref.tab?.id === activeTab.value?.id)
-    case DocumentType.OFFICE_VIEWER:
-      return officeViewerRefs.value.find(ref => ref && ref.tab?.id === activeTab.value?.id)
-    default:
-      return null
-  }
+  return pageRefs.get(activeTab.value.id) ?? null
 }
 
 // Update dialog methods
@@ -336,11 +313,11 @@ onMounted(() => {
 
     if (req.tabId) {
       const matchingTab = appStore.tabs.find(tab => tab.id === req.tabId)
-      editor = matchingTab?.editorInstance as TipTapEditor | null ?? null
+      editor = matchingTab?.docState?.editorInstance as TipTapEditor | null ?? null
       editorFilePath = matchingTab?.path ?? null
     } else if (!req.filePath) {
       const activeTab = appStore.activeTab
-      editor = activeTab?.editorInstance as TipTapEditor | null ?? null
+      editor = activeTab?.docState?.editorInstance as TipTapEditor | null ?? null
       editorFilePath = activeTab?.path ?? null
     } else {
       const target = req.filePath.replace(/\\/g, '/').toLowerCase()
@@ -349,7 +326,7 @@ onMounted(() => {
         return tabPath === target
       })
       if (matchingTab) {
-        editor = matchingTab.editorInstance as TipTapEditor | null ?? null
+        editor = matchingTab.docState?.editorInstance as TipTapEditor | null ?? null
         editorFilePath = matchingTab.path ?? null
       }
     }

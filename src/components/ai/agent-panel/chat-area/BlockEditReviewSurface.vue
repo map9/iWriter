@@ -260,7 +260,7 @@ async function resolveTargetEditor(proposal: BlockEditProposal, allowDocumentSwi
   const filePath = proposal.filePath
 
   if (!filePath) {
-    return appStore.activeTab?.editorInstance as Editor | undefined
+    return appStore.activeTab?.docState?.editorInstance as Editor | undefined
   }
 
   if (filePath.startsWith(UNTITLED_PREFIX)) {
@@ -271,19 +271,19 @@ async function resolveTargetEditor(proposal: BlockEditProposal, allowDocumentSwi
       if (!allowDocumentSwitch) return undefined
       appStore.setActiveTab(tab.id)
     }
-    return tab.editorInstance as Editor | undefined
+    return tab.docState?.editorInstance as Editor | undefined
   }
 
   const normalizedTarget = pathUtils.normalize(filePath)
   const isTargetTab = (t: { path?: string | null }) => !!t.path && pathUtils.normalize(t.path) === normalizedTarget
   const matchingTab = appStore.tabs.find(isTargetTab)
 
-  if (matchingTab?.editorInstance) {
+  if (matchingTab?.docState?.editorInstance) {
     if (matchingTab.id !== appStore.activeTabId) {
       if (!allowDocumentSwitch) return undefined
       appStore.setActiveTab(matchingTab.id)
     }
-    return matchingTab.editorInstance as Editor
+    return matchingTab.docState.editorInstance as Editor
   }
 
   if (!allowDocumentSwitch) return undefined

@@ -470,7 +470,7 @@ const editorPageStyle = computed(() => {
 function syncEditMenuState(overrides: Partial<EditSetting> = {}) {
   window.electronAPI?.windowContentChange?.({
     edit: {
-      ...props.tab.editState,
+      ...props.tab.docState?.editState,
       ...overrides,
       readonly: isReadonly.value,
       fileReadonly: !!props.tab.fileReadonly,
@@ -489,8 +489,8 @@ function syncProofreadRuntime() {
     return
   }
 
-  currentEditor.commands.showProofreadErrors(!!props.tab.editState?.showProofreadErrors)
-  if (props.tab.editState?.proofread !== false) {
+  currentEditor.commands.showProofreadErrors(!!props.tab.docState?.editState?.showProofreadErrors)
+  if (props.tab.docState?.editState?.proofread !== false) {
     currentEditor.commands.enableProofread()
   } else {
     currentEditor.commands.disableProofread()
@@ -583,7 +583,7 @@ const editor = useEditor({
   onUpdate: ({ editor, transaction }) => {
     // 当非加载状态下，内容发生变化，使用新的dirty判断逻辑
     if (!isLoading.value && !isReadonly.value) {
-      const isDirty = !(props.tab.savedCheckPoint === undoDepth(editor.state))
+      const isDirty = !(props.tab.docState?.savedCheckPoint === undoDepth(editor.state))
       if (transaction.docChanged) {
         appStore.updateTabState(props.tab.id, { isDirty })
         scheduleAutoSave()
@@ -609,9 +609,9 @@ const editor = useEditor({
     migrateMathStrings(editor)
     loadTabContent(editor).then(async () => {
       updateEditorState()
-      setFirstLineIndent(props.tab.editState?.firstLineIndent ?? true)
-      setSmartPunctuation(props.tab.editState?.smartPunctuation ?? true)
-      setInvisibleCharacters(props.tab.editState?.invisibleCharacters ?? true)
+      setFirstLineIndent(props.tab.docState?.editState?.firstLineIndent ?? true)
+      setSmartPunctuation(props.tab.docState?.editState?.smartPunctuation ?? true)
+      setInvisibleCharacters(props.tab.docState?.editState?.invisibleCharacters ?? true)
       syncProofreadRuntime()
       if (props.tab.isActive) {
         syncEditMenuState()
@@ -753,7 +753,7 @@ async function loadTabContent(editorInstance: Editor) {
   if (isLoading.value || !window.electronAPI || !editorInstance) return
   isLoading.value = true
 
-  let lineEnding = props.tab.editState?.lineEnding ?? 'LF'
+  let lineEnding = props.tab.docState?.editState?.lineEnding ?? 'LF'
   let loadedPendingImport = false
   let lastSavedHash: string | undefined
   try {
@@ -1071,7 +1071,7 @@ function updateEditorState() {
       undoRedo,
       hasSelection: !editor.value.state.selection.empty,
       edit: {
-        ...props.tab.editState,
+        ...props.tab.docState?.editState,
         readonly: isReadonly.value,
         fileReadonly: !!props.tab.fileReadonly,
         editReadonly: !!props.tab.editReadonly,
@@ -1115,7 +1115,7 @@ function setLineEnding(lineEnding: 'CRLF' | 'LF') {
 }
 
 function toggleFirstLineIndent() {
-  setFirstLineIndent( !props.tab.editState?.firstLineIndent )
+  setFirstLineIndent( !props.tab.docState?.editState?.firstLineIndent )
 }
 
 function getCurrentEditorElement(): HTMLElement | null {
@@ -1153,7 +1153,7 @@ function setFirstLineIndent(has: boolean) {
 }
 
 function toggleInvisibleCharacters() {
-  setInvisibleCharacters(!props.tab.editState?.invisibleCharacters)
+  setInvisibleCharacters(!props.tab.docState?.editState?.invisibleCharacters)
 }
 
 function setInvisibleCharacters(visible: boolean) {
@@ -1178,7 +1178,7 @@ watch(
 )
 
 function toggleSmartPunctuation() {
-  setSmartPunctuation(!props.tab.editState?.smartPunctuation)
+  setSmartPunctuation(!props.tab.docState?.editState?.smartPunctuation)
 }
 
 function setSmartPunctuation(has: boolean) {
@@ -1191,7 +1191,7 @@ function setSmartPunctuation(has: boolean) {
 }
 
 function toggleProofreadErrorsDisplay() {
-  setProofreadErrorsDisplay(!props.tab.editState?.showProofreadErrors)
+  setProofreadErrorsDisplay(!props.tab.docState?.editState?.showProofreadErrors)
 }
 
 function setProofreadErrorsDisplay(visible: boolean) {
@@ -1206,7 +1206,7 @@ function setProofreadErrorsDisplay(visible: boolean) {
 }
 
 function toggleProofread() {
-  setProofread(!props.tab.editState?.proofread)
+  setProofread(!props.tab.docState?.editState?.proofread)
 }
 
 function setProofread(enable: boolean) {

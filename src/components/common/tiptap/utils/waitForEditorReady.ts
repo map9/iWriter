@@ -23,8 +23,8 @@ export async function waitForEditorReady(
     await nextTick()
 
     const tab = getTab()
-    if (tab?.editorInstance) {
-      const editor = tab.editorInstance as Editor
+    if (tab?.docState?.editorInstance) {
+      const editor = tab.docState.editorInstance as Editor
 
       // 确保编辑器已完全初始化
       if (editor.state && editor.view && editor.view.dom) {

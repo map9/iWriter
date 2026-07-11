@@ -580,12 +580,12 @@ async function replaceSingle(fileResult: SearchReplaceInFilesSearchResult, match
 
     // 2. 获取编辑器实例
     const tab = appStore.tabs.find(t => t.path === fileResult.filePath)
-    if (!tab?.editorInstance) {
+    if (!tab?.docState?.editorInstance) {
       notify.error(t('notify.search.failedOpenEditor'))
       return
     }
 
-    const editor = tab.editorInstance as Editor
+    const editor = tab.docState.editorInstance as Editor
 
     // 3. 执行替换
     editor.commands.insertContentAt(
@@ -654,8 +654,8 @@ async function replaceAllInFile(fileResult: SearchReplaceInFilesSearchResult) {
 // 清除所有编辑器的高亮模式
 function clearAllHighlights() {
   appStore.tabs.forEach(tab => {
-    if (tab.editorInstance) {
-      iwSearchReplaceInFilesService.clearHighlightMode(tab.editorInstance as Editor)
+    if (tab.docState?.editorInstance) {
+      iwSearchReplaceInFilesService.clearHighlightMode(tab.docState.editorInstance as Editor)
     }
   })
 }
@@ -723,8 +723,8 @@ watch(() => appStore.tabs, (newTabs) => {
 
   // 为每个打开的 tab 添加监听
   newTabs.forEach(tab => {
-    if (tab.editorInstance && tab.path) {
-      const editor = tab.editorInstance as Editor
+    if (tab.docState?.editorInstance && tab.path) {
+      const editor = tab.docState.editorInstance as Editor
 
       // 监听编辑器更新事件（防抖处理）
       let updateTimeout: number | undefined

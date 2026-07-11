@@ -1,5 +1,5 @@
 import type { DocumentType } from '@/types'
-import { DocumentType as DocType, IMAGE_EXTENSIONS, OFFICE_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS } from '@/types'
+import { DocumentType as DocType, IMAGE_EXTENSIONS, OFFICE_EXTENSIONS, PDF_EXTENSIONS, TEXT_EXTENSIONS, TAB_KINDS } from '@/types'
 import {
   IconFile,
   IconFileCode,
@@ -294,7 +294,8 @@ export class DefaultDocumentTypeDetector {
    * 检查文件是否可编辑
    */
   isEditable(documentType: DocumentType): boolean {
-    return documentType === DocType.MARKDOWN_EDITOR
+    // 单一真源：委托 TabKind 注册表（§tab view refactor S3）
+    return TAB_KINDS[documentType]?.editable ?? false
   }
 
   /**
