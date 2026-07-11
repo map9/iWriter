@@ -1,6 +1,6 @@
 # SOURCE_CONTROL.md — 工作空间版本控制需求文档
 
-> 状态：草案 v0.1（2026-07-10）
+> 状态：草案 v0.2（2026-07-11，Diff 查看器改为编辑区 tab + 新建独立组件，见 §3.3/F7/Q3/Q7）
 > 定位：为 iWriter 工作空间（打开的文件夹）提供对标 VSCode Source Control 的 **真 Git 集成**。
 
 ---
@@ -58,10 +58,12 @@
 - SSH：复用系统 ssh-agent / `~/.ssh`。
 - push/pull 认证失败时，用原生 `showMessageBox` 给出清晰指引（检查凭证/远程权限），不托管密码。
 
-### 3.3 Diff 计算（已定 · Q3 / Q6）
-- **复用 agent 现有的 `DiffSplitView.vue`**（`src/components/ai/agent-panel/chat-area/views/`），沿用其现状：并排 split + `diffWords` 词级高亮（daisyUI error/success 配色），SCM 场景走**只读**（不传 `editableRight`）。不另建独立 Diff 组件、不改成纯行级观感。
-- 输入：`oldContent`(HEAD/index) + `newContent`(工作区)。底层 `diff@9` 依赖已在。
-- **`.iwt` 文件：先格式化再 diff**（`.iwt` 为 JSON，序列化时统一格式化/美化后再送入 diff，避免无意义的整行差异）。
+### 3.3 Diff 计算（已定 · Q3 / Q6，2026-07-11 修订）
+- **新建独立 Diff 组件，不复用 agent 的 `DiffSplitView.vue`**（仅参考其 UI）。理由：agent 版为聊天气泡设计（`max-h-88` 限高、仅 split、无行号、无导航），SCM 编辑区 tab 需要整页高度 + split/inline 双模 + 可选行号 + 差异索引。
+- 呈现对标 VSCode：**line-level 对齐 + 变更行内 word/char 级高亮**，源码文本 diff（不做渲染态语义 diff）。
+- 输入：`oldContent`(HEAD/index) + `newContent`(工作区/提交)。底层 `diff@9` 依赖已在。
+- **`.iwt`/`.json` 文件：先格式化再 diff**（JSON `parse → stringify(_,null,2)` 美化后再送入 diff，避免无意义整行差异）。
+- 详细组件设计见 **§F7 · Diff 查看器**。
 
 ---
 
@@ -112,11 +114,61 @@
 - 进度反馈：长耗时操作显示进行中状态，失败用原生 `showMessageBox` 给出 stderr 摘要与指引（不自建密码 UI，见 §3.2）。
 
 ### F7 · Diff 查看器 (P0)
-- 点击变更文件 → 打开 **Diff 视图**，**复用 agent 的 `DiffSplitView`**（并排 split + 词级高亮，只读，见 §3.3）。
-- 对比基准：Changes 对比 index/HEAD；Staged 对比 HEAD。
-- `.md` 按源文本 diff；`.iwt` **格式化后再 diff**（§3.3 / Q6）。
-- 支持从 diff 视图 stage/discard 选中 hunk（与 F2 联动，P1）。
-- 二进制/图片文件：显示「二进制文件，无法对比」或图片前后对照（P2）。
+
+点击变更文件 / 提交内文件 → 打开 **Diff 视图作为编辑区 tab**（对标 VSCode，不再用模态浮层）。依赖 [tab view refactor](../tab%20view%20refactor/TAB_VIEW_REFACTOR.md)（新增 `DIFF_VIEWER` tab 类型）。
+
+#### F7.1 承载：Diff 作为 tab（依赖 tab 重构）
+- 新 `DocumentType.DIFF_VIEWER` → `DiffViewerPage.vue`；tab 只读、永不 dirty、不进 workspace 快照（重启不恢复）。
+- tab 自描述：`FileTab.params = { kind: 'diff', diff: DiffSpec }`，页面 mount 时按 spec 自取内容。
+- 去重身份 = 合成路径 / `identityOf`：同一文件的同一对比只开一个 tab，再点即激活。
+- tab 图标用 git-compare 图标；标题 `文件名 (基准)`，tooltip = 相对路径 + 对比基准。
+
+#### F7.2 对比场景 × 可编辑性
+| # | 场景 | 对比基准（左 ↔ 右） | 右侧写回目标 | 天然可编辑 | 本期 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 未暂存更改 | index ↔ 工作区文件 | 磁盘文件 | ✅ | **只读**(§Q3) |
+| 2 | 已暂存更改 | HEAD ↔ index | index blob | ❌ | 只读 |
+| 3 | 提交内文件差异 | 父提交 ↔ 本提交 | 历史 blob | ❌ | 只读 |
+| 4 | 文件历史版本(F8) | 历史某版 ↔ 工作区/另一版 | 视右侧 | ⚠️ | 只读 |
+| 5 | 合并冲突(F9) | ours ↔ 工作区(含标记) | 磁盘文件 | ✅ | 只读 |
+
+- 规律：仅当**右侧=工作区磁盘文件**（场景 1/5）才有可编辑语义；双方都是 git 对象时一律只读。
+- 本期**全部只读**（§3.3/Q3）：编辑仍回普通 Markdown 编辑器做。`DiffSpec.editable` 字段记录"天然可编辑性"（场景 1/5=true），但恒以 `editable=false` 送渲染，作未来放开开关。
+
+```ts
+export interface DiffSpec {
+  root: string
+  filePath: string                 // 仓库相对路径
+  kind: 'working' | 'commit'       // 未来可扩 'history' | 'conflict'
+  staged?: boolean                 // working: false→场景1, true→场景2
+  hash?: string                    // commit: 场景3
+  editable?: boolean               // 天然可编辑性；本期恒以 false 送渲染
+}
+```
+
+#### F7.3 新 Diff 组件（不复用 `DiffSplitView`，参考其 UI）
+组件落点 `src/components/common/diff/`：
+- `DiffViewerPage.vue` — tab 页外壳：顶部工具栏 + 主体 + 四态（loading / 无更改 / 二进制占位 / 图片占位）。
+- `DiffView.vue` — 核心渲染器，`mode: 'split' | 'inline'` 双模。
+- 计算复用 `diff@9`：`diffLines` 做行对齐，变更行对内用 `diffWords`/`diffChars` 做**行内子高亮**（VSCode 观感）。
+
+**呈现能力（本次确认）：**
+- **并排 split + 内联 inline**：工具栏切换。split 左右两栏按行对齐（删=左 error 底色、增=右 success 底色）；inline 单栏统一视图（删行在前、增行在后）。
+- **粒度对标 VSCode**：行级对齐 + 变更行内 word/char 级高亮。
+- **源码文本 diff**：`.md` 直接按源文本；`.iwt`/`.json` 先格式化再 diff（§3.3/Q6）。
+- **二进制显示占位**、**图片显示占位**（本期均为占位提示，不做图片前后对照）。
+- **行号显示（可选）**：gutter 显示两侧行号 + 变更标记（+/−/~），工具栏可开关。
+- **差异索引视图（可选）**：hunk 索引（`@@ -a,b +c,d @@` 列表）或右侧 overview 概览条，支持上/下一处变更跳转导航；工具栏可开关。
+
+**工具栏项**：split/inline 切换 · 行号开关 · 差异索引开关 · 上/下一处变更 · 刷新 · （stage/discard hunk 留 P1）。
+
+**状态**：加载中 spinner；无更改空态；`isBinary` 且为图片 → 图片占位；其余二进制 → 二进制占位。
+
+#### F7.4 数据与刷新
+- 后端：`git.diff(root, file, {staged})`（场景 1/2）、`git.commitFileDiff(root, hash, file)`（场景 3），返回 `{ path, oldContent, newContent, isBinary }`。
+- 图片判定：按扩展名（`IMAGE_EXTENSIONS`）→ 图片占位。
+- 刷新：working 类 diff 订阅 git status 刷新，stage/discard/commit 后重取；变更消失展示「没有更改」空态（不自动关）。commit diff 内容不变，无需刷新。
+- 从 diff 视图 stage/discard 选中 hunk（与 F2 联动）——P1。
 
 ### F8 · 历史 / 时间线 (P1)
 - **文件级历史 = Explorer 的 Timeline viewer**（对标 VSCode Timeline）：跟随当前活动文件的提交列表，点击查看该版本 diff。
@@ -211,7 +263,8 @@
 | 主进程 | `electron/App.ts` | 注册 `git-*` IPC handler（引擎调用）|
 | 桥接 | `electron/preload.ts` + `src/types/electron-api.ts` | 暴露 git API |
 | 菜单 | `electron/MenuManager.ts` | Git 命令菜单项 |
-| Diff | 复用 `DiffSplitView.vue` | 只读模式，`diff@9` 已在依赖 |
+| Tab 承载 | [tab view refactor](../tab%20view%20refactor/TAB_VIEW_REFACTOR.md) | 先做 tab 重构（全量 S1–S5），再注册 `DIFF_VIEWER` tab 类型 |
+| Diff | `src/components/common/diff/DiffViewerPage.vue` + `DiffView.vue`（新建，不复用 `DiffSplitView`） | split/inline + 可选行号 + 差异索引，只读，`diff@9` 已在依赖 |
 | 忽略规则 | 现有 workspace filtering | 与 `.gitignore` 统一来源 |
 | 状态栏 | StatusBar 组件 | 分支 + ahead/behind + sync |
 
@@ -229,7 +282,7 @@
 
 | 阶段 | 内容 | 交付 |
 | --- | --- | --- |
-| **M1 只读基础** | 引擎接入 + F0 检测 + F1 状态视图 + F7 行级 diff（只读）+ 状态栏分支 | 能看状态与差异 |
+| **M1 只读基础** | tab 重构（全量 S1–S5）+ 引擎接入 + F0 检测 + F1 状态视图 + F7 diff tab（split/inline，只读）+ 状态栏分支 | 能看状态与差异 |
 | **M2 本地写操作** | F2 stage + F3 commit + F4 discard + F11 gitignore + F5 分支切换/新建 | 完整本地版本控制闭环 |
 | **M3 远程** | F6 fetch/pull/push/sync/clone/publish + 凭证降级指引 | 与远程互通 |
 | **M4 进阶** | F8 历史/时间线 + F9 冲突解决 + F12 gutter 装饰 | 对标 VSCode 深度 |
@@ -251,9 +304,10 @@
 | --- | --- | --- |
 | Q1 | Git 引擎 | **`simple-git`，依赖系统 git**，不内置便携 git（§3.1） |
 | Q2 | 多仓库 | **仅单根仓库**；多仓库/子模块延后（F0） |
-| Q3 | Diff 视图 | **复用现有 `DiffSplitView`**（并排 split + 词级高亮，只读），不另建、不改纯行级（§3.3 / F7） |
+| Q3 | Diff 视图 | ~~复用 `DiffSplitView`~~ → **改为：新建独立 Diff 组件作为编辑区 tab**（split+inline 双模、可选行号、可选差异索引，只读），仅参考 `DiffSplitView` 的 UI（2026-07-11 修订，§3.3 / F7） |
 | Q4 | 远程认证 | **仅依赖系统凭证，不自建密码 UI**（§3.2 / F6） |
 | Q5 | 提交默认 | 无暂存时默认 **Commit All**（对标 VSCode），偏好可改（F3） |
 | Q6 | `.iwt` diff | **格式化后再 diff**（§3.3 / F7） |
+| Q7 | Diff 承载 | **编辑区 tab（非模态）**，依赖 tab view refactor 新增 `DIFF_VIEWER` 类型；重启不恢复（2026-07-11，§F7.1） |
 
 > 需求已定稿。下一步：技术设计（IPC 契约、store 结构、组件树、simple-git 封装层）另立设计文档。

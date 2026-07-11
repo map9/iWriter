@@ -100,3 +100,5 @@ Always run `npm run lint && npm run type-check` before committing.
 | [design/AGENTIC_EDITING.md](design/AGENTIC_EDITING.md) | AI Agentic Editing：右侧 AI 面板、ACP 协议、Provider/Model/Mode、工具系统 |
 | [design/MARKDOWN_THEME_PRINT_PDF_PLAN.md](design/MARKDOWN_THEME_PRINT_PDF_PLAN.md) | Markdown 主题：内置主题、自定义 CSS、theme.json、热更新 |
 | [design/DAISYUI.md](design/DAISYUI.md) | daisyUI 5 使用规范 |
+| [design/SOURCE_CONTROL/SOURCE_CONTROL.md](design/SOURCE_CONTROL/SOURCE_CONTROL.md) | 工作空间 Git 版本控制（SCM 面板、simple-git、Diff 查看器 tab） |
+| [design/tab view refactor/TAB_VIEW_REFACTOR.md](<design/tab view refactor/TAB_VIEW_REFACTOR.md>) | Tab/Page 体系重构：TabKind 描述符注册表、能力模型、支持新 tab 类型 |
