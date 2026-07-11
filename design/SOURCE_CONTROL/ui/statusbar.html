@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>状态栏 Git 组件 — 对齐工程 StatusBar 系统</title>
+<style>
+  :root{--b100:#fff;--b200:#f6f7f9;--b300:#e4e7eb;--bc:#1c1e21;--bc60:#6b7280;--bc40:#9aa1ab;
+    --primary:#605dff;--neutral:#2a2e37;--neutral-c:#e8e9ec;--error:#ff5861}
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceef1;color:var(--bc);font:13px/1.5 -apple-system,"Segoe UI",system-ui,sans-serif;padding:28px}
+  h1{font-size:15px;margin:0 0 4px}
+  .lead{color:#5b6470;font-size:12px;margin:0 0 6px;max-width:880px}
+  .impl{background:#eef2ff;border:1px solid #d5dcff;border-radius:8px;padding:10px 14px;font-size:12px;color:#3a3f66;margin:0 0 24px;max-width:880px}
+  .impl code{background:#fff;border:1px solid #d5dcff;border-radius:3px;padding:0 4px}
+  figcaption{font-size:11px;color:#7a828d;margin:22px 0 8px}
+
+  /* 真实 iw-statusbar 观感：底部 neutral 条，item = icon+text 段 */
+  .iw-statusbar{display:flex;align-items:stretch;height:26px;background:var(--neutral);color:var(--neutral-c);border-radius:6px;overflow:hidden;font-size:12px;width:640px;max-width:100%}
+  .sb-left,.sb-right{display:flex;align-items:stretch}
+  .sb-spacer{flex:1}
+  .statusbar-item{display:inline-flex;align-items:center;gap:5px;padding:0 10px;border:0;background:transparent;color:inherit;cursor:pointer;font:inherit}
+  .statusbar-item:hover{background:rgba(255,255,255,.12)}
+  .statusbar-item .ico{opacity:.9}
+  .statusbar-item.error{color:#ffb4b4}
+  .statusbar-item.muted{color:#a9adb6}
+  .statusbar-item[disabled]{cursor:default;opacity:.7}
+  .dim{color:#a9adb6}
+</style>
+</head>
+<body>
+  <h1>状态栏 Git 组件 — 对齐工程 StatusBar 系统</h1>
+  <p class="lead">不是自定义 HTML，而是像 <code>file-stats</code>/<code>update-status</code> 一样的 <b>工厂函数</b>产出 StatusBarItem，注册进 <code>useStatusBar()</code>。</p>
+  <div class="impl">
+    实现映射：新增 <code>statusbar-items/git-status.ts</code> → <code>createGitStatusStatusBarGroup()</code>，产出两个 item（分支 / 同步）· 内容用 rich content <code>$(git-branch) main</code>、<code>$(sync) ↓1 ↑2</code>（Tabler 图标经 <code>setTablerIcon</code>）· <code>StatusBarAlignment.Left</code> · 点击派发 command（<code>scm.checkout</code> / <code>scm.sync</code>）到 <code>StatusBar.vue</code> 的 <code>@command</code> switch · <code>tooltip</code> 走 <code>tooltipManager</code> · <code>isVisible</code> 由「是否仓库/是否装 git」计算。
+  </div>
+
+  <figcaption>正常（嵌入完整状态栏条，右侧为既有 file-stats 作对照）</figcaption>
+  <div class="iw-statusbar">
+    <div class="sb-left">
+      <button class="statusbar-item" title="切换分支 → command: scm.checkout"><span class="ico">⑂</span> main</button>
+      <button class="statusbar-item" title="同步更改 → command: scm.sync"><span class="ico">⟳</span> ↓1 ↑2</button>
+    </div>
+    <div class="sb-spacer"></div>
+    <div class="sb-right">
+      <button class="statusbar-item muted">行 12, 列 4 · P</button>
+      <button class="statusbar-item muted"><span class="ico">Σ</span> 1,240 字</button>
+    </div>
+  </div>
+
+  <figcaption>同步进行中（item 文本切换 + disabled）</figcaption>
+  <div class="iw-statusbar">
+    <div class="sb-left">
+      <button class="statusbar-item" disabled><span class="ico">⑂</span> main</button>
+      <button class="statusbar-item" disabled><span class="ico">⟳</span> 正在同步…</button>
+    </div>
+    <div class="sb-spacer"></div>
+  </div>
+
+  <figcaption>冲突中（分支 item 追加冲突态）</figcaption>
+  <div class="iw-statusbar">
+    <div class="sb-left">
+      <button class="statusbar-item"><span class="ico">⑂</span> main</button>
+      <button class="statusbar-item error" title="存在合并冲突"><span class="ico">⚠</span> 冲突</button>
+    </div>
+    <div class="sb-spacer"></div>
+  </div>
+
+  <figcaption>非仓库 / 未装 git（isVisible=false → item 不渲染；可选保留「纳入版本控制」入口）</figcaption>
+  <div class="iw-statusbar">
+    <div class="sb-left">
+      <button class="statusbar-item muted" title="初始化仓库 → command: scm.init"><span class="ico">＋</span> 纳入版本控制</button>
+    </div>
+    <div class="sb-spacer"></div>
+  </div>
+</body>
+</html>

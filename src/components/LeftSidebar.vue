@@ -67,6 +67,11 @@
         v-show="appStore.leftSidebarMode === SidebarMode.SEARCH"
       />
 
+      <!-- Source Control -->
+      <SourceControlPanel
+        v-show="appStore.leftSidebarMode === SidebarMode.SOURCE_CONTROL"
+      />
+
       <!-- By TAG -->
       <TagPanel
         v-show="appStore.leftSidebarMode === SidebarMode.TAG"
@@ -93,6 +98,7 @@ import {
   IconFolder,
   IconSearch,
   IconList,
+  IconGitBranch,
 } from '@tabler/icons-vue'
 
 import { SidebarMode } from '@/types'
@@ -100,6 +106,7 @@ import AppMenuButton from './AppMenuButton.vue'
 import NoFolderOpened from './sidebar/NoFolderOpened.vue'
 import ExplorerPanel from './sidebar/ExplorerPanel.vue'
 import SearchPanel from './sidebar/SearchPanel.vue'
+import SourceControlPanel from './sidebar/SourceControlPanel.vue'
 import TagPanel from './sidebar/TagPanel.vue'
 import TocPanel from './sidebar/TocPanel.vue'
 
@@ -123,6 +130,11 @@ const mainSidebarModes = computed(() => [
     key: SidebarMode.SEARCH as const,
     title: 'Search',
     icon: IconSearch
+  },
+  {
+    key: SidebarMode.SOURCE_CONTROL as const,
+    title: 'Source Control',
+    icon: IconGitBranch
   }/*,
   {
     key: SidebarMode.TAG as const,
@@ -135,7 +147,7 @@ function handleModeClick(mode: SidebarMode) {
   if (mode === SidebarMode.TOC && appStore.tabs.length === 0) {
     return
   }
-  if ([SidebarMode.EXPLORER, SidebarMode.SEARCH, SidebarMode.TAG].includes(mode) && !appStore.hasOpenFolder) {
+  if ([SidebarMode.EXPLORER, SidebarMode.SEARCH, SidebarMode.SOURCE_CONTROL, SidebarMode.TAG].includes(mode) && !appStore.hasOpenFolder) {
     return
   }
   
@@ -185,7 +197,7 @@ function stopResize() {
 // 监听状态变化，自动切换到合适的模式
 function checkAndSwitchMode() {
   // 如果当前是被禁用的模式，自动切换
-  if ([SidebarMode.EXPLORER, SidebarMode.SEARCH, SidebarMode.TAG].includes(appStore.leftSidebarMode) && !appStore.hasOpenFolder) {
+  if ([SidebarMode.EXPLORER, SidebarMode.SEARCH, SidebarMode.SOURCE_CONTROL, SidebarMode.TAG].includes(appStore.leftSidebarMode) && !appStore.hasOpenFolder) {
     appStore.setLeftSidebarMode(SidebarMode.START)
   }
   if (appStore.leftSidebarMode === SidebarMode.TOC && appStore.tabs.length === 0) {

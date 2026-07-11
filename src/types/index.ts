@@ -13,5 +13,6 @@ export * from './pandoc'
 export * from './export-settings'
 export * from './libreoffice'
 export * from './markdown-theme'
+export * from './git'
 
 export {}

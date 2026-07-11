@@ -101,6 +101,8 @@ export interface ElectronAPI {
   pandocImportFile: (req: import('@/types').PandocImportRequest) => Promise<import('@/types').PandocImportResult>
   pandocExportFile: (req: import('@/types').PandocExportRequest) => Promise<import('@/types').PandocExportResult>
 
+  git: import('@/types/git').GitApi
+
   officeCheck: (req?: { sofficePath?: string }) => Promise<import('@/types').LibreOfficeAvailabilityResult>
   officeConvertToPdf: (req: import('@/types').OfficeConvertRequest) => Promise<import('@/types').OfficeConvertResult>
 

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<!--
+  偏好设置 — 版本控制分区（嵌入现有设置页作为一个 section/tab）
+  仅元素结构；控件状态映射需求 §11 待定项与 NFR6 持久化。
+-->
+<html lang="zh">
+<head><meta charset="utf-8"><title>偏好设置 · 版本控制</title></head>
+<body>
+
+<section aria-labelledby="pref-scm-title">
+  <h1 id="pref-scm-title">版本控制</h1>
+
+  <!-- ===== 引擎 / 环境 ===== -->
+  <fieldset>
+    <legend>Git 引擎</legend>
+    <p>
+      检测状态：<output>已找到 git 2.44.0（/usr/bin/git）</output>
+      <button type="button">重新检测</button>
+    </p>
+    <p>
+      <label for="git-path">Git 可执行文件路径</label>
+      <input id="git-path" type="text" placeholder="留空自动检测">
+      <button type="button">浏览…</button>
+    </p>
+    <p><label><input type="checkbox" checked> 启用版本控制面板</label></p>
+  </fieldset>
+
+  <!-- ===== 提交行为（对应 Q5） ===== -->
+  <fieldset>
+    <legend>提交</legend>
+    <p>无暂存内容时点击「提交」：</p>
+    <p>
+      <label><input type="radio" name="commit-empty" checked> 提交所有更改（对标 VSCode）</label><br>
+      <label><input type="radio" name="commit-empty"> 禁用（要求先暂存）</label><br>
+      <label><input type="radio" name="commit-empty"> 每次询问</label>
+    </p>
+    <p><label><input type="checkbox"> 提交后自动推送</label></p>
+    <p><label><input type="checkbox" checked> 提交信息为空时阻止提交</label></p>
+  </fieldset>
+
+  <!-- ===== 同步 / 远程 ===== -->
+  <fieldset>
+    <legend>同步与远程</legend>
+    <p>「同步」策略：
+      <select>
+        <option>拉取后推送（pull 然后 push）</option>
+        <option>变基拉取后推送（pull --rebase 然后 push）</option>
+      </select>
+    </p>
+    <p><label><input type="checkbox"> 定时自动获取（auto fetch）</label>
+       每 <input type="number" value="15" min="1" style="width:4em"> 分钟</p>
+    <p><label><input type="checkbox"> 推送前确认（force push 始终确认）</label></p>
+  </fieldset>
+
+  <!-- ===== Diff 视图（对应 Q3） ===== -->
+  <fieldset>
+    <legend>差异查看</legend>
+    <p>默认视图：
+      <label><input type="radio" name="diff-view" checked> 并排（split）</label>
+      <label><input type="radio" name="diff-view"> 内联（inline / unified）</label>
+    </p>
+    <p><label><input type="checkbox" checked> 忽略行尾空白差异</label></p>
+    <p><label><input type="checkbox"> 显示空白字符</label></p>
+    <p>.iwt 文件对比：
+      <select>
+        <option>序列化 JSON 文本行级对比</option>
+        <option>格式化后再对比</option>
+      </select>
+    </p>
+  </fieldset>
+
+  <!-- ===== 编辑器装饰 ===== -->
+  <fieldset>
+    <legend>编辑器内提示</legend>
+    <p><label><input type="checkbox" checked> 显示装订线更改标记（增/改/删）</label></p>
+    <p><label><input type="checkbox" checked> 状态栏显示分支与领先/落后</label></p>
+    <p><label><input type="checkbox" checked> 面板图标显示变更数徽标</label></p>
+  </fieldset>
+
+  <!-- ===== 忽略规则（复用 workspace filtering） ===== -->
+  <fieldset>
+    <legend>忽略规则</legend>
+    <p><label><input type="checkbox" checked> 变更视图遵循 .gitignore</label></p>
+    <p><small>与资源管理器 / 搜索的过滤规则共用同一来源（见 WORKSPACE_FILTERING）。</small></p>
+    <p><button type="button">编辑工作空间 .gitignore</button></p>
+  </fieldset>
+
+</section>
+
+</body>
+</html>

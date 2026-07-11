@@ -21,6 +21,7 @@
         <button
           class="iw-toolbar-btn btn-xs"
           :title="t('explorer.moreActions')"
+          @click="showExplorerViewMenu"
         >
           <IconDots class="icon-xs" />
         </button>
@@ -43,132 +44,107 @@
       </label>
     </div>
     
-    <!-- Root Header with Controls -->
-    <div class="h-full flex flex-col overflow-hidden"
-      @mouseenter="handleTreeMouseEnter"
-      @mouseleave="handleTreeMouseLeave"
-    >
-      <div
-        v-if="appStore.isWorkspaceDeleted"
-        class="flex h-full flex-col gap-4 px-4 py-6 text-sm text-base-content"
-      >
-        <div class="flex items-center gap-2 text-error">
-          <IconAlertTriangle class="icon-sm shrink-0" />
-          <span class="font-medium">{{ t('explorer.workspaceDeleted.title') }}</span>
-        </div>
-
-        <p class="leading-6 text-base-content/70">
-          {{ t('explorer.workspaceDeleted.description') }}
-        </p>
-
-        <div class="rounded border border-base-300 bg-base-200 px-3 py-2 text-xs text-base-content/50">
-          <div class="mb-1 font-medium text-base-content/70">
-            {{ t('explorer.workspaceDeleted.originalPath') }}
-          </div>
-          <div class="break-all font-mono">
-            {{ appStore.currentFolder }}
-          </div>
-        </div>
-
-        <div class="flex flex-col gap-2">
-          <button
-            class="iw-btn btn-ghost justify-start gap-2 h-9"
-            @click="appStore.rebuildWorkspaceDirectory"
-          >
-            <IconFolderPlus class="icon-xs" />
-            {{ t('explorer.workspaceDeleted.rebuild') }}
-          </button>
-          <button
-            class="iw-btn btn-ghost justify-start gap-2 h-9"
-            @click="appStore.closeFolder"
-          >
-            <IconX class="icon-xs" />
-            {{ t('explorer.workspaceDeleted.close') }}
-          </button>
-          <button
-            class="iw-btn btn-ghost justify-start gap-2 h-9"
-            @click="appStore.openFolder"
-          >
-            <IconFolderOpen class="icon-xs" />
-            {{ t('explorer.workspaceDeleted.openNew') }}
-          </button>
-        </div>
-      </div>
-
-      <div 
-        v-else-if="hasRootFolder"
-        class="flex items-center justify-between h-9 px-2 py-1 select-none shrink-0"
-      >
-        <div class="flex items-center gap-1">
-          <!-- Root Folder Icon and Name -->
-          <IconFolder class="icon-sm" />
-          <span class="text-sm font-medium text-base-content whitespace-nowrap overflow-hidden text-ellipsis">{{ folderName }}</span>
-        </div>
-        
-        <!-- Action Buttons -->
-        <div 
-          class="flex items-center gap-1 pl-1 transition-opacity duration-200"
-          :class="isTreeHovered ? 'opacity-100' : 'opacity-0'"
+    <!-- Viewers：工作区（必选）+ 时间线（可选），可折叠 / 拖拽调整高度 -->
+    <SplitView :panes="viewerPanes" :close-title="t('common.close')" class="min-h-0 flex-1">
+      <!-- 工作区标题使用文件夹名 -->
+      <template #workspace-actions>
+        <button
+          @click.stop="createFile"
+          class="iw-toolbar-btn btn-xs"
+          :title="t('explorer.createFile')"
         >
-          <!-- Create File -->
-          <button
-            @click="createFile"
-            class="iw-toolbar-btn btn-xs"
-            :title="t('explorer.createFile')"
-          >
-            <IconFilePlus class="icon-xs" />
-          </button>
-          
-          <!-- Create Folder -->
-          <button
-            @click="createFolder"
-            class="iw-toolbar-btn btn-xs"
-            :title="t('explorer.createFolder')"
-          >
-            <IconFolderPlus class="icon-xs" />
-          </button>
-          
-          <!-- Sort Menu -->
-          <button
-            @click="showSortContextMenu"
-            class="iw-toolbar-btn btn-xs w-auto gap-1 px-1"
-            :title="t('explorer.sortTitle')"
-          >
-            <IconArrowsSort class="icon-xs" />
-            <IconChevronDown class="icon-2xs" />
-          </button>
-          
-          <!-- Expand/Collapse All -->
-          <button
-            @click="collapseAll"
-            class="iw-toolbar-btn btn-xs"
-            :title="t('explorer.collapseAll')"
-            :disabled="!hasRootFolder"
-          >
-            <IconFoldUp class="icon-xs" />
-          </button>
-        </div>
-      </div>
+          <IconFilePlus class="icon-xs" />
+        </button>
+        <button
+          @click.stop="createFolder"
+          class="iw-toolbar-btn btn-xs"
+          :title="t('explorer.createFolder')"
+        >
+          <IconFolderPlus class="icon-xs" />
+        </button>
+        <button
+          @click.stop="showSortContextMenu"
+          class="iw-toolbar-btn btn-xs w-auto gap-1 px-1"
+          :title="t('explorer.sortTitle')"
+        >
+          <IconArrowsSort class="icon-xs" />
+          <IconChevronDown class="icon-2xs" />
+        </button>
+        <button
+          @click.stop="collapseAll"
+          class="iw-toolbar-btn btn-xs"
+          :title="t('explorer.collapseAll')"
+          :disabled="!hasRootFolder"
+        >
+          <IconFoldUp class="icon-xs" />
+        </button>
+      </template>
 
-      <!-- Tree Content -->
-      <Tree v-if="hasRootFolder && !appStore.isWorkspaceDeleted"
-        ref="treeRef"
-        :nodes="rootChildren"
-        class="file-tree"
-        :callbacks="fileCallbacks"
-        drop-mode="inside-only"
-        item-click-mode="expand"
-        :initialDepth="0"
-        @node-click="handleNodeClick"
-        @node-contextmenu="handleNodeContextMenu"
-        @contextmenu="handleContextMenu"
-      />
-    </div>
+      <template #workspace>
+        <!-- 工作区被外部删除 -->
+        <div
+          v-if="appStore.isWorkspaceDeleted"
+          class="flex h-full flex-col gap-4 px-4 py-6 text-sm text-base-content"
+        >
+          <div class="flex items-center gap-2 text-error">
+            <IconAlertTriangle class="icon-sm shrink-0" />
+            <span class="font-medium">{{ t('explorer.workspaceDeleted.title') }}</span>
+          </div>
+
+          <p class="leading-6 text-base-content/70">
+            {{ t('explorer.workspaceDeleted.description') }}
+          </p>
+
+          <div class="rounded border border-base-300 bg-base-200 px-3 py-2 text-xs text-base-content/50">
+            <div class="mb-1 font-medium text-base-content/70">
+              {{ t('explorer.workspaceDeleted.originalPath') }}
+            </div>
+            <div class="break-all font-mono">
+              {{ appStore.currentFolder }}
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <button class="iw-btn btn-ghost justify-start gap-2 h-9" @click="appStore.rebuildWorkspaceDirectory">
+              <IconFolderPlus class="icon-xs" />
+              {{ t('explorer.workspaceDeleted.rebuild') }}
+            </button>
+            <button class="iw-btn btn-ghost justify-start gap-2 h-9" @click="appStore.closeFolder">
+              <IconX class="icon-xs" />
+              {{ t('explorer.workspaceDeleted.close') }}
+            </button>
+            <button class="iw-btn btn-ghost justify-start gap-2 h-9" @click="appStore.openFolder">
+              <IconFolderOpen class="icon-xs" />
+              {{ t('explorer.workspaceDeleted.openNew') }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 文件树 -->
+        <Tree
+          v-else-if="hasRootFolder"
+          ref="treeRef"
+          :nodes="rootChildren"
+          class="file-tree"
+          :callbacks="fileCallbacks"
+          drop-mode="inside-only"
+          item-click-mode="expand"
+          :initialDepth="0"
+          @node-click="handleNodeClick"
+          @node-contextmenu="handleNodeContextMenu"
+          @contextmenu="handleContextMenu"
+        />
+      </template>
+
+      <template #timeline>
+        <TimelineView />
+      </template>
+    </SplitView>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watchEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import type { FileTreeNode, FileTreeCallbacks, FileTreeSortType } from '../common/tree'
@@ -176,6 +152,8 @@ import type { ContextMenuItem } from '@/types'
 import { TEXT_IWT_EXTENSION } from '@/types'
 import { generateUntitledName } from '@/utils/untitledName'
 import Tree from '../common/tree/Tree.vue'
+import { SplitView, type SplitPane } from '../common/split-view'
+import TimelineView from './TimelineView.vue'
 import pathUtils from '@/utils/pathUtils'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import {
@@ -219,12 +197,51 @@ const folderName = computed(() => {
   return appStore.fileTree?.label || pathUtils.basename(appStore.currentFolder) || t('explorer.rootFolder')
 })
 
+// Viewer 面板：工作区（必选、不可折叠、永久显示）+ 时间线（可选、可折叠）
+const viewerPanes = ref<SplitPane[]>([
+  { id: 'workspace', title: t('explorer.view.workspace'), closable: false, collapsible: false, size: 3 },
+  { id: 'timeline', title: t('explorer.view.timeline'), closable: true, collapsed: true, size: 1 },
+])
+// 工作区标题跟随文件夹名
+watchEffect(() => {
+  const ws = viewerPanes.value.find(p => p.id === 'workspace')
+  if (ws) ws.title = folderName.value
+})
+
+// Explorer ⋯ 菜单：勾选 viewer 显隐（工作区必选）
+const showExplorerViewMenu = async (event: MouseEvent) => {
+  const timeline = viewerPanes.value.find(p => p.id === 'timeline')
+  const menuItems: ContextMenuItem[] = [
+    { id: 'view-workspace', label: t('explorer.view.workspace'), type: 'checkbox', checked: true, enabled: false },
+    { id: 'view-timeline', label: t('explorer.view.timeline'), type: 'checkbox', checked: timeline?.visible !== false },
+    { type: 'separator' },
+    { id: 'view-collapse-all', label: t('explorer.collapseAll') },
+  ]
+  try {
+    const action = await window.electronAPI.showContextMenu(menuItems, { x: event.clientX, y: event.clientY })
+    if (action === 'view-timeline' && timeline) {
+      timeline.visible = timeline.visible === false
+    } else if (action === 'view-collapse-all') {
+      // 工作区永久显示；折叠可折叠的 viewer（时间线），并折叠文件树节点
+      viewerPanes.value.forEach(p => { if (p.collapsible !== false) p.collapsed = true })
+      collapseAll()
+    }
+  } catch (error) {
+    console.error('Error showing explorer view menu:', error)
+  }
+}
+
+/** 显示指定文件的时间线（右键「查看历史」） */
+function revealTimeline() {
+  const timeline = viewerPanes.value.find(p => p.id === 'timeline')
+  if (timeline) { timeline.visible = true; timeline.collapsed = false }
+}
+
 // State
 const treeRef = ref<InstanceType<typeof Tree>>()
 const currentCreateType = ref<'file' | 'folder'>('file')
 const isAllExpanded = ref(false)
 const currentContextNode = ref<FileTreeNode | null>(null)
-const isTreeHovered = ref(false)
 const fileClipboard = ref<{
   operation: 'cut' | 'copy'
   sourcePath: string
@@ -597,6 +614,10 @@ const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent })
         label: t('explorer.menu.open'),
       },
       {
+        id: 'explorer-view-history',
+        label: t('explorer.menu.viewHistory'),
+      },
+      {
         id: 'explorer-reveal-in-folder',
         label: t('explorer.menu.revealInFolder'),
       },
@@ -734,6 +755,12 @@ const handleExplorerContextAction = async (action: string) => {
         openFile(node)
       }
       break
+    case 'explorer-view-history':
+      if (node && node.type === 'file') {
+        await openFile(node)   // 打开使其成为活动文件；Timeline 跟随
+        revealTimeline()
+      }
+      break
     case 'explorer-new-file':
       createFileInFolder(targetNode)
       break
@@ -785,15 +812,6 @@ const handleExplorerContextAction = async (action: string) => {
     default:
       break
   }
-}
-
-// 鼠标事件处理函数
-const handleTreeMouseEnter = () => {
-  isTreeHovered.value = true
-}
-
-const handleTreeMouseLeave = () => {
-  isTreeHovered.value = false
 }
 
 </script>

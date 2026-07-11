@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Source Control 对话框 — 对齐工程</title>
+<style>
+  :root{--b100:#fff;--b200:#f6f7f9;--b300:#e4e7eb;--bc:#1c1e21;--bc60:#6b7280;--bc40:#9aa1ab;
+    --primary:#605dff;--error:#ff5861;--warning:#ffbe00;--field-r:8px;--box-r:12px}
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceef1;color:var(--bc);font:13px/1.5 -apple-system,"Segoe UI",system-ui,sans-serif;padding:28px}
+  h1{font-size:15px;margin:0 0 4px}
+  .lead{color:#5b6470;font-size:12px;margin:0 0 6px;max-width:900px}
+  .impl{background:#eef2ff;border:1px solid #d5dcff;border-radius:8px;padding:10px 14px;font-size:12px;color:#3a3f66;margin:0 0 24px;max-width:900px}
+  .impl code{background:#fff;border:1px solid #d5dcff;border-radius:3px;padding:0 4px}
+  h2.cat{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#7a828d;margin:26px 0 12px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:24px;align-items:start}
+
+  /* ---- 工程 dialog 外壳（PrintDialogShell 风格） ---- */
+  .shell{background:var(--b100);border:1px solid var(--b300);border-radius:var(--box-r);overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.18)}
+  .shell .cap{font-size:11px;color:#7a828d;background:var(--b200);padding:5px 12px;border-bottom:1px dashed var(--b300)}
+  .shell .head{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--b300)}
+  .shell .head h3{font-size:14px;font-weight:600;margin:0}
+  .shell .head .x{width:26px;height:26px;border:0;background:transparent;color:var(--bc60);border-radius:6px;cursor:pointer}
+  .shell .head .x:hover{background:var(--b200)}
+  .shell .body{padding:16px 18px}
+  .shell .foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--b300)}
+  .field{margin:0 0 12px}
+  .field label{display:block;font-size:11px;color:var(--bc60);margin:0 0 4px}
+  .iw-input{width:100%;height:32px;border:1px solid var(--b300);border-radius:var(--field-r);background:var(--b100);color:var(--bc);padding:0 9px;font:inherit}
+  .iw-input:focus{outline:none;border-color:var(--primary)}
+  select.iw-input{height:32px}
+  .with-btn{display:flex;gap:6px}.with-btn .iw-input{flex:1}
+  .check{display:flex;align-items:center;gap:8px;font-size:12px;margin:8px 0}
+  .radios{display:flex;flex-direction:column;gap:7px;margin:6px 0}
+  .radios label{display:flex;align-items:center;gap:8px;font-size:12px}
+  .hint{font-size:11px;color:var(--bc40);margin:8px 0 0}
+  .list{border:1px solid var(--b300);border-radius:var(--field-r);overflow:hidden;max-height:190px;overflow-y:auto}
+  .list .it{padding:7px 10px;font-size:12px;cursor:pointer;display:flex;justify-content:space-between}
+  .list .it:hover{background:var(--b200)}
+  .list .it.on{background:color-mix(in srgb,var(--primary) 14%,transparent)}
+  .list .it small{color:var(--bc40)}
+  details{margin:0 0 10px}summary{cursor:pointer;font-size:12px;color:var(--bc60)}
+  pre{background:var(--b200);border:1px solid var(--b300);border-radius:6px;padding:8px;font-size:11px;color:#a13b3b;overflow:auto;margin:6px 0 0}
+  .iw-btn{height:32px;padding:0 14px;border-radius:var(--field-r);border:1px solid var(--b300);background:transparent;color:var(--bc);cursor:pointer;font:inherit;font-weight:600}
+  .iw-btn:hover{background:var(--b200)}
+  .iw-btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  .progress{height:5px;background:var(--b300);border-radius:3px;overflow:hidden;margin-top:8px}.progress>i{display:block;height:100%;width:42%;background:var(--primary)}
+
+  /* ---- 原生 showMessageBox（OS 风格，非 HTML 弹窗） ---- */
+  .native{background:#e9eaec;border:1px solid #c9ccd1;border-radius:10px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.22);max-width:400px}
+  .native .os-cap{font-size:11px;color:#6b7280;background:#dcdee1;padding:4px 12px;border-bottom:1px solid #c9ccd1}
+  .native .os-body{display:flex;gap:14px;padding:20px 20px 8px}
+  .native .os-ico{font-size:32px;flex-shrink:0}
+  .native .os-text h4{margin:0 0 6px;font-size:13px}
+  .native .os-text p{margin:0;font-size:12px;color:#4b5563}
+  .native .os-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px}
+  .os-btn{height:28px;padding:0 16px;border-radius:6px;border:1px solid #b7bbc2;background:#fff;font:inherit;font-size:12px;cursor:pointer}
+  .os-btn.default{background:#4b6ef5;border-color:#4b6ef5;color:#fff}
+  .os-btn.danger{background:#e5484d;border-color:#e5484d;color:#fff}
+</style>
+</head>
+<body>
+  <h1>Source Control 对话框 — 对齐工程</h1>
+  <p class="lead">两类分开：① <b>纯确认</b>用工程现有的原生 <code>showMessageBox</code>（OS 弹窗）；② <b>需输入</b>的用工程 dialog 外壳（PrintDialogShell 风格）。</p>
+  <div class="impl">
+    实现映射：确认类 = <code>window.electronAPI.showMessageBox({ type, message, detail, buttons, defaultId })</code>（放弃/删除/中止合并等）· 输入类 = 覆盖层 <code>bg-black/45 backdrop-blur</code> + <code>rounded-box border-base-300 bg-base-100</code> + <code>iw-input</code> + <code>iw-btn btn-primary/btn-ghost</code>。
+  </div>
+
+  <!-- ============ A. 纯确认 → 原生 showMessageBox ============ -->
+  <h2 class="cat">A · 纯确认（原生 showMessageBox）</h2>
+  <div class="grid">
+
+    <div class="native">
+      <div class="os-cap">showMessageBox · type: 'warning'</div>
+      <div class="os-body"><div class="os-ico">⚠️</div>
+        <div class="os-text"><h4>放弃对 ch002.md 的更改？</h4><p>此操作不可撤销，将丢弃所有未提交更改。</p></div>
+      </div>
+      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn danger">放弃更改</button></div>
+    </div>
+
+    <div class="native">
+      <div class="os-cap">showMessageBox · type: 'warning' · checkboxLabel</div>
+      <div class="os-body"><div class="os-ico">⚠️</div>
+        <div class="os-text"><h4>放弃全部更改？</h4><p>将丢弃 3 个文件的更改，不可撤销。</p>
+          <label class="check" style="margin-top:10px"><input type="checkbox"> 同时删除未跟踪文件（git clean）</label>
+        </div>
+      </div>
+      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn danger">全部放弃</button></div>
+    </div>
+
+    <div class="native">
+      <div class="os-cap">showMessageBox · type: 'warning'</div>
+      <div class="os-body"><div class="os-ico">⚠️</div>
+        <div class="os-text"><h4>删除分支 feature/old？</h4><p>存在未合并提交时需强制删除。</p></div>
+      </div>
+      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn">强制删除</button><button class="os-btn danger">删除</button></div>
+    </div>
+
+    <div class="native">
+      <div class="os-cap">showMessageBox · type: 'question'</div>
+      <div class="os-body"><div class="os-ico">❓</div>
+        <div class="os-text"><h4>中止正在进行的合并？</h4><p>工作区将还原到合并前状态。</p></div>
+      </div>
+      <div class="os-foot"><button class="os-btn">继续合并</button><button class="os-btn danger">中止合并</button></div>
+    </div>
+
+    <div class="native">
+      <div class="os-cap">showMessageBox · type: 'error' · detail</div>
+      <div class="os-body"><div class="os-ico">⛔</div>
+        <div class="os-text"><h4>推送失败</h4><p>认证失败或无推送权限。请检查系统凭证（Keychain / credential helper / ssh-agent）。</p></div>
+      </div>
+      <div class="os-foot"><button class="os-btn">知道了</button><button class="os-btn default">重试</button></div>
+    </div>
+
+  </div>
+
+  <!-- ============ B. 需输入 → 工程 dialog 外壳 ============ -->
+  <h2 class="cat">B · 需输入（工程 dialog 外壳）</h2>
+  <div class="grid">
+
+    <div class="shell"><div class="cap">1 · 克隆仓库</div>
+      <div class="head"><h3>克隆仓库</h3><button class="x">✕</button></div>
+      <div class="body">
+        <div class="field"><label>仓库 URL</label><input class="iw-input" value="https://github.com/user/repo.git"></div>
+        <div class="field"><label>克隆到</label><div class="with-btn"><input class="iw-input" placeholder="/Users/…/repo"><button class="iw-btn">浏览…</button></div></div>
+        <label class="check"><input type="checkbox" checked> 克隆后打开为工作空间</label>
+        <div class="progress"><i></i></div><p class="hint">正在克隆…（进行中形态）</p>
+      </div>
+      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">克隆</button></div>
+    </div>
+
+    <div class="shell"><div class="cap">2 · 创建分支</div>
+      <div class="head"><h3>创建分支</h3><button class="x">✕</button></div>
+      <div class="body">
+        <div class="field"><label>分支名称</label><input class="iw-input" placeholder="feature/xxx"></div>
+        <div class="field"><label>基于</label><select class="iw-input"><option>main（当前）</option><option>origin/main</option><option>develop</option></select></div>
+        <label class="check"><input type="checkbox" checked> 立即切换到新分支</label>
+      </div>
+      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">创建</button></div>
+    </div>
+
+    <div class="shell"><div class="cap">3 · 切换分支（QuickPick）</div>
+      <div class="head"><h3>切换分支</h3><button class="x">✕</button></div>
+      <div class="body">
+        <input class="iw-input" type="search" placeholder="筛选分支或输入以创建…" style="margin-bottom:8px">
+        <div class="list">
+          <div class="it on">main <small>当前</small></div>
+          <div class="it">develop</div>
+          <div class="it">feature/creative-phase2</div>
+          <div class="it">origin/main <small>远程</small></div>
+          <div class="it">＋ 创建新分支…</div>
+        </div>
+      </div>
+      <div class="foot"><button class="iw-btn">取消</button></div>
+    </div>
+
+    <div class="shell"><div class="cap">4 · 提交身份缺失</div>
+      <div class="head"><h3>配置提交身份</h3><button class="x">✕</button></div>
+      <div class="body">
+        <p class="hint" style="margin:0 0 12px">尚未设置 Git 用户名与邮箱，无法创建提交。</p>
+        <div class="field"><label>用户名</label><input class="iw-input" placeholder="Your Name"></div>
+        <div class="field"><label>邮箱</label><input class="iw-input" type="email" placeholder="you@example.com"></div>
+        <div class="radios"><label><input type="radio" name="s" checked> 仅此仓库</label><label><input type="radio" name="s"> 全局（所有仓库）</label></div>
+      </div>
+      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">保存并提交</button></div>
+    </div>
+
+    <div class="shell"><div class="cap">5 · 发布分支</div>
+      <div class="head"><h3>发布分支</h3><button class="x">✕</button></div>
+      <div class="body">
+        <p class="hint" style="margin:0 0 12px">本地分支 <b>feature/xxx</b> 尚未推送到远程。</p>
+        <div class="field"><label>远程</label><select class="iw-input"><option>origin</option></select></div>
+      </div>
+      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">发布分支</button></div>
+    </div>
+
+    <div class="shell"><div class="cap">6 · 贮藏（Stash）</div>
+      <div class="head"><h3>贮藏更改</h3><button class="x">✕</button></div>
+      <div class="body">
+        <div class="field"><label>备注（可选）</label><input class="iw-input" placeholder="WIP: …"></div>
+        <label class="check"><input type="checkbox"> 包含未跟踪文件</label>
+      </div>
+      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">贮藏</button></div>
+    </div>
+
+  </div>
+</body>
+</html>

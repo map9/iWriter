@@ -145,6 +145,11 @@
     :title="appStore.printPreviewTitle"
     @close="appStore.closePrintPreview()"
   />
+
+  <!-- Git 差异浮层 + 提交身份 + 克隆弹窗 -->
+  <GitDiffModal />
+  <GitIdentityDialog />
+  <GitCloneDialog />
 </template>
 
 <script setup lang="ts">
@@ -152,6 +157,7 @@ import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } fr
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAiStore } from '@/ai/store/ai'
+import { useGitStore } from '@/stores/git'
 import { DocumentType } from '@/types'
 import type { SnapshotRequestEvent } from '@/ai/ipc'
 import { notify } from '@/utils/notifications'
@@ -179,9 +185,13 @@ const UpdateDialog = defineAsyncComponent(() => import('@/components/updater/Upd
 const PreferencesDialog = defineAsyncComponent(() => import('@/components/preferences/PreferencesDialog.vue'))
 const PrintDialog = defineAsyncComponent(() => import('@/components/print/PrintDialog.vue'))
 const PdfPrintDialog = defineAsyncComponent(() => import('@/components/print/PdfPrintDialog.vue'))
+const GitDiffModal = defineAsyncComponent(() => import('@/components/sidebar/scm/GitDiffModal.vue'))
+const GitIdentityDialog = defineAsyncComponent(() => import('@/components/sidebar/scm/GitIdentityDialog.vue'))
+const GitCloneDialog = defineAsyncComponent(() => import('@/components/sidebar/scm/GitCloneDialog.vue'))
 
 const appStore = useAppStore()
 const aiStore = useAiStore()
+const gitStore = useGitStore()
 const { t } = useI18n()
 
 // Refs for different page types
@@ -306,6 +316,9 @@ function handleViewUpdateDetails() {
 }
 
 // Lifecycle
+// 版本控制：跟随工作空间文件夹（全局单一驱动，供 SCM 面板与 Explorer Timeline 共用）
+watch(() => appStore.currentFolder, (folder) => { gitStore.onFolderChanged(folder ?? null) }, { immediate: true })
+
 onMounted(() => {
   aiStore.init()
 

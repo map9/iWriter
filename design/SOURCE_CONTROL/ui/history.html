@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Explorer 容器（Workspace + Timeline）+ 空状态</title>
+<style>
+  :root{--b100:#fff;--b200:#f6f7f9;--b300:#e4e7eb;--bc:#1c1e21;--bc60:#6b7280;--bc40:#9aa1ab;
+    --primary:#605dff;--warning:#ffbe00;--field-r:8px}
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceef1;color:var(--bc);font:13px/1.5 -apple-system,"Segoe UI",system-ui,sans-serif;padding:28px}
+  h1{font-size:15px;margin:0 0 4px}
+  .lead{color:#5b6470;font-size:12px;margin:0 0 18px;max-width:900px}
+  .triggers{background:#eef2ff;border:1px solid #d5dcff;border-radius:10px;padding:14px 18px;margin:0 0 24px;max-width:900px}
+  .triggers h2{font-size:12px;color:#3a3f66;margin:0 0 10px;text-transform:uppercase;letter-spacing:.05em}
+  .triggers ol{margin:0;padding-left:18px}.triggers li{font-size:12.5px;color:#42485a;margin:0 0 8px}
+  .triggers b{color:#1c1e21}.triggers code{background:#fff;border:1px solid #d5dcff;border-radius:3px;padding:0 4px}
+  .row{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+  figure{margin:0}
+  figcaption{font-size:11px;color:#7a828d;margin:0 0 8px}
+  h2.cat{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#7a828d;margin:30px 0 12px}
+
+  .panel{width:300px;background:var(--b100);border:1px solid var(--b300);border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);display:flex;flex-direction:column;max-height:640px}
+  .c-title{display:flex;align-items:center;height:34px;padding:0 6px 0 12px;border-bottom:1px solid var(--b300)}
+  .c-title h2{flex:1;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--bc60);margin:0}
+  .tbtn{width:26px;height:26px;display:grid;place-items:center;border:0;background:transparent;color:var(--bc60);border-radius:6px;cursor:pointer;font-size:14px}
+  .tbtn:hover{background:var(--b200);color:var(--bc)}
+
+  .viewer{border-bottom:1px solid var(--b300);display:flex;flex-direction:column;min-height:0}
+  .viewer:last-child{border-bottom:0}
+  .v-head{display:flex;align-items:center;gap:4px;height:28px;padding:0 6px 0 8px;cursor:pointer;background:var(--b200);position:relative}
+  .v-head:hover{background:var(--b300)}
+  .v-head .chev{width:14px;text-align:center;color:var(--bc40);font-size:10px}
+  .v-head .vt{flex:1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--bc60)}
+  .v-head .vtools{display:none;gap:1px}.v-head:hover .vtools{display:flex}
+  .v-head .vtools .tbtn{width:22px;height:22px;font-size:12px}
+  .v-body{overflow-y:auto}
+
+  /* workspace 文件树 */
+  .fnode{display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;cursor:pointer}
+  .fnode:hover{background:var(--b200)}
+  .fnode.sel{background:color-mix(in srgb,var(--primary) 14%,transparent)}
+  .fnode .ico{color:var(--bc40)}
+  .d1{padding-left:8px}.d2{padding-left:24px}.d3{padding-left:40px}
+
+  /* timeline */
+  .tl{list-style:none;margin:0;padding:4px 0}
+  .tl li{display:flex;gap:10px;padding:6px 12px;cursor:pointer}
+  .tl li:hover{background:var(--b200)}
+  .tl .dot{width:9px;flex-shrink:0;text-align:center;color:var(--bc40)}
+  .tl .msg{font-size:12px}.tl .meta{color:var(--bc40);font-size:11px;margin-top:1px}
+
+  /* graph（SCM 内，供对照空状态） */
+  .graph-bar{display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:1px solid var(--b200)}
+  .branch-pick{display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;color:var(--bc);cursor:pointer;font:inherit;font-size:11px;font-weight:700;padding:3px 6px;border-radius:6px}
+  .branch-pick:hover{background:var(--b200)}.branch-pick .ico{color:var(--bc60)}.branch-pick .caret{color:var(--bc40);font-size:9px}
+  .graph-bar .filter{flex:1;height:24px;border:1px solid var(--b300);border-radius:6px;background:var(--b100);padding:0 8px;font:inherit;font-size:11px}
+  .commit{cursor:pointer}
+  .commit .line{display:flex;gap:8px;padding:6px 10px}.commit .line:hover{background:var(--b200)}
+  .commit .rail{width:10px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;color:var(--primary)}
+  .commit .rail .wire{flex:1;width:2px;background:var(--b300);margin-top:2px}
+  .commit .cbody{flex:1;min-width:0}.commit .cmsg{font-size:12px}.commit .cmeta{font-size:11px;color:var(--bc40);display:flex;gap:6px;margin-top:1px}.commit .cmeta .hash{font-family:ui-monospace,monospace}
+
+  /* 空状态 */
+  .vempty{padding:18px 16px;text-align:center;color:var(--bc40);font-size:12px}
+  .vempty .big{font-size:28px;color:var(--bc40);opacity:.5;margin-bottom:8px}
+  .vempty .link{color:var(--primary);cursor:pointer}
+
+  /* 菜单 */
+  .menu{width:220px;background:var(--b100);border:1px solid var(--b300);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.16);padding:5px;font-size:12.5px}
+  .menu .grp{padding:4px 10px 2px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--bc40)}
+  .menu .mi{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;cursor:pointer}
+  .menu .mi:hover{background:var(--b200)}.menu .mi.disabled{color:var(--bc40);cursor:default}
+  .menu .mi .chk{width:12px;color:var(--primary)}.menu .mi .acc{margin-left:auto;color:var(--bc40);font-size:11px}
+  .menu .sep{height:1px;background:var(--b300);margin:5px 4px}
+</style>
+</head>
+<body>
+  <h1>Explorer 容器（Workspace + Timeline）· Timeline/Graph 空状态</h1>
+  <p class="lead">Explorer 与 SCM 都是「视图容器 + 多 viewer」。Timeline 的两个 viewer：一个在 Explorer（Timeline，可选），一个在 SCM（Graph，见 panel.html）。</p>
+
+  <div class="triggers">
+    <h2>容器与 viewer 归属</h2>
+    <ol>
+      <li><b>Explorer 容器</b> = <b>工作区 Workspace</b>（文件树，<b>必选，不可隐藏</b>）+ <b>时间线 Timeline</b>（<b>可选</b>）。通过 Explorer 标题栏 <code>⋯</code> 菜单勾选。</li>
+      <li><b>SCM 容器</b> = <b>存储库 Repositories</b> + <b>更改 Changes</b> + <b>图谱 Graph</b>（见 panel.html）。Timeline 的「第二张设计」= SCM 的 Graph viewer。</li>
+      <li>Timeline 跟随当前活动文件；文件右键「查看文件历史」聚焦该文件的 Timeline。</li>
+    </ol>
+  </div>
+
+  <!-- ===== 正常态 ===== -->
+  <h2 class="cat">正常态</h2>
+  <div class="row">
+    <figure>
+      <figcaption>Explorer 容器 · Workspace + Timeline 都展开</figcaption>
+      <div class="panel">
+        <div class="c-title"><h2>资源管理器</h2>
+          <button class="tbtn" title="新建文件">🗋</button><button class="tbtn" title="视图/更多（⋯ 菜单见右）">⋯</button></div>
+        <!-- Workspace viewer -->
+        <div class="viewer">
+          <div class="v-head"><span class="chev">▾</span><span class="vt">工作区 · iWriter</span>
+            <span class="vtools"><button class="tbtn">🗋</button><button class="tbtn">🗀</button><button class="tbtn">⟳</button></span></div>
+          <div class="v-body">
+            <div class="fnode d1"><span class="ico">▾🗀</span> draft</div>
+            <div class="fnode d2 sel"><span class="ico">📄</span> ch001.md</div>
+            <div class="fnode d2"><span class="ico">📄</span> ch002.md</div>
+            <div class="fnode d1"><span class="ico">▸🗀</span> assets</div>
+            <div class="fnode d1"><span class="ico">📄</span> outline.md</div>
+          </div>
+        </div>
+        <!-- Timeline viewer -->
+        <div class="viewer">
+          <div class="v-head"><span class="chev">▾</span><span class="vt">时间线 · ch001.md</span>
+            <span class="vtools"><button class="tbtn" title="刷新">⟳</button></span></div>
+          <ul class="tl">
+            <li><span class="dot">●</span><span><div class="msg">修订第一章结尾</div><div class="meta">Osenberger · 2 小时前 · a1b2c3d</div></span></li>
+            <li><span class="dot">●</span><span><div class="msg">初稿</div><div class="meta">Osenberger · 昨天 · 9f8e7d6</div></span></li>
+          </ul>
+        </div>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>Explorer ⋯ 菜单（勾选 viewer）</figcaption>
+      <div class="menu">
+        <div class="grp">视图</div>
+        <div class="mi disabled"><span class="chk">✓</span> 工作区 <span class="acc">必选</span></div>
+        <div class="mi"><span class="chk">✓</span> 时间线</div>
+        <div class="sep"></div>
+        <div class="mi">折叠全部</div>
+        <div class="mi">刷新</div>
+      </div>
+    </figure>
+  </div>
+
+  <!-- ===== 空状态 ===== -->
+  <h2 class="cat">空状态（无仓库 / 无提交 / Timeline 空）</h2>
+  <div class="row">
+
+    <figure>
+      <figcaption>① 无仓库 · Timeline 提示纳入版本控制</figcaption>
+      <div class="panel" style="max-height:none">
+        <div class="c-title"><h2>资源管理器</h2><button class="tbtn">⋯</button></div>
+        <div class="viewer"><div class="v-head"><span class="chev">▾</span><span class="vt">工作区 · 我的文档</span></div>
+          <div class="v-body">
+            <div class="fnode d1"><span class="ico">📄</span> ch001.md</div>
+            <div class="fnode d1"><span class="ico">📄</span> outline.md</div>
+          </div></div>
+        <div class="viewer"><div class="v-head"><span class="chev">▾</span><span class="vt">时间线</span></div>
+          <div class="vempty"><div class="big">◷</div>此文件夹未纳入版本控制。<br><span class="link">初始化仓库</span> 后显示历史。</div>
+        </div>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>② 有仓库无提交 · Timeline 空</figcaption>
+      <div class="panel" style="max-height:none">
+        <div class="c-title"><h2>资源管理器</h2><button class="tbtn">⋯</button></div>
+        <div class="viewer"><div class="v-head"><span class="chev">▾</span><span class="vt">工作区 · iWriter</span></div>
+          <div class="v-body"><div class="fnode d1 sel"><span class="ico">📄</span> ch001.md</div></div></div>
+        <div class="viewer"><div class="v-head"><span class="chev">▾</span><span class="vt">时间线 · ch001.md</span></div>
+          <div class="vempty"><div class="big">◷</div>尚无提交历史。<br>首次提交后，此处显示该文件的历史。</div>
+        </div>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>③ 无活动文件 · Timeline 提示</figcaption>
+      <div class="panel" style="max-height:none">
+        <div class="c-title"><h2>资源管理器</h2><button class="tbtn">⋯</button></div>
+        <div class="viewer"><div class="v-head"><span class="chev">▾</span><span class="vt">工作区 · iWriter</span></div>
+          <div class="v-body"><div class="fnode d1"><span class="ico">📄</span> ch001.md</div><div class="fnode d1"><span class="ico">📄</span> outline.md</div></div></div>
+        <div class="viewer"><div class="v-head"><span class="chev">▾</span><span class="vt">时间线</span></div>
+          <div class="vempty"><div class="big">◷</div>打开一个文件以查看其时间线。</div>
+        </div>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>④ SCM · Graph 无提交（对照，见 panel.html）</figcaption>
+      <div class="panel" style="max-height:none">
+        <div class="c-title"><h2>源代码管理</h2><button class="tbtn">⋯</button></div>
+        <div class="viewer"><div class="v-head"><span class="chev">▾</span><span class="vt">图谱</span></div>
+          <div class="graph-bar"><button class="branch-pick"><span class="ico">⑂</span> main <span class="caret">▾</span></button><input class="filter" placeholder="筛选…"></div>
+          <div class="vempty"><div class="big">⑂</div>当前分支尚无提交。<br>在「更改」中完成首次提交后显示。</div>
+        </div>
+      </div>
+    </figure>
+
+  </div>
+</body>
+</html>

@@ -15,6 +15,7 @@ import { WindowManager } from './WindowManager'
 import { UpdaterManager } from '../src/updater/UpdaterManager'
 import { PandocService } from './PandocService'
 import { LibreOfficeService } from './LibreOfficeService'
+import { GitService } from './GitService'
 import type { AgentEngine } from './ai/AgentEngine'
 import { AiConfigStore } from './ai/config/AiConfigStore'
 import { perfLog } from './perf'
@@ -209,6 +210,7 @@ export class App {
   private updaterManager: UpdaterManager | null
   private pandocService: PandocService
   private libreOfficeService: LibreOfficeService
+  private gitService: GitService
   private _agentEngine: AgentEngine | null = null
   private customThemeLoader: CustomThemeLoader
   private appQuitTimer: Timer | null = null
@@ -222,6 +224,7 @@ export class App {
     this.updaterManager = null
     this.pandocService = new PandocService()
     this.libreOfficeService = new LibreOfficeService()
+    this.gitService = new GitService()
     this.customThemeLoader = new CustomThemeLoader()
     this._isAppQuitting = false
     this._exitApp = false
@@ -441,6 +444,7 @@ export class App {
     this.registerCodeFormatHandler()
     this.registerPandocHandlers()
     this.registerLibreOfficeHandlers()
+    this.registerGitHandlers()
     this.registerAgentIpcHandlers()
     this.registerCustomThemeHandlers()
     ipcMain.on('hello', (_, windowId: number) => {
@@ -1359,6 +1363,44 @@ export class App {
     ipcMain.handle('pandoc:export-file', async (_, req) => {
       return this.pandocService.exportFile(req)
     })
+  }
+
+  private registerGitHandlers() {
+    ipcMain.handle('git:detect', async () => this.gitService.detect())
+    ipcMain.handle('git:is-repo', async (_, root: string) => this.gitService.isRepo(root))
+    ipcMain.handle('git:init', async (_, root: string) => this.gitService.init(root))
+    ipcMain.handle('git:status', async (_, root: string) => this.gitService.status(root))
+    ipcMain.handle('git:branches', async (_, root: string) => this.gitService.branches(root))
+    ipcMain.handle('git:diff', async (_, root: string, filePath: string, opts: { staged: boolean }) =>
+      this.gitService.diff(root, filePath, opts))
+    ipcMain.handle('git:log', async (_, root: string, opts) => this.gitService.log(root, opts))
+    ipcMain.handle('git:commit-files', async (_, root: string, hash: string) =>
+      this.gitService.commitFiles(root, hash))
+    ipcMain.handle('git:commit-file-diff', async (_, root: string, hash: string, filePath: string) =>
+      this.gitService.commitFileDiff(root, hash, filePath))
+    ipcMain.handle('git:stage', async (_, root: string, paths: string[]) => this.gitService.stage(root, paths))
+    ipcMain.handle('git:unstage', async (_, root: string, paths: string[]) => this.gitService.unstage(root, paths))
+    ipcMain.handle('git:stage-all', async (_, root: string) => this.gitService.stageAll(root))
+    ipcMain.handle('git:unstage-all', async (_, root: string) => this.gitService.unstageAll(root))
+    ipcMain.handle('git:discard', async (_, root: string, paths: string[]) => this.gitService.discard(root, paths))
+    ipcMain.handle('git:commit', async (_, root: string, message: string, opts: { all?: boolean; amend?: boolean }) =>
+      this.gitService.commit(root, message, opts))
+    ipcMain.handle('git:identity-get', async (_, root: string) => this.gitService.getUserIdentity(root))
+    ipcMain.handle('git:identity-set', async (_, root: string, name: string, email: string, global: boolean) =>
+      this.gitService.setUserIdentity(root, name, email, global))
+    ipcMain.handle('git:checkout', async (_, root: string, ref: string) => this.gitService.checkout(root, ref))
+    ipcMain.handle('git:create-branch', async (_, root: string, name: string, base?: string, checkout?: boolean) =>
+      this.gitService.createBranch(root, name, base, checkout))
+    ipcMain.handle('git:delete-branch', async (_, root: string, name: string, force: boolean) =>
+      this.gitService.deleteBranch(root, name, force))
+    ipcMain.handle('git:add-to-gitignore', async (_, root: string, relPath: string) =>
+      this.gitService.addToGitignore(root, relPath))
+    ipcMain.handle('git:clone', async (_, url: string, dir: string) => this.gitService.clone(url, dir))
+    ipcMain.handle('git:fetch', async (_, root: string) => this.gitService.fetch(root))
+    ipcMain.handle('git:pull', async (_, root: string, opts: { rebase?: boolean }) => this.gitService.pull(root, opts))
+    ipcMain.handle('git:push', async (_, root: string, opts: { setUpstream?: boolean }) => this.gitService.push(root, opts))
+    ipcMain.handle('git:sync', async (_, root: string, opts: { rebase?: boolean }) => this.gitService.sync(root, opts))
+    ipcMain.handle('git:publish', async (_, root: string) => this.gitService.publish(root))
   }
 
   private registerLibreOfficeHandlers() {

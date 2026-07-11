@@ -150,6 +150,7 @@
     "electron-updater": "^6.6.2",
     "jsdom": "^29.1.1",
     "mermaid": "^11.15.0",
+    "simple-git": "^3.36.0",
     "turndown": "^7.2.4"
   },
   "build": {

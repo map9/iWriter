@@ -17,11 +17,15 @@ import { StatusBar, tooltipManager } from '@/components/common/statusbar'
 import { useNotification, NotificationOverlay } from '@/components/common/statusbar'
 import { createFileStatsStatusBarGroup } from './statusbar-items/file-stats'
 import { createUpdateStatusStatusBarItem } from './statusbar-items/update-status'
+import { createGitStatusStatusBarGroup } from './statusbar-items/git-status'
 import { useAppStore } from '@/stores/app'
 
 const { state: notificationState, dismiss: hideNotification } = useNotification()
 import updaterService from '@/updater/UpdaterService'
+import { SidebarMode } from '@/types'
+import { useGitStore } from '@/stores/git'
 const appStore = useAppStore()
+const gitStore = useGitStore()
 
 const handleStatusBarCommand = (command: string, _item: IBasicStatusBarItem, _args?: unknown[]) => {
   switch(command) {
@@ -41,6 +45,14 @@ const handleStatusBarCommand = (command: string, _item: IBasicStatusBarItem, _ar
     case 'toggleReadonlyMode':
       void appStore.toggleReadonlyMode()
       break
+    // 版本控制：分支点击聚焦 SCM 面板；同步直接触发
+    case 'scm.checkout':
+      appStore.setLeftSidebarMode(SidebarMode.SOURCE_CONTROL)
+      break
+    case 'scm.sync':
+      if (gitStore.branch?.upstream) void gitStore.sync()
+      else appStore.setLeftSidebarMode(SidebarMode.SOURCE_CONTROL)
+      break
     // Handle other commands as needed
     default:
       console.warn(`Unhandled command: ${command}`)
@@ -57,5 +69,6 @@ onMounted(() => {
   tooltipManager.setCommandHandler(handleTooltipCommand)
   createFileStatsStatusBarGroup()
   createUpdateStatusStatusBarItem()
+  createGitStatusStatusBarGroup()
 })
 </script>

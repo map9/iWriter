@@ -12,6 +12,7 @@ export enum SidebarMode {
   START = 'start',
   EXPLORER = 'explorer',
   SEARCH = 'search',
+  SOURCE_CONTROL = 'sourceControl',
   TAG = 'tag',
   TOC = 'toc'
 }

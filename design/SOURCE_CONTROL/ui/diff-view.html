@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Diff 查看器 — 复用 agent DiffSplitView</title>
+<style>
+  :root{--bg:#1e1e1e;--card:#252526;--b:#3c3c3c;--b2:#2d2d30;--fg:#cccccc;--dim:#9d9d9d;--mute:#6e6e6e;
+    --err:#5a2d2d;--errc:#f0b8b8;--suc:#264a30;--succ:#a8e0bd;--errbg:rgba(224,108,91,.32);--sucbg:rgba(78,201,120,.32);--accent:#0e639c}
+  *{box-sizing:border-box}
+  body{margin:0;background:#141414;color:var(--fg);font:13px/1.5 -apple-system,"Segoe UI",system-ui,sans-serif;padding:28px}
+  h1{font-size:15px;color:#fff;margin:0 0 4px}
+  .lead{color:#888;font-size:12px;margin:0 0 8px;max-width:820px}
+  .note{background:#1c2733;border:1px solid #294055;border-radius:6px;padding:10px 14px;font-size:12px;color:#9fc3e0;margin:0 0 24px;max-width:820px}
+  .note code{background:#0d1a26;padding:1px 5px;border-radius:3px;color:#bcd8ee}
+  figure{margin:0 0 28px}
+  figcaption{font-size:11px;color:#8a8a8a;margin:0 0 8px}
+  .tab{max-width:820px;background:var(--card);border:1px solid var(--b);border-radius:8px;overflow:hidden}
+
+  /* diff tab 头 */
+  .diff-head{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;background:var(--b2);border-bottom:1px solid var(--b)}
+  .diff-head .title{font-size:12px;color:var(--dim);flex:1}
+  .diff-head button{height:22px;padding:0 8px;background:transparent;border:1px solid var(--b);color:var(--dim);border-radius:4px;cursor:pointer;font-size:11px}
+  .diff-head button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  /* DiffSplitView 风格：双栏统计头 */
+  .ds-stat{display:grid;grid-template-columns:1fr 1fr;background:#2d2d30;border-bottom:1px solid var(--b);font-size:11px;color:var(--dim)}
+  .ds-stat > div{display:flex;justify-content:space-between;align-items:center;padding:5px 10px}
+  .ds-stat > div:first-child{border-right:1px solid var(--b)}
+  .tag{font-family:ui-monospace,monospace;font-weight:700;padding:1px 6px;border-radius:3px}
+  .tag.del{background:rgba(224,108,91,.5);color:#fff}
+  .tag.add{background:rgba(78,201,120,.5);color:#0b2416}
+
+  /* 双栏正文 */
+  .ds-body{display:grid;grid-template-columns:1fr 1fr;font-family:ui-monospace,SFMono-Regular,monospace;font-size:12px}
+  .ds-body .col{padding:8px 10px;white-space:pre-wrap;word-break:break-word}
+  .ds-body .col.right{border-left:1px solid var(--b)}
+  .seg-del{background:var(--errbg);border-radius:2px}
+  .seg-add{background:var(--sucbg);border-radius:2px}
+
+  /* 内联 hunk */
+  .hunk-head{display:flex;align-items:center;gap:10px;background:#22333f;color:#7fa8c4;font-family:ui-monospace,monospace;font-size:11px;padding:4px 10px;border-bottom:1px solid var(--b)}
+  .hunk-head .sp{flex:1}
+  .hunk-head button{height:20px;padding:0 8px;font-size:10px;background:transparent;border:1px solid #3a5468;color:#9fc3e0;border-radius:3px;cursor:pointer}
+  .uni{font-family:ui-monospace,monospace;font-size:12px}
+  .uni .row{display:flex;padding:0 8px}
+  .uni .row.del{background:var(--errbg)} .uni .row.add{background:var(--sucbg)}
+  .uni .gut{width:34px;color:var(--mute);text-align:right;padding-right:8px;user-select:none;flex-shrink:0}
+  .uni .sign{width:14px;color:var(--mute)}
+
+  /* 合并冲突（agent 不覆盖，SCM 专属编辑器） */
+  .merge{border:1px solid var(--b);border-radius:6px;overflow:hidden;margin:10px}
+  .mreg-head{display:flex;justify-content:space-between;align-items:center;padding:4px 10px;font-size:11px}
+  .mreg.cur .mreg-head{background:rgba(78,201,120,.18);color:#a8e0bd}
+  .mreg.inc .mreg-head{background:rgba(90,150,224,.18);color:#a9c8f0}
+  .mreg-head button{height:20px;padding:0 8px;font-size:10px;border:0;border-radius:3px;cursor:pointer;color:#fff}
+  .mreg.cur .mreg-head button{background:#2e7d46}
+  .mreg.inc .mreg-head button{background:#3a63a8}
+  .mreg-body{padding:6px 12px;font-family:ui-monospace,monospace;font-size:12px}
+  .mreg.inc{border-top:1px solid var(--b)}
+  .merge-foot{display:flex;gap:8px;padding:8px 12px;border-top:1px solid var(--b);background:#232323}
+  .merge-foot button{height:24px;padding:0 10px;font-size:11px;background:transparent;border:1px solid var(--b);color:var(--fg);border-radius:4px;cursor:pointer}
+  .status{padding:6px 12px;font-size:11px;color:var(--mute)}
+  .bin{padding:24px;text-align:center;color:var(--mute);font-size:12px}
+</style>
+</head>
+<body>
+  <h1>Diff 查看器 — 复用 agent 的 DiffSplitView</h1>
+  <p class="lead">按你的要求，SCM 的文件差异<b>直接复用</b> agent 面板里已有的差异视图组件。</p>
+  <div class="note">
+    复用组件：<code>src/components/ai/agent-panel/chat-area/views/DiffSplitView.vue</code><br>
+    它已是 GitHub 风格双栏、<code>diffLines</code> 统计 + <code>diffWords</code> 词级高亮、daisyUI <code>error/success</code> 配色、i18n <code>agentPanel.diffSplit.*</code>。<br>
+    SCM 侧只需以 <code>oldContent</code>(HEAD/index) + <code>newContent</code>(工作区) 传入；SCM 场景走<b>只读</b>（不传 <code>editableRight</code>）。下面按其真实观感还原。
+  </div>
+
+  <!-- 形态 1：并排（DiffSplitView 本体） -->
+  <figure>
+    <figcaption>并排（split）· DiffSplitView 只读 — ch002.md（工作区 ↔ HEAD）</figcaption>
+    <div class="tab">
+      <div class="diff-head">
+        <span class="title">ch002.md · 工作区 ↔ HEAD</span>
+        <button class="on">并排</button><button>内联</button>
+        <button>↑</button><button>↓</button><button>暂存文件</button>
+      </div>
+      <div class="ds-stat">
+        <div><span class="tag del">−1</span><span>3 行</span></div>
+        <div><span class="tag add">+2</span><span>4 行</span></div>
+      </div>
+      <div class="ds-body">
+        <div class="col left">这是一段正文。
+<span class="seg-del">旧的句子被删掉了。</span>
+结尾。</div>
+        <div class="col right">这是一段正文。
+<span class="seg-add">新的句子替换进来。
+又加了一行。</span>
+结尾。</div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- 形态 2：内联 + hunk 暂存（SCM 增强） -->
+  <figure>
+    <figcaption>内联（unified）+ hunk 级暂存/放弃 — SCM 在 DiffSplitView 之上补充的块操作</figcaption>
+    <div class="tab">
+      <div class="diff-head">
+        <span class="title">ch002.md · 工作区 ↔ HEAD</span>
+        <button>并排</button><button class="on">内联</button><button>↑</button><button>↓</button>
+      </div>
+      <div class="hunk-head"><span>@@ -10,3 +10,4 @@</span><span class="sp"></span><button>暂存块</button><button>放弃块</button></div>
+      <div class="uni">
+        <div class="row"><span class="gut">10</span><span class="sign"> </span>这是一段正文。</div>
+        <div class="row del"><span class="gut">11</span><span class="sign">−</span>旧的句子被删掉了。</div>
+        <div class="row add"><span class="gut">11</span><span class="sign">+</span>新的句子替换进来。</div>
+        <div class="row add"><span class="gut">12</span><span class="sign">+</span>又加了一行。</div>
+        <div class="row"><span class="gut">13</span><span class="sign"> </span>结尾。</div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- 形态 3：合并冲突编辑器（SCM 专属，非 DiffSplitView） -->
+  <figure>
+    <figcaption>合并冲突编辑器 — SCM 专属（DiffSplitView 不覆盖冲突场景）</figcaption>
+    <div class="tab">
+      <div class="diff-head"><span class="title">ch001.md · 解决冲突</span><button>↑</button><button>↓</button></div>
+      <div class="merge">
+        <div class="mreg cur">
+          <div class="mreg-head"><span>当前更改 (HEAD)</span><button>采用当前</button></div>
+          <div class="mreg-body">我方写的这一段。</div>
+        </div>
+        <div class="mreg inc">
+          <div class="mreg-head"><span>传入更改 (feature)</span><button>采用传入</button></div>
+          <div class="mreg-body">对方写的这一段。</div>
+        </div>
+        <div class="merge-foot"><button>保留两者</button><button>手动编辑</button></div>
+      </div>
+      <div class="status">剩余 1 处冲突</div>
+    </div>
+  </figure>
+
+  <!-- 二进制降级 -->
+  <figure>
+    <figcaption>二进制 / 图片 — 无法行级对比</figcaption>
+    <div class="tab"><div class="diff-head"><span class="title">cover.png · 工作区 ↔ HEAD</span></div>
+      <div class="bin">二进制文件，无法显示行级差异。<br><small>（图片前后并排预览为 P2 增强）</small></div>
+    </div>
+  </figure>
+
+</body>
+</html>

@@ -1,0 +1,341 @@
+# DESIGN.md — 工作空间版本控制 · 技术设计
+
+> 状态：设计中 v0.1（2026-07-10）
+> 配套需求：[SOURCE_CONTROL.md](./SOURCE_CONTROL.md) · 视觉稿：[./ui/](./ui/)
+> 已定决策：simple-git（系统 git）· 单仓库 · 复用 DiffSplitView · 仅系统凭证 · Commit All · `.iwt` 格式化后 diff
+
+---
+
+## 1. 分层架构
+
+```
+渲染进程 (Vue)                            主进程 (Electron)
+┌─────────────────────────────┐         ┌──────────────────────────────┐
+│ SourceControlPanel (容器)    │         │ GitService (simple-git 封装)  │
+│  ├ ScmRepositoriesView       │  IPC    │  detect / status / stage /    │
+│  ├ ScmChangesView (Tree)     │ ──────▶ │  commit / diff / log /        │
+│  └ ScmGraphView              │ git:*   │  branch / fetch/pull/push …   │
+│ ExplorerPanel › TimelineView │ ◀────── │                               │
+│ DiffViewerPage (DiffSplitView)│ result │  依赖：机器安装的 `git`        │
+│ statusbar-items/git-status   │         │  simpleGit(root) 实例缓存      │
+│ stores/git.ts (useGitStore)  │         └──────────────────────────────┘
+└─────────────────────────────┘
+      │ 复用：common/tree · DiffSplitView · showMessageBox · statusbar · workspace filtering
+```
+
+- **所有 git 命令在主进程执行**（`GitService`），渲染层只经 IPC 调用、持有状态。
+- 渲染层单一状态源：`stores/git.ts`。组件只读 store + 派发 action。
+- 单仓库：仓库根 = `appStore.currentFolder`（工作空间根）。
+
+---
+
+## 2. 文件清单
+
+### 2.1 新增
+| 文件 | 职责 |
+| --- | --- |
+| `src/components/common/split-view/{SplitView.vue,types.ts,index.ts}` | ✅**已建**·通用上下分割容器：多 viewer，逐个 collapse/expand/close + 拖拽调高。Explorer/SCM 复用 |
+| `electron/GitService.ts` | ✅**已建**·simple-git 封装：detect/isRepo/init/status/branches/diff/log/commitFiles/commitFileDiff |
+| `src/types/git.ts` | ✅**已建**·共享类型：GitStatus / GitFileChange / GitBranchInfo / GitCommit / GitApi |
+| `src/stores/git.ts` | ✅**已建**·Pinia setup store：env/status/branch/graph + onFolderChanged/refresh/loadGraph/toggleCommit/loadFileHistory |
+| `src/components/sidebar/scm/GitChangeGroup.vue` | ✅**已建**·变更分组行（只读，M2 加 stage/discard 操作） |
+| `src/components/sidebar/SourceControlPanel.vue` | ✅**已建骨架**·SCM 视图容器（SplitView 挂三个 viewer + ⋯ 菜单，内容占位待 store） |
+| `src/components/sidebar/scm/ScmRepositoriesView.vue` | 存储库 viewer（待 store） |
+| `src/components/sidebar/scm/ScmChangesView.vue` | 更改 viewer（提交框 + 变更 Tree，待 store） |
+| `src/components/sidebar/scm/ScmGraphView.vue` | 图谱 viewer（提交列表 + 点击展开文件，待 store） |
+| `src/components/sidebar/TimelineView.vue` | ✅**已建占位**·Explorer 内 Timeline viewer（待 store 接真实历史） |
+| `src/components/pages/DiffViewerPage.vue` | 编辑器区 diff tab，内嵌 `DiffSplitView` |
+| `src/components/sidebar/scm/dialogs/*.vue` | clone / create-branch / checkout / commit-identity / publish / stash |
+| `src/components/statusbar-items/git-status.ts` | 状态栏分支 / 同步 item 工厂 |
+
+### 2.2 改动
+| 文件 | 改动 |
+| --- | --- |
+| `src/types/window-content-state.ts` | ✅ `SidebarMode` 增 `SOURCE_CONTROL='sourceControl'` |
+| `src/components/LeftSidebar.vue` | ✅ `mainSidebarModes` 增一档(IconGitBranch) + `v-show` 渲染 SourceControlPanel + 打开文件夹门控 |
+| `src/components/sidebar/ExplorerPanel.vue` | ✅ 改用 SplitView（Workspace + Timeline）；`⋯` 菜单勾选 Workspace(必)/Timeline(可选) |
+| `src/i18n/messages/{zh-CN,en-US}.ts` | ✅ 新增 `sourceControl.*` + `explorer.view/timeline.*` |
+| `electron/App.ts` | `this.gitService = new GitService()`；`setupIpcHandlers()` 注册 `git:*` |
+| `electron/preload.ts` | 暴露 `git` 命名空间 |
+| `src/types/electron-api.ts` | `ElectronAPI.git: GitApi` |
+| `electron/MenuManager.ts` | 注册 Git 命令菜单项（Commit/Push/Pull/Sync/Checkout…） |
+| `src/components/StatusBar.vue` | onMounted 注册 `createGitStatusStatusBarGroup()` |
+| `src/stores/app.ts` | 打开文件夹后触发 `gitStore.onFolderChanged(root)`；文件事件转发 |
+| `package.json` | 依赖 `simple-git` |
+
+---
+
+## 3. 主进程 · GitService（simple-git 封装）
+
+```ts
+// electron/GitService.ts
+import simpleGit, { SimpleGit } from 'simple-git'
+
+export class GitService {
+  private cache = new Map<string, SimpleGit>()   // root → 实例
+  private git(root: string): SimpleGit { /* 缓存 simpleGit({baseDir:root}) */ }
+
+  // 环境
+  detect(): Promise<GitAvailability>              // git --version；返回 {available, version, path}
+  isRepo(root: string): Promise<boolean>          // checkIsRepo
+  init(root: string): Promise<void>
+  clone(url: string, dir: string): Promise<void>
+
+  // 状态 / 暂存 / 提交
+  status(root: string): Promise<GitStatus>        // status() → 归一化分组
+  stage(root, paths: string[]): Promise<void>
+  unstage(root, paths: string[]): Promise<void>
+  discard(root, paths: string[]): Promise<void>   // checkout -- / 对 untracked 用 clean
+  commit(root, message, opts: {all?: boolean; amend?: boolean}): Promise<void>
+  getUserIdentity(root): Promise<{name?:string; email?:string}>
+  setUserIdentity(root, name, email, global: boolean): Promise<void>
+
+  // Diff（供 DiffSplitView）
+  diff(root, path, opts:{staged:boolean}): Promise<GitDiffPayload>
+  // → {oldContent, newContent, isBinary}；工作区: new=磁盘, old=index/HEAD 内容
+
+  // 历史
+  log(root, opts:{path?:string; branch?:string; allBranches?:boolean; limit:number; skip:number}): Promise<GitCommit[]>
+  commitFiles(root, hash): Promise<GitFileChange[]>            // show --name-status
+  commitFileDiff(root, hash, path): Promise<GitDiffPayload>    // 父提交 ↔ 本提交
+
+  // 分支
+  branches(root): Promise<GitBranchInfo>          // {current, ahead, behind, local[], remote[]}
+  checkout(root, ref: string): Promise<void>
+  createBranch(root, name, base?, checkout?): Promise<void>
+  deleteBranch(root, name, force: boolean): Promise<void>
+
+  // 远程
+  fetch(root): Promise<void>
+  pull(root, opts:{rebase:boolean}): Promise<void>
+  push(root, opts:{setUpstream?:boolean}): Promise<void>
+  sync(root, opts:{rebase:boolean}): Promise<void>   // pull 然后 push
+
+  // 冲突 / 合并（M4）
+  mergeAbort(root): Promise<void>
+  markResolved(root, paths): Promise<void>           // add 标记已解决
+
+  dispose(root?: string): void                        // 清缓存
+}
+```
+
+**关键实现约束**
+- `.iwt` diff（Q6）：`diff()` 对 `.iwt` 先把 JSON `JSON.parse → JSON.stringify(…, null, 2)` 格式化后再作为 old/new 文本，避免整行差异。归属工具函数 `formatForDiff(path, raw)`。
+- `isBinary`：按扩展名 + git `--numstat` 的 `-` 判定，走二进制降级。
+- 错误规整：捕获 simple-git 抛出的 `GitError`，转 `{ code, message, stderr }` 结构回传，渲染层据此弹 `showMessageBox`（认证失败 / 非快进 / 无 upstream 等）。
+- 凭证（Q4）：不设置任何 `GIT_ASKPASS`，让 git 走系统 credential helper / ssh-agent；失败即失败并回传 stderr。
+
+---
+
+## 4. IPC 契约
+
+命名空间 `git:`（对齐既有 `pandoc:*`）。全部 `ipcMain.handle` + `invoke`（请求/响应），无常驻流。
+
+| Channel | 参数 | 返回 |
+| --- | --- | --- |
+| `git:detect` | — | `GitAvailability` |
+| `git:is-repo` | root | `boolean` |
+| `git:init` / `git:clone` | root / (url,dir) | void |
+| `git:status` | root | `GitStatus` |
+| `git:stage` / `git:unstage` / `git:discard` | root, paths[] | void |
+| `git:commit` | root, message, opts | void |
+| `git:identity-get` / `git:identity-set` | root(, name,email,global) | … |
+| `git:diff` | root, path, {staged} | `GitDiffPayload` |
+| `git:log` | root, opts | `GitCommit[]` |
+| `git:commit-files` | root, hash | `GitFileChange[]` |
+| `git:commit-file-diff` | root, hash, path | `GitDiffPayload` |
+| `git:branches` | root | `GitBranchInfo` |
+| `git:checkout` / `git:create-branch` / `git:delete-branch` | … | void |
+| `git:fetch` / `git:pull` / `git:push` / `git:sync` | root, opts | void |
+| `git:merge-abort` / `git:mark-resolved` | root(, paths) | void |
+
+> 长耗时（clone/pull/push）：先返回 `void` 完成态；渲染层显示「进行中」由 action 的 pending 标志驱动。进度事件（`git:progress`）列为 P1 增强，非首期。
+
+`preload.ts`：
+```ts
+git: {
+  detect: () => ipcRenderer.invoke('git:detect'),
+  status: (root) => ipcRenderer.invoke('git:status', root),
+  stage: (root, paths) => ipcRenderer.invoke('git:stage', root, paths),
+  // … 逐一对应
+}
+```
+`electron-api.ts`：`interface ElectronAPI { … git: GitApi }`，`GitApi` 逐方法签名。
+
+---
+
+## 5. 共享类型（`src/types/git.ts`）
+
+```ts
+export interface GitAvailability { available: boolean; version?: string; path?: string }
+
+export type GitFileStatus = 'M'|'A'|'D'|'R'|'U'|'C'|'?'   // ?=untracked, C=conflict
+export interface GitFileChange {
+  path: string; dir: string; name: string
+  status: GitFileStatus
+  staged: boolean
+  isBinary?: boolean
+  oldPath?: string        // rename
+}
+export interface GitStatus {
+  staged: GitFileChange[]
+  changes: GitFileChange[]      // 未暂存的 tracked 改动
+  untracked: GitFileChange[]
+  conflicts: GitFileChange[]    // merge changes
+  isMerging: boolean
+}
+export interface GitBranchInfo {
+  current: string; detached: boolean
+  ahead: number; behind: number; upstream?: string
+  local: string[]; remote: string[]
+}
+export interface GitCommit {
+  hash: string; shortHash: string
+  subject: string; author: string; date: string; relativeDate: string
+}
+export interface GitDiffPayload { oldContent: string; newContent: string; isBinary: boolean; path: string }
+```
+
+---
+
+## 6. 渲染层 · `stores/git.ts`（Pinia setup store）
+
+```ts
+export const useGitStore = defineStore('git', () => {
+  // 环境 / 仓库
+  const availability = ref<GitAvailability>({ available:false })
+  const root = ref<string | null>(null)
+  const isRepo = ref(false)
+
+  // 状态
+  const status = ref<GitStatus | null>(null)
+  const branch = ref<GitBranchInfo | null>(null)
+
+  // 图谱
+  const commits = ref<GitCommit[]>([])
+  const expandedHash = ref<string | null>(null)
+  const expandedFiles = ref<GitFileChange[]>([])
+
+  // viewer 显隐（持久化）
+  const showRepositories = ref(true)
+  const showGraph = ref(false)
+  const showTimeline = ref(true)   // Explorer 内
+
+  // pending 标志（驱动「进行中」）
+  const pending = ref<Set<string>>(new Set())  // 'sync' | 'push' | …
+
+  // 派生
+  const changeCount = computed(() => (status.value ? status.value.staged.length + status.value.changes.length + status.value.untracked.length + status.value.conflicts.length : 0))
+
+  // 生命周期
+  async function onFolderChanged(newRoot: string | null) { /* detect → isRepo → refresh */ }
+  const refresh = debounce(async () => { status.value = await api.status(root); branch.value = await api.branches(root) }, 200)
+
+  // action：调用 electronAPI.git.*，成功后 refresh()
+  async function stage(paths) {…}  async function commit(msg,opts){…}
+  async function checkout(ref){…}  async function sync(){…}  // pending 包裹
+  // …
+})
+```
+
+**刷新调度（NFR1/NFR2）**
+- 复用现有 chokidar：`app.ts` 已有工作空间文件监听 → 转发变更事件给 `gitStore.refresh()`（去抖 200ms）。
+- 额外监听 `.git/HEAD`、`.git/index`、`.git/MERGE_HEAD` 捕获外部 git 操作。
+- 每个写 action 完成后主动 `refresh()`。
+- 窗口 focus 时刷新一次。
+
+---
+
+## 7. 组件树与复用
+
+```
+LeftSidebar
+├─ ExplorerPanel                       (改：追加 Timeline)
+│   ├─ [Workspace viewer]  ← 现有文件树 (common/tree/Tree.vue)
+│   └─ TimelineView         ← 新增，跟随 appStore.activeTab 文件
+└─ SourceControlPanel                  (新增容器)
+    ├─ ScmRepositoriesView   ← 单仓库行 + 分支 + ahead/behind
+    ├─ ScmChangesView        ← 提交框(自扩展 textarea) + 变更 Tree(common/tree)
+    └─ ScmGraphView          ← useGitStore.commits；点击 → 展开 commitFiles
+
+编辑器区：DiffViewerPage      ← 内嵌 DiffSplitView（只读）
+弹窗：dialogs/*.vue（输入类）  ← PrintDialogShell 风格
+      确认类                  ← window.electronAPI.showMessageBox
+状态栏：statusbar-items/git-status ← createGitStatusStatusBarGroup()
+```
+
+**复用点（不重复造轮子）**
+- 变更列表 / commit 文件列表：`common/tree/Tree.vue`（`TreeNode`：分组节点 + 文件叶子）。
+- Diff：`ai/agent-panel/chat-area/views/DiffSplitView.vue`，只读（不传 `editableRight`），入参 `oldContent/newContent`。
+- 确认弹窗：`window.electronAPI.showMessageBox`（放弃/删除/中止合并/远程失败）。
+- 输入弹窗外壳：`print/PrintDialogShell.vue` 同款（`bg-black/45 backdrop-blur` + `iw-input` + `iw-btn`）。
+- 状态栏：`common/statusbar` 工厂（`useStatusBar` + `StatusBarAlignment` + rich content `$(git-branch)`）。
+- 忽略规则：`getEffectiveWorkspaceIgnoreRules`（与 `.gitignore` 统一来源）。
+
+**Diff tab 打开方式**：点击变更/提交文件 → 打开一个 `DiffViewerPage` 类型的 tab（新 `DocumentType.Diff`，只读、不落盘），标题 `filename (Working Tree)` / `filename (hash)`。基于 `appStore` 现有多 tab 机制。
+
+---
+
+## 8. 交互流程（关键路径）
+
+**暂存并提交**
+1. 用户点文件行 `＋` → `gitStore.stage([path])` → `git:stage` → 成功 `refresh()`。
+2. 输入信息，点「提交」→ 若无暂存则 Commit All（Q5）→ 校验 identity（缺失弹 commit-identity dialog）→ `git:commit` → `refresh()` + 清空输入。
+
+**打开 diff**
+1. 点变更文件 → `appStore.openDiffTab({root, path, staged})`。
+2. `DiffViewerPage` onMounted → `git:diff` → 得 `GitDiffPayload` → 传入 `DiffSplitView`。
+
+**Graph 展开提交**
+1. 点提交行 → `gitStore.expandedHash = hash` → `git:commit-files` → 渲染文件 list/tree。
+2. 点文件 → 打开 diff tab（`git:commit-file-diff`，父↔本）。
+
+**同步**
+1. 点同步 → `pending.add('sync')` → `git:sync{rebase}` → 成功 `refresh()`；失败 `showMessageBox(error.stderr)`。
+
+---
+
+## 9. 错误处理与降级
+
+| 场景 | 处理 |
+| --- | --- |
+| git 未安装 | `detect().available=false` → 面板显示安装引导（OfficeViewerPage 范式），禁用 action |
+| 非仓库 | 面板显示 init / clone |
+| identity 缺失 | commit 前拦截 → commit-identity dialog |
+| 认证失败 / 无权限 | `showMessageBox(type:'error', detail: stderr)`，不自建密码 UI |
+| 非快进 push | 提示先 pull；不自动 force |
+| 合并冲突 | status.isMerging=true → Changes 显示 Merge 分组（M4） |
+| 大仓库 | status/log 分页（limit/skip）、主进程异步、UI 去抖 |
+
+---
+
+## 10. i18n
+
+新增命名空间 `sourceControl.*`（对齐 `agentPanel.*` / `statusBar.*` 组织）：
+`sourceControl.title` / `changes` / `staged` / `untracked` / `merge` / `commit` / `commitAll` / `sync` / `push` / `pull` / `discardConfirm` / `noChanges` / `noCommits` / `gitNotFound` / `installGit` …（中英双语）。
+
+---
+
+## 11. 里程碑 → 任务分解
+
+| 里程碑 | 任务（文件） |
+| --- | --- |
+| **M1 只读基础** | ✅**完成** · `simple-git` · `GitService`(detect/isRepo/init/status/branches/diff/log/commitFiles/commitFileDiff) · `git.ts` 类型 · IPC(`git:*`)+preload(`git`)+electron-api · `stores/git.ts` · `SidebarMode`+LeftSidebar · `SourceControlPanel` 三 viewer(Repositories/Changes 只读/Graph 提交+展开文件+点文件看 diff) · `TimelineView`(跟随活动文件) · **`GitDiffModal` 复用 DiffSplitView**(点变更/提交文件→浮层 diff) · `statusbar-items/git-status`(分支+↑↓，command 聚焦 SCM) · MainView 统一驱动 onFolderChanged |
+| **M2 本地写** | ✅**完成** · GitService(stage/unstage/stageAll/unstageAll/discard/commit/identity/checkout/createBranch/deleteBranch/addToGitignore) · IPC+preload+api · store 写 action(run 包裹+notify 报错) · 提交框(自扩展 textarea+智能 Commit All+▾菜单) · 逐文件&分组 stage/unstage/discard/gitignore · 放弃走 `showMessageBox` 二次确认 · 提交身份 `GitIdentityDialog` · 分支切换/新建。**未 surface**：deleteBranch(已实现，菜单未挂) |
+| **M3 远程** | ✅**完成** · GitService(fetch/pull/push/sync/publish/clone) · IPC+preload+api · store remoteRun(busy 态 + 失败 `showMessageBox` 弹 stderr) · ⋯ 菜单远程操作(有 upstream→sync/pull/push；无→publish；+fetch) · 标题栏同步按钮(busy spinner) · 克隆弹窗→选目录→`appStore.openFolderByPath` 打开 · 状态栏 sync item 直接触发同步 |
+| **M4 进阶** | 冲突分组 + 合并解决 · 编辑器 gutter 装饰 · commit-file-diff |
+| **M5 增强** | stash · hunk 级 stage · 进度事件 · 图片 diff · 多仓库（预留） |
+
+---
+
+## 12. 开放技术点（实现时定）
+
+- **Diff tab vs 浮层**：M1 实际采用**浮层 `GitDiffModal`**（复用 DiffSplitView，低风险、不改 tab 生命周期），非编辑器区 tab。tab 化需新增合成 DocumentType + 去重/持久化，列为后续可选增强；先用浮层验证手感。
+- **status 解析**：simple-git `status()` 已给结构化结果，但 rename/conflict 细节需核对字段；必要时 `git status --porcelain=v2` 自解析。
+- **`.git` 目录监听**：与现有 chokidar 的 ignore 规则可能冲突（`.git` 常被忽略）——需为 `.git/HEAD|index|MERGE_HEAD` 开单独 watch。
+- **DiffViewerPage 大文件**：DiffSplitView 现为整段 `diffWords`，超大文件需截断/分块（M1 观察）。
+- **`.iwt` 格式化 diff 的稳定性**：确保 save 侧与 diff 侧格式化规则一致，否则误报差异。
+
+---
+
+*下一步：M1 落地。建议先打通 `GitService.detect/status` + IPC + store + 面板只读渲染，最小闭环跑通再铺开。*

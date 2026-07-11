@@ -1,6 +1,7 @@
 import { debounce } from 'lodash'
 import { defineStore } from 'pinia'
 import { ref, computed, watch, reactive } from 'vue'
+import { useGitStore } from './git'
 import { generateJSON, type Editor } from '@tiptap/core'
 import { undoDepth } from '@tiptap/pm/history'
 import type { FileTab, FileOperationResult, FileChange, EditSetting, MarkdownEditorPageMode } from '@/types'
@@ -1327,37 +1328,42 @@ export const useAppStore = defineStore('app', () => {
 
     const result = await window.electronAPI.showOpenDialog({ properties: ['openDirectory'] })
     if (!result.canceled && result.filePaths.length > 0) {
-      const folderPath = result.filePaths[0]!
-
-      if (folderPath === currentFolder.value) {
-        if (isWorkspaceDeleted.value) {
-          await checkWorkspaceDirectoryRestored(false)
-          return
-        }
-        notify.success(t('notify.file.alreadyOpened', { path: folderPath }), t('notify.file.operation'))
-        return
-      }
-
-      let resultClosed: boolean = false
-      if (currentFolder.value) {
-        resultClosed = await closeFolder()
-      } else {
-        resultClosed = await closeAllTab();
-      }
-      if (resultClosed === false)
-        return
-
-      currentFolder.value = folderPath
-      workspaceStatus.value = 'available'
-      stopWorkspaceRestorePolling()
-      leftSidebarMode.value = SidebarMode.EXPLORER
-      await loadFileTree()
-      startAdvancedFileWatching() // Start advanced file watching
-      
-      // 成功通知
-      const folderName = pathUtils.basename(folderPath)
-      notify.success(t('notify.file.opened', { name: folderName }), t('notify.file.operation'))
+      await openFolderByPath(result.filePaths[0]!)
     }
+  }
+
+  /** 打开指定路径的文件夹为工作空间（供 openFolder / git clone 复用） */
+  async function openFolderByPath(folderPath: string) {
+    if (!window.electronAPI) return
+
+    if (folderPath === currentFolder.value) {
+      if (isWorkspaceDeleted.value) {
+        await checkWorkspaceDirectoryRestored(false)
+        return
+      }
+      notify.success(t('notify.file.alreadyOpened', { path: folderPath }), t('notify.file.operation'))
+      return
+    }
+
+    let resultClosed: boolean = false
+    if (currentFolder.value) {
+      resultClosed = await closeFolder()
+    } else {
+      resultClosed = await closeAllTab();
+    }
+    if (resultClosed === false)
+      return
+
+    currentFolder.value = folderPath
+    workspaceStatus.value = 'available'
+    stopWorkspaceRestorePolling()
+    leftSidebarMode.value = SidebarMode.EXPLORER
+    await loadFileTree()
+    startAdvancedFileWatching() // Start advanced file watching
+
+    // 成功通知
+    const folderName = pathUtils.basename(folderPath)
+    notify.success(t('notify.file.opened', { name: folderName }), t('notify.file.operation'))
   }
   
   async function closeFolder(): Promise<boolean> {
@@ -2365,6 +2371,11 @@ export const useAppStore = defineStore('app', () => {
     const isInWorkspace = !!currentFolder.value && isPathInsideWorkspace(change.path, currentFolder.value)
     const affectsOpenTab = doesChangeAffectOpenTab(change)
 
+    // 工作空间内文件变化 → 刷新版本控制状态（去抖，内部判 isRepo）
+    if (isInWorkspace) {
+      useGitStore().refresh()
+    }
+
     if (!isInWorkspace && !affectsOpenTab) {
       return
     }
@@ -3337,6 +3348,7 @@ export const useAppStore = defineStore('app', () => {
     openFile,
     openFileAt,
     openFolder,
+    openFolderByPath,
     closeFolder,
     rebuildWorkspaceDirectory,
     checkWorkspaceDirectoryRestored,

@@ -20,18 +20,34 @@
           <span>{{ t('sidebar.noFolderOpened.openFolder') }}</span>
         </button>
 
+        <button
+          v-if="gitStore.availability.available"
+          @click="gitStore.cloneDialogOpen = true"
+          class="iw-btn btn-ghost w-full h-9"
+        >
+          <IconGitBranch class="icon-sm" />
+          <span>{{ t('sourceControl.cloneRepo') }}</span>
+        </button>
+
         <p class="text-left text-sm text-base-content/50">{{ t('sidebar.noFolderOpened.warning') }}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import { 
-  IconFolder 
+import { useGitStore } from '@/stores/git'
+import {
+  IconFolder,
+  IconGitBranch,
 } from '@tabler/icons-vue'
 
 const appStore = useAppStore()
+const gitStore = useGitStore()
 const { t } = useI18n()
+
+// 无文件夹时也检测 git，以决定是否显示「克隆仓库」
+onMounted(() => { gitStore.ensureDetected() })
 </script>

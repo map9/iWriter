@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<!--
+  Source Control UI — 视觉设计稿索引
+  配套需求：../SOURCE_CONTROL.md
+  信息架构：Explorer 与 SCM 均为「视图容器 + 多 viewer」（VSCode view-container 模型）。
+    Explorer 容器 = 工作区 Workspace(必选) + 时间线 Timeline(可选)
+    SCM 容器     = 存储库 Repositories + 更改 Changes + 图谱 Graph
+  各文件顶部含「实现映射」，将预览元素对应到真实组件/class。
+-->
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <title>Source Control UI — 索引</title>
+  <style>
+    body{font:14px/1.6 -apple-system,"Segoe UI",system-ui,sans-serif;background:#eceef1;color:#1c1e21;margin:0;padding:32px;max-width:760px}
+    h1{font-size:17px} p{color:#5b6470;font-size:13px}
+    ul{list-style:none;padding:0} li{margin:0 0 10px}
+    a{display:block;background:#fff;border:1px solid #e4e7eb;border-radius:8px;padding:12px 14px;text-decoration:none;color:#1c1e21}
+    a:hover{border-color:#605dff}
+    a b{color:#605dff} a small{display:block;color:#7a828d;font-size:12px;margin-top:2px}
+  </style>
+</head>
+<body>
+  <h1>iWriter · Source Control UI 视觉设计稿</h1>
+  <p>对标 VSCode Source Control。配色为 daisyUI 浅色，贴合工程。信息架构：Explorer / SCM 均为视图容器 + 多个可折叠 viewer。</p>
+
+  <nav aria-label="索引">
+    <ul>
+      <li><a href="panel.html"><b>panel.html</b> — SCM 容器
+        <small>三个 viewer：存储库 Repositories / 更改 Changes / 图谱 Graph · 含 ⋯ 菜单与空/引导态</small></a></li>
+      <li><a href="history.html"><b>history.html</b> — Explorer 容器 + 空状态
+        <small>工作区 Workspace(必选) + 时间线 Timeline(可选) · ⋯ 勾选菜单 · 无仓库/无提交/Timeline 空</small></a></li>
+      <li><a href="dialogs.html"><b>dialogs.html</b> — 对话框
+        <small>纯确认走原生 showMessageBox；需输入走工程 dialog 外壳</small></a></li>
+      <li><a href="diff-view.html"><b>diff-view.html</b> — Diff 查看器
+        <small>复用 agent 的 DiffSplitView + hunk 暂存 / 冲突编辑器 / 二进制降级</small></a></li>
+      <li><a href="preferences.html"><b>preferences.html</b> — 偏好设置
+        <small>版本控制分区：引擎 / 提交行为 / 同步 / Diff / 装饰 / 忽略规则</small></a></li>
+      <li><a href="statusbar.html"><b>statusbar.html</b> — 状态栏 Git 组件
+        <small>工厂式 statusbar-item（分支 / 同步），command 派发</small></a></li>
+    </ul>
+  </nav>
+</body>
+</html>
