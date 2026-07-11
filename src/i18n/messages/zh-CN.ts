@@ -1101,8 +1101,6 @@ export default {
     lineNumbers: '行号',
     prevChange: '上一处变更',
     nextChange: '下一处变更',
-    index: '变更索引',
-    hunkAt: '第 {line} 行',
     refresh: '刷新',
     basisWorking: '工作区 ↔ 暂存区',
     basisStaged: '暂存区 ↔ HEAD',

@@ -51,15 +51,6 @@
       <span class="select-none text-2xs tabular-nums text-base-content/60">
         {{ hunkCount ? `${currentHunk + 1}/${hunkCount}` : '0' }}
       </span>
-      <button
-        class="iw-toolbar-btn btn-xs"
-        :class="showIndex ? 'text-primary' : ''"
-        :disabled="!hunkCount"
-        :title="t('diffView.index')"
-        @click="showIndex = !showIndex"
-      >
-        <IconListSearch class="icon-xs" />
-      </button>
 
       <div class="ml-auto flex items-center gap-2 text-2xs font-mono tabular-nums">
         <span class="text-success">+{{ stats.added }}</span>
@@ -67,9 +58,13 @@
       </div>
     </div>
 
-    <!-- 主体 -->
+    <!-- 主体：滚动内容 + 右侧 overview ruler -->
     <div class="flex min-h-0 flex-1">
-      <div ref="scrollEl" class="min-w-0 flex-1 overflow-auto font-mono leading-[1.5]">
+      <div
+        ref="scrollEl"
+        class="relative min-w-0 flex-1 overflow-auto scrollbar-hide font-mono leading-[1.5]"
+        @scroll="updateMetrics"
+      >
         <!-- 并排 -->
         <template v-if="mode === 'split'">
           <div
@@ -118,38 +113,41 @@
         </template>
       </div>
 
-      <!-- 差异索引面板（可选） -->
+      <!-- Overview ruler：整篇缩略 + 变更红/绿标记 + 视口指示块（对标 VSCode） -->
       <div
-        v-if="showIndex && hunkCount"
-        class="w-40 shrink-0 overflow-auto border-l border-base-300 bg-base-200/50 text-2xs"
+        v-if="hunkCount"
+        ref="rulerEl"
+        class="relative w-3.5 shrink-0 cursor-pointer bg-base-100"
+        @mousedown="onRulerDown"
       >
-        <button
-          v-for="(h, i) in blocks"
+        <div
+          v-for="(m, i) in marks"
           :key="i"
-          class="flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-base-200"
-          :class="i === currentHunk ? 'bg-base-200 text-primary' : 'text-base-content/70'"
-          @click="scrollToHunk(i)"
+          class="pointer-events-none absolute inset-x-0 flex"
+          :style="{ top: m.top + '%', height: m.height + '%' }"
         >
-          <IconChevronRight class="icon-2xs shrink-0" />
-          <span class="tabular-nums">{{ t('diffView.hunkAt', { line: h.line }) }}</span>
-        </button>
+          <div class="w-1/2" :class="m.removed ? 'bg-error' : ''"></div>
+          <div class="w-1/2" :class="m.added ? 'bg-success' : ''"></div>
+        </div>
+        <div
+          class="pointer-events-none absolute inset-x-0 bg-base-content/20"
+          :style="{ top: thumb.top + '%', height: thumb.height + '%' }"
+        ></div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { diffLines, diffWords } from 'diff'
 import {
   IconLayoutColumns,
   IconLayoutRows,
   IconListNumbers,
-  IconListSearch,
   IconChevronUp,
   IconChevronDown,
-  IconChevronRight,
 } from '@tabler/icons-vue'
 
 const { t } = useI18n()
@@ -165,15 +163,16 @@ const props = withDefaults(defineProps<{
 
 const mode = ref<'split' | 'inline'>(props.initialMode)
 const showLineNumbers = ref(true)
-const showIndex = ref(false)
 const currentHunk = ref(0)
 const scrollEl = ref<HTMLElement | null>(null)
+const rulerEl = ref<HTMLElement | null>(null)
 
 type LineType = 'context' | 'added' | 'removed'
 interface Seg { value: string; hl: boolean }
 interface DLine { oldNo: number | null; newNo: number | null; type: LineType; segs: Seg[] }
 interface Pair { left: DLine | null; right: DLine | null; blockStart: boolean }
 interface InlineRow extends DLine { blockStart: boolean }
+interface Block { splitStart: number; splitLen: number; inlineStart: number; inlineLen: number; removed: boolean; added: boolean }
 
 function splitLines(v: string): string[] {
   if (v === '') return []
@@ -185,7 +184,7 @@ const computed_ = computed(() => {
   const parts = diffLines(props.oldContent ?? '', props.newContent ?? '')
   const pairs: Pair[] = []
   const inlineRows: InlineRow[] = []
-  const blocks: { line: number }[] = []
+  const blocks: Block[] = []
   let oldNo = 1
   let newNo = 1
   let added = 0
@@ -195,9 +194,10 @@ const computed_ = computed(() => {
 
   const flush = () => {
     if (!removedBuf.length && !addedBuf.length) return
-    // 记录一个变更块锚点（首个变更行的显示行号）
-    const anchorLine = addedBuf[0]?.newNo ?? removedBuf[0]?.oldNo ?? 0
-    blocks.push({ line: anchorLine })
+    const splitStart = pairs.length
+    const inlineStart = inlineRows.length
+    const removedFlag = removedBuf.length > 0
+    const addedFlag = addedBuf.length > 0
 
     const n = Math.max(removedBuf.length, addedBuf.length)
     for (let i = 0; i < n; i++) {
@@ -213,6 +213,15 @@ const computed_ = computed(() => {
     }
     removedBuf.forEach((l, i) => inlineRows.push({ ...l, blockStart: i === 0 }))
     addedBuf.forEach((r, i) => inlineRows.push({ ...r, blockStart: removedBuf.length === 0 && i === 0 }))
+
+    blocks.push({
+      splitStart,
+      splitLen: pairs.length - splitStart,
+      inlineStart,
+      inlineLen: inlineRows.length - inlineStart,
+      removed: removedFlag,
+      added: addedFlag,
+    })
     removedBuf = []
     addedBuf = []
   }
@@ -245,6 +254,84 @@ const blocks = computed(() => computed_.value.blocks)
 const stats = computed(() => computed_.value.stats)
 const hunkCount = computed(() => blocks.value.length)
 
+// —— overview ruler —— 按实际 DOM 像素偏移定位（非行序），内容不满时标记落在有内容处
+interface Mark { top: number; height: number; removed: boolean; added: boolean }
+const marks = ref<Mark[]>([])
+function measureMarks() {
+  const el = scrollEl.value
+  if (!el) { marks.value = []; return }
+  const total = el.scrollHeight
+  if (total <= 0) { marks.value = []; return }
+  const rows = el.children // 行元素（split=pair div，inline=row div），顺序与 pairs/inlineRows 一致
+  marks.value = blocks.value.map(b => {
+    const start = mode.value === 'split' ? b.splitStart : b.inlineStart
+    const len = mode.value === 'split' ? b.splitLen : b.inlineLen
+    const first = rows[start] as HTMLElement | undefined
+    const after = rows[start + len] as HTMLElement | undefined
+    const topPx = first ? first.offsetTop : 0
+    const bottomPx = after ? after.offsetTop : total
+    return {
+      top: (topPx / total) * 100,
+      height: Math.max(((bottomPx - topPx) / total) * 100, 0.6),
+      removed: b.removed,
+      added: b.added,
+    }
+  })
+}
+
+const scrollTop = ref(0)
+const scrollHeight = ref(0)
+const clientHeight = ref(0)
+function updateMetrics() {
+  const el = scrollEl.value
+  if (!el) return
+  scrollTop.value = el.scrollTop
+  scrollHeight.value = el.scrollHeight
+  clientHeight.value = el.clientHeight
+}
+const thumb = computed(() => {
+  if (scrollHeight.value <= 0) return { top: 0, height: 100 }
+  return {
+    top: (scrollTop.value / scrollHeight.value) * 100,
+    height: Math.min((clientHeight.value / scrollHeight.value) * 100, 100),
+  }
+})
+
+function scrollToFraction(frac: number) {
+  const el = scrollEl.value
+  if (!el) return
+  el.scrollTop = Math.max(0, frac * el.scrollHeight - el.clientHeight / 2)
+}
+function onRulerPointer(e: MouseEvent) {
+  const r = rulerEl.value?.getBoundingClientRect()
+  if (!r || r.height === 0) return
+  scrollToFraction((e.clientY - r.top) / r.height)
+}
+function onRulerDown(e: MouseEvent) {
+  e.preventDefault()
+  onRulerPointer(e)
+  const move = (ev: MouseEvent) => onRulerPointer(ev)
+  const up = () => {
+    window.removeEventListener('mousemove', move)
+    window.removeEventListener('mouseup', up)
+  }
+  window.addEventListener('mousemove', move)
+  window.addEventListener('mouseup', up)
+}
+
+// —— 变更导航 ——
+function scrollToHunk(i: number) {
+  const anchors = scrollEl.value?.querySelectorAll<HTMLElement>('[data-block-start]')
+  if (!anchors || !anchors.length) return
+  const idx = ((i % anchors.length) + anchors.length) % anchors.length
+  currentHunk.value = idx
+  anchors[idx]?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+}
+function gotoHunk(dir: number) {
+  if (!hunkCount.value) return
+  scrollToHunk(currentHunk.value + dir)
+}
+
 function sideBg(line: DLine | null): string {
   if (!line) return 'bg-base-200/40'
   if (line.type === 'removed') return 'bg-error/15'
@@ -264,19 +351,33 @@ function sign(type: LineType): string {
   return type === 'added' ? '+' : type === 'removed' ? '−' : ''
 }
 
-function scrollToHunk(i: number) {
-  const anchors = scrollEl.value?.querySelectorAll<HTMLElement>('[data-block-start]')
-  if (!anchors || !anchors.length) return
-  const idx = ((i % anchors.length) + anchors.length) % anchors.length
-  currentHunk.value = idx
-  anchors[idx]?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-}
-function gotoHunk(dir: number) {
-  if (!hunkCount.value) return
-  scrollToHunk(currentHunk.value + dir)
+/** 布局变化后同步度量与标记（滚动时只需 updateMetrics） */
+function refreshRuler() {
+  updateMetrics()
+  measureMarks()
 }
 
-// 内容或模式变化后重置定位
-watch([() => props.oldContent, () => props.newContent], () => { currentHunk.value = 0 })
-watch(mode, () => { nextTick(() => scrollEl.value?.scrollTo({ top: 0 }) ) })
+let ro: ResizeObserver | null = null
+onMounted(() => {
+  nextTick(refreshRuler)
+  if (scrollEl.value && typeof ResizeObserver !== 'undefined') {
+    ro = new ResizeObserver(() => refreshRuler())
+    ro.observe(scrollEl.value)
+  }
+})
+onBeforeUnmount(() => {
+  ro?.disconnect()
+  ro = null
+})
+
+// 内容/模式变化后重置定位并刷新度量与标记
+watch([() => props.oldContent, () => props.newContent], () => {
+  currentHunk.value = 0
+  nextTick(refreshRuler)
+})
+watch(mode, () => nextTick(() => {
+  scrollEl.value?.scrollTo({ top: 0 })
+  refreshRuler()
+}))
+watch(showLineNumbers, () => nextTick(refreshRuler))
 </script>

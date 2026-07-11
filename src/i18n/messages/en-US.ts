@@ -1104,8 +1104,6 @@ export default {
     lineNumbers: 'Line numbers',
     prevChange: 'Previous change',
     nextChange: 'Next change',
-    index: 'Change index',
-    hunkAt: 'Line {line}',
     refresh: 'Refresh',
     basisWorking: 'Working Tree ↔ Index',
     basisStaged: 'Index ↔ HEAD',
