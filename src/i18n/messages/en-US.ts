@@ -1116,6 +1116,7 @@ export default {
       listView: 'List view',
       treeView: 'Tree view',
       selectBranch: 'Select branch',
+      allBranches: 'All branches',
     },
     view: {
       repositories: 'Repositories',
@@ -1165,6 +1166,9 @@ export default {
       create: 'Create new branch…',
       createTitle: 'Branch name',
       remote: 'remote',
+      invalidName: 'Branch name cannot contain spaces or special characters like ~^:?*[\\.',
+      merge: 'Merge into current branch…',
+      mergeDone: 'Merged {branch}',
       delete: 'Delete branch…',
       deleteTitle: 'Delete branch?',
       deleteMessage: 'Branch “{name}” will be deleted. This cannot be undone.',

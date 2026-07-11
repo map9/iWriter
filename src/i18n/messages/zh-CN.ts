@@ -1113,6 +1113,7 @@ export default {
       listView: '列表视图',
       treeView: '树状视图',
       selectBranch: '选择分支',
+      allBranches: '所有分支',
     },
     view: {
       repositories: '存储库',
@@ -1162,6 +1163,9 @@ export default {
       create: '创建新分支…',
       createTitle: '分支名称',
       remote: '远程',
+      invalidName: '分支名不能包含空格或 ~^:?*[\\ 等特殊字符。',
+      merge: '合并到当前分支…',
+      mergeDone: '已合并 {branch}',
       delete: '删除分支…',
       deleteTitle: '删除分支？',
       deleteMessage: '将删除分支 “{name}”，此操作不可撤销。',

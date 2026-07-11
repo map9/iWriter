@@ -51,6 +51,14 @@ export interface GitCommit {
   date: string
   /** 相对时间（如 "2 小时前"）由渲染层格式化，这里给原始时间戳 */
   timestamp: number
+  /** 指向该提交的引用装饰（分支/远程/tag/HEAD），来自 git %D */
+  refs?: GitCommitRef[]
+}
+
+export interface GitCommitRef {
+  /** 显示名（已去掉 HEAD-> / tag: 前缀） */
+  name: string
+  kind: 'head' | 'branch' | 'remote' | 'tag'
 }
 
 export interface GitDiffPayload {
@@ -91,6 +99,7 @@ export interface GitApi {
   commitFiles: (root: string, hash: string) => Promise<GitFileChange[]>
   commitFileDiff: (root: string, hash: string, filePath: string) => Promise<GitDiffPayload>
   restoreFile: (root: string, hash: string, filePath: string) => Promise<void>
+  merge: (root: string, branch: string) => Promise<void>
   stage: (root: string, paths: string[]) => Promise<void>
   unstage: (root: string, paths: string[]) => Promise<void>
   stageAll: (root: string) => Promise<void>

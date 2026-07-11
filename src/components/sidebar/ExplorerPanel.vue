@@ -759,7 +759,8 @@ const handleExplorerContextAction = async (action: string) => {
       break
     case 'explorer-view-history':
       if (node && node.type === 'file') {
-        await openFile(node)   // 打开使其成为活动文件；Timeline 跟随
+        // 让右键的文件成为树选中项 → Timeline 跟随；不打开文件
+        appStore.setSelectedItem(node)
         revealTimeline()
       }
       break

@@ -173,8 +173,9 @@ export interface DiffSpec {
 ### F8 · 历史 / 时间线 (P1)
 - **文件级历史 = Explorer 的 Timeline viewer**（对标 VSCode Timeline）：**已实现**。跟随「工作区树选中文件」（关闭 tab 后仍显示），点击某提交 → 打开该版本 diff（本提交 ↔ 父提交）。
 - **仓库级历史 = SCM 的 Graph viewer**（面板内，非编辑区 tab）：**已实现**。提交列表，作者/时间/信息/hash。
-  - **点击某个提交 → 就地展开该提交的文件 list/tree**（状态字母 + 路径，viewer 头部可切 list⇄tree）；点击文件打开该提交的差异（父提交 ↔ 本提交）。**分支下拉选择**（viewer 头部 icon+分支名+下拉）已实现。
+  - **点击某个提交 → 就地展开该提交的文件 list/tree**（状态字母 + 路径，viewer 头部可切 list⇄tree）；点击文件打开该提交的差异（父提交 ↔ 本提交）。**分支下拉选择**（含「所有分支」`--all`）+ **提交上分支/标签色标**（`%D` 解析，head/branch/remote/tag）已实现。
 - **从历史版本还原单文件**：**已实现**（Timeline 行 hover「还原到此版本」→ 二次确认 → `git checkout <hash> -- <file>`）。
+- **完整分支泳道图（彩色 DAG 连线/多列 lane，VS Code Git Graph 那种）：暂不做，留后（2026-07-11 决策）**。当前用「所有分支 + 分支标签色标」表达分支归属。
 
 ### F9 · 合并与冲突解决 (P1)
 - 检测冲突文件并归入 Merge Changes 分组。

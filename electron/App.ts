@@ -1380,6 +1380,7 @@ export class App {
       this.gitService.commitFileDiff(root, hash, filePath))
     ipcMain.handle('git:restore-file', async (_, root: string, hash: string, filePath: string) =>
       this.gitService.restoreFile(root, hash, filePath))
+    ipcMain.handle('git:merge', async (_, root: string, branch: string) => this.gitService.merge(root, branch))
     ipcMain.handle('git:stage', async (_, root: string, paths: string[]) => this.gitService.stage(root, paths))
     ipcMain.handle('git:unstage', async (_, root: string, paths: string[]) => this.gitService.unstage(root, paths))
     ipcMain.handle('git:stage-all', async (_, root: string) => this.gitService.stageAll(root))

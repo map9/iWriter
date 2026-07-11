@@ -77,6 +77,13 @@
         <button class="iw-toolbar-btn btn-xs" :title="t('sourceControl.action.stageAll')" @click.stop="gitStore.stageAll()">
           <IconPlus class="icon-2xs" />
         </button>
+        <button
+          class="iw-toolbar-btn btn-xs"
+          :title="changesTreeView ? t('sourceControl.graph.listView') : t('sourceControl.graph.treeView')"
+          @click.stop="changesTreeView = !changesTreeView"
+        >
+          <component :is="changesTreeView ? IconList : IconFolders" class="icon-2xs" />
+        </button>
         <span v-if="gitStore.changeCount" class="badge badge-xs badge-primary">{{ gitStore.changeCount }}</span>
       </template>
       <template #changes>
@@ -108,13 +115,13 @@
           {{ t('sourceControl.noChanges') }}
         </div>
         <div v-else class="py-1 text-xs">
-          <GitChangeGroup v-if="gitStore.status?.conflicts.length" kind="conflicts" :title="mergeLabel" :files="gitStore.status.conflicts"
+          <GitChangeGroup v-if="gitStore.status?.conflicts.length" kind="conflicts" :title="mergeLabel" :files="gitStore.status.conflicts" :tree-view="changesTreeView"
             @open="onFileOpen" @stage="onStage" />
-          <GitChangeGroup v-if="gitStore.status?.staged.length" kind="staged" :title="stagedLabel" :files="gitStore.status.staged"
+          <GitChangeGroup v-if="gitStore.status?.staged.length" kind="staged" :title="stagedLabel" :files="gitStore.status.staged" :tree-view="changesTreeView"
             @open="onFileOpen" @unstage="onUnstage" @unstage-all="gitStore.unstageAll()" />
-          <GitChangeGroup v-if="gitStore.status?.changes.length" kind="changes" :title="changesLabel" :files="gitStore.status.changes"
+          <GitChangeGroup v-if="gitStore.status?.changes.length" kind="changes" :title="changesLabel" :files="gitStore.status.changes" :tree-view="changesTreeView"
             @open="onFileOpen" @stage="onStage" @discard="onDiscard" @stage-all="gitStore.stageAll()" @discard-all="onDiscardAll" />
-          <GitChangeGroup v-if="gitStore.status?.untracked.length" kind="untracked" :title="untrackedLabel" :files="gitStore.status.untracked"
+          <GitChangeGroup v-if="gitStore.status?.untracked.length" kind="untracked" :title="untrackedLabel" :files="gitStore.status.untracked" :tree-view="changesTreeView"
             @open="onFileOpen" @stage="onStage" @gitignore="onGitignore" @stage-all="onStageAllUntracked" />
         </div>
       </template>
@@ -123,12 +130,12 @@
       <template #graph-actions>
         <button
           class="iw-toolbar-btn btn-xs flex items-center gap-0.5 px-1"
-          :title="t('sourceControl.graph.selectBranch')"
+          :title="graphBranchLabel || t('sourceControl.graph.selectBranch')"
           @click.stop="showGraphBranchMenu"
         >
-          <IconGitBranch class="icon-2xs" />
-          <span class="max-w-20 truncate text-2xs">{{ graphBranchLabel }}</span>
-          <IconChevronDown class="icon-2xs" />
+          <IconGitBranch class="icon-2xs shrink-0" />
+          <span class="max-w-40 truncate text-2xs">{{ graphBranchLabel }}</span>
+          <IconChevronDown class="icon-2xs shrink-0" />
         </button>
         <button
           class="iw-toolbar-btn btn-xs"
@@ -153,7 +160,14 @@
             >
               <IconGitCommit class="icon-xs mt-0.5 shrink-0 text-primary" />
               <span class="min-w-0 flex-1">
-                <span class="block truncate text-base-content">{{ c.subject }}</span>
+                <span class="block truncate text-base-content">
+                  <span
+                    v-for="(r, ri) in c.refs"
+                    :key="ri"
+                    class="mr-1 inline-block rounded px-1 align-middle text-[10px] leading-tight"
+                    :class="refClass(r.kind)"
+                  >{{ r.name }}</span>{{ c.subject }}
+                </span>
                 <span class="block truncate text-base-content/50">
                   {{ c.author }} · {{ relTime(c.timestamp) }} · {{ c.shortHash }}
                 </span>
@@ -164,7 +178,7 @@
               <template v-if="!graphTreeView">
                 <li v-for="f in gitStore.expandedFiles" :key="f.path">
                   <button
-                    class="flex w-full items-center gap-2 py-0.5 pr-3 pl-9 text-left text-base-content/80 hover:bg-base-200"
+                    class="flex h-7 w-full items-center gap-2 pr-3 pl-9 text-left text-base-content/80 hover:bg-base-200"
                     :title="f.path"
                     @click="gitStore.openCommitDiff(c.hash, f.path)"
                   >
@@ -179,7 +193,7 @@
                 <li v-for="(row, i) in expandedTreeRows" :key="i">
                   <div
                     v-if="row.kind === 'dir'"
-                    class="flex items-center gap-1 py-0.5 pr-3 text-base-content/45"
+                    class="flex h-7 items-center gap-1 pr-3 text-base-content/45"
                     :style="{ paddingLeft: (row.depth * 12 + 24) + 'px' }"
                   >
                     <IconFolder class="icon-2xs shrink-0" />
@@ -187,7 +201,7 @@
                   </div>
                   <button
                     v-else
-                    class="flex w-full items-center gap-2 py-0.5 pr-3 text-left text-base-content/80 hover:bg-base-200"
+                    class="flex h-7 w-full items-center gap-2 pr-3 text-left text-base-content/80 hover:bg-base-200"
                     :style="{ paddingLeft: (row.depth * 12 + 24) + 'px' }"
                     :title="row.file!.path"
                     @click="gitStore.openCommitDiff(c.hash, row.file!.path)"
@@ -222,10 +236,11 @@
             class="iw-input w-full"
             :placeholder="t('sourceControl.branch.createTitle')"
           />
+          <p v-if="branchNameError" class="mt-1.5 text-2xs text-error">{{ branchNameError }}</p>
         </div>
         <div class="flex justify-end gap-2 border-t border-base-300 px-4 py-3">
           <button type="button" class="iw-btn btn-ghost btn-sm" @click="branchDialogOpen = false">{{ t('common.cancel') }}</button>
-          <button type="submit" class="iw-btn btn-primary btn-sm" :disabled="!branchName.trim()">{{ t('common.create') }}</button>
+          <button type="submit" class="iw-btn btn-primary btn-sm" :disabled="!branchName.trim() || !!branchNameError">{{ t('common.create') }}</button>
         </div>
       </form>
     </div>
@@ -239,6 +254,7 @@ import { useI18n } from 'vue-i18n'
 import { IconDots, IconGitBranch, IconGitCommit, IconRefresh, IconReload, IconPlus, IconCheck, IconChevronDown, IconList, IconFolders, IconFolder } from '@tabler/icons-vue'
 import { SplitView, type SplitPane } from '../common/split-view'
 import GitChangeGroup from './scm/GitChangeGroup.vue'
+import { buildScmTreeRows } from './scm/fileTree'
 import { useGitStore } from '@/stores/git'
 import { useAppStore } from '@/stores/app'
 import type { ContextMenuItem, GitFileChange, GitFileStatus } from '@/types'
@@ -257,38 +273,25 @@ const changesLabel = computed(() => t('sourceControl.changes'))
 const untrackedLabel = computed(() => t('sourceControl.untracked'))
 const mergeLabel = computed(() => t('sourceControl.mergeChanges'))
 
+// ---- 更改：list/tree 切换 ----
+const changesTreeView = ref(false)
+
 // ---- 图谱：分支选择 + list/tree 切换 ----
 const graphTreeView = ref(false)
-const graphBranchLabel = computed(() => gitStore.graphBranch ?? gitStore.branch?.current ?? '')
+const graphBranchLabel = computed(() =>
+  gitStore.graphAll
+    ? t('sourceControl.graph.allBranches')
+    : (gitStore.graphBranch ?? gitStore.branch?.current ?? '')
+)
+const expandedTreeRows = computed(() => buildScmTreeRows(gitStore.expandedFiles))
 
-interface GraphTreeRow { depth: number; kind: 'dir' | 'file'; label: string; file?: GitFileChange }
-const expandedTreeRows = computed<GraphTreeRow[]>(() => buildTreeRows(gitStore.expandedFiles))
-function buildTreeRows(files: GitFileChange[]): GraphTreeRow[] {
-  interface Node { dirs: Map<string, Node>; files: GitFileChange[] }
-  const root: Node = { dirs: new Map(), files: [] }
-  for (const f of files) {
-    const parts = f.path.split('/')
-    parts.pop() // 去掉文件名，剩目录段
-    let node = root
-    for (const seg of parts) {
-      let child = node.dirs.get(seg)
-      if (!child) { child = { dirs: new Map(), files: [] }; node.dirs.set(seg, child) }
-      node = child
-    }
-    node.files.push(f)
+function refClass(kind: string): string {
+  switch (kind) {
+    case 'head': return 'bg-primary text-primary-content'
+    case 'tag': return 'bg-warning/70 text-warning-content'
+    case 'remote': return 'bg-base-300/60 text-base-content/70'
+    default: return 'bg-base-300 text-base-content'
   }
-  const rows: GraphTreeRow[] = []
-  const walk = (node: Node, depth: number) => {
-    for (const [name, child] of [...node.dirs.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-      rows.push({ depth, kind: 'dir', label: name })
-      walk(child, depth + 1)
-    }
-    for (const f of [...node.files].sort((a, b) => a.name.localeCompare(b.name))) {
-      rows.push({ depth, kind: 'file', label: f.name, file: f })
-    }
-  }
-  walk(root, 0)
-  return rows
 }
 
 async function showGraphBranchMenu(event: MouseEvent) {
@@ -296,13 +299,17 @@ async function showGraphBranchMenu(event: MouseEvent) {
   if (!b) return
   const current = gitStore.graphBranch ?? b.current
   const items: ContextMenuItem[] = [
-    ...b.local.map((name): ContextMenuItem => ({ id: `g:${name}`, label: name, type: 'checkbox', checked: name === current })),
+    { id: 'g:__all', label: t('sourceControl.graph.allBranches'), type: 'checkbox', checked: gitStore.graphAll },
+    { type: 'separator' },
+    ...b.local.map((name): ContextMenuItem => ({ id: `g:${name}`, label: name, type: 'checkbox', checked: !gitStore.graphAll && name === current })),
     ...b.remote.filter(r => !r.endsWith('/HEAD')).map((name): ContextMenuItem => ({
-      id: `g:${name}`, label: `${name}  (${t('sourceControl.branch.remote')})`, type: 'checkbox', checked: name === current,
+      id: `g:${name}`, label: `${name}  (${t('sourceControl.branch.remote')})`, type: 'checkbox', checked: !gitStore.graphAll && name === current,
     })),
   ]
   const action = await window.electronAPI.showContextMenu(items, { x: event.clientX, y: event.clientY })
-  if (action?.startsWith('g:')) {
+  if (action === 'g:__all') {
+    gitStore.setGraphBranch(null, true)
+  } else if (action?.startsWith('g:')) {
     const name = action.slice(2)
     gitStore.setGraphBranch(name === b.current ? null : name)
   }
@@ -403,6 +410,7 @@ async function showBranchMenu(event: MouseEvent) {
   if (!b) return
   const items: ContextMenuItem[] = [
     { id: '__create', label: t('sourceControl.branch.create') },
+    { id: '__merge', label: t('sourceControl.branch.merge'), enabled: b.local.some(n => n !== b.current) || b.remote.some(r => !r.endsWith('/HEAD')) },
     { id: '__delete', label: t('sourceControl.branch.delete'), enabled: b.local.some(n => n !== b.current) },
     { type: 'separator' },
     ...b.local.map((name): ContextMenuItem => ({
@@ -416,12 +424,29 @@ async function showBranchMenu(event: MouseEvent) {
   if (!action) return
   if (action === '__create') {
     openCreateBranch()
+  } else if (action === '__merge') {
+    await showMergeBranchMenu(event)
   } else if (action === '__delete') {
     await showDeleteBranchMenu(event)
   } else if (action.startsWith('co:')) {
     const ref = action.slice(3)
     if (ref !== b.current) gitStore.checkout(ref.replace(/^origin\//, ''))
   }
+}
+
+/** 合并分支：选一个非当前分支（本地/远程）→ 合并到当前分支 */
+async function showMergeBranchMenu(event: MouseEvent) {
+  const b = gitStore.branch
+  if (!b) return
+  const items: ContextMenuItem[] = [
+    ...b.local.filter(n => n !== b.current).map((name): ContextMenuItem => ({ id: `mg:${name}`, label: name })),
+    ...b.remote.filter(r => !r.endsWith('/HEAD')).map((name): ContextMenuItem => ({
+      id: `mg:${name}`, label: `${name}  (${t('sourceControl.branch.remote')})`,
+    })),
+  ]
+  if (!items.length) return
+  const action = await window.electronAPI.showContextMenu(items, { x: event.clientX, y: event.clientY })
+  if (action?.startsWith('mg:')) gitStore.merge(action.slice(3))
 }
 
 /** 删除本地分支：选一个非当前分支 → 二次确认 → 删除 */
@@ -446,6 +471,16 @@ async function showDeleteBranchMenu(event: MouseEvent) {
 const branchDialogOpen = ref(false)
 const branchName = ref('')
 const branchInput = ref<HTMLInputElement | null>(null)
+// git 分支名校验：禁空格及 ~^:?*[\ 、.. 、开头 -/、结尾 /. 、.lock、// 、@{
+const branchNameError = computed(() => {
+  const n = branchName.value.trim()
+  if (!n) return ''
+  const invalid =
+    /[\s~^:?*[\\]/.test(n) ||
+    n.includes('..') || n.includes('//') || n.includes('@{') ||
+    /^[-/]/.test(n) || /[/.]$/.test(n) || n.endsWith('.lock')
+  return invalid ? t('sourceControl.branch.invalidName') : ''
+})
 function openCreateBranch() {
   branchName.value = ''
   branchDialogOpen.value = true
@@ -453,7 +488,7 @@ function openCreateBranch() {
 }
 function confirmCreateBranch() {
   const name = branchName.value.trim()
-  if (!name) return
+  if (!name || branchNameError.value) return
   branchDialogOpen.value = false
   gitStore.createBranch(name, undefined, true)
 }

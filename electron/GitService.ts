@@ -6,6 +6,7 @@ import type {
   GitAvailability,
   GitBranchInfo,
   GitCommit,
+  GitCommitRef,
   GitDiffPayload,
   GitFileChange,
   GitFileStatus,
@@ -275,7 +276,8 @@ export class GitService {
     const args: string[] = [
       `--max-count=${opts.limit ?? 50}`,
       `--skip=${opts.skip ?? 0}`,
-      '--pretty=format:%H%x1f%h%x1f%s%x1f%an%x1f%aI%x1f%at',
+      '--decorate=short',
+      '--pretty=format:%H%x1f%h%x1f%s%x1f%an%x1f%aI%x1f%at%x1f%D',
     ]
     if (opts.allBranches) args.push('--all')
     if (opts.ref) args.push(opts.ref)
@@ -290,12 +292,26 @@ export class GitService {
       .split('\n')
       .filter(Boolean)
       .map((line) => {
-        const [hash, shortHash, subject, author, date, at] = line.split('\x1f')
+        const [hash, shortHash, subject, author, date, at, decoration] = line.split('\x1f')
         return {
           hash, shortHash, subject, author, date,
           timestamp: Number(at) * 1000,
+          refs: this.parseRefs(decoration ?? ''),
         } as GitCommit
       })
+  }
+
+  /** 解析 git %D 装饰串（如 "HEAD -> main, origin/main, tag: v1.0"）为结构化引用 */
+  private parseRefs(decoration: string): GitCommitRef[] {
+    if (!decoration.trim()) return []
+    return decoration.split(',').map(raw => {
+      const s = raw.trim()
+      if (s.startsWith('tag:')) return { name: s.slice(4).trim(), kind: 'tag' as const }
+      if (s.startsWith('HEAD ->')) return { name: s.slice(7).trim(), kind: 'head' as const }
+      if (s === 'HEAD') return { name: 'HEAD', kind: 'head' as const }
+      if (s.startsWith('origin/') || s.includes('/')) return { name: s, kind: 'remote' as const }
+      return { name: s, kind: 'branch' as const }
+    }).filter(r => r.name)
   }
 
   async commitFiles(root: string, hash: string): Promise<GitFileChange[]> {
@@ -335,6 +351,11 @@ export class GitService {
   /** 将单个文件还原到某提交的版本（覆盖工作区+index） */
   async restoreFile(root: string, hash: string, filePath: string): Promise<void> {
     await this.git(root).raw(['checkout', hash, '--', filePath])
+  }
+
+  /** 合并指定分支到当前分支（冲突时 git 以非零退出，交由渲染层按 status 呈现 Merge Changes） */
+  async merge(root: string, branch: string): Promise<void> {
+    await this.git(root).raw(['merge', branch])
   }
 
   dispose(root?: string): void {

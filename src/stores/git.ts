@@ -34,6 +34,8 @@ export const useGitStore = defineStore('git', () => {
   const expandedFiles = ref<GitFileChange[]>([])
   /** 图谱查看的分支；null = 当前分支 HEAD */
   const graphBranch = ref<string | null>(null)
+  /** 图谱是否显示所有分支（git log --all）；为 true 时忽略 graphBranch */
+  const graphAll = ref(false)
 
   // 加载标志
   const loading = ref(false)
@@ -110,7 +112,9 @@ export const useGitStore = defineStore('git', () => {
     if (!root.value || !isRepo.value) return
     graphLoading.value = true
     try {
-      commits.value = await api().log(root.value, { limit: 50, ref: graphBranch.value ?? undefined })
+      commits.value = await api().log(root.value, graphAll.value
+        ? { limit: 50, allBranches: true }
+        : { limit: 50, ref: graphBranch.value ?? undefined })
     } catch (err) {
       console.error('[git] loadGraph failed', err)
       commits.value = []
@@ -119,9 +123,10 @@ export const useGitStore = defineStore('git', () => {
     }
   }
 
-  /** 切换图谱查看的分支并重载 */
-  function setGraphBranch(name: string | null): void {
-    graphBranch.value = name
+  /** 切换图谱查看的分支并重载；name=null 回到当前 HEAD，all=true 显示所有分支 */
+  function setGraphBranch(name: string | null, all = false): void {
+    graphAll.value = all
+    graphBranch.value = all ? null : name
     expandedHash.value = null
     expandedFiles.value = []
     void loadGraph()
@@ -212,6 +217,22 @@ export const useGitStore = defineStore('git', () => {
   const addToGitignore = (relPath: string) => run(() => api().addToGitignore(root.value!, relPath))
   /** 将文件还原到某提交版本（覆盖工作区，破坏性；调用方负责二次确认） */
   const restoreFile = (hash: string, filePath: string) => run(() => api().restoreFile(root.value!, hash, filePath))
+
+  /** 合并分支到当前分支：冲突不作硬错误（交给 Merge Changes 呈现），仅真错误才提示 */
+  async function merge(branch: string): Promise<void> {
+    if (!root.value) return
+    try {
+      await api().merge(root.value, branch)
+      notify.success(i18n.global.t('sourceControl.branch.mergeDone', { branch }))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!/conflict|Automatic merge failed|fix conflicts/i.test(msg)) {
+        notify.error(msg)
+      }
+    } finally {
+      await afterWrite()
+    }
+  }
 
   /** 提交：校验信息 + 身份，缺身份则弹窗后重试 */
   async function commit(opts: { all?: boolean; amend?: boolean } = {}): Promise<void> {
@@ -311,16 +332,17 @@ export const useGitStore = defineStore('git', () => {
     expandedHash.value = null
     expandedFiles.value = []
     graphBranch.value = null
+    graphAll.value = false
   }
 
   return {
-    availability, root, isRepo, status, branch, commits, expandedHash, expandedFiles, graphBranch,
+    availability, root, isRepo, status, branch, commits, expandedHash, expandedFiles, graphBranch, graphAll,
     loading, graphLoading, busy, revision, cloneDialogOpen, changeCount, hasChanges,
     commitMessage, committing, identityPromptOpen,
     ensureDetected, onFolderChanged, refresh, loadGraph, setGraphBranch, toggleCommit, loadFileHistory,
     openDiff, openCommitDiff,
     stage, unstage, stageAll, unstageAll, discard, commit,
-    checkout, createBranch, deleteBranch, addToGitignore, restoreFile,
+    checkout, createBranch, deleteBranch, addToGitignore, restoreFile, merge,
     submitIdentity, cancelIdentity,
     fetch, pull, push, sync, publish, clone,
   }
