@@ -2477,8 +2477,11 @@ export const useAppStore = defineStore('app', () => {
     tabs.value.splice(normalizedInsertIndex, 0, newTab)
     activeTabId.value = id
 
-    notify.success(t('notify.file.opened', { name: path ? path : tabName }), t('notify.file.operation'))
-    
+    // 参数型临时 tab（diff）不弹「已打开」提示
+    if (newTab.documentType !== DocumentType.DIFF_VIEWER) {
+      notify.success(t('notify.file.opened', { name: path ? path : tabName }), t('notify.file.operation'))
+    }
+
     return newTab
   }
 

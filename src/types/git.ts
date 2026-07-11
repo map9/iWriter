@@ -87,9 +87,10 @@ export interface GitApi {
   status: (root: string) => Promise<GitStatus>
   branches: (root: string) => Promise<GitBranchInfo>
   diff: (root: string, filePath: string, opts: { staged: boolean }) => Promise<GitDiffPayload>
-  log: (root: string, opts: { filePath?: string; allBranches?: boolean; limit?: number; skip?: number }) => Promise<GitCommit[]>
+  log: (root: string, opts: { filePath?: string; allBranches?: boolean; ref?: string; limit?: number; skip?: number }) => Promise<GitCommit[]>
   commitFiles: (root: string, hash: string) => Promise<GitFileChange[]>
   commitFileDiff: (root: string, hash: string, filePath: string) => Promise<GitDiffPayload>
+  restoreFile: (root: string, hash: string, filePath: string) => Promise<void>
   stage: (root: string, paths: string[]) => Promise<void>
   unstage: (root: string, paths: string[]) => Promise<void>
   stageAll: (root: string) => Promise<void>

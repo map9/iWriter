@@ -28,7 +28,10 @@ export class GitService {
   private git(root: string): SimpleGit {
     let g = this.cache.get(root)
     if (!g) {
-      g = simpleGit({ baseDir: root })
+      // core.quotepath=false：让含非 ASCII（如中文）的路径原样输出 UTF-8，
+      // 否则 git 会把中文路径转义成 "\345\244\247…" 八进制，导致图谱显示乱码、
+      // 且据此路径再 `git show hash:path` 无法命中（diff 显示"没有更改"）。
+      g = simpleGit({ baseDir: root, config: ['core.quotepath=false'] })
       this.cache.set(root, g)
     }
     return g
@@ -267,7 +270,7 @@ export class GitService {
     }
   }
 
-  async log(root: string, opts: { filePath?: string; allBranches?: boolean; limit?: number; skip?: number }): Promise<GitCommit[]> {
+  async log(root: string, opts: { filePath?: string; allBranches?: boolean; ref?: string; limit?: number; skip?: number }): Promise<GitCommit[]> {
     const g = this.git(root)
     const args: string[] = [
       `--max-count=${opts.limit ?? 50}`,
@@ -275,6 +278,7 @@ export class GitService {
       '--pretty=format:%H%x1f%h%x1f%s%x1f%an%x1f%aI%x1f%at',
     ]
     if (opts.allBranches) args.push('--all')
+    if (opts.ref) args.push(opts.ref)
     if (opts.filePath) { args.push('--', opts.filePath) }
     let out: string
     try {
@@ -326,6 +330,11 @@ export class GitService {
       newContent: this.formatForDiff(filePath, newContent),
       isBinary: false,
     }
+  }
+
+  /** 将单个文件还原到某提交的版本（覆盖工作区+index） */
+  async restoreFile(root: string, hash: string, filePath: string): Promise<void> {
+    await this.git(root).raw(['checkout', hash, '--', filePath])
   }
 
   dispose(root?: string): void {

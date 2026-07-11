@@ -9,14 +9,22 @@
       <li
         v-for="c in commits"
         :key="c.hash"
-        class="flex items-start gap-2 px-3 py-1.5 hover:bg-base-200"
+        class="group flex cursor-pointer items-start gap-2 px-3 py-1.5 hover:bg-base-200"
         :title="c.subject"
+        @click="openCommitDiff(c)"
       >
         <IconGitCommit class="icon-xs mt-0.5 shrink-0 text-primary" />
         <span class="min-w-0 flex-1">
           <span class="block truncate text-base-content">{{ c.subject }}</span>
           <span class="block truncate text-base-content/50">{{ c.author }} · {{ relTime(c.timestamp) }} · {{ c.shortHash }}</span>
         </span>
+        <button
+          class="iw-toolbar-btn btn-xs mt-0.5 hidden h-5 min-h-0 w-5 shrink-0 group-hover:flex"
+          :title="t('explorer.timeline.restore')"
+          @click.stop="onRestore(c)"
+        >
+          <IconArrowBackUp class="icon-2xs" />
+        </button>
       </li>
     </ul>
   </div>
@@ -25,7 +33,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconGitCommit } from '@tabler/icons-vue'
+import { IconGitCommit, IconArrowBackUp } from '@tabler/icons-vue'
 import { useAppStore } from '@/stores/app'
 import { useGitStore } from '@/stores/git'
 import type { GitCommit } from '@/types/git'
@@ -38,7 +46,13 @@ const gitStore = useGitStore()
 const commits = ref<GitCommit[]>([])
 const loading = ref(false)
 
-const activePath = computed(() => appStore.activeTab?.path ?? null)
+// Timeline 跟随「工作区树的选中文件」（关闭 tab 后 highlight 仍在 → 历史仍显示），
+// 无树选中时回落到当前活动 tab；不再直接绑定"是否打开"。
+const activePath = computed(() => {
+  const sel = appStore.selectedItem
+  if (sel?.type === 'file') return sel.path
+  return appStore.activeTab?.path ?? null
+})
 
 /** 相对仓库根的路径 */
 function relativePath(abs: string): string {
@@ -58,6 +72,30 @@ function relTime(ts: number): string {
   const h = Math.floor(m / 60)
   if (h < 24) return t('sourceControl.time.hours', { n: h })
   return t('sourceControl.time.days', { n: Math.floor(h / 24) })
+}
+
+/** 点击某提交 → 打开该提交中此文件的 diff（本提交 ↔ 父提交） */
+function openCommitDiff(c: GitCommit) {
+  const p = activePath.value
+  if (!p) return
+  gitStore.openCommitDiff(c.hash, relativePath(p))
+}
+
+/** 还原此文件到某提交版本（破坏性，二次确认） */
+async function onRestore(c: GitCommit) {
+  const p = activePath.value
+  if (!p) return
+  const rel = relativePath(p)
+  const name = rel.split('/').pop() || rel
+  const res = await window.electronAPI.showMessageBox({
+    type: 'warning',
+    title: t('explorer.timeline.restoreTitle'),
+    message: t('explorer.timeline.restoreTitle'),
+    detail: t('explorer.timeline.restoreMessage', { name, hash: c.shortHash }),
+    buttons: [t('common.cancel'), t('explorer.timeline.restoreConfirm')],
+    defaultId: 0,
+  })
+  if (res?.response === 1) gitStore.restoreFile(c.hash, rel)
 }
 
 async function reload() {

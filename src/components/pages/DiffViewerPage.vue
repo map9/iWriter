@@ -5,14 +5,40 @@
       <IconGitCompare class="icon-sm shrink-0 text-base-content/60" />
       <span class="min-w-0 truncate text-sm font-medium" :title="spec?.filePath">{{ fileName }}</span>
       <span class="shrink-0 rounded bg-base-200 px-1.5 py-px text-2xs text-base-content/60">{{ basisLabel }}</span>
-      <button
-        class="iw-toolbar-btn btn-xs ml-auto shrink-0"
-        :title="t('diffView.refresh')"
-        :disabled="loading"
-        @click="load()"
-      >
-        <IconRefresh class="icon-xs" :class="loading ? 'animate-spin' : ''" />
-      </button>
+      <div class="ml-auto flex shrink-0 items-center gap-1">
+        <button
+          v-if="canStage"
+          class="iw-toolbar-btn btn-xs"
+          :title="t('sourceControl.action.stage')"
+          @click="onStage"
+        >
+          <IconPlus class="icon-xs" />
+        </button>
+        <button
+          v-if="canUnstage"
+          class="iw-toolbar-btn btn-xs"
+          :title="t('sourceControl.action.unstage')"
+          @click="onUnstage"
+        >
+          <IconMinus class="icon-xs" />
+        </button>
+        <button
+          v-if="canDiscard"
+          class="iw-toolbar-btn btn-xs"
+          :title="t('sourceControl.action.discard')"
+          @click="onDiscard"
+        >
+          <IconArrowBackUp class="icon-xs" />
+        </button>
+        <button
+          class="iw-toolbar-btn btn-xs"
+          :title="t('diffView.refresh')"
+          :disabled="loading"
+          @click="load()"
+        >
+          <IconRefresh class="icon-xs" :class="loading ? 'animate-spin' : ''" />
+        </button>
+      </div>
     </div>
 
     <!-- 主体 -->
@@ -44,7 +70,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconGitCompare, IconRefresh } from '@tabler/icons-vue'
+import { IconGitCompare, IconRefresh, IconPlus, IconMinus, IconArrowBackUp } from '@tabler/icons-vue'
 import DiffView from '@/components/common/diff/DiffView.vue'
 import { useGitStore } from '@/stores/git'
 import { IMAGE_EXTENSIONS } from '@/types'
@@ -80,6 +106,32 @@ const basisLabel = computed(() => {
   if (s.kind === 'commit') return t('diffView.basisCommit', { hash: (s.hash ?? '').slice(0, 7) })
   return s.staged ? t('diffView.basisStaged') : t('diffView.basisWorking')
 })
+
+// 文件级操作：仅工作区 diff（commit diff 为只读历史）
+const isWorking = computed(() => spec.value?.kind === 'working')
+const canStage = computed(() => isWorking.value && !spec.value?.staged)
+const canUnstage = computed(() => isWorking.value && !!spec.value?.staged)
+const canDiscard = computed(() => isWorking.value && !spec.value?.staged)
+
+function onStage() {
+  if (spec.value) gitStore.stage([spec.value.filePath])
+}
+function onUnstage() {
+  if (spec.value) gitStore.unstage([spec.value.filePath])
+}
+async function onDiscard() {
+  const s = spec.value
+  if (!s) return
+  const res = await window.electronAPI.showMessageBox({
+    type: 'warning',
+    title: t('sourceControl.discardConfirm.title'),
+    message: t('sourceControl.discardConfirm.title'),
+    detail: t('sourceControl.discardConfirm.message', { name: fileName.value }),
+    buttons: [t('common.cancel'), t('sourceControl.discardConfirm.confirm')],
+    defaultId: 0,
+  })
+  if (res?.response === 1) gitStore.discard([s.filePath])
+}
 
 /** .iwt/.json 先格式化再 diff，避免整行差异 */
 function maybeFormat(content: string): string {

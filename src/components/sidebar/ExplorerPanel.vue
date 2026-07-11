@@ -202,10 +202,12 @@ const viewerPanes = ref<SplitPane[]>([
   { id: 'workspace', title: t('explorer.view.workspace'), collapsible: false, size: 3 },
   { id: 'timeline', title: t('explorer.view.timeline'), collapsed: true, size: 1 },
 ])
-// 工作区标题跟随文件夹名
+// 工作区标题跟随文件夹名；Timeline 标题随语言切换更新（t() 存进 ref 只算一次）
 watchEffect(() => {
   const ws = viewerPanes.value.find(p => p.id === 'workspace')
   if (ws) ws.title = folderName.value
+  const tl = viewerPanes.value.find(p => p.id === 'timeline')
+  if (tl) tl.title = t('explorer.view.timeline')
 })
 
 // Explorer ⋯ 菜单：勾选 viewer 显隐（工作区必选）

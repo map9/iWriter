@@ -171,10 +171,10 @@ export interface DiffSpec {
 - 从 diff 视图 stage/discard 选中 hunk（与 F2 联动）——P1。
 
 ### F8 · 历史 / 时间线 (P1)
-- **文件级历史 = Explorer 的 Timeline viewer**（对标 VSCode Timeline）：跟随当前活动文件的提交列表，点击查看该版本 diff。
-- **仓库级历史 = SCM 的 Graph viewer**（面板内，非编辑区 tab）：提交列表，作者/时间/信息/hash，分支选择在 viewer 头部（icon+文字+下拉）。
-  - **点击某个提交 → 就地展开该提交的文件 list / tree**（状态字母 M/A/D + 路径，支持 list⇄tree 切换）；点击文件打开该提交的差异（父提交 ↔ 本提交）。
-- 从历史版本还原 / 检出单文件旧版本。
+- **文件级历史 = Explorer 的 Timeline viewer**（对标 VSCode Timeline）：**已实现**。跟随「工作区树选中文件」（关闭 tab 后仍显示），点击某提交 → 打开该版本 diff（本提交 ↔ 父提交）。
+- **仓库级历史 = SCM 的 Graph viewer**（面板内，非编辑区 tab）：**已实现**。提交列表，作者/时间/信息/hash。
+  - **点击某个提交 → 就地展开该提交的文件 list/tree**（状态字母 + 路径，viewer 头部可切 list⇄tree）；点击文件打开该提交的差异（父提交 ↔ 本提交）。**分支下拉选择**（viewer 头部 icon+分支名+下拉）已实现。
+- **从历史版本还原单文件**：**已实现**（Timeline 行 hover「还原到此版本」→ 二次确认 → `git checkout <hash> -- <file>`）。
 
 ### F9 · 合并与冲突解决 (P1)
 - 检测冲突文件并归入 Merge Changes 分组。
@@ -189,9 +189,9 @@ export interface DiffSpec {
 - 变更视图尊重 `.gitignore`（被忽略文件不进 Changes）。
 - 右键文件「添加到 .gitignore」快捷项（P1）。
 
-### F12 · 编辑器装订线 / 状态栏装饰 (P1)
-- 编辑器行号旁 gutter 显示增/改/删标记（quick diff gutter，对标 VSCode）。
-- 状态栏组件：当前分支、ahead/behind、同步按钮、变更数（对标 VSCode 左下角 SCM 状态）。
+### F12 · 状态栏装饰 (P1)
+- 状态栏组件：当前分支、ahead/behind、同步按钮、变更数（对标 VSCode 左下角 SCM 状态）。**已实现**（`statusbar-items/git-status.ts`）。
+- ~~编辑器行号旁 gutter 显示增/改/删标记~~ → **不做（2026-07-11 决策 A）**。理由：iWriter 编辑器为 WYSIWYG TipTap，无行/行号；"行号旁 gutter"预设的是逐行源码编辑器，不适用。要在渲染态标块级改动属于 §1.3 明确列为范围外的「渲染态/富文本语义 diff」，故 F12 缩减为仅状态栏部分。
 
 ---
 
@@ -285,7 +285,7 @@ export interface DiffSpec {
 | **M1 只读基础** | tab 重构（全量 S1–S5）+ 引擎接入 + F0 检测 + F1 状态视图 + F7 diff tab（split/inline，只读）+ 状态栏分支 | 能看状态与差异 |
 | **M2 本地写操作** | F2 stage + F3 commit + F4 discard + F11 gitignore + F5 分支切换/新建 | 完整本地版本控制闭环 |
 | **M3 远程** | F6 fetch/pull/push/sync/clone/publish + 凭证降级指引 | 与远程互通 |
-| **M4 进阶** | F8 历史/时间线 + F9 冲突解决 + F12 gutter 装饰 | 对标 VSCode 深度 |
+| **M4 进阶** | F8 历史/时间线 + F9 冲突解决 + F12 状态栏（gutter 已弃） | 对标 VSCode 深度 |
 | **M5 增强** | F10 stash、hunk 级 stage、多仓库、图片 diff | 打磨 |
 
 ---

@@ -1112,6 +1112,11 @@ export default {
   sourceControl: {
     title: 'Source Control',
     moreActions: 'More actions',
+    graph: {
+      listView: 'List view',
+      treeView: 'Tree view',
+      selectBranch: 'Select branch',
+    },
     view: {
       repositories: 'Repositories',
       changes: 'Changes',
@@ -1160,6 +1165,10 @@ export default {
       create: 'Create new branch…',
       createTitle: 'Branch name',
       remote: 'remote',
+      delete: 'Delete branch…',
+      deleteTitle: 'Delete branch?',
+      deleteMessage: 'Branch “{name}” will be deleted. This cannot be undone.',
+      deleteConfirm: 'Delete Branch',
     },
     identity: {
       title: 'Configure Commit Identity',
@@ -1213,6 +1222,10 @@ export default {
       noFile: 'Open a file to see its timeline.',
       noRepo: 'This folder is not under version control.',
       empty: 'No commit history yet.',
+      restore: 'Restore to this version',
+      restoreTitle: 'Restore file?',
+      restoreMessage: '“{name}” will be restored to commit {hash}, overwriting the current working copy.',
+      restoreConfirm: 'Restore',
     },
     workspaceDeleted: {
       title: 'Workspace folder was deleted externally',

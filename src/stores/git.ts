@@ -32,6 +32,8 @@ export const useGitStore = defineStore('git', () => {
   const commits = ref<GitCommit[]>([])
   const expandedHash = ref<string | null>(null)
   const expandedFiles = ref<GitFileChange[]>([])
+  /** 图谱查看的分支；null = 当前分支 HEAD */
+  const graphBranch = ref<string | null>(null)
 
   // 加载标志
   const loading = ref(false)
@@ -103,18 +105,26 @@ export const useGitStore = defineStore('git', () => {
     })
   }
 
-  /** 加载提交图谱 */
+  /** 加载提交图谱（graphBranch 指定分支，null=当前 HEAD） */
   async function loadGraph(): Promise<void> {
     if (!root.value || !isRepo.value) return
     graphLoading.value = true
     try {
-      commits.value = await api().log(root.value, { limit: 50 })
+      commits.value = await api().log(root.value, { limit: 50, ref: graphBranch.value ?? undefined })
     } catch (err) {
       console.error('[git] loadGraph failed', err)
       commits.value = []
     } finally {
       graphLoading.value = false
     }
+  }
+
+  /** 切换图谱查看的分支并重载 */
+  function setGraphBranch(name: string | null): void {
+    graphBranch.value = name
+    expandedHash.value = null
+    expandedFiles.value = []
+    void loadGraph()
   }
 
   /** 展开某提交，加载其文件列表 */
@@ -200,6 +210,8 @@ export const useGitStore = defineStore('git', () => {
     run(() => api().createBranch(root.value!, name, base, doCheckout))
   const deleteBranch = (name: string, force: boolean) => run(() => api().deleteBranch(root.value!, name, force))
   const addToGitignore = (relPath: string) => run(() => api().addToGitignore(root.value!, relPath))
+  /** 将文件还原到某提交版本（覆盖工作区，破坏性；调用方负责二次确认） */
+  const restoreFile = (hash: string, filePath: string) => run(() => api().restoreFile(root.value!, hash, filePath))
 
   /** 提交：校验信息 + 身份，缺身份则弹窗后重试 */
   async function commit(opts: { all?: boolean; amend?: boolean } = {}): Promise<void> {
@@ -251,11 +263,12 @@ export const useGitStore = defineStore('git', () => {
       return true
     } catch (err) {
       const stderr = err instanceof Error ? err.message : String(err)
+      const label = i18n.global.t(`sourceControl.remote.${name}`)
       // 远程失败（认证/网络/非快进）用原生弹窗给出 stderr 指引，不自建密码 UI
       await window.electronAPI.showMessageBox({
         type: 'error',
-        title: name,
-        message: name,
+        title: label,
+        message: label,
         detail: stderr,
         buttons: ['OK'],
       })
@@ -279,8 +292,9 @@ export const useGitStore = defineStore('git', () => {
       await api().clone(url, dir)
       return dir
     } catch (err) {
+      const label = i18n.global.t('sourceControl.clone.title')
       await window.electronAPI.showMessageBox({
-        type: 'error', title: 'clone', message: 'clone',
+        type: 'error', title: label, message: label,
         detail: err instanceof Error ? err.message : String(err), buttons: ['OK'],
       })
       return null
@@ -296,16 +310,17 @@ export const useGitStore = defineStore('git', () => {
     commits.value = []
     expandedHash.value = null
     expandedFiles.value = []
+    graphBranch.value = null
   }
 
   return {
-    availability, root, isRepo, status, branch, commits, expandedHash, expandedFiles,
+    availability, root, isRepo, status, branch, commits, expandedHash, expandedFiles, graphBranch,
     loading, graphLoading, busy, revision, cloneDialogOpen, changeCount, hasChanges,
     commitMessage, committing, identityPromptOpen,
-    ensureDetected, onFolderChanged, refresh, loadGraph, toggleCommit, loadFileHistory,
+    ensureDetected, onFolderChanged, refresh, loadGraph, setGraphBranch, toggleCommit, loadFileHistory,
     openDiff, openCommitDiff,
     stage, unstage, stageAll, unstageAll, discard, commit,
-    checkout, createBranch, deleteBranch, addToGitignore,
+    checkout, createBranch, deleteBranch, addToGitignore, restoreFile,
     submitIdentity, cancelIdentity,
     fetch, pull, push, sync, publish, clone,
   }

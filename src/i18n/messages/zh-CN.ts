@@ -1109,6 +1109,11 @@ export default {
   sourceControl: {
     title: '源代码管理',
     moreActions: '更多操作',
+    graph: {
+      listView: '列表视图',
+      treeView: '树状视图',
+      selectBranch: '选择分支',
+    },
     view: {
       repositories: '存储库',
       changes: '更改',
@@ -1157,6 +1162,10 @@ export default {
       create: '创建新分支…',
       createTitle: '分支名称',
       remote: '远程',
+      delete: '删除分支…',
+      deleteTitle: '删除分支？',
+      deleteMessage: '将删除分支 “{name}”，此操作不可撤销。',
+      deleteConfirm: '删除分支',
     },
     identity: {
       title: '配置提交身份',
@@ -1210,6 +1219,10 @@ export default {
       noFile: '打开一个文件以查看其时间线。',
       noRepo: '此文件夹未纳入版本控制。',
       empty: '尚无提交历史。',
+      restore: '还原到此版本',
+      restoreTitle: '还原文件？',
+      restoreMessage: '将把 “{name}” 还原到提交 {hash} 的版本，覆盖当前工作区内容。',
+      restoreConfirm: '还原',
     },
     workspaceDeleted: {
       title: '工作区目录已被外部删除',
