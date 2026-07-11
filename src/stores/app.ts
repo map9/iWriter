@@ -4,8 +4,8 @@ import { ref, computed, watch, reactive } from 'vue'
 import { useGitStore } from './git'
 import { generateJSON, type Editor } from '@tiptap/core'
 import { undoDepth } from '@tiptap/pm/history'
-import type { FileTab, TabStateUpdate, FileOperationResult, FileChange, EditSetting, MarkdownEditorPageMode } from '@/types'
-import { SidebarMode, DocumentType, tabKind } from '@/types'
+import type { FileTab, TabStateUpdate, FileOperationResult, FileChange, EditSetting, MarkdownEditorPageMode, DiffSpec } from '@/types'
+import { SidebarMode, DocumentType, tabKind, TAB_KINDS } from '@/types'
 import type { ExportFormatId, ExportSettings, MarkdownPrintPreferences } from '@/types'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { pathUtils } from '@/utils/pathUtils'
@@ -2439,16 +2439,17 @@ export const useAppStore = defineStore('app', () => {
     documentType?: DocumentType,
     fileReadonly?: boolean,
     pendingImport?: FileTab['pendingImport'],
-    insertIndex?: number
+    insertIndex?: number,
+    params?: FileTab['params']
   ) {
     const id = `${Date.now()}-${++tabIdSeq}`
-    
+
     // Generate untitled name if not provided
     let tabName = name
     if (!tabName) {
       tabName = generateUntitledName({ existingNames: tabs.value.map(t => t.name) })
     }
-    
+
     const newTab: FileTab = {
       id,
       name: tabName,
@@ -2456,6 +2457,7 @@ export const useAppStore = defineStore('app', () => {
       isDirty: false,
       isActive: true,
       documentType: documentType || (path ? detectFromPath(path) : DocumentType.MARKDOWN_EDITOR),
+      params,
       pendingImport,
       docState: { editState: { ...globalEditSetting } },
       fileReadonly: fileReadonly ?? false,
@@ -2478,6 +2480,24 @@ export const useAppStore = defineStore('app', () => {
     notify.success(t('notify.file.opened', { name: path ? path : tabName }), t('notify.file.operation'))
     
     return newTab
+  }
+
+  /**
+   * 打开/激活一个 Diff tab（参数型，只读，不持久化）。
+   * 按 DiffSpec 身份去重：同一文件的同一对比只开一个 tab，再次点击则激活已有。
+   */
+  function openDiffTab(spec: DiffSpec, title: string): FileTab {
+    const key = TAB_KINDS[DocumentType.DIFF_VIEWER].identityOf?.(
+      { params: { kind: 'diff', diff: spec } } as FileTab
+    ) ?? null
+    const existing = key
+      ? tabs.value.find(t => t.documentType === DocumentType.DIFF_VIEWER && tabKind(t).identityOf?.(t) === key)
+      : undefined
+    if (existing) {
+      setActiveTab(existing.id)
+      return existing
+    }
+    return createTab(title, undefined, DocumentType.DIFF_VIEWER, true, undefined, undefined, { kind: 'diff', diff: spec })
   }
 
   /**
@@ -3379,6 +3399,7 @@ export const useAppStore = defineStore('app', () => {
     // Tab operations
     findExistingTab,
     createTab,
+    openDiffTab,
     createOrActivateTab,
     moveTab,
     closeTab,

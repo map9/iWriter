@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { notify } from '@/utils/notifications'
+import { i18n } from '@/i18n'
+import { useAppStore } from './app'
 import type {
   GitAvailability,
   GitBranchInfo,
   GitCommit,
-  GitDiffPayload,
+  DiffSpec,
   GitFileChange,
   GitStatus,
 } from '@/types/git'
@@ -40,12 +42,6 @@ export const useGitStore = defineStore('git', () => {
   const revision = ref(0)
   /** 克隆弹窗（NoFolderOpened / SCM 面板共用） */
   const cloneDialogOpen = ref(false)
-
-  // Diff 浮层
-  const diffOpen = ref(false)
-  const diffLoading = ref(false)
-  const diffPayload = ref<GitDiffPayload | null>(null)
-  const diffTitle = ref('')
 
   // 提交
   const commitMessage = ref('')
@@ -149,41 +145,29 @@ export const useGitStore = defineStore('git', () => {
     }
   }
 
-  /** 打开工作区文件的 diff（Changes 列表点击） */
-  async function openDiff(filePath: string, opts: { staged: boolean }): Promise<void> {
+  /** 打开工作区文件的 diff（Changes 列表点击）→ 编辑区 Diff tab */
+  function openDiff(filePath: string, opts: { staged: boolean }): void {
     if (!root.value) return
-    diffOpen.value = true
-    diffLoading.value = true
-    diffPayload.value = null
-    diffTitle.value = filePath + (opts.staged ? ' · Staged' : '')
-    try {
-      diffPayload.value = await api().diff(root.value, filePath, opts)
-    } catch (err) {
-      console.error('[git] openDiff failed', err)
-    } finally {
-      diffLoading.value = false
+    const spec: DiffSpec = {
+      root: root.value,
+      filePath,
+      kind: 'working',
+      staged: opts.staged,
+      editable: !opts.staged, // 场景1(未暂存, 右=工作区文件)天然可编辑；本期只读渲染
     }
+    const name = filePath.split('/').pop() || filePath
+    const suffix = opts.staged
+      ? i18n.global.t('sourceControl.diffTab.staged')
+      : i18n.global.t('sourceControl.diffTab.working')
+    useAppStore().openDiffTab(spec, `${name} (${suffix})`)
   }
 
-  /** 打开某提交中文件的 diff（Graph 展开点击） */
-  async function openCommitDiff(hash: string, filePath: string): Promise<void> {
+  /** 打开某提交中文件的 diff（Graph 展开点击）→ 编辑区 Diff tab */
+  function openCommitDiff(hash: string, filePath: string): void {
     if (!root.value) return
-    diffOpen.value = true
-    diffLoading.value = true
-    diffPayload.value = null
-    diffTitle.value = `${filePath} · ${hash.slice(0, 7)}`
-    try {
-      diffPayload.value = await api().commitFileDiff(root.value, hash, filePath)
-    } catch (err) {
-      console.error('[git] openCommitDiff failed', err)
-    } finally {
-      diffLoading.value = false
-    }
-  }
-
-  function closeDiff() {
-    diffOpen.value = false
-    diffPayload.value = null
+    const spec: DiffSpec = { root: root.value, filePath, kind: 'commit', hash }
+    const name = filePath.split('/').pop() || filePath
+    useAppStore().openDiffTab(spec, `${name} (${hash.slice(0, 7)})`)
   }
 
   // ---------- 写操作（每次成功后 refresh + 图谱同步） ----------
@@ -317,10 +301,9 @@ export const useGitStore = defineStore('git', () => {
   return {
     availability, root, isRepo, status, branch, commits, expandedHash, expandedFiles,
     loading, graphLoading, busy, revision, cloneDialogOpen, changeCount, hasChanges,
-    diffOpen, diffLoading, diffPayload, diffTitle,
     commitMessage, committing, identityPromptOpen,
     ensureDetected, onFolderChanged, refresh, loadGraph, toggleCommit, loadFileHistory,
-    openDiff, openCommitDiff, closeDiff,
+    openDiff, openCommitDiff,
     stage, unstage, stageAll, unstageAll, discard, commit,
     checkout, createBranch, deleteBranch, addToGitignore,
     submitIdentity, cancelIdentity,

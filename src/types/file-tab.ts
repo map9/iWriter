@@ -12,9 +12,9 @@ export type DocumentDiskState = 'normal' | 'external-modified' | 'deleted'
 
 /**
  * 参数型 tab 的载荷（非文件型 tab 携带的规格，如 diff）。
- * 由具体 tab 类型扩展；`diff` 的 payload 待 SOURCE_CONTROL 引入 DiffSpec 时收紧。
+ * 由具体 tab 类型扩展。
  */
-export type TabParams = { kind: 'diff'; diff: unknown }
+export type TabParams = { kind: 'diff'; diff: import('@/types/git').DiffSpec }
 
 /**
  * 文档编辑态（L3）：仅可编辑编辑器（markdown）填充；viewer/diff/welcome 恒为 undefined。

@@ -119,8 +119,7 @@
     @close="appStore.closePrintPreview()"
   />
 
-  <!-- Git 差异浮层 + 提交身份 + 克隆弹窗 -->
-  <GitDiffModal />
+  <!-- Git 提交身份 + 克隆弹窗（差异改为编辑区 tab，见 DiffViewerPage） -->
   <GitIdentityDialog />
   <GitCloneDialog />
 </template>
@@ -149,12 +148,12 @@ const MarkdownEditorPage = defineAsyncComponent(() => import('@/components/pages
 const ImageViewerPage = defineAsyncComponent(() => import('@/components/pages/ImageViewerPage.vue'))
 const PDFViewerPage = defineAsyncComponent(() => import('@/components/pages/PDFViewerPage.vue'))
 const OfficeViewerPage = defineAsyncComponent(() => import('@/components/pages/OfficeViewerPage.vue'))
+const DiffViewerPage = defineAsyncComponent(() => import('@/components/pages/DiffViewerPage.vue'))
 const UnknownPage = defineAsyncComponent(() => import('@/components/pages/UnknownPage.vue'))
 const UpdateDialog = defineAsyncComponent(() => import('@/components/updater/UpdateDialog.vue'))
 const PreferencesDialog = defineAsyncComponent(() => import('@/components/preferences/PreferencesDialog.vue'))
 const PrintDialog = defineAsyncComponent(() => import('@/components/print/PrintDialog.vue'))
 const PdfPrintDialog = defineAsyncComponent(() => import('@/components/print/PdfPrintDialog.vue'))
-const GitDiffModal = defineAsyncComponent(() => import('@/components/sidebar/scm/GitDiffModal.vue'))
 const GitIdentityDialog = defineAsyncComponent(() => import('@/components/sidebar/scm/GitIdentityDialog.vue'))
 const GitCloneDialog = defineAsyncComponent(() => import('@/components/sidebar/scm/GitCloneDialog.vue'))
 
@@ -169,6 +168,7 @@ const PAGE_COMPONENTS: Partial<Record<DocumentType, Component>> = {
   [DocumentType.IMAGE_VIEWER]: ImageViewerPage,
   [DocumentType.PDF_VIEWER]: PDFViewerPage,
   [DocumentType.OFFICE_VIEWER]: OfficeViewerPage,
+  [DocumentType.DIFF_VIEWER]: DiffViewerPage,
 }
 function pageComponentFor(tab: FileTab): Component {
   return (tab.documentType && PAGE_COMPONENTS[tab.documentType]) || UnknownPage

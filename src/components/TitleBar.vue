@@ -199,6 +199,7 @@ import {
   IconMinus,
   IconRestore,
   IconSquare,
+  IconGitCompare,
 } from '@tabler/icons-vue'
 
 type DragMode = 'file-open' | 'tab-reorder' | null
@@ -304,6 +305,8 @@ function navigateTabs(direction: number) {
 }
 
 function getTabIcon(tab: FileTab) {
+  // 参数型 tab（diff）用 kind 专属图标，不按扩展名（其 name 含"(工作区)"等后缀）
+  if (tab.documentType === DocumentType.DIFF_VIEWER) return IconGitCompare
   return getIconByExtension(pathUtils.extension(tab.name))
 }
 

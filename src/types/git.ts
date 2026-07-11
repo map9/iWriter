@@ -60,6 +60,25 @@ export interface GitDiffPayload {
   isBinary: boolean
 }
 
+/**
+ * Diff tab 的自描述规格（FileTab.params.diff）。DiffViewerPage 据此自取内容。
+ * 对比场景见 design/SOURCE_CONTROL §F7.2。
+ */
+export interface DiffSpec {
+  /** 仓库根 */
+  root: string
+  /** 仓库相对路径 */
+  filePath: string
+  /** working=工作区/暂存对比；commit=某提交对父提交 */
+  kind: 'working' | 'commit'
+  /** kind=working：false→场景1(index↔工作区)，true→场景2(HEAD↔index) */
+  staged?: boolean
+  /** kind=commit：目标提交 hash（对比其父提交） */
+  hash?: string
+  /** 该场景天然是否可编辑（场景1/5=true）；本期恒以只读渲染，仅作未来开关 */
+  editable?: boolean
+}
+
 /** 渲染层通过 window.electronAPI.git.* 调用的接口 */
 export interface GitApi {
   detect: () => Promise<GitAvailability>
