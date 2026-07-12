@@ -185,6 +185,14 @@ export const useGitStore = defineStore('git', () => {
     useAppStore().openDiffTab(spec, `${name} (${hash.slice(0, 7)})`)
   }
 
+  /** 打开冲突文件的合并 tab（Merge Changes 点击）→ 2-pane 对照 + 可编辑结果 */
+  function openMergeTab(filePath: string): void {
+    if (!root.value) return
+    const spec: DiffSpec = { root: root.value, filePath, kind: 'conflict', editable: true }
+    const name = filePath.split('/').pop() || filePath
+    useAppStore().openDiffTab(spec, `${name} (${i18n.global.t('sourceControl.diffTab.merge')})`)
+  }
+
   // ---------- 写操作（每次成功后 refresh + 图谱同步） ----------
   async function afterWrite() {
     await refresh()
@@ -340,7 +348,7 @@ export const useGitStore = defineStore('git', () => {
     loading, graphLoading, busy, revision, cloneDialogOpen, changeCount, hasChanges,
     commitMessage, committing, identityPromptOpen,
     ensureDetected, onFolderChanged, refresh, loadGraph, setGraphBranch, toggleCommit, loadFileHistory,
-    openDiff, openCommitDiff,
+    openDiff, openCommitDiff, openMergeTab,
     stage, unstage, stageAll, unstageAll, discard, commit,
     checkout, createBranch, deleteBranch, addToGitignore, restoreFile, merge,
     submitIdentity, cancelIdentity,

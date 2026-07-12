@@ -1378,6 +1378,8 @@ export class App {
       this.gitService.commitFiles(root, hash))
     ipcMain.handle('git:commit-file-diff', async (_, root: string, hash: string, filePath: string) =>
       this.gitService.commitFileDiff(root, hash, filePath))
+    ipcMain.handle('git:conflict-versions', async (_, root: string, filePath: string) =>
+      this.gitService.conflictVersions(root, filePath))
     ipcMain.handle('git:restore-file', async (_, root: string, hash: string, filePath: string) =>
       this.gitService.restoreFile(root, hash, filePath))
     ipcMain.handle('git:merge', async (_, root: string, branch: string) => this.gitService.merge(root, branch))

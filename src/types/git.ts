@@ -69,6 +69,21 @@ export interface GitDiffPayload {
 }
 
 /**
+ * 合并冲突文件的三方版本（来自 git 冲突暂存阶段 :1/:2/:3）+ 工作区当前内容（含冲突标记）。
+ * 用于合并 tab 的 2-pane（ours↔theirs 对照）+ 可编辑结果。
+ */
+export interface ConflictVersions {
+  /** :1: 共同祖先（diff3），某侧删除则为空 */
+  base: string
+  /** :2: 当前分支 ours */
+  ours: string
+  /** :3: 传入分支 theirs */
+  theirs: string
+  /** 工作区文件当前内容（git 已写入 <<<<<<< 冲突标记），作为结果侧初值 */
+  working: string
+}
+
+/**
  * Diff tab 的自描述规格（FileTab.params.diff）。DiffViewerPage 据此自取内容。
  * 对比场景见 design/SOURCE_CONTROL §F7.2。
  */
@@ -77,13 +92,13 @@ export interface DiffSpec {
   root: string
   /** 仓库相对路径 */
   filePath: string
-  /** working=工作区/暂存对比；commit=某提交对父提交 */
-  kind: 'working' | 'commit'
+  /** working=工作区/暂存对比；commit=某提交对父提交；conflict=合并冲突（F9 合并 tab） */
+  kind: 'working' | 'commit' | 'conflict'
   /** kind=working：false→场景1(index↔工作区)，true→场景2(HEAD↔index) */
   staged?: boolean
   /** kind=commit：目标提交 hash（对比其父提交） */
   hash?: string
-  /** 该场景天然是否可编辑（场景1/5=true）；本期恒以只读渲染，仅作未来开关 */
+  /** 该场景天然是否可编辑（场景1未暂存 / conflict 结果侧=true） */
   editable?: boolean
 }
 
@@ -98,6 +113,7 @@ export interface GitApi {
   log: (root: string, opts: { filePath?: string; allBranches?: boolean; ref?: string; limit?: number; skip?: number }) => Promise<GitCommit[]>
   commitFiles: (root: string, hash: string) => Promise<GitFileChange[]>
   commitFileDiff: (root: string, hash: string, filePath: string) => Promise<GitDiffPayload>
+  conflictVersions: (root: string, filePath: string) => Promise<ConflictVersions>
   restoreFile: (root: string, hash: string, filePath: string) => Promise<void>
   merge: (root: string, branch: string) => Promise<void>
   stage: (root: string, paths: string[]) => Promise<void>

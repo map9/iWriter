@@ -2500,8 +2500,8 @@ export const useAppStore = defineStore('app', () => {
       setActiveTab(existing.id)
       return existing
     }
-    // 仅未暂存工作区 diff 可编辑（无锁）；staged / commit 为只读（带锁）
-    const readonly = !(spec.kind === 'working' && !spec.staged)
+    // 可编辑（无锁）：未暂存工作区 diff、合并冲突结果；staged / commit 为只读（带锁）
+    const readonly = !((spec.kind === 'working' && !spec.staged) || spec.kind === 'conflict')
     return createTab(title, undefined, DocumentType.DIFF_VIEWER, readonly, undefined, undefined, { kind: 'diff', diff: spec })
   }
 
@@ -2734,7 +2734,11 @@ export const useAppStore = defineStore('app', () => {
     if (p?.kind !== 'diff' || tab.diffDraft == null) return true
     const abs = pathUtils.join(p.diff.root, p.diff.filePath)
     const ok = await writeWorkingFile(abs, tab.diffDraft)
-    if (ok) updateTabState(tab.id, { isDirty: false })
+    if (ok) {
+      updateTabState(tab.id, { isDirty: false })
+      // 冲突已解决（去标记后写回）→ git add 标记解决，文件离开 Merge Changes
+      if (p.diff.kind === 'conflict') await useGitStore().stage([p.diff.filePath])
+    }
     return ok
   }
 

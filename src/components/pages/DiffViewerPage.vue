@@ -7,11 +7,11 @@
       <span class="shrink-0 rounded bg-base-200 px-1.5 py-px text-2xs text-base-content/60">{{ basisLabel }}</span>
       <div class="ml-auto flex shrink-0 items-center gap-1">
         <button
-          v-if="canEdit"
+          v-if="canEdit || isConflict"
           class="iw-toolbar-btn btn-xs"
-          :class="tab.isDirty ? 'text-primary' : ''"
-          :disabled="!tab.isDirty"
-          :title="t('common.save')"
+          :class="tab.isDirty && !saveDisabled ? 'text-primary' : ''"
+          :disabled="saveDisabled"
+          :title="isConflict && mergeRemaining > 0 ? t('mergeView.remaining', { count: mergeRemaining }) : t('common.save')"
           @click="save"
         >
           <IconDeviceFloppy class="icon-xs" />
@@ -51,6 +51,14 @@
       <div v-else-if="error" class="flex h-full items-center justify-center px-4 text-center text-sm text-base-content/50">
         {{ error }}
       </div>
+      <MergeView
+        v-else-if="isConflict"
+        :ours="mergeOurs"
+        :theirs="mergeTheirs"
+        :working="mergeWorking"
+        @update:content="onMergeContent"
+        @update:remaining="mergeRemaining = $event"
+      />
       <div v-else-if="isImage" class="flex h-full items-center justify-center text-sm text-base-content/50">
         {{ t('sourceControl.imageFile') }}
       </div>
@@ -77,6 +85,7 @@ import { ref, computed, watch, onMounted, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconGitCompare, IconRefresh, IconPlus, IconMinus, IconDeviceFloppy } from '@tabler/icons-vue'
 import DiffView from '@/components/common/diff/DiffView.vue'
+import MergeView from '@/components/common/diff/MergeView.vue'
 import { useGitStore } from '@/stores/git'
 import { useAppStore } from '@/stores/app'
 import { IMAGE_EXTENSIONS } from '@/types'
@@ -97,6 +106,19 @@ const isBinary = ref(false)
 const editingDiff = ref(false)
 const savedContent = ref('') // 工作区文件当前已存内容，用于脏判断
 
+// —— 合并冲突（kind='conflict'）——
+const isConflict = computed(() => spec.value?.kind === 'conflict')
+const mergeOurs = ref('')
+const mergeTheirs = ref('')
+const mergeWorking = ref('')
+const mergeRemaining = ref(0)
+// 保存禁用：无脏改动，或冲突仍有未解决块
+const saveDisabled = computed(() => !props.tab.isDirty || (isConflict.value && mergeRemaining.value > 0))
+
+function onMergeContent(v: string) {
+  appStore.updateTabState(props.tab.id, { diffDraft: v, isDirty: v !== savedContent.value })
+}
+
 // 可编辑：仅未暂存工作区 diff 的文本源（排除 .iwt/.json/二进制），右侧显式保存写回工作区文件
 const EDIT_BLOCK_EXT = new Set(['iwt', 'json'])
 const canEdit = computed(() =>
@@ -114,7 +136,17 @@ function onDraftChange(v: string) {
 
 // 显式保存（Cmd+S / 保存按钮）
 async function save() {
-  if (!canEdit.value || !props.tab.isDirty) return
+  if (saveDisabled.value) return
+  if (isConflict.value) {
+    // 全部冲突已解决 → 写回去标记 + git add（saveDiffTab 内做），随后关闭合并 tab
+    const ok = await appStore.saveDiffTab(props.tab)
+    if (ok) {
+      savedContent.value = props.tab.diffDraft ?? ''
+      appStore.closeTab(props.tab.id)
+    }
+    return
+  }
+  if (!canEdit.value) return
   const ok = await appStore.saveDiffTab(props.tab)
   if (ok) savedContent.value = props.tab.diffDraft ?? newContent.value
 }
@@ -135,6 +167,7 @@ const basisLabel = computed(() => {
   const s = spec.value
   if (!s) return ''
   if (s.kind === 'commit') return t('diffView.basisCommit', { hash: (s.hash ?? '').slice(0, 7) })
+  if (s.kind === 'conflict') return t('diffView.basisConflict')
   return s.staged ? t('diffView.basisStaged') : t('diffView.basisWorking')
 })
 
@@ -187,6 +220,17 @@ async function load() {
   error.value = ''
   try {
     const api = window.electronAPI.git
+    // 冲突：取三方版本 + 工作区内容（含标记）→ MergeView
+    if (s.kind === 'conflict') {
+      const cv = await api.conflictVersions(s.root, s.filePath)
+      isBinary.value = false
+      mergeOurs.value = cv.ours
+      mergeTheirs.value = cv.theirs
+      mergeWorking.value = cv.working
+      savedContent.value = cv.working
+      appStore.updateTabState(props.tab.id, { diffDraft: cv.working, isDirty: false })
+      return
+    }
     const payload = s.kind === 'commit' && s.hash
       ? await api.commitFileDiff(s.root, s.hash, s.filePath)
       : await api.diff(s.root, s.filePath, { staged: !!s.staged })

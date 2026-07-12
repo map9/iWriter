@@ -1107,6 +1107,19 @@ export default {
     basisWorking: '工作区 ↔ 暂存区',
     basisStaged: '暂存区 ↔ HEAD',
     basisCommit: '{hash} ↔ 父提交',
+    basisConflict: '当前 ↔ 传入',
+  },
+  mergeView: {
+    ours: '当前更改 (ours)',
+    theirs: '传入更改 (theirs)',
+    result: '合并结果',
+    conflict: '冲突',
+    useCurrent: '采用当前',
+    useIncoming: '采用传入',
+    useBoth: '保留两者',
+    reselect: '重选',
+    remaining: '剩余 {count} 处冲突',
+    resolved: '已全部解决',
   },
   sourceControl: {
     title: '源代码管理',
@@ -1139,6 +1152,7 @@ export default {
     diffTab: {
       working: '工作区',
       staged: '暂存',
+      merge: '合并',
     },
     commitPlaceholder: '信息（Ctrl/Cmd+Enter 提交）',
     commit: '提交',

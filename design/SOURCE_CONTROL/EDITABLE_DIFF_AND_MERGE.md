@@ -1,6 +1,6 @@
 # EDITABLE_DIFF_AND_MERGE.md — 可编辑 Diff 与冲突合并设计
 
-> 状态：设计草案 v0.1（2026-07-11，未实施）
+> 状态：v0.2（2026-07-12，E1+E2 已实现）
 > 关联：SOURCE_CONTROL §F7（Diff 查看器）、§F9（合并与冲突解决）
 > 定位：把「diff 中编辑工作区侧」从延后项提为一等能力；F9 冲突解决作为其特例（不再用 TipTap 编辑器 inline）。
 
@@ -124,7 +124,11 @@ diff 是源文本，可编辑侧 = 纯文本编辑。两种粒度：
 
 ## 8. 分期建议
 - **E1 可编辑 diff（场景 1）**：DiffView 编辑模式 + DiffViewerPage 脏/存/写回 + Markdown tab 重载协同 + .iwt 只读护栏。**已实现（2026-07-12）**。
-- **E2 冲突合并（F9）**：`conflictVersions` + 合并 tab（3-pane/2-pane）+ 逐块 accept + 写回 + `git add`。**待做**。
+- **E2 冲突合并（F9）**：`conflictVersions` + 合并 tab（2-pane+结果）+ 逐块 accept + 写回 + `git add`。**已实现（2026-07-12）**：
+  - `GitService.conflictVersions(root,file)→{base,ours,theirs,working}`（:1/:2/:3 + 工作区含标记内容）+ IPC `git:conflict-versions` + preload/GitApi。
+  - `DiffSpec.kind` 扩 `'conflict'`；git store `openMergeTab(file)`；SourceControlPanel `onFileOpen` 对 `status==='C'` 走合并 tab。
+  - 新建 `MergeView.vue`：上 = ours↔theirs 只读 DiffView 对照；下 = 可编辑结果（解析冲突标记为「上下文｜冲突块」，逐块 采用当前/传入/两者→可再编辑，剩余冲突计数）。
+  - `DiffViewerPage.vue` `kind==='conflict'` 分支：取 conflictVersions→MergeView，脏镜像 `diffDraft`，保存禁用直到剩余=0；保存=`saveDiffTab`（写回去标记）+ `git add` + 关闭合并 tab。
 - E1 是 E2 的地基，先做 E1。
 
 ---

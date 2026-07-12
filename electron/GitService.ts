@@ -348,6 +348,22 @@ export class GitService {
     }
   }
 
+  /**
+   * 取合并冲突文件的三方版本（:1 base / :2 ours / :3 theirs）+ 工作区当前内容（含标记）。
+   * 用于合并 tab；某侧在冲突中被删除时对应 show 失败 → 空串。
+   */
+  async conflictVersions(root: string, filePath: string): Promise<{ base: string; ours: string; theirs: string; working: string }> {
+    const g = this.git(root)
+    const abs = path.join(root, filePath)
+    const [base, ours, theirs, working] = await Promise.all([
+      this.showSafe(g, `:1:${filePath}`),
+      this.showSafe(g, `:2:${filePath}`),
+      this.showSafe(g, `:3:${filePath}`),
+      this.readWorking(abs),
+    ])
+    return { base, ours, theirs, working }
+  }
+
   /** 将单个文件还原到某提交的版本（覆盖工作区+index） */
   async restoreFile(root: string, hash: string, filePath: string): Promise<void> {
     await this.git(root).raw(['checkout', hash, '--', filePath])

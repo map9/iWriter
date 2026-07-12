@@ -130,6 +130,7 @@ const electronAPI: ElectronAPI = {
     log: (root: string, opts: { filePath?: string; allBranches?: boolean; ref?: string; limit?: number; skip?: number }) => ipcRenderer.invoke('git:log', root, opts),
     commitFiles: (root: string, hash: string) => ipcRenderer.invoke('git:commit-files', root, hash),
     commitFileDiff: (root: string, hash: string, filePath: string) => ipcRenderer.invoke('git:commit-file-diff', root, hash, filePath),
+    conflictVersions: (root: string, filePath: string) => ipcRenderer.invoke('git:conflict-versions', root, filePath),
     restoreFile: (root: string, hash: string, filePath: string) => ipcRenderer.invoke('git:restore-file', root, hash, filePath),
     merge: (root: string, branch: string) => ipcRenderer.invoke('git:merge', root, branch),
     stage: (root: string, paths: string[]) => ipcRenderer.invoke('git:stage', root, paths),

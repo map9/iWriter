@@ -332,7 +332,9 @@ watchEffect(() => {
 })
 
 function onFileOpen(file: GitFileChange) {
-  gitStore.openDiff(file.path, { staged: file.staged })
+  // 冲突文件 → 合并 tab（2-pane 对照 + 可编辑结果）；其余 → 普通 diff tab
+  if (file.status === 'C') gitStore.openMergeTab(file.path)
+  else gitStore.openDiff(file.path, { staged: file.staged })
 }
 
 // ---- 提交 ----

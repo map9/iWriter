@@ -1110,6 +1110,19 @@ export default {
     basisWorking: 'Working Tree ↔ Index',
     basisStaged: 'Index ↔ HEAD',
     basisCommit: '{hash} ↔ parent',
+    basisConflict: 'Current ↔ Incoming',
+  },
+  mergeView: {
+    ours: 'Current change (ours)',
+    theirs: 'Incoming change (theirs)',
+    result: 'Merge result',
+    conflict: 'Conflict',
+    useCurrent: 'Accept Current',
+    useIncoming: 'Accept Incoming',
+    useBoth: 'Accept Both',
+    reselect: 'Reselect',
+    remaining: '{count} conflict(s) remaining',
+    resolved: 'All resolved',
   },
   sourceControl: {
     title: 'Source Control',
@@ -1142,6 +1155,7 @@ export default {
     diffTab: {
       working: 'Working Tree',
       staged: 'Index',
+      merge: 'Merge',
     },
     commitPlaceholder: 'Message (Ctrl/Cmd+Enter to commit)',
     commit: 'Commit',
