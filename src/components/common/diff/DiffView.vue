@@ -415,12 +415,19 @@ function refreshRuler() {
 }
 
 let ro: ResizeObserver | null = null
+// scrollEl 会随编辑模式进出被 v-if 销毁/重建：跟随 ref 变化重挂 ResizeObserver 并刷新度量。
+// 否则退出编辑后 overview ruler 因仍观察旧的已卸载元素而不再更新（标记/视口块丢失）。
+watch(scrollEl, (el) => {
+  ro?.disconnect()
+  ro = null
+  if (el && typeof ResizeObserver !== 'undefined') {
+    ro = new ResizeObserver(() => refreshRuler())
+    ro.observe(el)
+    nextTick(refreshRuler)
+  }
+})
 onMounted(() => {
   nextTick(refreshRuler)
-  if (scrollEl.value && typeof ResizeObserver !== 'undefined') {
-    ro = new ResizeObserver(() => refreshRuler())
-    ro.observe(scrollEl.value)
-  }
 })
 onBeforeUnmount(() => {
   ro?.disconnect()
