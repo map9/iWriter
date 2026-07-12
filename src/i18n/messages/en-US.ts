@@ -1231,6 +1231,17 @@ export default {
       removeConfirmTitle: 'Remove Remote',
       removeConfirmMessage: 'Remove remote "{name}"? This only removes the remote config; local commits are unaffected.',
     },
+    stash: {
+      push: 'Stash Changes…',
+      popLatest: 'Pop Latest Stash',
+      manage: 'Stash List…',
+      apply: 'Apply (keep)',
+      pop: 'Pop (apply & delete)',
+      drop: 'Drop',
+      messagePlaceholder: 'Stash message (optional)',
+      dropConfirmTitle: 'Drop Stash',
+      dropConfirmMessage: 'Drop stash@{index}? This cannot be undone.',
+    },
     clone: {
       title: 'Clone Repository',
       url: 'Repository URL',

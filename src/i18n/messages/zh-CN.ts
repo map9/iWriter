@@ -1228,6 +1228,17 @@ export default {
       removeConfirmTitle: '删除远程',
       removeConfirmMessage: '确定删除远程「{name}」？此操作只移除远程配置，不影响本地提交。',
     },
+    stash: {
+      push: '贮藏更改…',
+      popLatest: '弹出最近贮藏',
+      manage: '贮藏列表…',
+      apply: '应用（保留）',
+      pop: '弹出（应用并删除）',
+      drop: '删除',
+      messagePlaceholder: '贮藏信息（可选）',
+      dropConfirmTitle: '删除贮藏',
+      dropConfirmMessage: '确定删除 stash@{index}？此操作不可撤销。',
+    },
     clone: {
       title: '克隆仓库',
       url: '仓库 URL',

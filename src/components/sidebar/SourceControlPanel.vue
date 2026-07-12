@@ -287,6 +287,33 @@
       </form>
     </div>
 
+    <!-- 贮藏信息输入弹窗（信息可选） -->
+    <div
+      v-if="stashDialogOpen"
+      class="fixed inset-0 z-1000 flex items-center justify-center bg-black/45 backdrop-blur-sm"
+      @click.self="stashDialogOpen = false"
+    >
+      <form
+        class="w-80 max-w-[90vw] overflow-hidden rounded-box border border-base-300 bg-base-100 shadow-2xl"
+        @submit.prevent="confirmStashPush"
+      >
+        <div class="border-b border-base-300 px-4 py-3 text-sm font-semibold">{{ t('sourceControl.stash.push') }}</div>
+        <div class="px-4 py-4">
+          <input
+            ref="stashInput"
+            v-model="stashMessage"
+            type="text"
+            class="iw-input w-full"
+            :placeholder="t('sourceControl.stash.messagePlaceholder')"
+          />
+        </div>
+        <div class="flex justify-end gap-2 border-t border-base-300 px-4 py-3">
+          <button type="button" class="iw-btn btn-ghost btn-sm" @click="stashDialogOpen = false">{{ t('common.cancel') }}</button>
+          <button type="submit" class="iw-btn btn-primary btn-sm">{{ t('sourceControl.stash.push') }}</button>
+        </div>
+      </form>
+    </div>
+
   </div>
 </template>
 
@@ -590,6 +617,52 @@ async function showRemoteMenu(event: MouseEvent) {
   }
 }
 
+// —— 贮藏 Stash（F10）——
+const stashDialogOpen = ref(false)
+const stashMessage = ref('')
+const stashInput = ref<HTMLInputElement | null>(null)
+function openStashPush() {
+  stashMessage.value = ''
+  stashDialogOpen.value = true
+  nextTick(() => stashInput.value?.focus())
+}
+async function confirmStashPush() {
+  stashDialogOpen.value = false
+  await gitStore.stashPush(stashMessage.value.trim() || undefined)
+}
+/** 贮藏列表：选一条 → 二级菜单 apply/pop/drop */
+async function showStashMenu(event: MouseEvent) {
+  await gitStore.loadStashes()
+  const items: ContextMenuItem[] = gitStore.stashes.map((s): ContextMenuItem => ({
+    id: `st:${s.index}`,
+    label: `stash@{${s.index}}: ${s.message}`,
+  }))
+  if (!items.length) return
+  const action = await window.electronAPI.showContextMenu(items, { x: event.clientX, y: event.clientY })
+  if (action?.startsWith('st:')) showStashActions(Number(action.slice(3)), event)
+}
+async function showStashActions(index: number, event: MouseEvent) {
+  const items: ContextMenuItem[] = [
+    { id: 'apply', label: t('sourceControl.stash.apply') },
+    { id: 'pop', label: t('sourceControl.stash.pop') },
+    { id: 'drop', label: t('sourceControl.stash.drop') },
+  ]
+  const action = await window.electronAPI.showContextMenu(items, { x: event.clientX, y: event.clientY })
+  if (action === 'apply') gitStore.stashApply(index)
+  else if (action === 'pop') gitStore.stashPop(index)
+  else if (action === 'drop') {
+    const res = await window.electronAPI.showMessageBox({
+      type: 'warning',
+      title: t('sourceControl.stash.dropConfirmTitle'),
+      message: t('sourceControl.stash.dropConfirmTitle'),
+      detail: t('sourceControl.stash.dropConfirmMessage', { index }),
+      buttons: [t('common.cancel'), t('sourceControl.stash.drop')],
+      defaultId: 0,
+      cancelId: 0,
+    })
+    if (res?.response === 1) gitStore.stashDrop(index)
+  }
+}
 
 function statusColor(s: GitFileStatus): string {
   switch (s) {
@@ -641,8 +714,19 @@ const showScmViewMenu = async (event: MouseEvent) => {
       ]
     : []
   const repo = gitStore.isRepo
+  if (repo) await gitStore.loadStashes()
+  const hasStash = gitStore.stashes.length > 0
+  const stashItems: ContextMenuItem[] = repo
+    ? [
+        { id: 'stash-push', label: t('sourceControl.stash.push'), enabled: gitStore.hasChanges },
+        { id: 'stash-pop-latest', label: t('sourceControl.stash.popLatest'), enabled: hasStash },
+        { id: 'stash-manage', label: t('sourceControl.stash.manage'), enabled: hasStash },
+        { type: 'separator' },
+      ]
+    : []
   const menuItems: ContextMenuItem[] = [
     ...remoteItems,
+    ...stashItems,
     { id: 'scm-view-repositories', label: t('sourceControl.view.repositories'), type: 'checkbox', enabled: repo, checked: repo && repos?.visible !== false },
     { id: 'scm-view-changes', label: t('sourceControl.view.changes'), type: 'checkbox', enabled: false, checked: repo },
     { id: 'scm-view-graph', label: t('sourceControl.view.graph'), type: 'checkbox', enabled: repo, checked: repo && graph?.visible !== false },
@@ -657,6 +741,9 @@ const showScmViewMenu = async (event: MouseEvent) => {
     else if (action === 'remote-fetch') gitStore.fetch()
     else if (action === 'remote-publish') gitStore.publish()
     else if (action === 'remote-manage') showRemoteMenu(event)
+    else if (action === 'stash-push') openStashPush()
+    else if (action === 'stash-pop-latest') gitStore.stashPop(0)
+    else if (action === 'stash-manage') showStashMenu(event)
   } catch (error) {
     console.error('Error showing SCM view menu:', error)
   }

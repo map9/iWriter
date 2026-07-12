@@ -156,6 +156,11 @@ const electronAPI: ElectronAPI = {
     listRemotes: (root: string) => ipcRenderer.invoke('git:list-remotes', root),
     addRemote: (root: string, name: string, url: string) => ipcRenderer.invoke('git:add-remote', root, name, url),
     removeRemote: (root: string, name: string) => ipcRenderer.invoke('git:remove-remote', root, name),
+    stashPush: (root: string, message?: string) => ipcRenderer.invoke('git:stash-push', root, message),
+    stashList: (root: string) => ipcRenderer.invoke('git:stash-list', root),
+    stashApply: (root: string, index: number) => ipcRenderer.invoke('git:stash-apply', root, index),
+    stashPop: (root: string, index: number) => ipcRenderer.invoke('git:stash-pop', root, index),
+    stashDrop: (root: string, index: number) => ipcRenderer.invoke('git:stash-drop', root, index),
     onProgress: (callback: (p: GitProgress) => void) => {
       const listener = (_: IpcRendererEvent, p: GitProgress) => callback(p)
       ipcRenderer.on('git:progress', listener)

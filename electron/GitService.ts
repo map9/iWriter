@@ -192,7 +192,8 @@ export class GitService {
   }
 
   async pull(root: string, opts: { rebase?: boolean }): Promise<void> {
-    const args = ['pull']
+    // --autostash：脏工作区自动 stash→pull→pop（clean 时无操作）；pop 冲突则保留冲突交给 Merge Changes
+    const args = ['pull', '--autostash']
     if (opts.rebase) args.push('--rebase')
     await this.git(root).raw(args)
   }
@@ -229,6 +230,39 @@ export class GitService {
 
   async removeRemote(root: string, name: string): Promise<void> {
     await this.git(root).removeRemote(name)
+  }
+
+  // ---------- 贮藏 Stash ----------
+  async stashPush(root: string, message?: string): Promise<void> {
+    const args = ['stash', 'push']
+    if (message) args.push('-m', message)
+    await this.git(root).raw(args)
+  }
+
+  async stashList(root: string): Promise<{ index: number; message: string }[]> {
+    let out = ''
+    try {
+      out = await this.git(root).raw(['stash', 'list', '--pretty=format:%gd%x1f%s'])
+    } catch {
+      return []
+    }
+    return out.split('\n').filter(Boolean).map((line, i) => {
+      const [ref, subject] = line.split('\x1f')
+      const m = /stash@\{(\d+)\}/.exec(ref ?? '')
+      return { index: m ? Number(m[1]) : i, message: subject ?? '' }
+    })
+  }
+
+  async stashApply(root: string, index: number): Promise<void> {
+    await this.git(root).raw(['stash', 'apply', `stash@{${index}}`])
+  }
+
+  async stashPop(root: string, index: number): Promise<void> {
+    await this.git(root).raw(['stash', 'pop', `stash@{${index}}`])
+  }
+
+  async stashDrop(root: string, index: number): Promise<void> {
+    await this.git(root).raw(['stash', 'drop', `stash@{${index}}`])
   }
 
   async addToGitignore(root: string, relPath: string): Promise<void> {

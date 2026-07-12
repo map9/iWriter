@@ -38,6 +38,14 @@ export interface GitRemote {
   url: string
 }
 
+/** 贮藏条目（git stash list） */
+export interface GitStashEntry {
+  /** stash@{index} 的序号 */
+  index: number
+  /** 描述（%s，如 "WIP on main: ..."） */
+  message: string
+}
+
 /** 长耗时远程操作（clone/fetch/push/pull/checkout）的进度事件（来自 simple-git progress 插件） */
 export interface GitProgress {
   /** 操作：clone | fetch | push | pull | checkout */
@@ -156,6 +164,11 @@ export interface GitApi {
   listRemotes: (root: string) => Promise<GitRemote[]>
   addRemote: (root: string, name: string, url: string) => Promise<void>
   removeRemote: (root: string, name: string) => Promise<void>
+  stashPush: (root: string, message?: string) => Promise<void>
+  stashList: (root: string) => Promise<GitStashEntry[]>
+  stashApply: (root: string, index: number) => Promise<void>
+  stashPop: (root: string, index: number) => Promise<void>
+  stashDrop: (root: string, index: number) => Promise<void>
   /** 订阅长耗时操作进度；返回取消订阅函数 */
   onProgress: (callback: (p: GitProgress) => void) => () => void
 }

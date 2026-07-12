@@ -1419,6 +1419,15 @@ export class App {
       this.gitService.addRemote(root, name, url))
     ipcMain.handle('git:remove-remote', async (_, root: string, name: string) =>
       this.gitService.removeRemote(root, name))
+    ipcMain.handle('git:stash-push', async (_, root: string, message?: string) =>
+      this.gitService.stashPush(root, message))
+    ipcMain.handle('git:stash-list', async (_, root: string) => this.gitService.stashList(root))
+    ipcMain.handle('git:stash-apply', async (_, root: string, index: number) =>
+      this.gitService.stashApply(root, index))
+    ipcMain.handle('git:stash-pop', async (_, root: string, index: number) =>
+      this.gitService.stashPop(root, index))
+    ipcMain.handle('git:stash-drop', async (_, root: string, index: number) =>
+      this.gitService.stashDrop(root, index))
   }
 
   private registerLibreOfficeHandlers() {

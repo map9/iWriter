@@ -11,6 +11,7 @@ import type {
   GitFileChange,
   GitProgress,
   GitRemote,
+  GitStashEntry,
   GitStatus,
 } from '@/types/git'
 
@@ -315,6 +316,8 @@ export const useGitStore = defineStore('git', () => {
         detail: tailLines(stderr, 12),
         buttons: ['OK'],
       })
+      // 失败后也刷新：pull/sync 的 --autostash pop 冲突需露出到 Merge Changes
+      await afterWrite()
       return false
     } finally {
       busy.value = null
@@ -348,6 +351,46 @@ export const useGitStore = defineStore('git', () => {
     const ok = await run(() => api().removeRemote(root.value!, name))
     if (ok) await loadRemotes()
     return ok
+  }
+
+  // ---------- 贮藏 Stash（F10） ----------
+  const stashes = ref<GitStashEntry[]>([])
+  async function loadStashes(): Promise<GitStashEntry[]> {
+    if (!root.value || !isRepo.value) { stashes.value = []; return [] }
+    try {
+      stashes.value = await api().stashList(root.value)
+    } catch {
+      stashes.value = []
+    }
+    return stashes.value
+  }
+  async function stashPush(message?: string): Promise<boolean> {
+    const ok = await run(() => api().stashPush(root.value!, message))
+    if (ok) await loadStashes()
+    return ok
+  }
+  async function stashApply(index: number): Promise<boolean> {
+    const ok = await run(() => api().stashApply(root.value!, index))
+    if (ok) await loadStashes()
+    return ok
+  }
+  async function stashDrop(index: number): Promise<boolean> {
+    const ok = await run(() => api().stashDrop(root.value!, index))
+    if (ok) await loadStashes()
+    return ok
+  }
+  /** 弹出贮藏：冲突不作硬错误（交给 Merge Changes 呈现），仅真错误提示 */
+  async function stashPop(index: number): Promise<void> {
+    if (!root.value) return
+    try {
+      await api().stashPop(root.value, index)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!/conflict|CONFLICT/i.test(msg)) notify.error(msg)
+    } finally {
+      await afterWrite()
+      await loadStashes()
+    }
   }
 
   /** 克隆到目录（无 root 上下文）；成功返回目标目录 */
@@ -393,5 +436,6 @@ export const useGitStore = defineStore('git', () => {
     submitIdentity, cancelIdentity,
     fetch, pull, push, sync, publish, clone,
     remotes, loadRemotes, addRemote, removeRemote,
+    stashes, loadStashes, stashPush, stashApply, stashPop, stashDrop,
   }
 })
