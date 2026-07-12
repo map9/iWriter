@@ -116,6 +116,7 @@ export interface GitApi {
   conflictVersions: (root: string, filePath: string) => Promise<ConflictVersions>
   restoreFile: (root: string, hash: string, filePath: string) => Promise<void>
   merge: (root: string, branch: string) => Promise<void>
+  applyPatch: (root: string, patch: string, opts: { cached?: boolean; reverse?: boolean }) => Promise<void>
   stage: (root: string, paths: string[]) => Promise<void>
   unstage: (root: string, paths: string[]) => Promise<void>
   stageAll: (root: string) => Promise<void>

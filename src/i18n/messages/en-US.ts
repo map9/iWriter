@@ -1111,6 +1111,14 @@ export default {
     basisStaged: 'Index ↔ HEAD',
     basisCommit: '{hash} ↔ parent',
     basisConflict: 'Current ↔ Incoming',
+    stageHunk: 'Stage hunk',
+    discardHunk: 'Discard hunk',
+    unstageHunk: 'Unstage hunk',
+    hunkApplyFailed: 'Hunk operation failed',
+    discardHunkConfirm: {
+      title: 'Discard hunk changes',
+      message: 'This reverts the selected hunk from the working tree and cannot be undone. Continue?',
+    },
   },
   mergeView: {
     ours: 'Current change (ours)',

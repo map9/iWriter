@@ -91,7 +91,7 @@
             v-for="(p, i) in pairs"
             :key="i"
             :data-block-start="p.blockStart ? '' : null"
-            class="grid grid-cols-2"
+            class="group relative grid grid-cols-2"
           >
             <div class="flex border-r border-base-300" :class="sideBg(p.left)">
               <span
@@ -107,6 +107,16 @@
               >{{ p.right?.newNo ?? '' }}</span>
               <span class="min-h-[1.5em] whitespace-pre-wrap break-words px-2"><template v-for="(s, si) in (p.right?.segs ?? [])" :key="si"><span :class="s.hl ? 'rounded-sm bg-success/40' : ''">{{ s.value }}</span></template></span>
             </div>
+            <div
+              v-if="hunkMode && hunkAnchors.splitMap.has(i)"
+              class="absolute right-1.5 top-0.5 z-10 hidden items-center gap-0.5 rounded border border-base-300 bg-base-100 px-0.5 shadow-sm group-hover:flex"
+            >
+              <template v-if="hunkMode === 'unstaged'">
+                <button class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('diffView.stageHunk')" @click="onHunk(hunkAnchors.splitMap.get(i)!, 'stage')"><IconPlus class="icon-2xs" /></button>
+                <button class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('diffView.discardHunk')" @click="onHunk(hunkAnchors.splitMap.get(i)!, 'discard')"><IconArrowBackUp class="icon-2xs" /></button>
+              </template>
+              <button v-else class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('diffView.unstageHunk')" @click="onHunk(hunkAnchors.splitMap.get(i)!, 'unstage')"><IconMinus class="icon-2xs" /></button>
+            </div>
           </div>
         </template>
 
@@ -116,7 +126,7 @@
             v-for="(l, i) in inlineRows"
             :key="i"
             :data-block-start="l.blockStart ? '' : null"
-            class="flex"
+            class="group relative flex"
             :class="lineBg(l.type)"
           >
             <span
@@ -129,6 +139,16 @@
             >{{ l.newNo ?? '' }}</span>
             <span class="w-4 shrink-0 select-none text-center text-base-content/40">{{ sign(l.type) }}</span>
             <span class="min-h-[1.5em] whitespace-pre-wrap break-words px-1"><template v-for="(s, si) in l.segs" :key="si"><span :class="hlClass(l.type, s.hl)">{{ s.value }}</span></template></span>
+            <div
+              v-if="hunkMode && hunkAnchors.inlineMap.has(i)"
+              class="absolute right-1.5 top-0.5 z-10 hidden items-center gap-0.5 rounded border border-base-300 bg-base-100 px-0.5 shadow-sm group-hover:flex"
+            >
+              <template v-if="hunkMode === 'unstaged'">
+                <button class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('diffView.stageHunk')" @click="onHunk(hunkAnchors.inlineMap.get(i)!, 'stage')"><IconPlus class="icon-2xs" /></button>
+                <button class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('diffView.discardHunk')" @click="onHunk(hunkAnchors.inlineMap.get(i)!, 'discard')"><IconArrowBackUp class="icon-2xs" /></button>
+              </template>
+              <button v-else class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('diffView.unstageHunk')" @click="onHunk(hunkAnchors.inlineMap.get(i)!, 'unstage')"><IconMinus class="icon-2xs" /></button>
+            </div>
           </div>
         </template>
       </div>
@@ -162,6 +182,7 @@
 import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { diffLines, diffWords } from 'diff'
+import type { DiffHunk } from './hunk-patch'
 import {
   IconLayoutColumns,
   IconLayoutRows,
@@ -169,6 +190,9 @@ import {
   IconChevronUp,
   IconChevronDown,
   IconPencil,
+  IconPlus,
+  IconMinus,
+  IconArrowBackUp,
 } from '@tabler/icons-vue'
 
 const { t } = useI18n()
@@ -180,12 +204,26 @@ const props = withDefaults(defineProps<{
   initialMode?: 'split' | 'inline'
   /** 右侧是否可编辑（工作区文本源，场景1/冲突） */
   editable?: boolean
+  /** git hunks（DiffViewerPage 用 computeHunks 传入）；用于渲染逐块 stage/discard 锚点 */
+  hunks?: DiffHunk[]
+  /** 逐块操作模式：unstaged=暂存/放弃、staged=取消暂存、null=不显示 */
+  hunkMode?: 'unstaged' | 'staged' | null
 }>(), {
   initialMode: 'split',
   editable: false,
+  hunks: () => [],
+  hunkMode: null,
 })
 
-const emit = defineEmits<{ 'update:content': [value: string]; 'update:editing': [value: boolean] }>()
+const emit = defineEmits<{
+  'update:content': [value: string]
+  'update:editing': [value: boolean]
+  'hunk-action': [payload: { index: number; action: 'stage' | 'discard' | 'unstage' }]
+}>()
+
+function onHunk(index: number, action: 'stage' | 'discard' | 'unstage') {
+  emit('hunk-action', { index, action })
+}
 
 const mode = ref<'split' | 'inline'>(props.initialMode)
 const showLineNumbers = ref(true)
@@ -310,6 +348,44 @@ const inlineRows = computed(() => computed_.value.inlineRows)
 const blocks = computed(() => computed_.value.blocks)
 const stats = computed(() => computed_.value.stats)
 const hunkCount = computed(() => blocks.value.length)
+
+// git hunk → 渲染行索引的锚点：在该 hunk 首个变更行所在的 split/inline 行渲染逐块操作按钮。
+// （git hunk 因 context 合并，可能覆盖多个视觉 block；按 hunk 出一个按钮，避免重复。）
+const hunkAnchors = computed(() => {
+  const splitMap = new Map<number, number>()
+  const inlineMap = new Map<number, number>()
+  if (!props.hunkMode || !props.hunks.length) return { splitMap, inlineMap }
+  const newToSplit = new Map<number, number>(); const oldToSplit = new Map<number, number>()
+  pairs.value.forEach((p, i) => {
+    if (p.right?.newNo != null && !newToSplit.has(p.right.newNo)) newToSplit.set(p.right.newNo, i)
+    if (p.left?.oldNo != null && !oldToSplit.has(p.left.oldNo)) oldToSplit.set(p.left.oldNo, i)
+  })
+  const newToInline = new Map<number, number>(); const oldToInline = new Map<number, number>()
+  inlineRows.value.forEach((r, i) => {
+    if (r.newNo != null && !newToInline.has(r.newNo)) newToInline.set(r.newNo, i)
+    if (r.oldNo != null && !oldToInline.has(r.oldNo)) oldToInline.set(r.oldNo, i)
+  })
+  for (const h of props.hunks) {
+    let curOld = h.oldStart; let curNew = h.newStart
+    for (const ln of h.lines) {
+      const c = ln[0]
+      if (c === '+') {
+        const si = newToSplit.get(curNew); const ii = newToInline.get(curNew)
+        if (si != null && !splitMap.has(si)) splitMap.set(si, h.index)
+        if (ii != null && !inlineMap.has(ii)) inlineMap.set(ii, h.index)
+        break
+      }
+      if (c === '-') {
+        const si = oldToSplit.get(curOld); const ii = oldToInline.get(curOld)
+        if (si != null && !splitMap.has(si)) splitMap.set(si, h.index)
+        if (ii != null && !inlineMap.has(ii)) inlineMap.set(ii, h.index)
+        break
+      }
+      curOld++; curNew++ // context 行推进两侧
+    }
+  }
+  return { splitMap, inlineMap }
+})
 
 // —— overview ruler —— 按实际 DOM 像素偏移定位（非行序），内容不满时标记落在有内容处
 interface Mark { top: number; height: number; removed: boolean; added: boolean }

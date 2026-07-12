@@ -1,5 +1,6 @@
 import { execFile } from 'child_process'
 import * as path from 'path'
+import * as os from 'os'
 import * as fs from 'fs/promises'
 import simpleGit, { type SimpleGit } from 'simple-git'
 import type {
@@ -372,6 +373,27 @@ export class GitService {
   /** 合并指定分支到当前分支（冲突时 git 以非零退出，交由渲染层按 status 呈现 Merge Changes） */
   async merge(root: string, branch: string): Promise<void> {
     await this.git(root).raw(['merge', branch])
+  }
+
+  /**
+   * 应用 unified diff 补丁（用于 hunk 级 stage/discard/unstage）。
+   * - cached: `--cached`（更新 index，用于暂存/取消暂存）；否则应用到工作区（用于放弃）。
+   * - reverse: `-R`（反向应用，用于放弃/取消暂存）。
+   * 补丁经临时文件传入（simple-git 不便走 stdin）。失败抛错，交渲染层提示。
+   */
+  async applyPatch(root: string, patch: string, opts: { cached?: boolean; reverse?: boolean }): Promise<void> {
+    const tmp = path.join(os.tmpdir(), `iwriter-hunk-${Date.now()}-${Math.random().toString(36).slice(2)}.patch`)
+    // 补丁以 \n 行尾；确保末尾有换行，git apply 对此敏感
+    await fs.writeFile(tmp, patch.endsWith('\n') ? patch : patch + '\n', 'utf-8')
+    try {
+      const args = ['apply', '--whitespace=nowarn']
+      if (opts.cached) args.push('--cached')
+      if (opts.reverse) args.push('--reverse')
+      args.push('--', tmp)
+      await this.git(root).raw(args)
+    } finally {
+      await fs.rm(tmp, { force: true }).catch(() => { /* ignore */ })
+    }
   }
 
   dispose(root?: string): void {

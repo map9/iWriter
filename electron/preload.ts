@@ -133,6 +133,7 @@ const electronAPI: ElectronAPI = {
     conflictVersions: (root: string, filePath: string) => ipcRenderer.invoke('git:conflict-versions', root, filePath),
     restoreFile: (root: string, hash: string, filePath: string) => ipcRenderer.invoke('git:restore-file', root, hash, filePath),
     merge: (root: string, branch: string) => ipcRenderer.invoke('git:merge', root, branch),
+    applyPatch: (root: string, patch: string, opts: { cached?: boolean; reverse?: boolean }) => ipcRenderer.invoke('git:apply-patch', root, patch, opts),
     stage: (root: string, paths: string[]) => ipcRenderer.invoke('git:stage', root, paths),
     unstage: (root: string, paths: string[]) => ipcRenderer.invoke('git:unstage', root, paths),
     stageAll: (root: string) => ipcRenderer.invoke('git:stage-all', root),

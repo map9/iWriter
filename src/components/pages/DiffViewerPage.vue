@@ -63,8 +63,11 @@
         :old-content="oldContent"
         :new-content="newContent"
         :editable="canEdit"
+        :hunks="hunks"
+        :hunk-mode="hunkMode"
         @update:content="onDraftChange"
         @update:editing="editingDiff = $event"
+        @hunk-action="onHunkAction"
       />
     </div>
   </div>
@@ -76,6 +79,7 @@ import { useI18n } from 'vue-i18n'
 import { IconGitCompare, IconRefresh, IconPlus, IconMinus } from '@tabler/icons-vue'
 import DiffView from '@/components/common/diff/DiffView.vue'
 import MergeView from '@/components/common/diff/MergeView.vue'
+import { computeHunks, buildHunkPatch } from '@/components/common/diff/hunk-patch'
 import { useGitStore } from '@/stores/git'
 import { useAppStore } from '@/stores/app'
 import { notify } from '@/utils/notifications'
@@ -121,6 +125,42 @@ const canEdit = computed(() =>
 function onDraftChange(v: string) {
   newContent.value = v
   appStore.updateTabState(props.tab.id, { diffDraft: v, isDirty: v !== savedContent.value })
+}
+
+// —— hunk 级 stage/discard —— 仅工作区文本 diff（非 .iwt/.json/二进制）；编辑中不显示逐块操作
+const hunkMode = computed<'unstaged' | 'staged' | null>(() => {
+  if (spec.value?.kind !== 'working' || isBinary.value || EDIT_BLOCK_EXT.has(ext.value) || editingDiff.value) return null
+  return spec.value.staged ? 'staged' : 'unstaged'
+})
+const hunks = computed(() => (hunkMode.value ? computeHunks(oldContent.value, newContent.value) : []))
+
+async function onHunkAction({ index, action }: { index: number; action: 'stage' | 'discard' | 'unstage' }) {
+  const s = spec.value
+  if (!s || s.kind !== 'working') return
+  const hunk = hunks.value[index]
+  if (!hunk) return
+  // 放弃为破坏性操作 → 二次确认（NFR4）
+  if (action === 'discard') {
+    const res = await window.electronAPI.showMessageBox({
+      type: 'warning',
+      title: t('diffView.discardHunkConfirm.title'),
+      message: t('diffView.discardHunkConfirm.title'),
+      detail: t('diffView.discardHunkConfirm.message'),
+      buttons: [t('common.cancel'), t('sourceControl.action.discard')],
+      defaultId: 0,
+      cancelId: 0,
+    })
+    if (res?.response !== 1) return
+  }
+  const patch = buildHunkPatch(s.filePath, hunk)
+  try {
+    if (action === 'stage') await window.electronAPI.git.applyPatch(s.root, patch, { cached: true })
+    else if (action === 'unstage') await window.electronAPI.git.applyPatch(s.root, patch, { cached: true, reverse: true })
+    else await window.electronAPI.git.applyPatch(s.root, patch, { reverse: true })
+    gitStore.refresh() // revision++ → reloadWithBasis 跟随基准并重载
+  } catch (err) {
+    notify.error(t('diffView.hunkApplyFailed'), err instanceof Error ? err.message : String(err))
+  }
 }
 
 // 保存（Cmd+S / 菜单「保存」/ 关闭确认）——无专用工具栏图标，复用标准保存路径

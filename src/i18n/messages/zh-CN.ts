@@ -1108,6 +1108,14 @@ export default {
     basisStaged: '暂存区 ↔ HEAD',
     basisCommit: '{hash} ↔ 父提交',
     basisConflict: '当前 ↔ 传入',
+    stageHunk: '暂存此块',
+    discardHunk: '放弃此块',
+    unstageHunk: '取消暂存此块',
+    hunkApplyFailed: '块操作失败',
+    discardHunkConfirm: {
+      title: '放弃此块更改',
+      message: '将从工作区回退所选块的更改，此操作不可撤销。是否继续？',
+    },
   },
   mergeView: {
     ours: '当前更改 (ours)',
