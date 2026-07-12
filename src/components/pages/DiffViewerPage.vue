@@ -7,16 +7,6 @@
       <span class="shrink-0 rounded bg-base-200 px-1.5 py-px text-2xs text-base-content/60">{{ basisLabel }}</span>
       <div class="ml-auto flex shrink-0 items-center gap-1">
         <button
-          v-if="canEdit || isConflict"
-          class="iw-toolbar-btn btn-xs"
-          :class="tab.isDirty && !saveDisabled ? 'text-primary' : ''"
-          :disabled="saveDisabled"
-          :title="isConflict && mergeRemaining > 0 ? t('mergeView.remaining', { count: mergeRemaining }) : t('common.save')"
-          @click="save"
-        >
-          <IconDeviceFloppy class="icon-xs" />
-        </button>
-        <button
           v-if="canStage"
           class="iw-toolbar-btn btn-xs"
           :title="t('sourceControl.action.stage')"
@@ -83,11 +73,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconGitCompare, IconRefresh, IconPlus, IconMinus, IconDeviceFloppy } from '@tabler/icons-vue'
+import { IconGitCompare, IconRefresh, IconPlus, IconMinus } from '@tabler/icons-vue'
 import DiffView from '@/components/common/diff/DiffView.vue'
 import MergeView from '@/components/common/diff/MergeView.vue'
 import { useGitStore } from '@/stores/git'
 import { useAppStore } from '@/stores/app'
+import { notify } from '@/utils/notifications'
 import { IMAGE_EXTENSIONS } from '@/types'
 import type { FileTab } from '@/types'
 
@@ -112,8 +103,6 @@ const mergeOurs = ref('')
 const mergeTheirs = ref('')
 const mergeWorking = ref('')
 const mergeRemaining = ref(0)
-// 保存禁用：无脏改动，或冲突仍有未解决块
-const saveDisabled = computed(() => !props.tab.isDirty || (isConflict.value && mergeRemaining.value > 0))
 
 function onMergeContent(v: string) {
   appStore.updateTabState(props.tab.id, { diffDraft: v, isDirty: v !== savedContent.value })
@@ -134,10 +123,15 @@ function onDraftChange(v: string) {
   appStore.updateTabState(props.tab.id, { diffDraft: v, isDirty: v !== savedContent.value })
 }
 
-// 显式保存（Cmd+S / 保存按钮）
+// 保存（Cmd+S / 菜单「保存」/ 关闭确认）——无专用工具栏图标，复用标准保存路径
 async function save() {
-  if (saveDisabled.value) return
+  if (!props.tab.isDirty) return
   if (isConflict.value) {
+    // 仍有未解决冲突 → 不写盘，提示（替代原禁用按钮的反馈）
+    if (mergeRemaining.value > 0) {
+      notify.warning(t('mergeView.remaining', { count: mergeRemaining.value }))
+      return
+    }
     // 全部冲突已解决 → 写回去标记 + git add（saveDiffTab 内做），随后关闭合并 tab
     const ok = await appStore.saveDiffTab(props.tab)
     if (ok) {

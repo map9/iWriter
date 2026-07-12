@@ -2736,8 +2736,11 @@ export const useAppStore = defineStore('app', () => {
     const ok = await writeWorkingFile(abs, tab.diffDraft)
     if (ok) {
       updateTabState(tab.id, { isDirty: false })
-      // 冲突已解决（去标记后写回）→ git add 标记解决，文件离开 Merge Changes
-      if (p.diff.kind === 'conflict') await useGitStore().stage([p.diff.filePath])
+      // 冲突：仅当写回内容已无冲突标记（全部解决）才 git add 标记解决、离开 Merge Changes；
+      // 仍含标记（部分解决就关闭保存）则只持久化编辑、保持冲突态，避免误标已解决。
+      if (p.diff.kind === 'conflict' && !/^(<<<<<<<|=======|>>>>>>>)/m.test(tab.diffDraft)) {
+        await useGitStore().stage([p.diff.filePath])
+      }
     }
     return ok
   }
