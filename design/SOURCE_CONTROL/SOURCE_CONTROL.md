@@ -181,7 +181,7 @@ export interface DiffSpec {
 - 检测冲突文件并归入 Merge Changes 分组（已具备）。
 - **修订（2026-07-11）**：~~在 TipTap 编辑器内 inline 渲染 `<<<<<<<`~~ → **改为 diff 家族的「合并 tab」**（**2-pane+结果**：上 ours↔theirs 只读对照，下可编辑结果 + 逐块采用当前/传入/两者）。理由：inline 会重蹈 F12 gutter 的 WYSIWYG 语义 diff 坑；冲突本质是比较+可编辑结果，属 DiffView 家族。
 - 数据来自 git 冲突暂存阶段 `:1/:2/:3`（base/ours/theirs）+ 工作区含标记内容；结果侧解析工作区标记切块。
-- 解决 → 写回工作区（去标记）→ `git add` 标记已解决 → 离开 Merge Changes → 关闭合并 tab；全部解决后提交。
+- 解决 → 写回工作区（去标记）→ `git add` 标记已解决 → 离开 Merge Changes；保存不自动关闭 tab（脏点清除即已保存）；全部解决后提交。
 - 承载：复用 `DIFF_VIEWER` tab（`DiffSpec.kind='conflict'` 驱动），新建 `MergeView.vue`。
 - 完整设计见 [EDITABLE_DIFF_AND_MERGE.md](EDITABLE_DIFF_AND_MERGE.md)（建立在「可编辑 diff」之上）。
 

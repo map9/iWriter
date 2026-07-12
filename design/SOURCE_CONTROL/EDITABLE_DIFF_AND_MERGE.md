@@ -131,7 +131,7 @@ diff 是源文本，可编辑侧 = 纯文本编辑。两种粒度：
   - `GitService.conflictVersions(root,file)→{base,ours,theirs,working}`（:1/:2/:3 + 工作区含标记内容）+ IPC `git:conflict-versions` + preload/GitApi。
   - `DiffSpec.kind` 扩 `'conflict'`；git store `openMergeTab(file)`；SourceControlPanel `onFileOpen` 对 `status==='C'` 走合并 tab。
   - 新建 `MergeView.vue`：上 = ours↔theirs 只读 DiffView 对照；下 = 可编辑结果（解析冲突标记为「上下文｜冲突块」，逐块 采用当前/传入/两者→可再编辑，剩余冲突计数）。
-  - `DiffViewerPage.vue` `kind==='conflict'` 分支：取 conflictVersions→MergeView，脏镜像 `diffDraft`，保存禁用直到剩余=0；保存=`saveDiffTab`（写回去标记）+ `git add` + 关闭合并 tab。
+  - `DiffViewerPage.vue` `kind==='conflict'` 分支：取 conflictVersions→MergeView，脏镜像 `diffDraft`，未解决按 Cmd+S 提示剩余冲突；保存=`saveDiffTab`（写回去标记）+ `git add`（护栏：仅内容无标记才 add），保存不自动关闭 tab。
 - E1 是 E2 的地基，先做 E1。
 
 ---
