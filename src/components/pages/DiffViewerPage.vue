@@ -192,7 +192,8 @@ function resolveBasis(): boolean | null {
 // 同时更新锁：staged → 只读带锁，unstaged → 可编辑无锁。
 let reloading = false
 async function reloadWithBasis() {
-  if (reloading || editingDiff.value) return
+  // 编辑中 / 有未保存草稿时不重载：load() 会重置 savedContent+diffDraft+isDirty，会 clobber 用户编辑
+  if (reloading || editingDiff.value || props.tab.isDirty) return
   reloading = true
   try {
     const s = spec.value
@@ -273,7 +274,7 @@ onMounted(load)
 // 工作区 diff 随 git 状态刷新自动跟随基准并重取（stage/unstage/discard/commit 后，含从 SCM 面板操作）；
 // commit diff 内容不变。编辑中不重取，避免用自身写盘触发的刷新 clobber 草稿。
 watch(() => gitStore.revision, () => {
-  if (spec.value?.kind === 'working' && !editingDiff.value) reloadWithBasis()
+  if (spec.value?.kind === 'working' && !editingDiff.value && !props.tab.isDirty) reloadWithBasis()
 })
 
 // 复用 tab（identityOf 命中）时 spec 变化则重取；reloadWithBasis 内的自切基准由 reloading 守卫避免重复 load
