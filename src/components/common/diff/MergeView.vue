@@ -39,7 +39,7 @@
               <div class="flex items-center gap-2 border-b border-warning/30 px-2 py-0.5 text-2xs">
                 <span class="text-base-content/50">{{ t('mergeView.conflict') }} #{{ conflictIndex(i) }}</span>
                 <span class="rounded bg-base-300 px-1 text-base-content/60">{{ choiceLabel(seg.choice) }}</span>
-                <button class="iw-toolbar-btn btn-xs ml-auto" :title="t('mergeView.reselect')" @click="reselect(seg)">
+                <button class="btn btn-ghost btn-xs ml-auto" :title="t('mergeView.reselect')" @click="reselect(seg)">
                   {{ t('mergeView.reselect') }}
                 </button>
               </div>
@@ -57,9 +57,9 @@
               <div class="flex items-center gap-1 border-b border-warning/30 px-2 py-0.5 text-2xs">
                 <span class="text-base-content/50">{{ t('mergeView.conflict') }} #{{ conflictIndex(i) }}</span>
                 <div class="ml-auto flex items-center gap-1">
-                  <button class="iw-toolbar-btn btn-xs text-success" @click="choose(seg, 'ours')">{{ t('mergeView.useCurrent') }}</button>
-                  <button class="iw-toolbar-btn btn-xs text-info" @click="choose(seg, 'theirs')">{{ t('mergeView.useIncoming') }}</button>
-                  <button class="iw-toolbar-btn btn-xs" @click="choose(seg, 'both')">{{ t('mergeView.useBoth') }}</button>
+                  <button class="btn btn-ghost btn-xs text-success" @click="choose(seg, 'ours')">{{ t('mergeView.useCurrent') }}</button>
+                  <button class="btn btn-ghost btn-xs text-info" @click="choose(seg, 'theirs')">{{ t('mergeView.useIncoming') }}</button>
+                  <button class="btn btn-ghost btn-xs" @click="choose(seg, 'both')">{{ t('mergeView.useBoth') }}</button>
                 </div>
               </div>
               <div class="grid grid-cols-2 divide-x divide-warning/30">
