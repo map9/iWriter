@@ -152,6 +152,9 @@ const electronAPI: ElectronAPI = {
     push: (root: string, opts: { setUpstream?: boolean }) => ipcRenderer.invoke('git:push', root, opts),
     sync: (root: string, opts: { rebase?: boolean }) => ipcRenderer.invoke('git:sync', root, opts),
     publish: (root: string) => ipcRenderer.invoke('git:publish', root),
+    listRemotes: (root: string) => ipcRenderer.invoke('git:list-remotes', root),
+    addRemote: (root: string, name: string, url: string) => ipcRenderer.invoke('git:add-remote', root, name, url),
+    removeRemote: (root: string, name: string) => ipcRenderer.invoke('git:remove-remote', root, name),
   },
 
   // Clipboard

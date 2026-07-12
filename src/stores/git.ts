@@ -9,6 +9,7 @@ import type {
   GitCommit,
   DiffSpec,
   GitFileChange,
+  GitRemote,
   GitStatus,
 } from '@/types/git'
 
@@ -313,6 +314,28 @@ export const useGitStore = defineStore('git', () => {
   const sync = (rebase = false) => remoteRun('sync', () => api().sync(root.value!, { rebase }))
   const publish = () => remoteRun('publish', () => api().publish(root.value!))
 
+  // ---------- 远程管理（add/remove/list remote） ----------
+  const remotes = ref<GitRemote[]>([])
+  async function loadRemotes(): Promise<GitRemote[]> {
+    if (!root.value || !isRepo.value) { remotes.value = []; return [] }
+    try {
+      remotes.value = await api().listRemotes(root.value)
+    } catch {
+      remotes.value = []
+    }
+    return remotes.value
+  }
+  async function addRemote(name: string, url: string): Promise<boolean> {
+    const ok = await run(() => api().addRemote(root.value!, name, url))
+    if (ok) await loadRemotes()
+    return ok
+  }
+  async function removeRemote(name: string): Promise<boolean> {
+    const ok = await run(() => api().removeRemote(root.value!, name))
+    if (ok) await loadRemotes()
+    return ok
+  }
+
   /** 克隆到目录（无 root 上下文）；成功返回目标目录 */
   async function clone(url: string, dir: string): Promise<string | null> {
     if (busy.value) return null
@@ -353,5 +376,6 @@ export const useGitStore = defineStore('git', () => {
     checkout, createBranch, deleteBranch, addToGitignore, restoreFile, merge,
     submitIdentity, cancelIdentity,
     fetch, pull, push, sync, publish, clone,
+    remotes, loadRemotes, addRemote, removeRemote,
   }
 })

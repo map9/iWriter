@@ -88,7 +88,7 @@
 ### F2 · 暂存 / 取消暂存 (P0)
 - 单文件 stage / unstage（hover 行内 `+` / `−`）。
 - 分组批量：Stage All / Unstage All。
-- 支持**行级/块级** stage（stage hunk）——P1。
+- 支持**块级** stage/discard/unstage（stage hunk）——**已实现（2026-07-12）**：diff 视图逐块悬停操作，`structuredPatch` 生成单-hunk 补丁 → `git apply [--cached] [-R]`（详见 §F7.4）。行级（任意选区）仍留后。
 
 ### F3 · 提交 (P0)
 - 提交信息输入框：单行起、自动扩展多行（镜像 SearchPanel），支持标题/正文约定。
@@ -168,7 +168,7 @@ export interface DiffSpec {
 - 后端：`git.diff(root, file, {staged})`（场景 1/2）、`git.commitFileDiff(root, hash, file)`（场景 3），返回 `{ path, oldContent, newContent, isBinary }`。
 - 图片判定：按扩展名（`IMAGE_EXTENSIONS`）→ 图片占位。
 - 刷新：working 类 diff 订阅 git status 刷新，stage/discard/commit 后重取；变更消失展示「没有更改」空态（不自动关）。commit diff 内容不变，无需刷新。
-- 从 diff 视图 stage/discard 选中 hunk（与 F2 联动）——P1。
+- 从 diff 视图 stage/discard/unstage 选中 hunk（与 F2 联动）——**已实现（2026-07-12）**：`GitService.applyPatch(root,patch,{cached,reverse})` 经临时文件 `git apply`；前端 `hunk-patch.ts`（`computeHunks`=structuredPatch context=3 + `buildHunkPatch`）；DiffView 按 git hunk 首个变更行渲染悬停按钮（未暂存=暂存/放弃、已暂存=取消暂存），放弃二次确认；应用后 refresh 跟随基准重载。仅工作区文本源（`.iwt`/`.json`/二进制/编辑中不显示）。
 
 ### F8 · 历史 / 时间线 (P1)
 - **文件级历史 = Explorer 的 Timeline viewer**（对标 VSCode Timeline）：**已实现**。跟随「工作区树选中文件」（关闭 tab 后仍显示），点击某提交 → 打开该版本 diff（本提交 ↔ 父提交）。

@@ -211,6 +211,20 @@ export class GitService {
     await this.push(root, { setUpstream: true })
   }
 
+  /** 列出远程（name + fetch URL，回退 push URL） */
+  async listRemotes(root: string): Promise<{ name: string; url: string }[]> {
+    const remotes = await this.git(root).getRemotes(true)
+    return remotes.map(r => ({ name: r.name, url: r.refs.fetch || r.refs.push || '' }))
+  }
+
+  async addRemote(root: string, name: string, url: string): Promise<void> {
+    await this.git(root).addRemote(name, url)
+  }
+
+  async removeRemote(root: string, name: string): Promise<void> {
+    await this.git(root).removeRemote(name)
+  }
+
   async addToGitignore(root: string, relPath: string): Promise<void> {
     const file = path.join(root, '.gitignore')
     let existing = ''

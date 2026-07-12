@@ -32,6 +32,12 @@ export interface GitStatus {
   isMerging: boolean
 }
 
+export interface GitRemote {
+  name: string
+  /** fetch URL（无则回退 push URL） */
+  url: string
+}
+
 export interface GitBranchInfo {
   current: string
   detached: boolean
@@ -135,4 +141,7 @@ export interface GitApi {
   push: (root: string, opts: { setUpstream?: boolean }) => Promise<void>
   sync: (root: string, opts: { rebase?: boolean }) => Promise<void>
   publish: (root: string) => Promise<void>
+  listRemotes: (root: string) => Promise<GitRemote[]>
+  addRemote: (root: string, name: string, url: string) => Promise<void>
+  removeRemote: (root: string, name: string) => Promise<void>
 }

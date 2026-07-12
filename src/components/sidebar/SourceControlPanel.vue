@@ -245,6 +245,39 @@
       </form>
     </div>
 
+    <!-- 添加远程输入弹窗 -->
+    <div
+      v-if="remoteDialogOpen"
+      class="fixed inset-0 z-1000 flex items-center justify-center bg-black/45 backdrop-blur-sm"
+      @click.self="remoteDialogOpen = false"
+    >
+      <form
+        class="w-80 max-w-[90vw] overflow-hidden rounded-box border border-base-300 bg-base-100 shadow-2xl"
+        @submit.prevent="confirmAddRemote"
+      >
+        <div class="border-b border-base-300 px-4 py-3 text-sm font-semibold">{{ t('sourceControl.remote.add') }}</div>
+        <div class="flex flex-col gap-2 px-4 py-4">
+          <input
+            ref="remoteNameInput"
+            v-model="remoteName"
+            type="text"
+            class="iw-input w-full"
+            :placeholder="t('sourceControl.remote.namePlaceholder')"
+          />
+          <input
+            v-model="remoteUrl"
+            type="text"
+            class="iw-input w-full"
+            :placeholder="t('sourceControl.remote.urlPlaceholder')"
+          />
+        </div>
+        <div class="flex justify-end gap-2 border-t border-base-300 px-4 py-3">
+          <button type="button" class="iw-btn btn-ghost btn-sm" @click="remoteDialogOpen = false">{{ t('common.cancel') }}</button>
+          <button type="submit" class="iw-btn btn-primary btn-sm" :disabled="!remoteName.trim() || !remoteUrl.trim()">{{ t('common.create') }}</button>
+        </div>
+      </form>
+    </div>
+
   </div>
 </template>
 
@@ -495,6 +528,52 @@ function confirmCreateBranch() {
   gitStore.createBranch(name, undefined, true)
 }
 
+// —— 远程管理（add/remove/list remote）——
+const remoteDialogOpen = ref(false)
+const remoteName = ref('')
+const remoteUrl = ref('')
+const remoteNameInput = ref<HTMLInputElement | null>(null)
+function openAddRemote() {
+  remoteName.value = ''
+  remoteUrl.value = ''
+  remoteDialogOpen.value = true
+  nextTick(() => remoteNameInput.value?.focus())
+}
+async function confirmAddRemote() {
+  const name = remoteName.value.trim()
+  const url = remoteUrl.value.trim()
+  if (!name || !url) return
+  remoteDialogOpen.value = false
+  await gitStore.addRemote(name, url)
+}
+/** 管理远程子菜单：添加 + 逐个删除（删除二次确认） */
+async function showRemoteMenu(event: MouseEvent) {
+  const remotes = await gitStore.loadRemotes()
+  const items: ContextMenuItem[] = [
+    { id: '__add', label: t('sourceControl.remote.add') },
+    ...(remotes.length ? [{ type: 'separator' as const }] : []),
+    ...remotes.map((r): ContextMenuItem => ({
+      id: `rmv:${r.name}`,
+      label: t('sourceControl.remote.removeNamed', { name: r.name, url: r.url }),
+    })),
+  ]
+  const action = await window.electronAPI.showContextMenu(items, { x: event.clientX, y: event.clientY })
+  if (action === '__add') openAddRemote()
+  else if (action?.startsWith('rmv:')) {
+    const name = action.slice(4)
+    const res = await window.electronAPI.showMessageBox({
+      type: 'warning',
+      title: t('sourceControl.remote.removeConfirmTitle'),
+      message: t('sourceControl.remote.removeConfirmTitle'),
+      detail: t('sourceControl.remote.removeConfirmMessage', { name }),
+      buttons: [t('common.cancel'), t('sourceControl.remote.remove')],
+      defaultId: 0,
+      cancelId: 0,
+    })
+    if (res?.response === 1) await gitStore.removeRemote(name)
+  }
+}
+
 
 function statusColor(s: GitFileStatus): string {
   switch (s) {
@@ -541,6 +620,7 @@ const showScmViewMenu = async (event: MouseEvent) => {
             ]
           : [{ id: 'remote-publish', label: t('sourceControl.remote.publish') }]),
         { id: 'remote-fetch', label: t('sourceControl.remote.fetch') },
+        { id: 'remote-manage', label: t('sourceControl.remote.manage') },
         { type: 'separator' },
       ]
     : []
@@ -560,6 +640,7 @@ const showScmViewMenu = async (event: MouseEvent) => {
     else if (action === 'remote-push') gitStore.push()
     else if (action === 'remote-fetch') gitStore.fetch()
     else if (action === 'remote-publish') gitStore.publish()
+    else if (action === 'remote-manage') showRemoteMenu(event)
   } catch (error) {
     console.error('Error showing SCM view menu:', error)
   }

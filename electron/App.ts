@@ -1408,6 +1408,11 @@ export class App {
     ipcMain.handle('git:push', async (_, root: string, opts: { setUpstream?: boolean }) => this.gitService.push(root, opts))
     ipcMain.handle('git:sync', async (_, root: string, opts: { rebase?: boolean }) => this.gitService.sync(root, opts))
     ipcMain.handle('git:publish', async (_, root: string) => this.gitService.publish(root))
+    ipcMain.handle('git:list-remotes', async (_, root: string) => this.gitService.listRemotes(root))
+    ipcMain.handle('git:add-remote', async (_, root: string, name: string, url: string) =>
+      this.gitService.addRemote(root, name, url))
+    ipcMain.handle('git:remove-remote', async (_, root: string, name: string) =>
+      this.gitService.removeRemote(root, name))
   }
 
   private registerLibreOfficeHandlers() {
