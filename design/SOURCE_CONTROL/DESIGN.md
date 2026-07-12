@@ -149,7 +149,7 @@ export class GitService {
 | `git:fetch` / `git:pull` / `git:push` / `git:sync` | root, opts | void |
 | `git:merge-abort` / `git:mark-resolved` | root(, paths) | void |
 
-> 长耗时（clone/pull/push）：先返回 `void` 完成态；渲染层显示「进行中」由 action 的 pending 标志驱动。进度事件（`git:progress`）列为 P1 增强，非首期。
+> 长耗时（clone/pull/push）：先返回 `void` 完成态；渲染层显示「进行中」由 action 的 pending 标志驱动。进度事件（`git:progress`）**已实现（2026-07-12）**：GitService 接 simple-git progress 插件 → App.ts 广播 → preload `git.onProgress` → git store `progress` 状态 → SCM 面板进度条。
 
 `preload.ts`：
 ```ts

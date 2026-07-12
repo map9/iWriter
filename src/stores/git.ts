@@ -289,6 +289,12 @@ export const useGitStore = defineStore('git', () => {
   const progress = ref<GitProgress | null>(null)
   window.electronAPI?.git?.onProgress?.((p) => { if (busy.value) progress.value = p })
 
+  /** 取多行文本尾部 n 行非空行（远程错误 stderr 的可操作信息通常在末尾） */
+  function tailLines(s: string, n: number): string {
+    const lines = s.split('\n').map(l => l.trimEnd()).filter(l => l.length > 0)
+    return lines.length <= n ? lines.join('\n') : lines.slice(-n).join('\n')
+  }
+
   async function remoteRun(name: string, action: () => Promise<void>): Promise<boolean> {
     if (!root.value || busy.value) return false
     busy.value = name
@@ -300,12 +306,13 @@ export const useGitStore = defineStore('git', () => {
     } catch (err) {
       const stderr = err instanceof Error ? err.message : String(err)
       const label = i18n.global.t(`sourceControl.remote.${name}`)
-      // 远程失败（认证/网络/非快进）用原生弹窗给出 stderr 指引，不自建密码 UI
+      // 远程失败（认证/网络/非快进）用原生弹窗给出 stderr 指引，不自建密码 UI。
+      // 取尾部若干行：sync/pull 的 fetch 进度（含大量分支行）在前，真正的错误/Aborting 在末尾。
       await window.electronAPI.showMessageBox({
         type: 'error',
         title: label,
         message: label,
-        detail: stderr,
+        detail: tailLines(stderr, 12),
         buttons: ['OK'],
       })
       return false

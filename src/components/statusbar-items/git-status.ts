@@ -24,11 +24,25 @@ export const createGitStatusStatusBarGroup = () => {
     return `$(git-branch) ${b.current || '—'}`
   })
 
+  // 进行中的远程操作（同步/拉取/推送/获取/发布）→ 图标旋转 + 显示进度
+  const remoteBusy = computed(() =>
+    ['sync', 'pull', 'push', 'fetch', 'publish'].includes(gitStore.busy ?? ''),
+  )
   const syncText = computed(() => {
+    const icon = remoteBusy.value ? '$(git-sync~spin)' : '$(git-sync)'
+    if (remoteBusy.value) {
+      return gitStore.progress ? `${icon} ${Math.round(gitStore.progress.progress)}%` : icon
+    }
     const b = gitStore.branch
-    if (!b) return '$(git-sync)'
-    return `$(git-sync) ↓${b.behind} ↑${b.ahead}`
+    if (!b) return icon
+    // 与 Repositories viewer 一致：↑ahead ↓behind
+    return `${icon} ↑${b.ahead} ↓${b.behind}`
   })
+  const syncTooltip = computed(() =>
+    remoteBusy.value && gitStore.progress
+      ? `${gitStore.progress.stage} ${Math.round(gitStore.progress.progress)}%`
+      : t('sourceControl.remote.sync'),
+  )
 
   try {
     const branchItem = statusBar.createStatusBarItem({ id: 'git-branch', alignment: StatusBarAlignment.Left, priority: 100 })
@@ -39,7 +53,7 @@ export const createGitStatusStatusBarGroup = () => {
 
     const syncItem = statusBar.createStatusBarItem({ id: 'git-sync', alignment: StatusBarAlignment.Left, priority: 99 })
     syncItem.text = syncText.value
-    syncItem.tooltip = t('sourceControl.remote.sync')
+    syncItem.tooltip = syncTooltip.value
     syncItem.command = 'scm.sync'
     syncItem.show()
 
@@ -49,7 +63,7 @@ export const createGitStatusStatusBarGroup = () => {
       branchItem.tooltip = t('sourceControl.branch.switch')
       syncItem.visible = visible.value
       syncItem.text = syncText.value
-      syncItem.tooltip = t('sourceControl.remote.sync')
+      syncItem.tooltip = syncTooltip.value
     })
   } catch (error) {
     console.error(`${error instanceof Error ? error.message : String(error)}`)
