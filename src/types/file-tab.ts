@@ -40,6 +40,8 @@ export interface FileTab {
   documentType?: import('@/types/document-type').DocumentType;
   /** 参数型 tab 载荷（diff 等；仿 pendingImport） */
   params?: TabParams
+  /** 可编辑 diff tab 的编辑缓冲（供显式保存/关闭确认时写回，源文本） */
+  diffDraft?: string
   pendingImport?: {
     markdown: string
     sourcePath?: string

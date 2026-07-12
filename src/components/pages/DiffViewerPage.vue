@@ -7,6 +7,16 @@
       <span class="shrink-0 rounded bg-base-200 px-1.5 py-px text-2xs text-base-content/60">{{ basisLabel }}</span>
       <div class="ml-auto flex shrink-0 items-center gap-1">
         <button
+          v-if="canEdit"
+          class="iw-toolbar-btn btn-xs"
+          :class="tab.isDirty ? 'text-primary' : ''"
+          :disabled="!tab.isDirty"
+          :title="t('common.save')"
+          @click="save"
+        >
+          <IconDeviceFloppy class="icon-xs" />
+        </button>
+        <button
           v-if="canStage"
           class="iw-toolbar-btn btn-xs"
           :title="t('sourceControl.action.stage')"
@@ -21,14 +31,6 @@
           @click="onUnstage"
         >
           <IconMinus class="icon-xs" />
-        </button>
-        <button
-          v-if="canDiscard"
-          class="iw-toolbar-btn btn-xs"
-          :title="t('sourceControl.action.discard')"
-          @click="onDiscard"
-        >
-          <IconArrowBackUp class="icon-xs" />
         </button>
         <button
           class="iw-toolbar-btn btn-xs"
@@ -55,13 +57,16 @@
       <div v-else-if="isBinary" class="flex h-full items-center justify-center text-sm text-base-content/50">
         {{ t('sourceControl.binaryFile') }}
       </div>
-      <div v-else-if="!hasDiff" class="flex h-full items-center justify-center text-sm text-base-content/50">
+      <div v-else-if="!hasDiff && !editingDiff" class="flex h-full items-center justify-center text-sm text-base-content/50">
         {{ t('sourceControl.noChanges') }}
       </div>
       <DiffView
         v-else
         :old-content="oldContent"
         :new-content="newContent"
+        :editable="canEdit"
+        @update:content="onDraftChange"
+        @update:editing="editingDiff = $event"
       />
     </div>
   </div>
@@ -70,15 +75,17 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconGitCompare, IconRefresh, IconPlus, IconMinus, IconArrowBackUp } from '@tabler/icons-vue'
+import { IconGitCompare, IconRefresh, IconPlus, IconMinus, IconDeviceFloppy } from '@tabler/icons-vue'
 import DiffView from '@/components/common/diff/DiffView.vue'
 import { useGitStore } from '@/stores/git'
+import { useAppStore } from '@/stores/app'
 import { IMAGE_EXTENSIONS } from '@/types'
 import type { FileTab } from '@/types'
 
 const props = defineProps<{ tab: FileTab }>()
 const { t } = useI18n()
 const gitStore = useGitStore()
+const appStore = useAppStore()
 
 const spec = computed(() => (props.tab.params?.kind === 'diff' ? props.tab.params.diff : null))
 
@@ -87,6 +94,30 @@ const error = ref('')
 const oldContent = ref('')
 const newContent = ref('')
 const isBinary = ref(false)
+const editingDiff = ref(false)
+const savedContent = ref('') // 工作区文件当前已存内容，用于脏判断
+
+// 可编辑：仅未暂存工作区 diff 的文本源（排除 .iwt/.json/二进制），右侧显式保存写回工作区文件
+const EDIT_BLOCK_EXT = new Set(['iwt', 'json'])
+const canEdit = computed(() =>
+  !!spec.value?.editable &&
+  spec.value.kind === 'working' && !spec.value.staged &&
+  !isBinary.value &&
+  !EDIT_BLOCK_EXT.has(ext.value)
+)
+
+// 编辑 → 只更新草稿(实时 diff) + 镜像到 tab.diffDraft(供保存/关闭确认)，不自动写盘
+function onDraftChange(v: string) {
+  newContent.value = v
+  appStore.updateTabState(props.tab.id, { diffDraft: v, isDirty: v !== savedContent.value })
+}
+
+// 显式保存（Cmd+S / 保存按钮）
+async function save() {
+  if (!canEdit.value || !props.tab.isDirty) return
+  const ok = await appStore.saveDiffTab(props.tab)
+  if (ok) savedContent.value = props.tab.diffDraft ?? newContent.value
+}
 
 const ext = computed(() => {
   const p = spec.value?.filePath ?? ''
@@ -111,26 +142,30 @@ const basisLabel = computed(() => {
 const isWorking = computed(() => spec.value?.kind === 'working')
 const canStage = computed(() => isWorking.value && !spec.value?.staged)
 const canUnstage = computed(() => isWorking.value && !!spec.value?.staged)
-const canDiscard = computed(() => isWorking.value && !spec.value?.staged)
 
-function onStage() {
-  if (spec.value) gitStore.stage([spec.value.filePath])
-}
-function onUnstage() {
-  if (spec.value) gitStore.unstage([spec.value.filePath])
-}
-async function onDiscard() {
+// 暂存/取消暂存后切换对比基准，避免当前 diff 变空白（改动只是换了分组）；
+// 同时更新锁：staged → 只读带锁，unstaged → 可编辑无锁
+function setStaged(staged: boolean) {
   const s = spec.value
   if (!s) return
-  const res = await window.electronAPI.showMessageBox({
-    type: 'warning',
-    title: t('sourceControl.discardConfirm.title'),
-    message: t('sourceControl.discardConfirm.title'),
-    detail: t('sourceControl.discardConfirm.message', { name: fileName.value }),
-    buttons: [t('common.cancel'), t('sourceControl.discardConfirm.confirm')],
-    defaultId: 0,
+  appStore.updateTabState(props.tab.id, {
+    params: { kind: 'diff', diff: { ...s, staged } },
+    fileReadonly: staged,
   })
-  if (res?.response === 1) gitStore.discard([s.filePath])
+}
+async function onStage() {
+  const s = spec.value
+  if (!s) return
+  setStaged(true)
+  await gitStore.stage([s.filePath])
+  load()
+}
+async function onUnstage() {
+  const s = spec.value
+  if (!s) return
+  setStaged(false)
+  await gitStore.unstage([s.filePath])
+  load()
 }
 
 /** .iwt/.json 先格式化再 diff，避免整行差异 */
@@ -158,6 +193,9 @@ async function load() {
     isBinary.value = payload.isBinary
     oldContent.value = payload.isBinary ? '' : maybeFormat(payload.oldContent)
     newContent.value = payload.isBinary ? '' : maybeFormat(payload.newContent)
+    // 重置编辑基线（load 在编辑中被守护跳过，不会覆盖草稿）
+    savedContent.value = newContent.value
+    appStore.updateTabState(props.tab.id, { diffDraft: newContent.value, isDirty: false })
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
   } finally {
@@ -168,14 +206,20 @@ async function load() {
 onMounted(load)
 
 // 工作区 diff 随 git 状态刷新自动重取（stage/discard/commit 后）；commit diff 内容不变。
+// 编辑中不重取，避免用自身写盘触发的刷新 clobber 草稿。
 watch(() => gitStore.revision, () => {
-  if (spec.value?.kind === 'working') load()
+  if (spec.value?.kind === 'working' && !editingDiff.value) load()
 })
 
 // 复用 tab（identityOf 命中）时 spec 变化则重取
 watch(spec, () => load())
 
-function handleMenuAction(): boolean {
+async function handleMenuAction(action: string): Promise<boolean> {
+  // 消费 diff tab 的 save，避免落到 app store 的 markdown 保存路径
+  if (action === 'save' || action === 'save-as') {
+    await save()
+    return true
+  }
   return false
 }
 

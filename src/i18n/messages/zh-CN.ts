@@ -37,6 +37,7 @@ export default {
     active: '当前',
     cancel: '取消',
     create: '创建',
+    save: '保存',
   },
   alertToolbar: {
     type: 'Alert 类型',
@@ -1101,6 +1102,7 @@ export default {
     lineNumbers: '行号',
     prevChange: '上一处变更',
     nextChange: '下一处变更',
+    edit: '编辑',
     refresh: '刷新',
     basisWorking: '工作区 ↔ 暂存区',
     basisStaged: '暂存区 ↔ HEAD',

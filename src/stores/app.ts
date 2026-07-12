@@ -2500,7 +2500,9 @@ export const useAppStore = defineStore('app', () => {
       setActiveTab(existing.id)
       return existing
     }
-    return createTab(title, undefined, DocumentType.DIFF_VIEWER, true, undefined, undefined, { kind: 'diff', diff: spec })
+    // 仅未暂存工作区 diff 可编辑（无锁）；staged / commit 为只读（带锁）
+    const readonly = !(spec.kind === 'working' && !spec.staged)
+    return createTab(title, undefined, DocumentType.DIFF_VIEWER, readonly, undefined, undefined, { kind: 'diff', diff: spec })
   }
 
   /**
@@ -2726,8 +2728,20 @@ export const useAppStore = defineStore('app', () => {
     return defaultName
   }
 
+  /** 保存可编辑 Diff tab 的编辑缓冲到工作区文件（显式保存 / 关闭确认走此路） */
+  async function saveDiffTab(tab: FileTab): Promise<boolean> {
+    const p = tab.params
+    if (p?.kind !== 'diff' || tab.diffDraft == null) return true
+    const abs = pathUtils.join(p.diff.root, p.diff.filePath)
+    const ok = await writeWorkingFile(abs, tab.diffDraft)
+    if (ok) updateTabState(tab.id, { isDirty: false })
+    return ok
+  }
+
   async function saveTab(tab: FileTab, saveAs: boolean = false, silent: boolean = false): Promise<boolean> {
     if (!tab || !window.electronAPI) return false
+    // Diff tab 走专用写回（无 editorInstance / 无真实 path）
+    if (tab.documentType === DocumentType.DIFF_VIEWER) return await saveDiffTab(tab)
     if (isFileReadonly(tab) && !saveAs) {
       if (!silent) {
         notify.warning(t('notify.readonly.fileReadonlyMessage'), t('notify.readonly.fileReadonlyContext'))
@@ -2826,8 +2840,33 @@ export const useAppStore = defineStore('app', () => {
 
   async function saveActiveTabAs() {
     if (!activeTab.value || !window.electronAPI) return
-    
+
     saveTab(activeTab.value, true)
+  }
+
+  /**
+   * 供可编辑 Diff 写回工作区文件（源文本）：
+   * - 抑制自写触发的「外部已修改」提示；
+   * - 若同文件正开在 Markdown 编辑器 → 用已知内容静默重载（更新 lastSavedHash）；
+   * - 刷新 git 状态。
+   */
+  async function writeWorkingFile(absPath: string, content: string): Promise<boolean> {
+    if (!window.electronAPI) return false
+    const normalized = pathUtils.normalize(absPath)
+    ignoredExternalChangePaths.add(normalized)
+    const ok = await window.electronAPI.saveFile(content, absPath, {})
+    if (ok !== true) {
+      ignoredExternalChangePaths.delete(normalized)
+      return false
+    }
+    const tab = getOpenTabByPath(absPath)
+    if (tab && tab.documentType === DocumentType.MARKDOWN_EDITOR) {
+      await reloadOpenMarkdownTabFromDisk(tab, content)
+    } else {
+      ignoredExternalChangePaths.delete(normalized)
+    }
+    useGitStore().refresh()
+    return true
   }
   
   // 或者使用 Promise.all（但要处理对话框冲突）
@@ -3413,6 +3452,8 @@ export const useAppStore = defineStore('app', () => {
     setActiveTab,
     saveActiveTab,
     saveActiveTabAs,
+    writeWorkingFile,
+    saveDiffTab,
     saveAllTabs,
     cleanTab,
     updateTabState,

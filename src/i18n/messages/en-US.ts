@@ -37,6 +37,7 @@ export default {
     active: 'Active',
     cancel: 'Cancel',
     create: 'Create',
+    save: 'Save',
   },
   alertToolbar: {
     type: 'Alert type',
@@ -1104,6 +1105,7 @@ export default {
     lineNumbers: 'Line numbers',
     prevChange: 'Previous change',
     nextChange: 'Next change',
+    edit: 'Edit',
     refresh: 'Refresh',
     basisWorking: 'Working Tree ↔ Index',
     basisStaged: 'Index ↔ HEAD',

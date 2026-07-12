@@ -133,16 +133,16 @@
 | 5 | 合并冲突(F9) | ours ↔ 工作区(含标记) | 磁盘文件 | ✅ | 只读 |
 
 - 规律：仅当**右侧=工作区磁盘文件**（场景 1/5）才有可编辑语义；双方都是 git 对象时一律只读。
-- 本期**全部只读**（§3.3/Q3）：编辑仍回普通 Markdown 编辑器做。`DiffSpec.editable` 字段记录"天然可编辑性"（场景 1/5=true），但恒以 `editable=false` 送渲染，作未来放开开关。
+- **修订（2026-07-11）**：可编辑不再延后。场景 1（未暂存）**放开为可编辑**、场景 5（冲突）为可编辑结果——因为 **diff 是源文本视图，在其中编辑=纯文本源编辑，无 WYSIWYG 错配**（不走 TipTap 编辑器，那会重蹈 F12 gutter 的语义 diff 坑）。**仅文本/markdown 源可编辑**，`.iwt`/`.json` 在 diff 里仍只读。详见 [EDITABLE_DIFF_AND_MERGE.md](EDITABLE_DIFF_AND_MERGE.md)。
 
 ```ts
 export interface DiffSpec {
   root: string
   filePath: string                 // 仓库相对路径
-  kind: 'working' | 'commit'       // 未来可扩 'history' | 'conflict'
+  kind: 'working' | 'commit' | 'conflict'  // conflict 见 F9
   staged?: boolean                 // working: false→场景1, true→场景2
   hash?: string                    // commit: 场景3
-  editable?: boolean               // 天然可编辑性；本期恒以 false 送渲染
+  editable?: boolean               // 场景1=true（文本源）；实际生效（不再恒 false）
 }
 ```
 
@@ -178,9 +178,11 @@ export interface DiffSpec {
 - **完整分支泳道图（彩色 DAG 连线/多列 lane，VS Code Git Graph 那种）：暂不做，留后（2026-07-11 决策）**。当前用「所有分支 + 分支标签色标」表达分支归属。
 
 ### F9 · 合并与冲突解决 (P1)
-- 检测冲突文件并归入 Merge Changes 分组。
-- 编辑器内冲突区渲染 `<<<<<<< / ======= / >>>>>>>`，提供「采用当前 / 采用传入 / 保留两者」快捷操作（对标 VSCode inline merge）。
-- 全部解决后可 stage 并继续提交/合并。
+- 检测冲突文件并归入 Merge Changes 分组（已具备）。
+- **修订（2026-07-11）**：~~在 TipTap 编辑器内 inline 渲染 `<<<<<<<`~~ → **改为 diff 家族的「合并 tab」**（3-way/2-pane，可编辑结果 + 逐块采用当前/传入/两者）。理由：inline 会重蹈 F12 gutter 的 WYSIWYG 语义 diff 坑；冲突本质是比较+可编辑结果，属 DiffView 家族。
+- 数据来自 git 冲突暂存阶段 `:1/:2/:3`（base/ours/theirs）；结果侧解析工作区标记切块。
+- 解决 → 写回工作区（去标记）→ `git add` 标记已解决 → 离开 Merge Changes；全部解决后提交。
+- 完整设计见 [EDITABLE_DIFF_AND_MERGE.md](EDITABLE_DIFF_AND_MERGE.md)（建立在「可编辑 diff」之上）。
 
 ### F10 · 贮藏 Stash (P2)
 - Stash / Stash pop / Stash list / apply / drop。

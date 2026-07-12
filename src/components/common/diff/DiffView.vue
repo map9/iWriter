@@ -52,14 +52,34 @@
         {{ hunkCount ? `${currentHunk + 1}/${hunkCount}` : '0' }}
       </span>
 
+      <button
+        v-if="editable"
+        class="iw-toolbar-btn btn-xs"
+        :class="editing ? 'text-primary' : ''"
+        :title="t('diffView.edit')"
+        @click="toggleEditing"
+      >
+        <IconPencil class="icon-xs" />
+      </button>
+
       <div class="ml-auto flex items-center gap-2 text-2xs font-mono tabular-nums">
         <span class="text-success">+{{ stats.added }}</span>
         <span class="text-error">−{{ stats.removed }}</span>
       </div>
     </div>
 
+    <!-- 编辑模式：左侧旧内容(随输入实时高亮删除词) + 右侧可编辑 textarea；diff 在编辑时保持可见 -->
+    <div v-if="editing" class="grid min-h-0 flex-1 grid-cols-2 overflow-hidden text-xs font-mono leading-[1.5]">
+      <div class="overflow-auto whitespace-pre-wrap break-words border-r border-base-300 px-2 py-1"><template v-for="(s, si) in editLeftSegments" :key="si"><span :class="s.hl ? 'rounded-sm bg-error/40' : ''">{{ s.value }}</span></template></div>
+      <textarea
+        v-model="draftLocal"
+        spellcheck="false"
+        class="resize-none overflow-auto px-2 py-1 outline-none"
+      ></textarea>
+    </div>
+
     <!-- 主体：滚动内容 + 右侧 overview ruler -->
-    <div class="flex min-h-0 flex-1">
+    <div v-else class="flex min-h-0 flex-1">
       <div
         ref="scrollEl"
         class="relative min-w-0 flex-1 overflow-auto scrollbar-hide font-mono leading-[1.5]"
@@ -148,6 +168,7 @@ import {
   IconListNumbers,
   IconChevronUp,
   IconChevronDown,
+  IconPencil,
 } from '@tabler/icons-vue'
 
 const { t } = useI18n()
@@ -157,15 +178,44 @@ const props = withDefaults(defineProps<{
   newContent: string
   /** 初始视图模式 */
   initialMode?: 'split' | 'inline'
+  /** 右侧是否可编辑（工作区文本源，场景1/冲突） */
+  editable?: boolean
 }>(), {
   initialMode: 'split',
+  editable: false,
 })
+
+const emit = defineEmits<{ 'update:content': [value: string]; 'update:editing': [value: boolean] }>()
 
 const mode = ref<'split' | 'inline'>(props.initialMode)
 const showLineNumbers = ref(true)
 const currentHunk = ref(0)
 const scrollEl = ref<HTMLElement | null>(null)
 const rulerEl = ref<HTMLElement | null>(null)
+
+// —— 编辑模式（右侧 textarea）——
+const editing = ref(false)
+const draftLocal = ref(props.newContent)
+function toggleEditing() {
+  editing.value = !editing.value
+  if (editing.value) draftLocal.value = props.newContent
+  else flushDraft()
+  emit('update:editing', editing.value)
+}
+// 非编辑时才把外部内容同步进草稿；编辑中草稿为权威，忽略外部变化避免打断输入
+watch(() => props.newContent, (v) => {
+  if (!editing.value && v !== draftLocal.value) draftLocal.value = v
+})
+let emitTimer: ReturnType<typeof setTimeout> | null = null
+function flushDraft() {
+  if (emitTimer) { clearTimeout(emitTimer); emitTimer = null }
+  emit('update:content', draftLocal.value)
+}
+watch(draftLocal, (v) => {
+  if (!editing.value) return
+  if (emitTimer) clearTimeout(emitTimer)
+  emitTimer = setTimeout(() => emit('update:content', v), 500)
+})
 
 type LineType = 'context' | 'added' | 'removed'
 interface Seg { value: string; hl: boolean }
@@ -247,6 +297,13 @@ const computed_ = computed(() => {
 
   return { pairs, inlineRows, blocks, stats: { added, removed } }
 })
+
+// 编辑模式左侧：旧内容按 word 级高亮删除，随 draft 实时更新（保持 diff 可见）
+const editLeftSegments = computed(() =>
+  diffWords(props.oldContent ?? '', draftLocal.value)
+    .filter(p => !p.added)
+    .map(p => ({ value: p.value, hl: !!p.removed }))
+)
 
 const pairs = computed(() => computed_.value.pairs)
 const inlineRows = computed(() => computed_.value.inlineRows)
@@ -368,6 +425,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   ro?.disconnect()
   ro = null
+  // 关闭前 flush 未提交的编辑，避免丢最后一次输入
+  if (editing.value && emitTimer) flushDraft()
 })
 
 // 内容/模式变化后重置定位并刷新度量与标记
