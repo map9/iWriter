@@ -9,6 +9,7 @@ import type {
   GitCommit,
   DiffSpec,
   GitFileChange,
+  GitProgress,
   GitRemote,
   GitStatus,
 } from '@/types/git'
@@ -284,9 +285,14 @@ export const useGitStore = defineStore('git', () => {
   }
 
   // ---------- 远程操作 ----------
+  /** 长耗时操作进度（clone/pull/push/fetch）；null=无进行中 */
+  const progress = ref<GitProgress | null>(null)
+  window.electronAPI?.git?.onProgress?.((p) => { if (busy.value) progress.value = p })
+
   async function remoteRun(name: string, action: () => Promise<void>): Promise<boolean> {
     if (!root.value || busy.value) return false
     busy.value = name
+    progress.value = null
     try {
       await action()
       await afterWrite()
@@ -305,6 +311,7 @@ export const useGitStore = defineStore('git', () => {
       return false
     } finally {
       busy.value = null
+      progress.value = null
     }
   }
 
@@ -340,6 +347,7 @@ export const useGitStore = defineStore('git', () => {
   async function clone(url: string, dir: string): Promise<string | null> {
     if (busy.value) return null
     busy.value = 'clone'
+    progress.value = null
     try {
       await api().clone(url, dir)
       return dir
@@ -352,6 +360,7 @@ export const useGitStore = defineStore('git', () => {
       return null
     } finally {
       busy.value = null
+      progress.value = null
     }
   }
 
@@ -368,7 +377,7 @@ export const useGitStore = defineStore('git', () => {
 
   return {
     availability, root, isRepo, status, branch, commits, expandedHash, expandedFiles, graphBranch, graphAll,
-    loading, graphLoading, busy, revision, cloneDialogOpen, changeCount, hasChanges,
+    loading, graphLoading, busy, progress, revision, cloneDialogOpen, changeCount, hasChanges,
     commitMessage, committing, identityPromptOpen,
     ensureDetected, onFolderChanged, refresh, loadGraph, setGraphBranch, toggleCommit, loadFileHistory,
     openDiff, openCommitDiff, openMergeTab,

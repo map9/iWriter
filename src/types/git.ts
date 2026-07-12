@@ -38,6 +38,18 @@ export interface GitRemote {
   url: string
 }
 
+/** 长耗时远程操作（clone/fetch/push/pull/checkout）的进度事件（来自 simple-git progress 插件） */
+export interface GitProgress {
+  /** 操作：clone | fetch | push | pull | checkout */
+  method: string
+  /** 阶段：counting | compressing | receiving | resolving | writing 等 */
+  stage: string
+  /** 百分比 0-100 */
+  progress: number
+  processed?: number
+  total?: number
+}
+
 export interface GitBranchInfo {
   current: string
   detached: boolean
@@ -144,4 +156,6 @@ export interface GitApi {
   listRemotes: (root: string) => Promise<GitRemote[]>
   addRemote: (root: string, name: string, url: string) => Promise<void>
   removeRemote: (root: string, name: string) => Promise<void>
+  /** 订阅长耗时操作进度；返回取消订阅函数 */
+  onProgress: (callback: (p: GitProgress) => void) => () => void
 }

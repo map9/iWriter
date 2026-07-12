@@ -3,6 +3,7 @@ import type { IpcRendererEvent } from 'electron'
 import type { ElectronAPI, HtmlPrintReadyOptions, PdfSaveOptions, SaveFileOptions } from '../src/types/electron-api'
 import type { SendMessageRequest, CompactInputRequest, CompactInputResponse, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunContextCompressedEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
 import type { AiSettings } from '../src/types/ai'
+import type { GitProgress } from '../src/types/git'
 import { createAppMenuRequest, createContextMenuRequest } from '../src/types/menu'
 import type { ContextMenuItem, MenuPosition } from '../src/types/menu'
 import type { FileChange } from '../src/types/file-operation'
@@ -155,6 +156,11 @@ const electronAPI: ElectronAPI = {
     listRemotes: (root: string) => ipcRenderer.invoke('git:list-remotes', root),
     addRemote: (root: string, name: string, url: string) => ipcRenderer.invoke('git:add-remote', root, name, url),
     removeRemote: (root: string, name: string) => ipcRenderer.invoke('git:remove-remote', root, name),
+    onProgress: (callback: (p: GitProgress) => void) => {
+      const listener = (_: IpcRendererEvent, p: GitProgress) => callback(p)
+      ipcRenderer.on('git:progress', listener)
+      return () => { ipcRenderer.removeListener('git:progress', listener) }
+    },
   },
 
   // Clipboard

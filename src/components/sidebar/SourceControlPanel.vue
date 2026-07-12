@@ -31,6 +31,15 @@
       </div>
     </div>
 
+    <!-- 长耗时操作（clone/pull/push）进度条 -->
+    <div v-if="gitStore.busy && gitStore.progress" class="shrink-0 border-b border-base-300 px-2 py-1">
+      <div class="mb-0.5 flex items-center justify-between text-2xs text-base-content/60">
+        <span class="truncate">{{ busyLabel }} · {{ gitStore.progress.stage }}</span>
+        <span class="shrink-0 tabular-nums">{{ Math.round(gitStore.progress.progress) }}%</span>
+      </div>
+      <progress class="progress progress-primary h-1 w-full" :value="gitStore.progress.progress" max="100"></progress>
+    </div>
+
     <!-- 状态 A：未检测到 Git -->
     <div v-if="!gitStore.availability.available" class="flex flex-1 flex-col justify-top gap-2 p-2">
       <p class="text-left text-sm text-base-content/50">{{ t('sourceControl.gitNotFoundDesc') }}</p>
@@ -527,6 +536,13 @@ function confirmCreateBranch() {
   branchDialogOpen.value = false
   gitStore.createBranch(name, undefined, true)
 }
+
+// 进度条操作标签：clone 用克隆文案，其余用 remote.* 文案
+const busyLabel = computed(() => {
+  const b = gitStore.busy
+  if (!b) return ''
+  return b === 'clone' ? t('sourceControl.cloneRepo') : t(`sourceControl.remote.${b}`)
+})
 
 // —— 远程管理（add/remove/list remote）——
 const remoteDialogOpen = ref(false)

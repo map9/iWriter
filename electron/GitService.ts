@@ -2,7 +2,7 @@ import { execFile } from 'child_process'
 import * as path from 'path'
 import * as os from 'os'
 import * as fs from 'fs/promises'
-import simpleGit, { type SimpleGit } from 'simple-git'
+import simpleGit, { type SimpleGit, type SimpleGitProgressEvent } from 'simple-git'
 import type {
   GitAvailability,
   GitBranchInfo,
@@ -26,6 +26,12 @@ const BINARY_EXTS = new Set([
 export class GitService {
   private cache = new Map<string, SimpleGit>()
   private availability: GitAvailability | null = null
+  private onProgress: ((p: SimpleGitProgressEvent) => void) | null = null
+
+  /** 设置长耗时操作进度回调（App.ts 转发到渲染层）。闭包读取，故设置早晚不影响已建实例。 */
+  setProgressHandler(cb: (p: SimpleGitProgressEvent) => void): void {
+    this.onProgress = cb
+  }
 
   private git(root: string): SimpleGit {
     let g = this.cache.get(root)
@@ -33,7 +39,7 @@ export class GitService {
       // core.quotepath=false：让含非 ASCII（如中文）的路径原样输出 UTF-8，
       // 否则 git 会把中文路径转义成 "\345\244\247…" 八进制，导致图谱显示乱码、
       // 且据此路径再 `git show hash:path` 无法命中（diff 显示"没有更改"）。
-      g = simpleGit({ baseDir: root, config: ['core.quotepath=false'] })
+      g = simpleGit({ baseDir: root, config: ['core.quotepath=false'], progress: (evt) => this.onProgress?.(evt) })
       this.cache.set(root, g)
     }
     return g
@@ -68,7 +74,7 @@ export class GitService {
   }
 
   async clone(url: string, dir: string): Promise<void> {
-    await simpleGit().clone(url, dir)
+    await simpleGit({ progress: (evt) => this.onProgress?.(evt) }).clone(url, dir)
   }
 
   async status(root: string): Promise<GitStatus> {

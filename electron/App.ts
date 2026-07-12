@@ -225,6 +225,12 @@ export class App {
     this.pandocService = new PandocService()
     this.libreOfficeService = new LibreOfficeService()
     this.gitService = new GitService()
+    // 长耗时 git 操作（clone/pull/push）进度广播到所有窗口
+    this.gitService.setProgressHandler((p) => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send('git:progress', p)
+      }
+    })
     this.customThemeLoader = new CustomThemeLoader()
     this._isAppQuitting = false
     this._exitApp = false

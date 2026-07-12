@@ -110,7 +110,7 @@
 - Fetch / Pull / Push / **Sync**（pull+push 合一）。
 - Publish Branch（首次推送本地分支到远程并设置 upstream）。
 - Clone 仓库到本地并可选打开为工作空间。
-- 远程管理（add/remove remote）——P1。
+- 远程管理（add/remove remote）——**已实现（2026-07-12）**：`GitService.listRemotes/addRemote/removeRemote`；SCM more-actions →「管理远程…」子菜单（添加远程 modal + 逐个删除二次确认）。rename remote 留后。
 - 进度反馈：长耗时操作显示进行中状态，失败用原生 `showMessageBox` 给出 stderr 摘要与指引（不自建密码 UI，见 §3.2）。
 
 ### F7 · Diff 查看器 (P0)
