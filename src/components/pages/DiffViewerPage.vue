@@ -71,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, toRef } from 'vue'
+import { ref, computed, watch, onMounted, nextTick, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconGitCompare, IconRefresh, IconPlus, IconMinus } from '@tabler/icons-vue'
 import DiffView from '@/components/common/diff/DiffView.vue'
@@ -108,11 +108,11 @@ function onMergeContent(v: string) {
   appStore.updateTabState(props.tab.id, { diffDraft: v, isDirty: v !== savedContent.value })
 }
 
-// 可编辑：仅未暂存工作区 diff 的文本源（排除 .iwt/.json/二进制），右侧显式保存写回工作区文件
+// 可编辑：未暂存工作区 diff 的文本源（排除 .iwt/.json/二进制）。
+// 按「当前」staged 实时派生（而非冻结的 spec.editable）——否则 stage/unstage 切基准后编辑按钮不跟随。
 const EDIT_BLOCK_EXT = new Set(['iwt', 'json'])
 const canEdit = computed(() =>
-  !!spec.value?.editable &&
-  spec.value.kind === 'working' && !spec.value.staged &&
+  spec.value?.kind === 'working' && !spec.value.staged &&
   !isBinary.value &&
   !EDIT_BLOCK_EXT.has(ext.value)
 )
@@ -171,29 +171,55 @@ const isWorking = computed(() => spec.value?.kind === 'working')
 const canStage = computed(() => isWorking.value && !spec.value?.staged)
 const canUnstage = computed(() => isWorking.value && !!spec.value?.staged)
 
-// 暂存/取消暂存后切换对比基准，避免当前 diff 变空白（改动只是换了分组）；
-// 同时更新锁：staged → 只读带锁，unstaged → 可编辑无锁
-function setStaged(staged: boolean) {
-  const s = spec.value
-  if (!s) return
-  appStore.updateTabState(props.tab.id, {
-    params: { kind: 'diff', diff: { ...s, staged } },
-    fileReadonly: staged,
-  })
+/**
+ * 决定工作区文件当前应显示的对比基准（跟随其所在 git 分组，保持改动可见）：
+ * 仅在 staged → true；仅在 changes/untracked → false；两处都有 → 保持当前；都没有 → null(无更改)。
+ */
+function resolveBasis(): boolean | null {
+  const st = gitStore.status
+  const fp = spec.value?.filePath
+  if (!st || !fp) return null
+  const inStaged = st.staged.some(f => f.path === fp)
+  const inChanges = st.changes.some(f => f.path === fp) || st.untracked.some(f => f.path === fp)
+  if (inStaged && inChanges) return spec.value?.staged ?? false
+  if (inStaged) return true
+  if (inChanges) return false
+  return null
 }
+
+// 统一重载：先按 git 现状把基准切到文件所在分组（避免 stage/unstage 后 diff 空白 / 显示 No changes），
+// 再单次 load。reloading 守卫抑制切基准触发的 watch(spec)，保证一次操作只 load 一次。
+// 同时更新锁：staged → 只读带锁，unstaged → 可编辑无锁。
+let reloading = false
+async function reloadWithBasis() {
+  if (reloading || editingDiff.value) return
+  reloading = true
+  try {
+    const s = spec.value
+    if (s?.kind === 'working') {
+      const basis = resolveBasis()
+      if (basis !== null && basis !== s.staged) {
+        appStore.updateTabState(props.tab.id, {
+          params: { kind: 'diff', diff: { ...s, staged: basis, editable: !basis } },
+          fileReadonly: basis,
+        })
+        await nextTick()
+      }
+    }
+    await load()
+  } finally {
+    reloading = false
+  }
+}
+
+// 工具栏 +/−：只做 git 操作；revision 刷新后由 reloadWithBasis 自动跟随基准并重载（单次）
 async function onStage() {
   const s = spec.value
-  if (!s) return
-  setStaged(true)
-  await gitStore.stage([s.filePath])
-  load()
+  if (s) await gitStore.stage([s.filePath])
 }
 async function onUnstage() {
   const s = spec.value
-  if (!s) return
-  setStaged(false)
-  await gitStore.unstage([s.filePath])
-  load()
+  if (s) await gitStore.unstage([s.filePath])
 }
 
 /** .iwt/.json 先格式化再 diff，避免整行差异 */
@@ -244,14 +270,14 @@ async function load() {
 
 onMounted(load)
 
-// 工作区 diff 随 git 状态刷新自动重取（stage/discard/commit 后）；commit diff 内容不变。
-// 编辑中不重取，避免用自身写盘触发的刷新 clobber 草稿。
+// 工作区 diff 随 git 状态刷新自动跟随基准并重取（stage/unstage/discard/commit 后，含从 SCM 面板操作）；
+// commit diff 内容不变。编辑中不重取，避免用自身写盘触发的刷新 clobber 草稿。
 watch(() => gitStore.revision, () => {
-  if (spec.value?.kind === 'working' && !editingDiff.value) load()
+  if (spec.value?.kind === 'working' && !editingDiff.value) reloadWithBasis()
 })
 
-// 复用 tab（identityOf 命中）时 spec 变化则重取
-watch(spec, () => load())
+// 复用 tab（identityOf 命中）时 spec 变化则重取；reloadWithBasis 内的自切基准由 reloading 守卫避免重复 load
+watch(spec, () => { if (!reloading) load() })
 
 async function handleMenuAction(action: string): Promise<boolean> {
   // 消费 diff tab 的 save，避免落到 app store 的 markdown 保存路径
