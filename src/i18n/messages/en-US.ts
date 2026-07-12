@@ -1123,6 +1123,7 @@ export default {
     reselect: 'Reselect',
     remaining: '{count} conflict(s) remaining',
     resolved: 'All resolved',
+    saved: 'Conflict resolved and saved',
   },
   sourceControl: {
     title: 'Source Control',

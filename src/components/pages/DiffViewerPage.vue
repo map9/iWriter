@@ -132,11 +132,12 @@ async function save() {
       notify.warning(t('mergeView.remaining', { count: mergeRemaining.value }))
       return
     }
-    // 全部冲突已解决 → 写回去标记 + git add（saveDiffTab 内做），随后关闭合并 tab
+    // 全部冲突已解决 → 写回去标记 + git add（saveDiffTab 内做）。
+    // 不自动关闭 tab：保存只保存，不做导航跳转；脏点清除即表示已保存，文件离开 Merge Changes。
     const ok = await appStore.saveDiffTab(props.tab)
     if (ok) {
       savedContent.value = props.tab.diffDraft ?? ''
-      appStore.closeTab(props.tab.id)
+      notify.success(t('mergeView.saved'))
     }
     return
   }

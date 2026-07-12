@@ -50,7 +50,10 @@ diff 是源文本，可编辑侧 = 纯文本编辑。两种粒度：
 
 ## 4. 写回、脏标记与同步模型（最复杂处）
 
-### 4.1 脏 / 保存 —— 实施为「显式保存」（E1 已实现，用户明确要非自动保存）
+### 4.1 脏 / 保存 —— 复用标准保存（无专用 save 图标，2026-07-12 修订）
+> 工具栏原有的 💾 图标与 `Cmd+S`/脏点/关闭确认重复（脏点直接读 `tab.isDirty`；`Cmd+S` 经 `handleMenuAction→saveDiffTab` 已通），已**移除**。diff/合并 tab 一律复用标准保存：脏点 + `Cmd+S` + 关闭「是否保存」。合并未解决时按 `Cmd+S` → `notify.warning` 提示剩余冲突；`saveDiffTab` 对 conflict 仅在内容无冲突标记时 `git add`（护栏：防关闭确认路径把部分解决文件误标已解决）。
+
+原「显式保存」设计（E1 已实现，用户明确要非自动保存）：
 - **编辑保持 diff**：编辑模式为「左侧旧内容随输入实时 word 级高亮 + 右侧 textarea」，diff 在编辑时可见；不切成纯 textarea。
 - **草稿在内存**：DiffView `draftLocal` 输入 → 防抖 emit → `DiffViewerPage.onDraftChange` 只更新 `newContent`(实时 diff) + 镜像到 `tab.diffDraft` + 置 `tab.isDirty`，**不自动写盘**。
 - **显式保存**：diff 头部「保存」按钮（脏时高亮/可点）或 `Cmd+S`（`DiffViewerPage.handleMenuAction('save')` 消费）→ `appStore.saveDiffTab(tab)` → `writeWorkingFile(tab.diffDraft)`。

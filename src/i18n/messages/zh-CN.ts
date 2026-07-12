@@ -1120,6 +1120,7 @@ export default {
     reselect: '重选',
     remaining: '剩余 {count} 处冲突',
     resolved: '已全部解决',
+    saved: '冲突已解决并保存',
   },
   sourceControl: {
     title: '源代码管理',
