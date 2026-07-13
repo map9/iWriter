@@ -42,12 +42,21 @@ describe('workspace lifecycle', () => {
     assert.match(gitStoreSource, /if \(generation !== folderChangeGeneration\) return/)
   })
 
-  it('shows loading separately and preserves Initialize Repository for available non-repositories', () => {
-    assert.match(explorerSource, /v-else-if="appStore\.isWorkspaceOpening"/)
+  it('centers two-line loading states and preserves Initialize Repository for available non-repositories', () => {
+    const explorerLoading = sourceBetween(explorerSource, 'v-else-if="appStore.isWorkspaceOpening"', '<!-- 文件树 -->')
+    const scmLoading = sourceBetween(sourceControlSource, 'v-else-if="appStore.isWorkspaceOpening"', '<!-- 状态 C：未检测到 Git -->')
+    assert.match(explorerLoading, /flex flex-1 flex-col items-center justify-center gap-2/)
+    assert.match(scmLoading, /flex flex-1 flex-col items-center justify-center gap-2/)
     assert.match(sourceControlSource, /v-if="!appStore\.isWorkspaceAvailable"/)
-    assert.match(sourceControlSource, /v-else-if="appStore\.isWorkspaceOpening"/)
     const nonRepoState = sourceBetween(sourceControlSource, '<!-- 状态 D：非仓库 -->', '<!-- 状态 E：仓库')
     assert.match(nonRepoState, /sourceControl\.initRepo/)
     assert.match(sourceControlSource, /onMounted\(\(\) => \{ void gitStore\.ensureDetected\(\) \}\)/)
+  })
+
+  it('keeps the Change Viewer composer fixed while its change list scrolls', () => {
+    const changes = sourceBetween(sourceControlSource, '<template #changes>', '<!-- Graph -->')
+    assert.match(changes, /<div class="flex h-full min-h-0 flex-col overflow-hidden">/)
+    assert.match(changes, /<div class="shrink-0 border-b border-base-300 p-2">/)
+    assert.match(changes, /<div class="min-h-0 flex-1 overflow-y-auto">/)
   })
 })

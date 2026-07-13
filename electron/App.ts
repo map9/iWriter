@@ -687,22 +687,28 @@ export class App {
           const files = fs.readdirSync(folderPath, { withFileTypes: true })
           return files.map(file => {
             const filePath = path.join(folderPath, file.name)
-            stats = fs.statSync(filePath)
-            let isWritable = true
-            try { fs.accessSync(filePath, fs.constants.W_OK) } catch { isWritable = false }
-            return {
-              name: file.name,
-              isDirectory: file.isDirectory(),
-              path: filePath,
-              size: stats?.size,
-              created: stats?.birthtime,
-              modified: stats?.mtime,
-              accessed: stats?.atime,
-              changed: stats?.ctime,
-              isWritable,
-              isHidden: file.name.startsWith('.')
+            try {
+              stats = fs.statSync(filePath)
+              let isWritable = true
+              try { fs.accessSync(filePath, fs.constants.W_OK) } catch { isWritable = false }
+              return {
+                name: file.name,
+                isDirectory: file.isDirectory(),
+                path: filePath,
+                size: stats?.size,
+                created: stats?.birthtime,
+                modified: stats?.mtime,
+                accessed: stats?.atime,
+                changed: stats?.ctime,
+                isWritable,
+                isHidden: file.name.startsWith('.')
+              }
+            } catch (error) {
+              const nodeError = error as NodeJS.ErrnoException
+              if (nodeError.code === 'ENOENT') return null
+              throw error
             }
-          })
+          }).filter((file): file is NonNullable<typeof file> => file !== null)
         } else {
           stats = fs.statSync(folderPath)
           let isWritable = true

@@ -54,7 +54,7 @@
     </div>
 
     <!-- 状态 B：正在打开工作区 -->
-    <div v-else-if="appStore.isWorkspaceOpening" class="sidebar-empty flex items-center gap-2">
+    <div v-else-if="appStore.isWorkspaceOpening" class="sidebar-empty flex flex-1 flex-col items-center justify-center gap-2">
       <span class="loading loading-spinner loading-sm"></span>
       <span>{{ t('sourceControl.workspaceLoading') }}</span>
     </div>
@@ -115,42 +115,46 @@
         <span v-if="gitStore.changeCount" class="badge badge-xs badge-primary">{{ gitStore.changeCount }}</span>
       </template>
       <template #changes>
-        <div class="flex flex-col gap-2 border-b border-base-300 p-2">
-          <textarea
-            v-model="gitStore.commitMessage"
-            rows="1"
-            class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-1.5 px-2 text-xs focus:border-primary rounded-field"
-            :placeholder="t('sourceControl.commitPlaceholder')"
-            @keydown="onCommitKey"
-            @input="autoGrow"
-          />
-          <div class="flex">
-            <button
-              class="btn btn-primary btn-xs flex-1 rounded-r-none gap-1"
-              :disabled="!canCommit"
-              @click="doPrimaryCommit"
-            >
-              <span v-if="gitStore.committing" class="loading loading-spinner loading-xs"></span>
-              <IconCheck v-else class="icon-2xs" /> {{ t('sourceControl.commit') }}
-            </button>
-            <button class="btn btn-primary btn-xs rounded-l-none border-l border-primary-content/20 px-1" :title="t('sourceControl.commit')" @click="showCommitMenu">
-              <IconChevronDown class="icon-2xs" />
-            </button>
+        <div class="flex h-full min-h-0 flex-col overflow-hidden">
+          <div class="shrink-0 border-b border-base-300 p-2">
+            <textarea
+              v-model="gitStore.commitMessage"
+              rows="1"
+              class="w-full min-h-7 resize-none overflow-hidden outline-none border border-base-300 bg-base-100 py-1.5 px-2 text-xs focus:border-primary rounded-field"
+              :placeholder="t('sourceControl.commitPlaceholder')"
+              @keydown="onCommitKey"
+              @input="autoGrow"
+            />
+            <div class="mt-2 flex">
+              <button
+                class="btn btn-primary btn-xs flex-1 rounded-r-none gap-1"
+                :disabled="!canCommit"
+                @click="doPrimaryCommit"
+              >
+                <span v-if="gitStore.committing" class="loading loading-spinner loading-xs"></span>
+                <IconCheck v-else class="icon-2xs" /> {{ t('sourceControl.commit') }}
+              </button>
+              <button class="btn btn-primary btn-xs rounded-l-none border-l border-primary-content/20 px-1" :title="t('sourceControl.commit')" @click="showCommitMenu">
+                <IconChevronDown class="icon-2xs" />
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div v-if="!gitStore.hasChanges" class="sidebar-empty">
-          {{ t('sourceControl.noChanges') }}
-        </div>
-        <div v-else class="py-1 text-xs">
-          <GitChangeGroup v-if="gitStore.status?.conflicts.length" kind="conflicts" :title="mergeLabel" :files="gitStore.status.conflicts" :tree-view="changesTreeView"
-            @open="onFileOpen" @stage="onStage" @context="onContext" />
-          <GitChangeGroup v-if="gitStore.status?.staged.length" kind="staged" :title="stagedLabel" :files="gitStore.status.staged" :tree-view="changesTreeView"
-            @open="onFileOpen" @unstage="onUnstage" @unstage-all="gitStore.unstageAll()" @context="onContext" />
-          <GitChangeGroup v-if="gitStore.status?.changes.length" kind="changes" :title="changesLabel" :files="gitStore.status.changes" :tree-view="changesTreeView"
-            @open="onFileOpen" @stage="onStage" @discard="onDiscard" @stage-all="gitStore.stageAll()" @discard-all="onDiscardAll" @context="onContext" />
-          <GitChangeGroup v-if="gitStore.status?.untracked.length" kind="untracked" :title="untrackedLabel" :files="gitStore.status.untracked" :tree-view="changesTreeView"
-            @open="onFileOpen" @stage="onStage" @gitignore="onGitignore" @stage-all="onStageAllUntracked" @context="onContext" />
+          <div class="min-h-0 flex-1 overflow-y-auto">
+            <div v-if="!gitStore.hasChanges" class="sidebar-empty">
+              {{ t('sourceControl.noChanges') }}
+            </div>
+            <div v-else class="py-1 text-xs">
+              <GitChangeGroup v-if="gitStore.status?.conflicts.length" kind="conflicts" :title="mergeLabel" :files="gitStore.status.conflicts" :tree-view="changesTreeView"
+                @open="onFileOpen" @stage="onStage" @context="onContext" />
+              <GitChangeGroup v-if="gitStore.status?.staged.length" kind="staged" :title="stagedLabel" :files="gitStore.status.staged" :tree-view="changesTreeView"
+                @open="onFileOpen" @unstage="onUnstage" @unstage-all="gitStore.unstageAll()" @context="onContext" />
+              <GitChangeGroup v-if="gitStore.status?.changes.length" kind="changes" :title="changesLabel" :files="gitStore.status.changes" :tree-view="changesTreeView"
+                @open="onFileOpen" @stage="onStage" @discard="onDiscard" @stage-all="gitStore.stageAll()" @discard-all="onDiscardAll" @context="onContext" />
+              <GitChangeGroup v-if="gitStore.status?.untracked.length" kind="untracked" :title="untrackedLabel" :files="gitStore.status.untracked" :tree-view="changesTreeView"
+                @open="onFileOpen" @stage="onStage" @gitignore="onGitignore" @stage-all="onStageAllUntracked" @context="onContext" />
+            </div>
+          </div>
         </div>
       </template>
 

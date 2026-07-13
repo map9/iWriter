@@ -120,7 +120,7 @@
           </div>
         </div>
 
-        <div v-else-if="appStore.isWorkspaceOpening" class="sidebar-empty flex items-center gap-2">
+        <div v-else-if="appStore.isWorkspaceOpening" class="sidebar-empty flex flex-1 flex-col items-center justify-center gap-2">
           <span class="loading loading-spinner loading-sm"></span>
           <span>{{ t('explorer.workspaceLoading') }}</span>
         </div>
