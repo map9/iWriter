@@ -240,9 +240,9 @@ export const useGitStore = defineStore('git', () => {
   }
 
   /** 打开某提交中文件的 diff（Graph 展开点击）→ 编辑区 Diff tab */
-  function openCommitDiff(hash: string, filePath: string): void {
+  function openCommitDiff(hash: string, filePath: string, oldPath?: string): void {
     if (!root.value) return
-    const spec: DiffSpec = { root: root.value, filePath, kind: 'commit', hash }
+    const spec: DiffSpec = { root: root.value, filePath, kind: 'commit', hash, oldPath }
     const name = filePath.split('/').pop() || filePath
     useAppStore().openDiffTab(spec, `${name} (${hash.slice(0, 7)})`)
   }
@@ -281,15 +281,15 @@ export const useGitStore = defineStore('git', () => {
   const unstageAll = () => run(() => api().unstageAll(root.value!))
   const discard = (paths: string[]) => run(() => api().discard(root.value!, paths))
   /** 切换分支/提交；脏工作区阻挡时弹 VSCode 式选择（贮藏并切换 / 迁移改动 / 强制切换 / 取消） */
-  async function checkout(ref_: string): Promise<void> {
+  async function checkout(ref_: string, opts?: { track?: boolean }): Promise<void> {
     if (!root.value) return
     try {
-      await api().checkout(root.value, ref_)
+      await api().checkout(root.value, ref_, opts)
       await afterWrite()
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       if (/overwritten by (checkout|merge)|Please commit your changes or stash/i.test(msg)) {
-        await promptDirtyCheckout(ref_)
+        await promptDirtyCheckout(ref_, opts)
       } else {
         notify.error(msg)
         await afterWrite()
@@ -298,7 +298,7 @@ export const useGitStore = defineStore('git', () => {
   }
 
   /** 脏工作区切分支的三选一（对标 VSCode） */
-  async function promptDirtyCheckout(ref_: string): Promise<void> {
+  async function promptDirtyCheckout(ref_: string, opts?: { track?: boolean }): Promise<void> {
     if (!root.value) return
     const res = await window.electronAPI.showMessageBox({
       type: 'warning',
@@ -318,14 +318,14 @@ export const useGitStore = defineStore('git', () => {
     if (choice === 0) {
       // 贮藏后切换：stash 保留（用户可稍后弹出），非自动 pop
       const ok = await run(async () => {
-        await api().stashPush(root.value!, undefined, false)
-        await api().checkout(root.value!, ref_)
+        await api().stashPush(root.value!, undefined, true)
+        await api().checkout(root.value!, ref_, opts)
       })
       if (ok) { await loadStashes(); notify.info(i18n.global.t('sourceControl.checkout.stashed')) }
     } else if (choice === 1) {
       // 迁移改动：`checkout -m` 三方合并；冲突留标记进 Merge Changes，不作硬错误
       try {
-        await api().checkout(root.value, ref_, { merge: true })
+        await api().checkout(root.value, ref_, { ...opts, merge: true })
       } catch (err) {
         const m = err instanceof Error ? err.message : String(err)
         if (!/conflict/i.test(m)) notify.error(m)
@@ -334,7 +334,7 @@ export const useGitStore = defineStore('git', () => {
       }
     } else if (choice === 2) {
       // 强制切换：丢弃本地改动（破坏性；弹窗本身即确认）
-      await run(() => api().checkout(root.value!, ref_, { force: true }))
+      await run(() => api().checkout(root.value!, ref_, { ...opts, force: true }))
     }
     // choice === 3 / undefined：取消
   }

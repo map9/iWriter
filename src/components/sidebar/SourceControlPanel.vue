@@ -152,7 +152,7 @@
               <GitChangeGroup v-if="gitStore.status?.changes.length" kind="changes" :title="changesLabel" :files="gitStore.status.changes" :tree-view="changesTreeView"
                 @open="onFileOpen" @stage="onStage" @discard="onDiscard" @stage-all="gitStore.stageAll()" @discard-all="onDiscardAll" @context="onContext" />
               <GitChangeGroup v-if="gitStore.status?.untracked.length" kind="untracked" :title="untrackedLabel" :files="gitStore.status.untracked" :tree-view="changesTreeView"
-                @open="onFileOpen" @stage="onStage" @gitignore="onGitignore" @stage-all="onStageAllUntracked" @context="onContext" />
+                @open="onFileOpen" @stage="onStage" @discard="onDiscard" @gitignore="onGitignore" @stage-all="onStageAllUntracked" @context="onContext" />
             </div>
           </div>
         </div>
@@ -233,7 +233,7 @@
                   <button
                     class="flex h-7 w-full items-center gap-2 pr-3 pl-9 text-left text-base-content/80 hover:bg-base-200"
                     :title="f.path"
-                    @click="gitStore.openCommitDiff(c.hash, f.path)"
+                    @click="gitStore.openCommitDiff(c.hash, f.path, f.oldPath)"
                   >
                     <span class="truncate">{{ f.name }}</span>
                     <span class="truncate text-base-content/40">{{ f.dir }}</span>
@@ -257,7 +257,7 @@
                     class="flex h-7 w-full items-center gap-2 pr-3 text-left text-base-content/80 hover:bg-base-200"
                     :style="{ paddingLeft: (row.depth * 12 + 24) + 'px' }"
                     :title="row.file!.path"
-                    @click="gitStore.openCommitDiff(c.hash, row.file!.path)"
+                    @click="gitStore.openCommitDiff(c.hash, row.file!.path, row.file!.oldPath)"
                   >
                     <span class="truncate">{{ row.label }}</span>
                     <span class="ml-auto font-bold" :class="statusColor(row.file!.status)">{{ row.file!.status }}</span>
@@ -667,7 +667,7 @@ async function onContext(p: ScmContextPayload) {
   }
   if (p.kind === 'staged') items.push({ id: 'unstage', label: t('sourceControl.action.unstage') })
   else items.push({ id: 'stage', label: t('sourceControl.action.stage') })
-  if (p.kind === 'changes') items.push({ id: 'discard', label: t('sourceControl.action.discard') })
+  if (p.kind === 'changes' || p.kind === 'untracked') items.push({ id: 'discard', label: t('sourceControl.action.discard') })
   if (p.kind === 'untracked') items.push({ id: 'gitignore', label: t('sourceControl.action.gitignore') })
   if (onDisk) {
     items.push({ type: 'separator' })
@@ -706,10 +706,10 @@ async function showBranchMenu(event: MouseEvent) {
     { id: '__delete', label: t('sourceControl.branch.delete'), enabled: b.local.some(n => n !== b.current) },
     { type: 'separator' },
     ...b.local.map((name): ContextMenuItem => ({
-      id: `co:${name}`, label: name, type: 'checkbox', checked: name === b.current,
+      id: `co-local:${name}`, label: name, type: 'checkbox', checked: name === b.current,
     })),
     ...b.remote.filter(r => !r.endsWith('/HEAD')).map((name): ContextMenuItem => ({
-      id: `co:${name}`, label: `${name}  (${t('sourceControl.branch.remote')})`,
+      id: `co-remote:${name}`, label: `${name}  (${t('sourceControl.branch.remote')})`,
     })),
   ]
   const action = await window.electronAPI.showContextMenu(items, { x: event.clientX, y: event.clientY })
@@ -722,9 +722,14 @@ async function showBranchMenu(event: MouseEvent) {
     await showMergeBranchMenu(event)
   } else if (action === '__delete') {
     await showDeleteBranchMenu(event)
-  } else if (action.startsWith('co:')) {
-    const ref = action.slice(3)
-    if (ref !== b.current) gitStore.checkout(ref.replace(/^origin\//, ''))
+  } else if (action.startsWith('co-local:')) {
+    const ref = action.slice('co-local:'.length)
+    if (ref !== b.current) gitStore.checkout(ref)
+  } else if (action.startsWith('co-remote:')) {
+    const ref = action.slice('co-remote:'.length)
+    const localName = ref.replace(/^[^/]+\//, '')
+    if (b.local.includes(localName)) gitStore.checkout(localName)
+    else gitStore.checkout(ref, { track: true })
   }
 }
 
@@ -1004,7 +1009,7 @@ function relTime(ts: number): string {
 }
 
 async function recheck() {
-  gitStore.availability = await window.electronAPI.git.detect()
+  gitStore.availability = await window.electronAPI.git.detect(true)
   await gitStore.onFolderChanged(appStore.currentFolder)
 }
 

@@ -79,8 +79,8 @@ export class GitService {
   }
 
   /** 检测系统是否安装 git（缓存结果） */
-  async detect(): Promise<GitAvailability> {
-    if (this.availability) return this.availability
+  async detect(force = false): Promise<GitAvailability> {
+    if (!force && this.availability) return this.availability
     this.availability = await new Promise<GitAvailability>((resolve) => {
       execFile('git', ['--version'], (err, stdout) => {
         if (err) {
@@ -180,8 +180,10 @@ export class GitService {
   }
 
   async commit(root: string, message: string, opts: { all?: boolean; amend?: boolean }): Promise<void> {
+    // `git commit -a` excludes untracked files. Commit All must first populate
+    // the index with every working-tree change, matching the SCM action label.
+    if (opts.all) await this.stageAll(root)
     const args = ['commit', '-m', message]
-    if (opts.all) args.push('-a')
     if (opts.amend) args.push('--amend')
     await this.raw(root,args)
   }
@@ -208,10 +210,11 @@ export class GitService {
    * - force: `-f` 丢弃本地改动强制切换（破坏性）。
    * - merge: `-m` 三方合并，把本地未提交改动迁移到目标分支（冲突则留标记，进 Merge Changes）。
    */
-  async checkout(root: string, ref: string, opts?: { force?: boolean; merge?: boolean }): Promise<void> {
+  async checkout(root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }): Promise<void> {
     const args = ['checkout']
     if (opts?.force) args.push('-f')
     if (opts?.merge) args.push('-m')
+    if (opts?.track) args.push('--track')
     args.push(ref)
     await this.raw(root,args)
   }
@@ -391,8 +394,8 @@ export class GitService {
         newContent = await this.showSafe(root, `:${filePath}`)
       } else {
         // 未暂存：index(或 HEAD) ↔ 工作区磁盘
-        oldContent = await this.showSafe(root, `:${filePath}`)
-        if (!oldContent) oldContent = await this.showSafe(root, `HEAD:${filePath}`)
+        const indexContent = await this.showOptional(root, `:${filePath}`)
+        oldContent = indexContent ?? await this.showSafe(root, `HEAD:${filePath}`)
         newContent = await this.readWorking(abs)
       }
     } catch {
@@ -466,15 +469,16 @@ export class GitService {
         const parts = line.split('\t')
         const code = parts[0]?.[0] ?? 'M'
         const p = parts[parts.length - 1] ?? ''
-        return this.makeChange(p, this.mapStatus(code), false)
+        const oldPath = parts.length >= 3 ? parts[1] : undefined
+        return this.makeChange(p, this.mapStatus(code), false, oldPath)
       })
   }
 
-  async commitFileDiff(root: string, hash: string, filePath: string): Promise<GitDiffPayload> {
+  async commitFileDiff(root: string, hash: string, filePath: string, oldPath?: string): Promise<GitDiffPayload> {
     if (this.isBinaryPath(filePath)) {
       return { path: filePath, oldContent: '', newContent: '', isBinary: true }
     }
-    const oldContent = await this.showSafe(root, `${hash}~1:${filePath}`)
+    const oldContent = await this.showSafe(root, `${hash}~1:${oldPath ?? filePath}`)
     const newContent = await this.showSafe(root, `${hash}:${filePath}`)
     return {
       path: filePath,
@@ -547,10 +551,14 @@ export class GitService {
   }
 
   private async showSafe(root: string, ref: string): Promise<string> {
+    return (await this.showOptional(root, ref)) ?? ''
+  }
+
+  private async showOptional(root: string, ref: string): Promise<string | null> {
     try {
       return await this.exec(root, g => g.show([ref]))
     } catch {
-      return ''
+      return null
     }
   }
 
@@ -562,7 +570,7 @@ export class GitService {
     }
   }
 
-  private makeChange(p: string, status: GitFileStatus, staged: boolean): GitFileChange {
+  private makeChange(p: string, status: GitFileStatus, staged: boolean, oldPath?: string): GitFileChange {
     const norm = p.replace(/\\/g, '/')
     const idx = norm.lastIndexOf('/')
     return {
@@ -572,6 +580,7 @@ export class GitService {
       status,
       staged,
       isBinary: this.isBinaryPath(norm),
+      oldPath,
     }
   }
 

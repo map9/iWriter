@@ -83,6 +83,7 @@ import { computeHunks, buildHunkPatch } from '@/components/common/diff/hunk-patc
 import { useGitStore } from '@/stores/git'
 import { useAppStore } from '@/stores/app'
 import { notify } from '@/utils/notifications'
+import { computeFileContentHash } from '@/utils/fileContentHash'
 import { IMAGE_EXTENSIONS } from '@/types'
 import type { FileTab } from '@/types'
 
@@ -294,14 +295,20 @@ async function load() {
       return
     }
     const payload = s.kind === 'commit' && s.hash
-      ? await api.commitFileDiff(s.root, s.hash, s.filePath)
+      ? await api.commitFileDiff(s.root, s.hash, s.filePath, s.oldPath)
       : await api.diff(s.root, s.filePath, { staged: !!s.staged })
     isBinary.value = payload.isBinary
     oldContent.value = payload.isBinary ? '' : maybeFormat(payload.oldContent)
     newContent.value = payload.isBinary ? '' : maybeFormat(payload.newContent)
     // 重置编辑基线（load 在编辑中被守护跳过，不会覆盖草稿）
     savedContent.value = newContent.value
-    appStore.updateTabState(props.tab.id, { diffDraft: newContent.value, isDirty: false })
+    appStore.updateTabState(props.tab.id, {
+      diffDraft: newContent.value,
+      isDirty: false,
+      lastSavedHash: s.kind === 'working' && !s.staged
+        ? computeFileContentHash(payload.newContent)
+        : undefined,
+    })
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
   } finally {

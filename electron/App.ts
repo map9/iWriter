@@ -31,6 +31,7 @@ import {
 import {
   DEFAULT_WORKSPACE_IGNORE_RULES,
   GITIGNORE_FILENAME,
+  isGitMetadataRelativePath,
   WORKSPACE_IGNORE_FILENAME,
   parseWorkspaceIgnoreRules,
   shouldIncludeWorkspaceEntry,
@@ -87,7 +88,8 @@ interface ResolveImageUrlResult {
 }
 
 function assertExpectedFileContent(filePath: string, expectedHash?: string): void {
-  if (!expectedHash || !fs.existsSync(filePath)) return
+  if (!expectedHash) return
+  if (!fs.existsSync(filePath)) throw new Error(FILE_CONTENT_CHANGED_ON_DISK_ERROR)
 
   const currentContent = fs.readFileSync(filePath, 'utf8')
   const currentHash = computeFileContentHash(currentContent)
@@ -188,6 +190,10 @@ function createWorkspaceIgnoredPredicate(
     ) {
       return false
     }
+
+    // `.git/` 仍保持对文件树不可见，但关联 SCM 状态的元数据与 refs 要送到渲染层刷新。
+    // 不放行 index.lock，避免 GitService 自己的写操作触发刷新循环。
+    if (isGitMetadataRelativePath(relativePath)) return false
 
     // 路径已删除（unlink），无法 stat：仍按路径规则判定（当作文件），不要默认放行。
     // 关键：git 执行期间频繁创建/删除 `.git/index.lock`，其 unlink 事件若因 stat 失败而被放行，
@@ -1447,7 +1453,7 @@ export class App {
   }
 
   private registerGitHandlers() {
-    ipcMain.handle('git:detect', async () => this.gitService.detect())
+    ipcMain.handle('git:detect', async (_, force?: boolean) => this.gitService.detect(force))
     ipcMain.handle('git:is-repo', async (_, root: string) => this.gitService.isRepo(root))
     ipcMain.handle('git:init', async (_, root: string) => this.gitService.init(root))
     ipcMain.handle('git:status', async (_, root: string) => this.gitService.status(root))
@@ -1457,8 +1463,8 @@ export class App {
     ipcMain.handle('git:log', async (_, root: string, opts) => this.gitService.log(root, opts))
     ipcMain.handle('git:commit-files', async (_, root: string, hash: string) =>
       this.gitService.commitFiles(root, hash))
-    ipcMain.handle('git:commit-file-diff', async (_, root: string, hash: string, filePath: string) =>
-      this.gitService.commitFileDiff(root, hash, filePath))
+    ipcMain.handle('git:commit-file-diff', async (_, root: string, hash: string, filePath: string, oldPath?: string) =>
+      this.gitService.commitFileDiff(root, hash, filePath, oldPath))
     ipcMain.handle('git:conflict-versions', async (_, root: string, filePath: string) =>
       this.gitService.conflictVersions(root, filePath))
     ipcMain.handle('git:restore-file', async (_, root: string, hash: string, filePath: string) =>
@@ -1476,7 +1482,7 @@ export class App {
     ipcMain.handle('git:identity-get', async (_, root: string) => this.gitService.getUserIdentity(root))
     ipcMain.handle('git:identity-set', async (_, root: string, name: string, email: string, global: boolean) =>
       this.gitService.setUserIdentity(root, name, email, global))
-    ipcMain.handle('git:checkout', async (_, root: string, ref: string, opts?: { force?: boolean; merge?: boolean }) => this.gitService.checkout(root, ref, opts))
+    ipcMain.handle('git:checkout', async (_, root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) => this.gitService.checkout(root, ref, opts))
     ipcMain.handle('git:create-branch', async (_, root: string, name: string, base?: string, checkout?: boolean) =>
       this.gitService.createBranch(root, name, base, checkout))
     ipcMain.handle('git:delete-branch', async (_, root: string, name: string, force: boolean) =>

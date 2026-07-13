@@ -67,7 +67,7 @@
               <button v-if="kind === 'untracked'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.gitignore')" @click="emit('gitignore', [row.file!])">
                 <IconBan class="icon-2xs" />
               </button>
-              <button v-if="kind === 'changes'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discard')" @click="emit('discard', [row.file!])">
+              <button v-if="kind === 'changes' || kind === 'untracked'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discard')" @click="emit('discard', [row.file!])">
                 <IconArrowBackUp class="icon-2xs" />
               </button>
               <button v-if="kind === 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstage')" @click="emit('unstage', [row.file!])">

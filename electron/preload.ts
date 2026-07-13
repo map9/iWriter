@@ -122,7 +122,7 @@ const electronAPI: ElectronAPI = {
   officeConvertToPdf: (req: OfficeConvertRequest): Promise<OfficeConvertResult> => ipcRenderer.invoke('office:convert', req),
 
   git: {
-    detect: () => ipcRenderer.invoke('git:detect'),
+    detect: (force?: boolean) => ipcRenderer.invoke('git:detect', force),
     isRepo: (root: string) => ipcRenderer.invoke('git:is-repo', root),
     init: (root: string) => ipcRenderer.invoke('git:init', root),
     status: (root: string) => ipcRenderer.invoke('git:status', root),
@@ -130,7 +130,7 @@ const electronAPI: ElectronAPI = {
     diff: (root: string, filePath: string, opts: { staged: boolean }) => ipcRenderer.invoke('git:diff', root, filePath, opts),
     log: (root: string, opts: { filePath?: string; allBranches?: boolean; ref?: string; limit?: number; skip?: number }) => ipcRenderer.invoke('git:log', root, opts),
     commitFiles: (root: string, hash: string) => ipcRenderer.invoke('git:commit-files', root, hash),
-    commitFileDiff: (root: string, hash: string, filePath: string) => ipcRenderer.invoke('git:commit-file-diff', root, hash, filePath),
+    commitFileDiff: (root: string, hash: string, filePath: string, oldPath?: string) => ipcRenderer.invoke('git:commit-file-diff', root, hash, filePath, oldPath),
     conflictVersions: (root: string, filePath: string) => ipcRenderer.invoke('git:conflict-versions', root, filePath),
     restoreFile: (root: string, hash: string, filePath: string) => ipcRenderer.invoke('git:restore-file', root, hash, filePath),
     merge: (root: string, branch: string) => ipcRenderer.invoke('git:merge', root, branch),
@@ -143,7 +143,7 @@ const electronAPI: ElectronAPI = {
     commit: (root: string, message: string, opts: { all?: boolean; amend?: boolean }) => ipcRenderer.invoke('git:commit', root, message, opts),
     identityGet: (root: string) => ipcRenderer.invoke('git:identity-get', root),
     identitySet: (root: string, name: string, email: string, global: boolean) => ipcRenderer.invoke('git:identity-set', root, name, email, global),
-    checkout: (root: string, ref: string, opts?: { force?: boolean; merge?: boolean }) => ipcRenderer.invoke('git:checkout', root, ref, opts),
+    checkout: (root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) => ipcRenderer.invoke('git:checkout', root, ref, opts),
     createBranch: (root: string, name: string, base?: string, checkout?: boolean) => ipcRenderer.invoke('git:create-branch', root, name, base, checkout),
     deleteBranch: (root: string, name: string, force: boolean) => ipcRenderer.invoke('git:delete-branch', root, name, force),
     listTags: (root: string) => ipcRenderer.invoke('git:list-tags', root),

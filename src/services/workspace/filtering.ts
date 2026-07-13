@@ -15,6 +15,23 @@ export const DEFAULT_WORKSPACE_IGNORE_RULES = [
 export const WORKSPACE_IGNORE_FILENAME = '.iwtignore'
 export const GITIGNORE_FILENAME = '.gitignore'
 
+/**
+ * Git 元数据不进入工作区树，但其变化必须触发 SCM 状态刷新。
+ * 仅放行会影响当前分支、暂存区与合并态的文件，故不会重新引入 index.lock 刷新循环。
+ */
+export const GIT_METADATA_RELATIVE_PATHS = new Set([
+  '.git/HEAD',
+  '.git/index',
+  '.git/MERGE_HEAD',
+  '.git/packed-refs',
+])
+
+export function isGitMetadataRelativePath(relativePath: string): boolean {
+  const normalizedPath = relativePath.replace(/\\/g, '/')
+  return GIT_METADATA_RELATIVE_PATHS.has(normalizedPath) ||
+    normalizedPath.startsWith('.git/refs/')
+}
+
 export type WorkspaceFilterScope = 'explorer' | 'search' | 'watcher'
 
 export interface WorkspaceIgnoreRule {

@@ -53,6 +53,7 @@ import {
   DEFAULT_WORKSPACE_IGNORE_RULES,
   GITIGNORE_FILENAME,
   getWorkspaceEntriesRaw,
+  isGitMetadataRelativePath,
   listWorkspaceEntries,
   parseWorkspaceIgnoreRules,
   shouldIncludeWorkspaceEntry,
@@ -760,6 +761,7 @@ export const useAppStore = defineStore('app', () => {
 
   function handleWindowFocus() {
     void checkWorkspaceDirectoryRestored(true)
+    void useGitStore().refresh()
   }
 
   // Actions
@@ -2396,11 +2398,17 @@ export const useAppStore = defineStore('app', () => {
 
     const isInWorkspace = !!currentFolder.value && isPathInsideWorkspace(change.path, currentFolder.value)
     const affectsOpenTab = doesChangeAffectOpenTab(change)
+    const isGitMetadataChange = isInWorkspace && !!currentFolder.value &&
+      isGitMetadataRelativePath(toWorkspaceRelativePath(currentFolder.value, change.path))
 
     // 工作空间内文件变化 → 刷新版本控制状态（去抖，内部判 isRepo）
     if (isInWorkspace) {
       useGitStore().refresh()
     }
+
+    // Git metadata is intentionally invisible to Explorer/Search. It only exists
+    // in this event stream to keep the SCM store synchronized with external Git.
+    if (isGitMetadataChange) return
 
     if (!isInWorkspace && !affectsOpenTab) {
       return
@@ -2759,9 +2767,9 @@ export const useAppStore = defineStore('app', () => {
     const p = tab.params
     if (p?.kind !== 'diff' || tab.diffDraft == null) return true
     const abs = pathUtils.join(p.diff.root, p.diff.filePath)
-    const ok = await writeWorkingFile(abs, tab.diffDraft)
+    const ok = await writeWorkingFile(abs, tab.diffDraft, tab.lastSavedHash)
     if (ok) {
-      updateTabState(tab.id, { isDirty: false })
+      updateTabState(tab.id, { isDirty: false, lastSavedHash: buildSavedHash(tab.diffDraft) })
       // 冲突：仅当写回内容已无冲突标记（全部解决）才 git add 标记解决、离开 Merge Changes；
       // 仍含标记（部分解决就关闭保存）则只持久化编辑、保持冲突态，避免误标已解决。
       if (p.diff.kind === 'conflict' && !/^(<<<<<<<|=======|>>>>>>>)/m.test(tab.diffDraft)) {
@@ -2883,11 +2891,22 @@ export const useAppStore = defineStore('app', () => {
    * - 若同文件正开在 Markdown 编辑器 → 用已知内容静默重载（更新 lastSavedHash）；
    * - 刷新 git 状态。
    */
-  async function writeWorkingFile(absPath: string, content: string): Promise<boolean> {
+  async function writeWorkingFile(absPath: string, content: string, expectedHash?: string): Promise<boolean> {
     if (!window.electronAPI) return false
     const normalized = pathUtils.normalize(absPath)
     ignoredExternalChangePaths.add(normalized)
-    const ok = await window.electronAPI.saveFile(content, absPath, {})
+    let ok: boolean
+    try {
+      ok = await window.electronAPI.saveFile(content, absPath, { expectedHash })
+    } catch (error) {
+      ignoredExternalChangePaths.delete(normalized)
+      if (isFileContentChangedOnDiskError(error)) {
+        notify.warning(t('notify.file.externalModifiedSaveBlocked'), t('notify.file.saveError'))
+      } else {
+        notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.saveError'))
+      }
+      return false
+    }
     if (ok !== true) {
       ignoredExternalChangePaths.delete(normalized)
       return false

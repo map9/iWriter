@@ -126,13 +126,15 @@ export interface DiffSpec {
   staged?: boolean
   /** kind=commit：目标提交 hash（对比其父提交） */
   hash?: string
+  /** kind=commit 且文件在该提交中被重命名时的父提交路径 */
+  oldPath?: string
   /** 该场景天然是否可编辑（场景1未暂存 / conflict 结果侧=true） */
   editable?: boolean
 }
 
 /** 渲染层通过 window.electronAPI.git.* 调用的接口 */
 export interface GitApi {
-  detect: () => Promise<GitAvailability>
+  detect: (force?: boolean) => Promise<GitAvailability>
   isRepo: (root: string) => Promise<boolean>
   init: (root: string) => Promise<void>
   status: (root: string) => Promise<GitStatus>
@@ -140,7 +142,7 @@ export interface GitApi {
   diff: (root: string, filePath: string, opts: { staged: boolean }) => Promise<GitDiffPayload>
   log: (root: string, opts: { filePath?: string; allBranches?: boolean; ref?: string; limit?: number; skip?: number }) => Promise<GitCommit[]>
   commitFiles: (root: string, hash: string) => Promise<GitFileChange[]>
-  commitFileDiff: (root: string, hash: string, filePath: string) => Promise<GitDiffPayload>
+  commitFileDiff: (root: string, hash: string, filePath: string, oldPath?: string) => Promise<GitDiffPayload>
   conflictVersions: (root: string, filePath: string) => Promise<ConflictVersions>
   restoreFile: (root: string, hash: string, filePath: string) => Promise<void>
   merge: (root: string, branch: string) => Promise<void>
@@ -153,7 +155,7 @@ export interface GitApi {
   commit: (root: string, message: string, opts: { all?: boolean; amend?: boolean }) => Promise<void>
   identityGet: (root: string) => Promise<{ name?: string; email?: string }>
   identitySet: (root: string, name: string, email: string, global: boolean) => Promise<void>
-  checkout: (root: string, ref: string, opts?: { force?: boolean; merge?: boolean }) => Promise<void>
+  checkout: (root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) => Promise<void>
   createBranch: (root: string, name: string, base?: string, checkout?: boolean) => Promise<void>
   deleteBranch: (root: string, name: string, force: boolean) => Promise<void>
   listTags: (root: string) => Promise<string[]>
