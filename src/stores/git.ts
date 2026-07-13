@@ -254,7 +254,64 @@ export const useGitStore = defineStore('git', () => {
   const stageAll = () => run(() => api().stageAll(root.value!))
   const unstageAll = () => run(() => api().unstageAll(root.value!))
   const discard = (paths: string[]) => run(() => api().discard(root.value!, paths))
-  const checkout = (ref_: string) => run(() => api().checkout(root.value!, ref_))
+  /** 切换分支/提交；脏工作区阻挡时弹 VSCode 式选择（贮藏并切换 / 迁移改动 / 强制切换 / 取消） */
+  async function checkout(ref_: string): Promise<void> {
+    if (!root.value) return
+    try {
+      await api().checkout(root.value, ref_)
+      await afterWrite()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (/overwritten by (checkout|merge)|Please commit your changes or stash/i.test(msg)) {
+        await promptDirtyCheckout(ref_)
+      } else {
+        notify.error(msg)
+        await afterWrite()
+      }
+    }
+  }
+
+  /** 脏工作区切分支的三选一（对标 VSCode） */
+  async function promptDirtyCheckout(ref_: string): Promise<void> {
+    if (!root.value) return
+    const res = await window.electronAPI.showMessageBox({
+      type: 'warning',
+      title: i18n.global.t('sourceControl.checkout.dirtyTitle'),
+      message: i18n.global.t('sourceControl.checkout.dirtyTitle'),
+      detail: i18n.global.t('sourceControl.checkout.dirtyDetail', { ref: ref_ }),
+      buttons: [
+        i18n.global.t('sourceControl.checkout.stashAndCheckout'), // 0
+        i18n.global.t('sourceControl.checkout.migrate'),          // 1
+        i18n.global.t('sourceControl.checkout.force'),            // 2
+        i18n.global.t('common.cancel'),                           // 3
+      ],
+      defaultId: 0,
+      cancelId: 3,
+    })
+    const choice = res?.response
+    if (choice === 0) {
+      // 贮藏后切换：stash 保留（用户可稍后弹出），非自动 pop
+      const ok = await run(async () => {
+        await api().stashPush(root.value!, undefined, false)
+        await api().checkout(root.value!, ref_)
+      })
+      if (ok) { await loadStashes(); notify.info(i18n.global.t('sourceControl.checkout.stashed')) }
+    } else if (choice === 1) {
+      // 迁移改动：`checkout -m` 三方合并；冲突留标记进 Merge Changes，不作硬错误
+      try {
+        await api().checkout(root.value, ref_, { merge: true })
+      } catch (err) {
+        const m = err instanceof Error ? err.message : String(err)
+        if (!/conflict/i.test(m)) notify.error(m)
+      } finally {
+        await afterWrite()
+      }
+    } else if (choice === 2) {
+      // 强制切换：丢弃本地改动（破坏性；弹窗本身即确认）
+      await run(() => api().checkout(root.value!, ref_, { force: true }))
+    }
+    // choice === 3 / undefined：取消
+  }
   const createBranch = (name: string, base?: string, doCheckout?: boolean) =>
     run(() => api().createBranch(root.value!, name, base, doCheckout))
   const deleteBranch = (name: string, force: boolean) => run(() => api().deleteBranch(root.value!, name, force))

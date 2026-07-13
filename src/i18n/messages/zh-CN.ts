@@ -1234,6 +1234,14 @@ export default {
       deleteMessage: '将删除标签 “{name}”，此操作不可撤销。',
       deleteConfirm: '删除标签',
     },
+    checkout: {
+      dirtyTitle: '本地更改将被切换覆盖',
+      dirtyDetail: '切换到 “{ref}” 前，请选择如何处理未提交的本地更改：贮藏并切换（保留改动到贮藏）、迁移更改（把改动带到目标分支）、或强制切换（丢弃改动）。',
+      stashAndCheckout: '贮藏并切换',
+      migrate: '迁移更改',
+      force: '强制切换',
+      stashed: '本地更改已贮藏，可稍后从贮藏列表弹出。',
+    },
     identity: {
       title: '配置提交身份',
       desc: '尚未设置 Git 用户名与邮箱，无法创建提交。',

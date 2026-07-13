@@ -1476,7 +1476,7 @@ export class App {
     ipcMain.handle('git:identity-get', async (_, root: string) => this.gitService.getUserIdentity(root))
     ipcMain.handle('git:identity-set', async (_, root: string, name: string, email: string, global: boolean) =>
       this.gitService.setUserIdentity(root, name, email, global))
-    ipcMain.handle('git:checkout', async (_, root: string, ref: string) => this.gitService.checkout(root, ref))
+    ipcMain.handle('git:checkout', async (_, root: string, ref: string, opts?: { force?: boolean; merge?: boolean }) => this.gitService.checkout(root, ref, opts))
     ipcMain.handle('git:create-branch', async (_, root: string, name: string, base?: string, checkout?: boolean) =>
       this.gitService.createBranch(root, name, base, checkout))
     ipcMain.handle('git:delete-branch', async (_, root: string, name: string, force: boolean) =>

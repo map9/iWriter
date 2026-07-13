@@ -170,8 +170,17 @@ export class GitService {
     await this.git(root).raw(['config', ...scope, 'user.email', email])
   }
 
-  async checkout(root: string, ref: string): Promise<void> {
-    await this.git(root).checkout(ref)
+  /**
+   * 切换分支/提交。
+   * - force: `-f` 丢弃本地改动强制切换（破坏性）。
+   * - merge: `-m` 三方合并，把本地未提交改动迁移到目标分支（冲突则留标记，进 Merge Changes）。
+   */
+  async checkout(root: string, ref: string, opts?: { force?: boolean; merge?: boolean }): Promise<void> {
+    const args = ['checkout']
+    if (opts?.force) args.push('-f')
+    if (opts?.merge) args.push('-m')
+    args.push(ref)
+    await this.git(root).raw(args)
   }
 
   async createBranch(root: string, name: string, base?: string, checkout?: boolean): Promise<void> {

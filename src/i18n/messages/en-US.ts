@@ -1237,6 +1237,14 @@ export default {
       deleteMessage: 'Tag “{name}” will be deleted. This cannot be undone.',
       deleteConfirm: 'Delete Tag',
     },
+    checkout: {
+      dirtyTitle: 'Your local changes would be overwritten by checkout.',
+      dirtyDetail: 'Before switching to “{ref}”, choose how to handle uncommitted changes: Stash & Checkout (keep them in a stash), Migrate Changes (carry them to the target branch), or Force Checkout (discard them).',
+      stashAndCheckout: 'Stash & Checkout',
+      migrate: 'Migrate Changes',
+      force: 'Force Checkout',
+      stashed: 'Local changes stashed; you can pop them later from the stash list.',
+    },
     identity: {
       title: 'Configure Commit Identity',
       desc: 'Git user name and email are not set; cannot create a commit.',

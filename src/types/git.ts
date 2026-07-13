@@ -153,7 +153,7 @@ export interface GitApi {
   commit: (root: string, message: string, opts: { all?: boolean; amend?: boolean }) => Promise<void>
   identityGet: (root: string) => Promise<{ name?: string; email?: string }>
   identitySet: (root: string, name: string, email: string, global: boolean) => Promise<void>
-  checkout: (root: string, ref: string) => Promise<void>
+  checkout: (root: string, ref: string, opts?: { force?: boolean; merge?: boolean }) => Promise<void>
   createBranch: (root: string, name: string, base?: string, checkout?: boolean) => Promise<void>
   deleteBranch: (root: string, name: string, force: boolean) => Promise<void>
   listTags: (root: string) => Promise<string[]>
