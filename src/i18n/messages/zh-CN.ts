@@ -1224,11 +1224,6 @@ export default {
       merge: '合并到当前分支…',
       mergeDone: '已合并 {branch}',
       delete: '删除分支…',
-      deleteTitle: '删除分支？',
-      deleteMessage: '将删除分支 “{name}”，此操作不可撤销。',
-      deleteConfirm: '删除分支',
-      forceDeleteTitle: '永久删除未合并分支？',
-      forceDeleteMessage: '分支 “{name}” 仍有未合并提交。强制删除后只能从其他引用或备份恢复。',
       forceDeleteConfirm: '强制删除分支',
     },
     tag: {

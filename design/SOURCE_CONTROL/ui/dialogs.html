@@ -61,9 +61,9 @@
 </head>
 <body>
   <h1>Source Control 对话框 — 对齐工程</h1>
-  <p class="lead">三类分开：① <b>纯破坏性确认</b>用工程现有的原生 <code>showMessageBox</code>；② <b>需输入</b>用工程 dialog 外壳；③ <b>可恢复或未知 Git 问题</b>也用工程 dialog 外壳，默认给出原因和下一步，原始输出收进「技术详情」。</p>
+  <p class="lead">三类分开：① <b>独立纯破坏性确认</b>用工程现有的原生 <code>showMessageBox</code>；② <b>需输入</b>用工程 dialog 外壳；③ <b>可恢复、未知或需要解释风险的 Git 状态</b>也用工程 dialog 外壳，默认给出原因和下一步，原始输出收进「技术详情」。</p>
   <div class="impl">
-    实现映射：原生确认只用于放弃、删除、强制删除、中止合并等不可逆操作。输入与错误恢复复用覆盖层 <code>bg-black/45 backdrop-blur</code> + <code>rounded-box border-base-300 bg-base-100</code>；错误正文不显示 raw stderr，用户展开 <code>技术详情</code> 后才可查看/复制。
+    实现映射：原生确认只用于放弃、中止合并等独立不可逆操作。选择分支后立即尝试安全删除；未合并分支由项目内风险对话框一次性说明并确认强制删除，避免重复弹窗。输入与错误恢复复用覆盖层 <code>bg-black/45 backdrop-blur</code> + <code>rounded-box border-base-300 bg-base-100</code>；错误正文不显示 raw stderr，用户展开 <code>技术详情</code> 后才可查看/复制。
   </div>
 
   <!-- ============ A. 纯确认 → 原生 showMessageBox ============ -->
@@ -89,22 +89,6 @@
     </div>
 
     <div class="native">
-      <div class="os-cap">showMessageBox · type: 'warning'</div>
-      <div class="os-body"><div class="os-ico">⚠️</div>
-        <div class="os-text"><h4>删除分支 feature/old？</h4><p>将删除已合并的本地分支。</p></div>
-      </div>
-      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn danger">删除</button></div>
-    </div>
-
-    <div class="native">
-      <div class="os-cap">showMessageBox · type: 'warning' · 第二次确认</div>
-      <div class="os-body"><div class="os-ico">⚠️</div>
-        <div class="os-text"><h4>永久删除未合并分支 feature/old？</h4><p>该分支仍有未合并提交；强制删除后只能从其他引用或备份恢复。</p></div>
-      </div>
-      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn danger">强制删除</button></div>
-    </div>
-
-    <div class="native">
       <div class="os-cap">showMessageBox · type: 'question'</div>
       <div class="os-body"><div class="os-ico">❓</div>
         <div class="os-text"><h4>中止正在进行的合并？</h4><p>工作区将还原到合并前状态。</p></div>
@@ -117,6 +101,16 @@
   <!-- ============ B. 输入与错误恢复 → 工程 dialog 外壳 ============ -->
   <h2 class="cat">B · 输入与错误恢复（工程 dialog 外壳）</h2>
   <div class="grid">
+
+    <div class="shell"><div class="cap">0 · 未合并分支风险确认（唯一确认）</div>
+      <div class="head"><h3>分支尚未合并</h3><button class="x">✕</button></div>
+      <div class="body">
+        <p style="margin:0 0 8px">分支 <b>feature/old</b> 包含尚未合并的提交。</p>
+        <p class="hint" style="margin:0 0 12px">强制删除后只能从其他引用或备份恢复。</p>
+        <details><summary>技术详情 ▸</summary><pre>error: the branch 'feature/old' is not fully merged</pre></details>
+      </div>
+      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn danger">强制删除分支</button></div>
+    </div>
 
     <div class="shell"><div class="cap">1 · Git 操作失败（可恢复 / 未知错误）</div>
       <div class="head"><h3>无法推送更改</h3><button class="x">✕</button></div>

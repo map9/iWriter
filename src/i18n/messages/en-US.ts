@@ -1227,11 +1227,6 @@ export default {
       merge: 'Merge into current branch…',
       mergeDone: 'Merged {branch}',
       delete: 'Delete branch…',
-      deleteTitle: 'Delete branch?',
-      deleteMessage: 'Branch “{name}” will be deleted. This cannot be undone.',
-      deleteConfirm: 'Delete Branch',
-      forceDeleteTitle: 'Permanently delete unmerged branch?',
-      forceDeleteMessage: 'Branch “{name}” still has unmerged commits. It can only be recovered from another reference or backup.',
       forceDeleteConfirm: 'Force Delete Branch',
     },
     tag: {

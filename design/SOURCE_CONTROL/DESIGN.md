@@ -1,6 +1,6 @@
 # DESIGN.md — 工作空间版本控制 · 技术设计
 
-> 状态：v0.6（2026-07-13，随实现回填；M1–M6 主线完成；本轮 SCM 回归修复已落地，错误反馈与菜单信息架构已定稿、待接入运行时，见 §9/§11/§13）
+> 状态：v0.7（2026-07-13，随实现回填；M1–M7 主线完成；错误反馈与菜单信息架构已落地，见 §9/§11/§13）
 > 配套需求：[SOURCE_CONTROL.md](./SOURCE_CONTROL.md) · 可编辑 diff/合并：[EDITABLE_DIFF_AND_MERGE.md](./EDITABLE_DIFF_AND_MERGE.md) · 视觉稿：[./ui/](./ui/)
 > 已定决策：simple-git（系统 git）· 单仓库 · **新建独立 Diff 组件族**（`common/diff/DiffView`+`MergeView`，编辑区 tab 承载，不复用 agent 的 `DiffSplitView`）· 仅系统凭证 · Commit All · `.iwt` 格式化后 diff
 >
@@ -137,7 +137,7 @@ export class GitService {
 **关键实现约束**
 - `.iwt` diff（Q6）：`diff()` 对 `.iwt` 先把 JSON `JSON.parse → JSON.stringify(…, null, 2)` 格式化后再作为 old/new 文本，避免整行差异。归属工具函数 `formatForDiff(path, raw)`。
 - `isBinary`：按扩展名 + git `--numstat` 的 `-` 判定，走二进制降级。
-- 错误规整（F14，待接入）：捕获 simple-git 的 `GitError`，在主进程归类为 `GitActionResult`。已知状态（如分支未合并、工作区阻挡 checkout、合并冲突、认证/网络/非快进）不得作为未处理 IPC 异常抛到渲染层；未知错误保留 `stderr`，但只在项目内对话框的「技术详情」中按需展开。
+- 错误规整（F14）：捕获 simple-git 的 `GitError`，在主进程归类为 `GitActionResult`。已知状态（如分支未合并、工作区阻挡 checkout、合并冲突、认证/网络/非快进）不得作为未处理 IPC 异常抛到渲染层；未知错误保留 `stderr`，但只在项目内对话框的「技术详情」中按需展开。
 - 凭证（Q4）：不设置任何 `GIT_ASKPASS`，让 git 走系统 credential helper / ssh-agent；失败即失败并回传 stderr。
 
 ```ts
@@ -294,7 +294,7 @@ LeftSidebar
 **复用点（不重复造轮子）**
 - 变更列表 / commit 文件列表：`common/tree` 行模型思路；SCM 自建 `scm/fileTree.ts`（目录树行 + 目录级操作数据源）。
 - Diff：**新建** `common/diff/DiffView.vue`（split/inline 双模、可选行号、差异索引、hunk stage/discard）；冲突用 `MergeView.vue`。**不复用** agent 的 `DiffSplitView`（仅参考其 UI，见 §3.3/F7 决策）。
-- 原生确认：`window.electronAPI.showMessageBox` 仅用于纯破坏性确认（放弃、删除、强制删除、终止合并）。可恢复和未知 Git 错误走项目内 `GitErrorResolutionDialog`，默认不显示 stderr，用户展开「技术详情」才可查看/复制。
+- 原生确认：`window.electronAPI.showMessageBox` 仅用于独立的纯破坏性确认（放弃、终止合并等）。安全删除分支不额外确认；未合并分支由 `GitErrorResolutionDialog` 在解释风险的同时提供唯一一次强制删除确认。其他可恢复和未知 Git 错误也走该项目内对话框，默认不显示 stderr，用户展开「技术详情」才可查看/复制。
 - 右键上下文菜单：`window.electronAPI.showContextMenu`。容器 `⋯` 只放跨 viewer 的 Remote/Stash/Tags/视图；Repositories `⋯` 放分支操作与切换；Changes 文件/目录右键只放文件或目录操作；Graph 提交行右键只放提交操作。
 - 输入弹窗外壳：`print/PrintDialogShell.vue` 同款（`bg-black/45 backdrop-blur` + `iw-input` + `iw-btn`）。
 - 状态栏：`common/statusbar` 工厂（`useStatusBar` + `StatusBarAlignment` + rich content `$(git-branch)`）。
@@ -322,9 +322,9 @@ LeftSidebar
 1. 点同步 → `pending.add('sync')` → `git:sync{rebase}` → 成功 `refresh()`；失败按 `GitIssue` 显示可理解的原因和下一步，原始输出仅在「技术详情」按需展开。
 
 **删除未合并分支（F14）**
-1. 用户确认普通删除 → `git:delete-branch(name, false)`。
+1. 用户选择目标分支 → 立即调用 `git:delete-branch(name, false)`。
 2. 若返回 `branch-unmerged`，显示说明「该分支尚未合并」；不弹出原始 Git stderr，也不记为应用异常。
-3. 用户明确选择「强制删除」后，再以 `force: true` 调用并显示原生破坏性确认；取消则保持当前状态。
+3. 用户在该风险对话框明确选择「强制删除」后，直接以 `force: true` 调用；取消则保持当前状态，不再叠加原生确认。
 
 ---
 
@@ -360,7 +360,7 @@ LeftSidebar
 | **M4 进阶** | ✅**完成（gutter 已弃）** · 冲突分组 + 合并解决（`DIFF_VIEWER` kind=conflict + `MergeView`，见 EDITABLE_DIFF_AND_MERGE.md）· commit-file-diff · Timeline/Graph 历史 · 状态栏分支。~~编辑器 gutter 装饰~~ 已决策不做（F12 A） |
 | **M5 增强** | ✅**大部完成** · stash（F10）· hunk 级 stage（F7.4）· 进度事件（`git:progress`）· 远程管理 add/remove/list · 目录级 stage（tree 视图）· 变更行/目录行右键菜单 · Commit-All 偏好 · viewer 显隐持久化 · **分支泳道图 DAG（侧栏 gutter，只读 v1）**：`log` 扩 `%P`→`GitCommit.parents`；`scm/gitGraphLayout.ts`(computeGraphLayout) + `scm/GitGraphGutter.vue`(每行 SVG)；`loadMoreGraph`/`graphHasMore` 分页 |
 | **M6 菜单补全** | **P0 ✅已实现（2026-07-13，三绿 type-check/lint/build，运行时 smoke 待做）** · Tag 全链路（F13：`GitService.listTags/createTag/deleteTag`+IPC+preload+GitApi+store `tags/loadTags/createTag/deleteTag`；`⋯`→Tags 子菜单[创建/列表删除]+创建标签弹窗[名称+可选说明→附注标签]）· Graph 提交行右键（`onGraphCommitContext`：Copy Hash/Message、在此打标签、从此创建分支；提交行 `@contextmenu.prevent`）· Changes 右键补 Open File+Reveal（store `openWorkingFile/revealFile`，仅单个未删除文件；复用 `openFile`/`revealInFolder`）· create-branch 弹窗支持 `base` 提交 hash。**P1 ✅已实现（2026-07-13，三绿，运行时 smoke 待做）**：Undo Last Commit（`reset --soft HEAD~1`，commit ▾ 菜单 + 二次确认）· Rename Branch（`branch -m`，branch 菜单 + 重命名弹窗预填当前名）· Stash (Include Untracked)（`stash push -u`，贮藏弹窗复选框）· Push Tags（`push --tags`，Tags 子菜单，有 upstream 才启用）。技术落点见 §13。**明确不做**：MenuManager 原生菜单 · Rebase · Pull(Rebase) 菜单化 · Pull from…/Push to… · Fetch Prune/All Remotes · Delete Remote Branch/Tag · Rename Remote · Checkout 到裸提交 |
-| **M7 反馈与信息架构** | **设计已定稿，待实施** · Git 主进程错误分类与 `GitActionResult`；预期状态不透传 raw stderr；项目内恢复/未知错误对话框（「技术详情」折叠）；删除未合并分支的安全删除→强制删除二次确认；容器/Repositories/Changes/Graph 菜单职责按 §7 分离。视觉稿见 `ui/panel.html`、`ui/dialogs.html`。 |
+| **M7 反馈与信息架构** | ✅**完成** · Git 主进程错误分类与 `GitActionResult`；预期状态不透传 raw stderr；项目内恢复/未知错误对话框（「技术详情」折叠）；删除未合并分支为安全删除→风险对话框内单次强制确认；容器/Repositories/Changes/Graph 菜单职责按 §7 分离。视觉稿见 `ui/panel.html`、`ui/dialogs.html`。 |
 
 > **留后（非本轮）**：行级(任意选区) stage · 图片 diff 前后对照 · 多仓库（预留）· 全宽 Git Graph tab · 图上写操作（checkout/merge/cherry-pick/reset on graph）· Graph 泳道图打磨（列压缩/滚动自动加载/横向滚动）。
 

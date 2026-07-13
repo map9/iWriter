@@ -86,12 +86,15 @@ test('SCM regressions', async (t) => {
     assert.match(panelSource, /GitErrorResolutionDialog/)
   })
 
-  await t.test('unmerged branch deletion explains the state before force-delete confirmation', () => {
+  await t.test('branch deletion uses the unmerged-risk dialog as the only destructive confirmation', () => {
     assert.match(gitTypesSource, /branch-unmerged/)
     assert.match(errorDialogSource, /issue\.kind === 'branch-unmerged'/)
     assert.match(panelSource, /@force-delete="confirmForceDelete"/)
     assert.match(panelSource, /deleteBranch\(issue\.branch, true\)/)
-    assert.match(panelSource, /branch\.forceDeleteTitle/)
+    const deleteFlow = panelSource.slice(panelSource.indexOf('async function showDeleteBranchMenu'), panelSource.indexOf('\nasync function confirmForceDelete'))
+    const forceDeleteFlow = panelSource.slice(panelSource.indexOf('async function confirmForceDelete'), panelSource.indexOf('// 新建分支弹窗'))
+    assert.doesNotMatch(deleteFlow, /confirmBox\(/)
+    assert.doesNotMatch(forceDeleteFlow, /confirmBox\(/)
   })
 
   await t.test('SCM container menu groups global capabilities and leaves branches to Repositories', () => {

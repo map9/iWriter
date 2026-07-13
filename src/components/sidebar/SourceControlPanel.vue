@@ -756,7 +756,7 @@ async function showMergeBranchMenu(event: MouseEvent) {
   if (action?.startsWith('mg:')) gitStore.merge(action.slice(3))
 }
 
-/** 删除本地分支：选一个非当前分支 → 二次确认 → 删除 */
+/** 删除本地分支：选一个非当前分支后直接尝试安全删除。 */
 async function showDeleteBranchMenu(event: MouseEvent) {
   const b = gitStore.branch
   if (!b) return
@@ -766,23 +766,12 @@ async function showDeleteBranchMenu(event: MouseEvent) {
   const action = await window.electronAPI.showContextMenu(items, { x: event.clientX, y: event.clientY })
   if (!action?.startsWith('del:')) return
   const name = action.slice(4)
-  const ok = await confirmBox(
-    t('sourceControl.branch.deleteTitle'),
-    t('sourceControl.branch.deleteMessage', { name }),
-    t('sourceControl.branch.deleteConfirm'),
-  )
-  if (ok) await gitStore.deleteBranch(name, false)
+  await gitStore.deleteBranch(name, false)
 }
 
 async function confirmForceDelete(): Promise<void> {
   const issue = gitStore.gitIssue
   if (!issue || issue.kind !== 'branch-unmerged' || !issue.branch) return
-  const ok = await confirmBox(
-    t('sourceControl.branch.forceDeleteTitle'),
-    t('sourceControl.branch.forceDeleteMessage', { name: issue.branch }),
-    t('sourceControl.branch.forceDeleteConfirm'),
-  )
-  if (!ok) return
   gitStore.dismissGitIssue()
   await gitStore.deleteBranch(issue.branch, true)
 }
