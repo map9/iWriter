@@ -30,6 +30,13 @@ export function positionPopupPanel(
       ? container.getBoundingClientRect()
       : new DOMRect(0, 0, window.innerWidth, window.innerHeight)
 
+    const isAnchorVisible = anchorBottom >= bounds.top && anchorTop <= bounds.bottom
+    if (!isAnchorVisible) {
+      panelEl.style.visibility = 'hidden'
+      return
+    }
+    panelEl.style.visibility = ''
+
     // Default: place below the anchor with the same visual offset as before
     let left = anchorLeft - 10
     let top = anchorBottom + 5

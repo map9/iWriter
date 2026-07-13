@@ -84,11 +84,13 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
       let rafId: number | null = null
       let scrollContainer: HTMLElement | null = null
 
-      function getScrollContainer(): HTMLElement | null {
-        if (!scrollContainer) {
-          scrollContainer = initView.dom.closest('.editor-content-wrapper') as HTMLElement | null
-        }
-        return scrollContainer
+      function bindScrollContainer(): void {
+        const nextScrollContainer = initView.dom.closest('.editor-content-wrapper') as HTMLElement | null
+        if (nextScrollContainer === scrollContainer) return
+
+        scrollContainer?.removeEventListener('scroll', handleScrollOrResize, { capture: true })
+        scrollContainer = nextScrollContainer
+        scrollContainer?.addEventListener('scroll', handleScrollOrResize, { capture: true, passive: true })
       }
 
       function reposition(view: EditorView): void {
@@ -100,7 +102,7 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
       }
 
       function scheduleReposition(view: EditorView): void {
-        if (rafId !== null) cancelAnimationFrame(rafId)
+        if (rafId !== null) return
         rafId = requestAnimationFrame(() => {
           rafId = null
           reposition(view)
@@ -108,19 +110,20 @@ export const iwPopupToolsPlugin = (editor: Editor, options: iwPopupToolsOptions)
       }
 
       function handleScrollOrResize(): void {
-        reposition(initView)
+        scheduleReposition(initView)
       }
 
-      getScrollContainer()?.addEventListener('scroll', handleScrollOrResize, { capture: true, passive: true })
+      bindScrollContainer()
       window.addEventListener('resize', handleScrollOrResize, { passive: true })
 
       return {
         update(view: EditorView) {
+          bindScrollContainer()
           scheduleReposition(view)
         },
         destroy() {
           if (rafId !== null) cancelAnimationFrame(rafId)
-          getScrollContainer()?.removeEventListener('scroll', handleScrollOrResize, { capture: true })
+          scrollContainer?.removeEventListener('scroll', handleScrollOrResize, { capture: true })
           window.removeEventListener('resize', handleScrollOrResize)
         },
       }
