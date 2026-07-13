@@ -132,9 +132,9 @@
 </head>
 <body>
   <h1>SCM 面板 — 视图容器（Repositories / Changes / Graph）</h1>
-  <p class="lead">SCM 是一个视图容器，含三个可折叠 viewer：① <b>存储库 Repositories</b>（原分支条）② <b>更改 Changes</b>（原变更树 + 提交框）③ <b>图谱 Graph</b>（提交历史，原时间线 View B）。容器 <code>⋯</code> 菜单勾选可选 viewer。</p>
+  <p class="lead">SCM 是一个视图容器，含三个可折叠 viewer：① <b>存储库 Repositories</b>（原分支条）② <b>更改 Changes</b>（原变更树 + 提交框）③ <b>图谱 Graph</b>（提交历史，原时间线 View B）。容器 <code>⋯</code> 只处理跨 viewer 的 Remote / Stash / Tags / 视图；分支归 Repositories <code>⋯</code>。</p>
   <div class="impl">
-    实现映射：容器 = <code>SidebarMode.SOURCE_CONTROL</code>，内部由多个 viewer section 组成（VSCode view-container 模型）· Changes 必选、Repositories/Graph 可选（<code>⋯</code> 菜单 checkbox 切换，单仓库时 Repositories 可默认折叠）· 每个 viewer 独立折叠 · Changes 树复用 <code>common/tree/Tree.vue</code>。
+    实现映射：容器 = <code>SidebarMode.SOURCE_CONTROL</code>，内部由多个 viewer section 组成（VSCode view-container 模型）· Changes 必选、Repositories/Graph 可选（容器 <code>⋯</code> 菜单 checkbox 切换）· Repositories <code>⋯</code> 仅分支操作/切换 · Changes 标题栏保留「全部暂存」与「列表/树切换」，全量放弃收进变更分组或更多入口 · 每个 viewer 独立折叠。
   </div>
 
   <div class="stage">
@@ -171,7 +171,7 @@
         <div class="viewer">
           <div class="v-head">
             <span class="chev">▾</span><span class="vt">更改</span><span class="vc">6</span>
-            <span class="vtools"><button class="tbtn" title="提交所有更改">✓</button><button class="tbtn" title="放弃全部">↩</button><button class="tbtn" title="刷新">⟳</button></span>
+            <span class="vtools"><button class="tbtn" title="全部暂存">＋</button><button class="tbtn" title="列表 / 树切换">☷</button></span>
           </div>
           <div class="commit-box">
             <textarea class="commit-input" rows="1" placeholder="信息（Ctrl/Cmd+Enter 提交）">修订第一章结尾</textarea>
@@ -235,23 +235,42 @@
       </section>
     </figure>
 
-    <!-- 容器 ⋯ 菜单 + 提交下拉 -->
+    <!-- 容器 ⋯ 菜单 + Repositories 分支菜单 + 提交下拉 -->
     <figure>
-      <figcaption>容器 ⋯ 菜单（勾选 viewer + 全局操作）</figcaption>
+      <figcaption>容器 ⋯ 菜单（跨 viewer 全局能力 + viewer 显隐）</figcaption>
       <div class="menu">
+        <div class="grp">远程</div>
+        <div class="mi">同步更改</div>
+        <div class="mi">拉取 <span class="sub">▸</span></div>
+        <div class="mi">推送 <span class="sub">▸</span></div>
+        <div class="mi">获取</div>
+        <div class="mi">管理远程…</div>
+        <div class="sep"></div>
+        <div class="grp">贮藏</div>
+        <div class="mi">贮藏更改…</div>
+        <div class="mi">贮藏 <span class="sub">▸</span></div>
+        <div class="sep"></div>
+        <div class="grp">标签</div>
+        <div class="mi">标签 <span class="sub">▸</span></div>
+        <div class="sep"></div>
         <div class="grp">视图</div>
         <div class="mi disabled"><span class="chk">✓</span> 更改 <span class="acc">必选</span></div>
         <div class="mi"><span class="chk">✓</span> 存储库</div>
         <div class="mi"><span class="chk"></span> 图谱</div>
+      </div>
+
+      <figcaption style="margin-top:18px">Repositories ⋯ 菜单（分支操作与切换）</figcaption>
+      <div class="menu" style="width:250px">
+        <div class="grp">分支操作</div>
+        <div class="mi">创建分支…</div>
+        <div class="mi">重命名当前分支…</div>
+        <div class="mi">合并分支…</div>
+        <div class="mi">删除分支…</div>
         <div class="sep"></div>
-        <div class="mi">拉取</div>
-        <div class="mi">推送</div>
-        <div class="mi">同步更改</div>
-        <div class="mi">获取</div>
-        <div class="sep"></div>
-        <div class="mi">分支 <span class="sub">▸</span></div>
-        <div class="mi">贮藏 <span class="sub">▸</span></div>
-        <div class="mi">远程 <span class="sub">▸</span></div>
+        <div class="grp">切换分支</div>
+        <div class="mi"><span class="chk">✓</span> main <span class="acc">当前</span></div>
+        <div class="mi"><span class="chk"></span> develop</div>
+        <div class="mi"><span class="chk"></span> origin/main <span class="acc">远程</span></div>
       </div>
 
       <figcaption style="margin-top:18px">提交 ▾ 下拉</figcaption>

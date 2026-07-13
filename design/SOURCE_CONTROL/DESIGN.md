@@ -1,6 +1,6 @@
 # DESIGN.md — 工作空间版本控制 · 技术设计
 
-> 状态：v0.5（2026-07-13，随实现回填；M1–M6 主线完成；SCM 菜单体系定稿并去除 MenuManager 系统菜单，M6 P0+P1 已实现三绿（运行时 smoke 待做），见 §11/§13）
+> 状态：v0.6（2026-07-13，随实现回填；M1–M6 主线完成；本轮 SCM 回归修复已落地，错误反馈与菜单信息架构已定稿、待接入运行时，见 §9/§11/§13）
 > 配套需求：[SOURCE_CONTROL.md](./SOURCE_CONTROL.md) · 可编辑 diff/合并：[EDITABLE_DIFF_AND_MERGE.md](./EDITABLE_DIFF_AND_MERGE.md) · 视觉稿：[./ui/](./ui/)
 > 已定决策：simple-git（系统 git）· 单仓库 · **新建独立 Diff 组件族**（`common/diff/DiffView`+`MergeView`，编辑区 tab 承载，不复用 agent 的 `DiffSplitView`）· 仅系统凭证 · Commit All · `.iwt` 格式化后 diff
 >
@@ -29,6 +29,7 @@
 - **所有 git 命令在主进程执行**（`GitService`），渲染层只经 IPC 调用、持有状态。
 - 渲染层单一状态源：`stores/git.ts`。组件只读 store + 派发 action。
 - 单仓库：仓库根 = `appStore.currentFolder`（工作空间根）。
+- **错误归属**：`GitService` 在主进程识别 Git 的可预期状态；IPC 传递结构化领域结果；`stores/git.ts` 按状态决定通知、确认或恢复对话框。组件不得解析 stderr 或直接把原始 Git 错误展示给用户。
 
 ---
 
@@ -50,6 +51,7 @@
 | `src/components/pages/DiffViewerPage.vue` | ✅**已建**·编辑区 `DIFF_VIEWER` diff tab，内嵌 `common/diff/DiffView`（普通 diff）/ `MergeView`（冲突合并） |
 | `src/components/common/diff/{DiffView,MergeView}.vue` + `hunk-patch.ts` | ✅**已建**·独立 Diff 组件族：split/inline 双模 + 可选行号/差异索引 + hunk stage/discard；不复用 `DiffSplitView` |
 | `src/components/sidebar/scm/dialogs/*.vue` | clone / create-branch / checkout / commit-identity / publish / stash |
+| `src/components/sidebar/scm/dialogs/GitErrorResolutionDialog.vue` | **待接入**·可恢复/未知 Git 问题的项目内对话框：默认显示可理解说明与下一步，原始输出收进「技术详情」折叠区 |
 | `src/components/statusbar-items/git-status.ts` | 状态栏分支 / 同步 item 工厂 |
 
 ### 2.2 改动
@@ -71,7 +73,7 @@
 | `src/components/preferences/PreferencesDialog.vue` | ✅ 工作区 tab 新增「源代码管理 › 无暂存更改时提交」下拉 |
 | `src/components/sidebar/scm/GitChangeGroup.vue` | ✅ 文件/目录行右键 `@contextmenu`→`emit('context')`；stage/unstage/discard/gitignore 改文件集合；目录行悬停操作 |
 | `src/components/sidebar/scm/fileTree.ts` | ✅ 目录行携带 `path` + 递归 `files`（目录级操作数据源） |
-| `src/components/sidebar/SourceControlPanel.vue` | ✅ `onContext` 右键菜单；`doPrimaryCommit` 走 `commitWhenEmpty`；viewer 显隐读取/回写；`#graph` 接入泳道 gutter + 加载更多 |
+| `src/components/sidebar/SourceControlPanel.vue` | ✅ `onContext` 右键菜单；`doPrimaryCommit` 走 `commitWhenEmpty`；viewer 显隐读取/回写；`#graph` 接入泳道 gutter + 加载更多。**待对齐**：容器 `⋯` 只承载跨 viewer 的 Remote/Stash/Tags/视图；Repositories `⋯` 承载分支操作与切换；Changes 标题栏只保留暂存全部与列表/树切换 |
 | `src/components/sidebar/scm/gitGraphLayout.ts` | ✅**新建**·DAG 泳道布局纯函数 `computeGraphLayout`（lanes 状态机 + 8 色调色板） |
 | `src/components/sidebar/scm/GitGraphGutter.vue` | ✅**新建**·每行提交的泳道 SVG（cubic 连线 + node 圆点） |
 | `electron/GitService.ts` `src/types/git.ts` `src/stores/git.ts` | ✅ `log` 扩 `%P` → `GitCommit.parents`；store `loadMoreGraph`/`graphHasMore` 分页 |
@@ -89,7 +91,7 @@ export class GitService {
   private git(root: string): SimpleGit { /* 缓存 simpleGit({baseDir:root}) */ }
 
   // 环境
-  detect(): Promise<GitAvailability>              // git --version；返回 {available, version, path}
+  detect(force?: boolean): Promise<GitAvailability> // git --version；force 时绕过缓存
   isRepo(root: string): Promise<boolean>          // checkIsRepo
   init(root: string): Promise<void>
   clone(url: string, dir: string): Promise<void>
@@ -110,11 +112,11 @@ export class GitService {
   // 历史
   log(root, opts:{path?:string; branch?:string; allBranches?:boolean; limit:number; skip:number}): Promise<GitCommit[]>
   commitFiles(root, hash): Promise<GitFileChange[]>            // show --name-status
-  commitFileDiff(root, hash, path): Promise<GitDiffPayload>    // 父提交 ↔ 本提交
+  commitFileDiff(root, hash, path, oldPath?): Promise<GitDiffPayload> // 父提交 ↔ 本提交；rename 保留旧路径
 
   // 分支
   branches(root): Promise<GitBranchInfo>          // {current, ahead, behind, local[], remote[]}
-  checkout(root, ref: string): Promise<void>
+  checkout(root, ref: string, opts?: {force?:boolean; merge?:boolean; track?:boolean}): Promise<void>
   createBranch(root, name, base?, checkout?): Promise<void>
   deleteBranch(root, name, force: boolean): Promise<void>
 
@@ -135,8 +137,19 @@ export class GitService {
 **关键实现约束**
 - `.iwt` diff（Q6）：`diff()` 对 `.iwt` 先把 JSON `JSON.parse → JSON.stringify(…, null, 2)` 格式化后再作为 old/new 文本，避免整行差异。归属工具函数 `formatForDiff(path, raw)`。
 - `isBinary`：按扩展名 + git `--numstat` 的 `-` 判定，走二进制降级。
-- 错误规整：捕获 simple-git 抛出的 `GitError`，转 `{ code, message, stderr }` 结构回传，渲染层据此弹 `showMessageBox`（认证失败 / 非快进 / 无 upstream 等）。
+- 错误规整（F14，待接入）：捕获 simple-git 的 `GitError`，在主进程归类为 `GitActionResult`。已知状态（如分支未合并、工作区阻挡 checkout、合并冲突、认证/网络/非快进）不得作为未处理 IPC 异常抛到渲染层；未知错误保留 `stderr`，但只在项目内对话框的「技术详情」中按需展开。
 - 凭证（Q4）：不设置任何 `GIT_ASKPASS`，让 git 走系统 credential helper / ssh-agent；失败即失败并回传 stderr。
+
+```ts
+type GitActionResult<T> = { ok: true; value: T } | { ok: false; issue: GitIssue }
+type GitIssue =
+  | { kind: 'branch-unmerged'; branch: string }
+  | { kind: 'checkout-dirty'; ref: string }
+  | { kind: 'merge-conflict' }
+  | { kind: 'remote-auth' | 'remote-non-fast-forward' | 'network' | 'unknown'; detail: string }
+```
+
+> `GitActionResult` 是 F14 的目标契约：读操作保持直接返回；需要让用户选择恢复路径的写操作逐步改为该结果。`App.ts`/preload 只负责传输，错误分类不能下沉到 Vue 组件。
 
 ---
 
@@ -146,7 +159,7 @@ export class GitService {
 
 | Channel | 参数 | 返回 |
 | --- | --- | --- |
-| `git:detect` | — | `GitAvailability` |
+| `git:detect` | force? | `GitAvailability` |
 | `git:is-repo` | root | `boolean` |
 | `git:init` / `git:clone` | root / (url,dir) | void |
 | `git:status` | root | `GitStatus` |
@@ -156,9 +169,9 @@ export class GitService {
 | `git:diff` | root, path, {staged} | `GitDiffPayload` |
 | `git:log` | root, opts | `GitCommit[]` |
 | `git:commit-files` | root, hash | `GitFileChange[]` |
-| `git:commit-file-diff` | root, hash, path | `GitDiffPayload` |
+| `git:commit-file-diff` | root, hash, path, oldPath? | `GitDiffPayload` |
 | `git:branches` | root | `GitBranchInfo` |
-| `git:checkout` / `git:create-branch` / `git:delete-branch` | … | void |
+| `git:checkout` / `git:create-branch` / `git:delete-branch` | checkout: root, ref, `{force?,merge?,track?}`；delete: root, name, force | void（F14 写操作将按需改为 `GitActionResult`） |
 | `git:fetch` / `git:pull` / `git:push` / `git:sync` | root, opts | void |
 | `git:merge-abort` / `git:mark-resolved` | root(, paths) | void |
 
@@ -253,7 +266,7 @@ export const useGitStore = defineStore('git', () => {
 
 **刷新调度（NFR1/NFR2）**
 - 复用现有 chokidar：`app.ts` 已有工作空间文件监听 → 转发变更事件给 `gitStore.refresh()`（去抖 200ms）。
-- 额外监听 `.git/HEAD`、`.git/index`、`.git/MERGE_HEAD` 捕获外部 git 操作。
+- watcher 还会将 `.git/HEAD`、`.git/index`、`.git/MERGE_HEAD`、`.git/refs/**`、`.git/packed-refs` 的事件送给 SCM；`.git/index.lock` 必须过滤，避免 Git 自己写索引时形成刷新循环。
 - 每个写 action 完成后主动 `refresh()`。
 - 窗口 focus 时刷新一次。
 
@@ -273,15 +286,16 @@ LeftSidebar
 
 编辑器区：DiffViewerPage      ← 内嵌 common/diff/DiffView（普通 diff）/ MergeView（冲突合并）
 弹窗：SourceControlPanel 内联输入弹窗  ← PrintDialogShell 风格（分支/远程/贮藏信息）
-      确认类                  ← window.electronAPI.showMessageBox
+      纯破坏性确认             ← window.electronAPI.showMessageBox
+      GitErrorResolutionDialog ← 项目内恢复/未知错误对话框（技术详情可折叠，F14 待接入）
 状态栏：statusbar-items/git-status ← createGitStatusStatusBarGroup()
 ```
 
 **复用点（不重复造轮子）**
 - 变更列表 / commit 文件列表：`common/tree` 行模型思路；SCM 自建 `scm/fileTree.ts`（目录树行 + 目录级操作数据源）。
 - Diff：**新建** `common/diff/DiffView.vue`（split/inline 双模、可选行号、差异索引、hunk stage/discard）；冲突用 `MergeView.vue`。**不复用** agent 的 `DiffSplitView`（仅参考其 UI，见 §3.3/F7 决策）。
-- 确认弹窗：`window.electronAPI.showMessageBox`（放弃/删除/中止合并/远程失败）。
-- 右键上下文菜单：`window.electronAPI.showContextMenu`（变更行/目录行 stage/unstage/discard/gitignore、分支/远程/贮藏子菜单）。
+- 原生确认：`window.electronAPI.showMessageBox` 仅用于纯破坏性确认（放弃、删除、强制删除、终止合并）。可恢复和未知 Git 错误走项目内 `GitErrorResolutionDialog`，默认不显示 stderr，用户展开「技术详情」才可查看/复制。
+- 右键上下文菜单：`window.electronAPI.showContextMenu`。容器 `⋯` 只放跨 viewer 的 Remote/Stash/Tags/视图；Repositories `⋯` 放分支操作与切换；Changes 文件/目录右键只放文件或目录操作；Graph 提交行右键只放提交操作。
 - 输入弹窗外壳：`print/PrintDialogShell.vue` 同款（`bg-black/45 backdrop-blur` + `iw-input` + `iw-btn`）。
 - 状态栏：`common/statusbar` 工厂（`useStatusBar` + `StatusBarAlignment` + rich content `$(git-branch)`）。
 - 忽略规则：`getEffectiveWorkspaceIgnoreRules`（与 `.gitignore` 统一来源）。
@@ -305,7 +319,12 @@ LeftSidebar
 2. 点文件 → 打开 diff tab（`git:commit-file-diff`，父↔本）。
 
 **同步**
-1. 点同步 → `pending.add('sync')` → `git:sync{rebase}` → 成功 `refresh()`；失败 `showMessageBox(error.stderr)`。
+1. 点同步 → `pending.add('sync')` → `git:sync{rebase}` → 成功 `refresh()`；失败按 `GitIssue` 显示可理解的原因和下一步，原始输出仅在「技术详情」按需展开。
+
+**删除未合并分支（F14）**
+1. 用户确认普通删除 → `git:delete-branch(name, false)`。
+2. 若返回 `branch-unmerged`，显示说明「该分支尚未合并」；不弹出原始 Git stderr，也不记为应用异常。
+3. 用户明确选择「强制删除」后，再以 `force: true` 调用并显示原生破坏性确认；取消则保持当前状态。
 
 ---
 
@@ -316,9 +335,10 @@ LeftSidebar
 | git 未安装 | `detect().available=false` → 面板显示安装引导（OfficeViewerPage 范式），禁用 action |
 | 非仓库 | 面板显示 init / clone |
 | identity 缺失 | commit 前拦截 → commit-identity dialog |
-| 认证失败 / 无权限 | `showMessageBox(type:'error', detail: stderr)`，不自建密码 UI |
-| 非快进 push | 提示先 pull；不自动 force |
-| 合并冲突 | status.isMerging=true → Changes 显示 Merge 分组（M4） |
+| 字段/前置条件错误 | 表单内联提示；不打开错误对话框 |
+| 分支未合并 / checkout 被本地改动阻挡 / 合并冲突 | 作为预期状态显示明确原因和可选恢复动作；不展示 raw stderr |
+| 认证失败、无权限、网络、非快进 push | 项目内恢复对话框：默认解释原因和下一步，技术详情折叠；不自建密码 UI、不自动 force |
+| 未分类 Git 错误 | 项目内错误对话框 + 可展开/复制的技术详情；完整输出留日志 |
 | 大仓库 | status/log 分页（limit/skip）、主进程异步、UI 去抖 |
 
 ---
@@ -326,7 +346,7 @@ LeftSidebar
 ## 10. i18n
 
 新增命名空间 `sourceControl.*`（对齐 `agentPanel.*` / `statusBar.*` 组织）：
-`sourceControl.title` / `changes` / `staged` / `untracked` / `merge` / `commit` / `commitAll` / `sync` / `push` / `pull` / `discardConfirm` / `noChanges` / `noCommits` / `gitNotFound` / `installGit` …（中英双语）。
+`sourceControl.title` / `changes` / `staged` / `untracked` / `merge` / `commit` / `commitAll` / `sync` / `push` / `pull` / `discardConfirm` / `noChanges` / `noCommits` / `gitNotFound` / `installGit` …（中英双语）。F14 增 `sourceControl.error.*`、`sourceControl.branch.unmerged*`、`sourceControl.error.technicalDetails`、`sourceControl.error.copyDetails`。
 
 ---
 
@@ -340,6 +360,7 @@ LeftSidebar
 | **M4 进阶** | ✅**完成（gutter 已弃）** · 冲突分组 + 合并解决（`DIFF_VIEWER` kind=conflict + `MergeView`，见 EDITABLE_DIFF_AND_MERGE.md）· commit-file-diff · Timeline/Graph 历史 · 状态栏分支。~~编辑器 gutter 装饰~~ 已决策不做（F12 A） |
 | **M5 增强** | ✅**大部完成** · stash（F10）· hunk 级 stage（F7.4）· 进度事件（`git:progress`）· 远程管理 add/remove/list · 目录级 stage（tree 视图）· 变更行/目录行右键菜单 · Commit-All 偏好 · viewer 显隐持久化 · **分支泳道图 DAG（侧栏 gutter，只读 v1）**：`log` 扩 `%P`→`GitCommit.parents`；`scm/gitGraphLayout.ts`(computeGraphLayout) + `scm/GitGraphGutter.vue`(每行 SVG)；`loadMoreGraph`/`graphHasMore` 分页 |
 | **M6 菜单补全** | **P0 ✅已实现（2026-07-13，三绿 type-check/lint/build，运行时 smoke 待做）** · Tag 全链路（F13：`GitService.listTags/createTag/deleteTag`+IPC+preload+GitApi+store `tags/loadTags/createTag/deleteTag`；`⋯`→Tags 子菜单[创建/列表删除]+创建标签弹窗[名称+可选说明→附注标签]）· Graph 提交行右键（`onGraphCommitContext`：Copy Hash/Message、在此打标签、从此创建分支；提交行 `@contextmenu.prevent`）· Changes 右键补 Open File+Reveal（store `openWorkingFile/revealFile`，仅单个未删除文件；复用 `openFile`/`revealInFolder`）· create-branch 弹窗支持 `base` 提交 hash。**P1 ✅已实现（2026-07-13，三绿，运行时 smoke 待做）**：Undo Last Commit（`reset --soft HEAD~1`，commit ▾ 菜单 + 二次确认）· Rename Branch（`branch -m`，branch 菜单 + 重命名弹窗预填当前名）· Stash (Include Untracked)（`stash push -u`，贮藏弹窗复选框）· Push Tags（`push --tags`，Tags 子菜单，有 upstream 才启用）。技术落点见 §13。**明确不做**：MenuManager 原生菜单 · Rebase · Pull(Rebase) 菜单化 · Pull from…/Push to… · Fetch Prune/All Remotes · Delete Remote Branch/Tag · Rename Remote · Checkout 到裸提交 |
+| **M7 反馈与信息架构** | **设计已定稿，待实施** · Git 主进程错误分类与 `GitActionResult`；预期状态不透传 raw stderr；项目内恢复/未知错误对话框（「技术详情」折叠）；删除未合并分支的安全删除→强制删除二次确认；容器/Repositories/Changes/Graph 菜单职责按 §7 分离。视觉稿见 `ui/panel.html`、`ui/dialogs.html`。 |
 
 > **留后（非本轮）**：行级(任意选区) stage · 图片 diff 前后对照 · 多仓库（预留）· 全宽 Git Graph tab · 图上写操作（checkout/merge/cherry-pick/reset on graph）· Graph 泳道图打磨（列压缩/滚动自动加载/横向滚动）。
 
@@ -355,9 +376,9 @@ LeftSidebar
 
 ---
 
-## 13. M6 菜单补全 · 技术落点（2026-07-13 定稿，待实施）
+## 13. M6 菜单能力 · M7 入口重整（2026-07-13）
 
-> 需求见 SOURCE_CONTROL §5.5（做/不做定稿）。以下为实施时的分层落点，先 P0 后 P1。
+> M6 的 Git 能力已实现；M7 负责将既有能力重新落入已确认的入口职责（§7/§11），并与 F14 错误反馈一起实施。容器 `⋯` 不再承载分支或提交动作。
 
 **主进程 `electron/GitService.ts`（+ IPC `git:*` + preload + `src/types/git.ts` GitApi）**
 | 方法 | 命令 | 用途 | 阶段 |
@@ -374,8 +395,8 @@ LeftSidebar
 **渲染层**
 - `src/stores/git.ts`：对应 action（`createTag/deleteTag/listTags/pushTags/undoLastCommit/renameBranch`，`run()` 包裹 + notify 报错 + refresh）；`tags` 状态（供 Tags 子菜单）。
 - `src/components/sidebar/SourceControlPanel.vue`：
-  - `⋯` more-actions 增 **Tags 子菜单**（Create/Delete/List/Push）+ **Undo Last Commit**（二次确认）+ commit ▾ 已含 Amend。
-  - branch 菜单增 **Rename Branch**、**Create Branch From…**；stash push 增 **Include Untracked** 选项。
+  - 容器 `⋯` 放 **Remote / Stash / Tags / 视图显隐**；**Undo Last Commit** 留在 commit ▾，不放在容器菜单。
+  - Repositories `⋯` 放分支新建、重命名、合并、删除和分支切换；stash push 保留 **Include Untracked** 选项。
   - **新增 Graph 提交行右键处理** `onGraphCommitContext(commit, ev)`：Copy Hash / Copy Message（`navigator.clipboard`）· Create Tag（在此提交）· Create Branch from here。需 Graph 行绑定 `@contextmenu`（当前 `#graph` 泳道行无右键，为本轮主要缺口）。
 - `src/components/sidebar/scm/GitChangeGroup.vue` + `SourceControlPanel.onContext`：变更行右键增 **Open File**（`appStore.openFile(absPath)`，非 diff）+ **Reveal in Finder**（复用 `window.electronAPI.revealInFolder`）；可选 **Open File (HEAD)**（🔻 后置）。
 - 弹窗：Create Tag / Rename Branch 复用现有 `PrintDialogShell` 风格输入弹窗（参照 `GitCloneDialog`/create-branch）。
@@ -383,8 +404,8 @@ LeftSidebar
 
 **护栏**：Undo Last Commit（`--soft` 保留改动，仍二次确认）、Delete Tag（二次确认）。破坏性判断线同 NFR4。
 
-**Push Tags**：走 `remoteRun('pushTags')`（busy 态 + 失败弹 stderr），i18n `remote.pushTags`；Tags 子菜单仅 `hasUpstream` 时启用。
+**Push Tags**：走 `remoteRun('pushTags')`（busy 态 + 失败进入 F14 恢复对话框），i18n `remote.pushTags`；Tags 子菜单仅 `hasUpstream` 时启用。
 
 ---
 
-*M1–M6 已落地（M6 P0+P1 代码三绿，运行时 smoke 待做）。SCM 剩余为留后项：行级 stage、图片 diff、多仓库、全宽 Git Graph tab、图上写操作、泳道图打磨。*
+*M1–M6 已落地（M6 P0+P1 代码三绿，运行时 smoke 待做）；M7 错误反馈与菜单入口重整待实施。SCM 留后项：行级 stage、图片 diff、多仓库、全宽 Git Graph tab、图上写操作、泳道图打磨。*

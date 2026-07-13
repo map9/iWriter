@@ -1,6 +1,6 @@
 # SOURCE_CONTROL.md — 工作空间版本控制需求文档
 
-> 状态：草案 v0.5（2026-07-13，M1–M6 主线完成；**SCM 菜单体系（做/不做）定稿**：去除 MenuManager 系统菜单、面板内菜单全量承载；M6 P0+P1 已实现三绿（Tag 全链路、Graph 提交行右键、Changes Open File/Reveal、Undo Last Commit、Rename Branch、Stash -u、Push Tags；运行时 smoke 待做），详见 §5.5。剩[留后]：行级 stage、图片 diff、多仓库、全宽 Graph tab、图上写操作）
+> 状态：v0.6（2026-07-13，M1–M6 主线完成；本轮已修复 Commit All、外部 Git 刷新、可编辑 Diff 并发写保护、重命名历史 Diff 等回归；**错误反馈与菜单信息架构已定稿，待后续实现**，见 F14/§5.5/`ui/`）
 > 定位：为 iWriter 工作空间（打开的文件夹）提供对标 VSCode Source Control 的 **真 Git 集成**。
 
 ---
@@ -94,6 +94,7 @@
 ### F3 · 提交 (P0)
 - 提交信息输入框：单行起、自动扩展多行（镜像 SearchPanel），支持标题/正文约定。
 - 「提交」按钮：提交已暂存内容；**无暂存内容时默认「提交所有更改」（Commit All，对标 VSCode）**（Q5）。可在偏好设置改为「禁用/每次询问」——**已实现（2026-07-12）**：偏好项 `EditSetting.commitWhenEmpty`（`all`/`off`/`prompt`），偏好设置「工作区 › 源代码管理」下拉；`off` 无暂存时给 notify 提示、`prompt` 弹二次确认。
+- **Commit All 语义**：必须先 `git add -A` 再提交，包含未跟踪文件；不得以 `git commit -a` 代替（后者只提交已跟踪文件）。
 - 提交前校验：空信息拦截、用户 `user.name/user.email` 缺失时引导配置。
 - 支持 Amend（修订上次提交）——P1。
 - 提交后刷新状态并清空输入框。
@@ -106,13 +107,14 @@
 - 状态栏 / 面板头显示当前分支名 + 领先/落后计数（ahead/behind ↑↓）。
 - 创建分支、切换分支（checkout）、基于当前分支新建、删除分支。
 - 分支列表（本地 + 远程），快速切换（对标 VSCode 分支 QuickPick）。
+- **删除分支**：默认尝试安全删除；“分支含未合并提交”是预期状态，不作为原始 Git 错误展示。界面解释风险后，用户可取消或在第二次原生确认中选择“强制删除分支”；只有该明确选择才执行 `git branch -D`。
 
 ### F6 · 远程操作 (P0)
 - Fetch / Pull / Push / **Sync**（pull+push 合一）。
 - Publish Branch（首次推送本地分支到远程并设置 upstream）。
 - Clone 仓库到本地并可选打开为工作空间。
 - 远程管理（add/remove remote）——**已实现（2026-07-12）**：`GitService.listRemotes/addRemote/removeRemote`；SCM more-actions →「管理远程…」子菜单（添加远程 modal + 逐个删除二次确认）。rename remote **不做**（单人本地，§5.5）。
-- 进度反馈：长耗时操作显示进行中状态，失败用原生 `showMessageBox` 给出 stderr 摘要与指引（不自建密码 UI，见 §3.2）。
+- 进度反馈：长耗时操作显示进行中状态；失败反馈遵循 F14（不自建密码 UI，见 §3.2）。
 
 ### F7 · Diff 查看器 (P0)
 
@@ -127,11 +129,11 @@
 #### F7.2 对比场景 × 可编辑性
 | # | 场景 | 对比基准（左 ↔ 右） | 右侧写回目标 | 天然可编辑 | 本期 |
 | --- | --- | --- | --- | --- | --- |
-| 1 | 未暂存更改 | index ↔ 工作区文件 | 磁盘文件 | ✅ | **只读**(§Q3) |
+| 1 | 未暂存更改 | index ↔ 工作区文件 | 磁盘文件 | ✅ | **可编辑** |
 | 2 | 已暂存更改 | HEAD ↔ index | index blob | ❌ | 只读 |
 | 3 | 提交内文件差异 | 父提交 ↔ 本提交 | 历史 blob | ❌ | 只读 |
 | 4 | 文件历史版本(F8) | 历史某版 ↔ 工作区/另一版 | 视右侧 | ⚠️ | 只读 |
-| 5 | 合并冲突(F9) | ours ↔ 工作区(含标记) | 磁盘文件 | ✅ | 只读 |
+| 5 | 合并冲突(F9) | ours ↔ 工作区(含标记) | 磁盘文件 | ✅ | **可编辑结果** |
 
 - 规律：仅当**右侧=工作区磁盘文件**（场景 1/5）才有可编辑语义；双方都是 git 对象时一律只读。
 - **修订（2026-07-11）**：可编辑不再延后。场景 1（未暂存）**放开为可编辑**、场景 5（冲突）为可编辑结果——因为 **diff 是源文本视图，在其中编辑=纯文本源编辑，无 WYSIWYG 错配**（不走 TipTap 编辑器，那会重蹈 F12 gutter 的语义 diff 坑）。**仅文本/markdown 源可编辑**，`.iwt`/`.json` 在 diff 里仍只读。详见 [EDITABLE_DIFF_AND_MERGE.md](EDITABLE_DIFF_AND_MERGE.md)。
@@ -167,6 +169,8 @@ export interface DiffSpec {
 
 #### F7.4 数据与刷新
 - 后端：`git.diff(root, file, {staged})`（场景 1/2）、`git.commitFileDiff(root, hash, file)`（场景 3），返回 `{ path, oldContent, newContent, isBinary }`。
+- 工作区可编辑 Diff 在载入时记录右侧磁盘内容的 `expectedHash`；标准保存路径在主进程校验该 hash，文件被外部修改或删除则拒绝写入并提示重新载入，避免 Diff 草稿覆盖外部编辑。
+- 工作区 diff 的基准优先使用 index blob；index 中合法的空文件不得回退为 HEAD。提交内重命名文件保留 `oldPath`，以父提交中的旧路径取得左侧内容。
 - 图片判定：按扩展名（`IMAGE_EXTENSIONS`）→ 图片占位。
 - 刷新：working 类 diff 订阅 git status 刷新，stage/discard/commit 后重取；变更消失展示「没有更改」空态（不自动关）。commit diff 内容不变，无需刷新。
 - 从 diff 视图 stage/discard/unstage 选中 hunk（与 F2 联动）——**已实现（2026-07-12）**：`GitService.applyPatch(root,patch,{cached,reverse})` 经临时文件 `git apply`；前端 `hunk-patch.ts`（`computeHunks`=structuredPatch context=3 + `buildHunkPatch`）；DiffView 按 git hunk 首个变更行渲染悬停按钮（未暂存=暂存/放弃、已暂存=取消暂存），放弃二次确认；应用后 refresh 跟随基准重载。仅工作区文本源（`.iwt`/`.json`/二进制/编辑中不显示）。
@@ -205,6 +209,12 @@ export interface DiffSpec {
 - Graph 已解析 `%D` 显示 tag 色标（`GitCommit.refs` kind='tag'），本项只补写操作。
 - Push Tags（`git push --tags`，有远程时让 tag 进云备份）。
 - **不做**：Delete Remote Tag（团队场景）。详见 §5.5 菜单体系。
+
+### F14 · Git 错误反馈与恢复（P0，交互定稿，待实现）
+- **预期状态不弹原始错误**：例如未合并分支、工作区脏、合并/贮藏冲突、无 upstream。`GitService` 将其作为可判定的语义结果返回，store 根据操作上下文给出解释、后续操作或状态视图。
+- **四级反馈**：① 输入校验（分支名/URL）显示在字段旁；② 预期状态显示解释与可选操作；③ 可恢复失败（认证、网络、非快进）使用工程自定义的错误处理对话框；④ 未知 Git/系统异常也使用该对话框，但只显示简洁摘要。
+- **技术详情**：自定义错误处理对话框默认只显示用户可理解的摘要和重试/指引；“技术详情 ▾”折叠区显示原始 Git 输出并支持复制。完整 stderr 同时保留在日志。`showMessageBox` 不承载该折叠区。
+- **确认的职责边界**：纯破坏性确认（放弃、普通删除、强制删除）继续使用原生 `showMessageBox`；需要解释、恢复操作或技术详情的失败反馈使用工程 dialog 外壳。
 
 ---
 
@@ -248,17 +258,19 @@ export interface DiffSpec {
 ### 5.4 快捷键
 - 复用 VSCode 习惯（可配）：提交输入框 `Cmd/Ctrl+Enter` 提交。
 
-### 5.5 SCM 菜单体系 —— 做/不做定稿（2026-07-13）
+### 5.5 SCM 菜单体系与入口职责 —— 做/不做定稿（2026-07-13）
 
 > 对照 VSCode SCM 全量菜单逐项裁定。**判断线**：本工程是「个人知识库 + 小说写作」的**单人、本地优先** Git（Git ≈ 时间机器 + 云备份 + 版本里程碑），不是团队协作 Git。故：commit/history/restore/diff、sync 备份、**tag 里程碑**、stash、copy hash·message、reveal、open file、undo-commit = 高价值；rebase / force / 多 remote / delete-remote-branch / fetch-prune / cherry-pick = 隐藏；破坏性操作（discard-all / delete-branch / undo-commit）加护栏（undo 用 `reset --soft` 降险）。承载：面板 `⋯` more-actions + viewer 头下拉 + 变更行/提交行右键，**不进原生菜单栏**（§5.3）。
+>
+> **入口职责（本轮定稿，待实现）**：容器 `⋯` 只承载跨 viewer 的仓库全局能力（远程、贮藏、标签、视图显隐）；存储库 viewer `⋯` 只承载分支操作与切换；Changes 标题栏承载高频且可逆的工作区动作（Stage All、列表/树切换），`Discard All` 不常驻；文件右键只作用于文件/目录，Graph 右键只作用于提交。各入口不得重复承担其他对象的操作。
 
 **图例**：✅ 已实现 · ⭐ 待实施（本轮定稿纳入）· 🔻 后置 · ❌ 不做
 
-#### A. SCM 主面板菜单（`⋯` more-actions / viewer 头）
+#### A. 容器 `⋯`：仓库全局能力（远程 / 贮藏 / 标签 / 视图）
 | VSCode 项 | 裁定 | 说明 |
 | --- | --- | --- |
-| Repositories / Changes / Graph 显隐 | ✅ | view 菜单 checkbox |
-| Pull / Push / Fetch / Clone / Check out to… | ✅ | remote 子菜单 + branch 菜单 + clone 弹窗 |
+| Repositories / Changes / Graph 显隐 | ✅ | 置于“视图”分组；Changes checked 且 disabled |
+| Pull / Push / Fetch / Clone / Check out to… | ✅ | 远程子菜单 + 存储库 branch 菜单 + clone 弹窗 |
 | Commit / Commit All / Amend | ✅ | commit ▾ 菜单 |
 | **Undo Last Commit** | ⭐ | `reset --soft HEAD~1` + 二次确认；"提交早了/信息写错"高频、soft 低风险 |
 | Commit Staged / Amend(Staged/All) 变体 | ❌ | 过细；"Commit"默认即 commit staged，保留单个 Amend |
@@ -267,7 +279,7 @@ export interface DiffSpec {
 | Pull (Rebase) | 🔻 | 降为偏好项而非菜单 |
 | Pull from… / Push to… | ❌ | 多 remote |
 | Fetch (Prune) / Fetch From All Remotes | ❌ | 专家/多 remote |
-| Merge / Create Branch / Delete Branch / Publish | ✅ | branch 菜单 |
+| Merge / Create Branch / Delete Branch / Publish | ✅ | 前三项仅存储库 branch 菜单；Publish 属远程分组 |
 | **Create Branch From…** | ⭐ | 从某分支/提交开支线草稿（novel 支线） |
 | **Rename Branch** | ⭐ | 简单低风险，草稿改名 |
 | Rebase Branch | ❌ | 重写历史、危险、单人无价值 |
@@ -282,7 +294,15 @@ export interface DiffSpec {
 | Delete Remote Tag | ❌ | 团队场景 |
 | Show Git Output | 🔻 | 排障入口，可复用现有 logging |
 
-#### B. Changes 右键菜单（现有 stage/unstage/discard/gitignore/open）
+#### B. 存储库 `⋯`：分支操作与切换
+
+| 项 | 裁定 | 说明 |
+| --- | --- | --- |
+| Create / Rename / Merge / Delete Branch | ✅ | 操作命令置顶；Merge/Delete 先选本地或远程对象，再进入确认/解决流程 |
+| 本地 + 远程分支切换 | ✅ | 操作命令后列出；本地当前分支用 checked，远程分支标“远程” |
+| Branch Center / 独立管理页 | ❌ | 单仓库场景不新增页面；保留原生菜单一层切换的直接性 |
+
+#### C. Changes 标题栏与文件右键（现有 stage/unstage/discard/gitignore/open）
 | VSCode 项 | 裁定 | 说明 |
 | --- | --- | --- |
 | Open Changes / Discard / Stage / Unstage / gitignore | ✅ | |
@@ -291,7 +311,9 @@ export interface DiffSpec {
 | Open File (HEAD) | 🔻 | 打开 HEAD 只读版本，中价值 |
 | Collapse All | ❌ | UI 噪音 |
 
-#### C. Graph 提交行右键菜单 —— **当前空白，最大缺口**
+Changes 标题栏固定保留 `Stage All` 与列表/树切换；刷新由容器标题栏承担；`Discard All` 只在 Changes 分组的更多操作中出现，避免破坏性按钮常驻。
+
+#### D. Graph 提交行右键菜单
 | VSCode 项 | 裁定 | 说明 |
 | --- | --- | --- |
 | **Copy Commit Hash / Copy Commit Message** | ⭐ | 零风险高频 |
@@ -302,8 +324,8 @@ export interface DiffSpec {
 | Compare with… | 🔻 | 选另一提交比 diff，中价值 |
 
 #### 实施优先级
-- **P0（补空白 + 里程碑能力）—— ✅已实现（2026-07-13，三绿，运行时 smoke 待做）**：① Tag 全链路（create/delete/list + 面板 Tags 子菜单 + Graph 行"在此打标签"）② Graph 提交行右键（Copy Hash/Message、Create Tag、Create Branch from here）③ Changes 右键补 Open File + Reveal in Finder。
-- **P1（便捷增强）—— ✅已实现（2026-07-13，三绿，运行时 smoke 待做）**：④ Undo Last Commit（`reset --soft`，commit ▾ 菜单）⑤ Create Branch From…（P0 已含）/ Rename Branch ⑥ Stash (Include Untracked) ⑦ Push Tags。
+- **已实现（2026-07-13）**：Tag 全链路、Graph 提交行右键、Changes Open File/Reveal、Undo Last Commit、Create Branch From、Rename Branch、Stash (Include Untracked)、Push Tags。
+- **待实施（本轮交互定稿）**：① 容器 `⋯` 改为 Remote / Stash / Tags / Views 的分组与子菜单；② 存储库 `⋯` 保持分支专属；③ Changes 标题栏收敛为 Stage All + 视图切换，危险的 Discard All 移出常驻工具栏；④ F14 语义错误与错误处理对话框。
 - **不做（明确排除）**：Rebase、Pull(Rebase) 菜单化、Pull from…/Push to…、Fetch Prune/All Remotes、Delete Remote Branch/Tag、Rename Remote、Amend 细分变体、Commit Staged 单列、Collapse All、Checkout 到裸提交、MenuManager 原生菜单（§5.3）。
 
 ---
@@ -313,8 +335,8 @@ export interface DiffSpec {
 | 编号 | 需求 |
 | --- | --- |
 | NFR1 性能 | status 刷新去抖；大仓库（数千文件）status/diff 不阻塞 UI，主进程异步执行 |
-| NFR2 刷新触发 | 复用 chokidar 文件监听 + git 操作后主动刷新；避免轮询风暴 |
-| NFR3 健壮性 | git 未安装 / 非仓库 / 分离 HEAD / 网络失败 均有明确降级与提示，绝不静默失败 |
+| NFR2 刷新触发 | 工作区 watcher 转发普通文件变化；额外放行 `.git/HEAD`、`index`、`MERGE_HEAD`、`refs/**`、`packed-refs` 只用于 SCM 刷新（不进入 Explorer/Search，且始终忽略 `index.lock`）。所有写操作后及窗口重新获得焦点时也刷新；刷新去抖/单飞，避免轮询风暴。 |
+| NFR3 健壮性 | git 未安装 / 非仓库 / 分离 HEAD / 网络失败均有明确降级与提示；预期 Git 状态转为下一步操作，原始 stderr 不直接作为用户错误展示（F14）。 |
 | NFR4 安全 | 不明文存储凭证；破坏性操作（discard/clean/force push/branch delete）必须二次确认 |
 | NFR5 i18n | 中英文文案（复用现有 i18n 体系）|
 | NFR6 持久化 | 面板宽度/展开态/上次分支等经 `StateStorage` 持久化。**可选 viewer 显隐已实现（2026-07-12）**：`StateStorage.{save,load}PanelViewers`（`iwriter-panel-viewers`：explorerTimeline/scmRepositories/scmGraph），Explorer/SCM 面板初始化读取 + watch 回写 |

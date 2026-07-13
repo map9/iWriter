@@ -1,6 +1,6 @@
 # EDITABLE_DIFF_AND_MERGE.md — 可编辑 Diff 与冲突合并设计
 
-> 状态：v0.2（2026-07-12，E1+E2 已实现）
+> 状态：v0.3（2026-07-13，E1+E2 与外部修改/删除写回保护已实现）
 > 关联：SOURCE_CONTROL §F7（Diff 查看器）、§F9（合并与冲突解决）
 > 定位：把「diff 中编辑工作区侧」从延后项提为一等能力；F9 冲突解决作为其特例（不再用 TipTap 编辑器 inline）。
 
@@ -56,13 +56,14 @@ diff 是源文本，可编辑侧 = 纯文本编辑。两种粒度：
 原「显式保存」设计（E1 已实现，用户明确要非自动保存）：
 - **编辑保持 diff**：编辑模式为「左侧旧内容随输入实时 word 级高亮 + 右侧 textarea」，diff 在编辑时可见；不切成纯 textarea。
 - **草稿在内存**：DiffView `draftLocal` 输入 → 防抖 emit → `DiffViewerPage.onDraftChange` 只更新 `newContent`(实时 diff) + 镜像到 `tab.diffDraft` + 置 `tab.isDirty`，**不自动写盘**。
-- **显式保存**：diff 头部「保存」按钮（脏时高亮/可点）或 `Cmd+S`（`DiffViewerPage.handleMenuAction('save')` 消费）→ `appStore.saveDiffTab(tab)` → `writeWorkingFile(tab.diffDraft)`。
+- **显式保存**：diff 头部「保存」按钮（脏时高亮/可点）或 `Cmd+S`（`DiffViewerPage.handleMenuAction('save')` 消费）→ `appStore.saveDiffTab(tab)` → `writeWorkingFile(tab.diffDraft, tab.lastSavedHash)`。
 - **关闭确认打通**：`FileTab.diffDraft` 存草稿；`saveTab` 顶部对 `DIFF_VIEWER` 转 `saveDiffTab`，于是 closeTab 的 save-on-close 也能写回。选「不保存」则丢弃草稿。
 - **无锁**：diff tab 以 `fileReadonly:false` 创建（去掉标题栏 🔒）；只读性靠"无编辑按钮"表达。
 - **stage/discard 不空白**：暂存/取消暂存后切换对比基准（unstaged⇄staged）保持改动可见；discard 后文件干净 → 「没有更改」为正确态。
 
 ### 4.2 写回
 - 保存 = 把 `draft` 写到 `spec.filePath` 指向的工作区文件（`.md`/文本原样写）。
+- Diff 载入工作区侧内容时记录 `lastSavedHash`；保存复用主编辑器的 `saveFile(..., { expectedHash })` 守卫。磁盘内容被外部修改、或目标文件已被外部删除时，拒绝写回并提示重新载入后再处理草稿，不静默覆盖，也不以保存操作重建文件。
 - 写后 `gitStore.refresh()`（revision++）→ diff tab 重取 `newContent`（= 刚写的内容）→ 与 index 的差异更新（若与 index 相同则「没有更改」）。
 
 ### 4.3 与「同文件已在 Markdown 编辑器打开」的协同（关键风险）
@@ -70,7 +71,7 @@ diff 是源文本，可编辑侧 = 纯文本编辑。两种粒度：
 - **推荐 v1（解耦 + 重载协同）**：
   - diff 保存写文件 → 若该文件在 Markdown tab 打开：**静默强制重载**该 tab（复用外部变更路径，但内部写入不弹「外部已修改」提示，如现有 save 流更新 `lastSavedHash` 的做法）。若 Markdown tab 有**未保存改动**，写回前按脏检查**告警**避免覆盖。
   - 反向：Markdown tab 保存 → 文件变 → diff tab 若**无未保存 draft** 则重载 `newContent`；若**有 draft** 则标记 `diskState='external-modified'` 软告警（复用现有机制）。
-  - 即：**允许两处都在，但靠"内部写→静默重载 / 有未存改动→告警"协同，末次写入生效**。同时在两处编辑同一文件属边缘操作，用告警兜底防丢数据。
+  - 即：**允许两处都在，但靠「内部写→静默重载 / 有未存改动→告警 / 写回前 expectedHash 校验」协同**。出现外部修改或删除时，不采用「末次写入生效」；须重新载入后再处理草稿，避免覆盖或重建外部状态。
 - （更严格的"打开即互斥锁"备选，v1 不采用，见待决 D3。）
 
 ---
