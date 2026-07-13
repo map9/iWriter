@@ -3,7 +3,8 @@ import type { MenuItemConstructorOptions, MessageBoxOptions, OpenDialogOptions, 
 import * as path from 'path'
 import * as fs from 'fs'
 import { exec } from 'child_process'
-import chokidar, { FSWatcher } from 'chokidar'
+import parcelWatcher from '@parcel/watcher'
+import type { FileChange } from '../src/types/file-operation'
 
 import Timer from '../src/utils/Timer'
 
@@ -203,8 +204,143 @@ function createWorkspaceIgnoredPredicate(
   }
 }
 
+// —— 文件监听（@parcel/watcher，替代 chokidar）——
+//
+// 递归监听走 @parcel/watcher（macOS FSEvents / Windows 原生递归 → 整棵树一个 watcher，
+// O(1) fd，与目录数量无关，杜绝 EMFILE→git spawn EBADF）。depth:0 的单目录监听（打开的
+// 工作区外文档的父目录）走 Node 非递归 fs.watch（1 fd/个，避免 parcel 恒递归误盯超大父目录）。
+// 二者统一产出与 chokidar 等价的 file-change 事件（add/change/unlink/addDir/unlinkDir）。
+
+interface ManagedWatcher {
+  close: () => Promise<void>
+}
+
+/** per-path 去抖，模拟 chokidar 的 awaitWriteFinish/atomic：分块/原子写合并为单事件，末次事件生效 */
+const WATCH_DEBOUNCE_MS = 75
+
+type WatchHint = 'create' | 'update' | 'delete' | 'rename'
+
+/**
+ * 事件归一化器：把 parcel/fs.watch 的原始事件按 path 去抖，在触发时 stat 推断
+ * add/change/unlink/addDir/unlinkDir，并套用忽略谓词过滤。
+ * knownDirs：记录已知目录（create 目录时加入），使 delete 能区分 unlink vs unlinkDir
+ * （SearchPanel 依赖 unlinkDir 清子树结果、工作区根 unlinkDir 触发 workspace-deleted）。
+ */
+function createWatchEmitter(ctx: {
+  root: string
+  sender: Electron.WebContents
+  ignored?: (filePath: string, stats?: fs.Stats) => boolean
+}) {
+  const knownDirs = new Set<string>()
+  const pending = new Map<string, { hint: WatchHint; timer: ReturnType<typeof setTimeout> }>()
+
+  async function resolveAndEmit(fullPath: string, hint: WatchHint): Promise<void> {
+    if (ctx.sender.isDestroyed()) return
+    let stats: fs.Stats | undefined
+    try {
+      stats = await fs.promises.stat(fullPath)
+    } catch {
+      stats = undefined
+    }
+
+    let type: FileChange['type']
+    if (stats) {
+      const isDir = stats.isDirectory()
+      if (isDir) knownDirs.add(fullPath)
+      if (hint === 'update') {
+        if (isDir) return // 目录 mtime 变化无意义，忽略
+        type = 'change'
+      } else {
+        type = isDir ? 'addDir' : 'add'
+      }
+    } else {
+      // 路径已消失：区分目录/文件（根目录 or 已知目录 → unlinkDir）
+      const wasDir = fullPath === ctx.root || knownDirs.has(fullPath)
+      type = wasDir ? 'unlinkDir' : 'unlink'
+      knownDirs.delete(fullPath)
+    }
+
+    if (ctx.ignored && ctx.ignored(fullPath, stats)) return
+    if (ctx.sender.isDestroyed()) return
+    ctx.sender.send('file-change', { type, path: fullPath, timestamp: new Date() })
+  }
+
+  return {
+    schedule(fullPath: string, hint: WatchHint): void {
+      const prev = pending.get(fullPath)
+      if (prev) clearTimeout(prev.timer)
+      const timer = setTimeout(() => {
+        pending.delete(fullPath)
+        void resolveAndEmit(fullPath, hint)
+      }, WATCH_DEBOUNCE_MS)
+      pending.set(fullPath, { hint, timer })
+    },
+    dispose(): void {
+      for (const { timer } of pending.values()) clearTimeout(timer)
+      pending.clear()
+    },
+  }
+}
+
+/** 递归监听工作区（@parcel/watcher，O(1) fd）。忽略规则以 JS 逐事件过滤为权威，不传 parcel ignore（规避 gitignore→glob 翻译过/欠忽略）。 */
+async function startRecursiveWatcher(
+  root: string,
+  ignoreRulesText: string | undefined,
+  sender: Electron.WebContents
+): Promise<ManagedWatcher> {
+  const ignored = createWorkspaceIgnoredPredicate(root, ignoreRulesText)
+  const emitter = createWatchEmitter({ root, sender, ignored })
+  const subscription = await parcelWatcher.subscribe(root, (err, events) => {
+    if (err) {
+      if (!sender.isDestroyed()) {
+        sender.send('file-watch-error', { message: err.message, path: root, timestamp: new Date() })
+      }
+      return
+    }
+    for (const ev of events) {
+      const hint: WatchHint = ev.type === 'create' ? 'create' : ev.type === 'update' ? 'update' : 'delete'
+      emitter.schedule(ev.path, hint)
+    }
+  })
+  return {
+    close: async () => {
+      emitter.dispose()
+      await subscription.unsubscribe()
+    },
+  }
+}
+
+/** 非递归监听单目录（depth:0，打开的工作区外文档父目录）；无忽略规则，1 fd。 */
+function startSingleDirWatcher(dir: string, sender: Electron.WebContents): ManagedWatcher {
+  const emitter = createWatchEmitter({ root: dir, sender })
+  const watcher = fs.watch(dir, { persistent: true, recursive: false }, (eventType, filename) => {
+    if (!filename) return
+    const full = path.join(dir, filename.toString())
+    // fs.watch 只给 rename(创建/删除/移动) / change；rename 由触发时 stat 决定增删
+    emitter.schedule(full, eventType === 'change' ? 'update' : 'rename')
+  })
+  watcher.on('error', (error) => {
+    const nodeError = error as NodeJS.ErrnoException
+    // Windows 结点/重解析点 lstat UNKNOWN 是良性 FS 怪癖，忽略
+    if (nodeError.code === 'UNKNOWN' && nodeError.syscall === 'lstat') return
+    if (!sender.isDestroyed()) {
+      sender.send('file-watch-error', {
+        message: error instanceof Error ? error.message : String(error),
+        path: dir,
+        timestamp: new Date(),
+      })
+    }
+  })
+  return {
+    close: async () => {
+      emitter.dispose()
+      watcher.close()
+    },
+  }
+}
+
 export class App {
-  private fileWatchers: Map<string, FSWatcher>
+  private fileWatchers: Map<string, ManagedWatcher>
   private menuManager: MenuManager
   private windowManager: WindowManager
   private updaterManager: UpdaterManager | null
@@ -945,92 +1081,18 @@ export class App {
     // 文件监听相关的 IPC 处理器
     ipcMain.handle('start-file-watching', async (event, folderPath: string, watchOptions: FileWatchingOptions = {}) => {
       try {
-        // 停止已存在的监听器
+        // 停止已存在的监听器（同 path 重启，如忽略规则变化）
         if (this.fileWatchers.has(folderPath)) {
-          const existingWatcher = this.fileWatchers.get(folderPath);
-          existingWatcher?.close();
+          await this.fileWatchers.get(folderPath)?.close();
           this.fileWatchers.delete(folderPath);
         }
 
-        const ignored = createWorkspaceIgnoredPredicate(folderPath, watchOptions.ignoreRulesText)
+        // depth:0 = 非递归单目录（打开的工作区外文档父目录）；否则递归监听工作区
+        const managed = watchOptions.depth === 0
+          ? startSingleDirWatcher(folderPath, event.sender)
+          : await startRecursiveWatcher(folderPath, watchOptions.ignoreRulesText, event.sender)
 
-        // 创建新的监听器
-        const watcher = chokidar.watch(folderPath, {
-          awaitWriteFinish: true, // emit single event when chunked writes are completed
-          atomic: true, // emit proper events when "atomic writes" (mv _tmp file) are used
-          // The options also allow specifying custom intervals in ms
-          // awaitWriteFinish: {
-          //   stabilityThreshold: 2000,
-          //   pollInterval: 100
-          // },
-          // atomic: 100,
-          persistent: true,
-          ignoreInitial: true,
-          followSymlinks: false,
-          depth: watchOptions.depth ?? 10, // 限制监听深度
-          ignored,
-          ignorePermissionErrors: true,
-          usePolling: false, // 优先使用原生事件
-          interval: 1000, // 轮询间隔（当原生事件不可用时）
-          binaryInterval: 3000
-        });
-
-        // 监听各种文件事件
-        watcher
-          .on('add', (filePath) => {
-            event.sender.send('file-change', {
-              type: 'add',
-              path: filePath,
-              timestamp: new Date()
-            });
-          })
-          .on('change', (filePath) => {
-            event.sender.send('file-change', {
-              type: 'change',
-              path: filePath,
-              timestamp: new Date()
-            });
-          })
-          .on('unlink', (filePath) => {
-            event.sender.send('file-change', {
-              type: 'unlink',
-              path: filePath,
-              timestamp: new Date()
-            });
-          })
-          .on('addDir', (dirPath) => {
-            event.sender.send('file-change', {
-              type: 'addDir',
-              path: dirPath,
-              timestamp: new Date()
-            });
-          })
-          .on('unlinkDir', (dirPath) => {
-            event.sender.send('file-change', {
-              type: 'unlinkDir',
-              path: dirPath,
-              timestamp: new Date()
-            });
-          })
-          .on('error', (error) => {
-            // On Windows, junction points and NTFS reparse points cause lstat to fail
-            // with UNKNOWN errors. These are benign filesystem quirks, not real failures.
-            const nodeError = error as NodeJS.ErrnoException
-            if (nodeError.code === 'UNKNOWN' && nodeError.syscall === 'lstat') {
-              console.debug('File watcher: skipping UNKNOWN lstat error (Windows reparse point):', nodeError.path)
-              return
-            }
-            event.sender.send('file-watch-error', {
-              message: error instanceof Error ? error.message : String(error),
-              path: folderPath,
-              timestamp: new Date()
-            });
-          })
-          .on('ready', () => {
-            console.debug(`File watcher ready for: ${folderPath}`);
-          });
-
-        this.fileWatchers.set(folderPath, watcher);
+        this.fileWatchers.set(folderPath, managed);
         return { success: true, path: folderPath };
       } catch (error) {
         console.error('Error starting file watcher:', error);

@@ -10,6 +10,9 @@ const electronMainExternal = [
   'electron',
   '@langchain/langgraph-checkpoint-sqlite',
   'better-sqlite3',
+  // @parcel/watcher is a native N-API module (file watching); must stay in
+  // node_modules and load its platform prebuild at runtime, not be bundled.
+  '@parcel/watcher',
   // jsdom is used only in the main process (HtmlFetcher.ts).
   // canvas is a native addon optionally required by jsdom — both must stay in
   // node_modules and not be bundled, matching the same rationale as better-sqlite3.
