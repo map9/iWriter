@@ -13,7 +13,7 @@
       
       <!-- Sidebar Mode Navigation - only show when sidebar is visible -->
       <div class="flex flex-1 items-center">
-        <div v-if="appStore.isLeftSidebarVisible" class="no-drag ml-auto flex h-full items-center gap-2 pl-2">
+        <div v-if="appStore.isLeftSidebarVisible" class="no-drag ml-auto flex h-full items-center gap-2">
           <!-- Main navigation group: folder, search, tags -->
           <div class="join flex items-center">
             <button
