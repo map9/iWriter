@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { notify } from '@/utils/notifications'
 import { i18n } from '@/i18n'
+import { pathUtils } from '@/utils/pathUtils'
 import { useAppStore } from './app'
 import type {
   GitAvailability,
@@ -258,6 +259,41 @@ export const useGitStore = defineStore('git', () => {
     run(() => api().createBranch(root.value!, name, base, doCheckout))
   const deleteBranch = (name: string, force: boolean) => run(() => api().deleteBranch(root.value!, name, force))
   const addToGitignore = (relPath: string) => run(() => api().addToGitignore(root.value!, relPath))
+
+  // ---------- 标签 Tags ----------
+  const tags = ref<string[]>([])
+  async function loadTags(): Promise<string[]> {
+    if (!root.value || !isRepo.value) { tags.value = []; return [] }
+    try {
+      tags.value = await api().listTags(root.value)
+    } catch {
+      tags.value = []
+    }
+    return tags.value
+  }
+  /** 创建标签（hash 指定提交，缺省 HEAD；message 给出则为附注标签）；成功后 run 已刷新图谱→tag 色标显现 */
+  async function createTag(name: string, opts: { message?: string; hash?: string } = {}): Promise<boolean> {
+    const ok = await run(() => api().createTag(root.value!, name, opts))
+    if (ok) await loadTags()
+    return ok
+  }
+  async function deleteTag(name: string): Promise<boolean> {
+    const ok = await run(() => api().deleteTag(root.value!, name))
+    if (ok) await loadTags()
+    return ok
+  }
+
+  // ---------- 打开工作区文件 / 在文件管理器显示（Changes 右键） ----------
+  /** 打开变更文件本体（工作区磁盘文件，非 diff） */
+  function openWorkingFile(filePath: string): void {
+    if (!root.value) return
+    void useAppStore().openFile(pathUtils.join(root.value, filePath))
+  }
+  /** 在系统文件管理器中显示该文件 */
+  function revealFile(filePath: string): void {
+    if (!root.value) return
+    void window.electronAPI.revealInFolder(pathUtils.join(root.value, filePath))
+  }
   /** 将文件还原到某提交版本（覆盖工作区，破坏性；调用方负责二次确认） */
   const restoreFile = (hash: string, filePath: string) => run(() => api().restoreFile(root.value!, hash, filePath))
 
@@ -456,6 +492,7 @@ export const useGitStore = defineStore('git', () => {
     graphBranch.value = null
     graphAll.value = false
     graphHasMore.value = false
+    tags.value = []
   }
 
   return {
@@ -466,6 +503,7 @@ export const useGitStore = defineStore('git', () => {
     openDiff, openCommitDiff, openMergeTab,
     stage, unstage, stageAll, unstageAll, discard, commit,
     checkout, createBranch, deleteBranch, addToGitignore, restoreFile, merge,
+    tags, loadTags, createTag, deleteTag, openWorkingFile, revealFile,
     submitIdentity, cancelIdentity,
     fetch, pull, push, sync, publish, clone,
     remotes, loadRemotes, addRemote, removeRemote,

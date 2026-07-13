@@ -187,6 +187,31 @@ export class GitService {
     await this.git(root).raw(['branch', force ? '-D' : '-d', name])
   }
 
+  // ---------- 标签 Tags ----------
+  /** 列出标签（按创建时间倒序，最新在前） */
+  async listTags(root: string): Promise<string[]> {
+    let out = ''
+    try {
+      out = await this.git(root).raw(['tag', '--sort=-creatordate'])
+    } catch {
+      return []
+    }
+    return out.split('\n').map(l => l.trim()).filter(Boolean)
+  }
+
+  /** 创建标签：有 message → 附注标签（-a -m）；有 hash → 打在指定提交，否则 HEAD */
+  async createTag(root: string, name: string, opts: { message?: string; hash?: string }): Promise<void> {
+    const args = ['tag']
+    if (opts.message) args.push('-a', '-m', opts.message)
+    args.push(name)
+    if (opts.hash) args.push(opts.hash)
+    await this.git(root).raw(args)
+  }
+
+  async deleteTag(root: string, name: string): Promise<void> {
+    await this.git(root).raw(['tag', '-d', name])
+  }
+
   async fetch(root: string): Promise<void> {
     await this.git(root).raw(['fetch', '--prune'])
   }

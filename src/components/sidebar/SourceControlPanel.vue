@@ -187,7 +187,7 @@
         <template v-else>
         <ul class="py-1 text-xs">
           <li v-for="(c, ci) in gitStore.commits" :key="c.hash">
-            <div class="flex items-stretch hover:bg-base-200">
+            <div class="flex items-stretch hover:bg-base-200" @contextmenu.prevent="onGraphCommitContext(c, $event)">
               <GitGraphGutter
                 v-if="graphLayout.rows[ci]"
                 :row="graphLayout.rows[ci]"
@@ -358,6 +358,40 @@
       </form>
     </div>
 
+    <!-- 创建标签输入弹窗（名称必填 + 说明可选=附注标签） -->
+    <div
+      v-if="tagDialogOpen"
+      class="fixed inset-0 z-1000 flex items-center justify-center bg-black/45 backdrop-blur-sm"
+      @click.self="tagDialogOpen = false"
+    >
+      <form
+        class="w-80 max-w-[90vw] overflow-hidden rounded-box border border-base-300 bg-base-100 shadow-2xl"
+        @submit.prevent="confirmCreateTag"
+      >
+        <div class="border-b border-base-300 px-4 py-3 text-sm font-semibold">{{ t('sourceControl.tag.create') }}</div>
+        <div class="flex flex-col gap-2 px-4 py-4">
+          <input
+            ref="tagInput"
+            v-model="tagName"
+            type="text"
+            class="iw-input w-full"
+            :placeholder="t('sourceControl.tag.namePlaceholder')"
+          />
+          <input
+            v-model="tagMessage"
+            type="text"
+            class="iw-input w-full"
+            :placeholder="t('sourceControl.tag.messagePlaceholder')"
+          />
+          <p v-if="tagNameError" class="text-2xs text-error">{{ tagNameError }}</p>
+        </div>
+        <div class="flex justify-end gap-2 border-t border-base-300 px-4 py-3">
+          <button type="button" class="iw-btn btn-ghost btn-sm" @click="tagDialogOpen = false">{{ t('common.cancel') }}</button>
+          <button type="submit" class="iw-btn btn-primary btn-sm" :disabled="!tagName.trim() || !!tagNameError">{{ t('common.create') }}</button>
+        </div>
+      </form>
+    </div>
+
   </div>
 </template>
 
@@ -372,7 +406,7 @@ import { computeGraphLayout } from './scm/gitGraphLayout'
 import { buildScmTreeRows } from './scm/fileTree'
 import { useGitStore } from '@/stores/git'
 import { useAppStore } from '@/stores/app'
-import type { ContextMenuItem, GitFileChange, GitFileStatus } from '@/types'
+import type { ContextMenuItem, GitCommit, GitFileChange, GitFileStatus } from '@/types'
 import pathUtils from '@/utils/pathUtils'
 import { notify } from '@/utils/notifications'
 import { StateStorage } from '@/utils/StateStorage'
@@ -551,17 +585,27 @@ function onGitignore(files: GitFileChange[]) {
 /** 变更行/目录行右键菜单（stage/unstage/discard/gitignore/open，按所属分组裁剪项） */
 async function onContext(p: ScmContextPayload) {
   if (!p.files.length) return
+  // 单个未删除文件才提供「打开文件/在文件管理器显示」（删除的文件工作区已不存在）
+  const single = !p.isDir && p.files.length === 1 ? p.files[0]! : null
+  const onDisk = single && single.status !== 'D'
   const items: ContextMenuItem[] = []
-  if (!p.isDir && p.files.length === 1) {
+  if (single) {
     items.push({ id: 'open', label: t('sourceControl.action.openDiff') })
+    if (onDisk) items.push({ id: 'open-file', label: t('sourceControl.action.openFile') })
     items.push({ type: 'separator' })
   }
   if (p.kind === 'staged') items.push({ id: 'unstage', label: t('sourceControl.action.unstage') })
   else items.push({ id: 'stage', label: t('sourceControl.action.stage') })
   if (p.kind === 'changes') items.push({ id: 'discard', label: t('sourceControl.action.discard') })
   if (p.kind === 'untracked') items.push({ id: 'gitignore', label: t('sourceControl.action.gitignore') })
+  if (onDisk) {
+    items.push({ type: 'separator' })
+    items.push({ id: 'reveal', label: t('sourceControl.action.reveal') })
+  }
   const action = await window.electronAPI.showContextMenu(items, { x: p.ev.clientX, y: p.ev.clientY })
   if (action === 'open' && p.files[0]) onFileOpen(p.files[0])
+  else if (action === 'open-file' && single) gitStore.openWorkingFile(single.path)
+  else if (action === 'reveal' && single) gitStore.revealFile(single.path)
   else if (action === 'stage') onStage(p.files)
   else if (action === 'unstage') onUnstage(p.files)
   else if (action === 'discard') onDiscard(p.files)
@@ -657,8 +701,11 @@ const branchNameError = computed(() => {
     /^[-/]/.test(n) || /[/.]$/.test(n) || n.endsWith('.lock')
   return invalid ? t('sourceControl.branch.invalidName') : ''
 })
-function openCreateBranch() {
+/** 新建分支的基点（提交 hash / 分支名）；空=当前 HEAD。用于 Graph「从此提交创建分支」 */
+const branchBase = ref<string | undefined>(undefined)
+function openCreateBranch(base?: string) {
   branchName.value = ''
+  branchBase.value = base
   branchDialogOpen.value = true
   nextTick(() => branchInput.value?.focus())
 }
@@ -666,7 +713,72 @@ function confirmCreateBranch() {
   const name = branchName.value.trim()
   if (!name || branchNameError.value) return
   branchDialogOpen.value = false
-  gitStore.createBranch(name, undefined, true)
+  gitStore.createBranch(name, branchBase.value, true)
+}
+
+// —— 标签 Tags ——
+const tagDialogOpen = ref(false)
+const tagName = ref('')
+const tagMessage = ref('')
+/** 标签基点提交 hash（Graph「在此提交打标签」）；空=HEAD */
+const tagBaseHash = ref('')
+const tagInput = ref<HTMLInputElement | null>(null)
+// tag 名校验（同 refname 规则，同分支名）
+const tagNameError = computed(() => {
+  const n = tagName.value.trim()
+  if (!n) return ''
+  const invalid =
+    /[\s~^:?*[\\]/.test(n) ||
+    n.includes('..') || n.includes('//') || n.includes('@{') ||
+    /^[-/]/.test(n) || /[/.]$/.test(n) || n.endsWith('.lock')
+  return invalid ? t('sourceControl.tag.invalidName') : ''
+})
+function openCreateTag(hash?: string) {
+  tagName.value = ''
+  tagMessage.value = ''
+  tagBaseHash.value = hash ?? ''
+  tagDialogOpen.value = true
+  nextTick(() => tagInput.value?.focus())
+}
+function confirmCreateTag() {
+  const name = tagName.value.trim()
+  if (!name || tagNameError.value) return
+  tagDialogOpen.value = false
+  gitStore.createTag(name, {
+    message: tagMessage.value.trim() || undefined,
+    hash: tagBaseHash.value || undefined,
+  })
+}
+/** 标签列表：选一条 → 二次确认 → 删除 */
+async function showTagMenu(event: MouseEvent) {
+  const list = await gitStore.loadTags()
+  if (!list.length) { notify.info(t('sourceControl.tag.none')); return }
+  const items: ContextMenuItem[] = list.map((name): ContextMenuItem => ({ id: `tag:${name}`, label: name }))
+  const action = await window.electronAPI.showContextMenu(items, { x: event.clientX, y: event.clientY })
+  if (!action?.startsWith('tag:')) return
+  const name = action.slice(4)
+  const ok = await confirmBox(
+    t('sourceControl.tag.deleteTitle'),
+    t('sourceControl.tag.deleteMessage', { name }),
+    t('sourceControl.tag.deleteConfirm'),
+  )
+  if (ok) gitStore.deleteTag(name)
+}
+
+/** Graph 提交行右键：复制 hash/信息、在此提交打标签/创建分支 */
+async function onGraphCommitContext(c: GitCommit, event: MouseEvent) {
+  const items: ContextMenuItem[] = [
+    { id: 'copy-hash', label: t('sourceControl.graph.copyHash') },
+    { id: 'copy-msg', label: t('sourceControl.graph.copyMessage') },
+    { type: 'separator' },
+    { id: 'tag-here', label: t('sourceControl.graph.createTagHere') },
+    { id: 'branch-here', label: t('sourceControl.graph.createBranchHere') },
+  ]
+  const action = await window.electronAPI.showContextMenu(items, { x: event.clientX, y: event.clientY })
+  if (action === 'copy-hash') await navigator.clipboard.writeText(c.hash)
+  else if (action === 'copy-msg') await navigator.clipboard.writeText(c.subject)
+  else if (action === 'tag-here') openCreateTag(c.hash)
+  else if (action === 'branch-here') openCreateBranch(c.hash)
 }
 
 // 进度条操作标签：clone 用克隆文案，其余用 remote.* 文案
@@ -829,9 +941,17 @@ const showScmViewMenu = async (event: MouseEvent) => {
         { type: 'separator' },
       ]
     : []
+  const tagItems: ContextMenuItem[] = repo
+    ? [
+        { id: 'tag-create', label: t('sourceControl.tag.create') },
+        { id: 'tag-manage', label: t('sourceControl.tag.manage') },
+        { type: 'separator' },
+      ]
+    : []
   const menuItems: ContextMenuItem[] = [
     ...remoteItems,
     ...stashItems,
+    ...tagItems,
     { id: 'scm-view-repositories', label: t('sourceControl.view.repositories'), type: 'checkbox', enabled: repo, checked: repo && repos?.visible !== false },
     { id: 'scm-view-changes', label: t('sourceControl.view.changes'), type: 'checkbox', enabled: false, checked: repo },
     { id: 'scm-view-graph', label: t('sourceControl.view.graph'), type: 'checkbox', enabled: repo, checked: repo && graph?.visible !== false },
@@ -849,6 +969,8 @@ const showScmViewMenu = async (event: MouseEvent) => {
     else if (action === 'stash-push') openStashPush()
     else if (action === 'stash-pop-latest') gitStore.stashPop(0)
     else if (action === 'stash-manage') showStashMenu(event)
+    else if (action === 'tag-create') openCreateTag()
+    else if (action === 'tag-manage') showTagMenu(event)
   } catch (error) {
     console.error('Error showing SCM view menu:', error)
   }

@@ -1148,6 +1148,10 @@ export default {
       selectBranch: 'Select branch',
       allBranches: 'All branches',
       loadMore: 'Load more',
+      copyHash: 'Copy Commit Hash',
+      copyMessage: 'Copy Commit Message',
+      createTagHere: 'Create Tag Here…',
+      createBranchHere: 'Create Branch from Here…',
     },
     view: {
       repositories: 'Repositories',
@@ -1184,6 +1188,8 @@ export default {
     },
     action: {
       openDiff: 'Open Diff',
+      openFile: 'Open File',
+      reveal: 'Reveal in File Manager',
       stage: 'Stage Changes',
       unstage: 'Unstage',
       discard: 'Discard Changes',
@@ -1211,6 +1217,17 @@ export default {
       deleteTitle: 'Delete branch?',
       deleteMessage: 'Branch “{name}” will be deleted. This cannot be undone.',
       deleteConfirm: 'Delete Branch',
+    },
+    tag: {
+      create: 'Create Tag…',
+      manage: 'Tags…',
+      namePlaceholder: 'Tag name (e.g. v1.0, draft-1)',
+      messagePlaceholder: 'Tag message (optional — creates an annotated tag)',
+      none: 'No tags yet.',
+      invalidName: 'Tag name cannot contain spaces or special characters like ~^:?*[\\.',
+      deleteTitle: 'Delete tag?',
+      deleteMessage: 'Tag “{name}” will be deleted. This cannot be undone.',
+      deleteConfirm: 'Delete Tag',
     },
     identity: {
       title: 'Configure Commit Identity',

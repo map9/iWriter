@@ -156,6 +156,9 @@ export interface GitApi {
   checkout: (root: string, ref: string) => Promise<void>
   createBranch: (root: string, name: string, base?: string, checkout?: boolean) => Promise<void>
   deleteBranch: (root: string, name: string, force: boolean) => Promise<void>
+  listTags: (root: string) => Promise<string[]>
+  createTag: (root: string, name: string, opts: { message?: string; hash?: string }) => Promise<void>
+  deleteTag: (root: string, name: string) => Promise<void>
   addToGitignore: (root: string, relPath: string) => Promise<void>
   clone: (url: string, dir: string) => Promise<void>
   fetch: (root: string) => Promise<void>

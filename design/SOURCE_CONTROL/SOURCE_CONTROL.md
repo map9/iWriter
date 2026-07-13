@@ -1,6 +1,6 @@
 # SOURCE_CONTROL.md — 工作空间版本控制需求文档
 
-> 状态：草案 v0.3（2026-07-12，M1–M4 主线 + M5 大部完成；本轮补：目录级 stage、变更行/目录行右键菜单、Commit-All 偏好、viewer 显隐持久化。剩：命令面板/MenuManager Git 命令[置后]、行级 stage、rename remote、图片 diff、多仓库[留后]）
+> 状态：草案 v0.4（2026-07-13，M1–M4 主线 + M5 大部完成；本轮定稿 **SCM 菜单体系（做/不做）**：去除 MenuManager 系统菜单需求、面板内菜单全量承载，Tag 全链路 + Graph 提交行右键 + Changes「Open File/Reveal」+ Undo Last Commit 等列入待实施，详见 §5.5。剩：行级 stage、rename remote、图片 diff、多仓库[留后]）
 > 定位：为 iWriter 工作空间（打开的文件夹）提供对标 VSCode Source Control 的 **真 Git 集成**。
 
 ---
@@ -111,7 +111,7 @@
 - Fetch / Pull / Push / **Sync**（pull+push 合一）。
 - Publish Branch（首次推送本地分支到远程并设置 upstream）。
 - Clone 仓库到本地并可选打开为工作空间。
-- 远程管理（add/remove remote）——**已实现（2026-07-12）**：`GitService.listRemotes/addRemote/removeRemote`；SCM more-actions →「管理远程…」子菜单（添加远程 modal + 逐个删除二次确认）。rename remote 留后。
+- 远程管理（add/remove remote）——**已实现（2026-07-12）**：`GitService.listRemotes/addRemote/removeRemote`；SCM more-actions →「管理远程…」子菜单（添加远程 modal + 逐个删除二次确认）。rename remote **不做**（单人本地，§5.5）。
 - 进度反馈：长耗时操作显示进行中状态，失败用原生 `showMessageBox` 给出 stderr 摘要与指引（不自建密码 UI，见 §3.2）。
 
 ### F7 · Diff 查看器 (P0)
@@ -199,6 +199,13 @@ export interface DiffSpec {
 - 状态栏组件：当前分支、ahead/behind、同步按钮、变更数（对标 VSCode 左下角 SCM 状态）。**已实现**（`statusbar-items/git-status.ts`）。
 - ~~编辑器行号旁 gutter 显示增/改/删标记~~ → **不做（2026-07-11 决策 A）**。理由：iWriter 编辑器为 WYSIWYG TipTap，无行/行号；"行号旁 gutter"预设的是逐行源码编辑器，不适用。要在渲染态标块级改动属于 §1.3 明确列为范围外的「渲染态/富文本语义 diff」，故 F12 缩减为仅状态栏部分。
 
+### F13 · 标签 Tags (P1) —— **已实现（2026-07-13，M6 P0，三绿；运行时 smoke 待做）**
+- **本工程核心版本命名原语**：知识库「快照里程碑」/ 小说「初稿·投稿版·出版版」用 tag 最自然。
+- Create Tag（可附信息，`git tag [-a -m]`）/ Delete Tag / List Tags；入口：面板 `⋯` → Tags 子菜单 + **Graph 提交行右键「在此提交打标签」**。
+- Graph 已解析 `%D` 显示 tag 色标（`GitCommit.refs` kind='tag'），本项只补写操作。
+- Push Tags（`git push --tags`，有远程时让 tag 进云备份）。
+- **不做**：Delete Remote Tag（团队场景）。详见 §5.5 菜单体系。
+
 ---
 
 ## 5. UI / 交互需求
@@ -235,11 +242,69 @@ export interface DiffSpec {
 - 复用通用 Tree 控件 `src/components/common/tree/Tree.vue`（分组节点 + 文件叶子为 `TreeNode`）。
 
 ### 5.3 命令集成
-- 命令面板 / 菜单（`MenuManager.ts`）注册 Git 命令：Commit、Push、Pull、Sync、Checkout、Create Branch 等。**（置后，未实现）**
-- 右键上下文菜单：变更行 / 目录行的 stage/unstage/discard/gitignore/open——**已实现（2026-07-12）**：`GitChangeGroup` `@contextmenu` → `emit('context')` 携带文件集合+分组+是否目录，`SourceControlPanel.onContext` 按分组裁剪原生菜单项（复用 `showContextMenu`）。history 快捷项仍走 Timeline（Explorer 右键「查看文件历史」）。
+- ~~命令面板 / 菜单（`MenuManager.ts`）注册 Git 命令~~ → **不做（2026-07-13 决策）**。理由：本工程定位为「个人知识库 / 小说写作」的单人本地 Git，用户不在原生菜单栏寻找 Git 命令。**所有 Git 操作由 SCM 面板内菜单全量承载**（`⋯` more-actions + viewer 头下拉 + 变更行/提交行右键上下文），见 §5.5。
+- 右键上下文菜单：变更行 / 目录行的 stage/unstage/discard/gitignore/open——**已实现（2026-07-12）**：`GitChangeGroup` `@contextmenu` → `emit('context')` 携带文件集合+分组+是否目录，`SourceControlPanel.onContext` 按分组裁剪原生菜单项（复用 `showContextMenu`）。history 快捷项仍走 Timeline（Explorer 右键「查看文件历史」）。待补项（Open File / Reveal in Finder / Open File(HEAD)）见 §5.5。
 
 ### 5.4 快捷键
 - 复用 VSCode 习惯（可配）：提交输入框 `Cmd/Ctrl+Enter` 提交。
+
+### 5.5 SCM 菜单体系 —— 做/不做定稿（2026-07-13）
+
+> 对照 VSCode SCM 全量菜单逐项裁定。**判断线**：本工程是「个人知识库 + 小说写作」的**单人、本地优先** Git（Git ≈ 时间机器 + 云备份 + 版本里程碑），不是团队协作 Git。故：commit/history/restore/diff、sync 备份、**tag 里程碑**、stash、copy hash·message、reveal、open file、undo-commit = 高价值；rebase / force / 多 remote / delete-remote-branch / fetch-prune / cherry-pick = 隐藏；破坏性操作（discard-all / delete-branch / undo-commit）加护栏（undo 用 `reset --soft` 降险）。承载：面板 `⋯` more-actions + viewer 头下拉 + 变更行/提交行右键，**不进原生菜单栏**（§5.3）。
+
+**图例**：✅ 已实现 · ⭐ 待实施（本轮定稿纳入）· 🔻 后置 · ❌ 不做
+
+#### A. SCM 主面板菜单（`⋯` more-actions / viewer 头）
+| VSCode 项 | 裁定 | 说明 |
+| --- | --- | --- |
+| Repositories / Changes / Graph 显隐 | ✅ | view 菜单 checkbox |
+| Pull / Push / Fetch / Clone / Check out to… | ✅ | remote 子菜单 + branch 菜单 + clone 弹窗 |
+| Commit / Commit All / Amend | ✅ | commit ▾ 菜单 |
+| **Undo Last Commit** | ⭐ | `reset --soft HEAD~1` + 二次确认；"提交早了/信息写错"高频、soft 低风险 |
+| Commit Staged / Amend(Staged/All) 变体 | ❌ | 过细；"Commit"默认即 commit staged，保留单个 Amend |
+| Stage All / Unstage All / Discard All | ✅ | 含目录级 |
+| Sync / Pull / Push / Fetch | ✅ | remote 子菜单 |
+| Pull (Rebase) | 🔻 | 降为偏好项而非菜单 |
+| Pull from… / Push to… | ❌ | 多 remote |
+| Fetch (Prune) / Fetch From All Remotes | ❌ | 专家/多 remote |
+| Merge / Create Branch / Delete Branch / Publish | ✅ | branch 菜单 |
+| **Create Branch From…** | ⭐ | 从某分支/提交开支线草稿（novel 支线） |
+| **Rename Branch** | ⭐ | 简单低风险，草稿改名 |
+| Rebase Branch | ❌ | 重写历史、危险、单人无价值 |
+| Delete Remote Branch | ❌ | 团队场景 |
+| Add / Remove Remote | ✅ | remote manage（Rename remote ❌） |
+| Stash / Pop / Apply / Drop | ✅ | |
+| **Stash (Include Untracked)** | ⭐ | 写作者常有未跟踪草稿，加一个选项 |
+| Stash Staged / Drop All Stashes | ❌ | 过细/低频 |
+| View Stash | 🔻 | 只读查看内容，中价值 |
+| **Tags › Create Tag / Delete Tag** | ⭐ | **核心**：知识库快照 / 小说初稿·投稿·出版版本命名（Graph 已显示 tag 色标，只差写操作） |
+| **Push Tags** | ⭐ | 让 tag 进云备份（有远程时） |
+| Delete Remote Tag | ❌ | 团队场景 |
+| Show Git Output | 🔻 | 排障入口，可复用现有 logging |
+
+#### B. Changes 右键菜单（现有 stage/unstage/discard/gitignore/open）
+| VSCode 项 | 裁定 | 说明 |
+| --- | --- | --- |
+| Open Changes / Discard / Stage / Unstage / gitignore | ✅ | |
+| **Open File** | ⭐ | 打开工作区文件本体（非 diff），高频 |
+| **Reveal in Finder / Explorer** | ⭐ | 复用现有 `revealInFolder` IPC |
+| Open File (HEAD) | 🔻 | 打开 HEAD 只读版本，中价值 |
+| Collapse All | ❌ | UI 噪音 |
+
+#### C. Graph 提交行右键菜单 —— **当前空白，最大缺口**
+| VSCode 项 | 裁定 | 说明 |
+| --- | --- | --- |
+| **Copy Commit Hash / Copy Commit Message** | ⭐ | 零风险高频 |
+| **Create Tag（在此提交）** | ⭐ | 配合 tag 里程碑，语义最自然 |
+| **Create Branch from here** | ⭐ | 比 checkout 安全（novel 支线） |
+| Open Changes | ✅ | 点提交展开文件即用 |
+| Checkout(this commit) | ❌ | 进 detached HEAD 对写作者困惑，用"从此建分支"替代 |
+| Compare with… | 🔻 | 选另一提交比 diff，中价值 |
+
+#### 实施优先级
+- **P0（补空白 + 里程碑能力）—— ✅已实现（2026-07-13，三绿，运行时 smoke 待做）**：① Tag 全链路（create/delete/list + 面板 Tags 子菜单 + Graph 行"在此打标签"）② Graph 提交行右键（Copy Hash/Message、Create Tag、Create Branch from here）③ Changes 右键补 Open File + Reveal in Finder。
+- **P1（便捷增强）**：④ Undo Last Commit（`reset --soft`）⑤ Create Branch From… / Rename Branch ⑥ Stash (Include Untracked) ⑦ Push Tags。
+- **不做（明确排除）**：Rebase、Pull(Rebase) 菜单化、Pull from…/Push to…、Fetch Prune/All Remotes、Delete Remote Branch/Tag、Rename Remote、Amend 细分变体、Commit Staged 单列、Collapse All、Checkout 到裸提交、MenuManager 原生菜单（§5.3）。
 
 ---
 

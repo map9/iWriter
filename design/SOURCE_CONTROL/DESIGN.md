@@ -1,6 +1,6 @@
 # DESIGN.md — 工作空间版本控制 · 技术设计
 
-> 状态：v0.3（2026-07-12，随实现回填；M1–M4 主线 + M5 大部完成）
+> 状态：v0.4（2026-07-13，随实现回填；M1–M4 主线 + M5 大部完成；本轮定稿 SCM 菜单体系并去除 MenuManager 系统菜单，新增 M6 菜单补全待实施，见 §11/§13）
 > 配套需求：[SOURCE_CONTROL.md](./SOURCE_CONTROL.md) · 可编辑 diff/合并：[EDITABLE_DIFF_AND_MERGE.md](./EDITABLE_DIFF_AND_MERGE.md) · 视觉稿：[./ui/](./ui/)
 > 已定决策：simple-git（系统 git）· 单仓库 · **新建独立 Diff 组件族**（`common/diff/DiffView`+`MergeView`，编辑区 tab 承载，不复用 agent 的 `DiffSplitView`）· 仅系统凭证 · Commit All · `.iwt` 格式化后 diff
 >
@@ -62,7 +62,7 @@
 | `electron/App.ts` | `this.gitService = new GitService()`；`setupIpcHandlers()` 注册 `git:*` |
 | `electron/preload.ts` | 暴露 `git` 命名空间 |
 | `src/types/electron-api.ts` | `ElectronAPI.git: GitApi` |
-| `electron/MenuManager.ts` | 注册 Git 命令菜单项（Commit/Push/Pull/Sync/Checkout…）**（置后，未做）** |
+| `electron/MenuManager.ts` | ~~注册 Git 命令菜单项~~ → **不做（2026-07-13 决策）**：面板内菜单全量承载，不进原生菜单栏（SOURCE_CONTROL §5.3/§5.5） |
 | `src/components/StatusBar.vue` | onMounted 注册 `createGitStatusStatusBarGroup()` |
 | `src/stores/app.ts` | 打开文件夹后触发 `gitStore.onFolderChanged(root)`；文件事件转发；`globalEditSetting.commitWhenEmpty` 默认 `all` |
 | `package.json` | 依赖 `simple-git` |
@@ -338,7 +338,10 @@ LeftSidebar
 | **M2 本地写** | ✅**完成** · GitService(stage/unstage/stageAll/unstageAll/discard/commit/identity/checkout/createBranch/deleteBranch/addToGitignore) · IPC+preload+api · store 写 action(run 包裹+notify 报错) · 提交框(自扩展 textarea+智能 Commit All+▾菜单) · 逐文件&分组 stage/unstage/discard/gitignore · 放弃走 `showMessageBox` 二次确认 · 提交身份 `GitIdentityDialog` · 分支切换/新建。**未 surface**：deleteBranch(已实现，菜单未挂) |
 | **M3 远程** | ✅**完成** · GitService(fetch/pull/push/sync/publish/clone) · IPC+preload+api · store remoteRun(busy 态 + 失败 `showMessageBox` 弹 stderr) · ⋯ 菜单远程操作(有 upstream→sync/pull/push；无→publish；+fetch) · 标题栏同步按钮(busy spinner) · 克隆弹窗→选目录→`appStore.openFolderByPath` 打开 · 状态栏 sync item 直接触发同步 |
 | **M4 进阶** | ✅**完成（gutter 已弃）** · 冲突分组 + 合并解决（`DIFF_VIEWER` kind=conflict + `MergeView`，见 EDITABLE_DIFF_AND_MERGE.md）· commit-file-diff · Timeline/Graph 历史 · 状态栏分支。~~编辑器 gutter 装饰~~ 已决策不做（F12 A） |
-| **M5 增强** | ✅**大部完成** · stash（F10）· hunk 级 stage（F7.4）· 进度事件（`git:progress`）· 远程管理 add/remove/list · 目录级 stage（tree 视图）· 变更行/目录行右键菜单 · Commit-All 偏好 · viewer 显隐持久化 · **分支泳道图 DAG（侧栏 gutter，只读 v1）**：`log` 扩 `%P`→`GitCommit.parents`；`scm/gitGraphLayout.ts`(computeGraphLayout) + `scm/GitGraphGutter.vue`(每行 SVG)；`loadMoreGraph`/`graphHasMore` 分页。**留后**：行级(任意选区) stage · rename remote · 图片 diff 前后对照 · 多仓库（预留）· 命令面板/MenuManager Git 命令 · 全宽 Git Graph tab · 图上写操作 |
+| **M5 增强** | ✅**大部完成** · stash（F10）· hunk 级 stage（F7.4）· 进度事件（`git:progress`）· 远程管理 add/remove/list · 目录级 stage（tree 视图）· 变更行/目录行右键菜单 · Commit-All 偏好 · viewer 显隐持久化 · **分支泳道图 DAG（侧栏 gutter，只读 v1）**：`log` 扩 `%P`→`GitCommit.parents`；`scm/gitGraphLayout.ts`(computeGraphLayout) + `scm/GitGraphGutter.vue`(每行 SVG)；`loadMoreGraph`/`graphHasMore` 分页 |
+| **M6 菜单补全** | **P0 ✅已实现（2026-07-13，三绿 type-check/lint/build，运行时 smoke 待做）** · Tag 全链路（F13：`GitService.listTags/createTag/deleteTag`+IPC+preload+GitApi+store `tags/loadTags/createTag/deleteTag`；`⋯`→Tags 子菜单[创建/列表删除]+创建标签弹窗[名称+可选说明→附注标签]）· Graph 提交行右键（`onGraphCommitContext`：Copy Hash/Message、在此打标签、从此创建分支；提交行 `@contextmenu.prevent`）· Changes 右键补 Open File+Reveal（store `openWorkingFile/revealFile`，仅单个未删除文件；复用 `openFile`/`revealInFolder`）· create-branch 弹窗支持 `base` 提交 hash。**P1 待实施**：Undo Last Commit（`reset --soft`）· Rename Branch · Stash (Include Untracked) · Push Tags。技术落点见 §13。**明确不做**：MenuManager 原生菜单 · Rebase · Pull(Rebase) 菜单化 · Pull from…/Push to… · Fetch Prune/All Remotes · Delete Remote Branch/Tag · Rename Remote · Checkout 到裸提交 |
+
+> **留后（非本轮）**：行级(任意选区) stage · 图片 diff 前后对照 · 多仓库（预留）· 全宽 Git Graph tab · 图上写操作（checkout/merge/cherry-pick/reset on graph）· Graph 泳道图打磨（列压缩/滚动自动加载/横向滚动）。
 
 ---
 
@@ -352,4 +355,34 @@ LeftSidebar
 
 ---
 
-*下一步：M1 落地。建议先打通 `GitService.detect/status` + IPC + store + 面板只读渲染，最小闭环跑通再铺开。*
+## 13. M6 菜单补全 · 技术落点（2026-07-13 定稿，待实施）
+
+> 需求见 SOURCE_CONTROL §5.5（做/不做定稿）。以下为实施时的分层落点，先 P0 后 P1。
+
+**主进程 `electron/GitService.ts`（+ IPC `git:*` + preload + `src/types/git.ts` GitApi）**
+| 方法 | 命令 | 用途 | 阶段 |
+| --- | --- | --- | --- |
+| `listTags(root)` | `tag --sort=-creatordate` | Tags 子菜单列表 | P0 ✅ |
+| `createTag(root, name, {message?, hash?})` | `tag [-a -m <msg>] <name> [<hash>]` | 打标签（可指定提交） | P0 ✅ |
+| `deleteTag(root, name)` | `tag -d <name>` | 删标签 | P0 ✅ |
+| `pushTags(root)` | `push --tags` | tag 进远程备份 | P1 |
+| `undoLastCommit(root)` | `reset --soft HEAD~1` | 撤销上次提交（保留改动） | P1 |
+| `renameBranch(root, old, new)` | `branch -m <old> <new>` | 分支改名 | P1 |
+| `createBranch(root, name, base, checkout)` | 已有，`base` 支持传 hash | Create Branch From… / from commit | P1 |
+| `stash(root, {includeUntracked})` | `stash push [-u]` | 扩展现有 stash 选项 | P1 |
+
+**渲染层**
+- `src/stores/git.ts`：对应 action（`createTag/deleteTag/listTags/pushTags/undoLastCommit/renameBranch`，`run()` 包裹 + notify 报错 + refresh）；`tags` 状态（供 Tags 子菜单）。
+- `src/components/sidebar/SourceControlPanel.vue`：
+  - `⋯` more-actions 增 **Tags 子菜单**（Create/Delete/List/Push）+ **Undo Last Commit**（二次确认）+ commit ▾ 已含 Amend。
+  - branch 菜单增 **Rename Branch**、**Create Branch From…**；stash push 增 **Include Untracked** 选项。
+  - **新增 Graph 提交行右键处理** `onGraphCommitContext(commit, ev)`：Copy Hash / Copy Message（`navigator.clipboard`）· Create Tag（在此提交）· Create Branch from here。需 Graph 行绑定 `@contextmenu`（当前 `#graph` 泳道行无右键，为本轮主要缺口）。
+- `src/components/sidebar/scm/GitChangeGroup.vue` + `SourceControlPanel.onContext`：变更行右键增 **Open File**（`appStore.openFile(absPath)`，非 diff）+ **Reveal in Finder**（复用 `window.electronAPI.revealInFolder`）；可选 **Open File (HEAD)**（🔻 后置）。
+- 弹窗：Create Tag / Rename Branch 复用现有 `PrintDialogShell` 风格输入弹窗（参照 `GitCloneDialog`/create-branch）。
+- i18n：`sourceControl.tag.*`、`sourceControl.action.openFile/revealInFinder`、`sourceControl.undoLastCommit`、`sourceControl.branch.rename/createFrom` 中英双语。
+
+**护栏**：Undo Last Commit（`--soft` 保留改动，仍二次确认）、Delete Tag（二次确认）。破坏性判断线同 NFR4。
+
+---
+
+*M1–M5 已落地。下一步 M6：先 P0（Tag 全链路 → Graph 提交行右键 → Changes Open File/Reveal），再 P1。*

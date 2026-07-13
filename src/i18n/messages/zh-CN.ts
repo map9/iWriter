@@ -1145,6 +1145,10 @@ export default {
       selectBranch: '选择分支',
       allBranches: '所有分支',
       loadMore: '加载更多',
+      copyHash: '复制提交哈希',
+      copyMessage: '复制提交信息',
+      createTagHere: '在此提交打标签…',
+      createBranchHere: '从此提交创建分支…',
     },
     view: {
       repositories: '存储库',
@@ -1181,6 +1185,8 @@ export default {
     },
     action: {
       openDiff: '打开差异',
+      openFile: '打开文件',
+      reveal: '在文件管理器中显示',
       stage: '暂存更改',
       unstage: '取消暂存',
       discard: '放弃更改',
@@ -1208,6 +1214,17 @@ export default {
       deleteTitle: '删除分支？',
       deleteMessage: '将删除分支 “{name}”，此操作不可撤销。',
       deleteConfirm: '删除分支',
+    },
+    tag: {
+      create: '创建标签…',
+      manage: '标签列表…',
+      namePlaceholder: '标签名称（如 v1.0、初稿）',
+      messagePlaceholder: '标签说明（可选，填写则创建附注标签）',
+      none: '暂无标签。',
+      invalidName: '标签名不能包含空格或 ~^:?*[\\ 等特殊字符。',
+      deleteTitle: '删除标签？',
+      deleteMessage: '将删除标签 “{name}”，此操作不可撤销。',
+      deleteConfirm: '删除标签',
     },
     identity: {
       title: '配置提交身份',

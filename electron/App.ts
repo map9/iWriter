@@ -1475,6 +1475,10 @@ export class App {
       this.gitService.createBranch(root, name, base, checkout))
     ipcMain.handle('git:delete-branch', async (_, root: string, name: string, force: boolean) =>
       this.gitService.deleteBranch(root, name, force))
+    ipcMain.handle('git:list-tags', async (_, root: string) => this.gitService.listTags(root))
+    ipcMain.handle('git:create-tag', async (_, root: string, name: string, opts: { message?: string; hash?: string }) =>
+      this.gitService.createTag(root, name, opts))
+    ipcMain.handle('git:delete-tag', async (_, root: string, name: string) => this.gitService.deleteTag(root, name))
     ipcMain.handle('git:add-to-gitignore', async (_, root: string, relPath: string) =>
       this.gitService.addToGitignore(root, relPath))
     ipcMain.handle('git:clone', async (_, url: string, dir: string) => this.gitService.clone(url, dir))
