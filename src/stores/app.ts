@@ -1335,7 +1335,7 @@ export const useAppStore = defineStore('app', () => {
   async function openFolder() {
     if (!window.electronAPI) return
 
-    const result = await window.electronAPI.showOpenDialog({ properties: ['openDirectory'] })
+    const result = await window.electronAPI.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
     if (!result.canceled && result.filePaths.length > 0) {
       await openFolderByPath(result.filePaths[0]!)
     }

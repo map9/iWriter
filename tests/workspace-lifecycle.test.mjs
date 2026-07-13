@@ -17,6 +17,12 @@ function sourceBetween(source, startMarker, endMarker) {
 }
 
 describe('workspace lifecycle', () => {
+  it('allows creating a folder from the workspace picker', () => {
+    const openFolder = sourceBetween(appStoreSource, 'async function openFolder()', '/** 打开指定路径的文件夹为工作空间')
+
+    assert.match(openFolder, /properties: \['openDirectory', 'createDirectory'\]/)
+  })
+
   it('exposes opening and refreshing states independently from workspace availability', () => {
     assert.match(appStoreSource, /type WorkspaceLoadState = 'idle' \| 'opening' \| 'refreshing'/)
     assert.match(appStoreSource, /const workspaceLoadState = ref<WorkspaceLoadState>\('idle'\)/)
