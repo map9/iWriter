@@ -6,6 +6,26 @@ export interface GitAvailability {
   path?: string
 }
 
+/** 可预期的 Git 操作问题：主进程识别，渲染层只负责展示与恢复。 */
+export type GitIssueKind =
+  | 'branch-unmerged'
+  | 'checkout-dirty'
+  | 'remote-auth'
+  | 'remote-non-fast-forward'
+  | 'network'
+  | 'unknown'
+
+export interface GitIssue {
+  kind: GitIssueKind
+  operation: string
+  detail: string
+  branch?: string
+}
+
+export type GitActionResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; issue: GitIssue }
+
 /** M=修改 A=新增 D=删除 R=重命名 U=未跟踪 C=冲突 */
 export type GitFileStatus = 'M' | 'A' | 'D' | 'R' | 'U' | 'C'
 
@@ -155,22 +175,22 @@ export interface GitApi {
   commit: (root: string, message: string, opts: { all?: boolean; amend?: boolean }) => Promise<void>
   identityGet: (root: string) => Promise<{ name?: string; email?: string }>
   identitySet: (root: string, name: string, email: string, global: boolean) => Promise<void>
-  checkout: (root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) => Promise<void>
+  checkout: (root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) => Promise<GitActionResult<void>>
   createBranch: (root: string, name: string, base?: string, checkout?: boolean) => Promise<void>
-  deleteBranch: (root: string, name: string, force: boolean) => Promise<void>
+  deleteBranch: (root: string, name: string, force: boolean) => Promise<GitActionResult<void>>
   listTags: (root: string) => Promise<string[]>
   createTag: (root: string, name: string, opts: { message?: string; hash?: string }) => Promise<void>
   deleteTag: (root: string, name: string) => Promise<void>
-  pushTags: (root: string) => Promise<void>
+  pushTags: (root: string) => Promise<GitActionResult<void>>
   undoLastCommit: (root: string) => Promise<void>
   renameBranch: (root: string, oldName: string, newName: string) => Promise<void>
   addToGitignore: (root: string, relPath: string) => Promise<void>
-  clone: (url: string, dir: string) => Promise<void>
-  fetch: (root: string) => Promise<void>
-  pull: (root: string, opts: { rebase?: boolean }) => Promise<void>
-  push: (root: string, opts: { setUpstream?: boolean }) => Promise<void>
-  sync: (root: string, opts: { rebase?: boolean }) => Promise<void>
-  publish: (root: string) => Promise<void>
+  clone: (url: string, dir: string) => Promise<GitActionResult<void>>
+  fetch: (root: string) => Promise<GitActionResult<void>>
+  pull: (root: string, opts: { rebase?: boolean }) => Promise<GitActionResult<void>>
+  push: (root: string, opts: { setUpstream?: boolean }) => Promise<GitActionResult<void>>
+  sync: (root: string, opts: { rebase?: boolean }) => Promise<GitActionResult<void>>
+  publish: (root: string) => Promise<GitActionResult<void>>
   listRemotes: (root: string) => Promise<GitRemote[]>
   addRemote: (root: string, name: string, url: string) => Promise<void>
   removeRemote: (root: string, name: string) => Promise<void>

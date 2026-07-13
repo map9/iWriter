@@ -11,6 +11,7 @@ import type {
   GitDiffPayload,
   GitFileChange,
   GitFileStatus,
+  GitIssue,
   GitStatus,
 } from '../src/types/git'
 
@@ -18,6 +19,27 @@ const BINARY_EXTS = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.pdf',
   '.zip', '.gz', '.tar', '.mp3', '.mp4', '.mov', '.woff', '.woff2', '.ttf', '.otf',
 ])
+
+/** 将 Git 的可预期失败转为领域问题；原始输出保留给按需展开的技术详情。 */
+export function classifyGitIssue(error: unknown, operation: string, branch?: string): GitIssue {
+  const detail = error instanceof Error ? error.message : String(error)
+  if (operation === 'delete-branch' && /not fully merged/i.test(detail)) {
+    return { kind: 'branch-unmerged', operation, detail, branch }
+  }
+  if (operation === 'checkout' && /overwritten by (checkout|merge)|Please commit your changes or stash/i.test(detail)) {
+    return { kind: 'checkout-dirty', operation, detail }
+  }
+  if (/Authentication failed|Permission denied|could not read Username|403|401/i.test(detail)) {
+    return { kind: 'remote-auth', operation, detail }
+  }
+  if (/non-fast-forward|fetch first|rejected.*non-fast-forward/i.test(detail)) {
+    return { kind: 'remote-non-fast-forward', operation, detail }
+  }
+  if (/Could not resolve host|network|timed out|connection.*(refused|reset)|unable to access/i.test(detail)) {
+    return { kind: 'network', operation, detail }
+  }
+  return { kind: 'unknown', operation, detail, branch }
+}
 
 /**
  * 版本控制服务：对系统 `git` 二进制的封装（经 simple-git）。

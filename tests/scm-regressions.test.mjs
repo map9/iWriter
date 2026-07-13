@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 
 const gitServiceSource = readFileSync('electron/GitService.ts', 'utf8')
@@ -10,6 +10,10 @@ const groupSource = readFileSync('src/components/sidebar/scm/GitChangeGroup.vue'
 const diffPageSource = readFileSync('src/components/pages/DiffViewerPage.vue', 'utf8')
 const filteringSource = readFileSync('src/services/workspace/filtering.ts', 'utf8')
 const gitStoreSource = readFileSync('src/stores/git.ts', 'utf8')
+const gitTypesSource = readFileSync('src/types/git.ts', 'utf8')
+const cloneDialogSource = readFileSync('src/components/sidebar/scm/GitCloneDialog.vue', 'utf8')
+const errorDialogPath = 'src/components/sidebar/scm/GitErrorResolutionDialog.vue'
+const errorDialogSource = existsSync(errorDialogPath) ? readFileSync(errorDialogPath, 'utf8') : ''
 
 test('SCM regressions', async (t) => {
   await t.test('Commit All stages untracked files before committing', () => {
@@ -65,5 +69,66 @@ test('SCM regressions', async (t) => {
   await t.test('renamed commit files retain their old path for history diff', () => {
     assert.match(gitServiceSource, /const oldPath = parts\.length >= 3 \? parts\[1\] : undefined/)
     assert.match(gitServiceSource, /\$\{hash\}~1:\$\{oldPath \?\? filePath\}/)
+  })
+
+  await t.test('write actions return classified Git issues instead of raw IPC errors', () => {
+    assert.match(gitTypesSource, /export type GitActionResult<T>/)
+    assert.match(gitTypesSource, /'branch-unmerged'/)
+    assert.match(mainAppSource, /classifyGitIssue/)
+    assert.match(mainAppSource, /git:delete-branch[\s\S]*GitActionResult/)
+    assert.match(gitStoreSource, /const gitIssue = ref<GitIssue \| null>\(null\)/)
+  })
+
+  await t.test('SCM error dialog keeps raw Git output behind technical details', () => {
+    assert.match(errorDialogSource, /<details/)
+    assert.match(errorDialogSource, /technicalDetails/)
+    assert.match(errorDialogSource, /navigator\.clipboard\.writeText/)
+    assert.match(panelSource, /GitErrorResolutionDialog/)
+  })
+
+  await t.test('unmerged branch deletion explains the state before force-delete confirmation', () => {
+    assert.match(gitTypesSource, /branch-unmerged/)
+    assert.match(errorDialogSource, /issue\.kind === 'branch-unmerged'/)
+    assert.match(panelSource, /@force-delete="confirmForceDelete"/)
+    assert.match(panelSource, /deleteBranch\(issue\.branch, true\)/)
+    assert.match(panelSource, /branch\.forceDeleteTitle/)
+  })
+
+  await t.test('SCM container menu groups global capabilities and leaves branches to Repositories', () => {
+    const containerMenu = panelSource.slice(panelSource.indexOf('const showScmViewMenu'), panelSource.length)
+    const branchMenu = panelSource.slice(panelSource.indexOf('async function showBranchMenu'), panelSource.indexOf('/** 合并分支'))
+    assert.match(containerMenu, /label: t\('sourceControl\.menu\.remote'\),[\s\S]*submenu/)
+    assert.match(containerMenu, /label: t\('sourceControl\.menu\.stash'\),[\s\S]*submenu/)
+    assert.match(containerMenu, /label: t\('sourceControl\.menu\.tags'\),[\s\S]*submenu/)
+    assert.doesNotMatch(containerMenu, /__create|__rename|__merge|__delete/)
+    assert.match(branchMenu, /__create/)
+    assert.match(branchMenu, /__delete/)
+  })
+
+  await t.test('special SCM write flows use the shared error dialog instead of raw notifications', () => {
+    const commitFlow = gitStoreSource.slice(gitStoreSource.indexOf('async function commit'), gitStoreSource.indexOf('/** 保存身份'))
+    const mergeFlow = gitStoreSource.slice(gitStoreSource.indexOf('async function merge'), gitStoreSource.indexOf('/** 提交：校验信息'))
+    const stashPopFlow = gitStoreSource.slice(gitStoreSource.indexOf('async function stashPop'), gitStoreSource.indexOf('/** 克隆到目录'))
+    assert.doesNotMatch(commitFlow, /notify\.error/)
+    assert.doesNotMatch(mergeFlow, /notify\.error/)
+    assert.doesNotMatch(stashPopFlow, /notify\.error/)
+    assert.match(commitFlow, /presentGitIssue/)
+    assert.match(mergeFlow, /presentGitIssue/)
+    assert.match(stashPopFlow, /presentGitIssue/)
+  })
+
+  await t.test('repository initialization uses the SCM store error path', () => {
+    assert.match(gitStoreSource, /async function initRepo\(\)/)
+    assert.match(gitStoreSource, /operation: 'init'/)
+    assert.match(panelSource, /await gitStore\.initRepo\(\)/)
+    assert.doesNotMatch(panelSource, /window\.electronAPI\.git\.init\(appStore\.currentFolder\)/)
+  })
+
+  await t.test('clone errors remain visible without an SCM workspace and stale retries are cleared on root changes', () => {
+    assert.match(cloneDialogSource, /GitErrorResolutionDialog/)
+    assert.match(cloneDialogSource, /gitStore\.gitIssue\?\.operation === 'clone' \? gitStore\.gitIssue : null/)
+    assert.match(panelSource, /gitStore\.gitIssue\?\.operation === 'clone' \? null : gitStore\.gitIssue/)
+    const resetState = gitStoreSource.slice(gitStoreSource.indexOf('function resetRepoState()'), gitStoreSource.indexOf('\n  return {'))
+    assert.match(resetState, /dismissGitIssue\(\)/)
   })
 })

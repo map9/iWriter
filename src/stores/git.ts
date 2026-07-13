@@ -10,6 +10,8 @@ import type {
   GitCommit,
   DiffSpec,
   GitFileChange,
+  GitActionResult,
+  GitIssue,
   GitProgress,
   GitRemote,
   GitStashEntry,
@@ -50,6 +52,26 @@ export const useGitStore = defineStore('git', () => {
   const revision = ref(0)
   /** 克隆弹窗（NoFolderOpened / SCM 面板共用） */
   const cloneDialogOpen = ref(false)
+  /** 最近一次需要用户理解或恢复的 Git 问题；原始输出仅在 SCM 对话框中按需展开。 */
+  const gitIssue = ref<GitIssue | null>(null)
+  let retryIssueAction: (() => Promise<unknown>) | null = null
+
+  function presentGitIssue(issue: GitIssue, retry?: () => Promise<unknown>): void {
+    gitIssue.value = issue
+    retryIssueAction = retry ?? null
+    console.error('[git] action failed', issue)
+  }
+
+  function dismissGitIssue(): void {
+    gitIssue.value = null
+    retryIssueAction = null
+  }
+
+  async function retryGitIssue(): Promise<void> {
+    const retry = retryIssueAction
+    dismissGitIssue()
+    if (retry) await retry()
+  }
 
   // 提交
   const commitMessage = ref('')
@@ -87,6 +109,18 @@ export const useGitStore = defineStore('git', () => {
     isRepo.value = await api().isRepo(newRoot)
     if (generation !== folderChangeGeneration) return
     if (isRepo.value) await refresh()
+  }
+
+  /** 初始化当前工作区，并复用同一错误处理入口。 */
+  async function initRepo(): Promise<void> {
+    if (!root.value) return
+    const targetRoot = root.value
+    try {
+      await api().init(targetRoot)
+      await onFolderChanged(targetRoot)
+    } catch (err) {
+      presentGitIssue({ kind: 'unknown', operation: 'init', detail: err instanceof Error ? err.message : String(err) }, () => initRepo())
+    }
   }
 
   let refreshTimer: ReturnType<typeof setTimeout> | null = null
@@ -268,9 +302,11 @@ export const useGitStore = defineStore('git', () => {
       await afterWrite()
       return true
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      notify.error(msg)
-      console.error('[git] action failed', err)
+      presentGitIssue({
+        kind: 'unknown',
+        operation: 'action',
+        detail: err instanceof Error ? err.message : String(err),
+      }, () => run(action))
       return false
     }
   }
@@ -284,16 +320,16 @@ export const useGitStore = defineStore('git', () => {
   async function checkout(ref_: string, opts?: { track?: boolean }): Promise<void> {
     if (!root.value) return
     try {
-      await api().checkout(root.value, ref_, opts)
-      await afterWrite()
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (/overwritten by (checkout|merge)|Please commit your changes or stash/i.test(msg)) {
+      const result = await api().checkout(root.value, ref_, opts)
+      if (result.ok) {
+        await afterWrite()
+      } else if (result.issue.kind === 'checkout-dirty') {
         await promptDirtyCheckout(ref_, opts)
       } else {
-        notify.error(msg)
-        await afterWrite()
+        presentGitIssue(result.issue, () => checkout(ref_, opts))
       }
+    } catch (err) {
+      presentGitIssue({ kind: 'unknown', operation: 'checkout', detail: err instanceof Error ? err.message : String(err) }, () => checkout(ref_, opts))
     }
   }
 
@@ -319,28 +355,42 @@ export const useGitStore = defineStore('git', () => {
       // 贮藏后切换：stash 保留（用户可稍后弹出），非自动 pop
       const ok = await run(async () => {
         await api().stashPush(root.value!, undefined, true)
-        await api().checkout(root.value!, ref_, opts)
+        const result = await api().checkout(root.value!, ref_, opts)
+        if (!result.ok) throw new Error(result.issue.detail)
       })
       if (ok) { await loadStashes(); notify.info(i18n.global.t('sourceControl.checkout.stashed')) }
     } else if (choice === 1) {
       // 迁移改动：`checkout -m` 三方合并；冲突留标记进 Merge Changes，不作硬错误
-      try {
-        await api().checkout(root.value, ref_, { ...opts, merge: true })
-      } catch (err) {
-        const m = err instanceof Error ? err.message : String(err)
-        if (!/conflict/i.test(m)) notify.error(m)
-      } finally {
+      const result = await api().checkout(root.value, ref_, { ...opts, merge: true })
+      if (!result.ok && result.issue.kind !== 'checkout-dirty') presentGitIssue(result.issue, () => checkout(ref_, opts))
+      if (result.ok || result.issue.kind === 'checkout-dirty') {
         await afterWrite()
       }
     } else if (choice === 2) {
       // 强制切换：丢弃本地改动（破坏性；弹窗本身即确认）
-      await run(() => api().checkout(root.value!, ref_, { ...opts, force: true }))
+      const result = await api().checkout(root.value!, ref_, { ...opts, force: true })
+      if (result.ok) await afterWrite()
+      else presentGitIssue(result.issue, () => checkout(ref_, opts))
     }
     // choice === 3 / undefined：取消
   }
   const createBranch = (name: string, base?: string, doCheckout?: boolean) =>
     run(() => api().createBranch(root.value!, name, base, doCheckout))
-  const deleteBranch = (name: string, force: boolean) => run(() => api().deleteBranch(root.value!, name, force))
+  async function deleteBranch(name: string, force: boolean): Promise<boolean> {
+    if (!root.value) return false
+    try {
+      const result = await api().deleteBranch(root.value, name, force)
+      if (!result.ok) {
+        presentGitIssue(result.issue)
+        return false
+      }
+      await afterWrite()
+      return true
+    } catch (err) {
+      presentGitIssue({ kind: 'unknown', operation: 'delete-branch', detail: err instanceof Error ? err.message : String(err), branch: name })
+      return false
+    }
+  }
   const addToGitignore = (relPath: string) => run(() => api().addToGitignore(root.value!, relPath))
 
   // ---------- 标签 Tags ----------
@@ -365,7 +415,7 @@ export const useGitStore = defineStore('git', () => {
     if (ok) await loadTags()
     return ok
   }
-  /** 推送所有标签（远程操作，busy 态 + 失败弹 stderr） */
+  /** 推送所有标签（远程操作，失败进入 SCM 错误对话框） */
   const pushTags = () => remoteRun('pushTags', () => api().pushTags(root.value!))
 
   /** 撤销上次提交（soft，保留改动；调用方负责二次确认） */
@@ -396,7 +446,7 @@ export const useGitStore = defineStore('git', () => {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       if (!/conflict|Automatic merge failed|fix conflicts/i.test(msg)) {
-        notify.error(msg)
+        presentGitIssue({ kind: 'unknown', operation: 'merge', detail: msg }, () => merge(branch))
       }
     } finally {
       await afterWrite()
@@ -406,19 +456,19 @@ export const useGitStore = defineStore('git', () => {
   /** 提交：校验信息 + 身份，缺身份则弹窗后重试 */
   async function commit(opts: { all?: boolean; amend?: boolean } = {}): Promise<void> {
     if (!root.value || !commitMessage.value.trim() || committing.value) return
-    const identity = await api().identityGet(root.value)
-    if (!identity.name || !identity.email) {
-      pendingCommit = opts
-      identityPromptOpen.value = true
-      return
-    }
-    committing.value = true
     try {
+      const identity = await api().identityGet(root.value)
+      if (!identity.name || !identity.email) {
+        pendingCommit = opts
+        identityPromptOpen.value = true
+        return
+      }
+      committing.value = true
       await api().commit(root.value, commitMessage.value, opts)
       commitMessage.value = ''
       await afterWrite()
     } catch (err) {
-      notify.error(err instanceof Error ? err.message : String(err))
+      presentGitIssue({ kind: 'unknown', operation: 'commit', detail: err instanceof Error ? err.message : String(err) }, () => commit(opts))
     } finally {
       committing.value = false
     }
@@ -434,7 +484,7 @@ export const useGitStore = defineStore('git', () => {
       pendingCommit = null
       await commit(opts)
     } catch (err) {
-      notify.error(err instanceof Error ? err.message : String(err))
+      presentGitIssue({ kind: 'unknown', operation: 'identity-set', detail: err instanceof Error ? err.message : String(err) }, () => submitIdentity(name, email, global))
     }
   }
 
@@ -448,32 +498,21 @@ export const useGitStore = defineStore('git', () => {
   const progress = ref<GitProgress | null>(null)
   window.electronAPI?.git?.onProgress?.((p) => { if (busy.value) progress.value = p })
 
-  /** 取多行文本尾部 n 行非空行（远程错误 stderr 的可操作信息通常在末尾） */
-  function tailLines(s: string, n: number): string {
-    const lines = s.split('\n').map(l => l.trimEnd()).filter(l => l.length > 0)
-    return lines.length <= n ? lines.join('\n') : lines.slice(-n).join('\n')
-  }
-
-  async function remoteRun(name: string, action: () => Promise<void>): Promise<boolean> {
+  async function remoteRun(name: string, action: () => Promise<GitActionResult<void>>): Promise<boolean> {
     if (!root.value || busy.value) return false
     busy.value = name
     progress.value = null
     try {
-      await action()
+      const result = await action()
+      if (!result.ok) {
+        presentGitIssue(result.issue, () => remoteRun(name, action))
+        await afterWrite()
+        return false
+      }
       await afterWrite()
       return true
     } catch (err) {
-      const stderr = err instanceof Error ? err.message : String(err)
-      const label = i18n.global.t(`sourceControl.remote.${name}`)
-      // 远程失败（认证/网络/非快进）用原生弹窗给出 stderr 指引，不自建密码 UI。
-      // 取尾部若干行：sync/pull 的 fetch 进度（含大量分支行）在前，真正的错误/Aborting 在末尾。
-      await window.electronAPI.showMessageBox({
-        type: 'error',
-        title: label,
-        message: label,
-        detail: tailLines(stderr, 12),
-        buttons: ['OK'],
-      })
+      presentGitIssue({ kind: 'unknown', operation: name, detail: err instanceof Error ? err.message : String(err) }, () => remoteRun(name, action))
       // 失败后也刷新：pull/sync 的 --autostash pop 冲突需露出到 Merge Changes
       await afterWrite()
       return false
@@ -544,7 +583,7 @@ export const useGitStore = defineStore('git', () => {
       await api().stashPop(root.value, index)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (!/conflict|CONFLICT/i.test(msg)) notify.error(msg)
+      if (!/conflict|CONFLICT/i.test(msg)) presentGitIssue({ kind: 'unknown', operation: 'stash-pop', detail: msg }, () => stashPop(index))
     } finally {
       await afterWrite()
       await loadStashes()
@@ -557,14 +596,12 @@ export const useGitStore = defineStore('git', () => {
     busy.value = 'clone'
     progress.value = null
     try {
-      await api().clone(url, dir)
-      return dir
+      const result = await api().clone(url, dir)
+      if (result.ok) return dir
+      presentGitIssue(result.issue, () => clone(url, dir))
+      return null
     } catch (err) {
-      const label = i18n.global.t('sourceControl.clone.title')
-      await window.electronAPI.showMessageBox({
-        type: 'error', title: label, message: label,
-        detail: err instanceof Error ? err.message : String(err), buttons: ['OK'],
-      })
+      presentGitIssue({ kind: 'unknown', operation: 'clone', detail: err instanceof Error ? err.message : String(err) }, () => clone(url, dir))
       return null
     } finally {
       busy.value = null
@@ -573,6 +610,7 @@ export const useGitStore = defineStore('git', () => {
   }
 
   function resetRepoState() {
+    dismissGitIssue()
     isRepo.value = false
     status.value = null
     branch.value = null
@@ -587,15 +625,15 @@ export const useGitStore = defineStore('git', () => {
 
   return {
     availability, root, isRepo, status, branch, commits, expandedHash, expandedFiles, graphBranch, graphAll, graphHasMore,
-    loading, graphLoading, busy, progress, revision, cloneDialogOpen, changeCount, hasChanges,
+    loading, graphLoading, busy, progress, revision, cloneDialogOpen, gitIssue, changeCount, hasChanges,
     commitMessage, committing, identityPromptOpen,
-    ensureDetected, onFolderChanged, refresh, loadGraph, loadMoreGraph, setGraphBranch, toggleCommit, loadFileHistory,
+    ensureDetected, onFolderChanged, initRepo, refresh, loadGraph, loadMoreGraph, setGraphBranch, toggleCommit, loadFileHistory,
     openDiff, openCommitDiff, openMergeTab,
     stage, unstage, stageAll, unstageAll, discard, commit,
     checkout, createBranch, deleteBranch, addToGitignore, restoreFile, merge,
     tags, loadTags, createTag, deleteTag, pushTags, undoLastCommit, renameBranch, openWorkingFile, revealFile,
     submitIdentity, cancelIdentity,
-    fetch, pull, push, sync, publish, clone,
+    fetch, pull, push, sync, publish, clone, dismissGitIssue, retryGitIssue,
     remotes, loadRemotes, addRemote, removeRemote,
     stashes, loadStashes, stashPush, stashApply, stashPop, stashDrop,
   }

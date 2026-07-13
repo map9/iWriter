@@ -435,6 +435,13 @@
       </form>
     </div>
 
+    <GitErrorResolutionDialog
+      :issue="gitStore.gitIssue?.operation === 'clone' ? null : gitStore.gitIssue"
+      @close="gitStore.dismissGitIssue()"
+      @retry="gitStore.retryGitIssue()"
+      @force-delete="confirmForceDelete"
+    />
+
   </div>
 </template>
 
@@ -444,6 +451,7 @@ import { useI18n } from 'vue-i18n'
 import { IconDots, IconGitBranch, IconRefresh, IconReload, IconPlus, IconCheck, IconChevronDown, IconList, IconFolders, IconFolder } from '@tabler/icons-vue'
 import { SplitView, type SplitPane } from '../common/split-view'
 import GitChangeGroup, { type ScmContextPayload } from './scm/GitChangeGroup.vue'
+import GitErrorResolutionDialog from './scm/GitErrorResolutionDialog.vue'
 import GitGraphGutter from './scm/GitGraphGutter.vue'
 import { computeGraphLayout } from './scm/gitGraphLayout'
 import { buildScmTreeRows } from './scm/fileTree'
@@ -763,7 +771,20 @@ async function showDeleteBranchMenu(event: MouseEvent) {
     t('sourceControl.branch.deleteMessage', { name }),
     t('sourceControl.branch.deleteConfirm'),
   )
-  if (ok) gitStore.deleteBranch(name, false)
+  if (ok) await gitStore.deleteBranch(name, false)
+}
+
+async function confirmForceDelete(): Promise<void> {
+  const issue = gitStore.gitIssue
+  if (!issue || issue.kind !== 'branch-unmerged' || !issue.branch) return
+  const ok = await confirmBox(
+    t('sourceControl.branch.forceDeleteTitle'),
+    t('sourceControl.branch.forceDeleteMessage', { name: issue.branch }),
+    t('sourceControl.branch.forceDeleteConfirm'),
+  )
+  if (!ok) return
+  gitStore.dismissGitIssue()
+  await gitStore.deleteBranch(issue.branch, true)
 }
 
 // 新建分支弹窗
@@ -1014,9 +1035,7 @@ async function recheck() {
 }
 
 async function initRepo() {
-  if (!appStore.currentFolder) return
-  await window.electronAPI.git.init(appStore.currentFolder)
-  await gitStore.onFolderChanged(appStore.currentFolder)
+  await gitStore.initRepo()
 }
 
 const showScmViewMenu = async (event: MouseEvent) => {
@@ -1034,7 +1053,6 @@ const showScmViewMenu = async (event: MouseEvent) => {
           : [{ id: 'remote-publish', label: t('sourceControl.remote.publish') }]),
         { id: 'remote-fetch', label: t('sourceControl.remote.fetch') },
         { id: 'remote-manage', label: t('sourceControl.remote.manage') },
-        { type: 'separator' },
       ]
     : []
   const repo = gitStore.isRepo
@@ -1045,7 +1063,6 @@ const showScmViewMenu = async (event: MouseEvent) => {
         { id: 'stash-push', label: t('sourceControl.stash.push'), enabled: gitStore.hasChanges },
         { id: 'stash-pop-latest', label: t('sourceControl.stash.popLatest'), enabled: hasStash },
         { id: 'stash-manage', label: t('sourceControl.stash.manage'), enabled: hasStash },
-        { type: 'separator' },
       ]
     : []
   const tagItems: ContextMenuItem[] = repo
@@ -1053,16 +1070,26 @@ const showScmViewMenu = async (event: MouseEvent) => {
         { id: 'tag-create', label: t('sourceControl.tag.create') },
         { id: 'tag-manage', label: t('sourceControl.tag.manage') },
         { id: 'tag-push', label: t('sourceControl.tag.push'), enabled: hasUpstream },
-        { type: 'separator' },
       ]
     : []
   const menuItems: ContextMenuItem[] = [
-    ...remoteItems,
-    ...stashItems,
-    ...tagItems,
-    { id: 'scm-view-repositories', label: t('sourceControl.view.repositories'), type: 'checkbox', enabled: repo, checked: repo && repos?.visible !== false },
-    { id: 'scm-view-changes', label: t('sourceControl.view.changes'), type: 'checkbox', enabled: false, checked: repo },
-    { id: 'scm-view-graph', label: t('sourceControl.view.graph'), type: 'checkbox', enabled: repo, checked: repo && graph?.visible !== false },
+    ...(repo
+      ? [
+          { label: t('sourceControl.menu.remote'), type: 'submenu' as const, submenu: remoteItems },
+          { label: t('sourceControl.menu.stash'), type: 'submenu' as const, submenu: stashItems },
+          { label: t('sourceControl.menu.tags'), type: 'submenu' as const, submenu: tagItems },
+          { type: 'separator' as const },
+        ]
+      : []),
+    {
+      label: t('sourceControl.menu.views'),
+      type: 'submenu',
+      submenu: [
+        { id: 'scm-view-repositories', label: t('sourceControl.view.repositories'), type: 'checkbox', enabled: repo, checked: repo && repos?.visible !== false },
+        { id: 'scm-view-changes', label: t('sourceControl.view.changes'), type: 'checkbox', enabled: false, checked: repo },
+        { id: 'scm-view-graph', label: t('sourceControl.view.graph'), type: 'checkbox', enabled: repo, checked: repo && graph?.visible !== false },
+      ],
+    },
   ]
   try {
     const action = await window.electronAPI.showContextMenu(menuItems, { x: event.clientX, y: event.clientY })

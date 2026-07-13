@@ -1158,6 +1158,12 @@ export default {
       changes: 'Changes',
       graph: 'Graph',
     },
+    menu: {
+      remote: 'Remote',
+      stash: 'Stash',
+      tags: 'Tags',
+      views: 'Views',
+    },
     staged: 'Staged Changes',
     changes: 'Changes',
     untracked: 'Untracked',
@@ -1224,6 +1230,9 @@ export default {
       deleteTitle: 'Delete branch?',
       deleteMessage: 'Branch “{name}” will be deleted. This cannot be undone.',
       deleteConfirm: 'Delete Branch',
+      forceDeleteTitle: 'Permanently delete unmerged branch?',
+      forceDeleteMessage: 'Branch “{name}” still has unmerged commits. It can only be recovered from another reference or backup.',
+      forceDeleteConfirm: 'Force Delete Branch',
     },
     tag: {
       create: 'Create Tag…',
@@ -1244,6 +1253,35 @@ export default {
       migrate: 'Migrate Changes',
       force: 'Force Checkout',
       stashed: 'Local changes stashed; you can pop them later from the stash list.',
+    },
+    error: {
+      technicalDetails: 'Technical details ▸',
+      copyDetails: 'Copy details',
+      retry: 'Retry',
+      'branch-unmerged': {
+        title: 'Branch is not merged',
+        message: 'Branch “{branch}” has unmerged commits. Keep it, or continue to force-delete it.',
+      },
+      'checkout-dirty': {
+        title: 'Local changes block checkout',
+        message: 'Handle uncommitted local changes before switching branches.',
+      },
+      'remote-auth': {
+        title: 'Remote authentication failed',
+        message: 'Check your system credentials (Keychain, credential helper, or ssh-agent) and try again.',
+      },
+      'remote-non-fast-forward': {
+        title: 'Remote branch has newer commits',
+        message: 'Pull and resolve the differences before pushing. Force push is not automatic.',
+      },
+      network: {
+        title: 'Unable to reach remote repository',
+        message: 'Check your network and remote address, then try again.',
+      },
+      unknown: {
+        title: 'Git operation did not complete',
+        message: 'The operation did not complete. Review technical details and try again after resolving the problem.',
+      },
     },
     identity: {
       title: 'Configure Commit Identity',

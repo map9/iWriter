@@ -1155,6 +1155,12 @@ export default {
       changes: '更改',
       graph: '图谱',
     },
+    menu: {
+      remote: '远程',
+      stash: '贮藏',
+      tags: '标签',
+      views: '视图',
+    },
     staged: '已暂存的更改',
     changes: '更改',
     untracked: '未跟踪',
@@ -1221,6 +1227,9 @@ export default {
       deleteTitle: '删除分支？',
       deleteMessage: '将删除分支 “{name}”，此操作不可撤销。',
       deleteConfirm: '删除分支',
+      forceDeleteTitle: '永久删除未合并分支？',
+      forceDeleteMessage: '分支 “{name}” 仍有未合并提交。强制删除后只能从其他引用或备份恢复。',
+      forceDeleteConfirm: '强制删除分支',
     },
     tag: {
       create: '创建标签…',
@@ -1241,6 +1250,35 @@ export default {
       migrate: '迁移更改',
       force: '强制切换',
       stashed: '本地更改已贮藏，可稍后从贮藏列表弹出。',
+    },
+    error: {
+      technicalDetails: '技术详情 ▸',
+      copyDetails: '复制详细信息',
+      retry: '重试',
+      'branch-unmerged': {
+        title: '分支尚未合并',
+        message: '分支 “{branch}” 包含尚未合并的提交。您可以保留该分支，或继续进行强制删除。',
+      },
+      'checkout-dirty': {
+        title: '本地更改阻止切换分支',
+        message: '请先处理未提交的本地更改，再切换分支。',
+      },
+      'remote-auth': {
+        title: '远程认证失败',
+        message: '请检查系统凭证（Keychain、credential helper 或 ssh-agent）后重试。',
+      },
+      'remote-non-fast-forward': {
+        title: '远程分支已有新提交',
+        message: '请先拉取并处理差异后再推送；不会自动强制推送。',
+      },
+      network: {
+        title: '无法连接远程仓库',
+        message: '请检查网络和远程地址后重试。',
+      },
+      unknown: {
+        title: 'Git 操作未完成',
+        message: '操作没有完成。请查看技术详情，必要时修正问题后重试。',
+      },
     },
     identity: {
       title: '配置提交身份',

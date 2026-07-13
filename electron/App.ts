@@ -17,7 +17,8 @@ import { WindowManager } from './WindowManager'
 import { UpdaterManager } from '../src/updater/UpdaterManager'
 import { PandocService } from './PandocService'
 import { LibreOfficeService } from './LibreOfficeService'
-import { GitService } from './GitService'
+import { GitService, classifyGitIssue } from './GitService'
+import type { GitActionResult } from '../src/types/git'
 import type { AgentEngine } from './ai/AgentEngine'
 import { AiConfigStore } from './ai/config/AiConfigStore'
 import { perfLog } from './perf'
@@ -1453,6 +1454,14 @@ export class App {
   }
 
   private registerGitHandlers() {
+    const gitAction = async (operation: string, action: () => Promise<void>, branch?: string): Promise<GitActionResult<void>> => {
+      try {
+        await action()
+        return { ok: true, value: undefined }
+      } catch (error) {
+        return { ok: false, issue: classifyGitIssue(error, operation, branch) }
+      }
+    }
     ipcMain.handle('git:detect', async (_, force?: boolean) => this.gitService.detect(force))
     ipcMain.handle('git:is-repo', async (_, root: string) => this.gitService.isRepo(root))
     ipcMain.handle('git:init', async (_, root: string) => this.gitService.init(root))
@@ -1482,27 +1491,28 @@ export class App {
     ipcMain.handle('git:identity-get', async (_, root: string) => this.gitService.getUserIdentity(root))
     ipcMain.handle('git:identity-set', async (_, root: string, name: string, email: string, global: boolean) =>
       this.gitService.setUserIdentity(root, name, email, global))
-    ipcMain.handle('git:checkout', async (_, root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) => this.gitService.checkout(root, ref, opts))
+    ipcMain.handle('git:checkout', async (_, root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) =>
+      gitAction('checkout', () => this.gitService.checkout(root, ref, opts)))
     ipcMain.handle('git:create-branch', async (_, root: string, name: string, base?: string, checkout?: boolean) =>
       this.gitService.createBranch(root, name, base, checkout))
-    ipcMain.handle('git:delete-branch', async (_, root: string, name: string, force: boolean) =>
-      this.gitService.deleteBranch(root, name, force))
+    ipcMain.handle('git:delete-branch', async (_, root: string, name: string, force: boolean): Promise<GitActionResult<void>> =>
+      gitAction('delete-branch', () => this.gitService.deleteBranch(root, name, force), name))
     ipcMain.handle('git:list-tags', async (_, root: string) => this.gitService.listTags(root))
     ipcMain.handle('git:create-tag', async (_, root: string, name: string, opts: { message?: string; hash?: string }) =>
       this.gitService.createTag(root, name, opts))
     ipcMain.handle('git:delete-tag', async (_, root: string, name: string) => this.gitService.deleteTag(root, name))
-    ipcMain.handle('git:push-tags', async (_, root: string) => this.gitService.pushTags(root))
+    ipcMain.handle('git:push-tags', async (_, root: string) => gitAction('push-tags', () => this.gitService.pushTags(root)))
     ipcMain.handle('git:undo-last-commit', async (_, root: string) => this.gitService.undoLastCommit(root))
     ipcMain.handle('git:rename-branch', async (_, root: string, oldName: string, newName: string) =>
       this.gitService.renameBranch(root, oldName, newName))
     ipcMain.handle('git:add-to-gitignore', async (_, root: string, relPath: string) =>
       this.gitService.addToGitignore(root, relPath))
-    ipcMain.handle('git:clone', async (_, url: string, dir: string) => this.gitService.clone(url, dir))
-    ipcMain.handle('git:fetch', async (_, root: string) => this.gitService.fetch(root))
-    ipcMain.handle('git:pull', async (_, root: string, opts: { rebase?: boolean }) => this.gitService.pull(root, opts))
-    ipcMain.handle('git:push', async (_, root: string, opts: { setUpstream?: boolean }) => this.gitService.push(root, opts))
-    ipcMain.handle('git:sync', async (_, root: string, opts: { rebase?: boolean }) => this.gitService.sync(root, opts))
-    ipcMain.handle('git:publish', async (_, root: string) => this.gitService.publish(root))
+    ipcMain.handle('git:clone', async (_, url: string, dir: string) => gitAction('clone', () => this.gitService.clone(url, dir)))
+    ipcMain.handle('git:fetch', async (_, root: string) => gitAction('fetch', () => this.gitService.fetch(root)))
+    ipcMain.handle('git:pull', async (_, root: string, opts: { rebase?: boolean }) => gitAction('pull', () => this.gitService.pull(root, opts)))
+    ipcMain.handle('git:push', async (_, root: string, opts: { setUpstream?: boolean }) => gitAction('push', () => this.gitService.push(root, opts)))
+    ipcMain.handle('git:sync', async (_, root: string, opts: { rebase?: boolean }) => gitAction('sync', () => this.gitService.sync(root, opts)))
+    ipcMain.handle('git:publish', async (_, root: string) => gitAction('publish', () => this.gitService.publish(root)))
     ipcMain.handle('git:list-remotes', async (_, root: string) => this.gitService.listRemotes(root))
     ipcMain.handle('git:add-remote', async (_, root: string, name: string, url: string) =>
       this.gitService.addRemote(root, name, url))
