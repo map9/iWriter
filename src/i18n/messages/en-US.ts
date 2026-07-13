@@ -1195,7 +1195,7 @@ export default {
     action: {
       openDiff: 'Open Diff',
       openFile: 'Open File',
-      reveal: 'Reveal in File Manager',
+      reveal: 'Reveal in Folder',
       stage: 'Stage Changes',
       unstage: 'Unstage',
       discard: 'Discard Changes',

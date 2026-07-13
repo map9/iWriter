@@ -94,35 +94,51 @@ export const useGitStore = defineStore('git', () => {
   // 避免快速连续的文件事件/写操作把多轮刷新并发堆叠（配合主进程仓库级互斥，双保险）。
   let refreshing = false
   let refreshQueued = false
-  /** 刷新 status + branches（去抖 + 单飞合并） */
+  // 等待者：防抖窗口内所有 refresh() 调用把各自的 resolve 挂到这里；clearTimeout 只取消
+  // 定时器、绝不丢弃任何 resolve，本轮刷新真正完成（或跳过）时一并 flush。
+  // 否则旧实现里被取消的那次 refresh 的 Promise 永不 resolve，会令等待它的
+  // afterWrite()/run()/remoteRun()/commit() 连同 busy/committing/loading 永久挂起。
+  let refreshWaiters: Array<() => void> = []
+  function flushRefreshWaiters(): void {
+    const ws = refreshWaiters
+    refreshWaiters = []
+    for (const r of ws) r()
+  }
+
+  /** 刷新 status + branches（去抖 + 单飞合并；所有等待者在本轮完成时一并 resolve） */
   function refresh(): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise<void>((resolve) => {
+      refreshWaiters.push(resolve)
+      // 已有刷新在跑：标记补一轮，本等待者随该轮结束的 flush 一并 resolve（不另起定时器）
+      if (refreshing) { refreshQueued = true; return }
       if (refreshTimer) clearTimeout(refreshTimer)
-      refreshTimer = setTimeout(async () => {
-        if (!root.value || !isRepo.value) return resolve()
-        if (refreshing) { refreshQueued = true; return resolve() }
-        refreshing = true
-        loading.value = true
-        try {
-          do {
-            refreshQueued = false
-            const [s, b] = await Promise.all([
-              api().status(root.value),
-              api().branches(root.value),
-            ])
-            status.value = s
-            branch.value = b
-            revision.value++
-          } while (refreshQueued) // 期间又被请求 → 收敛为再跑一轮
-        } catch (err) {
-          console.error('[git] refresh failed', err)
-        } finally {
-          refreshing = false
-          loading.value = false
-          resolve()
-        }
-      }, 150)
+      refreshTimer = setTimeout(runRefresh, 150)
     })
+  }
+
+  async function runRefresh(): Promise<void> {
+    refreshTimer = null
+    if (!root.value || !isRepo.value) return flushRefreshWaiters()
+    refreshing = true
+    loading.value = true
+    try {
+      do {
+        refreshQueued = false
+        const [s, b] = await Promise.all([
+          api().status(root.value),
+          api().branches(root.value),
+        ])
+        status.value = s
+        branch.value = b
+        revision.value++
+      } while (refreshQueued) // 期间又被请求 → 收敛为再跑一轮
+    } catch (err) {
+      console.error('[git] refresh failed', err)
+    } finally {
+      refreshing = false
+      loading.value = false
+      flushRefreshWaiters()
+    }
   }
 
   /** 图谱每页条数；是否可能还有更早提交（末页判断） */
