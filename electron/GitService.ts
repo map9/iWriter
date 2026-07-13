@@ -212,6 +212,21 @@ export class GitService {
     await this.git(root).raw(['tag', '-d', name])
   }
 
+  /** 推送所有标签到远程 */
+  async pushTags(root: string): Promise<void> {
+    await this.git(root).raw(['push', '--tags'])
+  }
+
+  /** 撤销上次提交，保留改动到工作区（soft reset，破坏性较低；调用方负责二次确认） */
+  async undoLastCommit(root: string): Promise<void> {
+    await this.git(root).raw(['reset', '--soft', 'HEAD~1'])
+  }
+
+  /** 重命名本地分支 */
+  async renameBranch(root: string, oldName: string, newName: string): Promise<void> {
+    await this.git(root).raw(['branch', '-m', oldName, newName])
+  }
+
   async fetch(root: string): Promise<void> {
     await this.git(root).raw(['fetch', '--prune'])
   }
@@ -258,8 +273,9 @@ export class GitService {
   }
 
   // ---------- 贮藏 Stash ----------
-  async stashPush(root: string, message?: string): Promise<void> {
+  async stashPush(root: string, message?: string, includeUntracked?: boolean): Promise<void> {
     const args = ['stash', 'push']
+    if (includeUntracked) args.push('-u')
     if (message) args.push('-m', message)
     await this.git(root).raw(args)
   }

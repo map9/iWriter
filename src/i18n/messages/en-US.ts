@@ -1181,10 +1181,16 @@ export default {
     commit: 'Commit',
     commitAll: 'Commit All Changes',
     amend: 'Amend Last Commit',
+    undoLastCommit: 'Undo Last Commit',
     noStagedChanges: 'No staged changes to commit.',
     commitAllConfirm: {
       title: 'Commit all changes?',
       message: 'There are no staged changes. Stage and commit all changes?',
+    },
+    undoConfirm: {
+      title: 'Undo last commit?',
+      message: 'The last commit will be undone; changes are kept in the working tree (soft reset). Nothing is lost.',
+      confirm: 'Undo Commit',
     },
     action: {
       openDiff: 'Open Diff',
@@ -1209,6 +1215,7 @@ export default {
       switch: 'Switch Branch',
       create: 'Create new branch…',
       createTitle: 'Branch name',
+      rename: 'Rename branch…',
       remote: 'remote',
       invalidName: 'Branch name cannot contain spaces or special characters like ~^:?*[\\.',
       merge: 'Merge into current branch…',
@@ -1221,6 +1228,7 @@ export default {
     tag: {
       create: 'Create Tag…',
       manage: 'Tags…',
+      push: 'Push Tags',
       namePlaceholder: 'Tag name (e.g. v1.0, draft-1)',
       messagePlaceholder: 'Tag message (optional — creates an annotated tag)',
       none: 'No tags yet.',
@@ -1252,6 +1260,7 @@ export default {
       pull: 'Pull',
       pullRebase: 'Pull (Rebase)',
       push: 'Push',
+      pushTags: 'Push Tags',
       fetch: 'Fetch',
       publish: 'Publish Branch…',
       manage: 'Manage Remotes…',
@@ -1270,6 +1279,7 @@ export default {
       apply: 'Apply (keep)',
       pop: 'Pop (apply & delete)',
       drop: 'Drop',
+      includeUntracked: 'Include untracked files',
       messagePlaceholder: 'Stash message (optional)',
       dropConfirmTitle: 'Drop Stash',
       dropConfirmMessage: 'Drop stash@{index}? This cannot be undone.',

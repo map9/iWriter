@@ -1,6 +1,6 @@
 # SOURCE_CONTROL.md — 工作空间版本控制需求文档
 
-> 状态：草案 v0.4（2026-07-13，M1–M4 主线 + M5 大部完成；本轮定稿 **SCM 菜单体系（做/不做）**：去除 MenuManager 系统菜单需求、面板内菜单全量承载，Tag 全链路 + Graph 提交行右键 + Changes「Open File/Reveal」+ Undo Last Commit 等列入待实施，详见 §5.5。剩：行级 stage、rename remote、图片 diff、多仓库[留后]）
+> 状态：草案 v0.5（2026-07-13，M1–M6 主线完成；**SCM 菜单体系（做/不做）定稿**：去除 MenuManager 系统菜单、面板内菜单全量承载；M6 P0+P1 已实现三绿（Tag 全链路、Graph 提交行右键、Changes Open File/Reveal、Undo Last Commit、Rename Branch、Stash -u、Push Tags；运行时 smoke 待做），详见 §5.5。剩[留后]：行级 stage、图片 diff、多仓库、全宽 Graph tab、图上写操作）
 > 定位：为 iWriter 工作空间（打开的文件夹）提供对标 VSCode Source Control 的 **真 Git 集成**。
 
 ---
@@ -303,7 +303,7 @@ export interface DiffSpec {
 
 #### 实施优先级
 - **P0（补空白 + 里程碑能力）—— ✅已实现（2026-07-13，三绿，运行时 smoke 待做）**：① Tag 全链路（create/delete/list + 面板 Tags 子菜单 + Graph 行"在此打标签"）② Graph 提交行右键（Copy Hash/Message、Create Tag、Create Branch from here）③ Changes 右键补 Open File + Reveal in Finder。
-- **P1（便捷增强）**：④ Undo Last Commit（`reset --soft`）⑤ Create Branch From… / Rename Branch ⑥ Stash (Include Untracked) ⑦ Push Tags。
+- **P1（便捷增强）—— ✅已实现（2026-07-13，三绿，运行时 smoke 待做）**：④ Undo Last Commit（`reset --soft`，commit ▾ 菜单）⑤ Create Branch From…（P0 已含）/ Rename Branch ⑥ Stash (Include Untracked) ⑦ Push Tags。
 - **不做（明确排除）**：Rebase、Pull(Rebase) 菜单化、Pull from…/Push to…、Fetch Prune/All Remotes、Delete Remote Branch/Tag、Rename Remote、Amend 细分变体、Commit Staged 单列、Collapse All、Checkout 到裸提交、MenuManager 原生菜单（§5.3）。
 
 ---

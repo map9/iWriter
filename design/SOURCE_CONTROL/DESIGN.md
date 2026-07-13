@@ -1,6 +1,6 @@
 # DESIGN.md — 工作空间版本控制 · 技术设计
 
-> 状态：v0.4（2026-07-13，随实现回填；M1–M4 主线 + M5 大部完成；本轮定稿 SCM 菜单体系并去除 MenuManager 系统菜单，新增 M6 菜单补全待实施，见 §11/§13）
+> 状态：v0.5（2026-07-13，随实现回填；M1–M6 主线完成；SCM 菜单体系定稿并去除 MenuManager 系统菜单，M6 P0+P1 已实现三绿（运行时 smoke 待做），见 §11/§13）
 > 配套需求：[SOURCE_CONTROL.md](./SOURCE_CONTROL.md) · 可编辑 diff/合并：[EDITABLE_DIFF_AND_MERGE.md](./EDITABLE_DIFF_AND_MERGE.md) · 视觉稿：[./ui/](./ui/)
 > 已定决策：simple-git（系统 git）· 单仓库 · **新建独立 Diff 组件族**（`common/diff/DiffView`+`MergeView`，编辑区 tab 承载，不复用 agent 的 `DiffSplitView`）· 仅系统凭证 · Commit All · `.iwt` 格式化后 diff
 >
@@ -339,7 +339,7 @@ LeftSidebar
 | **M3 远程** | ✅**完成** · GitService(fetch/pull/push/sync/publish/clone) · IPC+preload+api · store remoteRun(busy 态 + 失败 `showMessageBox` 弹 stderr) · ⋯ 菜单远程操作(有 upstream→sync/pull/push；无→publish；+fetch) · 标题栏同步按钮(busy spinner) · 克隆弹窗→选目录→`appStore.openFolderByPath` 打开 · 状态栏 sync item 直接触发同步 |
 | **M4 进阶** | ✅**完成（gutter 已弃）** · 冲突分组 + 合并解决（`DIFF_VIEWER` kind=conflict + `MergeView`，见 EDITABLE_DIFF_AND_MERGE.md）· commit-file-diff · Timeline/Graph 历史 · 状态栏分支。~~编辑器 gutter 装饰~~ 已决策不做（F12 A） |
 | **M5 增强** | ✅**大部完成** · stash（F10）· hunk 级 stage（F7.4）· 进度事件（`git:progress`）· 远程管理 add/remove/list · 目录级 stage（tree 视图）· 变更行/目录行右键菜单 · Commit-All 偏好 · viewer 显隐持久化 · **分支泳道图 DAG（侧栏 gutter，只读 v1）**：`log` 扩 `%P`→`GitCommit.parents`；`scm/gitGraphLayout.ts`(computeGraphLayout) + `scm/GitGraphGutter.vue`(每行 SVG)；`loadMoreGraph`/`graphHasMore` 分页 |
-| **M6 菜单补全** | **P0 ✅已实现（2026-07-13，三绿 type-check/lint/build，运行时 smoke 待做）** · Tag 全链路（F13：`GitService.listTags/createTag/deleteTag`+IPC+preload+GitApi+store `tags/loadTags/createTag/deleteTag`；`⋯`→Tags 子菜单[创建/列表删除]+创建标签弹窗[名称+可选说明→附注标签]）· Graph 提交行右键（`onGraphCommitContext`：Copy Hash/Message、在此打标签、从此创建分支；提交行 `@contextmenu.prevent`）· Changes 右键补 Open File+Reveal（store `openWorkingFile/revealFile`，仅单个未删除文件；复用 `openFile`/`revealInFolder`）· create-branch 弹窗支持 `base` 提交 hash。**P1 待实施**：Undo Last Commit（`reset --soft`）· Rename Branch · Stash (Include Untracked) · Push Tags。技术落点见 §13。**明确不做**：MenuManager 原生菜单 · Rebase · Pull(Rebase) 菜单化 · Pull from…/Push to… · Fetch Prune/All Remotes · Delete Remote Branch/Tag · Rename Remote · Checkout 到裸提交 |
+| **M6 菜单补全** | **P0 ✅已实现（2026-07-13，三绿 type-check/lint/build，运行时 smoke 待做）** · Tag 全链路（F13：`GitService.listTags/createTag/deleteTag`+IPC+preload+GitApi+store `tags/loadTags/createTag/deleteTag`；`⋯`→Tags 子菜单[创建/列表删除]+创建标签弹窗[名称+可选说明→附注标签]）· Graph 提交行右键（`onGraphCommitContext`：Copy Hash/Message、在此打标签、从此创建分支；提交行 `@contextmenu.prevent`）· Changes 右键补 Open File+Reveal（store `openWorkingFile/revealFile`，仅单个未删除文件；复用 `openFile`/`revealInFolder`）· create-branch 弹窗支持 `base` 提交 hash。**P1 ✅已实现（2026-07-13，三绿，运行时 smoke 待做）**：Undo Last Commit（`reset --soft HEAD~1`，commit ▾ 菜单 + 二次确认）· Rename Branch（`branch -m`，branch 菜单 + 重命名弹窗预填当前名）· Stash (Include Untracked)（`stash push -u`，贮藏弹窗复选框）· Push Tags（`push --tags`，Tags 子菜单，有 upstream 才启用）。技术落点见 §13。**明确不做**：MenuManager 原生菜单 · Rebase · Pull(Rebase) 菜单化 · Pull from…/Push to… · Fetch Prune/All Remotes · Delete Remote Branch/Tag · Rename Remote · Checkout 到裸提交 |
 
 > **留后（非本轮）**：行级(任意选区) stage · 图片 diff 前后对照 · 多仓库（预留）· 全宽 Git Graph tab · 图上写操作（checkout/merge/cherry-pick/reset on graph）· Graph 泳道图打磨（列压缩/滚动自动加载/横向滚动）。
 
@@ -365,11 +365,11 @@ LeftSidebar
 | `listTags(root)` | `tag --sort=-creatordate` | Tags 子菜单列表 | P0 ✅ |
 | `createTag(root, name, {message?, hash?})` | `tag [-a -m <msg>] <name> [<hash>]` | 打标签（可指定提交） | P0 ✅ |
 | `deleteTag(root, name)` | `tag -d <name>` | 删标签 | P0 ✅ |
-| `pushTags(root)` | `push --tags` | tag 进远程备份 | P1 |
-| `undoLastCommit(root)` | `reset --soft HEAD~1` | 撤销上次提交（保留改动） | P1 |
-| `renameBranch(root, old, new)` | `branch -m <old> <new>` | 分支改名 | P1 |
-| `createBranch(root, name, base, checkout)` | 已有，`base` 支持传 hash | Create Branch From… / from commit | P1 |
-| `stash(root, {includeUntracked})` | `stash push [-u]` | 扩展现有 stash 选项 | P1 |
+| `pushTags(root)` | `push --tags` | tag 进远程备份 | P1 ✅ |
+| `undoLastCommit(root)` | `reset --soft HEAD~1` | 撤销上次提交（保留改动） | P1 ✅ |
+| `renameBranch(root, old, new)` | `branch -m <old> <new>` | 分支改名 | P1 ✅ |
+| `createBranch(root, name, base, checkout)` | 已有，`base` 支持传 hash | Create Branch From… / from commit | P0 ✅ |
+| `stashPush(root, message?, includeUntracked?)` | `stash push [-u] [-m]` | 扩展现有 stash 选项 | P1 ✅ |
 
 **渲染层**
 - `src/stores/git.ts`：对应 action（`createTag/deleteTag/listTags/pushTags/undoLastCommit/renameBranch`，`run()` 包裹 + notify 报错 + refresh）；`tags` 状态（供 Tags 子菜单）。
@@ -383,6 +383,8 @@ LeftSidebar
 
 **护栏**：Undo Last Commit（`--soft` 保留改动，仍二次确认）、Delete Tag（二次确认）。破坏性判断线同 NFR4。
 
+**Push Tags**：走 `remoteRun('pushTags')`（busy 态 + 失败弹 stderr），i18n `remote.pushTags`；Tags 子菜单仅 `hasUpstream` 时启用。
+
 ---
 
-*M1–M5 已落地。下一步 M6：先 P0（Tag 全链路 → Graph 提交行右键 → Changes Open File/Reveal），再 P1。*
+*M1–M6 已落地（M6 P0+P1 代码三绿，运行时 smoke 待做）。SCM 剩余为留后项：行级 stage、图片 diff、多仓库、全宽 Git Graph tab、图上写操作、泳道图打磨。*

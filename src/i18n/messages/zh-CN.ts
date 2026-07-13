@@ -1178,10 +1178,16 @@ export default {
     commit: '提交',
     commitAll: '提交所有更改',
     amend: '修订上次提交',
+    undoLastCommit: '撤销上次提交',
     noStagedChanges: '没有已暂存的更改可提交。',
     commitAllConfirm: {
       title: '提交所有更改？',
       message: '没有已暂存的更改，是否暂存并提交所有更改？',
+    },
+    undoConfirm: {
+      title: '撤销上次提交？',
+      message: '将撤销上次提交，改动保留在工作区（soft reset），不会丢失内容。',
+      confirm: '撤销提交',
     },
     action: {
       openDiff: '打开差异',
@@ -1206,6 +1212,7 @@ export default {
       switch: '切换分支',
       create: '创建新分支…',
       createTitle: '分支名称',
+      rename: '重命名分支…',
       remote: '远程',
       invalidName: '分支名不能包含空格或 ~^:?*[\\ 等特殊字符。',
       merge: '合并到当前分支…',
@@ -1218,6 +1225,7 @@ export default {
     tag: {
       create: '创建标签…',
       manage: '标签列表…',
+      push: '推送标签',
       namePlaceholder: '标签名称（如 v1.0、初稿）',
       messagePlaceholder: '标签说明（可选，填写则创建附注标签）',
       none: '暂无标签。',
@@ -1249,6 +1257,7 @@ export default {
       pull: '拉取',
       pullRebase: '拉取（变基）',
       push: '推送',
+      pushTags: '推送标签',
       fetch: '获取',
       publish: '发布分支…',
       manage: '管理远程…',
@@ -1267,6 +1276,7 @@ export default {
       apply: '应用（保留）',
       pop: '弹出（应用并删除）',
       drop: '删除',
+      includeUntracked: '包含未跟踪文件',
       messagePlaceholder: '贮藏信息（可选）',
       dropConfirmTitle: '删除贮藏',
       dropConfirmMessage: '确定删除 stash@{index}？此操作不可撤销。',

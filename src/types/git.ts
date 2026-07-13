@@ -159,6 +159,9 @@ export interface GitApi {
   listTags: (root: string) => Promise<string[]>
   createTag: (root: string, name: string, opts: { message?: string; hash?: string }) => Promise<void>
   deleteTag: (root: string, name: string) => Promise<void>
+  pushTags: (root: string) => Promise<void>
+  undoLastCommit: (root: string) => Promise<void>
+  renameBranch: (root: string, oldName: string, newName: string) => Promise<void>
   addToGitignore: (root: string, relPath: string) => Promise<void>
   clone: (url: string, dir: string) => Promise<void>
   fetch: (root: string) => Promise<void>
@@ -169,7 +172,7 @@ export interface GitApi {
   listRemotes: (root: string) => Promise<GitRemote[]>
   addRemote: (root: string, name: string, url: string) => Promise<void>
   removeRemote: (root: string, name: string) => Promise<void>
-  stashPush: (root: string, message?: string) => Promise<void>
+  stashPush: (root: string, message?: string, includeUntracked?: boolean) => Promise<void>
   stashList: (root: string) => Promise<GitStashEntry[]>
   stashApply: (root: string, index: number) => Promise<void>
   stashPop: (root: string, index: number) => Promise<void>

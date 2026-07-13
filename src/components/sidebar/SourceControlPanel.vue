@@ -298,6 +298,34 @@
       </form>
     </div>
 
+    <!-- 重命名当前分支弹窗 -->
+    <div
+      v-if="renameDialogOpen"
+      class="fixed inset-0 z-1000 flex items-center justify-center bg-black/45 backdrop-blur-sm"
+      @click.self="renameDialogOpen = false"
+    >
+      <form
+        class="w-80 max-w-[90vw] overflow-hidden rounded-box border border-base-300 bg-base-100 shadow-2xl"
+        @submit.prevent="confirmRenameBranch"
+      >
+        <div class="border-b border-base-300 px-4 py-3 text-sm font-semibold">{{ t('sourceControl.branch.rename') }}</div>
+        <div class="px-4 py-4">
+          <input
+            ref="renameInput"
+            v-model="renameName"
+            type="text"
+            class="iw-input w-full"
+            :placeholder="t('sourceControl.branch.createTitle')"
+          />
+          <p v-if="renameNameError" class="mt-1.5 text-2xs text-error">{{ renameNameError }}</p>
+        </div>
+        <div class="flex justify-end gap-2 border-t border-base-300 px-4 py-3">
+          <button type="button" class="iw-btn btn-ghost btn-sm" @click="renameDialogOpen = false">{{ t('common.cancel') }}</button>
+          <button type="submit" class="iw-btn btn-primary btn-sm" :disabled="!renameName.trim() || !!renameNameError">{{ t('common.confirm') }}</button>
+        </div>
+      </form>
+    </div>
+
     <!-- 添加远程输入弹窗 -->
     <div
       v-if="remoteDialogOpen"
@@ -342,7 +370,7 @@
         @submit.prevent="confirmStashPush"
       >
         <div class="border-b border-base-300 px-4 py-3 text-sm font-semibold">{{ t('sourceControl.stash.push') }}</div>
-        <div class="px-4 py-4">
+        <div class="flex flex-col gap-2 px-4 py-4">
           <input
             ref="stashInput"
             v-model="stashMessage"
@@ -350,6 +378,10 @@
             class="iw-input w-full"
             :placeholder="t('sourceControl.stash.messagePlaceholder')"
           />
+          <label class="flex cursor-pointer items-center gap-2 text-xs text-base-content/80">
+            <input v-model="stashIncludeUntracked" type="checkbox" class="checkbox checkbox-xs" />
+            {{ t('sourceControl.stash.includeUntracked') }}
+          </label>
         </div>
         <div class="flex justify-end gap-2 border-t border-base-300 px-4 py-3">
           <button type="button" class="iw-btn btn-ghost btn-sm" @click="stashDialogOpen = false">{{ t('common.cancel') }}</button>
@@ -538,11 +570,20 @@ async function showCommitMenu(event: MouseEvent) {
     { id: 'commit-all', label: t('sourceControl.commitAll') },
     { type: 'separator' },
     { id: 'commit-amend', label: t('sourceControl.amend') },
+    { id: 'undo-last-commit', label: t('sourceControl.undoLastCommit') },
   ]
   const action = await window.electronAPI.showContextMenu(items, { x: event.clientX, y: event.clientY })
   if (action === 'commit') gitStore.commit({})
   else if (action === 'commit-all') gitStore.commit({ all: true })
   else if (action === 'commit-amend') gitStore.commit({ amend: true })
+  else if (action === 'undo-last-commit') {
+    const ok = await confirmBox(
+      t('sourceControl.undoConfirm.title'),
+      t('sourceControl.undoConfirm.message'),
+      t('sourceControl.undoConfirm.confirm'),
+    )
+    if (ok) gitStore.undoLastCommit()
+  }
 }
 
 // ---- 暂存 / 放弃（文件行、目录行、右键菜单统一走文件集合）----
@@ -630,6 +671,7 @@ async function showBranchMenu(event: MouseEvent) {
   if (!b) return
   const items: ContextMenuItem[] = [
     { id: '__create', label: t('sourceControl.branch.create') },
+    { id: '__rename', label: t('sourceControl.branch.rename'), enabled: !!b.current && !b.detached },
     { id: '__merge', label: t('sourceControl.branch.merge'), enabled: b.local.some(n => n !== b.current) || b.remote.some(r => !r.endsWith('/HEAD')) },
     { id: '__delete', label: t('sourceControl.branch.delete'), enabled: b.local.some(n => n !== b.current) },
     { type: 'separator' },
@@ -644,6 +686,8 @@ async function showBranchMenu(event: MouseEvent) {
   if (!action) return
   if (action === '__create') {
     openCreateBranch()
+  } else if (action === '__rename') {
+    openRenameBranch()
   } else if (action === '__merge') {
     await showMergeBranchMenu(event)
   } else if (action === '__delete') {
@@ -701,6 +745,32 @@ const branchNameError = computed(() => {
     /^[-/]/.test(n) || /[/.]$/.test(n) || n.endsWith('.lock')
   return invalid ? t('sourceControl.branch.invalidName') : ''
 })
+// 重命名当前分支弹窗
+const renameDialogOpen = ref(false)
+const renameName = ref('')
+const renameInput = ref<HTMLInputElement | null>(null)
+const renameNameError = computed(() => {
+  const n = renameName.value.trim()
+  if (!n) return ''
+  const invalid =
+    /[\s~^:?*[\\]/.test(n) ||
+    n.includes('..') || n.includes('//') || n.includes('@{') ||
+    /^[-/]/.test(n) || /[/.]$/.test(n) || n.endsWith('.lock')
+  return invalid ? t('sourceControl.branch.invalidName') : ''
+})
+function openRenameBranch() {
+  renameName.value = gitStore.branch?.current ?? ''
+  renameDialogOpen.value = true
+  nextTick(() => renameInput.value?.select())
+}
+function confirmRenameBranch() {
+  const newName = renameName.value.trim()
+  const cur = gitStore.branch?.current
+  if (!newName || renameNameError.value || !cur || newName === cur) { renameDialogOpen.value = false; return }
+  renameDialogOpen.value = false
+  gitStore.renameBranch(cur, newName)
+}
+
 /** 新建分支的基点（提交 hash / 分支名）；空=当前 HEAD。用于 Graph「从此提交创建分支」 */
 const branchBase = ref<string | undefined>(undefined)
 function openCreateBranch(base?: string) {
@@ -837,15 +907,17 @@ async function showRemoteMenu(event: MouseEvent) {
 // —— 贮藏 Stash（F10）——
 const stashDialogOpen = ref(false)
 const stashMessage = ref('')
+const stashIncludeUntracked = ref(false)
 const stashInput = ref<HTMLInputElement | null>(null)
 function openStashPush() {
   stashMessage.value = ''
+  stashIncludeUntracked.value = false
   stashDialogOpen.value = true
   nextTick(() => stashInput.value?.focus())
 }
 async function confirmStashPush() {
   stashDialogOpen.value = false
-  await gitStore.stashPush(stashMessage.value.trim() || undefined)
+  await gitStore.stashPush(stashMessage.value.trim() || undefined, stashIncludeUntracked.value)
 }
 /** 贮藏列表：选一条 → 二级菜单 apply/pop/drop */
 async function showStashMenu(event: MouseEvent) {
@@ -945,6 +1017,7 @@ const showScmViewMenu = async (event: MouseEvent) => {
     ? [
         { id: 'tag-create', label: t('sourceControl.tag.create') },
         { id: 'tag-manage', label: t('sourceControl.tag.manage') },
+        { id: 'tag-push', label: t('sourceControl.tag.push'), enabled: hasUpstream },
         { type: 'separator' },
       ]
     : []
@@ -971,6 +1044,7 @@ const showScmViewMenu = async (event: MouseEvent) => {
     else if (action === 'stash-manage') showStashMenu(event)
     else if (action === 'tag-create') openCreateTag()
     else if (action === 'tag-manage') showTagMenu(event)
+    else if (action === 'tag-push') gitStore.pushTags()
   } catch (error) {
     console.error('Error showing SCM view menu:', error)
   }

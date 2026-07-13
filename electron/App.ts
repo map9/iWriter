@@ -1479,6 +1479,10 @@ export class App {
     ipcMain.handle('git:create-tag', async (_, root: string, name: string, opts: { message?: string; hash?: string }) =>
       this.gitService.createTag(root, name, opts))
     ipcMain.handle('git:delete-tag', async (_, root: string, name: string) => this.gitService.deleteTag(root, name))
+    ipcMain.handle('git:push-tags', async (_, root: string) => this.gitService.pushTags(root))
+    ipcMain.handle('git:undo-last-commit', async (_, root: string) => this.gitService.undoLastCommit(root))
+    ipcMain.handle('git:rename-branch', async (_, root: string, oldName: string, newName: string) =>
+      this.gitService.renameBranch(root, oldName, newName))
     ipcMain.handle('git:add-to-gitignore', async (_, root: string, relPath: string) =>
       this.gitService.addToGitignore(root, relPath))
     ipcMain.handle('git:clone', async (_, url: string, dir: string) => this.gitService.clone(url, dir))
@@ -1492,8 +1496,8 @@ export class App {
       this.gitService.addRemote(root, name, url))
     ipcMain.handle('git:remove-remote', async (_, root: string, name: string) =>
       this.gitService.removeRemote(root, name))
-    ipcMain.handle('git:stash-push', async (_, root: string, message?: string) =>
-      this.gitService.stashPush(root, message))
+    ipcMain.handle('git:stash-push', async (_, root: string, message?: string, includeUntracked?: boolean) =>
+      this.gitService.stashPush(root, message, includeUntracked))
     ipcMain.handle('git:stash-list', async (_, root: string) => this.gitService.stashList(root))
     ipcMain.handle('git:stash-apply', async (_, root: string, index: number) =>
       this.gitService.stashApply(root, index))

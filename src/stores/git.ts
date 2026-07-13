@@ -282,6 +282,13 @@ export const useGitStore = defineStore('git', () => {
     if (ok) await loadTags()
     return ok
   }
+  /** 推送所有标签（远程操作，busy 态 + 失败弹 stderr） */
+  const pushTags = () => remoteRun('pushTags', () => api().pushTags(root.value!))
+
+  /** 撤销上次提交（soft，保留改动；调用方负责二次确认） */
+  const undoLastCommit = () => run(() => api().undoLastCommit(root.value!))
+  /** 重命名本地分支 */
+  const renameBranch = (oldName: string, newName: string) => run(() => api().renameBranch(root.value!, oldName, newName))
 
   // ---------- 打开工作区文件 / 在文件管理器显示（Changes 右键） ----------
   /** 打开变更文件本体（工作区磁盘文件，非 diff） */
@@ -432,8 +439,8 @@ export const useGitStore = defineStore('git', () => {
     }
     return stashes.value
   }
-  async function stashPush(message?: string): Promise<boolean> {
-    const ok = await run(() => api().stashPush(root.value!, message))
+  async function stashPush(message?: string, includeUntracked?: boolean): Promise<boolean> {
+    const ok = await run(() => api().stashPush(root.value!, message, includeUntracked))
     if (ok) await loadStashes()
     return ok
   }
@@ -503,7 +510,7 @@ export const useGitStore = defineStore('git', () => {
     openDiff, openCommitDiff, openMergeTab,
     stage, unstage, stageAll, unstageAll, discard, commit,
     checkout, createBranch, deleteBranch, addToGitignore, restoreFile, merge,
-    tags, loadTags, createTag, deleteTag, openWorkingFile, revealFile,
+    tags, loadTags, createTag, deleteTag, pushTags, undoLastCommit, renameBranch, openWorkingFile, revealFile,
     submitIdentity, cancelIdentity,
     fetch, pull, push, sync, publish, clone,
     remotes, loadRemotes, addRemote, removeRemote,
