@@ -189,7 +189,13 @@ function createWorkspaceIgnoredPredicate(
       return false
     }
 
-    if (!stats) return false
+    // 路径已删除（unlink），无法 stat：仍按路径规则判定（当作文件），不要默认放行。
+    // 关键：git 执行期间频繁创建/删除 `.git/index.lock`，其 unlink 事件若因 stat 失败而被放行，
+    // 会触发 git 状态刷新 → 又跑 git 命令 → 又生灭 index.lock → 无限刷新死循环
+    // （表现为打开某文件 diff 后右侧不停闪烁 + 并发 git 抢锁报 index.lock）。
+    if (!stats) {
+      return !shouldIncludeWorkspaceEntry({ relativePath, isDirectory: false }, matcher)
+    }
 
     if (stats.isDirectory() && shouldTraverseWorkspaceDirectory({ relativePath, isDirectory: true }, matcher)) {
       return false
