@@ -1441,6 +1441,9 @@ export const useAppStore = defineStore('app', () => {
       const traverseStartedAt = performance.now()
       const stats: FileTreePerfStats = { directories: 1, files: 0, skippedDirectories: 0 }
       fileTree.value.children = await traverseFileTree(currentFolder.value, fileTree.value, effectiveIgnoreRules, stats)
+      if (currentFileTreeSortType.value !== 'none' && fileTree.value.children) {
+        sortFileTreeNodes(fileTree.value.children as FileTreeNode[], currentFileTreeSortType.value)
+      }
       perfLog(
         `loadFileTree traverse done dirs=${stats.directories} files=${stats.files} skippedDirs=${stats.skippedDirectories}`,
         traverseStartedAt
@@ -1599,6 +1602,16 @@ export const useAppStore = defineStore('app', () => {
         sortFileTreeNodes(node.children as FileTreeNode[], sortType)
       }
     })
+  }
+
+  function sortFileTreeNodeChildren(node: FileTreeNode | null | undefined) {
+    if (currentFileTreeSortType.value === 'none' || !node?.children) return
+    sortFileTreeNodes(node.children as FileTreeNode[], currentFileTreeSortType.value)
+  }
+
+  function setFileTreeSortType(sortType: FileTreeSortType) {
+    currentFileTreeSortType.value = sortType
+    sortFileTreeNodeChildren(fileTree.value)
   }
 
   function queryFileTreeNodes(nodes: FileTreeNode[], query: string) {
@@ -1763,10 +1776,7 @@ export const useAppStore = defineStore('app', () => {
         }
         updateFileTreeNodePath(node, pathUtils.dirname(newPath), pathUtils.basename(newPath))
 
-        // Sort parent's children
-        //if (node.parent) {
-        //  sortFileTreeNodes(node.parent.children as FileTreeNode[], currentFileTreeSortType.value)
-        //}
+        sortFileTreeNodeChildren(node.parent as FileTreeNode | undefined)
         setSelectedItem(node)
 
         notify.success(t('notify.file.renameSuccess', { from: node.path, to: newName }), t('notify.file.operation'))
@@ -1828,7 +1838,7 @@ export const useAppStore = defineStore('app', () => {
         (targetParentNode.children as FileTreeNode[]).push(sourceNode)
         sourceNode.parent = targetParentNode
     
-        //sortFileTreeNodes(targetParentNode.children as FileTreeNode[], currentFileTreeSortType.value)
+        sortFileTreeNodeChildren(targetParentNode)
         setSelectedItem(sourceNode)
         notify.success(t('notify.file.moveSuccess', { from: sourcePath, to: result.newPath }), t('notify.file.operation'))
 
@@ -2119,8 +2129,7 @@ export const useAppStore = defineStore('app', () => {
 
         notify.success(t('notify.tree.nodeAdded', { path: filePath }), t('notify.tree.context'))
 
-        // Sort children based on current sort type
-        //sortFileTreeNodes(parentNode.children as FileTreeNode[], currentFileTreeSortType.value)
+        sortFileTreeNodeChildren(resolvedParentNode)
 
         return true
       } catch (error) {
@@ -3434,6 +3443,7 @@ export const useAppStore = defineStore('app', () => {
     loadFileTree,
     getEffectiveWorkspaceIgnoreRules,
     sortFileTreeNodes,
+    setFileTreeSortType,
     queryFileTreeNodes,
     setSelectedItem,
     openFileDialog,

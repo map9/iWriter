@@ -267,22 +267,28 @@ function toRelativePath(absPath: string): string {
   return nPath.startsWith(prefix) ? nPath.slice(prefix.length) : nPath
 }
 
-// Get root folder's children to display in the tree (not the root folder itself)
+// Get root folder's children to display in the tree (not the root folder itself).
+// Keep this computed read-only: Timeline resizing can cause frequent parent updates.
 const rootChildren = computed(() => {
-  if (!hasRootFolder.value || !appStore.fileTree || !appStore.fileTree.children) {
+  if (!hasRootFolder.value || !appStore.fileTree?.children) {
     return []
   }
-  
-  const children = [...appStore.fileTree.children]
-  children.forEach(child => applyNodeAppearance(child as FileTreeNode))
-  
-  if (appStore.currentFileTreeSortType !== 'none') {
-    appStore.sortFileTreeNodes(children as FileTreeNode[], appStore.currentFileTreeSortType)
-  }
-  appStore.queryFileTreeNodes(children as FileTreeNode[], searchQuery.value)
 
-  return children
+  return appStore.fileTree.children
 })
+
+let hasAppliedSearchFilter = false
+watch([searchQuery, () => appStore.fileTree], ([query, fileTree]) => {
+  if (!fileTree?.children || (!query && !hasAppliedSearchFilter)) return
+
+  appStore.queryFileTreeNodes(fileTree.children as FileTreeNode[], query)
+  hasAppliedSearchFilter = query !== ''
+})
+
+const dimmedNodeAppearance = {
+  treeIconStyle: { opacity: '0.6' },
+  treeLabelStyle: { opacity: '0.6' },
+}
 
 // File callbacks
 const fileCallbacks: FileTreeCallbacks = {
@@ -333,6 +339,12 @@ const fileCallbacks: FileTreeCallbacks = {
     }
     return null
   },
+  getNodeAppearance: (node) => {
+    const fileNode = node as FileTreeNode
+    return fileNode.isHidden === true || fileNode.isReadonly === true
+      ? dimmedNodeAppearance
+      : undefined
+  },
   getDefaultChildType: () => {
     return currentCreateType.value || 'file'
   },
@@ -366,17 +378,6 @@ const fileCallbacks: FileTreeCallbacks = {
   onDrop: (dragNode, dropNode, position) => {
     handleFileDrop(dragNode as FileTreeNode, dropNode as FileTreeNode, position)
   }
-}
-
-const applyNodeAppearance = (node: FileTreeNode) => {
-  const isDimmed = node.isHidden === true || node.isReadonly === true
-  node.data = {
-    ...(typeof node.data === 'object' && node.data !== null ? node.data : {}),
-    treeIconClass: isDimmed ? { opacity: '0.6' } : undefined,
-    treeLabelStyle: isDimmed ? { opacity: '0.6' } : undefined,
-  }
-
-  node.children?.forEach(child => applyNodeAppearance(child as FileTreeNode))
 }
 
 // Event handlers
@@ -577,7 +578,7 @@ const showSortContextMenu = async (event: MouseEvent) => {
 }
 
 const setSortOption = (value: FileTreeSortType) => {
-  appStore.currentFileTreeSortType = value
+  appStore.setFileTreeSortType(value)
 }
 
 const openFile = async (file: FileTreeNode) => {

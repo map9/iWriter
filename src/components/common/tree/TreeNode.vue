@@ -205,6 +205,10 @@ const rightContent = computed(() => {
 })
 
 const customTreeData = computed(() => {
+  const appearance = props.callbacks?.getNodeAppearance?.(props.node)
+  if (appearance) {
+    return appearance
+  }
   if (props.node.data && typeof props.node.data === 'object') {
     return props.node.data as Record<string, unknown>
   }

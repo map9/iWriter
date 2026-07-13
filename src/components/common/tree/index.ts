@@ -25,6 +25,15 @@ export type DropPosition = 'before' | 'after' | 'inside'
 export type DropMode = 'all' | 'inside-only'
 export type TreeItemClickMode = 'expand' | 'rename'
 
+export interface TreeNodeAppearance {
+  treeIconClass?: string | string[] | Record<string, boolean>
+  treeIconStyle?: Record<string, string>
+  treeLabelClass?: string | string[] | Record<string, boolean>
+  treeLabelStyle?: Record<string, string>
+  treeRowClass?: string | string[] | Record<string, boolean>
+  treeRowStyle?: Record<string, string>
+}
+
 export interface TreeCallbacks {
   canCheck?: (node: TreeNode) => boolean
   canRename?: (node: TreeNode) => boolean
@@ -38,6 +47,7 @@ export interface TreeCallbacks {
   getUnCheckIcon?: (node: TreeNode) => Component | undefined
   getTypeIcon?: (node: TreeNode) => Component | undefined
   getRightContent?: (node: TreeNode) => string | null
+  getNodeAppearance?: (node: TreeNode) => TreeNodeAppearance | undefined
   getDefaultChildType?: (parentNode: TreeNode) => string
   getDefaultChildLabel?: (parentNode: TreeNode) => string
   onExpand?: (node: TreeNode) => void
