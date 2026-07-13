@@ -216,7 +216,17 @@
                 </span>
               </button>
             </div>
-            <ul v-if="gitStore.expandedHash === c.hash" class="pb-1">
+            <div v-if="gitStore.expandedHash === c.hash" class="relative">
+              <!-- 泳道续接：在展开的文件区绘制竖线，延续本提交下方的 lane，不打断图 -->
+              <div class="pointer-events-none absolute inset-y-0 left-0">
+                <div
+                  v-for="(lane, lli) in continuationLanes(ci)"
+                  :key="lli"
+                  class="absolute inset-y-0 w-[1.6px]"
+                  :style="{ left: laneBarLeft(lane.col) + 'px', background: lane.color }"
+                ></div>
+              </div>
+            <ul class="pb-1">
               <!-- 列表视图 -->
               <template v-if="!graphTreeView">
                 <li v-for="f in gitStore.expandedFiles" :key="f.path">
@@ -255,6 +265,7 @@
                 </li>
               </template>
             </ul>
+            </div>
           </li>
         </ul>
         <button
@@ -474,6 +485,25 @@ const expandedTreeRows = computed(() => buildScmTreeRows(gitStore.expandedFiles)
 const GRAPH_ROW_H = 44
 const GRAPH_LANE_W = 14
 const graphLayout = computed(() => computeGraphLayout(gitStore.commits))
+
+// 展开某提交的文件区时，延续其下方（bottom/full 段的出列）lane 的竖线，避免文件行打断泳道图。
+function continuationLanes(ci: number): { col: number; color: string }[] {
+  const row = graphLayout.value.rows[ci]
+  if (!row) return []
+  const seen = new Set<number>()
+  const lanes: { col: number; color: string }[] = []
+  for (const s of row.segments) {
+    if ((s.half === 'full' || s.half === 'bottom') && !seen.has(s.toCol)) {
+      seen.add(s.toCol)
+      lanes.push({ col: s.toCol, color: s.color })
+    }
+  }
+  return lanes
+}
+// 续接竖线的水平位置（4 = 提交行 gutter 的 pl-1 偏移；-0.8 = 线宽 1.6 的一半，使其居中对齐列）
+function laneBarLeft(col: number): number {
+  return 4 + col * GRAPH_LANE_W + GRAPH_LANE_W / 2 - 0.8
+}
 
 function refClass(kind: string): string {
   switch (kind) {

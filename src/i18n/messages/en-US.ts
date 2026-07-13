@@ -1193,7 +1193,7 @@ export default {
       confirm: 'Undo Commit',
     },
     action: {
-      openDiff: 'Open Diff',
+      openDiff: 'Open File Changes',
       openFile: 'Open File',
       reveal: 'Reveal in Folder',
       stage: 'Stage Changes',
