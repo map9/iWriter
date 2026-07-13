@@ -90,24 +90,34 @@ export const useGitStore = defineStore('git', () => {
   }
 
   let refreshTimer: ReturnType<typeof setTimeout> | null = null
-  /** 刷新 status + branches（去抖） */
+  // 单飞：一次只跑一轮 status+branches；进行中被再次请求则合并为「跑完再补一轮」，
+  // 避免快速连续的文件事件/写操作把多轮刷新并发堆叠（配合主进程仓库级互斥，双保险）。
+  let refreshing = false
+  let refreshQueued = false
+  /** 刷新 status + branches（去抖 + 单飞合并） */
   function refresh(): Promise<void> {
     return new Promise((resolve) => {
       if (refreshTimer) clearTimeout(refreshTimer)
       refreshTimer = setTimeout(async () => {
         if (!root.value || !isRepo.value) return resolve()
+        if (refreshing) { refreshQueued = true; return resolve() }
+        refreshing = true
         loading.value = true
         try {
-          const [s, b] = await Promise.all([
-            api().status(root.value),
-            api().branches(root.value),
-          ])
-          status.value = s
-          branch.value = b
-          revision.value++
+          do {
+            refreshQueued = false
+            const [s, b] = await Promise.all([
+              api().status(root.value),
+              api().branches(root.value),
+            ])
+            status.value = s
+            branch.value = b
+            revision.value++
+          } while (refreshQueued) // 期间又被请求 → 收敛为再跑一轮
         } catch (err) {
           console.error('[git] refresh failed', err)
         } finally {
+          refreshing = false
           loading.value = false
           resolve()
         }

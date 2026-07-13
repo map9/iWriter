@@ -45,6 +45,39 @@ export class GitService {
     return g
   }
 
+  // —— 仓库级串行 + index.lock 竞争重试 ——
+  // 同一 root 的所有 git 命令经此排队执行（显式互斥，不依赖 simple-git 内部串行的隐式保证），
+  // 且遇 index.lock 争用（外部 git 进程 / 陈旧锁 / 用户快速连续操作）指数退避重试而非直接抛错，
+  // 杜绝并发抢锁产生的 "Unable to create '.git/index.lock': File exists"。
+  private tails = new Map<string, Promise<unknown>>()
+
+  private exec<T>(root: string, fn: (g: SimpleGit) => Promise<T>): Promise<T> {
+    const prev = this.tails.get(root) ?? Promise.resolve()
+    const run = prev.then(() => this.execWithRetry(root, fn), () => this.execWithRetry(root, fn))
+    // 链尾吞掉成败，仅用于排队；调用方仍从返回的 run 拿到真实结果/错误
+    this.tails.set(root, run.then(() => undefined, () => undefined))
+    return run
+  }
+
+  private async execWithRetry<T>(root: string, fn: (g: SimpleGit) => Promise<T>, attempt = 0): Promise<T> {
+    try {
+      return await fn(this.git(root))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      // index.lock 争用发生在 git 真正改动之前（先抢锁失败即中止，未落任何改动），故重试安全
+      if (attempt < 4 && /index\.lock|Another git process seems to be running/i.test(msg)) {
+        await new Promise(r => setTimeout(r, 100 * 2 ** attempt)) // 100/200/400/800ms 退避
+        return this.execWithRetry(root, fn, attempt + 1)
+      }
+      throw err
+    }
+  }
+
+  /** 串行执行一条 raw git 命令（经 exec 互斥 + 重试） */
+  private raw(root: string, args: string[]): Promise<string> {
+    return this.exec(root, g => g.raw(args))
+  }
+
   /** 检测系统是否安装 git（缓存结果） */
   async detect(): Promise<GitAvailability> {
     if (this.availability) return this.availability
@@ -63,14 +96,14 @@ export class GitService {
 
   async isRepo(root: string): Promise<boolean> {
     try {
-      return await this.git(root).checkIsRepo()
+      return await this.exec(root, g => g.checkIsRepo())
     } catch {
       return false
     }
   }
 
   async init(root: string): Promise<void> {
-    await this.git(root).init()
+    await this.exec(root, g => g.init())
   }
 
   async clone(url: string, dir: string): Promise<void> {
@@ -78,7 +111,7 @@ export class GitService {
   }
 
   async status(root: string): Promise<GitStatus> {
-    const s = await this.git(root).status()
+    const s = await this.exec(root, g => g.status())
     const staged: GitFileChange[] = []
     const changes: GitFileChange[] = []
     const untracked: GitFileChange[] = []
@@ -116,33 +149,33 @@ export class GitService {
   }
 
   async stage(root: string, paths: string[]): Promise<void> {
-    if (paths.length) await this.git(root).add(paths)
+    if (paths.length) await this.exec(root, g => g.add(paths))
   }
 
   async unstage(root: string, paths: string[]): Promise<void> {
-    if (paths.length) await this.git(root).raw(['restore', '--staged', '--', ...paths])
+    if (paths.length) await this.raw(root,['restore', '--staged', '--', ...paths])
   }
 
   async stageAll(root: string): Promise<void> {
-    await this.git(root).add(['-A'])
+    await this.exec(root, g => g.add(['-A']))
   }
 
   async unstageAll(root: string): Promise<void> {
-    await this.git(root).raw(['reset'])
+    await this.raw(root,['reset'])
   }
 
   /** 放弃更改：tracked 还原到 HEAD、untracked 直接清理 */
   async discard(root: string, paths: string[]): Promise<void> {
     if (!paths.length) return
-    const s = await this.git(root).status()
+    const s = await this.exec(root, g => g.status())
     const untrackedSet = new Set(s.not_added)
     const tracked = paths.filter(p => !untrackedSet.has(p))
     const untracked = paths.filter(p => untrackedSet.has(p))
     if (tracked.length) {
-      await this.git(root).raw(['restore', '--source=HEAD', '--staged', '--worktree', '--', ...tracked])
+      await this.raw(root,['restore', '--source=HEAD', '--staged', '--worktree', '--', ...tracked])
     }
     if (untracked.length) {
-      await this.git(root).raw(['clean', '-f', '--', ...untracked])
+      await this.raw(root,['clean', '-f', '--', ...untracked])
     }
   }
 
@@ -150,13 +183,13 @@ export class GitService {
     const args = ['commit', '-m', message]
     if (opts.all) args.push('-a')
     if (opts.amend) args.push('--amend')
-    await this.git(root).raw(args)
+    await this.raw(root,args)
   }
 
   async getUserIdentity(root: string): Promise<{ name?: string; email?: string }> {
     const read = async (key: string) => {
       try {
-        return (await this.git(root).raw(['config', key])).trim() || undefined
+        return (await this.raw(root,['config', key])).trim() || undefined
       } catch {
         return undefined
       }
@@ -166,8 +199,8 @@ export class GitService {
 
   async setUserIdentity(root: string, name: string, email: string, global: boolean): Promise<void> {
     const scope = global ? ['--global'] : []
-    await this.git(root).raw(['config', ...scope, 'user.name', name])
-    await this.git(root).raw(['config', ...scope, 'user.email', email])
+    await this.raw(root,['config', ...scope, 'user.name', name])
+    await this.raw(root,['config', ...scope, 'user.email', email])
   }
 
   /**
@@ -180,20 +213,19 @@ export class GitService {
     if (opts?.force) args.push('-f')
     if (opts?.merge) args.push('-m')
     args.push(ref)
-    await this.git(root).raw(args)
+    await this.raw(root,args)
   }
 
   async createBranch(root: string, name: string, base?: string, checkout?: boolean): Promise<void> {
-    const g = this.git(root)
     if (checkout) {
-      await g.raw(base ? ['checkout', '-b', name, base] : ['checkout', '-b', name])
+      await this.raw(root, base ? ['checkout', '-b', name, base] : ['checkout', '-b', name])
     } else {
-      await g.raw(base ? ['branch', name, base] : ['branch', name])
+      await this.raw(root, base ? ['branch', name, base] : ['branch', name])
     }
   }
 
   async deleteBranch(root: string, name: string, force: boolean): Promise<void> {
-    await this.git(root).raw(['branch', force ? '-D' : '-d', name])
+    await this.raw(root,['branch', force ? '-D' : '-d', name])
   }
 
   // ---------- 标签 Tags ----------
@@ -201,7 +233,7 @@ export class GitService {
   async listTags(root: string): Promise<string[]> {
     let out = ''
     try {
-      out = await this.git(root).raw(['tag', '--sort=-creatordate'])
+      out = await this.raw(root,['tag', '--sort=-creatordate'])
     } catch {
       return []
     }
@@ -214,45 +246,45 @@ export class GitService {
     if (opts.message) args.push('-a', '-m', opts.message)
     args.push(name)
     if (opts.hash) args.push(opts.hash)
-    await this.git(root).raw(args)
+    await this.raw(root,args)
   }
 
   async deleteTag(root: string, name: string): Promise<void> {
-    await this.git(root).raw(['tag', '-d', name])
+    await this.raw(root,['tag', '-d', name])
   }
 
   /** 推送所有标签到远程 */
   async pushTags(root: string): Promise<void> {
-    await this.git(root).raw(['push', '--tags'])
+    await this.raw(root,['push', '--tags'])
   }
 
   /** 撤销上次提交，保留改动到工作区（soft reset，破坏性较低；调用方负责二次确认） */
   async undoLastCommit(root: string): Promise<void> {
-    await this.git(root).raw(['reset', '--soft', 'HEAD~1'])
+    await this.raw(root,['reset', '--soft', 'HEAD~1'])
   }
 
   /** 重命名本地分支 */
   async renameBranch(root: string, oldName: string, newName: string): Promise<void> {
-    await this.git(root).raw(['branch', '-m', oldName, newName])
+    await this.raw(root,['branch', '-m', oldName, newName])
   }
 
   async fetch(root: string): Promise<void> {
-    await this.git(root).raw(['fetch', '--prune'])
+    await this.raw(root,['fetch', '--prune'])
   }
 
   async pull(root: string, opts: { rebase?: boolean }): Promise<void> {
     // --autostash：脏工作区自动 stash→pull→pop（clean 时无操作）；pop 冲突则保留冲突交给 Merge Changes
     const args = ['pull', '--autostash']
     if (opts.rebase) args.push('--rebase')
-    await this.git(root).raw(args)
+    await this.raw(root,args)
   }
 
   async push(root: string, opts: { setUpstream?: boolean }): Promise<void> {
     if (opts.setUpstream) {
-      const cur = (await this.git(root).status()).current
-      await this.git(root).raw(['push', '-u', 'origin', cur ?? 'HEAD'])
+      const cur = (await this.exec(root, g => g.status())).current
+      await this.raw(root,['push', '-u', 'origin', cur ?? 'HEAD'])
     } else {
-      await this.git(root).raw(['push'])
+      await this.raw(root,['push'])
     }
   }
 
@@ -269,16 +301,16 @@ export class GitService {
 
   /** 列出远程（name + fetch URL，回退 push URL） */
   async listRemotes(root: string): Promise<{ name: string; url: string }[]> {
-    const remotes = await this.git(root).getRemotes(true)
+    const remotes = await this.exec(root, g => g.getRemotes(true))
     return remotes.map(r => ({ name: r.name, url: r.refs.fetch || r.refs.push || '' }))
   }
 
   async addRemote(root: string, name: string, url: string): Promise<void> {
-    await this.git(root).addRemote(name, url)
+    await this.exec(root, g => g.addRemote(name, url))
   }
 
   async removeRemote(root: string, name: string): Promise<void> {
-    await this.git(root).removeRemote(name)
+    await this.exec(root, g => g.removeRemote(name))
   }
 
   // ---------- 贮藏 Stash ----------
@@ -286,13 +318,13 @@ export class GitService {
     const args = ['stash', 'push']
     if (includeUntracked) args.push('-u')
     if (message) args.push('-m', message)
-    await this.git(root).raw(args)
+    await this.raw(root,args)
   }
 
   async stashList(root: string): Promise<{ index: number; message: string }[]> {
     let out = ''
     try {
-      out = await this.git(root).raw(['stash', 'list', '--pretty=format:%gd%x1f%s'])
+      out = await this.raw(root,['stash', 'list', '--pretty=format:%gd%x1f%s'])
     } catch {
       return []
     }
@@ -304,15 +336,15 @@ export class GitService {
   }
 
   async stashApply(root: string, index: number): Promise<void> {
-    await this.git(root).raw(['stash', 'apply', `stash@{${index}}`])
+    await this.raw(root,['stash', 'apply', `stash@{${index}}`])
   }
 
   async stashPop(root: string, index: number): Promise<void> {
-    await this.git(root).raw(['stash', 'pop', `stash@{${index}}`])
+    await this.raw(root,['stash', 'pop', `stash@{${index}}`])
   }
 
   async stashDrop(root: string, index: number): Promise<void> {
-    await this.git(root).raw(['stash', 'drop', `stash@{${index}}`])
+    await this.raw(root,['stash', 'drop', `stash@{${index}}`])
   }
 
   async addToGitignore(root: string, relPath: string): Promise<void> {
@@ -326,9 +358,8 @@ export class GitService {
   }
 
   async branches(root: string): Promise<GitBranchInfo> {
-    const g = this.git(root)
-    const status = await g.status()
-    const branchSummary = await g.branch()
+    const status = await this.exec(root, g => g.status())
+    const branchSummary = await this.exec(root, g => g.branch())
     const local: string[] = []
     const remote: string[] = []
     for (const name of branchSummary.all) {
@@ -351,18 +382,17 @@ export class GitService {
     if (this.isBinaryPath(filePath)) {
       return { path: filePath, oldContent: '', newContent: '', isBinary: true }
     }
-    const g = this.git(root)
     let oldContent = ''
     let newContent = ''
     try {
       if (opts.staged) {
         // 已暂存：HEAD ↔ index
-        oldContent = await this.showSafe(g, `HEAD:${filePath}`)
-        newContent = await this.showSafe(g, `:${filePath}`)
+        oldContent = await this.showSafe(root, `HEAD:${filePath}`)
+        newContent = await this.showSafe(root, `:${filePath}`)
       } else {
         // 未暂存：index(或 HEAD) ↔ 工作区磁盘
-        oldContent = await this.showSafe(g, `:${filePath}`)
-        if (!oldContent) oldContent = await this.showSafe(g, `HEAD:${filePath}`)
+        oldContent = await this.showSafe(root, `:${filePath}`)
+        if (!oldContent) oldContent = await this.showSafe(root, `HEAD:${filePath}`)
         newContent = await this.readWorking(abs)
       }
     } catch {
@@ -377,7 +407,6 @@ export class GitService {
   }
 
   async log(root: string, opts: { filePath?: string; allBranches?: boolean; ref?: string; limit?: number; skip?: number }): Promise<GitCommit[]> {
-    const g = this.git(root)
     const args: string[] = [
       `--max-count=${opts.limit ?? 50}`,
       `--skip=${opts.skip ?? 0}`,
@@ -392,7 +421,7 @@ export class GitService {
     if (opts.filePath) { args.push('--', opts.filePath) }
     let out: string
     try {
-      out = await g.raw(['log', ...args])
+      out = await this.raw(root, ['log', ...args])
     } catch {
       return []
     }
@@ -424,10 +453,9 @@ export class GitService {
   }
 
   async commitFiles(root: string, hash: string): Promise<GitFileChange[]> {
-    const g = this.git(root)
     let out: string
     try {
-      out = await g.raw(['show', '--name-status', '--pretty=format:', hash])
+      out = await this.raw(root, ['show', '--name-status', '--pretty=format:', hash])
     } catch {
       return []
     }
@@ -446,9 +474,8 @@ export class GitService {
     if (this.isBinaryPath(filePath)) {
       return { path: filePath, oldContent: '', newContent: '', isBinary: true }
     }
-    const g = this.git(root)
-    const oldContent = await this.showSafe(g, `${hash}~1:${filePath}`)
-    const newContent = await this.showSafe(g, `${hash}:${filePath}`)
+    const oldContent = await this.showSafe(root, `${hash}~1:${filePath}`)
+    const newContent = await this.showSafe(root, `${hash}:${filePath}`)
     return {
       path: filePath,
       oldContent: this.formatForDiff(filePath, oldContent),
@@ -462,12 +489,11 @@ export class GitService {
    * 用于合并 tab；某侧在冲突中被删除时对应 show 失败 → 空串。
    */
   async conflictVersions(root: string, filePath: string): Promise<{ base: string; ours: string; theirs: string; working: string }> {
-    const g = this.git(root)
     const abs = path.join(root, filePath)
     const [base, ours, theirs, working] = await Promise.all([
-      this.showSafe(g, `:1:${filePath}`),
-      this.showSafe(g, `:2:${filePath}`),
-      this.showSafe(g, `:3:${filePath}`),
+      this.showSafe(root, `:1:${filePath}`),
+      this.showSafe(root, `:2:${filePath}`),
+      this.showSafe(root, `:3:${filePath}`),
       this.readWorking(abs),
     ])
     return { base, ours, theirs, working }
@@ -475,12 +501,12 @@ export class GitService {
 
   /** 将单个文件还原到某提交的版本（覆盖工作区+index） */
   async restoreFile(root: string, hash: string, filePath: string): Promise<void> {
-    await this.git(root).raw(['checkout', hash, '--', filePath])
+    await this.raw(root,['checkout', hash, '--', filePath])
   }
 
   /** 合并指定分支到当前分支（冲突时 git 以非零退出，交由渲染层按 status 呈现 Merge Changes） */
   async merge(root: string, branch: string): Promise<void> {
-    await this.git(root).raw(['merge', branch])
+    await this.raw(root,['merge', branch])
   }
 
   /**
@@ -498,15 +524,15 @@ export class GitService {
       if (opts.cached) args.push('--cached')
       if (opts.reverse) args.push('--reverse')
       args.push('--', tmp)
-      await this.git(root).raw(args)
+      await this.raw(root,args)
     } finally {
       await fs.rm(tmp, { force: true }).catch(() => { /* ignore */ })
     }
   }
 
   dispose(root?: string): void {
-    if (root) this.cache.delete(root)
-    else this.cache.clear()
+    if (root) { this.cache.delete(root); this.tails.delete(root) }
+    else { this.cache.clear(); this.tails.clear() }
   }
 
   // ---------- 内部工具 ----------
@@ -520,9 +546,9 @@ export class GitService {
     }
   }
 
-  private async showSafe(g: SimpleGit, ref: string): Promise<string> {
+  private async showSafe(root: string, ref: string): Promise<string> {
     try {
-      return await g.show([ref])
+      return await this.exec(root, g => g.show([ref]))
     } catch {
       return ''
     }
