@@ -8,6 +8,7 @@ import { join, resolve } from 'path'
 
 const electronMainExternal = [
   'electron',
+  'original-fs',
   '@langchain/langgraph-checkpoint-sqlite',
   'better-sqlite3',
   // @parcel/watcher is a native N-API module (file watching); must stay in

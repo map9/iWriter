@@ -45,7 +45,7 @@ describe('workspace lifecycle', () => {
   it('centers two-line loading states and preserves Initialize Repository for available non-repositories', () => {
     const explorerLoading = sourceBetween(explorerSource, 'v-else-if="appStore.isWorkspaceOpening"', '<!-- 文件树 -->')
     const scmLoading = sourceBetween(sourceControlSource, 'v-else-if="appStore.isWorkspaceOpening"', '<!-- 状态 C：未检测到 Git -->')
-    assert.match(explorerLoading, /flex flex-1 flex-col items-center justify-center gap-2/)
+    assert.match(explorerLoading, /flex h-full flex-col items-center justify-center gap-2/)
     assert.match(scmLoading, /flex flex-1 flex-col items-center justify-center gap-2/)
     assert.match(sourceControlSource, /v-if="!appStore\.isWorkspaceAvailable"/)
     const nonRepoState = sourceBetween(sourceControlSource, '<!-- 状态 D：非仓库 -->', '<!-- 状态 E：仓库')

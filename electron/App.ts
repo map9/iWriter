@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu, shell, dialog, clipboard } from 'ele
 import type { MenuItemConstructorOptions, MessageBoxOptions, OpenDialogOptions, SaveDialogOptions } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
+import * as originalFs from 'original-fs'
 import { exec } from 'child_process'
 import parcelWatcher from '@parcel/watcher'
 import type { FileChange } from '../src/types/file-operation'
@@ -684,13 +685,13 @@ export class App {
       try {
         let stats: fs.Stats | null = null
         if (onlyself !== true) {
-          const files = fs.readdirSync(folderPath, { withFileTypes: true })
+          const files = originalFs.readdirSync(folderPath, { withFileTypes: true })
           return files.map(file => {
             const filePath = path.join(folderPath, file.name)
             try {
-              stats = fs.statSync(filePath)
+              stats = originalFs.statSync(filePath)
               let isWritable = true
-              try { fs.accessSync(filePath, fs.constants.W_OK) } catch { isWritable = false }
+              try { originalFs.accessSync(filePath, originalFs.constants.W_OK) } catch { isWritable = false }
               return {
                 name: file.name,
                 isDirectory: file.isDirectory(),
@@ -710,9 +711,9 @@ export class App {
             }
           }).filter((file): file is NonNullable<typeof file> => file !== null)
         } else {
-          stats = fs.statSync(folderPath)
+          stats = originalFs.statSync(folderPath)
           let isWritable = true
-          try { fs.accessSync(folderPath, fs.constants.W_OK) } catch { isWritable = false }
+          try { originalFs.accessSync(folderPath, originalFs.constants.W_OK) } catch { isWritable = false }
           return [{
             name: path.basename(folderPath),
             isDirectory: stats?.isDirectory(),
