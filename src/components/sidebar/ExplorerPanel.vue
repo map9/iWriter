@@ -30,7 +30,7 @@
 
     <!-- Search Files -->
     <div
-      v-if="!appStore.isWorkspaceDeleted"
+      v-if="!appStore.isWorkspaceDeleted && !appStore.isWorkspaceOpening"
       class="flex shrink-0 items-center border-b border-base-300 bg-base-200 p-2 select-none"
     >
       <label class="iw-input">
@@ -118,6 +118,11 @@
               {{ t('explorer.workspaceDeleted.openNew') }}
             </button>
           </div>
+        </div>
+
+        <div v-else-if="appStore.isWorkspaceOpening" class="sidebar-empty flex items-center gap-2">
+          <span class="loading loading-spinner loading-sm"></span>
+          <span>{{ t('explorer.workspaceLoading') }}</span>
         </div>
 
         <!-- 文件树 -->

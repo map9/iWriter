@@ -65,6 +65,7 @@ import {
 export const useAppStore = defineStore('app', () => {
   type PreferencesTab = 'editor' | 'spelling' | 'themes' | 'print' | 'export' | 'ai' | 'updates'
   type WorkspaceStatus = 'available' | 'deleted'
+  type WorkspaceLoadState = 'idle' | 'opening' | 'refreshing'
   type FileTreePerfStats = { directories: number; files: number; skippedDirectories: number }
   const t = i18n.global.t
   const perfEnabled = import.meta.env.DEV || import.meta.env.VITE_IWRITER_PERF === '1'
@@ -148,6 +149,7 @@ export const useAppStore = defineStore('app', () => {
   // Folder and Files
   const currentFolder = ref<string | null>(null)
   const workspaceStatus = ref<WorkspaceStatus>('available')
+  const workspaceLoadState = ref<WorkspaceLoadState>('idle')
   const fileTree = ref<FileTreeNode | null>(null)
   const selectedItem = ref<FileTreeNode | null>(null)
   const currentFileTreeSortType = ref<FileTreeSortType>('type-asc')
@@ -164,6 +166,7 @@ export const useAppStore = defineStore('app', () => {
   let tabIdSeq = 0
   let fileWatchListenersRegistered = false
   let workspaceRestoreCheckTimer: ReturnType<typeof setInterval> | null = null
+  let workspaceLoadGeneration = 0
 
   // 控制是否应该保存状态（在退出清理时设为 false）
   const shouldPersistState = ref(true)
@@ -178,7 +181,10 @@ export const useAppStore = defineStore('app', () => {
   })
 
   const isWorkspaceDeleted = computed(() => workspaceStatus.value === 'deleted')
-  const canUseWorkspaceFeatures = computed(() => hasOpenFolder.value && !isWorkspaceDeleted.value)
+  const isWorkspaceAvailable = computed(() => hasOpenFolder.value && !isWorkspaceDeleted.value)
+  const isWorkspaceOpening = computed(() => workspaceLoadState.value === 'opening')
+  const isWorkspaceRefreshing = computed(() => workspaceLoadState.value === 'refreshing')
+  const canUseWorkspaceFeatures = computed(() => isWorkspaceAvailable.value)
 
   const autoSave = computed(() => autoSaveEnabled.value)
   const autoSaveDelayMs = computed(() => autoSaveIntervalSeconds.value * 1000)
@@ -265,6 +271,8 @@ export const useAppStore = defineStore('app', () => {
     if (workspaceStatus.value === 'deleted') return
 
     workspaceStatus.value = 'deleted'
+    workspaceLoadGeneration += 1
+    workspaceLoadState.value = 'idle'
     fileTree.value = null
     selectedItem.value = null
     markOpenTabsDeleted(currentFolder.value, true)
@@ -287,7 +295,7 @@ export const useAppStore = defineStore('app', () => {
 
     workspaceStatus.value = 'available'
     stopWorkspaceRestorePolling()
-    await loadFileTree()
+    await loadFileTree('opening')
     await startAdvancedFileWatching()
     await refreshDeletedOpenTabsUnderPath(currentFolder.value)
     if (!silent) {
@@ -506,7 +514,7 @@ export const useAppStore = defineStore('app', () => {
           currentFolder.value = workspaceState.currentFolder
           workspaceStatus.value = 'available'
           const loadTreeStartedAt = performance.now()
-          await loadFileTree()
+          await loadFileTree('opening')
           perfLog('restoreWorkspace loadFileTree awaited', loadTreeStartedAt)
           startAdvancedFileWatching()
           perfLog('restoreWorkspace startAdvancedFileWatching scheduled')
@@ -1359,7 +1367,7 @@ export const useAppStore = defineStore('app', () => {
     workspaceStatus.value = 'available'
     stopWorkspaceRestorePolling()
     leftSidebarMode.value = SidebarMode.EXPLORER
-    await loadFileTree()
+    await loadFileTree('opening')
     startAdvancedFileWatching() // Start advanced file watching
 
     // 成功通知
@@ -1376,6 +1384,8 @@ export const useAppStore = defineStore('app', () => {
         stopAdvancedFileWatching() // Stop file watching when folder is closed
         currentFolder.value = null
         workspaceStatus.value = 'available'
+        workspaceLoadGeneration += 1
+        workspaceLoadState.value = 'idle'
         stopWorkspaceRestorePolling()
         fileTree.value = null
         selectedItem.value = null
@@ -1400,10 +1410,12 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function loadFileTree() {
+  async function loadFileTree(loadState: Exclude<WorkspaceLoadState, 'idle'> = 'refreshing') {
     if (!currentFolder.value || !window.electronAPI) return
     if (isWorkspaceDeleted.value) return
 
+    const loadGeneration = ++workspaceLoadGeneration
+    workspaceLoadState.value = loadState
     const startedAt = performance.now()
     perfLog('loadFileTree start')
 
@@ -1458,6 +1470,10 @@ export const useAppStore = defineStore('app', () => {
       perfLog('loadFileTree failed', startedAt)
       notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.file.treeLoadError'))
       return []
+    } finally {
+      if (loadGeneration === workspaceLoadGeneration) {
+        workspaceLoadState.value = 'idle'
+      }
     }
   }
 
@@ -3364,6 +3380,7 @@ export const useAppStore = defineStore('app', () => {
     autoSaveIntervalSeconds,
     currentFolder,
     workspaceStatus,
+    workspaceLoadState,
     fileTree,
     selectedItem,
     currentFileTreeSortType,
@@ -3374,6 +3391,9 @@ export const useAppStore = defineStore('app', () => {
     activeTab,
     hasOpenFolder,
     isWorkspaceDeleted,
+    isWorkspaceAvailable,
+    isWorkspaceOpening,
+    isWorkspaceRefreshing,
     canUseWorkspaceFeatures,
     autoSave,
     autoSaveDelayMs,

@@ -1220,6 +1220,8 @@ export default {
     },
     gitNotFound: '未检测到 Git',
     gitNotFoundDesc: '版本控制需要系统中安装 Git。',
+    noWorkspace: '没有可用工作区。请先打开文件夹或克隆仓库。',
+    workspaceLoading: '正在打开工作区…',
     notRepo: '当前工作空间尚未纳入版本控制。',
     initRepo: '初始化仓库',
     cloneRepo: '克隆仓库…',
@@ -1271,6 +1273,7 @@ export default {
     collapseAll: '全部折叠',
     noFolder: '未打开文件夹',
     rootFolder: '根目录',
+    workspaceLoading: '正在打开工作区…',
     view: {
       workspace: '工作区',
       timeline: '时间线',

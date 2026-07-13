@@ -40,8 +40,27 @@
       <progress class="progress progress-primary h-1 w-full" :value="gitStore.progress.progress" max="100"></progress>
     </div>
 
-    <!-- 状态 A：未检测到 Git -->
-    <div v-if="!gitStore.availability.available" class="flex flex-1 flex-col justify-top gap-2 p-2">
+    <!-- 状态 A：无可用工作区（未打开或已被外部删除） -->
+    <div v-if="!appStore.isWorkspaceAvailable" class="flex flex-1 flex-col justify-top gap-2 p-2">
+      <p class="text-left text-sm text-base-content/50">{{ t('sourceControl.noWorkspace') }}</p>
+      <button class="iw-btn btn-primary w-full h-9" @click="appStore.openFolder()">
+        <IconFolder class="icon-sm" />
+        <span>{{ t('explorer.openFolder') }}</span>
+      </button>
+      <button v-if="gitStore.availability.available" class="iw-btn btn-ghost w-full h-9" @click="gitStore.cloneDialogOpen = true">
+        <IconGitBranch class="icon-sm" />
+        <span>{{ t('sourceControl.cloneRepo') }}</span>
+      </button>
+    </div>
+
+    <!-- 状态 B：正在打开工作区 -->
+    <div v-else-if="appStore.isWorkspaceOpening" class="sidebar-empty flex items-center gap-2">
+      <span class="loading loading-spinner loading-sm"></span>
+      <span>{{ t('sourceControl.workspaceLoading') }}</span>
+    </div>
+
+    <!-- 状态 C：未检测到 Git -->
+    <div v-else-if="!gitStore.availability.available" class="flex flex-1 flex-col justify-top gap-2 p-2">
       <p class="text-left text-sm text-base-content/50">{{ t('sourceControl.gitNotFoundDesc') }}</p>
       <button class="iw-btn btn-primary w-full h-9" @click="recheck">
         <IconRefresh class="icon-sm" />
@@ -49,7 +68,7 @@
       </button>
     </div>
 
-    <!-- 状态 B：非仓库 -->
+    <!-- 状态 D：非仓库 -->
     <div v-else-if="!gitStore.isRepo" class="flex flex-1 flex-col justify-top gap-2 p-2">
       <p class="text-left text-sm text-base-content/50">{{ t('sourceControl.notRepo') }}</p>
       <button class="iw-btn btn-primary w-full h-9" @click="initRepo">
@@ -62,7 +81,7 @@
       </button>
     </div>
 
-    <!-- 状态 C：仓库 → 三 viewer -->
+    <!-- 状态 E：仓库 → 三 viewer -->
     <SplitView v-else :panes="viewerPanes" :close-title="t('common.close')" class="min-h-0 flex-1">
       <!-- Repositories -->
       <template #repositories-actions>
@@ -339,7 +358,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, watchEffect, nextTick } from 'vue'
+import { ref, computed, watch, watchEffect, nextTick, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconDots, IconGitBranch, IconRefresh, IconReload, IconPlus, IconCheck, IconChevronDown, IconList, IconFolders, IconFolder } from '@tabler/icons-vue'
 import { SplitView, type SplitPane } from '../common/split-view'
@@ -357,6 +376,8 @@ import { StateStorage } from '@/utils/StateStorage'
 const { t } = useI18n()
 const gitStore = useGitStore()
 const appStore = useAppStore()
+
+onMounted(() => { void gitStore.ensureDetected() })
 
 const folderName = computed(() =>
   appStore.currentFolder ? pathUtils.basename(appStore.currentFolder) : ''

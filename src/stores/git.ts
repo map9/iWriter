@@ -74,13 +74,17 @@ export const useGitStore = defineStore('git', () => {
   }
 
   /** 工作空间文件夹变化时调用 */
+  let folderChangeGeneration = 0
   async function onFolderChanged(newRoot: string | null): Promise<void> {
+    const generation = ++folderChangeGeneration
     root.value = newRoot
     resetRepoState()
     if (!newRoot) return
     await ensureDetected()
+    if (generation !== folderChangeGeneration) return
     if (!availability.value.available) return
     isRepo.value = await api().isRepo(newRoot)
+    if (generation !== folderChangeGeneration) return
     if (isRepo.value) await refresh()
   }
 

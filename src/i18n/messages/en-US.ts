@@ -1223,6 +1223,8 @@ export default {
     },
     gitNotFound: 'Git not found',
     gitNotFoundDesc: 'Version control requires Git installed on your system.',
+    noWorkspace: 'No workspace is available. Open a folder or clone a repository first.',
+    workspaceLoading: 'Opening workspace…',
     notRepo: 'This workspace is not under version control.',
     initRepo: 'Initialize Repository',
     cloneRepo: 'Clone Repository…',
@@ -1274,6 +1276,7 @@ export default {
     collapseAll: 'Collapse All',
     noFolder: 'No Folder',
     rootFolder: 'Root Folder',
+    workspaceLoading: 'Opening workspace…',
     view: {
       workspace: 'Workspace',
       timeline: 'Timeline',

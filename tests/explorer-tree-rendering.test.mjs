@@ -38,7 +38,7 @@ describe('Explorer file tree rendering', () => {
   it('sorts when tree data changes rather than while the Explorer renders', () => {
     assert.match(appStoreSource, /function setFileTreeSortType\(sortType: FileTreeSortType\)/)
 
-    const loadTree = sourceBetween(appStoreSource, 'async function loadFileTree()', 'async function getEffectiveWorkspaceIgnoreRules')
+    const loadTree = sourceBetween(appStoreSource, 'async function loadFileTree(', 'async function getEffectiveWorkspaceIgnoreRules')
     const childLoadIndex = loadTree.indexOf('fileTree.value.children = await traverseFileTree')
     const sortIndex = loadTree.indexOf('sortFileTreeNodes(fileTree.value.children as FileTreeNode[], currentFileTreeSortType.value)')
     assert.notEqual(childLoadIndex, -1)

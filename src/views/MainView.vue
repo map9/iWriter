@@ -293,8 +293,12 @@ function handleViewUpdateDetails() {
 }
 
 // Lifecycle
-// 版本控制：跟随工作空间文件夹（全局单一驱动，供 SCM 面板与 Explorer Timeline 共用）
-watch(() => appStore.currentFolder, (folder) => { gitStore.onFolderChanged(folder ?? null) }, { immediate: true })
+// 版本控制只跟随可用工作区；外部删除时立即清空 SCM，避免保留旧仓库数据。
+watch(
+  [() => appStore.currentFolder, () => appStore.isWorkspaceAvailable],
+  ([folder, available]) => { void gitStore.onFolderChanged(available ? folder : null) },
+  { immediate: true },
+)
 
 onMounted(() => {
   aiStore.init()
