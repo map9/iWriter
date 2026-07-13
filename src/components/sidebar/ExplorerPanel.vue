@@ -144,9 +144,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watchEffect } from 'vue'
+import { ref, computed, watch, watchEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { StateStorage } from '@/utils/StateStorage'
 import type { FileTreeNode, FileTreeCallbacks, FileTreeSortType } from '../common/tree'
 import type { ContextMenuItem } from '@/types'
 import { TEXT_IWT_EXTENSION } from '@/types'
@@ -198,10 +199,16 @@ const folderName = computed(() => {
 })
 
 // Viewer 面板：工作区（必选、不可折叠、永久显示）+ 时间线（可选、可折叠）
+const savedViewers = StateStorage.loadPanelViewers()
 const viewerPanes = ref<SplitPane[]>([
   { id: 'workspace', title: t('explorer.view.workspace'), collapsible: false, size: 3 },
-  { id: 'timeline', title: t('explorer.view.timeline'), collapsed: true, size: 1 },
+  { id: 'timeline', title: t('explorer.view.timeline'), collapsed: true, size: 1, visible: savedViewers.explorerTimeline },
 ])
+// Timeline 显隐持久化（NFR6）
+watch(
+  () => viewerPanes.value.find(p => p.id === 'timeline')?.visible !== false,
+  (v) => StateStorage.savePanelViewers({ explorerTimeline: v }),
+)
 // 工作区标题跟随文件夹名；Timeline 标题随语言切换更新（t() 存进 ref 只算一次）
 watchEffect(() => {
   const ws = viewerPanes.value.find(p => p.id === 'workspace')

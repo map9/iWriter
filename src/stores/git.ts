@@ -110,17 +110,45 @@ export const useGitStore = defineStore('git', () => {
     })
   }
 
-  /** 加载提交图谱（graphBranch 指定分支，null=当前 HEAD） */
+  /** 图谱每页条数；是否可能还有更早提交（末页判断） */
+  const GRAPH_PAGE = 50
+  const graphHasMore = ref(false)
+
+  /** 构造 log 参数（沿用当前分支/所有分支选择） */
+  function graphLogOpts(limit: number, skip: number) {
+    return graphAll.value
+      ? { limit, skip, allBranches: true }
+      : { limit, skip, ref: graphBranch.value ?? undefined }
+  }
+
+  /** 加载提交图谱（graphBranch 指定分支，null=当前 HEAD）；刷新时保留已加载深度 */
   async function loadGraph(): Promise<void> {
     if (!root.value || !isRepo.value) return
     graphLoading.value = true
+    const limit = Math.max(GRAPH_PAGE, commits.value.length)
     try {
-      commits.value = await api().log(root.value, graphAll.value
-        ? { limit: 50, allBranches: true }
-        : { limit: 50, ref: graphBranch.value ?? undefined })
+      const batch = await api().log(root.value, graphLogOpts(limit, 0))
+      commits.value = batch
+      graphHasMore.value = batch.length >= limit
     } catch (err) {
       console.error('[git] loadGraph failed', err)
       commits.value = []
+      graphHasMore.value = false
+    } finally {
+      graphLoading.value = false
+    }
+  }
+
+  /** 追加更早的一页提交（滚动/按钮加载更多） */
+  async function loadMoreGraph(): Promise<void> {
+    if (!root.value || !isRepo.value || graphLoading.value || !graphHasMore.value) return
+    graphLoading.value = true
+    try {
+      const batch = await api().log(root.value, graphLogOpts(GRAPH_PAGE, commits.value.length))
+      commits.value = [...commits.value, ...batch]
+      graphHasMore.value = batch.length >= GRAPH_PAGE
+    } catch (err) {
+      console.error('[git] loadMoreGraph failed', err)
     } finally {
       graphLoading.value = false
     }
@@ -423,13 +451,14 @@ export const useGitStore = defineStore('git', () => {
     expandedFiles.value = []
     graphBranch.value = null
     graphAll.value = false
+    graphHasMore.value = false
   }
 
   return {
-    availability, root, isRepo, status, branch, commits, expandedHash, expandedFiles, graphBranch, graphAll,
+    availability, root, isRepo, status, branch, commits, expandedHash, expandedFiles, graphBranch, graphAll, graphHasMore,
     loading, graphLoading, busy, progress, revision, cloneDialogOpen, changeCount, hasChanges,
     commitMessage, committing, identityPromptOpen,
-    ensureDetected, onFolderChanged, refresh, loadGraph, setGraphBranch, toggleCommit, loadFileHistory,
+    ensureDetected, onFolderChanged, refresh, loadGraph, loadMoreGraph, setGraphBranch, toggleCommit, loadFileHistory,
     openDiff, openCommitDiff, openMergeTab,
     stage, unstage, stageAll, unstageAll, discard, commit,
     checkout, createBranch, deleteBranch, addToGitignore, restoreFile, merge,

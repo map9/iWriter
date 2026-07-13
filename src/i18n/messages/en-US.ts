@@ -156,6 +156,12 @@ export default {
       workspaceIgnoreRulesTitle: 'Default File Filter Rules',
       workspaceIgnoreRulesDesc: 'Used by Explorer, search across files, and file watching. The workspace root .iwtignore is layered on as project rules.',
       workspaceIgnoreRulesPlaceholder: '# One rule per line\n.DS_Store\n.iwriter/\nexports/\n!important.md',
+      sourceControlTitle: 'Source Control',
+      commitWhenEmptyTitle: 'Commit With Nothing Staged',
+      commitWhenEmptyDesc: 'What happens when you click Commit while nothing is staged.',
+      commitWhenEmptyAll: 'Commit all changes (like VSCode)',
+      commitWhenEmptyOff: 'Disabled (require staging first)',
+      commitWhenEmptyPrompt: 'Always ask',
     },
     editor: {
       title: 'Editor',
@@ -1141,6 +1147,7 @@ export default {
       treeView: 'Tree view',
       selectBranch: 'Select branch',
       allBranches: 'All branches',
+      loadMore: 'Load more',
     },
     view: {
       repositories: 'Repositories',
@@ -1170,7 +1177,13 @@ export default {
     commit: 'Commit',
     commitAll: 'Commit All Changes',
     amend: 'Amend Last Commit',
+    noStagedChanges: 'No staged changes to commit.',
+    commitAllConfirm: {
+      title: 'Commit all changes?',
+      message: 'There are no staged changes. Stage and commit all changes?',
+    },
     action: {
+      openDiff: 'Open Diff',
       stage: 'Stage Changes',
       unstage: 'Unstage',
       discard: 'Discard Changes',

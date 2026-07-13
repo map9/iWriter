@@ -156,6 +156,12 @@ export default {
       workspaceIgnoreRulesTitle: '默认文件过滤规则',
       workspaceIgnoreRulesDesc: '用于资源管理器、跨文件搜索和文件监听。工作区根目录的 .iwtignore 会作为项目规则叠加。',
       workspaceIgnoreRulesPlaceholder: '# 每行一条规则\n.DS_Store\n.iwriter/\nexports/\n!important.md',
+      sourceControlTitle: '源代码管理',
+      commitWhenEmptyTitle: '无暂存更改时提交',
+      commitWhenEmptyDesc: '点击「提交」但没有已暂存更改时的行为。',
+      commitWhenEmptyAll: '提交所有更改（对标 VSCode）',
+      commitWhenEmptyOff: '禁用（要求先暂存）',
+      commitWhenEmptyPrompt: '每次询问',
     },
     editor: {
       title: '编辑器',
@@ -1138,6 +1144,7 @@ export default {
       treeView: '树状视图',
       selectBranch: '选择分支',
       allBranches: '所有分支',
+      loadMore: '加载更多',
     },
     view: {
       repositories: '存储库',
@@ -1167,7 +1174,13 @@ export default {
     commit: '提交',
     commitAll: '提交所有更改',
     amend: '修订上次提交',
+    noStagedChanges: '没有已暂存的更改可提交。',
+    commitAllConfirm: {
+      title: '提交所有更改？',
+      message: '没有已暂存的更改，是否暂存并提交所有更改？',
+    },
     action: {
+      openDiff: '打开差异',
       stage: '暂存更改',
       unstage: '取消暂存',
       discard: '放弃更改',

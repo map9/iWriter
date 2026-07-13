@@ -1,8 +1,10 @@
 # DESIGN.md — 工作空间版本控制 · 技术设计
 
-> 状态：设计中 v0.1（2026-07-10）
-> 配套需求：[SOURCE_CONTROL.md](./SOURCE_CONTROL.md) · 视觉稿：[./ui/](./ui/)
-> 已定决策：simple-git（系统 git）· 单仓库 · 复用 DiffSplitView · 仅系统凭证 · Commit All · `.iwt` 格式化后 diff
+> 状态：v0.3（2026-07-12，随实现回填；M1–M4 主线 + M5 大部完成）
+> 配套需求：[SOURCE_CONTROL.md](./SOURCE_CONTROL.md) · 可编辑 diff/合并：[EDITABLE_DIFF_AND_MERGE.md](./EDITABLE_DIFF_AND_MERGE.md) · 视觉稿：[./ui/](./ui/)
+> 已定决策：simple-git（系统 git）· 单仓库 · **新建独立 Diff 组件族**（`common/diff/DiffView`+`MergeView`，编辑区 tab 承载，不复用 agent 的 `DiffSplitView`）· 仅系统凭证 · Commit All · `.iwt` 格式化后 diff
+>
+> ⚠️ 演进说明：早期 v0.1 曾拟「复用 `DiffSplitView` + 浮层 `GitDiffModal`」，实现阶段已改为**编辑区 `DIFF_VIEWER` tab + 新建独立 Diff 组件**（§3.3/F7/Q3/Q7）；本文已按最终实现清理。
 
 ---
 
@@ -16,11 +18,12 @@
 │  ├ ScmChangesView (Tree)     │ ──────▶ │  commit / diff / log /        │
 │  └ ScmGraphView              │ git:*   │  branch / fetch/pull/push …   │
 │ ExplorerPanel › TimelineView │ ◀────── │                               │
-│ DiffViewerPage (DiffSplitView)│ result │  依赖：机器安装的 `git`        │
+│ DiffViewerPage (DiffView/Merge)│ result │  依赖：机器安装的 `git`        │
 │ statusbar-items/git-status   │         │  simpleGit(root) 实例缓存      │
 │ stores/git.ts (useGitStore)  │         └──────────────────────────────┘
 └─────────────────────────────┘
-      │ 复用：common/tree · DiffSplitView · showMessageBox · statusbar · workspace filtering
+      │ 复用：common/tree · showMessageBox · statusbar · workspace filtering
+      │ 新建：common/diff（DiffView / MergeView / hunk-patch）
 ```
 
 - **所有 git 命令在主进程执行**（`GitService`），渲染层只经 IPC 调用、持有状态。
@@ -44,7 +47,8 @@
 | `src/components/sidebar/scm/ScmChangesView.vue` | 更改 viewer（提交框 + 变更 Tree，待 store） |
 | `src/components/sidebar/scm/ScmGraphView.vue` | 图谱 viewer（提交列表 + 点击展开文件，待 store） |
 | `src/components/sidebar/TimelineView.vue` | ✅**已建占位**·Explorer 内 Timeline viewer（待 store 接真实历史） |
-| `src/components/pages/DiffViewerPage.vue` | 编辑器区 diff tab，内嵌 `DiffSplitView` |
+| `src/components/pages/DiffViewerPage.vue` | ✅**已建**·编辑区 `DIFF_VIEWER` diff tab，内嵌 `common/diff/DiffView`（普通 diff）/ `MergeView`（冲突合并） |
+| `src/components/common/diff/{DiffView,MergeView}.vue` + `hunk-patch.ts` | ✅**已建**·独立 Diff 组件族：split/inline 双模 + 可选行号/差异索引 + hunk stage/discard；不复用 `DiffSplitView` |
 | `src/components/sidebar/scm/dialogs/*.vue` | clone / create-branch / checkout / commit-identity / publish / stash |
 | `src/components/statusbar-items/git-status.ts` | 状态栏分支 / 同步 item 工厂 |
 
@@ -58,10 +62,19 @@
 | `electron/App.ts` | `this.gitService = new GitService()`；`setupIpcHandlers()` 注册 `git:*` |
 | `electron/preload.ts` | 暴露 `git` 命名空间 |
 | `src/types/electron-api.ts` | `ElectronAPI.git: GitApi` |
-| `electron/MenuManager.ts` | 注册 Git 命令菜单项（Commit/Push/Pull/Sync/Checkout…） |
+| `electron/MenuManager.ts` | 注册 Git 命令菜单项（Commit/Push/Pull/Sync/Checkout…）**（置后，未做）** |
 | `src/components/StatusBar.vue` | onMounted 注册 `createGitStatusStatusBarGroup()` |
-| `src/stores/app.ts` | 打开文件夹后触发 `gitStore.onFolderChanged(root)`；文件事件转发 |
+| `src/stores/app.ts` | 打开文件夹后触发 `gitStore.onFolderChanged(root)`；文件事件转发；`globalEditSetting.commitWhenEmpty` 默认 `all` |
 | `package.json` | 依赖 `simple-git` |
+| `src/types/edit-setting.ts` | ✅ 新增 `commitWhenEmpty?: 'all'\|'off'\|'prompt'`（Commit-All 偏好） |
+| `src/utils/StateStorage.ts` | ✅ `DEFAULT_EDIT_SETTING.commitWhenEmpty`；新增 `PanelViewersState` + `{save,load}PanelViewers`（viewer 显隐持久化，key `iwriter-panel-viewers`） |
+| `src/components/preferences/PreferencesDialog.vue` | ✅ 工作区 tab 新增「源代码管理 › 无暂存更改时提交」下拉 |
+| `src/components/sidebar/scm/GitChangeGroup.vue` | ✅ 文件/目录行右键 `@contextmenu`→`emit('context')`；stage/unstage/discard/gitignore 改文件集合；目录行悬停操作 |
+| `src/components/sidebar/scm/fileTree.ts` | ✅ 目录行携带 `path` + 递归 `files`（目录级操作数据源） |
+| `src/components/sidebar/SourceControlPanel.vue` | ✅ `onContext` 右键菜单；`doPrimaryCommit` 走 `commitWhenEmpty`；viewer 显隐读取/回写；`#graph` 接入泳道 gutter + 加载更多 |
+| `src/components/sidebar/scm/gitGraphLayout.ts` | ✅**新建**·DAG 泳道布局纯函数 `computeGraphLayout`（lanes 状态机 + 8 色调色板） |
+| `src/components/sidebar/scm/GitGraphGutter.vue` | ✅**新建**·每行提交的泳道 SVG（cubic 连线 + node 圆点） |
+| `electron/GitService.ts` `src/types/git.ts` `src/stores/git.ts` | ✅ `log` 扩 `%P` → `GitCommit.parents`；store `loadMoreGraph`/`graphHasMore` 分页 |
 
 ---
 
@@ -90,7 +103,7 @@ export class GitService {
   getUserIdentity(root): Promise<{name?:string; email?:string}>
   setUserIdentity(root, name, email, global: boolean): Promise<void>
 
-  // Diff（供 DiffSplitView）
+  // Diff（供 common/diff/DiffView）
   diff(root, path, opts:{staged:boolean}): Promise<GitDiffPayload>
   // → {oldContent, newContent, isBinary}；工作区: new=磁盘, old=index/HEAD 内容
 
@@ -258,21 +271,22 @@ LeftSidebar
     ├─ ScmChangesView        ← 提交框(自扩展 textarea) + 变更 Tree(common/tree)
     └─ ScmGraphView          ← useGitStore.commits；点击 → 展开 commitFiles
 
-编辑器区：DiffViewerPage      ← 内嵌 DiffSplitView（只读）
-弹窗：dialogs/*.vue（输入类）  ← PrintDialogShell 风格
+编辑器区：DiffViewerPage      ← 内嵌 common/diff/DiffView（普通 diff）/ MergeView（冲突合并）
+弹窗：SourceControlPanel 内联输入弹窗  ← PrintDialogShell 风格（分支/远程/贮藏信息）
       确认类                  ← window.electronAPI.showMessageBox
 状态栏：statusbar-items/git-status ← createGitStatusStatusBarGroup()
 ```
 
 **复用点（不重复造轮子）**
-- 变更列表 / commit 文件列表：`common/tree/Tree.vue`（`TreeNode`：分组节点 + 文件叶子）。
-- Diff：`ai/agent-panel/chat-area/views/DiffSplitView.vue`，只读（不传 `editableRight`），入参 `oldContent/newContent`。
+- 变更列表 / commit 文件列表：`common/tree` 行模型思路；SCM 自建 `scm/fileTree.ts`（目录树行 + 目录级操作数据源）。
+- Diff：**新建** `common/diff/DiffView.vue`（split/inline 双模、可选行号、差异索引、hunk stage/discard）；冲突用 `MergeView.vue`。**不复用** agent 的 `DiffSplitView`（仅参考其 UI，见 §3.3/F7 决策）。
 - 确认弹窗：`window.electronAPI.showMessageBox`（放弃/删除/中止合并/远程失败）。
+- 右键上下文菜单：`window.electronAPI.showContextMenu`（变更行/目录行 stage/unstage/discard/gitignore、分支/远程/贮藏子菜单）。
 - 输入弹窗外壳：`print/PrintDialogShell.vue` 同款（`bg-black/45 backdrop-blur` + `iw-input` + `iw-btn`）。
 - 状态栏：`common/statusbar` 工厂（`useStatusBar` + `StatusBarAlignment` + rich content `$(git-branch)`）。
 - 忽略规则：`getEffectiveWorkspaceIgnoreRules`（与 `.gitignore` 统一来源）。
 
-**Diff tab 打开方式**：点击变更/提交文件 → 打开一个 `DiffViewerPage` 类型的 tab（新 `DocumentType.Diff`，只读、不落盘），标题 `filename (Working Tree)` / `filename (hash)`。基于 `appStore` 现有多 tab 机制。
+**Diff tab 打开方式**：点击变更/提交文件 → `appStore.openDiffTab(spec, title)` 打开 `DocumentType.DIFF_VIEWER` tab（只读、永不 dirty、不进 workspace 快照），标题 `filename (工作区/暂存/hash/合并)`；同一对比去重复用（见 F7.1）。
 
 ---
 
@@ -283,8 +297,8 @@ LeftSidebar
 2. 输入信息，点「提交」→ 若无暂存则 Commit All（Q5）→ 校验 identity（缺失弹 commit-identity dialog）→ `git:commit` → `refresh()` + 清空输入。
 
 **打开 diff**
-1. 点变更文件 → `appStore.openDiffTab({root, path, staged})`。
-2. `DiffViewerPage` onMounted → `git:diff` → 得 `GitDiffPayload` → 传入 `DiffSplitView`。
+1. 点变更文件 → `gitStore.openDiff(path, {staged})` → `appStore.openDiffTab(spec, title)`（冲突文件走 `openMergeTab`）。
+2. `DiffViewerPage` onMounted 按 `DiffSpec` 取内容（`git:diff` / `git:commit-file-diff` / 冲突三方）→ 传入 `DiffView` / `MergeView`。
 
 **Graph 展开提交**
 1. 点提交行 → `gitStore.expandedHash = hash` → `git:commit-files` → 渲染文件 list/tree。
@@ -320,20 +334,20 @@ LeftSidebar
 
 | 里程碑 | 任务（文件） |
 | --- | --- |
-| **M1 只读基础** | ✅**完成** · `simple-git` · `GitService`(detect/isRepo/init/status/branches/diff/log/commitFiles/commitFileDiff) · `git.ts` 类型 · IPC(`git:*`)+preload(`git`)+electron-api · `stores/git.ts` · `SidebarMode`+LeftSidebar · `SourceControlPanel` 三 viewer(Repositories/Changes 只读/Graph 提交+展开文件+点文件看 diff) · `TimelineView`(跟随活动文件) · **`GitDiffModal` 复用 DiffSplitView**(点变更/提交文件→浮层 diff) · `statusbar-items/git-status`(分支+↑↓，command 聚焦 SCM) · MainView 统一驱动 onFolderChanged |
+| **M1 只读基础** | ✅**完成** · `simple-git` · `GitService`(detect/isRepo/init/status/branches/diff/log/commitFiles/commitFileDiff) · `git.ts` 类型 · IPC(`git:*`)+preload(`git`)+electron-api · `stores/git.ts` · `SidebarMode`+LeftSidebar · `SourceControlPanel` 三 viewer(Repositories/Changes 只读/Graph 提交+展开文件+点文件看 diff) · `TimelineView`(跟随活动文件) · **编辑区 `DIFF_VIEWER` tab（`DiffViewerPage`+新建 `common/diff/DiffView`）**(点变更/提交文件→diff tab) · `statusbar-items/git-status`(分支+↑↓，command 聚焦 SCM) · MainView 统一驱动 onFolderChanged |
 | **M2 本地写** | ✅**完成** · GitService(stage/unstage/stageAll/unstageAll/discard/commit/identity/checkout/createBranch/deleteBranch/addToGitignore) · IPC+preload+api · store 写 action(run 包裹+notify 报错) · 提交框(自扩展 textarea+智能 Commit All+▾菜单) · 逐文件&分组 stage/unstage/discard/gitignore · 放弃走 `showMessageBox` 二次确认 · 提交身份 `GitIdentityDialog` · 分支切换/新建。**未 surface**：deleteBranch(已实现，菜单未挂) |
 | **M3 远程** | ✅**完成** · GitService(fetch/pull/push/sync/publish/clone) · IPC+preload+api · store remoteRun(busy 态 + 失败 `showMessageBox` 弹 stderr) · ⋯ 菜单远程操作(有 upstream→sync/pull/push；无→publish；+fetch) · 标题栏同步按钮(busy spinner) · 克隆弹窗→选目录→`appStore.openFolderByPath` 打开 · 状态栏 sync item 直接触发同步 |
-| **M4 进阶** | 冲突分组 + 合并解决 · 编辑器 gutter 装饰 · commit-file-diff |
-| **M5 增强** | stash · hunk 级 stage · 进度事件 · 图片 diff · 多仓库（预留） |
+| **M4 进阶** | ✅**完成（gutter 已弃）** · 冲突分组 + 合并解决（`DIFF_VIEWER` kind=conflict + `MergeView`，见 EDITABLE_DIFF_AND_MERGE.md）· commit-file-diff · Timeline/Graph 历史 · 状态栏分支。~~编辑器 gutter 装饰~~ 已决策不做（F12 A） |
+| **M5 增强** | ✅**大部完成** · stash（F10）· hunk 级 stage（F7.4）· 进度事件（`git:progress`）· 远程管理 add/remove/list · 目录级 stage（tree 视图）· 变更行/目录行右键菜单 · Commit-All 偏好 · viewer 显隐持久化 · **分支泳道图 DAG（侧栏 gutter，只读 v1）**：`log` 扩 `%P`→`GitCommit.parents`；`scm/gitGraphLayout.ts`(computeGraphLayout) + `scm/GitGraphGutter.vue`(每行 SVG)；`loadMoreGraph`/`graphHasMore` 分页。**留后**：行级(任意选区) stage · rename remote · 图片 diff 前后对照 · 多仓库（预留）· 命令面板/MenuManager Git 命令 · 全宽 Git Graph tab · 图上写操作 |
 
 ---
 
 ## 12. 开放技术点（实现时定）
 
-- **Diff tab vs 浮层**：M1 实际采用**浮层 `GitDiffModal`**（复用 DiffSplitView，低风险、不改 tab 生命周期），非编辑器区 tab。tab 化需新增合成 DocumentType + 去重/持久化，列为后续可选增强；先用浮层验证手感。
+- **Diff 承载（已定案）**：最终采用**编辑区 `DIFF_VIEWER` tab + 新建独立 `common/diff/DiffView`/`MergeView`**（依赖 tab view refactor 新增该 tab 类型，只读、不落盘、去重复用），非浮层、不复用 `DiffSplitView`。早期「浮层 `GitDiffModal`」方案已废弃。
 - **status 解析**：simple-git `status()` 已给结构化结果，但 rename/conflict 细节需核对字段；必要时 `git status --porcelain=v2` 自解析。
 - **`.git` 目录监听**：与现有 chokidar 的 ignore 规则可能冲突（`.git` 常被忽略）——需为 `.git/HEAD|index|MERGE_HEAD` 开单独 watch。
-- **DiffViewerPage 大文件**：DiffSplitView 现为整段 `diffWords`，超大文件需截断/分块（M1 观察）。
+- **DiffView 大文件**：`DiffView` 变更行内做 `diffWords`/`diffChars` 子高亮，超大文件需截断/分块（观察）。
 - **`.iwt` 格式化 diff 的稳定性**：确保 save 侧与 diff 侧格式化规则一致，否则误报差异。
 
 ---

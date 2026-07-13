@@ -19,4 +19,6 @@ export interface EditSetting {
   useGitignoreForSearch?: boolean
   useGitignoreForWatcher?: boolean
   codeBlockLanguageScope?: 'common' | 'all'
+  /** 无暂存更改时点「提交」的行为：all=提交所有更改(默认,对标 VSCode) / off=禁用 / prompt=每次询问 */
+  commitWhenEmpty?: 'all' | 'off' | 'prompt'
 }

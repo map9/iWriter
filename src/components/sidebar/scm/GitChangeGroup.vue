@@ -21,18 +21,37 @@
     </div>
 
     <ul v-show="!collapsed">
-      <li v-for="(row, i) in rows" :key="row.kind === 'file' ? row.file!.path : `d${i}`">
-        <!-- 目录行（仅 tree 模式） -->
+      <li v-for="(row, i) in rows" :key="row.kind === 'file' ? row.file!.path : `d${row.path ?? i}`">
+        <!-- 目录行（仅 tree 模式，支持目录级 stage/unstage/discard） -->
         <div
           v-if="row.kind === 'dir'"
-          class="flex h-7 items-center gap-1 text-base-content/45"
-          :style="{ paddingLeft: (row.depth * 12 + 12) + 'px' }"
+          class="group/row flex h-7 items-center hover:bg-base-200"
+          @contextmenu.prevent="emit('context', { files: row.files ?? [], isDir: true, kind, ev: $event })"
         >
-          <IconFolder class="icon-2xs shrink-0" />
-          <span class="truncate">{{ row.label }}</span>
+          <div class="flex min-w-0 flex-1 items-center gap-1 text-base-content/45" :style="{ paddingLeft: (row.depth * 12 + 12) + 'px' }">
+            <IconFolder class="icon-2xs shrink-0" />
+            <span class="truncate">{{ row.label }}</span>
+          </div>
+          <div class="flex h-7 shrink-0 items-center pr-2">
+            <div class="hidden items-center gap-0.5 group-hover/row:flex">
+              <button v-if="kind === 'changes'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discard')" @click="emit('discard', row.files ?? [])">
+                <IconArrowBackUp class="icon-2xs" />
+              </button>
+              <button v-if="kind === 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstage')" @click="emit('unstage', row.files ?? [])">
+                <IconMinus class="icon-2xs" />
+              </button>
+              <button v-if="kind !== 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.stage')" @click="emit('stage', row.files ?? [])">
+                <IconPlus class="icon-2xs" />
+              </button>
+            </div>
+          </div>
         </div>
         <!-- 文件行 -->
-        <div v-else class="group/row flex h-7 items-center hover:bg-base-200">
+        <div
+          v-else
+          class="group/row flex h-7 items-center hover:bg-base-200"
+          @contextmenu.prevent="emit('context', { files: [row.file!], isDir: false, kind, ev: $event })"
+        >
           <button
             class="flex min-w-0 flex-1 items-center gap-2 text-left"
             :style="{ paddingLeft: (row.depth * 12 + 24) + 'px' }"
@@ -45,16 +64,16 @@
           <!-- 文件操作（hover 显示，否则显示状态字母；固定高度避免抖动） -->
           <div class="flex h-7 shrink-0 items-center pr-2">
             <div class="hidden items-center gap-0.5 group-hover/row:flex">
-              <button v-if="kind === 'untracked'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.gitignore')" @click="emit('gitignore', row.file!)">
+              <button v-if="kind === 'untracked'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.gitignore')" @click="emit('gitignore', [row.file!])">
                 <IconBan class="icon-2xs" />
               </button>
-              <button v-if="kind === 'changes'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discard')" @click="emit('discard', row.file!)">
+              <button v-if="kind === 'changes'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discard')" @click="emit('discard', [row.file!])">
                 <IconArrowBackUp class="icon-2xs" />
               </button>
-              <button v-if="kind === 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstage')" @click="emit('unstage', row.file!)">
+              <button v-if="kind === 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstage')" @click="emit('unstage', [row.file!])">
                 <IconMinus class="icon-2xs" />
               </button>
-              <button v-if="kind !== 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.stage')" @click="emit('stage', row.file!)">
+              <button v-if="kind !== 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.stage')" @click="emit('stage', [row.file!])">
                 <IconPlus class="icon-2xs" />
               </button>
             </div>
@@ -73,10 +92,16 @@ import { IconChevronRight, IconChevronDown, IconPlus, IconMinus, IconArrowBackUp
 import type { GitFileChange, GitFileStatus } from '@/types/git'
 import { buildScmTreeRows, type ScmTreeRow } from './fileTree'
 
-const props = defineProps<{ title: string; files: GitFileChange[]; kind: 'staged' | 'changes' | 'untracked' | 'conflicts'; treeView?: boolean }>()
+export type ScmGroupKind = 'staged' | 'changes' | 'untracked' | 'conflicts'
+/** 右键上下文菜单载荷：目标文件集合 + 是否目录 + 所属分组 + 鼠标事件 */
+export interface ScmContextPayload { files: GitFileChange[]; isDir: boolean; kind: ScmGroupKind; ev: MouseEvent }
+
+const props = defineProps<{ title: string; files: GitFileChange[]; kind: ScmGroupKind; treeView?: boolean }>()
 const emit = defineEmits<{
-  (e: 'open' | 'stage' | 'unstage' | 'discard' | 'gitignore', file: GitFileChange): void
+  (e: 'open', file: GitFileChange): void
+  (e: 'stage' | 'unstage' | 'discard' | 'gitignore', files: GitFileChange[]): void
   (e: 'stageAll' | 'unstageAll' | 'discardAll'): void
+  (e: 'context', payload: ScmContextPayload): void
 }>()
 const { t } = useI18n()
 const collapsed = ref(false)

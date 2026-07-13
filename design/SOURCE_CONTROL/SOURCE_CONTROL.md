@@ -1,6 +1,6 @@
 # SOURCE_CONTROL.md — 工作空间版本控制需求文档
 
-> 状态：草案 v0.2（2026-07-11，Diff 查看器改为编辑区 tab + 新建独立组件，见 §3.3/F7/Q3/Q7）
+> 状态：草案 v0.3（2026-07-12，M1–M4 主线 + M5 大部完成；本轮补：目录级 stage、变更行/目录行右键菜单、Commit-All 偏好、viewer 显隐持久化。剩：命令面板/MenuManager Git 命令[置后]、行级 stage、rename remote、图片 diff、多仓库[留后]）
 > 定位：为 iWriter 工作空间（打开的文件夹）提供对标 VSCode Source Control 的 **真 Git 集成**。
 
 ---
@@ -89,10 +89,11 @@
 - 单文件 stage / unstage（hover 行内 `+` / `−`）。
 - 分组批量：Stage All / Unstage All。
 - 支持**块级** stage/discard/unstage（stage hunk）——**已实现（2026-07-12）**：diff 视图逐块悬停操作，`structuredPatch` 生成单-hunk 补丁 → `git apply [--cached] [-R]`（详见 §F7.4）。行级（任意选区）仍留后。
+- **目录级** stage/unstage/discard（tree 视图）——**已实现（2026-07-12）**：Changes 树视图下目录行悬停操作 + 右键菜单，作用于该目录（含子目录）下全部变更文件；`fileTree.ts` 目录行携带 `path` + 递归 `files`，与文件行统一走文件集合派发。
 
 ### F3 · 提交 (P0)
 - 提交信息输入框：单行起、自动扩展多行（镜像 SearchPanel），支持标题/正文约定。
-- 「提交」按钮：提交已暂存内容；**无暂存内容时默认「提交所有更改」（Commit All，对标 VSCode）**（Q5）。可在偏好设置改为「禁用/每次询问」。
+- 「提交」按钮：提交已暂存内容；**无暂存内容时默认「提交所有更改」（Commit All，对标 VSCode）**（Q5）。可在偏好设置改为「禁用/每次询问」——**已实现（2026-07-12）**：偏好项 `EditSetting.commitWhenEmpty`（`all`/`off`/`prompt`），偏好设置「工作区 › 源代码管理」下拉；`off` 无暂存时给 notify 提示、`prompt` 弹二次确认。
 - 提交前校验：空信息拦截、用户 `user.name/user.email` 缺失时引导配置。
 - 支持 Amend（修订上次提交）——P1。
 - 提交后刷新状态并清空输入框。
@@ -175,7 +176,7 @@ export interface DiffSpec {
 - **仓库级历史 = SCM 的 Graph viewer**（面板内，非编辑区 tab）：**已实现**。提交列表，作者/时间/信息/hash。
   - **点击某个提交 → 就地展开该提交的文件 list/tree**（状态字母 + 路径，viewer 头部可切 list⇄tree）；点击文件打开该提交的差异（父提交 ↔ 本提交）。**分支下拉选择**（含「所有分支」`--all`）+ **提交上分支/标签色标**（`%D` 解析，head/branch/remote/tag）已实现。
 - **从历史版本还原单文件**：**已实现**（Timeline 行 hover「还原到此版本」→ 二次确认 → `git checkout <hash> -- <file>`）。
-- **完整分支泳道图（彩色 DAG 连线/多列 lane，VS Code Git Graph 那种）：暂不做，留后（2026-07-11 决策）**。当前用「所有分支 + 分支标签色标」表达分支归属。
+- **分支泳道图 DAG（彩色多列 lane 连线）——已实现（2026-07-13，只读 v1）**：Graph viewer 每行提交左侧加泳道 SVG gutter，画出提交↔父提交拓扑（merge 汇入、分叉、pass-through、root）。承载在**侧栏**（非全宽 tab，用户定）。数据：`git log` 扩 `%P` 取父 hash → `GitCommit.parents`；布局：纯函数 `scm/gitGraphLayout.ts`（`computeGraphLayout`，列稳定+回收空位+首父继承色，8 色固定调色板）；渲染：`scm/GitGraphGutter.vue`（每行一个 SVG，cubic 曲线连线 + node 圆点）。分页：`gitStore.loadMoreGraph`/`graphHasMore` +「加载更多」。仍保留分支下拉/--all/分支·tag 色标。**留后**：列压缩左移美化、全宽编辑区 Git Graph tab、图上写操作（checkout/merge/cherry-pick/tag/reset）、滚动自动加载、超多 lane 横向滚动。
 
 ### F9 · 合并与冲突解决 (P1) —— **已实现（2026-07-12）**
 - 检测冲突文件并归入 Merge Changes 分组（已具备）。
@@ -185,8 +186,9 @@ export interface DiffSpec {
 - 承载：复用 `DIFF_VIEWER` tab（`DiffSpec.kind='conflict'` 驱动），新建 `MergeView.vue`。
 - 完整设计见 [EDITABLE_DIFF_AND_MERGE.md](EDITABLE_DIFF_AND_MERGE.md)（建立在「可编辑 diff」之上）。
 
-### F10 · 贮藏 Stash (P2)
-- Stash / Stash pop / Stash list / apply / drop。
+### F10 · 贮藏 Stash (P2) —— **已实现（2026-07-12）**
+- Stash push（可选信息）/ pop / list / apply / drop：`GitService.stash*`；SCM more-actions →「贮藏更改…/弹出最近贮藏/贮藏列表…」（列表二级菜单 apply/pop/drop，drop 二次确认）；pop 冲突交 Merge Changes。
+- **auto-stash sync**：`pull --autostash`（sync 复用）——脏工作区自动 stash→pull→pop，clean 无操作，pop 冲突→进合并 tab。解决「有未提交改动无法 pull」。
 
 ### F11 · `.gitignore` 集成 (P0)
 - **复用现有** workspace 过滤基础设施（`getEffectiveWorkspaceIgnoreRules` / `WORKSPACE_FILTERING.md`）：git 忽略规则与 Explorer/Search 过滤保持一致来源。
@@ -233,8 +235,8 @@ export interface DiffSpec {
 - 复用通用 Tree 控件 `src/components/common/tree/Tree.vue`（分组节点 + 文件叶子为 `TreeNode`）。
 
 ### 5.3 命令集成
-- 命令面板 / 菜单（`MenuManager.ts`）注册 Git 命令：Commit、Push、Pull、Sync、Checkout、Create Branch 等。
-- 右键上下文菜单：文件项的 stage/discard/history/add-to-gitignore。
+- 命令面板 / 菜单（`MenuManager.ts`）注册 Git 命令：Commit、Push、Pull、Sync、Checkout、Create Branch 等。**（置后，未实现）**
+- 右键上下文菜单：变更行 / 目录行的 stage/unstage/discard/gitignore/open——**已实现（2026-07-12）**：`GitChangeGroup` `@contextmenu` → `emit('context')` 携带文件集合+分组+是否目录，`SourceControlPanel.onContext` 按分组裁剪原生菜单项（复用 `showContextMenu`）。history 快捷项仍走 Timeline（Explorer 右键「查看文件历史」）。
 
 ### 5.4 快捷键
 - 复用 VSCode 习惯（可配）：提交输入框 `Cmd/Ctrl+Enter` 提交。
@@ -250,7 +252,7 @@ export interface DiffSpec {
 | NFR3 健壮性 | git 未安装 / 非仓库 / 分离 HEAD / 网络失败 均有明确降级与提示，绝不静默失败 |
 | NFR4 安全 | 不明文存储凭证；破坏性操作（discard/clean/force push/branch delete）必须二次确认 |
 | NFR5 i18n | 中英文文案（复用现有 i18n 体系）|
-| NFR6 持久化 | 面板宽度/展开态/上次分支等经 `StateStorage`(electron-store) 持久化 |
+| NFR6 持久化 | 面板宽度/展开态/上次分支等经 `StateStorage` 持久化。**可选 viewer 显隐已实现（2026-07-12）**：`StateStorage.{save,load}PanelViewers`（`iwriter-panel-viewers`：explorerTimeline/scmRepositories/scmGraph），Explorer/SCM 面板初始化读取 + watch 回写 |
 | NFR7 跨平台 | macOS/Windows/Linux 路径与换行一致（注意 `core.autocrlf`）|
 | NFR8 主题 | 面板与 diff 视图适配 daisyUI 主题及 Markdown 主题 |
 

@@ -316,6 +316,24 @@
                 />
               </div>
             </section>
+            <section class="flex flex-col gap-3">
+              <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.workspace.sourceControlTitle') }}</h3>
+              <div class="flex flex-col gap-2 rounded-box border border-base-300 bg-base-100 px-4 py-3">
+                <div class="min-w-0">
+                  <div class="text-sm font-medium text-base-content">{{ t('preferences.workspace.commitWhenEmptyTitle') }}</div>
+                  <div class="text-xs text-base-content/50">{{ t('preferences.workspace.commitWhenEmptyDesc') }}</div>
+                </div>
+                <select
+                  class="select select-sm select-bordered w-full text-xs"
+                  :value="appStore.globalEditSetting.commitWhenEmpty ?? 'all'"
+                  @change="appStore.globalEditSetting.commitWhenEmpty = ($event.target as HTMLSelectElement).value as 'all' | 'off' | 'prompt'"
+                >
+                  <option value="all">{{ t('preferences.workspace.commitWhenEmptyAll') }}</option>
+                  <option value="off">{{ t('preferences.workspace.commitWhenEmptyOff') }}</option>
+                  <option value="prompt">{{ t('preferences.workspace.commitWhenEmptyPrompt') }}</option>
+                </select>
+              </div>
+            </section>
           </div>
         </div>
 

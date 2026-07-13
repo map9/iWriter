@@ -79,6 +79,8 @@ export interface GitCommit {
   timestamp: number
   /** 指向该提交的引用装饰（分支/远程/tag/HEAD），来自 git %D */
   refs?: GitCommitRef[]
+  /** 父提交全 hash（来自 git %P）；merge 提交有多个，根提交为空——供泳道图 DAG 布局 */
+  parents: string[]
 }
 
 export interface GitCommitRef {

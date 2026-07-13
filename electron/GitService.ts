@@ -332,7 +332,10 @@ export class GitService {
       `--max-count=${opts.limit ?? 50}`,
       `--skip=${opts.skip ?? 0}`,
       '--decorate=short',
-      '--pretty=format:%H%x1f%h%x1f%s%x1f%an%x1f%aI%x1f%at%x1f%D',
+      // --date-order 保证「父不早于其全部子出现」——泳道图布局要求 child 先于 parent，
+      // 否则并行分支/merge 在默认 commit-date 序下可能父先出现而错位。
+      '--date-order',
+      '--pretty=format:%H%x1f%h%x1f%s%x1f%an%x1f%aI%x1f%at%x1f%D%x1f%P',
     ]
     if (opts.allBranches) args.push('--all')
     if (opts.ref) args.push(opts.ref)
@@ -347,11 +350,12 @@ export class GitService {
       .split('\n')
       .filter(Boolean)
       .map((line) => {
-        const [hash, shortHash, subject, author, date, at, decoration] = line.split('\x1f')
+        const [hash, shortHash, subject, author, date, at, decoration, parents] = line.split('\x1f')
         return {
           hash, shortHash, subject, author, date,
           timestamp: Number(at) * 1000,
           refs: this.parseRefs(decoration ?? ''),
+          parents: (parents ?? '').split(' ').filter(Boolean),
         } as GitCommit
       })
   }

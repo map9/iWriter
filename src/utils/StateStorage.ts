@@ -20,6 +20,7 @@ export const STORAGE_KEYS = {
   SEARCH_REPLACE_REPLACE_HISTORY: 'iwriter-search-replace-replace-history',
   SIDEBAR_SEARCH_HISTORY: 'iwriter-sidebar-search-history',
   SIDEBAR_REPLACE_HISTORY: 'iwriter-sidebar-replace-history',
+  PANEL_VIEWERS: 'iwriter-panel-viewers',
 } as const
 
 // 类型定义
@@ -75,12 +76,26 @@ export const DEFAULT_EDIT_SETTING: EditSetting = {
   useGitignoreForSearch: false,
   useGitignoreForWatcher: false,
   codeBlockLanguageScope: 'common',
+  commitWhenEmpty: 'all',
 }
 
 export const DEFAULT_WORKSPACE_STATE: WorkspaceState = {
   currentFolder: null,
   tabs: [],
   activeTabPath: null
+}
+
+/** 可选 viewer 的显隐持久化（Explorer/SCM 容器内的可折叠视图，NFR6） */
+export interface PanelViewersState {
+  explorerTimeline: boolean
+  scmRepositories: boolean
+  scmGraph: boolean
+}
+
+export const DEFAULT_PANEL_VIEWERS: PanelViewersState = {
+  explorerTimeline: true,
+  scmRepositories: true,
+  scmGraph: true,
 }
 
 export const DEFAULT_EXPORT_SETTING: ExportSettings = {
@@ -471,6 +486,34 @@ export class StateStorage {
       console.error('Failed to load search history:', error)
     }
     return []
+  }
+
+  /**
+   * 保存可选 viewer 显隐状态
+   */
+  static savePanelViewers(state: Partial<PanelViewersState>): void {
+    try {
+      const current = this.loadPanelViewers()
+      const merged = { ...current, ...state }
+      localStorage.setItem(STORAGE_KEYS.PANEL_VIEWERS, JSON.stringify(merged))
+    } catch (error) {
+      console.error('Failed to save panel viewers state:', error)
+    }
+  }
+
+  /**
+   * 加载可选 viewer 显隐状态
+   */
+  static loadPanelViewers(): PanelViewersState {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.PANEL_VIEWERS)
+      if (saved) {
+        return { ...DEFAULT_PANEL_VIEWERS, ...JSON.parse(saved) }
+      }
+    } catch (error) {
+      console.error('Failed to load panel viewers state:', error)
+    }
+    return { ...DEFAULT_PANEL_VIEWERS }
   }
 
   /**

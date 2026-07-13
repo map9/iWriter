@@ -125,13 +125,13 @@
         </div>
         <div v-else class="py-1 text-xs">
           <GitChangeGroup v-if="gitStore.status?.conflicts.length" kind="conflicts" :title="mergeLabel" :files="gitStore.status.conflicts" :tree-view="changesTreeView"
-            @open="onFileOpen" @stage="onStage" />
+            @open="onFileOpen" @stage="onStage" @context="onContext" />
           <GitChangeGroup v-if="gitStore.status?.staged.length" kind="staged" :title="stagedLabel" :files="gitStore.status.staged" :tree-view="changesTreeView"
-            @open="onFileOpen" @unstage="onUnstage" @unstage-all="gitStore.unstageAll()" />
+            @open="onFileOpen" @unstage="onUnstage" @unstage-all="gitStore.unstageAll()" @context="onContext" />
           <GitChangeGroup v-if="gitStore.status?.changes.length" kind="changes" :title="changesLabel" :files="gitStore.status.changes" :tree-view="changesTreeView"
-            @open="onFileOpen" @stage="onStage" @discard="onDiscard" @stage-all="gitStore.stageAll()" @discard-all="onDiscardAll" />
+            @open="onFileOpen" @stage="onStage" @discard="onDiscard" @stage-all="gitStore.stageAll()" @discard-all="onDiscardAll" @context="onContext" />
           <GitChangeGroup v-if="gitStore.status?.untracked.length" kind="untracked" :title="untrackedLabel" :files="gitStore.status.untracked" :tree-view="changesTreeView"
-            @open="onFileOpen" @stage="onStage" @gitignore="onGitignore" @stage-all="onStageAllUntracked" />
+            @open="onFileOpen" @stage="onStage" @gitignore="onGitignore" @stage-all="onStageAllUntracked" @context="onContext" />
         </div>
       </template>
 
@@ -155,33 +155,44 @@
         </button>
       </template>
       <template #graph>
-        <div v-if="gitStore.graphLoading" class="sidebar-empty">
+        <div v-if="gitStore.graphLoading && !gitStore.commits.length" class="sidebar-empty">
           <span class="loading loading-spinner loading-sm"></span>
         </div>
         <div v-else-if="!gitStore.commits.length" class="sidebar-empty">
           {{ t('sourceControl.noCommits') }}
         </div>
-        <ul v-else class="py-1 text-xs">
-          <li v-for="c in gitStore.commits" :key="c.hash">
-            <button
-              class="flex w-full items-start gap-2 px-3 py-1.5 text-left hover:bg-base-200"
-              @click="gitStore.toggleCommit(c.hash)"
-            >
-              <IconGitCommit class="icon-xs mt-0.5 shrink-0 text-primary" />
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-base-content">
-                  <span
-                    v-for="(r, ri) in c.refs"
-                    :key="ri"
-                    class="mr-1 inline-block rounded px-1 align-middle text-[10px] leading-tight"
-                    :class="refClass(r.kind)"
-                  >{{ r.name }}</span>{{ c.subject }}
+        <template v-else>
+        <ul class="py-1 text-xs">
+          <li v-for="(c, ci) in gitStore.commits" :key="c.hash">
+            <div class="flex items-stretch hover:bg-base-200">
+              <GitGraphGutter
+                v-if="graphLayout.rows[ci]"
+                :row="graphLayout.rows[ci]"
+                :lane-count="graphLayout.laneCount"
+                :lane-width="GRAPH_LANE_W"
+                :row-height="GRAPH_ROW_H"
+                class="shrink-0 pl-1 mr-2"
+              />
+              <button
+                class="flex min-w-0 flex-1 items-center gap-2 pr-3 text-left"
+                :style="{ minHeight: GRAPH_ROW_H + 'px' }"
+                @click="gitStore.toggleCommit(c.hash)"
+              >
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-base-content">
+                    <span
+                      v-for="(r, ri) in c.refs"
+                      :key="ri"
+                      class="mr-1 inline-block rounded px-1 align-middle text-[10px] leading-tight"
+                      :class="refClass(r.kind)"
+                    >{{ r.name }}</span>{{ c.subject }}
+                  </span>
+                  <span class="block truncate text-base-content/50">
+                    {{ c.author }} · {{ relTime(c.timestamp) }} · {{ c.shortHash }}
+                  </span>
                 </span>
-                <span class="block truncate text-base-content/50">
-                  {{ c.author }} · {{ relTime(c.timestamp) }} · {{ c.shortHash }}
-                </span>
-              </span>
-            </button>
+              </button>
+            </div>
             <ul v-if="gitStore.expandedHash === c.hash" class="pb-1">
               <!-- 列表视图 -->
               <template v-if="!graphTreeView">
@@ -223,6 +234,16 @@
             </ul>
           </li>
         </ul>
+        <button
+          v-if="gitStore.graphHasMore"
+          class="flex w-full items-center justify-center gap-1 px-3 py-1.5 text-xs text-base-content/60 hover:bg-base-200 hover:text-base-content"
+          :disabled="gitStore.graphLoading"
+          @click="gitStore.loadMoreGraph()"
+        >
+          <span v-if="gitStore.graphLoading" class="loading loading-spinner loading-xs"></span>
+          {{ t('sourceControl.graph.loadMore') }}
+        </button>
+        </template>
       </template>
     </SplitView>
 
@@ -320,14 +341,18 @@
 <script setup lang="ts">
 import { ref, computed, watch, watchEffect, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconDots, IconGitBranch, IconGitCommit, IconRefresh, IconReload, IconPlus, IconCheck, IconChevronDown, IconList, IconFolders, IconFolder } from '@tabler/icons-vue'
+import { IconDots, IconGitBranch, IconRefresh, IconReload, IconPlus, IconCheck, IconChevronDown, IconList, IconFolders, IconFolder } from '@tabler/icons-vue'
 import { SplitView, type SplitPane } from '../common/split-view'
-import GitChangeGroup from './scm/GitChangeGroup.vue'
+import GitChangeGroup, { type ScmContextPayload } from './scm/GitChangeGroup.vue'
+import GitGraphGutter from './scm/GitGraphGutter.vue'
+import { computeGraphLayout } from './scm/gitGraphLayout'
 import { buildScmTreeRows } from './scm/fileTree'
 import { useGitStore } from '@/stores/git'
 import { useAppStore } from '@/stores/app'
 import type { ContextMenuItem, GitFileChange, GitFileStatus } from '@/types'
 import pathUtils from '@/utils/pathUtils'
+import { notify } from '@/utils/notifications'
+import { StateStorage } from '@/utils/StateStorage'
 
 const { t } = useI18n()
 const gitStore = useGitStore()
@@ -353,6 +378,11 @@ const graphBranchLabel = computed(() =>
     : (gitStore.graphBranch ?? gitStore.branch?.current ?? '')
 )
 const expandedTreeRows = computed(() => buildScmTreeRows(gitStore.expandedFiles))
+
+// ---- 图谱：DAG 泳道 gutter ----
+const GRAPH_ROW_H = 44
+const GRAPH_LANE_W = 14
+const graphLayout = computed(() => computeGraphLayout(gitStore.commits))
 
 function refClass(kind: string): string {
   switch (kind) {
@@ -384,11 +414,20 @@ async function showGraphBranchMenu(event: MouseEvent) {
   }
 }
 
+const savedViewers = StateStorage.loadPanelViewers()
 const viewerPanes = ref<SplitPane[]>([
-  { id: 'repositories', title: t('sourceControl.view.repositories'), collapsed: true, size: 1 },
+  { id: 'repositories', title: t('sourceControl.view.repositories'), collapsed: true, size: 1, visible: savedViewers.scmRepositories },
   { id: 'changes', title: t('sourceControl.view.changes'), collapsible: false, size: 3 },
-  { id: 'graph', title: t('sourceControl.view.graph'), collapsed: true, size: 2 },
+  { id: 'graph', title: t('sourceControl.view.graph'), collapsed: true, size: 2, visible: savedViewers.scmGraph },
 ])
+// 可选 viewer 显隐持久化（NFR6）
+watch(
+  () => viewerPanes.value.map(p => p.visible !== false),
+  () => StateStorage.savePanelViewers({
+    scmRepositories: viewerPanes.value.find(p => p.id === 'repositories')?.visible !== false,
+    scmGraph: viewerPanes.value.find(p => p.id === 'graph')?.visible !== false,
+  }),
+)
 
 // viewer 标题随语言切换更新：t() 存进 ref 只算一次，需在 effect 中重算才能响应 locale
 watchEffect(() => {
@@ -417,11 +456,22 @@ function autoGrow(e: Event) {
 function onCommitKey(e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); doPrimaryCommit() }
 }
-function doPrimaryCommit() {
+async function doPrimaryCommit() {
   if (!canCommit.value) return
-  // 无暂存内容 → Commit All（Q5）
   const hasStaged = (gitStore.status?.staged.length ?? 0) > 0
-  gitStore.commit({ all: !hasStaged })
+  if (hasStaged) { gitStore.commit({}); return }
+  // 无暂存内容时的行为按偏好设置（Q5）：all=提交所有 / off=禁用 / prompt=每次询问
+  const mode = appStore.globalEditSetting.commitWhenEmpty ?? 'all'
+  if (mode === 'off') { notify.info(t('sourceControl.noStagedChanges')); return }
+  if (mode === 'prompt') {
+    const ok = await confirmBox(
+      t('sourceControl.commitAllConfirm.title'),
+      t('sourceControl.commitAllConfirm.message'),
+      t('sourceControl.commitAll'),
+    )
+    if (!ok) return
+  }
+  gitStore.commit({ all: true })
 }
 async function showCommitMenu(event: MouseEvent) {
   const items: ContextMenuItem[] = [
@@ -436,20 +486,28 @@ async function showCommitMenu(event: MouseEvent) {
   else if (action === 'commit-amend') gitStore.commit({ amend: true })
 }
 
-// ---- 暂存 / 放弃 ----
-function onStage(f: GitFileChange) { gitStore.stage([f.path]) }
-function onUnstage(f: GitFileChange) { gitStore.unstage([f.path]) }
+// ---- 暂存 / 放弃（文件行、目录行、右键菜单统一走文件集合）----
+function onStage(files: GitFileChange[]) { if (files.length) gitStore.stage(files.map(f => f.path)) }
+function onUnstage(files: GitFileChange[]) { if (files.length) gitStore.unstage(files.map(f => f.path)) }
 function onStageAllUntracked() {
   const files = gitStore.status?.untracked.map(f => f.path) ?? []
   if (files.length) gitStore.stage(files)
 }
-async function onDiscard(f: GitFileChange) {
-  const ok = await confirmBox(
-    t('sourceControl.discardConfirm.title'),
-    t('sourceControl.discardConfirm.message', { name: f.name }),
-    t('sourceControl.discardConfirm.confirm'),
-  )
-  if (ok) gitStore.discard([f.path])
+async function onDiscard(files: GitFileChange[]) {
+  const first = files[0]
+  if (!first) return
+  const ok = files.length === 1
+    ? await confirmBox(
+        t('sourceControl.discardConfirm.title'),
+        t('sourceControl.discardConfirm.message', { name: first.name }),
+        t('sourceControl.discardConfirm.confirm'),
+      )
+    : await confirmBox(
+        t('sourceControl.discardConfirm.allTitle'),
+        t('sourceControl.discardConfirm.allMessage', { count: files.length }),
+        t('sourceControl.discardConfirm.confirm'),
+      )
+  if (ok) gitStore.discard(files.map(f => f.path))
 }
 async function onDiscardAll() {
   const files = gitStore.status?.changes.map(f => f.path) ?? []
@@ -461,7 +519,29 @@ async function onDiscardAll() {
   )
   if (ok) gitStore.discard(files)
 }
-function onGitignore(f: GitFileChange) { gitStore.addToGitignore(f.path) }
+function onGitignore(files: GitFileChange[]) {
+  for (const f of files) gitStore.addToGitignore(f.path)
+}
+
+/** 变更行/目录行右键菜单（stage/unstage/discard/gitignore/open，按所属分组裁剪项） */
+async function onContext(p: ScmContextPayload) {
+  if (!p.files.length) return
+  const items: ContextMenuItem[] = []
+  if (!p.isDir && p.files.length === 1) {
+    items.push({ id: 'open', label: t('sourceControl.action.openDiff') })
+    items.push({ type: 'separator' })
+  }
+  if (p.kind === 'staged') items.push({ id: 'unstage', label: t('sourceControl.action.unstage') })
+  else items.push({ id: 'stage', label: t('sourceControl.action.stage') })
+  if (p.kind === 'changes') items.push({ id: 'discard', label: t('sourceControl.action.discard') })
+  if (p.kind === 'untracked') items.push({ id: 'gitignore', label: t('sourceControl.action.gitignore') })
+  const action = await window.electronAPI.showContextMenu(items, { x: p.ev.clientX, y: p.ev.clientY })
+  if (action === 'open' && p.files[0]) onFileOpen(p.files[0])
+  else if (action === 'stage') onStage(p.files)
+  else if (action === 'unstage') onUnstage(p.files)
+  else if (action === 'discard') onDiscard(p.files)
+  else if (action === 'gitignore') onGitignore(p.files)
+}
 
 async function confirmBox(title: string, message: string, confirmLabel: string): Promise<boolean> {
   const res = await window.electronAPI.showMessageBox({

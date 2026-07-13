@@ -130,6 +130,7 @@ export const useAppStore = defineStore('app', () => {
     useGitignoreForSearch: false,
     useGitignoreForWatcher: false,
     codeBlockLanguageScope: 'common',
+    commitWhenEmpty: 'all',
   })
   const globalExportSetting = reactive<ExportSettings>(structuredClone(DEFAULT_EXPORT_SETTING))
   const globalMarkdownPrintSetting = reactive<MarkdownPrintPreferences>(structuredClone(DEFAULT_MARKDOWN_PRINT_PREFERENCES))
