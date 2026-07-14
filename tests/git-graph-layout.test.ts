@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { GitCommit } from '@/types/git'
-import { computeGraphLayout, getGraphRowLaneCount, hasUnpublishedLocalRef } from './gitGraphLayout.ts'
+import { computeGraphLayout, getGraphRowLaneCount, hasUnpublishedLocalRef } from '../src/components/sidebar/scm/gitGraphLayout.ts'
 
 const commit = (hash: string, parents: string[], refs: GitCommit['refs'] = []): GitCommit => ({
   hash,
