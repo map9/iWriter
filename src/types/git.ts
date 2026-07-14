@@ -4,6 +4,10 @@ export interface GitAvailability {
   available: boolean
   version?: string
   path?: string
+  /** 未安装时的按平台安装命令（供 SCM 面板安装引导，对齐 LibreOffice） */
+  installCommand?: string
+  /** 未安装时的下载页 URL */
+  downloadUrl?: string
 }
 
 /** 可预期的 Git 操作问题：主进程识别，渲染层只负责展示与恢复。 */
@@ -25,6 +29,18 @@ export interface GitIssue {
 export type GitActionResult<T> =
   | { ok: true; value: T }
   | { ok: false; issue: GitIssue }
+
+/** 删除分支预检结果（三查）：由渲染层组织成大白话问题清单 + 决定按钮为「删除」还是「强制删除」 */
+export interface DeleteBranchPreflight {
+  /** 相对 upstream 未推送的提交数（无 upstream=0） */
+  unpushedCommits: number
+  /** 主干分支名（main/master），无则 null */
+  mainRef: string | null
+  /** 是否已并入主干 */
+  mergedIntoMain: boolean
+  /** 基于本分支派生的其他本地分支 */
+  descendantBranches: string[]
+}
 
 /** M=修改 A=新增 D=删除 R=重命名 U=未跟踪 C=冲突 */
 export type GitFileStatus = 'M' | 'A' | 'D' | 'R' | 'U' | 'C'
@@ -178,6 +194,8 @@ export interface GitApi {
   checkout: (root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) => Promise<GitActionResult<void>>
   createBranch: (root: string, name: string, base?: string, checkout?: boolean) => Promise<void>
   deleteBranch: (root: string, name: string, force: boolean) => Promise<GitActionResult<void>>
+  preflightDeleteBranch: (root: string, name: string) => Promise<DeleteBranchPreflight>
+  preflightMerge: (root: string, branch: string) => Promise<{ fastForward: boolean }>
   listTags: (root: string) => Promise<string[]>
   createTag: (root: string, name: string, opts: { message?: string; hash?: string }) => Promise<void>
   deleteTag: (root: string, name: string) => Promise<void>

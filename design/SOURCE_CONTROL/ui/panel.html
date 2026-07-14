@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<title>SCM 面板 — 视图容器（Repositories / Changes / Graph）</title>
+<title>SCM 面板 — 视图容器 / 行状态 / 菜单</title>
 <style>
   :root{
     --b100:#ffffff; --b200:#f6f7f9; --b300:#e4e7eb; --bc:#1c1e21; --bc60:#6b7280; --bc40:#9aa1ab;
@@ -11,8 +11,8 @@
   *{box-sizing:border-box}
   body{margin:0;background:#eceef1;color:var(--bc);font:13px/1.5 -apple-system,"Segoe UI",system-ui,sans-serif;padding:28px}
   h1{font-size:15px;margin:0 0 4px}
-  .lead{color:#5b6470;font-size:12px;margin:0 0 6px;max-width:900px}
-  .impl{background:#eef2ff;border:1px solid #d5dcff;border-radius:8px;padding:10px 14px;font-size:12px;color:#3a3f66;margin:0 0 22px;max-width:900px}
+  .lead{color:#5b6470;font-size:12px;margin:0 0 6px;max-width:960px}
+  .impl{background:#eef2ff;border:1px solid #d5dcff;border-radius:8px;padding:10px 14px;font-size:12px;color:#3a3f66;margin:0 0 22px;max-width:960px}
   .impl code{background:#fff;border:1px solid #d5dcff;border-radius:3px;padding:0 4px}
   .stage{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
   figure{margin:0}
@@ -20,15 +20,14 @@
 
   /* ---------- 视图容器外壳 ---------- */
   .panel{width:300px;background:var(--b100);border:1px solid var(--b300);border-radius:8px;overflow:hidden;
-    display:flex;flex-direction:column;max-height:760px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-  /* 容器标题栏 */
+    display:flex;flex-direction:column;max-height:820px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
   .c-title{display:flex;align-items:center;height:34px;padding:0 6px 0 12px;border-bottom:1px solid var(--b300);background:var(--b100)}
   .c-title h2{flex:1;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--bc60);margin:0}
   .c-title .count{margin-left:6px;background:var(--primary);color:#fff;border-radius:9px;font-size:10px;font-weight:700;padding:1px 6px}
   .tbtn{width:26px;height:26px;display:grid;place-items:center;border:0;background:transparent;color:var(--bc60);border-radius:6px;cursor:pointer;font-size:14px}
   .tbtn:hover{background:var(--b200);color:var(--bc)}
 
-  /* ---------- viewer 分节（可折叠） ---------- */
+  /* ---------- viewer 分节 ---------- */
   .viewer{border-bottom:1px solid var(--b300);display:flex;flex-direction:column;min-height:0}
   .viewer:last-child{border-bottom:0}
   .v-head{display:flex;align-items:center;gap:4px;height:28px;padding:0 6px 0 8px;cursor:pointer;background:var(--b200);position:relative}
@@ -59,26 +58,31 @@
   .btn-commit{flex:1;height:30px;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--primary);color:#fff;border:0;border-radius:var(--field-r) 0 0 var(--field-r);cursor:pointer;font-size:12px;font-weight:600}
   .btn-caret{width:28px;height:30px;background:var(--primary);color:#fff;border:0;border-left:1px solid rgba(255,255,255,.25);border-radius:0 var(--field-r) var(--field-r) 0;cursor:pointer}
 
+  /* 分组标题（已暂存/更改/未跟踪/冲突） */
   .tnode-group{display:flex;align-items:center;gap:4px;height:24px;padding:0 8px 0 12px;cursor:pointer;color:var(--bc60);font-size:11px;font-weight:600;text-transform:uppercase;position:relative}
   .tnode-group:hover{background:var(--b200)}
   .tnode-group .chev{width:12px;text-align:center;color:var(--bc40);font-size:9px}
   .tnode-group .gt{flex:1}
-  .tnode-group .gc{background:var(--b300);color:var(--bc60);border-radius:9px;font-size:10px;padding:0 6px}
-  .tnode-group .gtools{display:none;position:absolute;right:4px;gap:1px}
+  .tnode-group .gtools{display:none;gap:1px;margin-right:4px}
   .tnode-group:hover .gtools{display:flex}
   .tnode-group .gtools .tbtn{width:20px;height:20px;font-size:11px}
-  .tnode-file{display:flex;align-items:center;gap:7px;height:24px;padding:0 8px 0 26px;cursor:pointer;position:relative}
-  .tnode-file:hover{background:var(--b200)}
-  .tnode-file.sel{background:color-mix(in srgb,var(--primary) 14%,transparent)}
-  .tnode-file .ico{width:13px;color:var(--bc40);flex-shrink:0}
-  .tnode-file .name{flex-shrink:0}
-  .tnode-file .dir{color:var(--bc40);font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .tnode-file .st{width:14px;text-align:center;font-weight:700;flex-shrink:0}
-  .tnode-file .factions{display:none;position:absolute;right:6px;gap:1px;background:var(--b200);padding-left:6px}
-  .tnode-file:hover .factions{display:flex}
-  .tnode-file:hover .st{visibility:hidden}
-  .factions .tbtn{width:20px;height:20px;font-size:11px}
-  .st-M{color:var(--warning)} .st-A{color:var(--success)} .st-D{color:var(--error)} .st-U{color:var(--success)} .st-C{color:var(--error)}
+  .tnode-group .gc{background:var(--b300);color:var(--bc60);border-radius:9px;font-size:10px;padding:0 6px}
+
+  /* 文件行 / 目录行：右端=状态（常驻），hover 时操作按钮出现在其左侧、互不遮挡 */
+  .row{display:flex;align-items:center;gap:7px;height:24px;padding:0 8px 0 12px;cursor:pointer}
+  .row:hover{background:var(--b200)}
+  .row.sel{background:color-mix(in srgb,var(--primary) 14%,transparent)}
+  .row .ico{width:13px;color:var(--bc40);flex-shrink:0;text-align:center}
+  .row .name{flex-shrink:0}
+  .row .dir{color:var(--bc40);font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .main{flex:1;min-width:0;display:flex;align-items:center;gap:7px;overflow:hidden}
+  .row .acts{display:none;align-items:center;gap:1px}
+  .row:hover .acts{display:flex}
+  .row .acts .tbtn{width:20px;height:20px;font-size:11px}
+  .row .st{width:15px;text-align:center;font-weight:700;flex-shrink:0}          /* 文件状态字母 */
+  .row .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin:0 3.5px} /* 目录聚合状态点 */
+  .st-M{color:var(--warning)} .st-A{color:var(--success)} .st-D{color:var(--error)} .st-U{color:var(--success)} .st-C{color:var(--error)} .st-R{color:var(--warning)}
+  .dot-red{background:var(--error)} .dot-yellow{background:var(--warning)} .dot-green{background:var(--success)}
 
   /* Graph viewer */
   .graph-bar{display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:1px solid var(--b200);background:var(--b100)}
@@ -93,23 +97,12 @@
   .commit .rail .wire{flex:1;width:2px;background:var(--b300);margin-top:2px}
   .commit .cbody{flex:1;min-width:0}
   .commit .cmsg{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .commit .tag{display:inline-block;background:color-mix(in srgb,var(--warning) 55%,#fff);color:#7a5b00;border-radius:3px;padding:0 4px;font-size:10px;margin-right:4px;vertical-align:middle}
   .commit .cmeta{font-size:11px;color:var(--bc40);display:flex;gap:6px;margin-top:1px}
   .commit .cmeta .hash{font-family:ui-monospace,monospace}
-  .commit.open>.line{background:color-mix(in srgb,var(--primary) 10%,transparent)}
-  /* 展开：本次提交的文件 list / tree */
-  .cdetail{padding:2px 0 8px 0;border-bottom:1px solid var(--b200)}
-  .cdetail .dtoolbar{display:flex;align-items:center;gap:2px;padding:2px 8px 4px 28px}
-  .cdetail .dtoolbar .cnt{flex:1;font-size:11px;color:var(--bc40)}
-  .cfile{display:flex;align-items:center;gap:7px;height:22px;padding:0 8px 0 28px;cursor:pointer}
-  .cfile:hover{background:var(--b200)}
-  .cfile .ico{width:13px;color:var(--bc40)}
-  .cfile .name{font-size:12px}
-  .cfile .dir{color:var(--bc40);font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .cfile .st{width:14px;text-align:center;font-weight:700}
-  .cfile.tree1{padding-left:40px}
 
   /* 菜单 popover */
-  .menu{width:250px;background:var(--b100);border:1px solid var(--b300);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.16);padding:5px;font-size:12.5px}
+  .menu{width:256px;background:var(--b100);border:1px solid var(--b300);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.16);padding:5px;font-size:12.5px}
   .menu .mi{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;cursor:pointer;color:var(--bc)}
   .menu .mi:hover{background:var(--b200)}
   .menu .mi.disabled{color:var(--bc40);cursor:default}
@@ -117,111 +110,110 @@
   .menu .mi .acc{margin-left:auto;color:var(--bc40);font-size:11px}
   .menu .mi .sub{margin-left:auto;color:var(--bc40)}
   .menu .sep{height:1px;background:var(--b300);margin:5px 4px}
-  .menu .grp{padding:4px 10px 2px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--bc40)}
+  .menu .grp{padding:5px 10px 2px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--bc40)}
+  .menu-wrap{display:flex;gap:10px;align-items:flex-start}
+  .submenu-note{align-self:center;color:var(--bc40);font-size:16px}
 
   /* 空/引导态 */
-  .guide{padding:24px 16px;text-align:center;display:flex;flex-direction:column;align-items:center}
-  .guide .warn{font-size:40px;color:var(--warning);margin-bottom:8px}
-  .guide h3{font-size:14px;font-weight:600;margin:0 0 6px}
-  .guide p{color:var(--bc60);font-size:12px;margin:0 0 14px}
+  /* 空/引导态：水平居中 + 顶对齐，图标/提示/按钮竖排（对齐 OfficeViewerPage） */
+  .guide{display:flex;flex-direction:column;align-items:center;text-align:center;padding:28px 16px 18px}
+  .guide .gicon{font-size:42px;line-height:1;margin-bottom:12px}
+  .guide .gicon.warn{color:var(--warning)}
+  .guide h3{font-size:14px;font-weight:600;margin:0 0 4px}
+  .guide p{color:var(--bc60);font-size:12px;margin:0 0 16px;max-width:240px}
+  .guide .gbtns{display:flex;flex-direction:column;gap:8px;width:100%}
+  .guide .gbtns .iw-btn{width:100%;height:34px;justify-content:center}
+  .guide .steps{margin-top:16px;text-align:left;border:1px solid var(--b300);background:var(--b200);border-radius:8px;padding:12px;width:100%}
+  .guide .steps h4{font-size:12px;font-weight:600;margin:0 0 8px}
+  .guide .steps .cmd{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+  .guide .steps code{flex:1;font-family:ui-monospace,monospace;font-size:11px;background:var(--b300);border-radius:4px;padding:4px 6px;color:var(--bc)}
+  .guide .steps .dl{font-size:12px;color:var(--primary);display:inline-block;margin-bottom:8px;cursor:pointer}
+  .guide .steps .note{font-size:11px;color:var(--bc40);margin:0 0 10px}
   .iw-btn{height:32px;padding:0 14px;border-radius:var(--field-r);border:0;cursor:pointer;font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px}
   .iw-btn.primary{background:var(--primary);color:#fff}
   .iw-btn.ghost{background:transparent;color:var(--bc);border:1px solid var(--b300)}
   .empty{padding:16px;text-align:center;color:var(--bc40);font-size:12px}
+  /* 空/引导态（按现有实现：左对齐说明 + 整宽按钮，非居中大图标引导） */
+  .state{display:flex;flex-direction:column;gap:8px;padding:8px}
+  .state p{margin:0;font-size:12px;color:var(--bc60);text-align:left}
+  .state .iw-btn{width:100%;height:34px;justify-content:center}
 </style>
 </head>
 <body>
-  <h1>SCM 面板 — 视图容器（Repositories / Changes / Graph）</h1>
-  <p class="lead">SCM 是一个视图容器，含三个可折叠 viewer：① <b>存储库 Repositories</b>（原分支条）② <b>更改 Changes</b>（原变更树 + 提交框）③ <b>图谱 Graph</b>（提交历史，原时间线 View B）。容器 <code>⋯</code> 只处理跨 viewer 的 Remote / Stash / Tags / 视图；分支归 Repositories <code>⋯</code>。</p>
+  <h1>SCM 面板 — 视图容器 / 行状态 / 菜单</h1>
+  <p class="lead">SCM = 视图容器 + 三个可折叠 viewer（存储库 / 更改 / 图谱）。本页定死：① 变更行的<b>状态常驻最右、hover 按钮出现在其左侧不遮挡</b>；② tree 模式<b>目录行带聚合状态色点</b>（对标 VSCode）；③ 菜单为<b>扁平分组</b>，分支的删除/合并/发布走<b>子菜单列分支</b>，切换在存储库菜单内直接列分支点击。</p>
   <div class="impl">
-    实现映射：容器 = <code>SidebarMode.SOURCE_CONTROL</code>，内部由多个 viewer section 组成（VSCode view-container 模型）· Changes 必选、Repositories/Graph 可选（容器 <code>⋯</code> 菜单 checkbox 切换）· Repositories <code>⋯</code> 仅分支操作/切换 · Changes 标题栏保留「全部暂存」与「列表/树切换」，全量放弃收进变更分组或更多入口 · 每个 viewer 独立折叠。
+    实现映射：容器 = <code>SidebarMode.SOURCE_CONTROL</code>；行组件 <code>GitChangeGroup.vue</code>（去掉 <code>hover 隐藏状态</code>，操作区改为状态<b>左侧</b>内联）；目录聚合色点 = 子树最高严重度（<code>冲突/删除=红 ▸ 修改/重命名=黄 ▸ 新增/未跟踪=绿</code>）；分支子菜单/切换列表复用 <code>showContextMenu</code> 的 <code>submenu</code>；删除/合并点分支 → 预检（<code>preflightDeleteBranch/Merge</code>）→ 原生确认。
   </div>
 
   <div class="stage">
 
-    <!-- 主状态：三 viewer 容器 -->
+    <!-- ============ 主面板：三 viewer（Changes = list 模式） ============ -->
     <figure>
-      <figcaption>SCM 容器 · 三个 viewer 展开</figcaption>
+      <figcaption>SCM 容器 · list 模式（状态右 / 按钮在其左）</figcaption>
       <section class="panel">
-        <!-- 容器标题栏 -->
         <div class="c-title">
           <h2>源代码管理 <span class="count">6</span></h2>
-          <button class="tbtn" title="视图/更多（容器 ⋯ 菜单见右）">⋯</button>
+          <button class="tbtn" title="刷新">⟳</button>
+          <button class="tbtn" title="视图 / 更多（容器 ⋯）">⋯</button>
         </div>
 
-        <!-- Viewer 1：Repositories -->
+        <!-- Repositories -->
         <div class="viewer">
-          <div class="v-head">
-            <span class="chev">▾</span><span class="vt">存储库</span>
-            <span class="vtools"><button class="tbtn" title="同步">⟳</button><button class="tbtn" title="更多">⋯</button></span>
-          </div>
+          <div class="v-head"><span class="chev">▾</span><span class="vt">存储库</span>
+            <span class="vtools"><button class="tbtn" title="同步">⟳</button><button class="tbtn" title="分支操作（存储库 ⋯）">⋯</button></span></div>
           <div class="v-body">
-            <div class="repo-row active">
-              <span class="rico">▣</span>
-              <span class="rname">iWriter</span>
-              <span class="rbranch">⑂ main</span>
-              <span class="sp"></span>
-              <span class="ahead">↑2 ↓1</span>
-            </div>
-            <!-- 多仓库时追加更多 repo-row -->
+            <div class="repo-row active"><span class="rico">▣</span><span class="rname">iWriter</span>
+              <span class="rbranch">⑂ main</span><span class="sp"></span><span class="ahead">↑2 ↓1</span></div>
           </div>
         </div>
 
-        <!-- Viewer 2：Changes -->
+        <!-- Changes -->
         <div class="viewer">
-          <div class="v-head">
-            <span class="chev">▾</span><span class="vt">更改</span><span class="vc">6</span>
-            <span class="vtools"><button class="tbtn" title="全部暂存">＋</button><button class="tbtn" title="列表 / 树切换">☷</button></span>
-          </div>
+          <div class="v-head"><span class="chev">▾</span><span class="vt">更改</span><span class="vc">6</span>
+            <span class="vtools"><button class="tbtn" title="全部暂存">＋</button><button class="tbtn" title="列表 / 树 切换">☷</button></span></div>
           <div class="commit-box">
             <textarea class="commit-input" rows="1" placeholder="信息（Ctrl/Cmd+Enter 提交）">修订第一章结尾</textarea>
             <div class="commit-row"><button class="btn-commit">✓ 提交</button><button class="btn-caret" title="提交选项">▾</button></div>
           </div>
           <div class="v-body">
-            <div class="tnode-group"><span class="chev">▾</span><span class="gt">已暂存的更改</span><span class="gc">2</span>
-              <span class="gtools"><button class="tbtn" title="全部取消暂存">−</button></span></div>
-            <div class="tnode-file"><span class="ico">📄</span><span class="name">ch001.md</span><span class="dir">draft/</span>
-              <span class="st st-M">M</span><span class="factions"><button class="tbtn" title="打开差异">↗</button><button class="tbtn" title="取消暂存">−</button></span></div>
-            <div class="tnode-file"><span class="ico">📄</span><span class="name">outline.md</span><span class="dir">/</span>
-              <span class="st st-A">A</span><span class="factions"><button class="tbtn">↗</button><button class="tbtn" title="取消暂存">−</button></span></div>
-            <div class="tnode-group"><span class="chev">▾</span><span class="gt">更改</span><span class="gc">3</span>
-              <span class="gtools"><button class="tbtn" title="全部放弃">↩</button><button class="tbtn" title="全部暂存">＋</button></span></div>
-            <div class="tnode-file sel"><span class="ico">📄</span><span class="name">ch002.md</span><span class="dir">draft/</span>
-              <span class="st st-M">M</span><span class="factions"><button class="tbtn" title="打开差异">↗</button><button class="tbtn" title="放弃">↩</button><button class="tbtn" title="暂存">＋</button></span></div>
-            <div class="tnode-file"><span class="ico">📄</span><span class="name">notes.md</span><span class="dir">draft/</span>
-              <span class="st st-D">D</span><span class="factions"><button class="tbtn" title="放弃">↩</button><button class="tbtn" title="暂存">＋</button></span></div>
-            <div class="tnode-file"><span class="ico">🖼</span><span class="name">cover.png</span><span class="dir">assets/</span>
-              <span class="st st-M">M</span><span class="factions"><button class="tbtn" title="放弃">↩</button><button class="tbtn" title="暂存">＋</button></span></div>
-            <div class="tnode-group"><span class="chev">▾</span><span class="gt">未跟踪</span><span class="gc">1</span>
-              <span class="gtools"><button class="tbtn" title="全部暂存">＋</button></span></div>
-            <div class="tnode-file"><span class="ico">📄</span><span class="name">scratch.md</span><span class="dir">/</span>
-              <span class="st st-U">U</span><span class="factions"><button class="tbtn" title="加入 .gitignore">🚫</button><button class="tbtn" title="暂存">＋</button></span></div>
+            <div class="tnode-group"><span class="chev">▾</span><span class="gt">已暂存的更改</span>
+              <span class="gtools"><button class="tbtn" title="全部取消暂存">−</button></span><span class="gc">2</span></div>
+            <div class="row"><div class="main"><span class="ico">📄</span><span class="name">ch001.md</span><span class="dir">draft/</span></div>
+              <span class="acts"><button class="tbtn" title="打开文件变更">↗</button><button class="tbtn" title="取消暂存">−</button></span><span class="st st-M">M</span></div>
+            <div class="row"><div class="main"><span class="ico">📄</span><span class="name">outline.md</span><span class="dir">/</span></div>
+              <span class="acts"><button class="tbtn" title="打开文件变更">↗</button><button class="tbtn" title="取消暂存">−</button></span><span class="st st-A">A</span></div>
+
+            <div class="tnode-group"><span class="chev">▾</span><span class="gt">更改</span>
+              <span class="gtools"><button class="tbtn" title="全部暂存">＋</button></span><span class="gc">3</span></div>
+            <div class="row sel"><div class="main"><span class="ico">📄</span><span class="name">ch002.md</span><span class="dir">draft/</span></div>
+              <span class="acts"><button class="tbtn" title="打开文件变更">↗</button><button class="tbtn" title="放弃">↩</button><button class="tbtn" title="暂存">＋</button></span><span class="st st-M">M</span></div>
+            <div class="row"><div class="main"><span class="ico">📄</span><span class="name">notes.md</span><span class="dir">draft/</span></div>
+              <span class="acts"><button class="tbtn" title="放弃">↩</button><button class="tbtn" title="暂存">＋</button></span><span class="st st-D">D</span></div>
+            <div class="row"><div class="main"><span class="ico">🖼</span><span class="name">cover.png</span><span class="dir">assets/</span></div>
+              <span class="acts"><button class="tbtn" title="放弃">↩</button><button class="tbtn" title="暂存">＋</button></span><span class="st st-M">M</span></div>
+
+            <div class="tnode-group"><span class="chev">▾</span><span class="gt">未跟踪</span>
+              <span class="gtools"><button class="tbtn" title="全部暂存">＋</button></span><span class="gc">1</span></div>
+            <div class="row"><div class="main"><span class="ico">📄</span><span class="name">scratch.md</span><span class="dir">/</span></div>
+              <span class="acts"><button class="tbtn" title="加入 .gitignore">🚫</button><button class="tbtn" title="暂存">＋</button></span><span class="st st-U">U</span></div>
           </div>
         </div>
 
-        <!-- Viewer 3：Graph -->
+        <!-- Graph -->
         <div class="viewer">
-          <div class="v-head">
-            <span class="chev">▾</span><span class="vt">图谱</span>
-            <span class="vtools"><button class="tbtn" title="刷新">⟳</button></span>
-          </div>
+          <div class="v-head"><span class="chev">▾</span><span class="vt">图谱</span>
+            <span class="vtools"><button class="tbtn" title="刷新">⟳</button></span></div>
           <div class="graph-bar">
             <button class="branch-pick" title="选择分支范围"><span class="ico">⑂</span> main <span class="caret">▾</span></button>
             <input class="filter" type="search" placeholder="筛选…">
           </div>
           <div class="v-body">
-            <!-- 展开态：点击提交 → 显示本次提交的文件 list/tree -->
-            <div class="commit open"><div class="line">
+            <div class="commit"><div class="line">
               <div class="rail"><span>●</span><span class="wire"></span></div>
-              <div class="cbody"><div class="cmsg">修订第一章结尾</div><div class="cmeta"><span>Osenberger</span><span>2 小时前</span><span class="hash">a1b2c3d</span></div></div>
-            </div>
-              <div class="cdetail">
-                <div class="dtoolbar"><span class="cnt">2 个文件变更</span>
-                  <button class="tbtn" title="列表 / 树 切换">⊟</button></div>
-                <div class="cfile" title="打开该提交的差异（父提交 ↔ 本提交）"><span class="ico">📄</span><span class="name">ch001.md</span><span class="dir">draft/</span><span class="st st-M">M</span></div>
-                <div class="cfile" title="打开该提交的差异（父提交 ↔ 本提交）"><span class="ico">📄</span><span class="name">outline.md</span><span class="dir">/</span><span class="st st-M">M</span></div>
-              </div>
-            </div>
+              <div class="cbody"><div class="cmsg"><span class="tag">v1.0-初稿</span>修订第一章结尾</div>
+                <div class="cmeta"><span>Osenberger</span><span>2 小时前</span><span class="hash">a1b2c3d</span></div></div>
+            </div></div>
             <div class="commit"><div class="line">
               <div class="rail"><span>●</span><span class="wire"></span></div>
               <div class="cbody"><div class="cmsg">初稿</div><div class="cmeta"><span>Osenberger</span><span>昨天</span><span class="hash">9f8e7d6</span></div></div>
@@ -235,57 +227,101 @@
       </section>
     </figure>
 
-    <!-- 容器 ⋯ 菜单 + Repositories 分支菜单 + 提交下拉 -->
+    <!-- ============ Changes · tree 模式（目录聚合色点） ============ -->
     <figure>
-      <figcaption>容器 ⋯ 菜单（跨 viewer 全局能力 + viewer 显隐）</figcaption>
+      <figcaption>更改 · tree 模式（目录行带聚合状态色点）</figcaption>
+      <section class="panel" style="max-height:none">
+        <div class="c-title"><h2>源代码管理 <span class="count">6</span></h2><button class="tbtn">⋯</button></div>
+        <div class="viewer">
+          <div class="v-head"><span class="chev">▾</span><span class="vt">更改</span><span class="vc">6</span>
+            <span class="vtools"><button class="tbtn" title="全部暂存">＋</button><button class="tbtn" title="列表 / 树 切换">☰</button></span></div>
+          <div class="v-body">
+            <div class="tnode-group"><span class="chev">▾</span><span class="gt">更改</span><span class="gc">4</span></div>
+
+            <!-- 目录行：色点=子树最高严重度；hover 按钮在色点左侧 -->
+            <div class="row"><div class="main" style="padding-left:0"><span class="ico">📁</span><span class="name" style="color:var(--bc40)">draft</span></div>
+              <span class="acts"><button class="tbtn" title="全部放弃">↩</button><button class="tbtn" title="全部暂存">＋</button></span><span class="dot dot-red" title="含删除/冲突"></span></div>
+            <div class="row" style="padding-left:24px"><div class="main"><span class="ico">📄</span><span class="name">ch002.md</span></div>
+              <span class="acts"><button class="tbtn">↗</button><button class="tbtn">↩</button><button class="tbtn">＋</button></span><span class="st st-M">M</span></div>
+            <div class="row" style="padding-left:24px"><div class="main"><span class="ico">📄</span><span class="name">notes.md</span></div>
+              <span class="acts"><button class="tbtn">↩</button><button class="tbtn">＋</button></span><span class="st st-D">D</span></div>
+
+            <div class="row"><div class="main" style="padding-left:0"><span class="ico">📁</span><span class="name" style="color:var(--bc40)">assets</span></div>
+              <span class="acts"><button class="tbtn" title="全部放弃">↩</button><button class="tbtn" title="全部暂存">＋</button></span><span class="dot dot-yellow" title="仅修改"></span></div>
+            <div class="row" style="padding-left:24px"><div class="main"><span class="ico">🖼</span><span class="name">cover.png</span></div>
+              <span class="acts"><button class="tbtn">↩</button><button class="tbtn">＋</button></span><span class="st st-M">M</span></div>
+
+            <div class="row"><div class="main"><span class="ico">📄</span><span class="name">outline.md</span></div>
+              <span class="acts"><button class="tbtn">↗</button><button class="tbtn">↩</button><button class="tbtn">＋</button></span><span class="st st-M">M</span></div>
+
+            <div class="tnode-group"><span class="chev">▾</span><span class="gt">未跟踪</span><span class="gc">2</span></div>
+            <div class="row"><div class="main" style="padding-left:0"><span class="ico">📁</span><span class="name" style="color:var(--bc40)">ideas</span></div>
+              <span class="acts"><button class="tbtn" title="加入 .gitignore">🚫</button><button class="tbtn" title="全部暂存">＋</button></span><span class="dot dot-green" title="新增/未跟踪"></span></div>
+            <div class="row" style="padding-left:24px"><div class="main"><span class="ico">📄</span><span class="name">scratch.md</span></div>
+              <span class="acts"><button class="tbtn">🚫</button><button class="tbtn">＋</button></span><span class="st st-U">U</span></div>
+          </div>
+        </div>
+      </section>
+      <div style="margin-top:8px;font-size:11px;color:#7a828d;max-width:300px">色点严重度：<span style="color:var(--error)">●</span> 含删除/冲突 › <span style="color:var(--warning)">●</span> 含修改 › <span style="color:var(--success)">●</span> 仅新增/未跟踪。文件行仍用字母 M/A/D/U/C。</div>
+    </figure>
+
+    <!-- ============ 菜单体系 ============ -->
+    <figure>
+      <figcaption>容器 ⋯（扁平，仅分隔线分组：远程 / 贮藏 / 标签 / 视图）</figcaption>
       <div class="menu">
-        <div class="grp">远程</div>
         <div class="mi">同步更改</div>
-        <div class="mi">拉取 <span class="sub">▸</span></div>
-        <div class="mi">推送 <span class="sub">▸</span></div>
+        <div class="mi">拉取</div>
+        <div class="mi">推送</div>
         <div class="mi">获取</div>
         <div class="mi">管理远程…</div>
         <div class="sep"></div>
-        <div class="grp">贮藏</div>
         <div class="mi">贮藏更改…</div>
-        <div class="mi">贮藏 <span class="sub">▸</span></div>
+        <div class="mi">弹出最近贮藏</div>
+        <div class="mi">贮藏列表…</div>
         <div class="sep"></div>
-        <div class="grp">标签</div>
-        <div class="mi">标签 <span class="sub">▸</span></div>
+        <div class="mi">创建标签…</div>
+        <div class="mi">标签列表…</div>
+        <div class="mi">推送标签</div>
         <div class="sep"></div>
-        <div class="grp">视图</div>
         <div class="mi disabled"><span class="chk">✓</span> 更改 <span class="acc">必选</span></div>
         <div class="mi"><span class="chk">✓</span> 存储库</div>
         <div class="mi"><span class="chk"></span> 图谱</div>
       </div>
 
-      <figcaption style="margin-top:18px">Repositories ⋯ 菜单（分支操作与切换）</figcaption>
-      <div class="menu" style="width:250px">
-        <div class="grp">分支操作</div>
-        <div class="mi">创建分支…</div>
-        <div class="mi">重命名当前分支…</div>
-        <div class="mi">合并分支…</div>
-        <div class="mi">删除分支…</div>
-        <div class="sep"></div>
-        <div class="grp">切换分支</div>
-        <div class="mi"><span class="chk">✓</span> main <span class="acc">当前</span></div>
-        <div class="mi"><span class="chk"></span> develop</div>
-        <div class="mi"><span class="chk"></span> origin/main <span class="acc">远程</span></div>
+      <figcaption style="margin-top:18px">存储库 ⋯（分支操作 + 切换分支，分隔线分隔）· 删除/合并 = 子菜单列分支</figcaption>
+      <div class="menu-wrap">
+        <div class="menu" style="width:240px">
+          <div class="mi">创建分支…</div>
+          <div class="mi">重命名当前分支…</div>
+          <div class="mi">合并分支 <span class="sub">▸</span></div>
+          <div class="mi">删除分支 <span class="sub">▸</span></div>
+          <div class="mi">发布分支</div>
+          <div class="sep"></div>
+          <div class="mi"><span class="chk">✓</span> main <span class="acc">当前</span></div>
+          <div class="mi"><span class="chk"></span> develop</div>
+          <div class="mi"><span class="chk"></span> feature/creative-phase2</div>
+          <div class="mi"><span class="chk"></span> origin/main <span class="acc">远程</span></div>
+        </div>
+        <span class="submenu-note">▸</span>
+        <div class="menu" style="width:210px">
+          <div class="mi">develop</div>
+          <div class="mi">feature/creative-phase2</div>
+          <div class="mi">feature/old</div>
+          <div style="padding:4px 10px;font-size:10px;color:var(--bc40)">main / master / 当前分支不列 · 点选→预检→确认</div>
+        </div>
       </div>
 
       <figcaption style="margin-top:18px">提交 ▾ 下拉</figcaption>
-      <div class="menu" style="width:220px">
+      <div class="menu" style="width:210px">
         <div class="mi">提交</div>
         <div class="mi">提交所有更改</div>
         <div class="sep"></div>
-        <div class="mi">提交并推送</div>
-        <div class="mi">提交并同步</div>
-        <div class="sep"></div>
         <div class="mi">修订上次提交（Amend）</div>
+        <div class="mi">撤销上次提交</div>
       </div>
 
-      <figcaption style="margin-top:18px">Graph 分支选择下拉（⑂ main ▾）</figcaption>
-      <div class="menu" style="width:220px">
+      <figcaption style="margin-top:18px">Graph 分支范围下拉（⑂ main ▾）</figcaption>
+      <div class="menu" style="width:210px">
         <div class="mi"><span class="chk">✓</span> 当前分支 (main)</div>
         <div class="mi"><span class="chk"></span> 所有分支</div>
         <div class="sep"></div>
@@ -294,28 +330,140 @@
       </div>
     </figure>
 
-    <!-- 空/引导态 -->
+    <!-- ============ 右键上下文菜单 ============ -->
     <figure>
-      <figcaption>状态 · 未检测到 Git / 非仓库 / 干净</figcaption>
-      <section class="panel" style="max-height:none">
-        <div class="c-title"><h2>源代码管理</h2></div>
-        <div class="guide">
-          <div class="warn">⚠</div><h3>未检测到 Git</h3><p>版本控制需要系统中安装 Git。</p>
-          <div style="display:flex;gap:8px"><button class="iw-btn primary">⤓ 安装 Git</button><button class="iw-btn ghost">重新检测</button></div>
+      <figcaption>右键上下文菜单 · Changes（文件 / 目录 / 分组）· 存储库行 · Graph（提交 / 文件）</figcaption>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+
+        <div>
+          <div style="font-size:11px;color:#7a828d;margin-bottom:6px">Changes · 文件行</div>
+          <div class="menu" style="width:190px">
+            <div class="mi">打开文件变更</div>
+            <div class="mi">打开文件</div>
+            <div class="sep"></div>
+            <div class="mi">暂存</div>
+            <div class="mi">放弃更改</div>
+            <div class="mi">加入 .gitignore</div>
+            <div class="sep"></div>
+            <div class="mi">打开所在文件夹</div>
+          </div>
         </div>
-      </section>
-      <figcaption style="margin-top:16px">非仓库</figcaption>
-      <section class="panel" style="max-height:none">
-        <div class="c-title"><h2>源代码管理</h2></div>
-        <div class="guide" style="padding:20px 16px">
-          <p style="margin-bottom:12px">当前工作空间尚未纳入版本控制。</p>
-          <button class="iw-btn primary" style="width:100%;margin-bottom:8px">初始化仓库</button>
-          <button class="iw-btn ghost" style="width:100%">克隆仓库…</button>
+
+        <div>
+          <div style="font-size:11px;color:#7a828d;margin-bottom:6px">Changes · 目录行</div>
+          <div class="menu" style="width:190px">
+            <div class="mi">全部暂存</div>
+            <div class="mi">全部放弃</div>
+            <div class="mi">加入 .gitignore</div>
+            <div class="sep"></div>
+            <div class="mi">打开所在文件夹</div>
+          </div>
         </div>
-      </section>
-      <figcaption style="margin-top:16px">干净（Changes 空）</figcaption>
-      <section class="panel" style="max-height:none">
+
+        <div>
+          <div style="font-size:11px;color:#7a828d;margin-bottom:6px">Changes · 分组标题（更改）</div>
+          <div class="menu" style="width:170px">
+            <div class="mi">全部暂存</div>
+            <div class="mi">全部放弃</div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px;color:#7a828d;margin-bottom:6px">存储库行（= 存储库 ⋯ + 打开/复制）</div>
+          <div class="menu" style="width:210px">
+            <div class="mi">创建分支…</div>
+            <div class="mi">重命名当前分支…</div>
+            <div class="mi">合并分支 <span class="sub">▸</span></div>
+            <div class="mi">删除分支 <span class="sub">▸</span></div>
+            <div class="mi">发布分支</div>
+            <div class="sep"></div>
+            <div class="mi"><span class="chk">✓</span> main <span class="acc">当前</span></div>
+            <div class="mi"><span class="chk"></span> develop</div>
+            <div class="sep"></div>
+            <div class="mi">打开所在文件夹</div>
+            <div class="mi">复制仓库路径</div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px;color:#7a828d;margin-bottom:6px">Graph · 提交行</div>
+          <div class="menu" style="width:190px">
+            <div class="mi">复制提交哈希</div>
+            <div class="mi">复制提交信息</div>
+            <div class="sep"></div>
+            <div class="mi">在此提交打标签</div>
+            <div class="mi">从此提交创建分支</div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px;color:#7a828d;margin-bottom:6px">Graph · 展开的提交文件行</div>
+          <div class="menu" style="width:190px">
+            <div class="mi">打开文件变更</div>
+            <div class="mi">打开所在文件夹</div>
+            <div class="sep"></div>
+            <div class="mi">还原到此版本</div>
+          </div>
+        </div>
+
+      </div>
+    </figure>
+
+    <!-- ============ 空 / 引导态 ============ -->
+    <figure>
+      <figcaption>状态 · 空 / 引导态（水平居中 · 顶对齐 · 图标 / 提示 / 按钮）</figcaption>
+
+      <div style="font-size:11px;color:#7a828d;margin:0 0 6px">① 未检测到 Git（安装引导，对齐 OfficeViewerPage 的 LibreOffice 提示）</div>
+      <section class="panel" style="max-height:none;margin-bottom:16px">
         <div class="c-title"><h2>源代码管理</h2><button class="tbtn">⋯</button></div>
+        <div class="guide">
+          <div class="gicon warn">⚠️</div>
+          <h3>未检测到 Git</h3>
+          <p>版本控制需要系统中安装 Git。</p>
+          <div class="gbtns">
+            <button class="iw-btn primary">⤓ 安装 Git</button>
+            <button class="iw-btn ghost">⟳ 重新检测</button>
+          </div>
+          <!-- 点「安装 Git」展开的步骤 -->
+          <div class="steps">
+            <h4>安装步骤</h4>
+            <div class="cmd"><code>brew install git</code><button class="tbtn" title="复制" style="width:24px;height:24px;background:var(--b300)">⧉</button></div>
+            <span class="dl">↗ 前往 git-scm.com 下载</span>
+            <p class="note">安装完成后点「重新检测」。</p>
+            <button class="iw-btn primary" style="width:100%;height:30px">⟳ 重新检测</button>
+          </div>
+        </div>
+      </section>
+
+      <div style="font-size:11px;color:#7a828d;margin:0 0 6px">② 无可用工作区（未打开文件夹）</div>
+      <section class="panel" style="max-height:none;margin-bottom:16px">
+        <div class="c-title"><h2>源代码管理</h2><button class="tbtn">⋯</button></div>
+        <div class="guide">
+          <div class="gicon">📁</div>
+          <p>没有可用工作区。请先打开文件夹或克隆仓库。</p>
+          <div class="gbtns">
+            <button class="iw-btn primary">📁 打开文件夹</button>
+            <button class="iw-btn ghost">⑂ 克隆仓库…</button>
+          </div>
+        </div>
+      </section>
+
+      <div style="font-size:11px;color:#7a828d;margin:0 0 6px">③ 非仓库</div>
+      <section class="panel" style="max-height:none;margin-bottom:16px">
+        <div class="c-title"><h2>源代码管理</h2><button class="tbtn">⋯</button></div>
+        <div class="guide">
+          <div class="gicon">⑂</div>
+          <p>当前工作空间尚未纳入版本控制。</p>
+          <div class="gbtns">
+            <button class="iw-btn primary">⑂ 初始化仓库</button>
+            <button class="iw-btn ghost">⑂ 克隆仓库…</button>
+          </div>
+        </div>
+      </section>
+
+      <div style="font-size:11px;color:#7a828d;margin:0 0 6px">④ 干净（有仓库、Changes 空）</div>
+      <section class="panel" style="max-height:none">
+        <div class="c-title"><h2>源代码管理</h2><button class="tbtn" title="刷新">⟳</button><button class="tbtn">⋯</button></div>
         <div class="viewer"><div class="v-head"><span class="chev">▾</span><span class="vt">存储库</span></div>
           <div class="repo-row active"><span class="rico">▣</span><span class="rname">iWriter</span><span class="rbranch">⑂ main</span><span class="sp"></span><span class="ahead">↑0 ↓0</span></div></div>
         <div class="viewer"><div class="v-head"><span class="chev">▾</span><span class="vt">更改</span></div>

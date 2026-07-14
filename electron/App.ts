@@ -1497,6 +1497,10 @@ export class App {
       this.gitService.createBranch(root, name, base, checkout))
     ipcMain.handle('git:delete-branch', async (_, root: string, name: string, force: boolean): Promise<GitActionResult<void>> =>
       gitAction('delete-branch', () => this.gitService.deleteBranch(root, name, force), name))
+    ipcMain.handle('git:preflight-delete-branch', async (_, root: string, name: string) =>
+      this.gitService.preflightDeleteBranch(root, name))
+    ipcMain.handle('git:preflight-merge', async (_, root: string, branch: string) =>
+      this.gitService.preflightMerge(root, branch))
     ipcMain.handle('git:list-tags', async (_, root: string) => this.gitService.listTags(root))
     ipcMain.handle('git:create-tag', async (_, root: string, name: string, opts: { message?: string; hash?: string }) =>
       this.gitService.createTag(root, name, opts))

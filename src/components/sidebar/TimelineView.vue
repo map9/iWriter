@@ -1,10 +1,16 @@
 <template>
   <div class="flex h-full min-h-0 flex-col text-xs">
-    <!-- 无活动文件 / 无仓库（顶部对齐提示，避免高度塌陷不显示） -->
-    <p v-if="!activePath" class="sidebar-empty">{{ t('explorer.timeline.noFile') }}</p>
-    <p v-else-if="!gitStore.isRepo" class="sidebar-empty">{{ t('explorer.timeline.noRepo') }}</p>
+    <!-- 空态：对齐 ui/history.html .vempty（大图标 + 两行文案；「初始化仓库」纯文本不加 link） -->
+    <div v-if="!activePath" class="px-4 py-[18px] text-center text-xs text-base-content/40">
+      <IconHistory class="mx-auto mb-2 size-7 opacity-50" />{{ t('explorer.timeline.noFile') }}
+    </div>
+    <div v-else-if="!gitStore.isRepo" class="px-4 py-[18px] text-center text-xs text-base-content/40">
+      <IconHistory class="mx-auto mb-2 size-7 opacity-50" />{{ t('explorer.timeline.noRepo') }}<br>{{ t('explorer.timeline.noRepoHint') }}
+    </div>
     <div v-else-if="loading" class="sidebar-empty"><span class="loading loading-spinner loading-sm"></span></div>
-    <p v-else-if="!commits.length" class="sidebar-empty">{{ t('explorer.timeline.empty') }}</p>
+    <div v-else-if="!commits.length" class="px-4 py-[18px] text-center text-xs text-base-content/40">
+      <IconHistory class="mx-auto mb-2 size-7 opacity-50" />{{ t('explorer.timeline.empty') }}<br>{{ t('explorer.timeline.emptyHint') }}
+    </div>
     <ul v-else class="py-1">
       <li
         v-for="c in commits"
@@ -33,7 +39,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconGitCommit, IconArrowBackUp } from '@tabler/icons-vue'
+import { IconGitCommit, IconArrowBackUp, IconHistory } from '@tabler/icons-vue'
 import { useAppStore } from '@/stores/app'
 import { useGitStore } from '@/stores/git'
 import type { GitCommit } from '@/types/git'

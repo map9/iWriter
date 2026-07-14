@@ -52,25 +52,49 @@ export const useGitStore = defineStore('git', () => {
   const revision = ref(0)
   /** 克隆弹窗（NoFolderOpened / SCM 面板共用） */
   const cloneDialogOpen = ref(false)
-  /** 最近一次需要用户理解或恢复的 Git 问题；原始输出仅在 SCM 对话框中按需展开。 */
-  const gitIssue = ref<GitIssue | null>(null)
-  let retryIssueAction: (() => Promise<unknown>) | null = null
-
+  /**
+   * 展示 Git 操作失败：全走原生 messagebox（工程 GitErrorResolutionDialog 已退役）。
+   * 已识别的问题给大白话 + 恢复动作；未识别（unknown）把 git 原始输出作为正文 + 「复制错误信息」。
+   */
   function presentGitIssue(issue: GitIssue, retry?: () => Promise<unknown>): void {
-    gitIssue.value = issue
-    retryIssueAction = retry ?? null
     console.error('[git] action failed', issue)
+    void showIssueBox(issue, retry)
   }
 
-  function dismissGitIssue(): void {
-    gitIssue.value = null
-    retryIssueAction = null
-  }
-
-  async function retryGitIssue(): Promise<void> {
-    const retry = retryIssueAction
-    dismissGitIssue()
-    if (retry) await retry()
+  async function showIssueBox(issue: GitIssue, retry?: () => Promise<unknown>): Promise<void> {
+    const tr = i18n.global.t
+    const isUnknown = issue.kind === 'unknown'
+    const title = isUnknown
+      ? tr('sourceControl.error.unknown.title')
+      : tr(`sourceControl.error.${issue.kind}.title`, { branch: issue.branch ?? '' })
+    // 未识别 → 显示 git 原始输出；已识别 → 大白话
+    const detail = isUnknown
+      ? (issue.detail || tr('sourceControl.error.unknown.message'))
+      : tr(`sourceControl.error.${issue.kind}.message`, { branch: issue.branch ?? '' })
+    const buttons: string[] = [tr('common.close')]
+    let copyIdx = -1
+    if (isUnknown) { buttons.push(tr('sourceControl.error.copyDetails')); copyIdx = buttons.length - 1 }
+    let recoverIdx = -1
+    if (retry) {
+      buttons.push(issue.kind === 'remote-non-fast-forward' ? tr('sourceControl.error.pullRetry') : tr('sourceControl.error.retry'))
+      recoverIdx = buttons.length - 1
+    }
+    const res = await window.electronAPI.showMessageBox({
+      type: issue.kind === 'network' || issue.kind === 'remote-auth' ? 'error' : 'warning',
+      title,
+      message: title,
+      detail,
+      buttons,
+      defaultId: recoverIdx >= 0 ? recoverIdx : 0,
+      cancelId: 0,
+    })
+    const r = res?.response
+    if (copyIdx >= 0 && r === copyIdx && issue.detail) {
+      await navigator.clipboard.writeText(issue.detail)
+    } else if (recoverIdx >= 0 && r === recoverIdx && retry) {
+      if (issue.kind === 'remote-non-fast-forward') await pull()
+      await retry()
+    }
   }
 
   // 提交
@@ -392,6 +416,10 @@ export const useGitStore = defineStore('git', () => {
     }
   }
   const addToGitignore = (relPath: string) => run(() => api().addToGitignore(root.value!, relPath))
+  /** 删除分支预检（三查）：供 UI 组织问题清单，决定「删除」还是「强制删除」 */
+  const preflightDeleteBranch = (name: string) => api().preflightDeleteBranch(root.value!, name)
+  /** 合并预检：能否快进 */
+  const preflightMerge = (branch: string) => api().preflightMerge(root.value!, branch)
 
   // ---------- 标签 Tags ----------
   const tags = ref<string[]>([])
@@ -610,7 +638,6 @@ export const useGitStore = defineStore('git', () => {
   }
 
   function resetRepoState() {
-    dismissGitIssue()
     isRepo.value = false
     status.value = null
     branch.value = null
@@ -625,15 +652,15 @@ export const useGitStore = defineStore('git', () => {
 
   return {
     availability, root, isRepo, status, branch, commits, expandedHash, expandedFiles, graphBranch, graphAll, graphHasMore,
-    loading, graphLoading, busy, progress, revision, cloneDialogOpen, gitIssue, changeCount, hasChanges,
+    loading, graphLoading, busy, progress, revision, cloneDialogOpen, changeCount, hasChanges,
     commitMessage, committing, identityPromptOpen,
     ensureDetected, onFolderChanged, initRepo, refresh, loadGraph, loadMoreGraph, setGraphBranch, toggleCommit, loadFileHistory,
     openDiff, openCommitDiff, openMergeTab,
     stage, unstage, stageAll, unstageAll, discard, commit,
-    checkout, createBranch, deleteBranch, addToGitignore, restoreFile, merge,
+    checkout, createBranch, deleteBranch, preflightDeleteBranch, preflightMerge, addToGitignore, restoreFile, merge,
     tags, loadTags, createTag, deleteTag, pushTags, undoLastCommit, renameBranch, openWorkingFile, revealFile,
     submitIdentity, cancelIdentity,
-    fetch, pull, push, sync, publish, clone, dismissGitIssue, retryGitIssue,
+    fetch, pull, push, sync, publish, clone,
     remotes, loadRemotes, addRemote, removeRemote,
     stashes, loadStashes, stashPush, stashApply, stashPop, stashDrop,
   }

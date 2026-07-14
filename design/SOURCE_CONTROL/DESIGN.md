@@ -408,4 +408,28 @@ LeftSidebar
 
 ---
 
-*M1–M6 已落地（M6 P0+P1 代码三绿，运行时 smoke 待做）；M7 错误反馈与菜单入口重整待实施。SCM 留后项：行级 stage、图片 diff、多仓库、全宽 Git Graph tab、图上写操作、泳道图打磨。*
+## 14. UI 交互梳理（2026-07-13）
+
+> 对标 VSCode 重梳 SCM 交互，设计稿 `ui/dialogs.html` + `ui/panel.html`；总纲/形态见 SOURCE_CONTROL §5.6/§5.7。**代码回写待做**。**总纲：预检 → 说明 → 决策，绝不"先做后警"。**
+
+**主进程 `GitService` 新增**
+| 方法 / 字段 | 用途 |
+| --- | --- |
+| `preflightCheckout(root, ref)` | 切换前查工作区是否干净 → 有更改弹三选一（贮藏并切换/迁移更改/放弃强制） |
+| `preflightDeleteBranch(root, name)` | 删除前三查：未推送 / 未并入 main / 有派生分支（`branch --contains`）→ `{ok, problems[], canForce}` |
+| `preflightMerge(root, branch)` | 合并前查能否快进（`merge-base --is-ancestor`） |
+| `GitAvailability.installCommand` | git 未检测时按平台安装命令（对齐 LibreOffice 安装引导；现仅 available/version/path） |
+
+**渲染层**
+- **IwDialog**（新组件，文本输入）：抽取现有 5 份复制模态；外形对齐 `PrintDialogShell`/偏好。
+- **列表管理对话框**（新组件）：贮藏列表 / 标签列表 / 管理远程（列表 + 逐项操作），替代 `showStashMenu`/`showTagMenu`/`showRemoteMenu` 的嵌套原生菜单。
+- **`GitErrorResolutionDialog` 退役**：全部 git 报错改原生 `showMessageBox`；`unknown` 把 git 原始输出作正文 + 复制（无技术详情 / 不翻译）。
+- **`GitChangeGroup.vue`**：文件行状态常驻最右、hover 按钮内联在其左（去掉 `hover 隐藏状态`）；tree 目录行加聚合色点（子树最高严重度：冲突/删除=红 ▸ 修改=黄 ▸ 新增/未跟踪=绿）。
+- **菜单**：容器 `⋯` 扁平分组；存储库 `⋯` 分支操作 + 切换（切换/发布列分支点击，合并/删除子菜单列分支，删除排除 main/master/当前）；6 处右键上下文菜单（Changes 文件/目录/分组、存储库行、Graph 提交/文件）。
+- **空/引导态**：居中 + 顶对齐（图标/提示/按钮）；git 未检测走 LibreOffice 式安装引导（图标 + 说明 + 安装步骤展开 + 重新检测）。
+
+**待做**：上述组件/API 实现 + `type-check/lint/build` 三绿 + 运行时 smoke。
+
+---
+
+*M1–M7 已落地（主线完成，运行时 smoke 待做）。2026-07-13 追加 UI 交互梳理（§14，设计稿 `ui/*.html` 已改，代码回写待做）。SCM 留后项：行级 stage、图片 diff、多仓库、全宽 Git Graph tab、图上写操作、泳道图打磨。*

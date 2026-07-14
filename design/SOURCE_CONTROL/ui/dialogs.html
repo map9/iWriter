@@ -2,22 +2,25 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<title>Source Control 对话框 — 对齐工程</title>
+<title>Source Control 对话框 — 真实场景清单 + 预检内容</title>
 <style>
   :root{--b100:#fff;--b200:#f6f7f9;--b300:#e4e7eb;--bc:#1c1e21;--bc60:#6b7280;--bc40:#9aa1ab;
-    --primary:#605dff;--error:#ff5861;--warning:#ffbe00;--field-r:8px;--box-r:12px}
+    --primary:#605dff;--success:#00a96e;--error:#ff5861;--warning:#ffbe00;--field-r:8px;--box-r:12px}
   *{box-sizing:border-box}
   body{margin:0;background:#eceef1;color:var(--bc);font:13px/1.5 -apple-system,"Segoe UI",system-ui,sans-serif;padding:28px}
   h1{font-size:15px;margin:0 0 4px}
-  .lead{color:#5b6470;font-size:12px;margin:0 0 6px;max-width:900px}
-  .impl{background:#eef2ff;border:1px solid #d5dcff;border-radius:8px;padding:10px 14px;font-size:12px;color:#3a3f66;margin:0 0 24px;max-width:900px}
+  .lead{color:#5b6470;font-size:12px;margin:0 0 6px;max-width:980px}
+  .impl{background:#eef2ff;border:1px solid #d5dcff;border-radius:8px;padding:10px 14px;font-size:12px;color:#3a3f66;margin:0 0 14px;max-width:980px}
   .impl code{background:#fff;border:1px solid #d5dcff;border-radius:3px;padding:0 4px}
-  h2.cat{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#7a828d;margin:26px 0 12px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:24px;align-items:start}
+  .rule{background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;font-size:12px;color:#7c2d12;margin:0 0 24px;max-width:980px}
+  .rule b{color:#9a3412}
+  h2.cat{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#7a828d;margin:26px 0 6px}
+  .sub{color:#5b6470;font-size:12px;margin:0 0 12px;max-width:980px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(370px,1fr));gap:24px;align-items:start}
 
-  /* ---- 工程 dialog 外壳（PrintDialogShell 风格） ---- */
+  /* ---- IwDialog 工程外壳（仅文本输入） ---- */
   .shell{background:var(--b100);border:1px solid var(--b300);border-radius:var(--box-r);overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.18)}
-  .shell .cap{font-size:11px;color:#7a828d;background:var(--b200);padding:5px 12px;border-bottom:1px dashed var(--b300)}
+  .shell .cap{font-size:11px;color:#7a828d;background:var(--b200);padding:5px 12px;border-bottom:1px dashed var(--b300);font-family:ui-monospace,monospace}
   .shell .head{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--b300)}
   .shell .head h3{font-size:14px;font-weight:600;margin:0}
   .shell .head .x{width:26px;height:26px;border:0;background:transparent;color:var(--bc60);border-radius:6px;cursor:pointer}
@@ -34,132 +37,123 @@
   .radios{display:flex;flex-direction:column;gap:7px;margin:6px 0}
   .radios label{display:flex;align-items:center;gap:8px;font-size:12px}
   .hint{font-size:11px;color:var(--bc40);margin:8px 0 0}
-  .list{border:1px solid var(--b300);border-radius:var(--field-r);overflow:hidden;max-height:190px;overflow-y:auto}
-  .list .it{padding:7px 10px;font-size:12px;cursor:pointer;display:flex;justify-content:space-between}
-  .list .it:hover{background:var(--b200)}
-  .list .it.on{background:color-mix(in srgb,var(--primary) 14%,transparent)}
-  .list .it small{color:var(--bc40)}
-  details{margin:0 0 10px}summary{cursor:pointer;font-size:12px;color:var(--bc60)}
-  pre{background:var(--b200);border:1px solid var(--b300);border-radius:6px;padding:8px;font-size:11px;color:#a13b3b;overflow:auto;margin:6px 0 0}
+  .err{font-size:11px;color:var(--error);margin:6px 0 0}
   .iw-btn{height:32px;padding:0 14px;border-radius:var(--field-r);border:1px solid var(--b300);background:transparent;color:var(--bc);cursor:pointer;font:inherit;font-weight:600}
   .iw-btn:hover{background:var(--b200)}
   .iw-btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
   .progress{height:5px;background:var(--b300);border-radius:3px;overflow:hidden;margin-top:8px}.progress>i{display:block;height:100%;width:42%;background:var(--primary)}
 
-  /* ---- 原生 showMessageBox（OS 风格，非 HTML 弹窗） ---- */
-  .native{background:#e9eaec;border:1px solid #c9ccd1;border-radius:10px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.22);max-width:400px}
-  .native .os-cap{font-size:11px;color:#6b7280;background:#dcdee1;padding:4px 12px;border-bottom:1px solid #c9ccd1}
-  .native .os-body{display:flex;gap:14px;padding:20px 20px 8px}
-  .native .os-ico{font-size:32px;flex-shrink:0}
+  /* ---- 原生 showMessageBox（OS 风格） ---- */
+  .native{border:1px solid #c9ccd1;border-radius:10px;overflow:hidden;box-shadow:0 8px 26px rgba(0,0,0,.16);background:#e9eaec}
+  .native .os-cap{font-size:11px;color:#6b7280;background:#dcdee1;padding:4px 12px;border-bottom:1px solid #c9ccd1;font-family:ui-monospace,monospace}
+  .native .os-body{display:flex;gap:14px;padding:18px 20px 6px}
+  .native .os-ico{font-size:28px;flex-shrink:0;line-height:1}
   .native .os-text h4{margin:0 0 6px;font-size:13px}
-  .native .os-text p{margin:0;font-size:12px;color:#4b5563}
-  .native .os-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px}
-  .os-btn{height:28px;padding:0 16px;border-radius:6px;border:1px solid #b7bbc2;background:#fff;font:inherit;font-size:12px;cursor:pointer}
+  .native .os-text p{margin:0 0 6px;font-size:12px;color:#4b5563}
+  .native .os-text ul{margin:6px 0;padding-left:16px;font-size:12px;color:#4b5563}
+  .native .os-text ul li{margin:2px 0}
+  .native .os-text .soft{color:#8a919c;font-size:11.5px}
+  .native .os-foot{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;padding:12px 20px}
+  .os-btn{height:28px;padding:0 14px;border-radius:6px;border:1px solid #b7bbc2;background:#fff;font:inherit;font-size:12px;cursor:pointer}
   .os-btn.default{background:#4b6ef5;border-color:#4b6ef5;color:#fff}
   .os-btn.danger{background:#e5484d;border-color:#e5484d;color:#fff}
+
+  /* 预检内容说明块（挂在需要预检的卡下方） */
+  .pc{border:1px dashed #b9c0c9;border-top:0;border-radius:0 0 10px 10px;background:#f2f4f7;padding:8px 12px;font-size:11.5px;color:#475569}
+  .pc b{color:#334155}
+  .pc code{background:#fff;border:1px solid #dbe0e6;border-radius:3px;padding:0 4px;font-size:11px}
+  .wrap{display:flex;flex-direction:column}
+  .wrap .native{border-radius:10px 10px 0 0}
+
+  /* 列表管理对话框：列出条目 + 每行多个操作 */
+  .mlist{border:1px solid var(--b300);border-radius:var(--field-r);overflow:hidden}
+  .mlist .mit{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--b200)}
+  .mlist .mit:last-child{border-bottom:0}
+  .mlist .mit:hover{background:var(--b200)}
+  .mlist .minfo{flex:1;min-width:0}
+  .mlist .mtitle{font-size:12.5px}
+  .mlist .msub{font-size:11px;color:var(--bc40);font-family:ui-monospace,monospace}
+  .mlist .macts{display:flex;gap:4px;flex-shrink:0}
+  .mlist .macts .iw-btn{height:26px;padding:0 10px;font-size:11px;font-weight:500}
+  .shell .foot.split{justify-content:space-between}
+  .empty-list{padding:16px;text-align:center;color:var(--bc40);font-size:12px}
 </style>
 </head>
 <body>
-  <h1>Source Control 对话框 — 对齐工程</h1>
-  <p class="lead">三类分开：① <b>独立纯破坏性确认</b>用工程现有的原生 <code>showMessageBox</code>；② <b>需输入</b>用工程 dialog 外壳；③ <b>可恢复、未知或需要解释风险的 Git 状态</b>也用工程 dialog 外壳，默认给出原因和下一步，原始输出收进「技术详情」。</p>
+  <h1>Source Control 对话框 — 真实场景清单 + 预检内容</h1>
+  <p class="lead">本页穷举 iWriter SCM <b>真实会出现</b>的每一个对话框/提示，逐条对应真实函数（<code>store</code> → <code>GitApi</code>）。三种形态：① <b>IwDialog（工程外壳·文本输入）</b> ② <b>列表管理对话框（列表 + 逐项操作）</b> ③ <b>原生 showMessageBox（一切确认/预检/失败）</b>。分支的选择走菜单（见 <code>panel.html</code>），此处不含选择器。</p>
+
+  <div class="rule">
+    <b>总纲 · 预检 → 说明 → 决策（绝不"先做后警"）：</b>可能出问题的操作执行<b>前</b>先跑预检。<b>无问题</b> → 非破坏性直接执行、破坏性弹一次防误点确认；<b>有问题</b> → 原生框把问题<b>用大白话列成信息</b> + <code>取消</code> + <code>强制/继续</code>。
+    <b>能翻译的问题用大白话、不堆术语</b>；<b>程序没识别出的报错（unknown）则把 git 原始输出作为提示正文 + 可复制</b>——否则用户无从排障/上报。真实可预检的操作只有三个：<b>切换分支 / 删除分支 / 合并分支</b>。<b>全部错误一律原生 messagebox，工程对话框 GitErrorResolutionDialog 退役。</b>
+  </div>
   <div class="impl">
-    实现映射：原生确认只用于放弃、中止合并等独立不可逆操作。选择分支后立即尝试安全删除；未合并分支由项目内风险对话框一次性说明并确认强制删除，避免重复弹窗。输入与错误恢复复用覆盖层 <code>bg-black/45 backdrop-blur</code> + <code>rounded-box border-base-300 bg-base-100</code>；错误正文不显示 raw stderr，用户展开 <code>技术详情</code> 后才可查看/复制。
+    现状差异（本次要改）：切换脏树、删除未合并分支现在都是<b>事后</b>触发（<code>promptDirtyCheckout</code> / <code>deleteBranch</code> 失败后 <code>presentGitIssue</code>）→ 改为<b>事前预检</b>。合并现在<b>无确认</b>直接 <code>merge()</code> → 补预检。新增主进程预检：<code>preflightCheckout</code> / <code>preflightDeleteBranch</code> / <code>preflightMerge</code>，返回 <code>{ ok, problems[], canForce }</code>。
   </div>
 
-  <!-- ============ A. 纯确认 → 原生 showMessageBox ============ -->
-  <h2 class="cat">A · 纯确认（原生 showMessageBox）</h2>
+  <!-- ============ 1. IwDialog · 文本输入 ============ -->
+  <h2 class="cat">1 · IwDialog（工程外壳 · 仅文本输入）</h2>
+  <p class="sub">唯一需要工程自定义对话框的场景 = 要用户打字。7 个，全部真实存在。</p>
   <div class="grid">
 
-    <div class="native">
-      <div class="os-cap">showMessageBox · type: 'warning'</div>
-      <div class="os-body"><div class="os-ico">⚠️</div>
-        <div class="os-text"><h4>放弃对 ch002.md 的更改？</h4><p>此操作不可撤销，将丢弃所有未提交更改。</p></div>
-      </div>
-      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn danger">放弃更改</button></div>
-    </div>
-
-    <div class="native">
-      <div class="os-cap">showMessageBox · type: 'warning' · checkboxLabel</div>
-      <div class="os-body"><div class="os-ico">⚠️</div>
-        <div class="os-text"><h4>放弃全部更改？</h4><p>将丢弃 3 个文件的更改，不可撤销。</p>
-          <label class="check" style="margin-top:10px"><input type="checkbox"> 同时删除未跟踪文件（git clean）</label>
-        </div>
-      </div>
-      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn danger">全部放弃</button></div>
-    </div>
-
-    <div class="native">
-      <div class="os-cap">showMessageBox · type: 'question'</div>
-      <div class="os-body"><div class="os-ico">❓</div>
-        <div class="os-text"><h4>中止正在进行的合并？</h4><p>工作区将还原到合并前状态。</p></div>
-      </div>
-      <div class="os-foot"><button class="os-btn">继续合并</button><button class="os-btn danger">中止合并</button></div>
-    </div>
-
-  </div>
-
-  <!-- ============ B. 输入与错误恢复 → 工程 dialog 外壳 ============ -->
-  <h2 class="cat">B · 输入与错误恢复（工程 dialog 外壳）</h2>
-  <div class="grid">
-
-    <div class="shell"><div class="cap">0 · 未合并分支风险确认（唯一确认）</div>
-      <div class="head"><h3>分支尚未合并</h3><button class="x">✕</button></div>
-      <div class="body">
-        <p style="margin:0 0 8px">分支 <b>feature/old</b> 包含尚未合并的提交。</p>
-        <p class="hint" style="margin:0 0 12px">强制删除后只能从其他引用或备份恢复。</p>
-        <details><summary>技术详情 ▸</summary><pre>error: the branch 'feature/old' is not fully merged</pre></details>
-      </div>
-      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn danger">强制删除分支</button></div>
-    </div>
-
-    <div class="shell"><div class="cap">1 · Git 操作失败（可恢复 / 未知错误）</div>
-      <div class="head"><h3>无法推送更改</h3><button class="x">✕</button></div>
-      <div class="body">
-        <p style="margin:0 0 8px">当前凭证没有向 <b>origin</b> 推送的权限。</p>
-        <p class="hint" style="margin:0 0 12px">请检查系统凭证（Keychain / credential helper / ssh-agent）后重试。</p>
-        <details><summary>技术详情 ▸</summary><pre>remote: Permission to user/repo.git denied to alice.
-fatal: unable to access 'https://github.com/user/repo.git/': The requested URL returned error: 403</pre></details>
-      </div>
-      <div class="foot"><button class="iw-btn">关闭</button><button class="iw-btn primary">重试</button></div>
-    </div>
-
-    <div class="shell"><div class="cap">2 · 克隆仓库</div>
-      <div class="head"><h3>克隆仓库</h3><button class="x">✕</button></div>
-      <div class="body">
-        <div class="field"><label>仓库 URL</label><input class="iw-input" value="https://github.com/user/repo.git"></div>
-        <div class="field"><label>克隆到</label><div class="with-btn"><input class="iw-input" placeholder="/Users/…/repo"><button class="iw-btn">浏览…</button></div></div>
-        <label class="check"><input type="checkbox" checked> 克隆后打开为工作空间</label>
-        <div class="progress"><i></i></div><p class="hint">正在克隆…（进行中形态）</p>
-      </div>
-      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">克隆</button></div>
-    </div>
-
-    <div class="shell"><div class="cap">3 · 创建分支</div>
+    <div class="shell"><div class="cap">store.createBranch → git.createBranch</div>
       <div class="head"><h3>创建分支</h3><button class="x">✕</button></div>
       <div class="body">
         <div class="field"><label>分支名称</label><input class="iw-input" placeholder="feature/xxx"></div>
-        <div class="field"><label>基于</label><select class="iw-input"><option>main（当前）</option><option>origin/main</option><option>develop</option></select></div>
+        <div class="field"><label>基于</label><select class="iw-input"><option>main（当前）</option><option>a1b2c3d（选中的提交）</option></select></div>
         <label class="check"><input type="checkbox" checked> 立即切换到新分支</label>
       </div>
       <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">创建</button></div>
     </div>
 
-    <div class="shell"><div class="cap">4 · 切换分支（QuickPick）</div>
-      <div class="head"><h3>切换分支</h3><button class="x">✕</button></div>
+    <div class="shell"><div class="cap">store.renameBranch → git.renameBranch</div>
+      <div class="head"><h3>重命名分支</h3><button class="x">✕</button></div>
       <div class="body">
-        <input class="iw-input" type="search" placeholder="筛选分支或输入以创建…" style="margin-bottom:8px">
-        <div class="list">
-          <div class="it on">main <small>当前</small></div>
-          <div class="it">develop</div>
-          <div class="it">feature/creative-phase2</div>
-          <div class="it">origin/main <small>远程</small></div>
-          <div class="it">＋ 创建新分支…</div>
-        </div>
+        <div class="field"><label>新名称</label><input class="iw-input" value="feature/creative-phase2"></div>
+        <p class="err">名称含非法字符（空格 / ~^:?*[\ / .. 等）。</p>
       </div>
-      <div class="foot"><button class="iw-btn">取消</button></div>
+      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">重命名</button></div>
     </div>
 
-    <div class="shell"><div class="cap">5 · 提交身份缺失</div>
+    <div class="shell"><div class="cap">store.clone → git.clone</div>
+      <div class="head"><h3>克隆仓库</h3><button class="x">✕</button></div>
+      <div class="body">
+        <div class="field"><label>仓库 URL</label><input class="iw-input" value="https://github.com/user/repo.git"></div>
+        <div class="field"><label>克隆到</label><div class="with-btn"><input class="iw-input" placeholder="/Users/…/repo"><button class="iw-btn">浏览…</button></div></div>
+        <label class="check"><input type="checkbox" checked> 克隆后打开为工作空间</label>
+        <div class="progress"><i></i></div><p class="hint">正在克隆…（busy 进度形态）</p>
+      </div>
+      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">克隆</button></div>
+    </div>
+
+    <div class="shell"><div class="cap">store.createTag → git.createTag</div>
+      <div class="head"><h3>创建标签</h3><button class="x">✕</button></div>
+      <div class="body">
+        <div class="field"><label>标签名称</label><input class="iw-input" placeholder="v1.0-初稿"></div>
+        <div class="field"><label>说明（可选，填写则为附注标签）</label><input class="iw-input" placeholder="第一稿完成"></div>
+      </div>
+      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">创建</button></div>
+    </div>
+
+    <div class="shell"><div class="cap">store.stashPush → git.stashPush</div>
+      <div class="head"><h3>贮藏更改</h3><button class="x">✕</button></div>
+      <div class="body">
+        <div class="field"><label>备注（可选）</label><input class="iw-input" placeholder="WIP: …"></div>
+        <label class="check"><input type="checkbox"> 包含未跟踪文件</label>
+      </div>
+      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">贮藏</button></div>
+    </div>
+
+    <div class="shell"><div class="cap">store.addRemote → git.addRemote</div>
+      <div class="head"><h3>添加远程</h3><button class="x">✕</button></div>
+      <div class="body">
+        <div class="field"><label>名称</label><input class="iw-input" placeholder="origin"></div>
+        <div class="field"><label>URL</label><input class="iw-input" placeholder="https://github.com/…"></div>
+      </div>
+      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">添加</button></div>
+    </div>
+
+    <div class="shell"><div class="cap">store.commit → 身份缺失 → git.identitySet</div>
       <div class="head"><h3>配置提交身份</h3><button class="x">✕</button></div>
       <div class="body">
         <p class="hint" style="margin:0 0 12px">尚未设置 Git 用户名与邮箱，无法创建提交。</p>
@@ -170,24 +164,222 @@ fatal: unable to access 'https://github.com/user/repo.git/': The requested URL r
       <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">保存并提交</button></div>
     </div>
 
-    <div class="shell"><div class="cap">6 · 发布分支</div>
-      <div class="head"><h3>发布分支</h3><button class="x">✕</button></div>
-      <div class="body">
-        <p class="hint" style="margin:0 0 12px">本地分支 <b>feature/xxx</b> 尚未推送到远程。</p>
-        <div class="field"><label>远程</label><select class="iw-input"><option>origin</option></select></div>
+  </div>
+
+  <!-- ============ 2. 原生 · 纯破坏性确认 ============ -->
+  <h2 class="cat">2 · 原生 messagebox · 纯破坏性确认（无需预检，只防误点）</h2>
+  <p class="sub">操作本身不可逆、也无"问题清单"可查，只需一次确认。7 个，全部真实存在。</p>
+  <div class="grid">
+
+    <div class="native"><div class="os-cap">store.discard（单文件）</div>
+      <div class="os-body"><div class="os-ico">⚠️</div>
+        <div class="os-text"><h4>放弃对 ch002.md 的更改？</h4><p>会丢弃所有未保存的改动，无法恢复。</p></div>
       </div>
-      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">发布分支</button></div>
+      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn danger">放弃更改</button></div>
     </div>
 
-    <div class="shell"><div class="cap">7 · 贮藏（Stash）</div>
-      <div class="head"><h3>贮藏更改</h3><button class="x">✕</button></div>
-      <div class="body">
-        <div class="field"><label>备注（可选）</label><input class="iw-input" placeholder="WIP: …"></div>
-        <label class="check"><input type="checkbox"> 包含未跟踪文件</label>
+    <div class="native"><div class="os-cap">store.discard（更改分组·全部）</div>
+      <div class="os-body"><div class="os-ico">⚠️</div>
+        <div class="os-text"><h4>放弃全部更改？</h4><p>会丢弃「更改」分组里 3 个文件的改动，无法恢复。</p></div>
       </div>
-      <div class="foot"><button class="iw-btn">取消</button><button class="iw-btn primary">贮藏</button></div>
+      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn danger">全部放弃</button></div>
+    </div>
+
+    <div class="native"><div class="os-cap">store.restoreFile（Timeline 还原）</div>
+      <div class="os-body"><div class="os-ico">⚠️</div>
+        <div class="os-text"><h4>把 ch001.md 还原到该版本？</h4><p>会用该历史版本覆盖当前文件，未保存的改动将丢失。</p></div>
+      </div>
+      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn danger">还原</button></div>
+    </div>
+
+    <div class="native"><div class="os-cap">store.undoLastCommit（reset --soft）</div>
+      <div class="os-body"><div class="os-ico">❓</div>
+        <div class="os-text"><h4>撤销上次提交？</h4><p>提交会被撤销，但改动会<b>保留</b>在工作区，可重新提交。</p></div>
+      </div>
+      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn default">撤销提交</button></div>
+    </div>
+
+    <div class="native"><div class="os-cap">store.deleteTag</div>
+      <div class="os-body"><div class="os-ico">⚠️</div>
+        <div class="os-text"><h4>删除标签 v1.0-初稿？</h4><p>本地标签会被删除。</p></div>
+      </div>
+      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn danger">删除标签</button></div>
+    </div>
+
+    <div class="native"><div class="os-cap">store.removeRemote</div>
+      <div class="os-body"><div class="os-ico">⚠️</div>
+        <div class="os-text"><h4>移除远程 origin？</h4><p>仅解除与该远程的关联，不影响远程仓库本身。</p></div>
+      </div>
+      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn danger">移除</button></div>
+    </div>
+
+    <div class="native"><div class="os-cap">store.stashDrop</div>
+      <div class="os-body"><div class="os-ico">⚠️</div>
+        <div class="os-text"><h4>丢弃该贮藏？</h4><p>stash@{0} 会被删除，无法恢复。</p></div>
+      </div>
+      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn danger">丢弃</button></div>
     </div>
 
   </div>
+
+  <!-- ============ 3. 原生 · 预检结果 ============ -->
+  <h2 class="cat">3 · 原生 messagebox · 预检结果（真实可预检的三个操作）</h2>
+  <p class="sub">操作前跑预检，把问题用大白话列出，让用户在 取消 / 强制 之间决定。每卡下方标出「预检查什么」。</p>
+  <div class="grid">
+
+    <!-- 切换分支 -->
+    <div class="wrap">
+      <div class="native"><div class="os-cap">store.checkout · 有更改（现 promptDirtyCheckout）</div>
+        <div class="os-body"><div class="os-ico">⚠️</div>
+          <div class="os-text"><h4>切换到 develop</h4><p>当前有未提交的更改，需要先处理才能切换。</p></div>
+        </div>
+        <div class="os-foot">
+          <button class="os-btn">取消</button>
+          <button class="os-btn">贮藏并切换</button>
+          <button class="os-btn">迁移更改</button>
+          <button class="os-btn danger">放弃并强制切换</button>
+        </div>
+      </div>
+      <div class="pc"><b>预检 preflightCheckout：</b>工作区是否干净 —— <code>status</code> 的 staged / changes / untracked 是否有内容。
+        <br><b>干净</b> → 直接 <code>checkout</code>；<b>有更改</b> → 上框。三个动作＝<code>stashPush(-u)→checkout</code> / <code>checkout -m</code>（冲突进 Merge Changes）/ <code>checkout -f</code>（丢弃）。</div>
+    </div>
+
+    <!-- 删除分支 · 有问题 -->
+    <div class="wrap">
+      <div class="native"><div class="os-cap">store.deleteBranch · 预检有问题</div>
+        <div class="os-body"><div class="os-ico">⚠️</div>
+          <div class="os-text"><h4>删除分支 feature/old？</h4>
+            <p>这个分支还有未处理的内容：</p>
+            <ul>
+              <li>有 3 处改动还没有推送到远程</li>
+              <li>还没有合并进 main</li>
+              <li>另一个分支 feature/sub 是从它分出来的</li>
+            </ul>
+            <p class="soft">删除后将无法从这里找回。</p>
+          </div>
+        </div>
+        <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn danger">强制删除</button></div>
+      </div>
+      <div class="pc"><b>预检 preflightDeleteBranch（三查）：</b>
+        ① <b>未推送</b>：分支相对其 upstream 是否 ahead（无 upstream 视为从未推送）；
+        ② <b>未并入 main</b>：<code>branch --merged main</code> 是否含它；
+        ③ <b>有派生</b>：<code>branch --contains &lt;tip&gt;</code> 是否有其他本地分支。
+        任一命中 → 上框（强制删除）。<b>受保护</b>：main / master / 当前分支不进候选（菜单不列）。</div>
+    </div>
+
+    <!-- 删除分支 · 无问题 -->
+    <div class="wrap">
+      <div class="native"><div class="os-cap">store.deleteBranch · 预检通过（防误点）</div>
+        <div class="os-body"><div class="os-ico">🗑️</div>
+          <div class="os-text"><h4>删除分支 feature/done？</h4>
+            <p>您确认要删除吗？</p>
+            <p class="soft">已并入 main、无未推送提交、无派生分支，可安全删除。</p>
+          </div>
+        </div>
+        <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn default">删除</button></div>
+      </div>
+      <div class="pc"><b>预检通过</b> → 仍弹一次防误点确认（普通「删除」按钮，非「强制」）。</div>
+    </div>
+
+    <!-- 合并分支 -->
+    <div class="wrap">
+      <div class="native"><div class="os-cap">store.merge（现无确认，直接 merge）</div>
+        <div class="os-body"><div class="os-ico">❓</div>
+          <div class="os-text"><h4>把 develop 合并进 main？</h4>
+            <p>这不是快进合并，会生成一个合并提交；如果有冲突，会进入冲突解决。</p>
+          </div>
+        </div>
+        <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn default">合并</button></div>
+      </div>
+      <div class="pc"><b>预检 preflightMerge：</b>能否快进 —— <code>merge-base --is-ancestor</code> 判断当前分支是否为目标祖先。
+        <br><b>可快进</b> → 提示"将直接快进"；<b>需合并提交</b> → 上框。冲突不预测（真合并时进 Merge Changes）。</div>
+    </div>
+
+  </div>
+
+  <!-- ============ 4. 原生 · 无法预检的失败 ============ -->
+  <h2 class="cat">4 · 原生 messagebox · 无法预检的失败（真实 GitIssueKind）</h2>
+  <p class="sub">这些要真正联网/操作后才知道，无法事前预检。已识别的（auth/network/落后）给大白话 + 恢复动作；<b>未识别的（unknown）把 git 原始输出作为提示正文</b>，并给「复制错误信息」。全部原生 messagebox。</p>
+  <div class="grid">
+
+    <div class="native"><div class="os-cap">GitIssue · remote-auth（push/pull/fetch/publish/clone）</div>
+      <div class="os-body"><div class="os-ico">🔒</div>
+        <div class="os-text"><h4>没有访问远程的权限</h4><p>当前账号无法访问 origin，请检查凭证后重试。</p></div>
+      </div>
+      <div class="os-foot"><button class="os-btn">关闭</button><button class="os-btn default">重试</button></div>
+    </div>
+
+    <div class="native"><div class="os-cap">GitIssue · network</div>
+      <div class="os-body"><div class="os-ico">📡</div>
+        <div class="os-text"><h4>无法连接远程</h4><p>网络连接失败，请检查网络后重试。</p></div>
+      </div>
+      <div class="os-foot"><button class="os-btn">关闭</button><button class="os-btn default">重试</button></div>
+    </div>
+
+    <div class="native"><div class="os-cap">GitIssue · remote-non-fast-forward（push 被拒）</div>
+      <div class="os-body"><div class="os-ico">⚠️</div>
+        <div class="os-text"><h4>远程有更新，无法直接推送</h4><p>远程已有你本地没有的提交，需要先拉取合并再推送。</p></div>
+      </div>
+      <div class="os-foot"><button class="os-btn">取消</button><button class="os-btn default">拉取并重试</button></div>
+    </div>
+
+    <div class="native"><div class="os-cap">GitIssue · unknown（兜底：git 输出作为提示正文）</div>
+      <div class="os-body"><div class="os-ico">⚠️</div>
+        <div class="os-text"><h4>合并分支未能完成</h4>
+          <p>Git 报告了以下错误：</p>
+          <p style="font-family:ui-monospace,monospace;background:#f2f4f7;border:1px solid #dbe0e6;border-radius:4px;padding:6px 8px;white-space:pre-wrap;color:#475569;font-size:11px">error: Your local changes to the following files would be overwritten by merge:
+  draft/ch001.md
+Please commit your changes or stash them before you merge.</p>
+        </div>
+      </div>
+      <div class="os-foot"><button class="os-btn">关闭</button><button class="os-btn">复制错误信息</button><button class="os-btn default">重试</button></div>
+    </div>
+
+  </div>
+
+  <!-- ============ 5. 列表管理对话框 ============ -->
+  <h2 class="cat">5 · 列表管理对话框（列表 + 逐项操作，替代嵌套菜单）</h2>
+  <p class="sub">"…"结尾的列表/管理入口不再弹嵌套原生菜单，改为工程对话框：列出条目、每行直接给操作。破坏性动作（丢弃/移除/删除）点了再弹原生确认。</p>
+  <div class="grid">
+
+    <div class="shell"><div class="cap">store.loadStashes → 贮藏列表（现 showStashMenu 三层菜单）</div>
+      <div class="head"><h3>贮藏列表</h3><button class="x">✕</button></div>
+      <div class="body" style="padding:12px 14px">
+        <div class="mlist">
+          <div class="mit"><div class="minfo"><div class="mtitle">WIP: 第二章草稿</div><div class="msub">stash@{0} · 2 小时前</div></div>
+            <div class="macts"><button class="iw-btn">应用</button><button class="iw-btn">弹出</button><button class="iw-btn">丢弃</button></div></div>
+          <div class="mit"><div class="minfo"><div class="mtitle">修订前备份</div><div class="msub">stash@{1} · 昨天</div></div>
+            <div class="macts"><button class="iw-btn">应用</button><button class="iw-btn">弹出</button><button class="iw-btn">丢弃</button></div></div>
+        </div>
+      </div>
+      <div class="foot"><button class="iw-btn">关闭</button></div>
+    </div>
+
+    <div class="shell"><div class="cap">store.loadTags → 标签列表（现 showTagMenu 菜单）</div>
+      <div class="head"><h3>标签</h3><button class="x">✕</button></div>
+      <div class="body" style="padding:12px 14px">
+        <div class="mlist">
+          <div class="mit"><div class="minfo"><div class="mtitle">v1.0-初稿</div><div class="msub">a1b2c3d</div></div>
+            <div class="macts"><button class="iw-btn">删除</button></div></div>
+          <div class="mit"><div class="minfo"><div class="mtitle">v1.1-投稿版</div><div class="msub">9f8e7d6</div></div>
+            <div class="macts"><button class="iw-btn">删除</button></div></div>
+        </div>
+      </div>
+      <div class="foot split"><button class="iw-btn primary">＋ 创建标签…</button><button class="iw-btn">关闭</button></div>
+    </div>
+
+    <div class="shell"><div class="cap">store.loadRemotes → 管理远程（现 showRemoteMenu 菜单）</div>
+      <div class="head"><h3>管理远程</h3><button class="x">✕</button></div>
+      <div class="body" style="padding:12px 14px">
+        <div class="mlist">
+          <div class="mit"><div class="minfo"><div class="mtitle">origin</div><div class="msub">https://github.com/user/repo.git</div></div>
+            <div class="macts"><button class="iw-btn">移除</button></div></div>
+        </div>
+      </div>
+      <div class="foot split"><button class="iw-btn primary">＋ 添加远程…</button><button class="iw-btn">关闭</button></div>
+    </div>
+
+  </div>
+
 </body>
 </html>

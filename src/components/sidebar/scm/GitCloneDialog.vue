@@ -22,12 +22,6 @@
       </div>
     </form>
   </div>
-
-  <GitErrorResolutionDialog
-    :issue="gitStore.gitIssue?.operation === 'clone' ? gitStore.gitIssue : null"
-    @close="gitStore.dismissGitIssue()"
-    @retry="gitStore.retryGitIssue()"
-  />
 </template>
 
 <script setup lang="ts">
@@ -36,7 +30,6 @@ import { useI18n } from 'vue-i18n'
 import { useGitStore } from '@/stores/git'
 import { useAppStore } from '@/stores/app'
 import pathUtils from '@/utils/pathUtils'
-import GitErrorResolutionDialog from './GitErrorResolutionDialog.vue'
 
 const { t } = useI18n()
 const gitStore = useGitStore()

@@ -22,63 +22,59 @@
 
     <ul v-show="!collapsed">
       <li v-for="(row, i) in rows" :key="row.kind === 'file' ? row.file!.path : `d${row.path ?? i}`">
-        <!-- 目录行（仅 tree 模式，支持目录级 stage/unstage/discard） -->
+        <!-- 目录行（仅 tree 模式）：聚合色点常驻最右，hover 按钮在其左侧（ui/panel.html .row/.acts/.dot） -->
         <div
           v-if="row.kind === 'dir'"
-          class="group/row flex h-7 items-center hover:bg-base-200"
+          class="group/row flex h-6 items-center gap-[7px] pr-2 hover:bg-base-200"
           @contextmenu.prevent="emit('context', { files: row.files ?? [], isDir: true, kind, ev: $event })"
         >
-          <div class="flex min-w-0 flex-1 items-center gap-1 text-base-content/45" :style="{ paddingLeft: (row.depth * 12 + 12) + 'px' }">
+          <div class="flex min-w-0 flex-1 items-center gap-[7px] overflow-hidden text-base-content/45" :style="{ paddingLeft: (row.depth * 12 + 12) + 'px' }">
             <IconFolder class="icon-2xs shrink-0" />
             <span class="truncate">{{ row.label }}</span>
           </div>
-          <div class="flex h-7 shrink-0 items-center pr-2">
-            <div class="hidden items-center gap-0.5 group-hover/row:flex">
-              <button v-if="kind === 'changes'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discard')" @click="emit('discard', row.files ?? [])">
-                <IconArrowBackUp class="icon-2xs" />
-              </button>
-              <button v-if="kind === 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstage')" @click="emit('unstage', row.files ?? [])">
-                <IconMinus class="icon-2xs" />
-              </button>
-              <button v-if="kind !== 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.stage')" @click="emit('stage', row.files ?? [])">
-                <IconPlus class="icon-2xs" />
-              </button>
-            </div>
+          <div class="hidden items-center gap-px group-hover/row:flex">
+            <button v-if="kind === 'changes'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discard')" @click="emit('discard', row.files ?? [])">
+              <IconArrowBackUp class="icon-2xs" />
+            </button>
+            <button v-if="kind === 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstage')" @click="emit('unstage', row.files ?? [])">
+              <IconMinus class="icon-2xs" />
+            </button>
+            <button v-if="kind !== 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.stage')" @click="emit('stage', row.files ?? [])">
+              <IconPlus class="icon-2xs" />
+            </button>
           </div>
+          <span class="mx-[3.5px] size-2 shrink-0 rounded-full" :class="dirDotColor(row.files ?? [])"></span>
         </div>
-        <!-- 文件行 -->
+        <!-- 文件行：状态字母常驻最右，hover 按钮在其左侧、互不遮挡 -->
         <div
           v-else
-          class="group/row flex h-7 items-center hover:bg-base-200"
+          class="group/row flex h-6 items-center gap-[7px] pr-2 hover:bg-base-200"
           @contextmenu.prevent="emit('context', { files: [row.file!], isDir: false, kind, ev: $event })"
         >
           <button
-            class="flex min-w-0 flex-1 items-center gap-2 text-left"
+            class="flex min-w-0 flex-1 items-center gap-[7px] overflow-hidden text-left"
             :style="{ paddingLeft: (row.depth * 12 + 24) + 'px' }"
             :title="row.file!.path"
             @click="emit('open', row.file!)"
           >
-            <span class="truncate text-base-content">{{ row.file!.name }}</span>
-            <span v-if="!treeView" class="truncate text-base-content/40">{{ row.file!.dir }}</span>
+            <span class="shrink-0 truncate text-base-content">{{ row.file!.name }}</span>
+            <span v-if="!treeView" class="truncate text-[11px] text-base-content/40">{{ row.file!.dir }}</span>
           </button>
-          <!-- 文件操作（hover 显示，否则显示状态字母；固定高度避免抖动） -->
-          <div class="flex h-7 shrink-0 items-center pr-2">
-            <div class="hidden items-center gap-0.5 group-hover/row:flex">
-              <button v-if="kind === 'untracked'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.gitignore')" @click="emit('gitignore', [row.file!])">
-                <IconBan class="icon-2xs" />
-              </button>
-              <button v-if="kind === 'changes' || kind === 'untracked'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discard')" @click="emit('discard', [row.file!])">
-                <IconArrowBackUp class="icon-2xs" />
-              </button>
-              <button v-if="kind === 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstage')" @click="emit('unstage', [row.file!])">
-                <IconMinus class="icon-2xs" />
-              </button>
-              <button v-if="kind !== 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.stage')" @click="emit('stage', [row.file!])">
-                <IconPlus class="icon-2xs" />
-              </button>
-            </div>
-            <span class="w-4 text-center font-bold group-hover/row:hidden" :class="statusColor(row.file!.status)">{{ row.file!.status }}</span>
+          <div class="hidden items-center gap-px group-hover/row:flex">
+            <button v-if="kind === 'untracked'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.gitignore')" @click="emit('gitignore', [row.file!])">
+              <IconBan class="icon-2xs" />
+            </button>
+            <button v-if="kind === 'changes' || kind === 'untracked'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discard')" @click="emit('discard', [row.file!])">
+              <IconArrowBackUp class="icon-2xs" />
+            </button>
+            <button v-if="kind === 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstage')" @click="emit('unstage', [row.file!])">
+              <IconMinus class="icon-2xs" />
+            </button>
+            <button v-if="kind !== 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.stage')" @click="emit('stage', [row.file!])">
+              <IconPlus class="icon-2xs" />
+            </button>
           </div>
+          <span class="w-4 shrink-0 text-center font-bold" :class="statusColor(row.file!.status)">{{ row.file!.status }}</span>
         </div>
       </li>
     </ul>
@@ -119,5 +115,16 @@ function statusColor(s: GitFileStatus): string {
     case 'D': case 'C': return 'text-error'
     default: return 'text-warning'
   }
+}
+
+/** 目录聚合状态点颜色：子树最高严重度（冲突/删除=红 ▸ 修改/重命名=黄 ▸ 新增/未跟踪=绿），对齐 ui/panel.html .dot */
+function dirDotColor(files: GitFileChange[]): string {
+  let sev = 1 // 1 绿 / 2 黄 / 3 红
+  for (const f of files) {
+    const s = f.status === 'D' || f.status === 'C' ? 3 : f.status === 'M' || f.status === 'R' ? 2 : 1
+    if (s > sev) sev = s
+    if (sev === 3) break
+  }
+  return sev === 3 ? 'bg-error' : sev === 2 ? 'bg-warning' : 'bg-success'
 }
 </script>

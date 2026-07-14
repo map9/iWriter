@@ -106,7 +106,7 @@ export class GitService {
     this.availability = await new Promise<GitAvailability>((resolve) => {
       execFile('git', ['--version'], (err, stdout) => {
         if (err) {
-          resolve({ available: false })
+          resolve({ available: false, installCommand: this.getInstallCommand(), downloadUrl: 'https://git-scm.com/downloads' })
         } else {
           const version = stdout.toString().replace(/^git version\s*/i, '').trim()
           resolve({ available: true, version, path: 'git' })
@@ -114,6 +114,18 @@ export class GitService {
       })
     })
     return this.availability
+  }
+
+  /** 未安装 git 时的按平台安装命令（对齐 LibreOfficeService.getInstallCommand） */
+  private getInstallCommand(): string {
+    switch (process.platform) {
+      case 'darwin':
+        return 'brew install git'
+      case 'win32':
+        return 'winget install Git.Git'
+      default:
+        return 'sudo apt install git'
+    }
   }
 
   async isRepo(root: string): Promise<boolean> {
@@ -251,6 +263,49 @@ export class GitService {
 
   async deleteBranch(root: string, name: string, force: boolean): Promise<void> {
     await this.raw(root,['branch', force ? '-D' : '-d', name])
+  }
+
+  /** 删除分支预检（三查）：未推送到远程 / 未并入 main / 有其他分支基于它派生 */
+  async preflightDeleteBranch(root: string, name: string): Promise<{
+    unpushedCommits: number
+    mainRef: string | null
+    mergedIntoMain: boolean
+    descendantBranches: string[]
+  }> {
+    // 本地分支 → 确定主干（main/master）
+    let locals: string[] = []
+    try {
+      locals = (await this.raw(root, ['branch', '--format=%(refname:short)'])).split('\n').map(s => s.trim()).filter(Boolean)
+    } catch { /* ignore */ }
+    const mainRef = locals.includes('main') ? 'main' : locals.includes('master') ? 'master' : null
+    // ① 未推送：相对 upstream 领先的提交数（无 upstream → 0，不噪扰纯本地库）
+    let unpushedCommits = 0
+    try {
+      unpushedCommits = parseInt((await this.raw(root, ['rev-list', '--count', `${name}@{upstream}..${name}`])).trim(), 10) || 0
+    } catch { unpushedCommits = 0 }
+    // ② 是否已并入主干
+    let mergedIntoMain = false
+    if (mainRef && mainRef !== name) {
+      try {
+        mergedIntoMain = (await this.raw(root, ['branch', '--merged', mainRef, '--format=%(refname:short)'])).split('\n').map(s => s.trim()).includes(name)
+      } catch { mergedIntoMain = false }
+    }
+    // ③ 其他本地分支包含它的 tip（= 基于它派生）
+    let descendantBranches: string[] = []
+    try {
+      descendantBranches = (await this.raw(root, ['branch', '--contains', name, '--format=%(refname:short)'])).split('\n').map(s => s.trim()).filter(n => n && n !== name)
+    } catch { descendantBranches = [] }
+    return { unpushedCommits, mainRef, mergedIntoMain, descendantBranches }
+  }
+
+  /** 合并预检：当前 HEAD 是否为目标分支的祖先（是→可快进，否→需合并提交/可能冲突） */
+  async preflightMerge(root: string, branch: string): Promise<{ fastForward: boolean }> {
+    try {
+      await this.raw(root, ['merge-base', '--is-ancestor', 'HEAD', branch])
+      return { fastForward: true }
+    } catch {
+      return { fastForward: false }
+    }
   }
 
   // ---------- 标签 Tags ----------
