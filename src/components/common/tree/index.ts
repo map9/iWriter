@@ -30,6 +30,8 @@ export interface TreeNodeAppearance {
   treeIconStyle?: Record<string, string>
   treeLabelClass?: string | string[] | Record<string, boolean>
   treeLabelStyle?: Record<string, string>
+  treeBadgeClass?: string | string[] | Record<string, boolean>
+  treeBadgeStyle?: Record<string, string>
   treeRowClass?: string | string[] | Record<string, boolean>
   treeRowStyle?: Record<string, string>
 }

@@ -149,12 +149,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, watchEffect } from 'vue'
+import { ref, computed, reactive, watch, watchEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { useGitStore } from '@/stores/git'
 import { StateStorage } from '@/utils/StateStorage'
 import type { FileTreeNode, FileTreeCallbacks, FileTreeSortType } from '../common/tree'
 import type { ContextMenuItem } from '@/types'
+import type { GitFileChange, GitFileStatus } from '@/types/git'
 import { TEXT_IWT_EXTENSION } from '@/types'
 import { generateUntitledName } from '@/utils/untitledName'
 import Tree from '../common/tree/Tree.vue'
@@ -179,6 +181,7 @@ import {
 } from '@tabler/icons-vue'
 
 const appStore = useAppStore()
+const gitStore = useGitStore()
 const { t } = useI18n()
 const searchQuery = ref('')
 const { getIconByExtension } = useDocumentTypeDetector()
@@ -282,6 +285,132 @@ const rootChildren = computed(() => {
   return appStore.fileTree.children
 })
 
+type GitDecorationTone = 'success' | 'warning' | 'error'
+
+// Decorations are keyed by path so a Git refresh only invalidates the changed
+// file and its ancestor directories, rather than rebuilding the Explorer tree.
+const gitFileDecorations = reactive(new Map<string, GitFileStatus>())
+const gitDirectoryDecorations = reactive(new Map<string, GitDecorationTone>())
+
+function normalizeExplorerGitPath(filePath: string): string {
+  return pathUtils.normalize(filePath).replace(/\\/g, '/')
+}
+
+const visibleExplorerFilePaths = computed(() => {
+  const paths = new Set<string>()
+  const collect = (node: FileTreeNode) => {
+    if (node.isVisible === false) return
+    if (node.type === 'file') {
+      paths.add(normalizeExplorerGitPath(node.path))
+      return
+    }
+    node.children?.forEach(child => collect(child as FileTreeNode))
+  }
+  appStore.fileTree?.children?.forEach(child => collect(child as FileTreeNode))
+  return paths
+})
+
+function getGitDecorationTone(status: GitFileStatus): GitDecorationTone {
+  if (status === 'C') return 'error'
+  if (status === 'M' || status === 'R') return 'warning'
+  return 'success'
+}
+
+function gitDecorationPriority(status: GitFileStatus): number {
+  if (status === 'C') return 3
+  if (status === 'M' || status === 'R') return 2
+  return 1
+}
+
+function gitBadgeStyle(tone: GitDecorationTone, isDirectory: boolean): Record<string, string> {
+  if (isDirectory) {
+    return {
+      width: '8px',
+      minWidth: '8px',
+      height: '8px',
+      minHeight: '8px',
+      margin: '0 12px 0 8px',
+      padding: '0',
+      borderRadius: '9999px',
+      background: `var(--color-${tone})`,
+      color: 'transparent',
+      fontSize: '0',
+    }
+  }
+  return {
+    width: '16px',
+    height: 'auto',
+    margin: '0 8px 0 4px',
+    padding: '0',
+    borderRadius: '0',
+    background: 'transparent',
+    color: `var(--color-${tone})`,
+    fontSize: '11px',
+    fontWeight: '700',
+  }
+}
+
+function syncReactiveMap<T>(target: Map<string, T>, next: Map<string, T>): void {
+  for (const path of target.keys()) {
+    if (!next.has(path)) target.delete(path)
+  }
+  for (const [path, value] of next) {
+    if (target.get(path) !== value) target.set(path, value)
+  }
+}
+
+function syncGitDecorations(): void {
+  const nextFiles = new Map<string, GitFileStatus>()
+  const nextDirectories = new Map<string, GitDecorationTone>()
+  const root = appStore.currentFolder ? normalizeExplorerGitPath(appStore.currentFolder).replace(/\/+$/, '') : null
+
+  if (!gitStore.isRepo || !gitStore.status || !root) {
+    syncReactiveMap(gitFileDecorations, nextFiles)
+    syncReactiveMap(gitDirectoryDecorations, nextDirectories)
+    return
+  }
+
+  const changes: GitFileChange[] = [
+    ...gitStore.status.staged,
+    ...gitStore.status.changes,
+    ...gitStore.status.untracked,
+    ...gitStore.status.conflicts,
+  ]
+
+  for (const change of changes) {
+    // Deleted paths deliberately remain SCM-only: Explorer renders real files only.
+    if (change.status === 'D') continue
+    const filePath = normalizeExplorerGitPath(pathUtils.join(root, change.path))
+    if (!visibleExplorerFilePaths.value.has(filePath)) continue
+
+    const previousStatus = nextFiles.get(filePath)
+    if (!previousStatus || gitDecorationPriority(change.status) >= gitDecorationPriority(previousStatus)) {
+      nextFiles.set(filePath, change.status)
+    }
+  }
+
+  for (const [filePath, status] of nextFiles) {
+    const tone = getGitDecorationTone(status)
+    let directoryPath = filePath.slice(0, filePath.lastIndexOf('/'))
+    while (directoryPath && directoryPath !== root) {
+      const previousTone = nextDirectories.get(directoryPath)
+      if (!previousTone || gitDecorationPriority(status) > ({ success: 1, warning: 2, error: 3 }[previousTone])) {
+        nextDirectories.set(directoryPath, tone)
+      }
+      directoryPath = directoryPath.slice(0, directoryPath.lastIndexOf('/'))
+    }
+  }
+
+  syncReactiveMap(gitFileDecorations, nextFiles)
+  syncReactiveMap(gitDirectoryDecorations, nextDirectories)
+}
+
+watch(
+  [() => gitStore.isRepo, () => gitStore.status, visibleExplorerFilePaths],
+  syncGitDecorations,
+  { immediate: true },
+)
+
 let hasAppliedSearchFilter = false
 watch([searchQuery, () => appStore.fileTree], ([query, fileTree]) => {
   if (!fileTree?.children || (!query && !hasAppliedSearchFilter)) return
@@ -336,19 +465,31 @@ const fileCallbacks: FileTreeCallbacks = {
   },
   getRightContent: (node) => {
     const fileNode = node as FileTreeNode
-    if (fileNode.type === 'folder' && fileNode.children) {
-      const fileCount = fileNode.children.filter(child => 
-        (child as FileTreeNode).type === 'file'
-      ).length
-      return fileCount > 0 ? `${fileCount}` : null
+    if (fileNode.type === 'folder') {
+      return gitDirectoryDecorations.get(normalizeExplorerGitPath(fileNode.path)) ? '•' : null
     }
-    return null
+    return gitFileDecorations.get(normalizeExplorerGitPath(fileNode.path)) ?? null
   },
   getNodeAppearance: (node) => {
     const fileNode = node as FileTreeNode
-    return fileNode.isHidden === true || fileNode.isReadonly === true
-      ? dimmedNodeAppearance
-      : undefined
+    const path = normalizeExplorerGitPath(fileNode.path)
+    const status = fileNode.type === 'file' ? gitFileDecorations.get(path) : undefined
+    const tone = fileNode.type === 'folder' ? gitDirectoryDecorations.get(path) : undefined
+    const treeRowClass = status
+      ? `explorer-git-file-${getGitDecorationTone(status)}`
+      : tone
+        ? `explorer-git-directory-${tone}`
+        : undefined
+    if (!treeRowClass && fileNode.isHidden !== true && fileNode.isReadonly !== true) return undefined
+    return {
+      ...(fileNode.isHidden === true || fileNode.isReadonly === true ? dimmedNodeAppearance : {}),
+      treeRowClass,
+      treeBadgeStyle: status
+        ? gitBadgeStyle(getGitDecorationTone(status), false)
+        : tone
+          ? gitBadgeStyle(tone, true)
+          : undefined,
+    }
   },
   getDefaultChildType: () => {
     return currentCreateType.value || 'file'

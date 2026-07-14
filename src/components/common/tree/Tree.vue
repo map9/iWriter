@@ -4,7 +4,7 @@
       ref="treeRoot"
       class="tree-root"
       :class="{
-        'drag-over-root': isDragOverRoot && canDropToRoot,
+        'tree-root-drag-over': isDragOverRoot && canDropToRoot,
       }"
       :data-has-focused-node="hasFocusedNode"
       tabindex="0"
@@ -37,7 +37,7 @@
     </div>
     <!-- Sibling of the scrolling .tree-root (not a child of it), so the ring
          stays pinned to the viewport instead of scrolling with the content -->
-    <div class="root-focus-ring" aria-hidden="true"></div>
+    <div class="tree-root-focus-ring" aria-hidden="true"></div>
   </div>
 </template>
 
@@ -1059,7 +1059,7 @@ defineExpose({
   outline: none;
 }
 
-.root-focus-ring {
+.tree-root-focus-ring {
   display: none;
   position: absolute;
   inset: var(--tree-focus-ring-inset, 0px);
@@ -1068,16 +1068,16 @@ defineExpose({
   pointer-events: none;
 }
 
-.tree-root:focus:not([data-has-focused-node="true"]) ~ .root-focus-ring {
+.tree-root:focus:not([data-has-focused-node="true"]) ~ .tree-root-focus-ring {
   display: block;
 }
 
-.tree-root.drag-over-root {
+.tree-root.tree-root-drag-over {
   background-color: var(--tree-drop-background, rgba(22, 163, 74, 0.15));
   border-color: var(--tree-drop-border-color, rgba(22, 163, 74, 0.7));
 }
 
-.tree-root.drag-over-root ~ .root-focus-ring {
+.tree-root.tree-root-drag-over ~ .tree-root-focus-ring {
   display: block;
 }
 

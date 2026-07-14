@@ -3,9 +3,9 @@
     v-if="node.isVisible !== false"
     class="tree-node"
     :class="{ 
-      'disabled': node.isEnabled === false,
-      'dragged': isDraggedNode,
-      'drag-over': isDragOver && canDropHere,
+      'tree-node-disabled': node.isEnabled === false,
+      'tree-node-dragged': isDraggedNode,
+      'tree-node-drag-over': isDragOver && canDropHere,
     }"
   >
     <div
@@ -26,41 +26,41 @@
       <!-- Expand/Collapse Icon -->
       <button
         v-if="hasChildren"
-        class="button-wrapper"
+        class="tree-node-content-button-wrapper"
         @click.stop="toggleExpanded"
       >
         <component 
           v-if="expandIcon" 
           :is="expandIcon" 
-          class="expand-icon"
+          class="tree-node-content-expand-icon"
         />
-        <span v-else class="text">{{ node.isExpanded ? '−' : '+' }}</span>
+        <span v-else class="tree-node-content-text">{{ node.isExpanded ? '−' : '+' }}</span>
       </button>
-      <div v-else class="icon-wrapper"></div>
+      <div v-else class="tree-node-content-icon-wrapper"></div>
 
       <!-- Check Icon -->
       <button
         v-if="canCheck"
-        class="button-wrapper"
+        class="tree-node-content-button-wrapper"
         @click.stop="toggleChecked"
       >
         <component 
           v-if="checkIcon" 
           :is="checkIcon" 
-          class="check-icon"
+          class="tree-node-content-check-icon"
         />
-        <span v-else class="text">{{ node.isChecked ? '☑' : '☐' }}</span>
+        <span v-else class="tree-node-content-text">{{ node.isChecked ? '☑' : '☐' }}</span>
       </button>
 
       <!-- Type Icon -->
-      <div v-if="typeIcon" class="icon-wrapper">
-        <component :is="typeIcon" class="type-icon" :class="customIconClass" :style="customIconStyle" />
+      <div v-if="typeIcon" class="tree-node-content-icon-wrapper">
+        <component :is="typeIcon" class="tree-node-content-type-icon" :class="customIconClass" :style="customIconStyle" />
       </div>
 
       <!-- Label -->
       <div
         v-if="!isRenaming"
-        class="label"
+        class="tree-node-content-label"
         :class="customLabelClass"
         :style="customLabelStyle"
         @dblclick="handleDoubleClick"
@@ -73,7 +73,7 @@
         v-else
         ref="renameInput"
         v-model="renameValue"
-        class="input"
+        class="tree-node-content-input"
         @blur="finishRename"
         @keydown.enter.stop="finishRename"
         @keydown.escape="cancelRename"
@@ -83,20 +83,22 @@
       <!-- Right Content -->
       <div
         v-if="rightContent"
-        class="badge"
+        class="tree-node-content-badge"
+        :class="customBadgeClass"
+        :style="customBadgeStyle"
       >
         {{ rightContent }}
       </div>
 
       <!-- Focus Ring (overlay, paints above label/badge regardless of outline-offset quirks) -->
-      <div class="focus-ring" aria-hidden="true"></div>
+      <div class="tree-node-content-focus-ring" aria-hidden="true"></div>
     </div>
 
     <!-- Children -->
     <div 
       v-if="node.isExpanded && hasChildren" 
       class="tree-children"
-      :class="{ 'dragged': isDraggedNode }"
+      :class="{ 'tree-node-dragged': isDraggedNode }"
     >
       <TreeNode
         v-for="child in node.children"
@@ -224,6 +226,8 @@ const customIconClass = computed(() => customTreeData.value.treeIconClass as str
 const customIconStyle = computed(() => customTreeData.value.treeIconStyle as Record<string, string> | undefined)
 const customLabelClass = computed(() => customTreeData.value.treeLabelClass as string | string[] | Record<string, boolean> | undefined)
 const customLabelStyle = computed(() => customTreeData.value.treeLabelStyle as Record<string, string> | undefined)
+const customBadgeClass = computed(() => customTreeData.value.treeBadgeClass as string | string[] | Record<string, boolean> | undefined)
+const customBadgeStyle = computed(() => customTreeData.value.treeBadgeStyle as Record<string, string> | undefined)
 
 // Check if this is a first-level node (depth === 0) and has a parent (root node)
 const isFirstLevelNode = computed(() => {
@@ -673,7 +677,7 @@ defineExpose({
   cursor: pointer;
 }
 
-.tree-node.disabled {
+.tree-node.tree-node-disabled {
   opacity: var(--tree-disabled-opacity, 0.5);
   cursor: not-allowed;
 }
@@ -692,11 +696,11 @@ defineExpose({
   transition: all 0.2s ease;
 }
 
-.tree-node:not(.disabled) .tree-node-content:not(.selected-status).tree-node-content:hover {
+.tree-node:not(.tree-node-disabled) .tree-node-content:not(.selected-status).tree-node-content:hover {
   background-color: var(--tree-hover-color, #e5e7eb);
 }
 
-.tree-node-content .button-wrapper {
+.tree-node-content .tree-node-content-button-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -708,7 +712,7 @@ defineExpose({
   background: none;
 }
 
-.tree-node-content .icon-wrapper {
+.tree-node-content .tree-node-content-icon-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -717,27 +721,27 @@ defineExpose({
   margin-right: var(--tree-icon-spacing, 4px);
 }
 
-.tree-node-content .button-wrapper .expand-icon {
+.tree-node-content .tree-node-content-button-wrapper .tree-node-content-expand-icon {
   width: var(--tree-icon-size-small, 12px);
   height: var(--tree-icon-size-small, 12px);
 }
 
-.tree-node-content .button-wrapper .check-icon {
+.tree-node-content .tree-node-content-button-wrapper .tree-node-content-check-icon {
   width: var(--tree-icon-size, 16px);
   height: var(--tree-icon-size, 16px);
 }
 
-.tree-node-content .button-wrapper .text {
+.tree-node-content .tree-node-content-button-wrapper .tree-node-content-text {
   font-size: var(--tree-icon-size-small, 12px);
   line-height: 1;
 }
 
-.tree-node-content .icon-wrapper .type-icon {
+.tree-node-content .tree-node-content-icon-wrapper .tree-node-content-type-icon {
   width: var(--tree-icon-size, 16px);
   height: var(--tree-icon-size, 16px);
 }
 
-.tree-node-content .label {
+.tree-node-content .tree-node-content-label {
   flex: 1;
   /* Force block formatting: daisyUI's global `.label` sets display:inline-flex,
      which would turn this into a flex container and make text-overflow:ellipsis
@@ -754,7 +758,7 @@ defineExpose({
   color: inherit;
 }
 
-.tree-node-content .input {
+.tree-node-content .tree-node-content-input {
   flex: 1;
   outline: none;
   height: auto;
@@ -766,7 +770,7 @@ defineExpose({
   color: var(--tree-input-color, inherit);
 }
 
-.tree-node-content .badge {
+.tree-node-content .tree-node-content-badge {
   white-space: nowrap;
   height: var(--tree-badge-height, auto);
   background: var(--tree-badge-background, #e5e7eb);
@@ -778,12 +782,12 @@ defineExpose({
   margin-right: var(--tree-badge-spacing, 4px);
 }
 
-.tree-node-content.selected-status .badge {
+.tree-node-content.selected-status .tree-node-content-badge {
   background: var(--tree-badge-selected-background, rgba(255, 255, 255, 0.3));
   color: var(--tree-badge-selected-color, #ffffff);
 }
 
-.tree-node-content .focus-ring {
+.tree-node-content .tree-node-content-focus-ring {
   display: none;
   position: absolute;
   inset: var(--tree-focus-ring-inset, 0px);
@@ -792,12 +796,12 @@ defineExpose({
   pointer-events: none;
 }
 
-.tree-node.dragged {
+.tree-node.tree-node-dragged {
   opacity: var(--tree-drag-opacity, 0.6);
   background-color: var(--tree-drag-background, rgba(37, 99, 235, 0.1));
 }
 
-.tree-node.drag-over {
+.tree-node.tree-node-drag-over {
   background-color: var(--tree-drop-background, rgba(22, 163, 74, 0.15));
   border-color: var(--tree-drop-border-color, rgba(22, 163, 74, 0.7));
 }
@@ -843,7 +847,7 @@ defineExpose({
   background-color: var(--tree-selected-background, rgba(37, 99, 235, 0.1));
 }
 
-.tree-node-content.focused-status .focus-ring {
+.tree-node-content.focused-status .tree-node-content-focus-ring {
   display: block;
 }
 
@@ -852,11 +856,11 @@ defineExpose({
   background-color: var(--tree-selected-focused-background, rgba(37, 99, 235, 0.1));
 }
 
-.tree-node-content.focused-status.selected-status .focus-ring {
+.tree-node-content.focused-status.selected-status .tree-node-content-focus-ring {
   border: var(--tree-focus-ring-border-selected, var(--tree-focus-ring-border, 2px solid rgba(37, 99, 235, 0.5)));
 }
 
-.tree-children.dragged {
+.tree-children.tree-node-dragged {
   pointer-events: none;
 }
 </style>

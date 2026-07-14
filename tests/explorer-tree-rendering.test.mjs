@@ -35,6 +35,32 @@ describe('Explorer file tree rendering', () => {
     assert.doesNotMatch(appearanceSection, /node\.data\s*=/)
   })
 
+  it('derives Explorer Git decorations from changed paths without rebuilding file counts', () => {
+    const appearanceSection = sourceBetween(explorerSource, '// File callbacks', '// Event handlers')
+
+    assert.match(explorerSource, /import \{ useGitStore \} from '@\/stores\/git'/)
+    assert.match(explorerSource, /const gitFileDecorations = reactive\(new Map/)
+    assert.match(explorerSource, /const gitDirectoryDecorations = reactive\(new Map/)
+    assert.match(explorerSource, /function syncGitDecorations\(\)/)
+    assert.match(explorerSource, /if \(change\.status === 'D'\) continue/)
+    assert.match(appearanceSection, /gitFileDecorations\.get\(normalizeExplorerGitPath\(fileNode\.path\)\)/)
+    assert.match(appearanceSection, /gitDirectoryDecorations\.get\(normalizeExplorerGitPath\(fileNode\.path\)\)/)
+    assert.doesNotMatch(appearanceSection, /fileCount/)
+  })
+
+  it('uses Tree badge appearance hooks instead of deep selectors for Git decorations', () => {
+    const appearanceSection = sourceBetween(explorerSource, '// File callbacks', '// Event handlers')
+
+    assert.match(treeTypesSource, /treeBadgeClass\?:/)
+    assert.match(treeTypesSource, /treeBadgeStyle\?:/)
+    assert.match(treeNodeSource, /const customBadgeClass = computed/)
+    assert.match(treeNodeSource, /const customBadgeStyle = computed/)
+    assert.match(treeNodeSource, /:class="customBadgeClass"/)
+    assert.match(treeNodeSource, /:style="customBadgeStyle"/)
+    assert.match(appearanceSection, /treeBadgeStyle/)
+    assert.doesNotMatch(explorerSource, /:deep\(/)
+  })
+
   it('sorts when tree data changes rather than while the Explorer renders', () => {
     assert.match(appStoreSource, /function setFileTreeSortType\(sortType: FileTreeSortType\)/)
 
