@@ -211,33 +211,32 @@
         <template v-else>
         <ul class="py-1 text-xs">
           <li v-for="(c, ci) in gitStore.commits" :key="c.hash">
-            <div class="flex items-stretch hover:bg-base-200" @contextmenu.prevent="onGraphCommitContext(c, $event)">
+            <div
+              class="flex items-stretch hover:bg-base-200"
+              @contextmenu.prevent="onGraphCommitContext(c, $event)"
+              @mouseenter="hoveredGraphHash = c.hash"
+              @mouseleave="hoveredGraphHash = undefined"
+            >
               <GitGraphGutter
                 v-if="graphLayout.rows[ci]"
                 :row="graphLayout.rows[ci]"
-                :lane-count="graphLayout.laneCount"
                 :lane-width="GRAPH_LANE_W"
                 :row-height="GRAPH_ROW_H"
-                class="shrink-0 pl-1 mr-2"
+                class="shrink-0 ml-2 mr-2"
+                :hovered="hoveredGraphHash === c.hash"
+                :unpublished="hasUnpublishedLocalRef(c.refs)"
               />
               <button
-                class="flex min-w-0 flex-1 items-center gap-2 pr-3 text-left"
+                class="flex min-w-0 flex-1 items-center pr-3 text-left"
                 :style="{ minHeight: GRAPH_ROW_H + 'px' }"
                 @click="gitStore.toggleCommit(c.hash)"
               >
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate text-base-content">
-                    <span
-                      v-for="(r, ri) in c.refs"
-                      :key="ri"
-                      class="mr-1 inline-block rounded px-1 align-middle text-[10px] leading-tight"
-                      :class="refClass(r.kind)"
-                    >{{ r.name }}</span>{{ c.subject }}
-                  </span>
-                  <span class="block truncate text-base-content/50">
-                    {{ c.author }} · {{ relTime(c.timestamp) }} · {{ c.shortHash }}
-                  </span>
-                </span>
+                <GitGraphCommitContent
+                  :refs="graphRefs(c.refs)"
+                  :subject="c.subject"
+                  :author="c.author"
+                  :color="graphLayout.rows[ci]?.color ?? ''"
+                />
               </button>
             </div>
             <div v-if="gitStore.expandedHash === c.hash" class="relative">
@@ -246,7 +245,7 @@
                 <div
                   v-for="(lane, lli) in continuationLanes(ci)"
                   :key="lli"
-                  class="absolute inset-y-0 w-[1.6px]"
+                  class="absolute inset-y-0 w-[2px]"
                   :style="{ left: laneBarLeft(lane.col) + 'px', background: lane.color }"
                 ></div>
               </div>
@@ -446,7 +445,8 @@ import { SplitView, type SplitPane } from '../common/split-view'
 import GitChangeGroup, { type ScmContextPayload } from './scm/GitChangeGroup.vue'
 import IwDialog from './scm/IwDialog.vue'
 import GitGraphGutter from './scm/GitGraphGutter.vue'
-import { computeGraphLayout } from './scm/gitGraphLayout'
+import GitGraphCommitContent from './scm/GitGraphCommitContent.vue'
+import { computeGraphLayout, hasUnpublishedLocalRef } from './scm/gitGraphLayout'
 import { buildScmTreeRows } from './scm/fileTree'
 import { useGitStore } from '@/stores/git'
 import { useAppStore } from '@/stores/app'
@@ -483,9 +483,11 @@ const graphBranchLabel = computed(() =>
 const expandedTreeRows = computed(() => buildScmTreeRows(gitStore.expandedFiles))
 
 // ---- 图谱：DAG 泳道 gutter ----
-const GRAPH_ROW_H = 44
-const GRAPH_LANE_W = 14
+const GRAPH_ROW_H = 28
+const GRAPH_LANE_W = 10
+const GRAPH_GUTTER_LEFT = 8
 const graphLayout = computed(() => computeGraphLayout(gitStore.commits))
+const hoveredGraphHash = ref<string>()
 
 // 展开某提交的文件区时，延续其下方（bottom/full 段的出列）lane 的竖线，避免文件行打断泳道图。
 function continuationLanes(ci: number): { col: number; color: string }[] {
@@ -501,18 +503,14 @@ function continuationLanes(ci: number): { col: number; color: string }[] {
   }
   return lanes
 }
-// 续接竖线的水平位置（4 = 提交行 gutter 的 pl-1 偏移；-0.8 = 线宽 1.6 的一半，使其居中对齐列）
+// 续接竖线的水平位置（8 = gutter 左外边距；-1 = 线宽 2 的一半，使其居中对齐列）
 function laneBarLeft(col: number): number {
-  return 4 + col * GRAPH_LANE_W + GRAPH_LANE_W / 2 - 0.8
+  return GRAPH_GUTTER_LEFT + col * GRAPH_LANE_W + GRAPH_LANE_W / 2 - 1
 }
 
-function refClass(kind: string): string {
-  switch (kind) {
-    case 'head': return 'bg-primary text-primary-content'
-    case 'tag': return 'bg-warning/70 text-warning-content'
-    case 'remote': return 'bg-base-300/60 text-base-content/70'
-    default: return 'bg-base-300 text-base-content'
-  }
+function graphRefs(refs: GitCommit['refs']): NonNullable<GitCommit['refs']> {
+  const order = { tag: 0, head: 1, branch: 2, remote: 3 }
+  return [...(refs ?? [])].sort((a, b) => order[a.kind] - order[b.kind])
 }
 
 async function showGraphBranchMenu(event: MouseEvent) {
@@ -1010,17 +1008,6 @@ function statusColor(s: GitFileStatus): string {
   }
 }
 
-function relTime(ts: number): string {
-  const diff = Date.now() - ts
-  const m = Math.floor(diff / 60000)
-  if (m < 1) return t('sourceControl.time.now')
-  if (m < 60) return t('sourceControl.time.minutes', { n: m })
-  const h = Math.floor(m / 60)
-  if (h < 24) return t('sourceControl.time.hours', { n: h })
-  const d = Math.floor(h / 24)
-  return t('sourceControl.time.days', { n: d })
-}
-
 // —— 未检测到 Git 的安装引导（对齐 ui/panel.html .steps）——
 const showInstallSteps = ref(false)
 const installCopied = ref(false)
@@ -1102,8 +1089,11 @@ const showScmViewMenu = async (event: MouseEvent) => {
   }
 }
 
-// 图谱展开时懒加载（onFolderChanged 由 MainView 统一驱动）
-watch(() => viewerPanes.value.find(p => p.id === 'graph')?.collapsed, (collapsed) => {
-  if (collapsed === false && gitStore.isRepo && !gitStore.commits.length) gitStore.loadGraph()
+// 图谱展开时懒加载；切换工作区后 Graph 若已展开，也必须重新加载新仓库的提交。
+watch([
+  () => viewerPanes.value.find(p => p.id === 'graph')?.collapsed,
+  () => gitStore.isRepo,
+], ([collapsed, isRepo]) => {
+  if (isRepo && collapsed === false && !gitStore.commits.length) void gitStore.loadGraph()
 })
 </script>

@@ -1,4 +1,4 @@
-import type { GitCommit } from '@/types/git'
+import type { GitCommit, GitCommitRef } from '@/types/git'
 
 /**
  * 提交泳道图（DAG）布局算法 —— 纯函数、无副作用、可测试。
@@ -31,8 +31,23 @@ export interface GraphRow {
 
 export interface GraphLayout {
   rows: GraphRow[]
-  /** 总列数（gutter 宽度据此计算） */
+  /** 布局中使用的最大泳道数 */
   laneCount: number
+}
+
+/** 当前行实际绘制到的最右泳道数，用于避免被其它行的分支数撑宽。 */
+export function getGraphRowLaneCount(row: GraphRow): number {
+  let maxCol = row.nodeCol
+  for (const segment of row.segments) {
+    maxCol = Math.max(maxCol, segment.fromCol, segment.toCol)
+  }
+  return maxCol + 1
+}
+
+/** 本地引用尚未有指向同一提交的远程引用。 */
+export function hasUnpublishedLocalRef(refs: GitCommitRef[] | undefined): boolean {
+  if (!refs?.some(ref => ref.kind === 'head' || ref.kind === 'branch')) return false
+  return !refs.some(ref => ref.kind === 'remote')
 }
 
 /**
@@ -51,44 +66,56 @@ export const GRAPH_LANE_COLORS = [
 ] as const
 
 export function computeGraphLayout(commits: GitCommit[]): GraphLayout {
-  // 每条 lane 等待的下一个提交 hash；null = 空闲可回收
-  const lanes: (string | null)[] = []
-  // 每个 hash（作为某条 lane 的期望值时）对应的稳定颜色
-  const colorOf = new Map<string, string>()
+  // 每条 lane 等待的下一个提交及当前分支段的颜色；null = 空闲可回收。
+  // 颜色属于「段」而不是 commit：遇到分支引用时，首父向下的段必须切换颜色。
+  type Lane = { hash: string; color: string }
+  const lanes: (Lane | null)[] = []
+  const branchColors = new Map<string, string>()
   let colorCounter = 0
-  const assignColor = (hash: string): string => {
-    let c = colorOf.get(hash)
-    if (!c) {
-      c = GRAPH_LANE_COLORS[colorCounter % GRAPH_LANE_COLORS.length] as string
-      colorCounter++
-      colorOf.set(hash, c)
+  const nextColor = (): string => GRAPH_LANE_COLORS[colorCounter++ % GRAPH_LANE_COLORS.length] as string
+
+  const branchColorKey = (refs: GitCommitRef[] | undefined): string | undefined => {
+    const local = refs?.find(ref => ref.kind === 'head' || ref.kind === 'branch')
+    if (local) return local.name
+    const remote = refs?.find(ref => ref.kind === 'remote' && !ref.name.endsWith('/HEAD'))
+    return remote?.name.replace(/^[^/]+\//, '')
+  }
+
+  const colorForBranchRef = (refs: GitCommitRef[] | undefined): string | undefined => {
+    const key = branchColorKey(refs)
+    if (!key) return undefined
+    let color = branchColors.get(key)
+    if (!color) {
+      color = nextColor()
+      branchColors.set(key, color)
     }
-    return c
+    return color
   }
 
   const firstFree = (): number => {
     const i = lanes.indexOf(null)
     return i === -1 ? lanes.length : i
   }
+  const laneIndex = (hash: string): number => lanes.findIndex(lane => lane?.hash === hash)
 
   const rows: GraphRow[] = []
   let laneCount = 0
 
   for (const commit of commits) {
     const above = lanes.slice()
+    const refColor = colorForBranchRef(commit.refs)
 
     // 1) 定位 node 列：首个等待本提交的 lane；无则新起一条（分支 tip）
-    let nodeCol = lanes.indexOf(commit.hash)
+    let nodeCol = laneIndex(commit.hash)
     if (nodeCol === -1) {
       nodeCol = firstFree()
-      lanes[nodeCol] = commit.hash
-      assignColor(commit.hash) // tip 分配新色
+      lanes[nodeCol] = { hash: commit.hash, color: refColor ?? nextColor() }
     }
-    const nodeColor = colorOf.get(commit.hash) ?? assignColor(commit.hash)
+    const nodeColor = refColor ?? lanes[nodeCol]!.color
 
     // 2) 其余等待本提交的 lane 汇入 node → 置空
     for (let j = 0; j < lanes.length; j++) {
-      if (j !== nodeCol && lanes[j] === commit.hash) lanes[j] = null
+      if (j !== nodeCol && lanes[j]?.hash === commit.hash) lanes[j] = null
     }
 
     // 3) 分配父提交，并记录本提交为各父路由到的列（供下半连线，避免误连其它提交经过的同父 lane）
@@ -97,20 +124,18 @@ export function computeGraphLayout(commits: GitCommit[]): GraphLayout {
     if (parents.length === 0) {
       lanes[nodeCol] = null // 根提交：node 后此 lane 终止
     } else {
-      // 首父续在 nodeCol，并继承 node 颜色（主干同色）
+      // 首父续在 nodeCol。带分支引用的节点在此处开启新的分支段颜色。
       const p0 = parents[0] as string
-      lanes[nodeCol] = p0
-      if (!colorOf.has(p0)) colorOf.set(p0, nodeColor)
+      lanes[nodeCol] = { hash: p0, color: nodeColor }
       parentCols.push(nodeCol)
       // 其余父：复用已等待该父的 lane（合并汇入），否则取空位新建（各自新色）
       for (let k = 1; k < parents.length; k++) {
         const p = parents[k] as string
-        let col = lanes.indexOf(p)
+        let col = laneIndex(p)
         if (col === -1) {
           col = firstFree()
-          lanes[col] = p
+          lanes[col] = { hash: p, color: nextColor() }
         }
-        assignColor(p)
         parentCols.push(col)
       }
     }
@@ -123,22 +148,22 @@ export function computeGraphLayout(commits: GitCommit[]): GraphLayout {
     const segments: GraphSegment[] = []
     // 4a) pass-through：同一 hash 在 above/below 同列且非本提交 → 贯穿竖线
     for (let c = 0; c < above.length; c++) {
-      const h = above[c]
-      if (!h || h === commit.hash) continue
-      if (below[c] === h) {
-        segments.push({ fromCol: c, toCol: c, color: colorOf.get(h) ?? nodeColor, half: 'full' })
+      const lane = above[c]
+      if (!lane || lane.hash === commit.hash) continue
+      if (below[c]?.hash === lane.hash) {
+        segments.push({ fromCol: c, toCol: c, color: lane.color, half: 'full' })
       }
     }
-    // 4b) 上半：above 中等待本提交的每列 → 汇入 node（含 nodeCol 自身的上半竖线）
+    // 4b) 上半：保留进入当前节点的分支段颜色。
     for (let c = 0; c < above.length; c++) {
-      if (above[c] === commit.hash) {
-        segments.push({ fromCol: c, toCol: nodeCol, color: nodeColor, half: 'top' })
+      const lane = above[c]
+      if (lane?.hash === commit.hash) {
+        segments.push({ fromCol: c, toCol: nodeCol, color: lane.color, half: 'top' })
       }
     }
-    // 4c) 下半：仅本提交路由的父列 → 从 node 分出（每父一段）
+    // 4c) 下半：使用节点开启的分支段颜色。
     for (const col of parentCols) {
-      const h = below[col]
-      segments.push({ fromCol: nodeCol, toCol: col, color: (h ? colorOf.get(h) : undefined) ?? nodeColor, half: 'bottom' })
+      segments.push({ fromCol: nodeCol, toCol: col, color: below[col]?.color ?? nodeColor, half: 'bottom' })
     }
 
     rows.push({ hash: commit.hash, nodeCol, color: nodeColor, segments })

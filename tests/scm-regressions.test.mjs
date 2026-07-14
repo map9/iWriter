@@ -11,6 +11,7 @@ const diffPageSource = readFileSync('src/components/pages/DiffViewerPage.vue', '
 const filteringSource = readFileSync('src/services/workspace/filtering.ts', 'utf8')
 const gitStoreSource = readFileSync('src/stores/git.ts', 'utf8')
 const gitTypesSource = readFileSync('src/types/git.ts', 'utf8')
+const leftSidebarSource = readFileSync('src/components/LeftSidebar.vue', 'utf8')
 const cloneDialogSource = readFileSync('src/components/sidebar/scm/GitCloneDialog.vue', 'utf8')
 const errorDialogPath = 'src/components/sidebar/scm/GitErrorResolutionDialog.vue'
 const errorDialogSource = existsSync(errorDialogPath) ? readFileSync(errorDialogPath, 'utf8') : ''
@@ -52,6 +53,17 @@ test('SCM regressions', async (t) => {
     assert.match(gitServiceSource, /async detect\(force = false\)/)
     assert.match(gitServiceSource, /if \(!force && this\.availability\)/)
     assert.match(panelSource, /git\.detect\(true\)/)
+  })
+
+  await t.test('sidebar navigation keeps its unused toolbar area draggable', () => {
+    assert.match(leftSidebarSource, /<!-- Sidebar Mode Navigation[\s\S]*?<div class="drag-region flex flex-1 items-center">/)
+    assert.match(leftSidebarSource, /class="no-drag ml-auto flex h-full items-center gap-2"/)
+  })
+
+  await t.test('an expanded Graph reloads when a new workspace becomes a repository', () => {
+    const graphLoadWatcher = panelSource.slice(panelSource.indexOf('// 图谱展开时懒加载'))
+    assert.match(graphLoadWatcher, /watch\(\s*\[\s*\(\) => viewerPanes\.value\.find\(p => p\.id === 'graph'\)\?\.collapsed,\s*\(\) => gitStore\.isRepo/)
+    assert.match(graphLoadWatcher, /isRepo && collapsed === false && !gitStore\.commits\.length/)
   })
 
   await t.test('editable diff saves with the normal expected-hash guard', () => {

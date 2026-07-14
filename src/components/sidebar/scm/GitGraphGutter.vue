@@ -1,31 +1,39 @@
 <template>
   <svg
-    :width="laneCount * laneWidth"
+    :width="rowLaneCount * laneWidth"
     :height="rowHeight"
     class="block shrink-0"
-    :style="{ width: laneCount * laneWidth + 'px', height: rowHeight + 'px' }"
+    :style="{ width: rowLaneCount * laneWidth + 'px', height: rowHeight + 'px' }"
   >
     <path
       v-for="(seg, i) in paths"
       :key="i"
       :d="seg.d"
       :stroke="seg.color"
-      stroke-width="1.6"
+      stroke-width="2"
       fill="none"
     />
-    <circle :cx="nodeX" :cy="rowHeight / 2" r="3.6" :fill="row.color" stroke="var(--color-base-100)" stroke-width="1" />
+    <circle
+      :cx="nodeX"
+      :cy="rowHeight / 2"
+      :r="hovered ? 5 : 4"
+      :fill="unpublished ? 'var(--color-base-100)' : row.color"
+      :stroke="unpublished ? row.color : 'var(--color-base-100)'"
+      :stroke-width="unpublished ? 2 : 1"
+    />
   </svg>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { GraphRow } from './gitGraphLayout'
+import { getGraphRowLaneCount, type GraphRow } from './gitGraphLayout'
 
 const props = withDefaults(
-  defineProps<{ row: GraphRow; laneCount: number; laneWidth?: number; rowHeight?: number }>(),
-  { laneWidth: 14, rowHeight: 46 },
+  defineProps<{ row: GraphRow; hovered?: boolean; unpublished?: boolean; laneWidth?: number; rowHeight?: number }>(),
+  { laneWidth: 10, rowHeight: 28, hovered: false, unpublished: false },
 )
 
+const rowLaneCount = computed(() => getGraphRowLaneCount(props.row))
 const colX = (col: number) => col * props.laneWidth + props.laneWidth / 2
 const nodeX = computed(() => colX(props.row.nodeCol))
 
