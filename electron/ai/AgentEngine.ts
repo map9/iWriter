@@ -435,10 +435,12 @@ export class AgentEngine {
 
     const fullDecisions = this._mergeResumeDecisions(interrupted, decisions)
 
-    // M1-2 归因基准：本批次里被自动放行的块编辑已由 renderer 在 ai:resume 前应用落盘，磁盘此刻反映
-    // agent 的最新已应用状态。逐会话快照它，供之后的整章终审把「agent 应用之后」的改动（作者手改/
-    // 外部改动）标为 hasExternalEdits。放在 finalize 处理前——finalize 关闭会话后就取不到了。
-    for (const { file } of this.writingSessions.getActiveSessions(threadId, true)) {
+    // M1-2 归因基准：**仅**对本批次被 auto-apply 命中的章节重取快照——这些文件的块编辑已由 renderer
+    // 在 ai:resume 前应用落盘，磁盘此刻反映 agent 的最新已应用状态。据此把之后整章终审里「agent 应用
+    // 之后」的改动（作者手改/外部改动）标为 hasExternalEdits。
+    // 切勿笼统扫全部活动会话：本批次未命中的会话若在中断期间被作者手改，会把手改误记成 agent 快照，
+    // 令终审漏标 hasExternalEdits（漏警）。放在 finalize 处理前——finalize 关闭会话后就取不到了。
+    for (const file of interrupted.autoAppliedFiles ?? []) {
       const snap = await this._captureChapterBaseline(file)
       this.writingSessions.recordAgentSnapshot(threadId, file, snap)
     }
@@ -980,6 +982,8 @@ export class AgentEngine {
     autoRejects: Array<{ toolName: string; filePath: string; message: string }>
     /** Original indices of block edits inside an active write-session scope — the renderer applies them silently (M1b Stage 2). */
     autoApplyOriginalIndices: Set<number>
+    /** Chapter files this batch auto-applies to (M1-2 归因：resume 只对这些文件重取 agent 快照，不碰未命中的会话)。 */
+    autoApplyFiles: Set<string>
   }> {
     const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
     const reviewActionRequests: HitlActionRequest[] = []
@@ -987,6 +991,7 @@ export class AgentEngine {
     const autoDecisionsByIndex: Record<number, ResumeDecision> = {}
     const autoRejects: Array<{ toolName: string; filePath: string; message: string }> = []
     const autoApplyOriginalIndices = new Set<number>()
+    const autoApplyFiles = new Set<string>()
     const authorizedFiles = this.writingSessions.getAuthorizedFiles(threadId)
 
     // Stage 1 pre-scan — resolve every filesystem-write tool up front so batch poisoning
@@ -1030,7 +1035,7 @@ export class AgentEngine {
           message: 'Skipped because another filesystem operation in this batch was rejected by policy.',
         }
       })
-      return { reviewActionRequests: [], reviewActionOriginalIndices: [], autoDecisionsByIndex, autoRejects, autoApplyOriginalIndices }
+      return { reviewActionRequests: [], reviewActionOriginalIndices: [], autoDecisionsByIndex, autoRejects, autoApplyOriginalIndices, autoApplyFiles }
     }
 
     for (let index = 0; index < actionRequests.length; index++) {
@@ -1073,6 +1078,7 @@ export class AgentEngine {
             at: Date.now(),
           }, baseline)
           autoApplyOriginalIndices.add(index)
+          autoApplyFiles.add(verdict.activateFile)
         }
       }
       reviewActionRequests.push(actionRequest)
@@ -1085,6 +1091,7 @@ export class AgentEngine {
       autoDecisionsByIndex,
       autoRejects,
       autoApplyOriginalIndices,
+      autoApplyFiles,
     }
   }
 
@@ -1130,6 +1137,7 @@ export class AgentEngine {
       autoDecisionsByIndex: prepared.autoDecisionsByIndex,
       confirmPlanArgsByIndex: this._stashConfirmPlanArgs(actionRequests),
       finalizeArgsByIndex: this._stashFinalizeArgs(actionRequests),
+      autoAppliedFiles: [...prepared.autoApplyFiles],
     })
 
     if (!prepared.reviewActionRequests.length) {
@@ -1229,6 +1237,7 @@ export class AgentEngine {
       autoDecisionsByIndex: prepared.autoDecisionsByIndex,
       confirmPlanArgsByIndex: this._stashConfirmPlanArgs(actionRequests),
       finalizeArgsByIndex: this._stashFinalizeArgs(actionRequests),
+      autoAppliedFiles: [...prepared.autoApplyFiles],
     })
 
     if (!prepared.reviewActionRequests.length) {

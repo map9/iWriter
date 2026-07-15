@@ -192,4 +192,19 @@ describe('WritingSessionRegistry (Stage 2 skeleton)', () => {
     reg.recordAgentSnapshot('t1', OTHER, 'X')
     assert.equal(reg.hasActiveSession('t1', OTHER), false)
   })
+
+  it('agent-snapshot is per-file: re-snapshotting one session leaves others untouched (M1-2 scoping fix)', async () => {
+    const { WritingSessionRegistry } = await loadModule()
+    const reg = new WritingSessionRegistry(() => 'B')
+    reg.recordAccumulation('t1', CH, { toolName: 'edit_block', args: {}, at: 1 })
+    reg.recordAccumulation('t1', OTHER, { toolName: 'edit_block', args: {}, at: 1 })
+    // Batch 1 auto-applied to CH → its agent snapshot captured.
+    reg.recordAgentSnapshot('t1', CH, 'CH_AGENT')
+    // Batch 2 auto-applies ONLY to OTHER; the resume loop is scoped to autoAppliedFiles, so CH is
+    // NOT re-snapshotted. An author's edit to CH during batch 2 must stay detectable at finalize —
+    // CH.lastAgentSnapshot must keep 'CH_AGENT' (a blanket all-sessions loop would clobber it).
+    reg.recordAgentSnapshot('t1', OTHER, 'OTHER_AGENT')
+    assert.equal(reg.getActiveSession('t1', CH).lastAgentSnapshot, 'CH_AGENT')
+    assert.equal(reg.getActiveSession('t1', OTHER).lastAgentSnapshot, 'OTHER_AGENT')
+  })
 })

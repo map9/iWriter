@@ -14,6 +14,11 @@ interface InterruptedRun {
   /** finalize_chapter args by original index — read at resume to close/restore the write-session (M1b-3). */
   finalizeArgsByIndex?: Record<number, { chapter: string; summary?: string }>
   /**
+   * M1-2 归因：本批次被 auto-apply 命中的章节文件。resume 只对这些文件重取 agent 快照
+   * （recordAgentSnapshot），避免笼统扫全部活动会话把中断期间的作者手改误吸收进 lastAgentSnapshot。
+   */
+  autoAppliedFiles?: string[]
+  /**
    * M1-1: this interrupt was synthesized at run-end (the agent finished without finalizing an active
    * write-session), not produced by a live LangGraph interrupt. resumeRun applies the finalize host
    * side effects but MUST NOT feed a Command back into the graph — there is no interrupt to resume.
