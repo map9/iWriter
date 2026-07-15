@@ -5,7 +5,7 @@ description: Load when the author asks to write or draft a chapter's prose. A00 
 
 # S05a writing-plan-authoring
 
-A00 executes this directly, BEFORE delegating the writer. It does two things: (1) **open the write-session authorization** via `confirm_writing_plan` (so the writer's block edits auto-accumulate and converge at one whole-chapter finalize), and (2) **optionally design a beat plan**. Prose expansion is the writer's job (`scene-to-prose`).
+A00 executes this directly, BEFORE delegating the writer. It does two things: (1) **open the write-session authorization** via `confirm_writing_plan` (so the writer's block edits auto-accumulate and converge at one whole-chapter finalize), and (2) **optionally design a beat plan**. Prose expansion is the writer's job (its own expansion/revision flow lives in the `writer` agent).
 
 ## The hard prerequisite is the chapter outline, NOT beats
 
@@ -30,6 +30,7 @@ Beats live as **GFM Alert lines in the manuscript chapter file** (`manuscript/ch
 # 第{N}章
 
 > [!BEAT] [场景-1-节拍-1] 一句话核心点
+
 > [!BEAT] [场景-1-节拍-2] 一句话核心点
 
 * * *
@@ -41,15 +42,15 @@ Rules:
 - Each beat is a `> [!BEAT] …` blockquote alert. **`[!BEAT]` is the fixed marker** (the extraction anchor — beats are found by this marker, not by a coordinate regex).
 - The scene coordinate `[场景-{N}-节拍-{M}]` **A00 must include** when it authors beats (it lets consistency-check align beats to outline scenes). An author writing beats by hand may omit it; A00 does not.
 - `核心点` = one sentence, a **causally necessary** beat point (什么发生 + 转折). No explanatory tail, no style/craft instruction, no line-by-line wording.
-- Scenes separated by a `* * *` thematic break; beats within a scene are consecutive `> [!BEAT]` lines.
+- Scenes separated by a `* * *` thematic break; **beats within a scene are separated by a blank line** — adjacent `> [!BEAT]` lines with no blank line between them merge into a single alert box on disk (only the first survives as a beat).
 - On disk the Markdown pipeline may render the brackets escaped (`\[…\]`); that is the same beat — treat `[` and `\[` as equivalent.
 
 ## Pre-write state machine (decide before touching anything)
 
 1. **Chapter outline missing / not 已确认** → fill the chapter outline first (S04). Do not write prose.
-2. **New chapter, write straight from the outline (no beats)** → `confirm_writing_plan` (a one-line writing intent + `target_files`) → delegate the writer to expand from the outline scenes → the writer's random-review pass (mode A) → whole-chapter finalize. (No beat layer at all — a valid, common path.)
-3. **New chapter, design beats first** (author writes them, or A00 drafts them) → if A00 drafts: build the beat plan → `confirm_writing_plan` (plan = the beat skeleton) → **materialize the beats as `> [!BEAT]` lines in `manuscript/ch{NNN}.md`** (new chapter via `create_document`, existing via block edits) → delegate the writer to expand → mode A → finalize.
-4. **Prose only — author asks to polish/rewrite prose, beats unchanged** → revision link (`scene-to-prose`) directly, no `confirm_writing_plan`.
+2. **New chapter, write straight from the outline (no beats)** → `confirm_writing_plan` (one-line intent + `target_files`) → delegate the writer → mode A → finalize. **Do not pre-create the file** — the writer creates it with its prose via `create_document`, which auto-applies silently inside the authorized session. No empty skeleton.
+3. **New chapter, design beats first** (author writes them, or A00 drafts them) → build the beat plan → `confirm_writing_plan` (plan = the beat skeleton) **first**, then materialize the beats as `> [!BEAT]` lines in `manuscript/ch{NNN}.md` (new chapter via `create_document`; existing via block edits) → delegate the writer to expand → mode A → finalize. Authorize before you create — a create outside the session pops a card.
+4. **Prose only — author asks to polish/rewrite prose, beats unchanged** → delegate the writer on its revision link directly, no `confirm_writing_plan`.
 5. **Beats only — author changes beats but not (yet) the prose** → `confirm_writing_plan` → **edit the `[!BEAT]` lines**; do NOT delegate the writer. The prose now lags its beats — the author's explicit choice; consistency-check will flag it; a later request re-expands (case 6).
 6. **Beats + prose — author changes beats and wants the prose rewritten to match** → `confirm_writing_plan` → **edit the `[!BEAT]` lines** → delegate the writer to re-expand the affected scenes/beats.
 7. **Has prose, beats unchanged, no explicit author ask** → do NOT rewrite. Ask the author: "这章已有内容——要改哪里？改 beat（结构）还是局部修订？" Written prose is expensive; never silently regenerate it.
@@ -67,12 +68,13 @@ Read the confirmed chapter outline's scenes. For each scene, break it into beats
 
 ## Delegating the writer (axis B)
 
-`task(subagent_type="writer")` with a thin brief. The brief **MUST** contain `targetChapter` as an **absolute host path**. Give only link + `targetChapter` (absolute) + scope. Do NOT transcribe beats into the brief — any beats are the `[!BEAT]` lines already in `targetChapter`. Any prose-style guidance belongs here (it is not in the beats).
+`task(subagent_type="writer")` with a thin brief. The brief **MUST** carry `targetChapter` (absolute host path) + scope + **whether the file exists yet** (you know this from routing; the writer must not hunt for it). Do NOT transcribe beats — they are the `[!BEAT]` lines already in `targetChapter`. Prose-style guidance goes here. On the no-beat path the file is absent, so the writer creates it via `create_document`, which MUST pass `directory` (the absolute `manuscript/` dir) — without it the file is only an in-memory tab, outside the session.
 
 ```
 task(subagent_type="writer", description="""
 展开链路。
 targetChapter: /abs/workspace/manuscript/ch001.md
+文件状态: 不存在，用 create_document 连正文创建；directory=/abs/workspace/manuscript
 范围: 全部未落笔的场景        (case 6 时改为具体的 场景-2-节拍-3、场景-2-节拍-4)
 """)
 ```
@@ -81,4 +83,4 @@ After the writer returns, run the **random-review pass (mode A)**: delegate one 
 
 ## Red lines
 
-You confirm "要不要这样写 / 开写授权", never "逐句怎么写". When you design beats they grow from the confirmed chapter-outline scenes — never invent beats that bypass the outline, and never write a chapter's prose with no confirmed chapter outline. Beats (when present) go into the manuscript file, **never into the chapter outline**. Never make the writer author or edit beats when A00 owns them — but note the writer has judgment to lightly adjust beats it is expanding and report it (that is not the same as owning the layer).
+You confirm "要不要这样写 / 开写授权", never "逐句怎么写". When you design beats they grow from the confirmed chapter-outline scenes — never invent beats that bypass the outline, and never write a chapter's prose with no confirmed chapter outline. Beats (when present) go into the manuscript file, **never into the chapter outline**. Never make the writer author or edit beats when A00 owns them — but note the writer has judgment to lightly adjust beats it is expanding and report it (that is not the same as owning the layer). **Beats are preserved by default** — once materialized, the `> [!BEAT]` lines stay; the writer writes prose beneath them. Removing/reordering beats is structural (axis A, through `confirm_writing_plan`), never a side effect of writing.

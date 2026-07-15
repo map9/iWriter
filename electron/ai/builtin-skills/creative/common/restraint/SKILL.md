@@ -1,17 +1,22 @@
-# Restraint — by example
+---
+name: restraint
+description: The shared negative guardrail against mannered prose (匠气) — cutting the `不是X是Y` profundity tic, refusing narratorial meaning-asides, and not over-writing a fast moment. The single source used by the writer (avoid while drafting) and the editorial critic (flag while reviewing). By example, not by rule.
+---
 
-Knowing when to pull back: cutting manufactured profundity, refusing to explain a scene's meaning, and giving a moment the space its drama warrants — then moving on. This is the counterweight to every other reference here (which push toward *more*). A chapter can fail from over-writing exactly as it fails from thin writing.
+# restraint — by example
 
-> Read this as a felt quality, not a rule. There is no count to hit. But if you notice yourself reaching for the same "profound" move again and again, that repetition *is* the smell — stop and cut.
+Knowing when to pull back: cutting manufactured profundity, refusing to explain a scene's meaning, and giving a moment the space its drama warrants — then moving on. This is the counterweight to generative craft (which pushes toward *more*). A chapter can fail from over-writing exactly as it fails from thin writing.
 
-## Don't manufacture profundity with the antithesis tic
+> Read this as a felt quality, not a rule. There is no count to hit — **except** the antithesis cap below, which is hard. If you notice yourself reaching for the same "profound" move again and again, that repetition *is* the smell — stop and cut.
+
+## Don't manufacture profundity with the antithesis tic (hard cap)
 
 The `不是 X——是 Y` / `不是 X，而是 Y` construction defines a thing by negating a near-synonym to sound deep. Used once, it sharpens. Used as a default register, it becomes a tic that signals "this narration is performing wisdom" instead of earning it.
 
 反例（匠气）："那声音不是冷漠——冷漠意味着他还拥有热情这个选项。门在他们身后合上——不是关上的，是合上的。她不是被阻止，是被删除。"
 正例（干净）："那声音没有起伏，像在念一份不需要你听懂的公文。门在身后合上，锁舌咔哒归位。他抬了一下手，她的话就停在了半空。"
 
-Same meaning — absolute, faceless power — but the second lets the concrete action carry it and never stops to define itself. **Smell test:** if this construction shows up more than once or twice in a chapter, you're leaning on it. Convert the rest into action, image, or plain statement.
+Same meaning — absolute, faceless power — but the second lets the concrete action carry it and never stops to define itself. **Hard cap: this construction appears at most once or twice per chapter.** Over that, you're leaning on it — convert the rest into action, image, or plain statement.
 
 ## Don't explain the scene's meaning in narratorial asides
 

@@ -41,7 +41,7 @@ Each gate's sharpest test is the **reverse judgment**: "if I force the next step
 - **反向判断**：拿着章纲还要不要自己现编冲突和结果？要 → 章纲不合格，补 S04 并确认后再写。
 - 一旦作品分章节，写第 N 章前该章章纲必须先成形并确认；不必一次建全部章纲，但绝不从事件级总纲直接写正文。
 
-**闸4 不是门槛 —— beat 是可选辅助** — 写正文的授权由 `confirm_writing_plan` 承载（泛化为写作会话授权，可含 beat 也可为一句轻量写作意图）。beat 三种来源：作者自己写 / A00 辅助设计 / 没有。有 beat → writer 按 beat 参照；无 beat → writer 直接从章纲场景写、自行分段。beat（若设计）由 A00 写成正文文件里的 **GFM Alert**（`> [!BEAT] [场景-{N}-节拍-{M}] 一句话提纲`——`[!BEAT]` 是固定提取标记，场景坐标 A00 生成必带、作者手写可省；章纲不含 beat）。两轴（beat 层是否变 / 是否委派 writer）、写章节前置状态机与重写保护见 `writing-plan-authoring`。
+**闸4 不是门槛 —— beat 是可选辅助** — 写正文的授权由 `confirm_writing_plan` 承载（泛化为写作会话授权，可含 beat 也可为一句轻量写作意图）。beat 三种来源：作者自己写 / A00 辅助设计 / 没有。有 beat → writer 按 beat 参照；无 beat → writer 直接从章纲场景写、自行分段。beat（若设计）由 A00 写成正文文件里的 **GFM Alert**（`> [!BEAT] [场景-{N}-节拍-{M}] 一句话提纲`——`[!BEAT]` 是固定提取标记，场景坐标 A00 生成必带、作者手写可省；章纲不含 beat；**同场景多个 beat 之间必须空一行，否则会被 Markdown 合并成一个 alert**）。两轴（beat 层是否变 / 是否委派 writer）、写章节前置状态机与重写保护见 `writing-plan-authoring`。
 
 ## Quality: the editorial review loop
 

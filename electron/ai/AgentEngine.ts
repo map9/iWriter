@@ -1058,27 +1058,36 @@ export class AgentEngine {
       // renderer, not the host, applies the TipTap mutation (executor.flushReviewedBatch); marking
       // it as auto-apply here lets the renderer flush it without a card. Host-side auto-approval
       // WITHOUT a renderer apply would be a phantom edit, so we never route it to autoDecisionsByIndex.
-      if (isBlockEditToolName(actionRequest.name)) {
+      const isSessionCreate = actionRequest.name === 'create_document'
+      if (isBlockEditToolName(actionRequest.name) || isSessionCreate) {
         const verdict = decideWritingSessionApproval({
           toolName: actionRequest.name,
           args: actionRequest.args ?? {},
           authorizedFiles,
         })
         if (verdict.kind === 'auto-approve') {
-          // Capture the pre-edit baseline through the unified snapshot route (editor buffer if the
-          // chapter is open, else disk) the first time this file activates — the renderer has not
-          // applied the edit yet at interrupt time, so the snapshot is the true "before". Also record
-          // the accumulated edit so the finalize card (M1b-3) can report the session's diff.
-          const baseline = this.writingSessions.getActiveSession(threadId, verdict.activateFile)
-            ? undefined
-            : await this._captureChapterBaseline(verdict.activateFile)
-          this.writingSessions.recordAccumulation(threadId, verdict.activateFile, {
-            toolName: actionRequest.name,
-            args: actionRequest.args ?? {},
-            at: Date.now(),
-          }, baseline)
-          autoApplyOriginalIndices.add(index)
-          autoApplyFiles.add(verdict.activateFile)
+          // create_document auto-applies only when the target file does not yet exist — never
+          // silently overwrite an existing file (an overwrite falls through to human review).
+          const canAutoApply = !isSessionCreate || !fs.existsSync(verdict.activateFile)
+          if (canAutoApply) {
+            // Capture the pre-edit baseline through the unified snapshot route (editor buffer if the
+            // chapter is open, else disk) the first time this file activates — the renderer has not
+            // applied the edit yet at interrupt time, so the snapshot is the true "before". Also record
+            // the accumulated edit so the finalize card (M1b-3) can report the session's diff. A brand-new
+            // chapter (create_document) baselines to '' (empty = the correct "before writing" content).
+            const baseline = this.writingSessions.getActiveSession(threadId, verdict.activateFile)
+              ? undefined
+              : isSessionCreate
+                ? ''
+                : await this._captureChapterBaseline(verdict.activateFile)
+            this.writingSessions.recordAccumulation(threadId, verdict.activateFile, {
+              toolName: actionRequest.name,
+              args: actionRequest.args ?? {},
+              at: Date.now(),
+            }, baseline)
+            autoApplyOriginalIndices.add(index)
+            autoApplyFiles.add(verdict.activateFile)
+          }
         }
       }
       reviewActionRequests.push(actionRequest)

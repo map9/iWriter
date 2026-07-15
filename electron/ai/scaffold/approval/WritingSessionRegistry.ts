@@ -12,7 +12,9 @@ import type { ResumeDecision } from '../../ipc/protocol'
 //   3. 会话闭合触发整章终审（基线 vs 现状聚合 diff 卡）。
 //
 // 授权域**只含计划声明的正文文件**——章纲及其它对象永不自动放行（SA02 越界即现形、照常人工
-// 评审，越权面最小化）。会话内 create_document 造新章不进本段自动放行（新建面风险高于就地编辑）。
+// 评审，越权面最小化）。会话内 create_document **造新章**：目标命中授权清单（confirm_writing_plan 的
+// target_files）时自动放行——该路径已在被批准的计划里露过脸，"新建面风险"已被前置授权覆盖；目标不在
+// 授权域、或该文件已存在（避免静默覆盖，存在性检查由调用方 AgentEngine 做）→ 照常人工。
 //
 // 接入状态（M1b-3 已 live）：AgentEngine 在 `_prepareActionRequestsForReview` 的 Stage 2 里
 // registerAuthorization（confirm_writing_plan approve/edit 时）/ ensureActiveSession + recordAccumulation
@@ -21,7 +23,8 @@ import type { ResumeDecision } from '../../ipc/protocol'
 // 到磁盘 restore + closeSession、rework→保持会话开着。基线经统一快照路由捕获（`_captureChapterBaseline`：
 // 打开的章节取编辑器缓冲、否则磁盘），显式传入 recordAccumulation；本类内置的同步磁盘 capturer 仅作降级兜底。
 
-/** 参与写作会话自动累积的块级编辑工具（create_document 排除，见 04.1 §6）。 */
+/** 参与写作会话自动累积的块级编辑工具（create_document 走 decideWritingSessionApproval 的独立分支，
+ * 不在本集合；见 04.1 §6 授权域内造新章例外）。 */
 const BLOCK_EDIT_TOOL_NAMES = new Set([
   'edit_block',
   'insert_block',
@@ -62,16 +65,49 @@ function extractTargetFile(args: Record<string, unknown>): string | null {
 }
 
 /**
+ * 取 create_document 的目标正文文件：directory+filename → 绝对路径（filename 无扩展名补 `.md`，与
+ * renderer 的 normalizeCreateDocumentDiskFilename 对齐）。无 directory（内存 tab，不落盘）→ null，
+ * 无法以正文文件为单位匹配授权。
+ */
+function extractCreateDocumentTarget(args: Record<string, unknown>): string | null {
+  const dir = args.directory
+  const filename = args.filename
+  if (typeof dir !== 'string' || typeof filename !== 'string') return null
+  const name = filename.trim()
+  if (!name) return null
+  const normalized = /\.[A-Za-z0-9]+$/.test(name) ? name : `${name}.md`
+  return normalizeFilePath(path.join(dir, normalized))
+}
+
+/**
  * Stage 2 纯裁决（与 Stage 1 同格，插在 Stage 1 与域级 Stage 3 之间）。
  *
- * 只有块级编辑工具、且目标正文文件命中活动授权域 → 自动放行（并由调用方懒激活取基线、计入累积）；
- * 其余（create_document、未授权/域外文件、无显式 file_path 的活动文档编辑）→ 交后续人工。
+ * 块级编辑工具，或 create_document 造新章——目标正文文件命中活动授权域 → 自动放行（并由调用方懒激活取
+ * 基线、计入累积）；其余（未授权/域外文件、无显式 file_path 的活动文档编辑、无 directory 的内存建档）→
+ * 交后续人工。create_document 命中授权域返回 auto-approve，但**已存在文件的覆盖保护由调用方做**
+ * （本函数保持无副作用、不碰 fs）。
  */
 export function decideWritingSessionApproval(
   input: WritingSessionApprovalInput,
 ): WritingSessionDecision {
+  if (input.toolName === 'create_document') {
+    const target = extractCreateDocumentTarget(input.args)
+    if (target === null) {
+      return { kind: 'requires-review', reason: 'create_document without an absolute disk directory cannot be matched to a write-session authorization.' }
+    }
+    if (!input.authorizedFiles.has(target)) {
+      return { kind: 'requires-review', reason: 'create_document target is outside any active write-session authorization.' }
+    }
+    return {
+      kind: 'auto-approve',
+      decision: { type: 'approved' },
+      activateFile: target,
+      reason: 'create_document for a new chapter file named in the approved write-session plan.',
+    }
+  }
+
   if (!isBlockEditToolName(input.toolName)) {
-    // create_document 及非块级工具永不在本段自动放行。
+    // 非块级、非 create_document 的工具永不在本段自动放行。
     return { kind: 'requires-review', reason: 'Not a session-accumulating block-edit tool.' }
   }
 

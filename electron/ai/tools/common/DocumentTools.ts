@@ -87,7 +87,7 @@ function resolveDocumentPathForRuntime(argFilePath: string | undefined, runtime:
   if (!fs.existsSync(requested)) {
     return {
       ok: false,
-      error: `Error: file_path does not exist on disk: "${requested}".`,
+      error: `Error: FILE_NOT_FOUND — file_path does not exist on disk: "${requested}".`,
     }
   }
 

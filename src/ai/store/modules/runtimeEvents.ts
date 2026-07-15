@@ -346,6 +346,12 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
   }
 
   function onStreamChunk(chunk: StreamChunkEvent) {
+    // Once the run has errored (onRunError), drop any late chunks for it. A subagent whose
+    // terminal promise dangles after a top-level failure (e.g. provider 429) can still emit
+    // stray chunks; without this guard ensureLiveTurn would resurrect the cleared live turn and
+    // leave the subagent/task card spinning forever (issue: 子代理出错后仍显示运行中).
+    if (currentRunHasError) return
+
     // Handle usage events before ensureLiveTurn (avoids side effects; sub-agent usage would
     // be swallowed by the subagentName early-return below if not caught here first).
     if (chunk.type === 'usage') {
@@ -648,6 +654,17 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
 
   function onRunError(event: RunErrorEvent) {
     currentRunHasError = true
+    // Defensively terminate any still-running subtask on the live turn before it is cleared, so a
+    // final render can never show a spinning subagent after the run has failed.
+    const erroringTurn = deps.liveTurn.value
+    if (erroringTurn?.subTasks?.some(st => st.status === 'running' || st.status === 'pending')) {
+      erroringTurn.subTasks = erroringTurn.subTasks.map(st =>
+        st.status === 'running' || st.status === 'pending'
+          ? { ...st, status: 'error', errorText: st.errorText || event.error }
+          : st
+      )
+      deps.liveTurn.value = { ...erroringTurn }
+    }
     deps.threadRunState.value = 'idle'
     deps.clearLiveTurn()
     deps.clearRunPointers()

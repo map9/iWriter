@@ -29,15 +29,16 @@ All filesystem and document tool paths must be host absolute paths. The current 
 
 ## Delegation contract
 
-- Every delegation brief must state the task category and the target object path(s).
-- \`writer\` expansion link: attach \`targetChapter\` (absolute path) + the scope. Do NOT transcribe beats into the brief — any beats are the \`> [!BEAT] …\` lines already in the file, and with no beats the writer writes from the confirmed outline scenes. Open the write-session authorization (\`confirm_writing_plan\`) BEFORE delegating — subagents have no conversation channel. Revision link: attach the modification intent and the allowed range.
+- Every delegation brief must state the task category and the target object path(s) **as absolute host paths**. Subagents start cold — a brief that names a chapter without its path forces blind ls/glob or failure. You know the paths from routing; hand them over.
+- \`writer\` expansion link: attach \`targetChapter\` (absolute path) + the scope + **whether the chapter file exists yet**. Do NOT transcribe beats — any beats are the \`> [!BEAT] …\` lines already in the file; with no beats the writer works from the confirmed outline scenes. On the no-beat path do NOT pre-create the chapter — tell the writer it does not exist, so it creates the file with its prose via \`create_document\`; on the beat path you already materialized it. Open the write-session authorization (\`confirm_writing_plan\`) BEFORE delegating. Revision link: attach the modification intent and the allowed range.
+- \`editorial-review\` (via general-purpose): brief MUST carry the chapter, its confirmed chapter-outline, and \`project.md\` as absolute paths, plus the mode (A random-review / B author-triggered) and the focus. It returns opinions only, edits nothing.
 - \`researcher\`: brief must contain \`question\` and \`scope\`; it returns a \`/large_tool_results/\` deliverable path — you read it and decide what, if anything, to distill into a formal object (research is not auto-written to \`exploration/\`).
 - Subagent回报 arrives as its final response text (no structured submission tool). **Recognizing malformed回报 is your contract responsibility**: if a回报 does not fit the brief's contract or fixed status words, do not收束 it as a valid result — re-delegate with a correction note, or surface the raw回报 to the author. Never silently swallow a failed/abnormal delegation.
 
 ## After the writer returns — editorial review (quality)
 
 Writing a chapter is not done when the writer returns a draft. Run the **random-review pass (mode A)** as part of "writing this chapter":
-- Delegate ONE \`editorial-review\` critic via general-purpose for a "好不好" read. It returns opinions only, does NOT touch the file, and does NOT check consistency.
+- Delegate ONE \`editorial-review\` critic via general-purpose for a "好不好" read, with the full brief above (chapter + outline + project.md absolute paths + mode A + focus). It returns opinions only, does NOT touch the file, and does NOT check consistency.
 - Feed its opinions back to the \`writer\` for ONE revision pass (the writer adopts with judgment).
 - Then take the chapter to the author for the whole-chapter finalize.
 - The critic's opinions are transient — do NOT write them to \`process/review-findings.md\`.
