@@ -1038,6 +1038,10 @@ export default {
       finalizeBaselineChars: '起点 {count} 字',
       finalizeCurrentChars: '当前 {count} 字',
       finalizeShowDiff: '查看基线与当前对比',
+      finalizeFallbackHint: '本轮 Agent 未显式收尾，系统自动补一张整章终审。如需继续修改，直接发送新消息即可。',
+      finalizeExternalEdits: '检测到自 Agent 最近一次应用以来存在非 Agent 改动（你的手动修改或外部修改）。拒绝回退会一并丢弃这些改动。',
+      finalizeRejectConfirm: '拒绝将把章节回退到会话起点，自起点以来的全部改动（含你的手动修改）都会丢失，且不可撤销。确定回退吗？',
+      finalizeRejectConfirmAction: '确定回退',
     },
     creativeSummary: {
       summary: {

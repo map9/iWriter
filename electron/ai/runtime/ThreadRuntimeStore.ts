@@ -13,6 +13,12 @@ interface InterruptedRun {
   confirmPlanArgsByIndex?: Record<number, { plan: string; targetFiles: string[] }>
   /** finalize_chapter args by original index — read at resume to close/restore the write-session (M1b-3). */
   finalizeArgsByIndex?: Record<number, { chapter: string; summary?: string }>
+  /**
+   * M1-1: this interrupt was synthesized at run-end (the agent finished without finalizing an active
+   * write-session), not produced by a live LangGraph interrupt. resumeRun applies the finalize host
+   * side effects but MUST NOT feed a Command back into the graph — there is no interrupt to resume.
+   */
+  syntheticFinalize?: boolean
 }
 
 interface ThreadExecutionContext {

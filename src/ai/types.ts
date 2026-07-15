@@ -412,6 +412,16 @@ export interface CreativeChapterFinalizeReviewItem extends BaseCreativeReviewIte
   summary?: string
   baseline: string
   current: string
+  /**
+   * M1-1: synthesized by the host at run-end because the agent finished without finalizing this
+   * write-session (not an agent-initiated finalize_chapter). The surface shows a fallback hint.
+   */
+  autoFallback?: boolean
+  /**
+   * M1-2 归因：current 与 agent 最近应用快照不一致 ⇒ 存在非 agent 改动（作者手改/外部改动）。
+   * 终审 reject 会连同这些改动一并回退，故据此在卡上给出警示。
+   */
+  hasExternalEdits?: boolean
 }
 
 export type CreativeReviewItem =

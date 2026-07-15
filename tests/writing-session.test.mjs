@@ -155,4 +155,41 @@ describe('WritingSessionRegistry (Stage 2 skeleton)', () => {
     assert.equal(reg.getAuthorizedFiles('t1').size, 0)
     assert.equal(reg.hasActiveSession('t1', CH), false)
   })
+
+  it('getActiveSessions returns only sessions with accumulation (M1-1 run-end fallback criterion)', async () => {
+    const { WritingSessionRegistry } = await loadModule()
+    const reg = new WritingSessionRegistry(() => 'B')
+    // CH has accumulation, OTHER is pre-activated but empty (e.g. plan approved, writer未动笔).
+    reg.recordAccumulation('t1', CH, { toolName: 'edit_block', args: {}, at: 1 })
+    reg.ensureActiveSession('t1', OTHER, 'B')
+
+    const withAccum = reg.getActiveSessions('t1')
+    assert.equal(withAccum.length, 1)
+    assert.equal(withAccum[0].file, CH)
+
+    const all = reg.getActiveSessions('t1', true)
+    assert.equal(all.length, 2)
+
+    assert.deepEqual(reg.getActiveSessions('unknown-thread'), [])
+  })
+
+  it('closeSession removes a session so it no longer counts as un-finalized', async () => {
+    const { WritingSessionRegistry } = await loadModule()
+    const reg = new WritingSessionRegistry(() => 'B')
+    reg.recordAccumulation('t1', CH, { toolName: 'edit_block', args: {}, at: 1 })
+    assert.equal(reg.getActiveSessions('t1').length, 1)
+    reg.closeSession('t1', CH)
+    assert.equal(reg.getActiveSessions('t1').length, 0)
+  })
+
+  it('recordAgentSnapshot stores the attribution baseline on the active session (M1-2)', async () => {
+    const { WritingSessionRegistry } = await loadModule()
+    const reg = new WritingSessionRegistry(() => 'B')
+    reg.recordAccumulation('t1', CH, { toolName: 'edit_block', args: {}, at: 1 })
+    reg.recordAgentSnapshot('t1', CH, 'AGENT_STATE')
+    assert.equal(reg.getActiveSession('t1', CH).lastAgentSnapshot, 'AGENT_STATE')
+    // No-op for an unknown file (no throw, nothing created).
+    reg.recordAgentSnapshot('t1', OTHER, 'X')
+    assert.equal(reg.hasActiveSession('t1', OTHER), false)
+  })
 })

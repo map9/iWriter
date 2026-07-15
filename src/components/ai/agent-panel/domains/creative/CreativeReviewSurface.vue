@@ -69,6 +69,18 @@
             {{ charDelta >= 0 ? '+' : '' }}{{ charDelta }}
           </span>
         </div>
+        <p
+          v-if="currentReview.autoFallback"
+          class="rounded-md bg-base-200 px-2 py-1.5 text-[11px] leading-relaxed text-base-content/60"
+        >
+          {{ t('agentPanel.creativeReview.finalizeFallbackHint') }}
+        </p>
+        <p
+          v-if="currentReview.hasExternalEdits"
+          class="rounded-md bg-warning/10 px-2 py-1.5 text-[11px] leading-relaxed text-warning"
+        >
+          {{ t('agentPanel.creativeReview.finalizeExternalEdits') }}
+        </p>
         <details class="rounded-md border border-base-300 bg-base-200">
           <summary class="cursor-pointer px-2 py-1 text-[11px] text-base-content/60">
             {{ t('agentPanel.creativeReview.finalizeShowDiff') }}
@@ -115,6 +127,28 @@
         </button>
       </div>
     </div>
+    <div
+      v-if="isFinalizeRejectConfirm"
+      class="border-t border-warning/40 bg-warning/5 px-3 py-2"
+    >
+      <p class="text-[11px] leading-relaxed text-warning">
+        {{ t('agentPanel.creativeReview.finalizeRejectConfirm') }}
+      </p>
+      <div class="mt-1.5 flex justify-end gap-2">
+        <button
+          class="iw-btn btn-xs btn-ghost"
+          @click="isFinalizeRejectConfirm = false"
+        >
+          {{ t('agentPanel.creativeReview.respondCancel') }}
+        </button>
+        <button
+          class="iw-btn btn-xs btn-warning"
+          @click="confirmFinalizeReject"
+        >
+          {{ t('agentPanel.creativeReview.finalizeRejectConfirmAction') }}
+        </button>
+      </div>
+    </div>
     <footer class="flex flex-wrap items-center justify-end gap-2 border-t border-base-300 px-3 py-2">
       <button
         v-if="reviews.length > 1"
@@ -130,6 +164,7 @@
         {{ rejectLabel }}
       </button>
       <button
+        v-if="!isRunEndFallback"
         class="iw-btn btn-xs btn-ghost"
         @click="isRespondOpen = true"
       >
@@ -178,6 +213,9 @@ const filesDraft = ref('')
 const tagMessageDraft = ref('')
 const isRespondOpen = ref(false)
 const respondMessage = ref('')
+// M1-2: finalize reject restores the session baseline to disk — a two-step confirm guards against
+// silently discarding the author's own edits (and the run-end fallback lands here too).
+const isFinalizeRejectConfirm = ref(false)
 
 const title = computed(() => {
   const review = currentReview.value
@@ -214,6 +252,11 @@ const currentChars = computed(() =>
   currentReview.value?.kind === 'creative_chapter_finalize' ? currentReview.value.current.length : 0
 )
 const charDelta = computed(() => currentChars.value - baselineChars.value)
+
+// Run-end fallback finalize cards have no live agent turn to rework — hide the rework button.
+const isRunEndFallback = computed(() =>
+  currentReview.value?.kind === 'creative_chapter_finalize' && currentReview.value.autoFallback === true
+)
 
 const rejectLabel = computed(() =>
   currentReview.value?.kind === 'creative_chapter_finalize'
@@ -274,6 +317,7 @@ watch(() => reviews.value.length, length => {
 watch(currentReview, review => {
   isRespondOpen.value = false
   respondMessage.value = ''
+  isFinalizeRejectConfirm.value = false
   if (!review) {
     bodyDraft.value = ''
     filesDraft.value = ''
@@ -334,6 +378,18 @@ function approve() {
 
 function reject() {
   const review = currentReview.value
+  if (!review) return
+  // Finalize reject回退基线到磁盘、会一并丢弃作者手改——先二次确认。其余创作卡拒绝无破坏性，直接执行。
+  if (review.kind === 'creative_chapter_finalize') {
+    isFinalizeRejectConfirm.value = true
+    return
+  }
+  aiStore.rejectCreativeReview(review.id)
+}
+
+function confirmFinalizeReject() {
+  const review = currentReview.value
+  isFinalizeRejectConfirm.value = false
   if (review) aiStore.rejectCreativeReview(review.id)
 }
 

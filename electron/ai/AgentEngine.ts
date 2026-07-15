@@ -435,12 +435,29 @@ export class AgentEngine {
 
     const fullDecisions = this._mergeResumeDecisions(interrupted, decisions)
 
+    // M1-2 归因基准：本批次里被自动放行的块编辑已由 renderer 在 ai:resume 前应用落盘，磁盘此刻反映
+    // agent 的最新已应用状态。逐会话快照它，供之后的整章终审把「agent 应用之后」的改动（作者手改/
+    // 外部改动）标为 hasExternalEdits。放在 finalize 处理前——finalize 关闭会话后就取不到了。
+    for (const { file } of this.writingSessions.getActiveSessions(threadId, true)) {
+      const snap = await this._captureChapterBaseline(file)
+      this.writingSessions.recordAgentSnapshot(threadId, file, snap)
+    }
+
     // An approved confirm_writing_plan opens the write-session authorization (04.1 §6 Stage 2) and
     // anchors the finalize baseline at write-session start (before the writer touches the chapter).
     await this._registerApprovedWritingPlans(threadId, interrupted, fullDecisions)
 
     // A finalize_chapter decision closes/restores the write-session (M1b-3).
     this._handleFinalizeDecisions(threadId, interrupted, fullDecisions)
+
+    // M1-1: a run-end synthesized finalize card has no live LangGraph interrupt to resume — the host
+    // side effects above are the whole job. Complete the run instead of feeding a Command back.
+    if (interrupted.syntheticFinalize) {
+      this.rendererBridge.sendRunDone({ threadId, turnId: interrupted.turnId })
+      this._clearFallbackNotificationKeys(threadId, interrupted.turnId ?? null)
+      this.runtimeStore.clearCurrentTurnId(threadId)
+      return
+    }
 
     // Poisoned-batch orphan guard. LangChain HITL sets jumpTo:"model" whenever ANY decision in
     // the batch is a reject/respond, which SKIPS ToolNode for the WHOLE batch. Approved block-edit
@@ -624,6 +641,10 @@ export class AgentEngine {
       const session = chapterPath ? this.writingSessions.getActiveSession(threadId, chapterPath) : undefined
       payload.baseline = session?.baselineSnapshot ?? current
       payload.current = current
+      // M1-2 归因：current 与 agent 最近应用快照不一致 ⇒ 存在「agent 应用之后」的非 agent 改动
+      // （作者手改/外部改动）。lastAgentSnapshot 为 null（从未捕获）时不据此标注（未知）。
+      const lastAgentSnapshot = session?.lastAgentSnapshot
+      payload.hasExternalEdits = lastAgentSnapshot != null && lastAgentSnapshot !== current
     }
   }
 
@@ -665,6 +686,55 @@ export class AgentEngine {
       // approve / edit / reject all close the session.
       this.writingSessions.closeSession(threadId, chapterPath)
     }
+  }
+
+  /**
+   * M1-1 (变更 C run-end 兜底): when a run finishes cleanly but a write-session is still open with
+   * accumulated auto-applied edits, the agent wrote the chapter but never called finalize_chapter —
+   * the session would dangle and the chapter would land on disk with no end-of-chapter review. We
+   * synthesize a finalize interrupt card per un-finalized session so it flows through the same
+   * resume path (_handleFinalizeDecisions closes/restores the session). A session finalized this run
+   * was already removed by closeSession, so it never double-cards; rework leaves the session open and
+   * a later run-end re-prompts. Returns true if it synthesized an interrupt (caller must NOT send
+   * run-done — the run is now interrupted awaiting the finalize decision).
+   */
+  private async _maybeSynthesizeRunEndFinalize(threadId: string, turnId?: string): Promise<boolean> {
+    const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
+    // finalize_chapter and the finalize card are creative-domain only.
+    if (domain !== 'creative') return false
+    const sessions = this.writingSessions.getActiveSessions(threadId)
+    if (!sessions.length) return false
+
+    const actionRequests: HitlActionRequest[] = sessions.map(({ file }) => ({
+      name: 'finalize_chapter',
+      args: { chapter: file },
+    }))
+    const finalizeArgsByIndex: Record<number, { chapter: string; summary?: string }> = {}
+    actionRequests.forEach((ar, i) => {
+      finalizeArgsByIndex[i] = { chapter: String(ar.args?.chapter ?? '') }
+    })
+
+    this.runtimeStore.setInterrupted(threadId, {
+      actionRequestCount: actionRequests.length,
+      actionNames: actionRequests.map(a => a.name),
+      turnId,
+      reviewActionOriginalIndices: actionRequests.map((_, i) => i),
+      autoDecisionsByIndex: {},
+      finalizeArgsByIndex,
+      syntheticFinalize: true,
+    })
+
+    const strategy = this.strategies[domain]
+    const reviews = await strategy.buildReviewItems({ threadId, turnId, actionRequests })
+    await this._enrichFinalizeReviews(reviews, threadId)
+    for (const r of reviews) {
+      if (r.kind === 'creative' && r.payload.kind === 'creative_chapter_finalize') {
+        r.payload.autoFallback = true
+      }
+    }
+
+    this.rendererBridge.sendRunInterrupted({ threadId, turnId, reviews, actionRequests })
+    return true
   }
 
   /** Flag the review items that are write-session auto-apply, so the renderer applies them silently (no card). */
@@ -864,9 +934,13 @@ export class AgentEngine {
         workspacePath: this.runtimeStore.getContext(threadId)?.workspacePath ?? null,
       })
       await this._detectAndNotifySummarization(threadId)
+      // M1-1: if the agent finished without finalizing an open write-session, synthesize a run-end
+      // finalize card instead of completing — it leaves the thread interrupted awaiting the decision.
+      const finalizeTurnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
+      if (await this._maybeSynthesizeRunEndFinalize(threadId, finalizeTurnId)) return
       this.rendererBridge.sendRunDone({
         threadId,
-        turnId: this.runtimeStore.getCurrentTurnId(threadId) ?? undefined,
+        turnId: finalizeTurnId,
       })
     } catch (err) {
       if (abortController?.signal.aborted) {

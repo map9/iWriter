@@ -1041,6 +1041,10 @@ export default {
       finalizeBaselineChars: '{count} chars at start',
       finalizeCurrentChars: '{count} chars now',
       finalizeShowDiff: 'Show baseline vs. current',
+      finalizeFallbackHint: "The agent finished without finalizing, so this whole-chapter review was added automatically. To keep revising, just send a new message.",
+      finalizeExternalEdits: "Changes not made by the agent (your manual edits or external changes) were detected since the agent's last applied state. Rejecting to restore will discard them too.",
+      finalizeRejectConfirm: 'Rejecting restores the chapter to the session start. Every change since then — including your manual edits — will be lost and cannot be undone. Restore anyway?',
+      finalizeRejectConfirmAction: 'Restore',
     },
     creativeSummary: {
       summary: {

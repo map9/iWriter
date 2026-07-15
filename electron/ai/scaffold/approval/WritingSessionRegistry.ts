@@ -113,6 +113,12 @@ export interface ActiveWritingSession {
   /** 懒激活时按单一路由取的基线快照（M0：调用方注入的 capturer 提供；未注入则 null）。 */
   baselineSnapshot: string | null
   accumulated: AccumulatedEdit[]
+  /**
+   * M1-2 归因：agent 最近一次自动应用批次落定后的章节快照（每次 resume 时由调用方经统一路由重取）。
+   * 终审时 `current !== lastAgentSnapshot` ⇒ 存在「agent 已应用之后」发生的非 agent 改动（作者手改/外部改动）。
+   * null = 尚未捕获过（未知，不据此标注）。
+   */
+  lastAgentSnapshot?: string | null
 }
 
 interface ThreadWritingState {
@@ -165,6 +171,32 @@ export class WritingSessionRegistry {
     const key = normalizeFilePath(targetFile)
     if (!key) return undefined
     return this.byThread.get(threadId)?.activeSessions.get(key)
+  }
+
+  /**
+   * 线程的活动会话。默认只返回**有累积**（`accumulated.length > 0`）的会话——供 run-end 兜底终审判定
+   * 「有累积但本轮未 finalize」（M1-1）。已 finalize 的会话在 approve/reject 时经 closeSession 移除，
+   * 故仍在册且有累积 = 未收尾。传 `includeEmpty` 可返回全部活动会话。
+   */
+  getActiveSessions(
+    threadId: string,
+    includeEmpty = false,
+  ): Array<{ file: string; session: ActiveWritingSession }> {
+    const state = this.byThread.get(threadId)
+    if (!state) return []
+    const out: Array<{ file: string; session: ActiveWritingSession }> = []
+    for (const [file, session] of state.activeSessions) {
+      if (includeEmpty || session.accumulated.length > 0) out.push({ file, session })
+    }
+    return out
+  }
+
+  /** M1-2：记录 agent 最近一次自动应用落定后的快照（终审归因用，见 lastAgentSnapshot）。 */
+  recordAgentSnapshot(threadId: string, targetFile: string, snapshot: string | null): void {
+    const key = normalizeFilePath(targetFile)
+    if (!key) return
+    const session = this.byThread.get(threadId)?.activeSessions.get(key)
+    if (session) session.lastAgentSnapshot = snapshot
   }
 
   /**
