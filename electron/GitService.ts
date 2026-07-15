@@ -163,9 +163,9 @@ export class GitService {
         untracked.push(this.makeChange(p, 'U', false))
         continue
       }
-      // 已暂存（index 非空非 '?'）
+      // 已暂存（index 非空非 '?'）；重命名(R)带上源路径，供 diff 取 HEAD 旧内容
       if (f.index && f.index !== ' ' && f.index !== '?') {
-        staged.push(this.makeChange(p, this.mapStatus(f.index), true))
+        staged.push(this.makeChange(p, this.mapStatus(f.index), true, f.from || undefined))
       }
       // 工作区改动（working_dir 非空非 '?'）
       if (f.working_dir && f.working_dir !== ' ' && f.working_dir !== '?') {
@@ -198,18 +198,23 @@ export class GitService {
     await this.raw(root,['reset'])
   }
 
-  /** 放弃更改：tracked 还原到 HEAD、untracked 直接清理 */
+  /** 放弃更改：HEAD 里已有的文件还原到 HEAD；新增文件（未跟踪或已暂存 index='A'）移出 index 并清理工作区 */
   async discard(root: string, paths: string[]): Promise<void> {
     if (!paths.length) return
     const s = await this.exec(root, g => g.status())
     const untrackedSet = new Set(s.not_added)
-    const tracked = paths.filter(p => !untrackedSet.has(p))
-    const untracked = paths.filter(p => untrackedSet.has(p))
+    // index 为 'A' 的是「已暂存新增」，同样不在 HEAD——不能用 restore --source=HEAD 还原（会因 pathspec 不匹配报错）
+    const addedSet = new Set(s.files.filter(f => f.index === 'A').map(f => f.path))
+    const tracked = paths.filter(p => !untrackedSet.has(p) && !addedSet.has(p))
+    const newFiles = paths.filter(p => untrackedSet.has(p) || addedSet.has(p))
     if (tracked.length) {
       await this.raw(root,['restore', '--source=HEAD', '--staged', '--worktree', '--', ...tracked])
     }
-    if (untracked.length) {
-      await this.raw(root,['clean', '-f', '--', ...untracked])
+    if (newFiles.length) {
+      // 先移出 index（-f 覆盖「暂存内容与 HEAD/工作区均不同」的安全拦截，--cached 不动工作区文件；
+      // --ignore-unmatch 容忍纯未跟踪文件），再从工作区清理
+      await this.raw(root,['rm', '--cached', '-f', '--ignore-unmatch', '--', ...newFiles])
+      await this.raw(root,['clean', '-f', '--', ...newFiles])
     }
   }
 
@@ -457,22 +462,24 @@ export class GitService {
     }
   }
 
-  async diff(root: string, filePath: string, opts: { staged: boolean }): Promise<GitDiffPayload> {
+  async diff(root: string, filePath: string, opts: { staged: boolean }, oldPath?: string): Promise<GitDiffPayload> {
     const abs = path.join(root, filePath)
     if (this.isBinaryPath(filePath)) {
       return { path: filePath, oldContent: '', newContent: '', isBinary: true }
     }
+    // 重命名时旧内容取自源路径（HEAD:oldPath），否则新路径在 HEAD 里不存在会误判为整文件新增
+    const headRef = `HEAD:${oldPath ?? filePath}`
     let oldContent = ''
     let newContent = ''
     try {
       if (opts.staged) {
         // 已暂存：HEAD ↔ index
-        oldContent = await this.showSafe(root, `HEAD:${filePath}`)
+        oldContent = await this.showSafe(root, headRef)
         newContent = await this.showSafe(root, `:${filePath}`)
       } else {
         // 未暂存：index(或 HEAD) ↔ 工作区磁盘
         const indexContent = await this.showOptional(root, `:${filePath}`)
-        oldContent = indexContent ?? await this.showSafe(root, `HEAD:${filePath}`)
+        oldContent = indexContent ?? await this.showSafe(root, headRef)
         newContent = await this.readWorking(abs)
       }
     } catch {
@@ -505,6 +512,7 @@ export class GitService {
     } catch {
       return []
     }
+    const remoteNames = await this.remoteNames(root)
     return out
       .split('\n')
       .filter(Boolean)
@@ -513,21 +521,34 @@ export class GitService {
         return {
           hash, shortHash, subject, author, date,
           timestamp: Number(at) * 1000,
-          refs: this.parseRefs(decoration ?? ''),
+          refs: this.parseRefs(decoration ?? '', remoteNames),
           parents: (parents ?? '').split(' ').filter(Boolean),
         } as GitCommit
       })
   }
 
+  /** 已配置的远程名集合，用于把 `<remote>/<branch>` 装饰判为远程引用。 */
+  private async remoteNames(root: string): Promise<Set<string>> {
+    try {
+      const out = await this.raw(root, ['remote'])
+      return new Set(out.split('\n').map(s => s.trim()).filter(Boolean))
+    } catch {
+      return new Set()
+    }
+  }
+
   /** 解析 git %D 装饰串（如 "HEAD -> main, origin/main, tag: v1.0"）为结构化引用 */
-  private parseRefs(decoration: string): GitCommitRef[] {
+  private parseRefs(decoration: string, remoteNames: Set<string>): GitCommitRef[] {
     if (!decoration.trim()) return []
     return decoration.split(',').map(raw => {
       const s = raw.trim()
       if (s.startsWith('tag:')) return { name: s.slice(4).trim(), kind: 'tag' as const }
       if (s.startsWith('HEAD ->')) return { name: s.slice(7).trim(), kind: 'head' as const }
       if (s === 'HEAD') return { name: 'HEAD', kind: 'head' as const }
-      if (s.startsWith('origin/') || s.includes('/')) return { name: s, kind: 'remote' as const }
+      // 远程引用形如 <remote>/<branch>；仅当首段是已知远程名才判为 remote，
+      // 否则含 '/' 的本地分支（如 feature/x）会被误判为远程（丢失 unpublished 标记、配色错位）。
+      const slash = s.indexOf('/')
+      if (slash > 0 && remoteNames.has(s.slice(0, slash))) return { name: s, kind: 'remote' as const }
       return { name: s, kind: 'branch' as const }
     }).filter(r => r.name)
   }

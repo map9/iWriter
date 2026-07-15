@@ -1467,8 +1467,8 @@ export class App {
     ipcMain.handle('git:init', async (_, root: string) => this.gitService.init(root))
     ipcMain.handle('git:status', async (_, root: string) => this.gitService.status(root))
     ipcMain.handle('git:branches', async (_, root: string) => this.gitService.branches(root))
-    ipcMain.handle('git:diff', async (_, root: string, filePath: string, opts: { staged: boolean }) =>
-      this.gitService.diff(root, filePath, opts))
+    ipcMain.handle('git:diff', async (_, root: string, filePath: string, opts: { staged: boolean }, oldPath?: string) =>
+      this.gitService.diff(root, filePath, opts, oldPath))
     ipcMain.handle('git:log', async (_, root: string, opts) => this.gitService.log(root, opts))
     ipcMain.handle('git:commit-files', async (_, root: string, hash: string) =>
       this.gitService.commitFiles(root, hash))

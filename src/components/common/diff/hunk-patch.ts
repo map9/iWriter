@@ -33,7 +33,10 @@ export function computeHunks(oldContent: string, newContent: string): DiffHunk[]
  * 路径不做引用转义：仓库以 core.quotepath=false 运行，UTF-8 路径原样即可。
  */
 export function buildHunkPatch(filePath: string, hunk: DiffHunk): string {
-  const header = `--- a/${filePath}\n+++ b/${filePath}\n`
+  // 整块新增（旧侧 0 行 0 起始）= 新建文件：旧侧须用 /dev/null，否则 git apply --cached
+  // 会因 a/path 不在 index 而拒绝（未跟踪/新文件的逐块暂存失败）。
+  const isCreation = hunk.oldStart === 0 && hunk.oldLines === 0
+  const header = `--- ${isCreation ? '/dev/null' : `a/${filePath}`}\n+++ b/${filePath}\n`
   const hunkHeader = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@\n`
   const body = hunk.lines.join('\n') + '\n'
   return header + hunkHeader + body

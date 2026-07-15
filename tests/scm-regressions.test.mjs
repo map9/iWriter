@@ -75,7 +75,14 @@ test('SCM regressions', async (t) => {
 
   await t.test('working diff distinguishes an empty index blob from a missing index path', () => {
     assert.match(gitServiceSource, /const indexContent = await this\.showOptional\(root, `:\$\{filePath\}`\)/)
-    assert.match(gitServiceSource, /oldContent = indexContent \?\? await this\.showSafe\(root, `HEAD:\$\{filePath\}`\)/)
+    assert.match(gitServiceSource, /oldContent = indexContent \?\? await this\.showSafe\(root, headRef\)/)
+  })
+
+  await t.test('staged rename diff reads the old content from the rename source path', () => {
+    // 重命名源路径参与 HEAD 取值，避免新路径在 HEAD 缺失被误判为整文件新增
+    assert.match(gitServiceSource, /const headRef = `HEAD:\$\{oldPath \?\? filePath\}`/)
+    assert.match(gitServiceSource, /async diff\(root: string, filePath: string, opts: \{ staged: boolean \}, oldPath\?: string\)/)
+    assert.match(gitServiceSource, /staged\.push\(this\.makeChange\(p, this\.mapStatus\(f\.index\), true, f\.from \|\| undefined\)\)/)
   })
 
   await t.test('renamed commit files retain their old path for history diff', () => {

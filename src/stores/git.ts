@@ -281,13 +281,14 @@ export const useGitStore = defineStore('git', () => {
   }
 
   /** 打开工作区文件的 diff（Changes 列表点击）→ 编辑区 Diff tab */
-  function openDiff(filePath: string, opts: { staged: boolean }): void {
+  function openDiff(filePath: string, opts: { staged: boolean; oldPath?: string }): void {
     if (!root.value) return
     const spec: DiffSpec = {
       root: root.value,
       filePath,
       kind: 'working',
       staged: opts.staged,
+      oldPath: opts.oldPath, // 已暂存重命名：取 HEAD 旧内容的源路径
       editable: !opts.staged, // 场景1(未暂存, 右=工作区文件)天然可编辑；本期只读渲染
     }
     const name = filePath.split('/').pop() || filePath

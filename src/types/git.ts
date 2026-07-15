@@ -175,7 +175,7 @@ export interface GitApi {
   init: (root: string) => Promise<void>
   status: (root: string) => Promise<GitStatus>
   branches: (root: string) => Promise<GitBranchInfo>
-  diff: (root: string, filePath: string, opts: { staged: boolean }) => Promise<GitDiffPayload>
+  diff: (root: string, filePath: string, opts: { staged: boolean }, oldPath?: string) => Promise<GitDiffPayload>
   log: (root: string, opts: { filePath?: string; allBranches?: boolean; ref?: string; limit?: number; skip?: number }) => Promise<GitCommit[]>
   commitFiles: (root: string, hash: string) => Promise<GitFileChange[]>
   commitFileDiff: (root: string, hash: string, filePath: string, oldPath?: string) => Promise<GitDiffPayload>

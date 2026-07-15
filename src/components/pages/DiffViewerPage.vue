@@ -296,7 +296,7 @@ async function load() {
     }
     const payload = s.kind === 'commit' && s.hash
       ? await api.commitFileDiff(s.root, s.hash, s.filePath, s.oldPath)
-      : await api.diff(s.root, s.filePath, { staged: !!s.staged })
+      : await api.diff(s.root, s.filePath, { staged: !!s.staged }, s.oldPath)
     isBinary.value = payload.isBinary
     oldContent.value = payload.isBinary ? '' : maybeFormat(payload.oldContent)
     newContent.value = payload.isBinary ? '' : maybeFormat(payload.newContent)
