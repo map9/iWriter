@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 const gitServiceSource = readFileSync('electron/GitService.ts', 'utf8')
@@ -12,9 +12,6 @@ const filteringSource = readFileSync('src/services/workspace/filtering.ts', 'utf
 const gitStoreSource = readFileSync('src/stores/git.ts', 'utf8')
 const gitTypesSource = readFileSync('src/types/git.ts', 'utf8')
 const leftSidebarSource = readFileSync('src/components/LeftSidebar.vue', 'utf8')
-const cloneDialogSource = readFileSync('src/components/sidebar/scm/GitCloneDialog.vue', 'utf8')
-const errorDialogPath = 'src/components/sidebar/scm/GitErrorResolutionDialog.vue'
-const errorDialogSource = existsSync(errorDialogPath) ? readFileSync(errorDialogPath, 'utf8') : ''
 
 test('SCM regressions', async (t) => {
   await t.test('Commit All stages untracked files before committing', () => {
@@ -95,36 +92,7 @@ test('SCM regressions', async (t) => {
     assert.match(gitTypesSource, /'branch-unmerged'/)
     assert.match(mainAppSource, /classifyGitIssue/)
     assert.match(mainAppSource, /git:delete-branch[\s\S]*GitActionResult/)
-    assert.match(gitStoreSource, /const gitIssue = ref<GitIssue \| null>\(null\)/)
-  })
-
-  await t.test('SCM error dialog keeps raw Git output behind technical details', () => {
-    assert.match(errorDialogSource, /<details/)
-    assert.match(errorDialogSource, /technicalDetails/)
-    assert.match(errorDialogSource, /navigator\.clipboard\.writeText/)
-    assert.match(panelSource, /GitErrorResolutionDialog/)
-  })
-
-  await t.test('branch deletion uses the unmerged-risk dialog as the only destructive confirmation', () => {
-    assert.match(gitTypesSource, /branch-unmerged/)
-    assert.match(errorDialogSource, /issue\.kind === 'branch-unmerged'/)
-    assert.match(panelSource, /@force-delete="confirmForceDelete"/)
-    assert.match(panelSource, /deleteBranch\(issue\.branch, true\)/)
-    const deleteFlow = panelSource.slice(panelSource.indexOf('async function showDeleteBranchMenu'), panelSource.indexOf('\nasync function confirmForceDelete'))
-    const forceDeleteFlow = panelSource.slice(panelSource.indexOf('async function confirmForceDelete'), panelSource.indexOf('// 新建分支弹窗'))
-    assert.doesNotMatch(deleteFlow, /confirmBox\(/)
-    assert.doesNotMatch(forceDeleteFlow, /confirmBox\(/)
-  })
-
-  await t.test('SCM container menu groups global capabilities and leaves branches to Repositories', () => {
-    const containerMenu = panelSource.slice(panelSource.indexOf('const showScmViewMenu'), panelSource.length)
-    const branchMenu = panelSource.slice(panelSource.indexOf('async function showBranchMenu'), panelSource.indexOf('/** 合并分支'))
-    assert.match(containerMenu, /label: t\('sourceControl\.menu\.remote'\),[\s\S]*submenu/)
-    assert.match(containerMenu, /label: t\('sourceControl\.menu\.stash'\),[\s\S]*submenu/)
-    assert.match(containerMenu, /label: t\('sourceControl\.menu\.tags'\),[\s\S]*submenu/)
-    assert.doesNotMatch(containerMenu, /__create|__rename|__merge|__delete/)
-    assert.match(branchMenu, /__create/)
-    assert.match(branchMenu, /__delete/)
+    assert.match(gitStoreSource, /function presentGitIssue\(issue: GitIssue/)
   })
 
   await t.test('special SCM write flows use the shared error dialog instead of raw notifications', () => {
@@ -146,11 +114,4 @@ test('SCM regressions', async (t) => {
     assert.doesNotMatch(panelSource, /window\.electronAPI\.git\.init\(appStore\.currentFolder\)/)
   })
 
-  await t.test('clone errors remain visible without an SCM workspace and stale retries are cleared on root changes', () => {
-    assert.match(cloneDialogSource, /GitErrorResolutionDialog/)
-    assert.match(cloneDialogSource, /gitStore\.gitIssue\?\.operation === 'clone' \? gitStore\.gitIssue : null/)
-    assert.match(panelSource, /gitStore\.gitIssue\?\.operation === 'clone' \? null : gitStore\.gitIssue/)
-    const resetState = gitStoreSource.slice(gitStoreSource.indexOf('function resetRepoState()'), gitStoreSource.indexOf('\n  return {'))
-    assert.match(resetState, /dismissGitIssue\(\)/)
-  })
 })

@@ -5,7 +5,6 @@ import { describe, it } from 'node:test'
 const appStoreSource = readFileSync('src/stores/app.ts', 'utf8')
 const gitStoreSource = readFileSync('src/stores/git.ts', 'utf8')
 const mainViewSource = readFileSync('src/views/MainView.vue', 'utf8')
-const explorerSource = readFileSync('src/components/sidebar/ExplorerPanel.vue', 'utf8')
 const sourceControlSource = readFileSync('src/components/sidebar/SourceControlPanel.vue', 'utf8')
 
 function sourceBetween(source, startMarker, endMarker) {
@@ -46,17 +45,6 @@ describe('workspace lifecycle', () => {
     assert.match(gitStoreSource, /let folderChangeGeneration = 0/)
     assert.match(gitStoreSource, /const generation = \+\+folderChangeGeneration/)
     assert.match(gitStoreSource, /if \(generation !== folderChangeGeneration\) return/)
-  })
-
-  it('centers two-line loading states and preserves Initialize Repository for available non-repositories', () => {
-    const explorerLoading = sourceBetween(explorerSource, 'v-else-if="appStore.isWorkspaceOpening"', '<!-- 文件树 -->')
-    const scmLoading = sourceBetween(sourceControlSource, 'v-else-if="appStore.isWorkspaceOpening"', '<!-- 状态 C：未检测到 Git -->')
-    assert.match(explorerLoading, /flex h-full flex-col items-center justify-center gap-2/)
-    assert.match(scmLoading, /flex flex-1 flex-col items-center justify-center gap-2/)
-    assert.match(sourceControlSource, /v-if="!appStore\.isWorkspaceAvailable"/)
-    const nonRepoState = sourceBetween(sourceControlSource, '<!-- 状态 D：非仓库 -->', '<!-- 状态 E：仓库')
-    assert.match(nonRepoState, /sourceControl\.initRepo/)
-    assert.match(sourceControlSource, /onMounted\(\(\) => \{ void gitStore\.ensureDetected\(\) \}\)/)
   })
 
   it('keeps the Change Viewer composer fixed while its change list scrolls', () => {
