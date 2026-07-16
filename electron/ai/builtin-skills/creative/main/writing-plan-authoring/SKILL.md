@@ -1,11 +1,16 @@
 ---
 name: writing-plan-authoring
-description: Load when the author asks to write or draft a chapter's prose. A00 executes this — it opens the write-session authorization (confirm_writing_plan), optionally designs a beat plan, then delegates the writer. Covers the pre-write state machine that decides whether to write, re-confirm, or hold.
+description: Load when the author asks to design/author a chapter's beats, or to write/draft a chapter's prose. A00 executes this — it opens the write-session authorization (confirm_writing_plan), optionally designs a beat plan, and either stops after materializing beats or delegates the writer. Covers the pre-write state machine that decides whether to author beats, write, re-confirm, or hold.
 ---
 
 # S05a writing-plan-authoring
 
-A00 executes this directly, BEFORE delegating the writer. It does two things: (1) **open the write-session authorization** via `confirm_writing_plan` (so the writer's block edits auto-accumulate and converge at one whole-chapter finalize), and (2) **optionally design a beat plan**. Prose expansion is the writer's job (its own expansion/revision flow lives in the `writer` agent).
+A00 executes this directly, on **two independent axes** (§ "Two independent axes"): (1) **Axis A — design/author the beat plan** (a deliverable in its own right; a plain structural edit that stops for review, no write-session); (2) **Axis B — open the prose write-session** via `confirm_writing_plan` and **delegate the writer** to expand prose. These are separate asks: **designing beats does NOT automatically continue to writing prose.** Prose expansion is the writer's job (its own flow lives in the `writer` agent).
+
+**First, read the author's ask:**
+- Asked for **beats** ("先写 beat", "设计一下节拍", "把 beat 列出来", "先出个 beat 骨架") → Axis A only: author/materialize the beats and **STOP for review** (case 3). Do not write prose off the back of a beat ask.
+- Asked to **write the chapter / prose** ("写第 X 章", "续写", "把这章写出来") → Axis B: optionally design beats as your approach, then delegate the writer (cases 2, 4, 5, 6).
+- Ambiguous ("开写第一章，先写 beat" mixes both) → the "先写 beat" wins: **author the beats, stop, and ask whether to write the prose now.** Never assume prose follows — it is expensive.
 
 ## The hard prerequisite is the chapter outline, NOT beats
 
@@ -13,14 +18,14 @@ Gate 3: the target chapter's outline must **exist and be `status: 已确认`, wi
 
 **Beats are an OPTIONAL aid, not a gate.** Three sources are all valid: the author writes them, A00 designs them (this skill), or there are none. With no beats the writer writes directly from the confirmed outline scenes. Never make beats a precondition for writing prose.
 
-## confirm_writing_plan = write-session authorization (可含 beat)
+## confirm_writing_plan = PROSE write-session authorization
 
-Writing a chapter's prose still needs one up-front authorization — the "先批意图 → 授权域块编辑自动累积 → 整章终审" model depends on it. That authorization is `confirm_writing_plan`, now **generalized**: its `plan` is flexible.
+`confirm_writing_plan` opens the **prose** write-session: "先批意图 → 授权域块编辑自动累积 → 整章终审". **Only call it when you are going to write the chapter's prose this session (Axis B).** Its approval (approve / **edit** — edited text wins / reject) opens the write-session over the `target_files` you name; the writer's block edits then auto-accumulate and converge at one whole-chapter finalize. Because a subagent has no conversation channel, this authorization happens in A00 **before** delegating the writer.
 
-- **Author wants beats** → `plan` = the beat skeleton (see format below).
-- **No beats (write straight from the outline)** → `plan` = a one-line writing intent, e.g. `从已确认章纲写第 3 章，范围：全部场景`.
+- **`plan` = a one-line writing intent** when writing straight from the outline (no beats), e.g. `从已确认章纲写第 3 章，范围：全部场景`.
+- **`plan` = the beat skeleton** ONLY in the bundled path — the author asked to *write the chapter* and you author beats + prose in one session (case 2's beat variant): confirm_writing_plan(plan=beats) opens the session, you materialize the beats in-session, then delegate the writer.
 
-Either way, approval (approve / **edit** — edited text wins / reject) opens the write-session over the `target_files` you name. Because a subagent has no conversation channel, this authorization must happen in A00 **before** delegating the writer.
+**Authoring beats alone does NOT use `confirm_writing_plan`** (see case 3). A beats-only ask has no prose and no chapter finalize, so it must not open a write-session — an open session that only holds materialized beats would wrongly trigger a run-end finalize card. Author the beats as a plain structural edit (Axis A) and stop.
 
 ## Beat format (only when beats are designed) — extended GFM Alert
 
@@ -48,10 +53,10 @@ Rules:
 ## Pre-write state machine (decide before touching anything)
 
 1. **Chapter outline missing / not 已确认** → fill the chapter outline first (S04). Do not write prose.
-2. **New chapter, write straight from the outline (no beats)** → `confirm_writing_plan` (one-line intent + `target_files`) → delegate the writer → mode A → finalize. **Do not pre-create the file** — the writer creates it with its prose via `create_document`, which auto-applies silently inside the authorized session. No empty skeleton.
-3. **New chapter, design beats first** (author writes them, or A00 drafts them) → build the beat plan → `confirm_writing_plan` (plan = the beat skeleton) **first**, then materialize the beats as `> [!BEAT]` lines in `manuscript/ch{NNN}.md` (new chapter via `create_document`; existing via block edits) → delegate the writer to expand → mode A → finalize. Authorize before you create — a create outside the session pops a card.
+2. **Write the chapter, no beats** (author wants prose, straight from the outline) → `confirm_writing_plan` (one-line intent + `target_files`) → delegate the writer → mode A → finalize. **Do not pre-create the file** — the writer creates it with its prose via `create_document`, which auto-applies silently inside the authorized session. No empty skeleton. (Beat variant of this case — author wants the chapter written and you choose beats: `confirm_writing_plan(plan=beats)` → materialize beats in-session → writer → finalize.)
+3. **Author beats (Axis A — STOP after)** — the author asked for beats: design them for a chapter that has none, or add / reword / reorder the `[!BEAT]` lines of one that already has them → build the beat plan → materialize it as `> [!BEAT]` lines in `manuscript/ch{NNN}.md` (new chapter via `create_document` with `directory`; existing chapter via block edits on the beat lines). **This goes through the normal edit-approval card — do NOT call `confirm_writing_plan`** (no prose, no write-session, no chapter finalize; an open session holding only beats would wrongly pop a run-end finalize card) → **STOP. Hand the beats back for the author to review** ("第一章 beat 已写入 ch001.md，要我接着写正文吗？"). Do NOT delegate the writer — that is Axis B, a separate ask. When the author later asks for the prose, that opens the write-session (case 5). When they ask to change beats *and* rewrite the prose in one go, that is case 6.
 4. **Prose only — author asks to polish/rewrite prose, beats unchanged** → delegate the writer on its revision link directly, no `confirm_writing_plan`.
-5. **Beats only — author changes beats but not (yet) the prose** → `confirm_writing_plan` → **edit the `[!BEAT]` lines**; do NOT delegate the writer. The prose now lags its beats — the author's explicit choice; consistency-check will flag it; a later request re-expands (case 6).
+5. **Write the prose beneath existing beats** — beats already sit in the chapter (from a prior case 3, or the author wrote them), author now wants them expanded → `confirm_writing_plan` (one-line intent) → delegate the writer to expand the beats already in `targetChapter` → mode A → finalize.
 6. **Beats + prose — author changes beats and wants the prose rewritten to match** → `confirm_writing_plan` → **edit the `[!BEAT]` lines** → delegate the writer to re-expand the affected scenes/beats.
 7. **Has prose, beats unchanged, no explicit author ask** → do NOT rewrite. Ask the author: "这章已有内容——要改哪里？改 beat（结构）还是局部修订？" Written prose is expensive; never silently regenerate it.
 
@@ -63,8 +68,8 @@ Read the confirmed chapter outline's scenes. For each scene, break it into beats
 
 ## Two independent axes
 
-- **Axis A — does the beat layer change?** A00 adds / rewords / reorders / removes `[!BEAT]` lines. A beat change is structural ⇒ it goes through `confirm_writing_plan`.
-- **Axis B — is the writer delegated to (re)expand prose?** The writer writes prose beneath beats that lack it (or that the brief marks for rewrite), or from the outline scenes when there are no beats.
+- **Axis A — does the beat layer change?** A00 adds / rewords / reorders / removes `[!BEAT]` lines — a **plain structural edit** (normal approval card), NOT a write-session. Authoring beats *alone* stops here (case 3) and never opens `confirm_writing_plan`.
+- **Axis B — is the writer delegated to (re)expand prose?** This opens the `confirm_writing_plan` write-session → writer auto-accumulates → whole-chapter finalize. The writer writes prose beneath beats that lack it (or that the brief marks for rewrite), or from the outline scenes when there are no beats. (When beats and prose move together — case 2 beat variant, case 6 — the one `confirm_writing_plan` covers both.)
 
 ## Delegating the writer (axis B)
 

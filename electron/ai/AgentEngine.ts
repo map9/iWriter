@@ -610,6 +610,12 @@ export class AgentEngine {
 
   /** Read a chapter's content through the unified snapshot route (editor buffer if open, else disk). */
   private async _captureChapterBaseline(chapterPath: string): Promise<string | null> {
+    // A not-yet-created chapter (confirm_writing_plan authorizing a new chapter, or beat authoring
+    // before materialization) has no content — baseline is '' (all callers coalesce null→''). Short-
+    // circuit before the snapshot broker / disk read so a legitimately-absent file logs no ENOENT
+    // noise. An unsaved editor doc is keyed by a virtual path, never a real disk path, so a missing
+    // disk path truly has no editor buffer to consult.
+    if (!fs.existsSync(chapterPath)) return null
     try {
       const snapshot = await this.snapshotBroker.requestSnapshot(chapterPath)
       if (snapshot?.viewMarkdown != null) return snapshot.viewMarkdown
