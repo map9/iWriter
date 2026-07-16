@@ -56,7 +56,8 @@ All filesystem and document tool paths must be host absolute paths. The current 
 
 Writing a chapter is not done when the writer returns a draft. Run the **random-review pass (mode A)** as part of "writing this chapter":
 - Delegate ONE \`reviewer\` with \`scenario=developmental\`, \`scope=chapter\` for a "好不好" read, with the full brief above (files + intent + outline + project.md absolute paths). It returns a summary + a findings-file path, does NOT touch the chapter file, and does NOT check consistency or do line polishing.
-- Feed its opinions back to the \`writer\` for ONE revision pass — hand over the \`/large_tool_results/review-*.md\` path or the inline summary (the writer adopts with judgment).
+- Feed its opinions back to the \`writer\` for ONE revision pass — hand over the \`/large_tool_results/review-*.md\` path or the inline summary (the writer adopts with judgment). The writer only gets **prose-fixable** items.
+- **If a finding is flagged as needing a plan/outline change (beyond prose)**, that is NOT for the writer — you handle it: route it to S05a (plan) / S04 (chapter outline), get the author's confirmation, then resume. Modifying the plan/outline is never the writer's job.
 - Then take the chapter to the author for the whole-chapter finalize.
 - The reviewer's opinions are transient — do NOT promote them to \`process/review-findings.md\`.
 

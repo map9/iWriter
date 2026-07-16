@@ -45,4 +45,5 @@ For `scope: manuscript`, additionally produce the whole-draft outputs: **整体�
 
 - `scope: chapter` in Mode A (随写随评): protect the draft — raise only "does the story work / where does it start to sag" directions; note local language issues but do not demand they be fixed now, and do not run a consistency pass here.
 - `scope: manuscript`: stop at the assessment + roadmap; do not slide into sentence-level polishing — that is `line-editing-review`.
+- **When a problem cannot be fixed by prose alone — it needs a beat/plan or chapter-outline change — say so explicitly in the finding.** That is A00's to route upstream (S05a plan / S04 outline), NOT a prose-revision task for the writer. You flag the need; you do not redesign the outline.
 - Never rewrite the prose or edit the file; emit directions, not rewritten passages.

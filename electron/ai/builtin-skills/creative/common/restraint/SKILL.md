@@ -1,6 +1,6 @@
 ---
 name: restraint
-description: The shared negative guardrail against mannered prose (匠气) — cutting the `不是X是Y` profundity tic, refusing narratorial meaning-asides, and not over-writing a fast moment. The single source used by the writer (avoid while drafting) and the editorial critic (flag while reviewing). By example, not by rule.
+description: The shared negative guardrail against mannered prose (匠气) — cutting the `不是X是Y` profundity tic, refusing narratorial meaning-asides, and not over-writing a fast moment. The single source used by the writer (avoid while drafting) and the reviewer's developmental & line-editing lenses (flag while reviewing). By example, not by rule.
 ---
 
 # restraint — by example
