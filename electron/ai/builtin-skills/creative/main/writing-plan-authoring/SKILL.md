@@ -84,7 +84,7 @@ targetChapter: /abs/workspace/manuscript/ch001.md
 """)
 ```
 
-After the writer returns, run the **random-review pass (mode A)**: delegate one `reviewer` with `scenario=quality` for a "好不好" read, have the writer revise once, then the whole-chapter finalize. See the A00 orchestration prompt.
+After the writer returns, run the **random-review pass (mode A)**: delegate one `reviewer` with `scenario=developmental`, `scope=chapter` for a "好不好" read, have the writer revise once, then the whole-chapter finalize. See the A00 orchestration prompt.
 
 ## Red lines
 

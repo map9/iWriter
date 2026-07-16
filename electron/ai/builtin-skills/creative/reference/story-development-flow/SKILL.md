@@ -46,7 +46,7 @@ Each gate's sharpest test is the **reverse judgment**: "if I force the next step
 ## Quality: the editorial review loop
 
 Prose isn't done at "written". Quality is guarded by four things: input maturity (闸1-3), the writer's own craft, the **editorial review loop**, and the author's finalize. Review is done by the read-only `reviewer` subagent, whose brief carries `scenario` = `quality` (好不好) / `consistency` (对不对) / `both`.
-- **Mode A (random review, in-flow, automatic)**: after the writer returns a draft, A00 delegates ONE `reviewer` with `scenario=quality` for a "好不好" read (drama / character & voice / POV / prose / structure & pacing / theme / reader experience), the writer revises ONCE, then the author does the whole-chapter finalize. Consistency is NOT checked here. The reviewer's opinions are transient — not persisted to `review-findings.md`.
+- **Mode A (random review, in-flow, automatic)**: after the writer returns a draft, A00 delegates ONE `reviewer` with `scenario=developmental`, `scope=chapter` for a "好不好" read (drama / character & voice / POV / prose / structure & pacing / theme / reader experience), the writer revises ONCE, then the author does the whole-chapter finalize. Consistency and line-editing are NOT run here. The reviewer's opinions are transient — not persisted to `review-findings.md`.
 - **Mode B (author-triggered)**: when the author asks to check quality / consistency / 全视角, A00 delegates `reviewer` with the matching `scenario` (`both` for 全视角); the reviewer writes a `/large_tool_results/review-*.md` file and A00 may persist it to `process/review-findings.md`. Consistency runs only here (and on the commit reminder).
 
 ## Adjustments bubble as reminders, never auto-cascade

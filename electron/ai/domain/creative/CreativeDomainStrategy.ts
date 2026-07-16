@@ -42,10 +42,12 @@ export class CreativeDomainStrategy implements DomainStrategy {
   }
 
   getSkillSources(aiRootPath: string, workspacePath: string | null): string[] {
-    // A00 挂载矩阵（04.3 §3），last-wins 顺序：common → creative/reference → creative/main
-    // → creative/delegated → {workspace}/.iwriter/skills（末位，项目级覆盖内置）。
+    // A00 挂载矩阵（04.3 §3），last-wins 顺序：common → creative/common → creative/reference
+    // → creative/main → creative/delegated → {workspace}/.iwriter/skills（末位，项目级覆盖内置）。
+    // creative/common 承载跨角色创作范式（结构/人物/主题/场景诊断等）——A00 的大纲/前端建议类要用。
     return withProjectSkills([
       path.join(aiRootPath, 'skills', 'common'),
+      path.join(aiRootPath, 'skills', 'creative', 'common'),
       path.join(aiRootPath, 'skills', 'creative', 'reference'),
       path.join(aiRootPath, 'skills', 'creative', 'main'),
       path.join(aiRootPath, 'skills', 'creative', 'delegated'),
