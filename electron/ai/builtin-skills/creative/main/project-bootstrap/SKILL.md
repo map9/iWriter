@@ -1,6 +1,6 @@
 ---
 name: project-bootstrap
-description: Load when starting a new novel project, or when task-routing detects the workspace is missing project.md and the author accepts initialization. Also covers ongoing project.md field maintenance and version-advance recommendations.
+description: Load when starting a new novel project, or when the main agent's routing detects the workspace is missing project.md and the author accepts initialization. Also covers ongoing project.md field maintenance and version-advance recommendations.
 ---
 
 # S11 project-bootstrap
@@ -9,7 +9,7 @@ A00 executes this directly. Initialization must be author-confirmed — never si
 
 ## Bootstrap steps
 
-1. **Trigger**: the author explicitly asks to start a novel project, or task-routing found no `project.md`, proposed init, and the author accepted.
+1. **Trigger**: the author explicitly asks to start a novel project, or the main agent's routing found no `project.md`, proposed init, and the author accepted.
 2. **Collect `project.md` required fields** (load the `project-schema` reference): title, genre/tags, story premise, theme, reader-promise, scale-plan (decides whether the volume-outline layer is enabled), current version (initial `0.1（构思打底）`). Collect conversationally — do not dump a questionnaire.
    - **The premise's four elements (protagonist / goal / obstacle / stakes) must hold.** If any is missing, guide the author to supply it. If the author has only a vague notion, switch to S02 to converge first, then return here. Never invent the work's facts for the author.
 3. **Version baseline (a step you must not skip)**: BEFORE writing `project.md`, if the workspace has no git repo (no `.git`), you **must** call `git_init` (goes through approval) to establish the version baseline — the author decides on the approval card whether to accept or decline; you do not skip this proposal on the author's behalf. If a repo already exists, skip. The host never creates a repo silently.
