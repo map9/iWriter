@@ -21,7 +21,7 @@ A setting written as a flat list of "what exists" gives the writer nothing to de
 2. **Check field completeness.** Load the `worldbuilding-schema` reference (and `character-schema` when writing a character). Every required field must be present; a **forbidden zone / hard rule must state its reason** — *why* the world works this way — not merely list what characters cannot do.
 3. **Bring in the relevant craft.** When the object involves a character, load `character-believability` (build the psychology triangle as a derivation basis, not an afterthought). When it touches the work's theme, load `thematic-coherence`.
 4. **Fragment check.** If `materials/fragments.md` exists and is non-empty, read its not-yet-adopted entries. For any entry whose `related-refs` or content hits the object you are writing, attach a "merge this fragment?" proposal to your edit. No hit → do not bring it up at all (don't disturb).
-5. **Write.** Use `create_document` for a new object or `edit_block` for an existing one, writing to `worldbuilding/*.md` or `characters/*.md`. Follow the schema's `create_document` call form (basename `filename` + absolute `directory`).
+5. **Write.** Use `create_document` for a new object or `edit_block` for an existing one, writing to `worldbuilding/*.md` or `characters/*.md` (pass the absolute `directory`; see `document-block-tools` for the call contract).
 6. **Show impact on high-risk changes.** If the change touches an already-confirmed core rule or a character's established psychology triangle, surface the affected surface (which characters / outline scenes / prose depend on it) so the author decides with the consequences visible — do not silently overwrite confirmed material.
 
 ## How to verify it worked

@@ -924,7 +924,11 @@ export class AgentEngine {
         return
       }
 
-      if (!adapter.hasVisibleAssistantOutput()) {
+      // A terminal response whose whole answer landed in reasoning with empty visible content and no
+      // tool calls (DeepSeek reasoner instability) is NOT an empty response: the persisted message
+      // goes through MessageAdapter, which promotes reasoning→content (moved) on the run-done fetch.
+      // Let it complete so the answer surfaces; only error when there is truly nothing to recover.
+      if (!adapter.hasVisibleAssistantOutput() && !adapter.hasPromotableReasoning()) {
         const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
         const errorMsg = adapter.hasAnyAssistantSignal()
           ? '模型没有返回可显示内容或可执行工具调用，可能生成了非法工具调用参数。请重试。'

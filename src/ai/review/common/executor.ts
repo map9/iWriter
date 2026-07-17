@@ -13,6 +13,8 @@ export const UNTITLED_PREFIX = 'untitled:'
 export interface ReviewExecutorAppStoreLike {
   tabs?: FileTab[]
   activeTab?: FileTab | null
+  /** Absolute host path of the open workspace root; used to reject create_document writes outside it. */
+  currentFolder?: string | null
   saveTab?: (tab: FileTab, saveAs?: boolean, silent?: boolean) => Promise<boolean>
   createTab: (
     name?: string,
@@ -348,6 +350,18 @@ async function applyRecordedDecision(params: {
         updateLocalProposalToolCall(proposal, 'failed')
         setProposalDecision(proposalId, 'failed_to_apply', {
           message: `Document creation rejected: directory must be an absolute path with no ".." traversal and filename must be a basename. Got directory="${dir}", filename="${filename}".`,
+        })
+        return
+      }
+      // Containment: never create a file outside the current workspace. Without this a subagent
+      // (or the model) that lacks the workspace path can pass a hallucinated absolute directory and
+      // the write path would mkdir -p it anywhere on disk — polluting an unrelated project.
+      const workspaceRoot = appStore.currentFolder ? pathUtils.normalize(appStore.currentFolder) : null
+      const normalizedDir = pathUtils.normalize(dir)
+      if (workspaceRoot && normalizedDir !== workspaceRoot && !normalizedDir.startsWith(`${workspaceRoot}/`)) {
+        updateLocalProposalToolCall(proposal, 'failed')
+        setProposalDecision(proposalId, 'failed_to_apply', {
+          message: `Document creation rejected: directory "${dir}" is outside the current workspace "${appStore.currentFolder}". Files must be created inside the workspace.`,
         })
         return
       }

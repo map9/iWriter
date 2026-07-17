@@ -7,15 +7,13 @@ description: Load when writing or editing outline objects (master-outline.md, vo
 
 The main agent executes this directly. The job is to produce an outline that **earns its keep** — a chapter outline from which the writer can tell *what dialogue and what turn to write*, not a one-liner they must invent conflict and result from.
 
-## Input readiness (the outline gates)
+## Input readiness
 
-- **Before a master outline**: settings/characters must be ready — a main character + a core counterpart with concrete psychology triangles whose desires/fears can collide, world rules/forbidden-zones set, theme a question that can't be answered cleanly. Reverse test: would the structure nodes be all "an event happened" with no "what the character paid for it"? If so, settings are too thin — go back to ideation / `worldbuilding-authoring`.
-- **Before a chapter outline**: the corresponding master-outline structure node must be clear enough to break into scenes (what happens + which arc + which theme-beat). If you can't derive "which scenes this chapter has", the node is too coarse — flesh out the master/volume outline first.
-- **The chapter outline is the write-precondition for a chapter**: once the work is chaptered, a chapter's scene-level outline must exist and be confirmed (`已确认`) before its prose is written — an event-level master outline never substitutes for it. Fill it lazily (not all at once), but never skip it. See `story-development-flow`.
+This stage sits behind the readiness gates — the settings/characters gate before a master outline, the master-outline gate before a chapter outline; and a confirmed chapter outline is itself the write-precondition for prose (an event-level master outline never substitutes for it). The gate criteria and their reverse tests live in `story-development-flow` — check the relevant gate first, and if the upstream isn't ready, surface the gap and route back (ideation / `worldbuilding-authoring` / the master outline) rather than authoring on thin footing. Fill chapter outlines lazily (not all at once), but never skip one.
 
 ## Problem it solves
 
-A scene reduced to "the hero goes to ask the informant for a lead" forces whoever writes it to invent the conflict and result on the spot, which is where drift begins. This skill produces scenes whose goal / conflict / outcome are already specified — and whose outcome is never a frictionless "it worked out" — so the outline is a real contract the prose and the fidelity check can be measured against.
+A scene reduced to "the hero goes to ask the informant for a lead" forces whoever writes it to invent the conflict and result on the spot, which is where drift begins. This skill produces scenes whose goal / conflict / outcome are already specified, so the outline is a real contract the prose and the fidelity check can be measured against.
 
 ## Procedure
 

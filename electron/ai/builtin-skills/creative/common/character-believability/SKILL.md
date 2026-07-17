@@ -3,7 +3,9 @@ name: character-believability
 description: Load when a character's action, decision, or dialogue needs to feel inevitable rather than plot-convenient — when planning a scene with meaningful character action, deepening a flat character, or checking whether behavior follows from who the character is.
 ---
 
-# SS06 character-believability
+# character-believability
+
+> The 正例/反例 (positive/negative) examples below are in the zh register (the current default). They illustrate derivation, which transfers across languages; carry the principle, map it to the target language.
 
 ## Principle
 

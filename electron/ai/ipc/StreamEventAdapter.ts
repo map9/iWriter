@@ -199,6 +199,22 @@ export class StreamEventAdapter {
     return this.hasVisibleAssistantOutput() || !!this.thinkingContent.trim() || this.contentBlocks.length > 0
   }
 
+  /**
+   * DeepSeek reasoner instability: the whole answer sometimes lands in reasoning with empty visible
+   * content and no tool calls (finish_reason=stop). That is recoverable, NOT an empty response — the
+   * persisted message goes through MessageAdapter, which promotes reasoning→content (moved, so it is
+   * not rendered twice) on the run-done fetch. Callers use this to avoid erroring the turn.
+   */
+  hasPromotableReasoning(): boolean {
+    this._flushPendingText()
+    return (
+      !this.assistantContent.trim() &&
+      !!this.thinkingContent.trim() &&
+      this.toolCalls.length === 0 &&
+      this.subagentEventCount === 0
+    )
+  }
+
   private async _consumeOneMessage(
     message: unknown,
     subagentName?: string,
