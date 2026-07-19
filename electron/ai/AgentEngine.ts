@@ -1650,15 +1650,15 @@ export class AgentEngine {
   private async syncBundledSubagents(): Promise<void> {
     if (!fs.existsSync(this.bundledSubagentsPath)) return
     const targetRoot = path.join(this.aiRootPath, 'subagents')
-    const entries = fs.readdirSync(this.bundledSubagentsPath, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      const sourceDir = path.join(this.bundledSubagentsPath, entry.name)
-      const targetDir = path.join(targetRoot, entry.name)
-      await fs.promises.rm(targetDir, { recursive: true, force: true })
-      await fs.promises.mkdir(targetDir, { recursive: true })
-      fs.cpSync(sourceDir, targetDir, { recursive: true, dereference: true })
-    }
+    // Full mirror (not per-source-entry): clear the entire target root before copying. A
+    // per-entry mirror only cleans target subdirs whose group still exists in source, so a
+    // subagent — or a whole top-level group like `common/` — removed from source would linger
+    // in the user's runtime dir and still get assembled (e.g. the retired `common/researcher`,
+    // which `assembleSubagents` would otherwise keep offering as `task(subagent_type=...)`).
+    // Safe because this root is purely bundled-derived — author custom definitions are not stored here.
+    await fs.promises.rm(targetRoot, { recursive: true, force: true })
+    await fs.promises.mkdir(targetRoot, { recursive: true })
+    fs.cpSync(this.bundledSubagentsPath, targetRoot, { recursive: true, dereference: true })
   }
 
   private _buildMemoryPaths(domain: AiAgentDomain): string[] {
