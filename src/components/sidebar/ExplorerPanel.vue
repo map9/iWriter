@@ -329,7 +329,6 @@ function gitBadgeStyle(tone: GitDecorationTone, isDirectory: boolean): Record<st
       minWidth: '8px',
       height: '8px',
       minHeight: '8px',
-      margin: '0 12px 0 8px',
       padding: '0',
       borderRadius: '9999px',
       background: `var(--color-${tone})`,
@@ -338,15 +337,14 @@ function gitBadgeStyle(tone: GitDecorationTone, isDirectory: boolean): Record<st
     }
   }
   return {
-    width: '16px',
     height: 'auto',
-    margin: '0 8px 0 4px',
     padding: '0',
     borderRadius: '0',
     background: 'transparent',
     color: `var(--color-${tone})`,
     fontSize: '11px',
     fontWeight: '700',
+    textAlign: 'center',
   }
 }
 
@@ -770,12 +768,13 @@ const handleNodeContextMenu = async (data: { node: unknown; event: MouseEvent })
         label: t('explorer.menu.open'),
       },
       {
-        id: 'explorer-view-history',
-        label: t('explorer.menu.viewHistory'),
-      },
-      {
         id: 'explorer-reveal-in-folder',
         label: t('explorer.menu.revealInFolder'),
+      },
+      { type: 'separator' },
+      {
+        id: 'explorer-view-history',
+        label: t('explorer.menu.viewHistory'),
       },
       { type: 'separator' },
     )
