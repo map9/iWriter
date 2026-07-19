@@ -553,7 +553,6 @@ export default {
         planner: '规划器',
         consistency_checker: '一致性检查',
         explorer: '探索器',
-        Researcher: '研究员',
         WritingStyleExtractor: '写作风格提取',
         WritingStyleSkillCreator: '写作风格 Skill 创建',
       },

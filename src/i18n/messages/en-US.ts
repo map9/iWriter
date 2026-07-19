@@ -556,7 +556,6 @@ export default {
         planner: 'Planner',
         consistency_checker: 'Consistency checker',
         explorer: 'Explorer',
-        Researcher: 'Researcher',
         WritingStyleExtractor: 'Writing style extractor',
         WritingStyleSkillCreator: 'Writing style skill creator',
       },

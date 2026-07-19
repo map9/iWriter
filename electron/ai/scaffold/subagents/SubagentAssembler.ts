@@ -25,8 +25,7 @@ import { buildOutputLanguagePrompt } from '../../../../src/ai/message/detectInpu
  * The Markdown body becomes the systemPrompt (identity / IO contract / red lines only).
  *
  * Assembly rule: a definition under the domain directory with the same `name` as one under
- * `common/` REPLACES it entirely (domain覆盖 common). SA04 Researcher lives in `common/` and
- * is shared by every domain unchanged.
+ * `common/` REPLACES it entirely (domain覆盖 common).
  *
  * Model note: per-subagent model instantiation needs provider config not available here. In
  * M0 no definition sets `model`, so it is inert; a `resolveModel` hook is accepted for future
