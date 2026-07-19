@@ -5,7 +5,7 @@ description: Read before creating or editing outline objects — master-outline.
 
 # outline/ 字段规范（总纲 / 卷纲 / 章纲）
 
-创建或修改大纲对象前读本技能。三类大纲文件都带 **状态 (status)** 字段：`草稿中` / `已确认`（对应"候选 vs 已确认前提"）。字段用 kebab-case 标识，按标题分节（H3 `###`）。是否启用卷纲层由 `project.md` 的 scale-plan 决定。
+创建或修改大纲对象前读本技能。三类大纲文件都带 **状态 (status)** 字段：`draft` / `confirmed`（对应"候选 vs 已确认前提"）。**新对象写英文令牌 `draft` / `confirmed`；旧对象可能是中文令牌 `草稿中` / `已确认`——与之等价，读到照旧识别。**字段用 kebab-case 标识，按标题分节（H3 `###`）。是否启用卷纲层由 `project.md` 的 scale-plan 决定。
 
 ## `outline/master-outline.md`（总纲，全程仅一份）
 
@@ -13,7 +13,7 @@ description: Read before creating or editing outline objects — master-outline.
 
 | 字段（英文标识） | 必选/可选 | 说明 |
 | --- | --- | --- |
-| 状态 (status) | 必选 | 草稿中 / 已确认 |
+| 状态 (status) | 必选 | draft / confirmed |
 | 故事核心句 (premise) | 必选 | 与 `project.md` 一致，此处可展开为 2-3 句 |
 | 主题落点 (theme-beats) | 必选 | 主题如何具体化为情节事件——通过哪几个具体情节让读者感受到主题，每个落点指向大致结构节点 |
 | 结构节点 (structure-nodes) | 必选 | 默认 8 个题材中立占位节点：开篇钩子 / 激励事件 / 早期试炼 / 中点转折 / 危机加深 / 至暗时刻 / 高潮 / 结局余波。每节点填：发生什么、大致章节区间、关联到哪条人物弧光 |
@@ -29,7 +29,7 @@ description: Read before creating or editing outline objects — master-outline.
 # outline/master-outline.md
 
 ### 状态
-已确认
+confirmed
 
 ### 故事核心句
 退伍老兵阿坤想找回失踪的女儿，但唯一线索指向他曾经背叛过的黑帮，一旦重新接触就可能连累现在的家庭。
@@ -62,7 +62,7 @@ description: Read before creating or editing outline objects — master-outline.
 
 | 字段（英文标识） | 必选/可选 | 说明 |
 | --- | --- | --- |
-| 状态 (status) | 必选 | 草稿中 / 已确认 |
+| 状态 (status) | 必选 | draft / confirmed |
 | 本卷结构功能 (structural-role) | 必选 | 对应 `master-outline.md` 的哪段全书弧线 |
 | 本卷结构节点 (structure-nodes) | 必选 | 本卷内部结构节点序列，格式同总纲 |
 | 本卷核心冲突 (core-conflict) | 必选 | 本卷阶段性的主要阻碍/反派/危机 |
@@ -77,7 +77,7 @@ description: Read before creating or editing outline objects — master-outline.
 | 字段（英文标识） | 必选/可选 | 说明 |
 | --- | --- | --- |
 | 本章结构功能 (structural-role) | 必选 | 对应总纲/卷纲的哪个结构节点 |
-| 状态 (status) | 必选 | 草稿中 / 已确认 |
+| 状态 (status) | 必选 | draft / confirmed |
 | 场景列表 (scenes) | 必选 | 核心字段，一章通常 1-3 个场景 |
 | 本章伏笔操作 (foreshadow-ops) | 可选 | 埋设 / 强化 / 回收，逐条对应总纲伏笔总表条目 |
 | 开篇钩子/结尾悬念 (hook-cliffhanger) | 可选 | 章节首尾的吸引力设计 |
@@ -87,7 +87,7 @@ description: Read before creating or editing outline objects — master-outline.
 
 - **目标**：POV 角色这一刻具体想要什么，要求可验证是否达成。
 - **结果**：达成但代价更大 / 未达成 / 达成但揭示新问题——**不能是顺利达成**。
-- **场景没有独立 status 字段**：状态以章纲**文件**为单位；"场景已确认"指该章纲文件 status 为已确认，不存在场景级状态。
+- **场景没有独立 status 字段**：状态以章纲**文件**为单位；"场景已确认"指该章纲文件 status 为 `confirmed`，不存在场景级状态。
 
 ### 完整示例
 
@@ -98,7 +98,7 @@ description: Read before creating or editing outline objects — master-outline.
 激励事件的后半段
 
 ### 状态
-已确认
+confirmed
 
 ### 场景-1
 

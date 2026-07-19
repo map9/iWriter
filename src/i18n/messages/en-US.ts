@@ -969,6 +969,7 @@ export default {
       titleGitInit: 'Initialize Git Repository',
       titleGitRestore: 'Review Git Restore',
       titleFinalize: 'Finalize Chapter',
+      titleImport: 'Import Manuscript',
       titleExplorationStart: 'Review Exploration',
       titleExplorationCompare: 'Review Exploration Comparison',
       titleExplorationMerge: 'Review Exploration Merge',
@@ -1037,6 +1038,10 @@ export default {
       finalizeExternalEdits: "Changes not made by the agent (your manual edits or external changes) were detected since the agent's last applied state. Rejecting to restore will discard them too.",
       finalizeRejectConfirm: 'Rejecting restores the chapter to the session start. Every change since then — including your manual edits — will be lost and cannot be undone. Restore anyway?',
       finalizeRejectConfirmAction: 'Restore',
+      importWarning: 'Writes {count} chapter file(s) directly into the target folder. Existing files with the same names will be overwritten.',
+      importDryRun: 'Scans the source for candidate chapter boundaries. Writes nothing.',
+      importSource: 'From:',
+      importTarget: 'Into:',
     },
     creativeSummary: {
       summary: {

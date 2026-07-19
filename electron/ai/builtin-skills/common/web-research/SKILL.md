@@ -1,111 +1,24 @@
 ---
 name: web-research
-description: Use this skill for requests related to web research; it provides a structured approach to conducting comprehensive web research
+description: Research methodology for source-grounded lookup — load when conducting web research (verifying facts; gathering background on people/works/places/professions/history/culture). Covers planning the question, searching and reading efficiently, and grounding every claim in a source. The deliverable format and return contract belong to the executing agent (e.g. the Researcher's agent.md), not here.
 ---
 
-# Web Research Skill
+# web-research
 
-This skill provides a structured approach to conducting comprehensive web research using the `task` tool to spawn research subagents. It emphasizes planning, efficient delegation, and systematic synthesis of findings.
+How to do source-grounded lookup well. This is methodology only — the brief contract, the deliverable location/format, and the red lines are defined by the agent that runs the research (the Researcher's `agent.md`); this skill does not restate them.
 
-## When to Use This Skill
+## Plan first
 
-Use this skill when you need to:
+Break the question into 2–5 distinct, non-overlapping sub-questions before searching. Scale the breadth to the task: simple fact-finding = 1–2 sub-questions; a comparison = one per element (max 3); a broad investigation = 3–5. Don't over-research — a few good searches per sub-question is usually enough; stop when the answer is grounded, not when you run out of queries.
 
-- Research complex topics requiring multiple information sources
-- Gather and synthesize current information from the web
-- Conduct comparative analysis across multiple subjects
-- Produce well-sourced research reports with clear citations
+## Search and read
 
-**Scope note:** This is a general research workflow. For named-author writing style extraction, use the `writing-style` skill to orchestrate Researcher, WritingStyleExtractor, and WritingStyleSkillCreator.
+- Use `web_search` to find sources (clear queries, no unexplained acronyms), then `fetch_url` to read a promising page in full — `fetch_url` is for URLs; do not point `read_file` at a URL. If the caller attached local files, read those first with `read_file`.
+- Prefer primary and reputable sources; corroborate a load-bearing claim across more than one source, and flag when it rests on a single weak one.
+- Track the source URL for every fact as you go — each finding must stay traceable to where it came from.
 
-## Research Process
+## Ground every claim
 
-### Step 1: Create and Save Research Plan
-
-Before delegating to subagents, you MUST:
-
-1. **Create a research folder** - Organize all research files in a dedicated folder under the internal virtual filesystem, using an absolute path:
-
-   ```
-   mkdir /large_tool_results/research_[topic_name]
-   ```
-
-   This keeps files organized, prevents clutter in the user's workspace, and avoids requiring file-write approval.
-
-2. **Analyze the research question** - Break it down into distinct, non-overlapping subtopics
-
-3. **Write a research plan file** - Use the `write_file` tool to create `/large_tool_results/research_[topic_name]/research_plan.md` containing:
-   - The main research question
-   - 2-5 specific subtopics to investigate
-   - Expected information from each subtopic
-   - How results will be synthesized
-
-**Planning Guidelines:**
-
-- **Simple fact-finding**: 1-2 subtopics
-- **Comparative analysis**: 1 subtopic per comparison element (max 3)
-- **Complex investigations**: 3-5 subtopics
-
-### Step 2: Delegate to Research Subagents
-
-For each subtopic in your plan:
-
-1. **Use the `task` tool** to spawn a research subagent with:
-   - Clear, specific research question (no acronyms)
-   - Instructions to write findings to a file: `/large_tool_results/research_[topic_name]/findings_[subtopic].md`
-   - Budget: 3-5 web searches maximum
-
-2. **Run up to 3 subagents in parallel** for efficient research
-
-**Subagent Instructions Template:**
-
-```
-Research [SPECIFIC TOPIC]. Use the web_search tool to gather information.
-After completing your research, use write_file to save your findings to /large_tool_results/research_[topic_name]/findings_[subtopic].md.
-Include key facts, relevant quotes, and source URLs.
-Use 3-5 web searches maximum.
-```
-
-### Step 3: Synthesize Findings
-
-After all subagents complete:
-
-1. **Review the findings files** that were saved:
-   - First run `ls(path="/large_tool_results/research_[topic_name]")` to see what files were created
-   - Then use `read_file` with the **file paths** (e.g., `/large_tool_results/research_[topic_name]/findings_*.md`)
-   - **Important**: Use `read_file` for LOCAL files only, not URLs
-
-2. **Synthesize the information** - Create a comprehensive response that:
-   - Directly answers the original question
-   - Integrates insights from all subtopics
-   - Cites specific sources with URLs (from the findings files)
-   - Identifies any gaps or limitations
-
-3. **Write final report** (optional) - Use `write_file` to create `/large_tool_results/research_[topic_name]/research_report.md` if requested
-
-**Note**: If you need to fetch additional information from URLs, use the `fetch_url` tool, not `read_file`.
-
-## Available Tools
-
-You have access to:
-
-- **write_file**: Save research plans and findings to local files
-- **read_file**: Read local files (e.g., findings saved by subagents)
-- **ls**: See what local files exist in a directory
-- **fetch_url**: Fetch content from URLs and convert to markdown (use this for web pages, not read_file)
-- **task**: Spawn research subagents with web_search access
-
-## Research Subagent Configuration
-
-Each subagent you spawn will have access to:
-
-- **web_search**: Search the web using the configured search provider (parameters: query, max_results, topic)
-- **write_file**: Save their findings to the filesystem
-
-## Best Practices
-
-- **Plan before delegating** - Always write research_plan.md first
-- **Clear subtopics** - Ensure each subagent has distinct, non-overlapping scope
-- **File-based communication** - Have subagents save findings to files, not return them directly
-- **Systematic synthesis** - Read all findings files before creating final response
-- **Stop appropriately** - Don't over-research; 3-5 searches per subtopic is usually sufficient
+- Separate **observed evidence** from **your interpretation** — keep them visibly distinct.
+- Attach sources (URLs) to non-obvious claims; keep quoted excerpts short.
+- Report confidence and **information gaps** — what could not be confirmed or is contested is itself a finding, not a failure. Never fabricate a fact, source, or quote to fill a gap.

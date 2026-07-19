@@ -22,7 +22,7 @@ A scene reduced to "the hero goes to ask the informant for a lead" forces whoeve
 3. **Bring in the relevant craft.** Load `scene-and-plot-construction` (scene three-part + causal chain). Load `structural-pacing-diagnosis` when designing or revising global shape, and `thematic-coherence` when the outline must land the work's theme.
 4. **Global arc before structure nodes.** When designing the whole-book arc, **run a `structural-pacing-diagnosis` pass first** (where does pressure build and release), then commit the concrete structure nodes — don't lay down nodes and diagnose afterward.
 5. **Fragment check.** Same as `worldbuilding-authoring`: if `materials/fragments.md` has non-empty not-yet-adopted entries hitting this outline object, attach a merge proposal; no hit → stay silent.
-6. **Write.** Write to `outline/master-outline.md`, `vol{NN}-outline.md`, or `ch{NNN}-outline.md` via `create_document` / `edit_block`. **Mark the `status` field explicitly** (`草稿中` = draft / `已确认` = confirmed) — the prose flow gates on it.
+6. **Write.** Write to `outline/master-outline.md`, `vol{NN}-outline.md`, or `ch{NNN}-outline.md` via `create_document` / `edit_block`. **Mark the `status` field explicitly** (`draft` / `confirmed`; legacy Chinese tokens `草稿中` / `已确认` are equivalent) — the prose flow gates on it.
 
 ## How to verify it worked
 
@@ -32,4 +32,4 @@ A scene reduced to "the hero goes to ask the informant for a lead" forces whoeve
 
 ## Red lines
 
-The outline `status` field (`草稿中` / `已确认`, present on all three outline levels) must be explicitly marked. The outcome field never reads as a frictionless "it worked out". Candidate structure does not enter a confirmed outline before the author confirms.
+The outline `status` field (`draft` / `confirmed`, legacy `草稿中` / `已确认`; present on all three outline levels) must be explicitly marked. The outcome field never reads as a frictionless "it worked out". Candidate structure does not enter a confirmed outline before the author confirms.

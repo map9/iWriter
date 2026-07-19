@@ -9,7 +9,7 @@ The proofreading editor's audit: *is the text correct, consistent, and free of g
 
 ## Input
 
-A near-final draft, or cross-chapter text. Baseline: the **confirmed** chapter outline (and any approved writing plan), `worldbuilding/` (especially the history-timeline), `characters/`, and previously narrated text. If the outline's `status` is not confirmed (`已确认`), say so rather than inventing a baseline. Check against the relevant objects and prior text **on demand** — do not build or maintain a persistent timeline/setting table.
+A near-final draft, or cross-chapter text. Baseline: the **confirmed** chapter outline (and any approved writing plan), `worldbuilding/` (especially the history-timeline), `characters/`, and previously narrated text. If the outline's `status` is not `confirmed` (legacy objects: `已确认`), say so rather than inventing a baseline. Check against the relevant objects and prior text **on demand** — do not build or maintain a persistent timeline/setting table.
 
 ## Goal
 

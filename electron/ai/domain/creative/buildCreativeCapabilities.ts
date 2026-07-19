@@ -9,6 +9,8 @@ import { buildFilesystemMutationTools } from '../../tools/common/FilesystemMutat
 import { buildWebTools } from '../../tools/common/WebTools'
 import { buildConfirmWritingPlanTool } from '../../tools/creative/ConfirmWritingPlan'
 import { buildFinalizeChapterTool } from '../../tools/creative/FinalizeChapter'
+import { buildFindReferencesTool } from '../../tools/creative/FindReferences'
+import { buildImportManuscriptTool } from '../../tools/creative/ImportManuscript'
 import { EDIT_INTERRUPT_ON_CONFIG } from '../edit/buildEditCapabilities'
 import { ToolRegistry } from '../../tools/ToolRegistry'
 import { assembleSubagents } from '../../scaffold/subagents/SubagentAssembler'
@@ -40,6 +42,10 @@ export function buildCreativeCapabilities(input: {
     ...buildGitTools({ workspacePath: input.workspacePath }),
     buildConfirmWritingPlanTool(),
     buildFinalizeChapterTool(),
+    // Read-only impact/reference aggregation for restructuring (FR-6.2). No interruptOn gate.
+    buildFindReferencesTool(input.snapshotBroker),
+    // Manuscript import (FR-14.3): one two-stage tool (dry-run detect / execute write).
+    buildImportManuscriptTool(),
   ]
 
   const registry = new ToolRegistry(tools)
@@ -71,6 +77,10 @@ export const CREATIVE_INTERRUPT_ON_CONFIG: Record<string, InterruptOnConfig> = {
   // Creative专用: whole-chapter finalize gate closing the write-session (M1b-3). approve=accept,
   // reject=discard+restore baseline; rework routes through the reject channel with RESPOND_MARKER.
   finalize_chapter: { allowedDecisions: ['approve', 'reject'] },
+  // Creative专用: physical manuscript import writes chapter files directly (FR-14.3). Both
+  // stages of the one tool gate; the dry-run stage (no boundaries) writes nothing but still
+  // surfaces a card — approving it just runs the boundary scan.
+  import_manuscript: { allowedDecisions: ['approve', 'reject'] },
   // Version tracking (04.4 §3 / FR-1.6 / FR-6.4). File-mutation tools (delete/rename/move_file)
   // interrupt via the scaffold FILE_WRITE_INTERRUPT_ON config, merged in AgentEngine.
   git_init:    { allowedDecisions: ['approve', 'reject'] },

@@ -11,7 +11,7 @@ The developmental editor's read: *does the story work, and if not, why and how t
 
 - `scope: chapter` — one or consecutive chapter drafts. Baseline: the confirmed chapter outline (its scenes' goal / conflict / outcome), the characters involved, `project.md`.
 - `scope: manuscript` — the whole draft. Baseline: master/volume outline, `project.md`, the character set.
-- If the baseline outline's `status` is not confirmed (`已确认`), say so rather than inventing one.
+- If the baseline outline's `status` is not `confirmed` (legacy objects: `已确认`), say so rather than inventing one.
 
 ## Goal
 

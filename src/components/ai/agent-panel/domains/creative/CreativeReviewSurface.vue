@@ -98,6 +98,18 @@
         </details>
       </div>
 
+      <div
+        v-if="currentReview.kind === 'creative_manuscript_import'"
+        class="space-y-1.5 text-[11px] leading-relaxed text-base-content/70"
+      >
+        <p v-if="currentReview.chapterCount > 0">{{ t('agentPanel.creativeReview.importWarning', { count: currentReview.chapterCount }) }}</p>
+        <p v-else>{{ t('agentPanel.creativeReview.importDryRun') }}</p>
+        <div class="rounded-md bg-base-200 px-2 py-1.5">
+          <div class="truncate"><span class="text-base-content/50">{{ t('agentPanel.creativeReview.importSource') }}</span> {{ currentReview.sourcePath }}</div>
+          <div v-if="currentReview.targetDirectory" class="truncate"><span class="text-base-content/50">{{ t('agentPanel.creativeReview.importTarget') }}</span> {{ currentReview.targetDirectory }}</div>
+        </div>
+      </div>
+
     </div>
 
     <div
@@ -226,6 +238,7 @@ const title = computed(() => {
   if (review.kind === 'creative_git_init') return t('agentPanel.creativeReview.titleGitInit')
   if (review.kind === 'creative_git_restore') return t('agentPanel.creativeReview.titleGitRestore')
   if (review.kind === 'creative_chapter_finalize') return t('agentPanel.creativeReview.titleFinalize')
+  if (review.kind === 'creative_manuscript_import') return t('agentPanel.creativeReview.titleImport')
   return t('agentPanel.creativeReview.titlePlan')
 })
 
@@ -242,6 +255,7 @@ const subtitle = computed(() => {
   if (review.kind === 'creative_git_init') return ''
   if (review.kind === 'creative_git_restore') return review.ref ? `${review.files.join(', ')} · ${review.ref}` : review.files.join(', ')
   if (review.kind === 'creative_chapter_finalize') return basename(review.chapter)
+  if (review.kind === 'creative_manuscript_import') return basename(review.sourcePath)
   return t('agentPanel.creativeReview.planFirstApproval')
 })
 

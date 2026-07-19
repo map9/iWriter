@@ -51,9 +51,17 @@ function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, u
       ...(review.ref !== undefined && { ref: review.ref }),
     }
   }
+  if (review.kind === 'creative_chapter_finalize') {
+    return {
+      chapter: review.chapter,
+      ...(review.summary !== undefined && { summary: review.summary }),
+    }
+  }
+  // import_manuscript is not editable in the card; args are only reconstructed for type
+  // completeness (the approve path replays the original tool args).
   return {
-    chapter: review.chapter,
-    ...(review.summary !== undefined && { summary: review.summary }),
+    source_path: review.sourcePath,
+    ...(review.targetDirectory && { target_directory: review.targetDirectory }),
   }
 }
 

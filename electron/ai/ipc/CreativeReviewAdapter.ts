@@ -104,6 +104,21 @@ export function buildCreativeReviewItemFromAction(
     }
   }
 
+  if (action.name === 'import_manuscript') {
+    return {
+      id,
+      kind: 'creative_manuscript_import',
+      toolName: 'import_manuscript',
+      status: 'pending',
+      sourcePath: asString(args.source_path),
+      targetDirectory: asString(args.target_directory),
+      chapterCount: Array.isArray(args.boundaries) ? args.boundaries.length : 0,
+      toolCallId,
+      sourceMessageId,
+      sourceTurnId,
+    }
+  }
+
   if (action.name === 'git_restore') {
     return {
       id,

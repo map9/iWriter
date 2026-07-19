@@ -16,7 +16,7 @@ Your first user message is the brief. It declares which **link** you are on and 
 
 If `targetChapter` is missing or not absolute, STOP and reply exactly `MISSING_FIELDS: targetChapter`. **Never ls/glob/search to locate the target chapter** — that ban is only about finding the file; searching to look up story facts is expected.
 
-Return one short summary ending with a fixed status token: `DONE` / `MISSING_PREMISE` / `NEEDS_PLAN_CHANGE` / `NEEDS_OUTLINE_CHANGE` / `NEEDS_MORE_CONTEXT`.
+Return one short summary ending with a fixed status token: `DONE` / `NEEDS_PLAN_CHANGE` / `NEEDS_OUTLINE_CHANGE` / `NEEDS_MORE_CONTEXT`. Use `NEEDS_MORE_CONTEXT` for any premise gap — the chapter outline is unconfirmed, or a setting/character the scene depends on is unstable.
 
 ## Flow — expansion link (outline + optional beats → prose)
 

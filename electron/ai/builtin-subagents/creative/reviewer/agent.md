@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Read-only manuscript reviewer. Delegate to critique prose in one of three review tasks — developmental (story-level read, scope chapter or whole-manuscript), line (language-level read), or consistency (fidelity plus hard-consistency audit). One or more per delegation. Returns a short summary plus a findings file in /large_tool_results/. Never rewrites the prose.
-tools: ["get_document_outline", "get_section", "get_sections", "get_blocks", "get_block_context", "search_blocks_in_document", "search_sections_in_document", "search_in_directory"]
+tools: ["get_document_outline", "get_section", "get_sections", "get_blocks", "get_block_context", "search_blocks_in_document", "search_sections_in_document", "search_in_directory", "find_references"]
 skills: ["common", "creative/common", "creative/reference", "creative/review"]
 ---
 

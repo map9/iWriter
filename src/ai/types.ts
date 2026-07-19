@@ -408,6 +408,16 @@ export interface CreativeChapterFinalizeReviewItem extends BaseCreativeReviewIte
   hasExternalEdits?: boolean
 }
 
+// FR-14.3: approval gate for import_manuscript. Dry-run (no boundaries) scans; execute (boundaries
+// given) writes chapter files. chapterCount = number of confirmed boundaries (0 ⇒ dry-run scan).
+export interface CreativeManuscriptImportReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_manuscript_import'
+  toolName: 'import_manuscript'
+  sourcePath: string
+  targetDirectory: string
+  chapterCount: number
+}
+
 export type CreativeReviewItem =
   | CreativePlanReviewItem
   | CreativeGitCommitReviewItem
@@ -415,6 +425,7 @@ export type CreativeReviewItem =
   | CreativeGitInitReviewItem
   | CreativeGitRestoreReviewItem
   | CreativeChapterFinalizeReviewItem
+  | CreativeManuscriptImportReviewItem
 
 // ── Filesystem Review Items ───────────────────────────────────────────────
 
@@ -913,6 +924,8 @@ export const CREATIVE_REVIEW_TOOLS = new Set([
   'git_commit',
   'git_tag',
   'git_restore',
+  // Physical manuscript import (one two-stage tool: dry-run scan / execute write, both gated).
+  'import_manuscript',
 ])
 
 /** Human-readable labels for BlockEditProposal types. */

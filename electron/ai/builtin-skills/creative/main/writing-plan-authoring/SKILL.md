@@ -20,7 +20,7 @@ These are separate asks: **designing beats does NOT automatically continue to wr
 
 ## The hard prerequisite is the chapter outline, NOT beats
 
-The gate: the target chapter's outline must **exist and be confirmed (`status: 已确认`), with every scene's three-part shape complete** (goal / conflict / outcome that is not a frictionless "it worked out" / POV). If not, STOP — fill the chapter outline first (`outline-authoring`), get the author to confirm it, then resume. An event-level master outline never substitutes for a scene-level chapter outline. (See `story-development-flow`.)
+The gate: the target chapter's outline must **exist and be confirmed (`status: confirmed`, legacy `已确认`), with every scene's three-part shape complete** (goal / conflict / outcome that is not a frictionless "it worked out" / POV). If not, STOP — fill the chapter outline first (`outline-authoring`), get the author to confirm it, then resume. An event-level master outline never substitutes for a scene-level chapter outline. (See `story-development-flow`.)
 
 **Beats are an OPTIONAL aid, not a gate.** Three sources are all valid: the author writes them, the main agent designs them (this skill), or there are none. With no beats the writer writes directly from the confirmed outline scenes. Never make beats a precondition for writing prose.
 
@@ -85,7 +85,7 @@ Scope: all not-yet-written scenes        (for case 6, name the specific beats, e
 """)
 ```
 
-After the writer returns, run the **automatic post-draft review**: delegate one `reviewer` with `scenario=developmental`, `scope=chapter`, have the writer revise once, then the whole-chapter finalize. See the A00 orchestration prompt.
+After the writer returns, run the **automatic post-draft review**: delegate one `reviewer` with `scenario=developmental`, `scope=chapter`, have the writer revise once, then the whole-chapter finalize. See `drafting-flow` for the orchestration.
 
 ## Red lines
 

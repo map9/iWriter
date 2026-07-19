@@ -33,11 +33,11 @@ Each gate's sharpest test is the **reverse judgment**: "if I force the next step
 - **Reverse judgment**: if you build the master outline now, would the structure nodes all be "an event happened" with no "what the character paid or revealed for it"? If yes → the setup is too thin, go back to ideation / worldbuilding.
 
 **Gate 2 — master outline ready (→ can detail chapter outlines)** — a chapter outline turns one structure node of the master outline into scenes.
-- The structure node for the chapter/section being detailed states "what happens + the arc it advances + (if any) its thematic landing"; the arc stage is clear; the relevant master-outline section is ideally `已确认` (confirmed).
+- The structure node for the chapter/section being detailed states "what happens + the arc it advances + (if any) its thematic landing"; the arc stage is clear; the relevant master-outline section is ideally `confirmed` (legacy `已确认`).
 - **Reverse judgment**: from the master-outline node, can you derive "which scenes this chapter has, and each scene's goal"? If not → the node is too coarse, fill the master/volume outline first.
 
 **Gate 3 — chapter outline ready (→ can write the chapter)** — the writer, looking only at the chapter outline, should know what to write for each scene.
-- The chapter's `ch{NNN}-outline.md` exists and is `status: 已确认` (confirmed); every scene's three-part shape is complete (verifiable goal / conflict / outcome that is not a frictionless success / POV / cast present).
+- The chapter's `ch{NNN}-outline.md` exists and is `status: confirmed` (legacy `已确认`); every scene's three-part shape is complete (verifiable goal / conflict / outcome that is not a frictionless success / POV / cast present).
 - **Reverse judgment**: holding the chapter outline, would you still have to invent the conflict and outcome yourself? If yes → the outline is inadequate; complete and confirm it before writing.
 - Once the work is chaptered, chapter N's outline must be formed and confirmed before writing it; you need not build all chapter outlines at once, but never write prose straight from the event-level master outline.
 
