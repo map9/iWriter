@@ -12,6 +12,7 @@ const filteringSource = readFileSync('src/services/workspace/filtering.ts', 'utf
 const gitStoreSource = readFileSync('src/stores/git.ts', 'utf8')
 const gitTypesSource = readFileSync('src/types/git.ts', 'utf8')
 const leftSidebarSource = readFileSync('src/components/LeftSidebar.vue', 'utf8')
+const explorerSource = readFileSync('src/components/sidebar/ExplorerPanel.vue', 'utf8')
 
 test('SCM regressions', async (t) => {
   await t.test('Commit All stages untracked files before committing', () => {
@@ -112,6 +113,15 @@ test('SCM regressions', async (t) => {
     assert.match(gitStoreSource, /operation: 'init'/)
     assert.match(panelSource, /await gitStore\.initRepo\(\)/)
     assert.doesNotMatch(panelSource, /window\.electronAPI\.git\.init\(appStore\.currentFolder\)/)
+  })
+
+  await t.test('SCM status indicators use the Explorer muted Git colors', () => {
+    const mutedColorMix = /color-mix\(in oklab, var\(--color-\$\{tone\}\) 50%, transparent\)/
+
+    assert.match(explorerSource, mutedColorMix)
+    assert.match(groupSource, mutedColorMix)
+    assert.match(groupSource, /:style="dirDotStyle\(row\.files \?\? \[\]\)"/)
+    assert.match(groupSource, /:style="statusStyle\(row\.file!\.status\)"/)
   })
 
 })

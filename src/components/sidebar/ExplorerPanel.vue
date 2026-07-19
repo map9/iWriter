@@ -331,7 +331,7 @@ function gitBadgeStyle(tone: GitDecorationTone, isDirectory: boolean): Record<st
       minHeight: '8px',
       padding: '0',
       borderRadius: '9999px',
-      background: `var(--color-${tone})`,
+      background: `color-mix(in oklab, var(--color-${tone}) 50%, transparent)`,
       color: 'transparent',
       fontSize: '0',
     }
@@ -341,7 +341,7 @@ function gitBadgeStyle(tone: GitDecorationTone, isDirectory: boolean): Record<st
     padding: '0',
     borderRadius: '0',
     background: 'transparent',
-    color: `var(--color-${tone})`,
+    color: `color-mix(in oklab, var(--color-${tone}) 50%, transparent)`,
     fontSize: '11px',
     fontWeight: '700',
     textAlign: 'center',

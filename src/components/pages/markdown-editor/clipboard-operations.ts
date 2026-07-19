@@ -168,24 +168,9 @@ export async function pasteAsText(editor: Editor): Promise<boolean> {
       return false
     }
 
-    // 使用 ProseMirror 的 insertText 确保严格的纯文本插入
-    //const { state } = editor
-    //const { from, to } = state.selection
-    //const tr = state.tr.insertText(text, from, to)
-    //editor.view.dispatch(tr)
-
-    // 按换行符分割文本
-    const lines = text.split('\n')
-    
-    // 构建段落数组
-    const content = lines.map(line => ({
-      type: 'paragraph',
-      content: line ? [{ type: 'text', text: line }] : []
-    }))
-
-    editor.chain().focus().insertContent(content).run()
-    
-    return true
+    const pasted = editor.view.pasteText(text)
+    editor.view.focus()
+    return pasted
   } catch (error) {
     notify.error(`${error instanceof Error ? error.message : String(error)}`, '粘贴失败')
     return false

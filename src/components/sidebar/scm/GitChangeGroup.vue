@@ -43,7 +43,7 @@
               <IconPlus class="icon-2xs" />
             </button>
           </div>
-          <span class="mx-[3.5px] size-2 shrink-0 rounded-full" :class="dirDotColor(row.files ?? [])"></span>
+          <span class="mx-[3.5px] size-2 shrink-0 rounded-full" :style="dirDotStyle(row.files ?? [])"></span>
         </div>
         <!-- 文件行：状态字母常驻最右，hover 按钮在其左侧、互不遮挡 -->
         <div
@@ -74,7 +74,7 @@
               <IconPlus class="icon-2xs" />
             </button>
           </div>
-          <span class="w-4 shrink-0 text-center font-bold" :class="statusColor(row.file!.status)">{{ row.file!.status }}</span>
+          <span class="w-4 shrink-0 text-center font-bold" :style="statusStyle(row.file!.status)">{{ row.file!.status }}</span>
         </div>
       </li>
     </ul>
@@ -109,22 +109,33 @@ const rows = computed<ScmTreeRow[]>(() =>
     : props.files.map(f => ({ depth: 0, kind: 'file' as const, label: f.name, file: f }))
 )
 
-function statusColor(s: GitFileStatus): string {
+type GitStatusTone = 'success' | 'warning' | 'error'
+
+function statusTone(s: GitFileStatus): GitStatusTone {
   switch (s) {
-    case 'A': case 'U': return 'text-success'
-    case 'D': case 'C': return 'text-error'
-    default: return 'text-warning'
+    case 'A': case 'U': return 'success'
+    case 'D': case 'C': return 'error'
+    default: return 'warning'
   }
 }
 
+function mutedGitColor(tone: GitStatusTone): string {
+  return `color-mix(in oklab, var(--color-${tone}) 50%, transparent)`
+}
+
+function statusStyle(s: GitFileStatus): Record<string, string> {
+  return { color: mutedGitColor(statusTone(s)) }
+}
+
 /** 目录聚合状态点颜色：子树最高严重度（冲突/删除=红 ▸ 修改/重命名=黄 ▸ 新增/未跟踪=绿），对齐 ui/panel.html .dot */
-function dirDotColor(files: GitFileChange[]): string {
+function dirDotStyle(files: GitFileChange[]): Record<string, string> {
   let sev = 1 // 1 绿 / 2 黄 / 3 红
   for (const f of files) {
     const s = f.status === 'D' || f.status === 'C' ? 3 : f.status === 'M' || f.status === 'R' ? 2 : 1
     if (s > sev) sev = s
     if (sev === 3) break
   }
-  return sev === 3 ? 'bg-error' : sev === 2 ? 'bg-warning' : 'bg-success'
+  const tone: GitStatusTone = sev === 3 ? 'error' : sev === 2 ? 'warning' : 'success'
+  return { background: mutedGitColor(tone) }
 }
 </script>
