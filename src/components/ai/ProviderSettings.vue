@@ -202,34 +202,6 @@
               <section class="mt-5 flex flex-col gap-3">
                 <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.ai.advanced') }}</h3>
 
-                <div class="flex flex-col gap-3">
-                  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div v-if="getLlmPaneParameterSupport(pane).temperature" class="flex flex-col gap-1.5">
-                      <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.temperature') }}</label>
-                      <input v-model.number="pane.form.temperature" type="number" min="0" :max="getLlmPaneTemperatureMax(pane)" step="0.01" class="iw-input" />
-                      <span class="text-xs text-base-content/50">{{ t('preferences.ai.temperatureHint') }}</span>
-                    </div>
-
-                    <div v-if="getLlmPaneParameterSupport(pane).topP" class="flex flex-col gap-1.5">
-                      <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.topP') }}</label>
-                      <input v-model.number="pane.form.topP" type="number" min="0" max="1" step="0.01" class="iw-input" />
-                      <span class="text-xs text-base-content/50">{{ t('preferences.ai.topPHint') }}</span>
-                    </div>
-
-                    <div v-if="getLlmPaneParameterSupport(pane).frequencyPenalty" class="flex flex-col gap-1.5">
-                      <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.frequencyPenalty') }}</label>
-                      <input v-model.number="pane.form.frequencyPenalty" type="number" min="-2" max="2" step="0.01" class="iw-input" />
-                      <span class="text-xs text-base-content/50">{{ t('preferences.ai.frequencyPenaltyHint') }}</span>
-                    </div>
-
-                    <div v-if="getLlmPaneParameterSupport(pane).presencePenalty" class="flex flex-col gap-1.5">
-                      <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.presencePenalty') }}</label>
-                      <input v-model.number="pane.form.presencePenalty" type="number" min="-2" max="2" step="0.01" class="iw-input" />
-                      <span class="text-xs text-base-content/50">{{ t('preferences.ai.presencePenaltyHint') }}</span>
-                    </div>
-                  </div>
-                </div>
-
                 <div v-if="!isLlmPanePreset(pane)" class="flex flex-col gap-1.5">
                   <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.modelProfiles') }}</label>
                   <textarea
@@ -327,12 +299,9 @@ import type {
   WebSearchProviderConfig,
 } from '@/ai/types'
 import {
-  DEFAULT_AI_PROVIDER_PARAMETERS,
   getActiveWebSearchProviderConfig,
-  getProviderParameterSupport,
   isAiProviderUsable,
   isWebSearchProviderUsable,
-  normalizeProviderParameters,
 } from '@/ai/types'
 import {
   getProviderPresetById,
@@ -464,10 +433,6 @@ interface FormState {
   modelsStr: string
   fallbackModelId: string
   modelProfilesStr: string
-  temperature: number
-  topP: number
-  frequencyPenalty: number
-  presencePenalty: number
 }
 
 const llmForms = reactive<Record<string, FormState>>({})
@@ -486,15 +451,10 @@ function defaultLlmForm(): FormState {
     modelsStr: '',
     fallbackModelId: '',
     modelProfilesStr: '',
-    temperature: DEFAULT_AI_PROVIDER_PARAMETERS.temperature,
-    topP: DEFAULT_AI_PROVIDER_PARAMETERS.topP,
-    frequencyPenalty: DEFAULT_AI_PROVIDER_PARAMETERS.frequencyPenalty,
-    presencePenalty: DEFAULT_AI_PROVIDER_PARAMETERS.presencePenalty,
   }
 }
 
 function llmFormFromConfig(cfg: AiProviderConfig): FormState {
-  const parameters = normalizeProviderParameters(cfg.parameters)
   return {
     type: cfg.type,
     label: getProviderDisplayLabel(cfg),
@@ -503,10 +463,6 @@ function llmFormFromConfig(cfg: AiProviderConfig): FormState {
     modelsStr: (cfg.models ?? []).join(', '),
     fallbackModelId: cfg.fallbackModelId ?? '',
     modelProfilesStr: cfg.modelProfiles ? JSON.stringify(cfg.modelProfiles, null, 2) : '',
-    temperature: parameters.temperature,
-    topP: parameters.topP,
-    frequencyPenalty: parameters.frequencyPenalty,
-    presencePenalty: parameters.presencePenalty,
   }
 }
 
@@ -542,30 +498,8 @@ function getLlmPaneAvailableModels(pane: LlmPane): string[] {
     .filter(Boolean)
 }
 
-function getLlmPaneParameterSupport(pane: LlmPane) {
-  const form = getLlmForm(pane)
-  const modelProfiles = (() => {
-    if (isLlmPanePreset(pane)) return pane.preset?.modelProfiles
-    if (!form.modelProfilesStr.trim()) return pane.config?.modelProfiles
-    try {
-      return JSON.parse(form.modelProfilesStr) as Record<string, AiModelProfile>
-    } catch {
-      return pane.config?.modelProfiles
-    }
-  })()
-  return getProviderParameterSupport(form.type, form.baseUrl, {
-    modelId: getLlmPaneAvailableModels(pane)[0],
-    modelProfiles,
-  })
-}
-
 function isLlmPanePreset(pane: LlmPane): boolean {
   return !!pane.preset
-}
-
-function getLlmPaneTemperatureMax(pane: LlmPane): number {
-  const form = getLlmForm(pane)
-  return pane.preset?.id === 'glm' || /open\.bigmodel\.cn/i.test(form.baseUrl) ? 1 : 2
 }
 
 function getLlmPaneModelProfilesError(pane: LlmPane): string {
@@ -588,14 +522,6 @@ function isLlmKeyVisible(pane: LlmPane): boolean {
 
 function toggleLlmKeyVisibility(pane: LlmPane) {
   llmShowKeys[pane.key] = !isLlmKeyVisible(pane)
-}
-
-function numberOrDefault(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
-}
-
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
 }
 
 function getNextLlmConfigAfter(id: string): AiProviderConfig | null {
@@ -640,7 +566,6 @@ function addCustomProvider() {
     apiKey: '',
     defaultModelId: '',
     enabled: true,
-    parameters: { ...DEFAULT_AI_PROVIDER_PARAMETERS },
   })
   activeNode.value = { kind: 'llm-config', id }
 }
@@ -680,16 +605,6 @@ function syncLlmPaneForm(pane: LlmPane) {
     defaultModelId: modelsArr[0] ?? pane.preset?.defaultModelId ?? '',
     models: modelsArr.length ? modelsArr : pane.preset?.models,
     fallbackModelId: form.fallbackModelId.trim() || undefined,
-    parameters: {
-      temperature: clampNumber(
-        numberOrDefault(form.temperature, DEFAULT_AI_PROVIDER_PARAMETERS.temperature),
-        0,
-        getLlmPaneTemperatureMax(pane),
-      ),
-      topP: numberOrDefault(form.topP, DEFAULT_AI_PROVIDER_PARAMETERS.topP),
-      frequencyPenalty: numberOrDefault(form.frequencyPenalty, DEFAULT_AI_PROVIDER_PARAMETERS.frequencyPenalty),
-      presencePenalty: numberOrDefault(form.presencePenalty, DEFAULT_AI_PROVIDER_PARAMETERS.presencePenalty),
-    },
   }
 
   if (isPreset) {

@@ -15,12 +15,10 @@ import {
   normalizeWebSearchProviderConfigs,
   inferToolKind,
   DEFAULT_AI_SETTINGS,
-  DEFAULT_AI_PROVIDER_PARAMETERS,
   DEFAULT_THINKING_LEVEL,
   getActiveAiProviderConfig,
   normalizeAgentMode,
   normalizeModeForDomain,
-  normalizeProviderParameters,
   normalizeThinkingLevel,
   resolveAiProviderModelId,
   resolveAgentDomain,
@@ -121,7 +119,6 @@ function _loadSettings(): AiSettings {
         ...normalizedPresetConfig,
         modelProfiles: resolveDefaultModelProfiles(normalizedPresetConfig, preset),
         lastSelectedThinkingLevel: normalizeThinkingLevel(normalizedPresetConfig.lastSelectedThinkingLevel),
-        parameters: normalizeProviderParameters(normalizedPresetConfig.parameters),
       }
     })
     return merged
@@ -161,7 +158,6 @@ export const useAiStore = defineStore('ai', () => {
         models: p.models,
         modelProfiles: p.id === 'openai' ? undefined : p.modelProfiles,
         lastSelectedThinkingLevel: DEFAULT_THINKING_LEVEL,
-        parameters: { ...DEFAULT_AI_PROVIDER_PARAMETERS },
       }))
     _initialSettings.activeProviderConfigId = _initialSettings.providerConfigs[0]?.id ?? null
     _saveSettingsToStorage(_initialSettings)

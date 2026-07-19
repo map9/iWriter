@@ -40,10 +40,6 @@ interface ChatDeepSeekFields extends BaseChatModelParams {
   baseUrl?: string
   streaming?: boolean
   maxTokens?: number
-  temperature?: number
-  topP?: number
-  frequencyPenalty?: number
-  presencePenalty?: number
   profile?: ModelProfile
   thinkingLevel?: AiThinkingLevel
   budgetTokens?: number
@@ -381,10 +377,6 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
   baseUrl: string
   streaming: boolean
   maxTokens: number
-  temperature?: number
-  topP?: number
-  frequencyPenalty?: number
-  presencePenalty?: number
   profileOverride?: ModelProfile
   thinkingLevel: AiThinkingLevel
   budgetTokens?: number
@@ -397,10 +389,6 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
     this.baseUrl = (fields.baseUrl || 'https://api.deepseek.com/v1').replace(/\/$/, '')
     this.streaming = fields.streaming ?? true
     this.maxTokens = fields.maxTokens ?? -1
-    this.temperature = fields.temperature
-    this.topP = fields.topP
-    this.frequencyPenalty = fields.frequencyPenalty
-    this.presencePenalty = fields.presencePenalty
     this.profileOverride = fields.profile
     this.thinkingLevel = normalizeThinkingLevel(fields.thinkingLevel)
     this.budgetTokens = fields.budgetTokens
@@ -813,15 +801,6 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
     }
     if (Array.isArray(options.tools) && options.tools.length) {
       body.tools = options.tools
-    }
-    // Sampling params are unsupported in thinking mode (deepseek-reasoner / V4 thinking): the API
-    // docs mark temperature/top_p/frequency_penalty/presence_penalty as having no effect there.
-    // Only send them in non-thinking mode.
-    if (this.disableThinking) {
-      if (this.temperature != null) body.temperature = this.temperature
-      if (this.topP != null) body.top_p = this.topP
-      if (this.frequencyPenalty != null) body.frequency_penalty = this.frequencyPenalty
-      if (this.presencePenalty != null) body.presence_penalty = this.presencePenalty
     }
     if (this.maxTokens >= 0) body.max_tokens = this.maxTokens
 

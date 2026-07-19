@@ -12,9 +12,7 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
 import { ChatOpenAI } from '@langchain/openai'
 import type { AiProviderConfig, AiThinkingLevel } from '../../../src/types/ai'
 import {
-  getProviderParameterSupport,
   isOpenAIResponsesProtocol,
-  normalizeProviderParameters,
   normalizeThinkingLevel,
   resolveApiKeyReference,
 } from '../../../src/types/ai'
@@ -51,11 +49,6 @@ const THINKING_TOKEN_BUDGETS: Record<AiThinkingLevel, number> = {
 
 function mapThinkingLevelToBudget(thinkingLevel?: AiThinkingLevel): number {
   return THINKING_TOKEN_BUDGETS[normalizeThinkingLevel(thinkingLevel)]
-}
-
-function normalizeAnthropicThinkingTopP(topP: number): number | undefined {
-  if (topP < 0.95 || topP > 1) return undefined
-  return topP
 }
 
 function getProfileOverride(config: AiProviderConfig, modelId: string): ModelProfile | undefined {
@@ -159,11 +152,6 @@ export function createChatModel(
   const modelId = runtime.modelId || config.lastSelectedModelId || config.defaultModelId
   const thinkingLevel = normalizeThinkingLevel(runtime.thinkingLevel ?? config.lastSelectedThinkingLevel)
   const disableThinking = runtime.disableThinking === true
-  const parameters = normalizeProviderParameters(config.parameters)
-  const parameterSupport = getProviderParameterSupport(config.type, config.baseUrl, {
-    modelId,
-    modelProfiles: config.modelProfiles,
-  })
   const resolvedApiKey = resolveApiKeyReference(config.apiKey, resolveAiApiKeyEnvVar)
 
   switch (config.type) {
@@ -178,8 +166,6 @@ export function createChatModel(
           ? { baseURL: config.baseUrl }
           : undefined,
         streaming: true,
-        ...(parameterSupport.temperature ? { temperature: parameters.temperature } : {}),
-        ...(parameterSupport.topP ? { topP: parameters.topP } : {}),
         ...(!disableThinking && isTrueOpenAI
           ? {
               useResponsesApi: true,
@@ -192,8 +178,6 @@ export function createChatModel(
             ? {
               modelKwargs: {
                 reasoning_effort: reasoningEffort,
-                ...(parameterSupport.frequencyPenalty ? { frequency_penalty: parameters.frequencyPenalty } : {}),
-                ...(parameterSupport.presencePenalty ? { presence_penalty: parameters.presencePenalty } : {}),
               },
             }
             : {}),
@@ -214,10 +198,6 @@ export function createChatModel(
         thinkingLevel,
         budgetTokens: thinkingBudget,
         disableThinking,
-        ...(parameterSupport.temperature ? { temperature: parameters.temperature } : {}),
-        ...(parameterSupport.topP ? { topP: parameters.topP } : {}),
-        ...(parameterSupport.frequencyPenalty ? { frequencyPenalty: parameters.frequencyPenalty } : {}),
-        ...(parameterSupport.presencePenalty ? { presencePenalty: parameters.presencePenalty } : {}),
       }) as BaseChatModel
       return applyProfileOverride(model, getProfileOverride(config, modelId))
     }
@@ -228,9 +208,6 @@ export function createChatModel(
         model: modelId,
         anthropicApiKey: resolvedApiKey,
         streaming: true,
-        ...(parameterSupport.topP && normalizeAnthropicThinkingTopP(parameters.topP) != null
-          ? { topP: normalizeAnthropicThinkingTopP(parameters.topP) }
-          : {}),
         maxTokens: disableThinking ? 2048 : thinkingBudget + 2048,
         ...(!disableThinking
           ? {
@@ -248,10 +225,6 @@ export function createChatModel(
         model: modelId,
         apiKey: resolvedApiKey,
         streaming: true,
-        ...(parameterSupport.temperature ? { temperature: parameters.temperature } : {}),
-        ...(parameterSupport.topP ? { topP: parameters.topP } : {}),
-        ...(parameterSupport.frequencyPenalty ? { frequencyPenalty: parameters.frequencyPenalty } : {}),
-        ...(parameterSupport.presencePenalty ? { presencePenalty: parameters.presencePenalty } : {}),
         ...(!disableThinking
           ? {
               thinkingConfig: {

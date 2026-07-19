@@ -28,20 +28,6 @@ export interface AiModelProfile {
   structuredOutput?: boolean
 }
 
-export interface AiProviderParameters {
-  temperature?: number
-  topP?: number
-  frequencyPenalty?: number
-  presencePenalty?: number
-}
-
-export interface AiProviderParameterSupport {
-  temperature: boolean
-  topP: boolean
-  frequencyPenalty: boolean
-  presencePenalty: boolean
-}
-
 // Provider configuration (stored by user)
 export interface AiProviderConfig {
   id: string
@@ -61,8 +47,6 @@ export interface AiProviderConfig {
   lastSelectedModelId?: string
   /** Last selected reasoning/thinking level for this provider */
   lastSelectedThinkingLevel?: AiThinkingLevel
-  /** Protocol-level generation parameters */
-  parameters?: AiProviderParameters
   /** Optional fallback model ID used by modelFallbackMiddleware when the primary model call fails. */
   fallbackModelId?: string
   /**
@@ -806,13 +790,6 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
 
 export const DEFAULT_THINKING_LEVEL: AiThinkingLevel = 'medium'
 
-export const DEFAULT_AI_PROVIDER_PARAMETERS: Required<AiProviderParameters> = {
-  temperature: 0.78,
-  topP: 0.92,
-  frequencyPenalty: 0.2,
-  presencePenalty: 0.25,
-}
-
 export function normalizeThinkingLevel(level: string | undefined): AiThinkingLevel {
   if (level === 'low') return 'low'
   if (level === 'medium') return 'medium'
@@ -821,80 +798,10 @@ export function normalizeThinkingLevel(level: string | undefined): AiThinkingLev
   return DEFAULT_THINKING_LEVEL
 }
 
-export function normalizeProviderParameters(parameters: AiProviderParameters | undefined): Required<AiProviderParameters> {
-  return {
-    temperature: parameters?.temperature ?? DEFAULT_AI_PROVIDER_PARAMETERS.temperature,
-    topP: parameters?.topP ?? DEFAULT_AI_PROVIDER_PARAMETERS.topP,
-    frequencyPenalty: parameters?.frequencyPenalty ?? DEFAULT_AI_PROVIDER_PARAMETERS.frequencyPenalty,
-    presencePenalty: parameters?.presencePenalty ?? DEFAULT_AI_PROVIDER_PARAMETERS.presencePenalty,
-  }
-}
-
 export function isOpenAIResponsesProtocol(type: AiProviderType, baseUrl?: string): boolean {
   if (type !== 'openai-compat') return false
   if (!baseUrl) return true
   return /api\.openai\.com/i.test(baseUrl)
-}
-
-export interface AiProviderParameterSupportOptions {
-  modelId?: string | null
-  modelProfiles?: Record<string, AiModelProfile> | null
-}
-
-function isOpenAIReasoningModelName(modelId: string): boolean {
-  const normalized = modelId.trim().toLowerCase()
-  return normalized.startsWith('gpt-5') || normalized.startsWith('gpt5') || /^o\d(?:-|$)/.test(normalized)
-}
-
-export function isOpenAIReasoningModel(
-  type: AiProviderType,
-  baseUrl?: string,
-  options: AiProviderParameterSupportOptions = {},
-): boolean {
-  if (!isOpenAIResponsesProtocol(type, baseUrl)) return false
-
-  const modelId = options.modelId?.trim() ?? ''
-  if (!modelId) return false
-
-  if (options.modelProfiles?.[modelId]?.reasoningOutput === true) return true
-  return isOpenAIReasoningModelName(modelId)
-}
-
-export function getProviderParameterSupport(
-  type: AiProviderType,
-  baseUrl?: string,
-  options: AiProviderParameterSupportOptions = {},
-): AiProviderParameterSupport {
-  if (isOpenAIResponsesProtocol(type, baseUrl)) {
-    if (isOpenAIReasoningModel(type, baseUrl, options)) {
-      return {
-        temperature: false,
-        topP: false,
-        frequencyPenalty: false,
-        presencePenalty: false,
-      }
-    }
-    return {
-      temperature: true,
-      topP: true,
-      frequencyPenalty: false,
-      presencePenalty: false,
-    }
-  }
-  if (type === 'anthropic') {
-    return {
-      temperature: false,
-      topP: true,
-      frequencyPenalty: false,
-      presencePenalty: false,
-    }
-  }
-  return {
-    temperature: true,
-    topP: true,
-    frequencyPenalty: true,
-    presencePenalty: true,
-  }
 }
 
 export function resolveAgentDomain(mode: AiAgentMode): AiAgentDomain {
