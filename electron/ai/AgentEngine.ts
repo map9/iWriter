@@ -1584,8 +1584,6 @@ export class AgentEngine {
       // creative 技能按执行途径分组（04.3 §3 挂载矩阵）
       path.join(this.aiRootPath, 'skills', 'creative', 'common'),
       path.join(this.aiRootPath, 'skills', 'creative', 'main'),
-      path.join(this.aiRootPath, 'skills', 'creative', 'ideation'),
-      path.join(this.aiRootPath, 'skills', 'creative', 'prose'),
       path.join(this.aiRootPath, 'skills', 'creative', 'review'),
       path.join(this.aiRootPath, 'skills', 'creative', 'delegated'),
       path.join(this.aiRootPath, 'skills', 'creative', 'reference'),
