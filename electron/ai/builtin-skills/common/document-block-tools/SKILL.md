@@ -50,8 +50,24 @@ may issue **several** edits to the same file from one read:
 - They are reviewed and applied **together as one batch, in the correct order** (the engine applies them in reverse document position, so an earlier edit never shifts the IDs of a later one). **Do not re-read between edits of the same batch.**
 - Only **after** a batch is applied has the document changed and the IDs shifted — re-read (`get_document_outline` / `get_section`) before the **next** round of edits.
 
-If an edit fails a freshness check (its `expected_*` content no longer matches, e.g.
-the author edited concurrently), re-read that region and reissue.
+## When an edit reports `content_mismatch`
+
+Re-read that region and reissue — **once**. If the same edit fails again on fresh
+reads, the file is not the problem and re-reading will never fix it. Check, in this
+order:
+
+1. **A `{b:n}` marker leaked into `expected_current_content`.** Reads prefix every
+   block with its marker; the marker is not part of the content. Strip it.
+2. **Wrong granularity.** You copied a whole section (or several blocks) into the
+   `expected_*` of a single block. Use `get_blocks(block_ids=[...])` to get the exact
+   markdown of exactly the blocks you are editing, and copy from that.
+3. **Stale IDs from an already-applied batch.** IDs shift once a batch applies;
+   re-read before the next round.
+
+Retrying the identical call a third time is never the answer. If none of the above
+resolves it, stop and report what you attempted, with the block IDs and the exact
+`expected_*` you sent, so the caller can act — do not route around the block tools
+with `write_file` / `edit_file`.
 
 ## Creating documents
 

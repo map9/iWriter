@@ -24,6 +24,7 @@ Pick the one your passage actually needs — a fast transition needs none of the
 - `references/sensory-grounding.md` — making an important scene physically present, with detail that carries mood or pressure.
 - `references/subtext-craft.md` — running the stated exchange and the real one at the same time.
 - `references/layered-prose.md` — thin vs. dense prose: how a sentence carries situation, character, and undercurrent together (by example, not by quota).
+- `references/impact-rendering.md` — the seconds after a shock, reversal or blow: reaction that belongs to *this* person, before composure returns.
 
 These references push toward *more*. Their **counterweight — restraint (when to pull back: cut the profundity-by-antithesis tic, no meaning-asides, don't over-write a fast moment) — is the separate shared `restraint` skill** (find it by name in your skill list), not a reference here; run it whenever a passage feels mannered, over-worked, or over-length.
 

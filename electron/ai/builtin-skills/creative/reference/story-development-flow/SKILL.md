@@ -1,6 +1,6 @@
 ---
 name: story-development-flow
-description: Load when judging whether a project is ready to move to the next creative stage — before authoring a master outline, before drafting a chapter outline, before writing a chapter, or when answering "where am I / what's next". Defines the default pipeline and the readiness gates.
+description: Load when judging whether a project is ready to move to the next creative stage — before authoring a master outline, before drafting a chapter outline, before writing a chapter, or when answering "where am I / what's next". Also load to place a request you cannot route: it maps any ask onto a stage and beat and points at the playbook that owns it. Defines the default pipeline, the readiness gates, and how a change at one level bubbles to the others.
 ---
 
 # story-development-flow
@@ -51,7 +51,9 @@ Prose isn't done at "written". Quality is guarded by four things: input maturity
 
 ## Adjustments bubble as reminders, never auto-cascade
 
-A small adjustment = scene → beat (within one chapter); a large one = scenes across multiple chapters must move. Whether/how a change at one level propagates up or down, and whether to rewrite the prose = **remind the author, don't do it on your own**. You may plan the chapter outlines (+ optional beats) of several related chapters at once before drafting. **Consistency reminder at commit**: if `git_commit` reaches back to edit a finalized chapter / follows a refactor / spans multiple chapters, remind the author to check consistency first (changed chapters + their blast radius, not the whole book; a reminder, not a hard lock).
+A small adjustment = scene → beat (within one chapter); a large one = scenes across multiple chapters must move. Whether/how a change at one level propagates up or down, and whether to rewrite the prose = **remind the author, don't do it on your own**.
+
+**Bubbling upward is the same rule, and it has a shape.** When the finished text moves ahead of the objects above it — most often because the author rewrote or committed prose themselves — the prose is the fact and the upstream objects are what fell behind. Do not push the text back toward the older object. Deliver three things: **what changed** (factual), **real conflicts only** (it breaks a forbidden zone / contradicts already-published text / creates a new obligation downstream — a mere difference from the outline is not one), and a **write-back list** naming object, field, and new value for the author to confirm. Anything left undecided goes to `process/open-questions.md` rather than dying with the turn. The full working order is in `revision-flow`. You may plan the chapter outlines (+ optional beats) of several related chapters at once before drafting. **Consistency reminder at commit**: if `git_commit` reaches back to edit a finalized chapter / follows a refactor / spans multiple chapters, remind the author to check consistency first (changed chapters + their blast radius, not the whole book; a reminder, not a hard lock).
 
 ## status.md is a derived ledger, not truth
 

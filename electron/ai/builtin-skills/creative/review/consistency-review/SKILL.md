@@ -1,6 +1,6 @@
 ---
 name: consistency-review
-description: Load for the consistency review task — the proofreading editor's audit of correctness, consistency, and completeness. Two stages, two separate verdicts (fidelity, then hard consistency). Grammar/spelling/format are NOT covered — the app's proofread system owns those. Returns a graded issue list; never rewrites the prose. Output format is in the reviewer agent protocol, not here.
+description: Load for the consistency review task — the proofreading editor's audit of correctness, consistency, and completeness. Two stages, two separate verdicts (fidelity, then hard consistency), including when the draft under audit is one the author wrote or revised themselves. Grammar/spelling/format are NOT covered — the app's proofread system owns those. Returns a graded issue list; never rewrites the prose. Output format is in the reviewer agent protocol, not here.
 ---
 
 # consistency-review
@@ -27,9 +27,21 @@ Two separate audits, two separate verdicts:
 
 **Stage 1 — fidelity**
 
-- Does each scene deliver the outline's **goal → conflict → outcome** (no frictionless "it worked out" where the outline demanded real conflict)?
+**Which baseline.** Fidelity is measured against **the most recent thing the author authorized**, not against whichever object is oldest. If the draft in front of you is one the author wrote or rewrote themselves, *that draft is the authorized text* — an outline that disagrees with it is downstream and out of date. In that case Stage 1 produces a **write-back proposal for the outline**, never a "the prose must be fixed" list. Say which baseline you used.
+
+**The outline is a map, not a contract.** Grade every divergence; do not list them:
+
+| Divergence | Grade |
+| --- | --- |
+| Breaks a scene's **goal / conflict / outcome** | BLOCKING |
+| Moves an information release, a planted hint, or a chapter hand-off | MAJOR — report with a write-back proposal |
+| Staging, dialogue, ordering, added or dropped detail inside a scene | **Not a finding.** Note it as drift for write-back; never as a defect |
+
+Then audit:
+
+- Does each scene deliver its **goal → conflict → outcome** (no frictionless "it worked out" where real conflict was called for)?
 - Do characters act from their **psychology triangle** (desire / fear / false belief) as set in the confirmed characters, not moved for plot convenience?
-- Did the prose stay inside the declared scope — nothing invented or reordered beyond the plan?
+- Did the prose stay inside the declared scope — nothing invented beyond it that the story now has to carry?
 
 **Stage 2 — hard consistency** (cover them; a dimension that's fine needs a sentence)
 
@@ -44,6 +56,7 @@ Two separate audits, two separate verdicts:
 
 ## Stop
 
+- **Quote what you are judging against.** Every "contradicts / violates / breaks" finding names the object *and quotes the line that establishes the fact*. If the quote does not actually support the claim, drop the claim — a fabricated violation makes the author rewrite sound material. Searching is literal, one term per query; a "no matches" result never proves a fact is absent, so re-verify before asserting one.
 - **Correctness only** — do not review story quality (that is `developmental-review`) and do not do line polishing.
 - **Grammar / spelling / punctuation / format normalization are NOT yours.** The app's proofread system owns copy-editing; do not produce a proofreading pass.
 - Keep the Stage-1 fidelity verdict and the Stage-2 consistency verdict as **two separate blocks**.

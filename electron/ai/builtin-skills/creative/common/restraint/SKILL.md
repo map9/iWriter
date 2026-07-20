@@ -20,6 +20,8 @@ Clean: "他垂着眼匀速朗读裁决所通告，语调平淡得像复读机器
 
 Same meaning — absolute, faceless power — but the second lets the concrete action carry it and never stops to define itself. **Hard cap: this construction appears at most once or twice per chapter.** Over that, you're leaning on it — convert the rest into action, image, or plain statement.
 
+**Count it, don't estimate it.** This cap is the one thing here that is arithmetic, and impressions run low — search the chapter for the construction's markers (in the zh register, `不是` / `而是`), count the hits, and judge against the number. "Feels about right" has passed chapters at three times the cap.
+
 ## Don't explain the scene's meaning in narratorial asides
 
 Trust the reader. When the narration pauses to gloss what a gesture, a silence, or a power dynamic *means*, it steals the reader's own inference — the very thing that makes a scene land.
@@ -35,6 +37,10 @@ Every beat does not deserve a set-piece. A fast scene — a chase, a shock, an o
 
 Weak (over-rendered): "他的拳裹着风压来。我侧身、抬臂，掌骨在半空迎上他的前臂——相撞的刹那，钝痛沿尺骨爬上肘、窜进肩；汗滑进眼里，他的轮廓裂成两重；我听见自己的呼吸，听见他的呼吸，听见廊下一声一声的滴水。第三拳来时，时间像凝进琥珀，我甚至想起许多个练拳的清晨——就在这被拉长的三秒里，我终于认出，他发力的习惯和我一模一样。"
 Clean (fast where it should be): "他格挡的角度、发力的习惯，和我一模一样。第三拳的时候我就知道了——我在打的是我自己。"
+
+## Restraint is not "write less"
+
+This skill only removes what performs. It never licenses skipping a beat the scene owes the reader: a shock with no reaction, a blow with no body, a sentence of consequence met by composure — that is thin, not restrained, and it is the more common failure of the two. When a scene turns, the generative counterweight is `prose-craft-by-example`'s `impact-rendering`; run it first, then cut here.
 
 ## The cutting test
 

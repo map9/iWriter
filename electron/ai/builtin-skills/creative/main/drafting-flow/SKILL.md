@@ -7,6 +7,16 @@ description: The operating rhythm for the drafting stage — load when the task 
 
 Turning a confirmed chapter outline into finalized prose. This is the orchestration spine; the beat/state-machine mechanics live in `writing-plan-authoring`, the writer brief contract in the main-agent prompt's delegation section, and the gates in `story-development-flow`. Load those; don't restate them here.
 
+**This stage is the same three-beat loop as every other one** — it only looks different because the object is a chapter and the executor is a subagent:
+
+| Beat | Here it is | Routes to |
+| --- | --- | --- |
+| Diverge | deciding how this chapter will go — beats, or an approach the outline leaves open | `writing-plan-authoring`, `direction-ideation` when real alternatives are wanted |
+| Converge | the prose gets written into the file | the `writer` |
+| Compare | the draft is judged | the `reviewer` (developmental, chapter scope) |
+
+Note the order: unlike the upstream links, converge comes *before* compare here — you cannot judge prose that does not exist yet. A revision after the review is the loop turning again, not a new stage.
+
 ## The prerequisite
 
 The hard gate is the **chapter outline** — it must exist and be confirmed (`status: confirmed`, legacy `已确认`), every scene's three-part shape complete (gate 3, see `story-development-flow`). An event-level master outline never substitutes. **Beats are optional**, not a gate. If the outline isn't ready, STOP and fill it (`outline-authoring`), get the author's confirmation, then resume — never write prose off a thin upstream.
@@ -17,7 +27,7 @@ For a chapter the author wants written:
 
 1. **Plan** — load `writing-plan-authoring`. It reads the author's ask onto its two axes (author beats = Axis A, stops for review; write prose = Axis B, a separate ask) and its pre-write state machine, and decides whether to design beats, write straight from the outline scenes, re-confirm, or hold. "Write the beats first" means author beats and STOP — do not auto-continue to prose. Only "write the chapter" flows through.
 2. **Authorize** — open the write-session (`confirm_writing_plan` with `target_files`) BEFORE delegating, because a subagent has no conversation channel. This authorizes block edits to the target chapter to auto-accumulate silently through to one finalize.
-3. **Delegate the writer** — `task(subagent_type="writer")` with the thin brief the prompt's delegation contract specifies (absolute `targetChapter` + scope + whether the file exists yet). Do NOT transcribe beats — they are the `[!BEAT]` lines already in the file; with none, the writer works from the confirmed outline scenes. On the no-beat path do NOT pre-create the file.
+3. **Delegate the writer** — `task(subagent_type="writer")` with the thin brief the prompt's delegation contract specifies (the labelled brief template: LINK / TARGET / FILE EXISTS / SCOPE / INTENT / DO NOT TOUCH / REFERENCES / RETURN). Do NOT transcribe beats — they are the `[!BEAT]` lines already in the file; with none, the writer works from the confirmed outline scenes. On the no-beat path do NOT pre-create the file.
 4. **Auto-review** — the automatic post-draft developmental review (below). Not optional; it is part of "writing this chapter".
 5. **Finalize** — take the chapter to the author for the whole-chapter finalize.
 

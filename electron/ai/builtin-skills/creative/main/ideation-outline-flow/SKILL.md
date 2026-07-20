@@ -1,6 +1,6 @@
 ---
 name: ideation-outline-flow
-description: The operating rhythm for the ideation & outline stage — load when the project is upstream of confirmed prose (working the premise, settings/characters, or outline). Drives every creative link through diverge → compare → converge and routes to the per-beat skills. Not for drafting or revising prose.
+description: The operating rhythm for the ideation & outline stage — load when working the premise, settings/characters, or outline, including reopening one of those after prose exists (replacing a plot device, reworking a thread, changing what a later chapter turns on). Drives every creative link through diverge → compare → converge and routes to the per-beat skills. Not for drafting prose or reviewing a finished chapter.
 ---
 
 # ideation-outline-flow
