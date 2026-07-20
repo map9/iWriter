@@ -50,7 +50,7 @@ import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore, type InterruptedRun } from './runtime/ThreadRuntimeStore'
 import { buildAgentFilesystem, FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './scaffold/filesystem/AgentFilesystem'
 import { decideFilesystemWriteApproval, isFilesystemWriteToolName } from './scaffold/approval/FilesystemApprovalPolicy'
-import { WritingSessionRegistry, decideWritingSessionApproval, isBlockEditToolName } from './scaffold/approval/WritingSessionRegistry'
+import { WritingSessionRegistry, decideWritingSessionApproval, decideDelegatedWriteGate, delegatedActionIndices, isBlockEditToolName } from './scaffold/approval/WritingSessionRegistry'
 import { AiConfigStore, resolveAiApiKeyEnvVar } from './config/AiConfigStore'
 import { generateThreadTitle } from '../../src/ai/thread/title'
 import { IWriterAgentContextSchema, type IWriterAgentContext } from './runtime/AgentContext'
@@ -985,6 +985,7 @@ export class AgentEngine {
   private async _prepareActionRequestsForReview(
     threadId: string,
     actionRequests: HitlActionRequest[],
+    partialMessage?: ThreadMessage,
   ): Promise<{
     reviewActionRequests: HitlActionRequest[]
     reviewActionOriginalIndices: number[]
@@ -1003,6 +1004,7 @@ export class AgentEngine {
     const autoApplyOriginalIndices = new Set<number>()
     const autoApplyFiles = new Set<string>()
     const authorizedFiles = this.writingSessions.getAuthorizedFiles(threadId)
+    const delegatedIndices = delegatedActionIndices(actionRequests, partialMessage?.toolCalls)
 
     // Stage 1 pre-scan — resolve every filesystem-write tool up front so batch poisoning
     // (Stage 4, triggered *only* by a Stage-1 safety reject) is known before Stage 2 mutates
@@ -1060,6 +1062,29 @@ export class AgentEngine {
           autoDecisionsByIndex[index] = fsDecision.decision
         }
         continue
+      }
+
+      // Stage 2b — delegated-write gate. A subagent may only write into a file covered by an active
+      // write-session: that is the form of approval its work is designed for (silent accumulation on a
+      // captured baseline, closed by one whole-chapter finalize). Outside a session it would fall through
+      // to per-block cards with no baseline and no way to roll the work back as a whole, so we reject and
+      // tell the caller to open the session first. Runs before Stage 2 so an unauthorized delegated write
+      // never activates a session as a side effect.
+      if (delegatedIndices.has(index)) {
+        const gate = decideDelegatedWriteGate({
+          toolName: actionRequest.name,
+          args: actionRequest.args ?? {},
+          authorizedFiles,
+        })
+        if (gate.kind === 'reject') {
+          autoDecisionsByIndex[index] = gate.decision
+          autoRejects.push({
+            toolName: actionRequest.name,
+            filePath: gate.targetFile ?? '',
+            message: gate.decision.message ?? gate.reason,
+          })
+          continue
+        }
       }
 
       // Stage 2 — write-session authorization. A block edit whose target file is inside an active
@@ -1132,7 +1157,7 @@ export class AgentEngine {
 
     const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
     const strategy = this.strategies[domain]
-    const prepared = await this._prepareActionRequestsForReview(threadId, actionRequests)
+    const prepared = await this._prepareActionRequestsForReview(threadId, actionRequests, partialMessage)
 
     // Domain-specific mixed-kind guard: auto-reject non-dominant kinds before review
     const mixedDecisions = strategy.preDecideMixed?.(prepared.reviewActionRequests, prepared.reviewActionOriginalIndices)

@@ -135,7 +135,7 @@ function stubPlugin() {
         [
           /scaffold\/approval\/WritingSessionRegistry$/,
           'writing-session-registry',
-          'export class WritingSessionRegistry { constructor() {} } export function decideWritingSessionApproval() { return { kind: "requires-review" } } export function isBlockEditToolName() { return false }',
+          'export class WritingSessionRegistry { constructor() {} } export function decideWritingSessionApproval() { return { kind: "requires-review" } } export function decideDelegatedWriteGate() { return { kind: "pass" } } export function delegatedActionIndices() { return new Set() } export function isBlockEditToolName() { return false }',
         ],
         [
           /config\/AiConfigStore$/,

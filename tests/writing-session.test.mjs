@@ -208,3 +208,92 @@ describe('WritingSessionRegistry (Stage 2 skeleton)', () => {
     assert.equal(reg.getActiveSession('t1', OTHER).lastAgentSnapshot, 'OTHER_AGENT')
   })
 })
+
+describe('decideDelegatedWriteGate (Stage 2b — delegated writes require a session)', () => {
+  it('rejects a subagent block edit whose target is outside every authorization', async () => {
+    const { decideDelegatedWriteGate } = await loadModule()
+    const gate = decideDelegatedWriteGate({
+      toolName: 'edit_block',
+      args: { block_id: 5, file_path: CH },
+      authorizedFiles: new Set(),
+    })
+    assert.equal(gate.kind, 'reject')
+    assert.equal(gate.decision.type, 'rejected')
+    assert.equal(gate.targetFile, CH)
+    // The message must tell the caller what to fix; a bare rejection loops the subagent.
+    assert.match(gate.decision.message, /confirm_writing_plan/)
+    assert.match(gate.decision.message, /BEFORE delegating/)
+  })
+
+  it('passes a subagent block edit inside an active authorization', async () => {
+    const { decideDelegatedWriteGate } = await loadModule()
+    const gate = decideDelegatedWriteGate({
+      toolName: 'edit_block',
+      args: { block_id: 5, file_path: CH },
+      authorizedFiles: new Set([CH]),
+    })
+    assert.equal(gate.kind, 'pass')
+  })
+
+  it('rejects a delegated create_document outside the authorization, passes it inside', async () => {
+    const { decideDelegatedWriteGate } = await loadModule()
+    const args = { filename: 'ch001', directory: path.dirname(CH) }
+    assert.equal(decideDelegatedWriteGate({ toolName: 'create_document', args, authorizedFiles: new Set() }).kind, 'reject')
+    assert.equal(decideDelegatedWriteGate({ toolName: 'create_document', args, authorizedFiles: new Set([CH]) }).kind, 'pass')
+  })
+
+  it('rejects a delegated block edit with no explicit target file (cannot be matched to a session)', async () => {
+    const { decideDelegatedWriteGate } = await loadModule()
+    const gate = decideDelegatedWriteGate({
+      toolName: 'edit_block',
+      args: { block_id: 5 },
+      authorizedFiles: new Set([CH]),
+    })
+    assert.equal(gate.kind, 'reject')
+    assert.equal(gate.targetFile, null)
+  })
+
+  it('never gates a non-write tool', async () => {
+    const { decideDelegatedWriteGate } = await loadModule()
+    assert.equal(
+      decideDelegatedWriteGate({ toolName: 'get_section', args: {}, authorizedFiles: new Set() }).kind,
+      'pass'
+    )
+  })
+})
+
+describe('delegatedActionIndices (who issued the tool call)', () => {
+  it('classifies action requests with no parent counterpart as delegated', async () => {
+    const { delegatedActionIndices } = await loadModule()
+    // Parent called task(); the three edits can only have come from inside the subagent.
+    const idx = delegatedActionIndices(
+      [{ name: 'edit_block' }, { name: 'edit_block' }, { name: 'delete_block' }],
+      [{ name: 'task' }]
+    )
+    assert.deepEqual([...idx].sort((a, b) => a - b), [0, 1, 2])
+  })
+
+  it('classifies the main agent\'s own edits as not delegated', async () => {
+    const { delegatedActionIndices } = await loadModule()
+    const idx = delegatedActionIndices(
+      [{ name: 'edit_block' }, { name: 'edit_block' }],
+      [{ name: 'edit_block' }, { name: 'edit_block' }]
+    )
+    assert.equal(idx.size, 0)
+  })
+
+  it('counts per name: extra occurrences beyond the parent\'s are delegated', async () => {
+    const { delegatedActionIndices } = await loadModule()
+    const idx = delegatedActionIndices(
+      [{ name: 'edit_block' }, { name: 'edit_block' }, { name: 'edit_block' }],
+      [{ name: 'edit_block' }, { name: 'task' }]
+    )
+    assert.deepEqual([...idx].sort((a, b) => a - b), [1, 2])
+  })
+
+  it('classifies nothing when the parent tool calls are unavailable (never gate on a guess)', async () => {
+    const { delegatedActionIndices } = await loadModule()
+    assert.equal(delegatedActionIndices([{ name: 'edit_block' }], undefined).size, 0)
+    assert.equal(delegatedActionIndices([{ name: 'edit_block' }], []).size, 0)
+  })
+})

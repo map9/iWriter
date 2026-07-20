@@ -134,6 +134,95 @@ export function decideWritingSessionApproval(
   }
 }
 
+// ── Stage 2b — 委派执行体的写入闸（"有会话才允许子 Agent 写正文"）──────────────
+//
+// 授权与执行体必须对齐：**子 Agent 的正文写入只在写作会话内成立**。主控自己改（逐块人工卡）与
+// 子 Agent 改（会话内静默累积 + 整章终审）是两条不同的审批形态，此前却共用一条逐块卡路径——
+// 于是修订链路上出现了"被授权的执行体反而每块弹卡、没有基线、失败无法整体回退"的倒挂。
+//
+// 本闸只做一件事：子 Agent 发起的块级编辑 / create_document，若目标不在任何活动授权域内 →
+// **拒绝该次调用**，并在拒绝消息里告诉主控该怎么做（先开写作会话再委派）。绝不静默放行，
+// 也绝不静默替作者登记授权——授权始终来自作者批准的 confirm_writing_plan。
+
+/**
+ * Which action requests in an interrupt came from a delegated subagent rather than the main agent.
+ *
+ * The interrupt payload does not record an originator, but the main agent's own streamed message
+ * does: an action request whose (name, nth-occurrence) has no counterpart among the parent's tool
+ * calls can only have been issued inside a subagent's turn. When the parent's tool calls are
+ * unavailable (empty), nothing is classified as delegated — the gate must never fire on a guess,
+ * since a false positive would reject a legitimate main-agent edit.
+ */
+export function delegatedActionIndices(
+  actionRequests: Array<{ name: string }>,
+  parentToolCalls: Array<{ name: string }> | undefined,
+): Set<number> {
+  const delegated = new Set<number>()
+  if (!parentToolCalls?.length) return delegated
+
+  const parentCountByName = new Map<string, number>()
+  for (const tc of parentToolCalls) {
+    parentCountByName.set(tc.name, (parentCountByName.get(tc.name) ?? 0) + 1)
+  }
+
+  const seenByName = new Map<string, number>()
+  actionRequests.forEach((ar, index) => {
+    const seen = seenByName.get(ar.name) ?? 0
+    seenByName.set(ar.name, seen + 1)
+    if (seen >= (parentCountByName.get(ar.name) ?? 0)) delegated.add(index)
+  })
+  return delegated
+}
+
+export interface DelegatedWriteGateInput {
+  toolName: string
+  args: Record<string, unknown>
+  authorizedFiles: Set<string>
+}
+
+export type DelegatedWriteGateDecision =
+  | { kind: 'reject'; decision: ResumeDecision; targetFile: string | null; reason: string }
+  | { kind: 'pass' }
+
+/** 该工具调用是否属于"写正文对象"的范畴（块级编辑或造新文档）。 */
+function isDelegatedWriteTool(toolName: string): boolean {
+  return isBlockEditToolName(toolName) || toolName === 'create_document'
+}
+
+/**
+ * 子 Agent 写入闸（纯裁决，无副作用）。调用方负责判定 originator 是否为子 Agent，
+ * 仅对子 Agent 发起的调用调用本函数。
+ */
+export function decideDelegatedWriteGate(
+  input: DelegatedWriteGateInput,
+): DelegatedWriteGateDecision {
+  if (!isDelegatedWriteTool(input.toolName)) return { kind: 'pass' }
+
+  const target =
+    input.toolName === 'create_document'
+      ? extractCreateDocumentTarget(input.args)
+      : extractTargetFile(input.args)
+
+  if (target !== null && input.authorizedFiles.has(target)) return { kind: 'pass' }
+
+  const where = target ?? '(no absolute target file)'
+  return {
+    kind: 'reject',
+    targetFile: target,
+    reason: 'Delegated write outside any active write-session authorization.',
+    decision: {
+      type: 'rejected',
+      message:
+        `'${input.toolName}' was not applied: a delegated subagent may only write to a file covered by an ` +
+        `active write-session authorization, and ${where} is not covered by one. This is a delegation ` +
+        `contract error on the caller's side, not a problem with the edit. The main agent must approve a ` +
+        `write-session (confirm_writing_plan naming this file in target_files) BEFORE delegating — on the ` +
+        `revision link as well as the expansion link — and then re-delegate. Do not retry this call as-is, ` +
+        `and do not route around it with write_file/edit_file.`,
+    },
+  }
+}
+
 // ── 会话登记（host 持有）─────────────────────────────────────────────────────
 
 /** 会话累积的单条块级编辑记录（供 M1 整章终审 diff 与忠实度核查回溯）。 */
