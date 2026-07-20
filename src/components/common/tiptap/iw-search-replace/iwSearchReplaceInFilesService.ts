@@ -10,6 +10,7 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { findMatchesInDocument } from './engine/SearchReplace'
 import { goToSelection } from './utils/gotoSelection'
 import { updateSearch } from './plugin/iwSearchReplacePlugin'
+import { buildSearchSnippet } from './searchSnippet'
 import {
   clearExternalSearchBlockHighlight,
   setExternalSearchBlockHighlight,
@@ -184,8 +185,6 @@ export class iwSearchReplaceInFilesService {
     from: number,
     to: number
   ): string {
-    const MAX_CONTEXT_LENGTH = 20 // 单侧最大上下文长度
-
     // 1. 找到包含匹配的段落节点
     const matchingParagraph = this.findContainingParagraph(doc, from, to)
 
@@ -204,50 +203,19 @@ export class iwSearchReplaceInFilesService {
     const relativeFrom = from - paragraphStart - 1 // -1 因为节点起始位置
     const relativeTo = to - paragraphStart - 1
 
-    // 4. 提取段落内的前后上下文
-    const beforeText = paragraphText.substring(0, relativeFrom)
-    const matchText = paragraphText.substring(relativeFrom, relativeTo)
-    const afterText = paragraphText.substring(relativeTo)
+    // 4. 按视觉宽度分配上下文，再在窗口边缘附近微调语义边界
+    const snippet = buildSearchSnippet({
+      before: paragraphText.substring(0, relativeFrom),
+      match: paragraphText.substring(relativeFrom, relativeTo),
+      after: paragraphText.substring(relativeTo),
+    }, {
+      totalWidth: 40
+    })
 
-    // 5. 智能截取上下文（如果段落太长）
-    let beforeContext = beforeText
-    let afterContext = afterText
-    let needPrefixEllipsis = false
-    let needSuffixEllipsis = false
+    const prefix = snippet.prefixEllipsis ? '…' : ''
+    const suffix = snippet.suffixEllipsis ? '…' : ''
 
-    // 截取前置上下文
-    if (beforeContext.length > MAX_CONTEXT_LENGTH) {
-      // 从理想位置开始找语义边界
-      const idealStart = beforeContext.length - MAX_CONTEXT_LENGTH
-      const searchText = beforeContext.substring(idealStart)
-
-      const boundaryIndex = this.findSemanticBoundary(searchText, true)
-      if (boundaryIndex !== -1) {
-        beforeContext = searchText.substring(boundaryIndex + 1)
-      } else {
-        beforeContext = searchText
-      }
-      needPrefixEllipsis = true
-    }
-
-    // 截取后置上下文
-    if (afterContext.length > MAX_CONTEXT_LENGTH) {
-      const searchText = afterContext.substring(0, MAX_CONTEXT_LENGTH)
-
-      const boundaryIndex = this.findSemanticBoundary(searchText, false)
-      if (boundaryIndex !== -1) {
-        afterContext = searchText.substring(0, boundaryIndex + 1)
-      } else {
-        afterContext = searchText
-      }
-      needSuffixEllipsis = true
-    }
-
-    // 6. 组装最终 HTML
-    const prefix = needPrefixEllipsis ? '...' : ''
-    const suffix = needSuffixEllipsis ? '...' : ''
-
-    return `${prefix} ${this.escapeHtml(beforeContext.trimStart())}<mark>${this.escapeHtml(matchText)}</mark>${this.escapeHtml(afterContext.trimEnd())} ${suffix}`
+    return `${prefix}${this.escapeHtml(snippet.before)}<mark>${this.escapeHtml(snippet.match)}</mark>${this.escapeHtml(snippet.after)}${suffix}`
   }
 
   /**
@@ -278,55 +246,6 @@ export class iwSearchReplaceInFilesService {
     })
 
     return result
-  }
-
-  /**
-   * 在文本中查找语义边界
-   * @param text 要搜索的文本
-   * @param fromEnd 是否从末尾开始查找（用于前置上下文）
-   * @returns 边界字符的索引，-1 表示未找到
-   */
-  private static findSemanticBoundary(text: string, fromEnd: boolean): number {
-    const BOUNDARY_CHARS = new Set([
-      // 英文标点
-      '.', ',', ';', ':', '!', '?',
-      '(', ')', '[', ']', '{', '}',
-      '"', "'", '`',
-      // 中文标点（Unicode）
-      '。', '，', '；', '：', '！', '？',
-      '、', '《', '》', '“', '”', '‘', '’',
-      '（', '）', '【', '】', '『', '』',
-      // 空白字符
-      '\t', '\n', '\r'
-    ])
-
-    let blankIndex = -1
-    if (fromEnd) {
-      // 从后往前查找
-      for (let i = text.length - 1; i >= 0; i--) {
-        const char = text[i]
-        if (char) {
-          if (BOUNDARY_CHARS.has(char)) return i
-          else if (char === ' ' || char === '　') {
-            blankIndex = i
-          }
-        }
-      }
-    } else {
-      // 从前往后查找
-      for (let i = 0; i < text.length; i++) {
-        const char = text[i]
-        if (char) {
-          if (BOUNDARY_CHARS.has(char)) return i
-          else if (char === ' ' || char === '　') {
-            blankIndex = i
-          }
-        }
-      }
-    }
-
-    if (blankIndex !== -1) return blankIndex
-    return -1
   }
 
   private static escapeHtml(text: string): string {
