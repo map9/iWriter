@@ -1,7 +1,25 @@
 diff --git a/node_modules/deepagents/dist/index.cjs b/node_modules/deepagents/dist/index.cjs
-index 2d35034..f49fcc8 100644
+index 2d35034..be38211 100644
 --- a/node_modules/deepagents/dist/index.cjs
 +++ b/node_modules/deepagents/dist/index.cjs
+@@ -1759,7 +1759,7 @@ function createGrepTool(backend, options) {
+ 		const result = await resolvedBackend.grep(pattern, path, glob);
+ 		if (result.error) return result.error;
+ 		const matches = filterByPermissions(result.matches ?? [], permissions, "read", (m) => m.path);
+-		if (matches.length === 0) return `No matches found for pattern '${pattern}'`;
++		if (matches.length === 0) return `No matches found for pattern '${pattern}'. Note: search is literal, not regex — if this pattern contains |, *, ., ^ or (), split it into one call per term and retry. An empty result is not proof the text is absent.`;
+ 		const lines = [];
+ 		let currentFile = null;
+ 		for (const match of matches) {
+@@ -1776,7 +1776,7 @@ function createGrepTool(backend, options) {
+ 		name: "grep",
+ 		description: customDescription || GREP_TOOL_DESCRIPTION,
+ 		schema: zod_v4.z.object({
+-			pattern: zod_v4.z.string().describe("Regex pattern to search for"),
++			pattern: zod_v4.z.string().describe("Literal text to search for. NOT a regex: alternations (a|b), wildcards and anchors are matched as literal characters and will find nothing. Search one term per call."),
+ 			path: zod_v4.z.string().optional().default("/").describe("Base path to search from (default: /)"),
+ 			glob: zod_v4.z.string().optional().nullable().default(null).describe("Optional glob pattern to filter files (e.g., '*.py')")
+ 		})
 @@ -3610,6 +3610,7 @@ function isSummaryMessage(msg) {
  */
  function createSummarizationMiddleware(options) {
@@ -94,7 +112,32 @@ index 2d35034..f49fcc8 100644
  			} catch (err) {
  				if (!isContextOverflow(err)) throw err;
  				if (maxInputTokens && totalTokens > 0) {
-@@ -7106,7 +7124,8 @@ function createSubagentTransformer(path) {
+@@ -5487,6 +5505,24 @@ var FilesystemBackend = class {
+ 		}
+ 		let results = await this.ripgrepSearch(pattern, baseFull, glob);
+ 		if (results === null) results = await this.literalSearch(pattern, baseFull, glob);
++		if (Object.keys(results).length === 0 && pattern.includes("|")) {
++			const terms = pattern.split("|").map((t) => t.trim()).filter(Boolean);
++			if (terms.length > 1) {
++				const merged = {};
++				for (const term of terms) {
++					let sub = await this.ripgrepSearch(term, baseFull, glob);
++					if (sub === null) sub = await this.literalSearch(term, baseFull, glob);
++					for (const [fpath, items] of Object.entries(sub)) {
++						if (!merged[fpath]) merged[fpath] = [];
++						for (const item of items) {
++							if (!merged[fpath].some(([ln]) => ln === item[0])) merged[fpath].push(item);
++						}
++					}
++				}
++				for (const items of Object.values(merged)) items.sort((a, b) => a[0] - b[0]);
++				results = merged;
++			}
++		}
+ 		const matches = [];
+ 		for (const [fpath, items] of Object.entries(results)) for (const [lineNum, lineText] of items) matches.push({
+ 			path: fpath,
+@@ -7106,7 +7142,8 @@ function createSubagentTransformer(path) {
  		const pendingByNamespaceSegment = /* @__PURE__ */ new Map();
  		const latestValuesByNamespaceSegment = /* @__PURE__ */ new Map();
  		const subagentsByName = /* @__PURE__ */ new Map();
@@ -104,7 +147,7 @@ index 2d35034..f49fcc8 100644
  		const toolsNodeToName = /* @__PURE__ */ new Map();
  		const childToolCalls = /* @__PURE__ */ new Map();
  		/** Active ChatModelStreamImpl per subagent (keyed by subagent name). */
-@@ -7148,6 +7167,7 @@ function createSubagentTransformer(path) {
+@@ -7148,6 +7185,7 @@ function createSubagentTransformer(path) {
  						const rawInput = data.input;
  						const input = typeof rawInput === "string" ? JSON.parse(rawInput) : rawInput ?? {};
  						const subagentName = input.subagent_type ?? "unknown";
@@ -112,7 +155,7 @@ index 2d35034..f49fcc8 100644
  						const taskDescription = input.description ?? "";
  						let resolveTaskInput;
  						let resolveOutput;
-@@ -7169,15 +7189,15 @@ function createSubagentTransformer(path) {
+@@ -7169,15 +7207,15 @@ function createSubagentTransformer(path) {
  						if (toolCallId) pendingByCallId.set(toolCallId, pending);
  						resolveTaskInput(taskDescription);
  						if (depth === 1) {
@@ -131,7 +174,7 @@ index 2d35034..f49fcc8 100644
  						subagentsLog.push({
  							name: subagentName,
  							taskInput,
-@@ -8121,7 +8141,7 @@ const BUILTIN_TOOL_NAMES = new Set([
+@@ -8121,7 +8159,7 @@ const BUILTIN_TOOL_NAMES = new Set([
  * ```
  */
  function createDeepAgent(params = {}) {
@@ -140,7 +183,7 @@ index 2d35034..f49fcc8 100644
  	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
  	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
  	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
-@@ -8150,7 +8170,7 @@ function createDeepAgent(params = {}) {
+@@ -8150,7 +8188,7 @@ function createDeepAgent(params = {}) {
  				backend,
  				permissions: effectivePermissions
  			}),
@@ -149,7 +192,7 @@ index 2d35034..f49fcc8 100644
  			createPatchToolCallsMiddleware(),
  			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
  				backend,
-@@ -8198,7 +8218,7 @@ function createDeepAgent(params = {}) {
+@@ -8198,7 +8236,7 @@ function createDeepAgent(params = {}) {
  			subagents: inlineSubagents,
  			generalPurposeAgent: false
  		}),
@@ -188,9 +231,27 @@ index 39a445f..1ae4bb0 100644
     * Optional {@link StreamTransformer} factories to register with the underlying agent.
     *
 diff --git a/node_modules/deepagents/dist/index.js b/node_modules/deepagents/dist/index.js
-index 15128fe..f83d617 100644
+index 15128fe..e6e2766 100644
 --- a/node_modules/deepagents/dist/index.js
 +++ b/node_modules/deepagents/dist/index.js
+@@ -1727,7 +1727,7 @@ function createGrepTool(backend, options) {
+ 		const result = await resolvedBackend.grep(pattern, path, glob);
+ 		if (result.error) return result.error;
+ 		const matches = filterByPermissions(result.matches ?? [], permissions, "read", (m) => m.path);
+-		if (matches.length === 0) return `No matches found for pattern '${pattern}'`;
++		if (matches.length === 0) return `No matches found for pattern '${pattern}'. Note: search is literal, not regex — if this pattern contains |, *, ., ^ or (), split it into one call per term and retry. An empty result is not proof the text is absent.`;
+ 		const lines = [];
+ 		let currentFile = null;
+ 		for (const match of matches) {
+@@ -1744,7 +1744,7 @@ function createGrepTool(backend, options) {
+ 		name: "grep",
+ 		description: customDescription || GREP_TOOL_DESCRIPTION,
+ 		schema: z.object({
+-			pattern: z.string().describe("Regex pattern to search for"),
++			pattern: z.string().describe("Literal text to search for. NOT a regex: alternations (a|b), wildcards and anchors are matched as literal characters and will find nothing. Search one term per call."),
+ 			path: z.string().optional().default("/").describe("Base path to search from (default: /)"),
+ 			glob: z.string().optional().nullable().default(null).describe("Optional glob pattern to filter files (e.g., '*.py')")
+ 		})
 @@ -3571,6 +3571,7 @@ function isSummaryMessage(msg) {
  */
  function createSummarizationMiddleware(options) {
@@ -283,7 +344,32 @@ index 15128fe..f83d617 100644
  			} catch (err) {
  				if (!isContextOverflow(err)) throw err;
  				if (maxInputTokens && totalTokens > 0) {
-@@ -7067,7 +7085,8 @@ function createSubagentTransformer(path) {
+@@ -5448,6 +5466,24 @@ var FilesystemBackend = class {
+ 		}
+ 		let results = await this.ripgrepSearch(pattern, baseFull, glob);
+ 		if (results === null) results = await this.literalSearch(pattern, baseFull, glob);
++		if (Object.keys(results).length === 0 && pattern.includes("|")) {
++			const terms = pattern.split("|").map((t) => t.trim()).filter(Boolean);
++			if (terms.length > 1) {
++				const merged = {};
++				for (const term of terms) {
++					let sub = await this.ripgrepSearch(term, baseFull, glob);
++					if (sub === null) sub = await this.literalSearch(term, baseFull, glob);
++					for (const [fpath, items] of Object.entries(sub)) {
++						if (!merged[fpath]) merged[fpath] = [];
++						for (const item of items) {
++							if (!merged[fpath].some(([ln]) => ln === item[0])) merged[fpath].push(item);
++						}
++					}
++				}
++				for (const items of Object.values(merged)) items.sort((a, b) => a[0] - b[0]);
++				results = merged;
++			}
++		}
+ 		const matches = [];
+ 		for (const [fpath, items] of Object.entries(results)) for (const [lineNum, lineText] of items) matches.push({
+ 			path: fpath,
+@@ -7067,7 +7103,8 @@ function createSubagentTransformer(path) {
  		const pendingByNamespaceSegment = /* @__PURE__ */ new Map();
  		const latestValuesByNamespaceSegment = /* @__PURE__ */ new Map();
  		const subagentsByName = /* @__PURE__ */ new Map();
@@ -293,7 +379,7 @@ index 15128fe..f83d617 100644
  		const toolsNodeToName = /* @__PURE__ */ new Map();
  		const childToolCalls = /* @__PURE__ */ new Map();
  		/** Active ChatModelStreamImpl per subagent (keyed by subagent name). */
-@@ -7109,6 +7128,7 @@ function createSubagentTransformer(path) {
+@@ -7109,6 +7146,7 @@ function createSubagentTransformer(path) {
  						const rawInput = data.input;
  						const input = typeof rawInput === "string" ? JSON.parse(rawInput) : rawInput ?? {};
  						const subagentName = input.subagent_type ?? "unknown";
@@ -301,7 +387,7 @@ index 15128fe..f83d617 100644
  						const taskDescription = input.description ?? "";
  						let resolveTaskInput;
  						let resolveOutput;
-@@ -7130,15 +7150,15 @@ function createSubagentTransformer(path) {
+@@ -7130,15 +7168,15 @@ function createSubagentTransformer(path) {
  						if (toolCallId) pendingByCallId.set(toolCallId, pending);
  						resolveTaskInput(taskDescription);
  						if (depth === 1) {
@@ -320,7 +406,7 @@ index 15128fe..f83d617 100644
  						subagentsLog.push({
  							name: subagentName,
  							taskInput,
-@@ -8082,7 +8102,7 @@ const BUILTIN_TOOL_NAMES = new Set([
+@@ -8082,7 +8120,7 @@ const BUILTIN_TOOL_NAMES = new Set([
  * ```
  */
  function createDeepAgent(params = {}) {
@@ -329,7 +415,7 @@ index 15128fe..f83d617 100644
  	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
  	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
  	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
-@@ -8111,7 +8131,7 @@ function createDeepAgent(params = {}) {
+@@ -8111,7 +8149,7 @@ function createDeepAgent(params = {}) {
  				backend,
  				permissions: effectivePermissions
  			}),
@@ -338,7 +424,7 @@ index 15128fe..f83d617 100644
  			createPatchToolCallsMiddleware(),
  			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
  				backend,
-@@ -8159,7 +8179,7 @@ function createDeepAgent(params = {}) {
+@@ -8159,7 +8197,7 @@ function createDeepAgent(params = {}) {
  			subagents: inlineSubagents,
  			generalPurposeAgent: false
  		}),

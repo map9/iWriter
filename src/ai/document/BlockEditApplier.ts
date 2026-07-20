@@ -46,8 +46,59 @@ function sanitizeContentForNodeType(content: string, node: PmNode): string {
   }
 }
 
-function contentMismatchError(kind: string, blockLabel: string): string {
-  return `${kind}: current content for ${blockLabel} no longer matches the expected content. Re-read the latest document blocks before editing again.`
+/**
+ * Build a mismatch message that is actionable on the FIRST failure.
+ *
+ * A bare "re-read and retry" is unactionable when the file did not change: the caller
+ * re-reads, gets the same bytes, resends the same payload, and loops. So we point at
+ * where the two strings actually diverge (post-normalization, i.e. `{b:n}` markers and
+ * surrounding whitespace already ignored) and cap the excerpts so a failed edit cannot
+ * flood the agent's context.
+ */
+const MISMATCH_EXCERPT_CHARS = 60
+
+function describeContentDivergence(current: string, expected: string): string {
+  const a = normalizeExpectedMarkdown(current)
+  const b = normalizeExpectedMarkdown(expected)
+
+  let i = 0
+  while (i < a.length && i < b.length && a[i] === b[i]) i++
+
+  const excerpt = (s: string): string => {
+    const slice = s.slice(i, i + MISMATCH_EXCERPT_CHARS)
+    return `${JSON.stringify(slice)}${i + MISMATCH_EXCERPT_CHARS < s.length ? '…' : ''}`
+  }
+
+  if (i === 0) {
+    return `they differ from the first character (current ${a.length} chars, expected ${b.length}). ` +
+      `Current starts ${excerpt(a)}; you sent ${excerpt(b)}. ` +
+      `Most often the expected content covers a different block, or several blocks, than the one addressed.`
+  }
+  return `they match for ${i} chars, then diverge — current has ${excerpt(a)}, you sent ${excerpt(b)} ` +
+    `(current ${a.length} chars, expected ${b.length}).`
+}
+
+function contentMismatchError(
+  kind: string,
+  blockLabel: string,
+  current?: string,
+  expected?: string,
+  source: 'snapshot' | 'caller' = 'caller'
+): string {
+  const base =
+    source === 'snapshot'
+      ? `${kind}: ${blockLabel} changed between the time this edit was proposed and the time it was applied, so it was not applied. This is not about the content you sent — the document moved underneath the proposal (a concurrent edit, or an earlier edit in this run)`
+      : `${kind}: current content for ${blockLabel} does not match the expected content you sent`
+  const detail =
+    current !== undefined && expected !== undefined
+      ? `: ${describeContentDivergence(current, expected)}`
+      : '.'
+  const advice =
+    source === 'snapshot'
+      ? ` Re-read the document (get_document_outline / get_section) to pick up the new block IDs and reissue against the current state. Sending the same payload again will fail the same way.`
+      : ` Re-read this block with get_blocks and copy its exact markdown (without the {b:n} marker). ` +
+        `If a fresh read produces the same payload and it still fails, stop and report — do not retry the identical call.`
+  return `${base}${detail}${advice}`
 }
 
 function logContentMismatch(blockLabel: string, currentContent: string, expectedContent: string): void {
@@ -66,6 +117,20 @@ function resolveExpectedContent(preferred: string | undefined, fallback: string 
 
   const normalizedFallback = fallback ? normalizeExpectedMarkdown(fallback) : ''
   return normalizedFallback ? fallback : undefined
+}
+
+/**
+ * Which side supplied the content we are checking against.
+ *
+ * `oldContent` is captured from the document snapshot taken when the edit was proposed;
+ * `expectedCurrentContent` is what the caller sent. The snapshot wins when present, which
+ * means a mismatch is frequently NOT the caller's fault: the document moved between the
+ * proposal and the apply, and the caller's own payload was never the thing compared. The
+ * two cases need different advice, so the message has to say which one happened —
+ * otherwise "re-read and reissue" sends the caller into a loop it cannot exit.
+ */
+function expectedContentSource(preferred: string | undefined): 'snapshot' | 'caller' {
+  return preferred && normalizeExpectedMarkdown(preferred) ? 'snapshot' : 'caller'
 }
 
 function getRangeMarkdown(editor: Editor, startNodeId: string, endNodeId: string): string {
@@ -250,7 +315,7 @@ export async function applyEditBlock(
       const currentContent = nodeToMarkdown(container.node)
       if (normalizeExpectedMarkdown(currentContent) !== normalizeExpectedMarkdown(expectedListContent)) {
         logContentMismatch(`list ${nodeId}`, currentContent, expectedListContent)
-        return { success: false, error: contentMismatchError('content_mismatch', `list ${nodeId}`) }
+        return { success: false, error: contentMismatchError('content_mismatch', `list ${nodeId}`, currentContent, expectedListContent, expectedContentSource(proposal.oldContent)) }
       }
     }
     const listNodes = await markdownToContent(editor, newContent)
@@ -278,7 +343,7 @@ export async function applyEditBlock(
     const currentContent = nodeToMarkdown(found.node)
     if (normalizeExpectedMarkdown(currentContent) !== normalizeExpectedMarkdown(expectedCurrentContent)) {
       logContentMismatch(`block ${nodeId}`, currentContent, expectedCurrentContent)
-      return { success: false, error: contentMismatchError('content_mismatch', `block ${nodeId}`) }
+      return { success: false, error: contentMismatchError('content_mismatch', `block ${nodeId}`, currentContent, expectedCurrentContent, expectedContentSource(proposal.oldContent)) }
     }
   }
 
@@ -344,7 +409,7 @@ export async function applyInsertBlock(
       const currentContent = nodeToMarkdown(found.node)
       if (normalizeExpectedMarkdown(currentContent) !== normalizeExpectedMarkdown(expectedAnchorContent)) {
         logContentMismatch(`anchor block ${afterNodeId}`, currentContent, expectedAnchorContent)
-        return { success: false, error: contentMismatchError('content_mismatch', `anchor block ${afterNodeId}`) }
+        return { success: false, error: contentMismatchError('content_mismatch', `anchor block ${afterNodeId}`, currentContent, expectedAnchorContent, expectedContentSource(proposal.oldContent)) }
       }
     }
     insertPos = found.to
@@ -381,7 +446,7 @@ export function applyDeleteBlock(
     const currentContent = nodeToMarkdown(found.node)
     if (normalizeExpectedMarkdown(currentContent) !== normalizeExpectedMarkdown(expectedCurrentContent)) {
       logContentMismatch(`block ${nodeId}`, currentContent, expectedCurrentContent)
-      return { success: false, error: contentMismatchError('content_mismatch', `block ${nodeId}`) }
+      return { success: false, error: contentMismatchError('content_mismatch', `block ${nodeId}`, currentContent, expectedCurrentContent, expectedContentSource(proposal.oldContent)) }
     }
   }
 
@@ -424,7 +489,7 @@ export async function applyReplaceRange(
     const currentContent = getRangeMarkdown(editor, startNodeId, endNodeId)
     if (normalizeExpectedMarkdown(currentContent) !== normalizeExpectedMarkdown(expectedOldContent)) {
       logContentMismatch(`range ${startNodeId}-${endNodeId}`, currentContent, expectedOldContent)
-      return { success: false, error: contentMismatchError('content_mismatch', `range ${startNodeId}-${endNodeId}`) }
+      return { success: false, error: contentMismatchError('content_mismatch', `range ${startNodeId}-${endNodeId}`, currentContent, expectedOldContent, expectedContentSource(proposal.oldContent)) }
     }
   }
 
