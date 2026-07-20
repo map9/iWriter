@@ -6,20 +6,27 @@ import { createSearchReplacePlugin, updateSearch } from './plugin/iwSearchReplac
 import { goToSelection } from './utils/gotoSelection'
 import { getActualSelectionRange } from '../utils/selectionUtils'
 import { setRangeHighlights, removeRangeHighlights } from '../iw-range-highlight'
+import {
+  SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_CLASS,
+  SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_ID,
+  resolveSearchBlockHighlightRange,
+} from './externalMatchHighlight'
 
 const SEARCH_RESULT_HIGHLIGHT_CLASS = 'iw-search-result'
 const SEARCH_CURRENT_RESULT_HIGHLIGHT_CLASS = 'iw-search-result-current'
-
-const SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_ID = 'search-replace-current-result-id'
-const SEARCH_CURRENT_RESULT_RANGE_HIGHLIGHT_CLASS = 'iw-range-highlight-search-current'
 
 const SEARCH_SELECTION_HIGHLIGHT_ID = 'search-replace-selection-id'
 const SEARCH_SELECTION_HIGHLIGHT_CLASS = 'iw-range-highlight-search-selection'
 
 function syncCurrentSearchResultHighlight(editor: Editor, storage: SearchReplaceStorage) {
-  const match = storage.currentMatchIndex >= 0
+  const currentMatch = storage.currentMatchIndex >= 0
     ? storage.matches[storage.currentMatchIndex]
     : null
+  const match = resolveSearchBlockHighlightRange({
+    isOpen: storage.isOpen,
+    externalMatch: storage.externalMatch,
+    currentMatch: currentMatch ?? null,
+  })
 
   if (!match) {
     removeRangeHighlights(

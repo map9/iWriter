@@ -12,6 +12,7 @@
 import type { Editor } from '@tiptap/core'
 import type { EditorRangeHighlight } from './iwRangeHighlightExtension'
 import { useHighlightOverlays, type InsetBox } from './useHighlightOverlays'
+import { getRangeVerticalBounds, toBlockOverlayBox } from './geometry'
 
 interface Props {
   editor: Editor | null
@@ -61,24 +62,25 @@ function computeStyle(
     const rects = domRange.getClientRects()
     if (rects.length === 0) return []
 
-    const editorRect = editor.view.dom.getBoundingClientRect()
     const inset = props.inset
 
-    let minTop = Infinity
-    let maxBottom = -Infinity
+    const verticalRect = getRangeVerticalBounds(rects)
+    const editorRect = editor.view.dom.getBoundingClientRect()
+    if (editorRect.width === 0 || !verticalRect) return []
 
-    for (let i = 0; i < rects.length; i++) {
-      const rect = rects[i]
-      if (!rect) continue
-      minTop = Math.min(minTop, rect.top)
-      maxBottom = Math.max(maxBottom, rect.bottom)
-    }
+    const box = toBlockOverlayBox(
+      editorRect,
+      verticalRect,
+      wrapperRect,
+      { left: scrollLeft, top: scrollTop },
+      inset,
+    )
 
     return [{
-      left: `${editorRect.left - wrapperRect.left + scrollLeft + inset.left}px`,
-      top: `${minTop - wrapperRect.top + scrollTop + inset.top}px`,
-      width: `${editorRect.width - inset.left - inset.right}px`,
-      height: `${maxBottom - minTop - inset.top - inset.bottom}px`,
+      left: `${box.left}px`,
+      top: `${box.top}px`,
+      width: `${box.width}px`,
+      height: `${box.height}px`,
     }]
   } catch (error) {
     console.warn('Failed to calculate block range highlight overlay:', error)

@@ -1103,7 +1103,7 @@ onUnmounted(() => {
 /* 高亮样式 */
 :deep(mark) {
   background-color: color-mix(in oklab, var(--color-warning, #fbbf24) 30%, transparent);
-  color: var(--color-warning-content, #92400e);
+  color: var(--color-base-content, #92400e);
   padding: 0 2px;
   border-radius: 2px;
   font-weight: 500;

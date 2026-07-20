@@ -10,6 +10,10 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { findMatchesInDocument } from './engine/SearchReplace'
 import { goToSelection } from './utils/gotoSelection'
 import { updateSearch } from './plugin/iwSearchReplacePlugin'
+import {
+  clearExternalSearchBlockHighlight,
+  setExternalSearchBlockHighlight,
+} from './externalMatchHighlight'
 import { useDocumentTypeDetector } from '@/utils/DocumentTypeDetector'
 import { TEXT_EXTENSIONS, type FileTab } from '@/types'
 import { pathUtils } from '@/utils/pathUtils'
@@ -396,6 +400,8 @@ export class iwSearchReplaceInFilesService {
       regex: options?.regex || false
     }
 
+    setExternalSearchBlockHighlight(editor, match.position)
+
     // 2. 触发搜索更新（生成装饰器，只高亮外部传入的 match）
     updateSearch(editor)
 
@@ -411,6 +417,7 @@ export class iwSearchReplaceInFilesService {
   static clearHighlightMode(editor: Editor): void {
     editor.storage.iwSearchReplace.externalMatch = null
     editor.storage.iwSearchReplace.searchTerm = ''
+    clearExternalSearchBlockHighlight(editor)
     updateSearch(editor)
   }
 

@@ -63,6 +63,15 @@ export function useHighlightOverlays(params: UseHighlightOverlaysParams) {
     refreshOverlays()
   }
 
+  function bindScrollContainer() {
+    const nextWrapperElement = scrollContainer()
+    if (nextWrapperElement === boundWrapperElement) return
+
+    boundWrapperElement?.removeEventListener('scroll', handleScroll)
+    boundWrapperElement = nextWrapperElement
+    boundWrapperElement?.addEventListener('scroll', handleScroll)
+  }
+
   function cleanup() {
     const currentEditor = editor()
     if (currentEditor && !currentEditor.isDestroyed) {
@@ -76,6 +85,8 @@ export function useHighlightOverlays(params: UseHighlightOverlaysParams) {
       boundWrapperElement.removeEventListener('scroll', handleScroll)
       boundWrapperElement = null
     }
+
+    editorDom?.removeEventListener('scroll', handleScroll, true)
 
     if (resizeObserver) {
       resizeObserver.disconnect()
@@ -100,14 +111,14 @@ export function useHighlightOverlays(params: UseHighlightOverlaysParams) {
       const currentEditor = editor()
       if (currentEditor?.view) {
         editorDom = currentEditor.view.dom
-        boundWrapperElement = scrollContainer() ?? null
+        bindScrollContainer()
 
         currentEditor.on('update', refreshOverlays)
         currentEditor.on('selectionUpdate', refreshOverlays)
         currentEditor.on('transaction', refreshOverlays)
         currentEditor.on('destroy', cleanup)
 
-        boundWrapperElement?.addEventListener('scroll', handleScroll)
+        editorDom.addEventListener('scroll', handleScroll, true)
         window.addEventListener('resize', handleWindowResize)
 
         resizeObserver = new ResizeObserver(() => {
@@ -124,7 +135,19 @@ export function useHighlightOverlays(params: UseHighlightOverlaysParams) {
     { immediate: true }
   )
 
-  onMounted(refreshOverlays)
+  watch(
+    () => scrollContainer(),
+    () => {
+      bindScrollContainer()
+      refreshOverlays()
+    },
+    { flush: 'post' }
+  )
+
+  onMounted(() => {
+    bindScrollContainer()
+    refreshOverlays()
+  })
   onUnmounted(cleanup)
 
   return { overlays }
