@@ -17,7 +17,13 @@ import { buildOutputLanguagePrompt } from '../../../../src/ai/message/detectInpu
  *   - description   routing signal shown to the delegating agent
  *   - model         optional model id override (see note below)
  *   - model-params  optional param overrides (parsed; applied via resolveModel if provided)
- *   - tools         JSON array of tool names → resolved via ToolRegistry (fail-fast on unknown)
+ *   - tools         JSON array of tool names → resolved via ToolRegistry (fail-fast on unknown).
+ *                   NOT a fence. It replaces the *default tool list* deepagents would hand the
+ *                   subagent (`tools: agentParams.tools ?? defaultTools`), but the default
+ *                   middleware stack is prepended regardless — so `read_file`/`write_file`/
+ *                   `ls`/`glob`/`grep` reach the subagent whatever this array says. A tool
+ *                   listing that reads as "read-only" is a statement of intent to the model,
+ *                   not an enforcement: `permissions` below is the only real restriction.
  *   - skills        JSON array of skill source keys (e.g. "creative/prose") → absolute paths;
  *                   the project-level `{workspace}/.iwriter/skills` dir is always appended末位
  *   - permissions   optional JSON array of FilesystemPermission (full replacement, e.g. read-only)
