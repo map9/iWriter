@@ -47,25 +47,74 @@ function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/**
+ * Literal queries treat `|` as an alternation of literal terms, matching `grep`'s behaviour so
+ * one concept's several wordings can be found in a single call. Everything else stays literal —
+ * only `regex: true` turns the query into a real pattern.
+ */
 function buildSearchRegex(query: string, options: DocumentSearchOptions): RegExp | null {
   if (!query.trim()) return null
-  const source = options.regex ? query : escapeRegex(query)
-  const wrapped = options.wholeWord ? `\\b${source}\\b` : source
-  const flags = options.caseSensitive ? 'g' : 'gi'
+  let source: string
+  if (options.regex) {
+    source = query
+  } else {
+    const terms = query.includes('|')
+      ? query.split('|').map(term => term.trim()).filter(Boolean)
+      : []
+    source = terms.length > 1
+      ? `(?:${terms.map(escapeRegex).join('|')})`
+      : escapeRegex(query)
+  }
+  const flags = options.caseSensitive ? 'gu' : 'giu'
   try {
-    return new RegExp(wrapped, flags)
+    return new RegExp(source, flags)
   } catch {
-    return null
+    // `u` rejects patterns a sloppy-mode regex would accept (lone surrogates, stray escapes).
+    // A caller-supplied pattern is worth a second chance without it; whole-word still works,
+    // since boundaries come from the segmenter rather than from the pattern.
+    try {
+      return new RegExp(source, options.caseSensitive ? 'g' : 'gi')
+    } catch {
+      return null
+    }
   }
 }
 
-function findAllMatches(text: string, regex: RegExp): Array<{ index: number; text: string }> {
+/**
+ * Word-start offsets of `text` (plus its end), from ICU word segmentation.
+ *
+ * This is what makes `whole_word` mean the same thing in every writing system. A `\b`-wrapped
+ * pattern cannot: JS defines `\b` over `[A-Za-z0-9_]`, so `\bcafé\b` fails on the accent and any
+ * CJK query fails outright — `/\b伤疤\b/` matches neither "他的伤疤很深" nor a standalone "伤疤",
+ * i.e. whole_word silently returned nothing for Chinese. ICU segments "他的伤疤很深" into
+ * 他的 | 伤疤 | 很 | 深, so a match is accepted exactly when it starts and ends on a word edge.
+ */
+function wordBoundaries(text: string): Set<number> | null {
+  if (typeof Intl === 'undefined' || typeof Intl.Segmenter !== 'function') return null
+  const boundaries = new Set<number>()
+  // Locale is irrelevant to the result here: ICU picks the dictionary breaker from the script.
+  for (const segment of new Intl.Segmenter(undefined, { granularity: 'word' }).segment(text)) {
+    boundaries.add(segment.index)
+  }
+  boundaries.add(text.length)
+  return boundaries
+}
+
+function findAllMatches(
+  text: string,
+  regex: RegExp,
+  wholeWord = false,
+): Array<{ index: number; text: string }> {
   const matches: Array<{ index: number; text: string }> = []
   const local = regex.flags.includes('g') ? regex : new RegExp(regex.source, `${regex.flags}g`)
+  // Only computed when whole-word filtering is on, and only for blocks that already matched.
+  const boundaries = wholeWord ? wordBoundaries(text) : null
   for (const match of text.matchAll(local)) {
     const value = match[0]
     if (!value) continue
-    matches.push({ index: match.index ?? 0, text: value })
+    const index = match.index ?? 0
+    if (boundaries && !(boundaries.has(index) && boundaries.has(index + value.length))) continue
+    matches.push({ index, text: value })
   }
   return matches
 }
@@ -110,7 +159,7 @@ function searchBlocksInSnapshot(
 
   for (const block of snapshot.blockMap) {
     if (totalMatches >= maxMatches) break
-    const matches = findAllMatches(block.content, regex)
+    const matches = findAllMatches(block.content, regex, options.wholeWord)
     if (!matches.length) continue
 
     const limited = matches.slice(0, Math.max(1, maxMatches - totalMatches))
@@ -215,6 +264,33 @@ export function listWorkspaceDocumentPaths(
   return results
 }
 
+/**
+ * What a zero-hit result carries instead of a dead end.
+ *
+ * A miss is usually a vocabulary mismatch, not an absence: the caller guessed a wording the
+ * document does not use (a prose label for something the file names by identifier, the wrong
+ * language, a synonym). Returning the document's own headings turns "0 matches" into the
+ * information needed to re-query, without a second round trip.
+ */
+function buildMissDiagnostics(
+  snapshot: SerializedSnapshot,
+  maxHeadings = 40,
+): { hint: string; document_headings: Array<{ block_id: number; heading: string }> } {
+  const headings = snapshot.outline.slice(0, maxHeadings).map(entry => ({
+    block_id: entry.displayId,
+    heading: entry.text,
+  }))
+  return {
+    hint: headings.length
+      ? 'No match is not proof of absence — it usually means this document words the thing differently. '
+        + 'Take the wording from document_headings below (or read the section that should carry it) and re-query. '
+        + 'Several wordings can go in one query: "term one|term two".'
+      : 'No match is not proof of absence — it usually means this document words the thing differently. '
+        + 'This document has no headings to sample; read it directly rather than guessing another query.',
+    document_headings: headings,
+  }
+}
+
 export class DocumentSearch {
   static searchDocumentBlocksRaw(
     snapshot: SerializedSnapshot,
@@ -241,7 +317,11 @@ export class DocumentSearch {
     if (!result) {
       return 'Error: Invalid search query or regex.'
     }
-    return JSON.stringify(result, null, 2)
+    return JSON.stringify(
+      result.total_matches === 0 ? { ...result, ...buildMissDiagnostics(snapshot) } : result,
+      null,
+      2,
+    )
   }
 
   static searchDocumentSections(
@@ -256,11 +336,13 @@ export class DocumentSearch {
       return 'Error: Invalid search query or regex.'
     }
     const sections = aggregateSections(blockMatches).slice(0, Math.max(1, maxSections))
+    const totalMatches = blockMatches.reduce((sum, item) => sum + item.match_count, 0)
     return JSON.stringify({
       file_path: snapshot.filePath ?? null,
       total_sections: sections.length,
-      total_matches: blockMatches.reduce((sum, item) => sum + item.match_count, 0),
+      total_matches: totalMatches,
       sections,
+      ...(totalMatches === 0 ? buildMissDiagnostics(snapshot) : {}),
     }, null, 2)
   }
 
@@ -273,14 +355,27 @@ export class DocumentSearch {
       total_matches: number
       matches: Array<Omit<BlockMatch, 'content'>>
     }>,
-    scannedFiles: number
+    scannedFiles: number,
+    /** Scanned file paths — the directory's own vocabulary, echoed back when nothing matched. */
+    scannedPaths: readonly string[] = [],
   ): string {
+    const totalMatches = files.reduce((sum, file) => sum + file.total_matches, 0)
     return JSON.stringify({
       query,
       scanned_files: scannedFiles,
       matched_files: files.length,
-      total_matches: files.reduce((sum, file) => sum + file.total_matches, 0),
+      total_matches: totalMatches,
       files,
+      ...(totalMatches === 0
+        ? {
+            hint: scannedFiles === 0
+              ? 'Nothing was scanned: no .md/.txt/.iwt document under this directory passed the filters. Check the path and the globs before concluding anything about content.'
+              : 'No match is not proof of absence — it usually means the workspace words the thing differently. '
+                + 'The scanned file names below show how this project names things; re-query with that wording, '
+                + 'or put several wordings in one query: "term one|term two".',
+            ...(scannedFiles > 0 ? { scanned_paths: scannedPaths.slice(0, 60) } : {}),
+          }
+        : {}),
     }, null, 2)
   }
 }

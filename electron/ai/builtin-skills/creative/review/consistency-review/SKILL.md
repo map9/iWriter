@@ -56,7 +56,7 @@ Then audit:
 
 ## Stop
 
-- **Quote what you are judging against.** Every "contradicts / violates / breaks" finding names the object *and quotes the line that establishes the fact*. If the quote does not actually support the claim, drop the claim — a fabricated violation makes the author rewrite sound material. Searching is literal, one term per query; a "no matches" result never proves a fact is absent, so re-verify before asserting one.
+- **Quote what you are judging against.** Every "contradicts / violates / breaks" finding names the object *and quotes the line that establishes the fact*. If the quote does not actually support the claim, drop the claim — a fabricated violation makes the author rewrite sound material. Searching is literal apart from `a|b` alternation, so query every wording of a fact in one call; a "no matches" result still never proves a fact is absent, so re-verify before asserting one.
 - **Correctness only** — do not review story quality (that is `developmental-review`) and do not do line polishing.
 - **Grammar / spelling / punctuation / format normalization are NOT yours.** The app's proofread system owns copy-editing; do not produce a proofreading pass.
 - Keep the Stage-1 fidelity verdict and the Stage-2 consistency verdict as **two separate blocks**.

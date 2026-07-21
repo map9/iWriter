@@ -57,7 +57,7 @@ index d3d062d..78fa39b 100644
     * Optional {@link StreamTransformer} factories to register with the underlying agent.
     *
 diff --git a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
-index f1c3f24..419a31d 100644
+index f1c3f24..678e585 100644
 --- a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
 +++ b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
 @@ -1918,7 +1918,7 @@ function createGrepTool(backend, options) {
@@ -65,7 +65,7 @@ index f1c3f24..419a31d 100644
  		if (result.error) return result.error;
  		const matches = filterByPermissions(result.matches ?? [], permissions, "read", (m) => m.path);
 -		if (matches.length === 0) return `No matches found for pattern '${pattern}'`;
-+		if (matches.length === 0) return `No matches found for pattern '${pattern}'. Note: search is literal, not regex — if this pattern contains |, *, ., ^ or (), split it into one call per term and retry. An empty result is not proof the text is absent.`;
++		if (matches.length === 0) return `No matches found for pattern '${pattern}'. Note: matching is literal except for | alternation — wildcards, anchors and character classes find nothing. An empty result is not proof the text is absent: retry with different wording, or read the file.`;
  		const lines = [];
  		let currentFile = null;
  		for (const match of matches) {
@@ -74,7 +74,7 @@ index f1c3f24..419a31d 100644
  		description: customDescription || GREP_TOOL_DESCRIPTION,
  		schema: z.object({
 -			pattern: z.string().describe("Regex pattern to search for"),
-+			pattern: z.string().describe("Literal text to search for. NOT a regex: alternations (a|b), wildcards and anchors are matched as literal characters and will find nothing. Search one term per call."),
++			pattern: z.string().describe("Text to search for. Matching is literal, NOT regex — wildcards, anchors and character classes are matched as literal characters. The one exception is alternation: 'a|b|c' searches each term and returns the union, so related terms belong in ONE call."),
  			path: z.string().optional().default("/").describe("Base path to search from (default: /)"),
  			glob: z.string().optional().nullable().default(null).describe("Optional glob pattern to filter files (e.g., '*.py')")
  		})
@@ -198,7 +198,7 @@ index f1c3f24..419a31d 100644
  	];
  	let middleware = mergeMiddlewareStack([
 diff --git a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
-index 5551ac8..38b2fec 100644
+index 5551ac8..2b5e140 100644
 --- a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
 +++ b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
 @@ -1942,7 +1942,7 @@ function createGrepTool(backend, options) {
@@ -206,7 +206,7 @@ index 5551ac8..38b2fec 100644
  		if (result.error) return result.error;
  		const matches = filterByPermissions(result.matches ?? [], permissions, "read", (m) => m.path);
 -		if (matches.length === 0) return `No matches found for pattern '${pattern}'`;
-+		if (matches.length === 0) return `No matches found for pattern '${pattern}'. Note: search is literal, not regex — if this pattern contains |, *, ., ^ or (), split it into one call per term and retry. An empty result is not proof the text is absent.`;
++		if (matches.length === 0) return `No matches found for pattern '${pattern}'. Note: matching is literal except for | alternation — wildcards, anchors and character classes find nothing. An empty result is not proof the text is absent: retry with different wording, or read the file.`;
  		const lines = [];
  		let currentFile = null;
  		for (const match of matches) {
@@ -215,7 +215,7 @@ index 5551ac8..38b2fec 100644
  		description: customDescription || GREP_TOOL_DESCRIPTION,
  		schema: zod_v4.z.object({
 -			pattern: zod_v4.z.string().describe("Regex pattern to search for"),
-+			pattern: zod_v4.z.string().describe("Literal text to search for. NOT a regex: alternations (a|b), wildcards and anchors are matched as literal characters and will find nothing. Search one term per call."),
++			pattern: zod_v4.z.string().describe("Text to search for. Matching is literal, NOT regex — wildcards, anchors and character classes are matched as literal characters. The one exception is alternation: 'a|b|c' searches each term and returns the union, so related terms belong in ONE call."),
  			path: zod_v4.z.string().optional().default("/").describe("Base path to search from (default: /)"),
  			glob: zod_v4.z.string().optional().nullable().default(null).describe("Optional glob pattern to filter files (e.g., '*.py')")
  		})
@@ -339,15 +339,22 @@ index 5551ac8..38b2fec 100644
  	];
  	let middleware = mergeMiddlewareStack([
 diff --git a/node_modules/deepagents/dist/src-Cqag72HH.js b/node_modules/deepagents/dist/src-Cqag72HH.js
-index be20f8d..f4386bb 100644
+index be20f8d..716e511 100644
 --- a/node_modules/deepagents/dist/src-Cqag72HH.js
 +++ b/node_modules/deepagents/dist/src-Cqag72HH.js
-@@ -899,6 +899,24 @@ var FilesystemBackend = class {
+@@ -897,8 +897,29 @@ var FilesystemBackend = class {
+ 		} catch {
+ 			return { matches: [] };
  		}
- 		let results = await this.ripgrepSearch(pattern, baseFull, glob);
- 		if (results === null) results = await this.literalSearch(pattern, baseFull, glob);
-+		if (Object.keys(results).length === 0 && pattern.includes("|")) {
-+			const terms = pattern.split("|").map((t) => t.trim()).filter(Boolean);
+-		let results = await this.ripgrepSearch(pattern, baseFull, glob);
+-		if (results === null) results = await this.literalSearch(pattern, baseFull, glob);
++		const terms = pattern.includes("|") ? pattern.split("|").map((t) => t.trim()).filter(Boolean) : [];
++		let results = {};
++		if (terms.length <= 1) {
++			results = await this.ripgrepSearch(pattern, baseFull, glob);
++			if (results === null) results = await this.literalSearch(pattern, baseFull, glob);
++		}
++		{
 +			if (terms.length > 1) {
 +				const merged = {};
 +				for (const term of terms) {
@@ -368,15 +375,22 @@ index be20f8d..f4386bb 100644
  		for (const [fpath, items] of Object.entries(results)) for (const [lineNum, lineText] of items) matches.push({
  			path: fpath,
 diff --git a/node_modules/deepagents/dist/src-DtpWpNrN.cjs b/node_modules/deepagents/dist/src-DtpWpNrN.cjs
-index 5962df6..b4f2c06 100644
+index 5962df6..d17e270 100644
 --- a/node_modules/deepagents/dist/src-DtpWpNrN.cjs
 +++ b/node_modules/deepagents/dist/src-DtpWpNrN.cjs
-@@ -907,6 +907,24 @@ var FilesystemBackend = class {
+@@ -905,8 +905,29 @@ var FilesystemBackend = class {
+ 		} catch {
+ 			return { matches: [] };
  		}
- 		let results = await this.ripgrepSearch(pattern, baseFull, glob);
- 		if (results === null) results = await this.literalSearch(pattern, baseFull, glob);
-+		if (Object.keys(results).length === 0 && pattern.includes("|")) {
-+			const terms = pattern.split("|").map((t) => t.trim()).filter(Boolean);
+-		let results = await this.ripgrepSearch(pattern, baseFull, glob);
+-		if (results === null) results = await this.literalSearch(pattern, baseFull, glob);
++		const terms = pattern.includes("|") ? pattern.split("|").map((t) => t.trim()).filter(Boolean) : [];
++		let results = {};
++		if (terms.length <= 1) {
++			results = await this.ripgrepSearch(pattern, baseFull, glob);
++			if (results === null) results = await this.literalSearch(pattern, baseFull, glob);
++		}
++		{
 +			if (terms.length > 1) {
 +				const merged = {};
 +				for (const term of terms) {

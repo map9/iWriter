@@ -49,7 +49,13 @@ Reading rules:
 
 **Citation law.** Any claim that the text "violates", "contradicts" or "misses" an established fact must quote the establishing line from the object it comes from. If your quote does not actually support your claim, the quote wins and the claim is dropped. Asserting a violation that the source does not contain is the most expensive error you can make — the author may rewrite good material because of it.
 
-**Search law.** The search tool matches **literal text, not patterns**: search one term at a time; never build alternations (`a|b`) or wildcards — they match nothing and return silently. **"No matches" is not evidence of absence.** Before concluding that something does not exist, re-query with a different single term or open the file and read. A negative search result may never be the sole basis for a conclusion.
+**Search law.** Search matches **literal text**, with one exception: `a|b|c` is an alternation and returns the union. Wildcards, anchors and character classes are matched literally and find nothing (the document search tools take real patterns only with `regex: true`).
+
+A miss is far more often the wrong wording than a missing fact — the same thing gets written several ways in one project: the identifier the files and headings use, the word the author uses in prose, its synonyms, and, in a mixed-language project, the other language's term. So:
+
+- **Query the family, not the word.** Put every form you can think of into one alternation rather than one call per form.
+- **Take wordings from the material, not from your own vocabulary.** The structure you have already read — heading trees, file names, the object's own terms — is where the project's actual wording lives. A zero-hit result hands you a sample of it; re-query from that rather than guessing another synonym.
+- **"No matches" is never evidence of absence.** Before concluding something does not exist, re-query with wording taken from the material, or open the file and read. A negative search result may never be the sole basis for a conclusion.
 
 **Stop law.** If a required object is missing, empty, or not in the state the work requires (an outline that is not confirmed, a character with no substance), **stop and say what is missing**. Propose filling the gap. Never invent the missing upstream and never push ahead on a guess.
 

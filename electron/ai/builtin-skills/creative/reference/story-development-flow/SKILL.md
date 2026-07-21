@@ -1,6 +1,6 @@
 ---
 name: story-development-flow
-description: Load when judging whether a project is ready to move to the next creative stage — before authoring a master outline, before drafting a chapter outline, before writing a chapter, or when answering "where am I / what's next". Also load to place a request you cannot route: it maps any ask onto a stage and beat and points at the playbook that owns it. Defines the default pipeline, the readiness gates, and how a change at one level bubbles to the others.
+description: Load when judging whether a project is ready to move to the next creative stage — before authoring a master outline, before drafting a chapter outline, before writing a chapter, or when answering "where am I / what's next". Also load to place a request you cannot route — it maps any ask onto a stage and beat and points at the playbook that owns it. Defines the default pipeline, the readiness gates, and how a change at one level bubbles to the others.
 ---
 
 # story-development-flow

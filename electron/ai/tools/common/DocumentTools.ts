@@ -506,14 +506,14 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         'Returns matching block IDs, their containing section heading, and short previews. ' +
         'Use this when you know the document and need exact blocks to inspect or edit.',
       schema: z.object({
-        query: z.string().describe('Search query text or regex pattern.'),
+        query: z.string().describe('Text to search for. Matched literally, with one exception: "one|other" is an alternation, so put every wording of the same thing in ONE query instead of one call per wording. For a real pattern, set regex: true.'),
         file_path: z
           .string()
           .optional()
           .describe('Required. Absolute host path to the target document, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
-        whole_word: z.boolean().optional().describe('Match whole words only.'),
-        regex: z.boolean().optional().describe('Treat query as a regular expression.'),
+        whole_word: z.boolean().optional().describe('Reject matches that are part of a longer word. Works in every writing system, including scripts without spaces.'),
+        regex: z.boolean().optional().describe('Treat query as a JavaScript regular expression. Not needed for plain alternation — "one|other" already works without it.'),
         max_matches: z.number().optional().describe('Maximum number of matches to return (default: 200).'),
       }),
     }
@@ -562,14 +562,14 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         'Returns heading_block_id, heading title, matched block IDs, and previews. ' +
         'Use this when you already know the target file path and need to find relevant content inside that document before calling get_section.',
       schema: z.object({
-        query: z.string().describe('Search query text or regex pattern.'),
+        query: z.string().describe('Text to search for. Matched literally, with one exception: "one|other" is an alternation, so put every wording of the same thing in ONE query instead of one call per wording. For a real pattern, set regex: true.'),
         file_path: z
           .string()
           .optional()
           .describe('Required. Absolute host path to the target document, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
-        whole_word: z.boolean().optional().describe('Match whole words only.'),
-        regex: z.boolean().optional().describe('Treat query as a regular expression.'),
+        whole_word: z.boolean().optional().describe('Reject matches that are part of a longer word. Works in every writing system, including scripts without spaces.'),
+        regex: z.boolean().optional().describe('Treat query as a JavaScript regular expression. Not needed for plain alternation — "one|other" already works without it.'),
         max_matches: z.number().optional().describe('Maximum number of block matches to consider (default: 200).'),
         max_sections: z.number().optional().describe('Maximum number of sections to return (default: 50).'),
       }),
@@ -632,7 +632,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         })
       }
 
-      return DocumentSearch.formatWorkspaceSearchResult(query, files, filePaths.length)
+      return DocumentSearch.formatWorkspaceSearchResult(query, files, filePaths.length, filePaths)
     },
     {
       name: 'search_in_directory',
@@ -644,13 +644,13 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         'If you know the path, call get_document_outline/get_section/get_blocks with file_path directly. ' +
         'For file/path discovery, use shell file tools such as ls/glob/find/grep instead.',
       schema: z.object({
-        query: z.string().describe('Search query text or regex pattern.'),
+        query: z.string().describe('Text to search for. Matched literally, with one exception: "one|other" is an alternation, so put every wording of the same thing in ONE query instead of one call per wording. For a real pattern, set regex: true.'),
         directory_path: z
           .string()
           .describe('Real absolute host path to the directory whose document contents should be searched. Prefer a user-specified directory, an attached directory, or the workspace root.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
-        whole_word: z.boolean().optional().describe('Match whole words only.'),
-        regex: z.boolean().optional().describe('Treat query as a regular expression.'),
+        whole_word: z.boolean().optional().describe('Reject matches that are part of a longer word. Works in every writing system, including scripts without spaces.'),
+        regex: z.boolean().optional().describe('Treat query as a JavaScript regular expression. Not needed for plain alternation — "one|other" already works without it.'),
         include_glob: z.string().optional().describe('Optional wildcard include filter such as "**/*.md".'),
         exclude_glob: z.string().optional().describe('Optional wildcard exclude filter such as "archive/**".'),
         max_files: z.number().optional().describe('Maximum number of workspace files to scan (default: 200).'),

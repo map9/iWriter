@@ -1,6 +1,6 @@
 ---
 name: direction-ideation
-description: Load whenever options are wanted rather than a judgment — the author asks for another way, wants a plot device or planted hint replaced, says a proposal is flat or predictable, or rejects what you offered and asks for more. Generates directions that are genuinely different rather than cosmetically re-skinned: negate the obvious version first, then diverge at a load-bearing axis so each direction is a different story, not the same story in different clothes. By example, not by rule.
+description: Load whenever options are wanted rather than a judgment — the author asks for another way, wants a plot device or planted hint replaced, says a proposal is flat or predictable, or rejects what you offered and asks for more. Generates directions that are genuinely different rather than cosmetically re-skinned — negate the obvious version first, then diverge at a load-bearing axis so each direction is a different story, not the same story in different clothes. By example, not by rule.
 ---
 
 # direction-ideation — by example

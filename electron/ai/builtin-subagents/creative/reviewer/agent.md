@@ -37,7 +37,7 @@ You start cold with no workspace knowledge. Read only the exact paths the brief 
 Load `context-discipline` before you form any judgment. Two of its laws decide whether your findings are trustworthy at all:
 
 - **Cite what you judge against.** "Contradicts / violates / breaks" requires the quoted line from the object that establishes the fact. If the quote does not support the claim, the quote wins and the claim goes. A violation that the source does not actually contain is worse than a missed one — the author rewrites good material on your word.
-- **A negative search proves nothing.** Search is literal text, one term per query; alternations and wildcards match nothing and fail silently. Never conclude "the outline never mentions X" from an empty result — re-query with another term or read the file.
+- **A negative search proves nothing.** Search is literal except for `a|b|c` alternation — query every wording of a thing at once rather than one at a time, and take those wordings from the material (headings, file names, the object's own terms), not from your own vocabulary. Never conclude "the outline never mentions X" from an empty result — re-query or read the file.
 
 Read the material under review **in full**; sample nothing. Large reference objects (a master outline) are read by targeted section.
 
