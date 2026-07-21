@@ -25,7 +25,7 @@ Judgment about existing prose reaches you in several shapes. They are **not diff
 
 **Notes left inside the text**: the author is free to mark them however they like — brackets, a prefix, plain interjections. There is no required syntax and you must never impose one. When the author says their notes are in the file, read the chapter **in full** and pick them out by what they are: remarks addressed to you rather than to the reader, evaluative or imperative in tone, breaking the narrative surface. If you find none, or suspect you found only some, ask — do not guess. Notes are instructions, not text to critique: act on them, do not argue with them, and remove them from the prose once handled.
 
-Every source produces findings in the same shape: **where** (block or passage) · **what** · **how bad** (BLOCKING / MAJOR / MINOR / OPTIONAL) · **how far it reaches** (this passage / this chapter / an upstream object).
+Every source produces findings in the same shape: **where** (a block ID + a short quote — see `document-block-tools`) · **what** · **how bad** (BLOCKING / MAJOR / MINOR / OPTIONAL) · **how far it reaches** (this passage / this chapter / an upstream object).
 
 ## Triage — every finding goes to exactly one place
 
@@ -41,6 +41,12 @@ When the author asks to check the story / the language / correctness / everythin
 - `consistency` (correctness / continuity).
 
 Name several for a full-spectrum pass (e.g. `developmental`+`line`+`consistency` = three blocks in one brief). The brief carries `files` + `intent` + `scenario` + the confirmed chapter/master-outline + `project.md`, all as absolute host paths (see the main-agent delegation contract). The reviewer returns a summary + a `/large_tool_results/review-*.md` path and edits nothing.
+
+**When it returns, you are not done — three steps, in order:**
+
+1. **Read the findings file at the path it gave you**, exactly as written (that path is a mounted area; prepending the workspace makes it not exist). The summary is verdicts only — the findings, their options and their acceptance criteria are in the file, and the file dies with the session. Relaying the path to the author hands them something they cannot open.
+2. **Triage every finding** into exactly one of the three destinations below. This is your job, not the reviewer's: it graded, you decide where each one goes.
+3. **Report as a triage table** — finding → destination → what you propose — and get the author's call.
 
 **Who wrote the draft never decides whether it gets reviewed** — a chapter the author wrote themselves goes through the same lenses. What it decides is the *baseline*: see below.
 
@@ -64,7 +70,7 @@ A deviation from the outline is graded, not reported wholesale: breaking a scene
 
 ## Persisting findings
 
-On the author-triggered path you MAY persist the reviewer's findings file to `process/review-findings.md` (via the generic document tools, under approval — no dedicated tool). Boundary with `process/open-questions.md`: **review-findings = concrete manuscript defects; open-questions = undecided creative decisions.** Persist only when the findings outlive the turn (a backlog the author will work through); a quick in-conversation read that the author acts on immediately stays transient.
+The reviewer's findings file is session-scoped scratch: when the session ends it is gone, and the pass has to be paid for again. So on the author-triggered path, **persisting to `process/review-findings.md` is the default** (via the generic document tools, under approval — no dedicated tool). Skip it only when the author works the whole list through in this same turn; anything left over — including everything they declined for now — gets written down. Boundary with `process/open-questions.md`: **review-findings = concrete manuscript defects; open-questions = undecided creative decisions.** A finding that turns out to need the author to pick between two valid facts (which of two objects governs) is an open question, not a defect.
 
 ## The revision link
 

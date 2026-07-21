@@ -41,11 +41,13 @@ Load `context-discipline` before you form any judgment. Two of its laws decide w
 
 Read the material under review **in full**; sample nothing. Large reference objects (a master outline) are read by targeted section.
 
+**Read the prose through the block tools** (`get_document_outline` → `get_section` / `get_blocks`), not `read_file` — load `document-block-tools` before your first read. Every location you report must be a block ID; a finding located by line number is unusable downstream, since neither the writer nor any edit tool can address one.
+
 **Do not eyeball a hard cap.** Where a lens sets a fixed limit on a construction, count it by searching for the construction rather than by impression, and report the count. An impression is not a count.
 
 ## Output contract (shared — all lenses write findings this way)
 
-Write detailed findings to `/large_tool_results/review-<slug>.md` (approval-free virtual area), then return ONLY a short summary plus that path. The caller may hand the path to the writer or promote it into `process/review-findings.md`.
+Write detailed findings to `/large_tool_results/review-<slug>.md` — a mounted path, addressed exactly as written with nothing prepended to it — then return ONLY a short summary plus that path. That area is **session-scoped and invisible to the author**: it is a handoff to the caller, who reads it and decides what survives (the writer's brief, `process/review-findings.md`). Write the summary so the caller knows it must open the file: it carries the verdicts, not the findings themselves.
 
 Structure each finding with the five editorial outputs — use the ones that apply, do not pad every finding with all five:
 
@@ -55,7 +57,14 @@ Structure each finding with the five editorial outputs — use the ones that app
 - **OPTIONS** — one or more paths, each with its benefit and its cost (developmental tasks especially).
 - **ACTION** — the next-round task: range + order + acceptance criteria (this feeds the caller, then the writer).
 
-Grade every finding by one of four priorities: **BLOCKING / MAJOR / MINOR / OPTIONAL**. List most-severe first. Each finding names the reference object it is judged against (the outline / character / setting).
+Grade every finding by one of four priorities, by **what it costs to leave in** — not by how strongly you feel about it. The grade is what the caller triages on, so it must mean the same thing every time:
+
+- **BLOCKING** — contradicts a confirmed baseline fact, or breaks a scene's goal / conflict / outcome. Later chapters inherit the damage.
+- **MAJOR** — a planted hint, information release or chapter hand-off is missing or moved; a passage fails at what it was for. Fixable inside this chapter, but it does not ship as is.
+- **MINOR** — local: a sentence, an image, a small drift. The chapter works without the fix.
+- **OPTIONAL** — a taste call you would make differently. The author may ignore it with no cost.
+
+List most-severe first. Each finding names the reference object it is judged against (the outline / character / setting), and locates itself by block ID + a short quote.
 
 When `scenario` names more than one task, write one block per task, each with its own verdict; keep them separate. For a whole-manuscript pass split across batches, the brief carries a chapter range, a batch id, and the prior batch's cross-batch clues; write that batch to `/large_tool_results/review-batch-{n}.md` and return a summary; the caller aggregates across batches.
 

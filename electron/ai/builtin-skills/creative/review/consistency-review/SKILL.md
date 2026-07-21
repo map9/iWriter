@@ -43,7 +43,13 @@ Then audit:
 - Do characters act from their **psychology triangle** (desire / fear / false belief) as set in the confirmed characters, not moved for plot convenience?
 - Did the prose stay inside the declared scope — nothing invented beyond it that the story now has to carry?
 
-**Stage 2 — hard consistency** (cover them; a dimension that's fine needs a sentence)
+**Stage 2 — hard consistency**
+
+Start from the text's **checkable literals**, not from the dimension list. Read the prose once for everything that is a hard token — a number, a duration or count, a date or clock time, a label or code, a title, a rank, a name, a place — and take each one back to the object that fixes it. This is the whole difference between an audit and an impression: a fact that is never extracted is never checked, and a smooth read is exactly where a wrong number survives.
+
+**Two of them outrank the rest, so do them first**: the chapter's **identity bindings** (which version / party is the POV, who carries which mark or code, who is which side of a pairing) and its **stated quantities** (how long, how many, by when). These are what the rest of the book is built on, and they are the ones an attentive read glides over because they read as flavour.
+
+Then cover the dimensions:
 
 - **Plausibility / common sense** — anything violating basic plausibility given the established setting.
 - **Timeline continuity** — event order, elapsed time, ages, season / time-of-day self-consistent across chapters and not contradicting confirmed setting or previously narrated facts.
@@ -56,7 +62,8 @@ Then audit:
 
 ## Stop
 
-- **Quote what you are judging against.** Every "contradicts / violates / breaks" finding names the object *and quotes the line that establishes the fact*. If the quote does not actually support the claim, drop the claim — a fabricated violation makes the author rewrite sound material. Searching is literal apart from `a|b` alternation, so query every wording of a fact in one call; a "no matches" result still never proves a fact is absent, so re-verify before asserting one.
+- **Quote what you are judging against — in both directions.** Every "contradicts / violates / breaks" finding names the object *and quotes the line that establishes the fact*. If the quote does not actually support the claim, drop the claim — a fabricated violation makes the author rewrite sound material. **Clearing a dimension costs the same evidence**: "consistent" is a finding too, and it is stated as the literals you took back to their source, never as a bare tick. A dimension you cannot show your work on is one you did not audit — say that instead. A false clean bill is the most expensive thing you can hand back: it is the one outcome that makes the author stop looking.
+- Searching is literal apart from `a|b` alternation, so query every wording of a fact in one call; a "no matches" result still never proves a fact is absent, so re-verify before asserting one.
 - **Correctness only** — do not review story quality (that is `developmental-review`) and do not do line polishing.
 - **Grammar / spelling / punctuation / format normalization are NOT yours.** The app's proofread system owns copy-editing; do not produce a proofreading pass.
 - Keep the Stage-1 fidelity verdict and the Stage-2 consistency verdict as **two separate blocks**.

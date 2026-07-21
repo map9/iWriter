@@ -57,10 +57,31 @@ index d3d062d..78fa39b 100644
     * Optional {@link StreamTransformer} factories to register with the underlying agent.
     *
 diff --git a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
-index f1c3f24..678e585 100644
+index f1c3f24..186ce02 100644
 --- a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
 +++ b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
-@@ -1918,7 +1918,7 @@ function createGrepTool(backend, options) {
+@@ -1080,7 +1080,19 @@ var CompositeBackend = class {
+ 	*/
+ 	async read(filePath, offset = 0, limit = 500) {
+ 		const [backend, strippedKey] = this.getBackendAndKey(filePath);
+-		return await backend.read(strippedKey, offset, limit);
++		const result = await backend.read(strippedKey, offset, limit);
++		// A mounted route is addressed by its own absolute path and nothing else. A caller that
++		// prepends a workspace root ("/ws/large_tool_results/x.md") misses every route, lands on
++		// the default backend, and gets a bare ENOENT with nothing in it to suggest the path it
++		// actually wanted — from which the only available conclusion is that the file was never
++		// written. Name the mount in the error instead of guessing the caller's intent: retrying
++		// is the caller's decision, and a silent redirect would make the same path mean two
++		// different files depending on what happens to exist.
++		if (result.error && backend === this.default) {
++			const mount = this.sortedRoutes.find(([prefix]) => filePath.includes(prefix));
++			if (mount) result.error += ` Note: '${mount[0]}' is a mounted path — address it exactly, with nothing prepended: '${mount[0]}${filePath.split(mount[0]).pop()}'.`;
++		}
++		return result;
+ 	}
+ 	/**
+ 	* Read file content as raw FileData.
+@@ -1918,7 +1930,7 @@ function createGrepTool(backend, options) {
  		const result = await resolvedBackend.grep(pattern, path, glob);
  		if (result.error) return result.error;
  		const matches = filterByPermissions(result.matches ?? [], permissions, "read", (m) => m.path);
@@ -69,7 +90,7 @@ index f1c3f24..678e585 100644
  		const lines = [];
  		let currentFile = null;
  		for (const match of matches) {
-@@ -1935,7 +1935,7 @@ function createGrepTool(backend, options) {
+@@ -1935,7 +1947,7 @@ function createGrepTool(backend, options) {
  		name: "grep",
  		description: customDescription || GREP_TOOL_DESCRIPTION,
  		schema: z.object({
@@ -78,7 +99,7 @@ index f1c3f24..678e585 100644
  			path: z.string().optional().default("/").describe("Base path to search from (default: /)"),
  			glob: z.string().optional().nullable().default(null).describe("Optional glob pattern to filter files (e.g., '*.py')")
  		})
-@@ -4009,6 +4009,7 @@ function isSummaryMessage(msg) {
+@@ -4009,6 +4021,7 @@ function isSummaryMessage(msg) {
  */
  function createSummarizationMiddleware(options) {
  	const { model, backend, summaryPrompt = DEFAULT_SUMMARY_PROMPT, trimTokensToSummarize = DEFAULT_TRIM_TOKEN_LIMIT, historyPathPrefix = "/conversation_history" } = options;
@@ -86,7 +107,7 @@ index f1c3f24..678e585 100644
  	let trigger = options.trigger;
  	let keep = options.keep ?? {
  		type: "messages",
-@@ -4046,6 +4047,7 @@ function createSummarizationMiddleware(options) {
+@@ -4046,6 +4059,7 @@ function createSummarizationMiddleware(options) {
  	}
  	let sessionId = null;
  	let tokenEstimationMultiplier = 1;
@@ -94,7 +115,7 @@ index f1c3f24..678e585 100644
  	/**
  	* Get or create session ID for history file naming.
  	*/
-@@ -4161,7 +4163,7 @@ function createSummarizationMiddleware(options) {
+@@ -4161,7 +4175,7 @@ function createSummarizationMiddleware(options) {
  			let tokensKept = 0;
  			rawCutoff = 0;
  			for (let i = messages.length - 1; i >= 0; i--) {
@@ -103,7 +124,7 @@ index f1c3f24..678e585 100644
  				if (tokensKept + msgTokens > targetTokenCount) {
  					rawCutoff = i + 1;
  					break;
-@@ -4196,7 +4198,7 @@ function createSummarizationMiddleware(options) {
+@@ -4196,7 +4210,7 @@ function createSummarizationMiddleware(options) {
  			let tokensKept = 0;
  			rawCutoff = 0;
  			for (let i = messages.length - 1; i >= 0; i--) {
@@ -112,7 +133,7 @@ index f1c3f24..678e585 100644
  				if (tokensKept + msgTokens > targetTokenCount) {
  					rawCutoff = i + 1;
  					break;
-@@ -4211,7 +4213,7 @@ function createSummarizationMiddleware(options) {
+@@ -4211,7 +4225,7 @@ function createSummarizationMiddleware(options) {
  	* This gives a more accurate picture of what actually gets sent to the model.
  	*/
  	function countTotalTokens(messages, systemMessage, tools) {
@@ -121,7 +142,7 @@ index f1c3f24..678e585 100644
  	}
  	/**
  	* Truncate ToolMessage content so that the total payload fits within the
-@@ -4358,11 +4360,11 @@ function createSummarizationMiddleware(options) {
+@@ -4358,11 +4372,11 @@ function createSummarizationMiddleware(options) {
  	*/
  	async function createSummary(messages, chatModel) {
  		let messagesToSummarize = messages;
@@ -135,7 +156,7 @@ index f1c3f24..678e585 100644
  				if (kept + msgTokens > trimTokensToSummarize) break;
  				trimmedMessages.unshift(messages[i]);
  				kept += msgTokens;
-@@ -4500,6 +4502,16 @@ function createSummarizationMiddleware(options) {
+@@ -4500,6 +4514,16 @@ function createSummarizationMiddleware(options) {
  			const effectiveMessages = getEffectiveMessages(request.messages ?? [], request.state);
  			if (effectiveMessages.length === 0) return handler(request);
  			/**
@@ -152,7 +173,7 @@ index f1c3f24..678e585 100644
  			* Resolve the chat model and get max input tokens from its profile.
  			*/
  			const resolvedModel = request.model ?? await getChatModel();
-@@ -4521,10 +4533,16 @@ function createSummarizationMiddleware(options) {
+@@ -4521,10 +4545,16 @@ function createSummarizationMiddleware(options) {
  			* emergency summarization (matching Python's behavior).
  			*/
  			if (!shouldSummarize(truncatedMessages, tokensForSummary, maxInputTokens)) try {
@@ -170,7 +191,7 @@ index f1c3f24..678e585 100644
  			} catch (err) {
  				if (!isContextOverflow(err)) throw err;
  				if (maxInputTokens && tokensForSummary > 0) {
-@@ -5984,7 +6002,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
+@@ -5984,7 +6014,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
  * ```
  */
  function createDeepAgent(params = {}) {
@@ -179,7 +200,7 @@ index f1c3f24..678e585 100644
  	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
  	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
  	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
-@@ -6023,7 +6041,7 @@ function createDeepAgent(params = {}) {
+@@ -6023,7 +6053,7 @@ function createDeepAgent(params = {}) {
  				permissions: effectivePermissions,
  				tools: profileFilesystemTools
  			}),
@@ -188,7 +209,7 @@ index f1c3f24..678e585 100644
  			createPatchToolCallsMiddleware(),
  			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
  				backend,
-@@ -6075,7 +6093,7 @@ function createDeepAgent(params = {}) {
+@@ -6075,7 +6105,7 @@ function createDeepAgent(params = {}) {
  			subagents: inlineSubagents,
  			generalPurposeAgent: false
  		}),
@@ -198,10 +219,31 @@ index f1c3f24..678e585 100644
  	];
  	let middleware = mergeMiddlewareStack([
 diff --git a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
-index 5551ac8..2b5e140 100644
+index 5551ac8..d9664c4 100644
 --- a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
 +++ b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
-@@ -1942,7 +1942,7 @@ function createGrepTool(backend, options) {
+@@ -1104,7 +1104,19 @@ var CompositeBackend = class {
+ 	*/
+ 	async read(filePath, offset = 0, limit = 500) {
+ 		const [backend, strippedKey] = this.getBackendAndKey(filePath);
+-		return await backend.read(strippedKey, offset, limit);
++		const result = await backend.read(strippedKey, offset, limit);
++		// A mounted route is addressed by its own absolute path and nothing else. A caller that
++		// prepends a workspace root ("/ws/large_tool_results/x.md") misses every route, lands on
++		// the default backend, and gets a bare ENOENT with nothing in it to suggest the path it
++		// actually wanted — from which the only available conclusion is that the file was never
++		// written. Name the mount in the error instead of guessing the caller's intent: retrying
++		// is the caller's decision, and a silent redirect would make the same path mean two
++		// different files depending on what happens to exist.
++		if (result.error && backend === this.default) {
++			const mount = this.sortedRoutes.find(([prefix]) => filePath.includes(prefix));
++			if (mount) result.error += ` Note: '${mount[0]}' is a mounted path — address it exactly, with nothing prepended: '${mount[0]}${filePath.split(mount[0]).pop()}'.`;
++		}
++		return result;
+ 	}
+ 	/**
+ 	* Read file content as raw FileData.
+@@ -1942,7 +1954,7 @@ function createGrepTool(backend, options) {
  		const result = await resolvedBackend.grep(pattern, path, glob);
  		if (result.error) return result.error;
  		const matches = filterByPermissions(result.matches ?? [], permissions, "read", (m) => m.path);
@@ -210,7 +252,7 @@ index 5551ac8..2b5e140 100644
  		const lines = [];
  		let currentFile = null;
  		for (const match of matches) {
-@@ -1959,7 +1959,7 @@ function createGrepTool(backend, options) {
+@@ -1959,7 +1971,7 @@ function createGrepTool(backend, options) {
  		name: "grep",
  		description: customDescription || GREP_TOOL_DESCRIPTION,
  		schema: zod_v4.z.object({
@@ -219,7 +261,7 @@ index 5551ac8..2b5e140 100644
  			path: zod_v4.z.string().optional().default("/").describe("Base path to search from (default: /)"),
  			glob: zod_v4.z.string().optional().nullable().default(null).describe("Optional glob pattern to filter files (e.g., '*.py')")
  		})
-@@ -4038,6 +4038,7 @@ function isSummaryMessage(msg) {
+@@ -4038,6 +4050,7 @@ function isSummaryMessage(msg) {
  */
  function createSummarizationMiddleware(options) {
  	const { model, backend, summaryPrompt = DEFAULT_SUMMARY_PROMPT, trimTokensToSummarize = DEFAULT_TRIM_TOKEN_LIMIT, historyPathPrefix = "/conversation_history" } = options;
@@ -227,7 +269,7 @@ index 5551ac8..2b5e140 100644
  	let trigger = options.trigger;
  	let keep = options.keep ?? {
  		type: "messages",
-@@ -4075,6 +4076,7 @@ function createSummarizationMiddleware(options) {
+@@ -4075,6 +4088,7 @@ function createSummarizationMiddleware(options) {
  	}
  	let sessionId = null;
  	let tokenEstimationMultiplier = 1;
@@ -235,7 +277,7 @@ index 5551ac8..2b5e140 100644
  	/**
  	* Get or create session ID for history file naming.
  	*/
-@@ -4190,7 +4192,7 @@ function createSummarizationMiddleware(options) {
+@@ -4190,7 +4204,7 @@ function createSummarizationMiddleware(options) {
  			let tokensKept = 0;
  			rawCutoff = 0;
  			for (let i = messages.length - 1; i >= 0; i--) {
@@ -244,7 +286,7 @@ index 5551ac8..2b5e140 100644
  				if (tokensKept + msgTokens > targetTokenCount) {
  					rawCutoff = i + 1;
  					break;
-@@ -4225,7 +4227,7 @@ function createSummarizationMiddleware(options) {
+@@ -4225,7 +4239,7 @@ function createSummarizationMiddleware(options) {
  			let tokensKept = 0;
  			rawCutoff = 0;
  			for (let i = messages.length - 1; i >= 0; i--) {
@@ -253,7 +295,7 @@ index 5551ac8..2b5e140 100644
  				if (tokensKept + msgTokens > targetTokenCount) {
  					rawCutoff = i + 1;
  					break;
-@@ -4240,7 +4242,7 @@ function createSummarizationMiddleware(options) {
+@@ -4240,7 +4254,7 @@ function createSummarizationMiddleware(options) {
  	* This gives a more accurate picture of what actually gets sent to the model.
  	*/
  	function countTotalTokens(messages, systemMessage, tools) {
@@ -262,7 +304,7 @@ index 5551ac8..2b5e140 100644
  	}
  	/**
  	* Truncate ToolMessage content so that the total payload fits within the
-@@ -4387,11 +4389,11 @@ function createSummarizationMiddleware(options) {
+@@ -4387,11 +4401,11 @@ function createSummarizationMiddleware(options) {
  	*/
  	async function createSummary(messages, chatModel) {
  		let messagesToSummarize = messages;
@@ -276,7 +318,7 @@ index 5551ac8..2b5e140 100644
  				if (kept + msgTokens > trimTokensToSummarize) break;
  				trimmedMessages.unshift(messages[i]);
  				kept += msgTokens;
-@@ -4529,6 +4531,16 @@ function createSummarizationMiddleware(options) {
+@@ -4529,6 +4543,16 @@ function createSummarizationMiddleware(options) {
  			const effectiveMessages = getEffectiveMessages(request.messages ?? [], request.state);
  			if (effectiveMessages.length === 0) return handler(request);
  			/**
@@ -293,7 +335,7 @@ index 5551ac8..2b5e140 100644
  			* Resolve the chat model and get max input tokens from its profile.
  			*/
  			const resolvedModel = request.model ?? await getChatModel();
-@@ -4550,10 +4562,16 @@ function createSummarizationMiddleware(options) {
+@@ -4550,10 +4574,16 @@ function createSummarizationMiddleware(options) {
  			* emergency summarization (matching Python's behavior).
  			*/
  			if (!shouldSummarize(truncatedMessages, tokensForSummary, maxInputTokens)) try {
@@ -311,7 +353,7 @@ index 5551ac8..2b5e140 100644
  			} catch (err) {
  				if (!isContextOverflow(err)) throw err;
  				if (maxInputTokens && tokensForSummary > 0) {
-@@ -6013,7 +6031,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
+@@ -6013,7 +6043,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
  * ```
  */
  function createDeepAgent(params = {}) {
@@ -320,7 +362,7 @@ index 5551ac8..2b5e140 100644
  	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
  	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
  	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
-@@ -6052,7 +6070,7 @@ function createDeepAgent(params = {}) {
+@@ -6052,7 +6082,7 @@ function createDeepAgent(params = {}) {
  				permissions: effectivePermissions,
  				tools: profileFilesystemTools
  			}),
@@ -329,7 +371,7 @@ index 5551ac8..2b5e140 100644
  			createPatchToolCallsMiddleware(),
  			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
  				backend,
-@@ -6104,7 +6122,7 @@ function createDeepAgent(params = {}) {
+@@ -6104,7 +6134,7 @@ function createDeepAgent(params = {}) {
  			subagents: inlineSubagents,
  			generalPurposeAgent: false
  		}),

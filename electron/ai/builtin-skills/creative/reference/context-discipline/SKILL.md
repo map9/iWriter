@@ -37,6 +37,7 @@ Read this much before acting; expand only when the target is unclear, a referenc
 
 - **Diverge (opening options)** — `project.md`; the world's rules and **forbidden zones**; the current state of whatever the idea touches.
 - **Compare (judging existing material)** — the material **in full**; its baseline (above); the reference objects it is judged against (characters on stage, the world rules it uses). Cross-chapter questions add the neighbouring chapters.
+  - **Unless you are delegating the compare.** Then this set belongs to whoever executes it, and yours is smaller: enough to write the brief — the paths, whether the baseline object is confirmed, which characters are on stage. Reading the material yourself as well buys nothing (the executor starts cold and reads it again anyway) and costs something real: once you have read it you will have opinions about it, and forming them is precisely what you delegated.
 - **Converge (writing into an object)** — the confirmed upstream; characters on stage; neighbouring chapters for continuity; `project.md` for target length; the style object if one applies.
 
 Reading rules:

@@ -35,6 +35,22 @@ Always read the current content before editing, and pass the `expected_*` fields
 
 **`{b:n}` is a display-only marker, never content.** `get_blocks` / `get_section` prefix each block with its `{b:n}` ID so you can address it — the marker is NOT part of the block's markdown. When you copy content into an `expected_*` field, and above all when you write `new_content` (or `create_document` content), **strip the leading `{b:n}` marker**. Written documents must contain zero `{b:n}` tokens — leaking the marker into prose is a bug.
 
+## Naming a location
+
+**A place in a document is a block ID — always, for everyone.** Whenever you report where
+something is, hand a location to someone else, or receive one, it is `{b:n}` (a range is a
+start and an end block ID). This holds for findings, review notes, revision instructions and
+your own working notes alike.
+
+Line numbers and character offsets are **not** locations. `read_file` prints line numbers
+because it is a plain text reader; no document or edit tool accepts them, so a location given
+as `L21` cannot be acted on — the recipient has to go find it again by hand. If you intend to
+point at a passage, read it with the block tools (`get_document_outline` → `get_section` /
+`get_blocks`), not with `read_file`.
+
+Pair each ID with a **short verbatim quote** from the block. IDs are snapshot-scoped and shift
+once edits apply; the quote is what lets the recipient re-find the place afterwards.
+
 ## Editing lists — decision tree
 
 - **Change one item's text** → `edit_block` on that **item** block_id, with the new item text.
