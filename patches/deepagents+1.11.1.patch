@@ -1,0 +1,398 @@
+diff --git a/node_modules/deepagents/dist/agent-B2XFuA-E.d.cts b/node_modules/deepagents/dist/agent-B2XFuA-E.d.cts
+index b4ee552..90efeba 100644
+--- a/node_modules/deepagents/dist/agent-B2XFuA-E.d.cts
++++ b/node_modules/deepagents/dist/agent-B2XFuA-E.d.cts
+@@ -2092,6 +2092,12 @@ interface SummarizationMiddlewareOptions {
+    * If not provided, argument truncation is disabled.
+    */
+   truncateArgsSettings?: TruncateArgsSettings;
++  /**
++   * Custom token counter function. Receives messages (and optionally tools as the
++   * second argument) and returns a token count. Defaults to countTokensApproximately.
++   * Mirrors Python's `token_counter` parameter on SummarizationMiddleware.
++   */
++  tokenCounter?: (messages: _messages.BaseMessage[], tools?: unknown) => number;
+ }
+ /**
+  * Compute summarization defaults based on model profile.
+@@ -2747,6 +2753,11 @@ interface CreateDeepAgentParams<TResponse extends SupportedResponseFormat = Supp
+    * ```
+    */
+   permissions?: FilesystemPermission[];
++  /**
++   * Optional settings passed to every built-in SummarizationMiddleware created
++   * for the main agent and inline subagents.
++   */
++  summarizationMiddlewareOptions?: Pick<SummarizationMiddlewareOptions, 'model' | 'tokenCounter'>;
+   /**
+    * Optional {@link StreamTransformer} factories to register with the underlying agent.
+    *
+diff --git a/node_modules/deepagents/dist/agent-k6GiDPCY.d.ts b/node_modules/deepagents/dist/agent-k6GiDPCY.d.ts
+index d3d062d..78fa39b 100644
+--- a/node_modules/deepagents/dist/agent-k6GiDPCY.d.ts
++++ b/node_modules/deepagents/dist/agent-k6GiDPCY.d.ts
+@@ -2093,6 +2093,12 @@ interface SummarizationMiddlewareOptions {
+    * If not provided, argument truncation is disabled.
+    */
+   truncateArgsSettings?: TruncateArgsSettings;
++  /**
++   * Custom token counter function. Receives messages (and optionally tools as the
++   * second argument) and returns a token count. Defaults to countTokensApproximately.
++   * Mirrors Python's `token_counter` parameter on SummarizationMiddleware.
++   */
++  tokenCounter?: (messages: _messages.BaseMessage[], tools?: unknown) => number;
+ }
+ /**
+  * Compute summarization defaults based on model profile.
+@@ -2748,6 +2754,11 @@ interface CreateDeepAgentParams<TResponse extends SupportedResponseFormat = Supp
+    * ```
+    */
+   permissions?: FilesystemPermission[];
++  /**
++   * Optional settings passed to every built-in SummarizationMiddleware created
++   * for the main agent and inline subagents.
++   */
++  summarizationMiddlewareOptions?: Pick<SummarizationMiddlewareOptions, 'model' | 'tokenCounter'>;
+   /**
+    * Optional {@link StreamTransformer} factories to register with the underlying agent.
+    *
+diff --git a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
+index f1c3f24..419a31d 100644
+--- a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
++++ b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
+@@ -1918,7 +1918,7 @@ function createGrepTool(backend, options) {
+ 		const result = await resolvedBackend.grep(pattern, path, glob);
+ 		if (result.error) return result.error;
+ 		const matches = filterByPermissions(result.matches ?? [], permissions, "read", (m) => m.path);
+-		if (matches.length === 0) return `No matches found for pattern '${pattern}'`;
++		if (matches.length === 0) return `No matches found for pattern '${pattern}'. Note: search is literal, not regex — if this pattern contains |, *, ., ^ or (), split it into one call per term and retry. An empty result is not proof the text is absent.`;
+ 		const lines = [];
+ 		let currentFile = null;
+ 		for (const match of matches) {
+@@ -1935,7 +1935,7 @@ function createGrepTool(backend, options) {
+ 		name: "grep",
+ 		description: customDescription || GREP_TOOL_DESCRIPTION,
+ 		schema: z.object({
+-			pattern: z.string().describe("Regex pattern to search for"),
++			pattern: z.string().describe("Literal text to search for. NOT a regex: alternations (a|b), wildcards and anchors are matched as literal characters and will find nothing. Search one term per call."),
+ 			path: z.string().optional().default("/").describe("Base path to search from (default: /)"),
+ 			glob: z.string().optional().nullable().default(null).describe("Optional glob pattern to filter files (e.g., '*.py')")
+ 		})
+@@ -4009,6 +4009,7 @@ function isSummaryMessage(msg) {
+ */
+ function createSummarizationMiddleware(options) {
+ 	const { model, backend, summaryPrompt = DEFAULT_SUMMARY_PROMPT, trimTokensToSummarize = DEFAULT_TRIM_TOKEN_LIMIT, historyPathPrefix = "/conversation_history" } = options;
++	const tokenCounter = options.tokenCounter ?? countTokensApproximately;
+ 	let trigger = options.trigger;
+ 	let keep = options.keep ?? {
+ 		type: "messages",
+@@ -4046,6 +4047,7 @@ function createSummarizationMiddleware(options) {
+ 	}
+ 	let sessionId = null;
+ 	let tokenEstimationMultiplier = 1;
++	let _lastCutoffIndex = undefined;
+ 	/**
+ 	* Get or create session ID for history file naming.
+ 	*/
+@@ -4161,7 +4163,7 @@ function createSummarizationMiddleware(options) {
+ 			let tokensKept = 0;
+ 			rawCutoff = 0;
+ 			for (let i = messages.length - 1; i >= 0; i--) {
+-				const msgTokens = countTokensApproximately([messages[i]]);
++				const msgTokens = tokenCounter([messages[i]]);
+ 				if (tokensKept + msgTokens > targetTokenCount) {
+ 					rawCutoff = i + 1;
+ 					break;
+@@ -4196,7 +4198,7 @@ function createSummarizationMiddleware(options) {
+ 			let tokensKept = 0;
+ 			rawCutoff = 0;
+ 			for (let i = messages.length - 1; i >= 0; i--) {
+-				const msgTokens = countTokensApproximately([messages[i]]);
++				const msgTokens = tokenCounter([messages[i]]);
+ 				if (tokensKept + msgTokens > targetTokenCount) {
+ 					rawCutoff = i + 1;
+ 					break;
+@@ -4211,7 +4213,7 @@ function createSummarizationMiddleware(options) {
+ 	* This gives a more accurate picture of what actually gets sent to the model.
+ 	*/
+ 	function countTotalTokens(messages, systemMessage, tools) {
+-		return countTokensApproximately(systemMessage && SystemMessage.isInstance(systemMessage) ? [systemMessage, ...messages] : [...messages], tools && Array.isArray(tools) && tools.length > 0 ? tools : null);
++		return tokenCounter(systemMessage && SystemMessage.isInstance(systemMessage) ? [systemMessage, ...messages] : [...messages], tools && Array.isArray(tools) && tools.length > 0 ? tools : null);
+ 	}
+ 	/**
+ 	* Truncate ToolMessage content so that the total payload fits within the
+@@ -4358,11 +4360,11 @@ function createSummarizationMiddleware(options) {
+ 	*/
+ 	async function createSummary(messages, chatModel) {
+ 		let messagesToSummarize = messages;
+-		if (countTokensApproximately(messages) > trimTokensToSummarize) {
++		if (tokenCounter(messages) > trimTokensToSummarize) {
+ 			let kept = 0;
+ 			const trimmedMessages = [];
+ 			for (let i = messages.length - 1; i >= 0; i--) {
+-				const msgTokens = countTokensApproximately([messages[i]]);
++				const msgTokens = tokenCounter([messages[i]]);
+ 				if (kept + msgTokens > trimTokensToSummarize) break;
+ 				trimmedMessages.unshift(messages[i]);
+ 				kept += msgTokens;
+@@ -4500,6 +4502,16 @@ function createSummarizationMiddleware(options) {
+ 			const effectiveMessages = getEffectiveMessages(request.messages ?? [], request.state);
+ 			if (effectiveMessages.length === 0) return handler(request);
+ 			/**
++			* Reset tokenEstimationMultiplier when a new summarization event is detected.
++			* After summarization the content composition changes (old messages replaced by a
++			* summary in English), so stale calibration from the previous epoch is misleading.
++			*/
++			const _currentCutoff = request.state?._summarizationEvent?.cutoffIndex;
++			if (_currentCutoff !== _lastCutoffIndex) {
++				if (_currentCutoff !== undefined) tokenEstimationMultiplier = 1;
++				_lastCutoffIndex = _currentCutoff;
++			}
++			/**
+ 			* Resolve the chat model and get max input tokens from its profile.
+ 			*/
+ 			const resolvedModel = request.model ?? await getChatModel();
+@@ -4521,10 +4533,16 @@ function createSummarizationMiddleware(options) {
+ 			* emergency summarization (matching Python's behavior).
+ 			*/
+ 			if (!shouldSummarize(truncatedMessages, tokensForSummary, maxInputTokens)) try {
+-				return await handler({
++				const __handlerResult = await handler({
+ 					...request,
+ 					messages: truncatedMessages
+ 				});
++				const __actualTokens = __handlerResult?.usage_metadata?.input_tokens;
++				if (typeof __actualTokens === "number" && __actualTokens > 0 && tokensForSummary > 0 && __actualTokens > tokensForSummary) {
++					const __ratio = __actualTokens / tokensForSummary;
++					tokenEstimationMultiplier = 0.7 * tokenEstimationMultiplier + 0.3 * __ratio;
++				}
++				return __handlerResult;
+ 			} catch (err) {
+ 				if (!isContextOverflow(err)) throw err;
+ 				if (maxInputTokens && tokensForSummary > 0) {
+@@ -5984,7 +6002,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
+ * ```
+ */
+ function createDeepAgent(params = {}) {
+-	const { model = "anthropic:claude-sonnet-4-6", tools = [], systemPrompt, stateSchema, middleware: customMiddleware = [], subagents = [], responseFormat, contextSchema, checkpointer, store, backend = (config) => new StateBackend(config), interruptOn, name, memory, skills, permissions = [], streamTransformers = [] } = params;
++	const { model = "anthropic:claude-sonnet-4-6", tools = [], systemPrompt, stateSchema, middleware: customMiddleware = [], subagents = [], responseFormat, contextSchema, checkpointer, store, backend = (config) => new StateBackend(config), interruptOn, name, memory, skills, permissions = [], summarizationMiddlewareOptions, streamTransformers = [] } = params;
+ 	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
+ 	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
+ 	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
+@@ -6023,7 +6041,7 @@ function createDeepAgent(params = {}) {
+ 				permissions: effectivePermissions,
+ 				tools: profileFilesystemTools
+ 			}),
+-			createSummarizationMiddleware({ backend }),
++			createSummarizationMiddleware({ backend, ...summarizationMiddlewareOptions }),
+ 			createPatchToolCallsMiddleware(),
+ 			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
+ 				backend,
+@@ -6075,7 +6093,7 @@ function createDeepAgent(params = {}) {
+ 			subagents: inlineSubagents,
+ 			generalPurposeAgent: false
+ 		}),
+-		createSummarizationMiddleware({ backend }),
++		createSummarizationMiddleware({ backend, ...summarizationMiddlewareOptions }),
+ 		createPatchToolCallsMiddleware()
+ 	];
+ 	let middleware = mergeMiddlewareStack([
+diff --git a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
+index 5551ac8..38b2fec 100644
+--- a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
++++ b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
+@@ -1942,7 +1942,7 @@ function createGrepTool(backend, options) {
+ 		const result = await resolvedBackend.grep(pattern, path, glob);
+ 		if (result.error) return result.error;
+ 		const matches = filterByPermissions(result.matches ?? [], permissions, "read", (m) => m.path);
+-		if (matches.length === 0) return `No matches found for pattern '${pattern}'`;
++		if (matches.length === 0) return `No matches found for pattern '${pattern}'. Note: search is literal, not regex — if this pattern contains |, *, ., ^ or (), split it into one call per term and retry. An empty result is not proof the text is absent.`;
+ 		const lines = [];
+ 		let currentFile = null;
+ 		for (const match of matches) {
+@@ -1959,7 +1959,7 @@ function createGrepTool(backend, options) {
+ 		name: "grep",
+ 		description: customDescription || GREP_TOOL_DESCRIPTION,
+ 		schema: zod_v4.z.object({
+-			pattern: zod_v4.z.string().describe("Regex pattern to search for"),
++			pattern: zod_v4.z.string().describe("Literal text to search for. NOT a regex: alternations (a|b), wildcards and anchors are matched as literal characters and will find nothing. Search one term per call."),
+ 			path: zod_v4.z.string().optional().default("/").describe("Base path to search from (default: /)"),
+ 			glob: zod_v4.z.string().optional().nullable().default(null).describe("Optional glob pattern to filter files (e.g., '*.py')")
+ 		})
+@@ -4038,6 +4038,7 @@ function isSummaryMessage(msg) {
+ */
+ function createSummarizationMiddleware(options) {
+ 	const { model, backend, summaryPrompt = DEFAULT_SUMMARY_PROMPT, trimTokensToSummarize = DEFAULT_TRIM_TOKEN_LIMIT, historyPathPrefix = "/conversation_history" } = options;
++	const tokenCounter = options.tokenCounter ?? langchain.countTokensApproximately;
+ 	let trigger = options.trigger;
+ 	let keep = options.keep ?? {
+ 		type: "messages",
+@@ -4075,6 +4076,7 @@ function createSummarizationMiddleware(options) {
+ 	}
+ 	let sessionId = null;
+ 	let tokenEstimationMultiplier = 1;
++	let _lastCutoffIndex = undefined;
+ 	/**
+ 	* Get or create session ID for history file naming.
+ 	*/
+@@ -4190,7 +4192,7 @@ function createSummarizationMiddleware(options) {
+ 			let tokensKept = 0;
+ 			rawCutoff = 0;
+ 			for (let i = messages.length - 1; i >= 0; i--) {
+-				const msgTokens = (0, langchain.countTokensApproximately)([messages[i]]);
++				const msgTokens = tokenCounter([messages[i]]);
+ 				if (tokensKept + msgTokens > targetTokenCount) {
+ 					rawCutoff = i + 1;
+ 					break;
+@@ -4225,7 +4227,7 @@ function createSummarizationMiddleware(options) {
+ 			let tokensKept = 0;
+ 			rawCutoff = 0;
+ 			for (let i = messages.length - 1; i >= 0; i--) {
+-				const msgTokens = (0, langchain.countTokensApproximately)([messages[i]]);
++				const msgTokens = tokenCounter([messages[i]]);
+ 				if (tokensKept + msgTokens > targetTokenCount) {
+ 					rawCutoff = i + 1;
+ 					break;
+@@ -4240,7 +4242,7 @@ function createSummarizationMiddleware(options) {
+ 	* This gives a more accurate picture of what actually gets sent to the model.
+ 	*/
+ 	function countTotalTokens(messages, systemMessage, tools) {
+-		return (0, langchain.countTokensApproximately)(systemMessage && langchain.SystemMessage.isInstance(systemMessage) ? [systemMessage, ...messages] : [...messages], tools && Array.isArray(tools) && tools.length > 0 ? tools : null);
++		return tokenCounter(systemMessage && langchain.SystemMessage.isInstance(systemMessage) ? [systemMessage, ...messages] : [...messages], tools && Array.isArray(tools) && tools.length > 0 ? tools : null);
+ 	}
+ 	/**
+ 	* Truncate ToolMessage content so that the total payload fits within the
+@@ -4387,11 +4389,11 @@ function createSummarizationMiddleware(options) {
+ 	*/
+ 	async function createSummary(messages, chatModel) {
+ 		let messagesToSummarize = messages;
+-		if ((0, langchain.countTokensApproximately)(messages) > trimTokensToSummarize) {
++		if (tokenCounter(messages) > trimTokensToSummarize) {
+ 			let kept = 0;
+ 			const trimmedMessages = [];
+ 			for (let i = messages.length - 1; i >= 0; i--) {
+-				const msgTokens = (0, langchain.countTokensApproximately)([messages[i]]);
++				const msgTokens = tokenCounter([messages[i]]);
+ 				if (kept + msgTokens > trimTokensToSummarize) break;
+ 				trimmedMessages.unshift(messages[i]);
+ 				kept += msgTokens;
+@@ -4529,6 +4531,16 @@ function createSummarizationMiddleware(options) {
+ 			const effectiveMessages = getEffectiveMessages(request.messages ?? [], request.state);
+ 			if (effectiveMessages.length === 0) return handler(request);
+ 			/**
++			* Reset tokenEstimationMultiplier when a new summarization event is detected.
++			* After summarization the content composition changes (old messages replaced by a
++			* summary in English), so stale calibration from the previous epoch is misleading.
++			*/
++			const _currentCutoff = request.state?._summarizationEvent?.cutoffIndex;
++			if (_currentCutoff !== _lastCutoffIndex) {
++				if (_currentCutoff !== undefined) tokenEstimationMultiplier = 1;
++				_lastCutoffIndex = _currentCutoff;
++			}
++			/**
+ 			* Resolve the chat model and get max input tokens from its profile.
+ 			*/
+ 			const resolvedModel = request.model ?? await getChatModel();
+@@ -4550,10 +4562,16 @@ function createSummarizationMiddleware(options) {
+ 			* emergency summarization (matching Python's behavior).
+ 			*/
+ 			if (!shouldSummarize(truncatedMessages, tokensForSummary, maxInputTokens)) try {
+-				return await handler({
++				const __handlerResult = await handler({
+ 					...request,
+ 					messages: truncatedMessages
+ 				});
++				const __actualTokens = __handlerResult?.usage_metadata?.input_tokens;
++				if (typeof __actualTokens === "number" && __actualTokens > 0 && tokensForSummary > 0 && __actualTokens > tokensForSummary) {
++					const __ratio = __actualTokens / tokensForSummary;
++					tokenEstimationMultiplier = 0.7 * tokenEstimationMultiplier + 0.3 * __ratio;
++				}
++				return __handlerResult;
+ 			} catch (err) {
+ 				if (!isContextOverflow(err)) throw err;
+ 				if (maxInputTokens && tokensForSummary > 0) {
+@@ -6013,7 +6031,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
+ * ```
+ */
+ function createDeepAgent(params = {}) {
+-	const { model = "anthropic:claude-sonnet-4-6", tools = [], systemPrompt, stateSchema, middleware: customMiddleware = [], subagents = [], responseFormat, contextSchema, checkpointer, store, backend = (config) => new StateBackend(config), interruptOn, name, memory, skills, permissions = [], streamTransformers = [] } = params;
++	const { model = "anthropic:claude-sonnet-4-6", tools = [], systemPrompt, stateSchema, middleware: customMiddleware = [], subagents = [], responseFormat, contextSchema, checkpointer, store, backend = (config) => new StateBackend(config), interruptOn, name, memory, skills, permissions = [], summarizationMiddlewareOptions, streamTransformers = [] } = params;
+ 	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
+ 	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
+ 	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
+@@ -6052,7 +6070,7 @@ function createDeepAgent(params = {}) {
+ 				permissions: effectivePermissions,
+ 				tools: profileFilesystemTools
+ 			}),
+-			createSummarizationMiddleware({ backend }),
++			createSummarizationMiddleware({ backend, ...summarizationMiddlewareOptions }),
+ 			createPatchToolCallsMiddleware(),
+ 			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
+ 				backend,
+@@ -6104,7 +6122,7 @@ function createDeepAgent(params = {}) {
+ 			subagents: inlineSubagents,
+ 			generalPurposeAgent: false
+ 		}),
+-		createSummarizationMiddleware({ backend }),
++		createSummarizationMiddleware({ backend, ...summarizationMiddlewareOptions }),
+ 		createPatchToolCallsMiddleware()
+ 	];
+ 	let middleware = mergeMiddlewareStack([
+diff --git a/node_modules/deepagents/dist/src-Cqag72HH.js b/node_modules/deepagents/dist/src-Cqag72HH.js
+index be20f8d..f4386bb 100644
+--- a/node_modules/deepagents/dist/src-Cqag72HH.js
++++ b/node_modules/deepagents/dist/src-Cqag72HH.js
+@@ -899,6 +899,24 @@ var FilesystemBackend = class {
+ 		}
+ 		let results = await this.ripgrepSearch(pattern, baseFull, glob);
+ 		if (results === null) results = await this.literalSearch(pattern, baseFull, glob);
++		if (Object.keys(results).length === 0 && pattern.includes("|")) {
++			const terms = pattern.split("|").map((t) => t.trim()).filter(Boolean);
++			if (terms.length > 1) {
++				const merged = {};
++				for (const term of terms) {
++					let sub = await this.ripgrepSearch(term, baseFull, glob);
++					if (sub === null) sub = await this.literalSearch(term, baseFull, glob);
++					for (const [fpath, items] of Object.entries(sub)) {
++						if (!merged[fpath]) merged[fpath] = [];
++						for (const item of items) {
++							if (!merged[fpath].some(([ln]) => ln === item[0])) merged[fpath].push(item);
++						}
++					}
++				}
++				for (const items of Object.values(merged)) items.sort((a, b) => a[0] - b[0]);
++				results = merged;
++			}
++		}
+ 		const matches = [];
+ 		for (const [fpath, items] of Object.entries(results)) for (const [lineNum, lineText] of items) matches.push({
+ 			path: fpath,
+diff --git a/node_modules/deepagents/dist/src-DtpWpNrN.cjs b/node_modules/deepagents/dist/src-DtpWpNrN.cjs
+index 5962df6..b4f2c06 100644
+--- a/node_modules/deepagents/dist/src-DtpWpNrN.cjs
++++ b/node_modules/deepagents/dist/src-DtpWpNrN.cjs
+@@ -907,6 +907,24 @@ var FilesystemBackend = class {
+ 		}
+ 		let results = await this.ripgrepSearch(pattern, baseFull, glob);
+ 		if (results === null) results = await this.literalSearch(pattern, baseFull, glob);
++		if (Object.keys(results).length === 0 && pattern.includes("|")) {
++			const terms = pattern.split("|").map((t) => t.trim()).filter(Boolean);
++			if (terms.length > 1) {
++				const merged = {};
++				for (const term of terms) {
++					let sub = await this.ripgrepSearch(term, baseFull, glob);
++					if (sub === null) sub = await this.literalSearch(term, baseFull, glob);
++					for (const [fpath, items] of Object.entries(sub)) {
++						if (!merged[fpath]) merged[fpath] = [];
++						for (const item of items) {
++							if (!merged[fpath].some(([ln]) => ln === item[0])) merged[fpath].push(item);
++						}
++					}
++				}
++				for (const items of Object.values(merged)) items.sort((a, b) => a[0] - b[0]);
++				results = merged;
++			}
++		}
+ 		const matches = [];
+ 		for (const [fpath, items] of Object.entries(results)) for (const [lineNum, lineText] of items) matches.push({
+ 			path: fpath,

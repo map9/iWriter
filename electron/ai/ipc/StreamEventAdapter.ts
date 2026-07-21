@@ -5,9 +5,13 @@ import { isHitlInterruptPayload } from '../../../src/ai/hitl'
 import { extractToolResult, invalidToolCallToAiToolCall } from './MessageAdapter'
 import type { RendererEventBridge } from './RendererEventBridge'
 
-interface PendingSubagentInvocation {
-  toolCallId: string
-  claimed: boolean
+/**
+ * The tool call a subagent run was dispatched from, as reported by the native
+ * subagent stream transformer (`{ type: 'toolCall', tool_call_id }`).
+ */
+interface SubagentCause {
+  type?: string
+  tool_call_id?: string
 }
 
 export class StreamEventAdapter {
@@ -17,7 +21,6 @@ export class StreamEventAdapter {
   private contentBlocks: MessageContentBlock[] = []
   private pendingText = ''
   private subagentEventCount = 0
-  private pendingSubagentInvocations: PendingSubagentInvocation[] = []
 
   constructor(
     private readonly threadId: string,
@@ -61,9 +64,6 @@ export class StreamEventAdapter {
         arguments: toolArguments,
       }
       this.toolCalls.push(toolCall)
-      if (call.name === 'task') {
-        this.pendingSubagentInvocations.push({ toolCallId: call.callId, claimed: false })
-      }
       this._flushPendingText()
       this.contentBlocks.push({ type: 'tool_call', toolCallId: toolCall.id })
       this._send({ threadId: this.threadId, turnId: this.turnId, type: 'tool_call_start', toolName: call.name, toolCallId: call.callId, toolCall, subagentName })
@@ -72,7 +72,17 @@ export class StreamEventAdapter {
         const rawStatus = statusResult.status === 'fulfilled' ? statusResult.value : 'error'
         const rawOutput = outputResult.status === 'fulfilled' ? outputResult.value : undefined
         const rawError = errorResult.status === 'fulfilled' ? errorResult.value : undefined
-        const isHitlInterrupt = rawStatus === 'error' && isHitlInterruptPayload(rawOutput)
+        // A tool call the runtime never settled — because an interrupt suspended the run
+        // before it executed — is closed out by the transformer's finalize() as
+        // "finished" with no output and no error. That is NOT a completion: marking it
+        // done would put a green check on a tool still awaiting approval, and the
+        // checkpoint reconcile cannot correct it (an unapproved call has no ToolMessage).
+        // Real completions always carry a ToolMessage in `output`.
+        const unsettledByInterrupt = rawStatus === 'finished'
+          && rawOutput === undefined
+          && rawError === undefined
+        const isHitlInterrupt = (rawStatus === 'error' && isHitlInterruptPayload(rawOutput))
+          || unsettledByInterrupt
         const isError = rawStatus === 'error' && !isHitlInterrupt
         const result = isError
           ? (typeof rawError === 'string' && rawError ? rawError : extractToolResult(call.name, rawOutput))
@@ -95,16 +105,17 @@ export class StreamEventAdapter {
     for await (const rawSub of subagents) {
       const sub = rawSub as {
         name: string
-        taskInput: Promise<string>
+        cause?: SubagentCause
         output: Promise<unknown>
         messages: AsyncIterable<unknown>
         toolCalls: AsyncIterable<unknown>
         subagents: AsyncIterable<unknown>
       }
       const handle = async () => {
-        const taskInput = await sub.taskInput.catch(() => '')
-        const taskInvocation = await this._claimSubagentInvocation()
-        if (!taskInvocation) {
+        // The transformer reports the dispatching tool call directly, so parallel
+        // runs of the same subagent stay correctly attributed.
+        const causeToolCallId = sub.cause?.tool_call_id
+        if (!causeToolCallId) {
           console.warn('[StreamEventAdapter] Subagent stream without parent task tool call', {
             threadId: this.threadId,
             turnId: this.turnId,
@@ -122,7 +133,8 @@ export class StreamEventAdapter {
         // subagentId is intentionally the parent task toolCallId. This is the
         // shared invocation id used by the renderer to merge the task card with
         // the live subagent progress card.
-        const invocationId = taskInvocation.toolCallId
+        const invocationId = causeToolCallId
+        const taskInput = this._readTaskInput(invocationId)
         this.subagentEventCount += 1
         this.bridge.sendStreamChunk({
           threadId: this.threadId,
@@ -408,16 +420,10 @@ export class StreamEventAdapter {
     this.pendingText = ''
   }
 
-  private async _claimSubagentInvocation(): Promise<PendingSubagentInvocation | undefined> {
-    for (let attempt = 0; attempt < 50; attempt += 1) {
-      const invocation = this.pendingSubagentInvocations.find(item => !item.claimed)
-      if (invocation) {
-        invocation.claimed = true
-        return invocation
-      }
-      await new Promise(resolve => setTimeout(resolve, 5))
-    }
-    return undefined
+  /** The brief the parent handed to the subagent, read off the dispatching task tool call. */
+  private _readTaskInput(toolCallId: string): string {
+    const description = this.toolCalls.find(tc => tc.id === toolCallId)?.arguments?.description
+    return typeof description === 'string' ? description : ''
   }
 
   private _send(chunk: StreamChunkEvent): void {
