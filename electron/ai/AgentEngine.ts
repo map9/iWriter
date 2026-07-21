@@ -77,6 +77,9 @@ const BLOCK_EDIT_APPLIED_MESSAGE =
   'The edit was applied successfully by the editor. Block IDs for this file have now shifted — ' +
   're-read with get_document_outline / get_section before starting a new round of edits.'
 
+/** How long the v3 projections may stay pending after the graph run itself has ended. */
+const STREAM_DRAIN_GRACE_MS = 15_000
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 type DeepAgentInstance = { streamEvents: unknown }
@@ -892,11 +895,11 @@ export class AgentEngine {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const run = await (agent.streamEvents as any)(input, { ...runConfig, version: 'v3' }) as DeepAgentRunStream
-      await Promise.all([
-        adapter.consumeMessages(run.messages),
-        adapter.consumeToolCalls(run.toolCalls),
-        adapter.consumeSubagents(run.subagents),
-      ])
+      await this._drainRunStreams(threadId, [
+        { name: 'messages', promise: adapter.consumeMessages(run.messages) },
+        { name: 'toolCalls', promise: adapter.consumeToolCalls(run.toolCalls) },
+        { name: 'subagents', promise: adapter.consumeSubagents(run.subagents) },
+      ], run, adapter)
       await run.output.catch((err: unknown) => {
         if (!abortController?.signal.aborted && !run.interrupted) throw err
       })
@@ -977,6 +980,49 @@ export class AgentEngine {
         this.runtimeStore.clearCurrentTurnId(threadId)
       }
       this.activeRuns.delete(threadId)
+    }
+  }
+
+  /**
+   * Drains the three v3 projections, with a watchdog for streams that never close.
+   *
+   * `run.output` settles when the graph run itself is over (StreamMux.close/fail): every
+   * transformer has been finalized and every channel closed, so the projections must drain
+   * within microseconds. A consumer still pending well after that is waiting on a per-item
+   * promise the runtime left unsettled (a ChatModelStream `output`, a tool call's
+   * `status/output/error`, a subagent's `output`) — waiting longer cannot help, and the run
+   * would otherwise hang forever with the renderer spinning and an interrupt sitting
+   * unhandled in the checkpoint. Log which projection is stuck and carry on: the interrupt /
+   * completion handling below only needs what the adapter has already accumulated.
+   */
+  private async _drainRunStreams(
+    threadId: string,
+    consumers: Array<{ name: string; promise: Promise<void> }>,
+    run: DeepAgentRunStream,
+    adapter: StreamEventAdapter,
+  ): Promise<void> {
+    const pending = new Set(consumers.map(c => c.name))
+    const drained = Promise.all(consumers.map(c => c.promise.then(
+      () => { pending.delete(c.name) },
+      (err) => { pending.delete(c.name); throw err },
+    )))
+
+    const runEnded = (run.output as Promise<unknown>).then(() => undefined, () => undefined)
+    const watchdog = runEnded.then(() => new Promise<'timeout'>((resolve) => {
+      const timer = setTimeout(() => resolve('timeout'), STREAM_DRAIN_GRACE_MS)
+      timer.unref?.()
+    }))
+
+    const outcome = await Promise.race([drained.then(() => 'drained' as const), watchdog])
+    if (outcome === 'timeout') {
+      // The race is over; keep the abandoned Promise.all from surfacing as an unhandled rejection.
+      drained.catch(() => undefined)
+      console.warn('[AgentEngine] Run stream projections did not drain after the run ended:', {
+        threadId,
+        pending: [...pending],
+        // Which individual promise inside those projections is still unsettled.
+        stages: adapter.pendingStageLabels(),
+      })
     }
   }
 

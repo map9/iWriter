@@ -1,0 +1,48 @@
+diff --git a/node_modules/@langchain/langgraph/dist/stream/transformers/messages.cjs b/node_modules/@langchain/langgraph/dist/stream/transformers/messages.cjs
+index 6e956ba..50ae0c1 100644
+--- a/node_modules/@langchain/langgraph/dist/stream/transformers/messages.cjs
++++ b/node_modules/@langchain/langgraph/dist/stream/transformers/messages.cjs
+@@ -38,6 +38,19 @@ function createMessagesTransformer(path, nodeFilter) {
+ 			switch (data.event) {
+ 				case "message-start": {
+ 					const key = getMessageStreamKey(data);
++					// A key can repeat: messages emitted from a node's output all carry that
++					// node's chain run_id, so two AI messages out of one node share `run:<id>`
++					// (and messages with neither run_id nor id all collapse to "__default__").
++					// The entry must be closed before it is replaced or shadowed by `ignored` —
++					// an overwritten source is unreachable from both `message-finish` and
++					// `finalize()`, so its ChatModelStream never ends and any consumer awaiting
++					// its `.text` / `.reasoning` / `.output` hangs for the rest of the process.
++					const superseded = active.get(key);
++					if (superseded) {
++						superseded.source.push({ event: "message-finish" });
++						superseded.source.close();
++						active.delete(key);
++					}
+ 					if (data.role === "tool") {
+ 						ignored.add(key);
+ 						break;
+diff --git a/node_modules/@langchain/langgraph/dist/stream/transformers/messages.js b/node_modules/@langchain/langgraph/dist/stream/transformers/messages.js
+index 1203e86..47626c0 100644
+--- a/node_modules/@langchain/langgraph/dist/stream/transformers/messages.js
++++ b/node_modules/@langchain/langgraph/dist/stream/transformers/messages.js
+@@ -38,6 +38,19 @@ function createMessagesTransformer(path, nodeFilter) {
+ 			switch (data.event) {
+ 				case "message-start": {
+ 					const key = getMessageStreamKey(data);
++					// A key can repeat: messages emitted from a node's output all carry that
++					// node's chain run_id, so two AI messages out of one node share `run:<id>`
++					// (and messages with neither run_id nor id all collapse to "__default__").
++					// The entry must be closed before it is replaced or shadowed by `ignored` —
++					// an overwritten source is unreachable from both `message-finish` and
++					// `finalize()`, so its ChatModelStream never ends and any consumer awaiting
++					// its `.text` / `.reasoning` / `.output` hangs for the rest of the process.
++					const superseded = active.get(key);
++					if (superseded) {
++						superseded.source.push({ event: "message-finish" });
++						superseded.source.close();
++						active.delete(key);
++					}
+ 					if (data.role === "tool") {
+ 						ignored.add(key);
+ 						break;

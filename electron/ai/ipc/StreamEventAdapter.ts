@@ -22,26 +22,55 @@ export class StreamEventAdapter {
   private pendingText = ''
   private subagentEventCount = 0
 
+  /**
+   * Diagnostic only: which stream projections are still being awaited. Sub-adapters share the
+   * root's set, so the drain watchdog (AgentEngine._drainRunStreams) can name the exact promise
+   * a stuck run is waiting on — the runtime leaves per-item promises (a ChatModelStream `output`,
+   * a tool call's `status/output/error`, a subagent's `output`) unsettled in ways that are not
+   * reproducible offline. Never read for control flow.
+   */
+  private readonly pendingStages: Set<string>
+
   constructor(
     private readonly threadId: string,
     private readonly turnId: string | undefined,
     private readonly bridge: RendererEventBridge,
     private readonly subagentId?: string,
-  ) {}
+    parentStages?: Set<string>,
+  ) {
+    this.pendingStages = parentStages ?? new Set<string>()
+  }
+
+  /** Labels of the projections currently awaited, for the drain watchdog's diagnostics. */
+  pendingStageLabels(): string[] {
+    return [...this.pendingStages]
+  }
+
+  private _track<T>(label: string, promise: Promise<T>): Promise<T> {
+    this.pendingStages.add(label)
+    return promise.finally(() => { this.pendingStages.delete(label) })
+  }
 
   async consumeMessages(
     messages: AsyncIterable<unknown>,
     subagentName?: string,
   ): Promise<void> {
+    const scope = subagentName ? `${subagentName}.messages` : 'messages'
+    this.pendingStages.add(`${scope}:stream`)
+    let index = 0
     for await (const message of messages) {
-      await this._consumeOneMessage(message, subagentName)
+      await this._consumeOneMessage(message, subagentName, `${scope}[${index}]`)
+      index += 1
     }
+    this.pendingStages.delete(`${scope}:stream`)
   }
 
   async consumeToolCalls(
     toolCalls: AsyncIterable<unknown>,
     subagentName?: string,
   ): Promise<void> {
+    const scope = subagentName ? `${subagentName}.toolCalls` : 'toolCalls'
+    this.pendingStages.add(`${scope}:stream`)
     const pending: Promise<void>[] = []
     for await (const rawCall of toolCalls) {
       const call = rawCall as {
@@ -95,12 +124,14 @@ export class StreamEventAdapter {
           this._send({ threadId: this.threadId, turnId: this.turnId, type: 'tool_call_end', toolCallId: call.callId, toolCall: { ...tc }, subagentName })
         }
       })
-      pending.push(settle)
+      pending.push(this._track(`${scope}(${call.name}#${call.callId})`, settle))
     }
+    this.pendingStages.delete(`${scope}:stream`)
     await Promise.all(pending)
   }
 
-  async consumeSubagents(subagents: AsyncIterable<unknown>): Promise<void> {
+  async consumeSubagents(subagents: AsyncIterable<unknown>, scope = 'subagents'): Promise<void> {
+    this.pendingStages.add(`${scope}:stream`)
     const pending: Promise<void>[] = []
     for await (const rawSub of subagents) {
       const sub = rawSub as {
@@ -121,13 +152,13 @@ export class StreamEventAdapter {
             turnId: this.turnId,
             subagentName: sub.name,
           })
-          const subAdapter = new StreamEventAdapter(this.threadId, this.turnId, this.bridge)
+          const subAdapter = new StreamEventAdapter(this.threadId, this.turnId, this.bridge, undefined, this.pendingStages)
           await Promise.all([
             subAdapter.consumeMessages(sub.messages, sub.name),
             subAdapter.consumeToolCalls(sub.toolCalls, sub.name),
-            subAdapter.consumeSubagents(sub.subagents),
+            subAdapter.consumeSubagents(sub.subagents, `${sub.name}.subagents`),
           ])
-          await sub.output.catch(() => undefined)
+          await this._track(`${sub.name}:output`, sub.output.catch(() => undefined))
           return
         }
         // subagentId is intentionally the parent task toolCallId. This is the
@@ -146,16 +177,16 @@ export class StreamEventAdapter {
         })
         // Use a fresh adapter so subagent output doesn't pollute root partial state.
         // Pass invocationId so all events from the sub-adapter carry it for routing.
-        const subAdapter = new StreamEventAdapter(this.threadId, this.turnId, this.bridge, invocationId)
+        const subAdapter = new StreamEventAdapter(this.threadId, this.turnId, this.bridge, invocationId, this.pendingStages)
         await Promise.all([
           subAdapter.consumeMessages(sub.messages, sub.name),
           subAdapter.consumeToolCalls(sub.toolCalls, sub.name),
-          subAdapter.consumeSubagents(sub.subagents),
+          subAdapter.consumeSubagents(sub.subagents, `${sub.name}.subagents`),
         ])
-        const outputResult = await sub.output.then(
+        const outputResult = await this._track(`${sub.name}:output`, sub.output.then(
           output => ({ status: 'fulfilled' as const, output }),
           error => ({ status: 'rejected' as const, error }),
-        )
+        ))
         if (outputResult.status === 'fulfilled') {
           this.subagentEventCount += 1
           this.bridge.sendStreamChunk({
@@ -181,8 +212,9 @@ export class StreamEventAdapter {
           })
         }
       }
-      pending.push(handle())
+      pending.push(this._track(`${scope}(${sub.name})`, handle()))
     }
+    this.pendingStages.delete(`${scope}:stream`)
     await Promise.all(pending)
   }
 
@@ -230,6 +262,7 @@ export class StreamEventAdapter {
   private async _consumeOneMessage(
     message: unknown,
     subagentName?: string,
+    label = 'message',
   ): Promise<void> {
     const msg = message as {
       text: AsyncIterable<string>
@@ -240,27 +273,27 @@ export class StreamEventAdapter {
     }
 
     const thinkingBefore = this.thinkingContent
-    const streamedRole = await StreamEventAdapter.readStreamRole(msg)
+    const streamedRole = await this._track(`${label}:role`, StreamEventAdapter.readStreamRole(msg))
     if (streamedRole && streamedRole !== 'ai' && streamedRole !== 'assistant') {
       return
     }
 
     await Promise.all([
       // v3 high-level text projection
-      (async () => {
+      this._track(`${label}:text`, (async () => {
         for await (const delta of msg.text) {
           this.assistantContent += delta
           this.pendingText += delta
           this._send({ threadId: this.threadId, turnId: this.turnId, type: 'text', delta, subagentName })
         }
-      })(),
+      })()),
       // v3 high-level reasoning projection (Anthropic, OpenAI Responses, DeepSeek, etc.)
-      (async () => {
+      this._track(`${label}:reasoning`, (async () => {
         for await (const delta of msg.reasoning) {
           this.thinkingContent += delta
           this._send({ threadId: this.threadId, turnId: this.turnId, type: 'thinking', delta, subagentName })
         }
-      })(),
+      })()),
     ])
 
     // Fallback: if v3 reasoning stream emitted nothing, decode from lower-level fields.
@@ -279,7 +312,7 @@ export class StreamEventAdapter {
     // Errors here are non-fatal; the run.output error path handles stream-level failures.
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const aiMessage = await (msg as any).output
+      const aiMessage = await this._track(`${label}:output`, (msg as any).output as Promise<unknown>)
       this._emitInvalidToolCalls(aiMessage, subagentName)
     } catch {
       // ignore — invalid tool-call cards are best-effort
