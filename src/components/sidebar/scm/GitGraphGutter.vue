@@ -16,7 +16,7 @@
     <circle
       :cx="nodeX"
       :cy="rowHeight / 2"
-      :r="hovered ? 5 : 4"
+      :r="hovered ? 4 : 3"
       :fill="unpublished ? 'var(--color-base-100)' : row.color"
       :stroke="unpublished ? row.color : 'var(--color-base-100)'"
       :stroke-width="unpublished ? 2 : 1"
