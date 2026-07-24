@@ -1,43 +1,24 @@
 ---
 name: character-believability
-description: Load when a character's action, decision, or dialogue needs to feel inevitable rather than plot-convenient — when planning a scene with meaningful character action, deepening a flat character, or checking whether behavior follows from who the character is.
+description: 人物维度通用技法。人物行为"剧情方便"、性格标签化、扁平时拉取——用心理三角把行为推导出来，而非事后贴。
 ---
 
-# character-believability
+# 人物可信度技法
 
-> The 正例/反例 (positive/negative) examples below are in the zh register (the current default). They illustrate derivation, which transfers across languages; carry the principle, map it to the target language.
+## 解决什么
 
-## Principle
+可信的行为是从**心理三角**（欲望 / 恐惧 / 虚假信念）+ **外显特征**推导出来的；泛泛断言（"他内心矛盾"）推不出任何行为。
 
-A character's **psychology triangle** — desire (what they're really securing beneath the surface goal), fear (what loss or exposure they avoid), false belief (the wrong assumption that filters how they read the situation) — together with **external traits** (age, class, occupation, register, physical condition) is the *machinery you derive behavior from*, not a checklist you run after the fact. Believable action is *derived*, generic action is *asserted*.
+## 技法
 
-正例："58 岁退休搬运工，左手缺两指" → "握手时下意识把手藏在背后"。具体、可从设定推导。
-反例："他是个复杂的人，内心充满矛盾"。泛泛而谈，什么行为都推不出来。
+1. **推一个行为**：此刻压力 → 触动哪个欲望或恐惧 → 虚假信念如何扭曲他的解读 → 从扭曲解读推出可见动作 / 台词。例：老周债已还清，被逼问线索 → 触"不能再被卷入"的恐惧 → 信"交出线索就能脱身" → 说出来源，但附一个把阿坤拖更深的条件。
+2. **优点与缺陷同根**（独活者＝不让人靠近），一起写，是结构自洽不是矛盾。
+3. **扁平不是缺背景**，是内在与外在动作不冲突——戏剧化现有设计的代价，别加背景去解释他。
 
-## Deriving a behavior
+## 落到哪
 
-For each significant action, walk the chain instead of picking an action that's convenient for the plot:
+推导结果写进 `characters/` 的事实字段（visible-traits / desire / fear / false-belief / arc）与章纲场景里的动作，**写事实不写指令**；评审时作 finding。
 
-1. Name the pressure in this moment of the scene.
-2. Identify which desire or fear that pressure activates.
-3. Show how the false belief distorts the character's reading of it.
-4. Derive the visible action or line from that distorted reading.
+## 自检
 
-正例：老周欠阿坤的人情已还清（外部约束），阿坤逼问照片来源（压力）→ 触动老周"不能再被卷入"的恐惧 → 虚假信念"只要交出线索就能脱身" → 于是他说出来源，但附加一个把阿坤拖得更深的交换条件。行动从他是谁长出来。
-
-## Two deeper levers
-
-**Strength and damage share one root.** A character's greatest strength and most damaging quality usually come from the same place — the one who survives alone is the one who can't let others in. Render both at once; this is structural coherence, not contradiction.
-
-**Flatness is a depth problem, not a material problem.** A flat character isn't short on backstory; their inner life isn't in tension with their outer action. The unused potential is already in their design — in the gap between stated motive and actual behavior, in the relationship with the most established tension but least page time, in the specific (not general) form of their damage. Don't add backstory to *explain* them; dramatize what the existing design *costs* them.
-
-## Failure modes
-
-- The action exists because the plot needs it; the character has no internal reason to do it.
-- Two characters with different triangles react identically under the same pressure.
-- A character articulates and defeats their own false belief with no event strong enough to force it.
-- A panicked character performs clean strategic reasoning with no distortion from fear.
-
-## How to verify it worked
-
-Remove the character's name and traits from a beat: could a generic person do the same thing for the same reason? If yes, the behavior is asserted, not derived — rebuild it from the triangle.
+抹掉角色名与特征，换个普通人能否同样理由做同样事？能 → 是断言不是推导，重推。

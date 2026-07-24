@@ -356,7 +356,7 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
       const raw = lcMsgText(msg.content)
       // Strip system-injected XML blocks added at send time.
       const content = raw
-        .replace(/<editor_state[\s\S]*?<\/editor_state>\s*/g, '')
+        .replace(/<runtime_context[\s\S]*?<\/runtime_context>\s*/g, '')
         .trim()
       result.push({
         id: `msg-h-${i}`,

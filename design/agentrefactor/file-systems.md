@@ -28,7 +28,7 @@ iWriter 当前的文件系统层（`WorkspaceFilesystemBackend` / `AttachedFileB
 
    将来新增 `/skills/<category>/<skill>` 这种嵌套，必须再加一条 source。
 4. **写保护用 `interruptOn`**（HITL）—— 对应 deepagents-cli 的 `_add_interrupt_on`。本次给 `write_file` / `edit_file` 加 HITL 入口；creative / edit 域已有的领域工具 HITL（`confirm_writing_plan`、`replace_range` 等）保持不变。原来的 `isCreativeWriteAllowed` 写门控移除（被 HITL 替代）。
-5. **"用 host 绝对路径"规则写进 system prompt 源码**（creative.ts / edit.ts）。这是**静态规则**，不是 per-session 动态内容——源码改一次后所有新会话 prompt 一致，cache 正常命中。Workspace 路径继续由 user message 里的 `<editor_state>`（ContextBuilder 已实现，delta-aware）承载，附件路径也由 `<editor_state>` 嵌套的 `<attached_files>` / `<attached_dirs>` 承载（同样 ContextBuilder 已实现）。**不引入 `<filesystem_rules>` 块、不引入 scaffold.promptBlock**。
+5. **"用 host 绝对路径"规则写进 system prompt 源码**（creative.ts / edit.ts）。这是**静态规则**，不是 per-session 动态内容——源码改一次后所有新会话 prompt 一致，cache 正常命中。Workspace 路径继续由 user message 里的 `<runtime_context>`（ContextBuilder 已实现，delta-aware）承载，附件路径也由 `<runtime_context>` 嵌套的 `<attached_files>` / `<attached_dirs>` 承载（同样 ContextBuilder 已实现）。**不引入 `<filesystem_rules>` 块、不引入 scaffold.promptBlock**。
 
 ## 脚手架定义
 
@@ -55,7 +55,7 @@ export function buildAgentFilesystem(input: BuildAgentFilesystemInput): AgentFil
 
 > `InterruptOnConfig` 优先从 `deepagents` 包导入；若导出未公开，则在 `AgentFilesystem.ts` 内保留本地 structural type（与 deepagents 的字段保持一致）。
 
-**fingerprint** 只拼接 **workspace + includeSkills**。附件不进 input、不进 fingerprint——附件不再影响 backend / middleware / interruptOn / system prompt 任何 agent 配置；附件路径完全由 ContextBuilder 写入 `<editor_state>` 内的 `<attached_files>` / `<attached_dirs>`，对 agent 是透明的。同一 thread 切换附件不重建 agent。
+**fingerprint** 只拼接 **workspace + includeSkills**。附件不进 input、不进 fingerprint——附件不再影响 backend / middleware / interruptOn / system prompt 任何 agent 配置；附件路径完全由 ContextBuilder 写入 `<runtime_context>` 内的 `<attached_files>` / `<attached_dirs>`，对 agent 是透明的。同一 thread 切换附件不重建 agent。
 
 ### Backend 构造
 
@@ -93,10 +93,10 @@ Domain 自己的 interruptOn 在 AgentEngine 处与此合并。
 
 ### user message 注入 — 不引入新块
 
-`<editor_state>` 已由 `src/ai/thread/ContextBuilder.ts` 完整构建：
+`<runtime_context>` 已由 `src/ai/thread/ContextBuilder.ts` 完整构建：
 
 ```
-<editor_state change="full">
+<runtime_context change="full">
   <workspace>/Users/me/MyNovel</workspace>
   <active_document path="..."> <outline>...</outline> <cursor_section>...</cursor_section> </active_document>
   <open_tabs>
@@ -108,7 +108,7 @@ Domain 自己的 interruptOn 在 AgentEngine 处与此合并。
   <attached_dirs>
     <dir path="/Users/me/research/" />
   </attached_dirs>
-</editor_state>
+</runtime_context>
 ```
 
 附件路径就是 host 绝对路径，且支持 delta（`change="attachments_only"` 等）。**scaffold 不输出任何 user message 块**——所有 workspace / 附件信息都从 ContextBuilder 走。
@@ -158,7 +158,7 @@ Domain 自己的 interruptOn 在 AgentEngine 处与此合并。
 - 删除 `<context_files>` 整段（L19-21）。
 - 删除 `<filesystem_roots>` 整段（L23-30）。
 - 删除对 `buildFilesystemMounts` / `describeFilesystemMounts` 的 import。
-- **Fallback 路径补强**：L10-17 当 `editorContext.editorStateXml` 缺失时自建的简化 `<editor_state>` 目前只输出 `<file>` + `<workspace>`，缺 `<attached_files>` / `<attached_dirs>`。这条 fallback 路径会让模型看不到附件，需要在此 fallback 块里同步嵌入 `<attached_files>` / `<attached_dirs>`（host 绝对路径），与 ContextBuilder 输出结构一致。
+- **Fallback 路径补强**：L10-17 当 `editorContext.editorStateXml` 缺失时自建的简化 `<runtime_context>` 目前只输出 `<file>` + `<workspace>`，缺 `<attached_files>` / `<attached_dirs>`。这条 fallback 路径会让模型看不到附件，需要在此 fallback 块里同步嵌入 `<attached_files>` / `<attached_dirs>`（host 绝对路径），与 ContextBuilder 输出结构一致。
 - **XML escape**：fallback 自拼 XML 时，所有路径字符串必须 escape `&` → `&amp;`、`"` → `&quot;`、`<` / `>` → `&lt;` / `&gt;`，避免路径里有特殊字符破坏 XML 结构。复用项目已有的 XML escape 工具，或在 UserMessageBuilder 局部加一个 4 行的 `escapeXml(s: string)`。
 
 #### Review item 处理 — write_file / edit_file 新增 HITL 入口
@@ -206,7 +206,7 @@ export interface DomainAgentCapabilities {
 #### `src/ai/thread/system-prompts/creative.ts`
 
 - 在开篇角色定义之后新增 `## File Paths` 段（静态规则，一次性源码改动，cache 友好）：
-  > All filesystem tool paths (`read_file`, `write_file`, `ls`, `grep`, `glob`) must be host absolute paths. The current workspace path is provided in `<workspace>` inside each user message's `<editor_state>`; use it to construct absolute paths. Attached files and directories list host absolute paths inside `<attached_files>` / `<attached_dirs>`. Do not invent virtual paths like `/draft/...`, `/attached_files/...`, or `/skills/...`.
+  > All filesystem tool paths (`read_file`, `write_file`, `ls`, `grep`, `glob`) must be host absolute paths. The current workspace path is provided in `<workspace>` inside each user message's `<runtime_context>`; use it to construct absolute paths. Attached files and directories list host absolute paths inside `<attached_files>` / `<attached_dirs>`. Do not invent virtual paths like `/draft/...`, `/attached_files/...`, or `/skills/...`.
 - 第 183-184 行 "Author writing style" 段中 `/skills/writing-style/<slug>/SKILL.md` 改为：
   > Check the skills list (injected by the skills middleware in this system prompt) for a matching author style. Read its `SKILL.md` by the host absolute path provided in the skill metadata.
 - 第 162-176 行 "## Skills" 段中纯名字（如 `character-complexity`）保持不变——它们只是命名引用，不是路径。
@@ -219,8 +219,8 @@ edit.ts 涉及多处虚拟路径表述清理，**全部为一次性源码改动*
 - L112-114 整段删除（描述 `<filesystem_roots>` 与 `/attached_dirs/...` 等虚拟工具路径）。
 - L221 "use generic deepagents file tools through the **virtual paths** listed in `<filesystem_roots>`" → 改为 "use generic file tools with the host absolute path shown in `<attached_files>` / `<attached_dirs>`"。
 - L228-229 "Never pass... **virtual mount path like `/attached_dirs/...` or `/attached_files/...`**" → 改为 "Always pass real absolute host paths as shown in `<workspace>` / `<attached_files>` / `<attached_dirs>`"。
-- L257 "Generic deepagents file tools operate on **virtual roots** from `<filesystem_roots>`" → 改为 "Generic file tools accept host absolute paths; workspace-relative paths resolve under the workspace shown in `<editor_state>`"。
-- L86-114 内其他 `<workspace>` / `<attached_files>` / `<attached_dirs>` / `<open_tabs>` 引用保留——这些 tag 在 editor_state 内仍然存在。
+- L257 "Generic deepagents file tools operate on **virtual roots** from `<filesystem_roots>`" → 改为 "Generic file tools accept host absolute paths; workspace-relative paths resolve under the workspace shown in `<runtime_context>`"。
+- L86-114 内其他 `<workspace>` / `<attached_files>` / `<attached_dirs>` / `<open_tabs>` 引用保留——这些 tag 在 runtime_context 内仍然存在。
 
 ### 删除（3 个）
 
@@ -241,7 +241,7 @@ scaffold 接管后 legacy 文件全部无引用：
 #### `electron/ai/ipc/MessageAdapter.ts`
 
 L318-322 的 history strip 正则：
-- `<editor_state>` strip 保留。
+- `<runtime_context>` strip 保留。
 - `<context_files>` strip **删除**——不再兼容旧 thread，允许旧块出现在历史记录中或直接忽略。
 - `<filesystem_roots>` strip **删除**——同上，不再保留。
 - **不需要新增**——本次设计不再向 user message 注入新块。
@@ -253,11 +253,11 @@ L318-322 的 history strip 正则：
 
 #### `electron/ai/tools/DocumentTools.ts`
 
-`isVirtualDocumentPath()`（L30-36）与相关错误消息保留——作为防御性提示，模型万一误用 `/attached_files/...`，错误消息引导其改用 host 路径。其引用的 `<workspace>` / `<attached_files>` / `<attached_dirs>` tag 仍准确（这些 tag 在 editor_state 内继续存在）。
+`isVirtualDocumentPath()`（L30-36）与相关错误消息保留——作为防御性提示，模型万一误用 `/attached_files/...`，错误消息引导其改用 host 路径。其引用的 `<workspace>` / `<attached_files>` / `<attached_dirs>` tag 仍准确（这些 tag 在 runtime_context 内继续存在）。
 
 #### 注释清理（低优先级，不阻塞）
 
-- `src/ai/types.ts` L465：注释 "listed in `<context_files>` system prompt section" → "listed in `<attached_files>` inside `<editor_state>`"。
+- `src/ai/types.ts` L465：注释 "listed in `<context_files>` system prompt section" → "listed in `<attached_files>` inside `<runtime_context>`"。
 - `src/components/ai/agent-panel/composables/useChatSend.ts` L14：同上。
 
 ---
@@ -280,7 +280,7 @@ L318-322 的 history strip 正则：
 | 写保护用 `interrupt_on`，不用 `permissions` | deepagents-cli 全程不用 `permissions`（`agent.py:464-470`）。Permission 数组对 host 绝对路径 + 跨平台路径（macOS / Windows）的兼容性差。HITL 已经是 iWriter 现有机制（`EditProposalTools` 等），保持一致。 |
 | 仍保留 scaffold 入口而不让 domain 直接调用 deepagents API | 两个 domain 共享：backend + 副通道 routes + write HITL。差异仅在 `includeSkills`。scaffold 是 `create_cli_agent` 的 TS 翻译，参数化 workspace 与 includeSkills。 |
 | `/large_tool_results/` + `/conversation_history/` 副通道路由保留 | 这是 deepagents **框架**自身的驱逐目标（`FilesystemMiddleware` 在结果超 token 时自动写入），不是 cli 特有。对齐 `agent.py:475-491`——若不路由到 tmpdir，大结果会落到 workspace。 |
-| Fingerprint 不含 attachments | 附件完全由 ContextBuilder 写入 `<editor_state>`，对 agent 透明。同一 thread 切附件不重建 agent。 |
+| Fingerprint 不含 attachments | 附件完全由 ContextBuilder 写入 `<runtime_context>`，对 agent 透明。同一 thread 切附件不重建 agent。 |
 | "用 host 绝对路径"规则写入 system prompt 源码 | 这是**静态规则**不是 per-session 动态注入。源码改一次后所有新会话 prompt 一致，cache 正常命中。不引入 `<filesystem_rules>` 块、不引入 promptBlock。 |
 | 创建临时 tmpdir 的生命周期 | 每次 cache miss 才 `buildAgentFilesystem` → `mkdtempSync` 创建新 tmpdir，由 cache value 持有；cache 命中不重建。一个 agent 用一对 tmpdir，量很少。scaffold 暴露 `tempDirs: string[]` 字段，Phase B 补 `process.on('exit')` 清理或 `deleteThread` 时 rmSync 该 thread 对应 cache 项的 tempDirs，**不改 scaffold 接口**。 |
 | Scaffold 与 agent 1:1 绑定（cache value 同时含 scaffold） | 避免"sendMessage 预先 build scaffold + cache 命中"导致 tmpdir 泄漏 + threadScaffolds 数据漂移。cache value = `{ agent, scaffold }`，scaffold 只在 cache miss 时构造。 |
@@ -337,11 +337,11 @@ npm run lint && npm run type-check
 
 - 三个 domain（creative / edit / 普通对话）各跑一次，行为不应有可见回归。
 - 检查 user message 不再含 `<context_files>`、`<filesystem_roots>`。
-- 检查 user message 仍含 `<editor_state>` 且 `<attached_files>` / `<attached_dirs>` 嵌套其中（ContextBuilder 行为不变）。
+- 检查 user message 仍含 `<runtime_context>` 且 `<attached_files>` / `<attached_dirs>` 嵌套其中（ContextBuilder 行为不变）。
 - 检查 `/tmp` 下出现 `iwriter-large-results-*` / `iwriter-conv-history-*` 临时目录（验证副通道路由生效）。
 - 检查 `/tmp` 下 tmpdir **不随 turn 数线性增长**（cache lifecycle 修复验证）—— 在同一 thread 连续发 5 条消息后，tmpdir 仍只有一对（cache 命中、scaffold 复用）。
 - 检查 system prompt 渲染时含新的 `## File Paths` 段（creative + edit 两个 domain）。
-- 检查 fallback `<editor_state>` 路径下，路径含 `&` `"` 的附件被正确 escape（验证 XML 不破）。
+- 检查 fallback `<runtime_context>` 路径下，路径含 `&` `"` 的附件被正确 escape（验证 XML 不破）。
 
 ---
 

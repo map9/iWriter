@@ -75,7 +75,7 @@ export interface EditorContext {
   folderPath: string | null    // Open workspace folder path
   openTabs: OpenTabInfo[]
   cursorBlockId?: number       // Display block ID of cursor position
-  /** Pre-built <editor_state> XML from renderer (built at send time using ContextBuilder). */
+  /** Pre-built <runtime_context> XML from renderer (built at send time using ContextBuilder). */
   editorStateXml?: string | null
 }
 

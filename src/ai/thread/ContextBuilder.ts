@@ -126,7 +126,7 @@ export interface EditorStateContext {
 }
 
 export interface EditorStateResult {
-  /** The <editor_state> XML to prepend to the user message, or null if nothing changed. */
+  /** The <runtime_context> XML to prepend to the user message, or null if nothing changed. */
   xml: string | null
   /** Delta tracking fields to save back to the thread after injection. */
   threadUpdate: {
@@ -138,7 +138,7 @@ export interface EditorStateResult {
 }
 
 /**
- * Build an <editor_state> XML block to prepend to a user message.
+ * Build an <runtime_context> XML block to prepend to a user message.
  * Implements delta logic: only injects what has changed since the last message.
  * Returns null xml when no context changed (and no attachments).
  */
@@ -197,7 +197,7 @@ export function buildEditorStateBlock(
   // Build XML
   const lines: string[] = []
   const prevAttr = fileChanged ? ` previous_file="${thread.lastFilePath ?? 'none'}"` : ''
-  lines.push(`<editor_state change="${change}"${prevAttr}>`)
+  lines.push(`<runtime_context change="${change}"${prevAttr}>`)
 
   // Workspace — first message only
   if (change === 'full' && ctx.folderPath) {
@@ -265,7 +265,7 @@ export function buildEditorStateBlock(
     }
   }
 
-  lines.push('</editor_state>')
+  lines.push('</runtime_context>')
   return { xml: lines.join('\n'), threadUpdate }
 }
 

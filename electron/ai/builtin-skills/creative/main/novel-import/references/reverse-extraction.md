@@ -12,7 +12,7 @@ Reconstructing the upstream objects — settings, characters, outline — *from*
 
 The three layers land in different places — because only the outline object carries a `status` field, so only it can hold a "draft" (半正式) state; the character/setting objects have no status, so a reconstruction must NOT be written into them as if confirmed.
 
-- **Structure layer → `outline/`** (per `outline-schema`), marked `status: draft`. The batch subagent may write these directly; on aggregation A00 reconstructs the master-outline structure nodes + foreshadow table into `outline/` (draft).
+- **Structure layer → `outline/`** (per `outline-template`), marked `status: draft`. The batch subagent may write these directly; on aggregation A00 reconstructs the master-outline structure nodes + foreshadow table into `outline/` (draft).
 - **Character layer & Setting layer → `exploration/`** — as **candidates only**, never into `characters/` or `worldbuilding/`. They are the model's *reading* of the prose, not facts the author confirmed; writing them into the formal objects would fabricate a confirmed state. A00 merges/dedups the character and setting candidates across batches into `exploration/` for the author to review and, if they choose, promote later.
 
 ## Aggregation (main agent)

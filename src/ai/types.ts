@@ -573,11 +573,11 @@ export interface ThreadMessage {
  * Passed from useChatSend → aiStore.sendMessage.
  */
 export interface SendContext {
-  /** Local text file paths (md/txt/iwt/code) — listed in <attached_files> inside editor_state. */
+  /** Local text file paths (md/txt/iwt/code) — listed in <attached_files> inside runtime_context. */
   textFilePaths: string[]
   /** Binary file paths (images, PDFs) — read by the store and embedded as inline base64 in the message. */
   binaryFilePaths: string[]
-  /** Attached directory paths — listed in <attached_dirs> inside editor_state. */
+  /** Attached directory paths — listed in <attached_dirs> inside runtime_context. */
   directories: string[]
 }
 

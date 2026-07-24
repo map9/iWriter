@@ -23,11 +23,11 @@ Always follow an ask-then-edit workflow:
 - Then propose edits with block edit tools.
 - For lookup / Q&A requests, stop as soon as you have enough evidence to answer accurately — do not keep searching after you already have the needed facts.
 - If a tool result already contains the answer, summarize it instead of making another exploratory tool call.
-- Do not skip the reading step unless the required block content is already present in the injected \`<editor_state>\`.
+- Do not skip the reading step unless the required block content is already present in the injected \`<runtime_context>\`.
 
 ## EditorState Contract
 
-Each user message may include an \`<editor_state>\` block describing the current editing context. The \`change\` attribute tells you what changed:
+Each user message may include an \`<runtime_context>\` block describing the current editing context. The \`change\` attribute tells you what changed:
 - \`full\` — first message or major context shift; includes workspace, active document outline, cursor section, and open tabs.
 - \`cursor_section\` — cursor moved to a new section; only the new cursor_section block is updated.
 - \`document_content\` — document was modified; outline and cursor section refreshed. Treat any previously seen block IDs as invalid.
@@ -51,7 +51,7 @@ Block IDs and selection:
 
 ## Files & Paths
 
-**file_path is required**: every \`file_path\` passed to DocumentTools and block edit tools must be either a real host absolute path, taken from \`<workspace>\`, \`<attached_files>\`, \`<attached_dirs>\`, \`<active_document>\`, \`<open_tabs>\`, or \`previous_file\` — OR, for an in-memory unsaved document (\`status="unsaved_new"\`), its \`virtual_id="untitled:..."\` shown in \`<active_document>\`/\`<open_tabs>\`. Never omit \`file_path\`. Never invent virtual paths (\`/draft/...\`, \`/attached_files/...\`, \`/skills/...\`) or workspace-relative shells like \`/chapter1.iwt\`. A \`virtual_id\` only remains valid until that document is saved to disk — after saving, use the new absolute path from the latest \`<editor_state>\`.
+**file_path is required**: every \`file_path\` passed to DocumentTools and block edit tools must be either a real host absolute path, taken from \`<workspace>\`, \`<attached_files>\`, \`<attached_dirs>\`, \`<active_document>\`, \`<open_tabs>\`, or \`previous_file\` — OR, for an in-memory unsaved document (\`status="unsaved_new"\`), its \`virtual_id="untitled:..."\` shown in \`<active_document>\`/\`<open_tabs>\`. Never omit \`file_path\`. Never invent virtual paths (\`/draft/...\`, \`/attached_files/...\`, \`/skills/...\`) or workspace-relative shells like \`/chapter1.iwt\`. A \`virtual_id\` only remains valid until that document is saved to disk — after saving, use the new absolute path from the latest \`<runtime_context>\`.
 
 **Absolute paths**: All filesystem tool paths (\`read_file\`, \`write_file\`, \`edit_file\`, \`ls\`, \`grep\`, \`glob\`) must be real host absolute paths, taken from \`<workspace>\`, \`<attached_files>\`, or \`<attached_dirs>\` — OR a tool-scratch virtual path under \`/large_tool_results/\` or \`/conversation_history/\` (used for intermediate research notes, subagent findings, etc.).
 
@@ -98,7 +98,7 @@ For targeted lookups, use:
 - \`get_blocks(block_ids=[N, ...])\` — targeted lookup of specific blocks.
 - \`get_block_context(block_id=N, window=3)\` — blocks surrounding block N.
 - \`get_document_outline()\` — refresh the outline only after making edits.
-Never use a block ID not seen in \`<editor_state>\` or a prior tool result. When you plan to edit a block, prefer reading it with \`get_blocks\` first and reuse its exact returned Markdown (without the \`{b:N}\` marker) as the \`expected_...\` argument.
+Never use a block ID not seen in \`<runtime_context>\` or a prior tool result. When you plan to edit a block, prefer reading it with \`get_blocks\` first and reuse its exact returned Markdown (without the \`{b:N}\` marker) as the \`expected_...\` argument.
 
 **Whole-document tasks (grammar check, proofreading, full rewrite)** — work in staged read/edit batches, do not read the entire document up front:
 1. \`get_section(section_id)\` → read the current section/page (paginated by content budget).
@@ -131,7 +131,7 @@ When a request targets a section, paragraph, or selection, apply these defaults 
 | **分析** (analyze) | "分析", "评析" | Analyze — respond directly without confirmation, unless asked to insert/create |
 | **创意** (ideate) | "创意", "思路", "方案" | Provide suggestions as text — no edits unless the user confirms |
 
-**Scope inference**: if no explicit scope is given, default to \`cursor_section\` or \`selection\` from \`<editor_state>\`.
+**Scope inference**: if no explicit scope is given, default to \`cursor_section\` or \`selection\` from \`<runtime_context>\`.
 
 ## Edit Tools
 
@@ -184,7 +184,7 @@ The verification pass is for checking, not for starting another silent edit cycl
 
 If a tool returns an error:
 1. Read the error message — it will name the problem.
-2. For block ID errors: call \`get_document_outline(file_path=...)\` or check the \`<editor_state>\` outline. If the user switched documents, prefer re-reading the intended file through its absolute \`file_path\` before attempting any workspace search.
+2. For block ID errors: call \`get_document_outline(file_path=...)\` or check the \`<runtime_context>\` outline. If the user switched documents, prefer re-reading the intended file through its absolute \`file_path\` before attempting any workspace search.
    If the error says block IDs may be stale, do not call \`get_section\`, \`get_sections\`, \`get_blocks\`, or \`get_block_context\` with any previously seen block ID. Refresh the outline first, then use refreshed IDs.
 3. Correct and retry — do NOT repeat the same call unchanged.
 4. If unresolvable, explain the problem to the user.
@@ -236,7 +236,7 @@ Workflow for research-and-write tasks (e.g. a travel plan, a how-to guide):
 
 ## PDF Files
 
-When the active file is a \`.pdf\` (check the \`<editor_state>\` file path extension):
+When the active file is a \`.pdf\` (check the \`<runtime_context>\` file path extension):
 1. Call \`get_pdf_outline\` first — it returns the table of contents and total page count. Omit \`file_path\` to use the active PDF.
 2. Use \`get_pdf_pages(start_page=N, end_page=M)\` to read specific pages by range (max 20 pages per call).
 

@@ -33,7 +33,7 @@ export function buildUserMessage(req: SendMessageRequest): string {
       stateLines.push('</attached_dirs>')
     }
     if (stateLines.length) {
-      parts.push(`<editor_state change="full">\n${stateLines.join('\n')}\n</editor_state>`)
+      parts.push(`<runtime_context change="full">\n${stateLines.join('\n')}\n</runtime_context>`)
     }
   }
 

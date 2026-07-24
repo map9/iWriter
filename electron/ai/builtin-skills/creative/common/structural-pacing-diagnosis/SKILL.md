@@ -1,37 +1,24 @@
 ---
 name: structural-pacing-diagnosis
-description: Load before analyzing overall story shape or where a story is losing energy across chapters — global arc design, pacing problems, or "what comes next" directions. Not for single-scene review.
+description: 结构维度通用技法。设计全书弧线、诊断跨章节奏、给"下一步往哪"方向时拉取；按压力曲线诊断，不数幕/章。不用于单场景。
 ---
 
-# structural-pacing-diagnosis
+# 结构与节奏技法
 
-## Principle
+## 解决什么
 
-Structure is the **shape of pressure** — where it builds, where it releases, where the reader's understanding of the characters shifts — *not* the number of chapters or the presence of a midpoint. Diagnose against the pressure curve, never by counting acts. A sound story doesn't need symmetry; it needs each major section to do something the previous one could not: raise a new question, remove a resource, force a choice under rising cost.
+结构是**压力的形状**（哪里累积 / 释放 / 理解转移），不是章数或有没有中点。每个大段要做上一段做不到的事。
 
-## Three common structural failures
+## 技法
 
-**The slack middle.** The world and characters are established but the story spins without increasing pressure; scenes maintain the status quo. Diagnosis: the central conflict was *stated* but never made personal — the character hasn't paid for anything yet.
+1. **三种结构失败**：中段松垮（中心冲突只被"说"没被个人化，角色还没付代价）；开篇乏力（先给情境后给压力下的人物，还没揭示他输不起什么）；高潮塌陷（改了剧情，没逼主角的虚假信念正面对决）。
+2. **故事级节奏** = 升级场景 vs 巩固场景之比，中点后应升级多于巩固。问：最近三章主角的代价涨了吗？没涨 = 该升级却在巩固。
+3. **推"下一步"方向**：从人物出，不从剧情。三层测试每个候选：发生什么 / 角色代价 / 主题意义——只有第一层的是剧情动作，选人物动作。真不同 = 不同的情绪形状。最多三个。
 
-**The underpowered opening.** The story opens with situation and context before it opens with a character under pressure; the reader has information but no stakes. Diagnosis: the opening scene hasn't yet revealed what the character cannot afford to lose.
+## 落到哪
 
-**The collapsed climax.** The final confrontation is emotionally large but thematically thin — something changes, but the story hasn't *said* anything. Diagnosis: the climax resolves plot without forcing the protagonist's false belief into direct confrontation.
+进 `outline` 的 structure-nodes / arc（**写事实**）；方向作候选留对话 / `exploration/`。
 
-## Reading pacing at the story level
+## 自检
 
-Story-level pacing is the ratio of scenes that **escalate** vs. scenes that **consolidate**, not sentence rhythm. A healthy story escalates more than it consolidates, especially after the midpoint. Diagnostic question: in the last three chapters, has the cost to the protagonist *increased*? If not, the story is consolidating when it should escalate.
-
-## Extrapolating directions (for "what comes next")
-
-Directions must emerge from character, not plot. "they reconciled" / "the threat escalated" are genre positions, not directions. Run the three-layer test on each candidate: **what happens** (surface) / **what it costs** the character / **what it means** thematically. Directions with only layer 1 are plot moves; prefer character moves. Genuinely different directions end in different *emotional shapes* (one more alone, one having given up something unrecoverable, one where the relationship changed shape) — not the same ending at different angles. The test: could both directions fit the same story? If yes, they aren't different enough. Offer at most three.
-
-## Failure modes
-
-- Diagnosing by counting acts or chapters rather than tracking the pressure curve.
-- Recommending cuts before understanding what emotional work a section is doing.
-- Treating a single-scene or single-character problem as structural.
-- Directions that protect the character from consequence rather than forcing it.
-
-## How to verify it worked
-
-For each major section, name what it does that the prior section could not. A section with no answer is where the structure sags — that's the finding.
+逐段命名"它做了上一段做不到的什么"；答不出的那段就是结构塌陷处 = finding。

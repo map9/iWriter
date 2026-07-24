@@ -1,39 +1,23 @@
 ---
 name: thematic-coherence
-description: Load when checking whether concrete plot actually lands the work's theme — designing major turning points, planning a character's long-term arc, or verifying that scenes advance the thematic question rather than each going their own way.
+description: 主题维度通用技法。主题被宣讲、情节没落主题、各场景各说各的时拉取——查具体场景与选择是否真落 project.md 的主题命题。
 ---
 
-# thematic-coherence
+# 主题落地技法
 
-## Principle
+## 解决什么
 
-Check whether the specific scenes and choices **actually land** the thematic proposition stated in `project.md`, instead of each scene meaning its own thing. Theme is embedded in conflict design, in the choices characters are forced to make, in what the story rewards and punishes — **not delivered** in a speech where a character summarizes what the story means.
+主题嵌在**冲突设计与被迫的选择**里，靠故事奖惩什么落地，不是靠角色总结台词；要落的是 `project.md` 的可争论命题。
 
-## Finding the real question
+## 技法
 
-A story is trying to answer a question about human experience. Surface questions ("will they survive?", "will they get it?") are not it. Thematic questions ("what does wanting this thing cost?", "what does he discover about himself in pursuing it?") are. The thematic question should be one the story **cannot answer cleanly** — clean answers produce messages; irresolvable tensions produce meaning.
+1. **找真问题**：表层问题（"能活吗""得到吗"）不是；主题问题（"想要它的代价是什么""追求中他发现了什么自己"）是，且答不干净。强场景同时三层：发生什么 / 想要什么却得不到 / 对人的处境提出什么。
+2. **靠弧光落**：每个大动作要么守旧我、要么冒险迈向新我；改变被"付了代价"才落地，靠冲突不靠总结。例：主题"复仇是否值得和解的代价"落在三个具体选择上（拒黑帮 / 被迫替黑帮违法 / 终章放弃追查还是公开真相）；反例＝智者角色在结尾说一段话总结主题。
 
-A scene can be coherent on the surface and empty underneath. Strong scenes operate at three levels at once:
-- **Surface** — what happens (events, actions).
-- **Middle** — what the characters want and why they can't have it.
-- **Deep** — what the story proposes about human experience.
+## 落到哪
 
-## Landing theme through the arc
+进 `master-outline` 的 theme-beats（主题落点，**写事实**）与结构转折 / 弧光。
 
-A character's transformation is where theme becomes concrete. Track desire / fear / false belief and the *cost of change*; each major action should either defend the old self or risk a step toward the new self. Avoid sudden transformation without pressure, loss, or a credible decision — the theme lands only when the change is *paid for*, and it lands through conflict, not through summary.
+## 自检
 
-> The 正例/反例 (positive/negative) examples below are in the zh register (the current default). They illustrate how theme lands through choices; carry the principle, map it to the target language.
-
-正例：主题"复仇是否值得付出和解的代价"落在三个具体选择上——第一次拒绝黑帮邀请、为救女儿被迫替黑帮做违法的事、终章在放弃追查与公开真相之间选择。主题从情节长出来。
-反例：某个智者角色在结尾说一段话总结"复仇是没有意义的"。主题被宣讲，而不是被落地。
-
-## Failure modes
-
-- A resolution that answers the thematic question too completely (life doesn't).
-- Theme as a moral lesson delivered by a wise character near the end.
-- Disconnected themes across character arcs instead of one coherent underlying question.
-- A story that knows what its characters *do* but not what they *mean*.
-
-## How to verify it worked
-
-For each of the theme's landing points (`master-outline.md` 主题落点), name the concrete scene that carries it and the choice the character makes there. A landing point with no scene — or a scene the reader would read as pure plot — is theme that hasn't landed yet.
+每个主题落点，指出承载它的具体场景和角色在那做的选择；没有场景、或会被读成纯剧情的落点 = 主题还没落。
