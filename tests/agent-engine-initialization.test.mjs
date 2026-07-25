@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import { build } from 'esbuild'
 
 let modulePromise
+let localeModulePromise
 
 function stubPlugin() {
   return {
@@ -135,7 +136,7 @@ function stubPlugin() {
         [
           /scaffold\/approval\/WritingSessionRegistry$/,
           'writing-session-registry',
-          'export class WritingSessionRegistry { constructor() {} } export function decideWritingSessionApproval() { return { kind: "requires-review" } } export function decideDelegatedWriteGate() { return { kind: "pass" } } export function delegatedActionIndices() { return new Set() } export function isBlockEditToolName() { return false }',
+          'export class WritingSessionRegistry { constructor() {} } export function currentRootToolCallsFromMessages() { return undefined } export function decideWritingSessionApproval() { return { kind: "requires-review" } } export function decideDelegatedWriteGate() { return { kind: "pass" } } export function delegatedActionIndices() { return new Set() } export function isBlockEditToolName() { return false }',
         ],
         [
           /config\/AiConfigStore$/,
@@ -233,6 +234,31 @@ async function loadModule() {
   return modulePromise
 }
 
+async function loadLocaleMessages() {
+  if (!localeModulePromise) {
+    localeModulePromise = (async () => {
+      const result = await build({
+        stdin: {
+          contents: `
+            import zh from './src/i18n/messages/zh-CN.ts'
+            import en from './src/i18n/messages/en-US.ts'
+            export { zh, en }
+          `,
+          resolveDir: process.cwd(),
+          sourcefile: 'agent-tool-i18n-test-entry.ts',
+        },
+        bundle: true,
+        platform: 'node',
+        format: 'esm',
+        write: false,
+      })
+      const code = result.outputFiles[0].text
+      return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+    })()
+  }
+  return localeModulePromise
+}
+
 describe('AgentEngine initialization', () => {
   it('coalesces concurrent first-use initialization', async () => {
     const { AgentEngine } = await loadModule()
@@ -258,5 +284,17 @@ describe('AgentEngine initialization', () => {
 
     release.resolve()
     assert.deepEqual(await Promise.all([first, second]), [[], []])
+  })
+})
+
+describe('Agent tool-name translations', () => {
+  it('covers every approval-gated filesystem mutation in both locales', async () => {
+    const { zh, en } = await loadLocaleMessages()
+    const toolNames = ['write_file', 'edit_file', 'rename_file', 'delete_file', 'move_file']
+
+    for (const toolName of toolNames) {
+      assert.equal(typeof zh.agentPanel.chatArea.toolNames[toolName], 'string', `missing zh ${toolName}`)
+      assert.equal(typeof en.agentPanel.chatArea.toolNames[toolName], 'string', `missing en ${toolName}`)
+    }
   })
 })

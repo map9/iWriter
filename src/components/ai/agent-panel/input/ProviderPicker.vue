@@ -3,7 +3,7 @@
     <button
       v-if="compact"
       @click="onToggle"
-      class="flex items-center gap-0.5 px-1.5 py-1 rounded text-xs transition-colors"
+      class="flex items-center gap-0.5 px-1.5 py-1 rounded-field text-xs transition-colors"
       :class="currentProvider ? 'text-base-content hover:bg-base-300' : 'text-error hover:bg-base-300'"
       :title="currentProviderLabel ?? t('agentPanel.providerPicker.noProvider')"
     >
@@ -13,7 +13,7 @@
     <button
       v-else
       @click="onToggle"
-      class="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
+      class="flex items-center gap-1 px-2 py-1 rounded-field text-xs transition-colors"
       :class="currentProvider ? 'text-base-content hover:bg-base-300' : 'text-error hover:bg-base-300'"
       :title="t('agentPanel.providerPicker.switchProvider')"
     >

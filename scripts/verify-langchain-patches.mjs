@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { BaseCallbackHandler } from '@langchain/core/callbacks/base'
+import { CallbackManager } from '@langchain/core/callbacks/manager'
 import { convertChunksToEvents } from '@langchain/core/language_models/compat'
 import { AIMessageChunk } from '@langchain/core/messages'
 import { ChatGenerationChunk } from '@langchain/core/outputs'
+import { AsyncLocalStorageProviderSingleton } from '@langchain/core/singletons'
+
+const require = createRequire(import.meta.url)
+const langGraphPackageDir = path.dirname(require.resolve('@langchain/langgraph/package.json'))
+const { ensureLangGraphConfig } = await import(pathToFileURL(
+  path.join(langGraphPackageDir, 'dist/pregel/utils/config.js'),
+).href)
 
 async function collectFinishedBlocks(chunks) {
   const finished = []
@@ -113,5 +125,48 @@ assert.deepEqual(mixedIndexedContentBlocks, [
   { type: 'text', text: 'visible', index: 0 },
   { type: 'reasoning', reasoning: 'hidden', index: 0 },
 ])
+
+class SentinelCallbackHandler extends BaseCallbackHandler {
+  name = 'sentinel_callback_handler'
+}
+
+const sharedHandler = new SentinelCallbackHandler()
+const ambientCallbacks = new CallbackManager()
+ambientCallbacks.addHandler(sharedHandler, true)
+const explicitCallbacks = new CallbackManager()
+explicitCallbacks.addHandler(sharedHandler, true)
+const originalGetRunnableConfig = AsyncLocalStorageProviderSingleton.getRunnableConfig
+
+try {
+  AsyncLocalStorageProviderSingleton.getRunnableConfig = () => ({
+    callbacks: ambientCallbacks,
+  })
+  const mergedConfig = ensureLangGraphConfig({ callbacks: explicitCallbacks })
+
+  assert.ok(mergedConfig.callbacks instanceof CallbackManager)
+  assert.deepEqual(mergedConfig.callbacks.handlers, [sharedHandler])
+  assert.deepEqual(mergedConfig.callbacks.inheritableHandlers, [sharedHandler])
+  assert.notEqual(mergedConfig.callbacks, ambientCallbacks)
+  assert.notEqual(mergedConfig.callbacks, explicitCallbacks)
+} finally {
+  AsyncLocalStorageProviderSingleton.getRunnableConfig = originalGetRunnableConfig
+}
+
+const firstDistinctHandler = new SentinelCallbackHandler()
+const secondDistinctHandler = new SentinelCallbackHandler()
+try {
+  AsyncLocalStorageProviderSingleton.getRunnableConfig = () => undefined
+  const mergedConfig = ensureLangGraphConfig(
+    { callbacks: [firstDistinctHandler] },
+    { callbacks: [secondDistinctHandler] },
+  )
+
+  assert.deepEqual(mergedConfig.callbacks, [
+    firstDistinctHandler,
+    secondDistinctHandler,
+  ])
+} finally {
+  AsyncLocalStorageProviderSingleton.getRunnableConfig = originalGetRunnableConfig
+}
 
 console.log('LangChain patch verification passed')

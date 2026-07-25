@@ -4,7 +4,7 @@
       <span
         v-for="(ref, index) in refs"
         :key="index"
-        class="inline-block rounded px-1 align-middle text-[10px] leading-tight"
+        class="inline-block rounded-box px-1 align-middle text-[10px] leading-tight"
         :style="{ backgroundColor: color, color: '#fff' }"
       >{{ ref.name }}</span>
     </span>

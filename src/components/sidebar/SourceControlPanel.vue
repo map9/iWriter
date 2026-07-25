@@ -76,7 +76,7 @@
       <div v-if="showInstallSteps" class="mt-4 w-full rounded-box border border-base-300 bg-base-200 p-3 text-left">
         <h4 class="mb-2 text-xs font-semibold">{{ t('sourceControl.installStepsTitle') }}</h4>
         <div v-if="gitStore.availability.installCommand" class="mb-2 flex items-center gap-1.5">
-          <code class="flex-1 break-all rounded bg-base-300 px-2 py-1 font-mono text-2xs">{{ gitStore.availability.installCommand }}</code>
+          <code class="flex-1 break-all rounded-box bg-base-300 px-2 py-1 font-mono text-2xs">{{ gitStore.availability.installCommand }}</code>
           <button class="iw-toolbar-btn btn-xs shrink-0" @click="copyInstallCommand">
             <IconCheck v-if="installCopied" class="icon-2xs text-success" /><IconCopy v-else class="icon-2xs" />
           </button>

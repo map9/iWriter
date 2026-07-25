@@ -50,7 +50,15 @@ import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore, type InterruptedRun } from './runtime/ThreadRuntimeStore'
 import { buildAgentFilesystem, FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './scaffold/filesystem/AgentFilesystem'
 import { decideFilesystemWriteApproval, isFilesystemWriteToolName } from './scaffold/approval/FilesystemApprovalPolicy'
-import { WritingSessionRegistry, decideWritingSessionApproval, decideDelegatedWriteGate, delegatedActionIndices, isBlockEditToolName } from './scaffold/approval/WritingSessionRegistry'
+import {
+  WritingSessionRegistry,
+  currentRootToolCallsFromMessages,
+  decideWritingSessionApproval,
+  decideDelegatedWriteGate,
+  delegatedActionIndices,
+  isBlockEditToolName,
+  type RootToolCall,
+} from './scaffold/approval/WritingSessionRegistry'
 import { AiConfigStore, resolveAiApiKeyEnvVar } from './config/AiConfigStore'
 import { generateThreadTitle } from '../../src/ai/thread/title'
 import { IWriterAgentContextSchema, type IWriterAgentContext } from './runtime/AgentContext'
@@ -900,8 +908,9 @@ export class AgentEngine {
         { name: 'toolCalls', promise: adapter.consumeToolCalls(run.toolCalls) },
         { name: 'subagents', promise: adapter.consumeSubagents(run.subagents) },
       ], run, adapter)
-      await run.output.catch((err: unknown) => {
+      const runOutput = await run.output.catch((err: unknown) => {
         if (!abortController?.signal.aborted && !run.interrupted) throw err
+        return undefined
       })
 
       if (abortController?.signal.aborted) {
@@ -912,13 +921,21 @@ export class AgentEngine {
       if (run.interrupted) {
         const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
         const partialMessage: ThreadMessage | undefined = adapter.buildPartialMessage(turnId)
+        const currentRootToolCalls = currentRootToolCallsFromMessages(
+          (runOutput as { messages?: unknown } | undefined)?.messages,
+        )
 
         if (partialMessage) {
           this.threadListQuery?.updateMeta(threadId, { updatedAt: Date.now() })
         }
 
         if (run.interrupts.length > 0) {
-          await this._handleInterrupt(threadId, run.interrupts[0]!.payload, partialMessage)
+          await this._handleInterrupt(
+            threadId,
+            run.interrupts[0]!.payload,
+            partialMessage,
+            currentRootToolCalls,
+          )
         } else {
           console.warn('[AgentEngine] run interrupted but no interrupts payload', { threadId })
         }
@@ -984,7 +1001,7 @@ export class AgentEngine {
   }
 
   /**
-   * Drains the three v3 projections, with a watchdog for streams that never close.
+   * Drains the v3 projections, with a watchdog for streams that never close.
    *
    * `run.output` settles when the graph run itself is over (StreamMux.close/fail): every
    * transformer has been finalized and every channel closed, so the projections must drain
@@ -1031,7 +1048,7 @@ export class AgentEngine {
   private async _prepareActionRequestsForReview(
     threadId: string,
     actionRequests: HitlActionRequest[],
-    partialMessage?: ThreadMessage,
+    currentRootToolCalls?: RootToolCall[],
   ): Promise<{
     reviewActionRequests: HitlActionRequest[]
     reviewActionOriginalIndices: number[]
@@ -1050,7 +1067,7 @@ export class AgentEngine {
     const autoApplyOriginalIndices = new Set<number>()
     const autoApplyFiles = new Set<string>()
     const authorizedFiles = this.writingSessions.getAuthorizedFiles(threadId)
-    const delegatedIndices = delegatedActionIndices(actionRequests, partialMessage?.toolCalls)
+    const delegatedIndices = delegatedActionIndices(actionRequests, currentRootToolCalls)
 
     // Stage 1 pre-scan — resolve every filesystem-write tool up front so batch poisoning
     // (Stage 4, triggered *only* by a Stage-1 safety reject) is known before Stage 2 mutates
@@ -1190,6 +1207,7 @@ export class AgentEngine {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     interruptValue: any,
     partialMessage?: ThreadMessage,
+    currentRootToolCalls?: RootToolCall[],
   ): Promise<void> {
     // interruptValue: HITLRequest { actionRequests: [{ name, args }], reviewConfigs: [...] }
     const actionRequests: HitlActionRequest[] =
@@ -1203,7 +1221,11 @@ export class AgentEngine {
 
     const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
     const strategy = this.strategies[domain]
-    const prepared = await this._prepareActionRequestsForReview(threadId, actionRequests, partialMessage)
+    const prepared = await this._prepareActionRequestsForReview(
+      threadId,
+      actionRequests,
+      currentRootToolCalls,
+    )
 
     // Domain-specific mixed-kind guard: auto-reject non-dominant kinds before review
     const mixedDecisions = strategy.preDecideMixed?.(prepared.reviewActionRequests, prepared.reviewActionOriginalIndices)

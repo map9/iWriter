@@ -2,7 +2,7 @@ import { debounce } from 'lodash'
 import { defineStore } from 'pinia'
 import { ref, computed, watch, reactive } from 'vue'
 import { useGitStore } from './git'
-import { generateJSON, type Editor } from '@tiptap/core'
+import { createDocument, type Editor } from '@tiptap/core'
 import { undoDepth } from '@tiptap/pm/history'
 import type { FileTab, TabStateUpdate, FileOperationResult, FileChange, EditSetting, MarkdownEditorPageMode, DiffSpec } from '@/types'
 import { SidebarMode, DocumentType, tabKind, TAB_KINDS } from '@/types'
@@ -2215,8 +2215,7 @@ export const useAppStore = defineStore('app', () => {
     editor.chain().command(({ tr, dispatch }) => {
       if (dispatch) {
         tr.setMeta('addToHistory', false)
-        const json = generateJSON(contentConverted.content, editor.extensionManager.extensions)
-        const doc = editor.schema.nodeFromJSON(json)
+        const doc = createDocument(contentConverted.content, editor.schema)
         tr.replaceWith(0, tr.doc.content.size, doc.content)
         dispatch(tr)
       }

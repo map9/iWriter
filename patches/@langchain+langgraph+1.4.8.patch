@@ -1,3 +1,121 @@
+diff --git a/node_modules/@langchain/langgraph/dist/pregel/utils/config.cjs b/node_modules/@langchain/langgraph/dist/pregel/utils/config.cjs
+index b2e0250..6dac027 100644
+--- a/node_modules/@langchain/langgraph/dist/pregel/utils/config.cjs
++++ b/node_modules/@langchain/langgraph/dist/pregel/utils/config.cjs
+@@ -66,6 +66,24 @@ function filterToUserTags(tags) {
+ 	const filtered = tags.filter((tag) => !tag.startsWith("seq:step"));
+ 	return filtered.length > 0 ? filtered : void 0;
+ }
++function uniqueHandlers(handlers) {
++	const seen = /* @__PURE__ */ new Set();
++	return handlers.filter((handler) => {
++		if (seen.has(handler)) return false;
++		seen.add(handler);
++		return true;
++	});
++}
++function copyManagerWithUniqueHandlers(manager) {
++	const copy = manager.copy();
++	copy.handlers = uniqueHandlers(copy.handlers);
++	copy.inheritableHandlers = uniqueHandlers(copy.inheritableHandlers);
++	return copy;
++}
++function addHandlerOnce(manager, handler, inherit = true) {
++	if (!manager.handlers.includes(handler)) manager.handlers.push(handler);
++	if (inherit && !manager.inheritableHandlers.includes(handler)) manager.inheritableHandlers.push(handler);
++}
+ /**
+ * Merge two `callbacks` values across configs.
+ *
+@@ -79,21 +97,21 @@ function filterToUserTags(tags) {
+ */
+ function mergeCallbacks(base, provided) {
+ 	if (provided === void 0) return base;
+-	if (base === void 0) return Array.isArray(provided) ? [...provided] : provided.copy();
++	if (base === void 0) return Array.isArray(provided) ? uniqueHandlers(provided) : copyManagerWithUniqueHandlers(provided);
+ 	if (Array.isArray(provided)) {
+-		if (Array.isArray(base)) return base.concat(provided);
+-		const manager = base.copy();
+-		for (const callback of provided) manager.addHandler((0, _langchain_core_callbacks_manager.ensureHandler)(callback), true);
++		if (Array.isArray(base)) return uniqueHandlers(base.concat(provided));
++		const manager = copyManagerWithUniqueHandlers(base);
++		for (const callback of provided) addHandlerOnce(manager, (0, _langchain_core_callbacks_manager.ensureHandler)(callback), true);
+ 		return manager;
+ 	}
+ 	if (Array.isArray(base)) {
+-		const manager = provided.copy();
+-		for (const callback of base) manager.addHandler((0, _langchain_core_callbacks_manager.ensureHandler)(callback), true);
++		const manager = copyManagerWithUniqueHandlers(provided);
++		for (const callback of base) addHandlerOnce(manager, (0, _langchain_core_callbacks_manager.ensureHandler)(callback), true);
+ 		return manager;
+ 	}
+ 	return new _langchain_core_callbacks_manager.CallbackManager(provided._parentRunId, {
+-		handlers: base.handlers.concat(provided.handlers),
+-		inheritableHandlers: base.inheritableHandlers.concat(provided.inheritableHandlers),
++		handlers: uniqueHandlers(base.handlers.concat(provided.handlers)),
++		inheritableHandlers: uniqueHandlers(base.inheritableHandlers.concat(provided.inheritableHandlers)),
+ 		tags: Array.from(new Set(base.tags.concat(provided.tags))),
+ 		inheritableTags: Array.from(new Set(base.inheritableTags.concat(provided.inheritableTags))),
+ 		metadata: {
+diff --git a/node_modules/@langchain/langgraph/dist/pregel/utils/config.js b/node_modules/@langchain/langgraph/dist/pregel/utils/config.js
+index ce88d9e..4793684 100644
+--- a/node_modules/@langchain/langgraph/dist/pregel/utils/config.js
++++ b/node_modules/@langchain/langgraph/dist/pregel/utils/config.js
+@@ -66,6 +66,24 @@ function filterToUserTags(tags) {
+ 	const filtered = tags.filter((tag) => !tag.startsWith("seq:step"));
+ 	return filtered.length > 0 ? filtered : void 0;
+ }
++function uniqueHandlers(handlers) {
++	const seen = /* @__PURE__ */ new Set();
++	return handlers.filter((handler) => {
++		if (seen.has(handler)) return false;
++		seen.add(handler);
++		return true;
++	});
++}
++function copyManagerWithUniqueHandlers(manager) {
++	const copy = manager.copy();
++	copy.handlers = uniqueHandlers(copy.handlers);
++	copy.inheritableHandlers = uniqueHandlers(copy.inheritableHandlers);
++	return copy;
++}
++function addHandlerOnce(manager, handler, inherit = true) {
++	if (!manager.handlers.includes(handler)) manager.handlers.push(handler);
++	if (inherit && !manager.inheritableHandlers.includes(handler)) manager.inheritableHandlers.push(handler);
++}
+ /**
+ * Merge two `callbacks` values across configs.
+ *
+@@ -79,21 +97,21 @@ function filterToUserTags(tags) {
+ */
+ function mergeCallbacks(base, provided) {
+ 	if (provided === void 0) return base;
+-	if (base === void 0) return Array.isArray(provided) ? [...provided] : provided.copy();
++	if (base === void 0) return Array.isArray(provided) ? uniqueHandlers(provided) : copyManagerWithUniqueHandlers(provided);
+ 	if (Array.isArray(provided)) {
+-		if (Array.isArray(base)) return base.concat(provided);
+-		const manager = base.copy();
+-		for (const callback of provided) manager.addHandler(ensureHandler(callback), true);
++		if (Array.isArray(base)) return uniqueHandlers(base.concat(provided));
++		const manager = copyManagerWithUniqueHandlers(base);
++		for (const callback of provided) addHandlerOnce(manager, ensureHandler(callback), true);
+ 		return manager;
+ 	}
+ 	if (Array.isArray(base)) {
+-		const manager = provided.copy();
+-		for (const callback of base) manager.addHandler(ensureHandler(callback), true);
++		const manager = copyManagerWithUniqueHandlers(provided);
++		for (const callback of base) addHandlerOnce(manager, ensureHandler(callback), true);
+ 		return manager;
+ 	}
+ 	return new CallbackManager(provided._parentRunId, {
+-		handlers: base.handlers.concat(provided.handlers),
+-		inheritableHandlers: base.inheritableHandlers.concat(provided.inheritableHandlers),
++		handlers: uniqueHandlers(base.handlers.concat(provided.handlers)),
++		inheritableHandlers: uniqueHandlers(base.inheritableHandlers.concat(provided.inheritableHandlers)),
+ 		tags: Array.from(new Set(base.tags.concat(provided.tags))),
+ 		inheritableTags: Array.from(new Set(base.inheritableTags.concat(provided.inheritableTags))),
+ 		metadata: {
 diff --git a/node_modules/@langchain/langgraph/dist/stream/transformers/messages.cjs b/node_modules/@langchain/langgraph/dist/stream/transformers/messages.cjs
 index 6e956ba..50ae0c1 100644
 --- a/node_modules/@langchain/langgraph/dist/stream/transformers/messages.cjs

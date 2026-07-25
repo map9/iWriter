@@ -1,4 +1,5 @@
 import * as path from 'path'
+import { isDeepStrictEqual } from 'node:util'
 import type { ResumeDecision } from '../../ipc/protocol'
 
 // ── Stage 2 — 写作会话授权（04.1 §6，五段裁决级联中唯一新增裁决源）─────────────
@@ -147,31 +148,73 @@ export function decideWritingSessionApproval(
 /**
  * Which action requests in an interrupt came from a delegated subagent rather than the main agent.
  *
- * The interrupt payload does not record an originator, but the main agent's own streamed message
- * does: an action request whose (name, nth-occurrence) has no counterpart among the parent's tool
- * calls can only have been issued inside a subagent's turn. When the parent's tool calls are
- * unavailable (empty), nothing is classified as delegated — the gate must never fire on a guess,
- * since a false positive would reject a legitimate main-agent edit.
+ * The interrupt payload does not record an originator, but the root agent's latest AIMessage does:
+ * an action request whose (name, args) has no counterpart in that current root tool batch came from
+ * a delegated turn. When the root batch is unavailable (empty), nothing is classified as delegated
+ * — the gate must never fire on a guess, since a false positive rejects a legitimate main-agent edit.
  */
 export function delegatedActionIndices(
-  actionRequests: Array<{ name: string }>,
-  parentToolCalls: Array<{ name: string }> | undefined,
+  actionRequests: Array<{ name: string; args?: Record<string, unknown> }>,
+  parentToolCalls: Array<{ name: string; args?: Record<string, unknown> }> | undefined,
 ): Set<number> {
   const delegated = new Set<number>()
   if (!parentToolCalls?.length) return delegated
 
-  const parentCountByName = new Map<string, number>()
-  for (const tc of parentToolCalls) {
-    parentCountByName.set(tc.name, (parentCountByName.get(tc.name) ?? 0) + 1)
-  }
-
-  const seenByName = new Map<string, number>()
+  const consumedParentIndices = new Set<number>()
   actionRequests.forEach((ar, index) => {
-    const seen = seenByName.get(ar.name) ?? 0
-    seenByName.set(ar.name, seen + 1)
-    if (seen >= (parentCountByName.get(ar.name) ?? 0)) delegated.add(index)
+    const parentIndex = parentToolCalls.findIndex((tc, candidateIndex) => {
+      if (consumedParentIndices.has(candidateIndex) || tc.name !== ar.name) return false
+      if (ar.args === undefined || tc.args === undefined) return true
+      return isDeepStrictEqual(tc.args, ar.args)
+    })
+    if (parentIndex >= 0) {
+      consumedParentIndices.add(parentIndex)
+    } else {
+      delegated.add(index)
+    }
   })
   return delegated
+}
+
+export interface RootToolCall {
+  id?: string
+  name: string
+  args?: Record<string, unknown>
+}
+
+/**
+ * Read the current root-agent tool batch from the final state of an interrupted run.
+ * This deliberately returns only the latest root AIMessage, never run-wide executed tools.
+ */
+export function currentRootToolCallsFromMessages(messages: unknown): RootToolCall[] | undefined {
+  if (!Array.isArray(messages)) return undefined
+
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index] as {
+      _getType?: () => string
+      tool_calls?: unknown
+    } | undefined
+    if (message?._getType?.() !== 'ai') continue
+    if (!Array.isArray(message.tool_calls)) return []
+
+    return message.tool_calls.flatMap((raw): RootToolCall[] => {
+      const toolCall = raw as {
+        id?: unknown
+        name?: unknown
+        args?: unknown
+      }
+      if (typeof toolCall.name !== 'string') return []
+      return [{
+        ...(typeof toolCall.id === 'string' ? { id: toolCall.id } : {}),
+        name: toolCall.name,
+        ...(toolCall.args && typeof toolCall.args === 'object' && !Array.isArray(toolCall.args)
+          ? { args: toolCall.args as Record<string, unknown> }
+          : {}),
+      }]
+    })
+  }
+
+  return undefined
 }
 
 export interface DelegatedWriteGateInput {

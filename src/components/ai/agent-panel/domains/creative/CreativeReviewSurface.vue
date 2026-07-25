@@ -25,7 +25,7 @@
         <span class="mb-1 block text-[11px] font-medium text-base-content/50">{{ bodyLabel }}</span>
         <textarea
           v-model="bodyDraft"
-          class="min-h-40 w-full resize-y rounded-md border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
+          class="min-h-40 w-full resize-y rounded-field border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
         />
       </label>
 
@@ -36,7 +36,7 @@
         <span class="mb-1 block text-[11px] font-medium text-base-content/50">{{ t('agentPanel.creativeReview.gitFiles') }}</span>
         <textarea
           v-model="filesDraft"
-          class="min-h-16 w-full resize-y rounded-md border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
+          class="min-h-16 w-full resize-y rounded-field border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
         />
       </label>
 
@@ -47,7 +47,7 @@
         <span class="mb-1 block text-[11px] font-medium text-base-content/50">{{ t('agentPanel.creativeReview.gitTagMessage') }}</span>
         <textarea
           v-model="tagMessageDraft"
-          class="min-h-16 w-full resize-y rounded-md border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
+          class="min-h-16 w-full resize-y rounded-field border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
         />
       </label>
 
@@ -71,28 +71,28 @@
         </div>
         <p
           v-if="currentReview.autoFallback"
-          class="rounded-md bg-base-200 px-2 py-1.5 text-[11px] leading-relaxed text-base-content/60"
+          class="rounded-box bg-base-200 px-2 py-1.5 text-[11px] leading-relaxed text-base-content/60"
         >
           {{ t('agentPanel.creativeReview.finalizeFallbackHint') }}
         </p>
         <p
           v-if="currentReview.hasExternalEdits"
-          class="rounded-md bg-warning/10 px-2 py-1.5 text-[11px] leading-relaxed text-warning"
+          class="rounded-box bg-warning/10 px-2 py-1.5 text-[11px] leading-relaxed text-warning"
         >
           {{ t('agentPanel.creativeReview.finalizeExternalEdits') }}
         </p>
-        <details class="rounded-md border border-base-300 bg-base-200">
+        <details class="rounded-box border border-base-300 bg-base-200">
           <summary class="cursor-pointer px-2 py-1 text-[11px] text-base-content/60">
             {{ t('agentPanel.creativeReview.finalizeShowDiff') }}
           </summary>
           <div class="grid grid-cols-1 gap-2 px-2 py-2 sm:grid-cols-2">
             <div class="min-w-0">
               <div class="mb-1 text-[11px] font-medium text-base-content/50">{{ t('agentPanel.creativeReview.finalizeBaseline') }}</div>
-              <pre class="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-base-100 p-2 text-[11px] leading-relaxed">{{ currentReview.baseline || t('agentPanel.creativeReview.emptyContent') }}</pre>
+              <pre class="max-h-48 overflow-auto whitespace-pre-wrap wrap-break-word rounded bg-base-100 p-2 text-[11px] leading-relaxed">{{ currentReview.baseline || t('agentPanel.creativeReview.emptyContent') }}</pre>
             </div>
             <div class="min-w-0">
               <div class="mb-1 text-[11px] font-medium text-base-content/50">{{ t('agentPanel.creativeReview.finalizeCurrent') }}</div>
-              <pre class="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-base-100 p-2 text-[11px] leading-relaxed">{{ currentReview.current || t('agentPanel.creativeReview.emptyContent') }}</pre>
+              <pre class="max-h-48 overflow-auto whitespace-pre-wrap wrap-break-word rounded bg-base-100 p-2 text-[11px] leading-relaxed">{{ currentReview.current || t('agentPanel.creativeReview.emptyContent') }}</pre>
             </div>
           </div>
         </details>
@@ -104,7 +104,7 @@
       >
         <p v-if="currentReview.chapterCount > 0">{{ t('agentPanel.creativeReview.importWarning', { count: currentReview.chapterCount }) }}</p>
         <p v-else>{{ t('agentPanel.creativeReview.importDryRun') }}</p>
-        <div class="rounded-md bg-base-200 px-2 py-1.5">
+        <div class="rounded-box bg-base-200 px-2 py-1.5">
           <div class="truncate"><span class="text-base-content/50">{{ t('agentPanel.creativeReview.importSource') }}</span> {{ currentReview.sourcePath }}</div>
           <div v-if="currentReview.targetDirectory" class="truncate"><span class="text-base-content/50">{{ t('agentPanel.creativeReview.importTarget') }}</span> {{ currentReview.targetDirectory }}</div>
         </div>
@@ -118,7 +118,7 @@
     >
       <textarea
         v-model="respondMessage"
-        class="w-full resize-none rounded-md border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
+        class="w-full resize-none rounded-field border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
         rows="3"
         :placeholder="t('agentPanel.creativeReview.respondPlaceholder')"
         @keydown.enter.ctrl="sendRespond"

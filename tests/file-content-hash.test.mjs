@@ -74,3 +74,25 @@ describe('save path hash guard placement', () => {
     assert.equal(saveTabSource.includes('readFileSilent'), false)
   })
 })
+
+describe('external Markdown reload parsing', () => {
+  it('reuses the live editor schema instead of resolving flattened extensions again', () => {
+    const appStoreSource = readFileSync('src/stores/app.ts', 'utf8')
+    const reloadStart = appStoreSource.indexOf('async function reloadOpenMarkdownTabFromDisk(')
+    const reloadEnd = appStoreSource.indexOf('async function handleOpenTabExternalChange(', reloadStart)
+
+    assert.notEqual(reloadStart, -1)
+    assert.notEqual(reloadEnd, -1)
+
+    const reloadSource = appStoreSource.slice(reloadStart, reloadEnd)
+
+    assert.match(
+      reloadSource,
+      /createDocument\(contentConverted\.content,\s*editor\.schema\)/,
+    )
+    assert.doesNotMatch(
+      reloadSource,
+      /generateJSON\(contentConverted\.content,\s*editor\.extensionManager\.extensions\)/,
+    )
+  })
+})

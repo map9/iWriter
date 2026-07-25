@@ -3,7 +3,7 @@
     <button
       v-if="compact"
       @click="onToggle"
-      class="flex items-center gap-0.5 px-1.5 py-1 rounded text-xs text-base-content hover:bg-base-300 transition-colors"
+      class="flex items-center gap-0.5 px-1.5 py-1 rounded-field text-xs text-base-content hover:bg-base-300 transition-colors"
       :title="currentLabel"
     >
       <component :is="currentModeIcon" class="icon-xs shrink-0" />
@@ -12,7 +12,7 @@
     <button
       v-else
       @click="onToggle"
-      class="flex items-center gap-1 px-2 py-1 rounded text-xs text-base-content hover:bg-base-300 transition-colors"
+      class="flex items-center gap-1 px-2 py-1 rounded-field text-xs text-base-content hover:bg-base-300 transition-colors"
       :title="t('agentPanel.modePicker.switchMode')"
     >
       <span class="truncate">{{ currentLabel }}</span>

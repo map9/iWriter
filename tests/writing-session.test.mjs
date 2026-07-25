@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, it } from 'node:test'
 import { build } from 'esbuild'
@@ -263,6 +264,45 @@ describe('decideDelegatedWriteGate (Stage 2b — delegated writes require a sess
 })
 
 describe('delegatedActionIndices (who issued the tool call)', () => {
+  it('uses only the latest root AIMessage tool batch for origin attribution', async () => {
+    const { currentRootToolCallsFromMessages } = await loadModule()
+    const latestRootCalls = currentRootToolCallsFromMessages([
+      {
+        _getType: () => 'ai',
+        tool_calls: [{ id: 'old-todo', name: 'write_todos', args: { todos: [] } }],
+      },
+      {
+        _getType: () => 'tool',
+        tool_call_id: 'old-todo',
+      },
+      {
+        _getType: () => 'ai',
+        tool_calls: [
+          { id: 'edit-1', name: 'edit_block', args: { file_path: CH, block_id: 4 } },
+          { id: 'edit-2', name: 'edit_block', args: { file_path: OTHER, block_id: 1 } },
+        ],
+      },
+    ])
+
+    assert.deepEqual(
+      latestRootCalls.map(({ id, name, args }) => ({ id, name, args })),
+      [
+        { id: 'edit-1', name: 'edit_block', args: { file_path: CH, block_id: 4 } },
+        { id: 'edit-2', name: 'edit_block', args: { file_path: OTHER, block_id: 1 } },
+      ],
+    )
+  })
+
+  it('AgentEngine does not infer delegated writes from the run-wide partial message', () => {
+    const source = readFileSync('electron/ai/AgentEngine.ts', 'utf8')
+
+    assert.match(source, /currentRootToolCallsFromMessages/)
+    assert.doesNotMatch(
+      source,
+      /delegatedActionIndices\(actionRequests,\s*partialMessage\?\.toolCalls\)/,
+    )
+  })
+
   it('classifies action requests with no parent counterpart as delegated', async () => {
     const { delegatedActionIndices } = await loadModule()
     // Parent called task(); the three edits can only have come from inside the subagent.
@@ -289,6 +329,22 @@ describe('delegatedActionIndices (who issued the tool call)', () => {
       [{ name: 'edit_block' }, { name: 'task' }]
     )
     assert.deepEqual([...idx].sort((a, b) => a - b), [1, 2])
+  })
+
+  it('matches duplicate tool names by arguments rather than position alone', async () => {
+    const { delegatedActionIndices } = await loadModule()
+    const idx = delegatedActionIndices(
+      [
+        { name: 'edit_block', args: { file_path: CH, block_id: 1 } },
+        { name: 'edit_block', args: { file_path: OTHER, block_id: 1 } },
+      ],
+      [
+        { name: 'edit_block', args: { file_path: OTHER, block_id: 1 } },
+        { name: 'task', args: { description: 'delegate chapter edit' } },
+      ],
+    )
+
+    assert.deepEqual([...idx], [0])
   })
 
   it('classifies nothing when the parent tool calls are unavailable (never gate on a guess)', async () => {
