@@ -533,9 +533,10 @@ export default {
       selectFolderTitle: 'Select Folder',
     },
     toolbar: {
-      contextWindow: 'Context window',
-      progressFull: '{percent}% full',
+      compactThreshold: 'Automatic compact threshold',
+      compactProgress: '{percent}% of threshold',
       tokensUsed: '{current} / {max} tokens used',
+      modelContextLimit: 'Model context limit: {max} tokens',
       realUsage: 'Real usage (session)',
       inOut: '↑{input} in / ↓{output} out',
       cacheHit: 'Cache: {read} read • {created} created',

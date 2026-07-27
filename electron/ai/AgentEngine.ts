@@ -18,7 +18,7 @@ import type { WebContents } from 'electron'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import type { BaseMessage } from '@langchain/core/messages'
 import type { ModelProfile } from '@langchain/core/language_models/profile'
-import { createDeepAgent, type DeepAgentRunStream } from 'deepagents'
+import { computeSummarizationDefaults, createDeepAgent, type DeepAgentRunStream } from 'deepagents'
 import { Command } from '@langchain/langgraph'
 import { HumanMessage, SystemMessage, isAIMessage, isToolMessage, isHumanMessage } from '@langchain/core/messages'
 import {
@@ -28,7 +28,7 @@ import {
 
 import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage } from '../../src/types/ai'
 import { isAiProviderUsable, resolveApiKeyReference } from '../../src/types/ai'
-import { getModelBudgetInfo, HARD_REQUEST_CEILING_TOKENS } from '../../src/ai/model/model-budget'
+import { HARD_REQUEST_CEILING_TOKENS } from '../../src/ai/model/model-budget'
 import { estimateTextTokens } from '../../src/ai/model/token-estimation'
 import { createChatModel } from './providers/ModelFactory'
 import { SnapshotBroker } from './document/SnapshotBroker'
@@ -38,8 +38,7 @@ import { ThreadListQuery, metaToAiThread } from './thread/ThreadListQuery'
 import type {
   SendMessageRequest,
   ResumeDecision,
-  CompactInputRequest,
-  CompactInputResponse,
+  SessionContextStatsRequest,
   SessionContextStatsResponse,
 } from './ipc/protocol'
 import { convertLcMessages } from './ipc/MessageAdapter'
@@ -97,11 +96,47 @@ type SummarizationMiddlewareOptions = {
   model: BaseChatModel
   tokenCounter: TokenCounter
 }
+type ModelBudgetInfo = {
+  maxInputTokens?: number
+  triggerTokens: number
+}
 type CreateDeepAgentWithSummarization = (
   params: Parameters<typeof createDeepAgent>[0] & {
     summarizationMiddlewareOptions?: SummarizationMiddlewareOptions
   },
 ) => DeepAgentInstance
+
+/**
+ * Resolve the token threshold from DeepAgents' own summarization defaults.
+ * Keeping this calculation beside the runtime prevents the context indicator and
+ * request preflight from drifting away from the middleware that performs the
+ * actual summarization.
+ */
+function getDeepAgentsModelBudget(model: BaseChatModel): ModelBudgetInfo {
+  const { trigger } = computeSummarizationDefaults(model)
+  const profile = (model as BaseChatModel & { profile?: ModelProfile }).profile
+  const maxInputTokens = profile?.maxInputTokens
+
+  if (trigger.type === 'tokens' && Number.isFinite(trigger.value) && trigger.value > 0) {
+    return { triggerTokens: Math.floor(trigger.value) }
+  }
+
+  if (
+    trigger.type === 'fraction'
+    && Number.isFinite(trigger.value)
+    && trigger.value > 0
+    && typeof maxInputTokens === 'number'
+    && Number.isFinite(maxInputTokens)
+    && maxInputTokens > 0
+  ) {
+    return {
+      maxInputTokens,
+      triggerTokens: Math.floor(maxInputTokens * trigger.value),
+    }
+  }
+
+  throw new Error(`Unsupported DeepAgents summarization trigger: ${trigger.type}:${trigger.value}`)
+}
 
 export class AgentEngine {
   private snapshotBroker: SnapshotBroker
@@ -291,76 +326,7 @@ export class AgentEngine {
     return { threadId }
   }
 
-  async compactInput(req: CompactInputRequest): Promise<CompactInputResponse> {
-    await this._ensureInitialized()
-
-    const settings = AiConfigStore.loadSettings()
-    const meta = req.threadId ? this.threadListQuery?.getMeta(req.threadId) : null
-    const runtime = resolveThreadRuntime(settings, {
-      userText: req.text,
-      domain: req.domain,
-      mode: req.mode,
-      threadId: req.threadId,
-      threadRuntime: req.threadRuntime,
-      editorContext: {
-        filePath: null,
-        isDirty: false,
-        folderPath: null,
-        openTabs: [],
-      },
-    }, meta)
-
-    const original = req.text.trim()
-    const originalTokens = estimateTextTokens(original)
-    if (!original) {
-      return { text: '', originalTokens: 0, compactedTokens: 0 }
-    }
-
-    const model = createChatModel(runtime.providerConfig, {
-      modelId: runtime.modelId,
-      thinkingLevel: runtime.thinkingLevel,
-    })
-
-    const systemPrompt = [
-      '你负责压缩用户输入，而不是回答问题。',
-      '保留所有明确要求、约束、文件名、数字、步骤、风格偏好和验收标准。',
-      '删除寒暄、重复、冗余解释和不影响执行的背景描述。',
-      '输出语言保持和原文一致。',
-      '只返回压缩后的文本，不要解释。',
-    ].join('\n')
-
-    const humanPrompt = [
-      '请压缩下面这段用户输入，目标是在不丢失关键执行信息的前提下尽量减少 token。',
-      '',
-      original,
-    ].join('\n')
-
-    const response = await model.invoke([
-      new SystemMessage(systemPrompt),
-      new HumanMessage(humanPrompt),
-    ])
-
-    const compacted = typeof response.content === 'string'
-      ? response.content.trim()
-      : Array.isArray(response.content)
-        ? response.content
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .filter((part: any) => part?.type === 'text')
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .map((part: any) => String(part?.text ?? ''))
-            .join('')
-            .trim()
-        : ''
-
-    const nextText = compacted && compacted.length < original.length ? compacted : original
-    return {
-      text: nextText,
-      originalTokens,
-      compactedTokens: estimateTextTokens(nextText),
-    }
-  }
-
-  async getSessionContextStats(req: CompactInputRequest): Promise<SessionContextStatsResponse> {
+  async getSessionContextStats(req: SessionContextStatsRequest): Promise<SessionContextStatsResponse> {
     await this._ensureInitialized()
 
     const settings = AiConfigStore.loadSettings()
@@ -377,7 +343,7 @@ export class AgentEngine {
 
     const meta = req.threadId ? this.threadListQuery?.getMeta(req.threadId) : null
     const runtime = resolveThreadRuntime(settings, {
-      userText: req.text ?? '',
+      userText: '',
       domain: req.domain,
       mode: req.mode,
       threadId: req.threadId,
@@ -394,15 +360,7 @@ export class AgentEngine {
       modelId: runtime.modelId,
       thinkingLevel: runtime.thinkingLevel,
     })
-    const profile = (model as BaseChatModel & { profile?: ModelProfile }).profile
-    const budget = getModelBudgetInfo(profile)
-    if (!budget.maxInputTokens) {
-      return {
-        visible: false,
-        currentTokens: 0,
-        triggerTokens: 0,
-      }
-    }
+    const budget = getDeepAgentsModelBudget(model)
 
     const currentTokens = await this._getCurrentSessionTokens(req.threadId, runtime.domain, runtime.mode)
     return {
@@ -1772,12 +1730,12 @@ export class AgentEngine {
     const userContentTokens = estimateTextTokens(userContent)
     const inputTokens = estimateTextTokens(systemPrompt) + userContentTokens
     const model = createChatModel(config, { modelId, thinkingLevel })
-    const budgetInfo = getModelBudgetInfo((model as BaseChatModel & { profile?: ModelProfile }).profile)
+    const budgetInfo = getDeepAgentsModelBudget(model)
 
     // New input alone must fit under the summarization trigger (nothing to compact yet if it doesn't).
     if (inputTokens > budgetInfo.triggerTokens) {
       throw new Error(
-        `当前请求预计约 ${inputTokens} tokens，已超过摘要触发预算 ${budgetInfo.triggerTokens}。请先点击 Compact 压缩输入，或减少附件与上下文。`
+        `当前请求预计约 ${inputTokens} tokens，已超过摘要触发预算 ${budgetInfo.triggerTokens}。请减少附件与上下文。`
       )
     }
 
@@ -1792,7 +1750,7 @@ export class AgentEngine {
     const projectedTokens = sessionTokens + userContentTokens
     if (projectedTokens > ceiling) {
       throw new Error(
-        `本轮请求预计约 ${projectedTokens} tokens（历史 ${sessionTokens} + 新输入 ${userContentTokens}），已超过单次请求硬上限 ${ceiling}。请点击 Compact 压缩，或开启新会话继续。`
+        `本轮请求预计约 ${projectedTokens} tokens（历史 ${sessionTokens} + 新输入 ${userContentTokens}），已超过单次请求硬上限 ${ceiling}。请减少附件与上下文，或开启新会话继续。`
       )
     }
   }

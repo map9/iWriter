@@ -1556,10 +1556,6 @@ export class App {
       return (await this._getAgentEngine()).sendMessage(req)
     })
 
-    ipcMain.handle('ai:compact-input', async (_, req) => {
-      return (await this._getAgentEngine()).compactInput(req)
-    })
-
     ipcMain.handle('ai:get-session-context-stats', async (_, req) => {
       return (await this._getAgentEngine()).getSessionContextStats(req)
     })
@@ -1663,7 +1659,6 @@ export class App {
     ipcMain.removeAllListeners('window-close-confirm');
 
     ipcMain.removeHandler('ai:send-message')
-    ipcMain.removeHandler('ai:compact-input')
     ipcMain.removeHandler('ai:get-session-context-stats')
     ipcMain.removeHandler('ai:cancel')
     ipcMain.removeHandler('ai:resume')

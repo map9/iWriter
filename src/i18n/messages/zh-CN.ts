@@ -530,9 +530,10 @@ export default {
       selectFolderTitle: '选择文件夹',
     },
     toolbar: {
-      contextWindow: '上下文窗口',
-      progressFull: '已使用 {percent}%',
+      compactThreshold: '自动压缩阈值',
+      compactProgress: '已达到阈值的 {percent}%',
       tokensUsed: '已使用 {current} / {max} tokens',
+      modelContextLimit: '模型上下文上限：{max} tokens',
       realUsage: '真实用量（本次会话）',
       inOut: '↑{input} 输入 / ↓{output} 输出',
       cacheHit: '缓存：{read} 命中 • {created} 创建',

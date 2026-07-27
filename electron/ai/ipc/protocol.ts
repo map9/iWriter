@@ -44,8 +44,7 @@ export interface SendMessageRequest {
   }
 }
 
-export interface CompactInputRequest {
-  text: string
+export interface SessionContextStatsRequest {
   domain: AiAgentDomain
   mode: AiAgentMode
   threadId?: string
@@ -54,12 +53,6 @@ export interface CompactInputRequest {
     modelId?: string
     thinkingLevel?: AiThinkingLevel
   }
-}
-
-export interface CompactInputResponse {
-  text: string
-  originalTokens: number
-  compactedTokens: number
 }
 
 export interface SessionContextStatsResponse {
@@ -280,8 +273,7 @@ export interface SerializedOutlineEntry {
 
 export type AiIpcInvokeMap = {
   'ai:send-message': [SendMessageRequest, { threadId: string }]
-  'ai:compact-input': [CompactInputRequest, CompactInputResponse]
-  'ai:get-session-context-stats': [CompactInputRequest, SessionContextStatsResponse]
+  'ai:get-session-context-stats': [SessionContextStatsRequest, SessionContextStatsResponse]
   'ai:cancel': [{ threadId: string }, void]
   'ai:resume': [ResumeRunRequest, void]
   'ai:get-config': [void, AiSettings]

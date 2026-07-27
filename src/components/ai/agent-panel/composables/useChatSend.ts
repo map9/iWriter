@@ -36,7 +36,6 @@ export function useChatSend(contextFiles: Ref<string[]>) {
   })
   const inputEl = ref<HTMLTextAreaElement>()
   const pendingSend = ref(false)
-  const isCompacting = ref(false)
   const showCompact = ref(false)
   const currentSessionTokens = ref(0)
   const compactTriggerTokens = ref(0)
@@ -64,7 +63,6 @@ export function useChatSend(contextFiles: Ref<string[]>) {
 
     try {
       const result = await window.electronAPI.aiGetSessionContextStats?.({
-        text: '',
         threadId: thread?.id,
         domain,
         mode,
@@ -127,42 +125,6 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     await executeSend()
   }
 
-  async function compactInput() {
-    const text = inputText.value.trim()
-    if (!text || aiStore.isStreaming || isCompacting.value) return
-
-    const thread = aiStore.activeThread
-    const domain = thread?.domain ?? resolveAgentDomain(aiStore.settings.defaultMode)
-    const mode = thread?.mode ?? aiStore.settings.defaultMode
-    const provider = aiStore.effectiveProviderConfig
-    const providerId = provider?.id
-    const modelId = provider ? resolveAiProviderModelId(provider, thread?.modelId) : ''
-
-    isCompacting.value = true
-    try {
-      const result = await window.electronAPI.aiCompactInput?.({
-        text,
-        threadId: thread?.id,
-        domain,
-        mode,
-        threadRuntime: {
-          providerConfigId: providerId,
-          modelId,
-          thinkingLevel: thread?.thinkingLevel,
-        },
-      })
-      if (!result) return
-      inputText.value = result.text
-      await nextTick()
-      if (inputEl.value) {
-        inputEl.value.style.height = 'auto'
-        inputEl.value.style.height = Math.min(inputEl.value.scrollHeight, 100) + 'px'
-      }
-    } finally {
-      isCompacting.value = false
-    }
-  }
-
   function cancelPendingSend() {
     pendingSend.value = false
   }
@@ -186,7 +148,6 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     inputText,
     inputEl,
     pendingSend,
-    isCompacting,
     showCompact,
     currentSessionTokens,
     compactTriggerTokens,
@@ -196,7 +157,6 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     handleKeydown,
     executeSend,
     sendMessage,
-    compactInput,
     cancelPendingSend,
   }
 }

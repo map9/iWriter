@@ -51,7 +51,7 @@ function stubPlugin() {
         [
           /^deepagents$/,
           'deepagents',
-          'export function createDeepAgent() { return { streamEvents() {} } }',
+          'export function createDeepAgent() { return { streamEvents() {} } } export function computeSummarizationDefaults() { return { trigger: { type: "tokens", value: 173123 }, keep: { type: "messages", value: 6 }, truncateArgsSettings: {} } }',
         ],
         [
           /^langchain$/,
@@ -61,12 +61,12 @@ function stubPlugin() {
         [
           /src\/types\/ai$/,
           'ai-types',
-          'export function isAiProviderUsable() { return false } export function resolveApiKeyReference() { return null }',
+          'export function isAiProviderUsable() { return true } export function resolveApiKeyReference() { return null }',
         ],
         [
           /src\/ai\/model\/model-budget$/,
           'model-budget',
-          'export const HARD_REQUEST_CEILING_TOKENS = 200000; export function getModelBudgetInfo() { return { triggerTokens: 200000 } }',
+          'export const HARD_REQUEST_CEILING_TOKENS = 200000',
         ],
         [
           /src\/ai\/model\/token-estimation$/,
@@ -141,7 +141,7 @@ function stubPlugin() {
         [
           /config\/AiConfigStore$/,
           'ai-config-store',
-          'export const AiConfigStore = { loadSettings() { return { providerConfigs: [] } } }; export function resolveAiApiKeyEnvVar() { return null }',
+          'export const AiConfigStore = { loadSettings() { return { providerConfigs: [{}] } } }; export function resolveAiApiKeyEnvVar() { return null }',
         ],
         [
           /src\/ai\/thread\/title$/,
@@ -284,6 +284,30 @@ describe('AgentEngine initialization', () => {
 
     release.resolve()
     assert.deepEqual(await Promise.all([first, second]), [[], []])
+  })
+
+  it('exposes compact stats when the model profile has no maxInputTokens', async () => {
+    const { AgentEngine } = await loadModule()
+
+    class InitializedAgentEngine extends AgentEngine {
+      async initialize() {
+        this.checkpointerInstance = { checkpointer: {}, backend: 'memory', db: null }
+        this.threadListQuery = { getMeta: () => null }
+      }
+    }
+
+    const engine = new InitializedAgentEngine(() => null)
+    const stats = await engine.getSessionContextStats({
+      domain: 'editing',
+      mode: 'edit',
+    })
+
+    assert.deepEqual(stats, {
+      visible: true,
+      currentTokens: 0,
+      triggerTokens: 173123,
+      maxInputTokens: undefined,
+    })
   })
 })
 

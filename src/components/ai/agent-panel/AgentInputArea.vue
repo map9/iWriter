@@ -26,7 +26,6 @@
       :is-streaming="aiStore.isStreaming"
       :can-send="!!inputText.trim()"
       :show-compact="showCompact"
-      :is-compacting="isCompacting"
       :current-session-tokens="currentSessionTokens"
       :compact-progress-ratio="compactProgressRatio"
       :compact-trigger-tokens="compactTriggerTokens"
@@ -34,7 +33,6 @@
       :session-usage="sessionUsage"
       @browse-files="browseFiles"
       @browse-folder="browseFolder"
-      @compact="compactInput"
       @send="sendMessage"
       @stop="aiStore.cancelStreaming()"
       @cancel-queued="cancelPendingSend"
@@ -60,7 +58,6 @@ const {
   inputText,
   inputEl,
   pendingSend,
-  isCompacting,
   showCompact,
   currentSessionTokens,
   compactTriggerTokens,
@@ -69,7 +66,6 @@ const {
   sessionUsage,
   handleKeydown,
   sendMessage,
-  compactInput,
   cancelPendingSend,
 } = useChatSend(contextFiles)
 

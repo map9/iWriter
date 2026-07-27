@@ -30,15 +30,12 @@
     </div>
 
     <div class="flex items-center gap-1.5 min-w-0 ml-auto shrink-0">
-      <button
-        v-if="showCompactButton"
-        ref="compactButtonRef"
-        @click="$emit('compact')"
+      <span
+        v-if="showCompactIndicator"
+        ref="compactIndicatorRef"
         @mouseenter="handleCompactMouseEnter"
         @mouseleave="handleCompactMouseLeave"
-        :disabled="isCompacting"
-        class="iw-toolbar-btn btn-xs"
-        :class="isCompacting ? 'opacity-40 cursor-not-allowed' : ''"
+        class="iw-toolbar-btn btn-xs cursor-default"
       >
         <svg viewBox="0 0 20 20" class="icon-xs">
           <circle
@@ -64,15 +61,6 @@
             transform="rotate(-90 10 10)"
           />
           <circle
-            v-if="isCompacting"
-            cx="10"
-            cy="10"
-            r="3"
-            class="text-primary animate-pulse"
-            fill="currentColor"
-          />
-          <circle
-            v-else
             cx="10"
             cy="10"
             r="2"
@@ -80,7 +68,7 @@
             fill="currentColor"
           />
         </svg>
-      </button>
+      </span>
     </div>
 
     <div class="flex items-center shrink-0">
@@ -114,7 +102,6 @@ const props = defineProps<{
   isStreaming: boolean
   canSend: boolean
   showCompact: boolean
-  isCompacting: boolean
   currentSessionTokens: number
   compactProgressRatio: number
   compactTriggerTokens: number
@@ -127,7 +114,6 @@ const { t } = useI18n()
 defineEmits<{
   'browse-files': []
   'browse-folder': []
-  compact: []
   send: []
   stop: []
   'cancel-queued': []
@@ -135,7 +121,7 @@ defineEmits<{
 
 type MenuName = 'provider' | 'model' | 'mode'
 const activeMenu = ref<MenuName | null>(null)
-const compactButtonRef = ref<HTMLElement | null>(null)
+const compactIndicatorRef = ref<HTMLElement | null>(null)
 const pickerGroupEl = ref<HTMLElement | null>(null)
 const providerCompact = ref(false)
 const modelCompact = ref(false)
@@ -171,17 +157,24 @@ async function updateLayout() {
 
   providerCompact.value = true
 }
-const showCompactButton = computed(() => props.showCompact)
+const showCompactIndicator = computed(() => props.showCompact)
 
 const compactTooltip = computed<TooltipContent>(() => {
   const parts: string[] = [
-    `**${t('agentPanel.toolbar.contextWindow')}:**<br>`,
-    t('agentPanel.toolbar.progressFull', { percent: Math.round(props.compactProgressRatio * 100) }) + '<br>',
+    `**${t('agentPanel.toolbar.compactThreshold')}:**<br>`,
+    t('agentPanel.toolbar.compactProgress', { percent: Math.round(props.compactProgressRatio * 100) }) + '<br>',
     t('agentPanel.toolbar.tokensUsed', {
       current: formatCompactTokens(props.currentSessionTokens),
-      max: formatCompactTokens(props.maxInputTokens ?? 0),
+      max: formatCompactTokens(props.compactTriggerTokens),
     }),
   ]
+
+  if (props.maxInputTokens !== null) {
+    parts.push('<br>')
+    parts.push(t('agentPanel.toolbar.modelContextLimit', {
+      max: formatCompactTokens(props.maxInputTokens),
+    }))
+  }
 
   const usage = props.sessionUsage
   if (usage && (usage.main.inputTokens > 0 || usage.subagents.inputTokens > 0)) {
@@ -219,8 +212,8 @@ function closeMenu() {
 }
 
 function handleCompactMouseEnter() {
-  if (!props.showCompact || !compactButtonRef.value) return
-  tooltipManager.show(compactTooltip.value, compactButtonRef.value)
+  if (!props.showCompact || !compactIndicatorRef.value) return
+  tooltipManager.show(compactTooltip.value, compactIndicatorRef.value)
 }
 
 function handleCompactMouseLeave() {

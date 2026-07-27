@@ -16,7 +16,7 @@ Phase 4 不动业务语义。预期产出：5 条生产 middleware 接入；`Che
 
 ## 关键决策（已用户确认）
 
-1. **Summarization 走 deepagents 的 `createSummarizationMiddleware`，不用 langchain 同名变体**。理由：`AgentEngine.ts:722` 的 `_getCurrentSessionTokens` 已读 `channel_values._summarizationEvent.summaryMessage` / `cutoffIndex`——这是 deepagents 变体写入 state 的字段（langchain 变体不写）。token-counting 快速路径要保留，必须沿用 deepagents 变体。同时 deepagents 变体接受 `backend` 参数把 offloaded messages 持久化到 `CompositeBackend`，与 iWriter 现有 backend 拓扑契合。
+1. **Summarization 走 `createDeepAgent` 内置的 DeepAgents middleware，不额外创建 langchain 同名 middleware**。理由：`AgentEngine.ts` 的 `_getCurrentSessionTokens` 已读 `channel_values._summarizationEvent.summaryMessage` / `cutoffIndex`——这是 DeepAgents 写入 state 的字段。token-counting 快速路径要保留，必须沿用内置变体；offloaded messages 也由它通过当前 backend 持久化。
 
 2. **`modelFallbackMiddleware` 完整接入**（不延期、不写死）。`AiProviderConfig` 新增 `fallbackModelId?: string`，`ProviderSettings.vue` 提供配置入口，`_getOrCreateAgent` 把 fallback 解析为 `BaseChatModel` 后传入。语义对齐：fallback 共享当前 provider 的 apiKey / baseUrl，只切 modelId（跨 provider fallback 留 Phase 5+ 评估）。
 
@@ -32,30 +32,14 @@ Phase 4 不动业务语义。预期产出：5 条生产 middleware 接入；`Che
 
 ## B1 — 生产中间件栈
 
-### B1.1 配置常量集中
+### B1.1 配置边界
 
-新建 `electron/ai/runtime/middleware-config.ts`：
+`electron/ai/scaffold/middleware/middleware-config.ts` 只保留 iWriter 自己控制的调用上限等配置。Summarization 的 trigger、keep 和参数截断策略不在 iWriter 重复定义，统一采用 DeepAgents 的默认配置：
 
 ```ts
 // Phase 4 生产中间件统一配置常量。调优时改这里，不要散落到 AgentEngine。
-import {
-  SUMMARIZATION_TRIGGER_FRACTION,
-  SUMMARIZATION_KEEP_FRACTION,
-  SUMMARIZATION_FALLBACK_TRIGGER_TOKENS,
-  SUMMARIZATION_FALLBACK_KEEP_MESSAGES,
-} from '../../../src/ai/model-budget'
 
 export const MIDDLEWARE_CONFIG = {
-  summarization: {
-    // 与 model-budget.ts 同源：_assertWithinBudget 用 SUMMARIZATION_TRIGGER_FRACTION 拦截
-    // 单次输入，summarization 用同一阈值触发压缩，确保两条线一致。
-    triggerFraction: SUMMARIZATION_TRIGGER_FRACTION,              // 0.85
-    keepFraction: SUMMARIZATION_KEEP_FRACTION,                    // 0.10
-    fallbackTriggerTokens: SUMMARIZATION_FALLBACK_TRIGGER_TOKENS, // 170_000
-    fallbackKeepMessages: SUMMARIZATION_FALLBACK_KEEP_MESSAGES,   // 6
-    trimTokensToSummarize: 4000,
-    historyPathPrefix: '/conversation_history',
-  },
   retry: {
     maxRetries: 3,
     backoffFactor: 2.0,
@@ -78,7 +62,7 @@ export const MIDDLEWARE_CONFIG = {
 } as const
 ```
 
-**模型 profile 未提供 maxInputTokens 时**：deepagents `createSummarizationMiddleware` 在 `fraction` trigger 下需要 model 有 `profile.maxInputTokens`；若缺失，需在调用点用 `buildSummarizationTrigger(model)` helper 切换到绝对 token 阈值兜底（详见 §B1.5）。
+**模型 profile 未提供 maxInputTokens 时**：调用 DeepAgents 的 `computeSummarizationDefaults(model)`；该函数会选择固定 token 阈值兜底。iWriter 不再自行复制默认数值或维护另一套选择逻辑（详见 §B1.5）。
 
 ### B1.2 最终 middleware 数组顺序
 
@@ -114,7 +98,7 @@ const agent = createDeepAgent({
     //   1. 历史/消息形态处理类（OrphanStripper / HumanRespond / TaskCompat）排最前
     //   2. 资源约束类（call limit）在历史改造之后
     //   3. retry / fallback 包裹模型调用，必须最贴近 wrapModelCall
-    //   4. summarization 作为最外层（"在所有处理之后再决定要不要压缩"）
+    // createDeepAgent 的内置 SummarizationMiddleware 位于自定义 middleware 外层
 
     createOrphanToolCallStripperMiddleware(),                         // Phase 2
     createHumanRespondMessageMiddleware(),                            // Phase 3
@@ -126,17 +110,15 @@ const agent = createDeepAgent({
     modelRetryMiddleware(MIDDLEWARE_CONFIG.retry),                    // B1 新
     ...(fallbackModels.length ? [modelFallbackMiddleware(...fallbackModels)] : []), // B1 新
 
-    createSummarizationMiddleware({                                   // B1 新
-      backend: capabilities.backend,
-      ...buildSummarizationTrigger(model),
-      trimTokensToSummarize: MIDDLEWARE_CONFIG.summarization.trimTokensToSummarize,
-      historyPathPrefix: MIDDLEWARE_CONFIG.summarization.historyPathPrefix,
-    }),
   ],
+  summarizationMiddlewareOptions: {
+    model: summaryModel,
+    tokenCounter: makeCjkTokenCounter(),
+  },
 })
 ```
 
-**为何 retry 在 summarization 之前（内层）**：retry 包裹单次模型调用是其设计意图。summarization 的 wrapModelCall 内部会发起一次额外 LLM 调用生成 summary——若 retry 在 summarization 外层，会把 summary 生成失败也算进 retry 次数，行为发散；放内层只重试主调用，summary 失败由 summarization 自身 fallback（deepagents 内部在 summary 失败时跳过压缩、不阻塞主流程）。
+**为何 retry 位于自定义 middleware 内层**：retry 只包裹主模型调用。DeepAgents 内置 summarization 位于自定义 middleware 外层，并使用 `summarizationMiddlewareOptions.model` 生成摘要，因此摘要调用不会污染主模型的 retry 计数。
 
 **为何 callLimit 在 retry 之前（外层）**：`modelCallLimitMiddleware` 累计 `threadModelCallCount`，放在 retry 外层意味着每次 retry 都算一次模型调用（计数膨胀 3 倍）；放内层只计入「成功送达 model 的调用」，更符合直觉。
 
@@ -206,32 +188,26 @@ fallbackModelHint: '从上面的可用模型列表中选择',
 
 ### B1.4 Summarization 与 HITL 的安全性
 
-`HumanRespondMessageMiddleware`（Phase 3）依赖 `RESPOND_MARKER` 标记 ToolMessage。在 middleware 链中：OrphanStripper → HumanRespond → TaskCompat → callLimit → toolLimit → retry → fallback → summarization。HITL 恢复后下一次 wrapModelCall 进入链路时，HumanRespond 先于 summarization 改造 messages 形态，marker 已被剥；summarization 触发时永远看不到带 marker 的 ToolMessage。**结论：HITL 与 summarization 互不干扰**，无需额外协调。
+`HumanRespondMessageMiddleware`（Phase 3）依赖 `RESPOND_MARKER` 标记最近一次 HITL 的 ToolMessage。DeepAgents 内置 SummarizationMiddleware 位于自定义 middleware 外层；发生摘要时，它只把 cutoff 之前的旧消息交给摘要模型，当前 HITL 循环的 marker 位于保留的 recent messages 中。随后内层 `HumanRespondMessageMiddleware` 会在主模型调用前剥离 marker。**结论：摘要模型和主模型都不会看到 marker，HITL 与 summarization 无需额外协调。**
 
-### B1.5 buildSummarizationTrigger helper
+### B1.5 DeepAgents 默认配置单一来源
 
-deepagents `fraction` trigger 依赖 model 的 `profile.maxInputTokens`；自定义 provider 无 profile 时会退化为 NaN。在 `AgentEngine.ts` 内新增私有方法：
+上下文进度 UI 和发送前预算检查调用 DeepAgents 导出的 `computeSummarizationDefaults(model)`，与实际 SummarizationMiddleware 使用同一来源。iWriter 只把 DeepAgents 返回的 fraction/tokens 配置换算为可展示的 token 阈值：
 
 ```ts
-private _buildSummarizationTrigger(model: BaseChatModel): {
-  trigger: { type: 'fraction' | 'tokens'; value: number }
-  keep: { type: 'fraction' | 'messages'; value: number }
-} {
+function getDeepAgentsModelBudget(model: BaseChatModel) {
+  const { trigger } = computeSummarizationDefaults(model)
   const profile = (model as BaseChatModel & { profile?: { maxInputTokens?: number } }).profile
-  if (typeof profile?.maxInputTokens === 'number' && profile.maxInputTokens > 0) {
-    return {
-      trigger: { type: 'fraction', value: MIDDLEWARE_CONFIG.summarization.triggerFraction },
-      keep: { type: 'fraction', value: MIDDLEWARE_CONFIG.summarization.keepFraction },
-    }
-  }
+
+  if (trigger.type === 'tokens') return { triggerTokens: trigger.value }
   return {
-    trigger: { type: 'tokens', value: MIDDLEWARE_CONFIG.summarization.fallbackTriggerTokens },
-    keep: { type: 'messages', value: MIDDLEWARE_CONFIG.summarization.fallbackKeepMessages },
+    maxInputTokens: profile?.maxInputTokens,
+    triggerTokens: Math.floor(profile!.maxInputTokens! * trigger.value),
   }
 }
 ```
 
-DeepSeek（`getDefaultDeepSeekProfile`，`maxInputTokens=128k`）与 OpenAI（`ChatOpenAI.profile` getter）均有 profile → 命中 fraction 路径；自定义 provider 无 profile → 命中 fallback tokens 路径。
+有 `maxInputTokens` profile 的模型采用 DeepAgents 的 fraction 默认值；无 profile 的模型采用 DeepAgents 的固定 token 默认值。升级 DeepAgents 后，UI、预检与实际自动压缩不会因 iWriter 中遗留的镜像常量而漂移。
 
 ---
 
@@ -412,7 +388,7 @@ Phase 4 不预置示例文件。memory 文件是用户长期记忆载体（由�
 
 | 文件 | 关键位置 | 改动概要 |
 |---|---|---|
-| `electron/ai/AgentEngine.ts` | :60 imports / :89 字段 / :102 initialize / :134-160 deleteThread+clearThreads / :669-683 createDeepAgent / 新增 `_buildMemoryPaths` / 新增 `_buildSummarizationTrigger` | middleware 数组扩展、fallbackModels 解析、CheckpointerAdmin 接入、memory 按 domain 选择 |
+| `electron/ai/AgentEngine.ts` | imports / initialize / deleteThread+clearThreads / createDeepAgent / `_buildMemoryPaths` / `getDeepAgentsModelBudget` | middleware 数组扩展、fallbackModels 解析、CheckpointerAdmin 接入、memory 按 domain 选择、摘要预算读取 DeepAgents 默认配置 |
 | `electron/ai/checkpoint/CheckpointerFactory.ts` | :17 import / :20-26 interface / :43-47 cast / :72 MemorySaver 分支 | `db: Database \| null` 类型化，cast 用 `unknown as` 替代 `any` |
 | `electron/ai/thread/ThreadListQuery.ts` | :93-99 + 所有 `this.db.prepare(...)` 调用点 | `db: Database \| null` 类型推进 + null guard |
 | `src/ai/types.ts` | :48-68 `AiProviderConfig` | 新增 `fallbackModelId?: string` |
@@ -444,13 +420,12 @@ npm run lint && npm run type-check
 重点：
 - `CheckpointerInstance.db: Database | null` 改为 required 后，所有引用点（`CheckpointerFactory.ts`、`ThreadListQuery.ts`、`CheckpointerAdmin.ts`）显式处理 null
 - `AiProviderConfig.fallbackModelId` 加入后，所有字面量构造点 TS 推断仍为可选（`provider-presets.ts`、设置导入路径）
-- `langchain` 包的 4 个 middleware exports（`modelRetryMiddleware`、`modelFallbackMiddleware`、`modelCallLimitMiddleware`、`toolCallLimitMiddleware`）与 deepagents `createSummarizationMiddleware` 全部解析成功
+- `langchain` 的调用限制 middleware 与 DeepAgents 的 `computeSummarizationDefaults` / `createDeepAgent` exports 全部解析成功
 
-### 端到端三模式回归基线（与 Phase 1-3 一致）
+### 端到端模式回归基线
 
 - **Edit 模式**：打开 .md → "给第二段扩写" → edit_block HITL → 审批通过 → TipTap 应用 → 无回归
 - **Creative 模式**：新建线程 → `task(subagent_type=planner)` → planner 结构化输出正常
-- **Minimal 模式**：纯文本对话 + thinking 流（DeepSeek + Anthropic + Gemini 各一次）
 
 ### B1 — 中间件链验证
 
@@ -509,13 +484,13 @@ npm run lint && npm run type-check
 
 | 风险 | 触发条件 | 处理 / 回滚 |
 |---|---|---|
-| summarization keep window 太小切断 AI/Tool 对 | `keepFraction = 0.10` 在 128k 模型上保留 ~12.8k tokens，若单工具结果 >12k 会被切 | deepagents 内置 AI/Tool 对完整性保护兜底；如观察到，把 keepFraction 提到 0.15 |
+| summarization keep window 太小切断 AI/Tool 对 | DeepAgents 默认 keep window 小于单次超大工具结果 | DeepAgents 内置 AI/Tool 对完整性保护兜底；如实际观察到，再通过官方 middleware options 定向调整 |
 | modelFallback 主模型偶发 429 时被静默切换，用户无感 | 网络抖动 / 限流 | Phase 4 接受静默；Phase 5 评估 IPC 通知 |
 | modelCallLimit `runLimit = 200` 切断长 creative 会话 | 长 plan + 多 subagent + HITL 循环 | 200 在长 plan 场景仍有 50%+ 余量；如真切，runtime override：`config.configurable.runLimit = 500` 临时放开 |
 | modelCallLimit threadLimit `2000` 累计触发 | 同一 thread 持续聊数百轮 | 累计 2000 相当于 ~200 轮交互，已超日常使用；触发即应建议用户开新 thread |
 | CheckpointerAdmin null db 路径回退到 no-op | MemorySaver 兜底场景 | 已显式 no-op；不抛错；ThreadRuntimeStore 内存清理仍生效 |
 | modelFallback 配错 modelId（拼写错误） | 用户填 `fallbackModelId = 'deepsek-chat'` | fallback 自身失败会被 modelRetry 兜住；最终主+fallback 都失败时 `onFailure: 'continue'` 返回带 error 的 AIMessage → UI 显示错误消息 |
-| summarization 在自定义 provider 上无 `maxInputTokens` | 用户自填 provider 无 profile | `_buildSummarizationTrigger` helper 切换到绝对 token 阈值兜底 |
+| summarization 在自定义 provider 上无 `maxInputTokens` | 用户自填 provider 无 profile | `computeSummarizationDefaults(model)` 自动返回 DeepAgents 的固定 token 兜底 |
 
 **整体回滚策略**：Phase 4 三项在文件层面解耦，可独立 git revert。建议整体一个 PR、分 3 个 commit（B5 → B4 → B1），回滚时按需 cherry-pick revert。
 
@@ -526,7 +501,7 @@ npm run lint && npm run type-check
 1. **B5（最低风险，先开胃）** — `_buildMemoryPaths` + AGENTS 路径拆分（约 10 行改动）
 2. **B4** — CheckpointerAdmin 新建 + CheckpointerFactory 类型收紧 + ThreadListQuery null guard
 3. **B1.1 + B1.3 数据层** — middleware-config.ts + `AiProviderConfig.fallbackModelId` + ProviderSettings UI + i18n（编译通过但还未生效）
-4. **B1.2** — AgentEngine middleware 数组扩展，附带 fallbackModels 解析、`_buildSummarizationTrigger`
+4. **B1.2** — AgentEngine middleware 数组扩展，附带 fallbackModels 解析；上下文 UI 与预检通过 `getDeepAgentsModelBudget` 读取 DeepAgents 默认阈值
 5. **验证清单全跑** — 静态检查 → 三模式回归 → B1/B4/B5 各自验证项 → 通过后开 PR
 
 ---

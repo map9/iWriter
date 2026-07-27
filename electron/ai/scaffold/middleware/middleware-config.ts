@@ -1,6 +1,6 @@
 // Phase 4 生产中间件统一配置常量。调优时改这里，不要散落到 AgentEngine。
-// 注：createDeepAgent 已内置 SummarizationMiddleware（与 model-budget.ts 同源默认值），
-// 不再单独配置 summarization 参数。
+// 注：createDeepAgent 已内置 SummarizationMiddleware；上下文进度 UI 与请求预检通过
+// DeepAgents 的 computeSummarizationDefaults() 读取同一默认配置，不在 iWriter 重复定义。
 
 import { createMiddleware } from 'langchain'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'

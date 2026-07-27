@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import type { ElectronAPI, HtmlPrintReadyOptions, PdfSaveOptions, SaveFileOptions } from '../src/types/electron-api'
-import type { SendMessageRequest, CompactInputRequest, CompactInputResponse, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunContextCompressedEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
+import type { SendMessageRequest, SessionContextStatsRequest, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunContextCompressedEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
 import type { AiSettings } from '../src/types/ai'
 import type { GitProgress } from '../src/types/git'
 import { createAppMenuRequest, createContextMenuRequest } from '../src/types/menu'
@@ -253,8 +253,7 @@ const electronAPI: ElectronAPI = {
 
   // ── AI Agent (main-process deepagents) ────────────────────────────────────
   aiSendMessage: (req: SendMessageRequest): Promise<{ threadId: string }> => ipcRenderer.invoke('ai:send-message', req),
-  aiCompactInput: (req: CompactInputRequest): Promise<CompactInputResponse> => ipcRenderer.invoke('ai:compact-input', req),
-  aiGetSessionContextStats: (req: CompactInputRequest): Promise<SessionContextStatsResponse> => ipcRenderer.invoke('ai:get-session-context-stats', req),
+  aiGetSessionContextStats: (req: SessionContextStatsRequest): Promise<SessionContextStatsResponse> => ipcRenderer.invoke('ai:get-session-context-stats', req),
   aiCancel: (threadId: string) => ipcRenderer.invoke('ai:cancel', { threadId }),
   aiResume: (req: ResumeRunRequest) => ipcRenderer.invoke('ai:resume', req),
   aiGetConfig: () => ipcRenderer.invoke('ai:get-config'),

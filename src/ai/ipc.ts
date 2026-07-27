@@ -4,8 +4,7 @@
  */
 
 export type {
-  CompactInputRequest,
-  CompactInputResponse,
+  SessionContextStatsRequest,
   SessionContextStatsResponse,
   SendMessageRequest,
   EditorContext,

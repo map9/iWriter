@@ -66,14 +66,13 @@
 - Office：支持打开 `.doc`、`.docx`、`.xls`、`.xlsx`、`.ppt`、`.pptx`，通过 LibreOffice 转换为 PDF 后在 iWriter 内预览
 - `.docx` 可从 Office 预览页或标签页右键菜单导入为 Markdown 草稿
 
-## AI 三模式
+## AI 模式
 
 - `Edit`：面向文档编辑，支持提案审批流
 - `Creative`：面向创作素材生成与保存
-- `Minimal`：最小对话模式，不加载业务工具
 - 支持会话历史持久化
 - 支持将文本文件、目录、图片、PDF 作为上下文附件
-- 支持上下文 token 统计与输入压缩
+- 支持上下文 token 统计、自动摘要阈值进度和长会话自动压缩
 - 支持显示本次会话真实 token 用量，包含主 Agent、子 Agent 和缓存命中统计
 
 ## 更新机制

@@ -75,6 +75,16 @@ iWriter 的 AI 运行时已经切换到：
 
 但它们只是 re-export，不再是主实现位置。
 
+## 长会话上下文管理
+
+- 会话历史摘要由 `createDeepAgent` 内置的 SummarizationMiddleware 在达到阈值后自动执行，iWriter 不提供手动摘要入口。
+- 自动摘要阈值、工具栏上下文进度和发送前预算检查都读取 DeepAgents 的 `computeSummarizationDefaults(model)`，不在 iWriter 中维护第二套默认值。
+- 模型提供 `profile.maxInputTokens` 时，DeepAgents 按模型上下文上限计算 fraction 阈值；没有 profile 时，使用 DeepAgents 自身的固定 token 兜底配置。
+- 工具栏圆环是只读状态指示器，显示当前会话 token、自动摘要阈值以及可用时的模型上下文上限。DeepAgents JavaScript 当前没有直接压缩既有会话的公开 API，因此点击圆环不会触发摘要。
+- 摘要结果通过 checkpoint 的 `_summarizationEvent` 保存，较早的完整消息由 DeepAgents offload 到 conversation history。
+
+`HARD_REQUEST_CEILING_TOKENS` 是独立的单次请求 / TPM 安全上限，不是自动摘要阈值；provider 可以单独覆盖该上限。
+
 ## Edit 模式
 
 Edit 模式的原则是：
