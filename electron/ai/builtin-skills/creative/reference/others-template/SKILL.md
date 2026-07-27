@@ -1,11 +1,11 @@
 ---
 name: others-template
-description: Use when creating, reading, updating, or validating materials/ · process/ · .iwriter/status.md files (capture, decisions, changelog, review findings, derived status cache) in a novel workspace.
+description: 创建、读取、更新或校验 materials/、process/ 与 .iwriter/status.md 时使用；定义素材、待决问题、变更、评审结果和派生状态对象。
 ---
 
 # 素材 / 过程 / 状态模板
 
-**前置 Skill：** `novel-workspace`（含文件格式约定）
+**前置 Skill：** `novel-workspace`
 
 ## 管理对象
 
@@ -17,8 +17,6 @@ description: Use when creating, reading, updating, or validating materials/ · p
   process/review-findings.md     # 可选、懒创建：审校 / 反馈缺陷清单（跨会话）
   .iwriter/status.md             # 可选：派生状态摘要缓存（可丢弃、非真相）
 ```
-
-这些对象各承载捕获、决策、叙事、审校、派生态，边界清楚、不混用。
 
 ## 字段约定
 

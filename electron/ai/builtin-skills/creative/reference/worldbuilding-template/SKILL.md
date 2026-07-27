@@ -1,38 +1,52 @@
 ---
 name: worldbuilding-template
-description: Use when creating, reading, updating, or validating worldbuilding/ files in a novel workspace.
+description: 创建、读取、更新或校验 novel workspace 的 worldbuilding/ 文件时使用；定义世界设定对象的 schema、拆分和结构规则。
 ---
 
 # 世界设定模板
 
-**前置 Skill：** `novel-workspace`（含文件格式约定）
+**前置 Skill：** `novel-workspace`
 
 ## 管理对象
 
 ```text
 {workspace}/worldbuilding/
-  worldbuilding.md      # 必需：设定主文件，一级标题「世界设定」
-  factions.md           # 可选：factions 拆出，一级标题「阵营势力」
-  geography.md          # 可选：geography-locations 拆出，一级标题「地理环境」
-  items.md              # 可选：key-items 拆出，一级标题「关键物品」
+  worldbuilding.md      # 必需：设定主文件
+  factions.md           # 可选：阵营规模增长后拆出
+  geography.md          # 可选：地理与地点规模增长后拆出
+  items.md              # 可选：关键物品规模增长后拆出
 ```
 
-拆分：字段规模变大后其小节独立成对应文件，文件一级标题＝该字段名（随输出语言本地化），原小节内容照搬（其中三级标题提升为二级）；主文件该字段小节改为一行引用（如 `→ factions.md`）。
+设定对象只写相对稳定的定义；人物、物品或势力的当前剧情状态以 `outline/` 和 `manuscript/` 为准。
 
-## 字段约定
+## 主文件字段
 
-主文件一级标题：`世界设定`。设定只写恒定定义；当前状态（物品此刻在谁手里、阵营敌友态势）属剧情，以 `outline/`、`manuscript/` 为准。
+H2 字段：
 
-- `rule-systems`（必选）：规则体系。力量 / 科技 / 社会的运作规则，每条一项；每条写明"何时被测试、违反的后果"，不是背景介绍。
-- `forbidden-zones`（必选）：禁区。作品硬禁忌（设定矛盾与创作禁止项），每条一项并写明原因。
-- `era`（可选）：时代背景。历史时期、历法；架空题材写明架空起点与程度。
-- `factions`（可选）：阵营势力。每个阵营 / 势力 / 族群一个三级标题分节，写其诉求、内部结构、与主角关系。
-- `geography-locations`（可选）：地理环境。总述世界结构、大陆与区域、气候生态；重要城镇 / 场景各一个三级标题分节。
-- `history-timeline`（可选）：历史沿革。世界历史线、重大事件、故事时间线，按时间列项。
-- `key-items`（可选）：关键物品。列表，每条一件物品｛意义或功能，约束，归属追踪要点｝；只登记带专属规则、需跨章追踪、或剧情核心（麦高芬）的物品。
-- `terminology`（可选）：名词体系。表格（标准写法 ｜ 类型 ｜ 说明）；有归属对象的专名（角色 / 地名 / 阵营）不在此重复。
+- `rule-systems`（必选）：故事依赖的力量、科技、社会或制度规则。复杂规则使用 H3 分节，每项至少说明：
+  - `definition`：规则定义与适用范围；
+  - `cost-limit`：使用成本、限制或例外；
+  - `enforcement-consequence`：谁执行，或违反后发生什么；
+  - `story-pressure`：这条规则会怎样改变人物选择或情节可行性。
+- `forbidden-zones`（必选）：作品不能违反的设定禁区。每项说明禁区和破坏的设定根基；不能把临时写作偏好放在这里。
+- `era`（可选）：时代、历法、架空起点和虚构程度。
+- `factions`（可选）：每个阵营使用 H3 分节，记录目标、资源、内部张力和与核心冲突的关系；规模增长后迁至 `factions.md`。
+- `geography-locations`（条件可选）：地理、生态、聚落、交通与故事地点。只有当地理会改变资源、行动空间或冲突时才需要展开；规模增长后迁至 `geography.md`。
+- `history-timeline`（可选）：与当前故事因果相关的历史事件和时间锚点。
+- `key-items`（可选）：仅登记具有专属规则、需跨章追踪或驱动剧情的物品；规模增长后迁至 `items.md`。
+- `terminology`（可选）：长尾名词的标准写法。
 
-## 要点
+## 拆分规则
 
-- `worldbuilding.md` 必需，必含 `rule-systems`、`forbidden-zones`。
-- 改 `rule-systems` / `forbidden-zones` 时提示下游（人物 / 提纲 / 正文）可能需复核，不自动改。
+字段规模增长后可独立成对应文件：
+
+1. 将原字段内容原样移动，不改写事实。
+2. 主文件保留原 H2 字段，并将内容改为相对引用，例如 `→ factions.md`。
+3. 独立文件继续使用本模板中对应对象的字段结构。
+
+## 语义边界与影响
+
+- `geography-locations` 不是所有题材的强制字段；不得为室内剧、现实短篇等无关作品强造宏大地理。
+- 规则条目若只有背景介绍、没有边界或故事压力，结构可以合法，但语义验收不通过。
+- 不得把物品当前持有人、角色当前位置、阵营当前胜负等动态事实写成恒定定义。
+- 修改 `rule-systems` 或 `forbidden-zones` 时提示人物、提纲与正文可能需要复核，不自动修改。

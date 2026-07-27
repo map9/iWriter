@@ -28,7 +28,11 @@ function creativeToolSignature(review: CreativeReviewItem): string {
   if (review.kind === 'creative_chapter_finalize') {
     return `finalize_chapter:${stableStringify({ chapter: review.chapter })}`
   }
-  return `import_manuscript:${stableStringify({ sourcePath: review.sourcePath, targetDirectory: review.targetDirectory })}`
+  return `import_manuscript:${stableStringify({
+    sourcePath: review.sourcePath,
+    targetDirectory: review.targetDirectory,
+    collisionPolicy: review.collisionPolicy ?? 'reject',
+  })}`
 }
 
 function reviewMatchesToolCall(review: CreativeReviewItem, toolCall: AiToolCall): boolean {

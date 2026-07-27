@@ -1,52 +1,80 @@
 ---
 name: characters-template
-description: Use when creating, reading, updating, or validating characters/ files (the registry and individual profiles) in a novel workspace.
+description: 创建、读取、更新或校验 novel workspace 的 characters/ 文件时使用；定义角色登记表、重要角色档案和升格规则。
 ---
 
 # 角色模板
 
-**前置 Skill：** `novel-workspace`（含文件格式约定）
+**前置 Skill：** `novel-workspace`
 
 ## 管理对象
 
 ```text
 {workspace}/characters/
-  characters.md         # 必需：全部角色登记表，一级标题「角色登记」
-  {slug}.md             # 懒创建：升格后的重要角色个人档案，一级标题＝角色名
+  characters.md         # 必需：全部角色的唯一登记入口
+  {slug}.md             # 懒创建：主角和重要角色的个人档案
 ```
 
-## 字段约定
+角色对象只写相对稳定的人物事实与规划弧光；即时位置、伤势、持有物、关系胜负和当前弧光进度由 `outline/`、`manuscript/` 派生，不在人物档案重复维护。
 
-角色只写安定事实；当前状态属剧情（看 `outline/`、`manuscript/`），不存出场章节索引（`find_references` 按需解析）。
+## 角色登记表
 
-**登记表 `characters.md`**：表格，一级标题「角色登记」，整表替换编辑，列头随输出语言本地化。列——
+`characters.md` 包含两个 H2 区域：
 
-- `name`（必选）：姓名。
-- `profile-status`（必选）：档案状态，`合集内` / `已升格`。
-- `story-function`（合集内必选）：功能定位，一词。
-- `relation-to-protagonist`（合集内必选）：与主角关系，一句。
-- `notable-traits`（合集内必选）：显著特征，1–2 句够区分声音即可。
-- `profile-ref`（已升格必选）：独立档案引用，如 `→ characters/{slug}.md`；已升格只填此列，其余列留空。
-- `aliases`（可选）：别名，供 `find_references` 解析（合集内角色无独立 name-aliases 时用此列补位）。
+**已建档角色区域：** H2 `本地化名称（profiled-characters）`
 
-**个人档案 `{slug}.md`**：H2 字段，一级标题＝角色名。字数为质量建议，非结构合法性依据。字段——
+表格列：
 
-- `name-aliases`（必选）：姓名 / 别名。
-- `importance-tier`（必选）：角色重要性，主角 / 重要配角 / 配角。
-- `story-function`（必选）：功能定位，在叙事机器里承担的功能（导师 / 对手 / 催化者…），不是性格描述；一句内。
-- `visible-traits`（必选）：外显特征。20–60 字，性别 / 年龄 / 身体 / 阶层 / 职业 / 语域；说话、移动、情绪外露应能从这组机械推导。
-- `desire`（必选）：核心欲望。10–40 字，心理三角。
-- `fear`（必选）：核心恐惧。10–40 字，心理三角。
-- `false-belief`（必选）：虚假信念。15–50 字，心理三角；须是可被推翻的错误认知，"他很骄傲"这类标签不算。
-- `arc`（必选）：成长弧光。15–50 字，规划的初始状态 → 目标状态；角色当前走到哪属实际态，由 agent 从正文 / 纲要派生，不写此处。
-- `relationships`（必选）：关系网络。双向标注——A 对 B 的认知 ≠ B 对 A，这种不对称常是冲突源。
-- `voice`（必选）：声音特征。15–50 字，词汇 / 语速节奏 / 惯常沉默点。
-- `key-abilities`（可选）：关键能力 / 资源。仅当直接影响情节可行性时才填。
-- `background`（可选）：独特背景。只写会被正文引用到的过去经历。
+- `name-aliases`（必选）：姓名和别名。
+- `importance-tier`（必选）：主角 / 重要配角 / 配角。
+- `profile-ref`（必选）：指向 `characters/{slug}.md`；不在登记表复制档案内容。
 
-## 要点
+**其他角色区域：** H2 `本地化名称（supporting-characters）`
 
-- 所有角色在 `characters.md` 有一行；升格只留一句 `→ characters/{slug}.md`，不复制内容。
-- 升格触发（任一）：第 2 个不同章节有实质动作 / 对话；作者指定重要；承担独立副线。
-- 重要角色（已建档 + 待处理）≤ 5 时可继续留合集；超过后新升格走一次审批（作者可拒，留标记下次再问）；某条目显著特征超 3–4 句时提议建档。
-- 不自动降级；不存出场索引与当前状态。
+表格列：
+
+- `name-aliases`（必选）：姓名和别名。
+- `importance-tier`（必选）：配角 / 路人。
+- `story-function`（必选）：在叙事机器中的功能，不是性格标签。
+- `visible-traits`（必选）：足以区分其说话、移动或行为的一句外显特征。
+- `motivation`（必选）：在当前故事中的直接动机；不强制背景角色建立完整心理三角。
+- `relation-to-protagonist`（必选）：与主角或核心群体的关系。
+- `profile-status`（可选）：建档建议状态，例如“待决定”或“作者拒绝”。作者拒绝后没有新证据不得反复询问。
+
+示例表头：
+
+```markdown
+## 其他角色（supporting-characters）
+
+| 姓名与别名（name-aliases） | 重要性（importance-tier） | 功能定位（story-function） | 外显特征（visible-traits） | 动机（motivation） | 核心关系（relation-to-protagonist） |
+| --- | --- | --- | --- | --- | --- |
+```
+
+## 个人档案
+
+H2 字段：
+
+- `name-aliases`（必选）：姓名、别名和称呼边界。
+- `importance-tier`（必选）：主角 / 重要配角 / 配角。
+- `story-function`（必选）：人物在叙事机器中制造的独特压力或作用。
+- `visible-traits`（必选）：身体、年龄、阶层、职业、语域和可观察习惯；只保留会影响正文表现的事实。
+- `desire`（必选）：核心欲望。
+- `fear`（必选）：核心恐惧。
+- `false-belief`（必选）：可被故事推翻或修正的错误认知，不能是“骄傲、善良”等标签。
+- `default-strategy`（必选）：承压时惯用的争取、回避、控制、交换或攻击方式。
+- `contradiction`（必选）：优点与缺陷如何来自同一根源。
+- `arc`（必选）：规划的初始策略 → 递增测试 → 有代价的关键选择 → 可能达到的目标状态；不写当前进度。
+- `relationships`（必选）：双向关系；A 对 B 的认知、欲求和筹码不能默认等于 B 对 A。
+- `voice`（必选）：词汇、语速、句式、惯常回避和沉默点。
+- `moral-line`（可选）：人物认为绝不能跨越的底线，以及被逼近时的风险。
+- `background`（可选）：只写会被正文引用、能解释当前策略的经历。
+- `key-abilities`（可选）：直接影响情节可行性的能力、资源和限制。
+
+## 升格与校验
+
+- 所有出现的角色都必须在 `characters.md` 有一行。
+- 主角和重要配角必须建立个人档案。
+- 其他角色满足任一条件时提议升格：在第二个不同章节有实质行动/对话；承担独立故事线；作者指定重要；登记表已经不足以解释其行为。
+- 升格经一次作者审批；拒绝后记录状态，直到角色职责发生实质变化再提。
+- 个人档案不得把“路人”列为 importance-tier；仍是路人时留在登记表。
+- 字数增加不代表人物成立；语义质量由 `character-design` 任务验收。

@@ -1,23 +1,144 @@
 ---
 name: style-transfer
-description: Load when distilling a target prose voice from an author-provided exemplar into a reusable styles/{slug}.md — "write in this voice", "capture the feel of this passage/author". A00 executes this by delegating to a general-purpose subagent (the exemplar is a large block of text, best isolated from the main context). Read style-template before writing the object.
+description: 用户要求从直接提供的范文、本地文件内容，或点名作家/作品（如“参考古龙及《飞刀又见飞刀》《流星·蝴蝶·剑》”）研究并提炼小说叙述风格，创建或更新 styles/{slug}.md 时使用；负责来源路由、证据提取、作者确认、风格对象交付及单独启用。
 ---
 
-# style-transfer
+# 风格提炼
 
-Distilling a target voice from an exemplar into `styles/{slug}.md`. Because the exemplar is a large block of text, A00 does not run this inline — it **delegates to a general-purpose subagent** to isolate that text from the main context; the subagent produces the style object under approval.
+把有证据锚点的叙述风格整理成 `styles/{slug}.md`。主 agent 负责路由、与作者确认、读取证据报告和写入正式对象；`general-purpose` 只负责隔离读取大段材料或网络研究。执行前读取 `novel-workspace`、`style-template`；命名风格研究另加载 `web-research`。
 
-## Steps
+## 来源路由
 
-1. **Read the author-provided exemplar** — one to a few paragraphs of the target voice (this large text is exactly why the work is delegated, not run in the main context).
-2. **Distill the fields per `style-template`** (SS05) from the exemplar: voice / diction (including banned words) / syntax / imagery.
-3. **Produce the operational generation-recipe and self-check list** — do-this steps a writer can follow and a reviewer can check, not literary commentary.
-4. **Write `styles/{slug}.md`** (under approval), with the exemplar as the object's primary anchor and `scope` set (whole-book default, or a specific character's dialogue).
+每次只设一个 `source-mode`：
 
-The writer then takes the exemplar as its PRIMARY voice target — write *to* that voice, never copy the exemplar's content (the exemplar outranks the analysis fields).
+| 来源模式 | 触发 | 证据优先级 |
+|---|---|---|
+| `provided-exemplar` | 作者在消息中直接给出范文 | 作者给出的原文 |
+| `local-file` | 作者给出本地文件路径，要求从其内容提取 | 作者指定范围；未指定时由 agent 提议代表性片段 |
+| `named-style-research` | 作者只点名作家、作品或流派，没有可直接使用的文本 | 合法公开的原作短摘录与一手材料；可靠评论只作辅助解释 |
 
-## Red lines
+同一请求同时有直接文本、本地文件和命名来源时，直接文本或本地文件是风格锚；网络研究只用于补足来源背景或校验，不取代作者给出的材料。
 
-- Distill **only from the exemplar itself** — never invent traits the exemplar does not show.
-- Write to `styles/` and nowhere else.
-- The exemplar is author-owned and is the anchor; the analysis fields describe it, not the reverse — on conflict the exemplar wins.
+## 输入契约
+
+主 agent 先把请求规范成以下信息；不影响执行的可选项不得变成问卷。
+
+### 共用输入
+
+- `source-mode`：三种来源模式之一。
+- `operation`：`create` 或 `update`；目标存在时不得覆盖，转为 update。
+- `target-style-name`：风格对象的本地化 H1 名称。
+- `target-file`：工作区根下 `styles/{slug}.md` 的绝对路径。
+- `focus`（可选）：希望重点提炼的叙述层面或场景，如对白、动作、悬念、留白；命名风格研究缺省覆盖叙述距离、句式节奏、对白与留白、描写、信息释放和转场。
+- `source-author`（可选）：准备写入对象的作者、作品或“作者自写”等简要归属。
+- `avoid`（可选）：作者明确要求避开的写法、误读或作品。
+- `update-strategy`（update 必选）：`replace-exemplar`、`append-evidence` 或 `refresh-profile`，并说明允许改动的字段。
+- `activation-intent`：`style-only` 或 `enable-for-project`。只有作者明确说“用于本小说/设为本书风格”等才是后者。
+
+### `provided-exemplar`
+
+- `exemplar-text`：作者消息中的原文，保持逐字一致。
+
+作者明确说“用这段/按这段风格”时，该文本已是认可范文；只是在讨论、比较或询问时，不得擅自创建风格对象。
+
+### `local-file`
+
+- `source-paths`：一个或多个真实绝对路径。
+- `source-ranges`（可选）：每个文件的章节、标题、页码、行号或块范围。
+- `selection-intent`：`author-selected` 或 `agent-proposed`。
+
+支持的读取方式：
+
+- `.md`、`.txt`、`.iwt`：先取文档结构，再按章节或块分页读取；
+- `.pdf`：先取 PDF 目录与总页数，再按页读取；
+- 其他格式：说明当前不能安全直接提取，请作者转换为上述格式；不得调用导入工具把素材拆写进小说工作区。
+
+未指定范围且文件较长时，先覆盖与目标相关的不同文本状态，例如开篇、推进、冲突或情绪高点、对白和描写；不能只连续抽取文件开头。候选片段保留精确定位并交作者确认，正式风格对象只保存最终选中的代表性短片段，不复制整份文件。
+
+### `named-style-research`
+
+- `target-author`：目标作家或创作群体。
+- `reference-works`：重点参考作品；多部作品分别取证，不混成一个未经区分的印象。
+- `work-priority`（可选）：各作品的主次或希望分别借鉴的层面。
+
+## 执行流程
+
+### 1. 建立证据
+
+`provided-exemplar`：
+
+1. 保留作者给出的原文，不改写、缩写或“优化”。
+2. 只提炼文本中可重复观察到的倾向。
+
+`local-file`：
+
+1. 校验路径、格式和范围，只读源文件。
+2. 有作者指定范围时完整读取该范围；没有时按结构分布抽取候选。
+3. 报告每个候选的文件与定位、它代表的倾向及选择理由。
+4. `selection-intent=agent-proposed` 时，作者确认候选后才进入正式对象。
+
+`named-style-research`：
+
+1. 按 `web-research` 建立 `/large_tool_results/research_<style-slug>/` 研究计划和证据报告。
+2. 分作品检索，优先出版社、作者/版权方页面、合法预览、一手访谈或可核验馆藏材料；可靠文学评论可帮助解释，但不能单独充当 `exemplar`。
+3. 只抓取支持判断所需的短摘录。不得爬取、拼接或保存作品全文，不使用来源不明的全文镜像、转载站或聚合洗稿作为风格锚。
+4. 把“文本中观察到的模式”和“评论者的解释”分开，并记录 URL、作品、章节/页面/段落定位及用途。
+5. 汇总各作品的共同倾向、作品间差异、拟采用的短摘录与研究限制，交作者确认。作者确认的是本项目要采用的风格解释与范文锚，不是对原作者的唯一结论。
+6. 找不到可核验且适合短引的原作文本时停止正式创建，请作者提供本地文件或直接范文；不得凭模型记忆伪造引文。
+
+### 2. 隔离复杂材料
+
+大段文本、多文件、PDF 或网络研究交给 `general-purpose`。委派信息必须包含：
+
+- 上述规范化输入；
+- 只读来源和精确范围；
+- 证据报告路径 `/large_tool_results/style-<slug>-evidence.md`，或 `web-research` 的研究目录；
+- 报告结构：来源清单、带定位的候选短摘录、可观察倾向、跨来源一致与冲突、限制；
+- 禁止写 `styles/`、`project.md` 或改动源文件。
+
+主 agent 必须读取完整证据报告后自行综合；不能只依据 subagent 的返回摘要写正式对象。
+
+### 3. 形成可执行画像
+
+每个纳入 `profile` 的倾向单列为 `本地化名称（profile-1）`；存在多项时递增数字后缀，并写清：
+
+1. 文本中可观察的模式；
+2. 它造成的阅读或叙事效果；
+3. 适用场景与过量使用时的失效边界。
+
+例如不能只写“句子短、留白多”，而要说明短句出现于何种信息或动作节点、如何改变节奏，以及连续使用会损失什么。无法由确认范文或 `source-references` 支持的特征不补写。
+
+### 4. 写入与启用
+
+1. 按 `style-template` 生成完整对象预览，说明 create/update 的字段变化。
+2. 经正常写审批创建或更新 `styles/{slug}.md`；更新时保留未授权字段和未知扩展字段。
+3. 写入风格对象与修改 `project.md` 是两个独立操作：
+   - `activation-intent=style-only`：不修改 `project.md`，询问作者是否启用；
+   - `activation-intent=enable-for-project`：作者确认最终风格解释后，单独提议把 `project.md` 的 `style` 指向该对象，仍走独立写审批。
+
+## 输出
+
+对作者的交付包含：
+
+- 来源模式、实际读取范围和无法读取的部分；
+- 最终采用的范文锚及其来源定位；
+- 有证据的风格画像与重要失效边界；
+- 创建或更新的 `styles/{slug}.md`；
+- `project.md` 是否已另行启用该风格。
+
+## 验收
+
+- **锚点成立**：`exemplar` 均为作者直接给出或确认选中的原文短片段，内容与来源不被改写。
+- **可追溯**：本地文件或网络模式的每个 `exemplar-1` / `profile-1` 等条目都能回到 `source-references` 的定位。
+- **不混源**：多部作品的共同点与差异先分开判断，再决定本项目采用什么。
+- **可执行**：profile 不是“冷峻、简洁、有张力”等形容词堆砌，而是模式、效果和边界的组合。
+- **不越权**：研究 worker 不写正式对象；创建风格不自动等于启用项目风格。
+- **不照抄**：writer 只借叙述模式，不复用范文的情节、人物、场景、独特措辞或意象组合。
+
+## 红线
+
+- 不把模型对某作家“通常如何写”的记忆当作证据。
+- 不为找范文抓取、下载或拼接受版权保护的作品全文。
+- 不让二手评论中的泛化判断覆盖原文证据；证据冲突时明确保留冲突。
+- 不由 agent 代写一段“像目标作家”的文字，再把代写内容当作 exemplar。
+- 不把文学评论、逐条 craft 戒律或机械计数规则写进风格对象。

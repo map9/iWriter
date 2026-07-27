@@ -1,32 +1,75 @@
 ---
 name: style-template
-description: Use when creating, reading, updating, or validating styles/ writing-style objects in a novel workspace.
+description: 创建、读取、更新或校验 novel workspace 的 styles/{slug}.md 时使用；定义以作者认可范文为主锚、可记录本地文件或网络研究来源的全局叙述风格对象。
 ---
 
 # 风格模板
 
-**前置 Skill：** `novel-workspace`（含文件格式约定）
+**前置 Skill：** `novel-workspace`
 
 ## 管理对象
 
 ```text
 {workspace}/styles/
-  {slug}.md    # 可选、懒创建：一套可复用的全局写作风格，一级标题＝风格名
+  {slug}.md    # 可选、懒创建：全局写作风格对象
 ```
 
-风格对象是"项目专属技能"（一套可操作的生成技术），不是故事事实，故独立于 `worldbuilding/`、`characters/`。主锚是 `exemplar`（具体范文）。生效的风格由 `project.md` 的 `style` 字段指向。
+风格对象不是故事事实或作家研究报告，而是作者为当前小说确认的一套叙述声音参照；由 `project.md` 的 `style` 字段指向后才生效。
 
-## 字段约定
+## 字段
 
-`exemplar` 是主锚：一段具体范文胜过一堆分析描述。`profile` 是围绕范文的整体描述，均非逐条规则清单——过度堆 craft 规则会让正文变差。
+H2 字段：
 
-- `exemplar`（必选）：范文，主锚。一到几段能代表目标嗓子的具体正文，覆盖叙述 / 对话 / 描写 / 情感处理等关键侧面；写稿时照这个嗓子写、别照抄内容。提取要求：从作者认可的来源正文中选取，由作者亲写 / 亲选 / 亲改（不由 agent 代写），长度以能传达嗓子为准。
-- `source-author`（可选）：来源。一句话说明提炼自谁 / 哪部作品。
-- `profile`（可选）：文风画像。用词 / 句式 / 节奏 / 对话 / 描写等习惯的整体描述（一段连贯文字，非逐条清单）。提取要求：从范文或作者已定稿章节中提炼这些习惯，写成连贯描述。
-- `avoid`（可选）：想避开的写法或作品。
+- `exemplar`（必选）：作者直接给出或确认选中的代表性原文短片段。writer 取其叙述模式，不复用情节、人物、场景、独特措辞或意象组合。每个片段使用 H3 `本地化名称（exemplar-1）` 分项；存在多个片段时递增数字后缀，只有一个片段时也保留该结构。
+- `source-author`（可选）：作者、作品或“作者自写”等简要归属；不能代替来源定位。
+- `source-references`（条件必选）：来源索引。使用本地文件或网络研究时必选；直接消息范文可选。表格列固定为 `来源（source）`、`类型（type）`、`定位（locator）`、`用途（usage）`。
+- `profile`（必选）：围绕已确认范文的可执行画像。每个倾向使用 H3 `本地化模式名（profile-1）` 分项；存在多项时递增数字后缀。内容写成包含可观察模式、叙事效果、适用条件或失效边界的连贯短段；不是泛化形容词或逐条生成戒律。
+- `avoid`（可选）：作者明确要求避开的写法或作品。
 
-## 要点
+`source-references` 约定：
 
-- `exemplar` 是主锚：writer 模仿范文的嗓子，不是勾选清单；`profile` 是可选轻支撑，故意精简（过度堆 craft 规则会让正文变差）。
-- `exemplar` 由作者拥有（亲写 / 亲选 / 亲改）；`profile` 可由 agent 提炼。
-- 风格全局生效，不做 per-character（角色嗓子归 `characters/` 的 `voice`）。
+- 工作区内文件优先记工作区相对路径；工作区外文件记作者给出的真实绝对路径；网页记可核验的规范 URL。
+- `type` 使用稳定值：`author-provided`、`local-file`、`web-primary`、`web-secondary`。
+- `locator` 写标题、章节、页码、行号、块范围或网页段落锚；不能只写“见原文”。
+- `usage` 说明该来源支持哪个 `exemplar-1` / `profile-1` 等条目。
+
+## 规范示例
+
+```markdown
+# 古龙式武侠叙事
+
+## 范文（exemplar）
+
+### 范文 1（exemplar-1）
+
+> 作者确认的短摘录
+
+### 范文 2（exemplar-2）
+
+> 作者确认的短摘录
+
+## 来源归属（source-author）
+
+古龙；重点参考《作品甲》《作品乙》。
+
+## 来源索引（source-references）
+
+| 来源（source） | 类型（type） | 定位（locator） | 用途（usage） |
+|---|---|---|---|
+| 规范 URL 或本地文件路径 | web-primary 或 local-file | 章节、页码或段落定位 | 支持 exemplar-1、profile-1 |
+
+## 风格画像（profile）
+
+### 信息切分与短句落点（profile-1）
+
+这里写可观察模式、造成的叙事效果、适用条件与过量使用的失效边界。
+
+## 回避项（avoid）
+
+作者明确要求避开的写法。
+```
+
+## 语义校验
+
+- `exemplar` 是主锚，优先于 `profile`；二者冲突时修正 profile，不改范文。
+- `profile` 中的倾向必须能由 exemplar 或 source-references 支持；二手评论支持的解释必须与原文观察分开。

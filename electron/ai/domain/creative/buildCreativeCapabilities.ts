@@ -6,6 +6,7 @@ import { buildGitTools } from '../../tools/common/GitTools'
 import { buildDocumentTools } from '../../tools/common/DocumentTools'
 import { buildEditProposalTools } from '../../tools/common/EditProposalTools'
 import { buildFilesystemMutationTools } from '../../tools/common/FilesystemMutationTools'
+import { buildPdfTools } from '../../tools/common/PdfTools'
 import { buildWebTools } from '../../tools/common/WebTools'
 import { buildConfirmWritingPlanTool } from '../../tools/creative/ConfirmWritingPlan'
 import { buildFinalizeChapterTool } from '../../tools/creative/FinalizeChapter'
@@ -38,6 +39,7 @@ export function buildCreativeCapabilities(input: {
     ...buildDocumentTools(input.snapshotBroker),
     ...buildEditProposalTools(),
     ...buildFilesystemMutationTools(),
+    ...buildPdfTools(),
     ...buildWebTools(),
     ...buildGitTools({ workspacePath: input.workspacePath }),
     buildConfirmWritingPlanTool(),
@@ -77,9 +79,9 @@ export const CREATIVE_INTERRUPT_ON_CONFIG: Record<string, InterruptOnConfig> = {
   // Creative专用: whole-chapter finalize gate closing the write-session (M1b-3). approve=accept,
   // reject=discard+restore baseline; rework routes through the reject channel with RESPOND_MARKER.
   finalize_chapter: { allowedDecisions: ['approve', 'reject'] },
-  // Creative专用: physical manuscript import writes chapter files directly (FR-14.3). Both
-  // stages of the one tool gate; the dry-run stage (no boundaries) writes nothing but still
-  // surfaces a card — approving it just runs the boundary scan.
+  // Creative专用: physical manuscript import uses one gated tool for both stages. Dry-run
+  // classifies candidate boundaries and writes nothing; execute validates the confirmed file
+  // plan, front/back-matter decisions, and collision policy before writing.
   import_manuscript: { allowedDecisions: ['approve', 'reject'] },
   // Version tracking (04.4 §3 / FR-1.6 / FR-6.4). File-mutation tools (delete/rename/move_file)
   // interrupt via the scaffold FILE_WRITE_INTERRUPT_ON config, merged in AgentEngine.

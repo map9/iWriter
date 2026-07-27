@@ -1,61 +1,90 @@
 ---
 name: outline-template
-description: Use when creating, reading, updating, or validating outline files (master / volume / chapter outlines) in a novel workspace.
+description: 创建、读取、更新或校验 novel workspace 的总纲、卷纲和章纲时使用；定义三层提纲 schema、状态令牌与职责边界。
 ---
 
 # 大纲模板
 
-**前置 Skill：** `novel-workspace`（含文件格式约定）
+**前置 Skill：** `novel-workspace`
 
 ## 管理对象
 
 ```text
 {workspace}/outline/
-  master-outline.md     # 必需：全书结构骨架，一级标题「总纲」
-  vol{NN}-outline.md    # 条件必需：启用卷纲后每卷一份，一级标题＝卷名（未定用「第N卷」）
-  ch{NNN}-outline.md    # 懒创建：每章一份，章节正文的写作前提，一级标题＝章名（未定用「第N章」）
+  master-outline.md     # 必需：全书因果骨架
+  vol{NN}-outline.md    # 条件必需：启用卷纲后每卷一份
+  ch{NNN}-outline.md    # 懒创建：写对应章节前必须存在
 ```
 
-是否启用卷纲层由 `project.md` 的 `scale-plan`（是否分卷）决定。总纲粗（全书一份）、卷纲细（一卷一文件）、章纲承重（scenes）。
+总纲和卷纲是事件/阶段级骨架；章纲是场景级直接写作依据。三类文件的 `status` 固定为 `draft` / `confirmed`，不随输出语言本地化。
 
-## 字段约定
+## 总纲
 
-`status` 用固定令牌 `draft` / `confirmed`——写作授权闸靠它判断，**不随输出语言本地化**（旧数据中文令牌 `草稿中` / `已确认` 等价识别）。字数为质量建议，非结构合法性依据。
-
-**总纲 `master-outline.md`**（一级标题「总纲」）——
+`master-outline.md` 的 H2 字段：
 
 - `status`（必选）：`draft` / `confirmed`。
-- `premise`（必选）：故事核心句，与 `project.md` 一致，可展开 2–3 句。
-- `theme-beats`（必选）：主题落点，主题通过哪几个具体情节事件落地，每个指向大致结构节点。
-- `storylines`（必选）：故事线。主线 + 复线，每条一个三级标题分节，写走向 + 与主线交汇点。
-- `structure-nodes`（必选）：全书结构骨架。默认 8 个题材中立节点（开篇钩子 / 激励事件 / 早期试炼 / 中点转折 / 危机加深 / 至暗时刻 / 高潮 / 结局余波），每节点一个三级标题分节，填｛发生什么（20–60 字），大致章节区间，推进哪条 storyline + 哪个角色 arc｝。
-- `arc-intersections`（必选）：人物弧光交汇点，主要角色弧光在哪些结构节点交汇 / 冲突（跨角色，弧光正身在 `characters/`）。
-- `volume-index`（启用卷纲必选）：各卷目标 + 指向 `vol{NN}-outline.md`；未启用卷纲时不写，`structure-nodes` 的章节区间即索引。
-- `candidate-directions`（可选）：主线未收敛方向，标"候选"并指向 `exploration/`。
+- `premise`（必选）：与 `project.md` 一致，可展开为 1–3 句。
+- `storylines`（必选）：至少包含主线；复线按作品需要存在。每条故事线使用 H3 分节，写推动者、戏剧问题、对抗来源、变化路径、主线交汇与闭合方式。
+- `structure-nodes`（必选）：全书因果骨架。节点数量和结构法不固定；每个 H3 节点包含：
+  - `entry-state`：进入节点时的承重状态；
+  - `character-decision`：人物基于当前信息作出的决定；
+  - `opposition-response`：对抗方或世界的回应；
+  - `irreversible-change`：不可逆变化；
+  - `cost-or-reveal`：代价或揭示；
+  - `next-pressure`：由此产生的下一重压力；
+  - `storyline-arc-refs`：推进的故事线和人物弧光。
+- `theme-beats`（必选）：主题通过哪些具体选择及后果落地，引用结构节点。
+- `arc-intersections`（必选）：主要人物弧光在哪些节点互相改变。
+- `foreshadow-intents`（可选）：伏笔的叙事作用、真实指向和大致揭示节点；具体埋/强/收仍归章纲。
+- `volume-index`（启用卷纲时必选）：各卷目标和对应文件引用。
+- `candidate-directions`（可选）：只引用 `exploration/` 中尚未确认的方向，不把候选写成结构事实。
 
-**卷纲 `vol{NN}-outline.md`**（一级标题＝卷名）——
+## 卷纲
 
+`vol{NN}-outline.md` 的 H2 字段：
+
+- `name`（必选）：卷名。
 - `status`（必选）：`draft` / `confirmed`。
-- `structural-role`（必选）：对应总纲哪段弧线 / 哪些结构节点（引用，不重列结构）。
-- `core-conflict`（必选）：本卷核心冲突 / 阶段性主要阻碍。
-- `arc-stage`（必选）：各主要角色本卷弧光推进到哪阶段、衔接上卷末（引用 `characters/` 的 arc，不复述全弧）。
-- `volume-climax`（必选）：本卷高潮 + 收尾状态。
-- `chapter-list`（必选）：本卷章节文件名，按故事序。
-- `transition-notes`（可选）：与上一卷承接、给下一卷的铺垫。
+- `structural-role`（必选）：对应总纲的范围和本卷必须完成的变化。
+- `dramatic-question`（必选）：贯穿本卷、卷末会得到阶段性回答的问题。
+- `entry-state`（必选）：人物、关系、资源和信息的本卷入口状态。
+- `core-conflict`（必选）：持续施压的对抗来源及其升级逻辑。
+- `phase-shifts`（必选）：本卷因果阶段；每段写触发、人物策略、对抗回应、代价和新状态，不按章节数平均切割。
+- `arc-stage`（必选）：主要人物本卷的测试、选择与阶段变化，引用角色完整弧光。
+- `volume-climax`（必选）：本卷高潮中的关键决定、代价和兑现。
+- `exit-state`（必选）：卷末具体状态和进入下一卷的新条件。
+- `chapter-list`（必选）：按故事顺序列出本卷章纲文件；规划早期可以使用本地化待定占位符。
+- `transition-notes`（可选）：与相邻卷的承接。
 
-**章纲 `ch{NNN}-outline.md`**（一级标题＝章名）——
+## 章纲
 
-- `structural-role`（必选）：对应总纲 / 卷纲哪个结构节点。
+`ch{NNN}-outline.md` 的 H2 字段：
+
+- `name`（必选）：章名。
 - `status`（必选）：`draft` / `confirmed`。
-- `scenes`（必选）：核心，只写戏剧内容（发生什么），不规定文风、措辞与行文。每个场景一个三级标题分节（`### 场景-N`），含子项（四级标题）：`location-time`\*、`characters-pov`\*、`goal`\*（15–50 字，可验证是否达成）、`conflict`\*（15–60 字，写清阻碍来源）、`outcome`\*（20–70 字，达成但代价更大 / 未达成 / 达成但揭示新问题——不能是顺利达成）、`tone-pacing`、`information-reveal`（\* 必选）。场景无独立 status，状态以章纲文件为单位。
-- `storyline-advance`（可选）：本章推进哪条 storyline（引用总纲）。
-- `foreshadow-ops`（可选）：本章埋 / 强化 / 收哪根伏笔 + 内容 + 计划回收章。伏笔的源头，不做全书总表。
-- `hook-cliffhanger`（可选）：开篇钩子 / 结尾悬念。
-- `transition-notes`（可选）：与上一章承接、给下一章的过渡。
+- `structural-role`（必选）：对应总纲/卷纲的结构任务。
+- `chapter-question`（必选）：本章由谁推动、要解决什么、主要阻力是什么。
+- `entry-state`（必选）：本章开始时直接影响行动的状态。
+- `scenes`（必选）：场景链。每个实例使用 `### 本地化名称（scene-N）`，其内部字段为 H4：
+  - `location-time`（必选）：地点与时间；
+  - `characters-pov`（必选）：出场人物与 POV；
+  - `entry-state`（必选）：进入场景时的处境、认知或关系状态；
+  - `goal`（必选）：POV 人物可验证的短期目标；
+  - `conflict`（必选）：主动回应其策略的阻力；
+  - `turn`（必选）：迫使人物改变策略、选择或理解的转折；
+  - `outcome`（必选）：未达成、带代价达成、或达成后暴露新问题；
+  - `causal-handoff`（必选）：结果怎样造成下一场或下一章的条件；
+  - `tone-pacing`（可选）：情绪基调和戏剧速度；
+  - `information-reveal`（可选）：读者与人物各自获得或仍缺失的信息。
+- `exit-state`（必选）：本章结束后的承重状态。
+- `storyline-advance`（可选）：推进的故事线引用。
+- `foreshadow-ops`（可选）：本章具体埋、强化或回收的伏笔，含内容、真实作用和计划回收位置。
+- `hook-cliffhanger`（可选）：由本章已有因果产生的开篇钩子或结尾悬念。
+- `transition-notes`（可选）：与相邻章节的必要承接。
 
-## 要点
+## 状态与边界
 
-- `master-outline.md` 必需；启用卷纲后每有效卷必须有 `vol{NN}-outline.md`；写章节正文前该章必须有 `confirmed` 的 `ch{NNN}-outline.md`。
-- `status` `draft → confirmed` 是前提闸，不自动推进。
-- 章纲才有"提纲的价值"：拿到 scenes 能直接知道写什么冲突与转折，而不是一句"去找某人问线索"自己现编。
-- 伏笔只在章纲 `foreshadow-ops` 登记；全书伏笔状态、故事线与弧光的实际进度都属实际态，由 agent 派生，不在 outline 存。
+- Agent 新写或修改 `manuscript/ch{NNN}.md` 前，目标章纲必须存在、`status: confirmed`，且场景的 goal / conflict / outcome 完整；`novel-import` 机械导入既有正文的例外遵循 `novel-workspace`。
+- `draft → confirmed` 只能由作者确认推动，不自动推进。
+- 提纲只写故事事实，不写文风、措辞、镜头强调或给 writer 的操作指令。
+- 伏笔的具体操作只在章纲 `foreshadow-ops` 维护；总纲只保留叙事意图，避免两份状态表漂移。

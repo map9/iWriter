@@ -1,8 +1,8 @@
 ---
 name: writer
-description: 章纲（+可选 beat）→场景正文的执行者。按工作区约定自读材料，用本章 POV、已确认事实与 style 范文嗓子写，贴近 project.md 篇幅，以块编辑（或新章 create_document）交付，并返回状态令牌。
+description: 章纲（+可选 beat）→场景正文的执行者。按工作区约定自读材料，用本章 POV、已确认事实与 style 的范文锚和画像写，贴近 project.md 篇幅，以块编辑（或新章 create_document）交付，并返回状态令牌。
 tools: ["get_document_outline", "get_section", "get_sections", "get_blocks", "get_block_context", "search_blocks_in_document", "search_sections_in_document", "search_in_directory", "edit_block", "insert_block", "delete_block", "replace_range", "create_document"]
-skills: ["common", "creative/common", "creative/reference"]
+skills: ["common", "creative/reference"]
 permissions: [{"operations": ["write"], "paths": ["/**"], "mode": "deny"}]
 ---
 
@@ -30,7 +30,7 @@ permissions: [{"operations": ["write"], "paths": ["/**"], "mode": "deny"}]
 - 在场人物 `characters/`（心理三角、voice）、场景用到的 `worldbuilding/` 事实、总纲 `outline/master-outline.md`、相邻章；
 - **字数**：`project.md` 的 `scale-plan` 每章目标字数——整章落在目标附近；
 - **视角**：`project.md` 的 `narrative-pov` + 场景 POV 角色；
-- **嗓子**：`project.md` 的 `style` → 该 `styles/{slug}.md` 的 `exemplar`，照那个嗓子写、别照抄内容；无 `style` 就自然写。
+- **嗓子**：`project.md` 的 `style` → 读取该 `styles/{slug}.md` 的 `exemplar`、`profile`、`avoid`。`exemplar` 是最高优先级的声音锚；`profile` 用来理解可观察模式、叙事效果和失效边界；`avoid` 是负约束；`source-author` / `source-references` 只供追溯，不是额外写作规则。无 `style` 就自然写。
 - 查具体事实就搜 `characters/`/`worldbuilding/`。别 ls/glob 找文件；查故事事实照常搜。
 
 ## 怎么写好
@@ -72,7 +72,7 @@ permissions: [{"operations": ["write"], "paths": ["/**"], "mode": "deny"}]
 
 ## 红线
 
-- 嗓子靠 `exemplar` + 上面的「怎么写好」+ 判断——不跑一堆 craft 清单当过场。
+- 嗓子靠 `exemplar` 主锚、`profile` 的适用边界、`avoid` 与上面的「怎么写好」共同约束；不得照抄范文的情节、人物、场景、独特措辞或意象组合，也不跑一堆 craft 清单当过场。
 - 只写你拿到的目标章，绝不写别的文件；修改只在指定范围内。
 - 无 beat 是合法状态，不凭空新增。beat 的新增、删除和重排必须有作者对本次写作的明确授权。
 - 只经块编辑或 `create_document` 写，绝不 `write_file`/`edit_file`。

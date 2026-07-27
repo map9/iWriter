@@ -1,24 +1,147 @@
-# reverse-extraction
+# 反向重建
 
-Reconstructing the upstream objects — settings, characters, outline — *from* imported prose, so the project has the scaffolding it would normally have been authored from. This is read-heavy across the whole manuscript, so it is **batched and delegated**, never done in one pass in the main context.
+反向重建从既有正文提取可复核证据，再自下而上形成候选、自上而下写入正式对象。它不是给原稿补设定，也不是把章节摘要拼成总纲。
 
-## Batching
+## 范围与批次
 
-- Split the manuscript into batches of roughly **5–8 chapters** (or ~50k characters — see the large-work batching convention). Delegate one **general-purpose** subagent per batch (it inherits the reference/craft skills; the dedicated writer/reviewer subagents are the wrong tool here).
-- Each batch brief carries the absolute chapter paths for that batch + what to extract (characters and their traits/relationships as they appear; world rules and forbidden zones; the events/arc of these chapters as outline nodes) + **where to write evidence**: a `/large_tool_results/import-batch-{n}.md` file. The batch subagent **reads prose and writes only its evidence file** — it never writes into `worldbuilding/`, `characters/`, or `outline/`.
-- Batches are independent and can run without carrying each other's full context; a short "characters/threads seen so far" note forward-passed between batches keeps naming consistent, but the evidence files are the durable output.
+先列出本次正文范围、缺失章节和已存在对象。按模型可稳定完整读取并比较的实际上下文划分批次，不固定为某个章节数或字数；优先在卷界、结构阶段变化或连续章节边界处分批。
 
-## Where each layer's output goes (the hard rule)
+每批 brief 必含：
 
-The three layers land in different places — because only the outline object carries a `status` field, so only it can hold a "draft" (半正式) state; the character/setting objects have no status, so a reconstruction must NOT be written into them as if confirmed.
+- 本次 session 目录与批次编号；
+- 绝对章节路径及其顺序；
+- 已确认卷界、固定事实和不可改命名；
+- 上一批的别名、时间锚点和开放线索短表；
+- 输出路径 `/large_tool_results/import_<slug>/batch-{NNN}.md`；
+- 禁止写 `project.md`、`worldbuilding/`、`characters/` 和 `outline/`。
 
-- **Structure layer → `outline/`** (per `outline-template`), marked `status: draft`. The batch subagent may write these directly; on aggregation A00 reconstructs the master-outline structure nodes + foreshadow table into `outline/` (draft).
-- **Character layer & Setting layer → `exploration/`** — as **candidates only**, never into `characters/` or `worldbuilding/`. They are the model's *reading* of the prose, not facts the author confirmed; writing them into the formal objects would fabricate a confirmed state. A00 merges/dedups the character and setting candidates across batches into `exploration/` for the author to review and, if they choose, promote later.
+跨批信息只携带紧凑索引，不携带前批整份正文或长摘要。
 
-## Aggregation (main agent)
+## 每章证据卡
 
-Read the batch evidence files (`/large_tool_results/s10-batch-{n}.md`) and the draft outline, then — under approval — reconstruct the master-outline structure nodes + foreshadow table into `outline/` (draft), and merge/dedup the character and setting candidates into `exploration/`. Do NOT re-read the whole manuscript prose.
+每章先按出现顺序记录可观察事实：
 
-## The standing rule
+- 开篇承重状态：人物掌握的信息、关系、资源、风险；
+- 场景地点、时间、POV 与在场人物；
+- 推动者的即时目标和所用策略；
+- 会主动回应策略的阻力；
+- 迫使策略、选择或理解改变的转折；
+- 结果、代价、揭示和不可逆变化；
+- 该结果造成的下一场或下一章条件；
+- 新出现或被强化/回收的线索；
+- 人物行为、语言和关系筹码的证据；
+- 世界规则实际生效、付出成本或被违反的证据。
 
-The **prose is the source of truth**; every extracted object is a proposal distilled from it. On conflict the prose wins and the author decides what the object should record. A field with no evidence in the prose is left blank and flagged as a gap — never fabricated. Candidates never enter a formal (confirmed) object before the author confirms.
+不能识别的信息写“无证据”或“待核对”。不要为了填满模板把氛围、谈话或遭遇虚构成目标—冲突链。
+
+每条跨章判断记录：
+
+- 候选判断；
+- 来源章节和明确事件，必要时附短引文；
+- `fact` / `inference` / `gap`；
+- 置信度；
+- 支持证据、反证和可能别名；
+- 与现有对象或其他批次的冲突。
+
+## 自下而上聚合
+
+### 1. 章纲候选
+
+从每章证据卡重建场景链，而非复述剧情。必须能回答：
+
+- 谁以什么目标发动本章；
+- 阻力如何针对其策略；
+- 哪个转折迫使人物重新选择；
+- 结果为何不是无代价顺利完成；
+- 结尾状态怎样造成下一章。
+
+一场文字很长不代表一个结构场景；地点变化也不必然换场。以“目标—阻力—转折—结果”是否完成一次戏剧动作判断。
+
+### 2. 卷候选
+
+仅在来源有明确卷界，或连续章节共同形成可验证的阶段问题、升级逻辑、高潮与出口状态时提出卷候选。卷界必须说明：
+
+- 本卷入口状态和持续戏剧问题；
+- 主要策略如何分阶段变化；
+- 卷高潮兑现了什么并付出何种代价；
+- 卷末产生了怎样的新条件。
+
+只有篇幅接近或章节数量整齐，不足以建立卷纲。证据不足时选择“不启用卷纲”。
+
+### 3. 总纲候选
+
+跨批合并事件和别名后，按因果而非时间清单形成：
+
+- 主线与必要复线的推动者、戏剧问题、对抗来源、变化路径和闭合方式；
+- 结构节点的进入状态、人物决定、对抗回应、不可逆变化、代价/揭示和下一压力；
+- 主题在哪些有代价的选择及后果中出现；
+- 主要人物弧光在哪些节点彼此改变；
+- 伏笔的叙事意图和大致兑现范围。
+
+若两个相邻节点只能用“然后”连接，继续寻找缺失的决定、阻力或因果交接；不要用结构术语包装事件目录。
+
+### 4. 项目候选
+
+项目层是对全书的解释，不是从封面标签直接抄写。分别提出并给证据：
+
+- premise 中的人物、可行动目标、核心阻碍和失败代价；
+- 主题命题的两端，以及正文如何让不同选择承担后果；
+- 读者持续获得的体验；
+- 全书最核心的不可逆变化；
+- 能反复产生事件、升级、选择或揭示的叙事机器；
+- 可观察的题材、规模、视角和风格引用需求。
+
+主题、读者承诺和叙事机器通常含较强解释性，必须单独标为 `inference` 并交作者确认。
+
+### 5. 人物候选
+
+先建立姓名、别名、出场范围和关系索引，再区分：
+
+- 可直接观察的外显习惯、语言、资源、能力与限制；
+- 多次承压时重复采用的默认策略；
+- 能解释选择的欲望、恐惧、错误认知与内在矛盾；
+- 关系双方各自的认知、欲求和筹码；
+- 从初始策略到关键选择及代价的完整弧光候选。
+
+单次行为不能直接证明稳定性格；人物自述可能不可靠；弧光是跨阶段变化，不是“变得更好/更强”的评价。
+
+### 6. 世界候选
+
+把专名与规则分开。规则至少包含：
+
+- 定义和适用范围；
+- 成本、限制或例外；
+- 执行机制或违反后果；
+- 它实际如何改变人物选择与情节可行性。
+
+阵营记录目标、资源、内部张力和核心冲突关系；地理只记录会改变行动、资源或冲突的部分；历史只保留当前因果需要的锚点。角色当前位置、伤势、物品当前持有人和阵营当前胜负属于剧情状态，不写成稳定世界定义。
+
+## 跨批聚合
+
+主 agent 读取批次证据而非重新通读全稿：
+
+1. 合并确定的别名、同一事件和时间锚点；
+2. 保留互斥解释，不以多数批次自动裁决；
+3. 建立“章节 → 卷候选 → 总纲节点”的映射；
+4. 区分正文事实、模型推断和无证据缺口；
+5. 对照现有正式对象，逐字段列出保留、新增、冲突和建议修改；
+6. 输出本次 reconstruction summary，交作者确认。
+
+## 正式化与状态
+
+作者确认重建结论后，先写项目、人物和世界，再写总纲、可选卷纲、章纲，使下层引用已有的上层事实。所有提纲初始为 `draft`；正文已经存在不等于提纲已经确认。
+
+作者可以按层或按章节范围确认提纲。只有明确确认的文件改为 `confirmed`；仍有因果缺口、冲突或无法映射的章节保持 `draft`。
+
+部分范围重建必须在聚合结论中标明覆盖边界。它可以可靠建立范围内章纲和局部人物/设定证据，但不能把局部主题、角色弧光或冲突模式声称为全书结论。
+
+## 验收
+
+- 每个关键结论都有证据定位，推断和事实没有混写。
+- 章节映射没有遗漏、重叠或把卷标题/后置材料算作章节。
+- 章纲保留真实因果和场景功能，足以支撑后续修改，不只是摘要。
+- 卷纲有阶段性戏剧问题和出口状态；没有证据就不启用。
+- 总纲的主要转折由人物决定与对抗回应共同造成。
+- 人物核心心理判断有跨场景模式支持，关系保持双向不对称。
+- 世界规则有边界与后果，动态剧情状态未污染稳定定义。
+- 所有冲突、低置信度项和无证据字段都已呈现给作者。

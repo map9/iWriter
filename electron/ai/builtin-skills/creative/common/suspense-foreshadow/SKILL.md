@@ -22,7 +22,7 @@ description: 悬疑 / 推理题材设计或审查伏笔时的专项技法。解�
 
 ## 落到哪
 
-每根伏笔进对应埋设章的 `ch{NNN}-outline.md` 的 `foreshadow-ops`（埋 / 强化 / 收 + 内容 + 计划回收章）；把"真实指向"和"误导效果"写进埋设说明，供后续 consistency 核对可逆推性。伏笔格式看 `outline-template`，不做全书总表。
+每根伏笔进对应埋设章的 `ch{NNN}-outline.md` 的 `foreshadow-ops`（埋 / 强化 / 收 + 内容 + 计划回收章）；把"真实指向"和"误导效果"写进埋设说明，供后续 consistency 核对可逆推性。伏笔格式看 `outline-template`。
 
 ## 自检
 

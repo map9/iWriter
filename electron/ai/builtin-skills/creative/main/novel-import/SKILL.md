@@ -1,30 +1,148 @@
 ---
 name: novel-import
-description: Load when bringing an EXISTING complete (or partial) manuscript into the workspace — the author has a finished novel/draft in a docx/odt/markdown file and wants to work on it here, or the workspace has manuscript prose but no settings/characters/outline behind it. The main agent orchestrates this directly. Covers confirming import boundaries with the author, the physical verbatim import, and reverse-extracting the settings/characters/outline from the prose.
+description: 导入已有完整或部分小说稿，或从工作区现有正文反向重建项目、世界、人物与三层提纲时使用；支持仅导入、仅重建和导入后重建。
 ---
 
-# novel-import
+# 小说导入
 
-Bringing prose that already exists into the project. Two distinct halves that must not be conflated:
-1. **Physical import** — get the source file's prose into `manuscript/ch{NNN}.md`, **verbatim**.
-2. **Reverse-extraction** — reconstruct the settings / characters / outline objects *from* that prose, so the project has the upstream it would normally have been built from.
+本任务处理已有正文，不创作或改写正文。它由两个可独立执行、也可组合的子任务构成：
 
-The main agent runs this directly (a subagent has no conversation channel, and import boundaries need the author).
+1. **物理导入**：将外部稿件机械转换、拆章并写入 `manuscript/`。
+2. **反向重建**：从 `manuscript/` 的可观察证据重建上游对象。
 
-## Entry
+正文是“实际写了什么”的事实来源；重建对象是对正文的结构化解释，必须经过作者确认。
 
-Enter when: the author asks to import a manuscript, OR routing sees `manuscript/` with prose but `worldbuilding.md` / `characters.md` / `master-outline.md` missing or thin. **Propose, don't auto-run** — importing and extracting are large operations.
+## 任务路由
 
-## The flow
+先确定一个模式：
 
-1. **Confirm the source and the boundaries with the author.** What file, what format, how chapters are delimited (which heading level = a chapter), what to keep vs. drop (front matter, appendices). Preparation is mechanical, not creative — see `references/source-preparation.md`. Don't guess boundaries; a wrong split silently mis-slices the whole book.
-2. **Detect boundaries, confirm, then import — verbatim.** Call `import_manuscript` with NO `boundaries` (dry-run): it returns heuristically-detected candidate chapter boundaries. Sample-check the low-confidence ones (read the text around those lines, not the whole book) and confirm the boundary list with the author. Then call `import_manuscript` again with `boundaries` = the confirmed line indices + `target_directory` (execute, approval-gated) — it splits and writes the chapters directly. The prose is **never rewritten or summarized** — it goes from Pandoc straight to disk. Existing same-named chapter files are overwritten, so check the target is empty or intended.
-3. **Reverse-extract the upstream objects** — distill settings / characters / outline from the imported prose. This is large and read-heavy, so **delegate it in batches** to general-purpose subagents (a subagent per batch of chapters); see `references/reverse-extraction.md`. Each batch returns evidence to `/large_tool_results/`, never writes objects.
-4. **Aggregate and confirm.** You reconstruct the **structure layer into `outline/`** (per `outline-template`, marked `status: draft`), and merge the **character/setting candidates into `exploration/`** — NOT into `characters/` / `worldbuilding/`. Those objects have no status field, and the extractions are the model's *reading* of the prose, not author-confirmed facts; writing them into the formal objects would fabricate a confirmed state. The author reviews the candidates in `exploration/` and promotes what they want later. The prose stays the source of truth.
+| 模式 | 适用场景 | 执行范围 |
+| --- | --- | --- |
+| `import-only` | 只把外部稿件放进工作区 | 物理导入与校验 |
+| `reconstruct-only` | 正文已在 `manuscript/`，上游对象缺失、过薄或失配 | 反向重建与正式化 |
+| `import-and-reconstruct` | 外部稿件导入后立即建立可维护的小说对象 | 完整流程 |
 
-## Red lines
+完整稿、单卷、连续章节或少量指定章节都可处理。作者只要求其中一项时，不自动扩大到另一项。
 
-- The imported prose is verbatim — never let it pass through the model to be re-emitted; that risks silent alteration and blows the token budget. Use `import_manuscript`, not `create_document` with copied text.
-- Chapter boundaries are confirmed with the author before writing, never guessed.
-- Reverse-extracted objects are proposals distilled from the prose; the author confirms them, and the prose — not the object — remains authoritative on conflict.
-- Import is a proposal too: never auto-run it on a routing hunch — surface it and let the author decide.
+## 输入契约
+
+开始前收齐会改变结果的输入；已有明确答案时不重复询问。
+
+### 通用输入
+
+- 模式与处理范围；
+- 作品输出语言；
+- 作者指定的固定事实、必须保留的命名与不可改动内容；
+- 已有正式对象的合并策略：只补空缺、逐项对照后更新，或另存候选；不得默认整文件替换。
+
+### 物理导入输入
+
+- 来源文件的绝对路径；
+- 目标 `manuscript/` 绝对路径与首章编号；
+- 哪些标题是章界，哪些只是卷界；
+- 章前内容和章后内容分别保留还是丢弃；
+- 同名文件策略：`reject`、`skip` 或 `overwrite`。
+
+机械整备与工具参数见 `references/source-preparation.md`。
+
+### 反向重建输入
+
+- 要读取的章节路径或连续范围；
+- 重建层次：章节事实卡、章纲、卷纲、总纲、项目、人物、世界；缺省为范围内完整重建；
+- 分卷策略：沿用明确卷界、按证据提出候选，或不建立卷纲；
+- 已有对象与正文冲突时的呈现和合并策略。
+
+## 工作流程
+
+按所选模式跳过不适用阶段。
+
+### A. 建立任务清单
+
+1. 列出来源、正文范围、目标编号和现有对象。
+2. 为本次任务建立唯一结果目录 `/large_tool_results/import_<slug>/`；不同来源或不同范围不得共用旧批次文件。
+3. 把已确认事实、待确认项、排除范围和合并策略写入任务清单。
+
+### B. 物理导入
+
+1. 调用 `import_manuscript` dry-run，分开查看章节、卷、前置与后置材料候选。
+2. 依据候选自带的上下文抽查误判、漏章、假标题与长距离无边界区段。
+3. 向作者提交一次完整映射供确认：`源标题/行号 → ch{NNN}.md`，另列卷界、章前/章后材料和碰撞策略。
+4. 作者确认后调用 execute；章界传 `boundaries`，需保留的卷标题传 `volume_boundaries` 并附到其后第一章。
+5. 逐项核对返回的 planned / written / skipped / overwritten 文件、首尾章标题和章节数。碰撞被拒绝或有空章时停止，不进入重建。
+
+这一步是机械保真，不让模型重新输出正文；但 Pandoc 转换可能改变源格式和边缘空白，不能声称字节级一致。
+
+### C. 自下而上提取证据
+
+按 `references/reverse-extraction.md` 分批读取正文。顺序固定为：
+
+1. 每章事实与场景因果；
+2. 章纲候选；
+3. 有证据时归并卷候选；
+4. 聚合全书故事线、结构节点、主题选择和人物弧光交汇；
+5. 最后从全书反推项目、稳定人物事实与稳定世界规则。
+
+批次只写 `/large_tool_results/import_<slug>/batch-{NNN}.md`，不直接写正式对象。
+
+### D. 作者确认重建结论
+
+主 agent 聚合批次证据，向作者呈现：
+
+- 可直接由正文支持的事实；
+- 需要作者裁定的解释性判断；
+- 正文内部矛盾、与现有对象冲突、别名和时间线问题；
+- 无法从正文可靠推出的缺口；
+- 是否建立卷纲及卷界候选；
+- 对现有正式对象的逐项新增、保留和变更建议。
+
+作者确认的是重建结论与合并决策，不是让模型替作者补齐无证据字段。未确认前，结论只留在本次结果目录；需要长期保留多个方向时才写 `exploration/`。
+
+### E. 自上而下正式化
+
+作者确认重建结论后，按依赖顺序写入或最小更新：
+
+1. `project.md`；
+2. `worldbuilding/` 与 `characters/`；
+3. `outline/master-outline.md`；
+4. 作者确认启用时的 `outline/vol{NN}-outline.md`；
+5. 范围内的 `outline/ch{NNN}-outline.md`。
+
+使用 `novel-workspace` 和相应 `*-template`；提纲先写 `status: draft`。已有内容按确认的合并策略处理，保留未涉及字段、批注和未知扩展。
+
+### F. 提纲终确认
+
+把正式化后的总纲、卷纲和章纲的关键因果链、卷章映射及未解决缺口交作者复核。只有作者明确确认的提纲才改为 `status: confirmed`；可按总纲、卷纲或章节范围分别确认，不能因为正文已经存在就自动确认。
+
+导入的既有正文允许先于章纲存在；之后使用 writer 新写或修改该章正文前，对应章纲仍须达到 `confirmed` 且可写。
+
+## 输出契约
+
+按模式产生以下输出：
+
+- **物理输出**：`manuscript/ch{NNN}.md`，以及作者选择保留时的 `front-matter.md`、`back-matter.md`；
+- **过程证据**：`/large_tool_results/import_<slug>/` 下的任务清单、批次证据、聚合结论和冲突清单；
+- **正式对象**：作者确认后更新的项目、世界、人物、总纲、可选卷纲和范围内章纲；
+- **交付摘要**：写入、跳过、覆盖、保留、待定、冲突和未覆盖范围。
+
+`import-only` 不生成上游对象；`reconstruct-only` 不调用物理导入；部分范围不得伪装成全书完整结论。
+
+## 质量门槛
+
+- 每个重建事实都能定位到章节和明确事件；关键解释记录置信度与反证。
+- 章纲能还原人物目标、主动阻力、转折、结果和因果交接，不是章节摘要。
+- 总纲能形成“决定 → 回应 → 不可逆变化 → 下一压力”的因果链，不是事件目录。
+- 人物稳定特征有跨场景行为支持；一次行为不直接上升为核心欲望、恐惧或性格。
+- 世界规则包含边界、成本或后果；背景名词堆积不算规则。
+- 项目的 premise、主题、读者承诺和叙事机器属于全书解释，必须由作者确认。
+- 正文、现有对象与重建判断冲突时显式摊开，不静默选择一个版本。
+
+即使没有外部增强 Skill，也必须完成以上提取、聚合和验收。专项 Skill 只在作者要求题材化识别或某个已命名维度需要深入时加载；它只能帮助解释证据，不能补造正文中不存在的事实，也不能改变本流程和作者确认权。
+
+## 红线
+
+- 不通过模型转述后再写入导入正文，不借导入任务润色原稿。
+- 未确认完整章界映射、前后材料与碰撞策略，不执行写入。
+- 不把卷标题、Part 或 Book 当作章节。
+- 不默认覆盖现有文件，不用 `skip` 制造未披露的章节缺口。
+- 批次分析不直接写正式对象，不把候选伪装成作者已确认事实。
+- 不用当前状态污染人物和世界的稳定定义，不按题材惯例补齐无证据内容。

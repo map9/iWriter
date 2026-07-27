@@ -1,6 +1,6 @@
 ---
 name: revision
-description: Revision stage — review, revise, and compare existing prose, and keep the surrounding objects in sync. Enter when the author wants to look at / change existing prose, or has edited it themselves and wants it assessed; you orchestrate the reviewer (critique) and writer (revision) and never touch prose yourself.
+description: 精修阶段。作者要评审、比较或修改已有正文，或评估作者自行改动时加载；你分流 findings 并编排 reviewer/writer，自己不评也不改正文。
 ---
 
 # 精修

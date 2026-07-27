@@ -19,6 +19,10 @@ function asOptionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value ? value : undefined
 }
 
+function asImportCollisionPolicy(value: unknown): 'reject' | 'skip' | 'overwrite' {
+  return value === 'skip' || value === 'overwrite' ? value : 'reject'
+}
+
 // Builds a creative review card from a creative-domain interrupt action. After the Phase 2
 // storybible tool retirement, the creative domain only interrupts on the write-session plan gate
 // (confirm_writing_plan) and the git tools; block edits are handled by the edit review surface.
@@ -113,6 +117,7 @@ export function buildCreativeReviewItemFromAction(
       sourcePath: asString(args.source_path),
       targetDirectory: asString(args.target_directory),
       chapterCount: Array.isArray(args.boundaries) ? args.boundaries.length : 0,
+      collisionPolicy: asImportCollisionPolicy(args.collision_policy),
       toolCallId,
       sourceMessageId,
       sourceTurnId,

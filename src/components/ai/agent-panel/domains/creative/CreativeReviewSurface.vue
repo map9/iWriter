@@ -107,6 +107,7 @@
         <div class="rounded-box bg-base-200 px-2 py-1.5">
           <div class="truncate"><span class="text-base-content/50">{{ t('agentPanel.creativeReview.importSource') }}</span> {{ currentReview.sourcePath }}</div>
           <div v-if="currentReview.targetDirectory" class="truncate"><span class="text-base-content/50">{{ t('agentPanel.creativeReview.importTarget') }}</span> {{ currentReview.targetDirectory }}</div>
+          <div v-if="currentReview.chapterCount > 0" class="truncate"><span class="text-base-content/50">{{ t('agentPanel.creativeReview.importCollisionPolicy') }}</span> {{ currentReview.collisionPolicy ?? 'reject' }}</div>
         </div>
       </div>
 

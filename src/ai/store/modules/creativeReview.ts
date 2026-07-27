@@ -62,6 +62,7 @@ function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, u
   return {
     source_path: review.sourcePath,
     ...(review.targetDirectory && { target_directory: review.targetDirectory }),
+    ...(review.collisionPolicy && { collision_policy: review.collisionPolicy }),
   }
 }
 

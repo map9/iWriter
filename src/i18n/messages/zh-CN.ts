@@ -1046,10 +1046,11 @@ export default {
       finalizeExternalEdits: '检测到自 Agent 最近一次应用以来存在非 Agent 改动（你的手动修改或外部修改）。拒绝回退会一并丢弃这些改动。',
       finalizeRejectConfirm: '拒绝将把章节回退到会话起点，自起点以来的全部改动（含你的手动修改）都会丢失，且不可撤销。确定回退吗？',
       finalizeRejectConfirmAction: '确定回退',
-      importWarning: '将直接写入 {count} 个章节文件到目标文件夹，同名文件会被覆盖。',
+      importWarning: '将按已确认的边界方案写入 {count} 个章节文件；同名目标按下方碰撞策略处理。',
       importDryRun: '扫描来源、探测候选章节边界，不写入任何文件。',
       importSource: '来源：',
       importTarget: '写入：',
+      importCollisionPolicy: '同名处理：',
     },
     creativeSummary: {
       summary: {

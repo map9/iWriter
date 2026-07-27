@@ -1,6 +1,6 @@
 ---
 name: drafting
-description: Drafting stage — turn a confirmed chapter outline into chapter prose. Enter when the author wants to write a chapter's prose; you orchestrate the writer (prose) and reviewer (critique) and never touch prose yourself.
+description: 正文撰写阶段。作者要把已确认章纲写成章节正文时加载；你编排 writer 与 reviewer，自己不写也不评正文。
 ---
 
 # 草稿

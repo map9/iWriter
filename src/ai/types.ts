@@ -408,14 +408,16 @@ export interface CreativeChapterFinalizeReviewItem extends BaseCreativeReviewIte
   hasExternalEdits?: boolean
 }
 
-// FR-14.3: approval gate for import_manuscript. Dry-run (no boundaries) scans; execute (boundaries
-// given) writes chapter files. chapterCount = number of confirmed boundaries (0 ⇒ dry-run scan).
+// Approval gate for import_manuscript. Dry-run (no boundaries) scans; execute (boundaries
+// given) writes the confirmed file plan. chapterCount = number of chapter boundaries
+// (0 ⇒ dry-run scan). collisionPolicy is optional for persisted legacy review items.
 export interface CreativeManuscriptImportReviewItem extends BaseCreativeReviewItem {
   kind: 'creative_manuscript_import'
   toolName: 'import_manuscript'
   sourcePath: string
   targetDirectory: string
   chapterCount: number
+  collisionPolicy?: 'reject' | 'skip' | 'overwrite'
 }
 
 export type CreativeReviewItem =

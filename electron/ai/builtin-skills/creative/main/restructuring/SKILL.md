@@ -1,27 +1,55 @@
 ---
 name: restructuring
-description: Load when the author wants a structural change to existing prose that reaches across chapters — cutting/merging/reordering scenes or chapters, renaming or reworking a character/place/rule, moving a plot thread. The main agent runs this directly. It does a one-time global pre-check, packages the whole plan for one author confirmation, then delegates the per-chapter rewrite. Not for a single in-chapter prose polish (that is revision).
+description: 跨章节删并重排场景、改角色/地点/规则或移动故事线时加载；你先一次性预检完整影响面，再统一确认并逐章委派，单章局部精修不使用。
 ---
 
-# restructuring
+# 跨章重构
 
-A structural change that spans more than one chapter — a rename, a cut, a reorder, a thread that moves. The main agent runs this directly. The danger is applying a change to some references and not others, and discovering conflicts mid-rewrite. So the flow is **one-time pre-check up front → one author confirmation → then rewrite** — never write-as-you-discover with scattered interruptions.
+处理影响多个章节的结构变化。核心风险是只改到部分引用，或边改边发现新冲突。流程固定为：一次性全局预检 → 一次作者确认 → 按对象和章节执行。
 
-## The flow
+## 入口
 
-1. **One-time global pre-check (before touching anything).** Two reads, together:
-   - Load `structural-pacing-diagnosis` and scan the whole affected span for what the restructure breaks or unbalances (pressure build/release, sagging middle, thin climax).
-   - Build the complete **impact surface** with `find_references`: read the target object's file (character/worldbuilding) to gather **all** its aliases first, pass the object plus every alias as `names`, scan the relevant directory. Check `names_with_no_hits` — an alias that hit nothing may be unused or spelled differently; verify before trusting the list is complete. A missing alias means a hole in the blast radius.
-2. **Package it all into ONE author confirmation.** Summarize every potential conflict / imbalance / affected file into a single request via `confirm_writing_plan` (a restructure plan IS a writing plan; attach the global conflict list and the impact surface). Structural change is the author's call — surface the radius, don't decide it. If it touches confirmed outline or beats, that is an outline/beat change (`ideation-outline` / `drafting`) — fold it into the plan for confirmation.
-3. **After the author confirms, fix a baseline first.** Suggest a `git_commit` to capture the pre-restructure state — this is the highest-value rollback point. Then:
-   - Outline changes go through `ideation-outline` (normal block-edit approval).
-   - Prose rewrite is delegated **per chapter** to the `writer`, each brief **referencing the already-approved plan** — do NOT repeat `confirm_writing_plan` per chapter; each chapter opens its own write-session (naming the affected chapters as `target_files`).
-4. **Check the causal chain.** Load `scene-and-plot-construction` to verify the reordering did not break plot cause-and-effect.
-5. Finalize each chapter, then remind the author to run a **consistency check** across the changed chapters plus what they reference (a restructure is exactly the commit-reminder trigger in `revision`) — not the whole book.
+适用于：
 
-## Red lines
+- 删除、合并或重排多个场景/章节；
+- 改名或重做一个被多章引用的角色、地点、物品或世界规则；
+- 移动、合并或删除跨章故事线；
+- 任何无法在单章声明范围内完成的结构变化。
 
-- A structural change requires the **one-time pre-check + author confirmation up front** — never write-as-you-discover with scattered interruptions.
-- Never apply a cross-chapter change without mapping the full reference set first — a partial application is worse than none.
-- Structural change to outline/beats is confirmed through the authoring flows before any prose is rewritten; it is never a silent side effect.
-- The impact radius is shown to the author; you never adjudicate a structural creative decision for them.
+单章内不改变结构的正文精修走 `revision`。
+
+## 一次性预检
+
+动笔前一起完成：
+
+1. 加载 `structural-pacing-diagnosis`，检查受影响范围的压力累积/释放、段落职责、高潮与中段平衡。
+2. 用 `find_references` 建完整影响面：
+   - 先读目标对象，收集全部姓名、别名和旧称；
+   - 将所有名称作为 `names` 扫描相关目录；
+   - 检查 `names_with_no_hits`，对零命中别名换实际措辞复核；
+   - 汇总受影响文件、结构节点、人物弧光、伏笔和连续性义务。
+
+预检阶段不写任何对象或正文。
+
+## 确认与执行
+
+1. 将重构目标、完整影响面、潜在冲突、节奏变化和回滚风险合并成一次计划，通过 `confirm_writing_plan` 交作者确认。
+2. 触及 confirmed 提纲或 beat 时，把对应上游变化一并列入计划；不能作为正文改写的副作用。
+3. 作者确认后建议先 `git_commit` 固定重构前基线；未经明确同意不提交。
+4. 提纲变化走 `ideation-outline`。
+5. 正文按章节委托 writer。每章 brief 引用同一份已批准重构计划，但仍为目标章节打开自己的 write-session；不为同一总计划反复要求作者确认。
+6. 加载 `scene-and-plot-construction`，检查重排后的原因—决定—后果链。
+7. 每章分别 `finalize_chapter`。完成后提醒作者对“改动章 + find_references 影响面”运行 consistency，不自动扫全书。
+
+## 交付
+
+- 重构前：完整影响面和统一计划。
+- 重构中：逐章状态与无法在批准范围内解决的新增缺口。
+- 重构后：文件结果、未处理影响和建议的一致性检查范围。
+
+## 红线
+
+- 没有一次性预检和作者确认，不开始跨章写入。
+- 没有收集全部别名，不宣称影响面完整。
+- 不边写边扩张计划；出现新范围先停止并补充确认。
+- 不替作者裁决结构取舍，只呈现影响、代价和推荐。
