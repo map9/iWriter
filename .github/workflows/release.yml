@@ -183,6 +183,53 @@ jobs:
         with:
           path: release-assets
 
+      - name: Verify update manifest assets
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          import path from 'node:path'
+
+          const assetRoot = 'release-assets'
+
+          function walk(directory) {
+            return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+              const entryPath = path.join(directory, entry.name)
+              return entry.isDirectory() ? walk(entryPath) : [entryPath]
+            })
+          }
+
+          const files = walk(assetRoot)
+          const assetNames = new Set(files.map(file => path.basename(file)))
+          const manifests = files.filter(file => /^latest.*\.ya?ml$/i.test(path.basename(file)))
+          const missing = []
+
+          for (const manifest of manifests) {
+            const content = fs.readFileSync(manifest, 'utf8')
+            const references = content
+              .split(/\r?\n/)
+              .map(line => line.match(/^\s*(?:-\s*)?(?:url|path):\s*['"]?(.+?)['"]?\s*$/)?.[1])
+              .filter(Boolean)
+
+            for (const reference of new Set(references)) {
+              const assetName = path.basename(reference)
+              if (!assetNames.has(assetName)) {
+                missing.push(`${path.relative(assetRoot, manifest)} -> ${assetName}`)
+              }
+            }
+          }
+
+          if (!manifests.length) {
+            throw new Error('No update manifests found in release-assets')
+          }
+
+          if (missing.length) {
+            throw new Error(`Update manifests reference missing assets:\n${missing.join('\n')}`)
+          }
+
+          console.log(`Verified ${manifests.length} update manifests against ${assetNames.size} release assets.`)
+          NODE
+
       - name: Generate release notes from changelog
         run: node scripts/extract-release-notes.mjs --version "${GITHUB_REF_NAME#v}" --output release-notes.md
 
