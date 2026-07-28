@@ -1,12 +1,13 @@
-import { Editor } from '@tiptap/core'
+import type { Editor } from '@tiptap/core'
 import { marked } from 'marked'
 import type { Tokens } from 'marked'
-import TurndownService from 'turndown'
-import { gfm } from '@guyplusplus/turndown-plugin-gfm'
 import { renderInlineMathHtml, renderBlockMathHtml } from '@/utils/mathDelimiters'
-import { configureAlertTurndown, transformAlertBlockquotesInHtml } from '@/utils/markdownAlerts'
+import { transformAlertBlockquotesInHtml } from '@/utils/markdownAlerts'
+import { htmlToMarkdown } from './markdownSerializer'
 
 import { TEXT_MD_EXTENSIONS, TEXT_TXT_EXTENSIONS, TEXT_IWT_EXTENSIONS, CODE_EXTENSIONS } from '@/types'
+
+export { htmlToMarkdown } from './markdownSerializer'
 
 const iwtVersion = '1.0.0'
 
@@ -62,37 +63,6 @@ marked.use({
       renderer: mathRenderer(renderInlineMathHtml),
     },
   ],
-})
-
-// Initialize markdown parser and converter
-const turndownService = new TurndownService({
-  headingStyle: 'atx',
-  codeBlockStyle: 'fenced',
-  br: '<br>',
-})
-/*
-strikethrough (for converting <strike>, <s>, and <del> elements)
-tables
-taskListItems
-gfm (which applies all of the above)
-*/
-turndownService.use(gfm)
-configureAlertTurndown(turndownService)
-turndownService.addRule('inlineMath', {
-  filter: (node) =>
-    node.nodeName === 'SPAN' && (node as HTMLElement).getAttribute('data-type') === 'inline-math',
-  replacement: (_content, node) => {
-    const latex = (node as HTMLElement).getAttribute('data-latex') ?? ''
-    return `$${latex}$`
-  },
-})
-turndownService.addRule('blockMath', {
-  filter: (node) =>
-    node.nodeName === 'DIV' && (node as HTMLElement).getAttribute('data-type') === 'block-math',
-  replacement: (_content, node) => {
-    const latex = (node as HTMLElement).getAttribute('data-latex') ?? ''
-    return `\n\n$$\n${latex}\n$$\n\n`
-  },
 })
 
 function detectLineEnding(text: string): 'LF' | 'CRLF' {
@@ -191,12 +161,6 @@ export async function convertContentFrom(content: string, extension: string) {
   }
 }
 
-/** Convert HTML string to Markdown using the shared turndown instance (GFM-enabled). */
-export function htmlToMarkdown(html: string): string {
-  return turndownService.turndown(html)
-}
-
- 
 export function convertContentTo(editorInstance: Editor, extension: string, lineEnding: 'LF' | 'CRLF' = 'LF'): string | null {
   if (!editorInstance) return null
 
@@ -208,7 +172,7 @@ export function convertContentTo(editorInstance: Editor, extension: string, line
     //return renderToMarkdown({ content: json, extensions: editor.extensionManager.extensions })
     // 方案二，采用turndown来转换
     const html = editorInstance.getHTML()
-    return applyLineEnding(turndownService.turndown(html), lineEnding)
+    return applyLineEnding(htmlToMarkdown(html), lineEnding)
   // @ts-expect-error don't report error
   } else if (TEXT_IWT_EXTENSIONS.includes(extension)) {
     // Store as JSON + HTML for iWriter files

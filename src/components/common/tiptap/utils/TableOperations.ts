@@ -3,7 +3,7 @@ import { findParentNodeClosestToPos } from '@tiptap/core'
 import { Node as PMNode } from '@tiptap/pm/model'
 import { type EditorState, TextSelection } from '@tiptap/pm/state'
 import { cellAround, moveTableColumn, moveTableRow, TableMap } from '@tiptap/pm/tables'
-import { htmlToMarkdown } from '@/import-export/formatConverter'
+import { htmlToMarkdown } from '@/import-export/markdownSerializer'
 
 /**
  * 表格操作工具函数

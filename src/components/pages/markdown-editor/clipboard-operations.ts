@@ -1,34 +1,7 @@
 import type { Editor } from '@tiptap/vue-3'
 import { generateHTML } from '@tiptap/core'
-import TurndownService from 'turndown'
-import { gfm } from '@guyplusplus/turndown-plugin-gfm'
+import { htmlToMarkdown } from '@/import-export/markdownSerializer'
 import { notify } from '@/utils/notifications'
-import { configureAlertTurndown } from '@/utils/markdownAlerts'
-
-// Initialize turndown service for HTML to Markdown conversion
-const turndownService = new TurndownService({
-  headingStyle: 'atx',
-  codeBlockStyle: 'fenced',
-  br: '<br>',
-})
-turndownService.use(gfm)
-configureAlertTurndown(turndownService)
-turndownService.addRule('inlineMath', {
-  filter: (node) =>
-    node.nodeName === 'SPAN' && (node as HTMLElement).getAttribute('data-type') === 'inline-math',
-  replacement: (_content, node) => {
-    const latex = (node as HTMLElement).getAttribute('data-latex') ?? ''
-    return `$${latex}$`
-  },
-})
-turndownService.addRule('blockMath', {
-  filter: (node) =>
-    node.nodeName === 'DIV' && (node as HTMLElement).getAttribute('data-type') === 'block-math',
-  replacement: (_content, node) => {
-    const latex = (node as HTMLElement).getAttribute('data-latex') ?? ''
-    return `\n\n$$\n${latex}\n$$\n\n`
-  },
-})
 
 /**
  * 获取选中内容的HTML
@@ -111,7 +84,7 @@ export async function copyAsMarkdown(editor: Editor): Promise<boolean> {
     }
 
     // 将HTML转换为Markdown
-    const markdownContent = turndownService.turndown(selectedHTML)
+    const markdownContent = htmlToMarkdown(selectedHTML)
 
     // 使用ClipboardItem支持多种格式
     const clipboardItem = new ClipboardItem({
