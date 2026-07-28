@@ -1,8 +1,7 @@
 diff --git a/node_modules/@tiptap/extension-invisible-characters/dist/index.cjs b/node_modules/@tiptap/extension-invisible-characters/dist/index.cjs
-index 4d32ecc..bf85b4f 100644
 --- a/node_modules/@tiptap/extension-invisible-characters/dist/index.cjs
 +++ b/node_modules/@tiptap/extension-invisible-characters/dist/index.cjs
-@@ -190,7 +190,6 @@ var createDecorationWidget = (pos, type, content) => {
+@@ -189,7 +189,6 @@ var createDecorationWidget = (pos, type, content) => {
    };
    return import_view2.Decoration.widget(pos, createElement, {
      key: type,
@@ -11,10 +10,9 @@ index 4d32ecc..bf85b4f 100644
    });
  };
 diff --git a/node_modules/@tiptap/extension-invisible-characters/dist/index.js b/node_modules/@tiptap/extension-invisible-characters/dist/index.js
-index b282853..dc18646 100644
 --- a/node_modules/@tiptap/extension-invisible-characters/dist/index.js
 +++ b/node_modules/@tiptap/extension-invisible-characters/dist/index.js
-@@ -158,7 +158,6 @@ var createDecorationWidget = (pos, type, content) => {
+@@ -157,7 +157,6 @@ var createDecorationWidget = (pos, type, content) => {
    };
    return Decoration.widget(pos, createElement, {
      key: type,
@@ -23,7 +21,6 @@ index b282853..dc18646 100644
    });
  };
 diff --git a/node_modules/@tiptap/extension-invisible-characters/src/plugin/utils/create-decoration-widget.ts b/node_modules/@tiptap/extension-invisible-characters/src/plugin/utils/create-decoration-widget.ts
-index 2d2950a..59e7fbc 100644
 --- a/node_modules/@tiptap/extension-invisible-characters/src/plugin/utils/create-decoration-widget.ts
 +++ b/node_modules/@tiptap/extension-invisible-characters/src/plugin/utils/create-decoration-widget.ts
 @@ -16,7 +16,6 @@ export const createDecorationWidget = (pos: number, type: string, content?: stri
