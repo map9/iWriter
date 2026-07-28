@@ -10,7 +10,7 @@
     </div>
     
     <!-- Content -->
-    <div class="flex flex-1 flex-col justify-top p-2 gap-2">
+    <div class="flex flex-1 flex-col justify-top px-4 pt-7 gap-2">
         <p class="text-left text-sm text-base-content/50">{{ t('sidebar.noFolderOpened.description') }}</p>
         <button
           @click="appStore.openFolder()"
