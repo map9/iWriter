@@ -32,6 +32,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify tag commit is contained in main
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          TAG_COMMIT="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
+          if ! git merge-base --is-ancestor "${TAG_COMMIT}" refs/remotes/origin/main; then
+            echo "Tag ${GITHUB_REF_NAME} is not contained in origin/main."
+            exit 1
+          fi
+
   build-macos:
     name: Build macOS
     runs-on: macos-latest

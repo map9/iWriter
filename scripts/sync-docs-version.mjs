@@ -3,6 +3,7 @@ import path from 'node:path'
 
 const rootDir = path.resolve(import.meta.dirname, '..')
 const packageJsonPath = path.join(rootDir, 'package.json')
+const readmePath = path.join(rootDir, 'README.md')
 const docsDir = path.join(rootDir, 'docs')
 const changelogPath = path.join(docsDir, 'changelog.md')
 const homePagePath = path.join(docsDir, 'index.md')
@@ -52,6 +53,13 @@ homePageContent = homePageContent.replace(
   `最后更新：${today}`
 )
 fs.writeFileSync(homePagePath, homePageContent)
+
+let readmeContent = fs.readFileSync(readmePath, 'utf8')
+readmeContent = readmeContent.replace(
+  /> 当前版本：`[^`]+`/g,
+  `> 当前版本：\`${version}\``
+)
+fs.writeFileSync(readmePath, readmeContent)
 
 console.log(
   `Synced docs version metadata to ${version} (${today})${finalizeRelease ? ' and finalized changelog.' : '.'}`

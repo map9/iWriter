@@ -34,7 +34,7 @@
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
     "type-check": "vue-tsc --noEmit && tsc --noEmit -p tsconfig.electron.json",
     "verify:langchain-patches": "node scripts/verify-langchain-patches.mjs",
-    "version": "node scripts/sync-docs-version.mjs --finalize-release && git add package.json package-lock.json docs"
+    "version": "node scripts/sync-docs-version.mjs --finalize-release && git add package.json package-lock.json README.md docs"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
