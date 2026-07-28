@@ -3,7 +3,7 @@
     <div class="flex flex-1 items-center justify-center">
       <div class="max-w-xl text-center p-3">
         <div class="mb-8">
-          <IconFileText class="size-20 mx-auto mb-4 text-primary" />
+          <img src="/iwriter.svg" alt="" class="size-20 mx-auto mb-4" />
           <h1 class="text-xl font-semibold tracking-tight text-base-content mb-2">{{ t('welcomePage.title') }}</h1>
           <p class="text-md text-base-content/50">{{ t('welcomePage.desc') }}</p>
         </div>
@@ -43,7 +43,6 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { DocumentType } from '@/types'
 import { 
-  IconFileText, 
   IconPlus, 
   IconFolderOpen, 
   IconFolder
