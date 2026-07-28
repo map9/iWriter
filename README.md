@@ -1,7 +1,7 @@
 # iWriter
 
-> 当前版本：`0.1.23`
-> 最后更新：2026-07-01
+> 当前版本：`0.1.24`
+> 最后更新：2026-07-27
 > 官网与文档：<https://map9.github.io/iWriter/>
 
 本 README 是项目概览与开发入口。完整用户指南、下载说明、更新日志和故障排查请查看上方文档站点。
@@ -11,6 +11,8 @@
 - 文档首页：<https://map9.github.io/iWriter/>
 - 下载与安装：<https://map9.github.io/iWriter/download>
 - 快速开始：<https://map9.github.io/iWriter/quick-start>
+- Git 源代码管理：<https://map9.github.io/iWriter/docs/source-control>
+- Creative 小说创作：<https://map9.github.io/iWriter/docs/ai-creative-mode>
 - 更新日志：<https://map9.github.io/iWriter/changelog>
 - GitHub Releases：<https://github.com/map9/iWriter/releases>
 
@@ -18,30 +20,21 @@
 
 iWriter 是一个本地文件优先的跨平台 AI 写作与文档工作台，基于 Electron + Vue 3 + TypeScript 构建。
 
-当前版本聚焦五类能力：
+当前版本聚焦六类能力：
 
 - 本地工作区管理：文件树、标签页、跨文件搜索、外部变更监听、忽略规则。
 - 富文本 / Markdown 写作：TipTap 编辑器、斜杠菜单、表格、图片、数学公式、mermaid 图和 TOC。
+- Git 版本控制：Source Control、Diff、冲突合并、分支、远程、Graph、Timeline、Stash 与 Tags。
 - 多格式查看与转换：图片、PDF、Office 预览，Pandoc 导入 / 导出。
 - Markdown 主题、打印与 PDF 输出：屏幕 / 打印主题、自定义 CSS 主题、分页预览、N-up 打印。
-- AI 辅助写作与编辑：Edit / Creative / Minimal 三模式，多 Provider，提案审批后落地。
+- AI 辅助写作与编辑：Edit / Creative 两种模式，多 Provider，提案审批与整章写作会话。
 
-## 设计定位（阶段）
+## 当前定位
 
-### 第一阶段
-
-- 对标 Joplin 等 Markdown 写作工具
-- 目标人群与 Joplin 的核心用户群体相近（本地文件优先、长期写作/笔记管理需求）
-
-### 第二阶段（已基本完成，可使用）
-
-- 在第一阶段能力上，加入 AI 辅助写作与编辑
-- 已具备可用的 AI 对话、提案式编辑与审批流
-
-### 第三阶段（双分支）
-
-- `3.1` AI 支持下的个人知识库管理：未启动
-- `3.2` AI 支持下的小说创作与写作：正在开始
+- 本地文件优先的 Markdown / 富文本写作与知识工作区
+- 标准 Git 仓库的版本管理与源码 Diff
+- AI Edit 的研究、块级编辑和提案审批
+- AI Creative 的纯 Markdown 小说项目、三层提纲、正文写作、评审、重构与导入
 
 ## 当前能力总览
 
@@ -53,8 +46,8 @@ iWriter 是一个本地文件优先的跨平台 AI 写作与文档工作台，�
 - 支持自动保存、另存为、全部保存和只读模式
 - 支持外部文件变更监听并同步到文件树
 - 支持跨文件全文搜索与替换，并可通过 include / exclude 模式过滤范围
-- 支持 `.iwtignore` 工作区忽略规则，也可将工作区根目录的 `.gitignore` 纳入过滤
-- 默认过滤 `.git/`、`.DS_Store`、`._*`、`__MACOSX` 等版本控制与系统元数据；依赖目录、构建产物和缓存目录可按工作区需要加入 `.iwtignore` 或 `.gitignore`
+- 支持 `.iwtignore` 工作区忽略规则，可分别选择 Explorer、搜索和文件监听是否复用 `.gitignore`
+- 默认过滤 `.git/`、`.iwriter/`、`.DS_Store`、`._*`、`__MACOSX` 等工程态与系统元数据
 - 资源管理器与标签页右键菜单支持复制路径、定位文件、关闭其他标签、关闭已保存标签等操作
 - Windows / Linux 使用应用内标题栏窗口按钮和应用菜单，macOS 保留系统菜单栏与交通灯窗口按钮
 
@@ -62,7 +55,7 @@ iWriter 是一个本地文件优先的跨平台 AI 写作与文档工作台，�
 
 - 支持 Markdown 语法输入与所见即所得富文本编辑混用
 - 支持标题、粗斜体、下划线、删除线、高亮、链接、行内代码、引用、任务列表、有序 / 无序列表
-- 支持表格、数学公式、代码块、mermaid 图、分隔线、图片等结构内容
+- 支持表格、数学公式、代码块、mermaid 图、GFM Alerts、分隔线、图片等结构内容
 - 支持通过 `/` 打开斜杠菜单，快速插入标题、列表、引用、代码块、数学公式、mermaid 图、表格和图片
 - 图片支持尺寸拖拽、路径 / URL 编辑、复制、外部打开，以及左 / 中 / 右 / 两端对齐
 - 代码块语言列表可在常用语言与全部支持语言之间切换
@@ -74,9 +67,20 @@ iWriter 是一个本地文件优先的跨平台 AI 写作与文档工作台，�
 - TOC（目录）联动与定位
 - 支持 Clean Mode、Focus Mode、Typewriter Mode
 
-### 3) Markdown 主题系统
+### 3) Git 源代码管理
 
-- 内置四套主题：`github`（技术文档）、`github-dark`（深色模式）、`prose`（通用文章）、`novel`（长文书稿）
+- 标准 Git 仓库检测、初始化和克隆
+- Changes / Staged / Untracked / Merge Changes 分组，list / tree 两种视图
+- 文件、目录、整组和 hunk 级 stage / unstage / discard
+- Commit、Commit All、Amend、撤销上次提交和提交身份引导
+- 分支创建、重命名、切换、合并、删除、发布及操作前预检
+- Remote 管理、Fetch / Pull / Push / Sync、Stash 与 autostash
+- 可编辑 Diff 标签页、冲突合并视图、仓库 Graph、文件 Timeline 和 Tags
+- Explorer 与状态栏 Git 装饰、分支、领先 / 落后和同步进度
+
+### 4) Markdown 主题系统
+
+- 内置五套主题：`system`（跟随应用）、`github`、`github-dark`、`prose`、`novel`
 - 屏幕主题与打印主题可独立选择，打印主题可选"跟随屏幕主题"
 - 每套内置主题包含屏幕 CSS、打印 CSS，以及页面设置/分页策略/页眉页脚的默认值
 - 支持自定义 CSS 主题：将主题文件夹放入 `~/.iwriter/markdown/themes/`，App 自动发现并热更新
@@ -84,7 +88,7 @@ iWriter 是一个本地文件优先的跨平台 AI 写作与文档工作台，�
 - 提供 30+ CSS 变量控制排版、颜色、标题、列表、引用、表格、代码块等元素样式
 - 支持 Create Example 一键生成示例主题，帮助快速上手
 
-### 4) 打印、PDF 与导出
+### 5) 打印、PDF 与导出
 
 **打印与 PDF：**
 - 基于 paged.js 分页渲染，打印对话框提供实时预览
@@ -101,7 +105,7 @@ iWriter 是一个本地文件优先的跨平台 AI 写作与文档工作台，�
 - 每种导出格式可独立配置自定义参数、参考文档、CSS 样式等
 - 导出目录、Pandoc 路径、导出后动作可在偏好设置中配置
 
-### 5) 多类型文档查看
+### 6) 多类型文档查看
 
 - 图片查看器：缩放、旋转、拖拽平移、适配窗口
 - PDF 查看器：连续 / 单页 / 双页模式，缩放，跳页，懒加载渲染
@@ -110,24 +114,24 @@ iWriter 是一个本地文件优先的跨平台 AI 写作与文档工作台，�
 - `.docx` 可从 Office 预览页或标签页右键菜单导入为 Markdown 草稿
 - 不支持类型会进入 `Unknown` 页面兜底
 
-### 6) AI 能力
+### 7) AI 能力
 
 - 会话线程持久化（SQLite Checkpointer）
-- 三种模式：
-  - `Edit`：面向文档编辑和改写，支持提案审批流
-  - `Creative`：面向长线小说创作，支持规划、起草、一致性检查、叙事方向探索和 StoryBible 维护
-  - `Minimal`：轻量对话模式，不加载业务工具链
+- 两种模式：
+  - `Edit`：面向文档和知识库的读取、搜索、研究与 block-aware 提案编辑
+  - `Creative`：面向纯 Markdown 小说项目，支持创意与提纲、正文撰写、精修、跨章重构、小说导入和风格蒸馏
 - Edit 模式支持 proposal/HITL 审批：
   - 模型先提出编辑提案（编辑、插入、删除、范围替换、新建文档、文件操作等）
   - 用户可逐项或整批接受 / 拒绝，也可在提案中直接编辑内容
   - 支持“定位原文”切换到目标文档并高亮对应位置
   - 审批后再落地到文档
-- Creative 模式的写文件、章节管理、git commit / tag 等操作也需要作者明确审批
+- Creative 使用 Writer / Reviewer 子 Agent；正文先确认写作意图，在授权章节内累积修改，最后以整章差异接受、返工或回滚
+- Creative 的项目对象、文件操作与 git commit / tag 等操作需要作者明确审批
 - 支持上下文附件：文本文件、目录、图片、PDF
-- 支持输入压缩（compact input）与上下文 token 统计
+- 支持上下文 token 统计、自动摘要阈值进度与 DeepAgents 长会话自动压缩
 - 支持显示真实 token 用量，包含主 Agent、子 Agent 和缓存命中统计
 
-### 7) AI Provider 与模型配置
+### 8) AI Provider 与模型配置
 
 内置 Provider 预设（可在偏好设置中配置 API Key / Base URL / Model）：
 
@@ -143,11 +147,11 @@ iWriter 是一个本地文件优先的跨平台 AI 写作与文档工作台，�
 - 支持备用模型、模型能力 JSON 配置和部分 Provider 的模型列表读取
 - Web Search 支持 Bocha、Exa、Serper、Tavily，可为 AI 工具调用提供搜索结果
 
-### 8) 界面与体验
+### 9) 界面与体验
 
-- 左侧栏：Explorer / Search / Tag / TOC
+- 左侧栏：Explorer / Search / Source Control / Tag / TOC
 - 右侧栏：AI Agent 面板（历史会话 + 当前会话）
-- 状态栏：文件统计、更新状态等
+- 状态栏：文件统计、Git 分支 / 同步 / 变更数、更新状态等
 - 视图模式：Clean Mode / Focus Mode / Typewriter Mode
 - 主题系统：内置 Markdown 主题 + 自定义 CSS 主题 + 应用 UI 主题 + 系统主题跟随
 - 打印与导出：打印预览对话框 + 偏好设置中的打印/导出默认值配置
@@ -158,6 +162,7 @@ iWriter 是一个本地文件优先的跨平台 AI 写作与文档工作台，�
 
 - `TagPanel` 目前仍是示例标签数据，不是完整标签索引系统
 - AI 编辑与 Creative 写入是“提案 / 操作审批后执行”，不是模型直接无确认写盘
+- Source Control 使用系统安装的 Git，当前以工作区根目录作为单一仓库根
 - 导入 / 导出功能依赖系统安装 Pandoc（[pandoc.org](https://pandoc.org/)），未安装时功能不可用
 - Office 预览依赖系统安装 LibreOffice；未检测到时会显示安装指引，并保留“用系统应用打开”的备用入口
 - 自动更新仅在生产环境启用（开发环境关闭）

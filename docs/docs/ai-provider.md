@@ -2,7 +2,7 @@
 
 > 适用版本：iWriter `0.1.24`
 >
-> 最后更新：2026-07-01
+> 最后更新：2026-07-27
 
 ## 支持的 Provider 预设
 
@@ -38,6 +38,10 @@ AI 设置页左侧分为 **Providers** 与 **Web Search** 两组。Providers 用
 对于自定义 Provider，可以用 JSON 配置每个模型的能力，例如最大输入 / 输出 token、是否支持 reasoning 输出、工具调用、工具选择和结构化输出。配置后，模型选择器和 AI 运行时会按能力决定可用模式与回退策略。
 
 备用模型是可选项。当主模型调用失败且备用模型可用时，iWriter 会尝试切换到备用模型继续任务，并在界面中提示。
+
+当前版本不再暴露 Temperature、Top P、Frequency Penalty 和 Presence Penalty 等采样参数。不同 Provider 与推理模型对这些参数的支持差异较大，iWriter 让模型接口使用自身默认策略。
+
+模型提供上下文 profile 时，AI 面板会显示基于该 profile 的自动摘要阈值和模型上限；自定义模型没有 profile 时使用 DeepAgents 的默认 token 阈值。该圆环是只读状态，不是手动压缩按钮。
 
 ## Web Search 配置
 

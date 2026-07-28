@@ -17,7 +17,7 @@ iWriter 的 AI 运行时已经切换到：
 | 模式 | 目标 | 可用能力 |
 | --- | --- | --- |
 | `Edit` | 通用文档创建/编辑与个人知识库管理：先读后改的文档编辑、研究整理、写作 | document/search/web/PDF tools + edit proposal tools |
-| `Creative` | 小说创作 / 世界观 / 人设 / 故事线 | skills + story asset tools + backend |
+| `Creative` | 小说项目、提纲、正文、评审、重构与导入 | skills + writer/reviewer subagents + document/filesystem/git tools |
 
 说明：
 
@@ -45,14 +45,18 @@ iWriter 的 AI 运行时已经切换到：
 
 ### 工具层
 
-- `electron/ai/tools/DocumentTools.ts`
+- `electron/ai/tools/common/DocumentTools.ts`
   读取活动文档或指定文件的 block-aware 工具，含文档/章节/目录内容搜索
-- `electron/ai/tools/EditProposalTools.ts`
+- `electron/ai/tools/common/EditProposalTools.ts`
   生成需要审批的文档编辑 proposal
-- `electron/ai/tools/WebTools.ts`
+- `electron/ai/tools/common/WebTools.ts`
   `web_search` / `fetch_url`，网页搜索与抓取
-- `electron/ai/tools/PdfTools.ts`
+- `electron/ai/tools/common/PdfTools.ts`
   只读 PDF 大纲/分页读取工具
+- `electron/ai/tools/common/GitTools.ts`
+  Edit / Creative 共用的 Git 状态、历史、提交、标签和恢复工具
+- `electron/ai/tools/creative/`
+  Creative 写作会话确认、整章收尾、引用影响面与小说导入工具
 
 ### Renderer AI Domain
 
@@ -112,41 +116,51 @@ Edit 模式当前可用工具：
 
 ## Creative 模式
 
-Creative 模式用于小说辅助创作，不直接承担正文 block 编辑。
+Creative 模式是工作区限定的小说创作域，采用纯 Markdown 对象模型，不再使用单一 StoryBible、CreativeDb 或旧 story asset tools。
 
-当前内置能力：
+正式对象位于工作区根目录：
 
-- `list_story_assets`
-- `read_story_asset`
-- `save_story_asset`
-- 内置 skills：
-  - `novel-brainstorm`
-  - `worldbook-planner`
-  - `character-forge`
-  - `storyline-architect`
+- `project.md`
+- `worldbuilding/`
+- `characters/`
+- `outline/`（总纲 / 卷纲 / 章纲）
+- `manuscript/`
+- `materials/`
+- `process/`
+- `exploration/`
+- `styles/`
 
-Creative 模式的核心目标是生成和维护项目级资产，例如：
+主 Agent 按每轮意图加载阶段 skill：
 
-- brainstorm 结果
-- 世界观设定
-- 人物设定
-- 故事线与章节规划
-- scene / note 资产
+- `ideation-outline`
+- `drafting`
+- `revision`
+- `novel-import`
+- `restructuring`
+- `style-transfer`
 
-这些资产默认保存在：
+专用 subagent 只有两个：
 
-- 工作区存在时：`<workspace>/.iwriter/story/...`
-- 无工作区时：`~/.iwriter/ai/projects/<threadId>/story/...`
+- `writer`：写或改正文，不做评审
+- `reviewer`：只读评审，不改正文
+
+复杂研究、风格或导入证据提取使用 DeepAgents 的 `general-purpose` subagent。
+
+正文写作使用 write-session：`confirm_writing_plan` 批准目标章节后，授权范围内的 block edit 自动累积；完成时 `finalize_chapter` 提交整章差异，作者可以接受、反馈返工或拒绝并恢复基线。章纲必须 confirmed 且场景可写；beat 是可选的 GFM `[!BEAT]` 锚点，不是进入正文阶段的必需条件。
 
 ## Skills 目录结构
 
-`electron/ai/builtin-skills/`（运行时同步到 `<aiRoot>/skills/`）按域分三个顶层桶：
+`electron/ai/builtin-skills/`（运行时同步到 `<aiRoot>/skills/`）按域组织：
 
-- `common/` —— Edit + Creative 公用技能，目前含 `web-research`。Edit 域与 Creative 的 `researcher` 子代理都从这里加载；未来 researcher 升级为跨域公用 agent 时也以此为技能源。
+- `common/` —— Edit + Creative 公用技能，包含文档块工具与 web research。
 - `edit/` —— 仅 Edit 域使用，目前含 `image-sourcing`。
-- `creative/` —— 仅 Creative 域使用，内部结构对应各子代理：`common`（story-craft 公共技能）、`main`、`planner`、`writer`、`consistency`、`explorer`、`researcher`、`writing-style`（含运行时生成的作者文风技能）。
+- `creative/reference/` —— 小说工作区与各类正式对象模板。
+- `creative/main/` —— 主 Agent 的阶段流程。
+- `creative/common/` —— 跨阶段创作技法。
+- `creative/reviewer/` —— Reviewer 专用评审约束。
+- `creative/delegated/` —— 可委托给 general-purpose 的独立任务。
 
-`EditDomainStrategy.getSkillSources()` 返回 `[skills/common, skills/edit]`；`CreativeDomainStrategy.getSkillSources()` 返回 `[skills/creative/main, skills/creative/common, skills/common]`；各 Creative 子代理在 `buildCreativeCapabilities.ts` 中从 `skills/creative/<role>` + `skills/creative/common`（`researcher` 从 `skills/common`）加载。
+Creative 主 Agent 的装载顺序是 common → creative/common → creative/reference → creative/main → creative/delegated → `<workspace>/.iwriter/skills`。项目级技能最后加载，可以覆盖同名内置技能。Writer / Reviewer 由 `electron/ai/builtin-subagents/creative/` 的声明式 agent 定义装配。
 
 ## 文档快照与编辑执行
 
@@ -163,10 +177,10 @@ Creative 模式的核心目标是生成和维护项目级资产，例如：
 相关文件：
 
 - `electron/ai/document/SnapshotBroker.ts`
-- `src/ai/snapshot/SnapshotSerializer.ts`
-- `src/ai/edit/DocumentViewBuilder.ts`
-- `src/ai/edit/BlockEditApplier.ts`
-- `src/ai/edit/UnifiedDocumentAccess.ts`
+- `src/ai/document/SnapshotSerializer.ts`
+- `src/ai/document/DocumentViewBuilder.ts`
+- `src/ai/document/BlockEditApplier.ts`
+- `src/ai/document/UnifiedDocumentAccess.ts`
 
 ## 已废弃或不再作为现状的设计
 
@@ -193,7 +207,7 @@ Agent Chat 的前端显示规则，不再由单个组件各自决定，而是以
 
 当前参考规范：
 
-- `docs/AGENT-CHAT-SPEC.md`
+- `design/AGENT-CHAT-SPEC.md`
 
 其中已经包含：
 
@@ -216,8 +230,6 @@ Agent Chat 的前端显示规则，不再由单个组件各自决定，而是以
 ## 相关文档
 
 - `README.md`
-- `docs/AGENTIC_EDITING.md`
-
-其中：
-
-- `docs/AGENTIC_EDITING.md`：当前说明
+- `docs/docs/ai-overview.md`
+- `docs/docs/ai-edit-mode.md`
+- `docs/docs/ai-creative-mode.md`

@@ -2,33 +2,41 @@
 
 > 适用版本：iWriter `0.1.24`
 >
-> 最后更新：2026-07-01
+> 最后更新：2026-07-27
 
-## 与阶段定位的关系
+## 当前定位
 
-- 第一阶段能力：本地工作区管理 + Markdown/富文本编辑主流程。
-- 第二阶段能力：在第一阶段之上加入 AI 对话与 Edit 提案审批流（当前已基本完成）。
-- 第三阶段方向：
-  - `3.1` 个人知识库管理（未启动）
-  - `3.2` 小说创作与写作（正在开始）
+iWriter 当前是一套本地文件优先的写作环境，包含 Markdown / 富文本编辑、工作区管理、Git 版本控制、跨文件搜索，以及带审批流的 AI Edit 与 Creative 小说创作模式。
 
 ## 文件与工作区
 
 - 打开文件夹并构建树形工作区
 - 文件/文件夹：新建、重命名、移动、删除
-- 外部文件变更监听与同步
-- 多标签页与重启后状态恢复
+- 原生文件监听与外部变更同步，避免外部修改和内部保存并发覆盖
+- 多标签页与重启后状态恢复，文档 / Diff / 合并视图使用统一标签体系
 - 支持 `.iwtignore` 工作区忽略规则，并可按功能将工作区根目录的 `.gitignore` 纳入过滤
 - 默认过滤 `.git/`、`.iwriter/` 与系统元数据，依赖目录、构建产物和缓存目录可按工作区需要自行加入忽略规则
 - 支持自动保存、另存为、全部保存与只读模式
 - 支持在工作区内执行跨文件搜索与替换
 - 支持通过 include / exclude 模式过滤跨文件搜索范围
+- 跨文件搜索支持正则、大小写、中文全词匹配、上下文摘要和未命中提示
 - Windows / Linux 支持应用内标题栏窗口按钮和应用菜单，macOS 保留系统菜单栏与交通灯窗口按钮
+
+## Git 源代码管理
+
+- 直接管理标准 Git 仓库，支持检测、初始化和克隆
+- Changes / Staged / Untracked / Merge Changes 分组，以及 list / tree 两种视图
+- 支持文件、目录、整组和 hunk 级 stage / unstage / discard
+- 支持 Commit、Commit All、Amend、撤销上次提交和 Git 用户信息配置
+- 支持分支创建、重命名、切换、合并、删除、发布与操作前预检
+- 支持 remote 管理、Fetch / Pull / Push / Sync、Stash 与 autostash
+- 支持可编辑 Diff 标签页、冲突合并视图、仓库 Graph、文件 Timeline 和 Tags
+- Explorer 与状态栏显示 Git 文件状态、分支、领先 / 落后、同步进度和变更数
 
 ## Markdown 编辑器能力
 
 - 常用格式：标题、粗斜体、下划线、删除线、高亮、链接、行内代码
-- 结构内容：引用、任务列表、有序/无序列表
+- 结构内容：引用、任务列表、有序/无序列表、GFM Alerts
 - 进阶内容：表格、数学公式、代码块、mermaid 图、分隔线
 - 辅助能力：文内搜索替换、拼写与语法检查、TOC 联动
 - 支持 Markdown 语法的文件编辑，存储，支持格式：自定义格式`.iwt`、`txt`、`md`/`markdown`
@@ -40,7 +48,7 @@
 - 支持 mermaid 图在编辑器、打印预览和 PDF 导出中渲染
 - 支持页面级右键菜单，Markdown、图片、PDF 页面和文件标签会显示对应文档类型的常用操作
 - 支持 `Clean Mode`、`Focus Mode`、`Typewriter Mode`
-- 支持 Markdown 屏幕主题与打印主题，内置 `github`、`github-dark`、`prose`、`novel` 四套主题
+- 支持 Markdown 屏幕主题与打印主题，内置 `system`、`github`、`github-dark`、`prose`、`novel` 五套主题
 - 屏幕主题与打印主题可独立选择，打印主题可选择"跟随屏幕主题"
 - 每套内置主题包含屏幕 CSS、打印 CSS，以及页面设置 / 分页策略 / 页眉页脚的默认值
 - 支持自定义主题：将 CSS 文件放入 `~/.iwriter/markdown/themes/` 目录，App 自动发现并热更新
@@ -68,12 +76,16 @@
 
 ## AI 模式
 
-- `Edit`：面向文档编辑，支持提案审批流
-- `Creative`：面向创作素材生成与保存
+- `Edit`：面向普通文档与知识库的读取、搜索、研究和 block-aware 编辑，修改通过提案审批流落地
+- `Creative`：面向小说项目，使用纯 Markdown 文件管理项目、世界观、人物、三层提纲、正文、素材、评审与风格
+- Creative 支持创意与提纲、正文撰写、精修、跨章重构、小说导入和风格蒸馏
+- Creative 使用 Writer / Reviewer 子 Agent 与写作会话，正文最终以整章差异接受、返工或回滚
+- 支持项目级 `.iwriter/skills/` 自定义 Creative 技能
 - 支持会话历史持久化
 - 支持将文本文件、目录、图片、PDF 作为上下文附件
 - 支持上下文 token 统计、自动摘要阈值进度和长会话自动压缩
 - 支持显示本次会话真实 token 用量，包含主 Agent、子 Agent 和缓存命中统计
+- 支持备用模型、限流重试和模型切换提示
 
 ## 更新机制
 
@@ -89,6 +101,7 @@
   - Markdown 自定义主题（Create Example、Open Folder）
   - 应用主题选择
 - 拼写与语法检查引擎切换（`LanguageTool` / `Typo.js`）
+- 工作区过滤范围与无暂存内容时的 Git 提交行为
 - 导出设置（默认目录、Pandoc 路径、LibreOffice 路径、格式级参数）
 - AI Provider、API Key、模型、Base URL、备用模型与模型能力配置
 - Web Search Provider、API Key 与 Base URL

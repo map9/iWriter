@@ -27,6 +27,7 @@ export default defineConfig({
             { text: '概述', link: '/docs/' },
             { text: '快速开始', link: '/quick-start' },
             { text: '工作区与文件管理', link: '/docs/workspace' },
+            { text: 'Git 源代码管理', link: '/docs/source-control' },
             { text: '编辑器使用', link: '/docs/editor' },
             { text: '搜索与替换', link: '/docs/search' },
             { text: '目录与结构导航', link: '/docs/toc' }
