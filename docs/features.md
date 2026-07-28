@@ -2,11 +2,11 @@
 
 > 适用版本：iWriter `0.1.24`
 >
-> 最后更新：2026-07-27
+> 最后更新：2026-07-28
 
 ## 当前定位
 
-iWriter 当前是一套本地文件优先的写作环境，包含 Markdown / 富文本编辑、工作区管理、Git 版本控制、跨文件搜索，以及带审批流的 AI Edit 与 Creative 小说创作模式。
+iWriter 当前是一套本地文件优先的写作环境，包含 Markdown / 富文本编辑、工作区管理、Git 文档版本管理、跨文件搜索，以及 AI 全能创作搭子（AI Writing Buddy）。
 
 ## 文件与工作区
 
@@ -22,7 +22,7 @@ iWriter 当前是一套本地文件优先的写作环境，包含 Markdown / 富
 - 跨文件搜索支持正则、大小写、中文全词匹配、上下文摘要和未命中提示
 - Windows / Linux 支持应用内标题栏窗口按钮和应用菜单，macOS 保留系统菜单栏与交通灯窗口按钮
 
-## Git 源代码管理
+## Git 文档版本管理
 
 - 直接管理标准 Git 仓库，支持检测、初始化和克隆
 - Changes / Staged / Untracked / Merge Changes 分组，以及 list / tree 两种视图
@@ -30,6 +30,8 @@ iWriter 当前是一套本地文件优先的写作环境，包含 Markdown / 富
 - 支持 Commit、Commit All、Amend、撤销上次提交和 Git 用户信息配置
 - 支持分支创建、重命名、切换、合并、删除、发布与操作前预检
 - 支持 remote 管理、Fetch / Pull / Push / Sync、Stash 与 autostash
+- 偏好设置提供独立“文档版本管理”页，可配置 Git 路径、全局 / 当前仓库提交身份、Pull 自动暂存、Fetch prune、Diff 默认布局和文档版本视图
+- Pull 固定使用 merge 策略，文档版本管理与小说创作搭子的 Git 工具共用同一 Git 执行服务、仓库级串行与错误处理
 - 支持可编辑 Diff 标签页、冲突合并视图、仓库 Graph、文件 Timeline 和 Tags
 - Explorer 与状态栏显示 Git 文件状态、分支、领先 / 落后、同步进度和变更数
 
@@ -74,13 +76,13 @@ iWriter 当前是一套本地文件优先的写作环境，包含 Markdown / 富
 - Office：支持打开 `.doc`、`.docx`、`.xls`、`.xlsx`、`.ppt`、`.pptx`，通过 LibreOffice 转换为 PDF 后在 iWriter 内预览
 - `.docx` 可从 Office 预览页或标签页右键菜单导入为 Markdown 草稿
 
-## AI 模式
+## AI 全能创作搭子（AI Writing Buddy）
 
-- `Edit`：面向普通文档与知识库的读取、搜索、研究和 block-aware 编辑，修改通过提案审批流落地
-- `Creative`：面向小说项目，使用纯 Markdown 文件管理项目、世界观、人物、三层提纲、正文、素材、评审与风格
-- Creative 支持创意与提纲、正文撰写、精修、跨章重构、小说导入和风格蒸馏
-- Creative 使用 Writer / Reviewer 子 Agent 与写作会话，正文最终以整章差异接受、返工或回滚
-- 支持项目级 `.iwriter/skills/` 自定义 Creative 技能
+- 日常写作搭子（AI Doc Buddy）：围绕个人知识管理与日常文档写作，提供从信息收集、内容创作到文稿打磨的全链路智能助手；修改通过提案审批流落地
+- 小说创作搭子（AI Story Buddy）：陪伴作者从灵感构思到作品完稿，使用纯 Markdown 文件管理项目、世界观、人物、三层提纲、正文、素材、评审与风格
+- AI Story Buddy 支持创意与提纲、正文撰写、精修、跨章重构、小说导入和风格蒸馏
+- AI Story Buddy 使用 Writer / Reviewer 子 Agent 与写作会话，正文最终以整章差异接受、返工或回滚
+- 支持项目级 `.iwriter/skills/` 自定义小说创作技能
 - 支持会话历史持久化
 - 支持将文本文件、目录、图片、PDF 作为上下文附件
 - 支持上下文 token 统计、自动摘要阈值进度和长会话自动压缩
@@ -101,7 +103,8 @@ iWriter 当前是一套本地文件优先的写作环境，包含 Markdown / 富
   - Markdown 自定义主题（Create Example、Open Folder）
   - 应用主题选择
 - 拼写与语法检查引擎切换（`LanguageTool` / `Typo.js`）
-- 工作区过滤范围与无暂存内容时的 Git 提交行为
+- 工作区过滤范围；`.gitignore` 对 Explorer / Search / Watcher 的开关保留在工作区设置
+- 文档版本管理设置（Git 环境与身份、提交行为、Pull / Fetch、Diff 与版本视图）
 - 导出设置（默认目录、Pandoc 路径、LibreOffice 路径、格式级参数）
 - AI Provider、API Key、模型、Base URL、备用模型与模型能力配置
 - Web Search Provider、API Key 与 Base URL

@@ -17,6 +17,8 @@ import { ToolRegistry } from '../../tools/ToolRegistry'
 import { assembleSubagents } from '../../scaffold/subagents/SubagentAssembler'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
+import type { GitMutationEvent } from '../../../../src/types/git'
+import type { GitService } from '../../../GitService'
 
 // Phase 2 M0 (B1剩余 + A1): the creative域 tool面 is now the general common + git tools plus
 // the single creative专用 tool `confirm_writing_plan`. The storybible/sqlite object model and
@@ -28,6 +30,8 @@ export function buildCreativeCapabilities(input: {
   workspacePath: string | null,
   snapshotBroker: SnapshotBroker,
   language?: DetectedInputLanguage,
+  gitService: GitService,
+  onGitMutation: (event: GitMutationEvent) => void,
 }): DomainAgentCapabilities {
   const skillsRoot = path.join(input.aiRootPath, 'skills')
   const subagentsRoot = path.join(input.aiRootPath, 'subagents')
@@ -41,7 +45,11 @@ export function buildCreativeCapabilities(input: {
     ...buildFilesystemMutationTools(),
     ...buildPdfTools(),
     ...buildWebTools(),
-    ...buildGitTools({ workspacePath: input.workspacePath }),
+    ...buildGitTools({
+      workspacePath: input.workspacePath,
+      gitService: input.gitService,
+      onMutation: input.onGitMutation,
+    }),
     buildConfirmWritingPlanTool(),
     buildFinalizeChapterTool(),
     // Read-only impact/reference aggregation for restructuring (FR-6.2). No interruptOn gate.

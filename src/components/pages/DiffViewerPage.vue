@@ -65,6 +65,8 @@
         :editable="canEdit"
         :hunks="hunks"
         :hunk-mode="hunkMode"
+        :initial-mode="gitStore.settings.diffLayout"
+        :initial-show-line-numbers="gitStore.settings.diffShowLineNumbers"
         @update:content="onDraftChange"
         @update:editing="editingDiff = $event"
         @hunk-action="onHunkAction"

@@ -3,6 +3,7 @@ import * as path from 'path'
 import * as os from 'os'
 import * as fs from 'fs/promises'
 import simpleGit, { type SimpleGit, type SimpleGitProgressEvent } from 'simple-git'
+import { GitConfigStore } from './GitConfigStore'
 import type {
   GitAvailability,
   GitBranchInfo,
@@ -11,7 +12,10 @@ import type {
   GitDiffPayload,
   GitFileChange,
   GitFileStatus,
+  GitIdentity,
+  GitIdentityScopes,
   GitIssue,
+  SourceControlSettings,
   GitStatus,
 } from '../src/types/git'
 
@@ -19,6 +23,44 @@ const BINARY_EXTS = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.pdf',
   '.zip', '.gz', '.tar', '.mp3', '.mp4', '.mov', '.woff', '.woff2', '.ttf', '.otf',
 ])
+
+export type GitServiceErrorCode =
+  | 'git-not-found'
+  | 'not-a-repository'
+  | 'author-not-configured'
+  | 'index-locked'
+  | 'timeout'
+  | 'no-staged-changes'
+  | 'command-failed'
+
+export class GitServiceError extends Error {
+  constructor(
+    public readonly code: GitServiceErrorCode,
+    message: string,
+    options?: { cause?: unknown },
+  ) {
+    super(message, options)
+    this.name = 'GitServiceError'
+  }
+}
+
+function normalizeGitServiceError(error: unknown): GitServiceError {
+  if (error instanceof GitServiceError) return error
+  const detail = error instanceof Error ? error.message : String(error)
+  if (/ENOENT|not found|cannot spawn|spawn .*git/i.test(detail)) {
+    return new GitServiceError('git-not-found', detail, { cause: error })
+  }
+  if (/not a git repository/i.test(detail)) {
+    return new GitServiceError('not-a-repository', detail, { cause: error })
+  }
+  if (/index\.lock|Another git process seems to be running/i.test(detail)) {
+    return new GitServiceError('index-locked', detail, { cause: error })
+  }
+  if (/block timeout reached|timed out|timeout/i.test(detail)) {
+    return new GitServiceError('timeout', detail, { cause: error })
+  }
+  return new GitServiceError('command-failed', detail, { cause: error })
+}
 
 /** 将 Git 的可预期失败转为领域问题；原始输出保留给按需展开的技术详情。 */
 export function classifyGitIssue(error: unknown, operation: string, branch?: string): GitIssue {
@@ -50,9 +92,43 @@ export class GitService {
   private availability: GitAvailability | null = null
   private onProgress: ((p: SimpleGitProgressEvent) => void) | null = null
 
+  constructor(private readonly configStore = new GitConfigStore()) {}
+
+  getSettings(): SourceControlSettings {
+    return this.configStore.getSettings()
+  }
+
+  updateSettings(patch: Partial<SourceControlSettings>): SourceControlSettings {
+    const before = this.getSettings()
+    const settings = this.configStore.updateSettings(patch)
+    if (before.gitPathMode !== settings.gitPathMode || before.gitPath !== settings.gitPath) {
+      this.availability = null
+      // 保留仓库队列链尾：正在执行的旧客户端完成后，新命令才会用新路径创建客户端，
+      // 避免切换 Git 路径瞬间绕过已有写操作并发执行。
+      this.cache.clear()
+    }
+    return settings
+  }
+
   /** 设置长耗时操作进度回调（App.ts 转发到渲染层）。闭包读取，故设置早晚不影响已建实例。 */
   setProgressHandler(cb: (p: SimpleGitProgressEvent) => void): void {
     this.onProgress = cb
+  }
+
+  private binary(): string {
+    const settings = this.getSettings()
+    return settings.gitPathMode === 'custom' && settings.gitPath ? settings.gitPath : 'git'
+  }
+
+  private createGit(root?: string): SimpleGit {
+    return simpleGit({
+      ...(root ? { baseDir: root } : {}),
+      binary: this.binary(),
+      config: ['core.quotepath=false'],
+      maxConcurrentProcesses: 1,
+      timeout: { block: 60_000 },
+      progress: (evt) => this.onProgress?.(evt),
+    })
   }
 
   private git(root: string): SimpleGit {
@@ -61,7 +137,7 @@ export class GitService {
       // core.quotepath=false：让含非 ASCII（如中文）的路径原样输出 UTF-8，
       // 否则 git 会把中文路径转义成 "\345\244\247…" 八进制，导致图谱显示乱码、
       // 且据此路径再 `git show hash:path` 无法命中（diff 显示"没有更改"）。
-      g = simpleGit({ baseDir: root, config: ['core.quotepath=false'], progress: (evt) => this.onProgress?.(evt) })
+      g = this.createGit(root)
       this.cache.set(root, g)
     }
     return g
@@ -91,7 +167,7 @@ export class GitService {
         await new Promise(r => setTimeout(r, 100 * 2 ** attempt)) // 100/200/400/800ms 退避
         return this.execWithRetry(root, fn, attempt + 1)
       }
-      throw err
+      throw normalizeGitServiceError(err)
     }
   }
 
@@ -104,12 +180,13 @@ export class GitService {
   async detect(force = false): Promise<GitAvailability> {
     if (!force && this.availability) return this.availability
     this.availability = await new Promise<GitAvailability>((resolve) => {
-      execFile('git', ['--version'], (err, stdout) => {
+      const binary = this.binary()
+      execFile(binary, ['--version'], { timeout: 15_000 }, (err, stdout) => {
         if (err) {
           resolve({ available: false, installCommand: this.getInstallCommand(), downloadUrl: 'https://git-scm.com/downloads' })
         } else {
           const version = stdout.toString().replace(/^git version\s*/i, '').trim()
-          resolve({ available: true, version, path: 'git' })
+          resolve({ available: true, version, path: binary })
         }
       })
     })
@@ -141,7 +218,11 @@ export class GitService {
   }
 
   async clone(url: string, dir: string): Promise<void> {
-    await simpleGit({ progress: (evt) => this.onProgress?.(evt) }).clone(url, dir)
+    try {
+      await this.createGit().clone(url, dir)
+    } catch (error) {
+      throw normalizeGitServiceError(error)
+    }
   }
 
   async status(root: string): Promise<GitStatus> {
@@ -201,47 +282,188 @@ export class GitService {
   /** 放弃更改：HEAD 里已有的文件还原到 HEAD；新增文件（未跟踪或已暂存 index='A'）移出 index 并清理工作区 */
   async discard(root: string, paths: string[]): Promise<void> {
     if (!paths.length) return
-    const s = await this.exec(root, g => g.status())
-    const untrackedSet = new Set(s.not_added)
-    // index 为 'A' 的是「已暂存新增」，同样不在 HEAD——不能用 restore --source=HEAD 还原（会因 pathspec 不匹配报错）
-    const addedSet = new Set(s.files.filter(f => f.index === 'A').map(f => f.path))
-    const tracked = paths.filter(p => !untrackedSet.has(p) && !addedSet.has(p))
-    const newFiles = paths.filter(p => untrackedSet.has(p) || addedSet.has(p))
-    if (tracked.length) {
-      await this.raw(root,['restore', '--source=HEAD', '--staged', '--worktree', '--', ...tracked])
-    }
-    if (newFiles.length) {
-      // 先移出 index（-f 覆盖「暂存内容与 HEAD/工作区均不同」的安全拦截，--cached 不动工作区文件；
-      // --ignore-unmatch 容忍纯未跟踪文件），再从工作区清理
-      await this.raw(root,['rm', '--cached', '-f', '--ignore-unmatch', '--', ...newFiles])
-      await this.raw(root,['clean', '-f', '--', ...newFiles])
-    }
+    await this.exec(root, async g => {
+      const s = await g.status()
+      const untrackedSet = new Set(s.not_added)
+      // index 为 'A' 的是「已暂存新增」，同样不在 HEAD——不能用 restore --source=HEAD 还原（会因 pathspec 不匹配报错）
+      const addedSet = new Set(s.files.filter(f => f.index === 'A').map(f => f.path))
+      const tracked = paths.filter(p => !untrackedSet.has(p) && !addedSet.has(p))
+      const newFiles = paths.filter(p => untrackedSet.has(p) || addedSet.has(p))
+      if (tracked.length) {
+        await g.raw(['restore', '--source=HEAD', '--staged', '--worktree', '--', ...tracked])
+      }
+      if (newFiles.length) {
+        // 先移出 index（-f 覆盖「暂存内容与 HEAD/工作区均不同」的安全拦截，--cached 不动工作区文件；
+        // --ignore-unmatch 容忍纯未跟踪文件），再从工作区清理
+        await g.raw(['rm', '--cached', '-f', '--ignore-unmatch', '--', ...newFiles])
+        await g.raw(['clean', '-f', '--', ...newFiles])
+      }
+    })
   }
 
   async commit(root: string, message: string, opts: { all?: boolean; amend?: boolean }): Promise<void> {
-    // `git commit -a` excludes untracked files. Commit All must first populate
-    // the index with every working-tree change, matching the SCM action label.
-    if (opts.all) await this.stageAll(root)
-    const args = ['commit', '-m', message]
-    if (opts.amend) args.push('--amend')
-    await this.raw(root,args)
+    await this.exec(root, async g => {
+      // `git commit -a` excludes untracked files. Commit All must first populate
+      // the index with every working-tree change, matching the SCM action label.
+      if (opts.all) await g.add(['-A'])
+      const args = ['commit', '-m', message]
+      if (opts.amend) args.push('--amend')
+      await g.raw(args)
+    })
   }
 
-  async getUserIdentity(root: string): Promise<{ name?: string; email?: string }> {
-    const read = async (key: string) => {
-      try {
-        return (await this.raw(root,['config', key])).trim() || undefined
-      } catch {
-        return undefined
+  /**
+   * Agent commit transaction: stage the approved paths, verify the resulting index,
+   * then commit without allowing SCM commands to interleave between those steps.
+   */
+  async commitPaths(root: string, message: string, paths: string[]): Promise<{ files: string[]; output: string }> {
+    return this.exec(root, async g => {
+      const identity = async (key: string) => {
+        try {
+          return (await g.raw(['config', '--get', key])).trim()
+        } catch {
+          return ''
+        }
+      }
+      if (!await identity('user.name') || !await identity('user.email')) {
+        throw new GitServiceError(
+          'author-not-configured',
+          'Git is not configured with an author identity.',
+        )
+      }
+      await g.raw(['add', '--', ...paths])
+      const staged = (await g.raw(['diff', '--cached', '--name-only']))
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+      if (!staged.length) {
+        throw new GitServiceError('no-staged-changes', 'No staged changes to commit.')
+      }
+      const output = await g.raw(['commit', '-m', message])
+      return { files: staged, output: output.trim() }
+    })
+  }
+
+  async diffRefs(root: string, from?: string, to?: string): Promise<string> {
+    const args = ['diff']
+    if (from) args.push(from)
+    if (to) args.push(to)
+    return this.raw(root, args)
+  }
+
+  async checkRefFormat(root: string, ref: string): Promise<boolean> {
+    try {
+      await this.raw(root, ['check-ref-format', '--allow-onelevel', ref])
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async restorePaths(root: string, files: string[], ref?: string): Promise<void> {
+    const args = ref
+      ? ['restore', '--source', ref, '--', ...files]
+      : ['restore', '--', ...files]
+    await this.raw(root, args)
+  }
+
+  async getLastTagInfo(root: string): Promise<{
+    last_git_tag: { name: string; commit: string; message: string } | null
+    commits_since_last_tag: number | null
+  }> {
+    let tagName = ''
+    try {
+      tagName = (await this.raw(root, ['describe', '--tags', '--abbrev=0'])).trim()
+    } catch {
+      return { last_git_tag: null, commits_since_last_tag: null }
+    }
+    if (!tagName) return { last_git_tag: null, commits_since_last_tag: null }
+    const [commit, message, count] = await Promise.all([
+      this.raw(root, ['rev-list', '-n', '1', tagName]).catch(() => ''),
+      this.raw(root, ['tag', '-l', tagName, '--format=%(contents)']).catch(() => ''),
+      this.raw(root, ['rev-list', `${tagName}..HEAD`, '--count']).catch(() => ''),
+    ])
+    return {
+      last_git_tag: {
+        name: tagName,
+        commit: commit.trim(),
+        message: message.trim(),
+      },
+      commits_since_last_tag: count.trim() ? Number(count.trim()) : null,
+    }
+  }
+
+  private async readConfig(root: string, key: string, scope?: '--global' | '--local'): Promise<string | undefined> {
+    try {
+      const args = ['config']
+      if (scope) args.push(scope)
+      args.push('--get', key)
+      return (await this.raw(root, args)).trim() || undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  async getUserIdentity(root: string | null): Promise<GitIdentity> {
+    const baseDir = root || os.homedir()
+    if (!root) {
+      return {
+        name: await this.readConfig(baseDir, 'user.name', '--global'),
+        email: await this.readConfig(baseDir, 'user.email', '--global'),
       }
     }
-    return { name: await read('user.name'), email: await read('user.email') }
+    return {
+      name: await this.readConfig(baseDir, 'user.name'),
+      email: await this.readConfig(baseDir, 'user.email'),
+    }
   }
 
-  async setUserIdentity(root: string, name: string, email: string, global: boolean): Promise<void> {
-    const scope = global ? ['--global'] : []
-    await this.raw(root,['config', ...scope, 'user.name', name])
-    await this.raw(root,['config', ...scope, 'user.email', email])
+  async getUserIdentityScopes(root: string | null): Promise<GitIdentityScopes> {
+    const baseDir = root || os.homedir()
+    const global: GitIdentity = {
+      name: await this.readConfig(baseDir, 'user.name', '--global'),
+      email: await this.readConfig(baseDir, 'user.email', '--global'),
+    }
+    if (!root) return { global, effective: global }
+    const local: GitIdentity = {
+      name: await this.readConfig(root, 'user.name', '--local'),
+      email: await this.readConfig(root, 'user.email', '--local'),
+    }
+    return {
+      global,
+      local,
+      effective: {
+        name: local.name ?? global.name,
+        email: local.email ?? global.email,
+      },
+    }
+  }
+
+  async setUserIdentity(root: string | null, name: string, email: string, global: boolean): Promise<void> {
+    const baseDir = root || os.homedir()
+    if (!global && !root) {
+      throw new GitServiceError('not-a-repository', 'A repository is required for local Git identity.')
+    }
+    const scope = global ? ['--global'] : ['--local']
+    await this.exec(baseDir, async g => {
+      await g.raw(['config', ...scope, 'user.name', name])
+      await g.raw(['config', ...scope, 'user.email', email])
+    })
+  }
+
+  async clearLocalUserIdentity(root: string): Promise<void> {
+    await this.exec(root, async g => {
+      try {
+        await g.raw(['config', '--local', '--unset-all', 'user.name'])
+      } catch {
+        // Missing local keys are already in the desired state.
+      }
+      try {
+        await g.raw(['config', '--local', '--unset-all', 'user.email'])
+      } catch {
+        // Missing local keys are already in the desired state.
+      }
+    })
   }
 
   /**
@@ -354,29 +576,45 @@ export class GitService {
   }
 
   async fetch(root: string): Promise<void> {
-    await this.raw(root,['fetch', '--prune'])
+    const prune = this.getSettings().fetchPrune ? '--prune' : '--no-prune'
+    await this.raw(root, ['fetch', prune])
   }
 
-  async pull(root: string, opts: { rebase?: boolean }): Promise<void> {
-    // --autostash：脏工作区自动 stash→pull→pop（clean 时无操作）；pop 冲突则保留冲突交给 Merge Changes
-    const args = ['pull', '--autostash']
-    if (opts.rebase) args.push('--rebase')
-    await this.raw(root,args)
+  private pullArgs(): string[] {
+    const settings = this.getSettings()
+    return [
+      'pull',
+      '--no-rebase',
+      settings.pullAutoStash ? '--autostash' : '--no-autostash',
+      settings.fetchPrune ? '--prune' : '--no-prune',
+    ]
   }
 
-  async push(root: string, opts: { setUpstream?: boolean }): Promise<void> {
+  async pull(root: string): Promise<void> {
+    // 文档版本管理固定保留历史的 merge 策略；显式 --no-rebase，避免外部 pull.rebase 配置改变行为。
+    // autostash：脏工作区自动 stash→pull→pop；恢复冲突交给 Merge Changes。
+    await this.raw(root, this.pullArgs())
+  }
+
+  private async pushWithGit(g: SimpleGit, opts: { setUpstream?: boolean }): Promise<void> {
     if (opts.setUpstream) {
-      const cur = (await this.exec(root, g => g.status())).current
-      await this.raw(root,['push', '-u', 'origin', cur ?? 'HEAD'])
+      const cur = (await g.status()).current
+      await g.raw(['push', '-u', 'origin', cur ?? 'HEAD'])
     } else {
-      await this.raw(root,['push'])
+      await g.raw(['push'])
     }
   }
 
-  /** 同步：pull（可变基）后 push */
-  async sync(root: string, opts: { rebase?: boolean }): Promise<void> {
-    await this.pull(root, opts)
-    await this.push(root, {})
+  async push(root: string, opts: { setUpstream?: boolean }): Promise<void> {
+    await this.exec(root, g => this.pushWithGit(g, opts))
+  }
+
+  /** 同步：固定 merge pull 后 push。 */
+  async sync(root: string): Promise<void> {
+    await this.exec(root, async g => {
+      await g.raw(this.pullArgs())
+      await this.pushWithGit(g, {})
+    })
   }
 
   /** 发布：首次推送并设置 upstream */
@@ -509,8 +747,10 @@ export class GitService {
     let out: string
     try {
       out = await this.raw(root, ['log', ...args])
-    } catch {
-      return []
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      if (/does not have any commits yet/i.test(detail)) return []
+      throw error
     }
     const remoteNames = await this.remoteNames(root)
     return out

@@ -399,7 +399,8 @@ export class App {
     if (!this._agentEngine) {
       const { AgentEngine: AgentEngineClass } = await import('./ai/AgentEngine')
       this._agentEngine = new AgentEngineClass(
-        () => BrowserWindow.getAllWindows()[0]?.webContents ?? null
+        () => BrowserWindow.getAllWindows()[0]?.webContents ?? null,
+        this.gitService,
       )
     }
     return this._agentEngine
@@ -1462,6 +1463,8 @@ export class App {
         return { ok: false, issue: classifyGitIssue(error, operation, branch) }
       }
     }
+    ipcMain.handle('git:settings-get', () => this.gitService.getSettings())
+    ipcMain.handle('git:settings-update', (_, patch) => this.gitService.updateSettings(patch))
     ipcMain.handle('git:detect', async (_, force?: boolean) => this.gitService.detect(force))
     ipcMain.handle('git:is-repo', async (_, root: string) => this.gitService.isRepo(root))
     ipcMain.handle('git:init', async (_, root: string) => this.gitService.init(root))
@@ -1488,9 +1491,11 @@ export class App {
     ipcMain.handle('git:discard', async (_, root: string, paths: string[]) => this.gitService.discard(root, paths))
     ipcMain.handle('git:commit', async (_, root: string, message: string, opts: { all?: boolean; amend?: boolean }) =>
       this.gitService.commit(root, message, opts))
-    ipcMain.handle('git:identity-get', async (_, root: string) => this.gitService.getUserIdentity(root))
-    ipcMain.handle('git:identity-set', async (_, root: string, name: string, email: string, global: boolean) =>
+    ipcMain.handle('git:identity-get', async (_, root: string | null) => this.gitService.getUserIdentity(root))
+    ipcMain.handle('git:identity-get-scopes', async (_, root: string | null) => this.gitService.getUserIdentityScopes(root))
+    ipcMain.handle('git:identity-set', async (_, root: string | null, name: string, email: string, global: boolean) =>
       this.gitService.setUserIdentity(root, name, email, global))
+    ipcMain.handle('git:identity-clear-local', async (_, root: string) => this.gitService.clearLocalUserIdentity(root))
     ipcMain.handle('git:checkout', async (_, root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) =>
       gitAction('checkout', () => this.gitService.checkout(root, ref, opts)))
     ipcMain.handle('git:create-branch', async (_, root: string, name: string, base?: string, checkout?: boolean) =>
@@ -1513,9 +1518,9 @@ export class App {
       this.gitService.addToGitignore(root, relPath))
     ipcMain.handle('git:clone', async (_, url: string, dir: string) => gitAction('clone', () => this.gitService.clone(url, dir)))
     ipcMain.handle('git:fetch', async (_, root: string) => gitAction('fetch', () => this.gitService.fetch(root)))
-    ipcMain.handle('git:pull', async (_, root: string, opts: { rebase?: boolean }) => gitAction('pull', () => this.gitService.pull(root, opts)))
+    ipcMain.handle('git:pull', async (_, root: string) => gitAction('pull', () => this.gitService.pull(root)))
     ipcMain.handle('git:push', async (_, root: string, opts: { setUpstream?: boolean }) => gitAction('push', () => this.gitService.push(root, opts)))
-    ipcMain.handle('git:sync', async (_, root: string, opts: { rebase?: boolean }) => gitAction('sync', () => this.gitService.sync(root, opts)))
+    ipcMain.handle('git:sync', async (_, root: string) => gitAction('sync', () => this.gitService.sync(root)))
     ipcMain.handle('git:publish', async (_, root: string) => gitAction('publish', () => this.gitService.publish(root)))
     ipcMain.handle('git:list-remotes', async (_, root: string) => this.gitService.listRemotes(root))
     ipcMain.handle('git:add-remote', async (_, root: string, name: string, url: string) =>

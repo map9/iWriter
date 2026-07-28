@@ -316,25 +316,21 @@
                 />
               </div>
             </section>
-            <section class="flex flex-col gap-3">
-              <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.workspace.sourceControlTitle') }}</h3>
-              <div class="flex flex-col gap-2 rounded-box border border-base-300 bg-base-100 px-4 py-3">
-                <div class="min-w-0">
-                  <div class="text-sm font-medium text-base-content">{{ t('preferences.workspace.commitWhenEmptyTitle') }}</div>
-                  <div class="text-xs text-base-content/50">{{ t('preferences.workspace.commitWhenEmptyDesc') }}</div>
-                </div>
-                <select
-                  class="select select-sm select-bordered w-full text-xs"
-                  :value="appStore.globalEditSetting.commitWhenEmpty ?? 'all'"
-                  @change="appStore.globalEditSetting.commitWhenEmpty = ($event.target as HTMLSelectElement).value as 'all' | 'off' | 'prompt'"
-                >
-                  <option value="all">{{ t('preferences.workspace.commitWhenEmptyAll') }}</option>
-                  <option value="off">{{ t('preferences.workspace.commitWhenEmptyOff') }}</option>
-                  <option value="prompt">{{ t('preferences.workspace.commitWhenEmptyPrompt') }}</option>
-                </select>
-              </div>
-            </section>
           </div>
+        </div>
+
+        <div v-show="activeTab === 'sourceControl'" class="flex min-h-0 flex-1 flex-col">
+          <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
+            <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.sourceControl.title') }}</h2>
+            <button
+              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              :aria-label="t('common.close')"
+              @click="emit('close')"
+            >
+              <IconX class="icon-xs" />
+            </button>
+          </div>
+          <SourceControlPreferencesPanel />
         </div>
 
         <div v-show="activeTab === 'export'" class="flex min-h-0 flex-1 flex-col">
@@ -826,6 +822,7 @@ import {
   IconX,
   IconFolderOpen,
   IconPlus,
+  IconGitBranch,
 } from '@tabler/icons-vue'
 import { useAppStore } from '@/stores/app'
 import ThemePreviewSample from '@/components/preferences/ThemePreviewSample.vue'
@@ -839,9 +836,10 @@ import { notify } from '@/utils/notifications'
 import ProviderSettings from '@/components/ai/ProviderSettings.vue'
 import ExportPreferencesPanel from '@/components/preferences/ExportPreferencesPanel.vue'
 import PrintPreferencesPanel from '@/components/preferences/PrintPreferencesPanel.vue'
+import SourceControlPreferencesPanel from '@/components/preferences/SourceControlPreferencesPanel.vue'
 import type { WorkspaceFilterScope } from '@/services/workspace/filtering'
 
-type TabId = 'workspace' | 'editor' | 'spelling' | 'themes' | 'print' | 'export' | 'ai' | 'updates'
+type TabId = 'workspace' | 'sourceControl' | 'editor' | 'spelling' | 'themes' | 'print' | 'export' | 'ai' | 'updates'
 type ThemeSectionId = 'general' | 'light' | 'dark' | 'markdown' | 'custom-markdown'
 type AiView = 'main' | 'configure'
 
@@ -915,6 +913,7 @@ async function handleCreateExampleTheme(): Promise<void> {
 
 const tabs = computed(() => [
   { id: 'workspace' as TabId, label: t('preferences.tabs.workspace'), icon: IconFolders },
+  { id: 'sourceControl' as TabId, label: t('preferences.tabs.sourceControl'), icon: IconGitBranch },
   { id: 'editor' as TabId, label: t('preferences.tabs.editor'), icon: IconEdit },
   { id: 'spelling' as TabId, label: t('preferences.tabs.spelling'), icon: IconTextSpellcheck },
   { id: 'themes' as TabId, label: t('preferences.tabs.themes'), icon: IconPalette },

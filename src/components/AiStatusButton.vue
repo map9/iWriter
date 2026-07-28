@@ -26,9 +26,11 @@ import { computed } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useAiStore } from '@/ai/store/ai'
 import { IconRobot } from '@tabler/icons-vue'
+import { useI18n } from 'vue-i18n'
 
 const appStore = useAppStore()
 const aiStore = useAiStore()
+const { t } = useI18n()
 
 const closedStatus = computed<'idle' | 'running' | 'waiting'>(() => {
   if (aiStore.isInterrupted) return 'waiting'
@@ -42,10 +44,10 @@ const displayMode = computed<'open' | 'idle' | 'running' | 'waiting'>(() => {
 })
 
 const robotButtonTitle = computed(() => {
-  if (appStore.isRightSidebarVisible) return 'Close AI Writing Buddy Chat'
-  if (closedStatus.value === 'waiting') return 'AI Writing Buddy Chat：Waiting for your confirmation, click to open'
-  if (closedStatus.value === 'running') return 'AI Writing Buddy Chat：Processing, click to open'
-  return 'Open AI Writing Buddy Chat'
+  if (appStore.isRightSidebarVisible) return t('agentPanel.statusButton.close')
+  if (closedStatus.value === 'waiting') return t('agentPanel.statusButton.waiting')
+  if (closedStatus.value === 'running') return t('agentPanel.statusButton.running')
+  return t('agentPanel.statusButton.open')
 })
 </script>
 

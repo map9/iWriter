@@ -202,6 +202,8 @@ const props = withDefaults(defineProps<{
   newContent: string
   /** 初始视图模式 */
   initialMode?: 'split' | 'inline'
+  /** 初始是否显示行号 */
+  initialShowLineNumbers?: boolean
   /** 右侧是否可编辑（工作区文本源，场景1/冲突） */
   editable?: boolean
   /** git hunks（DiffViewerPage 用 computeHunks 传入）；用于渲染逐块 stage/discard 锚点 */
@@ -210,6 +212,7 @@ const props = withDefaults(defineProps<{
   hunkMode?: 'unstaged' | 'staged' | null
 }>(), {
   initialMode: 'split',
+  initialShowLineNumbers: true,
   editable: false,
   hunks: () => [],
   hunkMode: null,
@@ -226,7 +229,7 @@ function onHunk(index: number, action: 'stage' | 'discard' | 'unstage') {
 }
 
 const mode = ref<'split' | 'inline'>(props.initialMode)
-const showLineNumbers = ref(true)
+const showLineNumbers = ref(props.initialShowLineNumbers)
 const currentHunk = ref(0)
 const scrollEl = ref<HTMLElement | null>(null)
 const rulerEl = ref<HTMLElement | null>(null)

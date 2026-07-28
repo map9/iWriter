@@ -64,7 +64,7 @@ import {
 } from '@/services/workspace/filtering'
 
 export const useAppStore = defineStore('app', () => {
-  type PreferencesTab = 'editor' | 'spelling' | 'themes' | 'print' | 'export' | 'ai' | 'updates'
+  type PreferencesTab = 'workspace' | 'sourceControl' | 'editor' | 'spelling' | 'themes' | 'print' | 'export' | 'ai' | 'updates'
   type WorkspaceStatus = 'available' | 'deleted'
   type WorkspaceLoadState = 'idle' | 'opening' | 'refreshing'
   type FileTreePerfStats = { directories: number; files: number; skippedDirectories: number }
@@ -132,7 +132,6 @@ export const useAppStore = defineStore('app', () => {
     useGitignoreForSearch: false,
     useGitignoreForWatcher: false,
     codeBlockLanguageScope: 'common',
-    commitWhenEmpty: 'all',
   })
   const globalExportSetting = reactive<ExportSettings>(structuredClone(DEFAULT_EXPORT_SETTING))
   const globalMarkdownPrintSetting = reactive<MarkdownPrintPreferences>(structuredClone(DEFAULT_MARKDOWN_PRINT_PREFERENCES))
@@ -2397,17 +2396,31 @@ export const useAppStore = defineStore('app', () => {
 
     const isInWorkspace = !!currentFolder.value && isPathInsideWorkspace(change.path, currentFolder.value)
     const affectsOpenTab = doesChangeAffectOpenTab(change)
-    const isGitMetadataChange = isInWorkspace && !!currentFolder.value &&
-      isGitMetadataRelativePath(toWorkspaceRelativePath(currentFolder.value, change.path))
-
-    // 工作空间内文件变化 → 刷新版本控制状态（去抖，内部判 isRepo）
-    if (isInWorkspace) {
-      useGitStore().refresh()
-    }
+    const workspaceRelativePath = isInWorkspace && currentFolder.value
+      ? toWorkspaceRelativePath(currentFolder.value, change.path)
+      : ''
+    const isGitMetadataChange = isInWorkspace &&
+      isGitMetadataRelativePath(workspaceRelativePath)
 
     // Git metadata is intentionally invisible to Explorer/Search. It only exists
     // in this event stream to keep the SCM store synchronized with external Git.
-    if (isGitMetadataChange) return
+    // Repository discovery is required for external/Agent git init; status-only refresh
+    // cannot transition the store from isRepo=false.
+    const gitStore = useGitStore()
+    if (isGitMetadataChange && currentFolder.value) {
+      const kind = workspaceRelativePath.startsWith('.git/refs/tags/') ||
+        workspaceRelativePath === '.git/packed-refs'
+        ? 'tags'
+        : workspaceRelativePath === '.git/HEAD' ||
+            workspaceRelativePath.startsWith('.git/refs/')
+          ? 'history'
+          : 'working-tree'
+      void gitStore.handleMutation({ root: currentFolder.value, kind })
+      return
+    }
+
+    // 工作空间内普通文件变化 → 刷新版本控制状态（去抖，内部判 isRepo）
+    if (isInWorkspace) void gitStore.refresh()
 
     if (!isInWorkspace && !affectsOpenTab) {
       return

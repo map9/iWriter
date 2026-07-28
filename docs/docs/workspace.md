@@ -66,9 +66,9 @@ iWriter 支持在工作区根目录放置 `.iwtignore` 文件，用来隐藏暂�
 - 标签页右键菜单支持关闭当前、关闭其他、关闭已保存、关闭全部、定位文件、复制路径，以及对可导入 Office 文件执行导入。
 - Git Diff 和冲突合并也会作为标签页打开，但不会加入下次启动的文档恢复列表。
 
-## Git 版本控制
+## Git 文档版本管理
 
-左侧 Source Control 面板可以直接管理工作区根目录的标准 Git 仓库，包括：
+左侧“文档版本管理”面板可以直接管理工作区根目录的标准 Git 仓库，包括：
 
 - 初始化或克隆仓库
 - 查看、暂存、放弃和提交变更
@@ -76,7 +76,7 @@ iWriter 支持在工作区根目录放置 `.iwtignore` 文件，用来隐藏暂�
 - 管理分支、远程、Stash 和 Tags
 - 查看仓库 Graph 与单个文件的 Timeline
 
-完整操作见 [Git 源代码管理](/docs/source-control)。
+完整操作见 [Git 文档版本管理](/docs/source-control)。
 
 ## Windows / Linux 标题栏与窗口控制
 

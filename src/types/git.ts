@@ -10,6 +10,62 @@ export interface GitAvailability {
   downloadUrl?: string
 }
 
+export type GitPathMode = 'auto' | 'custom'
+export type GitCommitWhenEmpty = 'all' | 'off' | 'prompt'
+export type GitDiffLayout = 'split' | 'inline'
+export type GitListLayout = 'list' | 'tree'
+
+/**
+ * iWriter 自身的版本控制偏好。Git 仓库配置（身份、remote、upstream 等）
+ * 仍由原生 Git 配置持有，不复制到这里。
+ */
+export interface SourceControlSettings {
+  gitPathMode: GitPathMode
+  gitPath: string
+  commitWhenEmpty: GitCommitWhenEmpty
+  pullAutoStash: boolean
+  fetchPrune: boolean
+  diffLayout: GitDiffLayout
+  diffShowLineNumbers: boolean
+  showRepositories: boolean
+  showGraph: boolean
+  changesLayout: GitListLayout
+  graphFilesLayout: GitListLayout
+}
+
+export const DEFAULT_SOURCE_CONTROL_SETTINGS: SourceControlSettings = {
+  gitPathMode: 'auto',
+  gitPath: '',
+  commitWhenEmpty: 'all',
+  pullAutoStash: true,
+  fetchPrune: true,
+  diffLayout: 'split',
+  diffShowLineNumbers: true,
+  showRepositories: true,
+  showGraph: true,
+  changesLayout: 'list',
+  graphFilesLayout: 'list',
+}
+
+export interface GitIdentity {
+  name?: string
+  email?: string
+}
+
+export interface GitIdentityScopes {
+  global: GitIdentity
+  local?: GitIdentity
+  effective: GitIdentity
+}
+
+/** 主进程中的 Git 写操作通知渲染层按影响范围刷新 SCM。 */
+export type GitMutationKind = 'repository' | 'working-tree' | 'history' | 'tags'
+
+export interface GitMutationEvent {
+  root: string
+  kind: GitMutationKind
+}
+
 /** 可预期的 Git 操作问题：主进程识别，渲染层只负责展示与恢复。 */
 export type GitIssueKind =
   | 'branch-unmerged'
@@ -170,6 +226,8 @@ export interface DiffSpec {
 
 /** 渲染层通过 window.electronAPI.git.* 调用的接口 */
 export interface GitApi {
+  settingsGet: () => Promise<SourceControlSettings>
+  settingsUpdate: (patch: Partial<SourceControlSettings>) => Promise<SourceControlSettings>
   detect: (force?: boolean) => Promise<GitAvailability>
   isRepo: (root: string) => Promise<boolean>
   init: (root: string) => Promise<void>
@@ -189,8 +247,10 @@ export interface GitApi {
   unstageAll: (root: string) => Promise<void>
   discard: (root: string, paths: string[]) => Promise<void>
   commit: (root: string, message: string, opts: { all?: boolean; amend?: boolean }) => Promise<void>
-  identityGet: (root: string) => Promise<{ name?: string; email?: string }>
-  identitySet: (root: string, name: string, email: string, global: boolean) => Promise<void>
+  identityGet: (root: string | null) => Promise<GitIdentity>
+  identityGetScopes: (root: string | null) => Promise<GitIdentityScopes>
+  identitySet: (root: string | null, name: string, email: string, global: boolean) => Promise<void>
+  identityClearLocal: (root: string) => Promise<void>
   checkout: (root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) => Promise<GitActionResult<void>>
   createBranch: (root: string, name: string, base?: string, checkout?: boolean) => Promise<void>
   deleteBranch: (root: string, name: string, force: boolean) => Promise<GitActionResult<void>>
@@ -205,9 +265,9 @@ export interface GitApi {
   addToGitignore: (root: string, relPath: string) => Promise<void>
   clone: (url: string, dir: string) => Promise<GitActionResult<void>>
   fetch: (root: string) => Promise<GitActionResult<void>>
-  pull: (root: string, opts: { rebase?: boolean }) => Promise<GitActionResult<void>>
+  pull: (root: string) => Promise<GitActionResult<void>>
   push: (root: string, opts: { setUpstream?: boolean }) => Promise<GitActionResult<void>>
-  sync: (root: string, opts: { rebase?: boolean }) => Promise<GitActionResult<void>>
+  sync: (root: string) => Promise<GitActionResult<void>>
   publish: (root: string) => Promise<GitActionResult<void>>
   listRemotes: (root: string) => Promise<GitRemote[]>
   addRemote: (root: string, name: string, url: string) => Promise<void>
@@ -217,6 +277,8 @@ export interface GitApi {
   stashApply: (root: string, index: number) => Promise<void>
   stashPop: (root: string, index: number) => Promise<void>
   stashDrop: (root: string, index: number) => Promise<void>
+  /** 订阅主进程 Git 写操作；返回取消订阅函数 */
+  onMutation: (callback: (event: GitMutationEvent) => void) => () => void
   /** 订阅长耗时操作进度；返回取消订阅函数 */
   onProgress: (callback: (p: GitProgress) => void) => () => void
 }

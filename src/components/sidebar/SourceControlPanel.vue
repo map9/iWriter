@@ -453,13 +453,15 @@ import { useAppStore } from '@/stores/app'
 import type { ContextMenuItem, GitCommit, GitFileChange, GitFileStatus } from '@/types'
 import pathUtils from '@/utils/pathUtils'
 import { notify } from '@/utils/notifications'
-import { StateStorage } from '@/utils/StateStorage'
 
 const { t } = useI18n()
 const gitStore = useGitStore()
 const appStore = useAppStore()
 
-onMounted(() => { void gitStore.ensureDetected() })
+onMounted(async () => {
+  await gitStore.ensureSettings()
+  await gitStore.ensureDetected()
+})
 
 const folderName = computed(() =>
   appStore.currentFolder ? pathUtils.basename(appStore.currentFolder) : ''
@@ -471,10 +473,10 @@ const untrackedLabel = computed(() => t('sourceControl.untracked'))
 const mergeLabel = computed(() => t('sourceControl.mergeChanges'))
 
 // ---- 更改：list/tree 切换 ----
-const changesTreeView = ref(false)
+const changesTreeView = ref(gitStore.settings.changesLayout === 'tree')
 
 // ---- 图谱：分支选择 + list/tree 切换 ----
-const graphTreeView = ref(false)
+const graphTreeView = ref(gitStore.settings.graphFilesLayout === 'tree')
 const graphBranchLabel = computed(() =>
   gitStore.graphAll
     ? t('sourceControl.graph.allBranches')
@@ -534,19 +536,56 @@ async function showGraphBranchMenu(event: MouseEvent) {
   }
 }
 
-const savedViewers = StateStorage.loadPanelViewers()
 const viewerPanes = ref<SplitPane[]>([
-  { id: 'repositories', title: t('sourceControl.view.repositories'), collapsed: true, size: 1, visible: savedViewers.scmRepositories },
+  { id: 'repositories', title: t('sourceControl.view.repositories'), collapsed: true, size: 1, visible: gitStore.settings.showRepositories },
   { id: 'changes', title: t('sourceControl.view.changes'), collapsible: false, size: 3 },
-  { id: 'graph', title: t('sourceControl.view.graph'), collapsed: true, size: 2, visible: savedViewers.scmGraph },
+  { id: 'graph', title: t('sourceControl.view.graph'), collapsed: true, size: 2, visible: gitStore.settings.showGraph },
 ])
-// 可选 viewer 显隐持久化（NFR6）
+
+function persistViewSettings(patch: Parameters<typeof gitStore.updateSettings>[0]): void {
+  void gitStore.updateSettings(patch).catch(error => {
+    notify.error(error instanceof Error ? error.message : String(error))
+  })
+}
+
+// 偏好设置与 SCM 面板内的视图切换保持双向一致。
+watch(
+  () => gitStore.settings,
+  (settings) => {
+    changesTreeView.value = settings.changesLayout === 'tree'
+    graphTreeView.value = settings.graphFilesLayout === 'tree'
+    const repositories = viewerPanes.value.find(p => p.id === 'repositories')
+    const graph = viewerPanes.value.find(p => p.id === 'graph')
+    if (repositories) repositories.visible = settings.showRepositories
+    if (graph) graph.visible = settings.showGraph
+  },
+  { deep: true, immediate: true },
+)
+watch(
+  [changesTreeView, graphTreeView],
+  ([changesTree, graphTree]) => {
+    const changesLayout = changesTree ? 'tree' : 'list'
+    const graphFilesLayout = graphTree ? 'tree' : 'list'
+    if (
+      changesLayout !== gitStore.settings.changesLayout
+      || graphFilesLayout !== gitStore.settings.graphFilesLayout
+    ) {
+      persistViewSettings({ changesLayout, graphFilesLayout })
+    }
+  },
+)
 watch(
   () => viewerPanes.value.map(p => p.visible !== false),
-  () => StateStorage.savePanelViewers({
-    scmRepositories: viewerPanes.value.find(p => p.id === 'repositories')?.visible !== false,
-    scmGraph: viewerPanes.value.find(p => p.id === 'graph')?.visible !== false,
-  }),
+  () => {
+    const showRepositories = viewerPanes.value.find(p => p.id === 'repositories')?.visible !== false
+    const showGraph = viewerPanes.value.find(p => p.id === 'graph')?.visible !== false
+    if (
+      showRepositories !== gitStore.settings.showRepositories
+      || showGraph !== gitStore.settings.showGraph
+    ) {
+      persistViewSettings({ showRepositories, showGraph })
+    }
+  },
 )
 
 // viewer 标题随语言切换更新：t() 存进 ref 只算一次，需在 effect 中重算才能响应 locale
@@ -581,7 +620,7 @@ async function doPrimaryCommit() {
   const hasStaged = (gitStore.status?.staged.length ?? 0) > 0
   if (hasStaged) { gitStore.commit({}); return }
   // 无暂存内容时的行为按偏好设置（Q5）：all=提交所有 / off=禁用 / prompt=每次询问
-  const mode = appStore.globalEditSetting.commitWhenEmpty ?? 'all'
+  const mode = gitStore.settings.commitWhenEmpty
   if (mode === 'off') { notify.info(t('sourceControl.noStagedChanges')); return }
   if (mode === 'prompt') {
     const ok = await confirmBox(

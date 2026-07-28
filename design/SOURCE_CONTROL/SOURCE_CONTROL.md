@@ -1,21 +1,21 @@
-# SOURCE_CONTROL.md — 工作空间版本控制需求文档
+# SOURCE_CONTROL.md — 工作空间文档版本管理需求
 
 > 状态：v0.8（2026-07-13，UI 交互梳理：预检式确认总纲(§5.6) + 对话框三形态(§5.7) + 菜单扁平化/分支子菜单 + tree 目录色点/行布局，已回写 F1/F2/F5/F14/§5.5，设计稿见 `ui/`；**代码回写待做**）
-> 定位：为 iWriter 工作空间（打开的文件夹）提供对标 VSCode Source Control 的 **真 Git 集成**。
+> 定位：为个人知识库与小说创作工作空间提供面向写作者的 **Git 文档版本管理**；能力覆盖标准 Git，内部架构参考 VSCode Source Control。
 
 ---
 
 ## 1. 目标与范围
 
 ### 1.1 目标
-在 iWriter 左侧栏新增一个「源代码管理 / Source Control」面板，让用户对当前工作空间文件夹执行标准 Git 版本控制操作，交互与心智模型**对标 VSCode**。
+在 iWriter 左侧栏提供“文档版本管理 / Document Versioning”面板，让用户保存、比较、恢复和同步当前工作空间中的笔记与文稿版本；底层执行标准 Git 操作，交互能力参考 VSCode。
 
 ### 1.2 路线决策（已定）
 | 维度 | 决策 | 含义 |
 | --- | --- | --- |
 | 底层引擎 | **真 Git 集成** | 仓库即标准 `.git`，可与 GitHub/GitLab/命令行 Git 互通，不自研快照格式 |
-| 功能定位 | **对标 VSCode 全功能** | stage/commit/branch/merge/冲突解决/remote push-pull/多仓库 |
-| Diff 呈现 | **源码行级对比** | 对 `.md`/`.iwt` 源文本做经典行级 diff（红绿行），不做渲染态语义 diff |
+| 功能定位 | **面向写作者的完整 Git 版本管理** | stage/commit/branch/merge/冲突解决/remote push-pull/多仓库 |
+| Diff 呈现 | **文档源文本行级对比** | 对 `.md`/`.iwt` 源文本做经典行级 diff（红绿行），不做渲染态语义 diff |
 
 ### 1.3 范围外（本期不做）
 - 渲染态 / 富文本语义 diff（段落级高亮）——保留为未来增强项。
@@ -27,7 +27,7 @@
 
 ## 2. 术语与概念映射
 
-严格采用 Git 原生术语（对标 VSCode，不做写作者化封装）：
+面板总称使用“文档版本管理”，具体操作保留必要的 Git 原生术语，确保与标准 Git 工具互通：
 
 | UI 术语 | Git 概念 |
 | --- | --- |
@@ -35,7 +35,7 @@
 | 暂存的更改 / Staged Changes | index (staged) |
 | 提交 / Commit | `git commit` |
 | 分支 / Branch | branch / HEAD |
-| 同步 / Sync | `pull --rebase`(可配) + `push` |
+| 同步 / Sync | `pull --no-rebase`（可配 autostash / prune）+ `push` |
 | 拉取 / 推送 / 获取 | pull / push / fetch |
 | 合并 / 冲突 | merge + conflict markers |
 | 贮藏 / Stash | `git stash` |
@@ -95,7 +95,7 @@
 
 ### F3 · 提交 (P0)
 - 提交信息输入框：单行起、自动扩展多行（镜像 SearchPanel），支持标题/正文约定。
-- 「提交」按钮：提交已暂存内容；**无暂存内容时默认「提交所有更改」（Commit All，对标 VSCode）**（Q5）。可在偏好设置改为「禁用/每次询问」——**已实现（2026-07-12）**：偏好项 `EditSetting.commitWhenEmpty`（`all`/`off`/`prompt`），偏好设置「工作区 › 源代码管理」下拉；`off` 无暂存时给 notify 提示、`prompt` 弹二次确认。
+- 「提交」按钮：提交已暂存内容；**无暂存内容时默认「提交所有更改」（Commit All，对标 VSCode）**（Q5）。可在偏好设置改为「禁用/每次询问」——配置由 `SourceControlSettings.commitWhenEmpty` 持有，位于独立的「版本管理」tab。`off` 无暂存时给 notify 提示、`prompt` 弹二次确认。
 - **Commit All 语义**：必须先 `git add -A` 再提交，包含未跟踪文件；不得以 `git commit -a` 代替（后者只提交已跟踪文件）。
 - 提交前校验：空信息拦截、用户 `user.name/user.email` 缺失时引导配置。
 - 支持 Amend（修订上次提交）——P1。
@@ -201,7 +201,7 @@ export interface DiffSpec {
 
 ### F10 · 贮藏 Stash (P2) —— **已实现（2026-07-12）**
 - Stash push（可选信息）/ pop / list / apply / drop：`GitService.stash*`；SCM more-actions →「贮藏更改…/弹出最近贮藏/贮藏列表…」（列表二级菜单 apply/pop/drop，drop 二次确认）；pop 冲突交 Merge Changes。
-- **auto-stash sync**：`pull --autostash`（sync 复用）——脏工作区自动 stash→pull→pop，clean 无操作，pop 冲突→进合并 tab。解决「有未提交改动无法 pull」。
+- **auto-stash sync**：`pull --autostash`（sync 复用）——脏工作区自动 stash→pull→pop，clean 无操作，pop 冲突→进合并 tab。可在「版本管理」偏好中关闭；关闭后保留 Git 对脏工作区的原生检查。
 
 ### F11 · `.gitignore` 集成 (P0)
 - **复用现有** workspace 过滤基础设施（`getEffectiveWorkspaceIgnoreRules` / `WORKSPACE_FILTERING.md`）：git 忽略规则与 Explorer/Search 过滤保持一致来源。
@@ -271,7 +271,7 @@ export interface DiffSpec {
 
 ### 5.5 SCM 菜单体系与入口职责 —— 做/不做定稿（2026-07-13）
 
-> 对照 VSCode SCM 全量菜单逐项裁定。**判断线**：本工程是「个人知识库 + 小说写作」的**单人、本地优先** Git（Git ≈ 时间机器 + 云备份 + 版本里程碑），不是团队协作 Git。故：commit/history/restore/diff、sync 备份、**tag 里程碑**、stash、copy hash·message、reveal、open file、undo-commit = 高价值；rebase / force / 多 remote / delete-remote-branch / fetch-prune / cherry-pick = 隐藏；破坏性操作（discard-all / delete-branch / undo-commit）加护栏（undo 用 `reset --soft` 降险）。承载：面板 `⋯` more-actions + viewer 头下拉 + 变更行/提交行右键，**不进原生菜单栏**（§5.3）。
+> 对照 VSCode SCM 全量菜单逐项裁定。**判断线**：本工程是「个人知识库 + 小说写作」的**单人、本地优先** Git（Git ≈ 时间机器 + 云备份 + 版本里程碑），不是团队协作 Git。故：commit/history/restore/diff、sync 备份、**tag 里程碑**、stash、copy hash·message、reveal、open file、undo-commit = 高价值；rebase / force / 多 remote / delete-remote-branch / cherry-pick = 隐藏；fetch-prune 仅作为全局偏好提供，不增加菜单变体；破坏性操作（discard-all / delete-branch / undo-commit）加护栏（undo 用 `reset --soft` 降险）。承载：面板 `⋯` more-actions + viewer 头下拉 + 变更行/提交行右键，**不进原生菜单栏**（§5.3）。
 >
 > **入口职责（本轮定稿，待实现）**：容器 `⋯` 只承载跨 viewer 的仓库全局能力（远程、贮藏、标签、视图显隐）；存储库 viewer `⋯` 只承载分支操作与切换；Changes 标题栏承载高频且可逆的工作区动作（Stage All、列表/树切换），`Discard All` 不常驻；文件右键只作用于文件/目录，Graph 右键只作用于提交。各入口不得重复承担其他对象的操作。
 
@@ -287,9 +287,9 @@ export interface DiffSpec {
 | Commit Staged / Amend(Staged/All) 变体 | ❌ | 过细；"Commit"默认即 commit staged，保留单个 Amend |
 | Stage All / Unstage All / Discard All | ✅ | 含目录级 |
 | Sync / Pull / Push / Fetch | ✅ | remote 子菜单 |
-| Pull (Rebase) | 🔻 | 降为偏好项而非菜单 |
+| Pull (Rebase) | ❌ | 文档工作流固定 merge，不提供历史改写策略 |
 | Pull from… / Push to… | ❌ | 多 remote |
-| Fetch (Prune) / Fetch From All Remotes | ❌ | 专家/多 remote |
+| Fetch (Prune) / Fetch From All Remotes | 🔻 | prune 作为「版本管理」偏好；不增加菜单项或多 remote 变体 |
 | Merge / Create Branch / Delete Branch / Publish | ✅ | 前三项仅存储库 branch 菜单；Publish 属远程分组 |
 | **Create Branch From…** | ⭐ | 从某分支/提交开支线草稿（novel 支线） |
 | **Rename Branch** | ⭐ | 简单低风险，草稿改名 |
@@ -367,7 +367,7 @@ Changes 标题栏固定保留 `Stage All` 与列表/树切换；刷新由容器�
 | NFR3 健壮性 | git 未安装 / 非仓库 / 分离 HEAD / 网络失败均有明确降级与提示；预期 Git 状态转为下一步操作，原始 stderr 不直接作为用户错误展示（F14）。 |
 | NFR4 安全 | 不明文存储凭证；破坏性操作（discard/clean/force push/branch delete）必须二次确认 |
 | NFR5 i18n | 中英文文案（复用现有 i18n 体系）|
-| NFR6 持久化 | 面板宽度/展开态/上次分支等经 `StateStorage` 持久化。**可选 viewer 显隐已实现（2026-07-12）**：`StateStorage.{save,load}PanelViewers`（`iwriter-panel-viewers`：explorerTimeline/scmRepositories/scmGraph），Explorer/SCM 面板初始化读取 + watch 回写 |
+| NFR6 持久化 | Explorer Timeline 显隐经 `StateStorage` 持久化；SCM viewer 显隐与布局由 `SourceControlSettings` / `GitConfigStore` 持久化 |
 | NFR7 跨平台 | macOS/Windows/Linux 路径与换行一致（注意 `core.autocrlf`）|
 | NFR8 主题 | 面板与 diff 视图适配 daisyUI 主题及 Markdown 主题 |
 
@@ -395,7 +395,9 @@ Changes 标题栏固定保留 `Stage All` 与列表/树切换；刷新由容器�
 
 ## 8. 数据与持久化
 - 无自建版本数据；一切以 `.git` 为准（真 Git）。
-- 仅持久化 UI 偏好（`StateStorage`）：viewer 显隐/折叠态、分组折叠、提交默认行为、同步默认策略。
+- iWriter 版本管理偏好由主进程 `GitConfigStore`（electron-store）持久化：Git 路径、Commit All 行为、Pull autostash、Fetch prune、Diff 默认布局与 SCM 视图偏好。
+- `.gitignore` 对 Explorer / Search / Watcher 的过滤开关仍属于工作区设置，不并入版本管理偏好。
+- Git 身份仍由 Git 自身的 global / local config 持有；偏好设置可维护全局和当前仓库身份，提交时的 `GitIdentityDialog` 继续作为缺失身份的就地恢复入口。
 
 ---
 

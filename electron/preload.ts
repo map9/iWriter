@@ -3,7 +3,7 @@ import type { IpcRendererEvent } from 'electron'
 import type { ElectronAPI, HtmlPrintReadyOptions, PdfSaveOptions, SaveFileOptions } from '../src/types/electron-api'
 import type { SendMessageRequest, SessionContextStatsRequest, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunContextCompressedEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
 import type { AiSettings } from '../src/types/ai'
-import type { GitProgress } from '../src/types/git'
+import type { GitMutationEvent, GitProgress } from '../src/types/git'
 import { createAppMenuRequest, createContextMenuRequest } from '../src/types/menu'
 import type { ContextMenuItem, MenuPosition } from '../src/types/menu'
 import type { FileChange } from '../src/types/file-operation'
@@ -122,6 +122,8 @@ const electronAPI: ElectronAPI = {
   officeConvertToPdf: (req: OfficeConvertRequest): Promise<OfficeConvertResult> => ipcRenderer.invoke('office:convert', req),
 
   git: {
+    settingsGet: () => ipcRenderer.invoke('git:settings-get'),
+    settingsUpdate: (patch: Partial<import('../src/types/git').SourceControlSettings>) => ipcRenderer.invoke('git:settings-update', patch),
     detect: (force?: boolean) => ipcRenderer.invoke('git:detect', force),
     isRepo: (root: string) => ipcRenderer.invoke('git:is-repo', root),
     init: (root: string) => ipcRenderer.invoke('git:init', root),
@@ -141,8 +143,10 @@ const electronAPI: ElectronAPI = {
     unstageAll: (root: string) => ipcRenderer.invoke('git:unstage-all', root),
     discard: (root: string, paths: string[]) => ipcRenderer.invoke('git:discard', root, paths),
     commit: (root: string, message: string, opts: { all?: boolean; amend?: boolean }) => ipcRenderer.invoke('git:commit', root, message, opts),
-    identityGet: (root: string) => ipcRenderer.invoke('git:identity-get', root),
-    identitySet: (root: string, name: string, email: string, global: boolean) => ipcRenderer.invoke('git:identity-set', root, name, email, global),
+    identityGet: (root: string | null) => ipcRenderer.invoke('git:identity-get', root),
+    identityGetScopes: (root: string | null) => ipcRenderer.invoke('git:identity-get-scopes', root),
+    identitySet: (root: string | null, name: string, email: string, global: boolean) => ipcRenderer.invoke('git:identity-set', root, name, email, global),
+    identityClearLocal: (root: string) => ipcRenderer.invoke('git:identity-clear-local', root),
     checkout: (root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) => ipcRenderer.invoke('git:checkout', root, ref, opts),
     createBranch: (root: string, name: string, base?: string, checkout?: boolean) => ipcRenderer.invoke('git:create-branch', root, name, base, checkout),
     deleteBranch: (root: string, name: string, force: boolean) => ipcRenderer.invoke('git:delete-branch', root, name, force),
@@ -157,9 +161,9 @@ const electronAPI: ElectronAPI = {
     addToGitignore: (root: string, relPath: string) => ipcRenderer.invoke('git:add-to-gitignore', root, relPath),
     clone: (url: string, dir: string) => ipcRenderer.invoke('git:clone', url, dir),
     fetch: (root: string) => ipcRenderer.invoke('git:fetch', root),
-    pull: (root: string, opts: { rebase?: boolean }) => ipcRenderer.invoke('git:pull', root, opts),
+    pull: (root: string) => ipcRenderer.invoke('git:pull', root),
     push: (root: string, opts: { setUpstream?: boolean }) => ipcRenderer.invoke('git:push', root, opts),
-    sync: (root: string, opts: { rebase?: boolean }) => ipcRenderer.invoke('git:sync', root, opts),
+    sync: (root: string) => ipcRenderer.invoke('git:sync', root),
     publish: (root: string) => ipcRenderer.invoke('git:publish', root),
     listRemotes: (root: string) => ipcRenderer.invoke('git:list-remotes', root),
     addRemote: (root: string, name: string, url: string) => ipcRenderer.invoke('git:add-remote', root, name, url),
@@ -169,6 +173,11 @@ const electronAPI: ElectronAPI = {
     stashApply: (root: string, index: number) => ipcRenderer.invoke('git:stash-apply', root, index),
     stashPop: (root: string, index: number) => ipcRenderer.invoke('git:stash-pop', root, index),
     stashDrop: (root: string, index: number) => ipcRenderer.invoke('git:stash-drop', root, index),
+    onMutation: (callback: (event: GitMutationEvent) => void) => {
+      const listener = (_: IpcRendererEvent, event: GitMutationEvent) => callback(event)
+      ipcRenderer.on('git:mutation', listener)
+      return () => { ipcRenderer.removeListener('git:mutation', listener) }
+    },
     onProgress: (callback: (p: GitProgress) => void) => {
       const listener = (_: IpcRendererEvent, p: GitProgress) => callback(p)
       ipcRenderer.on('git:progress', listener)

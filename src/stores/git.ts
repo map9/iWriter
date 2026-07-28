@@ -12,11 +12,14 @@ import type {
   GitFileChange,
   GitActionResult,
   GitIssue,
+  GitMutationEvent,
   GitProgress,
   GitRemote,
   GitStashEntry,
   GitStatus,
+  SourceControlSettings,
 } from '@/types/git'
+import { DEFAULT_SOURCE_CONTROL_SETTINGS } from '@/types/git'
 
 /**
  * 版本控制渲染层状态：单一数据源，组件只读 + 派发 action。
@@ -29,6 +32,35 @@ export const useGitStore = defineStore('git', () => {
   const availability = ref<GitAvailability>({ available: false })
   const root = ref<string | null>(null)
   const isRepo = ref(false)
+  const settings = ref<SourceControlSettings>({ ...DEFAULT_SOURCE_CONTROL_SETTINGS })
+  let settingsPromise: Promise<SourceControlSettings> | null = null
+
+  async function ensureSettings(): Promise<SourceControlSettings> {
+    if (settingsPromise) return settingsPromise
+    settingsPromise = (async () => {
+      const loaded = await api().settingsGet()
+      settings.value = loaded
+      return loaded
+    })().catch((error) => {
+      settingsPromise = null
+      console.error('[git] settings load failed', error)
+      return settings.value
+    })
+    return settingsPromise
+  }
+
+  async function updateSettings(patch: Partial<SourceControlSettings>): Promise<void> {
+    const previous = settings.value
+    settings.value = await api().settingsUpdate(patch)
+    settingsPromise = Promise.resolve(settings.value)
+    if (
+      previous.gitPathMode !== settings.value.gitPathMode
+      || previous.gitPath !== settings.value.gitPath
+    ) {
+      availability.value = await api().detect(true)
+      if (root.value) await onFolderChanged(root.value)
+    }
+  }
 
   // 状态
   const status = ref<GitStatus | null>(null)
@@ -114,6 +146,7 @@ export const useGitStore = defineStore('git', () => {
 
   /** 检测 git 环境（缓存） */
   async function ensureDetected(): Promise<GitAvailability> {
+    await ensureSettings()
     if (!availability.value.available) {
       availability.value = await api().detect()
     }
@@ -133,6 +166,30 @@ export const useGitStore = defineStore('git', () => {
     isRepo.value = await api().isRepo(newRoot)
     if (generation !== folderChangeGeneration) return
     if (isRepo.value) await refresh()
+  }
+
+  function isCurrentRepository(eventRoot: string): boolean {
+    if (!root.value) return false
+    const current = pathUtils.normalize(root.value)
+    const changed = pathUtils.normalize(eventRoot)
+    return window.electronAPI.platform === 'win32'
+      ? current.toLowerCase() === changed.toLowerCase()
+      : current === changed
+  }
+
+  /**
+   * 主进程 Agent Git tools 与外部 Git 文件事件共用的刷新入口。
+   * init 必须重新探测仓库；提交/标签还需主动重载图谱，不能只刷新 status。
+   */
+  async function handleMutation(event: GitMutationEvent): Promise<void> {
+    if (!isCurrentRepository(event.root)) return
+    if (event.kind === 'repository' || !isRepo.value) {
+      await onFolderChanged(root.value)
+      return
+    }
+    await refresh()
+    if (event.kind === 'history' || event.kind === 'tags') await loadGraph()
+    if (event.kind === 'tags') await loadTags()
   }
 
   /** 初始化当前工作区，并复用同一错误处理入口。 */
@@ -525,6 +582,7 @@ export const useGitStore = defineStore('git', () => {
   // ---------- 远程操作 ----------
   /** 长耗时操作进度（clone/pull/push/fetch）；null=无进行中 */
   const progress = ref<GitProgress | null>(null)
+  window.electronAPI?.git?.onMutation?.((event) => { void handleMutation(event) })
   window.electronAPI?.git?.onProgress?.((p) => { if (busy.value) progress.value = p })
 
   async function remoteRun(name: string, action: () => Promise<GitActionResult<void>>): Promise<boolean> {
@@ -552,9 +610,9 @@ export const useGitStore = defineStore('git', () => {
   }
 
   const fetch = () => remoteRun('fetch', () => api().fetch(root.value!))
-  const pull = (rebase = false) => remoteRun('pull', () => api().pull(root.value!, { rebase }))
+  const pull = () => remoteRun('pull', () => api().pull(root.value!))
   const push = () => remoteRun('push', () => api().push(root.value!, {}))
-  const sync = (rebase = false) => remoteRun('sync', () => api().sync(root.value!, { rebase }))
+  const sync = () => remoteRun('sync', () => api().sync(root.value!))
   const publish = () => remoteRun('publish', () => api().publish(root.value!))
 
   // ---------- 远程管理（add/remove/list remote） ----------
@@ -652,10 +710,10 @@ export const useGitStore = defineStore('git', () => {
   }
 
   return {
-    availability, root, isRepo, status, branch, commits, expandedHash, expandedFiles, graphBranch, graphAll, graphHasMore,
+    availability, root, isRepo, settings, status, branch, commits, expandedHash, expandedFiles, graphBranch, graphAll, graphHasMore,
     loading, graphLoading, busy, progress, revision, cloneDialogOpen, changeCount, hasChanges,
     commitMessage, committing, identityPromptOpen,
-    ensureDetected, onFolderChanged, initRepo, refresh, loadGraph, loadMoreGraph, setGraphBranch, toggleCommit, loadFileHistory,
+    ensureSettings, updateSettings, ensureDetected, onFolderChanged, handleMutation, initRepo, refresh, loadGraph, loadMoreGraph, setGraphBranch, toggleCommit, loadFileHistory,
     openDiff, openCommitDiff, openMergeTab,
     stage, unstage, stageAll, unstageAll, discard, commit,
     checkout, createBranch, deleteBranch, preflightDeleteBranch, preflightMerge, addToGitignore, restoreFile, merge,

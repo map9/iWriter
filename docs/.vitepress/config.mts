@@ -27,7 +27,7 @@ export default defineConfig({
             { text: '概述', link: '/docs/' },
             { text: '快速开始', link: '/quick-start' },
             { text: '工作区与文件管理', link: '/docs/workspace' },
-            { text: 'Git 源代码管理', link: '/docs/source-control' },
+            { text: 'Git 文档版本管理', link: '/docs/source-control' },
             { text: '编辑器使用', link: '/docs/editor' },
             { text: '搜索与替换', link: '/docs/search' },
             { text: '目录与结构导航', link: '/docs/toc' }
@@ -36,9 +36,9 @@ export default defineConfig({
         {
           text: 'AI 功能',
           items: [
-            { text: 'AI 总览', link: '/docs/ai-overview' },
-            { text: 'AI Edit 模式与审批流', link: '/docs/ai-edit-mode' },
-            { text: 'AI Creative 模式', link: '/docs/ai-creative-mode' },
+            { text: 'AI Writing Buddy 总览', link: '/docs/ai-overview' },
+            { text: '日常写作搭子', link: '/docs/ai-edit-mode' },
+            { text: '小说创作搭子', link: '/docs/ai-creative-mode' },
             { text: 'Provider 配置', link: '/docs/ai-provider' }
           ]
         },

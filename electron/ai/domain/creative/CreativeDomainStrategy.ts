@@ -12,6 +12,7 @@ import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { SerializedSnapshot } from '../../ipc/protocol'
 import type { ThreadRuntimeStore } from '../../runtime/ThreadRuntimeStore'
 import type { AiAgentMode } from '../../../../src/types/ai'
+import type { GitMutationEvent } from '../../../../src/types/git'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
 import type {
   DomainStrategy,
@@ -20,12 +21,15 @@ import type {
   DomainReviewItem,
 } from '../DomainStrategy'
 import type { DomainAgentCapabilities } from '../types'
+import type { GitService } from '../../../GitService'
 
 export class CreativeDomainStrategy implements DomainStrategy {
   constructor(
     private readonly snapshotBroker: SnapshotBroker,
     private readonly aiRootPath: string,
     private readonly runtimeStore: ThreadRuntimeStore,
+    private readonly gitService: GitService,
+    private readonly onGitMutation: (event: GitMutationEvent) => void,
   ) {}
 
   buildCapabilities(ctx: DomainBuildContext): DomainAgentCapabilities {
@@ -34,6 +38,8 @@ export class CreativeDomainStrategy implements DomainStrategy {
       workspacePath: ctx.workspacePath,
       snapshotBroker: this.snapshotBroker,
       language: ctx.language,
+      gitService: this.gitService,
+      onGitMutation: this.onGitMutation,
     })
   }
 

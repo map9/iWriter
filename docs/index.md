@@ -4,7 +4,7 @@ pageClass: home-page
 
 hero:
   text: "免费的跨平台本地 AI 创作工具"
-  tagline: "基于本地或远端工作区，提供专业级 Ai Agent 协同创作、编辑、改写、审阅以及跨文件搜索和管理能力，它只需要您思想的火花"
+  tagline: "AI 全能创作搭子，陪你管理知识、打磨日常文稿，并从灵感构思一路完成小说创作"
   actions:
     - theme: brand
       text: 下载
@@ -22,19 +22,22 @@ hero:
 
 <div class="home-release-note">
   <span>适用版本：iWriter <code>0.1.24</code></span>
-  <span>最后更新：2026-07-27</span>
+  <span>最后更新：2026-07-28</span>
 </div>
 
 <section class="home-feature-stack">
   <div class="home-feature-row">
     <div class="home-feature-text">
-      <p class="home-feature-text-eyebrow">Writing Buddy</p>
-      <h2>你的专属创作搭子</h2>
+      <p class="home-feature-text-eyebrow">AI Writing Buddy</p>
+      <h2>AI 全能创作搭子</h2>
       <p>
-        扩写、缩写、续写，更换行文风格，修改故事情节，调整角色个性，改变故事场景，Writing Buddy 将您脑中妙思转成文字。
+        日常写作搭子（AI Doc Buddy）围绕个人知识管理与日常文档写作，陪你完成信息收集、内容创作与文稿打磨。
       </p>
       <p>
-        Writing Buddy 的所有编辑，都需要等您审核后才落地。
+        小说创作搭子（AI Story Buddy）陪伴作者从灵感构思到作品完稿，覆盖提纲、正文、评审与重构全流程。
+      </p>
+      <p>
+        AI Writing Buddy 的所有编辑，都需要等您审核后才落地。
       </p>
       <p>
         支持 Anthropic、DeepSeek、Gemini、GLM、OpenAI 等常见 AI 服务商配置。
@@ -86,7 +89,7 @@ hero:
         你的本地文件或者远程云盘，你熟悉的Markdown文本格式，基于操作系统目录的纯文件工作区、目录树，增删除、拷贝、黏贴、拖拽、跨文件搜索与替换，外加工作区过滤规则，想怎么操作你的资产就怎么操作。资料、草稿，脑爆巧思、几审作品，可以自行组织和管理。
       </p>
       <p>
-        内置标准 Git 源代码管理，支持提交、分支、Diff、冲突合并、Graph、Timeline 和 Tags，重要改稿随时可比较、回退和固化。
+        内置标准 Git 文档版本管理，支持提交、分支、Diff、冲突合并、Graph、Timeline 和 Tags，重要改稿随时可比较、回退和固化。
       </p>
       <p>
         没有专属文件格式，没有数据库，没有远程文件服务。一切透明，无需担心，没有黑箱，零迁移成本。

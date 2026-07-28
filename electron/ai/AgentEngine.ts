@@ -72,6 +72,7 @@ import type { DomainStrategy } from './domain/DomainStrategy'
 import { EditDomainStrategy } from './domain/edit/EditDomainStrategy'
 import { CreativeDomainStrategy } from './domain/creative/CreativeDomainStrategy'
 import { detectInputLanguage, type DetectedInputLanguage } from '../../src/ai/message/detectInputLanguage'
+import type { GitService } from '../GitService'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -176,7 +177,10 @@ export class AgentEngine {
   /** Domain strategy table — add new domains here only. AgentEngine itself never branches on domain. */
   private readonly strategies: Record<AiAgentDomain, DomainStrategy>
 
-  constructor(private getWebContents: () => WebContents | null) {
+  constructor(
+    private getWebContents: () => WebContents | null,
+    private readonly gitService: GitService,
+  ) {
     this.snapshotBroker = new SnapshotBroker(getWebContents)
     this.rendererBridge = new RendererEventBridge(getWebContents)
     this.aiRootPath = path.join(app.getPath('home'), '.iwriter', 'ai')
@@ -192,6 +196,8 @@ export class AgentEngine {
         this.snapshotBroker,
         this.aiRootPath,
         this.runtimeStore,
+        this.gitService,
+        event => this.rendererBridge.sendGitMutation(event),
       ),
     }
     // 目录初始化移至 initialize()（异步），不在构造函数同步执行

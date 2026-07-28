@@ -1,4 +1,5 @@
 import type { WebContents } from 'electron'
+import type { GitMutationEvent } from '../../../src/types/git'
 import type {
   RunContextCompressedEvent,
   RunDoneEvent,
@@ -38,5 +39,9 @@ export class RendererEventBridge {
 
   sendRunFilesystemAutoReject(event: RunFilesystemAutoRejectEvent): void {
     this.getWebContents()?.send('ai:filesystem-auto-reject', event)
+  }
+
+  sendGitMutation(event: GitMutationEvent): void {
+    this.getWebContents()?.send('git:mutation', event)
   }
 }

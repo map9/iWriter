@@ -66,7 +66,7 @@ iWriter 支持 GitHub Flavored Markdown Alert：
 > 这是一条补充说明。
 ```
 
-支持 `NOTE`、`TIP`、`IMPORTANT`、`WARNING`、`CAUTION`，并为 Creative 小说流程增加：
+支持 `NOTE`、`TIP`、`IMPORTANT`、`WARNING`、`CAUTION`，并为 AI Story Buddy 小说流程增加：
 
 - `BEAT`：章节中的叙事 / 情感节拍
 - `COMMENT`：作者或编辑留下的正文批注

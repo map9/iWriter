@@ -12,12 +12,12 @@ iWriter 的 AI 运行时已经切换到：
 - 文档编辑域与创作域分离
 - 文档修改统一走 block edit proposal / HITL 审批
 
-当前只保留 2 个模式（默认 `Edit`，`Creative` 为专用模式）：
+产品层统一称为 **AI 全能创作搭子（AI Writing Buddy）**，包含两个搭子；代码内部继续使用 `Edit` / `Creative` 作为稳定模式标识：
 
-| 模式 | 目标 | 可用能力 |
-| --- | --- | --- |
-| `Edit` | 通用文档创建/编辑与个人知识库管理：先读后改的文档编辑、研究整理、写作 | document/search/web/PDF tools + edit proposal tools |
-| `Creative` | 小说项目、提纲、正文、评审、重构与导入 | skills + writer/reviewer subagents + document/filesystem/git tools |
+| 产品名称 | 内部模式 | 目标 | 可用能力 |
+| --- | --- | --- | --- |
+| 日常写作搭子 / `AI Doc Buddy` | `Edit` | 个人知识管理与日常文档写作：信息收集、内容创作、文稿打磨 | document/search/web/PDF tools + edit proposal tools |
+| 小说创作搭子 / `AI Story Buddy` | `Creative` | 从灵感构思到作品完稿：小说项目、提纲、正文、评审、重构与导入 | skills + writer/reviewer subagents + document/filesystem/git tools |
 
 说明：
 

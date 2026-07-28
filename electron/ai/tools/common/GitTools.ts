@@ -1,18 +1,18 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import { execFile, type ExecFileException } from 'child_process'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import type { IWriterAgentContext } from '../../runtime/AgentContext'
+import {
+  GitServiceError,
+  type GitService,
+} from '../../../GitService'
+import type { GitMutationEvent } from '../../../../src/types/git'
 
 // Generalized git tools (B1): moved from the storybible-specific CreativeGitTools to the
 // common tool面, workspace-generic (no storybible.md/draft defaults). Adds git_init and
 // git_restore (04.4 §3 / FR-1.6 / FR-6.4). Version tracking operates on the markdown object
 // tree at the workspace root; derived AI artifacts under `.iwriter/` are gitignored.
-
-const MAX_BUFFER = 20 * 1024 * 1024
-const READ_TIMEOUT_MS = 15000
-const WRITE_TIMEOUT_MS = 30000
 
 type GitErrorCode =
   | 'NOT_A_REPO'
@@ -49,48 +49,38 @@ function formatGitError(result: Extract<GitResult, { ok: false }>): string {
   return JSON.stringify({ ok: false, errorCode: result.errorCode, message: result.message }, null, 2)
 }
 
-function commandFailureMessage(error: ExecFileException, stderr: string): string {
-  if (error.killed || /timed out/i.test(error.message)) return 'Git command timed out.'
-  const clean = stderr.trim() || error.message
-  if (/index\.lock/i.test(clean)) return 'Git index is locked by another process.'
-  return clean.split(/\r?\n/).slice(0, 4).join('\n')
+function serviceFailure(error: unknown): Extract<GitResult, { ok: false }> {
+  if (error instanceof GitServiceError) {
+    switch (error.code) {
+      case 'git-not-found':
+        return gitError('GIT_NOT_INSTALLED', error.message)
+      case 'not-a-repository':
+        return gitError('NOT_A_REPO', error.message)
+      case 'author-not-configured':
+        return gitError('AUTHOR_NOT_CONFIGURED', error.message)
+      case 'index-locked':
+        return gitError('INDEX_LOCKED', error.message)
+      case 'timeout':
+        return gitError('GIT_TIMEOUT', error.message)
+      default:
+        return gitError('COMMAND_FAILED', error.message)
+    }
+  }
+  return gitError('COMMAND_FAILED', error instanceof Error ? error.message : String(error))
 }
 
-function runGit(workspacePath: string, args: string[], timeout: number): Promise<GitResult> {
-  return new Promise(resolve => {
-    execFile('git', args, {
-      cwd: workspacePath,
-      encoding: 'utf8',
-      maxBuffer: MAX_BUFFER,
-      timeout,
-    }, (error, stdout, stderr) => {
-      if (!error) {
-        resolve({ ok: true, stdout, stderr })
-        return
-      }
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        resolve(gitError('GIT_NOT_INSTALLED', 'git binary not found on PATH'))
-        return
-      }
-      const message = commandFailureMessage(error, stderr)
-      if (message === 'Git command timed out.') {
-        resolve(gitError('GIT_TIMEOUT', message))
-        return
-      }
-      if (message === 'Git index is locked by another process.') {
-        resolve(gitError('INDEX_LOCKED', message))
-        return
-      }
-      resolve(gitError('COMMAND_FAILED', message))
-    })
-  })
-}
-
-async function preflightGit(workspacePath: string, timeout = READ_TIMEOUT_MS): Promise<GitResult> {
+async function preflightGit(gitService: GitService, workspacePath: string): Promise<GitResult> {
   if (!fs.existsSync(path.join(workspacePath, '.git'))) {
     return gitError('NOT_A_REPO', 'Not a git repository — call git_init first to start version tracking.')
   }
-  return runGit(workspacePath, ['--version'], timeout)
+  const availability = await gitService.detect()
+  if (!availability.available) {
+    return gitError('GIT_NOT_INSTALLED', 'Configured git binary was not found.')
+  }
+  if (!await gitService.isRepo(workspacePath)) {
+    return gitError('NOT_A_REPO', 'Not a git repository — call git_init first to start version tracking.')
+  }
+  return { ok: true, stdout: availability.version ?? '', stderr: '' }
 }
 
 function resolveGitFile(workspacePath: string, file: string): { ok: true; relativePath: string } | { ok: false; message: string } {
@@ -115,75 +105,57 @@ function isSafeGitRef(ref: string): boolean {
   return !!trimmed && !trimmed.startsWith('-') && !/[\s\0-\x1f]/.test(trimmed)
 }
 
-async function ensureAuthorConfigured(workspacePath: string): Promise<GitResult | null> {
-  const name = await runGit(workspacePath, ['config', 'user.name'], READ_TIMEOUT_MS)
-  const email = await runGit(workspacePath, ['config', 'user.email'], READ_TIMEOUT_MS)
-  if (!name.ok || !email.ok || !name.stdout.trim() || !email.stdout.trim()) {
+async function ensureAuthorConfigured(gitService: GitService, workspacePath: string): Promise<GitResult | null> {
+  const identity = await gitService.getUserIdentity(workspacePath)
+  if (!identity.name || !identity.email) {
     return gitError('AUTHOR_NOT_CONFIGURED', 'Git is not configured with an author identity. Run `git config user.name` and `git config user.email` first.')
   }
   return null
 }
 
-function parseStatus(output: string) {
-  const staged: string[] = []
-  const unstaged: string[] = []
-  const untracked: string[] = []
-  for (const line of output.split(/\r?\n/).filter(Boolean)) {
-    const code = line.slice(0, 2)
-    const file = line.slice(3).trim()
-    if (!file) continue
-    if (code === '??') {
-      untracked.push(file)
-      continue
-    }
-    if (code[0] && code[0] !== ' ') staged.push(file)
-    if (code[1] && code[1] !== ' ') unstaged.push(file)
-  }
-  return { staged, unstaged, untracked }
-}
-
-export function getLastGitTagInfo(workspacePath: string): Promise<{
+export function getLastGitTagInfo(gitService: GitService, workspacePath: string): Promise<{
   last_git_tag: { name: string; commit: string; message: string } | null
   commits_since_last_tag: number | null
 }> {
-  return (async () => {
-    if (!fs.existsSync(path.join(workspacePath, '.git'))) {
-      return { last_git_tag: null, commits_since_last_tag: null }
-    }
-    const tag = await runGit(workspacePath, ['describe', '--tags', '--abbrev=0'], READ_TIMEOUT_MS)
-    if (!tag.ok || !tag.stdout.trim()) return { last_git_tag: null, commits_since_last_tag: null }
-    const tagName = tag.stdout.trim()
-    const commit = await runGit(workspacePath, ['rev-list', '-n', '1', tagName], READ_TIMEOUT_MS)
-    const message = await runGit(workspacePath, ['tag', '-l', tagName, '--format=%(contents)'], READ_TIMEOUT_MS)
-    const count = await runGit(workspacePath, ['rev-list', `${tagName}..HEAD`, '--count'], READ_TIMEOUT_MS)
-    return {
-      last_git_tag: {
-        name: tagName,
-        commit: commit.ok ? commit.stdout.trim() : '',
-        message: message.ok ? message.stdout.trim() : '',
-      },
-      commits_since_last_tag: count.ok ? Number(count.stdout.trim()) : null,
-    }
-  })()
+  if (!fs.existsSync(path.join(workspacePath, '.git'))) {
+    return Promise.resolve({ last_git_tag: null, commits_since_last_tag: null })
+  }
+  return gitService.getLastTagInfo(workspacePath)
 }
 
 const NO_WORKSPACE = 'Error: this action requires an open workspace folder.'
 
 export function buildGitTools(options: {
   workspacePath?: string | null
+  gitService: GitService
+  onMutation: (event: GitMutationEvent) => void
 }) {
+  const gitService = options.gitService
   const resolveWorkspace = (runtime: unknown): string | null =>
     ensureWorkspace(getWorkspacePath(runtime, options.workspacePath))
+  const notifyMutation = (root: string, kind: GitMutationEvent['kind']): void => {
+    try {
+      options.onMutation({ root, kind })
+    } catch (error) {
+      console.warn('[GitTools] Failed to notify SCM about Git mutation:', error)
+    }
+  }
 
   const gitInit = tool(
     async (_input: Record<string, never>, runtime) => {
       const workspacePath = resolveWorkspace(runtime)
       if (!workspacePath) return NO_WORKSPACE
       if (fs.existsSync(path.join(workspacePath, '.git'))) {
+        notifyMutation(workspacePath, 'repository')
         return JSON.stringify({ ok: true, already_initialized: true, message: 'Workspace is already a git repository.' }, null, 2)
       }
-      const init = await runGit(workspacePath, ['init'], WRITE_TIMEOUT_MS)
-      if (!init.ok) return formatGitError(init)
+      try {
+        await gitService.init(workspacePath)
+        notifyMutation(workspacePath, 'repository')
+      } catch (error) {
+        if (fs.existsSync(path.join(workspacePath, '.git'))) notifyMutation(workspacePath, 'repository')
+        return formatGitError(serviceFailure(error))
+      }
       // Derived AI engineering state under .iwriter/ must not be tracked (04.1 §1.2).
       const gitignorePath = path.join(workspacePath, '.gitignore')
       if (!fs.existsSync(gitignorePath)) {
@@ -202,11 +174,19 @@ export function buildGitTools(options: {
     async (_input: Record<string, never>, runtime) => {
       const workspacePath = resolveWorkspace(runtime)
       if (!workspacePath) return NO_WORKSPACE
-      const preflight = await preflightGit(workspacePath)
+      const preflight = await preflightGit(gitService, workspacePath)
       if (!preflight.ok) return formatGitError(preflight)
-      const result = await runGit(workspacePath, ['status', '--porcelain=v1'], READ_TIMEOUT_MS)
-      if (!result.ok) return formatGitError(result)
-      return JSON.stringify({ ok: true, ...parseStatus(result.stdout) }, null, 2)
+      try {
+        const status = await gitService.status(workspacePath)
+        return JSON.stringify({
+          ok: true,
+          staged: status.staged.map(file => file.path),
+          unstaged: [...status.changes, ...status.conflicts].map(file => file.path),
+          untracked: status.untracked.map(file => file.path),
+        }, null, 2)
+      } catch (error) {
+        return formatGitError(serviceFailure(error))
+      }
     },
     {
       name: 'git_status',
@@ -219,16 +199,20 @@ export function buildGitTools(options: {
     async ({ limit }: { limit?: number }, runtime) => {
       const workspacePath = resolveWorkspace(runtime)
       if (!workspacePath) return NO_WORKSPACE
-      const preflight = await preflightGit(workspacePath)
+      const preflight = await preflightGit(gitService, workspacePath)
       if (!preflight.ok) return formatGitError(preflight)
-      const safeLimit = String(Math.max(1, Math.min(limit ?? 10, 50)))
-      const result = await runGit(workspacePath, ['log', `-n${safeLimit}`, '--date=iso-strict', '--pretty=format:%h%x09%H%x09%ad%x09%s'], READ_TIMEOUT_MS)
-      if (!result.ok) return formatGitError(result)
-      const commits = result.stdout.split(/\r?\n/).filter(Boolean).map(line => {
-        const [shortHash, hash, date, ...messageParts] = line.split('\t')
-        return { shortHash, hash, date, message: messageParts.join('\t') }
-      })
-      return JSON.stringify({ ok: true, commits }, null, 2)
+      const safeLimit = Math.max(1, Math.min(limit ?? 10, 50))
+      try {
+        const commits = (await gitService.log(workspacePath, { limit: safeLimit })).map(commit => ({
+          shortHash: commit.shortHash,
+          hash: commit.hash,
+          date: commit.date,
+          message: commit.subject,
+        }))
+        return JSON.stringify({ ok: true, commits }, null, 2)
+      } catch (error) {
+        return formatGitError(serviceFailure(error))
+      }
     },
     {
       name: 'git_log',
@@ -243,16 +227,18 @@ export function buildGitTools(options: {
     async ({ from, to }: { from?: string; to?: string }, runtime) => {
       const workspacePath = resolveWorkspace(runtime)
       if (!workspacePath) return NO_WORKSPACE
-      const preflight = await preflightGit(workspacePath)
+      const preflight = await preflightGit(gitService, workspacePath)
       if (!preflight.ok) return formatGitError(preflight)
       if (to && !from) return formatGitError(gitError('COMMAND_FAILED', 'git_diff requires from when to is provided.'))
       if ((from && !isSafeGitRef(from)) || (to && !isSafeGitRef(to))) {
         return formatGitError(gitError('COMMAND_FAILED', 'git_diff refs cannot be empty, whitespace, or option-like values.'))
       }
-      const args = from && to ? ['diff', from, to] : from ? ['diff', from] : ['diff']
-      const result = await runGit(workspacePath, args, READ_TIMEOUT_MS)
-      if (!result.ok) return formatGitError(result)
-      return result.stdout || 'No diff.'
+      try {
+        const result = await gitService.diffRefs(workspacePath, from, to)
+        return result || 'No diff.'
+      } catch (error) {
+        return formatGitError(serviceFailure(error))
+      }
     },
     {
       name: 'git_diff',
@@ -268,12 +254,9 @@ export function buildGitTools(options: {
     async ({ message, files }: { message: string; files?: string[] }, runtime) => {
       const workspacePath = resolveWorkspace(runtime)
       if (!workspacePath) return NO_WORKSPACE
-      const preflight = await preflightGit(workspacePath, WRITE_TIMEOUT_MS)
+      const preflight = await preflightGit(gitService, workspacePath)
       if (!preflight.ok) return formatGitError(preflight)
-      if (fs.existsSync(path.join(workspacePath, '.git', 'index.lock'))) {
-        return formatGitError(gitError('INDEX_LOCKED', 'Git index is locked by another process.'))
-      }
-      const authorError = await ensureAuthorConfigured(workspacePath)
+      const authorError = await ensureAuthorConfigured(gitService, workspacePath)
       if (authorError) return formatGitError(authorError as Extract<GitResult, { ok: false }>)
       const cleanMessage = message.trim()
       if (!cleanMessage) return formatGitError(gitError('COMMAND_FAILED', 'Commit message is required.'))
@@ -285,21 +268,20 @@ export function buildGitTools(options: {
         if (!resolved.ok) return formatGitError(gitError('COMMAND_FAILED', resolved.message))
         resolvedFiles.push(resolved.relativePath)
       }
-      const add = await runGit(workspacePath, ['add', '--', ...resolvedFiles], WRITE_TIMEOUT_MS)
-      if (!add.ok) return formatGitError(add)
-      const staged = await runGit(workspacePath, ['diff', '--cached', '--name-only'], READ_TIMEOUT_MS)
-      if (!staged.ok) return formatGitError(staged)
-      if (!staged.stdout.trim()) {
-        return formatGitError(gitError('COMMAND_FAILED', 'No staged changes to commit.'))
+      try {
+        const commit = await gitService.commitPaths(workspacePath, cleanMessage, resolvedFiles)
+        notifyMutation(workspacePath, 'history')
+        return JSON.stringify({
+          ok: true,
+          message: cleanMessage,
+          files: commit.files,
+          output: commit.output,
+        }, null, 2)
+      } catch (error) {
+        // commitPaths may already have staged files before a hook/commit failure.
+        notifyMutation(workspacePath, 'working-tree')
+        return formatGitError(serviceFailure(error))
       }
-      const commit = await runGit(workspacePath, ['commit', '-m', cleanMessage], WRITE_TIMEOUT_MS)
-      if (!commit.ok) return formatGitError(commit)
-      return JSON.stringify({
-        ok: true,
-        message: cleanMessage,
-        files: staged.stdout.trim().split(/\r?\n/).filter(Boolean),
-        output: commit.stdout.trim(),
-      }, null, 2)
     },
     {
       name: 'git_commit',
@@ -315,20 +297,22 @@ export function buildGitTools(options: {
     async ({ name, message }: { name: string; message?: string }, runtime) => {
       const workspacePath = resolveWorkspace(runtime)
       if (!workspacePath) return NO_WORKSPACE
-      const preflight = await preflightGit(workspacePath, WRITE_TIMEOUT_MS)
+      const preflight = await preflightGit(gitService, workspacePath)
       if (!preflight.ok) return formatGitError(preflight)
-      if (fs.existsSync(path.join(workspacePath, '.git', 'index.lock'))) {
-        return formatGitError(gitError('INDEX_LOCKED', 'Git index is locked by another process.'))
-      }
       const tagName = name.trim()
       if (!tagName) return formatGitError(gitError('COMMAND_FAILED', 'Tag name is required.'))
       if (!isSafeGitRef(tagName)) return formatGitError(gitError('COMMAND_FAILED', 'Invalid tag name.'))
-      const check = await runGit(workspacePath, ['check-ref-format', '--allow-onelevel', `refs/tags/${tagName}`], READ_TIMEOUT_MS)
-      if (!check.ok) return formatGitError(gitError('COMMAND_FAILED', 'Invalid tag name.'))
-      const result = await runGit(workspacePath, ['tag', '-a', tagName, '-m', message?.trim() || tagName], WRITE_TIMEOUT_MS)
-      if (!result.ok) return formatGitError(result)
-      const latest = await getLastGitTagInfo(workspacePath)
-      return JSON.stringify({ ok: true, name: tagName, ...latest }, null, 2)
+      if (!await gitService.checkRefFormat(workspacePath, `refs/tags/${tagName}`)) {
+        return formatGitError(gitError('COMMAND_FAILED', 'Invalid tag name.'))
+      }
+      try {
+        await gitService.createTag(workspacePath, tagName, { message: message?.trim() || tagName })
+        notifyMutation(workspacePath, 'tags')
+        const latest = await getLastGitTagInfo(gitService, workspacePath)
+        return JSON.stringify({ ok: true, name: tagName, ...latest }, null, 2)
+      } catch (error) {
+        return formatGitError(serviceFailure(error))
+      }
     },
     {
       name: 'git_tag',
@@ -344,11 +328,8 @@ export function buildGitTools(options: {
     async ({ files, ref }: { files: string[]; ref?: string }, runtime) => {
       const workspacePath = resolveWorkspace(runtime)
       if (!workspacePath) return NO_WORKSPACE
-      const preflight = await preflightGit(workspacePath, WRITE_TIMEOUT_MS)
+      const preflight = await preflightGit(gitService, workspacePath)
       if (!preflight.ok) return formatGitError(preflight)
-      if (fs.existsSync(path.join(workspacePath, '.git', 'index.lock'))) {
-        return formatGitError(gitError('INDEX_LOCKED', 'Git index is locked by another process.'))
-      }
       if (!files?.length) return formatGitError(gitError('COMMAND_FAILED', 'git_restore requires at least one file.'))
       if (ref !== undefined && !isSafeGitRef(ref)) {
         return formatGitError(gitError('COMMAND_FAILED', 'git_restore ref cannot be empty, whitespace, or option-like.'))
@@ -359,12 +340,14 @@ export function buildGitTools(options: {
         if (!resolved.ok) return formatGitError(gitError('COMMAND_FAILED', resolved.message))
         resolvedFiles.push(resolved.relativePath)
       }
-      const args = ref
-        ? ['restore', '--source', ref, '--', ...resolvedFiles]
-        : ['restore', '--', ...resolvedFiles]
-      const result = await runGit(workspacePath, args, WRITE_TIMEOUT_MS)
-      if (!result.ok) return formatGitError(result)
-      return JSON.stringify({ ok: true, restored: resolvedFiles, source: ref ?? 'index/HEAD' }, null, 2)
+      try {
+        await gitService.restorePaths(workspacePath, resolvedFiles, ref)
+        notifyMutation(workspacePath, 'working-tree')
+        return JSON.stringify({ ok: true, restored: resolvedFiles, source: ref ?? 'index/HEAD' }, null, 2)
+      } catch (error) {
+        notifyMutation(workspacePath, 'working-tree')
+        return formatGitError(serviceFailure(error))
+      }
     },
     {
       name: 'git_restore',

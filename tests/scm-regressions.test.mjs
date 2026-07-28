@@ -13,10 +13,23 @@ const gitStoreSource = readFileSync('src/stores/git.ts', 'utf8')
 const gitTypesSource = readFileSync('src/types/git.ts', 'utf8')
 const leftSidebarSource = readFileSync('src/components/LeftSidebar.vue', 'utf8')
 const explorerSource = readFileSync('src/components/sidebar/ExplorerPanel.vue', 'utf8')
+const gitToolsSource = readFileSync('electron/ai/tools/common/GitTools.ts', 'utf8')
+const agentEngineSource = readFileSync('electron/ai/AgentEngine.ts', 'utf8')
+const rendererEventBridgeSource = readFileSync('electron/ai/ipc/RendererEventBridge.ts', 'utf8')
+const preloadSource = readFileSync('electron/preload.ts', 'utf8')
+const preferencesSource = readFileSync('src/components/preferences/PreferencesDialog.vue', 'utf8')
+const sourceControlPreferencesSource = readFileSync('src/components/preferences/SourceControlPreferencesPanel.vue', 'utf8')
+const diffViewSource = readFileSync('src/components/common/diff/DiffView.vue', 'utf8')
+const gitConfigStoreSource = readFileSync('electron/GitConfigStore.ts', 'utf8')
+const editSettingSource = readFileSync('src/types/edit-setting.ts', 'utf8')
+const stateStorageSource = readFileSync('src/utils/StateStorage.ts', 'utf8')
+const zhMessagesSource = readFileSync('src/i18n/messages/zh-CN.ts', 'utf8')
+const enMessagesSource = readFileSync('src/i18n/messages/en-US.ts', 'utf8')
+const docsFeaturesSource = readFileSync('docs/features.md', 'utf8')
 
 test('SCM regressions', async (t) => {
   await t.test('Commit All stages untracked files before committing', () => {
-    assert.match(gitServiceSource, /if \(opts\.all\) await this\.stageAll\(root\)/)
+    assert.match(gitServiceSource, /if \(opts\.all\) await g\.add\(\['-A'\]\)/)
     assert.doesNotMatch(gitServiceSource, /if \(opts\.all\) args\.push\('-a'\)/)
   })
 
@@ -38,13 +51,14 @@ test('SCM regressions', async (t) => {
     assert.match(untrackedGroup, /@discard="onDiscard"/)
   })
 
-  await t.test('workspace watcher forwards only selected Git metadata to SCM refresh', () => {
+  await t.test('workspace watcher classifies selected Git metadata for complete SCM refresh', () => {
     assert.match(filteringSource, /GIT_METADATA_RELATIVE_PATHS/)
     assert.match(filteringSource, /'\.git\/packed-refs'/)
     assert.match(filteringSource, /normalizedPath\.startsWith\('\.git\/refs\/'\)/)
     assert.match(appSource, /isGitMetadataChange/)
-    assert.match(appSource, /if \(isGitMetadataChange\) return/)
-    assert.match(appSource, /void useGitStore\(\)\.refresh\(\)/)
+    assert.match(appSource, /gitStore\.handleMutation\(\{ root: currentFolder\.value, kind \}\)/)
+    assert.match(appSource, /workspaceRelativePath\.startsWith\('\.git\/refs\/tags\/'\)/)
+    assert.match(appSource, /void gitStore\.refresh\(\)/)
   })
 
   await t.test('Git recheck bypasses an unavailable detection cache', () => {
@@ -122,6 +136,94 @@ test('SCM regressions', async (t) => {
     assert.match(groupSource, mutedColorMix)
     assert.match(groupSource, /:style="dirDotStyle\(row\.files \?\? \[\]\)"/)
     assert.match(groupSource, /:style="statusStyle\(row\.file!\.status\)"/)
+  })
+
+  await t.test('Agent git tools share the application GitService instead of spawning git directly', () => {
+    assert.doesNotMatch(gitToolsSource, /child_process|execFile\(|spawn\(/)
+    assert.match(gitToolsSource, /gitService: GitService/)
+    assert.match(gitToolsSource, /gitService\.commitPaths/)
+    assert.match(gitToolsSource, /gitService\.restorePaths/)
+    assert.match(agentEngineSource, /private readonly gitService: GitService/)
+    assert.match(mainAppSource, /new AgentEngineClass\([\s\S]*this\.gitService/)
+  })
+
+  await t.test('Agent Git mutations explicitly refresh the affected SCM views', () => {
+    assert.match(gitTypesSource, /export type GitMutationKind = 'repository' \| 'working-tree' \| 'history' \| 'tags'/)
+    assert.match(gitToolsSource, /onMutation: \(event: GitMutationEvent\) => void/)
+    assert.match(gitToolsSource, /notifyMutation\(workspacePath, 'repository'\)/)
+    assert.match(gitToolsSource, /notifyMutation\(workspacePath, 'history'\)/)
+    assert.match(gitToolsSource, /notifyMutation\(workspacePath, 'tags'\)/)
+    assert.match(gitToolsSource, /notifyMutation\(workspacePath, 'working-tree'\)/)
+    assert.match(agentEngineSource, /sendGitMutation\(event\)/)
+    assert.match(rendererEventBridgeSource, /send\('git:mutation', event\)/)
+    assert.match(preloadSource, /ipcRenderer\.on\('git:mutation', listener\)/)
+    assert.match(gitStoreSource, /async function handleMutation\(event: GitMutationEvent\)/)
+    assert.match(gitStoreSource, /event\.kind === 'repository' \|\| !isRepo\.value/)
+    assert.match(gitStoreSource, /await loadGraph\(\)/)
+    assert.match(gitStoreSource, /if \(event\.kind === 'tags'\) await loadTags\(\)/)
+  })
+
+  await t.test('changing the Git executable keeps in-flight repository queues serialized', () => {
+    const updateSettings = gitServiceSource.slice(
+      gitServiceSource.indexOf('updateSettings('),
+      gitServiceSource.indexOf('setProgressHandler('),
+    )
+    assert.match(updateSettings, /this\.cache\.clear\(\)/)
+    assert.doesNotMatch(updateSettings, /this\.dispose\(\)/)
+  })
+
+  await t.test('pull and fetch behavior is driven by shared source-control settings', () => {
+    assert.match(gitServiceSource, /settings\.pullAutoStash \? '--autostash' : '--no-autostash'/)
+    assert.match(gitServiceSource, /settings\.fetchPrune \? '--prune' : '--no-prune'/)
+    assert.match(gitServiceSource, /'--no-rebase'/)
+    assert.doesNotMatch(gitStoreSource, /const pull = \(rebase/)
+    assert.doesNotMatch(gitStoreSource, /const sync = \(rebase/)
+  })
+
+  await t.test('source-control preferences own SCM behavior while gitignore filtering stays in Workspace', () => {
+    assert.match(preferencesSource, /activeTab === 'sourceControl'/)
+    assert.match(preferencesSource, /SourceControlPreferencesPanel/)
+    assert.match(preferencesSource, /preferences\.workspace\.useGitignoreExplorerTitle/)
+    assert.match(sourceControlPreferencesSource, /pullAutoStash/)
+    assert.match(sourceControlPreferencesSource, /fetchPrune/)
+    assert.match(sourceControlPreferencesSource, /identityGetScopes/)
+    assert.doesNotMatch(sourceControlPreferencesSource, /status.?bar/i)
+  })
+
+  await t.test('source-control settings have no pre-1.0 legacy migration path', () => {
+    const configurationSources = [
+      gitTypesSource,
+      gitStoreSource,
+      gitConfigStoreSource,
+      editSettingSource,
+      stateStorageSource,
+    ].join('\n')
+    assert.doesNotMatch(configurationSources, /legacyMigrationCompleted/)
+    assert.doesNotMatch(editSettingSource, /commitWhenEmpty/)
+    assert.doesNotMatch(stateStorageSource, /scmRepositories|scmGraph/)
+    assert.doesNotMatch(gitStoreSource, /StateStorage/)
+  })
+
+  await t.test('SCM and diff view defaults stay synchronized with source-control settings', () => {
+    assert.match(panelSource, /gitStore\.settings\.commitWhenEmpty/)
+    assert.match(panelSource, /gitStore\.settings\.changesLayout/)
+    assert.match(panelSource, /gitStore\.settings\.showRepositories/)
+    assert.match(diffPageSource, /:initial-mode="gitStore\.settings\.diffLayout"/)
+    assert.match(diffPageSource, /:initial-show-line-numbers="gitStore\.settings\.diffShowLineNumbers"/)
+    assert.match(diffViewSource, /initialShowLineNumbers/)
+  })
+
+  await t.test('product language is writer-facing in both locales and user documentation', () => {
+    assert.match(zhMessagesSource, /sourceControl: '文档版本管理'/)
+    assert.match(zhMessagesSource, /edit: '日常写作搭子'/)
+    assert.match(zhMessagesSource, /creative: '小说创作搭子'/)
+    assert.match(enMessagesSource, /sourceControl: 'Document Versioning'/)
+    assert.match(enMessagesSource, /edit: 'AI Doc Buddy'/)
+    assert.match(enMessagesSource, /creative: 'AI Story Buddy'/)
+    assert.doesNotMatch(zhMessagesSource, /title: '源代码管理'/)
+    assert.doesNotMatch(enMessagesSource, /title: 'Source Control'/)
+    assert.match(docsFeaturesSource, /AI 全能创作搭子（AI Writing Buddy）/)
+    assert.match(docsFeaturesSource, /Git 文档版本管理/)
   })
 
 })

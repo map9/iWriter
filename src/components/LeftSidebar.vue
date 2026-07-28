@@ -93,6 +93,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import {
   IconFolder,
@@ -111,6 +112,7 @@ import TagPanel from './sidebar/TagPanel.vue'
 import TocPanel from './sidebar/TocPanel.vue'
 
 const appStore = useAppStore()
+const { t } = useI18n()
 const isMaximized = ref(false)
 const isResizing = ref(false)
 const startX = ref(0)
@@ -133,7 +135,7 @@ const mainSidebarModes = computed(() => [
   },
   {
     key: SidebarMode.SOURCE_CONTROL as const,
-    title: 'Source Control',
+    title: t('sourceControl.title'),
     icon: IconGitBranch
   }/*,
   {

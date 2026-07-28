@@ -76,7 +76,6 @@ export const DEFAULT_EDIT_SETTING: EditSetting = {
   useGitignoreForSearch: false,
   useGitignoreForWatcher: false,
   codeBlockLanguageScope: 'common',
-  commitWhenEmpty: 'all',
 }
 
 export const DEFAULT_WORKSPACE_STATE: WorkspaceState = {
@@ -85,17 +84,13 @@ export const DEFAULT_WORKSPACE_STATE: WorkspaceState = {
   activeTabPath: null
 }
 
-/** 可选 viewer 的显隐持久化（Explorer/SCM 容器内的可折叠视图，NFR6） */
+/** Explorer 可选 viewer 的显隐持久化（NFR6） */
 export interface PanelViewersState {
   explorerTimeline: boolean
-  scmRepositories: boolean
-  scmGraph: boolean
 }
 
 export const DEFAULT_PANEL_VIEWERS: PanelViewersState = {
   explorerTimeline: true,
-  scmRepositories: true,
-  scmGraph: true,
 }
 
 export const DEFAULT_EXPORT_SETTING: ExportSettings = {
@@ -508,7 +503,10 @@ export class StateStorage {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PANEL_VIEWERS)
       if (saved) {
-        return { ...DEFAULT_PANEL_VIEWERS, ...JSON.parse(saved) }
+        const parsed = JSON.parse(saved) as Partial<PanelViewersState>
+        return {
+          explorerTimeline: parsed.explorerTimeline !== false,
+        }
       }
     } catch (error) {
       console.error('Failed to load panel viewers state:', error)
