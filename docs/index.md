@@ -21,7 +21,7 @@ hero:
 </div>
 
 <div class="home-release-note">
-  <span>适用版本：iWriter <code>0.2.1</code></span>
+  <span>适用版本：iWriter <code>0.2.2</code></span>
   <span>最后更新：2026-07-28</span>
 </div>
 
