@@ -970,10 +970,9 @@ async function loadUpdaterConfig() {
 }
 
 async function checkForUpdates() {
-  try {
-    await updaterService.checkForUpdates()
-  } catch (err) {
-    notify.error(err instanceof Error ? err.message : String(err), t('notify.update.checkFailed'))
+  const opened = await appStore.presentUpdateFlow()
+  if (opened) {
+    appStore.closePreferences()
   }
 }
 

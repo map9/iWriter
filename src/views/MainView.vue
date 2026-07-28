@@ -241,21 +241,40 @@ function getActivePageRef(): PageExposed | null {
 
 // Update dialog methods
 function handleUpdateConfirm() {
-  const statusType = updaterService.status.value.type
+  const status = updaterService.status.value
+  if (status.type === 'error' && status.errorStage === 'check') {
+    updaterService.closeDialog()
+    void appStore.presentUpdateFlow()
+    return
+  }
 
-  if (statusType === 'downloaded') {
+  const shouldInstall =
+    status.type === 'downloaded' ||
+    (status.type === 'error' && status.errorStage === 'install')
+
+  if (shouldInstall) {
     updaterService.closeDialog()
     updaterService.installUpdate().catch(error => {
       console.error('Failed to install update:', error)
-      notify.error('更新安装失败', '请稍后重试')
+      notify.error(
+        error instanceof Error ? error.message : String(error),
+        t('notify.update.installFailed')
+      )
     })
     return
   }
 
-  if (statusType === 'available') {
+  const shouldDownload =
+    status.type === 'available' ||
+    (status.type === 'error' && status.errorStage === 'download')
+
+  if (shouldDownload) {
     updaterService.downloadUpdate().catch(error => {
       console.error('Failed to download update:', error)
-      notify.error('更新下载失败', '请稍后重试')
+      notify.error(
+        error instanceof Error ? error.message : String(error),
+        t('notify.update.downloadFailed')
+      )
     })
   }
 }
@@ -269,7 +288,10 @@ function handleUpdateSkip() {
   if (version) {
     updaterService.updateConfig({ skipVersion: version }).catch(error => {
       console.error('Failed to save skipped version:', error)
-      notify.error('跳过版本保存失败', '请稍后重试')
+      notify.error(
+        error instanceof Error ? error.message : String(error),
+        t('notify.update.skipVersionFailed')
+      )
     })
   }
   updaterService.closeDialog()
@@ -350,8 +372,11 @@ onMounted(() => {
   })
 
   // 监听更新可用状态 —— 首次 available 时自动弹窗（与现有行为一致）
-  watch(() => updaterService.isUpdateAvailable.value, (isAvailable) => {
-    if (isAvailable && updaterService.updateInfo.value) {
+  watch([
+    () => updaterService.isUpdateAvailable.value,
+    () => updaterService.updateInfo.value?.version
+  ], ([isAvailable, version]) => {
+    if (isAvailable && version) {
       updaterService.openDialog()
     }
   })

@@ -5,6 +5,7 @@ import log from 'electron-log/main'
 import Store from 'electron-store'
 import type {
   UpdaterConfig,
+  UpdateErrorStage,
   UpdateStatus,
   UpdateInfo,
   UpdateCheckResult,
@@ -13,7 +14,6 @@ import type {
 } from './types'
 import {
   DEFAULT_UPDATER_CONFIG,
-  UPDATE_STATUS_MESSAGES,
   UPDATE_IPC_EVENTS
 } from './types'
 
@@ -25,6 +25,7 @@ export class UpdaterManager {
   private updateInfo: UpdateInfo | null = null
   private checkTimer: NodeJS.Timeout | null = null
   private releaseNotesCache = new Map<string, string>()
+  private activeOperation: UpdateErrorStage | null = null
 
   constructor() {
     autoUpdater.logger = log;
@@ -85,27 +86,31 @@ export class UpdaterManager {
 
   private setupUpdaterEvents() {
     this.updater.on('checking-for-update', () => {
-      this.updateStatus('checking', UPDATE_STATUS_MESSAGES.checking)
+      this.activeOperation = 'check'
+      this.updateStatus('checking', '')
     })
 
     this.updater.on('update-available', (info: ElectronUpdateInfo) => {
       if (this.isSkippedVersion(info.version)) {
+        this.activeOperation = null
         this.updateInfo = null
         this.updateStatus('idle', '')
         return
       }
 
+      this.activeOperation = this.updater.autoDownload ? 'download' : null
       void this.handleUpdateAvailable(info)
     })
 
     this.updater.on('update-not-available', () => {
+      this.activeOperation = null
       this.updateInfo = null
       this.updateStatus('idle', '')
     })
 
     this.updater.on('download-progress', (progress) => {
-      const message = `${UPDATE_STATUS_MESSAGES.downloading} (${Math.round(progress.percent)}%)`
-      this.updateStatus('downloading', message, {
+      this.activeOperation = 'download'
+      this.updateStatus('downloading', '', {
         downloadProgress: {
           progress: Math.round(progress.percent),
           bytesPerSecond: progress.bytesPerSecond,
@@ -116,33 +121,97 @@ export class UpdaterManager {
     })
 
     this.updater.on('update-downloaded', (info: UpdateDownloadedEvent) => {
+      this.activeOperation = null
       void this.handleUpdateDownloaded(info)
     })
 
     this.updater.on('error', (error) => {
-      this.updateStatus('error', UPDATE_STATUS_MESSAGES.error, {
-        error: {
-          message: error.message,
-          stack: error.stack
-        }
-      })
+      this.handleUpdaterError(error)
     })
   }
 
   private async handleUpdateAvailable(info: ElectronUpdateInfo) {
     const updateInfo = await this.buildUpdateInfo(info)
+    this.publishAvailableUpdate(updateInfo)
+  }
+
+  private publishAvailableUpdate(updateInfo: UpdateInfo): void {
     this.updateInfo = updateInfo
-    this.updateStatus('available', UPDATE_STATUS_MESSAGES.available, {
-      updateInfo
-    })
+
+    // electron-updater starts an automatic download immediately after emitting
+    // update-available. Windows may spend a while preparing a differential
+    // download before its first progress event, so expose that state at once.
+    // Do not let this async release-notes work roll a newer state backwards.
+    if (this.currentStatus.type === 'checking' || this.currentStatus.type === 'available') {
+      if (this.updater.autoDownload) {
+        this.updateStatus('downloading', '', {
+          updateInfo,
+          downloadProgress: {
+            progress: 0,
+            bytesPerSecond: 0,
+            transferred: 0,
+            total: updateInfo.downloadSize ?? 0
+          }
+        })
+      } else {
+        this.updateStatus('available', '', {
+          updateInfo
+        })
+      }
+      return
+    }
+
+    if (this.currentStatus.type === 'downloading') {
+      this.sendAppUpdateInfo(UPDATE_IPC_EVENTS.STATE_CHANGED, {
+        status: this.currentStatus,
+        updateInfo
+      })
+      return
+    }
+
+    if (
+      this.currentStatus.type === 'error' &&
+      this.currentStatus.errorStage !== 'check'
+    ) {
+      this.sendAppUpdateInfo(UPDATE_IPC_EVENTS.STATE_CHANGED, {
+        status: this.currentStatus,
+        updateInfo
+      })
+    }
   }
 
   private async handleUpdateDownloaded(info: UpdateDownloadedEvent) {
     const updateInfo = await this.buildUpdateInfo(info)
     this.updateInfo = updateInfo
-    this.updateStatus('downloaded', UPDATE_STATUS_MESSAGES.downloaded, {
+    this.updateStatus('downloaded', '', {
       updateInfo
     })
+  }
+
+  private handleUpdaterError(error: Error, stage = this.resolveErrorStage()): void {
+    this.activeOperation = null
+    this.updateStatus('error', error.message, {
+      updateInfo: this.updateInfo ?? undefined,
+      error: {
+        stage,
+        message: error.message,
+        stack: error.stack
+      }
+    })
+  }
+
+  private resolveErrorStage(): UpdateErrorStage {
+    if (this.activeOperation) {
+      return this.activeOperation
+    }
+
+    if (this.currentStatus.type === 'downloading') {
+      return 'download'
+    }
+    if (this.currentStatus.type === 'installing') {
+      return 'install'
+    }
+    return 'check'
   }
 
   private setupIpcHandlers() {
@@ -200,7 +269,8 @@ export class UpdaterManager {
   ) {
     const progress: number | undefined = additionalData?.downloadProgress?.progress
     const error: string | undefined = additionalData?.error?.message
-    this.currentStatus = { type, message, progress, error }
+    const errorStage: UpdateErrorStage | undefined = additionalData?.error?.stage
+    this.currentStatus = { type, message, progress, error, errorStage }
     
     const stateMessage: UpdaterStateMessage = {
       status: this.currentStatus,
@@ -392,11 +462,12 @@ export class UpdaterManager {
 
     try {
       const result = await this.updater.checkForUpdates()
-      if (result && result.updateInfo) {
+      if (result?.isUpdateAvailable && result.updateInfo) {
         if (this.isSkippedVersion(result.updateInfo.version)) {
           return { available: false }
         }
         const updateInfo = await this.buildUpdateInfo(result.updateInfo)
+        this.publishAvailableUpdate(updateInfo)
         return {
           available: true,
           updateInfo
@@ -405,23 +476,59 @@ export class UpdaterManager {
       return { available: false }
     } catch (error) {
       console.error('Failed to check for updates:', error)
+      const normalizedError = error instanceof Error ? error : new Error(String(error))
+      if (this.currentStatus.type !== 'error') {
+        this.handleUpdaterError(normalizedError, 'check')
+      }
       return { 
         available: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+        error: normalizedError.message
       }
     }
   }
 
   async downloadUpdate(): Promise<void> {
-    await this.updater.downloadUpdate()
+    this.activeOperation = 'download'
+    if (this.currentStatus.type !== 'downloading') {
+      this.updateStatus('downloading', '', {
+        updateInfo: this.updateInfo ?? undefined,
+        downloadProgress: {
+          progress: 0,
+          bytesPerSecond: 0,
+          transferred: 0,
+          total: this.updateInfo?.downloadSize ?? 0
+        }
+      })
+    }
+
+    try {
+      await this.updater.downloadUpdate()
+    } catch (error) {
+      if (this.currentStatus.type !== 'error') {
+        this.handleUpdaterError(
+          error instanceof Error ? error : new Error(String(error)),
+          'download'
+        )
+      }
+      throw error
+    }
   }
 
   quitAndInstall(): void {
+    this.activeOperation = 'install'
     // 先广播 installing 状态，让 UI 有机会在 quit 前反馈
-    this.updateStatus('installing', UPDATE_STATUS_MESSAGES.installing, {
+    this.updateStatus('installing', '', {
       updateInfo: this.updateInfo ?? undefined
     })
-    this.updater.quitAndInstall()
+    try {
+      this.updater.quitAndInstall()
+    } catch (error) {
+      this.handleUpdaterError(
+        error instanceof Error ? error : new Error(String(error)),
+        'install'
+      )
+      throw error
+    }
   }
 
   getConfig(): UpdaterConfig {
@@ -433,6 +540,17 @@ export class UpdaterManager {
     Object.entries(config).forEach(([key, value]) => {
       this.store.set(key as keyof UpdaterConfig, value)
     })
+
+    if (
+      config.skipVersion &&
+      config.skipVersion === this.updateInfo?.version &&
+      this.currentStatus.type !== 'downloading' &&
+      this.currentStatus.type !== 'installing'
+    ) {
+      this.activeOperation = null
+      this.updateInfo = null
+      this.updateStatus('idle', '')
+    }
   }
 
   // 启动时检查更新

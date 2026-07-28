@@ -3072,6 +3072,24 @@ export const useAppStore = defineStore('app', () => {
     showPreferencesDialog.value = false
   }
 
+  async function presentUpdateFlow(): Promise<boolean> {
+    try {
+      const result = await updaterService.presentUpdateFlow()
+      if (result?.error) {
+        notify.error(result.error, t('notify.update.checkFailed'))
+      } else if (result && !result.available) {
+        notify.info(t('notify.update.upToDate'))
+      }
+    } catch (error) {
+      notify.error(
+        error instanceof Error ? error.message : String(error),
+        t('notify.update.checkFailed')
+      )
+    }
+
+    return updaterService.dialogVisible.value
+  }
+
   function openPrintPreview(
     html: string,
     title?: string,
@@ -3265,11 +3283,7 @@ export const useAppStore = defineStore('app', () => {
         setTheme('system')
         return true
       case 'check-update':
-        try {
-          await updaterService.checkForUpdates()
-        } catch (error) {
-          notify.error(`${error instanceof Error ? error.message : String(error)}`, t('notify.update.checkFailed'))
-        }
+        await presentUpdateFlow()
         return true
       
       case 'auto-update-settings':
@@ -3469,6 +3483,7 @@ export const useAppStore = defineStore('app', () => {
     getAvailableThemes,
     openPreferences,
     closePreferences,
+    presentUpdateFlow,
     showPrintPreviewDialog,
     printPreviewSource,
     printPreviewHtml,

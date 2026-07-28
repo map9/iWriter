@@ -50,9 +50,14 @@ class UpdaterService {
           
         case 'downloading':
           this.isUpdateAvailable.value = true
+          if (stateMessage.updateInfo) {
+            this.updateInfo.value = stateMessage.updateInfo
+          }
           if (stateMessage.downloadProgress) {
             this.downloadProgress.value = stateMessage.downloadProgress.progress
             this.downloadDetails.value = stateMessage.downloadProgress
+          } else if (stateMessage.status.progress !== undefined) {
+            this.downloadProgress.value = stateMessage.status.progress
           }
           break
           
@@ -80,6 +85,12 @@ class UpdaterService {
           break
           
         case 'error':
+          if (stateMessage.updateInfo) {
+            this.updateInfo.value = stateMessage.updateInfo
+          }
+          this.isUpdateAvailable.value =
+            stateMessage.status.errorStage !== 'check' &&
+            this.updateInfo.value !== null
           if (stateMessage.error) {
             console.error('Updater error:', stateMessage.error)
           }
@@ -104,7 +115,13 @@ class UpdaterService {
         const snapshot = await window.electronAPI.getUpdaterState()
         this.status.value = snapshot.status
         this.updateInfo.value = snapshot.updateInfo ?? null
-        this.isUpdateAvailable.value = ['available', 'downloading', 'downloaded', 'installing'].includes(snapshot.status.type)
+        this.isUpdateAvailable.value =
+          ['available', 'downloading', 'downloaded', 'installing'].includes(snapshot.status.type) ||
+          (
+            snapshot.status.type === 'error' &&
+            snapshot.status.errorStage !== 'check' &&
+            this.updateInfo.value !== null
+          )
         this.downloadProgress.value = snapshot.status.progress ?? (snapshot.status.type === 'downloaded' ? 100 : 0)
         return
       }
@@ -129,6 +146,25 @@ class UpdaterService {
       console.error('Check for updates failed:', error)
       throw error
     }
+  }
+
+  async presentUpdateFlow(): Promise<UpdateCheckResult | null> {
+    if (this.hasPendingUpdate) {
+      this.openDialog()
+      return null
+    }
+
+    if (this.status.value.type === 'checking' || this.status.value.type === 'installing') {
+      return null
+    }
+
+    const result = await this.checkForUpdates()
+    if (result.available && result.updateInfo) {
+      this.updateInfo.value = result.updateInfo
+      this.isUpdateAvailable.value = true
+      this.openDialog()
+    }
+    return result
   }
 
   async installUpdate(): Promise<void> {
@@ -159,7 +195,11 @@ class UpdaterService {
   // 是否存在可查看的更新流程（用于 StatusBar 点击决定是打开 Dialog 还是检查更新）
   get hasPendingUpdate(): boolean {
     const t = this.status.value.type
-    return (t === 'available' || t === 'downloading' || t === 'downloaded') && this.updateInfo.value !== null
+    const hasActiveUpdate = t === 'available' || t === 'downloading' || t === 'downloaded'
+    const hasRecoverableError =
+      t === 'error' &&
+      this.status.value.errorStage !== 'check'
+    return (hasActiveUpdate || hasRecoverableError) && this.updateInfo.value !== null
   }
 
   async updateConfig(newConfig: Partial<UpdaterConfig>): Promise<void> {

@@ -46,6 +46,17 @@
           </div>
         </div>
 
+        <div
+          v-if="isError"
+          class="mb-5 flex items-start gap-3 rounded-box border border-error/30 bg-error/10 px-4 py-3"
+        >
+          <IconAlertTriangle class="icon-sm mt-0.5 shrink-0 text-error" />
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-base-content">{{ errorTitle }}</p>
+            <p class="mt-1 break-words text-xs leading-5 text-base-content/70">{{ errorMessage }}</p>
+          </div>
+        </div>
+
         <!-- Release Notes -->
         <div>
           <h3 class="mb-3 text-xs font-semibold uppercase tracking-wide text-base-content/70">{{ t('updateDialog.whatsNew') }}</h3>
@@ -110,7 +121,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconDownload, IconX, IconCircleCheck } from '@tabler/icons-vue'
+import { IconAlertTriangle, IconDownload, IconX, IconCircleCheck } from '@tabler/icons-vue'
 import type { UpdateInfo } from '@/updater/types'
 import updaterService from '@/updater/UpdaterService'
 
@@ -139,8 +150,18 @@ watch(() => props.visible, (newValue) => {
 // Read ref.value.type directly instead of via class getter to keep Vue reactivity tracking stable
 const isDownloading = computed(() => updaterService.status.value.type === 'downloading')
 const isDownloaded = computed(() => updaterService.status.value.type === 'downloaded')
+const isError = computed(() => updaterService.status.value.type === 'error')
 const showProgress = computed(() => isDownloading.value || isDownloaded.value)
 const downloadProgress = computed(() => updaterService.downloadProgress.value)
+const errorStage = computed(() => updaterService.status.value.errorStage)
+const errorMessage = computed(() =>
+  updaterService.status.value.error || t('updateDialog.unknownError')
+)
+const errorTitle = computed(() => {
+  if (errorStage.value === 'install') return t('updateDialog.installFailed')
+  if (errorStage.value === 'download') return t('updateDialog.downloadFailed')
+  return t('updateDialog.checkFailed')
+})
 
 const downloadSize = computed(() => {
   if (props.updateInfo.downloadSize && props.updateInfo.downloadSize > 0) {
@@ -162,6 +183,9 @@ const formattedReleaseNotes = computed(() => {
 })
 
 const updateButtonText = computed(() => {
+  if (isError.value && errorStage.value === 'install') return t('updateDialog.retryInstall')
+  if (isError.value && errorStage.value === 'download') return t('updateDialog.retryDownload')
+  if (isError.value) return t('updateDialog.retryCheck')
   if (isDownloaded.value) return t('updateDialog.installNow')
   if (isDownloading.value) return t('updateDialog.downloading')
   return t('updateDialog.updateNow')

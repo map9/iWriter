@@ -10,11 +10,14 @@ export interface UpdaterConfig {
   skipVersion: string | null         // 跳过的版本号
 }
 
+export type UpdateErrorStage = 'check' | 'download' | 'install'
+
 export interface UpdateStatus {
   type: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'installing' | 'error'
-  message: string
+  message: string                    // 诊断信息；用户可见文案由 renderer i18n 生成
   progress?: number                  // 下载进度 0-100
   error?: string                     // 错误信息
+  errorStage?: UpdateErrorStage      // 失败阶段，用于选择正确的恢复动作
 }
 
 export interface UpdateInfo {
@@ -54,6 +57,7 @@ export interface UpdaterStateMessage {
     total: number
   }
   error?: {
+    stage: UpdateErrorStage
     message: string
     stack?: string
   }
@@ -76,17 +80,6 @@ export const DEFAULT_UPDATER_CONFIG: UpdaterConfig = {
   notificationEnabled: true,
   skipVersion: null
 }
-
-// 更新状态消息
-export const UPDATE_STATUS_MESSAGES = {
-  idle: '',
-  checking: '正在检查更新...',
-  available: '有更新包',
-  downloading: '正在下载更新包',
-  downloaded: '更新包已下载完成',
-  installing: '正在安装更新包',
-  error: '更新检查失败'
-} as const
 
 // IPC 事件名称
 export const UPDATE_IPC_EVENTS = {

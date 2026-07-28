@@ -21,7 +21,6 @@ import { createGitStatusStatusBarGroup } from './statusbar-items/git-status'
 import { useAppStore } from '@/stores/app'
 
 const { state: notificationState, dismiss: hideNotification } = useNotification()
-import updaterService from '@/updater/UpdaterService'
 import { SidebarMode } from '@/types'
 import { useGitStore } from '@/stores/git'
 const appStore = useAppStore()
@@ -30,16 +29,7 @@ const gitStore = useGitStore()
 const handleStatusBarCommand = (command: string, _item: IBasicStatusBarItem, _args?: unknown[]) => {
   switch(command) {
     case 'checkForUpdates': {
-      const type = updaterService.status.value.type
-      // 有进行中的更新流程 → 重新打开 Dialog 查看
-      if (updaterService.hasPendingUpdate) {
-        updaterService.openDialog()
-      } else if (type === 'error') {
-        updaterService.checkForUpdates().catch(console.error)
-      } else if (type === 'idle') {
-        // 手动触发检查
-        updaterService.checkForUpdates().catch(console.error)
-      }
+      void appStore.presentUpdateFlow()
       break
     }
     case 'toggleReadonlyMode':

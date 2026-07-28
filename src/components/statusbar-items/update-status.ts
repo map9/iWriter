@@ -69,7 +69,14 @@ export const createUpdateStatusStatusBarItem = () => {
       } else if (updateStatus.type === 'error') {
         updateStatusItem.text = '$(exclamation-circle)'
         updateStatusItem.color = '#ff4d4f'
-        updateStatusItem.tooltip = t('statusBar.updateStatus.error', { message: updateStatus.message })
+        const message = updateStatus.error || t('statusBar.updateStatus.unknownError')
+        if (updateStatus.errorStage === 'download') {
+          updateStatusItem.tooltip = t('statusBar.updateStatus.downloadError', { message })
+        } else if (updateStatus.errorStage === 'install') {
+          updateStatusItem.tooltip = t('statusBar.updateStatus.installError', { message })
+        } else {
+          updateStatusItem.tooltip = t('statusBar.updateStatus.checkError', { message })
+        }
       }
     })
 
