@@ -205,7 +205,7 @@
         <div v-if="gitStore.graphLoading && !gitStore.commits.length" class="sidebar-empty">
           <span class="loading loading-spinner loading-sm"></span>
         </div>
-        <div v-else-if="!gitStore.commits.length" class="px-4 py-4.5 text-center text-xs text-base-content/40">
+        <div v-else-if="!gitStore.commits.length" class="px-4 pt-7 text-center text-xs text-base-content/40">
           <IconGitBranch class="mx-auto mb-2 size-7 opacity-50" />{{ t('sourceControl.noCommits') }}<br>{{ t('sourceControl.noCommitsHint') }}
         </div>
         <template v-else>

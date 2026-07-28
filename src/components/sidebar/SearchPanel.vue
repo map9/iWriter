@@ -129,8 +129,8 @@
     <!-- Search Results Tree -->
     <div class="flex-1 overflow-auto bg-base-100">
       <!-- Loading State -->
-      <div v-if="isSearching" class="empty-panel">
-        <p class="text-sm">{{ t('notify.search.searchingFiles') }}</p>
+      <div v-if="isSearching" class="px-4 pt-7 text-center text-xs text-base-content/40">
+        {{ t('notify.search.searchingFiles') }}
       </div>
 
       <!-- Results Tree -->
@@ -199,15 +199,13 @@
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="!isSearching && searchQuery" class="empty-panel">
-        <IconSearchOff class="empty-panel-icon mb-3" />
-        <p class="text-sm">{{ t('notify.search.noResultsFound') }}</p>
+      <div v-else-if="!isSearching && searchQuery" class="px-4 pt-7 text-center text-xs text-base-content/40">
+        <IconSearchOff class="mx-auto mb-2 size-7 opacity-50" />{{ t('notify.search.noResultsFound') }}
       </div>
 
       <!-- Initial State -->
-      <div v-else class="empty-panel">
-        <IconSearch class="empty-panel-icon mb-3" />
-        <p class="text-sm">{{ t('notify.search.initialHint') }}</p>
+      <div v-else class="px-4 pt-7 text-center text-xs text-base-content/40">
+        <IconSearch class="mx-auto mb-2 size-7 opacity-50" />{{ t('notify.search.initialHint') }}
       </div>
     </div>
   </div>
