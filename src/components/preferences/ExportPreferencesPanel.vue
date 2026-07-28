@@ -59,46 +59,93 @@
         </div>
 
         <div class="flex flex-col gap-1.5">
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-1">
             <label class="text-sm font-medium text-base-content">{{ t('preferences.export.pandocPathTitle') }}</label>
-            <button class="text-xs text-primary hover:underline" type="button" @click="openPandocDocs">
-              {{ t('preferences.export.learnMore') }}
+            <button
+              class="iw-toolbar-btn btn-xs text-base-content/50"
+              type="button"
+              :aria-label="t('preferences.export.pandocHelp')"
+              :title="t('preferences.export.pandocHelp')"
+              @click="openPandocWebsite"
+            >
+              <IconHelpCircle class="icon-xs" />
             </button>
           </div>
           <div class="flex items-center gap-2">
             <input
+              v-model="pandocPathDraft"
               type="text"
               class="iw-input flex-1"
-              :placeholder="t('preferences.export.pandocPathAutoPlaceholder')"
-              :value="appStore.globalExportSetting.common.pandocPathMode === 'auto' ? '' : appStore.globalExportSetting.common.pandocPath"
-              @input="handlePandocPathInput(($event.target as HTMLInputElement).value)"
+              :placeholder="pandocPathPlaceholder"
+              :disabled="pandocDetecting"
+              @keydown.enter.prevent="detectPandocPath"
             />
             <button
-              class="iw-toolbar-btn btn-xs"
-              :aria-label="t('preferences.export.browseFolder')"
+              class="iw-toolbar-btn btn-xs shrink-0"
+              type="button"
+              :aria-label="t('common.browse')"
+              :title="t('common.browse')"
+              :disabled="pandocDetecting"
               @click="browsePandocFolder"
             >
               <IconFolderOpen class="icon-xs" />
+            </button>
+            <button
+              class="iw-toolbar-btn btn-xs shrink-0"
+              type="button"
+              :aria-label="pandocDetecting ? t('common.detecting') : t('common.detect')"
+              :title="pandocDetecting ? t('common.detecting') : t('common.detect')"
+              :disabled="pandocDetecting"
+              @click="detectPandocPath"
+            >
+              <span v-if="pandocDetecting" class="loading loading-spinner loading-xs"></span>
+              <IconRefresh v-else class="icon-xs" />
             </button>
           </div>
         </div>
 
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium text-base-content">{{ t('preferences.export.libreOfficePathTitle') }}</label>
+          <div class="flex items-center gap-1">
+            <label class="text-sm font-medium text-base-content">{{ t('preferences.export.libreOfficePathTitle') }}</label>
+            <button
+              class="iw-toolbar-btn btn-xs text-base-content/50"
+              type="button"
+              :aria-label="t('preferences.export.libreOfficeHelp')"
+              :title="t('preferences.export.libreOfficeHelp')"
+              @click="openLibreOfficeWebsite"
+            >
+              <IconHelpCircle class="icon-xs" />
+            </button>
+          </div>
           <div class="flex items-center gap-2">
             <input
+              v-model="libreOfficePathDraft"
               type="text"
               class="iw-input flex-1"
-              :placeholder="t('preferences.export.libreOfficePathAutoPlaceholder')"
-              :value="appStore.globalExportSetting.common.libreOfficePathMode === 'auto' ? '' : appStore.globalExportSetting.common.libreOfficePath"
-              @input="handleLibreOfficePathInput(($event.target as HTMLInputElement).value)"
+              :placeholder="libreOfficePathPlaceholder"
+              :disabled="libreOfficeDetecting"
+              @keydown.enter.prevent="detectLibreOfficePath"
             />
             <button
-              class="iw-toolbar-btn btn-xs"
-              :aria-label="t('preferences.export.browseFolder')"
+              class="iw-toolbar-btn btn-xs shrink-0"
+              type="button"
+              :aria-label="t('common.browse')"
+              :title="t('common.browse')"
+              :disabled="libreOfficeDetecting"
               @click="browseLibreOfficeFolder"
             >
               <IconFolderOpen class="icon-xs" />
+            </button>
+            <button
+              class="iw-toolbar-btn btn-xs shrink-0"
+              type="button"
+              :aria-label="libreOfficeDetecting ? t('common.detecting') : t('common.detect')"
+              :title="libreOfficeDetecting ? t('common.detecting') : t('common.detect')"
+              :disabled="libreOfficeDetecting"
+              @click="detectLibreOfficePath"
+            >
+              <span v-if="libreOfficeDetecting" class="loading loading-spinner loading-xs"></span>
+              <IconRefresh v-else class="icon-xs" />
             </button>
           </div>
         </div>
@@ -218,11 +265,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconFolderOpen } from '@tabler/icons-vue'
+import { IconFolderOpen, IconHelpCircle, IconRefresh } from '@tabler/icons-vue'
 import { useAppStore } from '@/stores/app'
-import type { ExportFormatId, ExportFormatSettings } from '@/types'
+import { notify } from '@/utils/notifications'
+import type {
+  ExportFormatId,
+  ExportFormatSettings,
+  LibreOfficeAvailabilityResult,
+  PandocAvailabilityResult,
+} from '@/types'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -241,6 +294,38 @@ const formatSections = computed(() => [
 ])
 
 const activeSection = ref<string>('common')
+const pandocPathDraft = ref(
+  appStore.globalExportSetting.common.pandocPathMode === 'custom'
+    ? appStore.globalExportSetting.common.pandocPath
+    : ''
+)
+const libreOfficePathDraft = ref(
+  appStore.globalExportSetting.common.libreOfficePathMode === 'custom'
+    ? appStore.globalExportSetting.common.libreOfficePath
+    : ''
+)
+const pandocDetecting = ref(false)
+const libreOfficeDetecting = ref(false)
+const pandocAvailability = ref<PandocAvailabilityResult | null>(null)
+const libreOfficeAvailability = ref<LibreOfficeAvailabilityResult | null>(null)
+
+const pandocPathPlaceholder = computed(() => {
+  const availability = pandocAvailability.value
+  if (!availability?.available) return t('preferences.export.pandocPathAutoPlaceholder')
+  const detail = [availability.executablePath, availability.version].filter(Boolean).join(' · ')
+  return detail
+    ? t('common.autoDetected', { detail })
+    : t('preferences.export.pandocPathAutoPlaceholder')
+})
+
+const libreOfficePathPlaceholder = computed(() => {
+  const availability = libreOfficeAvailability.value
+  if (!availability?.available) return t('preferences.export.libreOfficePathAutoPlaceholder')
+  const detail = [availability.executablePath, availability.version].filter(Boolean).join(' · ')
+  return detail
+    ? t('common.autoDetected', { detail })
+    : t('preferences.export.libreOfficePathAutoPlaceholder')
+})
 
 const activeFormat = computed<ExportFormatId | null>(() => {
   const id = activeSection.value
@@ -302,8 +387,8 @@ async function browsePandocFolder() {
     properties: ['openDirectory'],
   })
   if (!result.canceled && result.filePaths[0]) {
-    appStore.globalExportSetting.common.pandocPathMode = 'custom'
-    appStore.globalExportSetting.common.pandocPath = result.filePaths[0]
+    pandocPathDraft.value = result.filePaths[0]
+    await detectPandocPath()
   }
 }
 
@@ -312,40 +397,89 @@ async function browseLibreOfficeFolder() {
     properties: ['openDirectory'],
   })
   if (!result.canceled && result.filePaths[0]) {
-    appStore.globalExportSetting.common.libreOfficePathMode = 'custom'
-    appStore.globalExportSetting.common.libreOfficePath = result.filePaths[0]
+    libreOfficePathDraft.value = result.filePaths[0]
+    await detectLibreOfficePath()
   }
 }
 
-function handleLibreOfficePathInput(value: string) {
-  const trimmed = value.trim()
-  if (trimmed.length === 0) {
-    appStore.globalExportSetting.common.libreOfficePathMode = 'auto'
-    appStore.globalExportSetting.common.libreOfficePath = ''
-    return
+async function detectPandocPath() {
+  if (pandocDetecting.value) return
+  const candidatePath = pandocPathDraft.value.trim()
+  pandocDetecting.value = true
+  try {
+    const availability = await window.electronAPI.pandocCheck(
+      candidatePath ? { pandocPath: candidatePath } : undefined
+    )
+    pandocAvailability.value = availability
+    if (!availability.available) {
+      throw new Error(availability.error || t('preferences.export.pandocUnavailable'))
+    }
+
+    appStore.globalExportSetting.common.pandocPathMode = candidatePath ? 'custom' : 'auto'
+    appStore.globalExportSetting.common.pandocPath = candidatePath
+    pandocPathDraft.value = candidatePath
+    notify.success(t('common.detectionSucceeded', { name: 'Pandoc' }))
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : String(error))
+  } finally {
+    pandocDetecting.value = false
   }
-  appStore.globalExportSetting.common.libreOfficePathMode = 'custom'
-  appStore.globalExportSetting.common.libreOfficePath = value
 }
+
+async function detectLibreOfficePath() {
+  if (libreOfficeDetecting.value) return
+  const candidatePath = libreOfficePathDraft.value.trim()
+  libreOfficeDetecting.value = true
+  try {
+    const availability = await window.electronAPI.officeCheck(
+      candidatePath ? { sofficePath: candidatePath } : undefined
+    )
+    libreOfficeAvailability.value = availability
+    if (!availability.available) {
+      throw new Error(availability.error || t('preferences.export.libreOfficeUnavailable'))
+    }
+
+    appStore.globalExportSetting.common.libreOfficePathMode = candidatePath ? 'custom' : 'auto'
+    appStore.globalExportSetting.common.libreOfficePath = candidatePath
+    libreOfficePathDraft.value = candidatePath
+    notify.success(t('common.detectionSucceeded', { name: 'LibreOffice' }))
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : String(error))
+  } finally {
+    libreOfficeDetecting.value = false
+  }
+}
+
+onMounted(async () => {
+  pandocDetecting.value = true
+  libreOfficeDetecting.value = true
+  try {
+    const [pandocResult, libreOfficeResult] = await Promise.all([
+      window.electronAPI.pandocCheck(
+        pandocPathDraft.value ? { pandocPath: pandocPathDraft.value } : undefined
+      ),
+      window.electronAPI.officeCheck(
+        libreOfficePathDraft.value ? { sofficePath: libreOfficePathDraft.value } : undefined
+      ),
+    ])
+    pandocAvailability.value = pandocResult
+    libreOfficeAvailability.value = libreOfficeResult
+  } finally {
+    pandocDetecting.value = false
+    libreOfficeDetecting.value = false
+  }
+})
 
 function handleDefaultFolderModeChange(value: string) {
   appStore.globalExportSetting.common.defaultFolderMode = value as 'prompt' | 'same-directory' | 'custom'
 }
 
-function handlePandocPathInput(value: string) {
-  const trimmed = value.trim()
-  if (trimmed.length === 0) {
-    appStore.globalExportSetting.common.pandocPathMode = 'auto'
-    appStore.globalExportSetting.common.pandocPath = ''
-    return
-  }
-
-  appStore.globalExportSetting.common.pandocPathMode = 'custom'
-  appStore.globalExportSetting.common.pandocPath = value
+function openPandocWebsite() {
+  void window.electronAPI.openExternal('https://pandoc.org/installing.html')
 }
 
-function openPandocDocs() {
-  void window.electronAPI.openWithShell('https://pandoc.org/installing.html')
+function openLibreOfficeWebsite() {
+  void window.electronAPI.openExternal('https://www.libreoffice.org/download/')
 }
 
 async function browseFormatFile(

@@ -267,54 +267,46 @@
           </div>
           <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-7">
             <section class="flex flex-col gap-3">
-              <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.workspace.rulesTitle') }}</h3>
-              <div class="flex flex-col gap-3 rounded-box border border-base-300 bg-base-100 px-4 py-3">
-                <div class="min-w-0">
-                  <div class="text-sm font-medium text-base-content">{{ t('preferences.workspace.useGitignoreTitle') }}</div>
-                  <div class="text-xs text-base-content/50">{{ t('preferences.workspace.useGitignoreDesc') }}</div>
-                </div>
-                <div class="flex flex-col gap-2">
-                  <label class="flex cursor-pointer items-center justify-between gap-4">
-                    <span class="text-xs text-base-content">{{ t('preferences.workspace.useGitignoreExplorerTitle') }}</span>
-                    <input
-                      type="checkbox"
-                      class="toggle toggle-primary toggle-xs"
-                      :checked="isGitignoreFilterScopeEnabled('explorer')"
-                      @change="setGitignoreFilterScope('explorer', ($event.target as HTMLInputElement).checked)"
-                    />
-                  </label>
-                  <label class="flex cursor-pointer items-center justify-between gap-4">
-                    <span class="text-xs text-base-content">{{ t('preferences.workspace.useGitignoreSearchTitle') }}</span>
-                    <input
-                      type="checkbox"
-                      class="toggle toggle-primary toggle-xs"
-                      :checked="isGitignoreFilterScopeEnabled('search')"
-                      @change="setGitignoreFilterScope('search', ($event.target as HTMLInputElement).checked)"
-                    />
-                  </label>
-                  <label class="flex cursor-pointer items-center justify-between gap-4">
-                    <span class="text-xs text-base-content">{{ t('preferences.workspace.useGitignoreWatcherTitle') }}</span>
-                    <input
-                      type="checkbox"
-                      class="toggle toggle-primary toggle-xs"
-                      :checked="isGitignoreFilterScopeEnabled('watcher')"
-                      @change="setGitignoreFilterScope('watcher', ($event.target as HTMLInputElement).checked)"
-                    />
-                  </label>
-                </div>
-              </div>
-              <div class="flex flex-col gap-2 rounded-box border border-base-300 bg-base-100 px-4 py-3">
-                <div class="min-w-0">
-                  <div class="text-sm font-medium text-base-content">{{ t('preferences.workspace.workspaceIgnoreRulesTitle') }}</div>
-                  <div class="text-xs text-base-content/50">{{ t('preferences.workspace.workspaceIgnoreRulesDesc') }}</div>
-                </div>
-                <textarea
-                  class="min-h-32 w-full rounded-field resize-none border border-base-300 bg-base-100 px-3 py-2 text-xs outline-none focus:border-primary"
-                  :placeholder="t('preferences.workspace.workspaceIgnoreRulesPlaceholder')"
-                  :value="appStore.globalEditSetting.workspaceIgnoreRules"
-                  @input="appStore.globalEditSetting.workspaceIgnoreRules = ($event.target as HTMLTextAreaElement).value"
+              <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.workspace.useGitignoreTitle') }}</h3>
+              <p class="-mt-1 text-xs text-base-content/50">{{ t('preferences.workspace.useGitignoreDesc') }}</p>
+              <label class="flex cursor-pointer items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
+                <span class="text-sm font-medium text-base-content">{{ t('preferences.workspace.useGitignoreExplorerTitle') }}</span>
+                <input
+                  type="checkbox"
+                  class="toggle toggle-primary toggle-xs"
+                  :checked="isGitignoreFilterScopeEnabled('explorer')"
+                  @change="setGitignoreFilterScope('explorer', ($event.target as HTMLInputElement).checked)"
                 />
-              </div>
+              </label>
+              <label class="flex cursor-pointer items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
+                <span class="text-sm font-medium text-base-content">{{ t('preferences.workspace.useGitignoreSearchTitle') }}</span>
+                <input
+                  type="checkbox"
+                  class="toggle toggle-primary toggle-xs"
+                  :checked="isGitignoreFilterScopeEnabled('search')"
+                  @change="setGitignoreFilterScope('search', ($event.target as HTMLInputElement).checked)"
+                />
+              </label>
+              <label class="flex cursor-pointer items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
+                <span class="text-sm font-medium text-base-content">{{ t('preferences.workspace.useGitignoreWatcherTitle') }}</span>
+                <input
+                  type="checkbox"
+                  class="toggle toggle-primary toggle-xs"
+                  :checked="isGitignoreFilterScopeEnabled('watcher')"
+                  @change="setGitignoreFilterScope('watcher', ($event.target as HTMLInputElement).checked)"
+                />
+              </label>
+            </section>
+
+            <section class="flex flex-col gap-3">
+              <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.workspace.workspaceIgnoreRulesTitle') }}</h3>
+              <p class="-mt-1 text-xs text-base-content/50">{{ t('preferences.workspace.workspaceIgnoreRulesDesc') }}</p>
+              <textarea
+                class="min-h-32 w-full resize-none rounded-field border border-base-300 bg-base-100 px-3 py-2 text-xs outline-none focus:border-primary"
+                :placeholder="t('preferences.workspace.workspaceIgnoreRulesPlaceholder')"
+                :value="appStore.globalEditSetting.workspaceIgnoreRules"
+                @input="appStore.globalEditSetting.workspaceIgnoreRules = ($event.target as HTMLTextAreaElement).value"
+              />
             </section>
           </div>
         </div>
@@ -912,14 +904,14 @@ async function handleCreateExampleTheme(): Promise<void> {
 }
 
 const tabs = computed(() => [
-  { id: 'workspace' as TabId, label: t('preferences.tabs.workspace'), icon: IconFolders },
-  { id: 'sourceControl' as TabId, label: t('preferences.tabs.sourceControl'), icon: IconGitBranch },
+  { id: 'themes' as TabId, label: t('preferences.tabs.themes'), icon: IconPalette },
   { id: 'editor' as TabId, label: t('preferences.tabs.editor'), icon: IconEdit },
   { id: 'spelling' as TabId, label: t('preferences.tabs.spelling'), icon: IconTextSpellcheck },
-  { id: 'themes' as TabId, label: t('preferences.tabs.themes'), icon: IconPalette },
   { id: 'print' as TabId, label: t('preferences.tabs.print'), icon: IconPrinter },
   { id: 'export' as TabId, label: t('preferences.tabs.export'), icon: IconFileExport },
+  { id: 'workspace' as TabId, label: t('preferences.tabs.workspace'), icon: IconFolders },
   { id: 'ai' as TabId, label: t('preferences.tabs.ai'), icon: IconRobot },
+  { id: 'sourceControl' as TabId, label: t('preferences.tabs.sourceControl'), icon: IconGitBranch },
   { id: 'updates' as TabId, label: t('preferences.tabs.updates'), icon: IconDownload },
 ])
 

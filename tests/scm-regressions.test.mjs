@@ -19,6 +19,7 @@ const rendererEventBridgeSource = readFileSync('electron/ai/ipc/RendererEventBri
 const preloadSource = readFileSync('electron/preload.ts', 'utf8')
 const preferencesSource = readFileSync('src/components/preferences/PreferencesDialog.vue', 'utf8')
 const sourceControlPreferencesSource = readFileSync('src/components/preferences/SourceControlPreferencesPanel.vue', 'utf8')
+const exportPreferencesSource = readFileSync('src/components/preferences/ExportPreferencesPanel.vue', 'utf8')
 const diffViewSource = readFileSync('src/components/common/diff/DiffView.vue', 'utf8')
 const gitConfigStoreSource = readFileSync('electron/GitConfigStore.ts', 'utf8')
 const editSettingSource = readFileSync('src/types/edit-setting.ts', 'utf8')
@@ -62,8 +63,9 @@ test('SCM regressions', async (t) => {
   })
 
   await t.test('Git recheck bypasses an unavailable detection cache', () => {
-    assert.match(gitServiceSource, /async detect\(force = false\)/)
-    assert.match(gitServiceSource, /if \(!force && this\.availability\)/)
+    assert.match(gitServiceSource, /async detect\(force = false, candidatePath\?: string \| null\)/)
+    assert.match(gitServiceSource, /if \(detectsConfiguredPath && !force && this\.availability\)/)
+    assert.match(gitServiceSource, /if \(detectsConfiguredPath\) this\.availability = result/)
     assert.match(panelSource, /git\.detect\(true\)/)
   })
 
@@ -188,6 +190,66 @@ test('SCM regressions', async (t) => {
     assert.match(sourceControlPreferencesSource, /fetchPrune/)
     assert.match(sourceControlPreferencesSource, /identityGetScopes/)
     assert.doesNotMatch(sourceControlPreferencesSource, /status.?bar/i)
+  })
+
+  await t.test('source-control identity preferences make global inheritance explicit', () => {
+    assert.match(sourceControlPreferencesSource, /localIdentityUseGlobal/)
+    assert.match(sourceControlPreferencesSource, /identityClearLocal/)
+    assert.match(sourceControlPreferencesSource, /@change="saveGlobalIdentity"/)
+    assert.match(sourceControlPreferencesSource, /@change="saveLocalIdentity"/)
+    assert.doesNotMatch(sourceControlPreferencesSource, /sourceControl\.identity\.save/)
+    assert.doesNotMatch(sourceControlPreferencesSource, /identityAutoSaveDesc/)
+  })
+
+  await t.test('workspace preferences use independent setting rows', () => {
+    const workspacePreferences = preferencesSource.slice(
+      preferencesSource.indexOf("activeTab === 'workspace'"),
+      preferencesSource.indexOf("activeTab === 'sourceControl'"),
+    )
+    assert.match(
+      workspacePreferences,
+      /useGitignoreTitle[\s\S]*useGitignoreExplorerTitle[\s\S]*useGitignoreSearchTitle[\s\S]*useGitignoreWatcherTitle[\s\S]*workspaceIgnoreRulesTitle/,
+    )
+    assert.equal(
+      workspacePreferences.match(/rounded-box border border-base-300 bg-base-100 px-4 py-3/g)?.length,
+      3,
+    )
+  })
+
+  await t.test('diff and document-version preferences use grouped vertical rows', () => {
+    const diffPreferences = sourceControlPreferencesSource.slice(
+      sourceControlPreferencesSource.indexOf("preferences.sourceControl.diffTitle"),
+      sourceControlPreferencesSource.indexOf("preferences.sourceControl.viewsTitle"),
+    )
+    const viewPreferences = sourceControlPreferencesSource.slice(
+      sourceControlPreferencesSource.indexOf("preferences.sourceControl.viewsTitle"),
+      sourceControlPreferencesSource.indexOf('</template>'),
+    )
+    assert.match(diffPreferences, /flex flex-col gap-3/)
+    assert.match(
+      viewPreferences,
+      /changesViewTitle[\s\S]*showRepositoriesTitle[\s\S]*changesLayoutTitle[\s\S]*graphViewTitle[\s\S]*showGraphTitle[\s\S]*graphFilesLayoutTitle/,
+    )
+  })
+
+  await t.test('tool path preferences apply only successfully detected candidates', () => {
+    assert.match(sourceControlPreferencesSource, /git\.detect\(true, candidatePath \|\| null\)/)
+    assert.match(sourceControlPreferencesSource, /if \(!availability\.available\)/)
+    assert.match(sourceControlPreferencesSource, /loading loading-spinner loading-xs/)
+    assert.match(exportPreferencesSource, /pandocCheck/)
+    assert.match(exportPreferencesSource, /officeCheck/)
+    assert.match(exportPreferencesSource, /pandocDetecting/)
+    assert.match(exportPreferencesSource, /libreOfficeDetecting/)
+    assert.match(exportPreferencesSource, /loading loading-spinner loading-xs/)
+    assert.doesNotMatch(exportPreferencesSource, /handlePandocPathInput|handleLibreOfficePathInput/)
+  })
+
+  await t.test('tool path help icons open official websites', () => {
+    assert.match(sourceControlPreferencesSource, /IconHelpCircle/)
+    assert.match(sourceControlPreferencesSource, /https:\/\/git-scm\.com\/downloads/)
+    assert.match(exportPreferencesSource, /IconHelpCircle/)
+    assert.match(exportPreferencesSource, /https:\/\/pandoc\.org\/installing\.html/)
+    assert.match(exportPreferencesSource, /https:\/\/www\.libreoffice\.org\/download\//)
   })
 
   await t.test('source-control settings have no pre-1.0 legacy migration path', () => {

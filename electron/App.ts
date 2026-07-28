@@ -1465,7 +1465,8 @@ export class App {
     }
     ipcMain.handle('git:settings-get', () => this.gitService.getSettings())
     ipcMain.handle('git:settings-update', (_, patch) => this.gitService.updateSettings(patch))
-    ipcMain.handle('git:detect', async (_, force?: boolean) => this.gitService.detect(force))
+    ipcMain.handle('git:detect', async (_, force?: boolean, candidatePath?: string | null) =>
+      this.gitService.detect(force, candidatePath))
     ipcMain.handle('git:is-repo', async (_, root: string) => this.gitService.isRepo(root))
     ipcMain.handle('git:init', async (_, root: string) => this.gitService.init(root))
     ipcMain.handle('git:status', async (_, root: string) => this.gitService.status(root))

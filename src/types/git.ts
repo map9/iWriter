@@ -4,6 +4,7 @@ export interface GitAvailability {
   available: boolean
   version?: string
   path?: string
+  error?: string
   /** 未安装时的按平台安装命令（供 SCM 面板安装引导，对齐 LibreOffice） */
   installCommand?: string
   /** 未安装时的下载页 URL */
@@ -228,7 +229,7 @@ export interface DiffSpec {
 export interface GitApi {
   settingsGet: () => Promise<SourceControlSettings>
   settingsUpdate: (patch: Partial<SourceControlSettings>) => Promise<SourceControlSettings>
-  detect: (force?: boolean) => Promise<GitAvailability>
+  detect: (force?: boolean, candidatePath?: string | null) => Promise<GitAvailability>
   isRepo: (root: string) => Promise<boolean>
   init: (root: string) => Promise<void>
   status: (root: string) => Promise<GitStatus>

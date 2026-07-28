@@ -124,7 +124,7 @@ const electronAPI: ElectronAPI = {
   git: {
     settingsGet: () => ipcRenderer.invoke('git:settings-get'),
     settingsUpdate: (patch: Partial<import('../src/types/git').SourceControlSettings>) => ipcRenderer.invoke('git:settings-update', patch),
-    detect: (force?: boolean) => ipcRenderer.invoke('git:detect', force),
+    detect: (force?: boolean, candidatePath?: string | null) => ipcRenderer.invoke('git:detect', force, candidatePath),
     isRepo: (root: string) => ipcRenderer.invoke('git:is-repo', root),
     init: (root: string) => ipcRenderer.invoke('git:init', root),
     status: (root: string) => ipcRenderer.invoke('git:status', root),

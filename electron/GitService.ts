@@ -176,21 +176,47 @@ export class GitService {
     return this.exec(root, g => g.raw(args))
   }
 
-  /** 检测系统是否安装 git（缓存结果） */
-  async detect(force = false): Promise<GitAvailability> {
-    if (!force && this.availability) return this.availability
-    this.availability = await new Promise<GitAvailability>((resolve) => {
-      const binary = this.binary()
+  /**
+   * 检测 Git 可执行文件。
+   * candidatePath === undefined 时检测并缓存当前配置；
+   * candidatePath === null 时检测系统 PATH；字符串则只检测候选路径，不污染当前缓存。
+   */
+  async detect(force = false, candidatePath?: string | null): Promise<GitAvailability> {
+    const detectsConfiguredPath = candidatePath === undefined
+    if (detectsConfiguredPath && !force && this.availability) return this.availability
+
+    const binary = detectsConfiguredPath
+      ? this.binary()
+      : candidatePath?.trim() || 'git'
+    const result = await new Promise<GitAvailability>((resolve) => {
       execFile(binary, ['--version'], { timeout: 15_000 }, (err, stdout) => {
         if (err) {
-          resolve({ available: false, installCommand: this.getInstallCommand(), downloadUrl: 'https://git-scm.com/downloads' })
+          resolve({
+            available: false,
+            error: err.message,
+            installCommand: this.getInstallCommand(),
+            downloadUrl: 'https://git-scm.com/downloads',
+          })
         } else {
           const version = stdout.toString().replace(/^git version\s*/i, '').trim()
-          resolve({ available: true, version, path: binary })
+          resolve({ available: true, version })
         }
       })
     })
-    return this.availability
+    if (result.available) result.path = await this.resolveExecutablePath(binary)
+    if (detectsConfiguredPath) this.availability = result
+    return result
+  }
+
+  private async resolveExecutablePath(binary: string): Promise<string> {
+    if (path.isAbsolute(binary) || /[\\/]/.test(binary)) return binary
+    const locator = process.platform === 'win32' ? 'where.exe' : 'which'
+    return new Promise(resolve => {
+      execFile(locator, [binary], { timeout: 5_000 }, (error, stdout) => {
+        const detected = error ? '' : stdout.toString().split(/\r?\n/, 1)[0]?.trim()
+        resolve(detected || binary)
+      })
+    })
   }
 
   /** 未安装 git 时的按平台安装命令（对齐 LibreOfficeService.getInstallCommand） */

@@ -24,22 +24,20 @@ export class LibreOfficeService {
   async checkAvailability(sofficePath?: string): Promise<LibreOfficeAvailabilityResult> {
     try {
       const executablePath = await this.resolveExecutable(sofficePath)
-      // On Windows, resolveExecutable falls back to bare 'soffice' when the
-      // executable is not found at known locations — treat that as not installed.
-      if (process.platform === 'win32' && !path.isAbsolute(executablePath)) {
-        throw new Error('not found')
-      }
+      const { stdout } = await this.run(executablePath, ['--version'])
+      const versionLine = stdout.split(/\r?\n/, 1)[0]?.trim()
       return {
         available: true,
+        version: versionLine || undefined,
         executablePath,
         installHint: this.getInstallHint(),
         installCommand: this.getInstallCommand(),
         downloadUrl: 'https://www.libreoffice.org/download/',
       }
-    } catch {
+    } catch (error) {
       return {
         available: false,
-        error: 'LibreOffice not found',
+        error: this.toErrorMessage(error),
         installHint: this.getInstallHint(),
         installCommand: this.getInstallCommand(),
         downloadUrl: 'https://www.libreoffice.org/download/',
@@ -195,7 +193,17 @@ export class LibreOfficeService {
     }
 
     // Linux 或 fallback：依赖 PATH
-    return 'soffice'
+    return this.resolveExecutablePath('soffice')
+  }
+
+  private async resolveExecutablePath(executable: string): Promise<string> {
+    const locator = process.platform === 'win32' ? 'where.exe' : 'which'
+    return new Promise(resolve => {
+      execFile(locator, [executable], { timeout: 5_000 }, (error, stdout) => {
+        const detected = error ? '' : stdout.toString().split(/\r?\n/, 1)[0]?.trim()
+        resolve(detected || executable)
+      })
+    })
   }
 
   private run(executable: string, args: string[]) {

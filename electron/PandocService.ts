@@ -163,7 +163,7 @@ export class PandocService {
 
   private async resolveExecutable(pandocPath?: string): Promise<string> {
     const trimmed = pandocPath?.trim()
-    if (!trimmed) return this.executable
+    if (!trimmed) return this.resolveExecutablePath(this.executable)
 
     const normalized = trimmed.replace(/^"(.*)"$/, '$1')
     try {
@@ -175,6 +175,16 @@ export class PandocService {
       // Fall through to direct path usage.
     }
     return normalized
+  }
+
+  private async resolveExecutablePath(executable: string): Promise<string> {
+    const locator = process.platform === 'win32' ? 'where.exe' : 'which'
+    return new Promise(resolve => {
+      execFile(locator, [executable], { timeout: 5_000 }, (error, stdout) => {
+        const detected = error ? '' : stdout.toString().split(/\r?\n/, 1)[0]?.trim()
+        resolve(detected || executable)
+      })
+    })
   }
 
   private run(executable: string, args: string[]) {
