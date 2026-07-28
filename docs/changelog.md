@@ -6,6 +6,15 @@
 
 ## Unreleased
 
+### 改进
+
+- 优化未打开文件夹时的侧边栏布局，增加内容区留白并统一操作入口的视觉间距。
+- 升级 TipTap 及其扩展至 `3.29.1`，同步更新不可见字符兼容补丁和编辑器依赖声明。
+- 统一文档保存、Markdown 剪贴板复制和表格复制使用的 HTML → Markdown 序列化流程，使 GFM Alerts、行内 / 块级数学公式等内容在不同操作中保持一致。
+- 明确 AI Story Buddy 对复杂研究、风格处理和导入蒸馏任务使用 `general-purpose` 子 Agent 的委托方式，减少任务路由歧义。
+- 升级 Electron 至 `43.2.0`，同步更新 Chromium、Node.js 与 V8 运行时，继续获得受支持版本的安全修复和运行时改进。
+- 升级 `better-sqlite3` 至 `13.0.1`，适配 Electron 43 的原生模块接口，并改进不同 Node.js / Electron 版本间的二进制兼容性。
+
 ## `0.1.25`
 
 ### 新增
