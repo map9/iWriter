@@ -47,9 +47,14 @@ describe('web-research workflow', () => {
 
     assert.match(skill, /user-provided materials/)
     assert.match(skill, /knowledge-base\/RAG/)
+    assert.match(skill, /There is no dedicated Researcher subagent/)
+    assert.match(skill, /main agent plans and synthesizes/)
+    assert.match(skill, /`general-purpose` subagents/)
     assert.equal(existsSync(researcherPath), false)
-    assert.match(creativePrompt, /Research — orchestrate directly/)
-    assert.match(creativePrompt, /complex research through \\`general-purpose\\`/)
+    assert.match(
+      creativePrompt,
+      /复杂研究[^。\n]*task\(subagent_type="general-purpose"\)[^。\n]*委托/,
+    )
     assert.doesNotMatch(creativePrompt, /`researcher` \(web research\)/)
     assert.doesNotMatch(creativePrompt, /- `researcher`: brief must contain/)
   })

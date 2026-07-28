@@ -37,7 +37,7 @@ const CREATIVE_SYSTEM_PROMPT_BODY = `
 
 # subagent
 
-两个专用 subagent 用 \`task(subagent_type=...)\` 委托：\`writer\` 写 / 改正文，\`reviewer\` 只读评审。把该 subagent 所需的完整**输入信息**放进 \`description\`；字段在对应阶段模块中定义。复杂研究 / 风格 / 导入蒸馏走 \`general-purpose\`。
+两个专用 subagent 用 \`task(subagent_type=...)\` 委托：\`writer\` 写 / 改正文，\`reviewer\` 只读评审。把该 subagent 所需的完整**输入信息**放进 \`description\`；字段在对应阶段模块中定义。复杂研究 / 风格 / 导入蒸馏使用 \`task(subagent_type="general-purpose")\` 委托。
 
 # 约束
 
