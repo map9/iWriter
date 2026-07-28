@@ -153,8 +153,9 @@
       </div>
 
       <!-- 图片本体（display:none 时仍在后台加载，触发 @load/@error） -->
-      <img v-show="srcStatus === SrcStatus.LOADED" ref="imgRef" :src="imageSrc" :alt="imageAlt" :title="imageTitle"
-        :style="imgStyle" class="control-content" @error="handleImageError" @load="handleImageLoad" />
+      <img v-if="renderableImageSrc" v-show="srcStatus === SrcStatus.LOADED" ref="imgRef"
+        :src="renderableImageSrc" :alt="imageAlt" :title="imageTitle" :style="imgStyle" class="control-content"
+        @error="handleImageError" @load="handleImageLoad" />
 
       <!-- 右下角 resize 手柄（仅已加载且选中/悬停时显示） -->
       <span v-show="shouldShowResizeHandles" class="resize-handle br"
@@ -196,6 +197,8 @@ const urlInput = ref('')
 const editableImagePath = ref('')
 const resolvingImageUrl = ref<string | null>(null)
 const resolvedImageFailures = new Set<string>()
+const renderableImageSrc = ref<string | null>(null)
+let imageValidationSequence = 0
 
 // Resize state
 const imgRef = ref<HTMLImageElement | null>(null)
@@ -305,13 +308,33 @@ watch(() => imagePath.value, (newSrc) => {
   editableImagePath.value = newSrc
 }, { immediate: true })
 
-// 监听图片源变化，重置加载状态
-watch(() => imageSrc.value, (newSrc, oldSrc) => {
-  if (newSrc !== oldSrc && newSrc && newSrc.trim()) {
-    imageLoaded.value = false
-    imageError.value = false
+const prepareImageSource = async (src: string): Promise<void> => {
+  const validationSequence = ++imageValidationSequence
+  renderableImageSrc.value = null
+  imageLoaded.value = false
+  imageError.value = false
+
+  if (!src.trim()) return
+
+  if (src.startsWith('file:') && window.electronAPI?.pathExists) {
+    const exists = await window.electronAPI.pathExists(src)
+    if (validationSequence !== imageValidationSequence || imageSrc.value !== src) return
+
+    if (!exists) {
+      imageError.value = true
+      return
+    }
   }
-})
+
+  if (validationSequence === imageValidationSequence && imageSrc.value === src) {
+    renderableImageSrc.value = src
+  }
+}
+
+// 本地图片先检查文件是否存在，避免把无效 file:// 地址交给 Chromium。
+watch(() => imageSrc.value, (newSrc) => {
+  void prepareImageSource(newSrc)
+}, { immediate: true })
 
 // 检查输入是否有变化
 const hasInputChanged = computed((): boolean => {
@@ -643,16 +666,8 @@ const handleUrlInput = async (): Promise<void> => {
 const retryLoadImage = (): void => {
   const currentSrc = imageSrc.value
   if (currentSrc && currentSrc.trim()) {
-    // 重置状态并重新触发加载
-    imageLoaded.value = false
-    imageError.value = false
-
-    // 通过短暂清空再重置 src 来重新触发加载
-    const originalSrc = currentSrc
-    props.updateAttributes({ src: '' })
-    setTimeout(() => {
-      props.updateAttributes({ src: originalSrc })
-    }, 10)
+    resolvedImageFailures.delete(currentSrc)
+    void prepareImageSource(currentSrc)
   }
 }
 

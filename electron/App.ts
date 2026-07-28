@@ -3,6 +3,7 @@ import type { MenuItemConstructorOptions, MessageBoxOptions, OpenDialogOptions, 
 import * as path from 'path'
 import * as fs from 'fs'
 import * as originalFs from 'original-fs'
+import { fileURLToPath } from 'url'
 import { exec } from 'child_process'
 import parcelWatcher from '@parcel/watcher'
 import type { FileChange } from '../src/types/file-operation'
@@ -678,7 +679,10 @@ export class App {
 
     ipcMain.handle('path-exists', async (_, filePath: string) => {
       try {
-        return fs.existsSync(filePath)
+        const resolvedPath = filePath.startsWith('file:')
+          ? fileURLToPath(filePath)
+          : filePath
+        return fs.existsSync(resolvedPath)
       } catch (error) {
         console.error('Error checking path existence:', error)
         return false
