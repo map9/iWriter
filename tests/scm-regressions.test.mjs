@@ -62,6 +62,13 @@ test('SCM regressions', async (t) => {
     assert.match(appSource, /void gitStore\.refresh\(\)/)
   })
 
+  await t.test('Windows workspace watching does not load the Parcel native addon', () => {
+    assert.doesNotMatch(mainAppSource, /^import .*@parcel\/watcher/m)
+    assert.match(mainAppSource, /const \{ default: parcelWatcher \} = await import\('@parcel\/watcher'\)/)
+    assert.match(mainAppSource, /if \(process\.platform === 'win32'\)[\s\S]*startWindowsRecursiveWatcher/)
+    assert.match(mainAppSource, /fs\.watch\(root, \{ persistent: true, recursive: true \}/)
+  })
+
   await t.test('Git recheck bypasses an unavailable detection cache', () => {
     assert.match(gitServiceSource, /async detect\(force = false, candidatePath\?: string \| null\)/)
     assert.match(gitServiceSource, /if \(detectsConfiguredPath && !force && this\.availability\)/)

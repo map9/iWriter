@@ -5,7 +5,6 @@ import * as fs from 'fs'
 import * as originalFs from 'original-fs'
 import { fileURLToPath } from 'url'
 import { exec } from 'child_process'
-import parcelWatcher from '@parcel/watcher'
 import type { FileChange } from '../src/types/file-operation'
 
 import Timer from '../src/utils/Timer'
@@ -219,12 +218,14 @@ function createWorkspaceIgnoredPredicate(
   }
 }
 
-// —— 文件监听（@parcel/watcher，替代 chokidar）——
+// —— 文件监听（原生递归 watcher，替代 chokidar）——
 //
-// 递归监听走 @parcel/watcher（macOS FSEvents / Windows 原生递归 → 整棵树一个 watcher，
-// O(1) fd，与目录数量无关，杜绝 EMFILE→git spawn EBADF）。depth:0 的单目录监听（打开的
-// 工作区外文档的父目录）走 Node 非递归 fs.watch（1 fd/个，避免 parcel 恒递归误盯超大父目录）。
-// 二者统一产出与 chokidar 等价的 file-change 事件（add/change/unlink/addDir/unlinkDir）。
+// Windows 递归监听走 Node 原生 fs.watch；macOS/Linux 走 @parcel/watcher（FSEvents/inotify）。
+// 两者都是整棵树一个 watcher，O(1) fd，与目录数量无关，杜绝 EMFILE→git spawn EBADF。
+// Windows 不加载 @parcel/watcher 的原生 addon，确保从其他平台交叉打出的 Windows 包不会
+// 因携带构建机的 watcher.node 而在主进程启动阶段崩溃。depth:0 的单目录监听（打开的工作区
+// 外文档的父目录）仍走 Node 非递归 fs.watch（1 fd/个，避免递归误盯超大父目录）。
+// 所有实现统一产出与 chokidar 等价的 file-change 事件（add/change/unlink/addDir/unlinkDir）。
 
 interface ManagedWatcher {
   close: () => Promise<void>
@@ -297,12 +298,44 @@ function createWatchEmitter(ctx: {
   }
 }
 
-/** 递归监听工作区（@parcel/watcher，O(1) fd）。忽略规则以 JS 逐事件过滤为权威，不传 parcel ignore（规避 gitignore→glob 翻译过/欠忽略）。 */
-async function startRecursiveWatcher(
+/** Windows 原生递归监听（一个 watcher）。 */
+function startWindowsRecursiveWatcher(
+  root: string,
+  ignoreRulesText: string | undefined,
+  sender: Electron.WebContents
+): ManagedWatcher {
+  const ignored = createWorkspaceIgnoredPredicate(root, ignoreRulesText)
+  const emitter = createWatchEmitter({ root, sender, ignored })
+  const watcher = fs.watch(root, { persistent: true, recursive: true }, (eventType, filename) => {
+    if (!filename) return
+    const fullPath = path.resolve(root, filename.toString())
+    emitter.schedule(fullPath, eventType === 'change' ? 'update' : 'rename')
+  })
+  watcher.on('error', (error) => {
+    if (!sender.isDestroyed()) {
+      sender.send('file-watch-error', {
+        message: error instanceof Error ? error.message : String(error),
+        path: root,
+        timestamp: new Date(),
+      })
+    }
+  })
+  return {
+    close: async () => {
+      emitter.dispose()
+      watcher.close()
+    },
+  }
+}
+
+/** macOS/Linux 递归监听（@parcel/watcher，一个 watcher）。忽略规则以 JS 逐事件过滤为权威。 */
+async function startParcelRecursiveWatcher(
   root: string,
   ignoreRulesText: string | undefined,
   sender: Electron.WebContents
 ): Promise<ManagedWatcher> {
+  // 延迟加载原生 addon，避免 Windows 主进程在创建窗口前求值构建机平台的 watcher.node。
+  const { default: parcelWatcher } = await import('@parcel/watcher')
   const ignored = createWorkspaceIgnoredPredicate(root, ignoreRulesText)
   const emitter = createWatchEmitter({ root, sender, ignored })
   const subscription = await parcelWatcher.subscribe(root, (err, events) => {
@@ -323,6 +356,17 @@ async function startRecursiveWatcher(
       await subscription.unsubscribe()
     },
   }
+}
+
+async function startRecursiveWatcher(
+  root: string,
+  ignoreRulesText: string | undefined,
+  sender: Electron.WebContents
+): Promise<ManagedWatcher> {
+  if (process.platform === 'win32') {
+    return startWindowsRecursiveWatcher(root, ignoreRulesText, sender)
+  }
+  return startParcelRecursiveWatcher(root, ignoreRulesText, sender)
 }
 
 /** 非递归监听单目录（depth:0，打开的工作区外文档父目录）；无忽略规则，1 fd。 */
