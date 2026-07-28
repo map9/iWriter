@@ -166,8 +166,11 @@
       </button>
     </div>
     
-    <div ref="tableContainerRef" class="tableWrapper">
-      <node-view-content as="table" />
+    <div class="tableWrapper">
+      <table ref="tableRef">
+        <colgroup ref="colgroupRef"></colgroup>
+        <node-view-content as="tbody" />
+      </table>
     </div>
   </node-view-wrapper>
 </template>
@@ -337,27 +340,8 @@ watchEffect(() => {
 })
 
 // DOM引用
-const tableContainerRef = ref<HTMLElement>()
 const tableRef = ref<HTMLTableElement>()
 const colgroupRef = ref<HTMLTableColElement>()
-
-const initializeTableElements = (): boolean => {
-  const table = tableContainerRef.value?.querySelector<HTMLTableElement>('table[data-node-view-content]')
-  if (!table) {
-    return false
-  }
-
-  tableRef.value = table
-
-  let colgroup = table.querySelector<HTMLTableColElement>(':scope > colgroup')
-  if (!colgroup) {
-    colgroup = document.createElement('colgroup')
-    tableRef.value.insertBefore(colgroup, tableRef.value.firstChild)
-  }
-  colgroupRef.value = colgroup
-
-  return true
-}
 
 // 手动更新列（模拟TableView的updateColumns函数）
 const updateColumns = () => {
@@ -427,9 +411,7 @@ const updateColumns = () => {
 // 生命周期管理
 onMounted(() => {
   nextTick(() => {
-    if (initializeTableElements()) {
-      updateColumns()
-    }
+    updateColumns()
   })
 })
 
