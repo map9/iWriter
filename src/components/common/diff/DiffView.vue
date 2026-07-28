@@ -69,8 +69,8 @@
     </div>
 
     <!-- 编辑模式：左侧旧内容(随输入实时高亮删除词) + 右侧可编辑 textarea；diff 在编辑时保持可见 -->
-    <div v-if="editing" class="grid min-h-0 flex-1 grid-cols-2 overflow-hidden text-xs font-mono leading-[1.5]">
-      <div class="overflow-auto whitespace-pre-wrap break-words border-r border-base-300 px-2 py-1"><template v-for="(s, si) in editLeftSegments" :key="si"><span :class="s.hl ? 'rounded-sm bg-error/40' : ''">{{ s.value }}</span></template></div>
+    <div v-if="editing" class="grid min-h-0 flex-1 grid-cols-2 overflow-hidden text-xs font-mono leading-normal">
+      <div class="overflow-auto whitespace-pre-wrap wrap-break-word border-r border-base-300 px-2 py-1"><template v-for="(s, si) in editLeftSegments" :key="si"><span :class="s.hl ? 'rounded-sm bg-error/40' : ''">{{ s.value }}</span></template></div>
       <textarea
         v-model="draftLocal"
         spellcheck="false"
@@ -82,7 +82,7 @@
     <div v-else class="flex min-h-0 flex-1">
       <div
         ref="scrollEl"
-        class="relative min-w-0 flex-1 overflow-auto scrollbar-hide font-mono leading-[1.5]"
+        class="relative min-w-0 flex-1 overflow-auto scrollbar-hide font-mono leading-normal"
         @scroll="updateMetrics"
       >
         <!-- 并排 -->
@@ -98,14 +98,14 @@
                 v-if="showLineNumbers"
                 class="w-10 shrink-0 select-none border-r border-base-300/50 px-1 text-right tabular-nums text-base-content/40"
               >{{ p.left?.oldNo ?? '' }}</span>
-              <span class="min-h-[1.5em] whitespace-pre-wrap break-words px-2"><template v-for="(s, si) in (p.left?.segs ?? [])" :key="si"><span :class="s.hl ? 'rounded-sm bg-error/40' : ''">{{ s.value }}</span></template></span>
+              <span class="min-h-[1.5em] whitespace-pre-wrap wrap-break-word px-2"><template v-for="(s, si) in (p.left?.segs ?? [])" :key="si"><span :class="s.hl ? 'rounded-sm bg-error/40' : ''">{{ s.value }}</span></template></span>
             </div>
             <div class="flex" :class="sideBg(p.right)">
               <span
                 v-if="showLineNumbers"
                 class="w-10 shrink-0 select-none border-r border-base-300/50 px-1 text-right tabular-nums text-base-content/40"
               >{{ p.right?.newNo ?? '' }}</span>
-              <span class="min-h-[1.5em] whitespace-pre-wrap break-words px-2"><template v-for="(s, si) in (p.right?.segs ?? [])" :key="si"><span :class="s.hl ? 'rounded-sm bg-success/40' : ''">{{ s.value }}</span></template></span>
+              <span class="min-h-[1.5em] whitespace-pre-wrap wrap-break-word px-2"><template v-for="(s, si) in (p.right?.segs ?? [])" :key="si"><span :class="s.hl ? 'rounded-sm bg-success/40' : ''">{{ s.value }}</span></template></span>
             </div>
             <div
               v-if="hunkMode && hunkAnchors.splitMap.has(i)"
@@ -138,7 +138,7 @@
               class="w-9 shrink-0 select-none border-r border-base-300/50 px-1 text-right tabular-nums text-base-content/40"
             >{{ l.newNo ?? '' }}</span>
             <span class="w-4 shrink-0 select-none text-center text-base-content/40">{{ sign(l.type) }}</span>
-            <span class="min-h-[1.5em] whitespace-pre-wrap break-words px-1"><template v-for="(s, si) in l.segs" :key="si"><span :class="hlClass(l.type, s.hl)">{{ s.value }}</span></template></span>
+            <span class="min-h-[1.5em] whitespace-pre-wrap wrap-break-word px-1"><template v-for="(s, si) in l.segs" :key="si"><span :class="hlClass(l.type, s.hl)">{{ s.value }}</span></template></span>
             <div
               v-if="hunkMode && hunkAnchors.inlineMap.has(i)"
               class="absolute right-1.5 top-0.5 z-10 hidden items-center gap-0.5 rounded border border-base-300 bg-base-100 px-0.5 shadow-sm group-hover:flex"
