@@ -132,10 +132,16 @@ export default defineConfig(({ command }) => {
       },
     },
     optimizeDeps: {
-      // pdfjs-dist 只被 PDFViewerPage 懒加载引入；不预打包的话，首次打开 PDF 时
-      // Vite 会发现新依赖 → esbuild 重新优化 → 整页 reload（含 Explorer 闪一下）。
-      // 预打包后开发模式首开 PDF 不再触发整页刷新（dev-only；生产构建本就无此问题）。
-      include: ["nanoid", "typo-js", "pdfjs-dist/web/pdf_viewer.mjs"],
+      // PDFViewerPage 是懒加载页面，首次打开时会同时发现 pdfjs 主入口、viewer
+      // 和自定义 worker 引入的 worker 入口。必须全部预打包，否则 Vite 会在
+      // 运行中重新优化依赖并整页 reload（含 Explorer 和所有已打开标签页）。
+      include: [
+        "nanoid",
+        "typo-js",
+        "pdfjs-dist",
+        "pdfjs-dist/web/pdf_viewer.mjs",
+        "pdfjs-dist/build/pdf.worker.min.mjs",
+      ],
     },
     build: {
       outDir: 'dist',
