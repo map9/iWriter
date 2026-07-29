@@ -126,13 +126,13 @@
       />
       <div class="mt-1.5 flex justify-end gap-2">
         <button
-          class="iw-btn btn-xs btn-ghost"
+          class="btn btn-xs btn-ghost"
           @click="isRespondOpen = false; respondMessage = ''"
         >
           {{ t('agentPanel.creativeReview.respondCancel') }}
         </button>
         <button
-          class="iw-btn btn-xs btn-warning"
+          class="btn btn-xs btn-warning"
           :disabled="!respondMessage.trim()"
           @click="sendRespond"
         >
@@ -149,13 +149,13 @@
       </p>
       <div class="mt-1.5 flex justify-end gap-2">
         <button
-          class="iw-btn btn-xs btn-ghost"
+          class="btn btn-xs btn-ghost"
           @click="isFinalizeRejectConfirm = false"
         >
           {{ t('agentPanel.creativeReview.respondCancel') }}
         </button>
         <button
-          class="iw-btn btn-xs btn-warning"
+          class="btn btn-xs btn-warning"
           @click="confirmFinalizeReject"
         >
           {{ t('agentPanel.creativeReview.finalizeRejectConfirmAction') }}
@@ -165,27 +165,27 @@
     <footer class="flex flex-wrap items-center justify-end gap-2 border-t border-base-300 px-3 py-2">
       <button
         v-if="reviews.length > 1"
-        class="iw-btn btn-xs btn-warning"
+        class="btn btn-xs btn-warning"
         @click="aiStore.approveAllCreativeReviews"
       >
         {{ t('agentPanel.creativeReview.approveAll') }}
       </button>
       <button
-        class="iw-btn btn-xs btn-ghost"
+        class="btn btn-xs btn-ghost"
         @click="reject"
       >
         {{ rejectLabel }}
       </button>
       <button
         v-if="!isRunEndFallback"
-        class="iw-btn btn-xs btn-ghost"
+        class="btn btn-xs btn-ghost"
         @click="isRespondOpen = true"
       >
         {{ respondLabel }}
       </button>
       <button
         v-if="reviews.length > 1"
-        class="iw-btn btn-xs btn-ghost"
+        class="btn btn-xs btn-ghost"
         :disabled="currentIndex === 0"
         @click="prev"
       >
@@ -193,14 +193,14 @@
       </button>
       <button
         v-if="reviews.length > 1"
-        class="iw-btn btn-xs btn-ghost"
+        class="btn btn-xs btn-ghost"
         :disabled="currentIndex >= reviews.length - 1"
         @click="next"
       >
         {{ t('agentPanel.creativeReview.next') }}
       </button>
       <button
-        class="iw-btn btn-xs btn-warning"
+        class="btn btn-xs btn-warning"
         @click="approve"
       >
         {{ approveLabel }}

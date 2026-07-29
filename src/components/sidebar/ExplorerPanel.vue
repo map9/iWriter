@@ -2,9 +2,9 @@
   <div class="h-full flex flex-col">
     
     <!-- Explorer Header -->
-    <div class="iw-sidebar-section">
+    <div class="flex h-10 shrink-0 items-center justify-between bg-base-200 px-2 select-none">
       <div class="flex items-center gap-2">
-        <span class="iw-sidebar-section-header">
+        <span class="text-sm font-semibold text-base-content uppercase whitespace-nowrap block w-full truncate">
           {{ t('explorer.title') }}
         </span>
       </div>
@@ -13,13 +13,13 @@
       <div class="flex shrink-0 items-center gap-1">
         <button
           @click="appStore.openFolder"
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="t('explorer.openFolder')"
         >
           <IconFolderOpen class="icon-xs" />
         </button>
         <button
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="t('explorer.moreActions')"
           @click="showExplorerViewMenu"
         >
@@ -33,7 +33,7 @@
       v-if="!appStore.isWorkspaceDeleted && !appStore.isWorkspaceOpening"
       class="flex shrink-0 items-center border-b border-base-300 bg-base-200 p-2 select-none"
     >
-      <label class="iw-input">
+      <label class="input input-sm h-7 w-full">
         <IconSearch class="icon-xs text-base-content" />
         <input 
           v-model="searchQuery"
@@ -50,21 +50,21 @@
       <template #workspace-actions>
         <button
           @click.stop="createFile"
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="t('explorer.createFile')"
         >
           <IconFilePlus class="icon-xs" />
         </button>
         <button
           @click.stop="createFolder"
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="t('explorer.createFolder')"
         >
           <IconFolderPlus class="icon-xs" />
         </button>
         <button
           @click.stop="showSortContextMenu"
-          class="iw-toolbar-btn btn-xs w-auto gap-1 px-1"
+          class="btn btn-ghost btn-square btn-xs w-auto gap-1 px-1"
           :title="t('explorer.sortTitle')"
         >
           <IconArrowsSort class="icon-xs" />
@@ -72,7 +72,7 @@
         </button>
         <button
           @click.stop="collapseAll"
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="t('explorer.collapseAll')"
           :disabled="!hasRootFolder"
         >
@@ -105,22 +105,22 @@
           </div>
 
           <div class="flex flex-col gap-2">
-            <button class="iw-btn btn-ghost justify-start gap-2 h-9" @click="appStore.rebuildWorkspaceDirectory">
+            <button class="btn btn-ghost justify-start gap-2 h-9" @click="appStore.rebuildWorkspaceDirectory">
               <IconFolderPlus class="icon-xs" />
               {{ t('explorer.workspaceDeleted.rebuild') }}
             </button>
-            <button class="iw-btn btn-ghost justify-start gap-2 h-9" @click="appStore.closeFolder">
+            <button class="btn btn-ghost justify-start gap-2 h-9" @click="appStore.closeFolder">
               <IconX class="icon-xs" />
               {{ t('explorer.workspaceDeleted.close') }}
             </button>
-            <button class="iw-btn btn-ghost justify-start gap-2 h-9" @click="appStore.openFolder">
+            <button class="btn btn-ghost justify-start gap-2 h-9" @click="appStore.openFolder">
               <IconFolderOpen class="icon-xs" />
               {{ t('explorer.workspaceDeleted.openNew') }}
             </button>
           </div>
         </div>
 
-        <div v-else-if="appStore.isWorkspaceOpening" class="sidebar-empty flex h-full flex-col items-center justify-center gap-2">
+        <div v-else-if="appStore.isWorkspaceOpening" class="p-3 text-left text-xs text-base-content/50 flex h-full flex-col items-center justify-center gap-2">
           <span class="loading loading-spinner loading-sm"></span>
           <span>{{ t('explorer.workspaceLoading') }}</span>
         </div>

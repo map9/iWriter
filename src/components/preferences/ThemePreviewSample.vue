@@ -13,10 +13,10 @@
         <div class="h-2.5 w-full rounded-full bg-base-300" />
         <div class="h-2.5 w-3/5 rounded-full bg-base-300/80" />
         <div class="mt-auto flex items-center gap-2">
-          <span class="iw-btn btn-xs btn-primary pointer-events-none min-h-0 h-6 px-2">
+          <span class="btn btn-xs btn-primary pointer-events-none min-h-0 h-6 px-2">
             {{ t('themePreview.save') }}
           </span>
-          <span class="iw-btn btn-xs btn-ghost pointer-events-none min-h-0 h-6 px-2">
+          <span class="btn btn-xs btn-ghost pointer-events-none min-h-0 h-6 px-2">
             {{ t('themePreview.share') }}
           </span>
         </div>

@@ -5,7 +5,7 @@
         <ul class="space-y-1">
           <li>
             <button
-              class="iw-btn btn-sm h-8 w-full justify-start border-none text-left"
+              class="btn btn-sm h-8 w-full justify-start border-none text-left"
               :class="activeSection === 'common' ? 'btn-active' : 'btn-ghost'"
               @click="activeSection = 'common'"
             >
@@ -17,7 +17,7 @@
         <ul class="space-y-1">
           <li v-for="item in formatSections" :key="item.id">
             <button
-              class="iw-btn btn-sm h-8 w-full justify-start border-none text-left"
+              class="btn btn-sm h-8 w-full justify-start border-none text-left"
               :class="activeSection === item.id ? 'btn-active' : 'btn-ghost'"
               @click="activeSection = item.id"
             >
@@ -33,7 +33,7 @@
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.export.defaultFolderTitle') }}</label>
           <select
-            class="iw-select w-full"
+            class="select select-sm w-full"
             :value="appStore.globalExportSetting.common.defaultFolderMode"
             @change="handleDefaultFolderModeChange(($event.target as HTMLSelectElement).value)"
           >
@@ -44,12 +44,12 @@
           <div v-if="appStore.globalExportSetting.common.defaultFolderMode === 'custom'" class="mt-2 flex items-center gap-2">
             <input
               type="text"
-              class="iw-input flex-1"
+              class="input input-sm h-7 w-full flex-1"
               :value="appStore.globalExportSetting.common.customFolderPath"
               @input="appStore.globalExportSetting.common.customFolderPath = ($event.target as HTMLInputElement).value"
             />
             <button
-              class="iw-toolbar-btn btn-xs"
+              class="btn btn-ghost btn-square btn-xs"
               :aria-label="t('preferences.export.browseFolder')"
               @click="browseCustomExportFolder"
             >
@@ -62,7 +62,7 @@
           <div class="flex items-center gap-1">
             <label class="text-sm font-medium text-base-content">{{ t('preferences.export.pandocPathTitle') }}</label>
             <button
-              class="iw-toolbar-btn btn-xs text-base-content/50"
+              class="btn btn-ghost btn-square btn-xs text-base-content/50"
               type="button"
               :aria-label="t('preferences.export.pandocHelp')"
               :title="t('preferences.export.pandocHelp')"
@@ -75,13 +75,13 @@
             <input
               v-model="pandocPathDraft"
               type="text"
-              class="iw-input flex-1"
+              class="input input-sm h-7 w-full flex-1"
               :placeholder="pandocPathPlaceholder"
               :disabled="pandocDetecting"
               @keydown.enter.prevent="detectPandocPath"
             />
             <button
-              class="iw-toolbar-btn btn-xs shrink-0"
+              class="btn btn-ghost btn-square btn-xs shrink-0"
               type="button"
               :aria-label="t('common.browse')"
               :title="t('common.browse')"
@@ -91,7 +91,7 @@
               <IconFolderOpen class="icon-xs" />
             </button>
             <button
-              class="iw-toolbar-btn btn-xs shrink-0"
+              class="btn btn-ghost btn-square btn-xs shrink-0"
               type="button"
               :aria-label="pandocDetecting ? t('common.detecting') : t('common.detect')"
               :title="pandocDetecting ? t('common.detecting') : t('common.detect')"
@@ -108,7 +108,7 @@
           <div class="flex items-center gap-1">
             <label class="text-sm font-medium text-base-content">{{ t('preferences.export.libreOfficePathTitle') }}</label>
             <button
-              class="iw-toolbar-btn btn-xs text-base-content/50"
+              class="btn btn-ghost btn-square btn-xs text-base-content/50"
               type="button"
               :aria-label="t('preferences.export.libreOfficeHelp')"
               :title="t('preferences.export.libreOfficeHelp')"
@@ -121,13 +121,13 @@
             <input
               v-model="libreOfficePathDraft"
               type="text"
-              class="iw-input flex-1"
+              class="input input-sm h-7 w-full flex-1"
               :placeholder="libreOfficePathPlaceholder"
               :disabled="libreOfficeDetecting"
               @keydown.enter.prevent="detectLibreOfficePath"
             />
             <button
-              class="iw-toolbar-btn btn-xs shrink-0"
+              class="btn btn-ghost btn-square btn-xs shrink-0"
               type="button"
               :aria-label="t('common.browse')"
               :title="t('common.browse')"
@@ -137,7 +137,7 @@
               <IconFolderOpen class="icon-xs" />
             </button>
             <button
-              class="iw-toolbar-btn btn-xs shrink-0"
+              class="btn btn-ghost btn-square btn-xs shrink-0"
               type="button"
               :aria-label="libreOfficeDetecting ? t('common.detecting') : t('common.detect')"
               :title="libreOfficeDetecting ? t('common.detecting') : t('common.detect')"
@@ -178,14 +178,14 @@
 
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.export.argsTitle') }}</label>
-          <input type="text" class="iw-input w-full text-base-content/50" :value="buildArgsPreview(activeFormat)" readonly />
+          <input type="text" class="input input-sm h-7 w-full text-base-content/50" :value="buildArgsPreview(activeFormat)" readonly />
         </div>
 
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.export.customArgsTitle') }}</label>
           <input
             type="text"
-            class="iw-input w-full"
+            class="input input-sm h-7 w-full"
             :value="formatSetting.customArgs"
             @input="formatSetting.customArgs = ($event.target as HTMLInputElement).value"
           />
@@ -196,12 +196,12 @@
           <div class="flex items-center gap-2">
             <input
               type="text"
-              class="iw-input flex-1"
+              class="input input-sm h-7 w-full flex-1"
               :value="formatSetting.referenceDocPath || ''"
               @input="formatSetting.referenceDocPath = ($event.target as HTMLInputElement).value"
             />
             <button
-              class="iw-toolbar-btn btn-xs"
+              class="btn btn-ghost btn-square btn-xs"
               :aria-label="t('preferences.export.browseFile')"
               @click="browseFormatFile(activeFormat, 'referenceDocPath', ['docx'])"
             >
@@ -215,12 +215,12 @@
           <div class="flex items-center gap-2">
             <input
               type="text"
-              class="iw-input flex-1"
+              class="input input-sm h-7 w-full flex-1"
               :value="formatSetting.templatePath || ''"
               @input="formatSetting.templatePath = ($event.target as HTMLInputElement).value"
             />
             <button
-              class="iw-toolbar-btn btn-xs"
+              class="btn btn-ghost btn-square btn-xs"
               :aria-label="t('preferences.export.browseFile')"
               @click="browseFormatFile(activeFormat, 'templatePath', ['odt'])"
             >
@@ -234,12 +234,12 @@
           <div class="flex items-center gap-2">
             <input
               type="text"
-              class="iw-input flex-1"
+              class="input input-sm h-7 w-full flex-1"
               :value="formatSetting.cssPath || ''"
               @input="formatSetting.cssPath = ($event.target as HTMLInputElement).value"
             />
             <button
-              class="iw-toolbar-btn btn-xs"
+              class="btn btn-ghost btn-square btn-xs"
               :aria-label="t('preferences.export.browseFile')"
               @click="browseFormatFile(activeFormat, 'cssPath', ['css'])"
             >
@@ -254,7 +254,7 @@
             type="number"
             min="1"
             max="6"
-            class="iw-input w-28"
+            class="input input-sm h-7 w-28"
             :value="formatSetting.tocDepth ?? 3"
             @input="formatSetting.tocDepth = Number(($event.target as HTMLInputElement).value) || 3"
           />

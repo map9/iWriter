@@ -16,7 +16,7 @@
         <label class="text-sm font-medium text-base-content">{{ t('preferences.print.printTheme') }}</label>
         <select
           v-model="settings.themeAssignment.printThemeId"
-          class="iw-select w-full"
+          class="select select-sm w-full"
         >
           <option v-for="theme in themes" :key="theme.id" :value="theme.id">{{ theme.name }}</option>
         </select>
@@ -29,14 +29,14 @@
       <div class="responsive-two-col-grid">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('dialog.printDialog.paperSize.label') }}</label>
-          <select v-model="settings.pageSetup.size" class="iw-select">
+          <select v-model="settings.pageSetup.size" class="select select-sm">
             <option v-for="size in paperSizes" :key="size.value" :value="size.value">{{ size.label }}</option>
           </select>
         </div>
 
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('dialog.printDialog.orientation.label') }}</label>
-          <select v-model="settings.pageSetup.orientation" class="iw-select">
+          <select v-model="settings.pageSetup.orientation" class="select select-sm">
             <option value="portrait">{{ t('dialog.printDialog.orientation.options.portrait') }}</option>
             <option value="landscape">{{ t('dialog.printDialog.orientation.options.landscape') }}</option>
           </select>
@@ -45,7 +45,7 @@
 
       <div class="responsive-inline-row">
         <label class="text-sm font-medium text-base-content">{{ t('preferences.print.pageStartSide') }}</label>
-        <select v-model="settings.pageSetup.pageSideStart" class="iw-select w-full">
+        <select v-model="settings.pageSetup.pageSideStart" class="select select-sm w-full">
           <option value="auto">{{ t('preferences.print.pageStartAuto') }}</option>
           <option value="recto">{{ pageSideStartRectoLabel }}</option>
           <option value="verso">{{ pageSideStartVersoLabel }}</option>
@@ -54,7 +54,7 @@
 
       <div class="responsive-inline-row">
         <label class="text-sm font-medium text-base-content">{{ t('preferences.print.marginMode') }}</label>
-        <select v-model="settings.pageSetup.marginMode" class="iw-select w-full" @change="normalizeMarginMode(settings.pageSetup.marginMode)">
+        <select v-model="settings.pageSetup.marginMode" class="select select-sm w-full" @change="normalizeMarginMode(settings.pageSetup.marginMode)">
           <option value="single">{{ t('preferences.print.marginModeSingle') }}</option>
           <option value="facing">{{ t('preferences.print.marginModeFacing') }}</option>
         </select>
@@ -63,38 +63,38 @@
       <div v-if="settings.pageSetup.marginMode === 'single'" class="responsive-two-col-grid">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.print.marginTop') }}</label>
-          <input v-model="singleMargins.top" type="text" class="iw-input" />
+          <input v-model="singleMargins.top" type="text" class="input input-sm h-7 w-full" />
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.print.marginRight') }}</label>
-          <input v-model="singleMargins.right" type="text" class="iw-input" />
+          <input v-model="singleMargins.right" type="text" class="input input-sm h-7 w-full" />
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.print.marginBottom') }}</label>
-          <input v-model="singleMargins.bottom" type="text" class="iw-input" />
+          <input v-model="singleMargins.bottom" type="text" class="input input-sm h-7 w-full" />
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.print.marginLeft') }}</label>
-          <input v-model="singleMargins.left" type="text" class="iw-input" />
+          <input v-model="singleMargins.left" type="text" class="input input-sm h-7 w-full" />
         </div>
       </div>
 
       <div v-else class="responsive-two-col-grid">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.print.marginTop') }}</label>
-          <input v-model="facingMargins.top" type="text" class="iw-input" />
+          <input v-model="facingMargins.top" type="text" class="input input-sm h-7 w-full" />
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.print.marginBottom') }}</label>
-          <input v-model="facingMargins.bottom" type="text" class="iw-input" />
+          <input v-model="facingMargins.bottom" type="text" class="input input-sm h-7 w-full" />
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.print.marginInside') }}</label>
-          <input v-model="facingMargins.inside" type="text" class="iw-input" />
+          <input v-model="facingMargins.inside" type="text" class="input input-sm h-7 w-full" />
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.print.marginOutside') }}</label>
-          <input v-model="facingMargins.outside" type="text" class="iw-input" />
+          <input v-model="facingMargins.outside" type="text" class="input input-sm h-7 w-full" />
         </div>
       </div>
 
@@ -109,7 +109,7 @@
 
       <div class="responsive-inline-row">
         <label class="text-sm font-medium text-base-content">{{ t('preferences.print.chapterStartSide') }}</label>
-        <select v-model="settings.pagination.chapterStartSide" class="iw-select w-full">
+        <select v-model="settings.pagination.chapterStartSide" class="select select-sm w-full">
           <option value="auto">{{ t('preferences.print.pageStartAuto') }}</option>
           <option value="recto">{{ pageSideStartRectoLabel }}</option>
           <option value="verso">{{ pageSideStartVersoLabel }}</option>
@@ -118,7 +118,7 @@
 
       <div class="responsive-inline-row">
         <label class="text-sm font-medium text-base-content">{{ t('preferences.print.paginationMode') }}</label>
-        <select v-model="settings.pagination.mode" class="iw-select w-full">
+        <select v-model="settings.pagination.mode" class="select select-sm w-full">
           <option value="balanced">{{ t('preferences.print.paginationBalanced') }}</option>
           <option value="compact">{{ t('preferences.print.paginationCompact') }}</option>
           <option value="strict-book">{{ t('preferences.print.paginationStrictBook') }}</option>
@@ -190,7 +190,7 @@
             type="number"
             min="0"
             max="20"
-            class="iw-input"
+            class="input input-sm h-7 w-full"
             :value="settings.pagination.widows ?? ''"
             :placeholder="t('preferences.print.widowsPlaceholder')"
             @input="onWidowsInput(($event.target as HTMLInputElement).value)"
@@ -202,7 +202,7 @@
             type="number"
             min="0"
             max="20"
-            class="iw-input"
+            class="input input-sm h-7 w-full"
             :value="settings.pagination.orphans ?? ''"
             :placeholder="t('preferences.print.widowsPlaceholder')"
             @input="onOrphansInput(($event.target as HTMLInputElement).value)"
@@ -212,7 +212,7 @@
 
       <div class="flex flex-col gap-1.5">
         <label class="text-sm font-medium text-base-content">{{ t('preferences.print.blankPageBehavior') }}</label>
-        <select v-model="settings.pagination.blankPageBehavior" class="iw-select">
+        <select v-model="settings.pagination.blankPageBehavior" class="select select-sm">
           <option value="allow">{{ t('preferences.print.blankPageAllow') }}</option>
           <option value="suppress-header-footer">{{ t('preferences.print.blankPageSuppressHeaderFooter') }}</option>
         </select>
@@ -248,7 +248,7 @@
             <div class="text-sm font-medium text-base-content">{{ group.label }}</div>
             <button
               type="button"
-              class="iw-btn btn-xs btn-ghost gap-1"
+              class="btn btn-xs btn-ghost gap-1"
               :disabled="getRemainingSlots(group.key).length === 0"
               :title="t('preferences.print.addMarginBox')"
               @click="addSlot(group.key)"
@@ -273,7 +273,7 @@
             >
               <select
                 :value="slot"
-                class="iw-select slot-select px-2"
+                class="select select-sm slot-select px-2"
                 @change="renameSlot(group.key, slot, ($event.target as HTMLSelectElement).value as MarginBoxSlot)"
               >
                 <option v-for="option in getSlotOptions(group.key, slot)" :key="option" :value="option">
@@ -283,7 +283,7 @@
               <input
                 :value="getSlotTemplate(group.key, slot)"
                 type="text"
-                class="iw-input slot-input text-sm"
+                class="input input-sm h-7 w-full slot-input text-sm"
                 :placeholder="t('preferences.print.slotTemplatePlaceholder')"
                 @input="setSlotTemplate(group.key, slot, ($event.target as HTMLInputElement).value)"
               />
@@ -291,7 +291,7 @@
                 <div
                   tabindex="0"
                   role="button"
-                  class="iw-toolbar-btn btn-xs"
+                  class="btn btn-ghost btn-square btn-xs"
                   :aria-label="t('preferences.print.slotPresetButton')"
                 >
                   <IconDots class="icon-xs" />
@@ -309,7 +309,7 @@
               </div>
               <button
                 type="button"
-                class="iw-toolbar-btn btn-xs slot-trash text-error"
+                class="btn btn-ghost btn-square btn-xs slot-trash text-error"
                 :title="t('preferences.print.removeMarginBox')"
                 @click="removeSlot(group.key, slot)"
               >
@@ -332,7 +332,7 @@
         <div class="responsive-two-col-grid">
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium text-base-content">{{ t('preferences.print.chapterSource') }}</label>
-            <select v-model="settings.runningTitle.chapterSource" class="iw-select">
+            <select v-model="settings.runningTitle.chapterSource" class="select select-sm">
               <option value="none">None</option>
               <option value="h1">H1</option>
               <option value="h2">H2</option>
@@ -340,7 +340,7 @@
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium text-base-content">{{ t('preferences.print.sectionSource') }}</label>
-            <select v-model="settings.runningTitle.sectionSource" class="iw-select">
+            <select v-model="settings.runningTitle.sectionSource" class="select select-sm">
               <option value="none">None</option>
               <option value="h2">H2</option>
               <option value="h3">H3</option>

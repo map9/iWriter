@@ -12,7 +12,7 @@
       <!-- Toggle 按钮 -->
       <button
         @click="toggleReplaceMode"
-        class="iw-toolbar-btn w-4 h-auto"
+        class="btn btn-ghost btn-square w-4 h-auto"
         :title="mode === 'replace' ? t('notify.search.hideReplace') : t('notify.search.showReplace')"
       >
         <IconChevronDown v-if="mode === 'replace'" class="icon-xs" />
@@ -38,24 +38,24 @@
             <div class="flex absolute right-2 top-0.5 gap-0.5">
               <button
                 @click="toggleCaseSensitive"
-                :class="{ 'iw-toolbar-btn-active': options.caseSensitive }"
-                class="iw-toolbar-btn btn-xs"
+                :class="{ 'btn-active bg-primary text-primary-content': options.caseSensitive }"
+                class="btn btn-ghost btn-square btn-xs"
                 :title="t('notify.search.matchCaseTitle')"
               >
                 <IconLetterCase class="icon-2xs" />
               </button>
               <button
                 @click="toggleWholeWord"
-                :class="{ 'iw-toolbar-btn-active': options.wholeWord }"
-                class="iw-toolbar-btn btn-xs"
+                :class="{ 'btn-active bg-primary text-primary-content': options.wholeWord }"
+                class="btn btn-ghost btn-square btn-xs"
                 :title="t('notify.search.matchWholeWordTitle')"
               >
                 <IconAbc class="icon-2xs" />
               </button>
               <button
                 @click="toggleRegex"
-                :class="{ 'iw-toolbar-btn-active': options.regex }"
-                class="iw-toolbar-btn btn-xs"
+                :class="{ 'btn-active bg-primary text-primary-content': options.regex }"
+                class="btn btn-ghost btn-square btn-xs"
                 :title="t('notify.search.regexTitle')"
               >
                 <IconRegex class="icon-2xs" />
@@ -78,7 +78,7 @@
             <button
               @click="findPrevious"
               :disabled="totalMatches === 0"
-              class="iw-toolbar-btn btn-xs"
+              class="btn btn-ghost btn-square btn-xs"
               :title="t('notify.search.previousMatchTitle')"
             >
               <IconArrowNarrowUp class="icon-xs" />
@@ -86,7 +86,7 @@
             <button
               @click="findNext"
               :disabled="totalMatches === 0"
-              class="iw-toolbar-btn btn-xs"
+              class="btn btn-ghost btn-square btn-xs"
               :title="t('notify.search.nextMatchTitle')"
             >
               <IconArrowNarrowDown class="icon-xs" />
@@ -96,7 +96,7 @@
               @click="toggleSearchInSelection"
               :disabled="!hasSelection && !searchInSelection"
               :class="{ 'btn-active btn-primary': searchInSelection }"
-              class="iw-toolbar-btn btn-xs"
+              class="btn btn-ghost btn-square btn-xs"
               :title="t('notify.search.findInSelectionTitle')"
             >
               <IconAlignLeft class="icon-xs" />
@@ -105,7 +105,7 @@
             <!-- 关闭按钮 -->
             <button
               @click="closePanel"
-              class="iw-toolbar-btn btn-xs"
+              class="btn btn-ghost btn-square btn-xs"
               :title="t('notify.search.closeTitle')"
             >
               <IconX class="icon-xs" />
@@ -132,7 +132,7 @@
             <button
               @click="replaceNext"
               :disabled="totalMatches === 0"
-              class="iw-toolbar-btn btn-xs"
+              class="btn btn-ghost btn-square btn-xs"
               :title="t('notify.search.replaceNextTitle')"
             >
               <IconReplace class="icon-xs" />
@@ -140,7 +140,7 @@
             <button
               @click="replaceAll"
               :disabled="totalMatches === 0"
-              class="iw-toolbar-btn btn-xs"
+              class="btn btn-ghost btn-square btn-xs"
               :title="t('notify.search.replaceAllTitle')"
             >
               <IconReplaceFilled class="icon-xs" />

@@ -1,25 +1,25 @@
 <template>
-  <div class="document-viewer-wrapper">
+  <div class="relative flex flex-1 flex-col overflow-hidden bg-base-200">
     <!-- Image Toolbar -->
-    <div v-if="!appStore.isCleanMode" class="iw-toolbar">
-      <div class="iw-toolbar-group">
+    <div v-if="!appStore.isCleanMode" class="flex h-10 w-full min-w-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-b border-base-300 bg-base-100 px-3 scrollbar-hide min-inline-0">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           @click="zoomOut"
           :disabled="zoom <= 0.1"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('imageViewer.toolbar.zoomOut')"
         >
           <IconZoomOut class="icon-sm" />
         </button>
 
-        <div class="iw-stat">
+        <div class="badge badge-ghost badge-md">
           {{ Math.round(zoom * 100) }}%
         </div>
 
         <button
           @click="zoomIn"
           :disabled="zoom >= 10"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('imageViewer.toolbar.zoomIn')"
         >
           <IconZoomIn class="icon-sm" />
@@ -27,7 +27,7 @@
 
         <button
           @click="zoomToFit"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('imageViewer.toolbar.fitToPage')"
         >
           <IconZoomReset class="icon-sm" />
@@ -38,10 +38,10 @@
         <div class="h-1/2 w-px bg-base-300"></div>
       </div>
       
-      <div class="iw-toolbar-group">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           @click="rotateLeft"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('imageViewer.toolbar.rotateLeft')"
         >
           <IconRotate class="icon-sm" />
@@ -49,21 +49,21 @@
 
         <button
           @click="rotateRight"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('imageViewer.toolbar.rotateRight')"
         >
           <IconRotateClockwise class="icon-sm" />
         </button>
       </div>
       
-      <div class="iw-toolbar-spacer" />
+      <div class="min-w-4 flex-1" />
       
     </div>
     
     <!-- Image Display Area -->
     <div 
       ref="imageContainer"
-      class="iw-viewer-stage p-4"
+      class="flex-1 overflow-auto bg-base-200 outline-none p-4"
       :class="containerInteractionClass"
       :style="{ overflow: shouldShowScrollbars ? 'auto' : 'hidden' }"
       tabindex="0"

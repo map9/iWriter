@@ -7,13 +7,13 @@
       </button>
       <!-- 分组操作（hover 显示，固定高度避免抖动） -->
       <div class="hidden h-5 shrink-0 items-center gap-0.5 group-hover/grp:flex">
-        <button v-if="kind === 'changes'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discardAll')" @click="emit('discardAll')">
+        <button v-if="kind === 'changes'" class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discardAll')" @click="emit('discardAll')">
           <IconArrowBackUp class="icon-2xs" />
         </button>
-        <button v-if="kind === 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstageAll')" @click="emit('unstageAll')">
+        <button v-if="kind === 'staged'" class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstageAll')" @click="emit('unstageAll')">
           <IconMinus class="icon-2xs" />
         </button>
-        <button v-if="kind === 'changes' || kind === 'untracked'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.stageAll')" @click="emit('stageAll')">
+        <button v-if="kind === 'changes' || kind === 'untracked'" class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.stageAll')" @click="emit('stageAll')">
           <IconPlus class="icon-2xs" />
         </button>
       </div>
@@ -33,13 +33,13 @@
             <span class="truncate">{{ row.label }}</span>
           </div>
           <div class="hidden items-center gap-px group-hover/row:flex">
-            <button v-if="kind === 'changes'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discard')" @click="emit('discard', row.files ?? [])">
+            <button v-if="kind === 'changes'" class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discard')" @click="emit('discard', row.files ?? [])">
               <IconArrowBackUp class="icon-2xs" />
             </button>
-            <button v-if="kind === 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstage')" @click="emit('unstage', row.files ?? [])">
+            <button v-if="kind === 'staged'" class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstage')" @click="emit('unstage', row.files ?? [])">
               <IconMinus class="icon-2xs" />
             </button>
-            <button v-if="kind !== 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.stage')" @click="emit('stage', row.files ?? [])">
+            <button v-if="kind !== 'staged'" class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.stage')" @click="emit('stage', row.files ?? [])">
               <IconPlus class="icon-2xs" />
             </button>
           </div>
@@ -61,16 +61,16 @@
             <span v-if="!treeView" class="truncate text-[11px] text-base-content/40">{{ row.file!.dir }}</span>
           </button>
           <div class="hidden items-center gap-px group-hover/row:flex">
-            <button v-if="kind === 'untracked'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.gitignore')" @click="emit('gitignore', [row.file!])">
+            <button v-if="kind === 'untracked'" class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.gitignore')" @click="emit('gitignore', [row.file!])">
               <IconBan class="icon-2xs" />
             </button>
-            <button v-if="kind === 'changes' || kind === 'untracked'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discard')" @click="emit('discard', [row.file!])">
+            <button v-if="kind === 'changes' || kind === 'untracked'" class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.discard')" @click="emit('discard', [row.file!])">
               <IconArrowBackUp class="icon-2xs" />
             </button>
-            <button v-if="kind === 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstage')" @click="emit('unstage', [row.file!])">
+            <button v-if="kind === 'staged'" class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.unstage')" @click="emit('unstage', [row.file!])">
               <IconMinus class="icon-2xs" />
             </button>
-            <button v-if="kind !== 'staged'" class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.stage')" @click="emit('stage', [row.file!])">
+            <button v-if="kind !== 'staged'" class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('sourceControl.action.stage')" @click="emit('stage', [row.file!])">
               <IconPlus class="icon-2xs" />
             </button>
           </div>

@@ -25,7 +25,7 @@
         </div>
         <div class="h-4 w-px bg-base-300" />
         <button
-          class="iw-btn btn-sm btn-ghost rounded-full px-3 normal-case"
+          class="btn btn-sm btn-ghost rounded-full px-3 normal-case"
           @click="appStore.setCleanMode(false)"
         >
           {{ t('cleanMode.exit') }}
@@ -49,7 +49,7 @@
       <div class="flex flex-1 flex-row overflow-hidden">
 
         <!-- Document Page -->
-        <div class="document-page-wrapper">
+        <div class="flex flex-1 overflow-hidden">
 
           <!-- Welcome Page (No tabs open) -->
           <WelcomePage v-if="appStore.tabs.length === 0" />
@@ -58,7 +58,7 @@
           <div
             v-for="tab in appStore.tabs"
             :key="tab.id"
-            :class="tab.isActive ? 'document-page' : 'hidden'"
+            :class="tab.isActive ? 'flex h-full w-full' : 'hidden'"
           >
             <component
               :is="pageComponentFor(tab)"

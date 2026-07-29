@@ -1,12 +1,12 @@
 <template>
   <div class="h-full flex flex-col">
     <!-- 容器标题栏 -->
-    <div class="iw-sidebar-section">
-      <span class="iw-sidebar-section-header">{{ t('sourceControl.title') }}</span>
+    <div class="flex h-10 shrink-0 items-center justify-between bg-base-200 px-2 select-none">
+      <span class="text-sm font-semibold text-base-content uppercase whitespace-nowrap block w-full truncate">{{ t('sourceControl.title') }}</span>
       <div class="flex shrink-0 items-center gap-1">
         <button
           v-if="gitStore.isRepo && gitStore.branch?.upstream"
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="t('sourceControl.remote.sync')"
           :disabled="!!gitStore.busy"
           @click="gitStore.sync()"
@@ -15,14 +15,14 @@
         </button>
         <button
           v-if="gitStore.isRepo"
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="t('explorer.collapseAll')"
           @click="gitStore.refresh()"
         >
           <IconReload class="icon-xs" :class="{ 'animate-spin': gitStore.loading }" />
         </button>
         <button
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="t('sourceControl.moreActions')"
           @click="showScmViewMenu"
         >
@@ -45,17 +45,17 @@
       <IconFolder class="mb-3 size-11 text-base-content/40" />
       <p class="mb-4 max-w-60 text-xs text-base-content/60">{{ t('sourceControl.noWorkspace') }}</p>
       <div class="flex w-full flex-col gap-2">
-        <button class="iw-btn btn-primary h-9 w-full" @click="appStore.openFolder()">
+        <button class="btn btn-primary h-9 w-full" @click="appStore.openFolder()">
           <IconFolder class="icon-sm" /><span>{{ t('explorer.openFolder') }}</span>
         </button>
-        <button v-if="gitStore.availability.available" class="iw-btn btn-ghost h-9 w-full" @click="gitStore.cloneDialogOpen = true">
+        <button v-if="gitStore.availability.available" class="btn btn-ghost h-9 w-full" @click="gitStore.cloneDialogOpen = true">
           <IconGitBranch class="icon-sm" /><span>{{ t('sourceControl.cloneRepo') }}</span>
         </button>
       </div>
     </div>
 
     <!-- 状态 B：正在打开工作区 -->
-    <div v-else-if="appStore.isWorkspaceOpening" class="sidebar-empty flex flex-1 flex-col items-center justify-center gap-2">
+    <div v-else-if="appStore.isWorkspaceOpening" class="p-3 text-left text-xs text-base-content/50 flex flex-1 flex-col items-center justify-center gap-2">
       <span class="loading loading-spinner loading-sm"></span>
       <span>{{ t('sourceControl.workspaceLoading') }}</span>
     </div>
@@ -66,10 +66,10 @@
       <h3 class="mb-1 text-sm font-semibold">{{ t('sourceControl.gitNotFound') }}</h3>
       <p class="mb-4 max-w-60 text-xs text-base-content/60">{{ t('sourceControl.gitNotFoundDesc') }}</p>
       <div class="flex w-full flex-col gap-2">
-        <button class="iw-btn btn-primary h-9 w-full" @click="showInstallSteps = !showInstallSteps">
+        <button class="btn btn-primary h-9 w-full" @click="showInstallSteps = !showInstallSteps">
           <IconDownload class="icon-sm" /><span>{{ t('sourceControl.installGit') }}</span>
         </button>
-        <button class="iw-btn btn-ghost h-9 w-full" @click="recheck">
+        <button class="btn btn-ghost h-9 w-full" @click="recheck">
           <IconRefresh class="icon-sm" /><span>{{ t('sourceControl.recheck') }}</span>
         </button>
       </div>
@@ -77,7 +77,7 @@
         <h4 class="mb-2 text-xs font-semibold">{{ t('sourceControl.installStepsTitle') }}</h4>
         <div v-if="gitStore.availability.installCommand" class="mb-2 flex items-center gap-1.5">
           <code class="flex-1 break-all rounded-box bg-base-300 px-2 py-1 font-mono text-2xs">{{ gitStore.availability.installCommand }}</code>
-          <button class="iw-toolbar-btn btn-xs shrink-0" @click="copyInstallCommand">
+          <button class="btn btn-ghost btn-square btn-xs shrink-0" @click="copyInstallCommand">
             <IconCheck v-if="installCopied" class="icon-2xs text-success" /><IconCopy v-else class="icon-2xs" />
           </button>
         </div>
@@ -85,7 +85,7 @@
           <IconExternalLink class="icon-2xs" /><span>{{ t('sourceControl.installDownload') }}</span>
         </button>
         <p class="mb-2.5 text-2xs text-base-content/50">{{ t('sourceControl.installNote') }}</p>
-        <button class="iw-btn btn-primary btn-sm h-8 w-full" @click="recheck">
+        <button class="btn btn-primary btn-sm h-8 w-full" @click="recheck">
           <IconRefresh class="icon-2xs" /><span>{{ t('sourceControl.recheck') }}</span>
         </button>
       </div>
@@ -96,10 +96,10 @@
       <IconGitBranch class="mb-3 size-11 text-base-content/40" />
       <p class="mb-4 max-w-60 text-xs text-base-content/60">{{ t('sourceControl.notRepo') }}</p>
       <div class="flex w-full flex-col gap-2">
-        <button class="iw-btn btn-primary h-9 w-full" @click="initRepo">
+        <button class="btn btn-primary h-9 w-full" @click="initRepo">
           <IconGitBranch class="icon-sm" /><span>{{ t('sourceControl.initRepo') }}</span>
         </button>
-        <button class="iw-btn btn-ghost h-9 w-full" @click="gitStore.cloneDialogOpen = true">
+        <button class="btn btn-ghost h-9 w-full" @click="gitStore.cloneDialogOpen = true">
           <IconGitBranch class="icon-sm" /><span>{{ t('sourceControl.cloneRepo') }}</span>
         </button>
       </div>
@@ -109,7 +109,7 @@
     <SplitView v-else :panes="viewerPanes" :close-title="t('common.close')" class="min-h-0 flex-1">
       <!-- Repositories -->
       <template #repositories-actions>
-        <button class="iw-toolbar-btn btn-xs" :title="t('sourceControl.moreActions')" @click.stop="showBranchMenu">
+        <button class="btn btn-ghost btn-square btn-xs" :title="t('sourceControl.moreActions')" @click.stop="showBranchMenu">
           <IconDots class="icon-2xs" />
         </button>
       </template>
@@ -126,11 +126,11 @@
 
       <!-- Changes -->
       <template #changes-actions>
-        <button class="iw-toolbar-btn btn-xs" :title="t('sourceControl.action.stageAll')" @click.stop="gitStore.stageAll()">
+        <button class="btn btn-ghost btn-square btn-xs" :title="t('sourceControl.action.stageAll')" @click.stop="gitStore.stageAll()">
           <IconPlus class="icon-2xs" />
         </button>
         <button
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="changesTreeView ? t('sourceControl.graph.listView') : t('sourceControl.graph.treeView')"
           @click.stop="changesTreeView = !changesTreeView"
         >
@@ -165,7 +165,7 @@
           </div>
 
           <div class="min-h-0 flex-1 overflow-y-auto">
-            <div v-if="!gitStore.hasChanges" class="sidebar-empty">
+            <div v-if="!gitStore.hasChanges" class="p-3 text-left text-xs text-base-content/50">
               {{ t('sourceControl.noChanges') }}
             </div>
             <div v-else class="py-1 text-xs">
@@ -185,7 +185,7 @@
       <!-- Graph -->
       <template #graph-actions>
         <button
-          class="iw-toolbar-btn btn-xs flex items-center gap-0.5 px-1"
+          class="btn btn-ghost btn-square btn-xs flex items-center gap-0.5 px-1"
           :title="graphBranchLabel || t('sourceControl.graph.selectBranch')"
           @click.stop="showGraphBranchMenu"
         >
@@ -194,7 +194,7 @@
           <IconChevronDown class="icon-2xs shrink-0" />
         </button>
         <button
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="graphTreeView ? t('sourceControl.graph.listView') : t('sourceControl.graph.treeView')"
           @click.stop="graphTreeView = !graphTreeView"
         >
@@ -202,7 +202,7 @@
         </button>
       </template>
       <template #graph>
-        <div v-if="gitStore.graphLoading && !gitStore.commits.length" class="sidebar-empty">
+        <div v-if="gitStore.graphLoading && !gitStore.commits.length" class="p-3 text-left text-xs text-base-content/50">
           <span class="loading loading-spinner loading-sm"></span>
         </div>
         <div v-else-if="!gitStore.commits.length" class="px-4 pt-7 text-center text-xs text-base-content/40">
@@ -312,14 +312,14 @@
         ref="branchInput"
         v-model="branchName"
         type="text"
-        class="iw-input w-full"
+        class="input input-sm h-7 w-full"
         :placeholder="t('sourceControl.branch.createTitle')"
         @keyup.enter="confirmCreateBranch"
       />
       <p v-if="branchNameError" class="mt-1.5 text-2xs text-error">{{ branchNameError }}</p>
       <template #footer>
-        <button class="iw-btn btn-ghost btn-sm" @click="branchDialogOpen = false">{{ t('common.cancel') }}</button>
-        <button class="iw-btn btn-primary btn-sm" :disabled="!branchName.trim() || !!branchNameError" @click="confirmCreateBranch">{{ t('common.create') }}</button>
+        <button class="btn btn-ghost btn-sm" @click="branchDialogOpen = false">{{ t('common.cancel') }}</button>
+        <button class="btn btn-primary btn-sm" :disabled="!branchName.trim() || !!branchNameError" @click="confirmCreateBranch">{{ t('common.create') }}</button>
       </template>
     </IwDialog>
 
@@ -329,54 +329,54 @@
         ref="renameInput"
         v-model="renameName"
         type="text"
-        class="iw-input w-full"
+        class="input input-sm h-7 w-full"
         :placeholder="t('sourceControl.branch.createTitle')"
         @keyup.enter="confirmRenameBranch"
       />
       <p v-if="renameNameError" class="mt-1.5 text-2xs text-error">{{ renameNameError }}</p>
       <template #footer>
-        <button class="iw-btn btn-ghost btn-sm" @click="renameDialogOpen = false">{{ t('common.cancel') }}</button>
-        <button class="iw-btn btn-primary btn-sm" :disabled="!renameName.trim() || !!renameNameError" @click="confirmRenameBranch">{{ t('common.confirm') }}</button>
+        <button class="btn btn-ghost btn-sm" @click="renameDialogOpen = false">{{ t('common.cancel') }}</button>
+        <button class="btn btn-primary btn-sm" :disabled="!renameName.trim() || !!renameNameError" @click="confirmRenameBranch">{{ t('common.confirm') }}</button>
       </template>
     </IwDialog>
 
     <!-- 添加远程输入弹窗 -->
     <IwDialog :visible="remoteDialogOpen" :title="t('sourceControl.remote.add')" @close="remoteDialogOpen = false">
       <div class="flex flex-col gap-2">
-        <input ref="remoteNameInput" v-model="remoteName" type="text" class="iw-input w-full" :placeholder="t('sourceControl.remote.namePlaceholder')" />
-        <input v-model="remoteUrl" type="text" class="iw-input w-full" :placeholder="t('sourceControl.remote.urlPlaceholder')" @keyup.enter="confirmAddRemote" />
+        <input ref="remoteNameInput" v-model="remoteName" type="text" class="input input-sm h-7 w-full" :placeholder="t('sourceControl.remote.namePlaceholder')" />
+        <input v-model="remoteUrl" type="text" class="input input-sm h-7 w-full" :placeholder="t('sourceControl.remote.urlPlaceholder')" @keyup.enter="confirmAddRemote" />
       </div>
       <template #footer>
-        <button class="iw-btn btn-ghost btn-sm" @click="remoteDialogOpen = false">{{ t('common.cancel') }}</button>
-        <button class="iw-btn btn-primary btn-sm" :disabled="!remoteName.trim() || !remoteUrl.trim()" @click="confirmAddRemote">{{ t('common.create') }}</button>
+        <button class="btn btn-ghost btn-sm" @click="remoteDialogOpen = false">{{ t('common.cancel') }}</button>
+        <button class="btn btn-primary btn-sm" :disabled="!remoteName.trim() || !remoteUrl.trim()" @click="confirmAddRemote">{{ t('common.create') }}</button>
       </template>
     </IwDialog>
 
     <!-- 贮藏信息输入弹窗（信息可选） -->
     <IwDialog :visible="stashDialogOpen" :title="t('sourceControl.stash.push')" @close="stashDialogOpen = false">
       <div class="flex flex-col gap-2">
-        <input ref="stashInput" v-model="stashMessage" type="text" class="iw-input w-full" :placeholder="t('sourceControl.stash.messagePlaceholder')" @keyup.enter="confirmStashPush" />
+        <input ref="stashInput" v-model="stashMessage" type="text" class="input input-sm h-7 w-full" :placeholder="t('sourceControl.stash.messagePlaceholder')" @keyup.enter="confirmStashPush" />
         <label class="flex cursor-pointer items-center gap-2 text-xs text-base-content/80">
           <input v-model="stashIncludeUntracked" type="checkbox" class="checkbox checkbox-xs" />
           {{ t('sourceControl.stash.includeUntracked') }}
         </label>
       </div>
       <template #footer>
-        <button class="iw-btn btn-ghost btn-sm" @click="stashDialogOpen = false">{{ t('common.cancel') }}</button>
-        <button class="iw-btn btn-primary btn-sm" @click="confirmStashPush">{{ t('sourceControl.stash.push') }}</button>
+        <button class="btn btn-ghost btn-sm" @click="stashDialogOpen = false">{{ t('common.cancel') }}</button>
+        <button class="btn btn-primary btn-sm" @click="confirmStashPush">{{ t('sourceControl.stash.push') }}</button>
       </template>
     </IwDialog>
 
     <!-- 创建标签输入弹窗（名称必填 + 说明可选=附注标签） -->
     <IwDialog :visible="tagDialogOpen" :title="t('sourceControl.tag.create')" @close="tagDialogOpen = false">
       <div class="flex flex-col gap-2">
-        <input ref="tagInput" v-model="tagName" type="text" class="iw-input w-full" :placeholder="t('sourceControl.tag.namePlaceholder')" />
-        <input v-model="tagMessage" type="text" class="iw-input w-full" :placeholder="t('sourceControl.tag.messagePlaceholder')" @keyup.enter="confirmCreateTag" />
+        <input ref="tagInput" v-model="tagName" type="text" class="input input-sm h-7 w-full" :placeholder="t('sourceControl.tag.namePlaceholder')" />
+        <input v-model="tagMessage" type="text" class="input input-sm h-7 w-full" :placeholder="t('sourceControl.tag.messagePlaceholder')" @keyup.enter="confirmCreateTag" />
         <p v-if="tagNameError" class="text-2xs text-error">{{ tagNameError }}</p>
       </div>
       <template #footer>
-        <button class="iw-btn btn-ghost btn-sm" @click="tagDialogOpen = false">{{ t('common.cancel') }}</button>
-        <button class="iw-btn btn-primary btn-sm" :disabled="!tagName.trim() || !!tagNameError" @click="confirmCreateTag">{{ t('common.create') }}</button>
+        <button class="btn btn-ghost btn-sm" @click="tagDialogOpen = false">{{ t('common.cancel') }}</button>
+        <button class="btn btn-primary btn-sm" :disabled="!tagName.trim() || !!tagNameError" @click="confirmCreateTag">{{ t('common.create') }}</button>
       </template>
     </IwDialog>
 
@@ -390,14 +390,14 @@
             <div class="font-mono text-2xs text-base-content/40">{{ stashRef(s.index) }}</div>
           </div>
           <div class="flex shrink-0 gap-1">
-            <button class="iw-btn btn-ghost btn-xs" @click="gitStore.stashApply(s.index)">{{ t('sourceControl.stash.apply') }}</button>
-            <button class="iw-btn btn-ghost btn-xs" @click="onStashPop(s.index)">{{ t('sourceControl.stash.pop') }}</button>
-            <button class="iw-btn btn-ghost btn-xs" @click="onStashDrop(s.index)">{{ t('sourceControl.stash.drop') }}</button>
+            <button class="btn btn-ghost btn-xs" @click="gitStore.stashApply(s.index)">{{ t('sourceControl.stash.apply') }}</button>
+            <button class="btn btn-ghost btn-xs" @click="onStashPop(s.index)">{{ t('sourceControl.stash.pop') }}</button>
+            <button class="btn btn-ghost btn-xs" @click="onStashDrop(s.index)">{{ t('sourceControl.stash.drop') }}</button>
           </div>
         </div>
       </div>
       <template #footer>
-        <button class="iw-btn btn-ghost btn-sm" @click="stashListOpen = false">{{ t('common.close') }}</button>
+        <button class="btn btn-ghost btn-sm" @click="stashListOpen = false">{{ t('common.close') }}</button>
       </template>
     </IwDialog>
 
@@ -407,12 +407,12 @@
       <div v-else class="overflow-hidden rounded-field border border-base-300">
         <div v-for="name in gitStore.tags" :key="name" class="flex items-center gap-2.5 border-b border-base-200 px-2.5 py-2 last:border-b-0 hover:bg-base-200">
           <div class="min-w-0 flex-1 truncate text-xs">{{ name }}</div>
-          <button class="iw-btn btn-ghost btn-xs" @click="onTagDelete(name)">{{ t('sourceControl.tag.deleteConfirm') }}</button>
+          <button class="btn btn-ghost btn-xs" @click="onTagDelete(name)">{{ t('sourceControl.tag.deleteConfirm') }}</button>
         </div>
       </div>
       <template #footer>
-        <button class="iw-btn btn-primary btn-sm mr-auto" @click="openCreateTagFromList">{{ t('sourceControl.tag.create') }}</button>
-        <button class="iw-btn btn-ghost btn-sm" @click="tagListOpen = false">{{ t('common.close') }}</button>
+        <button class="btn btn-primary btn-sm mr-auto" @click="openCreateTagFromList">{{ t('sourceControl.tag.create') }}</button>
+        <button class="btn btn-ghost btn-sm" @click="tagListOpen = false">{{ t('common.close') }}</button>
       </template>
     </IwDialog>
 
@@ -425,12 +425,12 @@
             <div class="text-xs">{{ r.name }}</div>
             <div class="truncate font-mono text-2xs text-base-content/40">{{ r.url }}</div>
           </div>
-          <button class="iw-btn btn-ghost btn-xs" @click="onRemoteRemove(r.name)">{{ t('sourceControl.remote.remove') }}</button>
+          <button class="btn btn-ghost btn-xs" @click="onRemoteRemove(r.name)">{{ t('sourceControl.remote.remove') }}</button>
         </div>
       </div>
       <template #footer>
-        <button class="iw-btn btn-primary btn-sm mr-auto" @click="openAddRemoteFromList">{{ t('sourceControl.remote.add') }}</button>
-        <button class="iw-btn btn-ghost btn-sm" @click="remoteListOpen = false">{{ t('common.close') }}</button>
+        <button class="btn btn-primary btn-sm mr-auto" @click="openAddRemoteFromList">{{ t('sourceControl.remote.add') }}</button>
+        <button class="btn btn-ghost btn-sm" @click="remoteListOpen = false">{{ t('common.close') }}</button>
       </template>
     </IwDialog>
 

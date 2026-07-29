@@ -1,6 +1,6 @@
 <template>
   <div 
-    class="iw-sidebar iw-left-sidebar"
+    class="relative flex h-full shrink-0 flex-col overflow-hidden border-base-300 bg-base-100 min-w-72 border-r"
     :style="{ width: `${appStore.leftSidebarWidth}px` }"
   >
     <div class="drag-region flex h-10 items-center border-b border-base-300 bg-base-200 px-2">
@@ -21,9 +21,9 @@
               :key="mode.key"
               @click="handleModeClick(mode.key)"
               :disabled="!appStore.hasOpenFolder"
-              class="iw-toolbar-btn btn-sm join-item"
+              class="btn btn-ghost btn-square btn-sm join-item"
               :class="{
-                'iw-toolbar-btn-active': appStore.leftSidebarMode === mode.key && appStore.hasOpenFolder,
+                'btn-active bg-primary text-primary-content': appStore.leftSidebarMode === mode.key && appStore.hasOpenFolder,
               }"
               :title="mode.title"
             >
@@ -37,9 +37,9 @@
             <button
               @click="handleModeClick(SidebarMode.TOC)"
               :disabled="appStore.tabs.length === 0"
-              class="iw-toolbar-btn btn-sm join-item"
+              class="btn btn-ghost btn-square btn-sm join-item"
               :class="{
-                'iw-toolbar-btn-active': appStore.leftSidebarMode === SidebarMode.TOC && appStore.tabs.length > 0,
+                'btn-active bg-primary text-primary-content': appStore.leftSidebarMode === SidebarMode.TOC && appStore.tabs.length > 0,
               }"
               title="Table of Contents"
             >
@@ -51,7 +51,7 @@
     </div>
 
     <!-- Sidebar Content -->
-    <div class="iw-sidebar-content">
+    <div class="flex flex-1 flex-col h-full relative overflow-hidden">
       <!-- Start(No Folder) Opened -->
       <NoFolderOpened
         v-show="appStore.leftSidebarMode === SidebarMode.START"
@@ -85,7 +85,7 @@
     
     <!-- Resizable handle -->
     <div 
-      class="iw-resize-handle right-0"
+      class="absolute top-0 z-10 h-full w-1 cursor-ew-resize bg-transparent transition-colors hover:bg-primary right-0"
       @mousedown="startResize"
     ></div>
   </div>

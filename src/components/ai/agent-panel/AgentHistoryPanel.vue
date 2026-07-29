@@ -2,7 +2,7 @@
   <div class="flex flex-col h-full min-h-0">
     <!-- Search Bar -->
     <div class="flex shrink-0 items-center border-b border-base-300 bg-base-200 p-2 select-none">
-      <label class="iw-input">
+      <label class="input input-sm h-7 w-full">
         <IconSearch class="icon-xs text-base-content" />
         <input 
           v-model="searchQuery"
@@ -60,7 +60,7 @@
                 @keydown.escape.prevent="cancelRename"
                 @blur="commitRename(thread)"
                 @click.stop
-                class="iw-input text-xs"
+                class="input input-sm h-7 w-full text-xs"
               />
               <!-- Title Display -->
               <span v-else class="flex-1 min-w-0 text-xs font-medium truncate text-base-content">
@@ -87,14 +87,14 @@
               >
                 <button
                   @click.stop="startRename(thread)"
-                  class="iw-toolbar-btn btn-xs"
+                  class="btn btn-ghost btn-square btn-xs"
                   :title="t('agentPanel.history.rename')"
                 >
                   <IconPencil class="icon-2xs" />
                 </button>
                 <button
                   @click.stop="aiStore.deleteThread(thread.id)"
-                  class="iw-toolbar-btn btn-xs text-error hover:bg-error hover:text-error-content"
+                  class="btn btn-ghost btn-square btn-xs text-error hover:bg-error hover:text-error-content"
                   :title="t('agentPanel.history.delete')"
                 >
                   <IconTrash class="icon-2xs" />
@@ -111,7 +111,7 @@
       <button
         @click="handleClearAll"
         :disabled="!aiStore.threads.length"
-        class="iw-btn w-full"
+        class="btn w-full"
         :class="confirmClear
           ? 'btn-error'
           : 'btn-neutral'"

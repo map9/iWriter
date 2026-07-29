@@ -7,7 +7,7 @@
     <div v-else-if="!gitStore.isRepo" class="px-4 pt-7 text-center text-xs text-base-content/40">
       <IconHistory class="mx-auto mb-2 size-7 opacity-50" />{{ t('explorer.timeline.noRepo') }}<br>{{ t('explorer.timeline.noRepoHint') }}
     </div>
-    <div v-else-if="loading" class="sidebar-empty"><span class="loading loading-spinner loading-sm"></span></div>
+    <div v-else-if="loading" class="p-3 text-left text-xs text-base-content/50"><span class="loading loading-spinner loading-sm"></span></div>
     <div v-else-if="!commits.length" class="px-4 pt-7 text-center text-xs text-base-content/40">
       <IconHistory class="mx-auto mb-2 size-7 opacity-50" />{{ t('explorer.timeline.empty') }}<br>{{ t('explorer.timeline.emptyHint') }}
     </div>
@@ -25,7 +25,7 @@
           <span class="block truncate text-base-content/50">{{ c.author }} · {{ relTime(c.timestamp) }} · {{ c.shortHash }}</span>
         </span>
         <button
-          class="iw-toolbar-btn btn-xs mt-0.5 hidden h-5 min-h-0 w-5 shrink-0 group-hover:flex"
+          class="btn btn-ghost btn-square btn-xs mt-0.5 hidden h-5 min-h-0 w-5 shrink-0 group-hover:flex"
           :title="t('explorer.timeline.restore')"
           @click.stop="onRestore(c)"
         >

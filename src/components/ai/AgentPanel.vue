@@ -1,5 +1,5 @@
 <template>
-  <div class="iw-sidebar-content">
+  <div class="flex flex-1 flex-col h-full relative overflow-hidden">
 
     <AgentHeader
       :history-active="showHistory"

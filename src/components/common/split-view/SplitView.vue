@@ -45,7 +45,7 @@
             <slot :name="`${item.pane.id}-actions`" :pane="item.pane" />
             <button
               v-if="item.canCollapse"
-              class="iw-toolbar-btn btn-xs"
+              class="btn btn-ghost btn-square btn-xs"
               :title="closeTitle"
               @click.stop="close(item.pane)"
             >

@@ -48,7 +48,7 @@
         </div>
         <button
           v-if="canLocate"
-          class="iw-btn btn-xs"
+          class="btn btn-xs"
           :title="t('agentPanel.blockEditReviewSurface.locateHint')"
           @click="scrollToCurrentBlock"
         >{{ t('agentPanel.blockEditReviewSurface.locate') }}</button>

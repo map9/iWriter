@@ -22,7 +22,7 @@
       </div>
 
       <button
-        class="iw-toolbar-btn btn-xs"
+        class="btn btn-ghost btn-square btn-xs"
         :class="showLineNumbers ? 'text-primary' : ''"
         :title="t('diffView.lineNumbers')"
         @click="showLineNumbers = !showLineNumbers"
@@ -33,7 +33,7 @@
       <div class="mx-1 h-4 w-px bg-base-300"></div>
 
       <button
-        class="iw-toolbar-btn btn-xs"
+        class="btn btn-ghost btn-square btn-xs"
         :disabled="!hunkCount"
         :title="t('diffView.prevChange')"
         @click="gotoHunk(-1)"
@@ -41,7 +41,7 @@
         <IconChevronUp class="icon-xs" />
       </button>
       <button
-        class="iw-toolbar-btn btn-xs"
+        class="btn btn-ghost btn-square btn-xs"
         :disabled="!hunkCount"
         :title="t('diffView.nextChange')"
         @click="gotoHunk(1)"
@@ -54,7 +54,7 @@
 
       <button
         v-if="editable"
-        class="iw-toolbar-btn btn-xs"
+        class="btn btn-ghost btn-square btn-xs"
         :class="editing ? 'text-primary' : ''"
         :title="t('diffView.edit')"
         @click="toggleEditing"
@@ -112,10 +112,10 @@
               class="absolute right-1.5 top-0.5 z-10 hidden items-center gap-0.5 rounded border border-base-300 bg-base-100 px-0.5 shadow-sm group-hover:flex"
             >
               <template v-if="hunkMode === 'unstaged'">
-                <button class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('diffView.stageHunk')" @click="onHunk(hunkAnchors.splitMap.get(i)!, 'stage')"><IconPlus class="icon-2xs" /></button>
-                <button class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('diffView.discardHunk')" @click="onHunk(hunkAnchors.splitMap.get(i)!, 'discard')"><IconArrowBackUp class="icon-2xs" /></button>
+                <button class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('diffView.stageHunk')" @click="onHunk(hunkAnchors.splitMap.get(i)!, 'stage')"><IconPlus class="icon-2xs" /></button>
+                <button class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('diffView.discardHunk')" @click="onHunk(hunkAnchors.splitMap.get(i)!, 'discard')"><IconArrowBackUp class="icon-2xs" /></button>
               </template>
-              <button v-else class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('diffView.unstageHunk')" @click="onHunk(hunkAnchors.splitMap.get(i)!, 'unstage')"><IconMinus class="icon-2xs" /></button>
+              <button v-else class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('diffView.unstageHunk')" @click="onHunk(hunkAnchors.splitMap.get(i)!, 'unstage')"><IconMinus class="icon-2xs" /></button>
             </div>
           </div>
         </template>
@@ -144,10 +144,10 @@
               class="absolute right-1.5 top-0.5 z-10 hidden items-center gap-0.5 rounded border border-base-300 bg-base-100 px-0.5 shadow-sm group-hover:flex"
             >
               <template v-if="hunkMode === 'unstaged'">
-                <button class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('diffView.stageHunk')" @click="onHunk(hunkAnchors.inlineMap.get(i)!, 'stage')"><IconPlus class="icon-2xs" /></button>
-                <button class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('diffView.discardHunk')" @click="onHunk(hunkAnchors.inlineMap.get(i)!, 'discard')"><IconArrowBackUp class="icon-2xs" /></button>
+                <button class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('diffView.stageHunk')" @click="onHunk(hunkAnchors.inlineMap.get(i)!, 'stage')"><IconPlus class="icon-2xs" /></button>
+                <button class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('diffView.discardHunk')" @click="onHunk(hunkAnchors.inlineMap.get(i)!, 'discard')"><IconArrowBackUp class="icon-2xs" /></button>
               </template>
-              <button v-else class="iw-toolbar-btn btn-xs h-5 min-h-0 w-5" :title="t('diffView.unstageHunk')" @click="onHunk(hunkAnchors.inlineMap.get(i)!, 'unstage')"><IconMinus class="icon-2xs" /></button>
+              <button v-else class="btn btn-ghost btn-square btn-xs h-5 min-h-0 w-5" :title="t('diffView.unstageHunk')" @click="onHunk(hunkAnchors.inlineMap.get(i)!, 'unstage')"><IconMinus class="icon-2xs" /></button>
             </div>
           </div>
         </template>

@@ -1,9 +1,9 @@
 <template>
   <div class="h-full flex flex-col">
     <!-- Search Header -->
-    <div class="iw-sidebar-section">
+    <div class="flex h-10 shrink-0 items-center justify-between bg-base-200 px-2 select-none">
       <div class="flex items-center gap-2">
-        <span class="iw-sidebar-section-header">
+        <span class="text-sm font-semibold text-base-content uppercase whitespace-nowrap block w-full truncate">
           {{ t('notify.search.title') }}
         </span>
       </div>
@@ -15,7 +15,7 @@
         <!-- Toggle 按钮 -->
         <button
           @click="toggleReplaceMode"
-          class="iw-toolbar-btn w-4 h-auto"
+          class="btn btn-ghost btn-square w-4 h-auto"
           :title="showReplace ? t('notify.search.hideReplace') : t('notify.search.showReplace')"
         >
           <IconChevronDown v-if="showReplace" class="icon-xs" />
@@ -41,24 +41,24 @@
               <div class="flex absolute right-2 top-0.5 gap-0.5">
                 <button
                   @click="toggleOption('matchCase')"
-                  :class="{ 'iw-toolbar-btn-active': options.matchCase }"
-                  class="iw-toolbar-btn btn-xs"
+                  :class="{ 'btn-active bg-primary text-primary-content': options.matchCase }"
+                  class="btn btn-ghost btn-square btn-xs"
                   :title="t('notify.search.matchCaseTitle')"
                 >
                   <IconLetterCase class="icon-2xs" />
                 </button>
                 <button
                   @click="toggleOption('wholeWord')"
-                  :class="{ 'iw-toolbar-btn-active': options.wholeWord }"
-                  class="iw-toolbar-btn btn-xs"
+                  :class="{ 'btn-active bg-primary text-primary-content': options.wholeWord }"
+                  class="btn btn-ghost btn-square btn-xs"
                   :title="t('notify.search.matchWholeWordTitle')"
                 >
                   <IconAbc class="icon-2xs" />
                 </button>
                 <button
                   @click="toggleOption('regex')"
-                  :class="{ 'iw-toolbar-btn-active': options.regex }"
-                  class="iw-toolbar-btn btn-xs"
+                  :class="{ 'btn-active bg-primary text-primary-content': options.regex }"
+                  class="btn btn-ghost btn-square btn-xs"
                   :title="t('notify.search.regexTitle')"
                 >
                   <IconRegex class="icon-2xs" />
@@ -84,7 +84,7 @@
             <button
               @click="replaceAll"
               :disabled="totalMatches === 0"
-              class="iw-toolbar-btn btn-xs mt-0.5"
+              class="btn btn-ghost btn-square btn-xs mt-0.5"
               :title="t('notify.search.replaceAllTitle')"
             >
               <IconReplaceFilled class="icon-xs" />
@@ -100,7 +100,7 @@
           v-model="includePattern"
           type="text"
           :placeholder="t('notify.search.includePlaceholder')"
-          class="iw-input"
+          class="input input-sm h-7 w-full"
         />
       </div>
 
@@ -111,7 +111,7 @@
           v-model="excludePattern"
           type="text"
           :placeholder="t('notify.search.excludePlaceholder')"
-          class="iw-input"
+          class="input input-sm h-7 w-full"
         />
       </div>
     </div>
@@ -159,7 +159,7 @@
               class="flex w-5 shrink-0 justify-end opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto"
             >
               <button
-                class="iw-toolbar-btn btn-xs"
+                class="btn btn-ghost btn-square btn-xs"
                 @click.stop="replaceAllInFile(result)"
                 :disabled="!result.totalMatches"
                 :title="t('notify.search.replaceAllInFileTitle')"
@@ -186,7 +186,7 @@
                 class="flex w-5 shrink-0 justify-end opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto"
               >
                 <button
-                  class="iw-toolbar-btn btn-xs"
+                  class="btn btn-ghost btn-square btn-xs"
                   @click.stop="replaceSingle(result, index)"
                   :title="t('notify.search.replaceTitle')"
                 >

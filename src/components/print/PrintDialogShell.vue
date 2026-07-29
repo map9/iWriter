@@ -24,7 +24,7 @@
             <span v-if="sheetCountLabel" class="shrink-0 text-sm text-base-content/50">{{ sheetCountLabel }}</span>
           </div>
           <button
-            class="iw-toolbar-btn btn-sm shrink-0 px-2"
+            class="btn btn-ghost btn-square btn-sm shrink-0 px-2"
             :aria-label="t('common.close')"
             @click="emit('close')"
           >
@@ -39,11 +39,11 @@
 
         <!-- Footer -->
         <div class="flex shrink-0 items-center justify-end gap-3 border-t border-base-300 px-5 py-3">
-          <button class="iw-btn btn-ghost h-9" @click="emit('close')">
+          <button class="btn btn-ghost h-9" @click="emit('close')">
             {{ t('dialog.printDialog.actions.cancel') }}
           </button>
           <button
-            class="iw-btn btn-primary h-9"
+            class="btn btn-primary h-9"
             :disabled="submitDisabled"
             @click="emit('submit')"
           >

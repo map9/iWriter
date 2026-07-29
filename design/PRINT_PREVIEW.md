@@ -14,15 +14,17 @@ Print Preview 是一个模态对话框功能，让用户在正式打印前预览
 
 | 文件 | 说明 |
 |---|---|
-| `src/components/print-preview/PrintPreviewDialog.vue` | 对话框主组件（预览 + 设置面板） |
-| `src/components/print-preview/buildPreviewDoc.ts` | 构建 iframe 预览 HTML 文档（含内联 pagedjs 源码及 N-up 排列脚本） |
-| `src/stores/app.ts` | `showPrintPreviewDialog`、`printPreviewHtml`、`openPrintPreview()`、`closePrintPreview()` |
-| `src/views/MainView.vue` | 注册 `<PrintPreviewDialog>` |
-| `src/components/pages/MarkdownEditorPage.vue` | 工具栏按钮 + `handleMenuAction` 拦截 `'print'` |
-| `electron/WindowManager.ts` | `get-printers`、`print`、`save-to-pdf` IPC handlers |
-| `electron/preload.ts` | 暴露 `getPrinters()`、`print()`、`saveToPdf()` |
+| `src/components/print/PrintDialog.vue` | Markdown / 图片打印对话框（预览 + 设置面板） |
+| `src/components/print/HtmlPrintPreview.vue` | 自包含 HTML 文档的 iframe 预览 |
+| `src/components/print/PdfPrintDialog.vue` | PDF 打印对话框 |
+| `src/components/print/PdfPrintPreview.vue` | 使用 pdf.js 将 PDF 页面渲染到 canvas |
+| `src/components/print/buildPreviewDoc.ts` | 构建 iframe 预览及隐藏窗口打印使用的自包含 HTML 文档 |
+| `src/stores/app.ts` | 打印源、对话框状态及 `open*PrintPreview()` |
+| `src/views/MainView.vue` | 注册 `<PrintDialog>` 和 `<PdfPrintDialog>` |
+| `src/components/pages/` | 各文档页面通过 `handleMenuAction('print')` 打开对应打印对话框 |
+| `electron/WindowManager.ts` | 隐藏窗口打印及 `get-printers`、`print-from-html`、`print-pdf-file`、`save-to-pdf-from-html` IPC handlers |
+| `electron/preload.ts` | 暴露 `getPrinters()`、`printFromHtml()`、`printPdfFile()`、`saveToPdfFromHtml()` |
 | `src/types/electron-api.ts` | `ElectronAPI` 接口对应类型声明 |
-| `src/types/pagedjs.d.ts` | pagedjs 模块的 ambient 类型声明 |
 
 ---
 
@@ -39,15 +41,15 @@ Print Preview 是一个模态对话框功能，让用户在正式打印前预览
         ├── printPreviewHtml = html
         └── showPrintPreviewDialog = true
     │
-    ▼ MainView.vue 中的 <PrintPreviewDialog :visible="..." :html="...">
+    ▼ MainView.vue 中的 <PrintDialog :visible="..." :html="...">
     │
-    ▼ watch(props.visible) → await nextTick() → renderPreview()
+    ▼ watch(props.visible) → buildPreviewHtml()
 ```
 
 ### paged.js 渲染流程（iframe 内部）
 
 ```
-buildPreviewDocument(html, printCss, pagesPerSheet)
+buildPreviewDocumentWithOptions(html, printCss, options)
     │
     ▼ 生成自包含 HTML 文档（pagedjs ESM 已内联）
     │
@@ -65,28 +67,43 @@ buildPreviewDocument(html, printCss, pagesPerSheet)
 ```
 用户选择打印机 "另存为 PDF" → 点击"保存为 PDF..."
     │
-    ▼ withPrintDomMigration() — iframe 移至 body 顶层，填满视口
+    ▼ buildPreviewHtml() 生成自包含 HTML 文档
     │
-    ▼ window.electronAPI.saveToPdf(pdfOptions)
-        → IPC: 'save-to-pdf'
+    ▼ window.electronAPI.saveToPdfFromHtml(html, pdfOptions)
+        → IPC: 'save-to-pdf-from-html'
         → 主进程: dialog.showSaveDialog() → 用户选择文件路径
-        → 主进程: webContents.printToPDF(options) → 写入文件
-    │
-    ▼ finally: DOM 恢复原位
+        → renderInHiddenHtmlWindow() 加载临时 HTML
+        → 隐藏窗口 webContents.printToPDF(options) → 写入文件
 ```
 
-### 普通打印流程（DOM 搬移技术）
+### 普通打印流程（独立隐藏窗口）
 
-```typescript
-async function withPrintDomMigration(callback) {
-  // 1. iframe 移至 body 顶层，position:fixed 填满视口
-  // 2. 注入 @media print CSS，隐藏除 iframe 外所有元素
-  try {
-    await callback()  // → electronAPI.print({ silent, ... })
-  } finally {
-    // 3. 恢复 DOM 原位
-  }
-}
+```
+buildPreviewHtml() 生成自包含 HTML 文档
+    │
+    ▼ window.electronAPI.printFromHtml(html, printOptions)
+    │
+    ▼ IPC: 'print-from-html'
+    │
+    ▼ renderInHiddenHtmlWindow() 创建隐藏 BrowserWindow 并加载临时 HTML
+    │
+    ▼ hidden.webContents.print(printOptions)
+```
+
+主应用窗口不会进入打印模式，也不会调用 `window.print()`；因此打印样式不依赖全局 `src/style.css`。
+
+### PDF 打印流程
+
+```
+PdfPrintPreview 使用 pdf.js 生成 canvas 预览
+    │
+    ▼ window.electronAPI.printPdfFile(filePath, printOptions)
+    │
+    ▼ IPC: 'print-pdf-file'
+    │
+    ▼ renderInHiddenPdfWindow() 使用 Chromium 内置 PDF Viewer 加载原文件
+    │
+    ▼ hidden.webContents.print(printOptions)
 ```
 
 ---
@@ -185,13 +202,13 @@ Handler 位于 `electron/WindowManager.ts`。默认选中系统默认打印机�
 
 2. **Blob URL 传参**：通过 `URL.createObjectURL(blob)` 将整个 HTML 文档传给 iframe，避免 CSP 对内联脚本的限制。
 
-3. **DOM 搬移打印**：打印时将 iframe 移到 `document.body` 顶层并 `position:fixed` 填满视口；`@media print` CSS 隐藏其余元素；`finally` 块保证恢复。
+3. **隐藏窗口隔离**：正式打印和 PDF 导出都在临时隐藏窗口完成，主应用窗口及其全局样式不参与打印。
 
-4. **printToPDF margins**：保存 PDF 时传 `marginType: 1`（none），让 paged.js 完全控制页面布局，避免 Chromium 额外添加边距。
+4. **printToPDF margins**：保存 PDF 时向 Chromium 传入四边为 `0` 的 margins，让 paged.js 完全控制页面布局，避免 Chromium 额外添加边距。
 
 5. **paged.js 全局样式累积**：多次重渲染会在 iframe 的 `<head>` 中累积 paged.js 注入的 `<style>`。通过重新设置 `iframe.src` 整个替换 iframe 内容解决。
 
-6. **N-up 视觉与打印输出**：N-up 预览通过 CSS `scale(0.5)` 实现；实际打印输出依赖系统打印机的 N-up 支持，不经过 paged.js 处理。
+6. **N-up 视觉与打印输出**：paged.js 渲染完成后会将页面重排为 sheet；预览、打印和 PDF 导出复用同一份重排后的自包含 HTML。
 
 ---
 
@@ -203,4 +220,3 @@ Handler 位于 `electron/WindowManager.ts`。默认选中系统默认打印机�
 | 多套打印样式 | 将样式提炼为独立 CSS，`generatePrintCSS()` 接收 styleId 参数 |
 | 偶数/奇数页双面打印 | 奇偶页分别打印，配合打印机 duplex 设置 |
 | 纸张尺寸持久化 | 存入 `StateStorage`，下次打开对话框恢复上次选择 |
-| 非 Markdown 文档打印 | 其他文档类型（PDF、图片）目前走旧的 `appStore.handlePrint()` |

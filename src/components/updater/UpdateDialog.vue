@@ -23,7 +23,7 @@
           </p>
         </div>
         <button
-          class="iw-btn btn-ghost self-start px-2 -translate-y-1"
+          class="btn btn-ghost self-start px-2 -translate-y-1"
           :title="isDownloading ? t('updateDialog.closeWhileDownloading') : t('common.close')"
           :aria-label="t('common.close')"
           @click="closeDialog"
@@ -90,26 +90,26 @@
 
       <!-- Actions -->
       <footer class="flex items-center justify-between gap-2 border-t border-base-300 bg-base-200 px-3 py-4">
-        <button class="iw-btn btn-ghost" @click="handleViewDetails">
+        <button class="btn btn-ghost" @click="handleViewDetails">
           {{ t('updateDialog.viewDetails') }}
         </button>
         <div class="flex items-center gap-2">
-          <button v-if="!isDownloading" class="iw-btn btn-ghost" @click="handleSkipVersion">
+          <button v-if="!isDownloading" class="btn btn-ghost" @click="handleSkipVersion">
             {{ t('updateDialog.skipThisVersion') }}
           </button>
-          <button v-if="!isDownloading" class="iw-btn btn-ghost" @click="handleLater">
+          <button v-if="!isDownloading" class="btn btn-ghost" @click="handleLater">
             {{ t('updateDialog.remindMeLater') }}
           </button>
           <button
             v-if="isDownloading"
-            class="iw-btn btn-primary"
+            class="btn btn-primary"
             :title="t('updateDialog.closeWhileDownloading')"
             @click="closeDialog"
           >
             <span class="loading loading-spinner loading-xs"></span>
             {{ t('updateDialog.downloadInBackground') }}
           </button>
-          <button v-else class="iw-btn btn-primary" @click="handleUpdate">
+          <button v-else class="btn btn-primary" @click="handleUpdate">
             {{ updateButtonText }}
           </button>
         </div>

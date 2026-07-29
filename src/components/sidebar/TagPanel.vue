@@ -1,9 +1,9 @@
 <template>
   <div class="h-full flex flex-col">
     <!-- Tag Header -->
-    <div class="iw-sidebar-section">
+    <div class="flex h-10 shrink-0 items-center justify-between bg-base-200 px-2 select-none">
       <div class="flex items-center gap-2">
-        <span class="iw-sidebar-section-header">
+        <span class="text-sm font-semibold text-base-content uppercase whitespace-nowrap block w-full truncate">
           Tags
         </span>
       </div>
@@ -11,7 +11,7 @@
       <!-- Actions -->
       <div class="flex shrink-0 items-center gap-1">
         <button
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           title="Refresh Tags"
         >
           <IconRefresh class="icon-xs" />
@@ -21,7 +21,7 @@
 
     <!-- Tag Search -->
     <div class="flex shrink-0 items-center border-b border-base-300 bg-base-200 p-2 select-none">
-      <label class="iw-input">
+      <label class="input input-sm h-7 w-full">
         <IconSearch class="icon-xs text-base-content" />
         <input 
           v-model="searchQuery"

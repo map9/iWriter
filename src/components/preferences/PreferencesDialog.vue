@@ -17,7 +17,7 @@
           <ul class="space-y-1 w-full">
             <li v-for="tab in tabs" :key="tab.id">
               <button
-                class="iw-btn btn-sm h-10 w-full justify-start border-none text-left font-medium whitespace-nowrap"
+                class="btn btn-sm h-10 w-full justify-start border-none text-left font-medium whitespace-nowrap"
                 :class="activeTab === tab.id ? 'btn-primary' : 'btn-ghost'"
                 @click="activeTab = tab.id"
               >
@@ -34,7 +34,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.themes.title') }}</h2>
             <button
-              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="btn btn-ghost btn-square btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -47,7 +47,7 @@
                 <ul class="space-y-1">
                   <li>
                     <button
-                      class="iw-btn btn-sm h-8 w-full justify-start border-none text-left"
+                      class="btn btn-sm h-8 w-full justify-start border-none text-left"
                       :class="activeThemeSection === 'general' ? 'btn-active' : 'btn-ghost'"
                       @click="activeThemeSection = 'general'"
                     >
@@ -59,7 +59,7 @@
                 <ul class="space-y-1">
                   <li v-for="section in appThemeSections" :key="section.id">
                     <button
-                      class="iw-btn btn-sm h-8 w-full justify-start border-none text-left"
+                      class="btn btn-sm h-8 w-full justify-start border-none text-left"
                       :class="activeThemeSection === section.id ? 'btn-active' : 'btn-ghost'"
                       @click="activeThemeSection = section.id"
                     >
@@ -71,7 +71,7 @@
                 <ul class="space-y-1">
                   <li v-for="section in markdownThemeSections" :key="section.id">
                     <button
-                      class="iw-btn btn-sm h-8 w-full justify-start border-none text-left"
+                      class="btn btn-sm h-8 w-full justify-start border-none text-left"
                       :class="activeThemeSection === section.id ? 'btn-active' : 'btn-ghost'"
                       @click="activeThemeSection = section.id"
                     >
@@ -89,7 +89,7 @@
                   <div class="flex flex-col gap-1.5">
                     <label class="text-sm font-medium text-base-content">{{ t('locale.label') }}</label>
                     <select
-                      class="iw-select w-full"
+                      class="select select-sm w-full"
                       :value="appStore.locale"
                       @change="appStore.setLocale(($event.target as HTMLSelectElement).value)"
                     >
@@ -239,11 +239,11 @@
                 <div class="flex flex-col gap-3">
                   <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.themes.customThemeActionsTitle') }}</h3>
                   <div class="grid grid-cols-2 gap-3">
-                    <button class="iw-btn btn-outline btn-primaryh-9" @click="handleCreateExampleTheme">
+                    <button class="btn btn-outline btn-primaryh-9" @click="handleCreateExampleTheme">
                       <IconPlus class="icon-xs shrink-0" />
                       <span class="text-sm font-medium text-base-content">{{ t('preferences.themes.createExample') }}</span>
                     </button>
-                    <button class="iw-btn btn-outline btn-primary h-9" @click="openThemesFolder">
+                    <button class="btn btn-outline btn-primary h-9" @click="openThemesFolder">
                       <IconFolderOpen class="icon-xs shrink-0" />
                       <span class="text-sm font-medium text-base-content">{{ t('preferences.themes.openFolder') }}</span>
                     </button>
@@ -258,7 +258,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.workspace.title') }}</h2>
             <button
-              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="btn btn-ghost btn-square btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -315,7 +315,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.sourceControl.title') }}</h2>
             <button
-              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="btn btn-ghost btn-square btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -329,7 +329,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.export.title') }}</h2>
             <button
-              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="btn btn-ghost btn-square btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -345,7 +345,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.print.title') }}</h2>
             <button
-              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="btn btn-ghost btn-square btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -361,7 +361,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.editor.title') }}</h2>
             <button
-              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="btn btn-ghost btn-square btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -394,7 +394,7 @@
               <label class="label cursor-pointer gap-3">
                 <input
                   type="number"
-                  class="iw-input w-16"
+                  class="input input-sm h-7 w-16"
                   min="30"
                   max="600"
                   step="30"
@@ -516,7 +516,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.spelling.title') }}</h2>
             <button
-              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="btn btn-ghost btn-square btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -597,7 +597,7 @@
               <label class="text-sm font-medium text-base-content">{{ t('preferences.spelling.languageLabel') }}</label>
               <input
                 type="text"
-                class="iw-input"
+                class="input input-sm h-7 w-full"
                 :placeholder="t('preferences.spelling.languagePlaceholder')"
                 :value="appStore.globalEditSetting.proofreadLanguage"
                 @input="appStore.globalEditSetting.proofreadLanguage = ($event.target as HTMLInputElement).value"
@@ -607,7 +607,7 @@
               <label class="text-sm font-medium text-base-content">{{ t('preferences.spelling.apiUrlLabel') }}</label>
               <input
                 type="text"
-                class="iw-input"
+                class="input input-sm h-7 w-full"
                 placeholder="https://api.languagetool.org/v2/check"
                 :value="appStore.globalEditSetting.proofreadApiUrl"
                 @input="appStore.globalEditSetting.proofreadApiUrl = ($event.target as HTMLInputElement).value"
@@ -618,7 +618,7 @@
               <label class="text-sm font-medium text-base-content">{{ t('preferences.spelling.apiKeyLabel') }} <span class="font-normal text-base-content/50">{{ t('preferences.spelling.optional') }}</span></label>
               <input
                 type="password"
-                class="iw-input"
+                class="input input-sm h-7 w-full"
                 :placeholder="t('preferences.spelling.apiKeyPlaceholder')"
                 :value="appStore.globalEditSetting.proofreadApiKey"
                 @input="appStore.globalEditSetting.proofreadApiKey = ($event.target as HTMLInputElement).value"
@@ -639,14 +639,14 @@
             </div>
             <button
               v-if="aiView === 'configure'"
-              class="iw-btn btn-ghost absolute right-14 top-1/2 -translate-y-1/2 px-2"
+              class="btn btn-ghost absolute right-14 top-1/2 -translate-y-1/2 px-2"
               @click="providerSettingsRef?.cancelForm()"
             >
               <IconChevronLeft class="icon-xs" />
               <span>{{ t('common.back') }}</span>
             </button>
             <button
-              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="btn btn-ghost btn-square btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -662,7 +662,7 @@
           <div class="relative h-14 shrink-0 bg-base-200 border-b border-base-300 px-7 py-4">
             <h2 class="text-xl font-semibold text-base-content">{{ t('preferences.updates.title') }}</h2>
             <button
-              class="iw-toolbar-btn btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
+              class="btn btn-ghost btn-square btn-sm absolute right-3 top-1/2 -translate-y-1/2 px-2"
               :aria-label="t('common.close')"
               @click="emit('close')"
             >
@@ -773,7 +773,7 @@
                   type="number"
                   min="1"
                   max="168"
-                  class="iw-input w-16"
+                  class="input input-sm h-7 w-16"
                   :value="updaterConfig.checkInterval"
                   :disabled="!updaterConfig.enabled"
                   @change="patchUpdaterConfig({ checkInterval: Number(($event.target as HTMLInputElement).value) })"
@@ -784,7 +784,7 @@
             <section class="flex flex-col gap-3">
               <h3 class="text-xs font-semibold uppercase text-base-content/70">{{ t('preferences.updates.actionsTitle') }}</h3>
               <div class="flex items-center gap-3">
-                <button class="iw-btn btn-outline btn-primaryh-9" @click="checkForUpdates">
+                <button class="btn btn-outline btn-primaryh-9" @click="checkForUpdates">
                   {{ t('preferences.updates.checkNow') }}
                 </button>
               </div>

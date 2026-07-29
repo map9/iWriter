@@ -11,7 +11,7 @@
         <div class="flex flex-wrap justify-center gap-3">
           <button 
             @click="openWithShell(fileUrl)"
-            class="iw-btn btn-primary w-44 h-9"
+            class="btn btn-primary w-44 h-9"
           >
             <IconFolderOpen class="icon-sm" />
             <span>{{ t('unknownPage.openAnyway') }}</span>

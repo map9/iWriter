@@ -2,7 +2,7 @@
   <div ref="triggerEl" class="relative shrink-0">
     <button
       @click="showMenu = !showMenu"
-      class="iw-toolbar-btn btn-xs"
+      class="btn btn-ghost btn-square btn-xs"
       :title="t('agentPanel.attachPicker.addFilesOrFolders')"
     >
       <IconPlus class="icon-xs" />

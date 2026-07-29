@@ -11,11 +11,11 @@
       <div class="border-b border-base-300 px-4 py-3 text-sm font-semibold">{{ t('sourceControl.clone.title') }}</div>
       <div class="px-4 py-4">
         <label class="mb-1 block text-xs text-base-content/60">{{ t('sourceControl.clone.url') }}</label>
-        <input v-model="cloneUrl" type="text" class="iw-input w-full" :placeholder="t('sourceControl.clone.urlPlaceholder')" autofocus />
+        <input v-model="cloneUrl" type="text" class="input input-sm h-7 w-full" :placeholder="t('sourceControl.clone.urlPlaceholder')" autofocus />
       </div>
       <div class="flex justify-end gap-2 border-t border-base-300 px-4 py-3">
-        <button type="button" class="iw-btn btn-ghost btn-sm" @click="close">{{ t('common.cancel') }}</button>
-        <button type="submit" class="iw-btn btn-primary btn-sm" :disabled="!cloneUrl.trim() || gitStore.busy === 'clone'">
+        <button type="button" class="btn btn-ghost btn-sm" @click="close">{{ t('common.cancel') }}</button>
+        <button type="submit" class="btn btn-primary btn-sm" :disabled="!cloneUrl.trim() || gitStore.busy === 'clone'">
           <span v-if="gitStore.busy === 'clone'" class="loading loading-spinner loading-xs"></span>
           {{ gitStore.busy === 'clone' ? t('sourceControl.clone.cloning') : t('sourceControl.clone.chooseDir') }}
         </button>

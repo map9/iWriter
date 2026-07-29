@@ -45,7 +45,7 @@
 
       <button
         v-if="showExpandableDetail"
-        class="iw-toolbar-btn btn-xs opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto hover:bg-transparent"
+        class="btn btn-ghost btn-square btn-xs opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto hover:bg-transparent"
         :title="expanded ? t('agentPanel.common.collapse') : t('agentPanel.common.expandDetails')"
         @click.stop="toggleExpanded"
       >

@@ -10,7 +10,7 @@
       <!-- 标题栏 + 关闭 ✕ -->
       <div class="flex items-center justify-between border-b border-base-300 px-4 py-3">
         <h3 class="text-sm font-semibold">{{ title }}</h3>
-        <button type="button" class="iw-toolbar-btn btn-xs" :aria-label="t('common.close')" @click="emit('close')">
+        <button type="button" class="btn btn-ghost btn-square btn-xs" :aria-label="t('common.close')" @click="emit('close')">
           <IconX class="icon-xs" />
         </button>
       </div>

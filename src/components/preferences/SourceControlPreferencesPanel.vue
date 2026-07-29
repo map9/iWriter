@@ -6,7 +6,7 @@
         <div class="flex items-center gap-1">
           <label class="text-sm font-medium text-base-content">{{ t('preferences.sourceControl.gitPathTitle') }}</label>
           <button
-            class="iw-toolbar-btn btn-xs text-base-content/50"
+            class="btn btn-ghost btn-square btn-xs text-base-content/50"
             type="button"
             :aria-label="t('preferences.sourceControl.gitHelp')"
             :title="t('preferences.sourceControl.gitHelp')"
@@ -18,13 +18,13 @@
         <div class="flex items-center gap-2">
           <input
             v-model="gitPathDraft"
-            class="iw-input min-w-0 flex-1"
+            class="input input-sm h-7 w-full min-w-0 flex-1"
             :placeholder="gitPathPlaceholder"
             :disabled="gitDetecting"
             @keydown.enter.prevent="detectGitPath"
           />
           <button
-            class="iw-toolbar-btn btn-xs shrink-0"
+            class="btn btn-ghost btn-square btn-xs shrink-0"
             type="button"
             :aria-label="t('common.browse')"
             :title="t('common.browse')"
@@ -34,7 +34,7 @@
             <IconFolderOpen class="icon-xs" />
           </button>
           <button
-            class="iw-toolbar-btn btn-xs shrink-0"
+            class="btn btn-ghost btn-square btn-xs shrink-0"
             type="button"
             :aria-label="gitDetecting ? t('common.detecting') : t('common.detect')"
             :title="gitDetecting ? t('common.detecting') : t('common.detect')"
@@ -61,7 +61,7 @@
               <span class="text-sm">{{ t('sourceControl.identity.name') }}</span>
               <input
                 v-model="globalName"
-                class="iw-input"
+                class="input input-sm h-7 w-full"
                 @change="saveGlobalIdentity"
                 @keydown.enter.prevent="saveGlobalIdentity"
               />
@@ -70,7 +70,7 @@
               <span class="text-sm">{{ t('sourceControl.identity.email') }}</span>
               <input
                 v-model="globalEmail"
-                class="iw-input"
+                class="input input-sm h-7 w-full"
                 type="email"
                 @change="saveGlobalIdentity"
                 @keydown.enter.prevent="saveGlobalIdentity"
@@ -106,7 +106,7 @@
               <span class="text-sm">{{ t('sourceControl.identity.name') }}</span>
               <input
                 v-model="localName"
-                class="iw-input"
+                class="input input-sm h-7 w-full"
                 :disabled="!canConfigureLocalIdentity || localIdentityUsesGlobal"
                 @change="saveLocalIdentity"
                 @keydown.enter.prevent="saveLocalIdentity"
@@ -116,7 +116,7 @@
               <span class="text-sm">{{ t('sourceControl.identity.email') }}</span>
               <input
                 v-model="localEmail"
-                class="iw-input"
+                class="input input-sm h-7 w-full"
                 type="email"
                 :disabled="!canConfigureLocalIdentity || localIdentityUsesGlobal"
                 @change="saveLocalIdentity"
@@ -136,7 +136,7 @@
           <div class="text-xs text-base-content/50">{{ t('preferences.sourceControl.commitWhenEmptyDesc') }}</div>
         </div>
         <select
-          class="iw-select w-56 shrink-0"
+          class="select select-sm w-56 shrink-0"
           :value="gitStore.settings.commitWhenEmpty"
           @change="patchSettings({ commitWhenEmpty: ($event.target as HTMLSelectElement).value as GitCommitWhenEmpty })"
         >
@@ -184,7 +184,7 @@
         <label class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
           <span class="text-sm font-medium">{{ t('preferences.sourceControl.diffLayoutTitle') }}</span>
           <select
-            class="iw-select w-56"
+            class="select select-sm w-56"
             :value="gitStore.settings.diffLayout"
             @change="patchSettings({ diffLayout: ($event.target as HTMLSelectElement).value as GitDiffLayout })"
           >
@@ -216,7 +216,7 @@
         </label>
         <label class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
           <span class="text-sm">{{ t('preferences.sourceControl.changesLayoutTitle') }}</span>
-          <select class="iw-select w-56" :value="gitStore.settings.changesLayout" @change="patchSettings({ changesLayout: ($event.target as HTMLSelectElement).value as GitListLayout })">
+          <select class="select select-sm w-56" :value="gitStore.settings.changesLayout" @change="patchSettings({ changesLayout: ($event.target as HTMLSelectElement).value as GitListLayout })">
             <option value="list">{{ t('sourceControl.graph.listView') }}</option>
             <option value="tree">{{ t('sourceControl.graph.treeView') }}</option>
           </select>
@@ -231,7 +231,7 @@
         </label>
         <label class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100 px-4 py-3">
           <span class="text-sm">{{ t('preferences.sourceControl.graphFilesLayoutTitle') }}</span>
-          <select class="iw-select w-56" :value="gitStore.settings.graphFilesLayout" @change="patchSettings({ graphFilesLayout: ($event.target as HTMLSelectElement).value as GitListLayout })">
+          <select class="select select-sm w-56" :value="gitStore.settings.graphFilesLayout" @change="patchSettings({ graphFilesLayout: ($event.target as HTMLSelectElement).value as GitListLayout })">
             <option value="list">{{ t('sourceControl.graph.listView') }}</option>
             <option value="tree">{{ t('sourceControl.graph.treeView') }}</option>
           </select>

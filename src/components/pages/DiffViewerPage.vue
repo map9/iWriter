@@ -8,7 +8,7 @@
       <div class="ml-auto flex shrink-0 items-center gap-1">
         <button
           v-if="canStage"
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="t('sourceControl.action.stage')"
           @click="onStage"
         >
@@ -16,14 +16,14 @@
         </button>
         <button
           v-if="canUnstage"
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="t('sourceControl.action.unstage')"
           @click="onUnstage"
         >
           <IconMinus class="icon-xs" />
         </button>
         <button
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="t('diffView.refresh')"
           :disabled="loading"
           @click="load()"

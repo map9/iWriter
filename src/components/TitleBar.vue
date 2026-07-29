@@ -1,11 +1,11 @@
 <template>
   <div
-    class="iw-titlebar gap-2"
+    class="drag-region relative flex h-10 w-full shrink-0 gap-2 items-center overflow-hidden border-b border-base-300 bg-base-200 px-2 text-base-content backdrop-blur"
     @dragover.prevent="handleDocumentDragOver"
     @dragleave="handleDocumentDragLeave"
     @drop.prevent="handleDocumentDrop"
   >
-    <div v-if="showCustomWindowControls" class="iw-titlebar-resizer" aria-hidden="true"></div>
+    <div v-if="showCustomWindowControls" class="no-drag absolute inset-x-0 top-0 z-20 h-1" aria-hidden="true"></div>
     <!-- macOS traffic lights are handled by the system -->
     <div v-if="shouldReserveMacTrafficLights" class="flex items-center pl-20"></div>
     <AppMenuButton
@@ -16,7 +16,7 @@
     <div class="no-drag flex items-center">
       <button
         @click="appStore.toggleLeftSidebar()"
-        class="iw-toolbar-btn btn-sm"
+        class="btn btn-ghost btn-square btn-sm"
         :title="t('titlebar.toggleSidebar')"
       >
         <IconLayoutSidebarLeftCollapse
@@ -35,7 +35,7 @@
       <button
         @click="navigateTabs(-1)"
         :disabled="!canNavigateBack"
-        class="iw-toolbar-btn btn-sm join-item"
+        class="btn btn-ghost btn-square btn-sm join-item"
         :title="t('titlebar.previousTab')"
       >
         <IconChevronLeft class="icon-sm" />
@@ -43,7 +43,7 @@
       <button
         @click="navigateTabs(1)"
         :disabled="!canNavigateForward"
-        class="iw-toolbar-btn btn-sm join-item"
+        class="btn btn-ghost btn-square btn-sm join-item"
         :title="t('titlebar.nextTab')"
       >
         <IconChevronRight class="icon-sm" />
@@ -124,7 +124,7 @@
       <div class="flex items-center px-2 no-drag">
         <button
           @click="appStore.createOrActivateTab(undefined, undefined)"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('titlebar.newTab')"
         >
           <IconPlus class="icon-sm" />
@@ -142,10 +142,10 @@
     ></div>
 
     <AiStatusButton />
-    <div v-if="showCustomWindowControls" class="iw-window-controls no-drag">
+    <div v-if="showCustomWindowControls" class="no-drag -mr-2 flex h-full shrink-0 items-stretch">
       <button
         type="button"
-        class="iw-window-control-btn"
+        class="flex h-full w-11 items-center justify-center text-base-content/80 transition-colors hover:bg-base-300 hover:text-base-content"
         :title="t('titlebar.window.minimize')"
         :aria-label="t('titlebar.window.minimize')"
         @click="minimizeWindow"
@@ -154,7 +154,7 @@
       </button>
       <button
         type="button"
-        class="iw-window-control-btn"
+        class="flex h-full w-11 items-center justify-center text-base-content/80 transition-colors hover:bg-base-300 hover:text-base-content"
         :title="isMaximized ? t('titlebar.window.restore') : t('titlebar.window.maximize')"
         :aria-label="isMaximized ? t('titlebar.window.restore') : t('titlebar.window.maximize')"
         @click="toggleMaximizeWindow"
@@ -164,7 +164,7 @@
       </button>
       <button
         type="button"
-        class="iw-window-control-btn iw-window-close-btn"
+        class="flex h-full w-11 items-center justify-center text-base-content/80 transition-colors hover:bg-error hover:text-error-content"
         :title="t('titlebar.window.close')"
         :aria-label="t('titlebar.window.close')"
         @click="closeAppWindow"

@@ -28,7 +28,7 @@
           <!-- Primary actions -->
           <div class="flex flex-wrap justify-center gap-3 mb-4">
             <button
-              class="iw-btn btn-primary w-48 h-9"
+              class="btn btn-primary w-48 h-9"
               @click="toggleInstallSteps"
             >
               <IconDownload class="icon-sm" />
@@ -36,7 +36,7 @@
             </button>
 
             <button
-              class="iw-btn btn-ghost w-44 h-9"
+              class="btn btn-ghost w-44 h-9"
               @click="openWithShell"
             >
               <IconFolderOpen class="icon-sm" />
@@ -63,7 +63,7 @@
               <div v-if="installCommand" class="flex items-center gap-2 mb-3">
                 <code class="flex-1 text-xs bg-base-300 rounded px-2 py-1.5 font-mono text-base-content/80 break-all">{{ installCommand }}</code>
                 <button
-                  class="iw-toolbar-btn btn-xs shrink-0"
+                  class="btn btn-ghost btn-square btn-xs shrink-0"
                   @click="copyInstallCommand"
                 >
                   <IconCheck v-if="copied" class="icon-xs text-success" />
@@ -86,7 +86,7 @@
 
               <!-- Retry detection -->
               <button
-                class="iw-btn btn-sm btn-primary w-full"
+                class="btn btn-sm btn-primary w-full"
                 :disabled="retrying"
                 @click="retry"
               >
@@ -110,12 +110,12 @@
           </div>
 
           <div class="flex flex-wrap justify-center gap-3">
-            <button class="iw-btn btn-primary w-44 h-9" @click="ensurePreview">
+            <button class="btn btn-primary w-44 h-9" @click="ensurePreview">
               <IconRefresh class="icon-sm" />
               <span>{{ t('officePage.retryBtn') }}</span>
             </button>
 
-            <button class="iw-btn btn-ghost w-44 h-9" @click="openWithShell">
+            <button class="btn btn-ghost w-44 h-9" @click="openWithShell">
               <IconFolderOpen class="icon-sm" />
               <span>{{ t('officePage.openAnywayBtn') }}</span>
             </button>

@@ -1,5 +1,5 @@
 <template>
-  <div class="document-page">
+  <div class="flex h-full w-full">
     <div class="flex flex-1 items-center justify-center">
       <div class="max-w-xl text-center p-3">
         <div class="mb-8">
@@ -11,7 +11,7 @@
         <div class="flex flex-wrap justify-center gap-3">
           <button 
             @click="createNewDocument"
-            class="iw-btn btn-primary w-44 h-9"
+            class="btn btn-primary w-44 h-9"
           >
             <IconPlus class="icon-sm" />
             <span>{{ t('welcomePage.newDocument') }}</span>
@@ -19,7 +19,7 @@
           
           <button 
             @click="openFile"
-            class="iw-btn btn-primary w-44 h-9"
+            class="btn btn-primary w-44 h-9"
           >
             <IconFolderOpen class="icon-sm" />
             <span>{{ t('welcomePage.openDocument') }}</span>
@@ -27,7 +27,7 @@
           
           <button v-if="!appStore.hasOpenFolder"
             @click="openFolder"
-            class="iw-btn btn-primary w-44 h-9"
+            class="btn btn-primary w-44 h-9"
           >
             <IconFolder class="icon-sm" />
             <span>{{ t('welcomePage.openFolder') }}</span>

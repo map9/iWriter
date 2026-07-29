@@ -20,7 +20,7 @@
       <div class="ml-3 w-44">
         <select
           v-model="settings.printer"
-          class="iw-select w-full truncate text-sm"
+          class="select select-sm w-full truncate text-sm"
           :class="printerSelectClass"
           :disabled="!hasPrinters"
         >
@@ -43,7 +43,7 @@
     <div class="flex flex-col gap-2 px-5 py-3">
       <div class="flex items-center justify-between">
         <label class="shrink-0 text-sm">{{ t('dialog.printDialog.pageRange.label') }}</label>
-        <select v-model="settings.pageRange" class="iw-select ml-3 w-44 text-sm">
+        <select v-model="settings.pageRange" class="select select-sm ml-3 w-44 text-sm">
           <option value="all">{{ t('dialog.printDialog.pageRange.options.all') }}</option>
           <option value="odd">{{ t('dialog.printDialog.pageRange.options.odd') }}</option>
           <option value="even">{{ t('dialog.printDialog.pageRange.options.even') }}</option>
@@ -53,7 +53,7 @@
       <input
         v-if="settings.pageRange === 'custom'"
         v-model="settings.customPageRange"
-        class="iw-input w-full text-sm"
+        class="input input-sm h-7 w-full text-sm"
         :placeholder="t('dialog.printDialog.pageRange.placeholder')"
       />
       <p v-if="settings.pageRange === 'custom' && pageRangeError" class="text-xs text-error">
@@ -69,7 +69,7 @@
         type="number"
         min="1"
         max="999"
-        class="iw-input ml-3 w-44 text-sm"
+        class="input input-sm h-7 ml-3 w-44 text-sm"
       />
     </div>
   </div>
@@ -92,7 +92,7 @@
       <!-- Pages per sheet -->
       <div class="flex items-center justify-between px-5 py-3">
         <label class="shrink-0 text-sm">{{ t('dialog.printDialog.pagesPerSheet.label') }}</label>
-        <select v-model.number="settings.pagesPerSheet" class="iw-select ml-3 w-44 text-sm">
+        <select v-model.number="settings.pagesPerSheet" class="select select-sm ml-3 w-44 text-sm">
           <option :value="1">1</option>
           <option :value="2">2</option>
           <option :value="4">4</option>
@@ -105,7 +105,7 @@
       <div class="flex flex-col gap-2 px-5 py-3">
         <div class="flex items-center justify-between">
           <label class="shrink-0 text-sm">{{ t('dialog.printDialog.scale.label') }}</label>
-          <select v-model="settings.scaleMode" class="iw-select ml-3 w-44 text-sm">
+          <select v-model="settings.scaleMode" class="select select-sm ml-3 w-44 text-sm">
             <option value="default">{{ t('dialog.printDialog.scale.options.default') }}</option>
             <option value="custom">{{ t('dialog.printDialog.scale.options.custom') }}</option>
           </select>
@@ -116,7 +116,7 @@
             type="number"
             min="10"
             max="500"
-            class="iw-input flex-1 text-sm"
+            class="input input-sm h-7 w-full flex-1 text-sm"
           />
           <span class="shrink-0 text-sm text-base-content/70">%</span>
         </div>
@@ -128,7 +128,7 @@
       <!-- Print Quality (hidden for PDF pseudo-printer) -->
       <div v-if="!isPdfPrinter" class="flex items-center justify-between px-5 py-3">
         <label class="shrink-0 text-sm">{{ t('dialog.printDialog.quality.label') }}</label>
-        <select v-model.number="settings.dpi" class="iw-select ml-3 w-44 text-sm">
+        <select v-model.number="settings.dpi" class="select select-sm ml-3 w-44 text-sm">
           <option :value="150">150 dpi</option>
           <option :value="300">300 dpi</option>
           <option :value="600">600 dpi</option>
@@ -138,7 +138,7 @@
       <!-- Color (only when printer supports it) -->
       <div v-if="printerColorSupported" class="flex items-center justify-between px-5 py-3">
         <label class="shrink-0 text-sm">{{ t('dialog.printDialog.color.label') }}</label>
-        <select v-model="settings.color" class="iw-select ml-3 w-44 text-sm">
+        <select v-model="settings.color" class="select select-sm ml-3 w-44 text-sm">
           <option value="color">{{ t('dialog.printDialog.color.options.color') }}</option>
           <option value="grayscale">{{ t('dialog.printDialog.color.options.grayscale') }}</option>
         </select>

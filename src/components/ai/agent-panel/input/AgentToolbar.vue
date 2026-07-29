@@ -35,7 +35,7 @@
         ref="compactIndicatorRef"
         @mouseenter="handleCompactMouseEnter"
         @mouseleave="handleCompactMouseLeave"
-        class="iw-toolbar-btn btn-xs cursor-default"
+        class="btn btn-ghost btn-square btn-xs cursor-default"
       >
         <svg viewBox="0 0 20 20" class="icon-xs">
           <circle

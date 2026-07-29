@@ -1,13 +1,13 @@
 <template>
-  <div class="document-viewer-wrapper markdown-editor-page relative">
+  <div class="relative flex flex-1 flex-col overflow-hidden bg-base-200 markdown-editor-page">
     <!-- Editor Toolbar -->
-    <fieldset v-if="!appStore.isCleanMode" class="iw-toolbar" :disabled="isReadonly">
+    <fieldset v-if="!appStore.isCleanMode" class="flex h-10 w-full min-w-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-b border-base-300 bg-base-100 px-3 scrollbar-hide min-inline-0" :disabled="isReadonly">
       <!-- Undo/Redo Group -->
       <div class="join">
         <button
           @click="editor?.chain().focus().undo().run()"
           :disabled="!editor?.can().undo()"
-          class="iw-toolbar-btn btn-sm join-item"
+          class="btn btn-ghost btn-square btn-sm join-item"
           title="Undo (⌘Z)"
         >
           <IconArrowBackUp class = "icon-sm" />
@@ -15,7 +15,7 @@
         <button
           @click="editor?.chain().focus().redo().run()"
           :disabled="!editor?.can().redo()"
-          class="iw-toolbar-btn btn-sm join-item"
+          class="btn btn-ghost btn-square btn-sm join-item"
           title="Redo (⌘⇧Z)"
         >
           <IconArrowForwardUp class="icon-sm" />
@@ -27,12 +27,12 @@
       </div>
 
       <!-- Heading Dropdown -->
-      <div class="iw-toolbar-group">
+      <div class="flex shrink-0 items-center gap-1">
         <select
           v-model="currentHeading"
           @change="setHeading(editor, currentHeading)"
           :disabled="!editor"
-          class="iw-select px-3"
+          class="select select-sm w-25"
         >
           <option value="1">Heading 1</option>
           <option value="2">Heading 2</option>
@@ -45,12 +45,12 @@
       </div>
           
       <!-- Text Formatting Group -->
-      <div class="iw-toolbar-group">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           @click="editor?.chain().focus().toggleBold().run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': editor?.isActive('bold') }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Bold (⌘B)"
         >
           <IconBold class="icon-sm" />
@@ -59,7 +59,7 @@
           @click="editor?.chain().focus().toggleItalic().run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': editor?.isActive('italic') }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Italic (⌘I)"
         >
           <IconItalic class="icon-sm" />
@@ -68,7 +68,7 @@
           @click="editor?.chain().focus().toggleUnderline().run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': editor?.isActive('underline') }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Underline (⌘U)"
         >
           <IconUnderline class="icon-sm" />
@@ -77,7 +77,7 @@
           @click="editor?.chain().focus().toggleStrike().run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': editor?.isActive('strike') }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Strikethrough (⌘⇧X)"
         >
           <IconStrikethrough class="icon-sm" />
@@ -86,7 +86,7 @@
           @click="editor?.chain().focus().toggleHighlight().run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': editor?.isActive('highlight') }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Highlight"
         >
           <IconHighlight class="icon-sm" />
@@ -95,7 +95,7 @@
           @click="toggleLink(editor)"
           :disabled="!editor"
           :class="{ 'bg-base-300': editor?.isActive('link') }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Link"
         >
           <IconLink class="icon-sm" />
@@ -104,7 +104,7 @@
           @click="editor?.chain().focus().toggleCode().run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': editor?.isActive('code') }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Inline Code"
         >
           <IconCode class="icon-sm" />
@@ -112,7 +112,7 @@
         <button
           @click="toggleMath(editor)"
           :disabled="!editor"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Inline Math"
         >
           <IconMath class="icon-sm" />
@@ -124,12 +124,12 @@
       </div>
       
       <!-- List Group -->
-      <div class="iw-toolbar-group">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           @click="editor?.chain().focus().toggleOrderedList().run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': editor?.isActive('orderedList') }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Ordered List"
         >
           <IconListNumbers class="icon-sm" />
@@ -138,7 +138,7 @@
           @click="editor?.chain().focus().toggleBulletList().run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': editor?.isActive('bulletList') }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Bullet List"
         >
           <IconList class="icon-sm" />
@@ -147,7 +147,7 @@
           @click="editor?.chain().focus().toggleTaskList().run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': editor?.isActive('taskList') }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Task List"
         >
           <IconListCheck class="icon-sm" />
@@ -164,7 +164,7 @@
           @click="editor?.chain().focus().setTextAlign('left').run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': 'left' === getCurrentAlignment(editor) }"
-          class="iw-toolbar-btn btn-sm join-item"
+          class="btn btn-ghost btn-square btn-sm join-item"
           title="Align Left"
         >
           <IconAlignLeft class="icon-sm" />
@@ -173,7 +173,7 @@
           @click="editor?.chain().focus().setTextAlign('center').run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': 'center' === getCurrentAlignment(editor) }"
-          class="iw-toolbar-btn btn-sm join-item"
+          class="btn btn-ghost btn-square btn-sm join-item"
           title="Align Center"
         >
           <IconAlignCenter class="icon-sm" />
@@ -182,7 +182,7 @@
           @click="editor?.chain().focus().setTextAlign('right').run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': 'right' === getCurrentAlignment(editor) }"
-          class="iw-toolbar-btn btn-sm join-item"
+          class="btn btn-ghost btn-square btn-sm join-item"
           title="Align Right"
         >
           <IconAlignRight class="icon-sm" />
@@ -191,7 +191,7 @@
           @click="editor?.chain().focus().setTextAlign('justify').run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': 'justify' === getCurrentAlignment(editor) }"
-          class="iw-toolbar-btn btn-sm join-item"
+          class="btn btn-ghost btn-square btn-sm join-item"
           title="Align Justified"
         >
           <IconAlignJustified class="icon-sm" />
@@ -203,11 +203,11 @@
       </div>
             
       <!-- Insert Group -->
-      <div class="iw-toolbar-group">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           @click="insertTable(editor)"
           :disabled="!editor"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Insert Table"
         >
           <IconTable class="icon-sm" />
@@ -215,7 +215,7 @@
         <button
           @click="insertImage(editor)"
           :disabled="!editor"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Insert Image"
         >
           <IconPhoto class="icon-sm" />
@@ -223,7 +223,7 @@
         <button
           @click="insertAudio(editor)"
           :disabled="!editor"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Insert Audio"
         >
           <IconVolume class="icon-sm" />
@@ -231,7 +231,7 @@
         <button
           @click="insertVideo(editor)"
           :disabled="!editor"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Insert Video"
         >
           <IconVideo class="icon-sm" />
@@ -243,12 +243,12 @@
       </div>
             
       <!-- Block Group -->
-      <div class="iw-toolbar-group">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           @click="editor?.chain().focus().toggleBlockquote().run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': editor?.isActive('blockquote') }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Quote Block"
         >
           <IconBlockquote class="icon-sm" />
@@ -256,7 +256,7 @@
         <button
           @click="insertMathBlock(editor)"
           :disabled="!editor"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Math Block"
         >
           <IconFunction class="icon-sm" />
@@ -265,7 +265,7 @@
           @click="editor?.chain().focus().toggleCodeBlock().run()"
           :disabled="!editor"
           :class="{ 'bg-base-300': editor?.isActive('codeBlock') }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Code Block"
         >
           <IconSourceCode class="icon-sm" />
@@ -277,11 +277,11 @@
       </div>
 
       <!-- Print Preview Button -->
-      <div class="iw-toolbar-group">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           @click="openPrintPreview"
           :disabled="!editor"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Print Preview (⌘P)"
         >
           <IconPrinter class="icon-sm" />
@@ -289,14 +289,14 @@
       </div>
 
       <!-- Spacer -->
-      <div class="iw-toolbar-spacer"></div>
+      <div class="min-w-4 flex-1"></div>
 
       <!-- Clean Mode Button -->
-      <div class="iw-toolbar-group">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           @click="appStore.toggleCleanMode()"
           :disabled="!editor"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           title="Toggle Clean Mode"
         >
           <IconMaximize class="icon-sm" />
@@ -305,7 +305,7 @@
     </fieldset>
     
     <!-- TipTap Editor -->
-    <div ref="editorScrollRef" class="editor-content-wrapper relative overflow-auto">
+    <div ref="editorScrollRef" class="editor-content-wrapper relative flex-1 overflow-auto">
         <!-- Shared Range Highlight Layers -->
         <BlockHighlightLayer
           v-if="editor"

@@ -9,8 +9,8 @@
           <div class="text-xs text-warning-content">{{ index + 1 }} / {{ total }}</div>
         </slot>
         <div class="flex shrink-0 flex-wrap gap-1.5">
-          <button class="iw-btn btn-xs btn-warning" @click="$emit('approveAll')">{{ approveAllLabel }}</button>
-          <button class="iw-btn btn-xs btn-error" @click="$emit('rejectAll')">{{ rejectAllLabel }}</button>
+          <button class="btn btn-xs btn-warning" @click="$emit('approveAll')">{{ approveAllLabel }}</button>
+          <button class="btn btn-xs btn-error" @click="$emit('rejectAll')">{{ rejectAllLabel }}</button>
         </div>
       </div>
     </div>
@@ -30,20 +30,20 @@
 
     <div class="border-t border-base-300 px-3 py-2.5">
       <div class="flex flex-wrap items-center gap-1.5">
-        <button class="iw-btn btn-xs" :class="isDelete ? 'btn-error' : 'btn-warning'" @click="$emit('approve')">
+        <button class="btn btn-xs" :class="isDelete ? 'btn-error' : 'btn-warning'" @click="$emit('approve')">
           {{ approveLabel }}
         </button>
-        <button class="iw-btn btn-xs btn-ghost" @click="$emit('reject')">{{ rejectLabel }}</button>
+        <button class="btn btn-xs btn-ghost" @click="$emit('reject')">{{ rejectLabel }}</button>
         <slot name="footer-extra" />
         <button
           v-if="isBatch"
-          class="iw-btn btn-xs btn-ghost"
+          class="btn btn-xs btn-ghost"
           :disabled="index === 0"
           @click="$emit('prev')"
         >←</button>
         <button
           v-if="isBatch"
-          class="iw-btn btn-xs btn-ghost"
+          class="btn btn-xs btn-ghost"
           :disabled="index >= total - 1"
           @click="$emit('next')"
         >→</button>

@@ -1,5 +1,5 @@
 <template>
-  <div class="iw-statusbar">
+  <div class="relative z-40 h-6 w-full shrink-0 border-t border-base-300 bg-neutral text-neutral-content">
     <!-- Notification Overlay -->
     <NotificationOverlay
       :state="notificationState"

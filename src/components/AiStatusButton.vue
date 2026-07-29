@@ -2,7 +2,7 @@
   <div class="no-drag flex shrink-0 items-center">
     <button
       @click="appStore.toggleRightSidebar()"
-      class="iw-toolbar-btn btn-sm relative group"
+      class="btn btn-ghost btn-square btn-sm relative group"
       :title="robotButtonTitle"
     >
       <div

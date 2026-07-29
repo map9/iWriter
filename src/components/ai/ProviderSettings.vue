@@ -14,7 +14,7 @@
                   <div
                     role="button"
                     tabindex="0"
-                    class="iw-btn btn-sm h-8 w-full justify-start border-none text-left font-normal group/ai-row"
+                    class="btn btn-sm h-8 w-full justify-start border-none text-left font-normal group/ai-row"
                     :class="activeNode?.kind === 'llm-config' && activeNode.id === cfg.id ? 'btn-active' : 'btn-ghost'"
                     @click="startEdit(cfg)"
                     @keydown.enter.prevent="startEdit(cfg)"
@@ -34,7 +34,7 @@
                     </span>
                     <button
                       v-if="!cfg.presetId"
-                      class="iw-toolbar-btn btn-xs text-error opacity-0 transition-opacity focus:opacity-100 hover:bg-error hover:text-error-content group-hover/ai-row:opacity-100"
+                      class="btn btn-ghost btn-square btn-xs text-error opacity-0 transition-opacity focus:opacity-100 hover:bg-error hover:text-error-content group-hover/ai-row:opacity-100"
                       :title="t('preferences.ai.removeProvider')"
                       @click.stop="removeLlmConfig(cfg)"
                       @keydown.stop
@@ -45,7 +45,7 @@
                 </li>
                 <li>
                   <button
-                    class="iw-btn btn-outline btn-sm btn-primary h-8 w-full justify-start text-left font-normal group/ai-row"
+                    class="btn btn-outline btn-sm btn-primary h-8 w-full justify-start text-left font-normal group/ai-row"
                     @click="addCustomProvider"
                   >
                     <IconPlus class="icon-2xs shrink-0" />
@@ -67,7 +67,7 @@
                   <div
                     role="button"
                     tabindex="0"
-                    class="iw-btn btn-sm h-8 w-full justify-start border-none text-left font-normal group/ai-row"
+                    class="btn btn-sm h-8 w-full justify-start border-none text-left font-normal group/ai-row"
                     :class="activeNode?.kind === 'web-config' && activeNode.id === cfg.id ? 'btn-active' : 'btn-ghost'"
                     @click="startWebEdit(cfg)"
                     @keydown.enter.prevent="startWebEdit(cfg)"
@@ -109,7 +109,7 @@
                     type="text"
                     :readonly="isLlmPanePreset(pane)"
                     :placeholder="pane.preset?.label ?? t('preferences.ai.customProviderName')"
-                    class="iw-input"
+                    class="input input-sm h-7 w-full"
                     :class="isLlmPanePreset(pane) ? 'cursor-default bg-base-200 text-base-content' : ''"
                   />
                 </div>
@@ -119,7 +119,7 @@
                   <select
                     v-model="pane.form.type"
                     :disabled="isLlmPanePreset(pane)"
-                    class="iw-select w-full px-3"
+                    class="select select-sm w-full px-3"
                     :class="isLlmPanePreset(pane) ? 'cursor-default bg-base-100 text-base-content' : ''"
                   >
                     <option value="openai-compat">{{ t('preferences.ai.interfaceOpenAICompat') }}</option>
@@ -135,13 +135,13 @@
 
                 <div class="flex flex-col gap-1.5">
                   <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.apiKey') }}</label>
-                  <label class="iw-input">
+                  <label class="input input-sm h-7 w-full">
                     <input
                       v-model="pane.form.apiKey"
                       :type="isLlmKeyVisible(pane) ? 'text' : 'password'"
                       :placeholder="t('preferences.ai.apiKeyPlaceholder')"
                     />
-                    <button type="button" class="iw-toolbar-btn btn-xs" @click="toggleLlmKeyVisibility(pane)">
+                    <button type="button" class="btn btn-ghost btn-square btn-xs" @click="toggleLlmKeyVisibility(pane)">
                       <IconEye v-if="!isLlmKeyVisible(pane)" class="icon-xs" />
                       <IconEyeOff v-else class="icon-xs" />
                     </button>
@@ -161,7 +161,7 @@
                     v-model="pane.form.baseUrl"
                     type="text"
                     :placeholder="pane.preset?.baseUrl ?? 'https://api.openai.com/v1'"
-                    class="iw-input"
+                    class="input input-sm h-7 w-full"
                   />
                 </div>
 
@@ -171,7 +171,7 @@
                     v-model="pane.form.modelsStr"
                     type="text"
                     :placeholder="(pane.preset?.models ?? []).join(', ')"
-                    class="iw-input"
+                    class="input input-sm h-7 w-full"
                   />
                   <p class="text-xs text-base-content/50">{{ t('preferences.ai.modelsHint') }}</p>
                 </div>
@@ -183,7 +183,7 @@
                     type="text"
                     :list="`iw-fallback-models-${pane.key}`"
                     :placeholder="t('preferences.ai.fallbackModelPlaceholder')"
-                    class="iw-input"
+                    class="input input-sm h-7 w-full"
                   />
                   <datalist :id="`iw-fallback-models-${pane.key}`">
                     <option v-for="m in getLlmPaneAvailableModels(pane)" :key="m" :value="m" />
@@ -243,7 +243,7 @@
                     v-model="pane.form.label"
                     type="text"
                     readonly
-                    class="iw-input cursor-default bg-base-200 text-base-content"
+                    class="input input-sm h-7 w-full cursor-default bg-base-200 text-base-content"
                   />
                 </div>
               </section>
@@ -256,7 +256,7 @@
                   <input
                     v-model="pane.form.baseUrl"
                     type="text"
-                    class="iw-input"
+                    class="input input-sm h-7 w-full"
                     :placeholder="getWebSearchUrlPlaceholder(pane)"
                   />
                   <p class="text-xs text-base-content/50">{{ t('preferences.ai.webSearch.baseUrlHint') }}</p>
@@ -264,13 +264,13 @@
 
                 <div class="flex flex-col gap-1.5">
                   <label class="text-sm font-medium text-base-content">{{ t('preferences.ai.webSearch.apiKey') }}</label>
-                  <label class="iw-input">
+                  <label class="input input-sm h-7 w-full">
                     <input
                       v-model="pane.form.apiKey"
                       :type="isWebSearchKeyVisible(pane) ? 'text' : 'password'"
                       :placeholder="t('preferences.ai.webSearch.apiKeyPlaceholder')"
                     />
-                    <button type="button" class="iw-toolbar-btn btn-xs" @click="toggleWebSearchKeyVisibility(pane)">
+                    <button type="button" class="btn btn-ghost btn-square btn-xs" @click="toggleWebSearchKeyVisibility(pane)">
                       <IconEye v-if="!isWebSearchKeyVisible(pane)" class="icon-xs" />
                       <IconEyeOff v-else class="icon-xs" />
                     </button>

@@ -1,9 +1,9 @@
 <template>
   <div class="h-full flex flex-col">
     <!-- No Folder Header -->
-    <div class=" iw-sidebar-section">
+    <div class="flex h-10 shrink-0 items-center justify-between bg-base-200 px-2 select-none">
       <div class="flex items-center gap-2">
-        <span class="iw-sidebar-section-header">
+        <span class="text-sm font-semibold text-base-content uppercase whitespace-nowrap block w-full truncate">
           {{ t('sidebar.noFolderOpened.title') }}
         </span>
       </div>
@@ -14,7 +14,7 @@
         <p class="text-left text-sm text-base-content/50">{{ t('sidebar.noFolderOpened.description') }}</p>
         <button
           @click="appStore.openFolder()"
-          class="iw-btn btn-primary w-full h-9"
+          class="btn btn-primary w-full h-9"
         >
           <IconFolder class="icon-sm" />
           <span>{{ t('sidebar.noFolderOpened.openFolder') }}</span>
@@ -23,7 +23,7 @@
         <button
           v-if="gitStore.availability.available"
           @click="gitStore.cloneDialogOpen = true"
-          class="iw-btn btn-ghost w-full h-9"
+          class="btn btn-ghost w-full h-9"
         >
           <IconGitBranch class="icon-sm" />
           <span>{{ t('sourceControl.cloneRepo') }}</span>

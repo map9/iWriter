@@ -1,9 +1,9 @@
 <template>
   <div class="h-full flex flex-col">
     <!-- TOC Header -->
-    <div class="iw-sidebar-section border-b border-base-300">
+    <div class="flex h-10 shrink-0 items-center justify-between bg-base-200 px-2 select-none border-b border-base-300">
       <div class="flex items-center gap-2">
-        <span class="iw-sidebar-section-header">
+        <span class="text-sm font-semibold text-base-content uppercase whitespace-nowrap block w-full truncate">
           {{ t('sidebar.toc.title') }}
         </span>
       </div>
@@ -12,8 +12,8 @@
       <div class="flex shrink-0 items-center gap-1">
         <button
           @click="toggleNumbering"
-          class="iw-toolbar-btn btn-xs"
-          :class="{ 'iw-toolbar-btn-active': showNumbering }"
+          class="btn btn-ghost btn-square btn-xs"
+          :class="{ 'btn-active bg-primary text-primary-content': showNumbering }"
           :title="t('sidebar.toc.toggleNumbering')"
         >
           <IconNumbers class="icon-xs" />
@@ -28,32 +28,32 @@
         <div class="join">
           <button
             @click="setExpandLevel(2)"
-            class="iw-toolbar-btn btn-xs join-item"
-            :class="{ 'iw-toolbar-btn-active': expandLevel === 2 }"
+            class="btn btn-ghost btn-square btn-xs join-item"
+            :class="{ 'btn-active bg-primary text-primary-content': expandLevel === 2 }"
             :title="t('sidebar.toc.collapseToLevel', { level: 'H2' })"
           >
             <p class="icon-xs text-xs">H2</p>
           </button>
           <button
             @click="setExpandLevel(3)"
-            class="iw-toolbar-btn btn-xs join-item"
-            :class="{ 'iw-toolbar-btn-active': expandLevel === 3 }"
+            class="btn btn-ghost btn-square btn-xs join-item"
+            :class="{ 'btn-active bg-primary text-primary-content': expandLevel === 3 }"
             :title="t('sidebar.toc.collapseToLevel', { level: 'H3' })"
           >
             <p class="icon-xs text-xs">H3</p>
           </button>
           <button
             @click="setExpandLevel(4)"
-            class="iw-toolbar-btn btn-xs join-item"
-            :class="{ 'iw-toolbar-btn-active': expandLevel === 4 }"
+            class="btn btn-ghost btn-square btn-xs join-item"
+            :class="{ 'btn-active bg-primary text-primary-content': expandLevel === 4 }"
             :title="t('sidebar.toc.collapseToLevel', { level: 'H4' })"
           >
             <p class="icon-xs text-xs">H4</p>
           </button>
           <button
             @click="setExpandLevel(6)"
-            class="iw-toolbar-btn btn-xs join-item"
-            :class="{ 'iw-toolbar-btn-active': expandLevel === 6 }"
+            class="btn btn-ghost btn-square btn-xs join-item"
+            :class="{ 'btn-active bg-primary text-primary-content': expandLevel === 6 }"
             :title="t('sidebar.toc.expandAllLevels')"
           >
             <p class="icon-xs text-xs">All</p>
@@ -67,7 +67,7 @@
 
         <button
           @click="scrollToTop"
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="t('sidebar.toc.scrollToTop')"
         >
           <IconArrowUp class="icon-xs" />

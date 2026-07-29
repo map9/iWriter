@@ -1,8 +1,8 @@
 <template>
   <!-- Agent Panel Header -->
-  <div class="iw-sidebar-section border-b border-base-300">
+  <div class="flex h-10 shrink-0 items-center justify-between bg-base-200 px-2 select-none border-b border-base-300">
     <div class="flex min-w-0 flex-1 items-center gap-2">
-      <span class="iw-sidebar-section-header" :title="title">
+      <span class="text-sm font-semibold text-base-content uppercase whitespace-nowrap block w-full truncate" :title="title">
         {{ title }}
       </span>
     </div>
@@ -13,27 +13,27 @@
       <button
         v-if="showBackButton"
         @click="$emit('back')"
-        class="iw-toolbar-btn btn-xs"
+        class="btn btn-ghost btn-square btn-xs"
         :title="t('agentPanel.header.back')"
       >
         <IconArrowLeft class="icon-xs" />
       </button>
       <!-- 正常模式：新对话 + 历史 + 设置 -->
       <template v-else>
-        <button @click="$emit('new-thread')" class="iw-toolbar-btn btn-xs" :title="t('agentPanel.header.newThread')">
+        <button @click="$emit('new-thread')" class="btn btn-ghost btn-square btn-xs" :title="t('agentPanel.header.newThread')">
           <IconPlus class="icon-xs" />
         </button>
         <button
           @click="$emit('toggle-history')"
-          class="iw-toolbar-btn btn-xs"
-          :class="historyActive ? 'iw-toolbar-btn-active' : ''"
+          class="btn btn-ghost btn-square btn-xs"
+          :class="historyActive ? 'btn-active bg-primary text-primary-content' : ''"
           :title="t('agentPanel.header.history')"
         >
           <IconHistory class="icon-xs" />
         </button>
         <button
           @click="$emit('open-settings')"
-          class="iw-toolbar-btn btn-xs"
+          class="btn btn-ghost btn-square btn-xs"
           :title="t('agentPanel.header.aiSettings')"
         >
           <IconSettings class="icon-xs" />

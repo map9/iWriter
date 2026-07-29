@@ -27,7 +27,7 @@
           <!-- Paper size -->
           <div class="flex items-center justify-between px-5 py-3">
             <label class="shrink-0 text-sm">{{ t('dialog.printDialog.paperSize.label') }}</label>
-            <select v-model="settings.paperSize" class="iw-select ml-3 w-44 text-sm">
+            <select v-model="settings.paperSize" class="select select-sm ml-3 w-44 text-sm">
               <option v-for="sz in availablePaperSizes" :key="sz.value" :value="sz.value">
                 {{ sz.label }}
               </option>
@@ -37,7 +37,7 @@
           <!-- Orientation -->
           <div class="flex items-center justify-between px-5 py-3">
             <label class="shrink-0 text-sm">{{ t('dialog.printDialog.orientation.label') }}</label>
-            <select v-model="settings.orientation" class="iw-select ml-3 w-44 text-sm">
+            <select v-model="settings.orientation" class="select select-sm ml-3 w-44 text-sm">
               <option value="portrait">{{ t('dialog.printDialog.orientation.options.portrait') }}</option>
               <option value="landscape">{{ t('dialog.printDialog.orientation.options.landscape') }}</option>
             </select>
@@ -46,7 +46,7 @@
           <!-- Margins -->
           <div class="flex items-center justify-between px-5 py-3">
             <label class="shrink-0 text-sm">{{ t('dialog.printDialog.margins.label') }}</label>
-            <select v-model="settings.margins" class="iw-select ml-3 w-44 text-sm">
+            <select v-model="settings.margins" class="select select-sm ml-3 w-44 text-sm">
               <option value="default">{{ t('dialog.printDialog.margins.options.default') }}</option>
               <option value="none">{{ t('dialog.printDialog.margins.options.none') }}</option>
               <option value="minimum">{{ t('dialog.printDialog.margins.options.minimum') }}</option>
@@ -56,7 +56,7 @@
           <!-- Image fit mode -->
           <div class="flex items-center justify-between px-5 py-3">
             <label class="shrink-0 text-sm">{{ t('dialog.imagePrintDialog.fit.label') }}</label>
-            <select v-model="settings.fit" class="iw-select ml-3 w-44 text-sm">
+            <select v-model="settings.fit" class="select select-sm ml-3 w-44 text-sm">
               <option value="contain">{{ t('dialog.imagePrintDialog.fit.options.contain') }}</option>
               <option value="cover">{{ t('dialog.imagePrintDialog.fit.options.cover') }}</option>
               <option value="actual">{{ t('dialog.imagePrintDialog.fit.options.actual') }}</option>

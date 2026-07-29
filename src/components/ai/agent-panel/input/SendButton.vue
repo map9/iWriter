@@ -3,7 +3,7 @@
   <button
     v-if="isPendingSend"
     @click="$emit('cancel-queued')"
-    class="iw-btn btn-sm btn-square btn-warning"
+    class="btn btn-sm btn-square btn-warning"
     :title="t('agentPanel.sendButton.pendingTitle')"
   >
     <span class="icon-xs border-2 border-warning/40 border-t-warning rounded-full animate-spin inline-block" />
@@ -12,7 +12,7 @@
   <button
     v-else-if="isStreaming"
     @click="$emit('stop')"
-    class="iw-btn btn-sm btn-square btn-error"
+    class="btn btn-sm btn-square btn-error"
     :title="t('agentPanel.sendButton.stoppingTitle')"
   >
     <IconPlayerStop class="icon-xs" />
@@ -22,7 +22,7 @@
     v-else
     @click="$emit('send')"
     :disabled="!canSend"
-    class="iw-btn btn-sm btn-square btn-primary"
+    class="btn btn-sm btn-square btn-primary"
     :title="t('agentPanel.sendButton.sendTitle')"
   >
     <IconSend class="icon-xs" />

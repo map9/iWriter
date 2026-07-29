@@ -1,12 +1,12 @@
 <template>
-  <div class="document-viewer-wrapper">
+  <div class="relative flex flex-1 flex-col overflow-hidden bg-base-200">
     <!-- PDF Toolbar -->
-    <div v-if="!appStore.isCleanMode" class="iw-toolbar" @click.capture="handleToolbarClick">
+    <div v-if="!appStore.isCleanMode" class="flex h-10 w-full min-w-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-b border-base-300 bg-base-100 px-3 scrollbar-hide min-inline-0" @click.capture="handleToolbarClick">
 
       <!-- Group 1: Zoom -->
-      <div class="iw-toolbar-group">
+      <div class="flex shrink-0 items-center gap-1">
         <select
-          class="iw-input h-7 text-xs"
+          class="input input-sm h-7 w-full text-xs"
           :disabled="isPresentationMode"
           :value="zoomSelectValue"
           @change="onZoomSelectChange"
@@ -31,7 +31,7 @@
         <button
           @click="zoomOut"
           :disabled="zoom <= 0.25 || isPresentationMode"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('pdfViewer.toolbar.zoomOut')"
         >
           <IconZoomOut class="icon-sm" />
@@ -40,7 +40,7 @@
         <button
           @click="zoomIn"
           :disabled="zoom >= 5 || isPresentationMode"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('pdfViewer.toolbar.zoomIn')"
         >
           <IconZoomIn class="icon-sm" />
@@ -52,17 +52,17 @@
       </div>
 
       <!-- Group 1b: Rotation -->
-      <div class="iw-toolbar-group">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           @click="rotateLeft"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('pdfViewer.toolbar.rotateLeft')"
         >
           <IconRotate class="icon-sm" />
         </button>
         <button
           @click="rotateRight"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('pdfViewer.toolbar.rotateRight')"
         >
           <IconRotateClockwise class="icon-sm" />
@@ -74,13 +74,13 @@
       </div>
 
       <!-- Group 2: Scroll mode (5 buttons) -->
-      <div class="iw-toolbar-group">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           v-for="sm in scrollModeOptions"
           :key="sm.value"
           @click="applyScrollMode(sm.scrollMode, sm.presentation)"
           :class="{ 'btn-active': isScrollModeActive(sm) }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t(sm.labelKey)"
         >
           <component :is="sm.icon" class="icon-sm" />
@@ -92,11 +92,11 @@
       </div>
 
       <!-- Group 3: Spread mode (3 buttons) -->
-      <div class="iw-toolbar-group">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           @click="applySpreadMode(SpreadMode.NONE)"
           :class="{ 'btn-active': spreadMode === SpreadMode.NONE }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('pdfViewer.toolbar.spreadNone')"
         >
           <IconSquare class="icon-sm" />
@@ -104,7 +104,7 @@
         <button
           @click="applySpreadMode(SpreadMode.ODD)"
           :class="{ 'btn-active': spreadMode === SpreadMode.ODD }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('pdfViewer.toolbar.spreadOdd')"
         >
           <IconLayout2 class="icon-sm" />
@@ -112,7 +112,7 @@
         <button
           @click="applySpreadMode(SpreadMode.EVEN)"
           :class="{ 'btn-active': spreadMode === SpreadMode.EVEN }"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('pdfViewer.toolbar.spreadEven')"
         >
           <IconBook class="icon-sm" />
@@ -124,11 +124,11 @@
       </div>
 
       <!-- Group 4: Page navigation -->
-      <div class="iw-toolbar-group">
+      <div class="flex shrink-0 items-center gap-1">
         <button
           @click="previousPageCommand"
           :disabled="currentPage <= 1"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('pdfViewer.toolbar.previousPage')"
         >
           <IconChevronLeft class="icon-sm" />
@@ -142,7 +142,7 @@
             type="number"
             :min="1"
             :max="totalPages"
-            class="iw-input w-16 text-center"
+            class="input input-sm h-7 w-16 text-center"
           />
           <span class="text-sm text-base-content/50">/ {{ totalPages }}</span>
         </div>
@@ -150,14 +150,14 @@
         <button
           @click="nextPageCommand"
           :disabled="currentPage >= totalPages"
-          class="iw-toolbar-btn btn-sm"
+          class="btn btn-ghost btn-square btn-sm"
           :title="t('pdfViewer.toolbar.nextPage')"
         >
           <IconChevronRight class="icon-sm" />
         </button>
       </div>
 
-      <div class="iw-toolbar-spacer" />
+      <div class="min-w-4 flex-1" />
     </div>
 
     <!-- PDF Display Area -->

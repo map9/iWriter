@@ -14,7 +14,7 @@
       <!-- Edit mode: input-area style row -->
       <div v-if="message.role === 'user' && message.content && isEditing" class="flex items-center gap-2 w-full">
         <button
-          class="iw-btn btn-square btn-sm border-none shrink-0 self-end disabled:cursor-not-allowed"
+          class="btn btn-square btn-sm border-none shrink-0 self-end disabled:cursor-not-allowed"
           :title="t('agentPanel.common.cancel')"
           @click="isEditing = false"
         ><IconX class="icon-xs" /></button>
@@ -32,7 +32,7 @@
         />
         <button
           :disabled="!editText.trim()"
-          class="iw-btn btn-sm btn-square border-none btn-primary shrink-0 self-end disabled:cursor-not-allowed"
+          class="btn btn-sm btn-square border-none btn-primary shrink-0 self-end disabled:cursor-not-allowed"
           :title="t('agentPanel.sendButton.sendTitle')"
           @click="submitEdit"
         ><IconSend class="icon-xs" /></button>
@@ -55,7 +55,7 @@
         <!-- Expand overlay (shown on hover when content overflows) -->
         <div
           v-if="isOverflow && !isExpanded && isHovered"
-          class="absolute bottom-2 right-2 iw-btn border-none btn-neutral btn-sm opacity-50 shrink-0"
+          class="absolute bottom-2 right-2 btn border-none btn-neutral btn-sm opacity-50 shrink-0"
           @click.stop="isExpanded = true"
         >
           {{ t('agentPanel.messageBubble.expand') }}
@@ -216,7 +216,7 @@
             ]"
           >
             <button
-              class="iw-toolbar-btn btn-xs"
+              class="btn btn-ghost btn-square btn-xs"
               :title="t('agentPanel.messageBubble.copy')"
               @click="handleCopy"
             >
@@ -224,7 +224,7 @@
             </button>
             <button
               v-if="message.role === 'user'"
-              class="iw-toolbar-btn btn-xs"
+              class="btn btn-ghost btn-square btn-xs"
               :title="t('agentPanel.messageBubble.edit')"
               @click="startEdit"
             >
