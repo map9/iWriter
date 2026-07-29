@@ -32,6 +32,7 @@ function textNode(text) {
     isText: true,
     text,
     marks: [],
+    textContent: text,
   }
 }
 
@@ -43,6 +44,33 @@ function paragraph(text) {
     forEach(callback) {
       children.forEach(callback)
     },
+  }
+}
+
+function paragraphNodes(children) {
+  return {
+    type: { name: 'paragraph' },
+    attrs: {},
+    forEach(callback) {
+      children.forEach(callback)
+    },
+  }
+}
+
+function boldTextNode(text) {
+  return {
+    ...textNode(text),
+    marks: [{ type: { name: 'bold' }, attrs: {} }],
+  }
+}
+
+function emojiNode(name) {
+  return {
+    type: { name: 'emoji' },
+    isText: false,
+    attrs: { name },
+    marks: [],
+    textContent: '',
   }
 }
 
@@ -72,6 +100,47 @@ describe('DocumentViewBuilder alert serialization', () => {
     assert.equal(
       nodeToMarkdown(blockquote({}, [paragraph('quoted')])),
       '> quoted',
+    )
+  })
+})
+
+describe('DocumentViewBuilder inline atom serialization', () => {
+  it('preserves a Unicode emoji atom and bridges matching surrounding marks', async () => {
+    const { nodeToMarkdown } = await loadModule()
+
+    assert.equal(
+      nodeToMarkdown(paragraphNodes([
+        boldTextNode('对彼此（A'),
+        emojiNode('left_right_arrow'),
+        boldTextNode('B）'),
+      ])),
+      '**对彼此（A↔B）**',
+    )
+  })
+
+  it('preserves an unformatted Unicode emoji atom', async () => {
+    const { nodeToMarkdown } = await loadModule()
+
+    assert.equal(
+      nodeToMarkdown(paragraphNodes([
+        textNode('A'),
+        emojiNode('left_right_arrow'),
+        textNode('B'),
+      ])),
+      'A↔B',
+    )
+  })
+
+  it('canonicalizes a literal emoji split out of matching marked runs', async () => {
+    const { nodeToMarkdown } = await loadModule()
+
+    assert.equal(
+      nodeToMarkdown(paragraphNodes([
+        boldTextNode('对彼此（A'),
+        textNode('↔'),
+        boldTextNode('B）'),
+      ])),
+      '**对彼此（A↔B）**',
     )
   })
 })

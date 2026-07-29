@@ -67,3 +67,58 @@ describe('MessageAdapter — DeepSeek reasoning→content promotion (empty-conte
     assert.equal(msg.thinkingContent, undefined)
   })
 })
+
+describe('MessageAdapter — block proposal snapshots', () => {
+  it('does not duplicate a selected list container and its item leaves in replace_range oldContent', async () => {
+    const { buildProposalFromAction } = await loadModule()
+    const snapshot = {
+      blockMap: [
+        {
+          displayId: 78,
+          nodeId: 'heading-id',
+          nodeType: 'heading',
+          content: '## 社会面（society）',
+        },
+        {
+          displayId: 79,
+          nodeId: 'list:first-item',
+          nodeType: 'bulletList',
+          content: '- 第一项\n- 第二项',
+          isContainer: true,
+        },
+        {
+          displayId: 80,
+          nodeId: 'first-item',
+          nodeType: 'listItem',
+          content: '- 第一项',
+          containerId: 79,
+        },
+        {
+          displayId: 81,
+          nodeId: 'second-item',
+          nodeType: 'listItem',
+          content: '- 第二项',
+          containerId: 79,
+        },
+      ],
+    }
+
+    const proposal = buildProposalFromAction(
+      'replace_range',
+      {
+        start_block_id: 78,
+        end_block_id: 81,
+        new_content: '',
+        expected_old_content: '## 社会面（society）\n\n- 第一项\n- 第二项',
+      },
+      snapshot,
+    )
+
+    assert.equal(
+      proposal.oldContent,
+      '## 社会面（society）\n\n- 第一项\n\n- 第二项',
+    )
+    assert.equal(proposal.oldContent.match(/第一项/g)?.length, 1)
+    assert.equal(proposal.oldContent.match(/第二项/g)?.length, 1)
+  })
+})

@@ -14,7 +14,8 @@
  */
 
 import type { Editor } from '@tiptap/core'
-import type { Node as PmNode } from '@tiptap/pm/model'
+import type { Mark, Node as PmNode } from '@tiptap/pm/model'
+import { emojiToShortcode, gitHubEmojis, shortcodeToEmoji } from '@tiptap/extension-emoji'
 import { normalizeAlertType } from '@/utils/markdownAlerts'
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -425,55 +426,128 @@ function listToMarkdown(listNode: PmNode, depth: number): string {
 
 // ── Inline content → Markdown ─────────────────────────────────────────────
 
+interface InlineMarkdownSegment {
+  text: string
+  marks: readonly Mark[]
+  canMerge: boolean
+  inheritSurroundingMarks?: boolean
+}
+
+function sameMarks(a: readonly Mark[], b: readonly Mark[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((mark, index) => {
+    const other = b[index]
+    return other?.type.name === mark.type.name
+      && JSON.stringify(other.attrs ?? {}) === JSON.stringify(mark.attrs ?? {})
+  })
+}
+
+function renderMarkedInlineText(value: string, marks: readonly Mark[]): string {
+  let text = value
+  const linkMark = marks.find(mark => mark.type.name === 'link')
+  const otherMarks = marks.filter(mark => mark.type.name !== 'link')
+
+  for (const mark of otherMarks) {
+    switch (mark.type.name) {
+      case 'bold':        text = `**${text}**`; break
+      case 'italic':      text = `_${text}_`; break
+      case 'strike':      text = `~~${text}~~`; break
+      case 'code':        text = `\`${text}\``; break
+      case 'underline':   text = `<u>${text}</u>`; break
+      case 'highlight':   text = `==${text}==`; break
+      case 'subscript':   text = `~${text}~`; break
+      case 'superscript': text = `^${text}^`; break
+    }
+  }
+
+  if (linkMark) {
+    const href: string = linkMark.attrs.href ?? ''
+    text = `[${text}](${href})`
+  }
+
+  return text
+}
+
+function emojiNodeToText(node: PmNode): string {
+  const name = typeof node.attrs.name === 'string' ? node.attrs.name : ''
+  if (!name) return node.textContent
+  return shortcodeToEmoji(name, gitHubEmojis)?.emoji ?? `:${name}:`
+}
+
 function inlineToMarkdown(node: PmNode): string {
-  let result = ''
+  const segments: InlineMarkdownSegment[] = []
 
   node.forEach(child => {
     if (child.type.name === 'hardBreak') {
-      result += '  \n'
+      segments.push({ text: '  \n', marks: [], canMerge: false })
       return
     }
 
     if (child.type.name === 'inlineMath') {
       // InlineMath stores formula in attrs.content or as text content
-      const formula: string = child.attrs.content ?? child.textContent ?? ''
-      result += `$${formula}$`
+      const formula: string = child.attrs.content ?? child.attrs.latex ?? child.textContent ?? ''
+      segments.push({ text: `$${formula}$`, marks: child.marks, canMerge: true })
       return
     }
 
-    if (!child.isText) return
+    if (child.type.name === 'emoji') {
+      const text = emojiNodeToText(child)
+      if (!text) return
+      segments.push({
+        text,
+        marks: child.marks,
+        canMerge: true,
+        // Emoji nodes created from literal Unicode may lose the surrounding text
+        // mark. If both adjacent runs have the same marks, bridge the atom so
+        // `**A↔B**` stays canonical instead of becoming `**A**↔**B**`.
+        inheritSurroundingMarks: child.marks.length === 0,
+      })
+      return
+    }
 
-    let text = child.text ?? ''
+    const text = child.isText ? (child.text ?? '') : child.textContent
     if (!text) return
-
-    // Apply marks. Order matters for nested syntax.
-    const marks = [...child.marks]
-    // Process link last so it wraps the already-formatted text
-    const linkMark = marks.find(m => m.type.name === 'link')
-    const otherMarks = marks.filter(m => m.type.name !== 'link')
-
-    for (const mark of otherMarks) {
-      switch (mark.type.name) {
-        case 'bold':        text = `**${text}**`; break
-        case 'italic':      text = `_${text}_`; break
-        case 'strike':      text = `~~${text}~~`; break
-        case 'code':        text = `\`${text}\``; break
-        case 'underline':   text = `<u>${text}</u>`; break
-        case 'highlight':   text = `==${text}==`; break
-        case 'subscript':   text = `~${text}~`; break
-        case 'superscript': text = `^${text}^`; break
-      }
-    }
-
-    if (linkMark) {
-      const href: string = linkMark.attrs.href ?? ''
-      text = `[${text}](${href})`
-    }
-
-    result += text
+    segments.push({
+      text,
+      marks: child.marks,
+      canMerge: true,
+      // Markdown round-trips can split a marked run around literal emoji
+      // (`**A**↔**B**`). Canonicalize that form the same way as an emoji atom.
+      inheritSurroundingMarks:
+        child.isText
+        && child.marks.length === 0
+        && emojiToShortcode(text, gitHubEmojis) !== undefined,
+    })
   })
 
-  return result
+  for (let index = 0; index < segments.length; index++) {
+    const segment = segments[index]!
+    if (!segment.inheritSurroundingMarks) continue
+    const previous = segments[index - 1]
+    const next = segments[index + 1]
+    if (
+      previous?.canMerge
+      && next?.canMerge
+      && previous.marks.length > 0
+      && sameMarks(previous.marks, next.marks)
+    ) {
+      segment.marks = previous.marks
+    }
+  }
+
+  const merged: InlineMarkdownSegment[] = []
+  for (const segment of segments) {
+    const previous = merged[merged.length - 1]
+    if (previous?.canMerge && segment.canMerge && sameMarks(previous.marks, segment.marks)) {
+      previous.text += segment.text
+      continue
+    }
+    merged.push({ ...segment })
+  }
+
+  return merged
+    .map(segment => renderMarkedInlineText(segment.text, segment.marks))
+    .join('')
 }
 
 // ── Table → GFM Markdown ──────────────────────────────────────────────────

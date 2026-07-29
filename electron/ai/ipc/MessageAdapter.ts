@@ -596,8 +596,18 @@ export function buildProposalFromAction(
     const endEntry = snapshot?.blockMap.find(b => b.displayId === endId)
     const rangeStart = Math.min(startId, endId)
     const rangeEnd = Math.max(startId, endId)
-    const oldContent = snapshot?.blockMap
+    const rangeEntries = snapshot?.blockMap
       .filter(b => b.displayId >= rangeStart && b.displayId <= rangeEnd)
+    // A list container and its item leaves overlap in the two-level block map.
+    // Linear range Markdown must contain exactly one representation of that list:
+    // when selected leaves are present, the addressable-only container is shadowed.
+    const shadowedContainerIds = new Set(
+      rangeEntries
+        ?.map(entry => entry.containerId)
+        .filter((id): id is number => id !== undefined)
+    )
+    const oldContent = rangeEntries
+      ?.filter(entry => !entry.isContainer || !shadowedContainerIds.has(entry.displayId))
       .map(b => b.content)
       .join('\n\n')
     return {

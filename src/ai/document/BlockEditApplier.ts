@@ -143,8 +143,18 @@ function getRangeMarkdown(editor: Editor, startNodeId: string, endNodeId: string
   const from = Math.min(startEntry.from, endEntry.from)
   const to = Math.max(startEntry.to, endEntry.to)
 
-  return view.blockMap
+  const rangeEntries = view.blockMap
     .filter(entry => entry.from >= from && entry.to <= to)
+  // The block map exposes both a whole-list container and its leaves for
+  // addressing, but range Markdown is a linear view. Avoid rendering both.
+  const shadowedContainerIds = new Set(
+    rangeEntries
+      .map(entry => entry.containerId)
+      .filter((id): id is number => id !== undefined)
+  )
+
+  return rangeEntries
+    .filter(entry => !entry.isContainer || !shadowedContainerIds.has(entry.displayId))
     .map(entry => {
       const node = doc.nodeAt(entry.from)
       return node ? nodeToMarkdown(node) : ''
