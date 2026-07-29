@@ -349,6 +349,62 @@ describe('AgentEngine initialization', () => {
     assert.deepEqual(options.trigger, { type: 'tokens', value: 510000 })
     assert.deepEqual(options.keep, { type: 'tokens', value: 60000 })
   })
+
+  it('persists initial and resumed runs only when the graph exits', async () => {
+    const { AgentEngine } = await loadModule()
+    const runConfigs = []
+
+    class RunConfigAgentEngine extends AgentEngine {
+      _getOrCreateAgent() {
+        return {}
+      }
+
+      async _seedSummarizationBaseline() {}
+
+      async _streamLoop(_threadId, _agent, _input, runConfig) {
+        runConfigs.push(runConfig)
+      }
+    }
+
+    const engine = new RunConfigAgentEngine(() => null)
+    const provider = {
+      id: 'provider',
+      type: 'deepseek',
+      label: 'DeepSeek',
+      apiKey: 'test',
+      defaultModelId: 'deepseek-chat',
+      enabled: true,
+    }
+
+    await engine._runSession(
+      'thread-exit-durability',
+      provider,
+      'editing',
+      'edit',
+      'deepseek-chat',
+      'medium',
+      'hello',
+      'en-US',
+    )
+    await engine._continueSession(
+      'thread-exit-durability',
+      provider,
+      'editing',
+      'edit',
+      'deepseek-chat',
+      'medium',
+      {},
+      'en-US',
+    )
+
+    assert.deepEqual(
+      runConfigs.map(config => ({ durability: config.durability, phase: config.metadata.phase })),
+      [
+        { durability: 'exit', phase: 'initial' },
+        { durability: 'exit', phase: 'resume' },
+      ],
+    )
+  })
 })
 
 describe('Effective model budget', () => {

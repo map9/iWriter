@@ -89,6 +89,20 @@ iWriter 的 AI 运行时已经切换到：
 - 工具栏圆环是只读状态指示器，显示当前有效会话 token、自动摘要阈值、压缩保留量、单次运行预算以及可用时的模型物理上下文上限。DeepAgents JavaScript 当前没有直接压缩既有会话的公开 API，因此点击圆环不会触发摘要。
 - 摘要结果通过 checkpoint 的 `_summarizationEvent` 保存，较早的完整消息由 DeepAgents offload 到 conversation history。
 
+## Checkpoint 持久化与保留
+
+- initial 与 resume 运行统一使用 LangGraph `durability: "exit"`，只在运行结束或中断退出时保存 checkpoint，不再为每个 superstep 持久化完整状态。
+- 该设置不会清理既有 checkpoint 数据，也不影响已有会话继续从其最新状态恢复。代价是应用进程在一次运行尚未退出时意外终止，会回到该轮开始前最近一次已持久化状态；未来如重新启用逐步容错，需要同时确保外部工具副作用可幂等重放。
+- checkpoint 是运行恢复状态，不应长期兼任完整对话历史和工程事件日志。后续若需要稳定的历史搜索与故障取证，应将 transcript / run events 独立持久化。
+
+本地 SQLite `keep_latest` 方案暂不实现，备忘如下：
+
+1. 仅在任务没有活跃写入、或一次结束/中断状态已经完整落盘后执行清理。
+2. 从 root checkpoint 出发计算各 namespace 的可恢复前沿，保留可达 head、对应 pending writes、未解决 interrupt，以及用户明确固定的轮次锚点。
+3. 将已解决的工具调用、审批、中断和错误保存为独立事件，而不是依赖旧 checkpoint 快照。
+4. 在事务内删除恢复集合之外的 checkpoints 和无主 writes；空闲时按页执行增量 vacuum。
+5. 增加每任务 checkpoint 数量、逻辑字节数、空闲页和 GC 结果指标；以软阈值触发清理，不以任意行数直接破坏恢复集合。
+
 ## Edit 模式
 
 Edit 模式的原则是：
