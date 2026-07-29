@@ -52,6 +52,7 @@
             cy="10"
             r="7"
             fill="none"
+            :class="compactProgressClass()"
             class="text-primary"
             stroke="currentColor"
             stroke-width="3"
@@ -64,7 +65,7 @@
             cx="10"
             cy="10"
             r="2"
-            :class="compactProgressRatio >= 1 ? 'text-error' : 'text-base-content/30'"
+            :class="compactProgressClass()"
             fill="currentColor"
           />
         </svg>
@@ -224,6 +225,12 @@ function formatCompactTokens(value: number): string {
   if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
   if (value >= 1000) return `${Math.round(value / 1000)}k`
   return `${value}`
+}
+
+function compactProgressClass(): string {
+  if (props.compactProgressRatio < 0.6) return 'text-success'
+  if (props.compactProgressRatio < 0.9) return 'text-warning'
+  return 'text-error'
 }
 
 onMounted(() => {
