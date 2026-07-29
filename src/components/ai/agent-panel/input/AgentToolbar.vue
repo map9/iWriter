@@ -108,7 +108,6 @@ const props = defineProps<{
   currentSessionTokens: number
   compactProgressRatio: number
   compactTriggerTokens: number
-  compactKeepTokens: number
   requestBudgetTokens: number
   maxInputTokens: number | null
   /** Real accumulated token usage for this thread (null if no run yet). */
@@ -173,12 +172,6 @@ const compactTooltip = computed<TooltipContent>(() => {
       max: formatCompactTokens(props.compactTriggerTokens),
     }),
     '<br>',
-    t('agentPanel.toolbar.automaticCompactHint'),
-    '<br>',
-    t('agentPanel.toolbar.compactKeep', {
-      keep: formatCompactTokens(props.compactKeepTokens),
-    }),
-    '<br>',
     t('agentPanel.toolbar.requestBudget', {
       max: formatCompactTokens(props.requestBudgetTokens),
     }),
@@ -199,11 +192,10 @@ const compactTooltip = computed<TooltipContent>(() => {
       input: formatCompactTokens(usage.main.inputTokens),
       output: formatCompactTokens(usage.main.outputTokens),
     }))
-    if (usage.main.cacheReadTokens > 0 || usage.main.cacheCreationTokens > 0) {
+    if (usage.main.cacheReadTokens > 0) {
       parts.push('<br>')
       parts.push(t('agentPanel.toolbar.cacheHit', {
         read: formatCompactTokens(usage.main.cacheReadTokens),
-        created: formatCompactTokens(usage.main.cacheCreationTokens),
       }))
     }
     if (usage.subagents.inputTokens > 0) {

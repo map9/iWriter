@@ -346,8 +346,8 @@ describe('AgentEngine initialization', () => {
     )
 
     const options = globalThis.__iwriterDeepAgentOptions.summarizationMiddlewareOptions
-    assert.deepEqual(options.trigger, { type: 'tokens', value: 510000 })
-    assert.deepEqual(options.keep, { type: 'tokens', value: 60000 })
+    assert.deepEqual(options.trigger, { type: 'tokens', value: 60000 })
+    assert.deepEqual(options.keep, { type: 'tokens', value: 7500 })
   })
 
   it('persists initial and resumed runs only when the graph exits', async () => {
@@ -408,6 +408,25 @@ describe('AgentEngine initialization', () => {
 })
 
 describe('Effective model budget', () => {
+  it('limits DeepSeek requests to 75k and starts summarization at 60k', async () => {
+    const { resolveEffectiveModelBudget } = await loadBudgetModule()
+
+    assert.deepEqual(
+      resolveEffectiveModelBudget(
+        { type: 'deepseek' },
+        'deepseek-chat',
+        { maxInputTokens: 1000000 },
+      ),
+      {
+        maxInputTokens: 1000000,
+        requestBudgetTokens: 75000,
+        triggerTokens: 60000,
+        keepTokens: 7500,
+        source: 'builtin-provider',
+      },
+    )
+  })
+
   it('uses built-in provider policy for existing and newly released OpenAI models', async () => {
     const { resolveEffectiveModelBudget } = await loadBudgetModule()
     const config = { type: 'openai-compat', presetId: 'openai' }
