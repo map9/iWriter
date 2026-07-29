@@ -51,7 +51,7 @@ description: 创建、读取、更新或校验 materials/、process/ 与 .iwrite
 - `status`（必选）：待处理 / 已修复 / 已忽略。
 - `resolved-into`（已修复必选）：处理去向。
 
-reviewer 只读、结果以响应回传；本文件由主 agent 落盘（普通编辑审批），落盘规则见 `revision`。
+reviewer 只读、结果以响应回传；本文件由主 agent 落盘（普通编辑审批），落盘规则见 `revision-playbook`。
 
 **`.iwriter/status.md`**（派生状态摘要缓存，目标 500–1000 token）
 - `rebuilt-at`（必选）：重建时间。

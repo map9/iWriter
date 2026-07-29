@@ -16,7 +16,7 @@ description: 跨章节删并重排场景、改角色/地点/规则或移动故�
 - 移动、合并或删除跨章故事线；
 - 任何无法在单章声明范围内完成的结构变化。
 
-单章内不改变结构的正文精修走 `revision`。
+单章内不改变结构的正文精修走 `revision-playbook`。
 
 ## 一次性预检
 
@@ -36,7 +36,7 @@ description: 跨章节删并重排场景、改角色/地点/规则或移动故�
 1. 将重构目标、完整影响面、潜在冲突、节奏变化和回滚风险合并成一次计划，通过 `confirm_writing_plan` 交作者确认。
 2. 触及 confirmed 提纲或 beat 时，把对应上游变化一并列入计划；不能作为正文改写的副作用。
 3. 作者确认后建议先 `git_commit` 固定重构前基线；未经明确同意不提交。
-4. 提纲变化走 `ideation-outline`。
+4. 提纲变化走 `ideation-outline-playbook`。
 5. 正文按章节委托 writer。每章 brief 引用同一份已批准重构计划，但仍为目标章节打开自己的 write-session；不为同一总计划反复要求作者确认。
 6. 加载 `scene-and-plot-construction`，检查重排后的原因—决定—后果链。
 7. 每章分别 `finalize_chapter`。完成后提醒作者对“改动章 + find_references 影响面”运行 consistency，不自动扫全书。

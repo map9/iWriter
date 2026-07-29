@@ -144,11 +144,11 @@ Creative 模式是工作区限定的小说创作域，采用纯 Markdown 对象�
 - `exploration/`
 - `styles/`
 
-主 Agent 按每轮意图加载阶段 skill：
+主 Agent 按每轮意图加载阶段 Playbook 或独立任务 Skill：
 
-- `ideation-outline`
-- `drafting`
-- `revision`
+- `ideation-outline-playbook`
+- `drafting-playbook`
+- `revision-playbook`
 - `novel-import`
 - `restructuring`
 - `style-transfer`
