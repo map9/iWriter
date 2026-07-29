@@ -90,6 +90,8 @@ export function classifyGitIssue(error: unknown, operation: string, branch?: str
 export class GitService {
   private cache = new Map<string, SimpleGit>()
   private availability: GitAvailability | null = null
+  /** 自动检测到的绝对路径；避免安装 Git 后当前 Electron 进程的旧 PATH 仍找不到它。 */
+  private detectedBinaryPath: string | null = null
   private onProgress: ((p: SimpleGitProgressEvent) => void) | null = null
 
   constructor(private readonly configStore = new GitConfigStore()) {}
@@ -103,6 +105,7 @@ export class GitService {
     const settings = this.configStore.updateSettings(patch)
     if (before.gitPathMode !== settings.gitPathMode || before.gitPath !== settings.gitPath) {
       this.availability = null
+      this.detectedBinaryPath = null
       // 保留仓库队列链尾：正在执行的旧客户端完成后，新命令才会用新路径创建客户端，
       // 避免切换 Git 路径瞬间绕过已有写操作并发执行。
       this.cache.clear()
@@ -117,7 +120,9 @@ export class GitService {
 
   private binary(): string {
     const settings = this.getSettings()
-    return settings.gitPathMode === 'custom' && settings.gitPath ? settings.gitPath : 'git'
+    return settings.gitPathMode === 'custom' && settings.gitPath
+      ? settings.gitPath
+      : this.detectedBinaryPath ?? 'git'
   }
 
   private createGit(root?: string): SimpleGit {
@@ -185,27 +190,91 @@ export class GitService {
     const detectsConfiguredPath = candidatePath === undefined
     if (detectsConfiguredPath && !force && this.availability) return this.availability
 
+    const settings = this.getSettings()
+    const autoDetect = detectsConfiguredPath && settings.gitPathMode === 'auto'
+    const configuredBinary = settings.gitPathMode === 'custom' && settings.gitPath
+      ? settings.gitPath
+      : 'git'
     const binary = detectsConfiguredPath
-      ? this.binary()
+      ? configuredBinary
       : candidatePath?.trim() || 'git'
-    const result = await new Promise<GitAvailability>((resolve) => {
+    const candidates = autoDetect
+      ? this.getAutoDetectionCandidates(binary)
+      : [binary]
+
+    let result: GitAvailability | null = null
+    let detectedBinary: string | null = null
+    for (const candidate of candidates) {
+      result = await this.checkAvailability(candidate)
+      if (result.available) {
+        detectedBinary = await this.resolveExecutablePath(candidate)
+        result.path = detectedBinary
+        break
+      }
+    }
+    result ??= this.unavailableResult('No Git executable candidates were found.')
+
+    if (detectsConfiguredPath) {
+      if (autoDetect) {
+        const nextDetectedPath = result.available ? detectedBinary : null
+        if (this.detectedBinaryPath !== nextDetectedPath) {
+          this.detectedBinaryPath = nextDetectedPath
+          this.cache.clear()
+        }
+      }
+      this.availability = result
+    }
+    return result
+  }
+
+  private getAutoDetectionCandidates(binary: string): string[] {
+    const candidates = [binary]
+    if (process.platform === 'win32') {
+      for (const base of [
+        process.env.ProgramW6432,
+        process.env.ProgramFiles,
+        process.env['ProgramFiles(x86)'],
+        process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Programs') : undefined,
+      ]) {
+        if (!base) continue
+        candidates.push(
+          path.join(base, 'Git', 'cmd', 'git.exe'),
+          path.join(base, 'Git', 'bin', 'git.exe'),
+        )
+      }
+    } else if (process.platform === 'darwin') {
+      candidates.push(
+        '/opt/homebrew/bin/git',
+        '/usr/local/bin/git',
+        '/usr/local/git/bin/git',
+        '/usr/bin/git',
+      )
+    } else {
+      candidates.push('/usr/local/bin/git', '/usr/bin/git', '/snap/bin/git')
+    }
+    return [...new Set(candidates)]
+  }
+
+  private checkAvailability(binary: string): Promise<GitAvailability> {
+    return new Promise(resolve => {
       execFile(binary, ['--version'], { timeout: 15_000 }, (err, stdout) => {
         if (err) {
-          resolve({
-            available: false,
-            error: err.message,
-            installCommand: this.getInstallCommand(),
-            downloadUrl: 'https://git-scm.com/downloads',
-          })
-        } else {
-          const version = stdout.toString().replace(/^git version\s*/i, '').trim()
-          resolve({ available: true, version })
+          resolve(this.unavailableResult(err.message))
+          return
         }
+        const version = stdout.toString().replace(/^git version\s*/i, '').trim()
+        resolve({ available: true, version })
       })
     })
-    if (result.available) result.path = await this.resolveExecutablePath(binary)
-    if (detectsConfiguredPath) this.availability = result
-    return result
+  }
+
+  private unavailableResult(error: string): GitAvailability {
+    return {
+      available: false,
+      error,
+      installCommand: this.getInstallCommand(),
+      downloadUrl: 'https://git-scm.com/downloads',
+    }
   }
 
   private async resolveExecutablePath(binary: string): Promise<string> {

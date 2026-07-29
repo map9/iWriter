@@ -72,8 +72,23 @@ test('SCM regressions', async (t) => {
   await t.test('Git recheck bypasses an unavailable detection cache', () => {
     assert.match(gitServiceSource, /async detect\(force = false, candidatePath\?: string \| null\)/)
     assert.match(gitServiceSource, /if \(detectsConfiguredPath && !force && this\.availability\)/)
-    assert.match(gitServiceSource, /if \(detectsConfiguredPath\) this\.availability = result/)
+    assert.match(gitServiceSource, /this\.availability = result/)
     assert.match(panelSource, /git\.detect\(true\)/)
+  })
+
+  await t.test('Git recheck finds a newly installed executable without restarting', () => {
+    assert.match(gitServiceSource, /private detectedBinaryPath: string \| null = null/)
+    assert.match(gitServiceSource, /this\.detectedBinaryPath \?\? 'git'/)
+    assert.match(gitServiceSource, /getAutoDetectionCandidates\(binary\)/)
+    assert.match(gitServiceSource, /path\.join\(base, 'Git', 'cmd', 'git\.exe'\)/)
+    assert.match(gitServiceSource, /'\/opt\/homebrew\/bin\/git'/)
+    assert.match(gitServiceSource, /this\.detectedBinaryPath = nextDetectedPath/)
+  })
+
+  await t.test('Git install guide renders only one recheck action at a time', () => {
+    assert.match(panelSource, /v-if="!showInstallSteps"[^>]*@click="recheck"/)
+    assert.match(panelSource, /:disabled="rechecking"/)
+    assert.match(panelSource, /loading loading-spinner loading-xs/)
   })
 
   await t.test('sidebar navigation keeps its unused toolbar area draggable', () => {

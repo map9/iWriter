@@ -69,8 +69,9 @@
         <button class="btn btn-primary h-9 w-full" @click="showInstallSteps = !showInstallSteps">
           <IconDownload class="icon-sm" /><span>{{ t('sourceControl.installGit') }}</span>
         </button>
-        <button class="btn btn-ghost h-9 w-full" @click="recheck">
-          <IconRefresh class="icon-sm" /><span>{{ t('sourceControl.recheck') }}</span>
+        <button v-if="!showInstallSteps" class="btn btn-ghost h-9 w-full" :disabled="rechecking" @click="recheck">
+          <span v-if="rechecking" class="loading loading-spinner loading-sm"></span>
+          <IconRefresh v-else class="icon-sm" /><span>{{ t('sourceControl.recheck') }}</span>
         </button>
       </div>
       <div v-if="showInstallSteps" class="mt-4 w-full rounded-box border border-base-300 bg-base-200 p-3 text-left">
@@ -85,8 +86,9 @@
           <IconExternalLink class="icon-2xs" /><span>{{ t('sourceControl.installDownload') }}</span>
         </button>
         <p class="mb-2.5 text-2xs text-base-content/50">{{ t('sourceControl.installNote') }}</p>
-        <button class="btn btn-primary btn-sm h-8 w-full" @click="recheck">
-          <IconRefresh class="icon-2xs" /><span>{{ t('sourceControl.recheck') }}</span>
+        <button class="btn btn-primary btn-sm h-8 w-full" :disabled="rechecking" @click="recheck">
+          <span v-if="rechecking" class="loading loading-spinner loading-xs"></span>
+          <IconRefresh v-else class="icon-2xs" /><span>{{ t('sourceControl.recheck') }}</span>
         </button>
       </div>
     </div>
@@ -1050,6 +1052,7 @@ function statusColor(s: GitFileStatus): string {
 // —— 未检测到 Git 的安装引导（对齐 ui/panel.html .steps）——
 const showInstallSteps = ref(false)
 const installCopied = ref(false)
+const rechecking = ref(false)
 async function copyInstallCommand() {
   const cmd = gitStore.availability.installCommand
   if (!cmd) return
@@ -1062,8 +1065,14 @@ function openGitDownload() {
 }
 
 async function recheck() {
-  gitStore.availability = await window.electronAPI.git.detect(true)
-  await gitStore.onFolderChanged(appStore.currentFolder)
+  if (rechecking.value) return
+  rechecking.value = true
+  try {
+    gitStore.availability = await window.electronAPI.git.detect(true)
+    await gitStore.onFolderChanged(appStore.currentFolder)
+  } finally {
+    rechecking.value = false
+  }
 }
 
 async function initRepo() {
