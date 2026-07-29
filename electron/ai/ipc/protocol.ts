@@ -59,6 +59,8 @@ export interface SessionContextStatsResponse {
   visible: boolean
   currentTokens: number
   triggerTokens: number
+  requestBudgetTokens: number
+  keepTokens: number
   maxInputTokens?: number
 }
 

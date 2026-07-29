@@ -28,6 +28,16 @@ export interface AiModelProfile {
   structuredOutput?: boolean
 }
 
+/**
+ * iWriter runtime limits that are intentionally separate from LangChain's ModelProfile.
+ *
+ * ModelProfile describes model capabilities and physical context limits. Runtime policy describes
+ * the request size iWriter should actually use for this account/provider before auto-compacting.
+ */
+export interface AiModelRuntimePolicy {
+  maxRequestTokens?: number
+}
+
 // Provider configuration (stored by user)
 export interface AiProviderConfig {
   id: string
@@ -43,6 +53,8 @@ export interface AiProviderConfig {
   models?: string[]
   /** Per-model profile overrides used when LangChain does not know the model family. */
   modelProfiles?: Record<string, AiModelProfile>
+  /** Optional per-model runtime-budget overrides. Built-in providers normally do not need these. */
+  modelPolicies?: Record<string, AiModelRuntimePolicy>
   /** Last selected model ID for this provider (restored when switching back) */
   lastSelectedModelId?: string
   /** Last selected reasoning/thinking level for this provider */
@@ -50,9 +62,8 @@ export interface AiProviderConfig {
   /** Optional fallback model ID used by modelFallbackMiddleware when the primary model call fails. */
   fallbackModelId?: string
   /**
-   * Optional hard per-request token ceiling (TPM-safety backstop). When set, overrides the global
-   * HARD_REQUEST_CEILING_TOKENS for this provider — raise it for high-TPM accounts or local models,
-   * lower it for tight budgets. Omit to use the global default.
+   * Optional provider-wide request budget override. A modelPolicies entry takes precedence.
+   * Omit it to use iWriter's built-in model/provider policy and conservative unknown-model fallback.
    */
   maxRequestTokens?: number
 }

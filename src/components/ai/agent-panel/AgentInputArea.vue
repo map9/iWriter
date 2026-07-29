@@ -29,6 +29,8 @@
       :current-session-tokens="currentSessionTokens"
       :compact-progress-ratio="compactProgressRatio"
       :compact-trigger-tokens="compactTriggerTokens"
+      :compact-keep-tokens="compactKeepTokens"
+      :request-budget-tokens="requestBudgetTokens"
       :max-input-tokens="maxInputTokens"
       :session-usage="sessionUsage"
       @browse-files="browseFiles"
@@ -61,6 +63,8 @@ const {
   showCompact,
   currentSessionTokens,
   compactTriggerTokens,
+  compactKeepTokens,
+  requestBudgetTokens,
   compactProgressRatio,
   maxInputTokens,
   sessionUsage,

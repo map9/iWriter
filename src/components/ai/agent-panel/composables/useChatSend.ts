@@ -39,6 +39,8 @@ export function useChatSend(contextFiles: Ref<string[]>) {
   const showCompact = ref(false)
   const currentSessionTokens = ref(0)
   const compactTriggerTokens = ref(0)
+  const compactKeepTokens = ref(0)
+  const requestBudgetTokens = ref(0)
   const maxInputTokens = ref<number | null>(null)
   const sessionUsage = computed<ThreadUsage | null>(() => aiStore.activeThread?.usage ?? null)
   const compactProgressRatio = computed(() => {
@@ -57,6 +59,8 @@ export function useChatSend(contextFiles: Ref<string[]>) {
       showCompact.value = false
       currentSessionTokens.value = 0
       compactTriggerTokens.value = 0
+      compactKeepTokens.value = 0
+      requestBudgetTokens.value = 0
       maxInputTokens.value = null
       return
     }
@@ -76,11 +80,15 @@ export function useChatSend(contextFiles: Ref<string[]>) {
       showCompact.value = result.visible
       currentSessionTokens.value = result.currentTokens
       compactTriggerTokens.value = result.triggerTokens
+      compactKeepTokens.value = result.keepTokens
+      requestBudgetTokens.value = result.requestBudgetTokens
       maxInputTokens.value = result.maxInputTokens ?? null
     } catch {
       showCompact.value = false
       currentSessionTokens.value = 0
       compactTriggerTokens.value = 0
+      compactKeepTokens.value = 0
+      requestBudgetTokens.value = 0
       maxInputTokens.value = null
     }
   }
@@ -151,6 +159,8 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     showCompact,
     currentSessionTokens,
     compactTriggerTokens,
+    compactKeepTokens,
+    requestBudgetTokens,
     compactProgressRatio,
     maxInputTokens,
     sessionUsage,

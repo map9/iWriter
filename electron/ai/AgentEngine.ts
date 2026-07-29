@@ -18,7 +18,7 @@ import type { WebContents } from 'electron'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import type { BaseMessage } from '@langchain/core/messages'
 import type { ModelProfile } from '@langchain/core/language_models/profile'
-import { computeSummarizationDefaults, createDeepAgent, type DeepAgentRunStream } from 'deepagents'
+import { createDeepAgent, type DeepAgentRunStream } from 'deepagents'
 import { Command } from '@langchain/langgraph'
 import { HumanMessage, SystemMessage, isAIMessage, isToolMessage, isHumanMessage } from '@langchain/core/messages'
 import {
@@ -28,7 +28,10 @@ import {
 
 import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage } from '../../src/types/ai'
 import { isAiProviderUsable, resolveApiKeyReference } from '../../src/types/ai'
-import { HARD_REQUEST_CEILING_TOKENS } from '../../src/ai/model/model-budget'
+import {
+  resolveEffectiveModelBudget,
+  type EffectiveModelBudget,
+} from '../../src/ai/model/model-budget'
 import { estimateTextTokens } from '../../src/ai/model/token-estimation'
 import { createChatModel } from './providers/ModelFactory'
 import { SnapshotBroker } from './document/SnapshotBroker'
@@ -96,10 +99,8 @@ type TokenCounter = (messages: BaseMessage[], tools?: unknown) => number
 type SummarizationMiddlewareOptions = {
   model: BaseChatModel
   tokenCounter: TokenCounter
-}
-type ModelBudgetInfo = {
-  maxInputTokens?: number
-  triggerTokens: number
+  trigger: { type: 'tokens', value: number }
+  keep: { type: 'tokens', value: number }
 }
 type CreateDeepAgentWithSummarization = (
   params: Parameters<typeof createDeepAgent>[0] & {
@@ -107,36 +108,21 @@ type CreateDeepAgentWithSummarization = (
   },
 ) => DeepAgentInstance
 
-/**
- * Resolve the token threshold from DeepAgents' own summarization defaults.
- * Keeping this calculation beside the runtime prevents the context indicator and
- * request preflight from drifting away from the middleware that performs the
- * actual summarization.
- */
-function getDeepAgentsModelBudget(model: BaseChatModel): ModelBudgetInfo {
-  const { trigger } = computeSummarizationDefaults(model)
-  const profile = (model as BaseChatModel & { profile?: ModelProfile }).profile
-  const maxInputTokens = profile?.maxInputTokens
-
-  if (trigger.type === 'tokens' && Number.isFinite(trigger.value) && trigger.value > 0) {
-    return { triggerTokens: Math.floor(trigger.value) }
+function readModelProfile(model: BaseChatModel): ModelProfile | undefined {
+  try {
+    const profile = (model as BaseChatModel & { profile?: ModelProfile }).profile
+    return profile && typeof profile === 'object' ? profile : undefined
+  } catch {
+    return undefined
   }
+}
 
-  if (
-    trigger.type === 'fraction'
-    && Number.isFinite(trigger.value)
-    && trigger.value > 0
-    && typeof maxInputTokens === 'number'
-    && Number.isFinite(maxInputTokens)
-    && maxInputTokens > 0
-  ) {
-    return {
-      maxInputTokens,
-      triggerTokens: Math.floor(maxInputTokens * trigger.value),
-    }
-  }
-
-  throw new Error(`Unsupported DeepAgents summarization trigger: ${trigger.type}:${trigger.value}`)
+function getEffectiveModelBudget(
+  config: AiProviderConfig,
+  modelId: string,
+  model: BaseChatModel,
+): EffectiveModelBudget {
+  return resolveEffectiveModelBudget(config, modelId, readModelProfile(model))
 }
 
 export class AgentEngine {
@@ -315,7 +301,7 @@ export class AgentEngine {
     }
 
     const userContent = buildUserMessage(req)
-    await this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language, threadId)
+    this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language, threadId)
 
     // If this thread was left in an interrupted state (e.g., app restart during HITL),
     // clear the stale in-memory entry so the new message starts a fresh run.
@@ -344,6 +330,8 @@ export class AgentEngine {
         visible: false,
         currentTokens: 0,
         triggerTokens: 0,
+        requestBudgetTokens: 0,
+        keepTokens: 0,
       }
     }
 
@@ -366,13 +354,15 @@ export class AgentEngine {
       modelId: runtime.modelId,
       thinkingLevel: runtime.thinkingLevel,
     })
-    const budget = getDeepAgentsModelBudget(model)
+    const budget = getEffectiveModelBudget(runtime.providerConfig, runtime.modelId, model)
 
     const currentTokens = await this._getCurrentSessionTokens(req.threadId, runtime.domain, runtime.mode)
     return {
       visible: true,
       currentTokens,
       triggerTokens: budget.triggerTokens,
+      requestBudgetTokens: budget.requestBudgetTokens,
+      keepTokens: budget.keepTokens,
       maxInputTokens: budget.maxInputTokens,
     }
   }
@@ -1375,7 +1365,11 @@ export class AgentEngine {
     // produce a new agent instance rather than reusing a stale one.
     const resolvedApiKey = resolveApiKeyReference(config.apiKey, resolveAiApiKeyEnvVar)
     const keyFingerprint = resolvedApiKey ? resolvedApiKey.slice(-8) : ''
-    const cacheKey = `${threadId}:${config.id}:${domain}:${mode}:${modelId}:${thinkingLevel ?? ''}:${language}:${keyFingerprint}:${config.baseUrl ?? ''}:${config.fallbackModelId ?? ''}:${filesystemFingerprint}`
+    const budgetFingerprint = JSON.stringify([
+      config.maxRequestTokens ?? null,
+      config.modelPolicies?.[modelId]?.maxRequestTokens ?? null,
+    ])
+    const cacheKey = `${threadId}:${config.id}:${domain}:${mode}:${modelId}:${thinkingLevel ?? ''}:${language}:${keyFingerprint}:${config.baseUrl ?? ''}:${config.fallbackModelId ?? ''}:${budgetFingerprint}:${filesystemFingerprint}`
     const cached = this.agentCache.get(cacheKey)
     if (cached) return cached.agent
 
@@ -1385,6 +1379,7 @@ export class AgentEngine {
       skillSources,
     })
     const model = createChatModel(config, { modelId, thinkingLevel })
+    const budget = getEffectiveModelBudget(config, modelId, model)
     const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath, language })
     const memorySources = this._buildMemoryPaths(domain)
 
@@ -1405,6 +1400,8 @@ export class AgentEngine {
       // wastes reasoning budget and can make summaries contain non-text content blocks.
       model: createChatModel(config, { modelId, thinkingLevel, disableThinking: true }),
       tokenCounter: this._makeCjkTokenCounter(),
+      trigger: { type: 'tokens', value: budget.triggerTokens },
+      keep: { type: 'tokens', value: budget.keepTokens },
     }
 
     const agent = (createDeepAgent as unknown as CreateDeepAgentWithSummarization)({
@@ -1722,7 +1719,7 @@ export class AgentEngine {
     return buildMemorySources(this.aiRootPath, this.strategies[domain].getMemoryDir())
   }
 
-  private async _assertWithinBudget(
+  private _assertWithinBudget(
     config: AiProviderConfig,
     domain: AiAgentDomain,
     mode: AiAgentMode,
@@ -1731,32 +1728,27 @@ export class AgentEngine {
     userContent: string,
     language: DetectedInputLanguage = 'en-US',
     threadId?: string,
-  ): Promise<void> {
-    const systemPrompt = this.strategies[domain].getSystemPrompt(mode, language)
-    const userContentTokens = estimateTextTokens(userContent)
-    const inputTokens = estimateTextTokens(systemPrompt) + userContentTokens
+  ): void {
+    const workspacePath = threadId
+      ? this.runtimeStore.getContext(threadId)?.workspacePath ?? null
+      : null
+    const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath, language })
+    const requestTokens = this._countTokensCjkAware(
+      [
+        new SystemMessage(this.strategies[domain].getSystemPrompt(mode, language)),
+        new HumanMessage(userContent),
+      ],
+      capabilities.tools as unknown as Array<Record<string, unknown>>,
+    )
     const model = createChatModel(config, { modelId, thinkingLevel })
-    const budgetInfo = getDeepAgentsModelBudget(model)
+    const budget = getEffectiveModelBudget(config, modelId, model)
 
-    // New input alone must fit under the summarization trigger (nothing to compact yet if it doesn't).
-    if (inputTokens > budgetInfo.triggerTokens) {
+    // Only reject the part that summarization cannot reduce: the system prompt, tool schemas, and
+    // the new user message. Existing history may exceed the trigger because DeepAgents compacts it
+    // before the main model call using the exact same trigger/keep values.
+    if (requestTokens > budget.requestBudgetTokens) {
       throw new Error(
-        `当前请求预计约 ${inputTokens} tokens，已超过摘要触发预算 ${budgetInfo.triggerTokens}。请减少附件与上下文。`
-      )
-    }
-
-    // Hard TPM-safety backstop: the profile-based summarization trigger can sit far above the org's
-    // per-minute token budget, so the accumulated request (history + input) must also clear a hard
-    // ceiling. Fail fast with an actionable hint rather than hitting an opaque 429/400 mid-run.
-    // _getCurrentSessionTokens already includes the system prompt + tools + existing messages, so we
-    // add ONLY the new user input here — never the system prompt again (it would double-count and
-    // false-trip long sessions near the ceiling). The provider may override the global default.
-    const ceiling = config.maxRequestTokens ?? HARD_REQUEST_CEILING_TOKENS
-    const sessionTokens = await this._getCurrentSessionTokens(threadId, domain, mode)
-    const projectedTokens = sessionTokens + userContentTokens
-    if (projectedTokens > ceiling) {
-      throw new Error(
-        `本轮请求预计约 ${projectedTokens} tokens（历史 ${sessionTokens} + 新输入 ${userContentTokens}），已超过单次请求硬上限 ${ceiling}。请减少附件与上下文，或开启新会话继续。`
+        `当前输入与固定上下文预计约 ${requestTokens} tokens，已超过模型 ${modelId} 的单次运行预算 ${budget.requestBudgetTokens}。请减少附件或输入内容。`
       )
     }
   }

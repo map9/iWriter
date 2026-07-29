@@ -1629,6 +1629,7 @@ export class App {
 
     ipcMain.handle('ai:update-config', async (_, settings: AiSettings) => {
       AiConfigStore.saveSettings(settings)
+      this._agentEngine?.invalidateAgentCache()
     })
 
     ipcMain.handle('ai:get-threads', async () => {

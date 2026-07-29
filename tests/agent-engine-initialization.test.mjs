@@ -4,6 +4,7 @@ import { build } from 'esbuild'
 
 let modulePromise
 let localeModulePromise
+let budgetModulePromise
 
 function stubPlugin() {
   return {
@@ -51,7 +52,7 @@ function stubPlugin() {
         [
           /^deepagents$/,
           'deepagents',
-          'export function createDeepAgent() { return { streamEvents() {} } } export function computeSummarizationDefaults() { return { trigger: { type: "tokens", value: 173123 }, keep: { type: "messages", value: 6 }, truncateArgsSettings: {} } }',
+          'export function createDeepAgent(options) { globalThis.__iwriterDeepAgentOptions = options; return { streamEvents() {} } }',
         ],
         [
           /^langchain$/,
@@ -64,11 +65,6 @@ function stubPlugin() {
           'export function isAiProviderUsable() { return true } export function resolveApiKeyReference() { return null }',
         ],
         [
-          /src\/ai\/model\/model-budget$/,
-          'model-budget',
-          'export const HARD_REQUEST_CEILING_TOKENS = 200000',
-        ],
-        [
           /src\/ai\/model\/token-estimation$/,
           'token-estimation',
           'export function estimateTextTokens(text) { return String(text ?? "").length }',
@@ -76,7 +72,7 @@ function stubPlugin() {
         [
           /providers\/ModelFactory$/,
           'model-factory',
-          'export function createChatModel() { return { invoke: async () => ({ content: "" }), profile: {} } }',
+          'export function createChatModel(config) { return { invoke: async () => ({ content: "" }), profile: config?.type === "deepseek" ? { maxInputTokens: 1000000 } : {} } }',
         ],
         [
           /document\/SnapshotBroker$/,
@@ -126,7 +122,7 @@ function stubPlugin() {
         [
           /scaffold\/filesystem\/AgentFilesystem$/,
           'agent-filesystem',
-          'export const FILE_WRITE_INTERRUPT_ON_NAMES = []; export function buildAgentFilesystem() { return { tools: [], middleware: [], tempDirs: [] } }',
+          'export const FILE_WRITE_INTERRUPT_ON_NAMES = []; export function buildAgentFilesystem() { return { backend: {}, tools: [], middlewares: [], interruptOn: {}, tempDirs: [] } }',
         ],
         [
           /scaffold\/approval\/FilesystemApprovalPolicy$/,
@@ -191,12 +187,12 @@ function stubPlugin() {
         [
           /domain\/edit\/EditDomainStrategy$/,
           'edit-domain-strategy',
-          'export class EditDomainStrategy { constructor() {} getMemoryDir() { return "edit" } }',
+          'export class EditDomainStrategy { constructor() {} getMemoryDir() { return "edit" } getSkillSources() { return [] } buildCapabilities() { return { tools: [], interruptOn: {}, subAgents: [] } } getSystemPrompt() { return "system" } }',
         ],
         [
           /domain\/creative\/CreativeDomainStrategy$/,
           'creative-domain-strategy',
-          'export class CreativeDomainStrategy { constructor() {} getMemoryDir() { return "creative" } }',
+          'export class CreativeDomainStrategy { constructor() {} getMemoryDir() { return "creative" } getSkillSources() { return [] } buildCapabilities() { return { tools: [], interruptOn: {}, subAgents: [] } } getSystemPrompt() { return "system" } }',
         ],
         [
           /src\/ai\/message\/detectInputLanguage$/,
@@ -259,6 +255,23 @@ async function loadLocaleMessages() {
   return localeModulePromise
 }
 
+async function loadBudgetModule() {
+  if (!budgetModulePromise) {
+    budgetModulePromise = (async () => {
+      const result = await build({
+        entryPoints: ['src/ai/model/model-budget.ts'],
+        bundle: true,
+        platform: 'node',
+        format: 'esm',
+        write: false,
+      })
+      const code = result.outputFiles[0].text
+      return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+    })()
+  }
+  return budgetModulePromise
+}
+
 describe('AgentEngine initialization', () => {
   it('coalesces concurrent first-use initialization', async () => {
     const { AgentEngine } = await loadModule()
@@ -305,9 +318,104 @@ describe('AgentEngine initialization', () => {
     assert.deepEqual(stats, {
       visible: true,
       currentTokens: 0,
-      triggerTokens: 173123,
+      triggerTokens: 27200,
+      requestBudgetTokens: 32000,
+      keepTokens: 3200,
       maxInputTokens: undefined,
     })
+  })
+
+  it('passes the effective request budget to DeepAgents summarization', async () => {
+    const { AgentEngine } = await loadModule()
+    const engine = new AgentEngine(() => null)
+
+    engine._getOrCreateAgent(
+      'thread-budget',
+      {
+        id: 'deepseek',
+        type: 'deepseek',
+        label: 'DeepSeek',
+        apiKey: 'test',
+        defaultModelId: 'deepseek-v4-pro',
+        enabled: true,
+      },
+      'editing',
+      'edit',
+      'deepseek-v4-pro',
+      'medium',
+    )
+
+    const options = globalThis.__iwriterDeepAgentOptions.summarizationMiddlewareOptions
+    assert.deepEqual(options.trigger, { type: 'tokens', value: 510000 })
+    assert.deepEqual(options.keep, { type: 'tokens', value: 60000 })
+  })
+})
+
+describe('Effective model budget', () => {
+  it('uses built-in provider policy for existing and newly released OpenAI models', async () => {
+    const { resolveEffectiveModelBudget } = await loadBudgetModule()
+    const config = { type: 'openai-compat', presetId: 'openai' }
+
+    assert.deepEqual(
+      resolveEffectiveModelBudget(config, 'gpt-5.4', { maxInputTokens: 1050000 }),
+      {
+        maxInputTokens: 1050000,
+        requestBudgetTokens: 200000,
+        triggerTokens: 170000,
+        keepTokens: 20000,
+        source: 'builtin-provider',
+      },
+    )
+    assert.equal(
+      resolveEffectiveModelBudget(config, 'gpt-new-model', { maxInputTokens: 1000000 })
+        .requestBudgetTokens,
+      200000,
+    )
+    assert.equal(
+      resolveEffectiveModelBudget(config, 'gpt-even-newer-model').requestBudgetTokens,
+      32000,
+    )
+  })
+
+  it('applies model exceptions and caps overrides at the physical context limit', async () => {
+    const { resolveEffectiveModelBudget } = await loadBudgetModule()
+    const config = {
+      type: 'openai-compat',
+      presetId: 'openai',
+      modelPolicies: {
+        custom: { maxRequestTokens: 50000 },
+      },
+    }
+
+    assert.equal(
+      resolveEffectiveModelBudget(config, 'gpt-5.4-pro', { maxInputTokens: 1050000 })
+        .requestBudgetTokens,
+      12000,
+    )
+    assert.deepEqual(
+      resolveEffectiveModelBudget(config, 'custom', { maxInputTokens: 16000 }),
+      {
+        maxInputTokens: 16000,
+        requestBudgetTokens: 16000,
+        triggerTokens: 13600,
+        keepTokens: 1600,
+        source: 'model-override',
+      },
+    )
+  })
+
+  it('uses a conservative fallback only for unknown compatible providers', async () => {
+    const { resolveEffectiveModelBudget } = await loadBudgetModule()
+    const budget = resolveEffectiveModelBudget(
+      { type: 'openai-compat', presetId: 'custom', baseUrl: 'https://example.com/v1' },
+      'brand-new-model',
+      { maxInputTokens: 1000000 },
+    )
+
+    assert.equal(budget.requestBudgetTokens, 32000)
+    assert.equal(budget.triggerTokens, 27200)
+    assert.equal(budget.keepTokens, 3200)
+    assert.equal(budget.source, 'unknown-model')
   })
 })
 

@@ -82,12 +82,12 @@ iWriter 的 AI 运行时已经切换到：
 ## 长会话上下文管理
 
 - 会话历史摘要由 `createDeepAgent` 内置的 SummarizationMiddleware 在达到阈值后自动执行，iWriter 不提供手动摘要入口。
-- 自动摘要阈值、工具栏上下文进度和发送前预算检查都读取 DeepAgents 的 `computeSummarizationDefaults(model)`，不在 iWriter 中维护第二套默认值。
-- 模型提供 `profile.maxInputTokens` 时，DeepAgents 按模型上下文上限计算 fraction 阈值；没有 profile 时，使用 DeepAgents 自身的固定 token 兜底配置。
-- 工具栏圆环是只读状态指示器，显示当前会话 token、自动摘要阈值以及可用时的模型上下文上限。DeepAgents JavaScript 当前没有直接压缩既有会话的公开 API，因此点击圆环不会触发摘要。
+- `src/ai/model/model-budget.ts` 计算唯一的 `effectiveBudget`，自动摘要、发送前预算检查、token 进度和工具栏提示共同读取该结果。DeepAgents 收到显式的 token `trigger` / `keep`，不再自行按完整 context window 计算另一套阈值。
+- LangChain `ModelProfile` 只描述能力和物理上下文上限，不承载账号 TPM。iWriter 的运行预算由内置 model/provider policy、可选 `modelPolicies[modelId].maxRequestTokens` 和 provider 级 `maxRequestTokens` 决定，最终不会超过 `profile.maxInputTokens`。
+- 内置运行预算当前为：OpenAI 200k（`gpt-5.4-pro` 12k）、DeepSeek 600k、Anthropic 800k、Gemini 128k；新模型在 LangChain 已知 context profile 时继承 provider policy，完全未知模型保守使用 32k。用户无需逐模型配置，只有实际账号配额不同时才需要覆盖。
+- 自动摘要在运行预算的 85% 触发，压缩后保留约 10% 的最近上下文（上限 100k）。发送前检查只拒绝摘要无法缩小的系统提示、工具 schema 和本轮新输入；累积历史超过阈值时交由摘要中间件先压缩，不再由全局 250k 上限提前失败。
+- 工具栏圆环是只读状态指示器，显示当前有效会话 token、自动摘要阈值、压缩保留量、单次运行预算以及可用时的模型物理上下文上限。DeepAgents JavaScript 当前没有直接压缩既有会话的公开 API，因此点击圆环不会触发摘要。
 - 摘要结果通过 checkpoint 的 `_summarizationEvent` 保存，较早的完整消息由 DeepAgents offload 到 conversation history。
-
-`HARD_REQUEST_CEILING_TOKENS` 是独立的单次请求 / TPM 安全上限，不是自动摘要阈值；provider 可以单独覆盖该上限。
 
 ## Edit 模式
 

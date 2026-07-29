@@ -36,6 +36,8 @@
         @mouseenter="handleCompactMouseEnter"
         @mouseleave="handleCompactMouseLeave"
         class="btn btn-ghost btn-square btn-xs cursor-default"
+        role="img"
+        :aria-label="t('agentPanel.toolbar.compactThreshold')"
       >
         <svg viewBox="0 0 20 20" class="icon-xs">
           <circle
@@ -106,6 +108,8 @@ const props = defineProps<{
   currentSessionTokens: number
   compactProgressRatio: number
   compactTriggerTokens: number
+  compactKeepTokens: number
+  requestBudgetTokens: number
   maxInputTokens: number | null
   /** Real accumulated token usage for this thread (null if no run yet). */
   sessionUsage: ThreadUsage | null
@@ -167,6 +171,16 @@ const compactTooltip = computed<TooltipContent>(() => {
     t('agentPanel.toolbar.tokensUsed', {
       current: formatCompactTokens(props.currentSessionTokens),
       max: formatCompactTokens(props.compactTriggerTokens),
+    }),
+    '<br>',
+    t('agentPanel.toolbar.automaticCompactHint'),
+    '<br>',
+    t('agentPanel.toolbar.compactKeep', {
+      keep: formatCompactTokens(props.compactKeepTokens),
+    }),
+    '<br>',
+    t('agentPanel.toolbar.requestBudget', {
+      max: formatCompactTokens(props.requestBudgetTokens),
     }),
   ]
 
