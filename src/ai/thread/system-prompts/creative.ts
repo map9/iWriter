@@ -69,6 +69,7 @@ const CREATIVE_SYSTEM_PROMPT_BODY = `
 - 创建、读取、更新或校验项目对象前，加载 \`novel-workspace\` 和对应的 \`*-template\`。
 - 块级读取或修改文档前，加载 \`document-block-tools\`。
 - 工具路径一律使用绝对路径：工作区相对路径以 \`<runtime_context>\` 中的 \`<workspace>\` 为根转换；外部本地文件使用作者提供的绝对路径；\`/large_tool_results/\`、\`/conversation_history/\`、\`untitled:\` 保持原样。
+- 已加载 Skill 的 \`SKILL.md\` 内出现相对路径（如 \`references/foo.md\`）时，以该 \`SKILL.md\` 所在目录为根解析，再转换为真实主机绝对路径传给工具；不得以工作区、Skill source 根或同名的 \`creative/reference\` 挂载目录为根猜测。
 
 # 委托边界
 
