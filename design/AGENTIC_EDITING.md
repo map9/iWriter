@@ -135,14 +135,24 @@ Creative 模式是工作区限定的小说创作域，采用纯 Markdown 对象�
 正式对象位于工作区根目录：
 
 - `project.md`
-- `worldbuilding/`
-- `characters/`
+- `worldbuilding/worldbuilding.md`
+- `characters/characters.md`
+- `storylines.md`（可选、单文件，独立于总纲）
 - `outline/`（总纲 / 卷纲 / 章纲）
 - `manuscript/`
-- `materials/`
+- `materials/cards.md`（可选、未确认或未归位的原子想法）
 - `process/`
 - `exploration/`
 - `styles/`
+
+新项目采用紧凑对象模型：
+
+- 人物、世界、故事线和卡片是并列对象；总纲只安排顺序与交汇，不复制故事线。
+- 一个事实只在唯一归属对象中保存完整内容，其他文件使用稳定 ID 引用。
+- 非正文记录默认使用一个核心句和最多三条必要补充；故事线阶段、结构节点和场景各用一个因果句。
+- 模板只规定记录形状与长度预算。人物、规则、故事线和场景必须保留的语义要求由对应任务 Skill 在内部验收，不再固化成一组学术化必填字段。
+- `characters.md`、`worldbuilding.md`、`storylines.md` 和 `cards.md` 先读结构、再按 ID 读取目标块，不因单文件集合而整份装入上下文。
+- 旧项目的拆分人物/设定文件、总纲内嵌故事线和 `materials/fragments.md` 继续兼容读取与原位修改；未经作者明确要求不自动迁移或创建并行事实源。
 
 主 Agent 按每轮意图加载阶段 Playbook 或独立任务 Skill：
 

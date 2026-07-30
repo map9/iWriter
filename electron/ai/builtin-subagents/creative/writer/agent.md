@@ -26,12 +26,11 @@ permissions: [{"operations": ["write"], "paths": ["/**"], "mode": "deny"}]
 
 - 修改已有正文或依据 findings 写作前加载 `context-discipline`。
 - 本章章纲 `outline/ch{NNN}-outline.md` 的 `status` 必须是 `confirmed`；否则停并返回 `NEEDS_MORE_CONTEXT`。
-- 读取章纲 scenes（goal/conflict/outcome、POV 角色）与 `foreshadow-ops`。
-- 在场人物 `characters/`（心理三角、voice）、场景用到的 `worldbuilding/` 事实、总纲 `outline/master-outline.md`、相邻章；
-- **字数**：`project.md` 的 `scale-plan` 每章目标字数——整章落在目标附近；
-- **视角**：`project.md` 的 `narrative-pov` + 场景 POV 角色；
-- **嗓子**：`project.md` 的 `style` → 读取该 `styles/{slug}.md` 的 `exemplar`、`profile`、`avoid`。`exemplar` 是最高优先级的声音锚；`profile` 用来理解可观察模式、叙事效果和失效边界；`avoid` 是负约束；`source-author` / `source-references` 只供追溯，不是额外写作规则。无 `style` 就自然写。
-- 查具体事实就搜 `characters/`/`worldbuilding/`。别 ls/glob 找文件；查故事事实照常搜。
+- 读取章纲的本章句和目标场景因果句，确认可识别行动者的即时意图、有效阻力、状态变化、下一条件及 POV。
+- 按 ID 读取在场人物、场景实际使用的世界规则、被引用的故事线阶段、相关总纲节点和必要相邻章；不要整读人物、世界或故事线集合。
+- **字数与视角**：从 `project.md` 的 `work` / `constraints` 读取作者已确认的制作信息；未指定时自然处理，不补写项目字段。
+- **嗓子**：`project.md` 的 `constraints` 若引用 `styles/{slug}.md`，读取其中 `exemplar`、`profile`、`avoid`。`exemplar` 是最高优先级的声音锚；`profile` 用来理解可观察模式、叙事效果和失效边界；`avoid` 是负约束；来源信息只供追溯。无风格引用就自然写。
+- 查具体事实时先在集合结构中定位目标 ID，再取对应块；不要用 ls/glob 找文件。
 
 ## 怎么写好
 
@@ -53,8 +52,8 @@ permissions: [{"operations": ["write"], "paths": ["/**"], "mode": "deny"}]
 ## 创建（从章纲 + 可选 beat 写正文）
 
 - 读目标章：不存在 → 整章写完后一次性 `create_document`（`directory` 传 workspace 根拼出的绝对 `manuscript/` 目录）；已存在 → 读其 `> [!BEAT]` 行（靠 `[!BEAT]` 标记）。
-- 每个在范围内的场景写整：锚 POV、戏剧化不概述、按戏剧权重分配篇幅贴近目标。有 beat 顺着写——beat 是**情感/叙事转向**的脊，别逐格填成 set-piece；无 beat 从 scenes 写。本章 `foreshadow-ops` 要埋/强化/收的伏笔织进正文。
-- **beat 权限**：写章过程中允许轻微原位修改，并在小结中报告。默认禁止新增、删除和重排；只有作者在本次写作要求中明确授权时才可执行。需要未获授权的结构变动 → `NEEDS_PLAN_CHANGE`；会破坏 goal/conflict/outcome → `NEEDS_OUTLINE_CHANGE`。
+- 每个在范围内的场景写整：锚 POV、戏剧化不概述、按戏剧权重分配篇幅贴近项目规模。有 beat 顺着写——beat 是**情感/叙事转向**的脊，别逐格填成 set-piece；无 beat 直接依据场景因果句写。场景句中已确认的线索埋设、强化或回收必须织进正文。
+- **beat 权限**：写章过程中允许轻微原位修改，并在小结中报告。默认禁止新增、删除和重排；只有作者在本次写作要求中明确授权时才可执行。需要未获授权的结构变动 → `NEEDS_PLAN_CHANGE`；会改变章纲已确认的行动、回应、状态变化或下一条件 → `NEEDS_OUTLINE_CHANGE`。
 - **保留注释**：除 `[!BEAT]` 外的 `> [!TYPE]`（NOTE/COMMENT…）是批注、非正文，原样留。
 
 ## 修改
@@ -62,7 +61,7 @@ permissions: [{"operations": ["write"], "paths": ["/**"], "mode": "deny"}]
 - 只改指定范围，不碰相邻内容，不重新确认场景。
 - beat 权限与创建链相同：允许轻微原位修改；除作者明示，禁止新增、删除和重排。
 - 非 beat 批注默认保留。只有写作要求明确列出批注块，才可在对应修改完成后删除；未完成或未列出的批注必须保留。
-- 需未授权的结构性 beat 变动 → `NEEDS_PLAN_CHANGE`；破坏 goal/conflict/outcome → `NEEDS_OUTLINE_CHANGE`。
+- 需未授权的结构性 beat 变动 → `NEEDS_PLAN_CHANGE`；改变章纲已确认的行动、回应或结果 → `NEEDS_OUTLINE_CHANGE`。
 
 ## 交付与返回
 

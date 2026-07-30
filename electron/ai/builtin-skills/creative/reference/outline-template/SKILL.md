@@ -1,90 +1,110 @@
 ---
 name: outline-template
-description: 创建、读取、更新或校验 novel workspace 的总纲、卷纲和章纲时使用；定义三层提纲 schema、状态令牌与职责边界。
+description: 创建、读取、更新或校验 storylines.md、总纲、卷纲和章纲时使用；定义独立故事线、紧凑因果记录、提纲状态与引用边界。
 ---
 
-# 大纲模板
+# 故事线与提纲模板
 
 **前置 Skill：** `novel-workspace`
 
 ## 管理对象
 
 ```text
-{workspace}/outline/
-  master-outline.md     # 必需：全书因果骨架
-  vol{NN}-outline.md    # 条件必需：启用卷纲后每卷一份
-  ch{NNN}-outline.md    # 懒创建：写对应章节前必须存在
+{workspace}/storylines.md              # 可选：全部独立故事线
+{workspace}/outline/master-outline.md  # 必需
+{workspace}/outline/vol{NN}-outline.md # 条件必需
+{workspace}/outline/ch{NNN}-outline.md # 懒创建
 ```
 
-总纲和卷纲是事件/阶段级骨架；章纲是场景级直接写作依据。三类文件的 `status` 固定为 `draft` / `confirmed`，不随输出语言本地化。
+故事线不是总纲的字段。它可以先于总纲存在，也可以被总纲、卷纲、章纲和卡片引用。
+
+## 故事线
+
+```markdown
+# 故事线
+
+## 两个陈默（line-double-chenmo）
+
+两个陈默从争夺唯一身份、互相拆台，发展到发现制度准备同时清除他们，最终联手逼迫投票体系失效。
+
+### 争夺身份（beat-compete）
+两人分别拉拢亲友为自己投票，却因互相揭短让苏晚开始怀疑两边都不是原来的丈夫。
+
+### 拒绝二留一（beat-refuse-one）
+两人发现裁决所无论票型如何都准备灭口，因此共同公开程序漏洞，把私人竞争变成对制度的反击。
+```
+
+- 每条线一个核心句；每个阶段一个因果句。
+- 阶段句应包含推动行动、对方或世界的回应、实际变化，以及由此产生的新条件；这些要求不拆成字段。
+- 故事线只保存自身变化。它落在哪一卷、哪一章以及与其他线何时交汇，由提纲引用和安排。
 
 ## 总纲
 
-`master-outline.md` 的 H2 字段：
+```markdown
+# 总纲
 
-- `status`（必选）：`draft` / `confirmed`。
-- `premise`（必选）：与 `project.md` 一致，可展开为 1–3 句。
-- `storylines`（必选）：至少包含主线；复线按作品需要存在。每条故事线使用 H3 分节，写推动者、戏剧问题、对抗来源、变化路径、主线交汇与闭合方式。
-- `structure-nodes`（必选）：全书因果骨架。节点数量和结构法不固定；每个 H3 节点包含：
-  - `entry-state`：进入节点时的承重状态；
-  - `character-decision`：人物基于当前信息作出的决定；
-  - `opposition-response`：对抗方或世界的回应；
-  - `irreversible-change`：不可逆变化；
-  - `cost-or-reveal`：代价或揭示；
-  - `next-pressure`：由此产生的下一重压力；
-  - `storyline-arc-refs`：推进的故事线和人物弧光。
-- `theme-beats`（必选）：主题通过哪些具体选择及后果落地，引用结构节点。
-- `arc-intersections`（必选）：主要人物弧光在哪些节点互相改变。
-- `foreshadow-intents`（可选）：伏笔的叙事作用、真实指向和大致揭示节点；具体埋/强/收仍归章纲。
-- `volume-index`（启用卷纲时必选）：各卷目标和对应文件引用。
-- `candidate-directions`（可选）：只引用 `exploration/` 中尚未确认的方向，不把候选写成结构事实。
+## 状态（status）
+draft
+
+## 结构节点（nodes）
+
+### 票型僵局（node-vote-deadlock）
+苏晚投给 B 打破岳父布局；两个陈默随即拒绝“二留一”并促使孙磊弃权，使票型回到 2:2，双消成为无法回避的结果。推进：beat-refuse-one。
+```
+
+- `status` 必须为 `draft` 或 `confirmed`。
+- 总纲只保存全书顺序、节点间因果、故事线交汇和结局落点，不复制 `project.md`、人物卡或完整故事线。
+- 每个节点用一个因果段合并人物决定、回应、变化、代价/揭示和下一压力。
+- 可选的卷索引只写卷 ID、范围和文件引用。
 
 ## 卷纲
 
-`vol{NN}-outline.md` 的 H2 字段：
+```markdown
+# 第一卷
 
-- `name`（必选）：卷名。
-- `status`（必选）：`draft` / `confirmed`。
-- `structural-role`（必选）：对应总纲的范围和本卷必须完成的变化。
-- `dramatic-question`（必选）：贯穿本卷、卷末会得到阶段性回答的问题。
-- `entry-state`（必选）：人物、关系、资源和信息的本卷入口状态。
-- `core-conflict`（必选）：持续施压的对抗来源及其升级逻辑。
-- `phase-shifts`（必选）：本卷因果阶段；每段写触发、人物策略、对抗回应、代价和新状态，不按章节数平均切割。
-- `arc-stage`（必选）：主要人物本卷的测试、选择与阶段变化，引用角色完整弧光。
-- `volume-climax`（必选）：本卷高潮中的关键决定、代价和兑现。
-- `exit-state`（必选）：卷末具体状态和进入下一卷的新条件。
-- `chapter-list`（必选）：按故事顺序列出本卷章纲文件；规划早期可以使用本地化待定占位符。
-- `transition-notes`（可选）：与相邻卷的承接。
+## 状态（status）
+draft
+
+## 本卷（volume）
+陈默从试图证明自己是唯一真身，走到发现身份制度本身无法证明任何人，并以失去家庭信任为代价进入公开对抗。
+
+## 阶段（stages）
+
+### 第一次拉票（stage-first-vote）
+……
+
+## 章节（chapters）
+- ch001-outline.md：……
+```
+
+`volume` 用一至三句合并入口、贯穿压力、关键变化和出口；每个阶段仍用一个因果句。章节表只保存顺序、任务短句和引用。
 
 ## 章纲
 
-`ch{NNN}-outline.md` 的 H2 字段：
+```markdown
+# 第十二章
 
-- `name`（必选）：章名。
-- `status`（必选）：`draft` / `confirmed`。
-- `structural-role`（必选）：对应总纲/卷纲的结构任务。
-- `chapter-question`（必选）：本章由谁推动、要解决什么、主要阻力是什么。
-- `entry-state`（必选）：本章开始时直接影响行动的状态。
-- `scenes`（必选）：场景链。每个实例使用 `### 本地化名称（scene-N）`，其内部字段为 H4：
-  - `location-time`（必选）：地点与时间；
-  - `characters-pov`（必选）：出场人物与 POV；
-  - `entry-state`（必选）：进入场景时的处境、认知或关系状态；
-  - `goal`（必选）：POV 人物可验证的短期目标；
-  - `conflict`（必选）：主动回应其策略的阻力；
-  - `turn`（必选）：迫使人物改变策略、选择或理解的转折；
-  - `outcome`（必选）：未达成、带代价达成、或达成后暴露新问题；
-  - `causal-handoff`（必选）：结果怎样造成下一场或下一章的条件；
-  - `tone-pacing`（可选）：情绪基调和戏剧速度；
-  - `information-reveal`（可选）：读者与人物各自获得或仍缺失的信息。
-- `exit-state`（必选）：本章结束后的承重状态。
-- `storyline-advance`（可选）：推进的故事线引用。
-- `foreshadow-ops`（可选）：本章具体埋、强化或回收的伏笔，含内容、真实作用和计划回收位置。
-- `hook-cliffhanger`（可选）：由本章已有因果产生的开篇钩子或结尾悬念。
-- `transition-notes`（可选）：与相邻章节的必要承接。
+## 状态（status）
+confirmed
 
-## 状态与边界
+## 本章（chapter）
+陈默本想借旧伤证明身份，却因魏志红透露苏晚曾来过，从求证转为怀疑妻子。
 
-- Agent 新写或修改 `manuscript/ch{NNN}.md` 前，目标章纲必须存在、`status: confirmed`，且场景的 goal / conflict / outcome 完整；`novel-import` 机械导入既有正文的例外遵循 `novel-workspace`。
-- `draft → confirmed` 只能由作者确认推动，不自动推进。
-- 提纲只写故事事实，不写文风、措辞、镜头强调或给 writer 的操作指令。
-- 伏笔的具体操作只在章纲 `foreshadow-ops` 维护；总纲只保留叙事意图，避免两份状态表漂移。
+## 场景（scenes）
+
+### 医院求证（scene-hospital-proof）
+陈默去医院让魏志红确认旧伤；魏志红拒绝配合却透露苏晚来过，使陈默放弃继续逼问，转而调查妻子的行踪。时空/视角：当日下午，医院，陈默。
+```
+
+- `status` 必须为 `draft` 或 `confirmed`。
+- `chapter` 用一句话说明本章谁发动、受到什么有效阻力、最终改变什么。
+- 每个场景用一个因果句合并即时意图、主动阻力、转折、结果和下一条件；时空、POV、信息差或伏笔只有不清楚时再补一行。
+- 场景是否可写由 `chapter-outline.md` 的语义验收决定，不以出现某几个字段名判断。
+- 具体伏笔动作直接写进发生它的场景；未归位线索先留在卡片池，真实指向归其人物、世界或故事线事实源。
+
+## 状态与兼容
+
+- `draft → confirmed` 只能由作者确认推动。
+- writer 新写或修改正文前，目标章纲必须 `confirmed`，并通过场景可写性验收。
+- 旧项目中总纲内嵌故事线、分字段节点和分字段场景继续原位读取和维护；未经作者批准不自动迁移。
+- 新格式不得为了兼容旧字段而同时保存两套同义内容。

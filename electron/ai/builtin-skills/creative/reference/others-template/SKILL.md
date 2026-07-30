@@ -1,66 +1,41 @@
 ---
 name: others-template
-description: 创建、读取、更新或校验 materials/、process/ 与 .iwriter/status.md 时使用；定义素材、待决问题、变更、评审结果和派生状态对象。
+description: 创建、读取、更新或校验 materials/cards.md、process/ 与 .iwriter/status.md 时使用；定义低摩擦卡片、紧凑过程记录与派生状态边界。
 ---
 
-# 素材 / 过程 / 状态模板
+# 卡片、过程与状态模板
 
 **前置 Skill：** `novel-workspace`
 
-## 管理对象
+## 卡片池
 
-```text
-{workspace}/
-  materials/fragments.md         # 可选：素材捕获，单文件多条目
-  process/open-questions.md      # 可选：待决创作抉择
-  process/changelog.md           # 可选：累积创作叙事，追加写
-  process/review-findings.md     # 可选、懒创建：审校 / 反馈缺陷清单（跨会话）
-  .iwriter/status.md             # 可选：派生状态摘要缓存（可丢弃、非真相）
+`materials/cards.md` 是尚未确认或尚未归位的原子想法池。每张卡一个 H2：
+
+```markdown
+# 卡片
+
+## 魏志红刀伤（card-weizhihong-injury）
+
+陈默曾为魏志红打架受刀伤，住院两个月。
+
+`设想 · 未归位 · 关联：char-chenmo、char-weizhihong`
 ```
 
-## 字段约定
+- 内容默认一句话，不强制类型、时间或用途。
+- 元数据压成一行，最多记录确定程度、位置和直接关联。
+- 确定程度与位置是两件事：可以“已确认但未进入故事线”，也可以“设想中但已关联某条线”。
+- 作者说“记一下”“先放着”时直接记录，不追问分类。
+- 采用后把完整事实移动到唯一归属对象；原卡删除或仅保留去向指针，不保留副本。
 
-**`materials/fragments.md`**（每条一个三级标题分节）
-- `raw-content`（必选）：原始内容——一句话 / 几个词 / 情绪 / 问题，不强制分类。
-- `type`（必选）：场景念头 / 对话片段 / 人物细节 / 伏笔想法 / 情绪意象 / 调研笔记 / 未分类。
-- `recorded-at`（必选）：记录时间，按时序排。
-- `adoption-status`（必选）：未采用 / 已采用。
-- `related-refs`（可选）：可能关联的角色 / 章节 / 结构节点。
-- `adopted-into`（已采用必选）：并入了哪个对象文件。
+## 过程文件
 
-**`process/open-questions.md`**（待决创作抉择，非技术 TODO；表格或分条）
-- `question`（必选）：问题描述。
-- `context-ref`（必选）：出现章节 / 上下文。
-- `raised-at`（必选）：提出时间。
-- `status`（必选）：待决策 / 已解决。
-- `resolved-into`（已解决必选）：解决后归档去向。
+- `process/open-questions.md`：每项一个问题句，加必要上下文 ID；解决后写一行去向，不复述答案全文。
+- `process/changelog.md`：只记已确认的重要变化、原因和对象 ID；不复制改前改后的故事内容。
+- `process/review-findings.md`：保存确需跨会话处理的稿件缺陷、证据引用、严重度和状态；详细临时评审优先留在 `/large_tool_results/`。
+- `.iwriter/status.md`：可丢弃的派生缓存，目标 500–1000 token；与正式对象冲突时始终以正式对象为准。
 
-**`process/changelog.md`**（累积创作叙事，追加写、按时序；只记已确认的重要变化）
-- `timestamp-version`（必选）：时间 / 版本号。
-- `summary`（必选）：为什么这么改、对故事的影响。
-- `scope`（必选）：影响的对象 / 章节。
-- `trigger`（必选）：大修 / 精修 / 问题修补 / 版本回退。
+过程文件不是默认上下文。只有当前任务直接涉及未决问题、历史原因、遗留 finding 或恢复进度时才读取。
 
-**`process/review-findings.md`**（审校 / 反馈缺陷清单，跨会话载体）
-- `finding`（必选）：问题描述。
-- `severity`（必选）：`BLOCKING` / `MAJOR` / `MINOR` / `OPTIONAL`（与 reviewer 一致）。
-- `evidence-refs`（必选）：依据对象 / 块位置。
-- `source`（必选）：agent 评审（附镜头 / 范围）/ 外部反馈。
-- `suggestion`（必选）：建议。
-- `recorded-at`（必选）：记录时间。
-- `status`（必选）：待处理 / 已修复 / 已忽略。
-- `resolved-into`（已修复必选）：处理去向。
+## 旧格式
 
-reviewer 只读、结果以响应回传；本文件由主 agent 落盘（普通编辑审批），落盘规则见 `revision-playbook`。
-
-**`.iwriter/status.md`**（派生状态摘要缓存，目标 500–1000 token）
-- `rebuilt-at`（必选）：重建时间。
-- `progress`（可选）：当前进度。
-- `character-status-digest` / `open-threads-digest` / `writing-constraints-digest` / `open-questions-digest`（可选）：各类摘要，只作快速提示、指向正式对象。
-
-## 要点
-
-- 五个对象边界不混用：捕获 `materials/` · 决策 `open-questions` · 叙事 `changelog` · 稿件缺陷 `review-findings` · 派生态 `status`。
-- **`review-findings`＝具体稿件缺陷；`open-questions`＝待定创作抉择**。
-- `fragments` 零摩擦：不强制作者记录时分类；agent 在合适时机提议并入某对象，作者决定。
-- `status.md` 是可丢弃、可重建的**派生缓存、非真相**：系统不在启动时为它全局扫描 / 重建；缺失 / 过期 / 与正式对象冲突时以正式对象为准，不据它推断、不据它打断作者。改设定改 `worldbuilding.md` 本身，不改 `status.md`。
+旧项目的 `materials/fragments.md` 可以继续原位追加或修改。未经作者批准，不自动创建 `cards.md` 与其并存，也不迁移旧碎片。

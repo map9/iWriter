@@ -14,7 +14,7 @@ description: 创建、读取、更新或校验 novel workspace 的 styles/{slug}
   {slug}.md    # 可选、懒创建：全局写作风格对象
 ```
 
-风格对象不是故事事实或作家研究报告，而是作者为当前小说确认的一套叙述声音参照；由 `project.md` 的 `style` 字段指向后才生效。
+风格对象不是故事事实或作家研究报告，而是作者为当前小说确认的一套叙述声音参照；由 `project.md` 的 `constraints` 记录明确引用后才生效。
 
 ## 字段
 
