@@ -627,6 +627,7 @@ export default {
     },
     chatArea: {
       loadingSession: '正在加载会话...',
+      contextCompressed: '上下文已压缩（{time}）',
       status: {
         resuming: '正在继续处理已确认修改',
         callingTool: '正在调用工具 · {tool}',

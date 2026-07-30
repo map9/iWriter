@@ -182,6 +182,10 @@ export interface RunErrorEvent {
 /** Fired when SummarizationMiddleware compressed this thread's history during a run. */
 export interface RunContextCompressedEvent {
   threadId: string
+  /** Turn whose model call triggered the compression. */
+  turnId?: string
+  /** Host timestamp used by the renderer's non-conversational event divider. */
+  timestamp: number
   /** Number of original messages that were rolled into the summary. */
   compressedMessageCount: number
 }

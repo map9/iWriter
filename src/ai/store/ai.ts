@@ -10,6 +10,7 @@ import type {
   WebSearchProviderConfig,
   ThreadMessage,
   SendContext,
+  AiContextCompressionEvent,
 } from '@/ai/types'
 import {
   normalizeWebSearchProviderConfigs,
@@ -56,14 +57,23 @@ export type {
 } from '@/ai/review/common/types'
 
 export interface AiDisplayMessageEntry {
+  kind: 'message'
   key: string
   message: ThreadMessage
   isPreview?: boolean
 }
 
+export interface AiDisplayContextCompressionEntry {
+  kind: 'context-compressed'
+  key: string
+  event: AiContextCompressionEvent
+}
+
+export type AiDisplayEntry = AiDisplayMessageEntry | AiDisplayContextCompressionEntry
+
 export interface AiDisplayThread {
   persistedMessages: ThreadMessage[]
-  messages: AiDisplayMessageEntry[]
+  messages: AiDisplayEntry[]
 }
 
 // ── Settings localStorage helpers ──────────────────────────────────────────
@@ -296,10 +306,39 @@ export const useAiStore = defineStore('ai', () => {
   // ── Threads ───────────────────────────────────────────────────────────────
   const threads = ref<AiThread[]>([])
   const activeThreadId = ref<string | null>(null)
+  const contextCompressionEventsByThread = ref<Record<string, AiContextCompressionEvent[]>>({})
 
   const activeThread = computed<AiThread | null>(() => {
     return threads.value.find(t => t.id === activeThreadId.value) ?? null
   })
+
+  const activeContextCompressionEvents = computed<AiContextCompressionEvent[]>(() => {
+    const threadId = activeThreadId.value
+    return threadId ? contextCompressionEventsByThread.value[threadId] ?? [] : []
+  })
+
+  function addContextCompressionEvent(event: {
+    threadId: string
+    turnId?: string
+    timestamp: number
+    compressedMessageCount: number
+  }) {
+    const current = contextCompressionEventsByThread.value[event.threadId] ?? []
+    const id = `context-compressed:${event.threadId}:${event.turnId ?? 'unknown'}:${event.timestamp}`
+    if (current.some(item => item.id === id)) return
+
+    contextCompressionEventsByThread.value = {
+      ...contextCompressionEventsByThread.value,
+      [event.threadId]: [...current, { ...event, id }],
+    }
+  }
+
+  function clearContextCompressionEvents(threadId: string) {
+    if (!(threadId in contextCompressionEventsByThread.value)) return
+    const next = { ...contextCompressionEventsByThread.value }
+    delete next[threadId]
+    contextCompressionEventsByThread.value = next
+  }
 
   /**
    * Track threads that were created locally (via createNewThread) but have never
@@ -313,6 +352,7 @@ export const useAiStore = defineStore('ai', () => {
     if (!toRemove.length) return
     for (const t of toRemove) {
       _localOnlyThreadIds.delete(t.id)
+      clearContextCompressionEvents(t.id)
       window.electronAPI.aiDeleteThread?.(t.id)
     }
     threads.value = threads.value.filter(t => !toRemove.some(r => r.id === t.id))
@@ -388,6 +428,7 @@ export const useAiStore = defineStore('ai', () => {
 
   function deleteThread(id: string) {
     runtimeEvents.clearThreadUsage(id)
+    clearContextCompressionEvents(id)
     threads.value = threads.value.filter(t => t.id !== id)
     window.electronAPI.aiDeleteThread?.(id)
     if (activeThreadId.value === id) {
@@ -397,6 +438,7 @@ export const useAiStore = defineStore('ai', () => {
 
   function clearAllThreads() {
     runtimeEvents.clearAllUsage()
+    contextCompressionEventsByThread.value = {}
     threads.value = []
     activeThreadId.value = null
     window.electronAPI.aiClearThreads?.()
@@ -421,6 +463,20 @@ export const useAiStore = defineStore('ai', () => {
 
     const idx = persistedMessages.value.findIndex(message => message.id === messageId)
     if (idx < 0) return false
+
+    const removedTurnIds = new Set(
+      persistedMessages.value
+        .slice(idx)
+        .map(message => message.turnId)
+        .filter((turnId): turnId is string => !!turnId),
+    )
+    if (removedTurnIds.size > 0) {
+      const current = contextCompressionEventsByThread.value[thread.id] ?? []
+      contextCompressionEventsByThread.value = {
+        ...contextCompressionEventsByThread.value,
+        [thread.id]: current.filter(event => !event.turnId || !removedTurnIds.has(event.turnId)),
+      }
+    }
 
     updateThread({ ...thread, messages: persistedMessages.value.slice(0, idx) })
     return true
@@ -744,6 +800,7 @@ export const useAiStore = defineStore('ai', () => {
     threadRunState: _threadRunState,
     activeThreadId,
     persistedMessages,
+    contextCompressionEvents: activeContextCompressionEvents,
     isResumingReviewedEdits,
     normalizeMessageForDisplay: _normalizeMessageForDisplay,
   })
@@ -803,8 +860,8 @@ export const useAiStore = defineStore('ai', () => {
     window.electronAPI.onAiRunInterrupted?.(runtimeEvents.onRunInterrupted)
     window.electronAPI.onAiRunDone?.(runtimeEvents.onRunDone)
     window.electronAPI.onAiRunError?.(runtimeEvents.onRunError)
-    window.electronAPI.onAiContextCompressed?.(() => {
-      notify.info(i18n.global.t('notify.ai.contextCompressed'))
+    window.electronAPI.onAiContextCompressed?.((event) => {
+      addContextCompressionEvent(event)
     })
     window.electronAPI.onAiModelFallback?.((e) => {
       notify.warning(i18n.global.t('notify.ai.modelFallback', { modelId: e.fallbackModelId }))

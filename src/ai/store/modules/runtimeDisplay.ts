@@ -1,13 +1,14 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import type {
   AiSubTaskProgress,
+  AiContextCompressionEvent,
   AiToolCall,
   AiToolResult,
   MessageContentBlock,
   ThreadMessage,
 } from '@/ai/types'
 import { BLOCK_EDIT_TOOLS } from '@/ai/types'
-import type { AiDisplayMessageEntry, AiDisplayThread } from '../ai'
+import type { AiDisplayEntry, AiDisplayMessageEntry, AiDisplayThread } from '../ai'
 import type { LiveTurn, ThreadRunState } from './runtimeState'
 import { mergeLiveSubTaskStatus } from './runtimeEvents'
 
@@ -172,11 +173,63 @@ function mergeSubTaskProgress(
   }
 }
 
+export function insertContextCompressionEvents(
+  entries: AiDisplayMessageEntry[],
+  events: AiContextCompressionEvent[],
+): AiDisplayEntry[] {
+  if (!events.length) return entries
+
+  const lastEntryIndexByTurn = new Map<string, number>()
+  entries.forEach((entry, index) => {
+    const turnId = entry.message.turnId
+    if (turnId) lastEntryIndexByTurn.set(turnId, index)
+  })
+
+  const eventsByEntryIndex = new Map<number, AiContextCompressionEvent[]>()
+  const unmatchedEvents: AiContextCompressionEvent[] = []
+  const orderedEvents = [...events].sort((a, b) => a.timestamp - b.timestamp)
+
+  for (const event of orderedEvents) {
+    const entryIndex = event.turnId
+      ? lastEntryIndexByTurn.get(event.turnId)
+      : undefined
+    if (entryIndex === undefined) {
+      unmatchedEvents.push(event)
+      continue
+    }
+    const grouped = eventsByEntryIndex.get(entryIndex) ?? []
+    grouped.push(event)
+    eventsByEntryIndex.set(entryIndex, grouped)
+  }
+
+  const result: AiDisplayEntry[] = []
+  entries.forEach((entry, index) => {
+    result.push(entry)
+    for (const event of eventsByEntryIndex.get(index) ?? []) {
+      result.push({
+        kind: 'context-compressed',
+        key: event.id,
+        event,
+      })
+    }
+  })
+
+  for (const event of unmatchedEvents) {
+    result.push({
+      kind: 'context-compressed',
+      key: event.id,
+      event,
+    })
+  }
+  return result
+}
+
 export function createRuntimeDisplay(deps: {
   liveTurn: Ref<LiveTurn | null>
   threadRunState: Ref<ThreadRunState>
   activeThreadId: Ref<string | null>
   persistedMessages: ComputedRef<ThreadMessage[]>
+  contextCompressionEvents: ComputedRef<AiContextCompressionEvent[]>
   isResumingReviewedEdits: Ref<boolean>
   normalizeMessageForDisplay: (message: ThreadMessage) => ThreadMessage
 }) {
@@ -347,6 +400,7 @@ export function createRuntimeDisplay(deps: {
         && canHostThinking(msg)
       ) {
         entries.push({
+          kind: 'message',
           key: `merged:${pendingThinking[0]!.id}..${msg.id}`,
           message: mergeThinking(msg, pendingThinking),
         })
@@ -378,13 +432,14 @@ export function createRuntimeDisplay(deps: {
         const merged = grouped.length > 1 ? mergeReadToolOnlyMessages(grouped) : msg
         const last = grouped[grouped.length - 1]!
         entries.push({
+          kind: 'message',
           key: grouped.length > 1 ? `merged-tools:${msg.id}..${last.id}` : msg.id,
           message: merged,
         })
         continue
       }
 
-      entries.push({ key: msg.id, message: msg })
+      entries.push({ kind: 'message', key: msg.id, message: msg })
     }
 
     if (pendingThinking.length > 0) {
@@ -394,6 +449,7 @@ export function createRuntimeDisplay(deps: {
 
     if (preview) {
       entries.push({
+        kind: 'message',
         key: `preview:${preview.id}:${preview.turnId ?? 'live'}`,
         message: preview,
         isPreview: true,
@@ -402,11 +458,11 @@ export function createRuntimeDisplay(deps: {
 
     return {
       persistedMessages: persisted,
-      messages: entries,
+      messages: insertContextCompressionEvents(entries, deps.contextCompressionEvents.value),
     }
   })
 
-  const displayMessages = computed<AiDisplayMessageEntry[]>(() => displayThread.value.messages)
+  const displayMessages = computed<AiDisplayEntry[]>(() => displayThread.value.messages)
 
   const persistedAssistantMessageIds = computed<string[]>(() =>
     deps.persistedMessages.value

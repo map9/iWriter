@@ -6,6 +6,7 @@ import { buildProposalFromAction } from '../../ipc/MessageAdapter'
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
 import { parseUntitledTabId } from '../../document/virtualId'
 import { withProjectSkills } from '../../scaffold/skills/SkillsMount'
+import { EDITING_SUMMARIZATION_PROFILE } from '../../scaffold/summarization/SummarizationFramework'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { ThreadRuntimeStore } from '../../runtime/ThreadRuntimeStore'
 import type { AiAgentMode } from '../../../../src/types/ai'
@@ -31,6 +32,10 @@ export class EditDomainStrategy implements DomainStrategy {
 
   getSystemPrompt(_mode: AiAgentMode, language: DetectedInputLanguage): string {
     return buildEditSystemPrompt(language)
+  }
+
+  getSummarizationProfile() {
+    return EDITING_SUMMARIZATION_PROFILE
   }
 
   getSkillSources(aiRootPath: string, workspacePath: string | null): string[] {

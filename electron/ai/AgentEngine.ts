@@ -68,9 +68,15 @@ import { createTaskToolCompatMiddleware } from './scaffold/middleware/TaskToolCo
 import { createOrphanToolCallStripperMiddleware } from './scaffold/middleware/OrphanToolCallStripperMiddleware'
 import { createRateLimitRetryMiddleware } from './scaffold/middleware/RateLimitRetryMiddleware'
 import { createHumanRespondMessageMiddleware, RESPOND_MARKER } from './scaffold/middleware/HumanRespondMessageMiddleware'
+import {
+  createContextLedgerMiddleware,
+  renderContextLedger,
+  type ContextLedgerState,
+} from './scaffold/middleware/ContextLedgerMiddleware'
 import { CheckpointerAdmin } from './checkpoint/CheckpointerAdmin'
 import { MIDDLEWARE_CONFIG, createInstrumentedFallbackMiddleware } from './scaffold/middleware/middleware-config'
 import { buildMemorySources, createReadonlyMemoryMiddleware } from './scaffold/memory/MemorySources'
+import { buildSummarizationPrompt } from './scaffold/summarization/SummarizationFramework'
 import type { DomainStrategy } from './domain/DomainStrategy'
 import { EditDomainStrategy } from './domain/edit/EditDomainStrategy'
 import { CreativeDomainStrategy } from './domain/creative/CreativeDomainStrategy'
@@ -101,6 +107,8 @@ type SummarizationMiddlewareOptions = {
   tokenCounter: TokenCounter
   trigger: { type: 'tokens', value: number }
   keep: { type: 'tokens', value: number }
+  summaryPrompt: string
+  trimTokensToSummarize: number
 }
 type CreateDeepAgentWithSummarization = (
   params: Parameters<typeof createDeepAgent>[0] & {
@@ -292,6 +300,9 @@ export class AgentEngine {
       attachmentTextFilePaths: req.attachments?.textFilePaths ?? [],
       attachmentBinaryFilePaths: req.attachments?.binaryFilePaths ?? [],
       attachmentDirectories: req.attachments?.directories ?? [],
+      dirtyDocumentPaths: req.editorContext.openTabs
+        .filter(tab => tab.isDirty)
+        .map(tab => tab.path ?? `untitled:${tab.id}`),
     })
     this.runtimeStore.setCurrentTurnId(threadId, turnId)
 
@@ -1404,6 +1415,12 @@ export class AgentEngine {
       tokenCounter: this._makeCjkTokenCounter(),
       trigger: { type: 'tokens', value: budget.triggerTokens },
       keep: { type: 'tokens', value: budget.keepTokens },
+      summaryPrompt: buildSummarizationPrompt(this.strategies[domain].getSummarizationProfile()),
+      // DeepAgents defaults to summarizing only the latest 4k tokens of the old slice.
+      // At iWriter's larger trigger budgets that can discard the previous task capsule
+      // before producing the next one. The summary call has no tool schemas/system prompt,
+      // so the normal request budget safely accommodates the full trigger-sized old slice.
+      trimTokensToSummarize: budget.triggerTokens,
     }
 
     const agent = (createDeepAgent as unknown as CreateDeepAgentWithSummarization)({
@@ -1427,6 +1444,7 @@ export class AgentEngine {
       // main LLM call. Both LLMs remain marker-free; the invariant from Phase 4 §B1.4 holds.
       middleware: [
         ...scaffold.middlewares,
+        createContextLedgerMiddleware(),
         createOrphanToolCallStripperMiddleware(),
         createHumanRespondMessageMiddleware(),
         createTaskToolCompatMiddleware(),
@@ -1541,7 +1559,12 @@ export class AgentEngine {
       const lastCutoff = this.runtimeStore.getLastSummarizationCutoff(threadId)
       if (cutoffIndex === lastCutoff) return
       this.runtimeStore.setLastSummarizationCutoff(threadId, cutoffIndex)
-      this.rendererBridge.sendRunContextCompressed({ threadId, compressedMessageCount: cutoffIndex })
+      this.rendererBridge.sendRunContextCompressed({
+        threadId,
+        turnId: this.runtimeStore.getCurrentTurnId(threadId) ?? undefined,
+        timestamp: Date.now(),
+        compressedMessageCount: cutoffIndex,
+      })
     } catch (err) {
       console.warn('[AgentEngine] Failed to detect summarization:', err)
     }
@@ -1571,8 +1594,12 @@ export class AgentEngine {
       const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
       const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath, language })
       const systemPrompt = new SystemMessage(this.strategies[domain].getSystemPrompt(mode, language))
+      const ledgerSection = renderContextLedger(
+        channelValues._contextLedger as ContextLedgerState | undefined,
+        this._buildRunContext(threadId, domain),
+      )
       return this._countTokensCjkAware(
-        [systemPrompt, ...effectiveMessages],
+        [systemPrompt, ...(ledgerSection ? [new SystemMessage(ledgerSection)] : []), ...effectiveMessages],
         capabilities.tools as unknown as Array<Record<string, unknown>>
       )
     } catch (err) {

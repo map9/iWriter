@@ -16,15 +16,27 @@
       </div>
     </div>
 
-    <AgentMessageBubble
-      v-for="entry in aiStore.displayMessages"
-      :key="entry.key"
-      :message="entry.message"
-      :is-preview="entry.isPreview"
-      :preview-status-text="entry.isPreview ? (aiStore.isInterrupted ? streamingStatusLabel : `${streamingStatusLabel} · ${formattedElapsed}`) : ''"
-      :show-preview-pulse="!!entry.isPreview && !aiStore.isInterrupted"
-      @resend="handleResend"
-    />
+    <template v-for="entry in aiStore.displayMessages" :key="entry.key">
+      <div
+        v-if="entry.kind === 'context-compressed'"
+        class="flex items-center gap-2 py-1.5"
+        role="status"
+      >
+        <span class="h-px flex-1 bg-base-content/15"></span>
+        <span class="shrink-0 text-[11px] text-base-content/45">
+          {{ t('agentPanel.chatArea.contextCompressed', { time: formatCompressionTime(entry.event.timestamp) }) }}
+        </span>
+        <span class="h-px flex-1 bg-base-content/15"></span>
+      </div>
+      <AgentMessageBubble
+        v-else
+        :message="entry.message"
+        :is-preview="entry.isPreview"
+        :preview-status-text="entry.isPreview ? (aiStore.isInterrupted ? streamingStatusLabel : `${streamingStatusLabel} · ${formattedElapsed}`) : ''"
+        :show-preview-pulse="!!entry.isPreview && !aiStore.isInterrupted"
+        @resend="handleResend"
+      />
+    </template>
 
     <!-- Streaming/interrupted fallback when no preview message is available -->
     <div v-if="(aiStore.isStreaming || aiStore.isInterrupted) && !aiStore.streamingPreviewMessage" class="flex gap-2.5">
@@ -55,7 +67,14 @@ import AgentMessageBubble from './chat-area/AgentMessageBubble.vue'
 import DomainReviewSurface from './domains/DomainReviewSurface.vue'
 
 const aiStore = useAiStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+function formatCompressionTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString(locale.value, {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 // ── Elapsed timer ─────────────────────────────────────────────────────────
 const elapsedMs = ref(0)

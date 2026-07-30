@@ -8,6 +8,7 @@ import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../.
 import { buildProposalFromAction } from '../../ipc/MessageAdapter'
 import { parseUntitledTabId } from '../../document/virtualId'
 import { withProjectSkills } from '../../scaffold/skills/SkillsMount'
+import { CREATIVE_SUMMARIZATION_PROFILE } from '../../scaffold/summarization/SummarizationFramework'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { SerializedSnapshot } from '../../ipc/protocol'
 import type { ThreadRuntimeStore } from '../../runtime/ThreadRuntimeStore'
@@ -45,6 +46,10 @@ export class CreativeDomainStrategy implements DomainStrategy {
 
   getSystemPrompt(_mode: AiAgentMode, language: DetectedInputLanguage): string {
     return buildCreativeSystemPrompt(language)
+  }
+
+  getSummarizationProfile() {
+    return CREATIVE_SUMMARIZATION_PROFILE
   }
 
   getSkillSources(aiRootPath: string, workspacePath: string | null): string[] {

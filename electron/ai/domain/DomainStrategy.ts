@@ -3,6 +3,7 @@ import type { DomainAgentCapabilities } from './types'
 import type { AiAgentMode, EditProposal, CreativeReviewItem, FilesystemReviewItem } from '../../../src/types/ai'
 import type { DetectedInputLanguage } from '../../../src/ai/message/detectInputLanguage'
 import type { ResumeDecision } from '../ipc/protocol'
+import type { DomainSummarizationProfile } from '../scaffold/summarization/SummarizationFramework'
 
 /** Unified review payload — renderer dispatches to edit or creative UI by kind. */
 export type DomainReviewItem =
@@ -41,6 +42,9 @@ export interface DomainStrategy {
 
   /** System prompt for the current domain + mode combination. */
   getSystemPrompt(mode: AiAgentMode, language: DetectedInputLanguage): string
+
+  /** Semantic fields the shared summarization framework must preserve for this domain. */
+  getSummarizationProfile(): DomainSummarizationProfile
 
   /**
    * 该 domain 的用户级协作记忆目录名（`~/.iwriter/ai/memory/{dir}/memory.md`）。

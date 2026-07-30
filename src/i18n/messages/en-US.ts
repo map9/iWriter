@@ -630,6 +630,7 @@ export default {
     },
     chatArea: {
       loadingSession: 'Loading session...',
+      contextCompressed: 'Context compressed ({time})',
       status: {
         resuming: 'Resuming approved edits',
         callingTool: 'Calling tool · {tool}',

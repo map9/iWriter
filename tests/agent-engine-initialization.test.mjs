@@ -57,7 +57,7 @@ function stubPlugin() {
         [
           /^langchain$/,
           'langchain',
-          'export function modelCallLimitMiddleware() { return {} } export function toolCallLimitMiddleware() { return {} }',
+          'export function createMiddleware(config) { return config } export function modelCallLimitMiddleware() { return {} } export function toolCallLimitMiddleware() { return {} }',
         ],
         [
           /src\/types\/ai$/,
@@ -187,12 +187,12 @@ function stubPlugin() {
         [
           /domain\/edit\/EditDomainStrategy$/,
           'edit-domain-strategy',
-          'export class EditDomainStrategy { constructor() {} getMemoryDir() { return "edit" } getSkillSources() { return [] } buildCapabilities() { return { tools: [], interruptOn: {}, subAgents: [] } } getSystemPrompt() { return "system" } }',
+          'export class EditDomainStrategy { constructor() {} getMemoryDir() { return "edit" } getSkillSources() { return [] } buildCapabilities() { return { tools: [], interruptOn: {}, subAgents: [] } } getSystemPrompt() { return "system" } getSummarizationProfile() { return { domain: "editing", domainStateInstructions: ["editing-state"] } } }',
         ],
         [
           /domain\/creative\/CreativeDomainStrategy$/,
           'creative-domain-strategy',
-          'export class CreativeDomainStrategy { constructor() {} getMemoryDir() { return "creative" } getSkillSources() { return [] } buildCapabilities() { return { tools: [], interruptOn: {}, subAgents: [] } } getSystemPrompt() { return "system" } }',
+          'export class CreativeDomainStrategy { constructor() {} getMemoryDir() { return "creative" } getSkillSources() { return [] } buildCapabilities() { return { tools: [], interruptOn: {}, subAgents: [] } } getSystemPrompt() { return "system" } getSummarizationProfile() { return { domain: "creative", domainStateInstructions: ["creative-state"] } } }',
         ],
         [
           /src\/ai\/message\/detectInputLanguage$/,
@@ -348,6 +348,14 @@ describe('AgentEngine initialization', () => {
     const options = globalThis.__iwriterDeepAgentOptions.summarizationMiddlewareOptions
     assert.deepEqual(options.trigger, { type: 'tokens', value: 60000 })
     assert.deepEqual(options.keep, { type: 'tokens', value: 7500 })
+    assert.equal(options.trimTokensToSummarize, 60000)
+    assert.match(options.summaryPrompt, /editing-state/)
+    assert.match(options.summaryPrompt, /\{conversation\}/)
+    assert.ok(
+      globalThis.__iwriterDeepAgentOptions.middleware.some(
+        middleware => middleware?.name === 'ContextLedgerMiddleware',
+      ),
+    )
   })
 
   it('persists initial and resumed runs only when the graph exits', async () => {
