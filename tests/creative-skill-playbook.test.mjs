@@ -32,6 +32,9 @@ const othersTemplatePath = resolve(
 const manuscriptTemplatePath = resolve(
   'electron/ai/builtin-skills/creative/reference/manuscript-template/SKILL.md',
 )
+const styleTemplatePath = resolve(
+  'electron/ai/builtin-skills/creative/reference/style-template/SKILL.md',
+)
 const characterDesignPath = resolve(
   'electron/ai/builtin-skills/creative/main/ideation-outline-playbook/references/character-design.md',
 )
@@ -129,9 +132,11 @@ test('novel workspace uses compact single-source objects', () => {
   assert.match(source, /storylines\.md.*全部故事线/)
   assert.match(source, /materials\/cards\.md/)
   assert.match(source, /简单人物或设定用一个核心段/)
-  assert.match(source, /主要人物或重要设定.*最多六条/)
+  assert.match(source, /主要人物或重要设定.*最多.*六条/)
   assert.match(source, /一个事实只在归属对象中写完整内容/)
   assert.match(source, /不得默认整份读取/)
+  assert.match(source, /默认预算无法无损表达时/)
+  assert.match(source, /不得.*截断已确认事实或关键因果/)
 })
 
 test('compact templates merge fields without dropping semantic ownership', () => {
@@ -151,17 +156,21 @@ test('compact templates merge fields without dropping semantic ownership', () =>
   assert.match(characters, /补充事实按内容直接起句/)
   assert.match(characters, /不设固定字段/)
   assert.match(characters, /人物变化过程保存在 `storylines\.md`/)
+  assert.match(characters, /不为满足条数截断/)
   assert.doesNotMatch(characters, /^- (?:行动|关系|表现|条件|变化线)：/m)
 
   assert.match(world, /不预设分类栏目/)
   assert.match(world, /不写类别名或固定字段/)
   assert.match(world, /运行方式、边界、代价、执行者/)
   assert.match(world, /至少保留一种能进入正文的具体事实/)
+  assert.match(world, /不为满足条数截断/)
   assert.doesNotMatch(world, /## 类型要求/)
   assert.doesNotMatch(world, /^- (?:边界|运作|可写表现|空间|人与程序)：/m)
 
   assert.match(outline, /故事线不是总纲的字段/)
-  assert.match(outline, /每个阶段一个因果句/)
+  assert.match(outline, /每个阶段.*一个因果句/)
+  assert.match(outline, /单句无法无损表达关键因果/)
+  assert.match(outline, /开始条件.*只记录本章实际会使用的状态/)
   assert.match(outline, /不以出现某几个字段名判断/)
   assert.doesNotMatch(outline, /goal.*必选/)
 
@@ -169,7 +178,8 @@ test('compact templates merge fields without dropping semantic ownership', () =>
   assert.match(others, /不保留副本/)
 })
 
-test('creative object contracts contain no legacy-project compatibility rules', () => {
+test('creative templates are loaded for mutations and structural validation, not ordinary reads', () => {
+  const prompt = readFileSync(creativePromptPath, 'utf8')
   const paths = [
     novelWorkspacePath,
     projectTemplatePath,
@@ -178,11 +188,19 @@ test('creative object contracts contain no legacy-project compatibility rules', 
     outlineTemplatePath,
     othersTemplatePath,
     manuscriptTemplatePath,
+    styleTemplatePath,
   ]
+
+  assert.match(prompt, /讨论、理解、评估、生成候选和普通只读时，不因读取项目对象而加载/)
+  assert.match(prompt, /创建、修改、迁移或结构校验项目对象前/)
+  assert.doesNotMatch(prompt, /操作项目对象前加载/)
 
   for (const filePath of paths) {
     const source = readFileSync(filePath, 'utf8')
-    assert.doesNotMatch(source, /旧项目|旧格式|兼容|迁移|fragments\.md/)
+    const match = source.match(/^---\n([\s\S]*?)\n---/)
+    assert.ok(match, `${filePath} should have YAML frontmatter`)
+    const frontmatter = parseYaml(match[1])
+    assert.doesNotMatch(frontmatter.description, /创建、读取|读取、更新|读取[^；]*时使用/)
   }
 })
 
@@ -212,6 +230,7 @@ test('dimension skills retain semantic checks while emitting compact story langu
 
   assert.match(chapter, /这些是语义要求，不是六个必填字段/)
   assert.match(chapter, /可写/)
+  assert.match(chapter, /开始条件/)
   assert.match(drafting, /不要求出现固定字段名/)
   assert.match(drafting, /人物小传中与本场相关的目标、性格、关系、经历、能力、局限/)
   assert.match(drafting, /实际使用的设定事实/)

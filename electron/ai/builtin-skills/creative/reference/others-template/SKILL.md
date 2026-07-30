@@ -1,6 +1,6 @@
 ---
 name: others-template
-description: 创建、读取、更新或校验 materials/cards.md、process/ 与 .iwriter/status.md 时使用；定义低摩擦卡片、紧凑过程记录与派生状态边界。
+description: 创建、更新、迁移或结构校验 materials/cards.md、process/ 与 .iwriter/status.md 时使用；定义低摩擦卡片、紧凑过程记录与派生状态边界。
 ---
 
 # 卡片、过程与状态模板

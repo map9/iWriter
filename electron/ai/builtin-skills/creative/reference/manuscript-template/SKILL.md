@@ -1,6 +1,6 @@
 ---
 name: manuscript-template
-description: 创建、读取、更新或校验 novel workspace 的章节正文与可选前后材料时使用；定义 manuscript/ch{NNN}.md、front-matter.md 和 back-matter.md。
+description: 创建、更新、迁移或结构校验 novel workspace 的章节正文与可选前后材料时使用；定义 manuscript/ch{NNN}.md、front-matter.md 和 back-matter.md。
 ---
 
 # 正文模板

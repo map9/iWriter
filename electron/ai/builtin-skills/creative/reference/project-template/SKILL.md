@@ -1,6 +1,6 @@
 ---
 name: project-template
-description: 创建、读取、更新或校验小说工作区根目录 project.md 时使用；定义轻量作品级记录、长度预算和影响边界。
+description: 创建、更新、迁移或结构校验小说工作区根目录 project.md 时使用；定义轻量作品级记录、长度预算和影响边界。
 ---
 
 # 项目模板

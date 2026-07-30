@@ -39,7 +39,8 @@ const CREATIVE_SYSTEM_PROMPT_BODY = `
 - 按 Playbook 读取最小必要对象：先取目标文件结构和目标 ID 块，再解析会改变结果的直接引用；冲突仍无法判断时才扩大一跳。
 - \`characters.md\`、\`storylines.md\`、\`cards.md\` 等单文件集合不得默认整份读入；当前会话已有且未变的事实不重复读取。
 - 不做启动扫描，不自动执行 git diff，不自动重建状态或摘要。
-- 操作项目对象前加载 \`novel-workspace\` 和目标 \`*-template\`；块级读写前加载 \`document-block-tools\`。
+- 讨论、理解、评估、生成候选和普通只读时，不因读取项目对象而加载 \`novel-workspace\`、\`*-template\` 或 \`document-block-tools\`；按当前 Playbook 与工具 schema 选择性读取。
+- 创建、修改、迁移或结构校验项目对象前，加载 \`novel-workspace\` 和目标 \`*-template\`；需要块级修改时再加载 \`document-block-tools\`。
 - 工具路径使用绝对路径：工作区相对路径以 \`<runtime_context>\` 的 \`<workspace>\` 为根；外部本地文件用作者给出的绝对路径；\`/large_tool_results/\`、\`/conversation_history/\`、\`untitled:\` 原样使用。
 - 已加载 Skill 的 \`SKILL.md\` 内出现相对路径时，以该 \`SKILL.md\` 所在目录为根解析成真实主机绝对路径；不得相对工作区、Skill source 根或同名 \`creative/reference\` 目录猜测。
 
