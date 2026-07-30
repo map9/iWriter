@@ -110,12 +110,6 @@ type SummarizationMiddlewareOptions = {
   summaryPrompt: string
   trimTokensToSummarize: number
 }
-type CreateDeepAgentWithSummarization = (
-  params: Parameters<typeof createDeepAgent>[0] & {
-    summarizationMiddlewareOptions?: SummarizationMiddlewareOptions
-  },
-) => DeepAgentInstance
-
 function readModelProfile(model: BaseChatModel): ModelProfile | undefined {
   try {
     const profile = (model as BaseChatModel & { profile?: ModelProfile }).profile
@@ -1281,6 +1275,32 @@ export class AgentEngine {
     }
     if (!lastAi?.tool_calls?.length) return
 
+    const rehydrateStrategy = this.strategies[domain]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const originalActionRequests: HitlActionRequest[] = (lastAi.tool_calls as any[])
+      .filter((tc) => tc.id && interruptOnNames.has(tc.name))
+      .map((tc) => ({ name: tc.name as string, args: (tc.args ?? {}) as Record<string, unknown> }))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const hasRespondedSibling = (lastAi.tool_calls as any[])
+      .some((tc) => tc.id && responded.has(tc.id))
+    const originalMixedDecisions = rehydrateStrategy.preDecideMixed?.(
+      originalActionRequests,
+      originalActionRequests.map((_ar, index) => index),
+    )
+
+    // A partially answered mixed-family batch has already left the original HITL interrupt. Rebuilding
+    // only its orphaned remainder loses the original family relationship and can surface destructive
+    // filesystem calls after their prerequisite block edits were rejected. Leave those calls orphaned:
+    // OrphanToolCallStripperMiddleware removes them before the next model request, allowing the agent
+    // to recover from the recorded tool results without executing a stale partial batch.
+    if (hasRespondedSibling && originalMixedDecisions && Object.keys(originalMixedDecisions).length > 0) {
+      console.warn(
+        '[AgentEngine] Skipping unsafe rehydration of a partially answered mixed approval batch:',
+        originalActionRequests.map(ar => ar.name),
+      )
+      return
+    }
+
     // Collect orphan tool_calls that belong to this domain's interruptOn set
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const actionRequests: HitlActionRequest[] = (lastAi.tool_calls as any[])
@@ -1291,7 +1311,6 @@ export class AgentEngine {
 
     const turnId = `rehydrated-${crypto.randomUUID()}`
     this.runtimeStore.setCurrentTurnId(threadId, turnId)
-    const rehydrateStrategy = this.strategies[domain]
     const prepared = await this._prepareActionRequestsForReview(threadId, actionRequests)
 
     // Domain-specific mixed-kind guard
@@ -1423,7 +1442,7 @@ export class AgentEngine {
       trimTokensToSummarize: budget.triggerTokens,
     }
 
-    const agent = (createDeepAgent as unknown as CreateDeepAgentWithSummarization)({
+    const agent: DeepAgentInstance = createDeepAgent({
       model,
       systemPrompt: this.strategies[domain].getSystemPrompt(mode, language),
       tools: capabilities.tools,

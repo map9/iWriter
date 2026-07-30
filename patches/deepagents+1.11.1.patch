@@ -1,5 +1,5 @@
 diff --git a/node_modules/deepagents/dist/agent-B2XFuA-E.d.cts b/node_modules/deepagents/dist/agent-B2XFuA-E.d.cts
-index b4ee552..90efeba 100644
+index b4ee552..d39263d 100644
 --- a/node_modules/deepagents/dist/agent-B2XFuA-E.d.cts
 +++ b/node_modules/deepagents/dist/agent-B2XFuA-E.d.cts
 @@ -2092,6 +2092,12 @@ interface SummarizationMiddlewareOptions {
@@ -23,12 +23,12 @@ index b4ee552..90efeba 100644
 +   * Optional settings passed to every built-in SummarizationMiddleware created
 +   * for the main agent and inline subagents.
 +   */
-+  summarizationMiddlewareOptions?: Pick<SummarizationMiddlewareOptions, 'model' | 'tokenCounter'>;
++  summarizationMiddlewareOptions?: Omit<SummarizationMiddlewareOptions, 'backend'>;
    /**
     * Optional {@link StreamTransformer} factories to register with the underlying agent.
     *
 diff --git a/node_modules/deepagents/dist/agent-k6GiDPCY.d.ts b/node_modules/deepagents/dist/agent-k6GiDPCY.d.ts
-index d3d062d..78fa39b 100644
+index d3d062d..0c0744f 100644
 --- a/node_modules/deepagents/dist/agent-k6GiDPCY.d.ts
 +++ b/node_modules/deepagents/dist/agent-k6GiDPCY.d.ts
 @@ -2093,6 +2093,12 @@ interface SummarizationMiddlewareOptions {
@@ -52,12 +52,12 @@ index d3d062d..78fa39b 100644
 +   * Optional settings passed to every built-in SummarizationMiddleware created
 +   * for the main agent and inline subagents.
 +   */
-+  summarizationMiddlewareOptions?: Pick<SummarizationMiddlewareOptions, 'model' | 'tokenCounter'>;
++  summarizationMiddlewareOptions?: Omit<SummarizationMiddlewareOptions, 'backend'>;
    /**
     * Optional {@link StreamTransformer} factories to register with the underlying agent.
     *
 diff --git a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
-index f1c3f24..186ce02 100644
+index f1c3f24..13cb479 100644
 --- a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
 +++ b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
 @@ -1080,7 +1080,19 @@ var CompositeBackend = class {
@@ -99,6 +99,15 @@ index f1c3f24..186ce02 100644
  			path: z.string().optional().default("/").describe("Base path to search from (default: /)"),
  			glob: z.string().optional().nullable().default(null).describe("Optional glob pattern to filter files (e.g., '*.py')")
  		})
+@@ -3974,7 +3986,7 @@ const SummarizationEventSchema = z$1.object({
+ 	* Messages before this index have been summarized. */
+ 	cutoffIndex: z$1.number(),
+ 	/** The HumanMessage containing the summary. */
+-	summaryMessage: z$1.instanceof(HumanMessage),
++	summaryMessage: z$1.custom((value) => HumanMessage.isInstance(value)),
+ 	/** Path where the conversation history was offloaded, or null if offload failed. */
+ 	filePath: z$1.string().nullable()
+ });
 @@ -4009,6 +4021,7 @@ function isSummaryMessage(msg) {
  */
  function createSummarizationMiddleware(options) {
@@ -156,7 +165,22 @@ index f1c3f24..186ce02 100644
  				if (kept + msgTokens > trimTokensToSummarize) break;
  				trimmedMessages.unshift(messages[i]);
  				kept += msgTokens;
-@@ -4500,6 +4514,16 @@ function createSummarizationMiddleware(options) {
+@@ -4372,7 +4386,13 @@ function createSummarizationMiddleware(options) {
+ 		const conversation = getBufferString(messagesToSummarize);
+ 		const prompt = summaryPrompt.replace("{conversation}", conversation);
+ 		const response = await chatModel.invoke([new HumanMessage({ content: prompt })]);
+-		return typeof response.content === "string" ? response.content : JSON.stringify(response.content);
++		if (typeof response.content === "string") return response.content;
++		if (Array.isArray(response.content)) return response.content.map((block) => {
++			if (typeof block === "string") return block;
++			if (block && typeof block === "object" && block.type === "text" && typeof block.text === "string") return block.text;
++			return "";
++		}).join("").trim();
++		return "";
+ 	}
+ 	/**
+ 	* Build the summary message with file path reference.
+@@ -4500,9 +4520,19 @@ function createSummarizationMiddleware(options) {
  			const effectiveMessages = getEffectiveMessages(request.messages ?? [], request.state);
  			if (effectiveMessages.length === 0) return handler(request);
  			/**
@@ -172,8 +196,12 @@ index f1c3f24..186ce02 100644
 +			/**
  			* Resolve the chat model and get max input tokens from its profile.
  			*/
- 			const resolvedModel = request.model ?? await getChatModel();
-@@ -4521,10 +4545,16 @@ function createSummarizationMiddleware(options) {
+-			const resolvedModel = request.model ?? await getChatModel();
++			const resolvedModel = model ? await getChatModel() : request.model ?? await getChatModel();
+ 			const maxInputTokens = getMaxInputTokens(resolvedModel);
+ 			applyModelDefaults(resolvedModel);
+ 			const totalTokens = countTotalTokens(effectiveMessages, request.systemMessage, request.tools);
+@@ -4521,10 +4551,16 @@ function createSummarizationMiddleware(options) {
  			* emergency summarization (matching Python's behavior).
  			*/
  			if (!shouldSummarize(truncatedMessages, tokensForSummary, maxInputTokens)) try {
@@ -191,7 +219,7 @@ index f1c3f24..186ce02 100644
  			} catch (err) {
  				if (!isContextOverflow(err)) throw err;
  				if (maxInputTokens && tokensForSummary > 0) {
-@@ -5984,7 +6014,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
+@@ -5984,7 +6020,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
  * ```
  */
  function createDeepAgent(params = {}) {
@@ -200,7 +228,7 @@ index f1c3f24..186ce02 100644
  	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
  	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
  	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
-@@ -6023,7 +6053,7 @@ function createDeepAgent(params = {}) {
+@@ -6023,7 +6059,7 @@ function createDeepAgent(params = {}) {
  				permissions: effectivePermissions,
  				tools: profileFilesystemTools
  			}),
@@ -209,7 +237,7 @@ index f1c3f24..186ce02 100644
  			createPatchToolCallsMiddleware(),
  			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
  				backend,
-@@ -6075,7 +6105,7 @@ function createDeepAgent(params = {}) {
+@@ -6075,7 +6111,7 @@ function createDeepAgent(params = {}) {
  			subagents: inlineSubagents,
  			generalPurposeAgent: false
  		}),
@@ -219,7 +247,7 @@ index f1c3f24..186ce02 100644
  	];
  	let middleware = mergeMiddlewareStack([
 diff --git a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
-index 5551ac8..d9664c4 100644
+index 5551ac8..04fa2b0 100644
 --- a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
 +++ b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
 @@ -1104,7 +1104,19 @@ var CompositeBackend = class {
@@ -261,6 +289,15 @@ index 5551ac8..d9664c4 100644
  			path: zod_v4.z.string().optional().default("/").describe("Base path to search from (default: /)"),
  			glob: zod_v4.z.string().optional().nullable().default(null).describe("Optional glob pattern to filter files (e.g., '*.py')")
  		})
+@@ -4003,7 +4015,7 @@ const SummarizationEventSchema = zod.z.object({
+ 	* Messages before this index have been summarized. */
+ 	cutoffIndex: zod.z.number(),
+ 	/** The HumanMessage containing the summary. */
+-	summaryMessage: zod.z.instanceof(langchain.HumanMessage),
++	summaryMessage: zod.z.custom((value) => langchain.HumanMessage.isInstance(value)),
+ 	/** Path where the conversation history was offloaded, or null if offload failed. */
+ 	filePath: zod.z.string().nullable()
+ });
 @@ -4038,6 +4050,7 @@ function isSummaryMessage(msg) {
  */
  function createSummarizationMiddleware(options) {
@@ -318,7 +355,22 @@ index 5551ac8..d9664c4 100644
  				if (kept + msgTokens > trimTokensToSummarize) break;
  				trimmedMessages.unshift(messages[i]);
  				kept += msgTokens;
-@@ -4529,6 +4543,16 @@ function createSummarizationMiddleware(options) {
+@@ -4401,7 +4415,13 @@ function createSummarizationMiddleware(options) {
+ 		const conversation = (0, _langchain_core_messages.getBufferString)(messagesToSummarize);
+ 		const prompt = summaryPrompt.replace("{conversation}", conversation);
+ 		const response = await chatModel.invoke([new langchain.HumanMessage({ content: prompt })]);
+-		return typeof response.content === "string" ? response.content : JSON.stringify(response.content);
++		if (typeof response.content === "string") return response.content;
++		if (Array.isArray(response.content)) return response.content.map((block) => {
++			if (typeof block === "string") return block;
++			if (block && typeof block === "object" && block.type === "text" && typeof block.text === "string") return block.text;
++			return "";
++		}).join("").trim();
++		return "";
+ 	}
+ 	/**
+ 	* Build the summary message with file path reference.
+@@ -4529,9 +4549,19 @@ function createSummarizationMiddleware(options) {
  			const effectiveMessages = getEffectiveMessages(request.messages ?? [], request.state);
  			if (effectiveMessages.length === 0) return handler(request);
  			/**
@@ -334,8 +386,12 @@ index 5551ac8..d9664c4 100644
 +			/**
  			* Resolve the chat model and get max input tokens from its profile.
  			*/
- 			const resolvedModel = request.model ?? await getChatModel();
-@@ -4550,10 +4574,16 @@ function createSummarizationMiddleware(options) {
+-			const resolvedModel = request.model ?? await getChatModel();
++			const resolvedModel = model ? await getChatModel() : request.model ?? await getChatModel();
+ 			const maxInputTokens = getMaxInputTokens(resolvedModel);
+ 			applyModelDefaults(resolvedModel);
+ 			const totalTokens = countTotalTokens(effectiveMessages, request.systemMessage, request.tools);
+@@ -4550,10 +4580,16 @@ function createSummarizationMiddleware(options) {
  			* emergency summarization (matching Python's behavior).
  			*/
  			if (!shouldSummarize(truncatedMessages, tokensForSummary, maxInputTokens)) try {
@@ -353,7 +409,7 @@ index 5551ac8..d9664c4 100644
  			} catch (err) {
  				if (!isContextOverflow(err)) throw err;
  				if (maxInputTokens && tokensForSummary > 0) {
-@@ -6013,7 +6043,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
+@@ -6013,7 +6049,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
  * ```
  */
  function createDeepAgent(params = {}) {
@@ -362,7 +418,7 @@ index 5551ac8..d9664c4 100644
  	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
  	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
  	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
-@@ -6052,7 +6082,7 @@ function createDeepAgent(params = {}) {
+@@ -6052,7 +6088,7 @@ function createDeepAgent(params = {}) {
  				permissions: effectivePermissions,
  				tools: profileFilesystemTools
  			}),
@@ -371,7 +427,7 @@ index 5551ac8..d9664c4 100644
  			createPatchToolCallsMiddleware(),
  			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
  				backend,
-@@ -6104,7 +6134,7 @@ function createDeepAgent(params = {}) {
+@@ -6104,7 +6140,7 @@ function createDeepAgent(params = {}) {
  			subagents: inlineSubagents,
  			generalPurposeAgent: false
  		}),

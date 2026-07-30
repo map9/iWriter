@@ -1,6 +1,6 @@
 ---
 name: worldbuilding-template
-description: 创建、更新、迁移或结构校验 worldbuilding/worldbuilding.md 时使用；定义单文件世界观设定、稳定 ID、写作所需信息和自然简写方式。
+description: worldbuilding/worldbuilding.md 的非主流程模板；仅在当前主 Playbook 已进入正式创建、更新、迁移或结构校验且本轮目标包含世界设定时加载；定义单文件世界观设定、稳定 ID、写作所需信息和自然简写方式。
 ---
 
 # 世界观设定模板

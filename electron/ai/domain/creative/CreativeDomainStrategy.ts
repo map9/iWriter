@@ -79,17 +79,26 @@ export class CreativeDomainStrategy implements DomainStrategy {
   ): Record<number, ResumeDecision> | undefined {
     const hasCreative = reviewActionRequests.some(ar => CREATIVE_REVIEW_TOOLS.has(ar.name))
     const hasEdit = reviewActionRequests.some(ar => BLOCK_EDIT_TOOLS.has(ar.name))
-    if (!hasCreative || !hasEdit) return undefined
+    const hasFilesystem = reviewActionRequests.some(ar => isFilesystemWriteTool(ar.name))
+    const familyCount = Number(hasCreative) + Number(hasEdit) + Number(hasFilesystem)
+    if (familyCount <= 1) return undefined
 
-    // Dominant kind: edit over creative. Auto-reject creative review tools.
+    // Renderer review modules submit one approval family at a time. LangChain HITL also skips
+    // ToolNode for the whole batch when any sibling is rejected. Block edits are the only safe
+    // dominant family because the renderer applies them before resume and AgentEngine can
+    // synthesize their acknowledgements in a poisoned batch. Without block edits there is no safe
+    // partial execution, so reject the whole mixed batch and let the model resubmit one family.
     const result: Record<number, ResumeDecision> = {}
     reviewActionRequests.forEach((ar, i) => {
       const origIdx = reviewActionOriginalIndices[i]
-      if (CREATIVE_REVIEW_TOOLS.has(ar.name) && origIdx !== undefined) {
-        result[origIdx] = {
-          type: 'rejected',
-          message: `Mixed-kind action batch detected. '${ar.name}' was skipped because block-edit tools were present in the same turn. Please call plan/review tools and block-edit tools in separate turns.`,
-        }
+      if (origIdx === undefined) return
+      if (hasEdit && BLOCK_EDIT_TOOLS.has(ar.name)) return
+
+      result[origIdx] = {
+        type: 'rejected',
+        message: hasEdit
+          ? `Mixed approval families detected. '${ar.name}' was skipped because block edits were present. Submit block edits, filesystem mutations, and creative/git approvals in separate turns.`
+          : `Mixed approval families detected. '${ar.name}' was skipped with the whole batch. Resubmit filesystem mutations and creative/git approvals in separate turns.`,
       }
     })
     return result

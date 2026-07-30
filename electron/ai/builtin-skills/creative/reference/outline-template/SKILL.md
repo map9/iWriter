@@ -1,6 +1,6 @@
 ---
 name: outline-template
-description: 创建、更新、迁移或结构校验 storylines.md、总纲、卷纲和章纲时使用；定义独立故事线、紧凑因果记录、提纲状态与引用边界。
+description: storylines.md 与各级提纲的非主流程模板；仅在当前主 Playbook 已进入正式创建、更新、迁移或结构校验且本轮目标包含故事线或提纲时加载；定义独立故事线、紧凑因果记录、提纲状态与引用边界。
 ---
 
 # 故事线与提纲模板

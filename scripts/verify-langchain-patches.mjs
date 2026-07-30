@@ -5,9 +5,10 @@ import { pathToFileURL } from 'node:url'
 import { BaseCallbackHandler } from '@langchain/core/callbacks/base'
 import { CallbackManager } from '@langchain/core/callbacks/manager'
 import { convertChunksToEvents } from '@langchain/core/language_models/compat'
-import { AIMessageChunk } from '@langchain/core/messages'
+import { AIMessage, AIMessageChunk, HumanMessage } from '@langchain/core/messages'
 import { ChatGenerationChunk } from '@langchain/core/outputs'
 import { AsyncLocalStorageProviderSingleton } from '@langchain/core/singletons'
+import { createSummarizationMiddleware } from 'deepagents'
 
 const require = createRequire(import.meta.url)
 const langGraphPackageDir = path.dirname(require.resolve('@langchain/langgraph/package.json'))
@@ -125,6 +126,70 @@ assert.deepEqual(mixedIndexedContentBlocks, [
   { type: 'text', text: 'visible', index: 0 },
   { type: 'reasoning', reasoning: 'hidden', index: 0 },
 ])
+
+const summarizationMiddleware = createSummarizationMiddleware({
+  backend: { write: async filePath => ({ path: filePath }) },
+})
+const replayedSummaryMessage = {
+  [Symbol.for('langchain.message')]: true,
+  type: 'human',
+  content: 'checkpoint summary',
+  additional_kwargs: { lc_source: 'summarization' },
+  response_metadata: {},
+}
+
+assert.equal(replayedSummaryMessage instanceof HumanMessage, false)
+assert.equal(HumanMessage.isInstance(replayedSummaryMessage), true)
+assert.equal(summarizationMiddleware.stateSchema.safeParse({
+  _summarizationEvent: {
+    cutoffIndex: 1,
+    summaryMessage: replayedSummaryMessage,
+    filePath: null,
+  },
+}).success, true)
+
+let configuredSummaryModelCalls = 0
+let requestModelCalls = 0
+const configuredSummaryModel = {
+  profile: { maxInputTokens: 10_000 },
+  invoke: async () => {
+    configuredSummaryModelCalls += 1
+    return new AIMessage({
+      content: [
+        { type: 'reasoning', reasoning: 'private reasoning must not enter the summary' },
+        { type: 'text', text: 'PUBLIC SUMMARY' },
+      ],
+    })
+  },
+}
+const requestModel = {
+  profile: { maxInputTokens: 10_000 },
+  invoke: async () => {
+    requestModelCalls += 1
+    return new AIMessage('wrong model')
+  },
+}
+const configuredSummarizationMiddleware = createSummarizationMiddleware({
+  backend: { write: async filePath => ({ path: filePath }) },
+  model: configuredSummaryModel,
+  trigger: { type: 'messages', value: 1 },
+  keep: { type: 'messages', value: 0 },
+  tokenCounter: () => 100,
+  trimTokensToSummarize: 1_000,
+  summaryPrompt: 'Summarize: {conversation}',
+})
+const summaryCommand = await configuredSummarizationMiddleware.wrapModelCall({
+  messages: [new HumanMessage('hello')],
+  state: { messages: [new HumanMessage('hello')] },
+  model: requestModel,
+  tools: [],
+}, async () => new AIMessage('handled'))
+const summaryContent = summaryCommand.update._summarizationEvent.summaryMessage.content
+
+assert.equal(configuredSummaryModelCalls, 1)
+assert.equal(requestModelCalls, 0)
+assert.match(summaryContent, /PUBLIC SUMMARY/)
+assert.doesNotMatch(summaryContent, /private reasoning/)
 
 class SentinelCallbackHandler extends BaseCallbackHandler {
   name = 'sentinel_callback_handler'

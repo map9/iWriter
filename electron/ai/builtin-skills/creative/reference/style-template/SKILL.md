@@ -1,6 +1,6 @@
 ---
 name: style-template
-description: 创建、更新、迁移或结构校验 novel workspace 的 styles/{slug}.md 时使用；定义以作者认可范文为主锚、可记录本地文件或网络研究来源的全局叙述风格对象。
+description: styles/{slug}.md 的非主流程模板；仅在 style-transfer 或当前主 Playbook 已进入正式创建、更新、迁移或结构校验且本轮目标包含风格对象时加载；定义以作者认可范文为主锚、可记录本地文件或网络研究来源的全局叙述风格对象。
 ---
 
 # 风格模板

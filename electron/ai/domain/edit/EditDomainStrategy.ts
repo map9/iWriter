@@ -11,6 +11,7 @@ import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { ThreadRuntimeStore } from '../../runtime/ThreadRuntimeStore'
 import type { AiAgentMode } from '../../../../src/types/ai'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
+import type { ResumeDecision } from '../../ipc/protocol'
 import type {
   DomainStrategy,
   DomainBuildContext,
@@ -52,6 +53,30 @@ export class EditDomainStrategy implements DomainStrategy {
 
   getInterruptOnNames(): Set<string> {
     return EDIT_INTERRUPT_ON_NAMES
+  }
+
+  preDecideMixed(
+    reviewActionRequests: Array<{ name: string; args: Record<string, unknown> }>,
+    reviewActionOriginalIndices: number[],
+  ): Record<number, ResumeDecision> | undefined {
+    const hasFilesystem = reviewActionRequests.some(ar => isFilesystemWriteTool(ar.name))
+    const hasBlockEdit = reviewActionRequests.some(ar => !isFilesystemWriteTool(ar.name))
+    if (!hasFilesystem || !hasBlockEdit) return undefined
+
+    // Keep block edits as the only reviewed family. The renderer applies them before resume, and
+    // AgentEngine's poisoned-batch guard can acknowledge them even though these auto-rejections
+    // cause LangChain HITL to skip ToolNode for the original mixed batch.
+    const result: Record<number, ResumeDecision> = {}
+    reviewActionRequests.forEach((ar, i) => {
+      if (!isFilesystemWriteTool(ar.name)) return
+      const originalIndex = reviewActionOriginalIndices[i]
+      if (originalIndex === undefined) return
+      result[originalIndex] = {
+        type: 'rejected',
+        message: `Mixed approval families detected. '${ar.name}' was skipped because block edits were present. Submit filesystem mutations in a separate turn after the block-edit batch is reviewed.`,
+      }
+    })
+    return result
   }
 
   async buildReviewItems(ctx: InterruptContext): Promise<DomainReviewItem[]> {

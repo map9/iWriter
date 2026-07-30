@@ -99,3 +99,9 @@ with `write_file` / `edit_file`.
 Every edit requires the user's approval. Same-file edits are shown as one aggregated
 diff card in document order; the user can approve the batch or override individual
 items. You never manage apply order — that is the engine's job.
+
+A response containing block edit tools (including `create_document`) must contain no
+filesystem mutation tools (`write_file`, `edit_file`, `rename_file`, `move_file`,
+`delete_file`) and no creative/git approval tools. Submit one approval family, stop,
+and wait for its result. In a migration, create/update and verify destination documents
+before proposing obsolete source-file deletions in a later filesystem-only batch.

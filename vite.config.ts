@@ -9,6 +9,10 @@ import { join, resolve } from 'path'
 const electronMainExternal = [
   'electron',
   'original-fs',
+  // SqliteSaver is external and deserializes checkpoint messages through the
+  // runtime copy of @langchain/core. Keep every core subpath external too, so
+  // middleware schemas and replayed messages share the same class identity.
+  '@langchain/core',
   '@langchain/langgraph-checkpoint-sqlite',
   'better-sqlite3',
   // @parcel/watcher is a native N-API module (file watching); must stay in
@@ -21,6 +25,12 @@ const electronMainExternal = [
   'canvas',
   '@mozilla/readability',
 ]
+
+function isElectronMainExternal(id: string): boolean {
+  return electronMainExternal.some(packageName =>
+    id === packageName || id.startsWith(`${packageName}/`)
+  )
+}
 
 function getVendorChunkName(id: string): string | undefined {
   if (!id.includes('node_modules')) return undefined
@@ -96,7 +106,7 @@ export default defineConfig(({ command }) => {
                 // If Vite bundles them into dist-electron, bindings() resolves the
                 // .node binary from the wrong module root and SqliteSaver falls
                 // back to MemorySaver at runtime.
-                external: electronMainExternal
+                external: isElectronMainExternal
               }
             }
           }
@@ -109,7 +119,7 @@ export default defineConfig(({ command }) => {
               minify: isProductionBuild ? true : false,
               outDir: 'dist-electron',
               rollupOptions: {
-                external: electronMainExternal
+                external: isElectronMainExternal
               }
             }
           }

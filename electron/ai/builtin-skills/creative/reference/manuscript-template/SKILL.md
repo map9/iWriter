@@ -1,6 +1,6 @@
 ---
 name: manuscript-template
-description: 创建、更新、迁移或结构校验 novel workspace 的章节正文与可选前后材料时使用；定义 manuscript/ch{NNN}.md、front-matter.md 和 back-matter.md。
+description: 正文文件的非主流程模板；仅在 drafting/revision/novel-import Playbook 已进入正式创建、更新、迁移或结构校验且本轮目标包含正文或前后材料时加载；定义 manuscript/ch{NNN}.md、front-matter.md 和 back-matter.md。
 ---
 
 # 正文模板

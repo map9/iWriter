@@ -1,6 +1,6 @@
 ---
 name: project-template
-description: 创建、更新、迁移或结构校验小说工作区根目录 project.md 时使用；定义轻量作品级记录、长度预算和影响边界。
+description: project.md 的非主流程模板；仅在当前主 Playbook 已进入正式创建、更新、迁移或结构校验且本轮目标包含 project.md 时加载；定义轻量作品级记录、长度预算和影响边界。
 ---
 
 # 项目模板

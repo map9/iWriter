@@ -1,6 +1,6 @@
 ---
 name: characters-template
-description: 创建、更新、迁移或结构校验 characters/characters.md 时使用；定义单文件人物小传、稳定 ID、写作所需信息和自然简写方式。
+description: characters/characters.md 的非主流程模板；仅在当前主 Playbook 已进入正式创建、更新、迁移或结构校验且本轮目标包含人物对象时加载；定义单文件人物小传、稳定 ID、写作所需信息和自然简写方式。
 ---
 
 # 人物小传模板
