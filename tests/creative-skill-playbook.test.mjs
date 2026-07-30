@@ -29,6 +29,9 @@ const outlineTemplatePath = resolve(
 const othersTemplatePath = resolve(
   'electron/ai/builtin-skills/creative/reference/others-template/SKILL.md',
 )
+const manuscriptTemplatePath = resolve(
+  'electron/ai/builtin-skills/creative/reference/manuscript-template/SKILL.md',
+)
 const characterDesignPath = resolve(
   'electron/ai/builtin-skills/creative/main/ideation-outline-playbook/references/character-design.md',
 )
@@ -118,15 +121,15 @@ test('nested references in creative main skills exist relative to their SKILL.md
   }
 })
 
-test('novel workspace uses compact single-source objects with legacy projects left in place', () => {
+test('novel workspace uses compact single-source objects', () => {
   const source = readFileSync(novelWorkspacePath, 'utf8')
 
   assert.match(source, /storylines\.md.*全部故事线/)
   assert.match(source, /materials\/cards\.md/)
-  assert.match(source, /一个核心句 \+ 最多三条必要补充/)
+  assert.match(source, /简单人物或设定用一个核心句/)
+  assert.match(source, /承重人物或设定.*默认不超过六条/)
   assert.match(source, /一个事实只在归属对象中写完整内容/)
   assert.match(source, /不得默认整份读取/)
-  assert.match(source, /不扫描、迁移或批量改写旧项目/)
 })
 
 test('compact templates merge fields without dropping semantic ownership', () => {
@@ -139,14 +142,19 @@ test('compact templates merge fields without dropping semantic ownership', () =>
   assert.match(project, /## 作品（work）/)
   assert.match(project, /## 故事（story）/)
   assert.match(project, /## 创作边界（constraints）/)
-  assert.match(project, /不要求把 premise.*拆成独立字段/)
 
-  assert.match(characters, /全部人物放在一个文件/)
-  assert.match(characters, /分析视角，不是必填字段/)
-  assert.doesNotMatch(characters, /false-belief.*必选/)
+  assert.match(characters, /全部人物保存在一个文件/)
+  assert.match(characters, /`行动`.*惯用办法及其代价/)
+  assert.match(characters, /`关系`.*索取或回避.*可用筹码/)
+  assert.match(characters, /`表现`.*声音.*身体习惯/)
+  assert.match(characters, /`条件`.*能力.*知识边界/)
+  assert.match(characters, /`变化线`.*只引用人物变化线 ID/)
+  assert.match(characters, /承重人物.*默认不超过六条/)
 
-  assert.match(world, /不要求分别建立“定义、成本、执行、故事压力”等字段/)
-  assert.doesNotMatch(world, /rule-systems.*必选/)
+  assert.match(world, /规则或系统.*运行条件.*硬边界/)
+  assert.match(world, /地点.*空间关系.*感官标记/)
+  assert.match(world, /至少保留一种正文可见的表现/)
+  assert.match(world, /承重条目.*默认不超过六条/)
 
   assert.match(outline, /故事线不是总纲的字段/)
   assert.match(outline, /每个阶段一个因果句/)
@@ -157,6 +165,23 @@ test('compact templates merge fields without dropping semantic ownership', () =>
   assert.match(others, /不保留副本/)
 })
 
+test('creative object contracts contain no legacy-project compatibility rules', () => {
+  const paths = [
+    novelWorkspacePath,
+    projectTemplatePath,
+    characterTemplatePath,
+    worldTemplatePath,
+    outlineTemplatePath,
+    othersTemplatePath,
+    manuscriptTemplatePath,
+  ]
+
+  for (const filePath of paths) {
+    const source = readFileSync(filePath, 'utf8')
+    assert.doesNotMatch(source, /旧项目|旧格式|兼容|迁移|fragments\.md/)
+  }
+})
+
 test('dimension skills retain semantic checks while emitting compact story language', () => {
   const characters = readFileSync(characterDesignPath, 'utf8')
   const world = readFileSync(worldbuildingPath, 'utf8')
@@ -165,11 +190,15 @@ test('dimension skills retain semantic checks while emitting compact story langu
   const drafting = readFileSync(draftingPath, 'utf8')
 
   assert.match(characters, /内部回答/)
-  assert.match(characters, /不要为了“人物完整”给每个人推导一套决策模型/)
-  assert.match(characters, /不要逐项输出欲望、恐惧/)
+  assert.match(characters, /能力、资源、知识和社会位置/)
+  assert.match(characters, /措辞、身体动作、注意偏好或社交习惯/)
+  assert.match(characters, /承重人物按需保留行动、关系、表现和条件/)
+  assert.match(characters, /人物变化过程写入独立故事线/)
 
   assert.match(world, /在内部检查/)
-  assert.match(world, /检查维度，不是五个文件字段/)
+  assert.match(world, /动作、用语、物件、痕迹或感官标记/)
+  assert.match(world, /规则或技术.*触发、能力、限制/)
+  assert.match(world, /承重设定按需保留边界、运作、空间、人和程序、可写表现/)
 
   assert.match(story, /它不是总纲字段/)
   assert.match(story, /行动 → 回应 → 实际变化 → 新条件/)
@@ -178,4 +207,6 @@ test('dimension skills retain semantic checks while emitting compact story langu
   assert.match(chapter, /这些是语义要求，不是六个必填字段/)
   assert.match(chapter, /可写/)
   assert.match(drafting, /不要求出现固定字段名/)
+  assert.match(drafting, /人物的行动、关系、表现与能力边界/)
+  assert.match(drafting, /世界规则、程序、空间与可写表现/)
 })

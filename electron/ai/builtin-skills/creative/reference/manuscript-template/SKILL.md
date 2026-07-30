@@ -27,7 +27,7 @@ Agent 新写或修改章节正文前，该章须有 `confirmed` 的 `ch{NNN}-out
 - **正文**：段落文字。
 - **情感节拍 `[!BEAT]`**：`> [!BEAT] [scene-id-beat-M] 一句情感 / 叙事转向`。
   - `[!BEAT]` 是提取锚点（靠标记找，不靠坐标正则）；磁盘上 `\[…\]` 转义等价。
-  - 坐标使用章纲的稳定场景 ID 加 beat 序号，例如 `[scene-hospital-proof-beat-1]`；旧项目的 `[scene-N-beat-M]` 继续兼容。
+  - 坐标使用章纲的稳定场景 ID 加 beat 序号，例如 `[scene-hospital-proof-beat-1]`。
   - 内容为一句因果必要的情感 / 叙事转向，不带解释尾、文风指令、逐句措辞。
   - 场景间用 `* * *` 分隔；agent 写入时，同场景内 beat 之间空一行，避免相邻无空行会并成一个 alert。
 - **注释 `[!TYPE]`**：除 `[!BEAT]` 外的其他 GFM Alert（`NOTE` / `COMMENT` / `WARNING` / `TIP`…），TYPE 表注释类型，非正文。

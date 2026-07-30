@@ -35,7 +35,3 @@ description: 创建、读取、更新或校验 materials/cards.md、process/ 与
 - `.iwriter/status.md`：可丢弃的派生缓存，目标 500–1000 token；与正式对象冲突时始终以正式对象为准。
 
 过程文件不是默认上下文。只有当前任务直接涉及未决问题、历史原因、遗留 finding 或恢复进度时才读取。
-
-## 旧格式
-
-旧项目的 `materials/fragments.md` 可以继续原位追加或修改。未经作者批准，不自动创建 `cards.md` 与其并存，也不迁移旧碎片。

@@ -9,7 +9,7 @@ description: 创建、读取、更新或校验小说工作区根目录 project.m
 
 `project.md` 是作品级约定的唯一来源，不保存剧情进度、候选方向、人物档案或协作过程。
 
-## 新格式
+## 项目记录
 
 ```markdown
 # 项目
@@ -31,8 +31,6 @@ description: 创建、读取、更新或校验小说工作区根目录 project.m
 - `work`：一句话合并书名、题材/形式、规模、读者、视角等已确认制作信息；只写当前真正需要的项目。
 - `story`：一至三句保存作品核心约定，可以合并人物处境、行动压力、持续冲突、核心变化、主题问题和读者体验；具体是否成立由 `project-foundation.md` 检验。
 - `constraints`：可选，最多三条作者明确要求保留或避免的边界，也可包含风格引用。
-
-不要求把 premise、theme、reader promise、core change 或 narrative engine 拆成独立字段。缺失某项时由立项任务判断是否真的阻塞当前工作，不为模板完整而补写。
 
 ## 长度与变更
 
