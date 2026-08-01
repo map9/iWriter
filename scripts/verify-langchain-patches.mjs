@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
+import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { BaseCallbackHandler } from '@langchain/core/callbacks/base'
@@ -11,6 +12,19 @@ import { AsyncLocalStorageProviderSingleton } from '@langchain/core/singletons'
 import { createSummarizationMiddleware } from 'deepagents'
 
 const require = createRequire(import.meta.url)
+const deepagentsPackageDir = path.dirname(require.resolve('deepagents/package.json'))
+const deepagentsRuntimeSources = readdirSync(path.join(deepagentsPackageDir, 'dist'))
+  .filter(name => /^langsmith-.*\.(?:js|cjs)$/.test(name))
+  .map(name => readFileSync(path.join(deepagentsPackageDir, 'dist', name), 'utf8'))
+  .filter(source => source.includes('const EXCLUDED_STATE_KEYS'))
+
+assert.ok(deepagentsRuntimeSources.length >= 2)
+for (const source of deepagentsRuntimeSources) {
+  assert.match(source, /"_summarizationSessionId"/)
+  assert.match(source, /"_summarizationEvent"/)
+  assert.match(source, /"_contextLedger"/)
+}
+
 const langGraphPackageDir = path.dirname(require.resolve('@langchain/langgraph/package.json'))
 const { ensureLangGraphConfig } = await import(pathToFileURL(
   path.join(langGraphPackageDir, 'dist/pregel/utils/config.js'),

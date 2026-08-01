@@ -15,7 +15,7 @@ const props = defineProps<{
   groupPosition?: 'single' | 'start' | 'middle' | 'end'
 }>()
 
-const { t, te } = useI18n()
+const { t, te, locale } = useI18n()
 const expanded = ref(false)
 
 const groupContainerClass = computed(() => {
@@ -82,6 +82,7 @@ const hasBody = computed(() =>
   !!(
     props.subTask.contentBlocks?.length ||
     props.subTask.toolCalls?.length ||
+    props.subTask.contextCompressionEvents?.length ||
     props.subTask.text ||
     props.subTask.thinkingText ||
     (props.subTask.status === 'error' && props.subTask.errorText)
@@ -89,6 +90,13 @@ const hasBody = computed(() =>
 )
 
 const visibleBlocks = computed(() => props.subTask.contentBlocks ?? [])
+
+function formatCompressionTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString(locale.value, {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 function toolCallForId(id: string) {
   return props.subTask.toolCalls.find(tc => tc.id === id)
@@ -202,6 +210,19 @@ function fallbackToolPosition(idx: number): 'single' | 'start' | 'middle' | 'end
           :class="idx > 0 ? 'mt-0' : subTask.text ? 'mt-1' : ''"
         />
       </template>
+
+      <div
+        v-for="event in subTask.contextCompressionEvents ?? []"
+        :key="event.id"
+        class="flex items-center gap-2 py-1.5"
+        role="status"
+      >
+        <span class="h-px flex-1 bg-base-content/15"></span>
+        <span class="shrink-0 text-[11px] text-base-content/45">
+          {{ t('agentPanel.chatArea.contextCompressed', { time: formatCompressionTime(event.timestamp) }) }}
+        </span>
+        <span class="h-px flex-1 bg-base-content/15"></span>
+      </div>
 
       <!-- Thinking -->
       <ThinkingBlock

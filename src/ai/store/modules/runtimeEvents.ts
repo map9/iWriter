@@ -160,6 +160,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
           currentText: '',
           thinkingText: '',
           blocks: [],
+          contextCompressionEvents: [],
           status: 'pending',
         },
       ]
@@ -376,6 +377,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
         currentText: '',
         thinkingText: '',
         blocks: [],
+        contextCompressionEvents: [],
         status: 'running',
       }
       upsertSubTask(liveTurn, subTask)
@@ -479,6 +481,29 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     if (chunk.type === 'text' && chunk.delta) {
       const updated = [...liveTurn.subTasks]
       updated[idx] = { ...subTask, text: subTask.text + chunk.delta, currentText: subTask.currentText + chunk.delta }
+      liveTurn.subTasks = updated
+      return
+    }
+
+    if (chunk.type === 'context_compressed') {
+      const id = `${invocationId}:context-compressed:${chunk.compressedMessageCount}`
+      if (subTask.contextCompressionEvents.some(event => event.id === id)) return
+      const updated = [...liveTurn.subTasks]
+      updated[idx] = {
+        ...subTask,
+        contextCompressionEvents: [
+          ...subTask.contextCompressionEvents,
+          {
+            id,
+            threadId: chunk.threadId,
+            turnId: chunk.turnId,
+            subagentId: invocationId,
+            subagentName: chunk.subagentName,
+            timestamp: chunk.timestamp,
+            compressedMessageCount: chunk.compressedMessageCount,
+          },
+        ],
+      }
       liveTurn.subTasks = updated
       return
     }

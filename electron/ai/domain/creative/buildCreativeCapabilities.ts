@@ -2,6 +2,7 @@ import * as path from 'path'
 import type { DomainAgentCapabilities } from '../types'
 import type { InterruptOnConfig } from 'langchain'
 import type { StructuredTool } from '@langchain/core/tools'
+import { GENERAL_PURPOSE_SUBAGENT } from 'deepagents'
 import { buildGitTools } from '../../tools/common/GitTools'
 import { buildDocumentTools } from '../../tools/common/DocumentTools'
 import { buildEditProposalTools } from '../../tools/common/EditProposalTools'
@@ -15,8 +16,11 @@ import { buildImportManuscriptTool } from '../../tools/creative/ImportManuscript
 import { EDIT_INTERRUPT_ON_CONFIG } from '../edit/buildEditCapabilities'
 import { ToolRegistry } from '../../tools/ToolRegistry'
 import { assembleSubagents } from '../../scaffold/subagents/SubagentAssembler'
+import { createContextLedgerMiddleware } from '../../scaffold/middleware/ContextLedgerMiddleware'
+import { withProjectSkills } from '../../scaffold/skills/SkillsMount'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
+import { buildOutputLanguagePrompt } from '../../../../src/ai/message/detectInputLanguage'
 import type { GitMutationEvent } from '../../../../src/types/git'
 import type { GitService } from '../../../GitService'
 
@@ -60,7 +64,7 @@ export function buildCreativeCapabilities(input: {
 
   const registry = new ToolRegistry(tools)
 
-  const subAgents = assembleSubagents({
+  const assembledSubagents = assembleSubagents({
     subagentsRoot,
     skillsRoot,
     workspacePath: input.workspacePath,
@@ -68,6 +72,26 @@ export function buildCreativeCapabilities(input: {
     language,
     registry,
   })
+  // DeepAgents normally synthesizes general-purpose internally, but novel root middleware is
+  // not appended there. Declare the equivalent spec explicitly so every creative subagent,
+  // including general-purpose, owns a checkpoint-scoped Context Ledger.
+  const runtimeContextBlock = input.workspacePath
+    ? `<runtime_context>\n  <workspace>${input.workspacePath}</workspace>\n</runtime_context>\n\n`
+    : ''
+  const generalPurpose = {
+    ...GENERAL_PURPOSE_SUBAGENT,
+    systemPrompt: `${buildOutputLanguagePrompt(language)}\n\n${runtimeContextBlock}${GENERAL_PURPOSE_SUBAGENT.systemPrompt}`,
+    tools: registry.all(),
+    skills: withProjectSkills([
+      path.join(skillsRoot, 'common'),
+      path.join(skillsRoot, 'creative', 'common'),
+      path.join(skillsRoot, 'creative', 'reference'),
+      path.join(skillsRoot, 'creative', 'main'),
+      path.join(skillsRoot, 'creative', 'delegated'),
+    ], input.workspacePath),
+    middleware: [createContextLedgerMiddleware()],
+  }
+  const subAgents = [generalPurpose, ...assembledSubagents]
 
   return {
     // A00 (main控) draws the broadest tool面; per-object write restrictions (manuscript block

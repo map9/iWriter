@@ -14,6 +14,22 @@ interface SubagentCause {
   tool_call_id?: string
 }
 
+interface SubagentCompressionEvent {
+  compressedMessageCount: number
+}
+
+/** Read only the subagent's final state; root checkpoint detection stays in AgentEngine. */
+export function extractSubagentCompressionEvent(output: unknown): SubagentCompressionEvent | null {
+  if (!output || typeof output !== 'object' || Array.isArray(output)) return null
+  const event = (output as Record<string, unknown>)._summarizationEvent
+  if (!event || typeof event !== 'object' || Array.isArray(event)) return null
+  const eventRecord = event as Record<string, unknown>
+  if (!eventRecord.summaryMessage) return null
+  const cutoffIndex = eventRecord.cutoffIndex
+  if (!Number.isInteger(cutoffIndex) || (cutoffIndex as number) <= 0) return null
+  return { compressedMessageCount: cutoffIndex as number }
+}
+
 export class StreamEventAdapter {
   private assistantContent = ''
   private thinkingContent = ''
@@ -188,6 +204,18 @@ export class StreamEventAdapter {
           error => ({ status: 'rejected' as const, error }),
         ))
         if (outputResult.status === 'fulfilled') {
+          const compression = extractSubagentCompressionEvent(outputResult.output)
+          if (compression) {
+            this._send({
+              threadId: this.threadId,
+              turnId: this.turnId,
+              type: 'context_compressed',
+              timestamp: Date.now(),
+              compressedMessageCount: compression.compressedMessageCount,
+              subagentName: sub.name,
+              subagentId: invocationId,
+            })
+          }
           this.subagentEventCount += 1
           this.bridge.sendStreamChunk({
             threadId: this.threadId,

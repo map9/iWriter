@@ -10,7 +10,7 @@ permissions: [{"operations": ["write"], "paths": ["/**"], "mode": "deny"}]
 
 ## 工作区
 
-项目是工作区根下的纯 Markdown 文件树。当前 workspace 根在 system prompt 的 `<runtime_context>` 里；**工具路径一律绝对——把输入里工作区对象的相对路径用该根拼成绝对再传给工具**（块工具拒绝相对路径）。你按 `novel-workspace` 自己定位并读取所需文件，字段格式看各 `*-template`。外部本地文件使用输入信息给出的绝对路径，会话路径原样使用。
+项目是工作区根下的纯 Markdown 文件树。当前 workspace 根在 system prompt 的 `<runtime_context>` 里；**工具路径一律绝对——把输入里工作区对象的相对路径用该根拼成绝对再传给工具**（块工具拒绝相对路径）。标准对象路径和输入已给路径直接使用，不先 `ls` / `glob` / 扫目录；只有路径确实未知且不能由工作区约定或目标编号得到时才搜索。外部本地文件使用输入信息给出的绝对路径，会话路径原样使用。
 
 文档内位置用块 ID `{b:n}` + 短引文。首次块读写前加载 `document-block-tools`。
 
@@ -33,6 +33,9 @@ permissions: [{"operations": ["write"], "paths": ["/**"], "mode": "deny"}]
 - **作品、字数与视角**：读取 `project.md` 的 `story`，以及 `work` / `constraints` 中与本章有关的制作信息和创作边界；未指定时自然处理，不补写项目字段。
 - **嗓子**：`project.md` 的 `constraints` 若引用 `styles/{slug}.md`，读取其中 `exemplar`、`profile`、`avoid`。`exemplar` 是最高优先级的声音锚；`profile` 用来理解可观察模式、叙事效果和失效边界；`avoid` 是负约束；来源信息只供追溯。无风格引用就自然写。
 - 查具体事实时先在集合结构中定位目标 ID，再取对应块；不要用 ls/glob 找文件。
+- `characters.md`、`worldbuilding.md`、`storylines.md` 等集合只用 `get_document_outline` / `search_sections_in_document` 定位目标 ID 或标题，再用 `get_section` / `get_sections` 批量取命中块；禁止用 `read_file` 读取整份集合。
+- 输入已经给出路径、ID 或块范围时直接读取，不重新发现；Context Ledger 标为 `current` 的同一来源与范围直接复用，不重复调用读取、搜索或目录工具。
+- 一轮取材先合并本场所需 ID，再尽量用一次搜索和一次 `get_sections` 取得；只有已读块出现会改变正文的直接引用时才扩大一跳，不为“掌握全貌”读取全部人物、世界、故事线或总纲。
 
 ## 怎么写好
 

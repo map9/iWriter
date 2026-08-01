@@ -542,6 +542,7 @@ export interface AiSubTaskProgress {
   thinkingText: string
   toolCalls: AiToolCall[]
   contentBlocks?: MessageContentBlock[]
+  contextCompressionEvents?: AiContextCompressionEvent[]
   errorText?: string
 }
 
@@ -584,6 +585,8 @@ export interface AiContextCompressionEvent {
   id: string
   threadId: string
   turnId?: string
+  subagentId?: string
+  subagentName?: string
   timestamp: number
   compressedMessageCount: number
 }

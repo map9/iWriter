@@ -6,6 +6,7 @@ import type { InterruptOnConfig } from 'langchain'
 import type { ToolRegistry } from '../../tools/ToolRegistry'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
 import { buildOutputLanguagePrompt } from '../../../../src/ai/message/detectInputLanguage'
+import { createContextLedgerMiddleware } from '../middleware/ContextLedgerMiddleware'
 
 /**
  * SubagentAssembler (04.1 §2 / 03 §2.10, plan A1) — the declarative装配 mechanism that
@@ -186,6 +187,10 @@ export function assembleSubagents(options: AssembleOptions): SubAgent[] {
       name: frontmatter.name,
       description: frontmatter.description,
       systemPrompt: `${buildOutputLanguagePrompt(options.language)}\n\n${runtimeContextBlock}${body}`,
+      // Root custom middleware is not automatically appended to declarative DeepAgents
+      // subagents. Give every assembled subagent its own checkpoint-scoped ledger so its
+      // reads, searches, and listings remain visible to its later model calls.
+      middleware: [createContextLedgerMiddleware()],
       // Subagent trace identity comes for free from deepagents' `createAgent({ name })`: the subagent
       // subtree root run is named after `name` and every run carries `metadata.lc_agent_name`, so the
       // whole invocation is filterable/exportable in LangSmith without custom middleware.

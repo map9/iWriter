@@ -88,9 +88,9 @@ iWriter 的 AI 运行时已经切换到：
 - 自动摘要通常在运行预算的 85% 触发（DeepSeek 为 80%），压缩后保留约 10% 的最近上下文（上限 100k）。发送前检查只拒绝摘要无法缩小的系统提示、工具 schema 和本轮新输入；累积历史超过阈值时交由摘要中间件先压缩，不再由全局 250k 上限提前失败。
 - 工具栏圆环是只读状态指示器，显示当前有效会话 token、自动摘要阈值、压缩保留量、单次运行预算以及可用时的模型物理上下文上限。DeepAgents JavaScript 当前没有直接压缩既有会话的公开 API，因此点击圆环不会触发摘要。
 - 摘要结果通过 checkpoint 的 `_summarizationEvent` 保存，较早的完整消息由 DeepAgents offload 到 conversation history。
-- 摘要发生后，主进程发送带 `turnId` 和时间戳的压缩事件；渲染层在对应轮次末尾显示居中的“上下文已压缩（时间）”分隔行。该事件不是 `ThreadMessage`，不使用对话 Bubble，也不回灌模型上下文；当前仅保留在本次应用会话的渲染状态中。
+- 根 Agent 摘要发生后，主进程只检查 root checkpoint namespace，并发送带 `turnId` 和时间戳的压缩事件；渲染层在该轮第一条 assistant 输出前显示居中的“上下文已压缩（时间）”分隔行。子 Agent 从自己的最终 state 检测 `_summarizationEvent`，事件按 `subagentId` 路由并显示在对应的子任务详情内，不由 root checkpoint 检测代劳。两类事件都不是 `ThreadMessage`，不使用对话 Bubble，也不回灌模型上下文；当前仅保留在本次应用会话的渲染状态中。
 - 摘要使用同一个通用框架，`EditDomainStrategy` 与 `CreativeDomainStrategy` 只提供各自需要保留的任务语义。Edit 分型保留文档/区块/审批/编辑约束，Creative 分型保留阶段、Playbook、正式事实/候选、因果与写作会话状态；不复制两套摘要中间件。
-- `_contextLedger` 在 checkpoint 中确定性保存已读来源、范围、版本、缺失/失败状态。文件、块或 Git 恢复发生实际修改后，相关读取会标记为 stale；脏的编辑器文档读取只在当前 user turn 内有效。账本只作为隐藏 system context 注入，不创建用户或助手 Bubble，也不保存大段工具返回。
+- `_contextLedger` 在 checkpoint 中确定性保存已读来源、范围、版本、缺失/失败状态。writer、reviewer 与 `general-purpose` 子 Agent 各自挂载同一 middleware，在自己的运行上下文内复用 current 记录。文件、块或 Git 恢复发生实际修改后，相关读取会标记为 stale；脏的编辑器文档读取只在当前 user turn 内有效。账本只作为隐藏 system context 注入，不创建用户或助手 Bubble，也不保存大段工具返回。
 
 ## Checkpoint 持久化与保留
 
@@ -155,7 +155,8 @@ Creative 模式是工作区限定的小说创作域，采用纯 Markdown 对象�
 - 简单人物或设定使用一个核心段；主要人物或重要设定最多增加六条正文会使用的自然事实句；故事线阶段、结构节点和场景各用一个因果句。
 - 模板只规定记录形状与长度预算。对应任务 Skill 在内部验收创作语义，项目文件不保存分析字段。
 - 人物使用短小传和故事事实；世界观设定按作品内名称建立条目，不预设内容分类。
-- `characters.md`、`worldbuilding.md`、`storylines.md` 和 `cards.md` 先读结构、再按 ID 读取目标块，不因单文件集合而整份装入上下文。
+- `characters.md`、`worldbuilding.md`、`storylines.md` 和 `cards.md` 用文档 outline / section 搜索定位 ID，再以 `get_section` / `get_sections` 读取目标块，不用 `read_file` 整份装入上下文。
+- 标准工作区路径、作者已给路径和可由章号直接得到的路径不先 `ls` / `glob`。正文入口由主 Agent 只读目标章纲的必要块；人物、设定、故事线与正文范围由 writer/reviewer 按路径和 ID 自读，避免主子 Agent 重复装配同一批上下文。
 
 主 Agent 按每轮意图加载阶段 Playbook 或独立任务 Skill：
 

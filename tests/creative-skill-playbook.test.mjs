@@ -100,6 +100,10 @@ test('creative prompt keeps analysis methods out of project fields and reads obj
   assert.match(source, /一个事实只写入唯一归属对象/)
   assert.match(source, /作为共同创作者/)
   assert.match(source, /不要求作者改用系统分类/)
+  assert.match(source, /覆盖通用文件系统工具关于“通常先 ls”/)
+  assert.match(source, /不得用 \\`read_file\\` 读取整份集合/)
+  assert.match(source, /不在连续模型回合重新推演相同状态/)
+  assert.match(source, /主 agent 只读取判断阶段、入口与授权所需的最小块/)
 })
 
 test('ideation playbook treats design questions in mixed requests as generation work', () => {
@@ -234,4 +238,26 @@ test('dimension skills retain semantic checks while emitting compact story langu
   assert.match(drafting, /不要求出现固定字段名/)
   assert.match(drafting, /人物小传中与本场相关的目标、性格、关系、经历、能力、局限/)
   assert.match(drafting, /实际使用的设定事实/)
+  assert.match(drafting, /入口检查与正文取材分两层/)
+  assert.match(drafting, /主 agent 不预读、不转述/)
+  assert.match(drafting, /不对集合调用 `read_file`/)
+})
+
+test('writer and reviewer use canonical paths plus ID-scoped block reads', () => {
+  const writer = readFileSync(
+    resolve('electron/ai/builtin-subagents/creative/writer/agent.md'),
+    'utf8',
+  )
+  const reviewer = readFileSync(
+    resolve('electron/ai/builtin-subagents/creative/reviewer/agent.md'),
+    'utf8',
+  )
+
+  for (const source of [writer, reviewer]) {
+    assert.match(source, /标准对象路径和输入已给路径直接使用/)
+    assert.match(source, /不先 `ls` \/ `glob` \/ 扫目录/)
+    assert.match(source, /Context Ledger 标为 `current` 的同一.*不重复/)
+    assert.match(source, /`get_section` \/ `get_sections`/)
+    assert.match(source, /禁止用 `read_file` 读取整份集合/)
+  }
 })

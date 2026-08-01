@@ -169,6 +169,10 @@ function mergeSubTaskProgress(
     thinkingText: preferLongerText(current.thinkingText, next.thinkingText),
     toolCalls: mergeToolCallsById([...current.toolCalls, ...next.toolCalls]),
     contentBlocks: next.contentBlocks ?? current.contentBlocks,
+    contextCompressionEvents: [
+      ...(current.contextCompressionEvents ?? []),
+      ...(next.contextCompressionEvents ?? []),
+    ].filter((event, index, events) => events.findIndex(candidate => candidate.id === event.id) === index),
     errorText: next.errorText || current.errorText,
   }
 }
@@ -179,11 +183,11 @@ export function insertContextCompressionEvents(
 ): AiDisplayEntry[] {
   if (!events.length) return entries
 
-  const firstEntryIndexByTurn = new Map<string, number>()
+  const firstAssistantEntryIndexByTurn = new Map<string, number>()
   entries.forEach((entry, index) => {
     const turnId = entry.message.turnId
-    if (turnId && !firstEntryIndexByTurn.has(turnId)) {
-      firstEntryIndexByTurn.set(turnId, index)
+    if (entry.message.role === 'assistant' && turnId && !firstAssistantEntryIndexByTurn.has(turnId)) {
+      firstAssistantEntryIndexByTurn.set(turnId, index)
     }
   })
 
@@ -192,7 +196,7 @@ export function insertContextCompressionEvents(
 
   for (const event of orderedEvents) {
     const entryIndex = event.turnId
-      ? firstEntryIndexByTurn.get(event.turnId)
+      ? firstAssistantEntryIndexByTurn.get(event.turnId)
       : undefined
     // Checkpoint messages do not yet carry reliable historical turn IDs. An unmatched marker has
     // no truthful position, so do not append it to the bottom of the conversation.
@@ -291,6 +295,9 @@ export function createRuntimeDisplay(deps: {
             .map(b => b.toolCall),
         ),
         contentBlocks: orderedBlocks.length ? orderedBlocks : undefined,
+        contextCompressionEvents: st.contextCompressionEvents.length
+          ? st.contextCompressionEvents
+          : undefined,
       }
       const existing = subTasksById.get(st.invocationId)
       if (existing) {

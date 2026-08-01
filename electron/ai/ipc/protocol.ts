@@ -131,6 +131,8 @@ export type StreamChunkEvent =
   | { threadId: string; turnId?: string; type: 'subagent_start'; subagentName: string; taskInput: unknown; subagentId?: string }
   | { threadId: string; turnId?: string; type: 'subagent_end'; subagentName: string; output: unknown; subagentId?: string }
   | { threadId: string; turnId?: string; type: 'subagent_error'; subagentName: string; error: string; subagentId?: string }
+  /** A subagent compressed its own checkpoint-scoped context. */
+  | { threadId: string; turnId?: string; type: 'context_compressed'; timestamp: number; compressedMessageCount: number; subagentName: string; subagentId: string }
   /** Real token usage from one LLM call. subagentId present ⇒ emitted by a sub-agent. */
   | { threadId: string; turnId?: string; type: 'usage'; messageId?: string; usage: NormalizedUsage; subagentName?: string; subagentId?: string }
 

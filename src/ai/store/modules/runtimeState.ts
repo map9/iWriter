@@ -1,5 +1,10 @@
 import { computed, ref } from 'vue'
-import type { AiSubTaskProgressStatus, AiToolCall, FilesystemReviewItem } from '@/ai/types'
+import type {
+  AiContextCompressionEvent,
+  AiSubTaskProgressStatus,
+  AiToolCall,
+  FilesystemReviewItem,
+} from '@/ai/types'
 import type { DomainReviewItem } from '@/ai/ipc'
 
 export type ThreadRunState = 'idle' | 'streaming' | 'interrupted'
@@ -17,6 +22,7 @@ export interface LiveSubTask {
   currentText: string
   thinkingText: string
   blocks: StreamingBlock[]
+  contextCompressionEvents: AiContextCompressionEvent[]
   status: AiSubTaskProgressStatus
   output?: unknown
   errorText?: string
