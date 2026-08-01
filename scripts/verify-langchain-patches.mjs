@@ -150,10 +150,12 @@ assert.equal(summarizationMiddleware.stateSchema.safeParse({
 
 let configuredSummaryModelCalls = 0
 let requestModelCalls = 0
+let configuredSummaryModelConfig
 const configuredSummaryModel = {
   profile: { maxInputTokens: 10_000 },
-  invoke: async () => {
+  invoke: async (_messages, config) => {
     configuredSummaryModelCalls += 1
+    configuredSummaryModelConfig = config
     return new AIMessage({
       content: [
         { type: 'reasoning', reasoning: 'private reasoning must not enter the summary' },
@@ -188,6 +190,8 @@ const summaryContent = summaryCommand.update._summarizationEvent.summaryMessage.
 
 assert.equal(configuredSummaryModelCalls, 1)
 assert.equal(requestModelCalls, 0)
+assert.ok(configuredSummaryModelConfig.tags.includes('langsmith:nostream'))
+assert.equal(configuredSummaryModelConfig.metadata.lc_source, 'summarization')
 assert.match(summaryContent, /PUBLIC SUMMARY/)
 assert.doesNotMatch(summaryContent, /private reasoning/)
 

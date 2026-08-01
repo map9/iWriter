@@ -179,24 +179,24 @@ export function insertContextCompressionEvents(
 ): AiDisplayEntry[] {
   if (!events.length) return entries
 
-  const lastEntryIndexByTurn = new Map<string, number>()
+  const firstEntryIndexByTurn = new Map<string, number>()
   entries.forEach((entry, index) => {
     const turnId = entry.message.turnId
-    if (turnId) lastEntryIndexByTurn.set(turnId, index)
+    if (turnId && !firstEntryIndexByTurn.has(turnId)) {
+      firstEntryIndexByTurn.set(turnId, index)
+    }
   })
 
   const eventsByEntryIndex = new Map<number, AiContextCompressionEvent[]>()
-  const unmatchedEvents: AiContextCompressionEvent[] = []
   const orderedEvents = [...events].sort((a, b) => a.timestamp - b.timestamp)
 
   for (const event of orderedEvents) {
     const entryIndex = event.turnId
-      ? lastEntryIndexByTurn.get(event.turnId)
+      ? firstEntryIndexByTurn.get(event.turnId)
       : undefined
-    if (entryIndex === undefined) {
-      unmatchedEvents.push(event)
-      continue
-    }
+    // Checkpoint messages do not yet carry reliable historical turn IDs. An unmatched marker has
+    // no truthful position, so do not append it to the bottom of the conversation.
+    if (entryIndex === undefined) continue
     const grouped = eventsByEntryIndex.get(entryIndex) ?? []
     grouped.push(event)
     eventsByEntryIndex.set(entryIndex, grouped)
@@ -204,7 +204,6 @@ export function insertContextCompressionEvents(
 
   const result: AiDisplayEntry[] = []
   entries.forEach((entry, index) => {
-    result.push(entry)
     for (const event of eventsByEntryIndex.get(index) ?? []) {
       result.push({
         kind: 'context-compressed',
@@ -212,15 +211,10 @@ export function insertContextCompressionEvents(
         event,
       })
     }
+    // Compression happens before the model response for this turn, so its divider belongs before
+    // the first assistant entry/preview from that turn rather than after the whole turn at the bottom.
+    result.push(entry)
   })
-
-  for (const event of unmatchedEvents) {
-    result.push({
-      kind: 'context-compressed',
-      key: event.id,
-      event,
-    })
-  }
   return result
 }
 

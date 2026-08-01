@@ -323,13 +323,16 @@ export const useAiStore = defineStore('ai', () => {
     timestamp: number
     compressedMessageCount: number
   }) {
-    const current = contextCompressionEventsByThread.value[event.threadId] ?? []
-    const id = `context-compressed:${event.threadId}:${event.turnId ?? 'unknown'}:${event.timestamp}`
-    if (current.some(item => item.id === id)) return
+    const current = contextCompressionEventsByThread.value[event.threadId]?.[0]
+    if (current && current.compressedMessageCount >= event.compressedMessageCount) return
+
+    // Compression is current thread state, not an append-only chat event. Keeping only the newest
+    // cutoff prevents repeated compactions during a long run from accumulating as dividers.
+    const id = `context-compressed:${event.threadId}:${event.compressedMessageCount}`
 
     contextCompressionEventsByThread.value = {
       ...contextCompressionEventsByThread.value,
-      [event.threadId]: [...current, { ...event, id }],
+      [event.threadId]: [{ ...event, id }],
     }
   }
 
@@ -592,6 +595,10 @@ export const useAiStore = defineStore('ai', () => {
       thread = createNewThread()
       if (!thread) return false
     }
+
+    // The divider describes compression performed for one completed turn. It is not conversation
+    // history, so retire it when the user starts a later turn.
+    clearContextCompressionEvents(thread.id)
 
     // Append user message locally for immediate display; clear any previous error flag.
     // Note: the authoritative message store is the checkpointer. This local append

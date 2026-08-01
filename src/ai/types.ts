@@ -579,7 +579,7 @@ export interface ThreadMessage {
   usage?: { inputTokens: number; outputTokens: number }
 }
 
-/** Renderer-only event marker. It is never sent back to the model or stored as a chat message. */
+/** Renderer-only marker for the latest compressed turn. Never sent to the model or stored as chat. */
 export interface AiContextCompressionEvent {
   id: string
   threadId: string

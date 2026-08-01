@@ -57,7 +57,7 @@ index d3d062d..0c0744f 100644
     * Optional {@link StreamTransformer} factories to register with the underlying agent.
     *
 diff --git a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
-index f1c3f24..13cb479 100644
+index f1c3f24..671da61 100644
 --- a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
 +++ b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
 @@ -1080,7 +1080,19 @@ var CompositeBackend = class {
@@ -165,11 +165,16 @@ index f1c3f24..13cb479 100644
  				if (kept + msgTokens > trimTokensToSummarize) break;
  				trimmedMessages.unshift(messages[i]);
  				kept += msgTokens;
-@@ -4372,7 +4386,13 @@ function createSummarizationMiddleware(options) {
+@@ -4371,8 +4385,17 @@ function createSummarizationMiddleware(options) {
+ 		}
  		const conversation = getBufferString(messagesToSummarize);
  		const prompt = summaryPrompt.replace("{conversation}", conversation);
- 		const response = await chatModel.invoke([new HumanMessage({ content: prompt })]);
+-		const response = await chatModel.invoke([new HumanMessage({ content: prompt })]);
 -		return typeof response.content === "string" ? response.content : JSON.stringify(response.content);
++		const response = await chatModel.invoke([new HumanMessage({ content: prompt })], {
++			tags: ["langsmith:nostream"],
++			metadata: { lc_source: "summarization" }
++		});
 +		if (typeof response.content === "string") return response.content;
 +		if (Array.isArray(response.content)) return response.content.map((block) => {
 +			if (typeof block === "string") return block;
@@ -180,7 +185,7 @@ index f1c3f24..13cb479 100644
  	}
  	/**
  	* Build the summary message with file path reference.
-@@ -4500,9 +4520,19 @@ function createSummarizationMiddleware(options) {
+@@ -4500,9 +4523,19 @@ function createSummarizationMiddleware(options) {
  			const effectiveMessages = getEffectiveMessages(request.messages ?? [], request.state);
  			if (effectiveMessages.length === 0) return handler(request);
  			/**
@@ -201,7 +206,7 @@ index f1c3f24..13cb479 100644
  			const maxInputTokens = getMaxInputTokens(resolvedModel);
  			applyModelDefaults(resolvedModel);
  			const totalTokens = countTotalTokens(effectiveMessages, request.systemMessage, request.tools);
-@@ -4521,10 +4551,16 @@ function createSummarizationMiddleware(options) {
+@@ -4521,10 +4554,16 @@ function createSummarizationMiddleware(options) {
  			* emergency summarization (matching Python's behavior).
  			*/
  			if (!shouldSummarize(truncatedMessages, tokensForSummary, maxInputTokens)) try {
@@ -219,7 +224,7 @@ index f1c3f24..13cb479 100644
  			} catch (err) {
  				if (!isContextOverflow(err)) throw err;
  				if (maxInputTokens && tokensForSummary > 0) {
-@@ -5984,7 +6020,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
+@@ -5984,7 +6023,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
  * ```
  */
  function createDeepAgent(params = {}) {
@@ -228,7 +233,7 @@ index f1c3f24..13cb479 100644
  	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
  	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
  	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
-@@ -6023,7 +6059,7 @@ function createDeepAgent(params = {}) {
+@@ -6023,7 +6062,7 @@ function createDeepAgent(params = {}) {
  				permissions: effectivePermissions,
  				tools: profileFilesystemTools
  			}),
@@ -237,7 +242,7 @@ index f1c3f24..13cb479 100644
  			createPatchToolCallsMiddleware(),
  			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
  				backend,
-@@ -6075,7 +6111,7 @@ function createDeepAgent(params = {}) {
+@@ -6075,7 +6114,7 @@ function createDeepAgent(params = {}) {
  			subagents: inlineSubagents,
  			generalPurposeAgent: false
  		}),
@@ -247,7 +252,7 @@ index f1c3f24..13cb479 100644
  	];
  	let middleware = mergeMiddlewareStack([
 diff --git a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
-index 5551ac8..04fa2b0 100644
+index 5551ac8..f4d6e63 100644
 --- a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
 +++ b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
 @@ -1104,7 +1104,19 @@ var CompositeBackend = class {
@@ -355,11 +360,16 @@ index 5551ac8..04fa2b0 100644
  				if (kept + msgTokens > trimTokensToSummarize) break;
  				trimmedMessages.unshift(messages[i]);
  				kept += msgTokens;
-@@ -4401,7 +4415,13 @@ function createSummarizationMiddleware(options) {
+@@ -4400,8 +4414,17 @@ function createSummarizationMiddleware(options) {
+ 		}
  		const conversation = (0, _langchain_core_messages.getBufferString)(messagesToSummarize);
  		const prompt = summaryPrompt.replace("{conversation}", conversation);
- 		const response = await chatModel.invoke([new langchain.HumanMessage({ content: prompt })]);
+-		const response = await chatModel.invoke([new langchain.HumanMessage({ content: prompt })]);
 -		return typeof response.content === "string" ? response.content : JSON.stringify(response.content);
++		const response = await chatModel.invoke([new langchain.HumanMessage({ content: prompt })], {
++			tags: ["langsmith:nostream"],
++			metadata: { lc_source: "summarization" }
++		});
 +		if (typeof response.content === "string") return response.content;
 +		if (Array.isArray(response.content)) return response.content.map((block) => {
 +			if (typeof block === "string") return block;
@@ -370,7 +380,7 @@ index 5551ac8..04fa2b0 100644
  	}
  	/**
  	* Build the summary message with file path reference.
-@@ -4529,9 +4549,19 @@ function createSummarizationMiddleware(options) {
+@@ -4529,9 +4552,19 @@ function createSummarizationMiddleware(options) {
  			const effectiveMessages = getEffectiveMessages(request.messages ?? [], request.state);
  			if (effectiveMessages.length === 0) return handler(request);
  			/**
@@ -391,7 +401,7 @@ index 5551ac8..04fa2b0 100644
  			const maxInputTokens = getMaxInputTokens(resolvedModel);
  			applyModelDefaults(resolvedModel);
  			const totalTokens = countTotalTokens(effectiveMessages, request.systemMessage, request.tools);
-@@ -4550,10 +4580,16 @@ function createSummarizationMiddleware(options) {
+@@ -4550,10 +4583,16 @@ function createSummarizationMiddleware(options) {
  			* emergency summarization (matching Python's behavior).
  			*/
  			if (!shouldSummarize(truncatedMessages, tokensForSummary, maxInputTokens)) try {
@@ -409,7 +419,7 @@ index 5551ac8..04fa2b0 100644
  			} catch (err) {
  				if (!isContextOverflow(err)) throw err;
  				if (maxInputTokens && tokensForSummary > 0) {
-@@ -6013,7 +6049,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
+@@ -6013,7 +6052,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
  * ```
  */
  function createDeepAgent(params = {}) {
@@ -418,7 +428,7 @@ index 5551ac8..04fa2b0 100644
  	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
  	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
  	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
-@@ -6052,7 +6088,7 @@ function createDeepAgent(params = {}) {
+@@ -6052,7 +6091,7 @@ function createDeepAgent(params = {}) {
  				permissions: effectivePermissions,
  				tools: profileFilesystemTools
  			}),
@@ -427,7 +437,7 @@ index 5551ac8..04fa2b0 100644
  			createPatchToolCallsMiddleware(),
  			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
  				backend,
-@@ -6104,7 +6140,7 @@ function createDeepAgent(params = {}) {
+@@ -6104,7 +6143,7 @@ function createDeepAgent(params = {}) {
  			subagents: inlineSubagents,
  			generalPurposeAgent: false
  		}),
