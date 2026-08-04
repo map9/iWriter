@@ -88,9 +88,10 @@ iWriter 的 AI 运行时已经切换到：
 - 自动摘要通常在运行预算的 85% 触发（DeepSeek 为 80%），压缩后保留约 10% 的最近上下文（上限 100k）。发送前检查只拒绝摘要无法缩小的系统提示、工具 schema 和本轮新输入；累积历史超过阈值时交由摘要中间件先压缩，不再由全局 250k 上限提前失败。
 - 工具栏圆环是只读状态指示器，显示当前有效会话 token、自动摘要阈值、压缩保留量、单次运行预算以及可用时的模型物理上下文上限。DeepAgents JavaScript 当前没有直接压缩既有会话的公开 API，因此点击圆环不会触发摘要。
 - 摘要结果通过 checkpoint 的 `_summarizationEvent` 保存，较早的完整消息由 DeepAgents offload 到 conversation history。
-- 根 Agent 摘要发生后，主进程只检查 root checkpoint namespace，并发送带 `turnId` 和时间戳的压缩事件；渲染层在该轮第一条 assistant 输出前显示居中的“上下文已压缩（时间）”分隔行。子 Agent 从自己的最终 state 检测 `_summarizationEvent`，事件按 `subagentId` 路由并显示在对应的子任务详情内，不由 root checkpoint 检测代劳。两类事件都不是 `ThreadMessage`，不使用对话 Bubble，也不回灌模型上下文；当前仅保留在本次应用会话的渲染状态中。
+- 根 Agent 摘要发生后，主进程只检查 root checkpoint namespace，并发送带 `turnId` 和时间戳的压缩事件；渲染层在该轮第一条 assistant 输出前显示居中的“上下文已压缩（时间）”分隔行。子 Agent 从自己的最终 state 检测 `_summarizationEvent`，事件按 `subagentId` 路由；子任务折叠时在标题状态区显示最近一次压缩，展开后在详情内显示分隔行，不由 root checkpoint 检测代劳。当前 DeepAgents 只在子 Agent 最终 state 中暴露该事件，因此它是完成时展示，不宣称为压缩发生瞬间的实时事件。两类事件都不是 `ThreadMessage`，不使用对话 Bubble，也不回灌模型上下文；当前仅保留在本次应用会话的渲染状态中。
 - 摘要使用同一个通用框架，`EditDomainStrategy` 与 `CreativeDomainStrategy` 只提供各自需要保留的任务语义。Edit 分型保留文档/区块/审批/编辑约束，Creative 分型保留阶段、Playbook、正式事实/候选、因果与写作会话状态；不复制两套摘要中间件。
 - `_contextLedger` 在 checkpoint 中确定性保存已读来源、范围、版本、缺失/失败状态。writer、reviewer 与 `general-purpose` 子 Agent 各自挂载同一 middleware，在自己的运行上下文内复用 current 记录。文件、块或 Git 恢复发生实际修改后，相关读取会标记为 stale；脏的编辑器文档读取只在当前 user turn 内有效。账本只作为隐藏 system context 注入，不创建用户或助手 Bubble，也不保存大段工具返回。
+- 创作读取采用“直读一次，窄探测回退”：作者给出、工作区约定或编号可唯一推出的路径先直接读；只有真实失败、歧义或名称未知时才在最窄父目录探测一次。集合对象默认按 outline / section 搜索定位稳定 ID/标题后取命中块；明确的全集合任务和以全量为目标范围的小文件除外。局部修订与定向验证只读取 finding 块、必要邻接块和声明的结构锚点，不自动升级为全文读取。
 
 ## Checkpoint 持久化与保留
 

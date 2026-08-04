@@ -101,7 +101,7 @@ test('creative prompt keeps analysis methods out of project fields and reads obj
   assert.match(source, /作为共同创作者/)
   assert.match(source, /不要求作者改用系统分类/)
   assert.match(source, /覆盖通用文件系统工具关于“通常先 ls”/)
-  assert.match(source, /不得用 \\`read_file\\` 读取整份集合/)
+  assert.match(source, /任务明确覆盖整个集合.*才整读/)
   assert.match(source, /不在连续模型回合重新推演相同状态/)
   assert.match(source, /主 agent 只读取判断阶段、入口与授权所需的最小块/)
 })
@@ -240,7 +240,7 @@ test('dimension skills retain semantic checks while emitting compact story langu
   assert.match(drafting, /实际使用的设定事实/)
   assert.match(drafting, /入口检查与正文取材分两层/)
   assert.match(drafting, /主 agent 不预读、不转述/)
-  assert.match(drafting, /不对集合调用 `read_file`/)
+  assert.match(drafting, /集合对象的读取、路径回退和例外统一遵守 `context-discipline`/)
 })
 
 test('writer and reviewer use canonical paths plus ID-scoped block reads', () => {
@@ -254,10 +254,35 @@ test('writer and reviewer use canonical paths plus ID-scoped block reads', () =>
   )
 
   for (const source of [writer, reviewer]) {
-    assert.match(source, /标准对象路径和输入已给路径直接使用/)
-    assert.match(source, /不先 `ls` \/ `glob` \/ 扫目录/)
+    assert.match(source, /标准对象路径和输入已给路径先直接/)
+    assert.match(source, /最窄父目录/)
     assert.match(source, /Context Ledger 标为 `current` 的同一.*不重复/)
-    assert.match(source, /`get_section` \/ `get_sections`/)
-    assert.match(source, /禁止用 `read_file` 读取整份集合/)
+    assert.match(source, /`context-discipline`/)
   }
+
+  assert.match(writer, /skills: \["common", "creative\/common", "creative\/reference"\]/)
+  assert.match(writer, /不搜索 Skill 目录/)
+  assert.match(writer, /不扫描 `styles\/`/)
+  assert.match(writer, /修改局部 findings 时只读选中块/)
+  assert.match(reviewer, /定向验证只读 selected findings 对应块/)
+})
+
+test('creative path discovery and collection reads use bounded fallback rules', () => {
+  const prompt = readFileSync(creativePromptPath, 'utf8')
+  const contextDiscipline = readFileSync(
+    resolve('electron/ai/builtin-skills/creative/common/context-discipline/SKILL.md'),
+    'utf8',
+  )
+  const drafting = readFileSync(draftingPath, 'utf8')
+
+  for (const source of [prompt, contextDiscipline, drafting]) {
+    assert.match(source, /直读一次，窄探测回退/)
+    assert.match(source, /最窄.*父目录/)
+  }
+  assert.match(contextDiscipline, /任务明确覆盖整个集合/)
+  assert.match(contextDiscipline, /文件很小且全量就是目标范围/)
+  assert.match(contextDiscipline, /不为确认“也许没有”而扫描 `styles\/`/)
+  assert.match(drafting, /不再探测 `manuscript\/`、`styles\/`、`characters\/`/)
+  assert.match(drafting, /局部 finding 不把“全文”写成读取范围/)
+  assert.match(drafting, /不把审校范围重新声明为全文/)
 })

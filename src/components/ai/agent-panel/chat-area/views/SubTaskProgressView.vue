@@ -78,6 +78,11 @@ const activeActionLabel = computed(() => {
 
 const activeTargetLabel = computed(() => normalizedActiveToolCall.value?.display?.targetLabel ?? '')
 
+const latestCompressionEvent = computed(() => {
+  const events = props.subTask.contextCompressionEvents ?? []
+  return events.length ? events[events.length - 1]! : null
+})
+
 const hasBody = computed(() =>
   !!(
     props.subTask.contentBlocks?.length ||
@@ -151,7 +156,13 @@ function fallbackToolPosition(idx: number): 'single' | 'start' | 'middle' | 'end
       </template>
       <template v-else>
         <div class="min-w-0 flex-1 text-2xs leading-4 truncate text-base-content/50">
-          {{ statusText }}
+          <span>{{ statusText }}</span>
+          <span
+            v-if="latestCompressionEvent"
+            data-testid="subtask-context-compressed-summary"
+          >
+            · {{ t('agentPanel.chatArea.contextCompressed', { time: formatCompressionTime(latestCompressionEvent.timestamp) }) }}
+          </span>
         </div>
       </template>
 
@@ -214,6 +225,7 @@ function fallbackToolPosition(idx: number): 'single' | 'start' | 'middle' | 'end
       <div
         v-for="event in subTask.contextCompressionEvents ?? []"
         :key="event.id"
+        data-testid="subtask-context-compressed-event"
         class="flex items-center gap-2 py-1.5"
         role="status"
       >

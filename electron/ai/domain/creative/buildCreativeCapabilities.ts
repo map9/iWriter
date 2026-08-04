@@ -72,9 +72,9 @@ export function buildCreativeCapabilities(input: {
     language,
     registry,
   })
-  // DeepAgents normally synthesizes general-purpose internally, but novel root middleware is
-  // not appended there. Declare the equivalent spec explicitly so every creative subagent,
-  // including general-purpose, owns a checkpoint-scoped Context Ledger.
+  // DeepAgents' synthesized general-purpose agent inherits the root skills, but not this
+  // domain's custom Context Ledger middleware. Providing an explicit spec replaces that
+  // synthesized default, so reproduce its prompt/tools/root skill mounts and add the ledger.
   const runtimeContextBlock = input.workspacePath
     ? `<runtime_context>\n  <workspace>${input.workspacePath}</workspace>\n</runtime_context>\n\n`
     : ''

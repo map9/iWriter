@@ -408,10 +408,16 @@ describe('context compression display event', () => {
     assert.match(zhMessagesSource, /contextCompressed: '上下文已压缩（\{time\}）'/)
     assert.match(subTaskSource, /subTask\.contextCompressionEvents/)
     assert.match(subTaskSource, /agentPanel\.chatArea\.contextCompressed/)
+    assert.match(subTaskSource, /latestCompressionEvent/)
+    assert.match(subTaskSource, /subtask-context-compressed-summary/)
+    assert.match(subTaskSource, /subtask-context-compressed-event/)
     assert.match(runtimeEventsSource, /type === 'context_compressed'/)
     assert.match(assemblerSource, /middleware: \[createContextLedgerMiddleware\(\)\]/)
     assert.match(creativeCapabilitiesSource, /\.\.\.GENERAL_PURPOSE_SUBAGENT/)
     assert.match(creativeCapabilitiesSource, /middleware: \[createContextLedgerMiddleware\(\)\]/)
+    assert.match(creativeCapabilitiesSource, /path\.join\(skillsRoot, 'creative', 'common'\)/)
+    assert.match(creativeCapabilitiesSource, /path\.join\(skillsRoot, 'creative', 'main'\)/)
+    assert.match(creativeCapabilitiesSource, /synthesized general-purpose agent inherits the root skills/)
     assert.match(
       storeSource,
       /onAiContextCompressed\?\.\(\(event\) => \{\s*addContextCompressionEvent\(event\)\s*\}\)/,

@@ -38,8 +38,8 @@ const CREATIVE_SYSTEM_PROMPT_BODY = `
 
 - 按 Playbook 读取最小必要对象：先取目标文件结构和目标 ID 块，再解析会改变结果的直接引用；冲突仍无法判断时才扩大一跳。
 - \`characters.md\`、\`storylines.md\`、\`cards.md\` 等单文件集合不得默认整份读入；当前会话已有且未变的事实不重复读取。
-- 小说工作区约定中的标准路径、作者已给路径或可由目标编号直接得到的路径，直接访问；不得用 \`ls\` / \`glob\` / 目录搜索先“确认”它们。这里覆盖通用文件系统工具关于“通常先 ls”和推测性批量读取的建议。
-- 集合对象必须用文档 outline 或 section 搜索定位稳定 ID/标题，再用 \`get_section\` / \`get_sections\` 只取命中块；不得用 \`read_file\` 读取整份集合，也不得在多个模型回合重复定位同一 ID。
+- 路径发现采用“直读一次，窄探测回退”：标准路径、作者已给路径或可由目标编号唯一得到的路径先直接调用目标读取工具；仅在返回不存在/无权限、路径有歧义或对象名称确实未知时，才对最窄父目录做一次定向 \`ls\` / \`glob\` / 目录搜索。不得从工作区根逐层确认。这里覆盖通用文件系统工具关于“通常先 ls”的建议。
+- 集合对象默认用文档 outline 或 section 搜索定位稳定 ID/标题，再以 \`get_section\` / \`get_sections\` 取命中块；任务明确覆盖整个集合，或小文件全量本身就是目标范围时才整读。不得在多个模型回合重复定位同一 ID。
 - 不做启动扫描，不自动执行 git diff，不自动重建状态或摘要。
 - 讨论、理解、评估、生成候选和普通只读时，不因读取项目对象而加载 \`novel-workspace\`、\`*-template\` 或 \`document-block-tools\`；按当前 Playbook 与工具 schema 选择性读取。
 - 创建、修改、迁移或结构校验项目对象前，加载 \`novel-workspace\` 和目标 \`*-template\`；需要块级修改时再加载 \`document-block-tools\`。
@@ -48,6 +48,7 @@ const CREATIVE_SYSTEM_PROMPT_BODY = `
 - 每次工具结果回来只更新一次“已确认事实 / 尚缺前提 / 下一动作”；已有证据足够时直接执行下一动作，不在连续模型回合重新推演相同状态或重复解释同一计划。
 - 工具路径使用绝对路径：工作区相对路径以 \`<runtime_context>\` 的 \`<workspace>\` 为根；外部本地文件用作者给出的绝对路径；\`/large_tool_results/\`、\`/conversation_history/\`、\`untitled:\` 原样使用。
 - 已加载 Skill 的 \`SKILL.md\` 内出现相对路径时，以该 \`SKILL.md\` 所在目录为根解析成真实主机绝对路径；不得相对工作区、Skill source 根或同名 \`creative/reference\` 目录猜测。
+- 加载 system prompt 已列出的 Skill 时直接使用清单给出的 \`SKILL.md\` 路径，不用目录工具寻找同名 Skill。
 
 # 审批批次
 

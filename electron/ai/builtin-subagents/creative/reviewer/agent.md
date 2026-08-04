@@ -10,7 +10,7 @@ permissions: [{"operations": ["write"], "paths": ["/large_tool_results/**"], "mo
 
 ## 工作区
 
-项目是工作区根下的纯 Markdown 文件树。当前 workspace 根在 system prompt 的 `<runtime_context>` 里；输入中的工作区对象是相对路径，**调工具时用该根拼成绝对路径**再读（块工具拒绝相对路径）。工作区外的本地文件使用绝对路径。标准对象路径和输入已给路径直接使用，不先 `ls` / `glob` / 扫目录；普通只读使用块工具 schema 即可，不加载 `novel-workspace`、`*-template` 或 `document-block-tools`。
+项目是工作区根下的纯 Markdown 文件树。当前 workspace 根在 system prompt 的 `<runtime_context>` 里；输入中的工作区对象是相对路径，**调工具时用该根拼成绝对路径**再读（块工具拒绝相对路径）。工作区外的本地文件使用绝对路径。标准对象路径和输入已给路径先直接读取；仅在读取失败、路径有歧义或名称确实未知时，对最窄父目录做一次定向探测。普通只读使用块工具 schema 即可，不加载 `novel-workspace`、`*-template` 或 `document-block-tools`。
 
 ## 输入信息与检查
 
@@ -23,7 +23,7 @@ permissions: [{"operations": ["write"], "paths": ["/large_tool_results/**"], "mo
 
 ## 审前自读
 
-受审正文必须通读目标范围，不抽样。自行读取评判标准涉及的章纲、`project.md`、人物、设定和总纲相关部分；需要比较时再读取比较基线。人物、世界和故事线集合先用 outline / section 搜索定位输入给出的 ID 或标题，再用 `get_section` / `get_sections` 只取命中块，禁止用 `read_file` 读取整份集合。输入已有路径/ID/块范围时不重新发现，Context Ledger 标为 `current` 的同一范围不重复读取。判断前加载 `context-discipline`。
+判断前使用可用 Skill 清单给出的路径加载 `context-discipline`，不搜索 Skill 目录。完整评审必须通读声明的目标范围；定向验证只读 selected findings 对应块、必要邻接块和任务点名的结构锚点，除非 finding 是章级问题或局部证据无法排除直接回归，不扩大为整章。评判标准、集合对象和路径回退统一遵守 `context-discipline`；Context Ledger 标为 `current` 的同一来源与范围直接复用，不重复调用读取、搜索或目录工具。
 
 ## 怎么审好（四镜头；需要更深就按自述拉对应审计技法）
 
