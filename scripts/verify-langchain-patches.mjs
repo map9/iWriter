@@ -23,6 +23,8 @@ for (const source of deepagentsRuntimeSources) {
   assert.match(source, /"_summarizationSessionId"/)
   assert.match(source, /"_summarizationEvent"/)
   assert.match(source, /"_contextLedger"/)
+  assert.match(source, /deepagents_summarization/)
+  assert.match(source, /iwriter_subagent_id/)
 }
 
 const langGraphPackageDir = path.dirname(require.resolve('@langchain/langgraph/package.json'))
@@ -185,6 +187,8 @@ const requestModel = {
     return new AIMessage('wrong model')
   },
 }
+const originalGetRunnableConfig = AsyncLocalStorageProviderSingleton.getRunnableConfig
+const summarizationStreamEvents = []
 const configuredSummarizationMiddleware = createSummarizationMiddleware({
   backend: { write: async filePath => ({ path: filePath }) },
   model: configuredSummaryModel,
@@ -194,12 +198,26 @@ const configuredSummarizationMiddleware = createSummarizationMiddleware({
   trimTokensToSummarize: 1_000,
   summaryPrompt: 'Summarize: {conversation}',
 })
-const summaryCommand = await configuredSummarizationMiddleware.wrapModelCall({
-  messages: [new HumanMessage('hello')],
-  state: { messages: [new HumanMessage('hello')] },
-  model: requestModel,
-  tools: [],
-}, async () => new AIMessage('handled'))
+let summaryCommand
+try {
+  AsyncLocalStorageProviderSingleton.getRunnableConfig = () => ({
+    writer: event => summarizationStreamEvents.push(event),
+    metadata: {
+      thread_id: 'thread-1',
+      turn_id: 'turn-1',
+      lc_agent_name: 'reviewer',
+      iwriter_subagent_id: 'task-1',
+    },
+  })
+  summaryCommand = await configuredSummarizationMiddleware.wrapModelCall({
+    messages: [new HumanMessage('hello')],
+    state: { messages: [new HumanMessage('hello')] },
+    model: requestModel,
+    tools: [],
+  }, async () => new AIMessage('handled'))
+} finally {
+  AsyncLocalStorageProviderSingleton.getRunnableConfig = originalGetRunnableConfig
+}
 const summaryContent = summaryCommand.update._summarizationEvent.summaryMessage.content
 
 assert.equal(configuredSummaryModelCalls, 1)
@@ -208,6 +226,18 @@ assert.ok(configuredSummaryModelConfig.tags.includes('langsmith:nostream'))
 assert.equal(configuredSummaryModelConfig.metadata.lc_source, 'summarization')
 assert.match(summaryContent, /PUBLIC SUMMARY/)
 assert.doesNotMatch(summaryContent, /private reasoning/)
+assert.deepEqual(
+  summarizationStreamEvents.map(event => event.name),
+  ['deepagents_summarization', 'deepagents_summarization'],
+)
+assert.deepEqual(
+  summarizationStreamEvents.map(event => event.payload.phase),
+  ['started', 'completed'],
+)
+assert.equal(summarizationStreamEvents[0].payload.eventId, summarizationStreamEvents[1].payload.eventId)
+assert.equal(summarizationStreamEvents[1].payload.summary, 'PUBLIC SUMMARY')
+assert.equal(summarizationStreamEvents[1].payload.subagentName, 'reviewer')
+assert.equal(summarizationStreamEvents[1].payload.subagentId, 'task-1')
 
 class SentinelCallbackHandler extends BaseCallbackHandler {
   name = 'sentinel_callback_handler'
@@ -218,8 +248,6 @@ const ambientCallbacks = new CallbackManager()
 ambientCallbacks.addHandler(sharedHandler, true)
 const explicitCallbacks = new CallbackManager()
 explicitCallbacks.addHandler(sharedHandler, true)
-const originalGetRunnableConfig = AsyncLocalStorageProviderSingleton.getRunnableConfig
-
 try {
   AsyncLocalStorageProviderSingleton.getRunnableConfig = () => ({
     callbacks: ambientCallbacks,

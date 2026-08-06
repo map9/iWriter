@@ -169,12 +169,80 @@ function mergeSubTaskProgress(
     thinkingText: preferLongerText(current.thinkingText, next.thinkingText),
     toolCalls: mergeToolCallsById([...current.toolCalls, ...next.toolCalls]),
     contentBlocks: next.contentBlocks ?? current.contentBlocks,
-    contextCompressionEvents: [
-      ...(current.contextCompressionEvents ?? []),
-      ...(next.contextCompressionEvents ?? []),
-    ].filter((event, index, events) => events.findIndex(candidate => candidate.id === event.id) === index),
+    contextCompressionEvents: mergeContextCompressionEvents(
+      current.contextCompressionEvents ?? [],
+      next.contextCompressionEvents ?? [],
+    ),
     errorText: next.errorText || current.errorText,
   }
+}
+
+function mergeContextCompressionEvents(
+  current: AiContextCompressionEvent[],
+  next: AiContextCompressionEvent[],
+): AiContextCompressionEvent[] {
+  const order: string[] = []
+  const byId = new Map<string, AiContextCompressionEvent>()
+  for (const event of [...current, ...next]) {
+    if (!byId.has(event.id)) order.push(event.id)
+    byId.set(event.id, { ...byId.get(event.id), ...event })
+  }
+  return order
+    .map(id => byId.get(id))
+    .filter((event): event is AiContextCompressionEvent => !!event)
+}
+
+function subTaskStatusFromToolCall(toolCall: AiToolCall): AiSubTaskProgress['status'] {
+  switch (toolCall.status) {
+    case 'completed': return 'done'
+    case 'failed': return 'error'
+    case 'rejected': return 'cancelled'
+    case 'in_progress': return 'running'
+    default: return 'pending'
+  }
+}
+
+function taskSubagentName(toolCall: AiToolCall): string {
+  const name = toolCall.arguments['subagent_type']
+  return typeof name === 'string' && name.trim() ? name : 'task'
+}
+
+function attachSubagentCompressionEvents(
+  message: ThreadMessage,
+  eventsByInvocation: Record<string, AiContextCompressionEvent[]>,
+): ThreadMessage {
+  if (!Object.keys(eventsByInvocation).length) return message
+
+  const taskCalls = new Map(
+    (message.toolCalls ?? [])
+      .filter(toolCall => toolCall.name === 'task')
+      .map(toolCall => [toolCall.id, toolCall]),
+  )
+  const subTasks = [...(message.subTasks ?? [])]
+
+  for (const [invocationId, events] of Object.entries(eventsByInvocation)) {
+    const existingIndex = subTasks.findIndex(subTask => subTask.invocationId === invocationId)
+    const toolCall = taskCalls.get(invocationId)
+    if (existingIndex < 0 && !toolCall) continue
+
+    const synthetic: AiSubTaskProgress = {
+      invocationId,
+      name: events[0]?.subagentName || (toolCall ? taskSubagentName(toolCall) : 'task'),
+      status: toolCall ? subTaskStatusFromToolCall(toolCall) : 'running',
+      text: toolCall?.result ?? '',
+      thinkingText: '',
+      toolCalls: [],
+      contextCompressionEvents: events,
+      errorText: toolCall?.isError ? toolCall.result : undefined,
+    }
+    if (existingIndex >= 0) {
+      subTasks[existingIndex] = mergeSubTaskProgress(subTasks[existingIndex]!, synthetic)
+    } else {
+      subTasks.push(synthetic)
+    }
+  }
+
+  return subTasks.length ? { ...message, subTasks } : message
 }
 
 export function insertContextCompressionEvents(
@@ -183,42 +251,93 @@ export function insertContextCompressionEvents(
 ): AiDisplayEntry[] {
   if (!events.length) return entries
 
-  const firstAssistantEntryIndexByTurn = new Map<string, number>()
-  entries.forEach((entry, index) => {
-    const turnId = entry.message.turnId
-    if (entry.message.role === 'assistant' && turnId && !firstAssistantEntryIndexByTurn.has(turnId)) {
-      firstAssistantEntryIndexByTurn.set(turnId, index)
+  const embeddedEventIds = new Set(
+    entries.flatMap(entry =>
+      (entry.message.contentBlocks ?? [])
+        .filter(block => block.type === 'context_compression')
+        .map(block => block.event.id),
+    ),
+  )
+  const inlineEventsByEntryIndex = new Map<
+    number,
+    Map<string, AiContextCompressionEvent[]>
+  >()
+  const eventsAfterEntryIndex = new Map<number, AiContextCompressionEvent[]>()
+  const orderedEvents = events
+    .filter(event => !embeddedEventIds.has(event.id))
+    .sort((a, b) => a.startedAt - b.startedAt)
+  const unmatchedEvents: AiContextCompressionEvent[] = []
+
+  for (const event of orderedEvents) {
+    let anchorIndex = -1
+    if (event.anchorToolCallId) {
+      anchorIndex = entries.findIndex(entry =>
+        (entry.message.toolCalls ?? []).some(toolCall => toolCall.id === event.anchorToolCallId),
+      )
+      if (anchorIndex >= 0) {
+        const anchorBlockExists = (entries[anchorIndex]!.message.contentBlocks ?? []).some(block =>
+          block.type === 'tool_call' && block.toolCallId === event.anchorToolCallId
+        )
+        if (anchorBlockExists) {
+          const eventsByToolCall = inlineEventsByEntryIndex.get(anchorIndex) ?? new Map()
+          const grouped = eventsByToolCall.get(event.anchorToolCallId) ?? []
+          grouped.push(event)
+          eventsByToolCall.set(event.anchorToolCallId, grouped)
+          inlineEventsByEntryIndex.set(anchorIndex, eventsByToolCall)
+          continue
+        }
+      }
+    }
+    if (anchorIndex < 0 && event.anchorMessageId) {
+      anchorIndex = entries.findIndex(entry => entry.message.id === event.anchorMessageId)
+    }
+    // Older/in-flight events may not carry an anchor. Keep them visible at the live tail instead of
+    // guessing from turnId, which is shared by every compression in a long-running user turn.
+    if (anchorIndex < 0) {
+      unmatchedEvents.push(event)
+      continue
+    }
+    const grouped = eventsAfterEntryIndex.get(anchorIndex) ?? []
+    grouped.push(event)
+    eventsAfterEntryIndex.set(anchorIndex, grouped)
+  }
+
+  const anchoredEntries = entries.map((entry, index) => {
+    const eventsByToolCall = inlineEventsByEntryIndex.get(index)
+    if (!eventsByToolCall) return entry
+
+    const contentBlocks: MessageContentBlock[] = []
+    for (const block of entry.message.contentBlocks ?? []) {
+      contentBlocks.push(block)
+      if (block.type !== 'tool_call') continue
+      for (const event of eventsByToolCall.get(block.toolCallId) ?? []) {
+        contentBlocks.push({ type: 'context_compression', event })
+      }
+    }
+    return {
+      ...entry,
+      message: { ...entry.message, contentBlocks },
     }
   })
 
-  const eventsByEntryIndex = new Map<number, AiContextCompressionEvent[]>()
-  const orderedEvents = [...events].sort((a, b) => a.timestamp - b.timestamp)
-
-  for (const event of orderedEvents) {
-    const entryIndex = event.turnId
-      ? firstAssistantEntryIndexByTurn.get(event.turnId)
-      : undefined
-    // Checkpoint messages do not yet carry reliable historical turn IDs. An unmatched marker has
-    // no truthful position, so do not append it to the bottom of the conversation.
-    if (entryIndex === undefined) continue
-    const grouped = eventsByEntryIndex.get(entryIndex) ?? []
-    grouped.push(event)
-    eventsByEntryIndex.set(entryIndex, grouped)
-  }
-
   const result: AiDisplayEntry[] = []
-  entries.forEach((entry, index) => {
-    for (const event of eventsByEntryIndex.get(index) ?? []) {
+  anchoredEntries.forEach((entry, index) => {
+    result.push(entry)
+    for (const event of eventsAfterEntryIndex.get(index) ?? []) {
       result.push({
         kind: 'context-compressed',
         key: event.id,
         event,
       })
     }
-    // Compression happens before the model response for this turn, so its divider belongs before
-    // the first assistant entry/preview from that turn rather than after the whole turn at the bottom.
-    result.push(entry)
   })
+  for (const event of unmatchedEvents) {
+    result.push({
+      kind: 'context-compressed',
+      key: event.id,
+      event,
+    })
+  }
   return result
 }
 
@@ -228,6 +347,7 @@ export function createRuntimeDisplay(deps: {
   activeThreadId: Ref<string | null>
   persistedMessages: ComputedRef<ThreadMessage[]>
   contextCompressionEvents: ComputedRef<AiContextCompressionEvent[]>
+  subagentCompressionEvents: ComputedRef<Record<string, AiContextCompressionEvent[]>>
   isResumingReviewedEdits: Ref<boolean>
   normalizeMessageForDisplay: (message: ThreadMessage) => ThreadMessage
 }) {
@@ -245,6 +365,10 @@ export function createRuntimeDisplay(deps: {
       if (block.type === 'text' && block.text) {
         contentBlocks.push({ type: 'text', text: block.text })
         content += block.text
+        continue
+      }
+      if (block.type === 'context_compression') {
+        contentBlocks.push({ type: 'context_compression', event: block.event })
         continue
       }
       if (block.type === 'tool_call') {
@@ -274,11 +398,13 @@ export function createRuntimeDisplay(deps: {
     const subTaskOrder: string[] = []
     const subTasksById = new Map<string, AiSubTaskProgress>()
     for (const st of liveTurn.subTasks) {
-      const orderedBlocks: MessageContentBlock[] = st.blocks.map(b =>
-        b.type === 'text'
-          ? { type: 'text' as const, text: b.text }
-          : { type: 'tool_call' as const, toolCallId: b.toolCall.id },
-      )
+      const orderedBlocks: MessageContentBlock[] = st.blocks.map(b => {
+        if (b.type === 'text') return { type: 'text', text: b.text }
+        if (b.type === 'context_compression') {
+          return { type: 'context_compression', event: b.event }
+        }
+        return { type: 'tool_call', toolCallId: b.toolCall.id }
+      })
       if (st.currentText) {
         orderedBlocks.push({ type: 'text', text: st.currentText })
       }
@@ -457,9 +583,17 @@ export function createRuntimeDisplay(deps: {
       })
     }
 
+    const adornedEntries = entries.map(entry => ({
+      ...entry,
+      message: attachSubagentCompressionEvents(
+        entry.message,
+        deps.subagentCompressionEvents.value,
+      ),
+    }))
+
     return {
       persistedMessages: persisted,
-      messages: insertContextCompressionEvents(entries, deps.contextCompressionEvents.value),
+      messages: insertContextCompressionEvents(adornedEntries, deps.contextCompressionEvents.value),
     }
   })
 

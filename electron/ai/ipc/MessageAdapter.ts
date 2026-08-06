@@ -359,7 +359,7 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
         .replace(/<runtime_context[\s\S]*?<\/runtime_context>\s*/g, '')
         .trim()
       result.push({
-        id: `msg-h-${i}`,
+        id: typeof msg.id === 'string' && msg.id ? msg.id : `msg-h-${i}`,
         role: 'user',
         content,
         timestamp: Date.now(),
@@ -451,7 +451,7 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
       }
 
       result.push({
-        id: `msg-a-${i}`,
+        id: typeof msg.id === 'string' && msg.id ? msg.id : `msg-a-${i}`,
         role: 'assistant',
         content,
         thinkingContent: thinkingContent || undefined,

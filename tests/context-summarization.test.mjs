@@ -29,7 +29,7 @@ async function loadModule() {
             } from './src/ai/store/modules/runtimeDisplay.ts'
             export {
               StreamEventAdapter,
-              extractSubagentCompressionEvent,
+              parseDeepAgentsSummarizationEvent,
             } from './electron/ai/ipc/StreamEventAdapter.ts'
           `,
           resolveDir: process.cwd(),
@@ -261,9 +261,9 @@ describe('deterministic context ledger', () => {
 })
 
 describe('context compression display event', () => {
-  it('places a non-message marker before the first assistant entry of the triggering turn', async () => {
+  it('places same-turn compression markers after their actual tool anchors', async () => {
     const { insertContextCompressionEvents } = await loadModule()
-    const message = (id, turnId, role = 'assistant') => ({
+    const message = (id, turnId, role = 'assistant', toolCallId) => ({
       kind: 'message',
       key: id,
       message: {
@@ -272,33 +272,120 @@ describe('context compression display event', () => {
         role,
         content: id,
         timestamp: 1,
+        ...(toolCallId
+          ? {
+              toolCalls: [{ id: toolCallId, name: 'read_file', arguments: {}, status: 'completed' }],
+              contentBlocks: [{ type: 'tool_call', toolCallId }],
+            }
+          : {}),
       },
     })
+    const mergedAssistantEntry = message('assistant-group', 'turn-1')
+    mergedAssistantEntry.message.toolCalls = [
+      { id: 'tool-a', name: 'read_file', arguments: {}, status: 'completed' },
+      { id: 'tool-b', name: 'read_file', arguments: {}, status: 'completed' },
+    ]
+    mergedAssistantEntry.message.contentBlocks = [
+      { type: 'tool_call', toolCallId: 'tool-a' },
+      { type: 'tool_call', toolCallId: 'tool-b' },
+    ]
     const entries = [
       message('user-1', 'turn-1', 'user'),
-      message('assistant-1a', 'turn-1'),
-      message('assistant-1b', 'turn-1'),
+      mergedAssistantEntry,
       message('user-2', 'turn-2', 'user'),
     ]
-    const event = {
-      id: 'compressed-1',
-      threadId: 'thread-1',
-      turnId: 'turn-1',
-      timestamp: 10,
-      compressedMessageCount: 20,
-    }
+    const events = [
+      {
+        id: 'compressed-b',
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        anchorToolCallId: 'tool-b',
+        status: 'completed',
+        startedAt: 20,
+        timestamp: 21,
+      },
+      {
+        id: 'compressed-a',
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        anchorToolCallId: 'tool-a',
+        status: 'completed',
+        startedAt: 10,
+        timestamp: 11,
+      },
+    ]
 
-    const result = insertContextCompressionEvents(entries, [event])
+    const result = insertContextCompressionEvents(entries, events)
 
     assert.deepEqual(
       result.map(entry => entry.key),
-      ['user-1', 'compressed-1', 'assistant-1a', 'assistant-1b', 'user-2'],
+      ['user-1', 'assistant-group', 'user-2'],
     )
-    assert.equal(result[1].kind, 'context-compressed')
-    assert.equal('message' in result[1], false)
+    assert.deepEqual(
+      result[1].message.contentBlocks.map(block => block.type),
+      ['tool_call', 'context_compression', 'tool_call', 'context_compression'],
+    )
+    assert.equal(result[1].message.contentBlocks[1].event.id, 'compressed-a')
+    assert.equal(result[1].message.contentBlocks[3].event.id, 'compressed-b')
   })
 
-  it('drops events without a visible assistant turn match', async () => {
+  it('does not duplicate a live compression marker already embedded in content blocks', async () => {
+    const { insertContextCompressionEvents } = await loadModule()
+    const event = {
+      id: 'compressed-live',
+      threadId: 'thread-1',
+      status: 'compressing',
+      startedAt: 10,
+      timestamp: 10,
+    }
+    const entries = [{
+      kind: 'message',
+      key: 'streaming-preview',
+      isPreview: true,
+      message: {
+        id: 'streaming-preview',
+        role: 'assistant',
+        content: '',
+        contentBlocks: [{ type: 'context_compression', event }],
+        timestamp: 10,
+      },
+    }]
+
+    const result = insertContextCompressionEvents(entries, [event])
+
+    assert.deepEqual(result.map(entry => entry.key), ['streaming-preview'])
+  })
+
+  it('restores a pre-response compression marker after its user-message anchor', async () => {
+    const { insertContextCompressionEvents } = await loadModule()
+    const entries = [
+      {
+        kind: 'message',
+        key: 'human-1',
+        message: { id: 'human-1', role: 'user', content: 'review', timestamp: 1 },
+      },
+      {
+        kind: 'message',
+        key: 'assistant-1',
+        message: { id: 'assistant-1', role: 'assistant', content: 'working', timestamp: 2 },
+      },
+    ]
+    const result = insertContextCompressionEvents(entries, [{
+      id: 'compressed-before-response',
+      threadId: 'thread-1',
+      anchorMessageId: 'human-1',
+      status: 'completed',
+      startedAt: 2,
+      timestamp: 3,
+    }])
+
+    assert.deepEqual(
+      result.map(entry => entry.key),
+      ['human-1', 'compressed-before-response', 'assistant-1'],
+    )
+  })
+
+  it('appends an unmatched live event so the compressing state is visible before assistant output', async () => {
     const { insertContextCompressionEvents } = await loadModule()
     const entries = [{
       kind: 'message',
@@ -316,73 +403,155 @@ describe('context compression display event', () => {
         id: 'compressed-later',
         threadId: 'thread-1',
         turnId: 'missing-turn',
+        status: 'compressing',
+        startedAt: 20,
         timestamp: 20,
-        compressedMessageCount: 30,
       },
       {
         id: 'compressed-earlier',
         threadId: 'thread-1',
+        status: 'compressing',
+        startedAt: 10,
         timestamp: 10,
-        compressedMessageCount: 10,
       },
     ])
 
     assert.deepEqual(
       result.map(entry => entry.key),
-      ['message-1'],
+      ['message-1', 'compressed-earlier', 'compressed-later'],
     )
   })
 
-  it('detects a subagent summary from the subagent final state and routes it to that task card', async () => {
-    const { StreamEventAdapter, extractSubagentCompressionEvent } = await loadModule()
-    const summaryState = {
-      messages: [{ content: 'old' }, { content: 'recent' }],
-      _summarizationEvent: {
-        cutoffIndex: 1,
-        summaryMessage: { content: 'summary' },
-        filePath: '/conversation_history/subagent.md',
+  it('streams subagent summarization started/completed events to the same task card', async () => {
+    const { StreamEventAdapter, parseDeepAgentsSummarizationEvent } = await loadModule()
+    const customEvent = (phase, payload = {}) => ({
+      type: 'event',
+      method: 'custom',
+      params: {
+        namespace: [],
+        timestamp: phase === 'started' ? 10 : 20,
+        data: {
+          name: 'deepagents_summarization',
+          payload: {
+            eventId: 'summary-1',
+            phase,
+            startedAt: 10,
+            timestamp: phase === 'started' ? 10 : 20,
+            threadId: 'thread-1',
+            turnId: 'turn-1',
+            subagentName: 'reviewer',
+            subagentId: 'task-1',
+            anchorMessageId: 'tool-message-1',
+            anchorToolCallId: 'read-1',
+            ...payload,
+          },
+        },
       },
-    }
-    assert.deepEqual(extractSubagentCompressionEvent(summaryState), {
-      compressedMessageCount: 1,
     })
-    assert.equal(extractSubagentCompressionEvent({ _summarizationEvent: { cutoffIndex: 0 } }), null)
-    assert.equal(extractSubagentCompressionEvent({ _summarizationEvent: { cutoffIndex: 1 } }), null)
+    const completed = customEvent('completed', {
+      summary: 'summary text',
+      filePath: '/conversation_history/subagent.md',
+      compressedMessageCount: 7,
+    })
+
+    assert.deepEqual(parseDeepAgentsSummarizationEvent(completed), {
+      eventId: 'summary-1',
+      phase: 'completed',
+      startedAt: 10,
+      timestamp: 20,
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      subagentName: 'reviewer',
+      subagentId: 'task-1',
+      anchorMessageId: 'tool-message-1',
+      anchorToolCallId: 'read-1',
+      summary: 'summary text',
+      filePath: '/conversation_history/subagent.md',
+      compressedMessageCount: 7,
+      error: undefined,
+    })
+    assert.equal(parseDeepAgentsSummarizationEvent({ method: 'custom', params: { data: {} } }), null)
 
     const chunks = []
-    const empty = async function* () {}
     const adapter = new StreamEventAdapter('thread-1', 'turn-1', {
       sendStreamChunk(chunk) { chunks.push(chunk) },
     })
-    await adapter.consumeSubagents((async function* () {
-      yield {
-        name: 'reviewer',
-        cause: { type: 'toolCall', tool_call_id: 'task-1' },
-        output: Promise.resolve(summaryState),
-        messages: empty(),
-        toolCalls: empty(),
-        subagents: empty(),
-      }
+    await adapter.consumeSummarizationEvents((async function* () {
+      yield { method: 'messages', params: { data: {} } }
+      yield customEvent('started')
+      yield completed
     })())
 
     assert.deepEqual(chunks.map(chunk => chunk.type), [
-      'subagent_start',
-      'context_compressed',
-      'subagent_end',
+      'context_compression',
+      'context_compression',
     ])
+    assert.deepEqual(chunks.map(chunk => chunk.status), ['compressing', 'completed'])
+    assert.equal(chunks[0].eventId, chunks[1].eventId)
     assert.equal(chunks[1].subagentId, 'task-1')
     assert.equal(chunks[1].subagentName, 'reviewer')
-    assert.equal(chunks[1].compressedMessageCount, 1)
+    assert.equal(chunks[1].anchorMessageId, 'tool-message-1')
+    assert.equal(chunks[1].anchorToolCallId, 'read-1')
+    assert.equal(chunks[1].summary, 'summary text')
+    assert.equal(chunks[1].filePath, '/conversation_history/subagent.md')
+
+    const fallbackChunks = []
+    const rootAdapter = new StreamEventAdapter('thread-1', 'turn-1', {
+      sendStreamChunk(chunk) { fallbackChunks.push(chunk) },
+    })
+    await rootAdapter.consumeToolCalls((async function* () {
+      yield {
+        name: 'read_file',
+        callId: 'latest-root-tool',
+        input: { file_path: '/tmp/example.md' },
+        status: Promise.resolve('finished'),
+        output: Promise.resolve('done'),
+        error: Promise.resolve(undefined),
+      }
+    })())
+    await rootAdapter.consumeSummarizationEvents((async function* () {
+      yield customEvent('started', {
+        subagentName: undefined,
+        subagentId: undefined,
+        anchorMessageId: undefined,
+        anchorToolCallId: undefined,
+      })
+    })())
+    const fallbackCompression = fallbackChunks.find(chunk => chunk.type === 'context_compression')
+    assert.equal(fallbackCompression.anchorToolCallId, 'latest-root-tool')
   })
 
-  it('renders the marker as a localized divider instead of a chat bubble or toast', () => {
+  it('keeps compression in the stream protocol and renderer memory only', () => {
+    const engineSource = readFileSync('electron/ai/AgentEngine.ts', 'utf8')
+    const preloadSource = readFileSync('electron/preload.ts', 'utf8')
+    const storeSource = readFileSync('src/ai/store/ai.ts', 'utf8')
+    const patchSource = readFileSync('patches/deepagents+1.11.1.patch', 'utf8')
+
+    assert.match(engineSource, /durability: 'exit'/)
+    assert.match(engineSource, /consumeSummarizationEvents\(run\)/)
+    assert.doesNotMatch(engineSource, /_detectAndNotifySummarization/)
+    assert.doesNotMatch(engineSource, /_seedSummarizationBaseline/)
+    assert.doesNotMatch(preloadSource, /ai:context-compressed/)
+    assert.doesNotMatch(storeSource, /onAiContextCompressed/)
+    assert.match(patchSource, /deepagents_summarization/)
+    assert.match(patchSource, /iwriter_subagent_id/)
+  })
+
+  it('renders a reusable expandable card at root and inside subagents', () => {
     const chatAreaSource = readFileSync(
       'src/components/ai/agent-panel/AgentChatArea.vue',
       'utf8',
     )
-    const storeSource = readFileSync('src/ai/store/ai.ts', 'utf8')
+    const cardSource = readFileSync(
+      'src/components/ai/agent-panel/chat-area/views/ContextCompressionCard.vue',
+      'utf8',
+    )
     const subTaskSource = readFileSync(
       'src/components/ai/agent-panel/chat-area/views/SubTaskProgressView.vue',
+      'utf8',
+    )
+    const messageBubbleSource = readFileSync(
+      'src/components/ai/agent-panel/chat-area/AgentMessageBubble.vue',
       'utf8',
     )
     const runtimeEventsSource = readFileSync('src/ai/store/modules/runtimeEvents.ts', 'utf8')
@@ -397,34 +566,27 @@ describe('context compression display event', () => {
     const zhMessagesSource = readFileSync('src/i18n/messages/zh-CN.ts', 'utf8')
 
     assert.match(chatAreaSource, /entry\.kind === 'context-compressed'/)
-    assert.match(chatAreaSource, /class="flex items-center gap-2 py-1\.5"/)
-    assert.match(chatAreaSource, /class="h-px flex-1 bg-base-content\/15"/)
-    assert.match(chatAreaSource, /<AgentMessageBubble\s+v-else/)
-    assert.match(
-      chatAreaSource,
-      /toLocaleTimeString\(locale\.value,\s*\{\s*hour: '2-digit',\s*minute: '2-digit',\s*\}\)/,
-    )
-    assert.doesNotMatch(chatAreaSource, /second: '2-digit'/)
-    assert.match(zhMessagesSource, /contextCompressed: '上下文已压缩（\{time\}）'/)
+    assert.match(chatAreaSource, /<ContextCompressionCard/)
+    assert.match(chatAreaSource, /:show-timestamp="true"/)
+    assert.match(cardSource, /context-compression-details/)
+    assert.match(cardSource, /context-compression-timestamp/)
+    assert.match(cardSource, /event\.summary/)
+    assert.match(cardSource, /event\.filePath/)
+    assert.match(cardSource, /expanded\.value = !expanded\.value/)
+    assert.match(zhMessagesSource, /contextCompressing: '正在压缩上下文\.\.\.'/)
+    assert.match(zhMessagesSource, /contextCompressionCompleted: '上下文压缩已完成'/)
+    assert.match(subTaskSource, /<ContextCompressionCard/)
+    assert.match(subTaskSource, /standaloneCompressionEvents/)
+    assert.match(messageBubbleSource, /block\.type === 'context_compression'/)
     assert.match(subTaskSource, /subTask\.contextCompressionEvents/)
-    assert.match(subTaskSource, /agentPanel\.chatArea\.contextCompressed/)
-    assert.match(subTaskSource, /latestCompressionEvent/)
-    assert.match(subTaskSource, /subtask-context-compressed-summary/)
-    assert.match(subTaskSource, /subtask-context-compressed-event/)
-    assert.match(runtimeEventsSource, /type === 'context_compressed'/)
+    assert.match(subTaskSource, /if \(value\) expanded\.value = true/)
+    assert.match(runtimeEventsSource, /type === 'context_compression'/)
+    assert.match(runtimeEventsSource, /upsertContextCompressionEvent/)
     assert.match(assemblerSource, /middleware: \[createContextLedgerMiddleware\(\)\]/)
     assert.match(creativeCapabilitiesSource, /\.\.\.GENERAL_PURPOSE_SUBAGENT/)
     assert.match(creativeCapabilitiesSource, /middleware: \[createContextLedgerMiddleware\(\)\]/)
     assert.match(creativeCapabilitiesSource, /path\.join\(skillsRoot, 'creative', 'common'\)/)
     assert.match(creativeCapabilitiesSource, /path\.join\(skillsRoot, 'creative', 'main'\)/)
     assert.match(creativeCapabilitiesSource, /synthesized general-purpose agent inherits the root skills/)
-    assert.match(
-      storeSource,
-      /onAiContextCompressed\?\.\(\(event\) => \{\s*addContextCompressionEvent\(event\)\s*\}\)/,
-    )
-    assert.doesNotMatch(
-      storeSource,
-      /onAiContextCompressed\?\.\(\([^)]*\) => \{\s*notify\./,
-    )
   })
 })

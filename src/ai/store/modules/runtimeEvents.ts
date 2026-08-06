@@ -1,5 +1,6 @@
 import type { ComputedRef, Ref } from 'vue'
 import type {
+  AiContextCompressionEvent,
   AiThread,
   AiToolCall,
   CreativeReviewItem,
@@ -95,6 +96,7 @@ interface RuntimeEventsDeps {
   updateThread: (thread: AiThread) => void
   notifyError: (message: string) => void
   makeErrorMessage: (input: { turnId?: string | null; content: string }) => ThreadMessage
+  upsertContextCompressionEvent: (event: AiContextCompressionEvent) => void
 }
 
 function makeEmptyUsageTotals(): UsageTotals {
@@ -266,6 +268,72 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     liveTurn.blocks = [...liveTurn.blocks, { type: 'tool_call', toolCall }]
   }
 
+  function upsertRootContextCompression(
+    liveTurn: LiveTurn,
+    event: AiContextCompressionEvent,
+  ): void {
+    const idx = liveTurn.blocks.findIndex(block =>
+      block.type === 'context_compression' && block.event.id === event.id
+    )
+    if (idx >= 0) {
+      const updated = [...liveTurn.blocks]
+      const existing = liveTurn.blocks[idx]!
+      updated[idx] = {
+        type: 'context_compression',
+        event: existing.type === 'context_compression'
+          ? { ...existing.event, ...event }
+          : event,
+      }
+      liveTurn.blocks = updated
+      return
+    }
+    if (liveTurn.currentText) {
+      liveTurn.blocks = [...liveTurn.blocks, { type: 'text', text: liveTurn.currentText }]
+      liveTurn.currentText = ''
+    }
+    liveTurn.blocks = [...liveTurn.blocks, { type: 'context_compression', event }]
+  }
+
+  function upsertSubTaskContextCompression(
+    subTask: LiveSubTask,
+    event: AiContextCompressionEvent,
+  ): LiveSubTask {
+    const eventIndex = subTask.contextCompressionEvents.findIndex(item => item.id === event.id)
+    const events = [...subTask.contextCompressionEvents]
+    if (eventIndex >= 0) {
+      events[eventIndex] = { ...events[eventIndex]!, ...event }
+    } else {
+      events.push(event)
+    }
+
+    const blockIndex = subTask.blocks.findIndex(block =>
+      block.type === 'context_compression' && block.event.id === event.id
+    )
+    if (blockIndex >= 0) {
+      const blocks = [...subTask.blocks]
+      const existing = subTask.blocks[blockIndex]!
+      blocks[blockIndex] = {
+        type: 'context_compression',
+        event: existing.type === 'context_compression'
+          ? { ...existing.event, ...event }
+          : event,
+      }
+      return { ...subTask, blocks, contextCompressionEvents: events }
+    }
+
+    const blocks = [...subTask.blocks]
+    if (subTask.currentText) {
+      blocks.push({ type: 'text', text: subTask.currentText })
+    }
+    blocks.push({ type: 'context_compression', event })
+    return {
+      ...subTask,
+      blocks,
+      currentText: '',
+      contextCompressionEvents: events,
+    }
+  }
+
   function upsertSubTask(liveTurn: LiveTurn, subTask: LiveSubTask): void {
     const idx = liveTurn.subTasks.findIndex(st => st.invocationId === subTask.invocationId)
     if (idx < 0) {
@@ -357,6 +425,45 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     // be swallowed by the subagentName early-return below if not caught here first).
     if (chunk.type === 'usage') {
       _handleUsageChunk(chunk)
+      return
+    }
+
+    if (chunk.type === 'context_compression') {
+      const event: AiContextCompressionEvent = {
+        id: chunk.eventId,
+        threadId: chunk.threadId,
+        turnId: chunk.turnId,
+        subagentId: chunk.subagentId,
+        subagentName: chunk.subagentName,
+        anchorMessageId: chunk.anchorMessageId,
+        anchorToolCallId: chunk.anchorToolCallId,
+        status: chunk.status,
+        startedAt: chunk.startedAt,
+        timestamp: chunk.timestamp,
+        summary: chunk.summary,
+        filePath: chunk.filePath,
+        compressedMessageCount: chunk.compressedMessageCount,
+        error: chunk.error,
+      }
+      deps.upsertContextCompressionEvent(event)
+
+      const liveTurn = deps.ensureLiveTurn({
+        state: deps.threadRunState.value === 'interrupted' ? 'interrupted' : 'streaming',
+      })
+      if (liveTurn && chunk.threadId === liveTurn.threadId) {
+        if (chunk.subagentId) {
+          const idx = liveTurn.subTasks.findIndex(st => st.invocationId === chunk.subagentId)
+          if (idx >= 0) {
+            const subTask = liveTurn.subTasks[idx]!
+            const updated = [...liveTurn.subTasks]
+            updated[idx] = upsertSubTaskContextCompression(subTask, event)
+            liveTurn.subTasks = updated
+          }
+        } else {
+          upsertRootContextCompression(liveTurn, event)
+        }
+        deps.liveTurn.value = { ...liveTurn }
+      }
       return
     }
 
@@ -481,29 +588,6 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     if (chunk.type === 'text' && chunk.delta) {
       const updated = [...liveTurn.subTasks]
       updated[idx] = { ...subTask, text: subTask.text + chunk.delta, currentText: subTask.currentText + chunk.delta }
-      liveTurn.subTasks = updated
-      return
-    }
-
-    if (chunk.type === 'context_compressed') {
-      const id = `${invocationId}:context-compressed:${chunk.compressedMessageCount}`
-      if (subTask.contextCompressionEvents.some(event => event.id === id)) return
-      const updated = [...liveTurn.subTasks]
-      updated[idx] = {
-        ...subTask,
-        contextCompressionEvents: [
-          ...subTask.contextCompressionEvents,
-          {
-            id,
-            threadId: chunk.threadId,
-            turnId: chunk.turnId,
-            subagentId: invocationId,
-            subagentName: chunk.subagentName,
-            timestamp: chunk.timestamp,
-            compressedMessageCount: chunk.compressedMessageCount,
-          },
-        ],
-      }
       liveTurn.subTasks = updated
       return
     }

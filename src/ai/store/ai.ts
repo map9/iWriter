@@ -307,6 +307,9 @@ export const useAiStore = defineStore('ai', () => {
   const threads = ref<AiThread[]>([])
   const activeThreadId = ref<string | null>(null)
   const contextCompressionEventsByThread = ref<Record<string, AiContextCompressionEvent[]>>({})
+  const subagentCompressionEventsByThread = ref<
+    Record<string, Record<string, AiContextCompressionEvent[]>>
+  >({})
 
   const activeThread = computed<AiThread | null>(() => {
     return threads.value.find(t => t.id === activeThreadId.value) ?? null
@@ -317,30 +320,58 @@ export const useAiStore = defineStore('ai', () => {
     return threadId ? contextCompressionEventsByThread.value[threadId] ?? [] : []
   })
 
-  function addContextCompressionEvent(event: {
-    threadId: string
-    turnId?: string
-    timestamp: number
-    compressedMessageCount: number
-  }) {
-    const current = contextCompressionEventsByThread.value[event.threadId]?.[0]
-    if (current && current.compressedMessageCount >= event.compressedMessageCount) return
+  const activeSubagentCompressionEvents = computed<Record<string, AiContextCompressionEvent[]>>(() => {
+    const threadId = activeThreadId.value
+    return threadId ? subagentCompressionEventsByThread.value[threadId] ?? {} : {}
+  })
 
-    // Compression is current thread state, not an append-only chat event. Keeping only the newest
-    // cutoff prevents repeated compactions during a long run from accumulating as dividers.
-    const id = `context-compressed:${event.threadId}:${event.compressedMessageCount}`
+  function upsertCompressionEventList(
+    events: AiContextCompressionEvent[],
+    event: AiContextCompressionEvent,
+  ): AiContextCompressionEvent[] {
+    const index = events.findIndex(item => item.id === event.id)
+    if (index < 0) return [...events, event]
+    const updated = [...events]
+    updated[index] = { ...updated[index]!, ...event }
+    return updated
+  }
+
+  function upsertContextCompressionEvent(event: AiContextCompressionEvent) {
+    if (event.subagentId) {
+      const threadEvents = subagentCompressionEventsByThread.value[event.threadId] ?? {}
+      subagentCompressionEventsByThread.value = {
+        ...subagentCompressionEventsByThread.value,
+        [event.threadId]: {
+          ...threadEvents,
+          [event.subagentId]: upsertCompressionEventList(
+            threadEvents[event.subagentId] ?? [],
+            event,
+          ),
+        },
+      }
+      return
+    }
 
     contextCompressionEventsByThread.value = {
       ...contextCompressionEventsByThread.value,
-      [event.threadId]: [{ ...event, id }],
+      [event.threadId]: upsertCompressionEventList(
+        contextCompressionEventsByThread.value[event.threadId] ?? [],
+        event,
+      ),
     }
   }
 
   function clearContextCompressionEvents(threadId: string) {
-    if (!(threadId in contextCompressionEventsByThread.value)) return
-    const next = { ...contextCompressionEventsByThread.value }
-    delete next[threadId]
-    contextCompressionEventsByThread.value = next
+    if (threadId in contextCompressionEventsByThread.value) {
+      const next = { ...contextCompressionEventsByThread.value }
+      delete next[threadId]
+      contextCompressionEventsByThread.value = next
+    }
+    if (threadId in subagentCompressionEventsByThread.value) {
+      const next = { ...subagentCompressionEventsByThread.value }
+      delete next[threadId]
+      subagentCompressionEventsByThread.value = next
+    }
   }
 
   /**
@@ -442,6 +473,7 @@ export const useAiStore = defineStore('ai', () => {
   function clearAllThreads() {
     runtimeEvents.clearAllUsage()
     contextCompressionEventsByThread.value = {}
+    subagentCompressionEventsByThread.value = {}
     threads.value = []
     activeThreadId.value = null
     window.electronAPI.aiClearThreads?.()
@@ -478,6 +510,18 @@ export const useAiStore = defineStore('ai', () => {
       contextCompressionEventsByThread.value = {
         ...contextCompressionEventsByThread.value,
         [thread.id]: current.filter(event => !event.turnId || !removedTurnIds.has(event.turnId)),
+      }
+      const subagentEvents = subagentCompressionEventsByThread.value[thread.id] ?? {}
+      subagentCompressionEventsByThread.value = {
+        ...subagentCompressionEventsByThread.value,
+        [thread.id]: Object.fromEntries(
+          Object.entries(subagentEvents)
+            .map(([subagentId, events]) => [
+              subagentId,
+              events.filter(event => !event.turnId || !removedTurnIds.has(event.turnId)),
+            ])
+            .filter(([, events]) => (events as AiContextCompressionEvent[]).length > 0),
+        ),
       }
     }
 
@@ -595,10 +639,6 @@ export const useAiStore = defineStore('ai', () => {
       thread = createNewThread()
       if (!thread) return false
     }
-
-    // The divider describes compression performed for one completed turn. It is not conversation
-    // history, so retire it when the user starts a later turn.
-    clearContextCompressionEvents(thread.id)
 
     // Append user message locally for immediate display; clear any previous error flag.
     // Note: the authoritative message store is the checkpointer. This local append
@@ -799,6 +839,7 @@ export const useAiStore = defineStore('ai', () => {
       isError: true,
       timestamp: Date.now(),
     }),
+    upsertContextCompressionEvent,
   })
 
   const persistedMessages = computed<ThreadMessage[]>(() => activeThread.value?.messages ?? [])
@@ -808,6 +849,7 @@ export const useAiStore = defineStore('ai', () => {
     activeThreadId,
     persistedMessages,
     contextCompressionEvents: activeContextCompressionEvents,
+    subagentCompressionEvents: activeSubagentCompressionEvents,
     isResumingReviewedEdits,
     normalizeMessageForDisplay: _normalizeMessageForDisplay,
   })
@@ -867,9 +909,6 @@ export const useAiStore = defineStore('ai', () => {
     window.electronAPI.onAiRunInterrupted?.(runtimeEvents.onRunInterrupted)
     window.electronAPI.onAiRunDone?.(runtimeEvents.onRunDone)
     window.electronAPI.onAiRunError?.(runtimeEvents.onRunError)
-    window.electronAPI.onAiContextCompressed?.((event) => {
-      addContextCompressionEvent(event)
-    })
     window.electronAPI.onAiModelFallback?.((e) => {
       notify.warning(i18n.global.t('notify.ai.modelFallback', { modelId: e.fallbackModelId }))
     })

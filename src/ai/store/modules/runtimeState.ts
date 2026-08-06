@@ -12,6 +12,7 @@ export type ThreadRunState = 'idle' | 'streaming' | 'interrupted'
 export type StreamingBlock =
   | { type: 'text'; text: string }
   | { type: 'tool_call'; toolCall: AiToolCall }
+  | { type: 'context_compression'; event: AiContextCompressionEvent }
 
 export interface LiveSubTask {
   /** Same value as the parent task toolCall.id / stream subagentId. */

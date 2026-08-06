@@ -40,7 +40,6 @@ export class ThreadRuntimeStore {
   private interruptedRuns = new Map<string, InterruptedRun>()
   private threadContexts = new Map<string, ThreadExecutionContext>()
   private currentTurnIds = new Map<string, string>()
-  private lastSummarizationCutoffs = new Map<string, number>()
 
   setContext(threadId: string, context: ThreadExecutionContext): void {
     this.threadContexts.set(threadId, context)
@@ -94,26 +93,16 @@ export class ThreadRuntimeStore {
     this.currentTurnIds.delete(threadId)
   }
 
-  getLastSummarizationCutoff(threadId: string): number | undefined {
-    return this.lastSummarizationCutoffs.get(threadId)
-  }
-
-  setLastSummarizationCutoff(threadId: string, cutoff: number): void {
-    this.lastSummarizationCutoffs.set(threadId, cutoff)
-  }
-
   deleteThread(threadId: string): void {
     this.threadContexts.delete(threadId)
     this.interruptedRuns.delete(threadId)
     this.currentTurnIds.delete(threadId)
-    this.lastSummarizationCutoffs.delete(threadId)
   }
 
   clear(): void {
     this.threadContexts.clear()
     this.interruptedRuns.clear()
     this.currentTurnIds.clear()
-    this.lastSummarizationCutoffs.clear()
   }
 }
 

@@ -815,7 +815,6 @@ export class AgentEngine {
       tags: ['phase:initial'],
     }
 
-    await this._seedSummarizationBaseline(threadId)
     await this._streamLoop(threadId, agent, { messages: [new HumanMessage(userContent)] }, runConfig)
   }
 
@@ -845,7 +844,6 @@ export class AgentEngine {
       tags: ['phase:resume'],
     }
 
-    await this._seedSummarizationBaseline(threadId)
     await this._streamLoop(threadId, agent, command, runConfig)
   }
 
@@ -865,6 +863,7 @@ export class AgentEngine {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const run = await (agent.streamEvents as any)(input, { ...runConfig, version: 'v3' }) as DeepAgentRunStream
       await this._drainRunStreams(threadId, [
+        { name: 'summarizationEvents', promise: adapter.consumeSummarizationEvents(run) },
         { name: 'messages', promise: adapter.consumeMessages(run.messages) },
         { name: 'toolCalls', promise: adapter.consumeToolCalls(run.toolCalls) },
         { name: 'subagents', promise: adapter.consumeSubagents(run.subagents) },
@@ -926,7 +925,6 @@ export class AgentEngine {
         threadId,
         workspacePath: this.runtimeStore.getContext(threadId)?.workspacePath ?? null,
       })
-      await this._detectAndNotifySummarization(threadId)
       // M1-1: if the agent finished without finalizing an open write-session, synthesize a run-end
       // finalize card instead of completing — it leaves the thread interrupted awaiting the decision.
       const finalizeTurnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
@@ -1543,49 +1541,6 @@ export class AgentEngine {
       if (!key.startsWith(`${threadId}:`)) continue
       this._cleanupScaffold(cached.scaffold)
       this.agentCache.delete(key)
-    }
-  }
-
-  private async _seedSummarizationBaseline(threadId: string): Promise<void> {
-    if (this.runtimeStore.getLastSummarizationCutoff(threadId) !== undefined) return
-    if (!this.checkpointerInstance) return
-    try {
-      const tuple = await this.checkpointerInstance.checkpointer.get({
-        configurable: { thread_id: threadId },
-      })
-      if (!tuple) return
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const cutoffIndex: unknown = ((tuple as any).channel_values ?? {})._summarizationEvent?.cutoffIndex
-      if (typeof cutoffIndex === 'number' && cutoffIndex > 0) {
-        this.runtimeStore.setLastSummarizationCutoff(threadId, cutoffIndex)
-      }
-    } catch {
-      // Non-fatal — baseline stays undefined; first run will still detect correctly
-    }
-  }
-
-  private async _detectAndNotifySummarization(threadId: string): Promise<void> {
-    if (!this.checkpointerInstance) return
-    try {
-      const tuple = await this.checkpointerInstance.checkpointer.get({
-        configurable: { thread_id: threadId },
-      })
-      if (!tuple) return
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const channelValues = (tuple as any).channel_values ?? {}
-      const cutoffIndex: unknown = channelValues._summarizationEvent?.cutoffIndex
-      if (typeof cutoffIndex !== 'number' || cutoffIndex <= 0) return
-      const lastCutoff = this.runtimeStore.getLastSummarizationCutoff(threadId)
-      if (cutoffIndex === lastCutoff) return
-      this.runtimeStore.setLastSummarizationCutoff(threadId, cutoffIndex)
-      this.rendererBridge.sendRunContextCompressed({
-        threadId,
-        turnId: this.runtimeStore.getCurrentTurnId(threadId) ?? undefined,
-        timestamp: Date.now(),
-        compressedMessageCount: cutoffIndex,
-      })
-    } catch (err) {
-      console.warn('[AgentEngine] Failed to detect summarization:', err)
     }
   }
 

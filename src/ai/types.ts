@@ -282,6 +282,11 @@ export interface MessageAgentEventBlock {
   status?: 'started' | 'running' | 'completed' | 'failed'
 }
 
+export interface MessageContextCompressionBlock {
+  type: 'context_compression'
+  event: AiContextCompressionEvent
+}
+
 export interface TaskPlanItem {
   content: string
   status: 'pending' | 'in_progress' | 'completed'
@@ -293,6 +298,7 @@ export type MessageContentBlock =
   | MessageToolCallBlock
   | MessageThinkingBlock
   | MessageAgentEventBlock
+  | MessageContextCompressionBlock
 
 // ── Edit Proposals ─────────────────────────────────────────────────────────
 
@@ -524,7 +530,7 @@ export interface EditRoundResult {
   items: EditRoundResultItem[]
 }
 
-// ── Sub-Task Progress (live streaming, not persisted) ─────────────────────
+// ── Sub-Task Progress (renderer-only, not persisted) ──────────────────────
 
 export type AiSubTaskProgressStatus =
   | 'pending'
@@ -573,22 +579,31 @@ export interface ThreadMessage {
   creativeRoundResult?: CreativeRoundResult
   /** Ordered content blocks for interleaved text + tool call rendering. */
   contentBlocks?: MessageContentBlock[]
-  /** Live subagent task progress — only set on the streaming preview message, never persisted. */
+  /** Renderer-only subagent task progress, never persisted or sent to the model. */
   subTasks?: AiSubTaskProgress[]
 
   timestamp: number
   usage?: { inputTokens: number; outputTokens: number }
 }
 
-/** Renderer-only marker for the latest compressed turn. Never sent to the model or stored as chat. */
+/** Renderer-memory-only summarization lifecycle event. Never sent to the model or checkpointed. */
 export interface AiContextCompressionEvent {
   id: string
   threadId: string
   turnId?: string
   subagentId?: string
   subagentName?: string
+  /** Stable checkpoint anchor used to restore this marker at its original stream position. */
+  anchorMessageId?: string
+  /** Tool-result anchor when the last effective message belongs to a tool call. */
+  anchorToolCallId?: string
+  status: 'compressing' | 'completed' | 'failed'
+  startedAt: number
   timestamp: number
-  compressedMessageCount: number
+  summary?: string
+  filePath?: string | null
+  compressedMessageCount?: number
+  error?: string
 }
 
 // ── Attach / Send Context ──────────────────────────────────────────────────

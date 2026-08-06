@@ -14,7 +14,6 @@ export type {
   RunInterruptedEvent,
   RunDoneEvent,
   RunErrorEvent,
-  RunContextCompressedEvent,
   RunModelFallbackEvent,
   RunFilesystemAutoRejectEvent,
   SnapshotRequestEvent,

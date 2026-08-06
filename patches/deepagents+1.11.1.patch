@@ -57,9 +57,16 @@ index d3d062d..0c0744f 100644
     * Optional {@link StreamTransformer} factories to register with the underlying agent.
     *
 diff --git a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
-index f1c3f24..671da61 100644
+index f1c3f24..ff706d1 100644
 --- a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
 +++ b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
+@@ -1,5 +1,5 @@
+ import { AIMessage, HumanMessage, SystemMessage, ToolMessage, anthropicPromptCachingMiddleware, bedrockPromptCachingMiddleware, context, countTokensApproximately, createAgent, createMiddleware, humanInTheLoopMiddleware, todoListMiddleware, tool } from "langchain";
+-import { Command, REMOVE_ALL_MESSAGES, ReducedValue, StateSchema, getConfig, getCurrentTaskInput, getStore, isCommand } from "@langchain/langgraph";
++import { Command, REMOVE_ALL_MESSAGES, ReducedValue, StateSchema, getConfig, getCurrentTaskInput, getStore, getWriter, isCommand } from "@langchain/langgraph";
+ import { z } from "zod/v4";
+ import micromatch from "micromatch";
+ import { AIMessage as AIMessage$1, HumanMessage as HumanMessage$1, RemoveMessage, getBufferString } from "@langchain/core/messages";
 @@ -1080,7 +1080,19 @@ var CompositeBackend = class {
  	*/
  	async read(filePath, offset = 0, limit = 500) {
@@ -99,23 +106,29 @@ index f1c3f24..671da61 100644
  			path: z.string().optional().default("/").describe("Base path to search from (default: /)"),
  			glob: z.string().optional().nullable().default(null).describe("Optional glob pattern to filter files (e.g., '*.py')")
  		})
-@@ -2212,7 +2224,10 @@ const EXCLUDED_STATE_KEYS = [
- const EXCLUDED_STATE_KEYS = [
--	"messages",
--	"todos",
--	"structuredResponse",
--	"skillsMetadata",
+@@ -2214,7 +2226,10 @@ const EXCLUDED_STATE_KEYS = [
+ 	"todos",
+ 	"structuredResponse",
+ 	"skillsMetadata",
 -	"memoryContents"
-+	"messages",
-+	"todos",
-+	"structuredResponse",
-+	"skillsMetadata",
 +	"memoryContents",
 +	"_summarizationSessionId",
 +	"_summarizationEvent",
 +	"_contextLedger"
  ];
-@@ -3974,7 +3986,7 @@ const SummarizationEventSchema = z$1.object({
+ /**
+ * Default description for the general-purpose subagent.
+@@ -2578,7 +2593,8 @@ function createTaskTool(options) {
+ 			...config,
+ 			metadata: {
+ 				...config.metadata,
+-				lc_agent_name: subagent_type
++				lc_agent_name: subagent_type,
++				iwriter_subagent_id: config.toolCall?.id
+ 			},
+ 			configurable: {
+ 				...config.configurable,
+@@ -3974,7 +3990,7 @@ const SummarizationEventSchema = z$1.object({
  	* Messages before this index have been summarized. */
  	cutoffIndex: z$1.number(),
  	/** The HumanMessage containing the summary. */
@@ -124,7 +137,7 @@ index f1c3f24..671da61 100644
  	/** Path where the conversation history was offloaded, or null if offload failed. */
  	filePath: z$1.string().nullable()
  });
-@@ -4009,6 +4021,7 @@ function isSummaryMessage(msg) {
+@@ -4009,6 +4025,7 @@ function isSummaryMessage(msg) {
  */
  function createSummarizationMiddleware(options) {
  	const { model, backend, summaryPrompt = DEFAULT_SUMMARY_PROMPT, trimTokensToSummarize = DEFAULT_TRIM_TOKEN_LIMIT, historyPathPrefix = "/conversation_history" } = options;
@@ -132,7 +145,7 @@ index f1c3f24..671da61 100644
  	let trigger = options.trigger;
  	let keep = options.keep ?? {
  		type: "messages",
-@@ -4046,6 +4059,7 @@ function createSummarizationMiddleware(options) {
+@@ -4046,6 +4063,7 @@ function createSummarizationMiddleware(options) {
  	}
  	let sessionId = null;
  	let tokenEstimationMultiplier = 1;
@@ -140,7 +153,7 @@ index f1c3f24..671da61 100644
  	/**
  	* Get or create session ID for history file naming.
  	*/
-@@ -4161,7 +4175,7 @@ function createSummarizationMiddleware(options) {
+@@ -4161,7 +4179,7 @@ function createSummarizationMiddleware(options) {
  			let tokensKept = 0;
  			rawCutoff = 0;
  			for (let i = messages.length - 1; i >= 0; i--) {
@@ -149,7 +162,7 @@ index f1c3f24..671da61 100644
  				if (tokensKept + msgTokens > targetTokenCount) {
  					rawCutoff = i + 1;
  					break;
-@@ -4196,7 +4210,7 @@ function createSummarizationMiddleware(options) {
+@@ -4196,7 +4214,7 @@ function createSummarizationMiddleware(options) {
  			let tokensKept = 0;
  			rawCutoff = 0;
  			for (let i = messages.length - 1; i >= 0; i--) {
@@ -158,7 +171,7 @@ index f1c3f24..671da61 100644
  				if (tokensKept + msgTokens > targetTokenCount) {
  					rawCutoff = i + 1;
  					break;
-@@ -4211,7 +4225,7 @@ function createSummarizationMiddleware(options) {
+@@ -4211,7 +4229,7 @@ function createSummarizationMiddleware(options) {
  	* This gives a more accurate picture of what actually gets sent to the model.
  	*/
  	function countTotalTokens(messages, systemMessage, tools) {
@@ -167,7 +180,7 @@ index f1c3f24..671da61 100644
  	}
  	/**
  	* Truncate ToolMessage content so that the total payload fits within the
-@@ -4358,11 +4372,11 @@ function createSummarizationMiddleware(options) {
+@@ -4358,11 +4376,11 @@ function createSummarizationMiddleware(options) {
  	*/
  	async function createSummary(messages, chatModel) {
  		let messagesToSummarize = messages;
@@ -181,7 +194,7 @@ index f1c3f24..671da61 100644
  				if (kept + msgTokens > trimTokensToSummarize) break;
  				trimmedMessages.unshift(messages[i]);
  				kept += msgTokens;
-@@ -4371,8 +4385,17 @@ function createSummarizationMiddleware(options) {
+@@ -4371,8 +4389,17 @@ function createSummarizationMiddleware(options) {
  		}
  		const conversation = getBufferString(messagesToSummarize);
  		const prompt = summaryPrompt.replace("{conversation}", conversation);
@@ -201,7 +214,111 @@ index f1c3f24..671da61 100644
  	}
  	/**
  	* Build the summary message with file path reference.
-@@ -4500,9 +4523,19 @@ function createSummarizationMiddleware(options) {
+@@ -4417,12 +4444,50 @@ function createSummarizationMiddleware(options) {
+ 	async function summarizeMessages(messagesToSummarize, resolvedModel, state, previousCutoffIndex, cutoffIndex) {
+ 		const filePath = await offloadToBackend(await resolveBackend(backend, { state }), messagesToSummarize, state);
+ 		if (filePath === null) console.warn(`[SummarizationMiddleware] Backend offload failed during summarization. Proceeding with summary generation.`);
++		const summary = await createSummary(messagesToSummarize, resolvedModel);
+ 		return {
+-			summaryMessage: buildSummaryMessage(await createSummary(messagesToSummarize, resolvedModel), filePath),
++			summary,
++			summaryMessage: buildSummaryMessage(summary, filePath),
+ 			filePath,
+ 			stateCutoffIndex: previousCutoffIndex != null ? previousCutoffIndex + cutoffIndex - 1 : cutoffIndex
+ 		};
+ 	}
++	function createSummarizationStreamEvent(request) {
++		let config;
++		let writer;
++		try {
++			config = getConfig();
++			writer = getWriter(config);
++		} catch {}
++		const metadata = config?.metadata ?? {};
++		const context = request.runtime?.context ?? {};
++		const requestMessages = request.messages ?? [];
++		const anchorMessage = requestMessages[requestMessages.length - 1];
++		const anchorMessageId = typeof anchorMessage?.id === "string" ? anchorMessage.id : void 0;
++		const anchorToolCallId = typeof anchorMessage?.tool_call_id === "string" ? anchorMessage.tool_call_id : void 0;
++		const startedAt = Date.now();
++		return {
++			writer,
++			base: {
++				eventId: `summarization-${startedAt}-${Math.random().toString(36).slice(2, 10)}`,
++				threadId: context.threadId ?? metadata.thread_id,
++				turnId: context.turnId ?? metadata.turn_id,
++				subagentName: metadata.lc_agent_name,
++				subagentId: metadata.iwriter_subagent_id,
++				anchorMessageId,
++				anchorToolCallId,
++				startedAt
++			}
++		};
++	}
++	function emitSummarizationStreamEvent(event, phase, details = {}) {
++		if (!event.writer) return;
++		try {
++			event.writer({
++				name: "deepagents_summarization",
++				payload: {
++					...event.base,
++					...details,
++					phase,
++					timestamp: Date.now()
++				}
++			});
++		} catch {}
++	}
+ 	/**
+ 	* Check if an error (possibly wrapped in MiddlewareError layers) is a
+ 	* ContextOverflowError by walking the `cause` chain.
+@@ -4457,7 +4522,21 @@ function createSummarizationMiddleware(options) {
+ 		}
+ 		const previousEvent = request.state._summarizationEvent;
+ 		const previousCutoffIndex = previousEvent != null ? previousEvent.cutoffIndex : void 0;
+-		const { summaryMessage, filePath, stateCutoffIndex } = await summarizeMessages(messagesToSummarize, resolvedModel, request.state, previousCutoffIndex, cutoffIndex);
++		const streamEvent = createSummarizationStreamEvent(request);
++		emitSummarizationStreamEvent(streamEvent, "started");
++		let summaryResult;
++		try {
++			summaryResult = await summarizeMessages(messagesToSummarize, resolvedModel, request.state, previousCutoffIndex, cutoffIndex);
++		} catch (err) {
++			emitSummarizationStreamEvent(streamEvent, "failed", { error: err instanceof Error ? err.message : String(err) });
++			throw err;
++		}
++		const { summary, summaryMessage, filePath, stateCutoffIndex } = summaryResult;
++		emitSummarizationStreamEvent(streamEvent, "completed", {
++			summary,
++			filePath,
++			compressedMessageCount: messagesToSummarize.filter((message) => message?.additional_kwargs?.lc_source !== "summarization").length
++		});
+ 		let modifiedMessages = [summaryMessage, ...preservedMessages];
+ 		const modifiedTokens = countTotalTokens(modifiedMessages, request.systemMessage, request.tools);
+ 		let finalStateCutoffIndex = stateCutoffIndex;
+@@ -4474,10 +4553,21 @@ function createSummarizationMiddleware(options) {
+ 				const observedRatio = maxInputTokens / modifiedTokens;
+ 				if (observedRatio > tokenEstimationMultiplier) tokenEstimationMultiplier = observedRatio * 1.1;
+ 			}
+-			const reSumResult = await summarizeMessages([...messagesToSummarize, ...preservedMessages], resolvedModel, request.state, previousCutoffIndex, truncatedMessages.length);
++			let reSumResult;
++			try {
++				reSumResult = await summarizeMessages([...messagesToSummarize, ...preservedMessages], resolvedModel, request.state, previousCutoffIndex, truncatedMessages.length);
++			} catch (reSumErr) {
++				emitSummarizationStreamEvent(streamEvent, "failed", { error: reSumErr instanceof Error ? reSumErr.message : String(reSumErr) });
++				throw reSumErr;
++			}
+ 			finalSummaryMessage = reSumResult.summaryMessage;
+ 			finalFilePath = reSumResult.filePath;
+ 			finalStateCutoffIndex = reSumResult.stateCutoffIndex;
++			emitSummarizationStreamEvent(streamEvent, "completed", {
++				summary: reSumResult.summary,
++				filePath: reSumResult.filePath,
++				compressedMessageCount: [...messagesToSummarize, ...preservedMessages].filter((message) => message?.additional_kwargs?.lc_source !== "summarization").length
++			});
+ 			modifiedMessages = [reSumResult.summaryMessage];
+ 			await handler({
+ 				...request,
+@@ -4500,9 +4590,19 @@ function createSummarizationMiddleware(options) {
  			const effectiveMessages = getEffectiveMessages(request.messages ?? [], request.state);
  			if (effectiveMessages.length === 0) return handler(request);
  			/**
@@ -222,7 +339,7 @@ index f1c3f24..671da61 100644
  			const maxInputTokens = getMaxInputTokens(resolvedModel);
  			applyModelDefaults(resolvedModel);
  			const totalTokens = countTotalTokens(effectiveMessages, request.systemMessage, request.tools);
-@@ -4521,10 +4554,16 @@ function createSummarizationMiddleware(options) {
+@@ -4521,10 +4621,16 @@ function createSummarizationMiddleware(options) {
  			* emergency summarization (matching Python's behavior).
  			*/
  			if (!shouldSummarize(truncatedMessages, tokensForSummary, maxInputTokens)) try {
@@ -240,7 +357,7 @@ index f1c3f24..671da61 100644
  			} catch (err) {
  				if (!isContextOverflow(err)) throw err;
  				if (maxInputTokens && tokensForSummary > 0) {
-@@ -5984,7 +6023,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
+@@ -5984,7 +6090,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
  * ```
  */
  function createDeepAgent(params = {}) {
@@ -249,7 +366,7 @@ index f1c3f24..671da61 100644
  	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
  	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
  	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
-@@ -6023,7 +6062,7 @@ function createDeepAgent(params = {}) {
+@@ -6023,7 +6129,7 @@ function createDeepAgent(params = {}) {
  				permissions: effectivePermissions,
  				tools: profileFilesystemTools
  			}),
@@ -258,7 +375,7 @@ index f1c3f24..671da61 100644
  			createPatchToolCallsMiddleware(),
  			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
  				backend,
-@@ -6075,7 +6114,7 @@ function createDeepAgent(params = {}) {
+@@ -6075,7 +6181,7 @@ function createDeepAgent(params = {}) {
  			subagents: inlineSubagents,
  			generalPurposeAgent: false
  		}),
@@ -268,7 +385,7 @@ index f1c3f24..671da61 100644
  	];
  	let middleware = mergeMiddlewareStack([
 diff --git a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
-index 5551ac8..f4d6e63 100644
+index 5551ac8..047ff34 100644
 --- a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
 +++ b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
 @@ -1104,7 +1104,19 @@ var CompositeBackend = class {
@@ -310,23 +427,29 @@ index 5551ac8..f4d6e63 100644
  			path: zod_v4.z.string().optional().default("/").describe("Base path to search from (default: /)"),
  			glob: zod_v4.z.string().optional().nullable().default(null).describe("Optional glob pattern to filter files (e.g., '*.py')")
  		})
-@@ -2236,7 +2248,10 @@ const EXCLUDED_STATE_KEYS = [
- const EXCLUDED_STATE_KEYS = [
--	"messages",
--	"todos",
--	"structuredResponse",
--	"skillsMetadata",
+@@ -2238,7 +2250,10 @@ const EXCLUDED_STATE_KEYS = [
+ 	"todos",
+ 	"structuredResponse",
+ 	"skillsMetadata",
 -	"memoryContents"
-+	"messages",
-+	"todos",
-+	"structuredResponse",
-+	"skillsMetadata",
 +	"memoryContents",
 +	"_summarizationSessionId",
 +	"_summarizationEvent",
 +	"_contextLedger"
  ];
-@@ -4003,7 +4015,7 @@ const SummarizationEventSchema = zod.z.object({
+ /**
+ * Default description for the general-purpose subagent.
+@@ -2602,7 +2617,8 @@ function createTaskTool(options) {
+ 			...config,
+ 			metadata: {
+ 				...config.metadata,
+-				lc_agent_name: subagent_type
++				lc_agent_name: subagent_type,
++				iwriter_subagent_id: config.toolCall?.id
+ 			},
+ 			configurable: {
+ 				...config.configurable,
+@@ -4003,7 +4019,7 @@ const SummarizationEventSchema = zod.z.object({
  	* Messages before this index have been summarized. */
  	cutoffIndex: zod.z.number(),
  	/** The HumanMessage containing the summary. */
@@ -335,7 +458,7 @@ index 5551ac8..f4d6e63 100644
  	/** Path where the conversation history was offloaded, or null if offload failed. */
  	filePath: zod.z.string().nullable()
  });
-@@ -4038,6 +4050,7 @@ function isSummaryMessage(msg) {
+@@ -4038,6 +4054,7 @@ function isSummaryMessage(msg) {
  */
  function createSummarizationMiddleware(options) {
  	const { model, backend, summaryPrompt = DEFAULT_SUMMARY_PROMPT, trimTokensToSummarize = DEFAULT_TRIM_TOKEN_LIMIT, historyPathPrefix = "/conversation_history" } = options;
@@ -343,7 +466,7 @@ index 5551ac8..f4d6e63 100644
  	let trigger = options.trigger;
  	let keep = options.keep ?? {
  		type: "messages",
-@@ -4075,6 +4088,7 @@ function createSummarizationMiddleware(options) {
+@@ -4075,6 +4092,7 @@ function createSummarizationMiddleware(options) {
  	}
  	let sessionId = null;
  	let tokenEstimationMultiplier = 1;
@@ -351,7 +474,7 @@ index 5551ac8..f4d6e63 100644
  	/**
  	* Get or create session ID for history file naming.
  	*/
-@@ -4190,7 +4204,7 @@ function createSummarizationMiddleware(options) {
+@@ -4190,7 +4208,7 @@ function createSummarizationMiddleware(options) {
  			let tokensKept = 0;
  			rawCutoff = 0;
  			for (let i = messages.length - 1; i >= 0; i--) {
@@ -360,7 +483,7 @@ index 5551ac8..f4d6e63 100644
  				if (tokensKept + msgTokens > targetTokenCount) {
  					rawCutoff = i + 1;
  					break;
-@@ -4225,7 +4239,7 @@ function createSummarizationMiddleware(options) {
+@@ -4225,7 +4243,7 @@ function createSummarizationMiddleware(options) {
  			let tokensKept = 0;
  			rawCutoff = 0;
  			for (let i = messages.length - 1; i >= 0; i--) {
@@ -369,7 +492,7 @@ index 5551ac8..f4d6e63 100644
  				if (tokensKept + msgTokens > targetTokenCount) {
  					rawCutoff = i + 1;
  					break;
-@@ -4240,7 +4254,7 @@ function createSummarizationMiddleware(options) {
+@@ -4240,7 +4258,7 @@ function createSummarizationMiddleware(options) {
  	* This gives a more accurate picture of what actually gets sent to the model.
  	*/
  	function countTotalTokens(messages, systemMessage, tools) {
@@ -378,7 +501,7 @@ index 5551ac8..f4d6e63 100644
  	}
  	/**
  	* Truncate ToolMessage content so that the total payload fits within the
-@@ -4387,11 +4401,11 @@ function createSummarizationMiddleware(options) {
+@@ -4387,11 +4405,11 @@ function createSummarizationMiddleware(options) {
  	*/
  	async function createSummary(messages, chatModel) {
  		let messagesToSummarize = messages;
@@ -392,7 +515,7 @@ index 5551ac8..f4d6e63 100644
  				if (kept + msgTokens > trimTokensToSummarize) break;
  				trimmedMessages.unshift(messages[i]);
  				kept += msgTokens;
-@@ -4400,8 +4414,17 @@ function createSummarizationMiddleware(options) {
+@@ -4400,8 +4418,17 @@ function createSummarizationMiddleware(options) {
  		}
  		const conversation = (0, _langchain_core_messages.getBufferString)(messagesToSummarize);
  		const prompt = summaryPrompt.replace("{conversation}", conversation);
@@ -412,7 +535,111 @@ index 5551ac8..f4d6e63 100644
  	}
  	/**
  	* Build the summary message with file path reference.
-@@ -4529,9 +4552,19 @@ function createSummarizationMiddleware(options) {
+@@ -4446,12 +4473,50 @@ function createSummarizationMiddleware(options) {
+ 	async function summarizeMessages(messagesToSummarize, resolvedModel, state, previousCutoffIndex, cutoffIndex) {
+ 		const filePath = await offloadToBackend(await resolveBackend(backend, { state }), messagesToSummarize, state);
+ 		if (filePath === null) console.warn(`[SummarizationMiddleware] Backend offload failed during summarization. Proceeding with summary generation.`);
++		const summary = await createSummary(messagesToSummarize, resolvedModel);
+ 		return {
+-			summaryMessage: buildSummaryMessage(await createSummary(messagesToSummarize, resolvedModel), filePath),
++			summary,
++			summaryMessage: buildSummaryMessage(summary, filePath),
+ 			filePath,
+ 			stateCutoffIndex: previousCutoffIndex != null ? previousCutoffIndex + cutoffIndex - 1 : cutoffIndex
+ 		};
+ 	}
++	function createSummarizationStreamEvent(request) {
++		let config;
++		let writer;
++		try {
++			config = (0, _langchain_langgraph.getConfig)();
++			writer = (0, _langchain_langgraph.getWriter)(config);
++		} catch {}
++		const metadata = config?.metadata ?? {};
++		const context = request.runtime?.context ?? {};
++		const requestMessages = request.messages ?? [];
++		const anchorMessage = requestMessages[requestMessages.length - 1];
++		const anchorMessageId = typeof anchorMessage?.id === "string" ? anchorMessage.id : void 0;
++		const anchorToolCallId = typeof anchorMessage?.tool_call_id === "string" ? anchorMessage.tool_call_id : void 0;
++		const startedAt = Date.now();
++		return {
++			writer,
++			base: {
++				eventId: `summarization-${startedAt}-${Math.random().toString(36).slice(2, 10)}`,
++				threadId: context.threadId ?? metadata.thread_id,
++				turnId: context.turnId ?? metadata.turn_id,
++				subagentName: metadata.lc_agent_name,
++				subagentId: metadata.iwriter_subagent_id,
++				anchorMessageId,
++				anchorToolCallId,
++				startedAt
++			}
++		};
++	}
++	function emitSummarizationStreamEvent(event, phase, details = {}) {
++		if (!event.writer) return;
++		try {
++			event.writer({
++				name: "deepagents_summarization",
++				payload: {
++					...event.base,
++					...details,
++					phase,
++					timestamp: Date.now()
++				}
++			});
++		} catch {}
++	}
+ 	/**
+ 	* Check if an error (possibly wrapped in MiddlewareError layers) is a
+ 	* ContextOverflowError by walking the `cause` chain.
+@@ -4486,7 +4551,21 @@ function createSummarizationMiddleware(options) {
+ 		}
+ 		const previousEvent = request.state._summarizationEvent;
+ 		const previousCutoffIndex = previousEvent != null ? previousEvent.cutoffIndex : void 0;
+-		const { summaryMessage, filePath, stateCutoffIndex } = await summarizeMessages(messagesToSummarize, resolvedModel, request.state, previousCutoffIndex, cutoffIndex);
++		const streamEvent = createSummarizationStreamEvent(request);
++		emitSummarizationStreamEvent(streamEvent, "started");
++		let summaryResult;
++		try {
++			summaryResult = await summarizeMessages(messagesToSummarize, resolvedModel, request.state, previousCutoffIndex, cutoffIndex);
++		} catch (err) {
++			emitSummarizationStreamEvent(streamEvent, "failed", { error: err instanceof Error ? err.message : String(err) });
++			throw err;
++		}
++		const { summary, summaryMessage, filePath, stateCutoffIndex } = summaryResult;
++		emitSummarizationStreamEvent(streamEvent, "completed", {
++			summary,
++			filePath,
++			compressedMessageCount: messagesToSummarize.filter((message) => message?.additional_kwargs?.lc_source !== "summarization").length
++		});
+ 		let modifiedMessages = [summaryMessage, ...preservedMessages];
+ 		const modifiedTokens = countTotalTokens(modifiedMessages, request.systemMessage, request.tools);
+ 		let finalStateCutoffIndex = stateCutoffIndex;
+@@ -4503,10 +4582,21 @@ function createSummarizationMiddleware(options) {
+ 				const observedRatio = maxInputTokens / modifiedTokens;
+ 				if (observedRatio > tokenEstimationMultiplier) tokenEstimationMultiplier = observedRatio * 1.1;
+ 			}
+-			const reSumResult = await summarizeMessages([...messagesToSummarize, ...preservedMessages], resolvedModel, request.state, previousCutoffIndex, truncatedMessages.length);
++			let reSumResult;
++			try {
++				reSumResult = await summarizeMessages([...messagesToSummarize, ...preservedMessages], resolvedModel, request.state, previousCutoffIndex, truncatedMessages.length);
++			} catch (reSumErr) {
++				emitSummarizationStreamEvent(streamEvent, "failed", { error: reSumErr instanceof Error ? reSumErr.message : String(reSumErr) });
++				throw reSumErr;
++			}
+ 			finalSummaryMessage = reSumResult.summaryMessage;
+ 			finalFilePath = reSumResult.filePath;
+ 			finalStateCutoffIndex = reSumResult.stateCutoffIndex;
++			emitSummarizationStreamEvent(streamEvent, "completed", {
++				summary: reSumResult.summary,
++				filePath: reSumResult.filePath,
++				compressedMessageCount: [...messagesToSummarize, ...preservedMessages].filter((message) => message?.additional_kwargs?.lc_source !== "summarization").length
++			});
+ 			modifiedMessages = [reSumResult.summaryMessage];
+ 			await handler({
+ 				...request,
+@@ -4529,9 +4619,19 @@ function createSummarizationMiddleware(options) {
  			const effectiveMessages = getEffectiveMessages(request.messages ?? [], request.state);
  			if (effectiveMessages.length === 0) return handler(request);
  			/**
@@ -433,7 +660,7 @@ index 5551ac8..f4d6e63 100644
  			const maxInputTokens = getMaxInputTokens(resolvedModel);
  			applyModelDefaults(resolvedModel);
  			const totalTokens = countTotalTokens(effectiveMessages, request.systemMessage, request.tools);
-@@ -4550,10 +4583,16 @@ function createSummarizationMiddleware(options) {
+@@ -4550,10 +4650,16 @@ function createSummarizationMiddleware(options) {
  			* emergency summarization (matching Python's behavior).
  			*/
  			if (!shouldSummarize(truncatedMessages, tokensForSummary, maxInputTokens)) try {
@@ -451,7 +678,7 @@ index 5551ac8..f4d6e63 100644
  			} catch (err) {
  				if (!isContextOverflow(err)) throw err;
  				if (maxInputTokens && tokensForSummary > 0) {
-@@ -6013,7 +6052,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
+@@ -6013,7 +6119,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
  * ```
  */
  function createDeepAgent(params = {}) {
@@ -460,7 +687,7 @@ index 5551ac8..f4d6e63 100644
  	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
  	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
  	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
-@@ -6052,7 +6091,7 @@ function createDeepAgent(params = {}) {
+@@ -6052,7 +6158,7 @@ function createDeepAgent(params = {}) {
  				permissions: effectivePermissions,
  				tools: profileFilesystemTools
  			}),
@@ -469,7 +696,7 @@ index 5551ac8..f4d6e63 100644
  			createPatchToolCallsMiddleware(),
  			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
  				backend,
-@@ -6104,7 +6143,7 @@ function createDeepAgent(params = {}) {
+@@ -6104,7 +6210,7 @@ function createDeepAgent(params = {}) {
  			subagents: inlineSubagents,
  			generalPurposeAgent: false
  		}),

@@ -102,7 +102,7 @@ function stubPlugin() {
         [
           /ipc\/RendererEventBridge$/,
           'renderer-event-bridge',
-          'export class RendererEventBridge { constructor() {} sendRunError() {} sendRunDone() {} sendStreamChunk() {} sendRunInterrupted() {} sendContextCompressed() {} sendRunModelFallback() {} sendFilesystemAutoReject() {} }',
+          'export class RendererEventBridge { constructor() {} sendRunError() {} sendRunDone() {} sendStreamChunk() {} sendRunInterrupted() {} sendRunModelFallback() {} sendFilesystemAutoReject() {} }',
         ],
         [
           /ipc\/UserMessageBuilder$/,
@@ -117,7 +117,7 @@ function stubPlugin() {
         [
           /runtime\/ThreadRuntimeStore$/,
           'thread-runtime-store',
-          'export class ThreadRuntimeStore { getInterrupted() { return null } clearInterrupted() {} buildConfigurable() { return {} } buildContext() { return {} } getCurrentTurnId() { return null } getContext() { return null } getLastSummarizationCutoff() { return undefined } setLastSummarizationCutoff() {} }',
+          'export class ThreadRuntimeStore { getInterrupted() { return null } clearInterrupted() {} buildConfigurable() { return {} } buildContext() { return {} } getCurrentTurnId() { return null } getContext() { return null } }',
         ],
         [
           /scaffold\/filesystem\/AgentFilesystem$/,
@@ -366,8 +366,6 @@ describe('AgentEngine initialization', () => {
       _getOrCreateAgent() {
         return {}
       }
-
-      async _seedSummarizationBaseline() {}
 
       async _streamLoop(_threadId, _agent, _input, runConfig) {
         runConfigs.push(runConfig)

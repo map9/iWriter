@@ -839,6 +839,10 @@ function normalizeContentBlocks(
       normalized.push({ type: 'tool_call', toolCallId: block.toolCallId })
       continue
     }
+    if (block.type === 'context_compression') {
+      normalized.push({ type: 'context_compression', event: block.event })
+      continue
+    }
     if (block.type === 'agent_event') {
       const text = normalizeText(block.text)
       normalized.push({

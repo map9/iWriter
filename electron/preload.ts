@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import type { ElectronAPI, HtmlPrintReadyOptions, PdfSaveOptions, SaveFileOptions } from '../src/types/electron-api'
-import type { SendMessageRequest, SessionContextStatsRequest, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunContextCompressedEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
+import type { SendMessageRequest, SessionContextStatsRequest, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
 import type { AiSettings } from '../src/types/ai'
 import type { GitMutationEvent, GitProgress } from '../src/types/git'
 import { createAppMenuRequest, createContextMenuRequest } from '../src/types/menu'
@@ -291,9 +291,6 @@ const electronAPI: ElectronAPI = {
   onAiRequestSnapshot: (cb: (req: SnapshotRequestEvent) => void) => {
     ipcRenderer.on('ai:request-snapshot', (_, r) => cb(r))
   },
-  onAiContextCompressed: (cb: (e: RunContextCompressedEvent) => void) => {
-    ipcRenderer.on('ai:context-compressed', (_, e) => cb(e))
-  },
   onAiModelFallback: (cb: (e: RunModelFallbackEvent) => void) => {
     ipcRenderer.on('ai:model-fallback', (_, e) => cb(e))
   },
@@ -307,7 +304,6 @@ const electronAPI: ElectronAPI = {
       'ai:run-done',
       'ai:run-error',
       'ai:request-snapshot',
-      'ai:context-compressed',
       'ai:model-fallback',
       'ai:filesystem-auto-reject',
     ].forEach(ch => ipcRenderer.removeAllListeners(ch))

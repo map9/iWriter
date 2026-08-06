@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconLoader2, IconChevronDown, IconChevronUp, IconUsers } from '@tabler/icons-vue'
 import type { AiSubTaskProgress, MessageContentBlock } from '@/ai/types'
@@ -9,13 +9,14 @@ import ThinkingBlock from './ThinkingBlock.vue'
 import { toolGroupPosition } from './toolGroupPosition'
 import { kindToIcon } from './toolKindIcon'
 import { normalizeToolCallForDisplay } from '@/ai/message/display-normalizer'
+import ContextCompressionCard from './ContextCompressionCard.vue'
 
 const props = defineProps<{
   subTask: AiSubTaskProgress
   groupPosition?: 'single' | 'start' | 'middle' | 'end'
 }>()
 
-const { t, te, locale } = useI18n()
+const { t, te } = useI18n()
 const expanded = ref(false)
 
 const groupContainerClass = computed(() => {
@@ -78,11 +79,6 @@ const activeActionLabel = computed(() => {
 
 const activeTargetLabel = computed(() => normalizedActiveToolCall.value?.display?.targetLabel ?? '')
 
-const latestCompressionEvent = computed(() => {
-  const events = props.subTask.contextCompressionEvents ?? []
-  return events.length ? events[events.length - 1]! : null
-})
-
 const hasBody = computed(() =>
   !!(
     props.subTask.contentBlocks?.length ||
@@ -94,14 +90,26 @@ const hasBody = computed(() =>
   ),
 )
 
-const visibleBlocks = computed(() => props.subTask.contentBlocks ?? [])
+watch(
+  () => (props.subTask.contextCompressionEvents ?? [])
+    .map(event => `${event.id}:${event.status}`)
+    .join('|'),
+  value => {
+    if (value) expanded.value = true
+  },
+  { immediate: true },
+)
 
-function formatCompressionTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString(locale.value, {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+const visibleBlocks = computed(() => props.subTask.contentBlocks ?? [])
+const embeddedCompressionEventIds = computed(() => new Set(
+  visibleBlocks.value
+    .filter(block => block.type === 'context_compression')
+    .map(block => block.event.id),
+))
+const standaloneCompressionEvents = computed(() =>
+  (props.subTask.contextCompressionEvents ?? [])
+    .filter(event => !embeddedCompressionEventIds.value.has(event.id)),
+)
 
 function toolCallForId(id: string) {
   return props.subTask.toolCalls.find(tc => tc.id === id)
@@ -157,12 +165,6 @@ function fallbackToolPosition(idx: number): 'single' | 'start' | 'middle' | 'end
       <template v-else>
         <div class="min-w-0 flex-1 text-2xs leading-4 truncate text-base-content/50">
           <span>{{ statusText }}</span>
-          <span
-            v-if="latestCompressionEvent"
-            data-testid="subtask-context-compressed-summary"
-          >
-            · {{ t('agentPanel.chatArea.contextCompressed', { time: formatCompressionTime(latestCompressionEvent.timestamp) }) }}
-          </span>
         </div>
       </template>
 
@@ -200,6 +202,12 @@ function fallbackToolPosition(idx: number): 'single' | 'start' | 'middle' | 'end
             class="w-full"
             :class="blockMarginClass(idx)"
           />
+          <ContextCompressionCard
+            v-else-if="block.type === 'context_compression'"
+            :event="block.event"
+            data-testid="subtask-context-compressed-event"
+            class="mt-1"
+          />
         </template>
       </template>
 
@@ -222,19 +230,13 @@ function fallbackToolPosition(idx: number): 'single' | 'start' | 'middle' | 'end
         />
       </template>
 
-      <div
-        v-for="event in subTask.contextCompressionEvents ?? []"
+      <ContextCompressionCard
+        v-for="event in standaloneCompressionEvents"
         :key="event.id"
+        :event="event"
         data-testid="subtask-context-compressed-event"
-        class="flex items-center gap-2 py-1.5"
-        role="status"
-      >
-        <span class="h-px flex-1 bg-base-content/15"></span>
-        <span class="shrink-0 text-[11px] text-base-content/45">
-          {{ t('agentPanel.chatArea.contextCompressed', { time: formatCompressionTime(event.timestamp) }) }}
-        </span>
-        <span class="h-px flex-1 bg-base-content/15"></span>
-      </div>
+        class="mt-1"
+      />
 
       <!-- Thinking -->
       <ThinkingBlock

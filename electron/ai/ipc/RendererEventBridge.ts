@@ -1,7 +1,6 @@
 import type { WebContents } from 'electron'
 import type { GitMutationEvent } from '../../../src/types/git'
 import type {
-  RunContextCompressedEvent,
   RunDoneEvent,
   RunErrorEvent,
   RunFilesystemAutoRejectEvent,
@@ -27,10 +26,6 @@ export class RendererEventBridge {
 
   sendRunError(event: RunErrorEvent): void {
     this.getWebContents()?.send('ai:run-error', event)
-  }
-
-  sendRunContextCompressed(event: RunContextCompressedEvent): void {
-    this.getWebContents()?.send('ai:context-compressed', event)
   }
 
   sendRunModelFallback(event: RunModelFallbackEvent): void {

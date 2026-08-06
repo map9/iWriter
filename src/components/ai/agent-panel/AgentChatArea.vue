@@ -17,17 +17,11 @@
     </div>
 
     <template v-for="entry in aiStore.displayMessages" :key="entry.key">
-      <div
+      <ContextCompressionCard
         v-if="entry.kind === 'context-compressed'"
-        class="flex items-center gap-2 py-1.5"
-        role="status"
-      >
-        <span class="h-px flex-1 bg-base-content/15"></span>
-        <span class="shrink-0 text-[11px] text-base-content/45">
-          {{ t('agentPanel.chatArea.contextCompressed', { time: formatCompressionTime(entry.event.timestamp) }) }}
-        </span>
-        <span class="h-px flex-1 bg-base-content/15"></span>
-      </div>
+        :event="entry.event"
+        :show-timestamp="true"
+      />
       <AgentMessageBubble
         v-else
         :message="entry.message"
@@ -65,16 +59,10 @@ import ChatContextPill from './chat-area/ChatContextPill.vue'
 import AgentEmptyState from './chat-area/AgentEmptyState.vue'
 import AgentMessageBubble from './chat-area/AgentMessageBubble.vue'
 import DomainReviewSurface from './domains/DomainReviewSurface.vue'
+import ContextCompressionCard from './chat-area/views/ContextCompressionCard.vue'
 
 const aiStore = useAiStore()
-const { t, locale } = useI18n()
-
-function formatCompressionTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString(locale.value, {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+const { t } = useI18n()
 
 // ── Elapsed timer ─────────────────────────────────────────────────────────
 const elapsedMs = ref(0)

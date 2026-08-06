@@ -131,8 +131,24 @@ export type StreamChunkEvent =
   | { threadId: string; turnId?: string; type: 'subagent_start'; subagentName: string; taskInput: unknown; subagentId?: string }
   | { threadId: string; turnId?: string; type: 'subagent_end'; subagentName: string; output: unknown; subagentId?: string }
   | { threadId: string; turnId?: string; type: 'subagent_error'; subagentName: string; error: string; subagentId?: string }
-  /** A subagent compressed its own checkpoint-scoped context. */
-  | { threadId: string; turnId?: string; type: 'context_compressed'; timestamp: number; compressedMessageCount: number; subagentName: string; subagentId: string }
+  /** Real-time lifecycle event emitted by deepagents while context summarization runs. */
+  | {
+      threadId: string
+      turnId?: string
+      type: 'context_compression'
+      eventId: string
+      status: 'compressing' | 'completed' | 'failed'
+      startedAt: number
+      timestamp: number
+      summary?: string
+      filePath?: string | null
+      compressedMessageCount?: number
+      error?: string
+      subagentName?: string
+      subagentId?: string
+      anchorMessageId?: string
+      anchorToolCallId?: string
+    }
   /** Real token usage from one LLM call. subagentId present ⇒ emitted by a sub-agent. */
   | { threadId: string; turnId?: string; type: 'usage'; messageId?: string; usage: NormalizedUsage; subagentName?: string; subagentId?: string }
 
@@ -179,17 +195,6 @@ export interface RunErrorEvent {
   threadId: string
   turnId?: string
   error: string
-}
-
-/** Fired when SummarizationMiddleware compressed this thread's history during a run. */
-export interface RunContextCompressedEvent {
-  threadId: string
-  /** Turn whose model call triggered the compression. */
-  turnId?: string
-  /** Host timestamp used by the renderer's non-conversational event divider. */
-  timestamp: number
-  /** Number of original messages that were rolled into the summary. */
-  compressedMessageCount: number
 }
 
 /** Fired when modelFallbackMiddleware switched from the primary model to a backup. */

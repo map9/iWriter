@@ -106,6 +106,12 @@
               :class="contentBlockToolMarginClass(idx)"
             />
           </template>
+          <ContextCompressionCard
+            v-else-if="block.type === 'context_compression'"
+            :event="block.event"
+            :show-timestamp="true"
+            class="mt-1.5 w-full"
+          />
           <div
             v-else-if="block.type === 'agent_event' && (block.text || block.agentName)"
             class="mt-1.5 flex w-full items-center gap-2 px-3 py-2 rounded-box bg-base-100 border border-base-300 text-base-content text-xs"
@@ -250,6 +256,7 @@ import MarkdownContentView from './views/MarkdownContentView.vue'
 import ToolCallCard from './views/ToolCallCard.vue'
 import SubTaskProgressView from './views/SubTaskProgressView.vue'
 import ThinkingBlock from './views/ThinkingBlock.vue'
+import ContextCompressionCard from './views/ContextCompressionCard.vue'
 import { toolGroupPosition } from './views/toolGroupPosition'
 import DomainMessageSession from '../domains/DomainMessageSession.vue'
 
@@ -332,6 +339,7 @@ const visibleContentBlocks = computed(() =>
     if (block.type === 'text') return !!block.text?.trim()
     if (block.type === 'thinking') return false
     if (block.type === 'tool_call') return !!(block.toolCallId && isReadToolById(block.toolCallId))
+    if (block.type === 'context_compression') return true
     if (block.type === 'agent_event') return !!(block.text?.trim() || block.agentName)
     return false
   })

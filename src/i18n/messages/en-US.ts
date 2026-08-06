@@ -630,7 +630,13 @@ export default {
     },
     chatArea: {
       loadingSession: 'Loading session...',
-      contextCompressed: 'Context compressed ({time})',
+      contextCompressing: '========== Compressing context... =========',
+      contextCompressionCompleted: '========== Context compression completed =========',
+      contextCompressionFailed: '========== Context compression failed =========',
+      contextCompressionSummary: 'Summary',
+      contextCompressionFilePath: 'Session file path',
+      contextCompressionTime: 'Time: {time}',
+      contextCompressionMessageCount: '{count} messages compressed',
       status: {
         resuming: 'Resuming approved edits',
         callingTool: 'Calling tool · {tool}',

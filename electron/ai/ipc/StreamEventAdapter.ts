@@ -14,20 +14,62 @@ interface SubagentCause {
   tool_call_id?: string
 }
 
-interface SubagentCompressionEvent {
-  compressedMessageCount: number
+interface DeepAgentsSummarizationEvent {
+  eventId: string
+  phase: 'started' | 'completed' | 'failed'
+  startedAt: number
+  timestamp: number
+  threadId?: string
+  turnId?: string
+  subagentName?: string
+  subagentId?: string
+  anchorMessageId?: string
+  anchorToolCallId?: string
+  summary?: string
+  filePath?: string | null
+  compressedMessageCount?: number
+  error?: string
 }
 
-/** Read only the subagent's final state; root checkpoint detection stays in AgentEngine. */
-export function extractSubagentCompressionEvent(output: unknown): SubagentCompressionEvent | null {
-  if (!output || typeof output !== 'object' || Array.isArray(output)) return null
-  const event = (output as Record<string, unknown>)._summarizationEvent
-  if (!event || typeof event !== 'object' || Array.isArray(event)) return null
-  const eventRecord = event as Record<string, unknown>
-  if (!eventRecord.summaryMessage) return null
-  const cutoffIndex = eventRecord.cutoffIndex
-  if (!Number.isInteger(cutoffIndex) || (cutoffIndex as number) <= 0) return null
-  return { compressedMessageCount: cutoffIndex as number }
+/** Parse the named LangGraph v3 custom event emitted by deepagents' summarization middleware. */
+export function parseDeepAgentsSummarizationEvent(raw: unknown): DeepAgentsSummarizationEvent | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const protocolEvent = raw as Record<string, unknown>
+  if (protocolEvent.method !== 'custom') return null
+  const params = protocolEvent.params
+  if (!params || typeof params !== 'object' || Array.isArray(params)) return null
+  const data = (params as Record<string, unknown>).data
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+  const dataRecord = data as Record<string, unknown>
+  if (dataRecord.name !== 'deepagents_summarization') return null
+  const payload = dataRecord.payload
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  const value = payload as Record<string, unknown>
+  const phase = value.phase
+  if (phase !== 'started' && phase !== 'completed' && phase !== 'failed') return null
+  if (typeof value.eventId !== 'string' || !value.eventId) return null
+  if (typeof value.startedAt !== 'number' || typeof value.timestamp !== 'number') return null
+
+  return {
+    eventId: value.eventId,
+    phase,
+    startedAt: value.startedAt,
+    timestamp: value.timestamp,
+    threadId: typeof value.threadId === 'string' ? value.threadId : undefined,
+    turnId: typeof value.turnId === 'string' ? value.turnId : undefined,
+    subagentName: typeof value.subagentName === 'string' ? value.subagentName : undefined,
+    subagentId: typeof value.subagentId === 'string' ? value.subagentId : undefined,
+    anchorMessageId: typeof value.anchorMessageId === 'string' ? value.anchorMessageId : undefined,
+    anchorToolCallId: typeof value.anchorToolCallId === 'string' ? value.anchorToolCallId : undefined,
+    summary: typeof value.summary === 'string' ? value.summary : undefined,
+    filePath: typeof value.filePath === 'string' || value.filePath === null
+      ? value.filePath
+      : undefined,
+    compressedMessageCount: typeof value.compressedMessageCount === 'number'
+      ? value.compressedMessageCount
+      : undefined,
+    error: typeof value.error === 'string' ? value.error : undefined,
+  }
 }
 
 export class StreamEventAdapter {
@@ -146,6 +188,43 @@ export class StreamEventAdapter {
     await Promise.all(pending)
   }
 
+  async consumeSummarizationEvents(events: AsyncIterable<unknown>): Promise<void> {
+    this.pendingStages.add('summarizationEvents:stream')
+    try {
+      for await (const rawEvent of events) {
+        const event = parseDeepAgentsSummarizationEvent(rawEvent)
+        if (!event) continue
+        const hasSubagent = !!event.subagentName && !!event.subagentId
+        // The patched middleware supplies the checkpoint-stable anchor. During local development an
+        // already-installed deepagents build may still emit the older payload, so retain a causal
+        // fallback to the latest root tool call observed by this run adapter.
+        const fallbackToolCallId = hasSubagent
+          ? undefined
+          : this.toolCalls[this.toolCalls.length - 1]?.id
+        this.bridge.sendStreamChunk({
+          threadId: this.threadId,
+          turnId: event.turnId ?? this.turnId,
+          type: 'context_compression',
+          eventId: event.eventId,
+          status: event.phase === 'started' ? 'compressing' : event.phase,
+          startedAt: event.startedAt,
+          timestamp: event.timestamp,
+          summary: event.summary,
+          filePath: event.filePath,
+          compressedMessageCount: event.compressedMessageCount,
+          error: event.error,
+          anchorMessageId: event.anchorMessageId,
+          anchorToolCallId: event.anchorToolCallId ?? fallbackToolCallId,
+          ...(hasSubagent
+            ? { subagentName: event.subagentName, subagentId: event.subagentId }
+            : {}),
+        })
+      }
+    } finally {
+      this.pendingStages.delete('summarizationEvents:stream')
+    }
+  }
+
   async consumeSubagents(subagents: AsyncIterable<unknown>, scope = 'subagents'): Promise<void> {
     this.pendingStages.add(`${scope}:stream`)
     const pending: Promise<void>[] = []
@@ -204,18 +283,6 @@ export class StreamEventAdapter {
           error => ({ status: 'rejected' as const, error }),
         ))
         if (outputResult.status === 'fulfilled') {
-          const compression = extractSubagentCompressionEvent(outputResult.output)
-          if (compression) {
-            this._send({
-              threadId: this.threadId,
-              turnId: this.turnId,
-              type: 'context_compressed',
-              timestamp: Date.now(),
-              compressedMessageCount: compression.compressedMessageCount,
-              subagentName: sub.name,
-              subagentId: invocationId,
-            })
-          }
           this.subagentEventCount += 1
           this.bridge.sendStreamChunk({
             threadId: this.threadId,

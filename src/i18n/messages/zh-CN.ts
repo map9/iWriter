@@ -627,7 +627,13 @@ export default {
     },
     chatArea: {
       loadingSession: '正在加载会话...',
-      contextCompressed: '上下文已压缩（{time}）',
+      contextCompressing: '正在压缩上下文...',
+      contextCompressionCompleted: '上下文压缩已完成',
+      contextCompressionFailed: '上下文压缩失败',
+      contextCompressionSummary: '摘要内容',
+      contextCompressionFilePath: 'Session 文件路径',
+      contextCompressionTime: '时间：{time}',
+      contextCompressionMessageCount: '已压缩 {count} 条消息',
       status: {
         resuming: '正在继续处理已确认修改',
         callingTool: '正在调用工具 · {tool}',
