@@ -39,7 +39,7 @@ function stubPlugin() {
           `
             export class HumanMessage { constructor(content) { this.content = content } }
             export class SystemMessage { constructor(content) { this.content = content } }
-            export function isAIMessage() { return false }
+            export function isAIMessage(message) { return message?._getType?.() === 'ai' }
             export function isToolMessage() { return false }
             export function isHumanMessage() { return false }
           `,
@@ -72,7 +72,18 @@ function stubPlugin() {
         [
           /providers\/ModelFactory$/,
           'model-factory',
-          'export function createChatModel(config) { return { invoke: async () => ({ content: "" }), profile: config?.type === "deepseek" ? { maxInputTokens: 1000000 } : {} } }',
+          `
+            export function createChatModel(config, runtime = {}) {
+              const model = {
+                invoke: async () => ({ content: "" }),
+                profile: config?.type === "deepseek" ? { maxInputTokens: 1000000 } : {},
+                runtime,
+              }
+              globalThis.__iwriterCreatedChatModels ??= []
+              globalThis.__iwriterCreatedChatModels.push(model)
+              return model
+            }
+          `,
         ],
         [
           /document\/SnapshotBroker$/,
@@ -273,6 +284,24 @@ async function loadBudgetModule() {
 }
 
 describe('AgentEngine initialization', () => {
+  it('counts tool-call arguments once when providers expose both content blocks and tool_calls', async () => {
+    const { countContextTokensCjkAware } = await loadModule()
+    const args = { file_path: '/tmp/example.md' }
+    const message = {
+      _getType: () => 'ai',
+      content: [
+        { type: 'text', text: 'ok' },
+        { type: 'tool_call', args },
+      ],
+      tool_calls: [{ id: 'call-1', name: 'read_file', args }],
+    }
+
+    assert.equal(
+      countContextTokensCjkAware([message], []),
+      'ok'.length + JSON.stringify(args).length,
+    )
+  })
+
   it('coalesces concurrent first-use initialization', async () => {
     const { AgentEngine } = await loadModule()
     const release = Promise.withResolvers()
@@ -325,7 +354,7 @@ describe('AgentEngine initialization', () => {
     })
   })
 
-  it('passes the effective request budget to DeepAgents summarization', async () => {
+  it('passes the effective request budget and disables thinking for DeepAgents summarization', async () => {
     const { AgentEngine } = await loadModule()
     const engine = new AgentEngine(() => null)
 
@@ -349,12 +378,16 @@ describe('AgentEngine initialization', () => {
     assert.deepEqual(options.trigger, { type: 'tokens', value: 60000 })
     assert.deepEqual(options.keep, { type: 'tokens', value: 7500 })
     assert.equal(options.trimTokensToSummarize, 60000)
+    assert.equal(options.model.runtime.modelId, 'deepseek-v4-pro')
+    assert.equal(options.model.runtime.thinkingLevel, 'medium')
+    assert.equal(options.model.runtime.disableThinking, true)
     assert.match(options.summaryPrompt, /editing-state/)
     assert.match(options.summaryPrompt, /\{conversation\}/)
-    assert.ok(
+    assert.equal(
       globalThis.__iwriterDeepAgentOptions.middleware.some(
         middleware => middleware?.name === 'ContextLedgerMiddleware',
       ),
+      false,
     )
   })
 

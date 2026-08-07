@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import { build } from 'esbuild'
 
 let modulePromise
+let deepSeekModelModulePromise
 async function loadModule() {
   if (!modulePromise) {
     modulePromise = (async () => {
@@ -18,6 +19,23 @@ async function loadModule() {
     })()
   }
   return modulePromise
+}
+
+async function loadDeepSeekModelModule() {
+  if (!deepSeekModelModulePromise) {
+    deepSeekModelModulePromise = (async () => {
+      const result = await build({
+        entryPoints: ['electron/ai/providers/ChatDeepSeek.ts'],
+        bundle: true,
+        platform: 'node',
+        format: 'esm',
+        write: false,
+      })
+      const code = result.outputFiles[0].text
+      return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+    })()
+  }
+  return deepSeekModelModulePromise
 }
 
 const LONG_REASONING = '这是一段完整的审校意见，长度足够触发展示。'.repeat(6)
@@ -65,6 +83,44 @@ describe('MessageAdapter — DeepSeek reasoning→content promotion (empty-conte
     ])
     assert.equal(msg.content, '')
     assert.equal(msg.thinkingContent, undefined)
+  })
+})
+
+describe('ChatDeepSeek — summary thinking control', () => {
+  it('explicitly disables provider-default thinking for summary requests', async () => {
+    const { ChatDeepSeek } = await loadDeepSeekModelModule()
+    const originalFetch = globalThis.fetch
+    let requestBody
+    globalThis.fetch = async (_url, init) => {
+      requestBody = JSON.parse(init.body)
+      return new Response(JSON.stringify({
+        id: 'summary-response',
+        model: 'deepseek-v4-flash',
+        choices: [{ message: { role: 'assistant', content: 'summary' } }],
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 2,
+          total_tokens: 12,
+        },
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    try {
+      const model = new ChatDeepSeek({
+        model: 'deepseek-v4-flash',
+        apiKey: 'test-key',
+        disableThinking: true,
+      })
+      await model.invoke('compact this conversation')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+
+    assert.deepEqual(requestBody.thinking, { type: 'disabled' })
+    assert.equal(requestBody.reasoning_effort, 'none')
   })
 })
 

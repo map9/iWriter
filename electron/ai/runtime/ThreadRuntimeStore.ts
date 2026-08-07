@@ -33,7 +33,6 @@ interface ThreadExecutionContext {
   attachmentTextFilePaths: string[]
   attachmentBinaryFilePaths: string[]
   attachmentDirectories: string[]
-  dirtyDocumentPaths: string[]
 }
 
 export class ThreadRuntimeStore {
@@ -64,8 +63,6 @@ export class ThreadRuntimeStore {
       attachedTextFilePaths: ctx?.attachmentTextFilePaths ?? [],
       attachedBinaryFilePaths: ctx?.attachmentBinaryFilePaths ?? [],
       attachedDirectories: ctx?.attachmentDirectories ?? [],
-      turnId: this.getCurrentTurnId(threadId),
-      dirtyDocumentPaths: ctx?.dirtyDocumentPaths ?? [],
     })
   }
 

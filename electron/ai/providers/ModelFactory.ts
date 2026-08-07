@@ -27,6 +27,7 @@ export interface ChatModelRuntimeOptions {
 
 type ChatAnthropicFields = ConstructorParameters<typeof ChatAnthropic>[0]
 type ChatGoogleGenerativeAIFields = ConstructorParameters<typeof ChatGoogleGenerativeAI>[0]
+type ChatOpenAIFields = ConstructorParameters<typeof ChatOpenAI>[0]
 type GeminiBindableModel = BaseChatModel & {
   bindTools?: (...args: unknown[]) => unknown
   invocationParams?: (...args: unknown[]) => Record<string, unknown>
@@ -49,6 +50,14 @@ const THINKING_TOKEN_BUDGETS: Record<AiThinkingLevel, number> = {
 
 function mapThinkingLevelToBudget(thinkingLevel?: AiThinkingLevel): number {
   return THINKING_TOKEN_BUDGETS[normalizeThinkingLevel(thinkingLevel)]
+}
+
+function getDisabledGeminiThinkingConfig(modelId: string): Record<string, unknown> {
+  const normalized = modelId.toLowerCase()
+  if (normalized.includes('gemini-3') && normalized.includes('pro')) return { thinkingLevel: 'LOW' }
+  if (normalized.includes('gemini-3')) return { thinkingLevel: 'MINIMAL' }
+  if (normalized.includes('gemini-2.5-pro')) return { thinkingBudget: 128 }
+  return { thinkingBudget: 0 }
 }
 
 function getProfileOverride(config: AiProviderConfig, modelId: string): ModelProfile | undefined {
@@ -166,22 +175,24 @@ export function createChatModel(
           ? { baseURL: config.baseUrl }
           : undefined,
         streaming: true,
-        ...(!disableThinking && isTrueOpenAI
+        ...(isTrueOpenAI
           ? {
               useResponsesApi: true,
-              reasoning: {
-                summary: 'auto',
-                effort: reasoningEffort,
-              },
+              reasoning: disableThinking
+                ? { effort: 'none' }
+                : {
+                    summary: 'auto',
+                    effort: reasoningEffort,
+                  },
             }
           : !disableThinking
             ? {
-              modelKwargs: {
-                reasoning_effort: reasoningEffort,
-              },
-            }
+                modelKwargs: {
+                  reasoning_effort: reasoningEffort,
+                },
+              }
             : {}),
-      }) as BaseChatModel
+      } as ChatOpenAIFields) as BaseChatModel
       return shouldUseProfileOverride(config, model)
         ? applyProfileOverride(model, getProfileOverride(config, modelId))
         : model
@@ -225,13 +236,11 @@ export function createChatModel(
         model: modelId,
         apiKey: resolvedApiKey,
         streaming: true,
-        ...(!disableThinking
-          ? {
-              thinkingConfig: {
-                thinkingBudget: mapThinkingLevelToBudget(thinkingLevel),
-              },
-            }
-          : {}),
+        thinkingConfig: disableThinking
+          ? getDisabledGeminiThinkingConfig(modelId)
+          : {
+              thinkingBudget: mapThinkingLevelToBudget(thinkingLevel),
+            },
       } as ChatGoogleGenerativeAIFields) as BaseChatModel), getProfileOverride(config, modelId))
     }
 

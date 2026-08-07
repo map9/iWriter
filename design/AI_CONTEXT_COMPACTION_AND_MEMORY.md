@@ -206,7 +206,6 @@ AgentEngine
       |     +-- CapsuleGenerator
       |     +-- CapsuleValidator
       |
-      +-- ContextLedger
       +-- HistoryTools
       +-- MemoryRetriever
       +-- MemoryTools
@@ -444,28 +443,9 @@ checkpoint 中保留：
 interface ContextCheckpointState {
   _contextCapsuleId?: string
   _contextCapsuleThroughSeq?: number
-  _contextLedger?: ContextLedgerState
   _contextSchemaVersion?: number
 }
 ```
-
-Context Ledger 必须从 `processedMessageCount` / `lastMessageIndex` 改为稳定的 Transcript cursor：
-
-```ts
-interface ContextLedgerStateV2 {
-  version: 2
-  lastProcessedEventSeq: number
-  records: ContextLedgerRecordV2[]
-}
-
-interface ContextLedgerRecordV2 {
-  // existing fields...
-  sourceEventId: string
-  lastEventSeq: number
-}
-```
-
-messages 物理缩短时不得清空 ledger。
 
 ## 9. Context Capsule
 
@@ -1406,7 +1386,6 @@ electron/ai/
 - `electron/ai/AgentEngine.ts`：装配 Scaffold、停止内置摘要、历史/手动压缩入口；
 - `electron/ai/domain/DomainStrategy.ts`：提供 `getContextProfile()`；
 - `electron/ai/scaffold/filesystem/AgentFilesystem.ts`：移除 conversation history route；
-- `electron/ai/scaffold/middleware/ContextLedgerMiddleware.ts`：event seq cursor；
 - `electron/ai/ipc/StreamEventAdapter.ts`：持久压缩事件；
 - `electron/ai/ipc/RendererEventBridge.ts`：history/memory/compaction IPC；
 - `src/ai/store/`：Transcript 分页、live/persisted 对账、memory 状态；

@@ -68,15 +68,13 @@ import { createTaskToolCompatMiddleware } from './scaffold/middleware/TaskToolCo
 import { createOrphanToolCallStripperMiddleware } from './scaffold/middleware/OrphanToolCallStripperMiddleware'
 import { createRateLimitRetryMiddleware } from './scaffold/middleware/RateLimitRetryMiddleware'
 import { createHumanRespondMessageMiddleware, RESPOND_MARKER } from './scaffold/middleware/HumanRespondMessageMiddleware'
-import {
-  createContextLedgerMiddleware,
-  renderContextLedger,
-  type ContextLedgerState,
-} from './scaffold/middleware/ContextLedgerMiddleware'
 import { CheckpointerAdmin } from './checkpoint/CheckpointerAdmin'
 import { MIDDLEWARE_CONFIG, createInstrumentedFallbackMiddleware } from './scaffold/middleware/middleware-config'
 import { buildMemorySources, createReadonlyMemoryMiddleware } from './scaffold/memory/MemorySources'
-import { buildSummarizationPrompt } from './scaffold/summarization/SummarizationFramework'
+import {
+  buildSummarizationInstruction,
+  buildSummarizationPrompt,
+} from './scaffold/summarization/SummarizationFramework'
 import type { DomainStrategy } from './domain/DomainStrategy'
 import { EditDomainStrategy } from './domain/edit/EditDomainStrategy'
 import { CreativeDomainStrategy } from './domain/creative/CreativeDomainStrategy'
@@ -107,9 +105,52 @@ type SummarizationMiddlewareOptions = {
   tokenCounter: TokenCounter
   trigger: { type: 'tokens', value: number }
   keep: { type: 'tokens', value: number }
+  summaryInstruction: string
   summaryPrompt: string
   trimTokensToSummarize: number
 }
+
+export function countContextTokensCjkAware(
+  messages: BaseMessage[],
+  tools: Array<Record<string, unknown>>,
+): number {
+  let total = 0
+  for (const tool of tools ?? []) {
+    total += estimateTextTokens(JSON.stringify(tool))
+  }
+  for (const msg of messages) {
+    let text = ''
+    let contentContainsToolCalls = false
+    if (typeof msg.content === 'string') {
+      text = msg.content
+    } else if (Array.isArray(msg.content)) {
+      for (const block of msg.content as Array<Record<string, unknown>>) {
+        if (block['type'] === 'text') text += (block['text'] as string) ?? ''
+        if (block['type'] === 'reasoning') text += (block['reasoning'] as string) ?? ''
+        if (block['type'] === 'thinking') text += (block['thinking'] as string) ?? ''
+        if (block['type'] === 'tool_call') {
+          text += JSON.stringify(block['args'] ?? {})
+          contentContainsToolCalls = true
+        }
+        if (block['type'] === 'tool_use') {
+          text += JSON.stringify(block['input'] ?? {})
+          contentContainsToolCalls = true
+        }
+      }
+    }
+    if (
+      !contentContainsToolCalls
+      && isAIMessage(msg)
+      && Array.isArray(msg.tool_calls)
+      && msg.tool_calls.length > 0
+    ) {
+      text += JSON.stringify(msg.tool_calls)
+    }
+    total += estimateTextTokens(text)
+  }
+  return total
+}
+
 function readModelProfile(model: BaseChatModel): ModelProfile | undefined {
   try {
     const profile = (model as BaseChatModel & { profile?: ModelProfile }).profile
@@ -294,9 +335,6 @@ export class AgentEngine {
       attachmentTextFilePaths: req.attachments?.textFilePaths ?? [],
       attachmentBinaryFilePaths: req.attachments?.binaryFilePaths ?? [],
       attachmentDirectories: req.attachments?.directories ?? [],
-      dirtyDocumentPaths: req.editorContext.openTabs
-        .filter(tab => tab.isDirty)
-        .map(tab => tab.path ?? `untitled:${tab.id}`),
     })
     this.runtimeStore.setCurrentTurnId(threadId, turnId)
 
@@ -1425,18 +1463,21 @@ export class AgentEngine {
       }
     }
 
+    const summarizationProfile = this.strategies[domain].getSummarizationProfile()
     const summarizationMiddlewareOptions: SummarizationMiddlewareOptions = {
-      // Summary generation should be plain text. Reusing the agent thinking level here
-      // wastes reasoning budget and can make summaries contain non-text content blocks.
+      // Summary generation is a plain-text side request. Keep the same provider
+      // and model while disabling (or minimizing) provider-side thinking.
       model: createChatModel(config, { modelId, thinkingLevel, disableThinking: true }),
+      summaryInstruction: buildSummarizationInstruction(summarizationProfile),
       tokenCounter: this._makeCjkTokenCounter(),
       trigger: { type: 'tokens', value: budget.triggerTokens },
       keep: { type: 'tokens', value: budget.keepTokens },
-      summaryPrompt: buildSummarizationPrompt(this.strategies[domain].getSummarizationProfile()),
+      summaryPrompt: buildSummarizationPrompt(summarizationProfile),
       // DeepAgents defaults to summarizing only the latest 4k tokens of the old slice.
       // At iWriter's larger trigger budgets that can discard the previous task capsule
-      // before producing the next one. The summary call has no tool schemas/system prompt,
-      // so the normal request budget safely accommodates the full trigger-sized old slice.
+      // before producing the next one. Keep the full old slice for the fallback request;
+      // the primary request uses the exact prefix and falls back if the appended instruction
+      // pushes it beyond the provider's context window.
       trimTokensToSummarize: budget.triggerTokens,
     }
 
@@ -1461,7 +1502,6 @@ export class AgentEngine {
       // main LLM call. Both LLMs remain marker-free; the invariant from Phase 4 §B1.4 holds.
       middleware: [
         ...scaffold.middlewares,
-        createContextLedgerMiddleware(),
         createOrphanToolCallStripperMiddleware(),
         createHumanRespondMessageMiddleware(),
         createTaskToolCompatMiddleware(),
@@ -1568,12 +1608,8 @@ export class AgentEngine {
       const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
       const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath, language })
       const systemPrompt = new SystemMessage(this.strategies[domain].getSystemPrompt(mode, language))
-      const ledgerSection = renderContextLedger(
-        channelValues._contextLedger as ContextLedgerState | undefined,
-        this._buildRunContext(threadId, domain),
-      )
       return this._countTokensCjkAware(
-        [systemPrompt, ...(ledgerSection ? [new SystemMessage(ledgerSection)] : []), ...effectiveMessages],
+        [systemPrompt, ...effectiveMessages],
         capabilities.tools as unknown as Array<Record<string, unknown>>
       )
     } catch (err) {
@@ -1591,29 +1627,7 @@ export class AgentEngine {
     messages: BaseMessage[],
     tools: Array<Record<string, unknown>>,
   ): number {
-    let total = 0
-    for (const tool of tools ?? []) {
-      total += estimateTextTokens(JSON.stringify(tool))
-    }
-    for (const msg of messages) {
-      let text = ''
-      if (typeof msg.content === 'string') {
-        text = msg.content
-      } else if (Array.isArray(msg.content)) {
-        for (const block of msg.content as Array<Record<string, unknown>>) {
-          if (block['type'] === 'text') text += (block['text'] as string) ?? ''
-          if (block['type'] === 'reasoning') text += (block['reasoning'] as string) ?? ''
-          if (block['type'] === 'thinking') text += (block['thinking'] as string) ?? ''
-          if (block['type'] === 'tool_call') text += JSON.stringify(block['args'] ?? {})
-          if (block['type'] === 'tool_use') text += JSON.stringify(block['input'] ?? {})
-        }
-      }
-      if (isAIMessage(msg) && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) {
-        text += JSON.stringify(msg.tool_calls)
-      }
-      total += estimateTextTokens(text)
-    }
-    return total
+    return countContextTokensCjkAware(messages, tools)
   }
 
   // ── Private: init ─────────────────────────────────────────────────────────

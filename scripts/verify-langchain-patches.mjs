@@ -7,7 +7,7 @@ import { BaseCallbackHandler } from '@langchain/core/callbacks/base'
 import { CallbackManager } from '@langchain/core/callbacks/manager'
 import { ContextOverflowError } from '@langchain/core/errors'
 import { convertChunksToEvents } from '@langchain/core/language_models/compat'
-import { AIMessage, AIMessageChunk, HumanMessage } from '@langchain/core/messages'
+import { AIMessage, AIMessageChunk, HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { ChatGenerationChunk } from '@langchain/core/outputs'
 import { AsyncLocalStorageProviderSingleton } from '@langchain/core/singletons'
 import { createSummarizationMiddleware } from 'deepagents'
@@ -23,7 +23,6 @@ assert.ok(deepagentsRuntimeSources.length >= 2)
 for (const source of deepagentsRuntimeSources) {
   assert.match(source, /"_summarizationSessionId"/)
   assert.match(source, /"_summarizationEvent"/)
-  assert.match(source, /"_contextLedger"/)
   assert.match(source, /deepagents_summarization/)
   assert.match(source, /iwriter_subagent_id/)
 }
@@ -291,6 +290,256 @@ assert.equal(appendedHistory.match(/### Summary/g)?.length, 2)
 assert.match(appendedHistory, /hello/)
 assert.match(appendedHistory, /second archived history/)
 assert.equal(historyWriteCount, 2)
+
+const prefixMessages = [
+  new HumanMessage('old user evidence'),
+  new AIMessage('old assistant conclusion'),
+  new HumanMessage('recent user question'),
+]
+const prefixSystemMessage = new SystemMessage('stable system prompt')
+const prefixTools = [{
+  name: 'read_file',
+  description: 'Read one file',
+  schema: { type: 'object', properties: {} },
+}]
+const prefixRequestModel = {
+  profile: { maxInputTokens: 10_000 },
+  withConfig(config) {
+    return { ...this, hiddenConfig: config }
+  },
+  async invoke() {
+    throw new Error('The active request model must not generate summaries')
+  },
+}
+let prefixStandaloneModelCalls = 0
+const prefixSummaryModel = {
+  profile: { maxInputTokens: 10_000 },
+  sourceModel: 'summary-without-thinking',
+  withConfig(config) {
+    return { ...this, hiddenConfig: config }
+  },
+  async invoke() {
+    prefixStandaloneModelCalls += 1
+    return new AIMessage('standalone summary should not run on the primary path')
+  },
+}
+const prefixHandlerRequests = []
+const prefixReuseMiddleware = createSummarizationMiddleware({
+  model: prefixSummaryModel,
+  backend: { write: async filePath => ({ path: filePath }) },
+  trigger: { type: 'messages', value: 1 },
+  keep: { type: 'messages', value: 1 },
+  tokenCounter: () => 100,
+  trimTokensToSummarize: 1_000,
+  summaryInstruction: 'CACHE-AWARE SUMMARY INSTRUCTION',
+  summaryPrompt: 'Fallback summary: {conversation}',
+})
+
+let prefixSummaryCacheDebugLogCount = 0
+const originalConsoleDebug = console.debug
+console.debug = (...args) => {
+  if (args[0] === '[SummarizationMiddleware] Summary cache usage') {
+    prefixSummaryCacheDebugLogCount += 1
+  }
+}
+let prefixCommand
+try {
+  prefixCommand = await prefixReuseMiddleware.wrapModelCall({
+    messages: prefixMessages,
+    state: { messages: prefixMessages },
+    model: prefixRequestModel,
+    systemMessage: prefixSystemMessage,
+    tools: prefixTools,
+  }, async request => {
+    prefixHandlerRequests.push(request)
+    return prefixHandlerRequests.length === 1
+      ? new AIMessage({
+          content: 'PREFIX SUMMARY',
+          usage_metadata: {
+            input_tokens: 1_000,
+            output_tokens: 80,
+            total_tokens: 1_080,
+            input_token_details: { cache_read: 750, cache_creation: 100 },
+            output_token_details: { reasoning: 0 },
+          },
+          response_metadata: {
+            model_provider: 'deepseek',
+            model_name: 'deepseek-v4-flash',
+          },
+        })
+      : new AIMessage('handled with compacted context')
+  })
+} finally {
+  console.debug = originalConsoleDebug
+}
+
+assert.equal(prefixStandaloneModelCalls, 0)
+assert.equal(prefixHandlerRequests.length, 2)
+const prefixSummaryRequest = prefixHandlerRequests[0]
+assert.notEqual(prefixSummaryRequest.model, prefixRequestModel)
+assert.equal(prefixSummaryRequest.model.sourceModel, 'summary-without-thinking')
+assert.deepEqual(prefixSummaryRequest.model.hiddenConfig, {
+  tags: ['langsmith:nostream'],
+  metadata: { lc_source: 'summarization' },
+})
+assert.equal(prefixSummaryRequest.systemMessage, prefixSystemMessage)
+assert.equal(prefixSummaryRequest.tools, prefixTools)
+assert.equal(prefixSummaryRequest.messages.length, 3)
+assert.equal(prefixSummaryRequest.messages[0], prefixMessages[0])
+assert.equal(prefixSummaryRequest.messages[1], prefixMessages[1])
+assert.equal(prefixSummaryRequest.messages[2].content, 'CACHE-AWARE SUMMARY INSTRUCTION')
+assert.doesNotMatch(prefixSummaryRequest.messages[2].content, /old user evidence/)
+assert.match(prefixHandlerRequests[1].messages[0].content, /PREFIX SUMMARY/)
+assert.equal(prefixHandlerRequests[1].messages[1], prefixMessages[2])
+assert.match(prefixCommand.update._summarizationEvent.summaryMessage.content, /PREFIX SUMMARY/)
+assert.equal(prefixSummaryCacheDebugLogCount, 0)
+
+const postTurnMessages = [
+  new HumanMessage('first user message'),
+  new AIMessage('first assistant message'),
+]
+const postTurnMainResponse = new AIMessage('POST-TURN MAIN RESPONSE')
+const postTurnHandlerRequests = []
+const postTurnMiddleware = createSummarizationMiddleware({
+  backend: { write: async filePath => ({ path: filePath }) },
+  trigger: { type: 'messages', value: 3 },
+  keep: { type: 'messages', value: 0 },
+  tokenCounter: messages => messages.length,
+  trimTokensToSummarize: 1_000,
+  summaryInstruction: 'POST-TURN SUMMARY INSTRUCTION',
+  summaryPrompt: 'Fallback summary: {conversation}',
+})
+
+const postTurnResponse = await postTurnMiddleware.wrapModelCall({
+  messages: postTurnMessages,
+  state: { messages: postTurnMessages },
+  model: prefixRequestModel,
+  systemMessage: prefixSystemMessage,
+  tools: prefixTools,
+}, async request => {
+  postTurnHandlerRequests.push(request)
+  return postTurnHandlerRequests.length === 1
+    ? postTurnMainResponse
+    : new AIMessage('POST-TURN SUMMARY')
+})
+
+assert.equal(postTurnResponse, postTurnMainResponse)
+assert.equal(postTurnHandlerRequests.length, 2)
+assert.equal(postTurnHandlerRequests[0].model, prefixRequestModel)
+assert.equal(postTurnHandlerRequests[0].messages.length, 2)
+assert.deepEqual(postTurnHandlerRequests[1].model.hiddenConfig, {
+  tags: ['langsmith:nostream'],
+  metadata: { lc_source: 'summarization' },
+})
+assert.equal(postTurnHandlerRequests[1].messages.length, 4)
+assert.equal(postTurnHandlerRequests[1].messages[2], postTurnMainResponse)
+assert.equal(postTurnHandlerRequests[1].messages[3].content, 'POST-TURN SUMMARY INSTRUCTION')
+
+const postTurnUpdate = await postTurnMiddleware.afterModel({
+  messages: [...postTurnMessages, postTurnMainResponse],
+})
+assert.equal(postTurnUpdate._summarizationEvent.cutoffIndex, 3)
+assert.match(postTurnUpdate._summarizationEvent.summaryMessage.content, /POST-TURN SUMMARY/)
+
+const nextTurnUserMessage = new HumanMessage('next turn starts normally')
+const nextTurnRawMessages = [...postTurnMessages, postTurnMainResponse, nextTurnUserMessage]
+const nextTurnHandlerRequests = []
+await postTurnMiddleware.wrapModelCall({
+  messages: nextTurnRawMessages,
+  state: {
+    messages: nextTurnRawMessages,
+    ...postTurnUpdate,
+  },
+  model: prefixRequestModel,
+  systemMessage: prefixSystemMessage,
+  tools: prefixTools,
+}, async request => {
+  nextTurnHandlerRequests.push(request)
+  return new AIMessage({
+    content: '',
+    tool_calls: [{ name: 'read_file', args: {}, id: 'next-turn-tool' }],
+  })
+})
+assert.equal(nextTurnHandlerRequests.length, 1)
+assert.match(nextTurnHandlerRequests[0].messages[0].content, /POST-TURN SUMMARY/)
+assert.equal(nextTurnHandlerRequests[0].messages[1], nextTurnUserMessage)
+
+let toolFallbackRequestModelCalls = 0
+const toolFallbackRequestModel = {
+  profile: { maxInputTokens: 10_000 },
+  withConfig(config) {
+    return { ...this, hiddenConfig: config }
+  },
+  async invoke() {
+    toolFallbackRequestModelCalls += 1
+    return new AIMessage('request model fallback should not run')
+  },
+}
+let toolFallbackModelCalls = 0
+const toolFallbackModel = {
+  async invoke() {
+    toolFallbackModelCalls += 1
+    return new AIMessage({
+      content: 'TOOL-CALL FALLBACK SUMMARY',
+      usage_metadata: {
+        input_tokens: 400,
+        output_tokens: 40,
+        total_tokens: 440,
+        input_token_details: { cache_read: 100, cache_creation: 0 },
+        output_token_details: { reasoning: 0 },
+      },
+      response_metadata: {
+        model_provider: 'anthropic',
+        model_name: 'claude-sonnet',
+      },
+    })
+  },
+}
+let toolFallbackHandlerCalls = 0
+const toolFallbackMiddleware = createSummarizationMiddleware({
+  backend: { write: async filePath => ({ path: filePath }) },
+  trigger: { type: 'messages', value: 1 },
+  keep: { type: 'messages', value: 0 },
+  tokenCounter: () => 100,
+  trimTokensToSummarize: 1_000,
+  summaryInstruction: 'RETURN SUMMARY TEXT ONLY',
+  summaryPrompt: 'Fallback summary: {conversation}',
+  fallbackModel: toolFallbackModel,
+})
+
+let fallbackSummaryCacheDebugLogCount = 0
+console.debug = (...args) => {
+  if (args[0] === '[SummarizationMiddleware] Summary cache usage') {
+    fallbackSummaryCacheDebugLogCount += 1
+  }
+}
+let toolFallbackCommand
+try {
+  toolFallbackCommand = await toolFallbackMiddleware.wrapModelCall({
+    messages: [new HumanMessage('history that needs compression')],
+    state: { messages: [new HumanMessage('history that needs compression')] },
+    model: toolFallbackRequestModel,
+    systemMessage: prefixSystemMessage,
+    tools: prefixTools,
+  }, async () => {
+    toolFallbackHandlerCalls += 1
+    if (toolFallbackHandlerCalls === 1) {
+      return new AIMessage({
+        content: '',
+        tool_calls: [{ name: 'read_file', args: { file_path: '/tmp/a' }, id: 'call-1' }],
+      })
+    }
+    return new AIMessage('handled after tool-call fallback')
+  })
+} finally {
+  console.debug = originalConsoleDebug
+}
+
+assert.equal(toolFallbackHandlerCalls, 2)
+assert.equal(toolFallbackRequestModelCalls, 0)
+assert.equal(toolFallbackModelCalls, 1)
+assert.match(toolFallbackCommand.update._summarizationEvent.summaryMessage.content, /TOOL-CALL FALLBACK SUMMARY/)
+assert.equal(fallbackSummaryCacheDebugLogCount, 0)
 
 let overflowSummaryModelCalls = 0
 let overflowHandlerCalls = 0

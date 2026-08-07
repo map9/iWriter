@@ -798,6 +798,9 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
         ...(this.budgetTokens != null ? { budget_tokens: this.budgetTokens } : {}),
       }
       body.reasoning_effort = this.thinkingLevel === 'extra_high' ? 'max' : 'high'
+    } else {
+      body.thinking = { type: 'disabled' }
+      body.reasoning_effort = 'none'
     }
     if (Array.isArray(options.tools) && options.tools.length) {
       body.tools = options.tools

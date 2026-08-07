@@ -65,8 +65,8 @@
       <!-- ── ASSISTANT MESSAGE BUBBLE ── -->
 
       <!-- Path A: Interleaved content blocks (text + read tool calls in correct order) -->
-      <template v-if="message.role === 'assistant' && visibleContentBlocks.length">
-        <template v-for="(block, idx) in visibleContentBlocks" :key="idx">
+      <template v-if="message.role === 'assistant' && renderableContentBlocks.length">
+        <template v-for="(block, idx) in renderableContentBlocks" :key="idx">
           <div
             v-if="block.type === 'thinking' && block.text"
             class="hidden"
@@ -106,12 +106,6 @@
               :class="contentBlockToolMarginClass(idx)"
             />
           </template>
-          <ContextCompressionCard
-            v-else-if="block.type === 'context_compression'"
-            :event="block.event"
-            :show-timestamp="true"
-            class="mt-1.5 w-full"
-          />
           <div
             v-else-if="block.type === 'agent_event' && (block.text || block.agentName)"
             class="mt-1.5 flex w-full items-center gap-2 px-3 py-2 rounded-box bg-base-100 border border-base-300 text-base-content text-xs"
@@ -141,7 +135,7 @@
 
       <!-- Legacy read tool calls (only when no contentBlocks) -->
       <div
-        v-if="!visibleContentBlocks.length && readToolCalls.length"
+        v-if="!renderableContentBlocks.length && readToolCalls.length"
         class="w-full"
         :class="message.content ? 'mt-1.5' : ''"
       >
@@ -239,6 +233,14 @@
           </div>
         </div>
       </div>
+
+      <ContextCompressionCard
+        v-for="block in contextCompressionBlocks"
+        :key="block.event.id"
+        :event="block.event"
+        :show-timestamp="true"
+        class="mt-1.5 w-full"
+      />
 
     </div>
   </div>
@@ -345,10 +347,18 @@ const visibleContentBlocks = computed(() =>
   })
 )
 
+const renderableContentBlocks = computed(() =>
+  visibleContentBlocks.value.filter(block => block.type !== 'context_compression')
+)
+
+const contextCompressionBlocks = computed(() =>
+  visibleContentBlocks.value.filter(block => block.type === 'context_compression')
+)
+
 const hasAssistantTextOutput = computed(() => {
   if (props.message.role !== 'assistant') return false
-  if (visibleContentBlocks.value.length) {
-    return visibleContentBlocks.value.some(block => block.type === 'text' && !!block.text?.trim())
+  if (renderableContentBlocks.value.length) {
+    return renderableContentBlocks.value.some(block => block.type === 'text' && !!block.text?.trim())
   }
   return !!props.message.content?.trim()
 })
@@ -401,7 +411,7 @@ function shouldShowTaskFallback(toolCallId: string): boolean {
 }
 
 function isReadToolBlockAt(index: number): boolean {
-  const block = visibleContentBlocks.value[index]
+  const block = renderableContentBlocks.value[index]
   return !!(block?.type === 'tool_call' && block.toolCallId && isReadToolById(block.toolCallId))
 }
 

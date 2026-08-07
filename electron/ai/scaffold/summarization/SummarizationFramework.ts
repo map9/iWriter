@@ -32,11 +32,11 @@ export const CREATIVE_SUMMARIZATION_PROFILE: DomainSummarizationProfile = {
 }
 
 /**
- * DeepAgents replaces the single `{conversation}` placeholder with the old
- * message slice. Keep one common envelope so transport/checkpoint behavior
- * remains domain-neutral while each DomainStrategy supplies semantic fields.
+ * Build the cache-aware instruction appended after the original request
+ * prefix. Keep it free of serialized conversation content so providers can
+ * reuse the cached system/tool/message prefix.
  */
-export function buildSummarizationPrompt(profile: DomainSummarizationProfile): string {
+export function buildSummarizationInstruction(profile: DomainSummarizationProfile): string {
   const common = COMMON_STATE_INSTRUCTIONS.map(item => `- ${item}`).join('\n')
   const domain = profile.domainStateInstructions.map(item => `- ${item}`).join('\n')
 
@@ -67,12 +67,20 @@ Rules:
 - Prefer compact bullets over narrative.
 - Distinguish confirmed facts from inference. Label conclusions as confirmed, inference, or open when the status matters. Do not invent missing state.
 - Preserve source paths/sections beside extracted facts, but do not reproduce large source text or tool output. For every unresolved conflict, keep one compact evidence tuple with both conflicting facts, their exact sources, and any decisive value, wording, or counterevidence.
-- A deterministic context ledger is injected separately. Record semantic results, not an inventory of read, search, or list calls.
+- Record semantic results and their exact source references, not an inventory of read, search, or list calls.
 - Recent messages are preserved separately. Do not waste space restating them unless needed to connect the task.
 - If an earlier summary is present, treat it as mutable state to rewrite, not text to append. Replace superseded facts and remove resolved, stale, recent, or duplicate items.
 - Each fact should appear in only one section. Refer to it briefly elsewhere instead of restating it.
 - Do not list untouched or unread sources as missing unless they block the requested deliverable or could materially change the exact next action.
-- Under "Retrieval keys", list 6-10 discriminative literal keys from this conversation. Prefer exact paths, block or scene IDs, names, and distinctive multi-word phrases; avoid generic single words when a lower-frequency key exists. Do not write prose there.
+- Under "Retrieval keys", list 6-10 discriminative literal keys from this conversation. Prefer exact paths, block or scene IDs, names, and distinctive multi-word phrases; avoid generic single words when a lower-frequency key exists. Do not write prose there.`
+}
+
+/**
+ * Build the standalone fallback prompt used when the cache-aware request
+ * fails or returns a tool call/non-text response.
+ */
+export function buildSummarizationPrompt(profile: DomainSummarizationProfile): string {
+  return `${buildSummarizationInstruction(profile)}
 
 Conversation to compact:
 {conversation}`
