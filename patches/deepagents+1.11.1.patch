@@ -57,7 +57,7 @@ index d3d062d..0c0744f 100644
     * Optional {@link StreamTransformer} factories to register with the underlying agent.
     *
 diff --git a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
-index f1c3f24..ff706d1 100644
+index f1c3f24..e17bf64 100644
 --- a/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
 +++ b/node_modules/deepagents/dist/langsmith-DVh4u6Za.js
 @@ -1,5 +1,5 @@
@@ -180,7 +180,31 @@ index f1c3f24..ff706d1 100644
  	}
  	/**
  	* Truncate ToolMessage content so that the total payload fits within the
-@@ -4358,11 +4376,11 @@ function createSummarizationMiddleware(options) {
+@@ -4312,7 +4330,8 @@ function createSummarizationMiddleware(options) {
+ 		return messages.filter((msg) => !isSummaryMessage(msg));
+ 	}
+ 	/**
+-	* Offload messages to backend by appending to the history file.
++	* Archive one finalized compression by appending its summary and original
++	* messages to the history file.
+ 	*
+ 	* Uses uploadFiles() directly with raw byte concatenation instead of
+ 	* edit() to avoid downloading the file twice and performing a full
+@@ -4320,10 +4339,11 @@ function createSummarizationMiddleware(options) {
+ 	* (existing bytes + combined bytes) instead of ~6x with the old
+ 	* download → edit(oldContent, newContent) approach.
+ 	*/
+-	async function offloadToBackend(resolvedBackend, messages, state) {
++	async function offloadToBackend(resolvedBackend, messages, summary, state, archiveId) {
+ 		const filePath = getHistoryPath(state);
+ 		const filteredMessages = filterSummaryMessages(messages);
+-		const newSection = `## Summarized at ${(/* @__PURE__ */ new Date()).toISOString()}\n\n${getBufferString(filteredMessages)}\n\n`;
++		const summarizedAt = (/* @__PURE__ */ new Date()).toISOString();
++		const newSection = `## Compression archive: ${archiveId}\n\n- Summarized at: ${summarizedAt}\n- Compressed messages: ${filteredMessages.length}\n\n### Summary\n\n${summary}\n\n### Original messages\n\n${getBufferString(filteredMessages)}\n\n`;
+ 		const sectionBytes = new TextEncoder().encode(newSection);
+ 		try {
+ 			let existingBytes = null;
+@@ -4358,11 +4378,11 @@ function createSummarizationMiddleware(options) {
  	*/
  	async function createSummary(messages, chatModel) {
  		let messagesToSummarize = messages;
@@ -194,7 +218,7 @@ index f1c3f24..ff706d1 100644
  				if (kept + msgTokens > trimTokensToSummarize) break;
  				trimmedMessages.unshift(messages[i]);
  				kept += msgTokens;
-@@ -4371,8 +4389,17 @@ function createSummarizationMiddleware(options) {
+@@ -4371,8 +4391,17 @@ function createSummarizationMiddleware(options) {
  		}
  		const conversation = getBufferString(messagesToSummarize);
  		const prompt = summaryPrompt.replace("{conversation}", conversation);
@@ -214,10 +238,35 @@ index f1c3f24..ff706d1 100644
  	}
  	/**
  	* Build the summary message with file path reference.
-@@ -4417,12 +4444,50 @@ function createSummarizationMiddleware(options) {
+@@ -4384,6 +4413,15 @@ function createSummarizationMiddleware(options) {
+ 
+         The full conversation history has been saved to ${filePath} should you need to refer back to it for details.
+ 
++        Retrieve only the history needed for the current question:
++        1. If the context ledger marks a project source current and its needed content was previously read, search conversation history before rereading the project source.
++        2. Call grep on that exact path with 2-4 discriminative retrieval keys.
++        3. Inspect the archived Summary block first. Read Original messages only if the summary is insufficient.
++        4. Use the returned line numbers with read_file, an offset near the match, and a limit of 20-40 lines.
++        5. The hard maximum is 80 lines per call. Expand with another targeted read only if necessary.
++        6. Reread a project source only when the context ledger marks it stale or the archived history lacks the required evidence.
++        7. Do not read the complete history file by default.
++
+         A condensed summary follows:
+ 
+         <summary>
+@@ -4411,18 +4449,61 @@ function createSummarizationMiddleware(options) {
+ 	}
+ 	/**
+ 	* Summarize a set of messages using the given model and build the
+-	* summary message + backend offload. Returns the summary message,
+-	* the file path, and the state cutoff index.
++	* summary message and prospective backend path. The finalized archive is
++	* written only after the main model accepts this compression.
+ 	*/
  	async function summarizeMessages(messagesToSummarize, resolvedModel, state, previousCutoffIndex, cutoffIndex) {
- 		const filePath = await offloadToBackend(await resolveBackend(backend, { state }), messagesToSummarize, state);
- 		if (filePath === null) console.warn(`[SummarizationMiddleware] Backend offload failed during summarization. Proceeding with summary generation.`);
+-		const filePath = await offloadToBackend(await resolveBackend(backend, { state }), messagesToSummarize, state);
+-		if (filePath === null) console.warn(`[SummarizationMiddleware] Backend offload failed during summarization. Proceeding with summary generation.`);
++		const filePath = getHistoryPath(state);
 +		const summary = await createSummary(messagesToSummarize, resolvedModel);
  		return {
 -			summaryMessage: buildSummaryMessage(await createSummary(messagesToSummarize, resolvedModel), filePath),
@@ -272,7 +321,7 @@ index f1c3f24..ff706d1 100644
  	/**
  	* Check if an error (possibly wrapped in MiddlewareError layers) is a
  	* ContextOverflowError by walking the `cause` chain.
-@@ -4457,7 +4522,21 @@ function createSummarizationMiddleware(options) {
+@@ -4457,12 +4538,28 @@ function createSummarizationMiddleware(options) {
  		}
  		const previousEvent = request.state._summarizationEvent;
  		const previousCutoffIndex = previousEvent != null ? previousEvent.cutoffIndex : void 0;
@@ -295,7 +344,14 @@ index f1c3f24..ff706d1 100644
  		let modifiedMessages = [summaryMessage, ...preservedMessages];
  		const modifiedTokens = countTotalTokens(modifiedMessages, request.systemMessage, request.tools);
  		let finalStateCutoffIndex = stateCutoffIndex;
-@@ -4474,10 +4553,21 @@ function createSummarizationMiddleware(options) {
++		let finalSummary = summary;
+ 		let finalSummaryMessage = summaryMessage;
+ 		let finalFilePath = filePath;
++		let finalMessagesToArchive = messagesToSummarize;
+ 		try {
+ 			await handler({
+ 				...request,
+@@ -4474,16 +4571,38 @@ function createSummarizationMiddleware(options) {
  				const observedRatio = maxInputTokens / modifiedTokens;
  				if (observedRatio > tokenEstimationMultiplier) tokenEstimationMultiplier = observedRatio * 1.1;
  			}
@@ -307,9 +363,11 @@ index f1c3f24..ff706d1 100644
 +				emitSummarizationStreamEvent(streamEvent, "failed", { error: reSumErr instanceof Error ? reSumErr.message : String(reSumErr) });
 +				throw reSumErr;
 +			}
++			finalSummary = reSumResult.summary;
  			finalSummaryMessage = reSumResult.summaryMessage;
  			finalFilePath = reSumResult.filePath;
  			finalStateCutoffIndex = reSumResult.stateCutoffIndex;
++			finalMessagesToArchive = [...messagesToSummarize, ...preservedMessages];
 +			emitSummarizationStreamEvent(streamEvent, "completed", {
 +				summary: reSumResult.summary,
 +				filePath: reSumResult.filePath,
@@ -318,7 +376,22 @@ index f1c3f24..ff706d1 100644
  			modifiedMessages = [reSumResult.summaryMessage];
  			await handler({
  				...request,
-@@ -4500,9 +4590,19 @@ function createSummarizationMiddleware(options) {
+ 				messages: modifiedMessages
+ 			});
+ 		}
++		finalFilePath = await offloadToBackend(
++			await resolveBackend(backend, { state: request.state }),
++			finalMessagesToArchive,
++			finalSummary,
++			request.state,
++			streamEvent.base.eventId
++		);
++		if (finalFilePath === null) console.warn(`[SummarizationMiddleware] Backend offload failed after summarization. Proceeding without archived history.`);
++		finalSummaryMessage = buildSummaryMessage(finalSummary, finalFilePath);
+ 		return new Command({ update: {
+ 			_summarizationEvent: {
+ 				cutoffIndex: finalStateCutoffIndex,
+@@ -4500,9 +4619,19 @@ function createSummarizationMiddleware(options) {
  			const effectiveMessages = getEffectiveMessages(request.messages ?? [], request.state);
  			if (effectiveMessages.length === 0) return handler(request);
  			/**
@@ -339,7 +412,7 @@ index f1c3f24..ff706d1 100644
  			const maxInputTokens = getMaxInputTokens(resolvedModel);
  			applyModelDefaults(resolvedModel);
  			const totalTokens = countTotalTokens(effectiveMessages, request.systemMessage, request.tools);
-@@ -4521,10 +4621,16 @@ function createSummarizationMiddleware(options) {
+@@ -4521,10 +4650,16 @@ function createSummarizationMiddleware(options) {
  			* emergency summarization (matching Python's behavior).
  			*/
  			if (!shouldSummarize(truncatedMessages, tokensForSummary, maxInputTokens)) try {
@@ -357,7 +430,7 @@ index f1c3f24..ff706d1 100644
  			} catch (err) {
  				if (!isContextOverflow(err)) throw err;
  				if (maxInputTokens && tokensForSummary > 0) {
-@@ -5984,7 +6090,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
+@@ -5984,7 +6119,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
  * ```
  */
  function createDeepAgent(params = {}) {
@@ -366,7 +439,7 @@ index f1c3f24..ff706d1 100644
  	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
  	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
  	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
-@@ -6023,7 +6129,7 @@ function createDeepAgent(params = {}) {
+@@ -6023,7 +6158,7 @@ function createDeepAgent(params = {}) {
  				permissions: effectivePermissions,
  				tools: profileFilesystemTools
  			}),
@@ -375,7 +448,7 @@ index f1c3f24..ff706d1 100644
  			createPatchToolCallsMiddleware(),
  			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
  				backend,
-@@ -6075,7 +6181,7 @@ function createDeepAgent(params = {}) {
+@@ -6075,7 +6210,7 @@ function createDeepAgent(params = {}) {
  			subagents: inlineSubagents,
  			generalPurposeAgent: false
  		}),
@@ -385,7 +458,7 @@ index f1c3f24..ff706d1 100644
  	];
  	let middleware = mergeMiddlewareStack([
 diff --git a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
-index 5551ac8..047ff34 100644
+index 5551ac8..1d5a21f 100644
 --- a/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
 +++ b/node_modules/deepagents/dist/langsmith-DhbsxI45.cjs
 @@ -1104,7 +1104,19 @@ var CompositeBackend = class {
@@ -501,7 +574,31 @@ index 5551ac8..047ff34 100644
  	}
  	/**
  	* Truncate ToolMessage content so that the total payload fits within the
-@@ -4387,11 +4405,11 @@ function createSummarizationMiddleware(options) {
+@@ -4341,7 +4359,8 @@ function createSummarizationMiddleware(options) {
+ 		return messages.filter((msg) => !isSummaryMessage(msg));
+ 	}
+ 	/**
+-	* Offload messages to backend by appending to the history file.
++	* Archive one finalized compression by appending its summary and original
++	* messages to the history file.
+ 	*
+ 	* Uses uploadFiles() directly with raw byte concatenation instead of
+ 	* edit() to avoid downloading the file twice and performing a full
+@@ -4349,10 +4368,11 @@ function createSummarizationMiddleware(options) {
+ 	* (existing bytes + combined bytes) instead of ~6x with the old
+ 	* download → edit(oldContent, newContent) approach.
+ 	*/
+-	async function offloadToBackend(resolvedBackend, messages, state) {
++	async function offloadToBackend(resolvedBackend, messages, summary, state, archiveId) {
+ 		const filePath = getHistoryPath(state);
+ 		const filteredMessages = filterSummaryMessages(messages);
+-		const newSection = `## Summarized at ${(/* @__PURE__ */ new Date()).toISOString()}\n\n${(0, _langchain_core_messages.getBufferString)(filteredMessages)}\n\n`;
++		const summarizedAt = (/* @__PURE__ */ new Date()).toISOString();
++		const newSection = `## Compression archive: ${archiveId}\n\n- Summarized at: ${summarizedAt}\n- Compressed messages: ${filteredMessages.length}\n\n### Summary\n\n${summary}\n\n### Original messages\n\n${(0, _langchain_core_messages.getBufferString)(filteredMessages)}\n\n`;
+ 		const sectionBytes = new TextEncoder().encode(newSection);
+ 		try {
+ 			let existingBytes = null;
+@@ -4387,11 +4407,11 @@ function createSummarizationMiddleware(options) {
  	*/
  	async function createSummary(messages, chatModel) {
  		let messagesToSummarize = messages;
@@ -515,7 +612,7 @@ index 5551ac8..047ff34 100644
  				if (kept + msgTokens > trimTokensToSummarize) break;
  				trimmedMessages.unshift(messages[i]);
  				kept += msgTokens;
-@@ -4400,8 +4418,17 @@ function createSummarizationMiddleware(options) {
+@@ -4400,8 +4420,17 @@ function createSummarizationMiddleware(options) {
  		}
  		const conversation = (0, _langchain_core_messages.getBufferString)(messagesToSummarize);
  		const prompt = summaryPrompt.replace("{conversation}", conversation);
@@ -535,10 +632,35 @@ index 5551ac8..047ff34 100644
  	}
  	/**
  	* Build the summary message with file path reference.
-@@ -4446,12 +4473,50 @@ function createSummarizationMiddleware(options) {
+@@ -4413,6 +4442,15 @@ function createSummarizationMiddleware(options) {
+ 
+         The full conversation history has been saved to ${filePath} should you need to refer back to it for details.
+ 
++        Retrieve only the history needed for the current question:
++        1. If the context ledger marks a project source current and its needed content was previously read, search conversation history before rereading the project source.
++        2. Call grep on that exact path with 2-4 discriminative retrieval keys.
++        3. Inspect the archived Summary block first. Read Original messages only if the summary is insufficient.
++        4. Use the returned line numbers with read_file, an offset near the match, and a limit of 20-40 lines.
++        5. The hard maximum is 80 lines per call. Expand with another targeted read only if necessary.
++        6. Reread a project source only when the context ledger marks it stale or the archived history lacks the required evidence.
++        7. Do not read the complete history file by default.
++
+         A condensed summary follows:
+ 
+         <summary>
+@@ -4440,18 +4478,61 @@ function createSummarizationMiddleware(options) {
+ 	}
+ 	/**
+ 	* Summarize a set of messages using the given model and build the
+-	* summary message + backend offload. Returns the summary message,
+-	* the file path, and the state cutoff index.
++	* summary message and prospective backend path. The finalized archive is
++	* written only after the main model accepts this compression.
+ 	*/
  	async function summarizeMessages(messagesToSummarize, resolvedModel, state, previousCutoffIndex, cutoffIndex) {
- 		const filePath = await offloadToBackend(await resolveBackend(backend, { state }), messagesToSummarize, state);
- 		if (filePath === null) console.warn(`[SummarizationMiddleware] Backend offload failed during summarization. Proceeding with summary generation.`);
+-		const filePath = await offloadToBackend(await resolveBackend(backend, { state }), messagesToSummarize, state);
+-		if (filePath === null) console.warn(`[SummarizationMiddleware] Backend offload failed during summarization. Proceeding with summary generation.`);
++		const filePath = getHistoryPath(state);
 +		const summary = await createSummary(messagesToSummarize, resolvedModel);
  		return {
 -			summaryMessage: buildSummaryMessage(await createSummary(messagesToSummarize, resolvedModel), filePath),
@@ -593,7 +715,7 @@ index 5551ac8..047ff34 100644
  	/**
  	* Check if an error (possibly wrapped in MiddlewareError layers) is a
  	* ContextOverflowError by walking the `cause` chain.
-@@ -4486,7 +4551,21 @@ function createSummarizationMiddleware(options) {
+@@ -4486,12 +4567,28 @@ function createSummarizationMiddleware(options) {
  		}
  		const previousEvent = request.state._summarizationEvent;
  		const previousCutoffIndex = previousEvent != null ? previousEvent.cutoffIndex : void 0;
@@ -616,7 +738,14 @@ index 5551ac8..047ff34 100644
  		let modifiedMessages = [summaryMessage, ...preservedMessages];
  		const modifiedTokens = countTotalTokens(modifiedMessages, request.systemMessage, request.tools);
  		let finalStateCutoffIndex = stateCutoffIndex;
-@@ -4503,10 +4582,21 @@ function createSummarizationMiddleware(options) {
++		let finalSummary = summary;
+ 		let finalSummaryMessage = summaryMessage;
+ 		let finalFilePath = filePath;
++		let finalMessagesToArchive = messagesToSummarize;
+ 		try {
+ 			await handler({
+ 				...request,
+@@ -4503,16 +4600,38 @@ function createSummarizationMiddleware(options) {
  				const observedRatio = maxInputTokens / modifiedTokens;
  				if (observedRatio > tokenEstimationMultiplier) tokenEstimationMultiplier = observedRatio * 1.1;
  			}
@@ -628,9 +757,11 @@ index 5551ac8..047ff34 100644
 +				emitSummarizationStreamEvent(streamEvent, "failed", { error: reSumErr instanceof Error ? reSumErr.message : String(reSumErr) });
 +				throw reSumErr;
 +			}
++			finalSummary = reSumResult.summary;
  			finalSummaryMessage = reSumResult.summaryMessage;
  			finalFilePath = reSumResult.filePath;
  			finalStateCutoffIndex = reSumResult.stateCutoffIndex;
++			finalMessagesToArchive = [...messagesToSummarize, ...preservedMessages];
 +			emitSummarizationStreamEvent(streamEvent, "completed", {
 +				summary: reSumResult.summary,
 +				filePath: reSumResult.filePath,
@@ -639,7 +770,22 @@ index 5551ac8..047ff34 100644
  			modifiedMessages = [reSumResult.summaryMessage];
  			await handler({
  				...request,
-@@ -4529,9 +4619,19 @@ function createSummarizationMiddleware(options) {
+ 				messages: modifiedMessages
+ 			});
+ 		}
++		finalFilePath = await offloadToBackend(
++			await resolveBackend(backend, { state: request.state }),
++			finalMessagesToArchive,
++			finalSummary,
++			request.state,
++			streamEvent.base.eventId
++		);
++		if (finalFilePath === null) console.warn(`[SummarizationMiddleware] Backend offload failed after summarization. Proceeding without archived history.`);
++		finalSummaryMessage = buildSummaryMessage(finalSummary, finalFilePath);
+ 		return new _langchain_langgraph.Command({ update: {
+ 			_summarizationEvent: {
+ 				cutoffIndex: finalStateCutoffIndex,
+@@ -4529,9 +4648,19 @@ function createSummarizationMiddleware(options) {
  			const effectiveMessages = getEffectiveMessages(request.messages ?? [], request.state);
  			if (effectiveMessages.length === 0) return handler(request);
  			/**
@@ -660,7 +806,7 @@ index 5551ac8..047ff34 100644
  			const maxInputTokens = getMaxInputTokens(resolvedModel);
  			applyModelDefaults(resolvedModel);
  			const totalTokens = countTotalTokens(effectiveMessages, request.systemMessage, request.tools);
-@@ -4550,10 +4650,16 @@ function createSummarizationMiddleware(options) {
+@@ -4550,10 +4679,16 @@ function createSummarizationMiddleware(options) {
  			* emergency summarization (matching Python's behavior).
  			*/
  			if (!shouldSummarize(truncatedMessages, tokensForSummary, maxInputTokens)) try {
@@ -678,7 +824,7 @@ index 5551ac8..047ff34 100644
  			} catch (err) {
  				if (!isContextOverflow(err)) throw err;
  				if (maxInputTokens && tokensForSummary > 0) {
-@@ -6013,7 +6119,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
+@@ -6013,7 +6148,7 @@ const BUILTIN_TOOL_NAMES = /* @__PURE__ */ new Set([
  * ```
  */
  function createDeepAgent(params = {}) {
@@ -687,7 +833,7 @@ index 5551ac8..047ff34 100644
  	const collidingTools = tools.map((t) => t.name).filter((n) => typeof n === "string" && BUILTIN_TOOL_NAMES.has(n));
  	if (collidingTools.length > 0) throw new ConfigurationError(`Tool name(s) [${collidingTools.join(", ")}] conflict with built-in tools. Rename your custom tools to avoid this.`, "TOOL_NAME_COLLISION");
  	const harnessProfile = typeof model === "string" ? resolveHarnessProfile({ spec: model }) : resolveHarnessProfile({
-@@ -6052,7 +6158,7 @@ function createDeepAgent(params = {}) {
+@@ -6052,7 +6187,7 @@ function createDeepAgent(params = {}) {
  				permissions: effectivePermissions,
  				tools: profileFilesystemTools
  			}),
@@ -696,7 +842,7 @@ index 5551ac8..047ff34 100644
  			createPatchToolCallsMiddleware(),
  			...input.skills != null && input.skills.length > 0 ? [createSkillsMiddleware({
  				backend,
-@@ -6104,7 +6210,7 @@ function createDeepAgent(params = {}) {
+@@ -6104,7 +6239,7 @@ function createDeepAgent(params = {}) {
  			subagents: inlineSubagents,
  			generalPurposeAgent: false
  		}),

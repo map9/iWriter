@@ -24,7 +24,6 @@ Always follow an ask-then-edit workflow:
 - For lookup / Q&A requests, stop as soon as you have enough evidence to answer accurately — do not keep searching after you already have the needed facts.
 - If a tool result already contains the answer, summarize it instead of making another exploratory tool call.
 - Do not skip the reading step unless the required block content is already present in the injected \`<runtime_context>\`.
-- For multi-object or multi-stage work that cannot be completed reliably in one bounded step, create a \`write_todos\` plan first and divide the work by dependency into independently verifiable batches. Process only the current batch and record its result before continuing; synthesize only after all batches are complete. Global indexes and constraints may be read first, but do not preload all source content. This overrides generic advice to speculatively read multiple files in parallel.
 
 ## EditorState Contract
 

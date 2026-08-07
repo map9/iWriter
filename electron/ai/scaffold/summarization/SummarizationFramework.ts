@@ -55,6 +55,7 @@ Return only Markdown with these sections:
 ## Evidence and source references
 ## Missing, failed, and stale items
 ## Next action
+## Retrieval keys
 
 Common preservation requirements:
 ${common}
@@ -64,11 +65,14 @@ ${domain}
 
 Rules:
 - Prefer compact bullets over narrative.
-- Distinguish confirmed facts from inference. Do not invent missing state.
-- Preserve source paths/sections beside extracted facts, but do not reproduce large source text or tool output.
-- A deterministic context ledger is injected separately. Do not attempt to enumerate every read call.
+- Distinguish confirmed facts from inference. Label conclusions as confirmed, inference, or open when the status matters. Do not invent missing state.
+- Preserve source paths/sections beside extracted facts, but do not reproduce large source text or tool output. For every unresolved conflict, keep one compact evidence tuple with both conflicting facts, their exact sources, and any decisive value, wording, or counterevidence.
+- A deterministic context ledger is injected separately. Record semantic results, not an inventory of read, search, or list calls.
 - Recent messages are preserved separately. Do not waste space restating them unless needed to connect the task.
-- If an earlier summary is present, carry forward still-relevant state from it.
+- If an earlier summary is present, treat it as mutable state to rewrite, not text to append. Replace superseded facts and remove resolved, stale, recent, or duplicate items.
+- Each fact should appear in only one section. Refer to it briefly elsewhere instead of restating it.
+- Do not list untouched or unread sources as missing unless they block the requested deliverable or could materially change the exact next action.
+- Under "Retrieval keys", list 6-10 discriminative literal keys from this conversation. Prefer exact paths, block or scene IDs, names, and distinctive multi-word phrases; avoid generic single words when a lower-frequency key exists. Do not write prose there.
 
 Conversation to compact:
 {conversation}`

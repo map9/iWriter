@@ -14,7 +14,7 @@
         {{ summaryLabel }}
       </div>
       <button
-        class="btn btn-ghost btn-square btn-xs pointer-events-none opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-transparent"
+        class="btn btn-ghost btn-square btn-xs border-none pointer-events-none opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-transparent"
         :title="expanded ? t('agentPanel.common.collapse') : t('agentPanel.common.expandDetails')"
         @click="expanded = !expanded"
       >

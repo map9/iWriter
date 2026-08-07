@@ -78,7 +78,7 @@ function toggleExpanded() {
 
         <span
           v-if="isExpandable"
-          class="btn btn-ghost btn-square btn-xs pointer-events-none opacity-0 transition-opacity group-hover:opacity-100"
+          class="btn btn-ghost btn-square btn-xs border-none pointer-events-none opacity-0 transition-opacity group-hover:opacity-100"
         >
           <IconChevronUp v-if="expanded" class="icon-2xs" />
           <IconChevronDown v-else class="icon-2xs" />

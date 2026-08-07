@@ -55,7 +55,6 @@
             r="7"
             fill="none"
             :class="compactProgressClass()"
-            class="text-primary"
             stroke="currentColor"
             stroke-width="3"
             stroke-linecap="round"

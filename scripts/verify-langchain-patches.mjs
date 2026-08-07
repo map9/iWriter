@@ -5,6 +5,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { BaseCallbackHandler } from '@langchain/core/callbacks/base'
 import { CallbackManager } from '@langchain/core/callbacks/manager'
+import { ContextOverflowError } from '@langchain/core/errors'
 import { convertChunksToEvents } from '@langchain/core/language_models/compat'
 import { AIMessage, AIMessageChunk, HumanMessage } from '@langchain/core/messages'
 import { ChatGenerationChunk } from '@langchain/core/outputs'
@@ -167,6 +168,27 @@ assert.equal(summarizationMiddleware.stateSchema.safeParse({
 let configuredSummaryModelCalls = 0
 let requestModelCalls = 0
 let configuredSummaryModelConfig
+const historyFiles = new Map()
+let historyWriteCount = 0
+const historyBackend = {
+  async write(filePath, content) {
+    historyWriteCount += 1
+    historyFiles.set(filePath, content)
+    return { path: filePath }
+  },
+  async downloadFiles(filePaths) {
+    return filePaths.map(filePath => historyFiles.has(filePath)
+      ? { path: filePath, content: new TextEncoder().encode(historyFiles.get(filePath)) }
+      : { path: filePath, error: 'not found' })
+  },
+  async uploadFiles(files) {
+    return files.map(([filePath, content]) => {
+      historyWriteCount += 1
+      historyFiles.set(filePath, new TextDecoder().decode(content))
+      return { path: filePath }
+    })
+  },
+}
 const configuredSummaryModel = {
   profile: { maxInputTokens: 10_000 },
   invoke: async (_messages, config) => {
@@ -190,7 +212,7 @@ const requestModel = {
 const originalGetRunnableConfig = AsyncLocalStorageProviderSingleton.getRunnableConfig
 const summarizationStreamEvents = []
 const configuredSummarizationMiddleware = createSummarizationMiddleware({
-  backend: { write: async filePath => ({ path: filePath }) },
+  backend: historyBackend,
   model: configuredSummaryModel,
   trigger: { type: 'messages', value: 1 },
   keep: { type: 'messages', value: 0 },
@@ -226,6 +248,23 @@ assert.ok(configuredSummaryModelConfig.tags.includes('langsmith:nostream'))
 assert.equal(configuredSummaryModelConfig.metadata.lc_source, 'summarization')
 assert.match(summaryContent, /PUBLIC SUMMARY/)
 assert.doesNotMatch(summaryContent, /private reasoning/)
+assert.match(summaryContent, /grep/i)
+assert.match(summaryContent, /read_file/i)
+assert.match(summaryContent, /offset/i)
+assert.match(summaryContent, /limit/i)
+assert.match(summaryContent, /context ledger.*current/is)
+assert.match(summaryContent, /search.*conversation history.*before rereading.*project source/is)
+assert.match(summaryContent, /Summary block.*Original messages/is)
+assert.match(summaryContent, /20-40 lines/i)
+assert.match(summaryContent, /hard maximum.*80 lines/i)
+assert.match(summaryContent, /stale.*history lacks/is)
+const archivedHistory = [...historyFiles.values()].join('\n')
+assert.match(archivedHistory, /## Compression archive:/)
+assert.match(archivedHistory, /### Summary/)
+assert.match(archivedHistory, /PUBLIC SUMMARY/)
+assert.match(archivedHistory, /### Original messages/)
+assert.match(archivedHistory, /hello/)
+assert.equal(historyWriteCount, 1)
 assert.deepEqual(
   summarizationStreamEvents.map(event => event.name),
   ['deepagents_summarization', 'deepagents_summarization'],
@@ -238,6 +277,62 @@ assert.equal(summarizationStreamEvents[0].payload.eventId, summarizationStreamEv
 assert.equal(summarizationStreamEvents[1].payload.summary, 'PUBLIC SUMMARY')
 assert.equal(summarizationStreamEvents[1].payload.subagentName, 'reviewer')
 assert.equal(summarizationStreamEvents[1].payload.subagentId, 'task-1')
+
+await configuredSummarizationMiddleware.wrapModelCall({
+  messages: [new HumanMessage('second archived history')],
+  state: { messages: [new HumanMessage('second archived history')] },
+  model: requestModel,
+  tools: [],
+}, async () => new AIMessage('handled again'))
+
+const appendedHistory = [...historyFiles.values()].join('\n')
+assert.equal(appendedHistory.match(/## Compression archive:/g)?.length, 2)
+assert.equal(appendedHistory.match(/### Summary/g)?.length, 2)
+assert.match(appendedHistory, /hello/)
+assert.match(appendedHistory, /second archived history/)
+assert.equal(historyWriteCount, 2)
+
+let overflowSummaryModelCalls = 0
+let overflowHandlerCalls = 0
+let overflowArchiveWrites = 0
+let overflowArchiveContent = ''
+const overflowMiddleware = createSummarizationMiddleware({
+  backend: {
+    async write(filePath, content) {
+      overflowArchiveWrites += 1
+      overflowArchiveContent = content
+      return { path: filePath }
+    },
+  },
+  model: {
+    profile: { maxInputTokens: 10_000 },
+    async invoke() {
+      overflowSummaryModelCalls += 1
+      return new AIMessage(`OVERFLOW SUMMARY ${overflowSummaryModelCalls}`)
+    },
+  },
+  trigger: { type: 'messages', value: 1 },
+  keep: { type: 'messages', value: 0 },
+  tokenCounter: () => 100,
+  trimTokensToSummarize: 1_000,
+  summaryPrompt: 'Summarize: {conversation}',
+})
+await overflowMiddleware.wrapModelCall({
+  messages: [new HumanMessage('overflow history')],
+  state: { messages: [new HumanMessage('overflow history')] },
+  model: requestModel,
+  tools: [],
+}, async () => {
+  overflowHandlerCalls += 1
+  if (overflowHandlerCalls === 1) throw new ContextOverflowError()
+  return new AIMessage('handled after retry')
+})
+
+assert.equal(overflowSummaryModelCalls, 2)
+assert.equal(overflowHandlerCalls, 2)
+assert.equal(overflowArchiveWrites, 1)
+assert.match(overflowArchiveContent, /OVERFLOW SUMMARY 2/)
+assert.doesNotMatch(overflowArchiveContent, /OVERFLOW SUMMARY 1/)
 
 class SentinelCallbackHandler extends BaseCallbackHandler {
   name = 'sentinel_callback_handler'
