@@ -3,6 +3,9 @@ import type { FilesystemReviewItem } from '@/ai/types'
 import type { DomainReviewItem, ResumeDecision } from '@/ai/ipc'
 import type { LiveTurn, ThreadRunState } from './runtimeState'
 
+const FILESYSTEM_REJECTION_MESSAGE = 'The user rejected this file operation. Do not retry automatically. Briefly acknowledge and wait for the user to redirect.'
+const FILESYSTEM_BATCH_REJECTION_MESSAGE = 'The user rejected all file operations in this batch. Do not retry automatically. Briefly acknowledge and wait for the user to redirect.'
+
 interface FilesystemReviewModuleDeps {
   pendingFilesystemReviews: ComputedRef<FilesystemReviewItem[]>
   interruptedThreadId: Ref<string | null>
@@ -122,11 +125,11 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
         return { type: 'rejected', message: 'User reviewed only the filesystem operation in this mixed approval batch.' }
       }
       const decision = batch.decisionsById[id]
-      if (!decision) return { type: 'rejected', message: 'User rejected this file operation.' }
+      if (!decision) return { type: 'rejected', message: FILESYSTEM_REJECTION_MESSAGE }
       if (decision.type === 'approved') return { type: 'approved' }
       return {
         type: 'rejected',
-        message: decision.message ?? 'User rejected this file operation.',
+        message: decision.message ?? FILESYSTEM_REJECTION_MESSAGE,
       }
     })
 
@@ -167,7 +170,7 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
     if (reviewBatch.value?.reviewsById[reviewId]) {
       reviewBatch.value.decisionsById[reviewId] = {
         type: 'rejected',
-        message: message ?? 'User rejected this file operation.',
+        message: message ?? FILESYSTEM_REJECTION_MESSAGE,
       }
     }
     removePendingReview(reviewId)
@@ -181,7 +184,7 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
     for (const reviewId of batch.filesystemIds) {
       batch.decisionsById[reviewId] = type === 'approved'
         ? { type: 'approved' }
-        : { type: 'rejected', message: 'User rejected all file operations in this batch.' }
+        : { type: 'rejected', message: FILESYSTEM_BATCH_REJECTION_MESSAGE }
       removePendingReview(reviewId)
     }
     await maybeFlushResume()

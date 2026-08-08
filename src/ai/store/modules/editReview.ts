@@ -33,6 +33,9 @@ import type {
   ReviewBatchState,
 } from '@/ai/review/common/types'
 
+const EDIT_REJECTION_MESSAGE = 'The user rejected this proposal. Do not retry or automatically propose a replacement. Briefly acknowledge and ask what the user wants changed.'
+const EDIT_BATCH_REJECTION_MESSAGE = 'The user rejected all proposals in this batch. Do not retry or automatically propose replacements. Briefly acknowledge and ask what the user wants changed.'
+
 interface EditReviewModuleDeps {
   appStore: ReviewExecutorAppStoreLike
   saveFile?: (content: string, absolutePath: string) => Promise<unknown>
@@ -220,7 +223,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
     const decisions: ResumeDecision[] = Array.from({ length: count }, (_, index) => {
       const proposalId = currentBatch.order[index]
       const record = proposalId ? currentBatch.decisionsById[proposalId] : undefined
-      if (!record) return { type: 'rejected', message: 'User rejected.' }
+      if (!record) return { type: 'rejected', message: EDIT_REJECTION_MESSAGE }
       if (record.kind === 'failed_to_apply') {
         return {
           type: 'responded',
@@ -232,7 +235,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
       return {
         type: record.kind === 'approved' ? 'approved' : record.kind === 'edited' ? 'edited' : 'rejected',
         editedArgs: record.editedArgs,
-        message: record.kind === 'approved' || record.kind === 'edited' ? undefined : (record.message ?? 'User rejected.'),
+        message: record.kind === 'approved' || record.kind === 'edited' ? undefined : (record.message ?? EDIT_REJECTION_MESSAGE),
       }
     })
 
@@ -299,7 +302,9 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
   }
 
   async function rejectEditProposal(proposalId: string, message?: string) {
-    if (getProposalIndex(proposalId) >= 0) setProposalDecision(proposalId, 'skipped', { message })
+    if (getProposalIndex(proposalId) >= 0) {
+      setProposalDecision(proposalId, 'skipped', { message: message ?? EDIT_REJECTION_MESSAGE })
+    }
     threadSync.updateLocalProposalToolCall(proposalId, 'rejected')
     removePendingProposal(proposalId)
     await maybeFlushResume()
@@ -309,7 +314,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
   async function decideAllProposals(kind: 'approved' | 'skipped') {
     const batch = getReviewBatch()
     if (!batch) return
-    const message = kind === 'skipped' ? 'User rejected all proposals in this batch.' : undefined
+    const message = kind === 'skipped' ? EDIT_BATCH_REJECTION_MESSAGE : undefined
     for (const proposalId of batch.order) {
       setProposalDecision(proposalId, kind, { message })
       if (kind === 'skipped') threadSync.updateLocalProposalToolCall(proposalId, 'rejected')

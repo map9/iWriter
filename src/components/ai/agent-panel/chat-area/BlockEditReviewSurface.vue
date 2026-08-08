@@ -223,7 +223,7 @@ function approve() {
 
 function rejectCurrent() {
   if (!current.value) return
-  emit('reject', { id: current.value.id, message: t('agentPanel.blockEditReviewSurface.userRejected') })
+  emit('reject', { id: current.value.id })
 }
 
 function prev() {
