@@ -10,6 +10,7 @@ export class TooltipManager {
   private showTimer: number | null = null
   private hideTimer: number | null = null
   private currentTarget: HTMLElement | null = null
+  private currentContent: TooltipContent | null = null
   private currentCleanup: CleanupFunction | null = null
   private isLocked = false
   private commandHandler?: CommandHandler
@@ -32,10 +33,25 @@ export class TooltipManager {
   show(content: TooltipContent, targetElement: HTMLElement): void {
     this.clearTimers()
     this.currentTarget = targetElement
+    this.currentContent = content
     
     this.showTimer = window.setTimeout(() => {
-      this.displayTooltip(content, targetElement)
+      this.showTimer = null
+      if (this.currentTarget === targetElement && this.currentContent) {
+        this.displayTooltip(this.currentContent, targetElement)
+      }
     }, this.SHOW_DELAY)
+  }
+
+  /** Update the current tooltip without restarting its hover delay. */
+  update(content: TooltipContent, targetElement: HTMLElement): void {
+    if (this.currentTarget !== targetElement) return
+    this.currentContent = content
+
+    const container = this.tooltipEl?.firstElementChild as HTMLElement | undefined
+    if (container?.classList.contains('show')) {
+      this.displayTooltip(content, targetElement)
+    }
   }
 
   /**
@@ -432,6 +448,7 @@ export class TooltipManager {
     }
     
     this.currentTarget = null
+    this.currentContent = null
   }
 
   /**

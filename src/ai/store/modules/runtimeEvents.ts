@@ -104,7 +104,11 @@ function makeEmptyUsageTotals(): UsageTotals {
 }
 
 function makeEmptyThreadUsage(): ThreadUsage {
-  return { main: makeEmptyUsageTotals(), subagents: makeEmptyUsageTotals() }
+  return {
+    main: makeEmptyUsageTotals(),
+    subagents: makeEmptyUsageTotals(),
+    latestMainInputTokens: 0,
+  }
 }
 
 export function createRuntimeEvents(deps: RuntimeEventsDeps) {
@@ -392,12 +396,22 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     target.outputTokens += chunk.usage.outputTokens
     target.cacheReadTokens += chunk.usage.cacheReadTokens
     target.cacheCreationTokens += chunk.usage.cacheCreationTokens
+    if (!chunk.subagentId) {
+      acc.latestMainInputTokens = chunk.usage.inputTokens
+    }
 
     // Push updated totals to the owning thread so switching away mid-run does not leave
     // the tooltip stale when the user returns.
     const thread = deps.getThreadById(chunk.threadId)
     if (thread) {
-      deps.updateThread({ ...thread, usage: { main: { ...acc.main }, subagents: { ...acc.subagents } } })
+      deps.updateThread({
+        ...thread,
+        usage: {
+          main: { ...acc.main },
+          subagents: { ...acc.subagents },
+          latestMainInputTokens: acc.latestMainInputTokens,
+        },
+      })
     }
   }
 

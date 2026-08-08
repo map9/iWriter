@@ -5,6 +5,80 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 let modulePromise
+let chatSendModulePromise
+
+async function loadChatSendModule() {
+  if (!chatSendModulePromise) {
+    chatSendModulePromise = (async () => {
+      const result = await build({
+        stdin: {
+          contents: `
+            export { reactive, ref, nextTick } from 'vue'
+            export { useChatSend } from './src/components/ai/agent-panel/composables/useChatSend.ts'
+          `,
+          resolveDir: process.cwd(),
+          sourcefile: 'chat-send-test-entry.ts',
+        },
+        bundle: true,
+        platform: 'node',
+        format: 'esm',
+        write: false,
+        alias: {
+          '@': resolve('src'),
+        },
+        plugins: [{
+          name: 'stub-ai-store',
+          setup(buildApi) {
+            buildApi.onResolve({ filter: /^@\/ai\/store\/ai$/ }, () => ({
+              path: 'ai-store',
+              namespace: 'test-stub',
+            }))
+            buildApi.onLoad({ filter: /.*/, namespace: 'test-stub' }, () => ({
+              contents: 'export function useAiStore() { return globalThis.__iwriterTestAiStore }',
+              loader: 'js',
+            }))
+          },
+        }],
+      })
+      const code = result.outputFiles[0].text
+      return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+    })()
+  }
+  return chatSendModulePromise
+}
+
+async function loadTooltipModule() {
+  const result = await build({
+    stdin: {
+      contents: `export { TooltipManager } from './src/components/common/statusbar/utils/TooltipManager.ts'`,
+      resolveDir: process.cwd(),
+      sourcefile: 'tooltip-manager-test-entry.ts',
+    },
+    bundle: true,
+    platform: 'browser',
+    format: 'esm',
+    write: false,
+  })
+  const code = result.outputFiles[0].text
+  return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+}
+
+function sessionStats(currentTokens) {
+  return {
+    visible: true,
+    currentTokens,
+    triggerTokens: 1000,
+    requestBudgetTokens: 1200,
+    keepTokens: 100,
+    maxInputTokens: 2000,
+  }
+}
+
+async function flushVueWatchers(nextTick) {
+  await nextTick()
+  await new Promise(resolvePromise => setImmediate(resolvePromise))
+  await nextTick()
+}
 
 async function loadModule() {
   if (!modulePromise) {
@@ -21,6 +95,9 @@ async function loadModule() {
             export {
               insertContextCompressionEvents,
             } from './src/ai/store/modules/runtimeDisplay.ts'
+            export {
+              createRuntimeEvents,
+            } from './src/ai/store/modules/runtimeEvents.ts'
             export {
               StreamEventAdapter,
               parseDeepAgentsSummarizationEvent,
@@ -85,7 +162,7 @@ describe('summarization framework', () => {
 })
 
 describe('context compression display event', () => {
-  it('renders an embedded root compression card after its anchor message timestamp', async () => {
+  it('keeps a live compression card at its stream position before later text and status', async () => {
     const { JSDOM } = await import('jsdom')
     const { parse } = await import('@vue/compiler-sfc')
     const { compile } = await import('@vue/compiler-dom')
@@ -127,30 +204,25 @@ describe('context compression display event', () => {
         startedAt: 1,
         timestamp: 2,
       }
-      const toolCall = {
-        id: 'read-1',
-        name: 'read_file',
-        arguments: {},
-        status: 'completed',
-      }
       const component = {
         render,
         setup() {
           const blocks = [
-            { type: 'tool_call', toolCallId: toolCall.id },
+            { type: 'text', text: 'BEFORE_COMPRESSION' },
             { type: 'context_compression', event },
+            { type: 'text', text: 'AFTER_COMPRESSION' },
           ]
           return {
             shouldRenderMessage: true,
             message: {
               id: 'assistant-1',
               role: 'assistant',
-              content: '',
+              content: 'BEFORE_COMPRESSIONAFTER_COMPRESSION',
               timestamp: 1,
-              toolCalls: [toolCall],
+              toolCalls: [],
             },
             isEditing: false,
-            isPreview: false,
+            isPreview: true,
             isExpanded: true,
             isOverflow: false,
             isHovered: false,
@@ -163,20 +235,20 @@ describe('context compression display event', () => {
             isLatestAssistantMessage: false,
             shouldShowThinkingToggle: false,
             thinkingContent: '',
-            previewStatusText: '',
+            previewStatusText: 'STREAM_STATUS',
             showPreviewPulse: false,
             showHoverToolbar: false,
             maxTextareaHeight: '100px',
-            splitAssistantText: () => [],
+            splitAssistantText: text => [{ kind: 'prose', text }],
             isReadToolById: () => true,
             findSubTaskFor: () => undefined,
             shouldShowTaskFallback: () => false,
-            toolCallById: () => toolCall,
+            toolCallById: () => undefined,
             contentBlockToolPosition: () => 'single',
             contentBlockToolMarginClass: () => '',
             taskSubagentTypeOf: () => undefined,
             readToolPosition: () => 'single',
-            formatTime: () => 'MESSAGE_TIME',
+            formatTime: () => '',
             t: key => key,
             handleCopy: () => {},
             startEdit: () => {},
@@ -189,7 +261,6 @@ describe('context compression display event', () => {
       app = Vue.createApp(component)
       const passthroughStub = { render: () => Vue.h('div') }
       for (const name of [
-        'MarkdownContentView',
         'SubTaskProgressView',
         'DomainMessageSession',
         'ThinkingBlock',
@@ -200,6 +271,12 @@ describe('context compression display event', () => {
       ]) {
         app.component(name, passthroughStub)
       }
+      app.component('MarkdownContentView', {
+        props: ['content'],
+        render() {
+          return Vue.h('div', { 'data-testid': 'text-block-stub' }, this.content)
+        },
+      })
       app.component('ToolCallCard', {
         render: () => Vue.h('div', { 'data-testid': 'tool-call-card-stub' }),
       })
@@ -211,14 +288,29 @@ describe('context compression display event', () => {
       const compressionCard = dom.window.document.querySelector(
         '[data-testid="context-compression-card-stub"]',
       )
-      const timestamp = [...dom.window.document.querySelectorAll('div')]
-        .find(element => element.children.length === 0 && element.textContent.trim() === 'MESSAGE_TIME')
+      const textBlocks = [...dom.window.document.querySelectorAll('[data-testid="text-block-stub"]')]
+      const beforeCompression = textBlocks.find(element => element.textContent === 'BEFORE_COMPRESSION')
+      const afterCompression = textBlocks.find(element => element.textContent === 'AFTER_COMPRESSION')
+      const status = [...dom.window.document.querySelectorAll('span')]
+        .find(element => element.textContent === 'STREAM_STATUS')
       assert.ok(compressionCard)
-      assert.ok(timestamp)
+      assert.ok(beforeCompression)
+      assert.ok(afterCompression)
+      assert.ok(status)
       assert.ok(
-        timestamp.compareDocumentPosition(compressionCard)
+        beforeCompression.compareDocumentPosition(compressionCard)
           & dom.window.Node.DOCUMENT_POSITION_FOLLOWING,
-        'expected the anchor message timestamp to render before the compression card',
+        'expected earlier streamed text before the compression card',
+      )
+      assert.ok(
+        compressionCard.compareDocumentPosition(afterCompression)
+          & dom.window.Node.DOCUMENT_POSITION_FOLLOWING,
+        'expected later streamed text after the compression card',
+      )
+      assert.ok(
+        afterCompression.compareDocumentPosition(status)
+          & dom.window.Node.DOCUMENT_POSITION_FOLLOWING,
+        'expected the transient status after all streamed content',
       )
     } finally {
       app?.unmount()
@@ -490,6 +582,46 @@ describe('context compression display event', () => {
     assert.equal(fallbackCompression.anchorToolCallId, 'latest-root-tool')
   })
 
+  it('does not replace a final-response message anchor with an earlier tool anchor', async () => {
+    const { StreamEventAdapter } = await loadModule()
+    const chunks = []
+    const adapter = new StreamEventAdapter('thread-1', 'turn-1', {
+      sendStreamChunk(chunk) { chunks.push(chunk) },
+    })
+
+    await adapter.consumeToolCalls((async function* () {
+      yield {
+        name: 'read_file',
+        callId: 'earlier-tool',
+        input: { file_path: '/tmp/example.md' },
+        status: Promise.resolve('finished'),
+        output: Promise.resolve('done'),
+        error: Promise.resolve(undefined),
+      }
+    })())
+    await adapter.consumeSummarizationEvents((async function* () {
+      yield {
+        method: 'custom',
+        params: {
+          data: {
+            name: 'deepagents_summarization',
+            payload: {
+              eventId: 'post-response-summary',
+              phase: 'started',
+              startedAt: 10,
+              timestamp: 10,
+              anchorMessageId: 'final-response',
+            },
+          },
+        },
+      }
+    })())
+
+    const compression = chunks.find(chunk => chunk.type === 'context_compression')
+    assert.equal(compression.anchorMessageId, 'final-response')
+    assert.equal(compression.anchorToolCallId, undefined)
+  })
+
   it('keeps compression in the stream protocol and renderer memory only', () => {
     const engineSource = readFileSync('electron/ai/AgentEngine.ts', 'utf8')
     const preloadSource = readFileSync('electron/preload.ts', 'utf8')
@@ -553,5 +685,237 @@ describe('context compression display event', () => {
     assert.match(runtimeEventsSource, /upsertContextCompressionEvent/)
     assert.doesNotMatch(assemblerSource, /ContextLedgerMiddleware/)
     assert.doesNotMatch(creativeCapabilitiesSource, /ContextLedgerMiddleware/)
+  })
+})
+
+describe('compact context indicator', () => {
+  async function createChatSendHarness(
+    responses = [sessionStats(100), sessionStats(360)],
+  ) {
+    const chatSendModule = await loadChatSendModule()
+    let requestCount = 0
+    const store = chatSendModule.reactive({
+      activeThread: {
+        id: 'thread-1',
+        updatedAt: 1,
+        domain: 'editing',
+        mode: 'edit',
+        modelId: 'model-1',
+        usage: {
+          latestMainInputTokens: 0,
+          main: {
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreationTokens: 0,
+          },
+          subagents: {
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreationTokens: 0,
+          },
+        },
+      },
+      settings: { defaultMode: 'edit' },
+      effectiveProviderConfig: { id: 'provider-1', defaultModelId: 'model-1' },
+      displayMessages: [],
+      isStreaming: true,
+      liveTurnThreadId: 'thread-1',
+      draftInput: '',
+      setDraftInput(value) { this.draftInput = value },
+    })
+    const previousStore = globalThis.__iwriterTestAiStore
+    const previousWindow = globalThis.window
+    globalThis.__iwriterTestAiStore = store
+    globalThis.window = {
+      electronAPI: {
+        async aiGetSessionContextStats() {
+          const response = responses[Math.min(requestCount, responses.length - 1)]
+          requestCount += 1
+          return response
+        },
+      },
+    }
+    const state = chatSendModule.useChatSend(chatSendModule.ref([]))
+    await flushVueWatchers(chatSendModule.nextTick)
+
+    return {
+      state,
+      store,
+      nextTick: chatSendModule.nextTick,
+      getRequestCount: () => requestCount,
+      restore() {
+        globalThis.__iwriterTestAiStore = previousStore
+        globalThis.window = previousWindow
+      },
+    }
+  }
+
+  it('uses the latest main-agent input usage before the checkpoint catches up', async () => {
+    const harness = await createChatSendHarness()
+    try {
+      assert.equal(harness.state.currentSessionTokens.value, 100)
+      harness.store.activeThread.usage.main.inputTokens = 120
+      harness.store.activeThread.usage.latestMainInputTokens = 240
+      await flushVueWatchers(harness.nextTick)
+
+      assert.equal(harness.getRequestCount(), 1)
+      assert.equal(harness.state.currentSessionTokens.value, 240)
+    } finally {
+      harness.restore()
+    }
+  })
+
+  it('recalibrates context tokens when the run finishes', async () => {
+    const harness = await createChatSendHarness()
+    try {
+      assert.equal(harness.state.currentSessionTokens.value, 100)
+      harness.store.isStreaming = false
+      await flushVueWatchers(harness.nextTick)
+
+      assert.equal(harness.getRequestCount(), 2)
+      assert.equal(harness.state.currentSessionTokens.value, 360)
+    } finally {
+      harness.restore()
+    }
+  })
+
+  it('uses checkpoint stats after switching away from the running thread', async () => {
+    const harness = await createChatSendHarness()
+    try {
+      harness.store.activeThread = {
+        ...harness.store.activeThread,
+        id: 'thread-2',
+        usage: {
+          ...harness.store.activeThread.usage,
+          latestMainInputTokens: 900,
+          main: {
+            ...harness.store.activeThread.usage.main,
+            inputTokens: 900,
+          },
+        },
+      }
+      await flushVueWatchers(harness.nextTick)
+
+      assert.equal(harness.getRequestCount(), 2)
+      assert.equal(harness.state.currentSessionTokens.value, 360)
+    } finally {
+      harness.restore()
+    }
+  })
+
+  it('keeps equal-sized consecutive main calls ahead of a stale stats request', async () => {
+    const staleStats = Promise.withResolvers()
+    const harness = await createChatSendHarness([
+      sessionStats(100),
+      staleStats.promise,
+    ])
+    try {
+      harness.store.activeThread.usage.main.inputTokens = 120
+      harness.store.activeThread.usage.latestMainInputTokens = 240
+      await flushVueWatchers(harness.nextTick)
+      assert.equal(harness.state.currentSessionTokens.value, 240)
+
+      harness.store.displayMessages.push({ id: 'message-1' })
+      await flushVueWatchers(harness.nextTick)
+      assert.equal(harness.getRequestCount(), 2)
+
+      harness.store.activeThread.usage.main.inputTokens = 240
+      await harness.nextTick()
+      staleStats.resolve(sessionStats(100))
+      await flushVueWatchers(harness.nextTick)
+
+      assert.equal(harness.state.currentSessionTokens.value, 240)
+    } finally {
+      harness.restore()
+    }
+  })
+
+  it('retains the latest main call input separately from cumulative usage', async () => {
+    const { createRuntimeEvents } = await loadModule()
+    let thread = { id: 'thread-1' }
+    const runtimeEvents = createRuntimeEvents({
+      getThreadById: () => thread,
+      updateThread(updated) { thread = updated },
+    })
+
+    runtimeEvents.onStreamChunk({
+      threadId: 'thread-1',
+      type: 'usage',
+      messageId: 'main-1',
+      usage: {
+        inputTokens: 240,
+        outputTokens: 20,
+        totalTokens: 260,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+      },
+    })
+    runtimeEvents.onStreamChunk({
+      threadId: 'thread-1',
+      type: 'usage',
+      messageId: 'subagent-1',
+      subagentId: 'task-1',
+      usage: {
+        inputTokens: 80,
+        outputTokens: 10,
+        totalTokens: 90,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+      },
+    })
+
+    assert.equal(thread.usage.latestMainInputTokens, 240)
+    assert.equal(thread.usage.main.inputTokens, 240)
+    assert.equal(thread.usage.subagents.inputTokens, 80)
+  })
+
+  it('updates an already visible tooltip without another hover', async () => {
+    const { JSDOM } = await import('jsdom')
+    const dom = new JSDOM('<div id="target"></div>', { pretendToBeVisual: true })
+    const globalKeys = [
+      'window',
+      'document',
+      'HTMLElement',
+      'requestAnimationFrame',
+      'cancelAnimationFrame',
+    ]
+    const previousGlobals = new Map(
+      globalKeys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]),
+    )
+    for (const key of globalKeys) {
+      const value = key === 'requestAnimationFrame' || key === 'cancelAnimationFrame'
+        ? dom.window[key].bind(dom.window)
+        : dom.window[key]
+      Object.defineProperty(globalThis, key, { configurable: true, writable: true, value })
+    }
+
+    let manager
+    try {
+      const { TooltipManager } = await loadTooltipModule()
+      manager = new TooltipManager()
+      const target = dom.window.document.querySelector('#target')
+      manager.show({ type: 'text', content: '100 tokens' }, target)
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 800))
+      assert.equal(
+        dom.window.document.querySelector('.iw-tooltip-content')?.textContent,
+        '100 tokens',
+      )
+
+      assert.equal(typeof manager.update, 'function')
+      manager.update({ type: 'text', content: '240 tokens' }, target)
+      assert.equal(
+        dom.window.document.querySelector('.iw-tooltip-content')?.textContent,
+        '240 tokens',
+      )
+    } finally {
+      manager?.dispose()
+      dom.window.close()
+      for (const [key, descriptor] of previousGlobals) {
+        if (descriptor) Object.defineProperty(globalThis, key, descriptor)
+        else delete globalThis[key]
+      }
+    }
   })
 })

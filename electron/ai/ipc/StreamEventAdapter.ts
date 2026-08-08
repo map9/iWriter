@@ -198,7 +198,7 @@ export class StreamEventAdapter {
         // The patched middleware supplies the checkpoint-stable anchor. During local development an
         // already-installed deepagents build may still emit the older payload, so retain a causal
         // fallback to the latest root tool call observed by this run adapter.
-        const fallbackToolCallId = hasSubagent
+        const fallbackToolCallId = hasSubagent || event.anchorMessageId
           ? undefined
           : this.toolCalls[this.toolCalls.length - 1]?.id
         this.bridge.sendStreamChunk({

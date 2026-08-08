@@ -46,8 +46,10 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     if (compactTriggerTokens.value <= 0) return 0
     return Math.max(0, Math.min(1, currentSessionTokens.value / compactTriggerTokens.value))
   })
+  let sessionContextStatsRequestVersion = 0
 
   async function refreshSessionContextStats() {
+    const requestVersion = ++sessionContextStatsRequestVersion
     const thread = aiStore.activeThread
     const domain = thread?.domain ?? resolveAgentDomain(aiStore.settings.defaultMode)
     const mode = thread?.mode ?? aiStore.settings.defaultMode
@@ -55,6 +57,7 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     const providerId = provider?.id
     const modelId = provider ? resolveAiProviderModelId(provider, thread?.modelId) : ''
     if (!providerId || !modelId) {
+      if (requestVersion !== sessionContextStatsRequestVersion) return
       showCompact.value = false
       currentSessionTokens.value = 0
       compactTriggerTokens.value = 0
@@ -74,13 +77,14 @@ export function useChatSend(contextFiles: Ref<string[]>) {
           thinkingLevel: thread?.thinkingLevel,
         },
       })
-      if (!result) return
+      if (!result || requestVersion !== sessionContextStatsRequestVersion) return
       showCompact.value = result.visible
       currentSessionTokens.value = result.currentTokens
       compactTriggerTokens.value = result.triggerTokens
       requestBudgetTokens.value = result.requestBudgetTokens
       maxInputTokens.value = result.maxInputTokens ?? null
     } catch {
+      if (requestVersion !== sessionContextStatsRequestVersion) return
       showCompact.value = false
       currentSessionTokens.value = 0
       compactTriggerTokens.value = 0
@@ -143,9 +147,28 @@ export function useChatSend(contextFiles: Ref<string[]>) {
       () => aiStore.activeThread?.mode ?? aiStore.settings.defaultMode,
       () => aiStore.activeThread?.updatedAt ?? 0,
       () => aiStore.displayMessages.length,
+      () => aiStore.isStreaming,
     ],
     () => { void refreshSessionContextStats() },
     { immediate: true }
+  )
+
+  watch(
+    () => [
+      aiStore.activeThread?.id ?? '',
+      aiStore.activeThread?.usage?.main.inputTokens ?? 0,
+      aiStore.activeThread?.usage?.latestMainInputTokens ?? 0,
+    ] as const,
+    ([activeThreadId, accumulatedInputTokens, latestInputTokens], previous) => {
+      const [previousThreadId, previousAccumulatedInputTokens] = previous
+      const isNewUsageEvent = activeThreadId !== previousThreadId
+        || accumulatedInputTokens !== previousAccumulatedInputTokens
+      if (!isNewUsageEvent) return
+      if (!aiStore.isStreaming || activeThreadId !== aiStore.liveTurnThreadId) return
+      if (latestInputTokens <= 0) return
+      sessionContextStatsRequestVersion += 1
+      currentSessionTokens.value = latestInputTokens
+    },
   )
 
   return {

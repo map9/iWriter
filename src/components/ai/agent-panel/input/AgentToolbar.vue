@@ -88,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TooltipContent } from '@/components/common/statusbar'
 import { tooltipManager } from '@/components/common/statusbar'
@@ -225,6 +225,11 @@ function handleCompactMouseEnter() {
 function handleCompactMouseLeave() {
   tooltipManager.hide()
 }
+
+watch(compactTooltip, content => {
+  if (!compactIndicatorRef.value) return
+  tooltipManager.update(content, compactIndicatorRef.value)
+})
 
 function formatCompactTokens(value: number): string {
   if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`

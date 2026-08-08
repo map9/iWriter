@@ -647,6 +647,8 @@ export interface UsageTotals {
 export interface ThreadUsage {
   main: UsageTotals
   subagents: UsageTotals
+  /** Input size of the latest main-agent model call, used for live context progress. */
+  latestMainInputTokens: number
 }
 
 // A thread (one conversation)
