@@ -19,14 +19,19 @@
     <template v-else>
       <AgentChatArea class="flex-1" :bottom-padding="chatBottomPadding" />
       <div
-        v-if="aiStore.isStreaming && streamingTaskPlan?.items?.length"
-        ref="taskPlanRef"
-        class="absolute left-3 right-3 z-10"
+        v-if="showBottomOverlay"
+        ref="bottomOverlayRef"
+        class="absolute left-3 right-3 z-10 flex flex-col gap-2"
         :style="{ bottom: `${inputAreaHeight + 2}px` }"
       >
         <TaskPlanCard
-          :items="streamingTaskPlan.items"
+          v-if="showTaskPlan"
+          :items="streamingTaskPlan?.items ?? []"
           :is-preview="true"
+        />
+        <PendingCommandList
+          v-if="showPendingCommands"
+          :commands="aiStore.pendingCommands"
         />
       </div>
       <div ref="inputAreaRef" class="absolute bottom-0 left-0 right-0 z-10">
@@ -46,6 +51,7 @@ import AgentHeader from './agent-panel/AgentHeader.vue'
 import AgentHistoryPanel from './agent-panel/AgentHistoryPanel.vue'
 import AgentChatArea from './agent-panel/AgentChatArea.vue'
 import TaskPlanCard from './agent-panel/TaskPlanCard.vue'
+import PendingCommandList from './agent-panel/PendingCommandList.vue'
 import AgentInputArea from './agent-panel/AgentInputArea.vue'
 
 const PANEL_UI_STATE_KEY = 'iwriter-ai-panel-ui'
@@ -77,10 +83,10 @@ const { t } = useI18n()
 
 const inputAreaRef = ref<HTMLElement | null>(null)
 const inputAreaHeight = ref(0)
-const taskPlanRef = ref<HTMLElement | null>(null)
-const taskPlanHeight = ref(0)
+const bottomOverlayRef = ref<HTMLElement | null>(null)
+const bottomOverlayHeight = ref(0)
 let resizeObserver: ResizeObserver | null = null
-let taskPlanResizeObserver: ResizeObserver | null = null
+let bottomOverlayResizeObserver: ResizeObserver | null = null
 
 const showHistory = computed(() => persistedPanelUi.view === 'history')
 
@@ -92,9 +98,14 @@ const headerTitle = computed(() => {
 })
 
 const streamingTaskPlan = computed(() => aiStore.streamingPreviewMessage?.taskPlan)
+const showTaskPlan = computed(() => aiStore.isStreaming && !!streamingTaskPlan.value?.items?.length)
+const showPendingCommands = computed(
+  () => !aiStore.isInterrupted && aiStore.pendingCommands.length > 0,
+)
+const showBottomOverlay = computed(() => showTaskPlan.value || showPendingCommands.value)
 
 const showBackButton = computed(() => showHistory.value)
-const chatBottomPadding = computed(() => inputAreaHeight.value + taskPlanHeight.value)
+const chatBottomPadding = computed(() => inputAreaHeight.value + bottomOverlayHeight.value)
 
 function handleHeaderBack() {
   persistedPanelUi.view = 'chat'
@@ -123,15 +134,16 @@ function confirmThreadTermination(actionLabel: string): boolean {
   return confirm(t('agentPanel.panel.terminateConfirm', { status: statusText, action: actionLabel }))
 }
 
-function stopActiveThreadIfNeeded() {
+async function stopActiveThreadIfNeeded(): Promise<boolean> {
   if (aiStore.isStreaming || aiStore.isInterrupted) {
-    aiStore.cancelStreaming()
+    return aiStore.cancelStreaming()
   }
+  return true
 }
 
-function createNewThread() {
+async function createNewThread() {
   if (!confirmThreadTermination(t('agentPanel.panel.actions.createNewThread'))) return
-  stopActiveThreadIfNeeded()
+  if (!await stopActiveThreadIfNeeded()) return
   persistedPanelUi.view = 'chat'
   aiStore.createNewThread()
 }
@@ -140,8 +152,8 @@ resizeObserver = new ResizeObserver(entries => {
   inputAreaHeight.value = entries[0]?.contentRect.height ?? 0
 })
 
-taskPlanResizeObserver = new ResizeObserver(entries => {
-  taskPlanHeight.value = entries[0]?.contentRect.height ?? 0
+bottomOverlayResizeObserver = new ResizeObserver(entries => {
+  bottomOverlayHeight.value = entries[0]?.contentRect.height ?? 0
 })
 
 watch(inputAreaRef, el => {
@@ -149,12 +161,12 @@ watch(inputAreaRef, el => {
   if (el) resizeObserver?.observe(el)
 })
 
-watch(taskPlanRef, el => {
-  taskPlanResizeObserver?.disconnect()
+watch(bottomOverlayRef, el => {
+  bottomOverlayResizeObserver?.disconnect()
   if (el) {
-    taskPlanResizeObserver?.observe(el)
+    bottomOverlayResizeObserver?.observe(el)
   } else {
-    taskPlanHeight.value = 0
+    bottomOverlayHeight.value = 0
   }
 })
 
@@ -164,7 +176,7 @@ async function selectThread(id: string) {
     return
   }
   if (!confirmThreadTermination(t('agentPanel.panel.actions.switchThread'))) return
-  stopActiveThreadIfNeeded()
+  if (!await stopActiveThreadIfNeeded()) return
   const switched = await aiStore.selectThread(id)
   if (switched) {
     persistedPanelUi.view = 'chat'
@@ -181,6 +193,6 @@ watch(
 
 onUnmounted(() => {
   resizeObserver?.disconnect()
-  taskPlanResizeObserver?.disconnect()
+  bottomOverlayResizeObserver?.disconnect()
 })
 </script>

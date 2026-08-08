@@ -444,6 +444,36 @@ describe('AgentEngine initialization', () => {
       ],
     )
   })
+
+  it('waits for an aborted run to settle before cancellation completes', async () => {
+    const { AgentEngine } = await loadModule()
+    const engine = new AgentEngine(() => null)
+    const release = Promise.withResolvers()
+    const abortController = new AbortController()
+    let runtimeCleared = false
+
+    engine.activeRuns.set('thread-steer', abortController)
+    engine.activeRunTasks.set('thread-steer', release.promise)
+    engine.runtimeStore = {
+      clearInterrupted() {},
+      getCurrentTurnId() { return 'turn-1' },
+      clearCurrentTurnId() { runtimeCleared = true },
+    }
+
+    let cancellationSettled = false
+    const cancellation = engine.cancel('thread-steer').then(() => {
+      cancellationSettled = true
+    })
+    await new Promise(resolvePromise => setImmediate(resolvePromise))
+
+    assert.equal(abortController.signal.aborted, true)
+    assert.equal(cancellationSettled, false)
+    assert.equal(runtimeCleared, false)
+
+    release.resolve()
+    await cancellation
+    assert.equal(runtimeCleared, true)
+  })
 })
 
 describe('Effective model budget', () => {

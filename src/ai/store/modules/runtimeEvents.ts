@@ -99,6 +99,12 @@ interface RuntimeEventsDeps {
   upsertContextCompressionEvent: (event: AiContextCompressionEvent) => void
 }
 
+export interface RunDoneCompletion {
+  completedSuccessfully: boolean
+  checkpointRefreshed: boolean
+  stillCurrent: boolean
+}
+
 function makeEmptyUsageTotals(): UsageTotals {
   return { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 }
 }
@@ -733,19 +739,24 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     }
   }
 
-  function onRunDone(event: RunDoneEvent) {
-    deps.finalizePendingCreativeApply()
-    deps.threadRunState.value = 'idle'
-    deps.clearLiveTurn()
-    deps.clearRunPointers()
-    deps.resetEditReviewState()
-    deps.resetCreativeReviewState()
+  async function onRunDone(
+    event: RunDoneEvent,
+    isCurrent: () => boolean = () => true,
+  ): Promise<RunDoneCompletion> {
+    const completedSuccessfully = !currentRunHasError
+    let checkpointRefreshed = false
+    if (isCurrent()) {
+      // Finalize before checkpoint normalization so the just-completed Creative
+      // round result can be attached to its assistant message. A later steer may
+      // supersede renderer cleanup, but must not leave this completed batch stale.
+      deps.finalizePendingCreativeApply()
+    }
 
-    const thread = deps.activeThread.value
-    if (thread && thread.id === event.threadId && !currentRunHasError) {
-      window.electronAPI.aiGetThreadMessages?.(event.threadId)
-        .then(messages => {
-          if (!messages?.length) return
+    try {
+      const thread = deps.activeThread.value
+      if (thread && thread.id === event.threadId && completedSuccessfully) {
+        const messages = await window.electronAPI.aiGetThreadMessages?.(event.threadId)
+        if (messages?.length && isCurrent()) {
           const current = deps.activeThread.value
           if (current && current.id === event.threadId) {
             const normalizedMessages = deps.normalizeMessagesForDisplay(messages)
@@ -769,9 +780,29 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
               }
             }
             deps.updateThread({ ...current, messages: normalizedMessages, messagesLoaded: true })
+            checkpointRefreshed = true
           }
-        })
-        .catch(() => { /* ignore */ })
+        }
+      }
+    } catch {
+      // Keep the completed live output already shown in the renderer. A later
+      // thread selection can retry loading authoritative checkpoint messages.
+    } finally {
+      if (isCurrent()) {
+        // Keep the run busy until the authoritative checkpoint refresh settles so
+        // new input cannot overtake the automatic pending-command handoff.
+        deps.threadRunState.value = 'idle'
+        deps.clearLiveTurn()
+        deps.clearRunPointers()
+        deps.resetEditReviewState()
+        deps.resetCreativeReviewState()
+      }
+    }
+
+    return {
+      completedSuccessfully,
+      checkpointRefreshed,
+      stillCurrent: isCurrent(),
     }
   }
 

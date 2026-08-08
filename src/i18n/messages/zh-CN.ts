@@ -525,6 +525,14 @@ export default {
     input: {
       sendMessagePlaceholder: '发送消息...',
     },
+    pendingCommands: {
+      steer: '中断并执行',
+      edit: '编辑',
+      delete: '删除',
+      save: '保存',
+      cancel: '取消',
+      checkpointNotReady: '会话同步尚未完成，排队指令未自动执行',
+    },
     attachPicker: {
       addFilesOrFolders: '添加文件/文件夹',
       browseFiles: '浏览文件...',

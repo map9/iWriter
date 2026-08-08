@@ -177,6 +177,8 @@ export class AgentEngine {
 
   /** One AbortController per active streaming threadId */
   private activeRuns = new Map<string, AbortController>()
+  /** The matching run task, used to make cancellation an awaitable handoff. */
+  private activeRunTasks = new Map<string, Promise<void>>()
   /** Thread-scoped runtime data: editor context + pending interrupts. */
   private runtimeStore = new ThreadRuntimeStore()
 
@@ -274,6 +276,7 @@ export class AgentEngine {
     this.threadListQuery?.deleteMeta(threadId)
     this.runtimeStore.deleteThread(threadId)
     this.activeRuns.delete(threadId)
+    this.activeRunTasks.delete(threadId)
     this._clearFallbackNotificationKeys(threadId)
     this._deleteCachedAgentsForThread(threadId)
     this.writingSessions.clearThread(threadId)
@@ -284,6 +287,7 @@ export class AgentEngine {
     this.threadListQuery?.clearMetas()
     this.runtimeStore.clear()
     this.activeRuns.clear()
+    this.activeRunTasks.clear()
     this.fallbackNotifiedTurnKeys.clear()
     this._clearAgentCache()
     this.writingSessions.clearAll()
@@ -354,9 +358,10 @@ export class AgentEngine {
     }
 
     // Run agent in background
-    this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language).catch(err => {
+    const runTask = this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language).catch(err => {
       console.error('[AgentEngine] _runSession error:', err)
     })
+    this._trackRunTask(threadId, runTask)
 
     return { threadId }
   }
@@ -412,12 +417,22 @@ export class AgentEngine {
 
   // ── Public: cancel ────────────────────────────────────────────────────────
 
-  cancel(threadId: string): void {
+  async cancel(threadId: string): Promise<void> {
     const ac = this.activeRuns.get(threadId)
     if (ac) {
       ac.abort()
-      this.activeRuns.delete(threadId)
     }
+    const runTask = this.activeRunTasks.get(threadId)
+    if (runTask) {
+      try {
+        await runTask
+      } catch {
+        // Run failures are already reported by the run owner. Cancellation only
+        // waits until its cleanup has finished before handing the thread back.
+      }
+    }
+    if (this.activeRuns.get(threadId) === ac) this.activeRuns.delete(threadId)
+    if (this.activeRunTasks.get(threadId) === runTask) this.activeRunTasks.delete(threadId)
     this.runtimeStore.clearInterrupted(threadId)
     this._clearFallbackNotificationKeys(threadId, this.runtimeStore.getCurrentTurnId(threadId))
     this.runtimeStore.clearCurrentTurnId(threadId)
@@ -542,6 +557,7 @@ export class AgentEngine {
       language,
     )
     resumePromise.catch(err => console.error('[AgentEngine] _continueSession error:', err))
+    this._trackRunTask(threadId, resumePromise)
 
     if (fullDecisions.some(d => d.type === 'responded')) {
       // Housekeeping: strip RESPOND_MARKER after the resumed stream has settled, so we clean
@@ -856,6 +872,15 @@ export class AgentEngine {
     await this._streamLoop(threadId, agent, { messages: [new HumanMessage(userContent)] }, runConfig)
   }
 
+  private _trackRunTask(threadId: string, runTask: Promise<void>): void {
+    this.activeRunTasks.set(threadId, runTask)
+    runTask.finally(() => {
+      if (this.activeRunTasks.get(threadId) === runTask) {
+        this.activeRunTasks.delete(threadId)
+      }
+    }).catch(() => { /* run owner reports the error */ })
+  }
+
   private async _continueSession(
     threadId: string,
     config: AiProviderConfig,
@@ -894,6 +919,11 @@ export class AgentEngine {
     runConfig: any,
   ): Promise<void> {
     const abortController = this.activeRuns.get(threadId)
+    const clearActiveRun = () => {
+      if (this.activeRuns.get(threadId) === abortController) {
+        this.activeRuns.delete(threadId)
+      }
+    }
     const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
     const adapter = new StreamEventAdapter(threadId, turnId, this.rendererBridge)
 
@@ -912,7 +942,7 @@ export class AgentEngine {
       })
 
       if (abortController?.signal.aborted) {
-        this.activeRuns.delete(threadId)
+        clearActiveRun()
         return
       }
 
@@ -938,7 +968,7 @@ export class AgentEngine {
           console.warn('[AgentEngine] run interrupted but no interrupts payload', { threadId })
         }
 
-        this.activeRuns.delete(threadId)
+        clearActiveRun()
         return
       }
 
@@ -973,7 +1003,7 @@ export class AgentEngine {
       })
     } catch (err) {
       if (abortController?.signal.aborted) {
-        this.activeRuns.delete(threadId)
+        clearActiveRun()
         return
       }
       console.error('[AgentEngine] Stream error:', err)
@@ -993,7 +1023,7 @@ export class AgentEngine {
         this._clearFallbackNotificationKeys(threadId, this.runtimeStore.getCurrentTurnId(threadId))
         this.runtimeStore.clearCurrentTurnId(threadId)
       }
-      this.activeRuns.delete(threadId)
+      clearActiveRun()
     }
   }
 

@@ -100,10 +100,7 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     }
   }
 
-  async function executeSend() {
-    const text = inputText.value.trim()
-    if (!text || aiStore.isStreaming) return
-
+  function collectSendContext(): SendContext | undefined {
     // Classify attached files into text / binary / directory
     const sendContext: SendContext = { textFilePaths: [], binaryFilePaths: [], directories: [] }
     for (const path of contextFiles.value) {
@@ -116,20 +113,35 @@ export function useChatSend(contextFiles: Ref<string[]>) {
     const hasContext = sendContext.textFilePaths.length > 0
                     || sendContext.binaryFilePaths.length > 0
                     || sendContext.directories.length > 0
+    return hasContext ? sendContext : undefined
+  }
 
-    const started = await aiStore.sendMessage(text, hasContext ? sendContext : undefined)
+  function clearComposer() {
+    inputText.value = ''
+    contextFiles.value.splice(0)
+    nextTick(() => {
+      if (inputEl.value) inputEl.value.style.height = 'auto'
+    })
+  }
+
+  async function executeSend() {
+    const text = inputText.value.trim()
+    if (!text || aiStore.isStreaming || aiStore.isInterrupted) return
+
+    const started = await aiStore.sendMessage(text, collectSendContext())
     if (started) {
-      inputText.value = ''
-      contextFiles.value.splice(0)
-      nextTick(() => {
-        if (inputEl.value) inputEl.value.style.height = 'auto'
-      })
+      clearComposer()
     }
   }
 
   async function sendMessage() {
     const text = inputText.value.trim()
-    if (!text || aiStore.isStreaming) return
+    if (!text) return
+    if (aiStore.isStreaming || aiStore.isInterrupted) {
+      const queued = aiStore.queuePendingCommand(text, collectSendContext())
+      if (queued) clearComposer()
+      return
+    }
     await executeSend()
   }
 

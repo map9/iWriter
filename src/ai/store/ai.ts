@@ -50,6 +50,10 @@ import {
 } from './modules/runtimeState'
 import { createRuntimeDisplay } from './modules/runtimeDisplay'
 import { createRuntimeEvents } from './modules/runtimeEvents'
+import {
+  createPendingCommandQueue,
+  type PendingCommand,
+} from './modules/pendingCommands'
 
 export type {
   ProposalReviewEntry,
@@ -310,6 +314,7 @@ export const useAiStore = defineStore('ai', () => {
   const subagentCompressionEventsByThread = ref<
     Record<string, Record<string, AiContextCompressionEvent[]>>
   >({})
+  const pendingCommandQueue = createPendingCommandQueue()
 
   const activeThread = computed<AiThread | null>(() => {
     return threads.value.find(t => t.id === activeThreadId.value) ?? null
@@ -323,6 +328,11 @@ export const useAiStore = defineStore('ai', () => {
   const activeSubagentCompressionEvents = computed<Record<string, AiContextCompressionEvent[]>>(() => {
     const threadId = activeThreadId.value
     return threadId ? subagentCompressionEventsByThread.value[threadId] ?? {} : {}
+  })
+
+  const pendingCommands = computed<PendingCommand[]>(() => {
+    const threadId = activeThreadId.value
+    return threadId ? pendingCommandQueue.getCommands(threadId) : []
   })
 
   function upsertCompressionEventList(
@@ -387,6 +397,8 @@ export const useAiStore = defineStore('ai', () => {
     for (const t of toRemove) {
       _localOnlyThreadIds.delete(t.id)
       clearContextCompressionEvents(t.id)
+      pendingCommandQueue.clearThread(t.id)
+      clearRunOwnershipForThread(t.id)
       window.electronAPI.aiDeleteThread?.(t.id)
     }
     threads.value = threads.value.filter(t => !toRemove.some(r => r.id === t.id))
@@ -463,6 +475,8 @@ export const useAiStore = defineStore('ai', () => {
   function deleteThread(id: string) {
     runtimeEvents.clearThreadUsage(id)
     clearContextCompressionEvents(id)
+    pendingCommandQueue.clearThread(id)
+    clearRunOwnershipForThread(id)
     threads.value = threads.value.filter(t => t.id !== id)
     window.electronAPI.aiDeleteThread?.(id)
     if (activeThreadId.value === id) {
@@ -472,6 +486,8 @@ export const useAiStore = defineStore('ai', () => {
 
   function clearAllThreads() {
     runtimeEvents.clearAllUsage()
+    pendingCommandQueue.clearAll()
+    _runOwnershipByTurnId.clear()
     contextCompressionEventsByThread.value = {}
     subagentCompressionEventsByThread.value = {}
     threads.value = []
@@ -557,6 +573,35 @@ export const useAiStore = defineStore('ai', () => {
     clearRunPointers: _clearRunPointers,
   } = runtimeState
 
+  let _runTransitionEpoch = 0
+  const _runOwnershipByTurnId = new Map<string, { epoch: number; threadId: string }>()
+  let _cancelInFlight: Promise<boolean> | null = null
+  let _cancelNotificationRequested = false
+
+  function queuePendingCommand(userText: string, sendContext?: SendContext): boolean {
+    const threadId = activeThreadId.value
+    const text = userText.trim()
+    if (!threadId || !text || _threadRunState.value === 'idle') return false
+    pendingCommandQueue.enqueue(threadId, text, sendContext)
+    return true
+  }
+
+  function updatePendingCommand(id: string, text: string): boolean {
+    const threadId = activeThreadId.value
+    return threadId ? pendingCommandQueue.update(threadId, id, text) : false
+  }
+
+  function removePendingCommand(id: string): boolean {
+    const threadId = activeThreadId.value
+    return threadId ? pendingCommandQueue.remove(threadId, id) !== null : false
+  }
+
+  function clearRunOwnershipForThread(threadId: string) {
+    for (const [turnId, ownership] of _runOwnershipByTurnId) {
+      if (ownership.threadId === threadId) _runOwnershipByTurnId.delete(turnId)
+    }
+  }
+
   let _creativeDisplayOverrides: (() => ReturnType<typeof editReview.displayOverrides>) | null = null
 
   function _mergedOverrides() {
@@ -619,8 +664,10 @@ export const useAiStore = defineStore('ai', () => {
 
   // ── Send Message ──────────────────────────────────────────────────────────
   async function sendMessage(userText: string, sendContext?: SendContext): Promise<boolean> {
-    // Block new messages while actively streaming
-    if (_threadRunState.value === 'streaming') return false
+    // All non-idle input must pass through the pending-command queue. In
+    // particular, never turn a queued instruction into an implicit rejection
+    // while the current turn is waiting for approval.
+    if (_threadRunState.value !== 'idle') return false
 
     const runtimeProvider = effectiveProviderConfig.value
     if (!runtimeProvider) {
@@ -695,6 +742,8 @@ export const useAiStore = defineStore('ai', () => {
     runtimeEvents.resetRunErrorFlag()
     _threadRunState.value = 'streaming'
     const turnId = `turn-${nanoid(8)}`
+    const turnEpoch = ++_runTransitionEpoch
+    _runOwnershipByTurnId.set(turnId, { epoch: turnEpoch, threadId: thread.id })
     _currentTurnId.value = turnId
     _startLiveTurn({
       threadId: thread.id,
@@ -734,28 +783,41 @@ export const useAiStore = defineStore('ai', () => {
         },
       })
 
-      if (result) {
+      if (
+        result
+        && _runTransitionEpoch === turnEpoch
+        && _currentTurnId.value === turnId
+        && _threadRunState.value === 'streaming'
+      ) {
         _currentThreadId.value = result.threadId
       }
     } catch (err) {
-      _threadRunState.value = 'idle'
-      _clearRunPointers()
-      _clearLiveTurn()
-      const msg = err instanceof Error ? err.message : String(err)
-      notify.error(`AI 错误: ${msg}`)
-      let errThread = activeThread.value
-      if (errThread) {
-        const errMsg: ThreadMessage = {
-          id: `msg-${nanoid(8)}`,
-          role: 'assistant',
-          turnId,
-          content: msg,
-          isError: true,
-          timestamp: Date.now(),
+      const ownership = _runOwnershipByTurnId.get(turnId)
+      const stillOwnsRun = ownership?.epoch === turnEpoch && _runTransitionEpoch === turnEpoch
+      if (stillOwnsRun) {
+        _threadRunState.value = 'idle'
+        _clearRunPointers()
+        _clearLiveTurn()
+        const msg = err instanceof Error ? err.message : String(err)
+        notify.error(`AI 错误: ${msg}`)
+        let errThread = activeThread.value
+        if (errThread) {
+          const errMsg: ThreadMessage = {
+            id: `msg-${nanoid(8)}`,
+            role: 'assistant',
+            turnId,
+            content: msg,
+            isError: true,
+            timestamp: Date.now(),
+          }
+          errThread = appendMessage({ ...errThread, hasError: true }, errMsg)
+          updateThread(errThread)
         }
-        errThread = appendMessage({ ...errThread, hasError: true }, errMsg)
-        updateThread(errThread)
       }
+      if (_runOwnershipByTurnId.get(turnId) === ownership) {
+        _runOwnershipByTurnId.delete(turnId)
+      }
+      return false
     }
 
     return true
@@ -842,6 +904,53 @@ export const useAiStore = defineStore('ai', () => {
     upsertContextCompressionEvent,
   })
 
+  async function dispatchPendingCommands(threadId: string): Promise<boolean> {
+    if (_threadRunState.value !== 'idle' || activeThreadId.value !== threadId) return false
+    const batch = pendingCommandQueue.createBatch(threadId)
+    if (!batch) return false
+    const started = await sendMessage(batch.text, batch.sendContext)
+    if (started) pendingCommandQueue.removeByIds(threadId, batch.ids)
+    return started
+  }
+
+  async function handleRunDone(event: Parameters<typeof runtimeEvents.onRunDone>[0]) {
+    const turnId = event.turnId ?? _currentTurnId.value
+    const ownership = turnId ? _runOwnershipByTurnId.get(turnId) : undefined
+    const isCurrent = () => !!ownership
+      && ownership.threadId === event.threadId
+      && ownership.epoch === _runTransitionEpoch
+    const completion = await runtimeEvents.onRunDone(event, isCurrent)
+    if (turnId && _runOwnershipByTurnId.get(turnId) === ownership) {
+      _runOwnershipByTurnId.delete(turnId)
+    }
+    if (completion.completedSuccessfully && completion.checkpointRefreshed && completion.stillCurrent) {
+      await dispatchPendingCommands(event.threadId)
+    } else if (
+      completion.completedSuccessfully
+      && completion.stillCurrent
+      && pendingCommandQueue.getCommands(event.threadId).length > 0
+    ) {
+      notify.warning(i18n.global.t('agentPanel.pendingCommands.checkpointNotReady'))
+    }
+  }
+
+  function handleRunInterrupted(event: Parameters<typeof runtimeEvents.onRunInterrupted>[0]) {
+    if (event.turnId && !_runOwnershipByTurnId.has(event.turnId)) {
+      // A missing owner is valid when an interrupted checkpoint is rehydrated
+      // after app startup. While another run is active, it is a stale event.
+      if (_threadRunState.value !== 'idle') return
+      const epoch = ++_runTransitionEpoch
+      _runOwnershipByTurnId.set(event.turnId, { epoch, threadId: event.threadId })
+    }
+    runtimeEvents.onRunInterrupted(event)
+  }
+
+  function handleRunError(event: Parameters<typeof runtimeEvents.onRunError>[0]) {
+    const ownership = event.turnId ? _runOwnershipByTurnId.get(event.turnId) : undefined
+    if (!ownership || ownership.epoch !== _runTransitionEpoch) return
+    runtimeEvents.onRunError(event)
+  }
+
   const persistedMessages = computed<ThreadMessage[]>(() => activeThread.value?.messages ?? [])
   const runtimeDisplay = createRuntimeDisplay({
     liveTurn: _liveTurn,
@@ -861,18 +970,70 @@ export const useAiStore = defineStore('ai', () => {
     latestPersistedAssistantMessageId,
   } = runtimeDisplay
 
-  function cancelStreaming() {
-    const tid = _currentThreadId.value ?? _interruptedThreadId.value
-    if (tid) {
-      window.electronAPI.aiCancel?.(tid)
+  function cancelCurrentRun(showStoppedNotification: boolean): Promise<boolean> {
+    _cancelNotificationRequested ||= showStoppedNotification
+    if (_cancelInFlight) return _cancelInFlight
+
+    const tid = _currentThreadId.value ?? _interruptedThreadId.value ?? _liveTurn.value?.threadId
+    const turnId = _currentTurnId.value ?? _interruptedTurnId.value ?? _liveTurn.value?.turnId ?? null
+    const previousEpoch = _runTransitionEpoch
+    const cancellationEpoch = ++_runTransitionEpoch
+
+    const cancellation = (async (): Promise<boolean> => {
+      try {
+        if (tid) {
+          await window.electronAPI.aiCancel?.(tid)
+        }
+      } catch (error) {
+        if (_runTransitionEpoch === cancellationEpoch) {
+          _runTransitionEpoch = previousEpoch
+        }
+        notify.error(`停止生成失败: ${error instanceof Error ? error.message : String(error)}`)
+        return false
+      }
+
+      if (_runTransitionEpoch === cancellationEpoch) {
+        _threadRunState.value = 'idle'
+        _clearRunPointers()
+        _resetEditReviewState()
+        _resetCreativeReviewState()
+        _resetFilesystemReviewState()
+        _clearLiveTurn()
+        if (turnId) _runOwnershipByTurnId.delete(turnId)
+        if (_cancelNotificationRequested) notify.info('已停止生成')
+      }
+      return true
+    })()
+
+    _cancelInFlight = cancellation
+    void cancellation.finally(() => {
+      if (_cancelInFlight === cancellation) {
+        _cancelInFlight = null
+        _cancelNotificationRequested = false
+      }
+    })
+    return cancellation
+  }
+
+  async function cancelStreaming(): Promise<boolean> {
+    return cancelCurrentRun(true)
+  }
+
+  async function steerPendingCommand(id: string): Promise<boolean> {
+    const threadId = activeThreadId.value
+    if (!threadId) return false
+    const command = pendingCommandQueue.getCommands(threadId).find(item => item.id === id)
+    if (!command) return false
+
+    if (_threadRunState.value !== 'idle') {
+      const cancelled = await cancelCurrentRun(false)
+      if (!cancelled) return false
     }
-    _threadRunState.value = 'idle'
-    _clearRunPointers()
-    _resetEditReviewState()
-    _resetCreativeReviewState()
-    _resetFilesystemReviewState()
-    _clearLiveTurn()
-    notify.info('已停止生成')
+    if (activeThreadId.value !== threadId) return false
+
+    const started = await sendMessage(command.text, command.sendContext)
+    if (started) pendingCommandQueue.remove(threadId, command.id)
+    return started
   }
 
   // ── Initialization ────────────────────────────────────────────────────────
@@ -906,9 +1067,9 @@ export const useAiStore = defineStore('ai', () => {
     }).catch(() => {/* ignore — main process may not be ready yet */})
 
     window.electronAPI.onAiStreamChunk?.(runtimeEvents.onStreamChunk)
-    window.electronAPI.onAiRunInterrupted?.(runtimeEvents.onRunInterrupted)
-    window.electronAPI.onAiRunDone?.(runtimeEvents.onRunDone)
-    window.electronAPI.onAiRunError?.(runtimeEvents.onRunError)
+    window.electronAPI.onAiRunInterrupted?.(handleRunInterrupted)
+    window.electronAPI.onAiRunDone?.(event => { void handleRunDone(event) })
+    window.electronAPI.onAiRunError?.(handleRunError)
     window.electronAPI.onAiModelFallback?.((e) => {
       notify.warning(i18n.global.t('notify.ai.modelFallback', { modelId: e.fallbackModelId }))
     })
@@ -975,6 +1136,7 @@ export const useAiStore = defineStore('ai', () => {
     pendingEditProposals,
     pendingCreativeReviews,
     pendingFilesystemReviews,
+    pendingCommands,
     isResumingReviewedEdits,
     isResumingCreativeReview,
     isResumingFilesystemReview,
@@ -987,6 +1149,10 @@ export const useAiStore = defineStore('ai', () => {
 
     // Actions
     sendMessage,
+    queuePendingCommand,
+    updatePendingCommand,
+    removePendingCommand,
+    steerPendingCommand,
     approveEditProposal,
     editAndApproveProposal,
     rejectEditProposal,

@@ -528,6 +528,14 @@ export default {
     input: {
       sendMessagePlaceholder: 'Send message...',
     },
+    pendingCommands: {
+      steer: 'Interrupt and run',
+      edit: 'Edit',
+      delete: 'Delete',
+      save: 'Save',
+      cancel: 'Cancel',
+      checkpointNotReady: 'The thread has not finished syncing, so queued commands were not run',
+    },
     attachPicker: {
       addFilesOrFolders: 'Add Files / Folders',
       browseFiles: 'Browse Files...',
