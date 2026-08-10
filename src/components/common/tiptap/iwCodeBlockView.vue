@@ -161,12 +161,26 @@
       v-if="isMermaid"
       ref="mermaidContainer"
       class="mermaid-container"
-      :class="{ 'no-select': isEditing }"
-      :style="{ '--mermaid-zoom': mermaidZoom }"
+      :class="{
+        'no-select': isEditing,
+        'is-pannable': mermaidCanPan,
+        'is-dragging': isMermaidDragging,
+      }"
       contenteditable="false"
+      tabindex="0"
+      @mousedown="startMermaidDrag"
+      @click="focusMermaidContainer"
+      @wheel="handleMermaidWheel"
     >
       <!-- 优先显示已渲染的 SVG，防止刷新闪烁 -->
-      <div v-if="mermaidSvg" v-html="mermaidSvg" class="mermaid-svg-wrapper"></div>
+      <div v-if="mermaidSvg" class="mermaid-viewport">
+        <div
+          ref="mermaidSvgWrapper"
+          v-html="mermaidSvg"
+          class="mermaid-svg-wrapper"
+          :style="mermaidSvgWrapperStyle"
+        ></div>
+      </div>
       <div v-else-if="mermaidState === 'loading'" class="mermaid-placeholder">Rendering…</div>
       <div v-else-if="mermaidState === 'empty'" class="mermaid-placeholder mermaid-empty">Empty diagram — click edit to add source.</div>
       <div v-else-if="mermaidState === 'error'" class="mermaid-error">
@@ -178,7 +192,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { NodeViewContent, nodeViewProps, NodeViewWrapper } from '@tiptap/vue-3'
 import {
   IconTrash, IconCode, IconCopy, IconEdit, IconCheck,
@@ -210,6 +224,15 @@ const isEditing = ref(false) // Mermaid 编辑模式
 type MermaidLayout = 'horizontal' | 'vertical'
 const mermaidLayout = ref<MermaidLayout>('horizontal')
 const mermaidZoom = ref(1)
+const mermaidIntrinsicSize = ref({ width: 0, height: 0 })
+const mermaidAvailableWidth = ref(0)
+const mermaidCanPan = ref(false)
+const isMermaidDragging = ref(false)
+
+const MERMAID_MIN_ZOOM = 0.25
+const MERMAID_MAX_ZOOM = 4
+const MERMAID_ZOOM_STEP = 1.2
+const MERMAID_WHEEL_ZOOM_STEP = 1.08
 
 // Mermaid 渲染状态
 type MermaidState = 'loading' | 'empty' | 'ok' | 'error'
@@ -217,9 +240,15 @@ const mermaidState = ref<MermaidState>('loading')
 const mermaidSvg = ref('')
 const mermaidError = ref('')
 const mermaidContainer = ref<HTMLDivElement>()
+const mermaidSvgWrapper = ref<HTMLDivElement>()
 
 // 防抖 timer
 let renderTimer: ReturnType<typeof setTimeout> | null = null
+let mermaidResizeObserver: ResizeObserver | null = null
+let mermaidDragStartX = 0
+let mermaidDragStartY = 0
+let mermaidDragStartScrollLeft = 0
+let mermaidDragStartScrollTop = 0
 
 // --- Computed ---
 const languages = computed<string[]>(() => {
@@ -263,6 +292,21 @@ const mermaidRenderContext = computed(() => ({
   appThemeId: screenMarkdownTheme.value.id === 'system' ? appStore.currentThemeId : null,
   systemPrefersDark: screenMarkdownTheme.value.id === 'system' ? appStore.systemPrefersDark : null,
 }))
+const mermaidFitScale = computed(() => {
+  const intrinsicWidth = mermaidIntrinsicSize.value.width
+  const availableWidth = mermaidAvailableWidth.value
+  if (intrinsicWidth <= 0 || availableWidth <= 0) return 1
+  return Math.min(1, availableWidth / intrinsicWidth)
+})
+const mermaidEffectiveScale = computed(() => mermaidFitScale.value * mermaidZoom.value)
+const mermaidSvgWrapperStyle = computed(() => {
+  const { width, height } = mermaidIntrinsicSize.value
+  if (width <= 0 || height <= 0) return undefined
+  return {
+    width: `${width * mermaidEffectiveScale.value}px`,
+    height: `${height * mermaidEffectiveScale.value}px`,
+  }
+})
 
 const shouldShowToolbar = computed((): boolean => {
   return props.selected || isHovered.value || isEditing.value
@@ -285,6 +329,46 @@ const canFormat = computed((): boolean => {
 })
 
 // --- Mermaid rendering ---
+function updateMermaidAvailableWidth(): void {
+  const container = mermaidContainer.value
+  if (!container) {
+    mermaidCanPan.value = false
+    return
+  }
+  const style = getComputedStyle(container)
+  const paddingLeft = Number.parseFloat(style.paddingLeft) || 0
+  const paddingRight = Number.parseFloat(style.paddingRight) || 0
+  mermaidAvailableWidth.value = Math.max(container.clientWidth - paddingLeft - paddingRight, 0)
+  mermaidCanPan.value = container.scrollWidth > container.clientWidth
+    || container.scrollHeight > container.clientHeight
+}
+
+function measureMermaidSvg(): void {
+  const svg = mermaidSvgWrapper.value?.querySelector('svg')
+  if (!svg) return
+
+  const viewBox = svg.getAttribute('viewBox')
+    ?.trim()
+    .split(/[\s,]+/)
+    .map(value => Number.parseFloat(value))
+  if (viewBox?.length === 4) {
+    const width = viewBox[2]!
+    const height = viewBox[3]!
+    if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+      mermaidIntrinsicSize.value = { width, height }
+      updateMermaidAvailableWidth()
+      return
+    }
+  }
+
+  const width = Number.parseFloat(svg.getAttribute('width') ?? '')
+  const height = Number.parseFloat(svg.getAttribute('height') ?? '')
+  if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+    mermaidIntrinsicSize.value = { width, height }
+  }
+  updateMermaidAvailableWidth()
+}
+
 function scheduleRender(): void {
   if (!isMermaid.value) return
   if (renderTimer) clearTimeout(renderTimer)
@@ -303,6 +387,7 @@ async function doRender(): Promise<void> {
     mermaidState.value = 'empty'
     mermaidSvg.value = ''
     mermaidError.value = ''
+    mermaidIntrinsicSize.value = { width: 0, height: 0 }
     return
   }
   const result = await renderMermaid(
@@ -315,6 +400,8 @@ async function doRender(): Promise<void> {
     mermaidSvg.value = result.svg
     mermaidError.value = ''
     mermaidState.value = 'ok'
+    await nextTick()
+    measureMermaidSvg()
   } else {
     mermaidError.value = result.error
     // 若已有旧图则保留，不闪烁到 error 状态；仅首次无图时才显示错误
@@ -342,21 +429,126 @@ watch(mermaidRenderContext, () => {
   if (isMermaid.value) scheduleRender()
 })
 
+watch(mermaidContainer, (container, previousContainer) => {
+  if (previousContainer) mermaidResizeObserver?.unobserve(previousContainer)
+  if (!container) {
+    mermaidCanPan.value = false
+    stopMermaidDrag()
+    return
+  }
+  mermaidResizeObserver?.observe(container)
+  updateMermaidAvailableWidth()
+  void nextTick(measureMermaidSvg)
+}, { flush: 'post' })
+
 // --- Mermaid layout & zoom ---
 function toggleMermaidLayout(): void {
   mermaidLayout.value = mermaidLayout.value === 'horizontal' ? 'vertical' : 'horizontal'
+  void nextTick(updateMermaidAvailableWidth)
+}
+
+interface MermaidZoomAnchor {
+  clientX: number
+  clientY: number
+  ratioX: number
+  ratioY: number
+}
+
+function captureMermaidZoomAnchor(clientX: number, clientY: number): MermaidZoomAnchor | null {
+  const wrapper = mermaidSvgWrapper.value
+  if (!wrapper) return null
+  const rect = wrapper.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+  return {
+    clientX,
+    clientY,
+    ratioX: (clientX - rect.left) / rect.width,
+    ratioY: (clientY - rect.top) / rect.height,
+  }
+}
+
+function restoreMermaidZoomAnchor(anchor: MermaidZoomAnchor): void {
+  const container = mermaidContainer.value
+  const wrapper = mermaidSvgWrapper.value
+  if (!container || !wrapper) return
+  const rect = wrapper.getBoundingClientRect()
+  const anchoredX = rect.left + rect.width * anchor.ratioX
+  const anchoredY = rect.top + rect.height * anchor.ratioY
+  container.scrollLeft += anchoredX - anchor.clientX
+  container.scrollTop += anchoredY - anchor.clientY
+}
+
+function updateMermaidZoom(value: number, pointer?: { clientX: number, clientY: number }): void {
+  const nextZoom = Math.min(
+    MERMAID_MAX_ZOOM,
+    Math.max(MERMAID_MIN_ZOOM, +value.toFixed(4)),
+  )
+  if (nextZoom === mermaidZoom.value) return
+  const anchor = pointer
+    ? captureMermaidZoomAnchor(pointer.clientX, pointer.clientY)
+    : null
+  mermaidZoom.value = nextZoom
+  if (anchor) void nextTick(() => restoreMermaidZoomAnchor(anchor))
+  void nextTick(updateMermaidAvailableWidth)
 }
 
 function zoomIn(): void {
-  mermaidZoom.value = Math.min(3, +(mermaidZoom.value * 1.2).toFixed(3))
+  updateMermaidZoom(mermaidZoom.value * MERMAID_ZOOM_STEP)
 }
 
 function zoomOut(): void {
-  mermaidZoom.value = Math.max(0.3, +(mermaidZoom.value / 1.2).toFixed(3))
+  updateMermaidZoom(mermaidZoom.value / MERMAID_ZOOM_STEP)
 }
 
 function resetZoom(): void {
-  mermaidZoom.value = 1
+  updateMermaidZoom(1)
+}
+
+function focusMermaidContainer(): void {
+  mermaidContainer.value?.focus({ preventScroll: true })
+}
+
+function handleMermaidWheel(event: WheelEvent): void {
+  if (document.activeElement !== mermaidContainer.value || event.deltaY === 0) return
+  event.preventDefault()
+  event.stopPropagation()
+  const wheelProgress = Math.min(Math.abs(event.deltaY), 100) / 100
+  const wheelFactor = MERMAID_WHEEL_ZOOM_STEP ** wheelProgress
+  const factor = event.deltaY < 0 ? wheelFactor : 1 / wheelFactor
+  updateMermaidZoom(mermaidZoom.value * factor, {
+    clientX: event.clientX,
+    clientY: event.clientY,
+  })
+}
+
+function handleMermaidDrag(event: MouseEvent): void {
+  const container = mermaidContainer.value
+  if (!container || !isMermaidDragging.value) return
+  container.scrollLeft = mermaidDragStartScrollLeft - (event.clientX - mermaidDragStartX)
+  container.scrollTop = mermaidDragStartScrollTop - (event.clientY - mermaidDragStartY)
+}
+
+function stopMermaidDrag(): void {
+  isMermaidDragging.value = false
+  window.removeEventListener('mousemove', handleMermaidDrag)
+  window.removeEventListener('mouseup', stopMermaidDrag)
+  window.removeEventListener('blur', stopMermaidDrag)
+}
+
+function startMermaidDrag(event: MouseEvent): void {
+  const container = mermaidContainer.value
+  if (!container || !mermaidCanPan.value || event.button !== 0) return
+  stopMermaidDrag()
+  isMermaidDragging.value = true
+  mermaidDragStartX = event.clientX
+  mermaidDragStartY = event.clientY
+  mermaidDragStartScrollLeft = container.scrollLeft
+  mermaidDragStartScrollTop = container.scrollTop
+  container.focus({ preventScroll: true })
+  event.preventDefault()
+  window.addEventListener('mousemove', handleMermaidDrag)
+  window.addEventListener('mouseup', stopMermaidDrag)
+  window.addEventListener('blur', stopMermaidDrag)
 }
 
 // --- Mermaid edit mode ---
@@ -472,6 +664,11 @@ const deleteCodeBlock = (): void => {
 
 // --- Lifecycle ---
 onMounted(() => {
+  mermaidResizeObserver = new ResizeObserver(updateMermaidAvailableWidth)
+  if (mermaidContainer.value) {
+    mermaidResizeObserver.observe(mermaidContainer.value)
+    updateMermaidAvailableWidth()
+  }
   if (isMermaid.value) {
     doRender()
   }
@@ -481,6 +678,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (renderTimer) clearTimeout(renderTimer)
+  stopMermaidDrag()
+  mermaidResizeObserver?.disconnect()
   document.removeEventListener('mousedown', handleMouseDownCapture, true)
   document.removeEventListener('click', handleClickOutside, true)
 })
@@ -546,8 +745,20 @@ onUnmounted(() => {
   padding: 12px 16px;
   min-height: 48px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: auto;
+  outline: none;
+
+  &.is-pannable {
+    cursor: grab;
+  }
+
+  &.is-dragging {
+    cursor: grabbing;
+    user-select: none;
+    -webkit-user-select: none;
+  }
 
   .mermaid-placeholder {
     font-size: 13px;
@@ -579,16 +790,25 @@ onUnmounted(() => {
     }
   }
 
-  .mermaid-svg-wrapper {
-    width: 100%;
+  .mermaid-viewport {
+    width: max-content;
+    height: max-content;
+    min-width: 100%;
+    min-height: 100%;
+    flex: 0 0 auto;
     display: flex;
+    align-items: center;
     justify-content: center;
-    // 缩放：使用 zoom 属性使布局尺寸随比例变化，overflow 可正确滚动
-    zoom: var(--mermaid-zoom, 1);
+  }
+
+  .mermaid-svg-wrapper {
+    flex: 0 0 auto;
 
     :deep(svg) {
-      max-width: 100%;
-      height: auto;
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: none !important;
     }
   }
 }
