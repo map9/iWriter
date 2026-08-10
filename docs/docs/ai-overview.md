@@ -1,8 +1,8 @@
 # AI 全能创作搭子（AI Writing Buddy）
 
-> 适用版本：iWriter `0.2.2`
+> 适用版本：iWriter `0.2.3`
 >
-> 最后更新：2026-07-28
+> 最后更新：2026-08-10
 
 AI Writing Buddy 是 iWriter 的 AI 全能创作搭子，包含面向日常文档与个人知识管理的 AI Doc Buddy，以及陪伴长篇小说创作的 AI Story Buddy。
 
