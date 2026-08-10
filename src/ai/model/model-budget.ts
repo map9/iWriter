@@ -2,12 +2,12 @@ import type { AiModelProfile, AiProviderConfig } from '../types'
 
 export const SUMMARIZATION_TRIGGER_FRACTION = 0.85
 export const SUMMARIZATION_KEEP_FRACTION = 0.1
-export const UNKNOWN_MODEL_REQUEST_BUDGET_TOKENS = 32000
+export const UNKNOWN_MODEL_REQUEST_BUDGET_TOKENS = 128000
 
 // DeepSeek still advertises a 1M physical context in ModelProfile. iWriter deliberately limits
 // active requests to 75k for long-context quality and compacts at 80% (60k); keep this runtime
 // policy separate from model-profiles.ts so model capability metadata remains unchanged.
-const DEEPSEEK_REQUEST_BUDGET_TOKENS = 75000
+const DEEPSEEK_REQUEST_BUDGET_TOKENS = 400000
 const DEEPSEEK_SUMMARIZATION_TRIGGER_FRACTION = 0.8
 const MIN_SUMMARIZATION_KEEP_TOKENS = 1000
 const MAX_SUMMARIZATION_KEEP_TOKENS = 100000
@@ -44,11 +44,11 @@ interface ConfiguredRequestBudget {
  * quota. Provider-wide defaults let newly released models work without requiring user setup.
  */
 const BUILTIN_MODEL_REQUEST_BUDGETS: Readonly<Record<string, number>> = {
-  'openai:gpt-5.4-pro': 12000,
+  'openai:gpt-5.4-pro': 128000,
 }
 
 const BUILTIN_PROVIDER_REQUEST_BUDGETS: Readonly<Record<string, number>> = {
-  openai: 200000,
+  openai: 400000,
   deepseek: DEEPSEEK_REQUEST_BUDGET_TOKENS,
   anthropic: 800000,
   gemini: 128000,
