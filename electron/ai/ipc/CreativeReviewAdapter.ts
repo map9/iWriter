@@ -1,4 +1,7 @@
+import * as fs from 'fs/promises'
+import * as path from 'path'
 import type { CreativeReviewItem } from '../../../src/types/ai'
+import type { GitService } from '../../GitService'
 
 interface ActionRequest {
   name: string
@@ -21,6 +24,77 @@ function asOptionalString(value: unknown): string | undefined {
 
 function asImportCollisionPolicy(value: unknown): 'reject' | 'skip' | 'overwrite' {
   return value === 'skip' || value === 'overwrite' ? value : 'reject'
+}
+
+async function countWorkspaceEntries(root: string): Promise<{ fileCount: number; directoryCount: number }> {
+  let fileCount = 0
+  let directoryCount = 0
+
+  const visit = async (directory: string, isRoot: boolean): Promise<void> => {
+    const entries = await fs.readdir(directory, { withFileTypes: true }).catch(() => null)
+    if (!entries) return
+    for (const entry of entries) {
+      if (isRoot && entry.name === '.git') continue
+      if (entry.isDirectory()) {
+        directoryCount += 1
+        await visit(path.join(directory, entry.name), false)
+      } else {
+        fileCount += 1
+      }
+    }
+  }
+
+  await visit(root, true)
+  return { fileCount, directoryCount }
+}
+
+/** Adds read-only, workspace-derived facts to Git approval cards before they reach the renderer. */
+export async function enrichCreativeGitReviewItem(
+  review: CreativeReviewItem,
+  workspacePath: string | null,
+  gitService: Pick<GitService, 'previewRestorePaths'>,
+): Promise<CreativeReviewItem> {
+  if (!workspacePath) return review
+  const resolvedWorkspacePath = path.resolve(workspacePath)
+
+  if (review.kind === 'creative_git_init') {
+    const gitignorePath = path.join(resolvedWorkspacePath, '.gitignore')
+    const [counts, hasGitignore] = await Promise.all([
+      countWorkspaceEntries(resolvedWorkspacePath),
+      fs.access(gitignorePath).then(() => true, () => false),
+    ])
+    return {
+      ...review,
+      workspacePath: resolvedWorkspacePath,
+      gitDirectoryPath: path.join(resolvedWorkspacePath, '.git'),
+      ...(hasGitignore && { gitignorePath }),
+      ...counts,
+    }
+  }
+
+  if (review.kind === 'creative_git_restore') {
+    try {
+      const preview = await gitService.previewRestorePaths(
+        resolvedWorkspacePath,
+        review.files,
+        review.ref,
+      )
+      return {
+        ...review,
+        source: preview.source,
+        changes: preview.files,
+      }
+    } catch (error) {
+      console.warn('[CreativeReviewAdapter] Failed to build Git restore preview:', error)
+      return {
+        ...review,
+        source: { ref: review.ref ?? 'index' },
+        changes: review.files.map(file => ({ path: file, additions: null, deletions: null })),
+      }
+    }
+  }
+
+  return review
 }
 
 // Builds a creative review card from a creative-domain interrupt action. After the Phase 2

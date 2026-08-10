@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
+import { build } from 'esbuild'
 
 const gitServiceSource = readFileSync('electron/GitService.ts', 'utf8')
 const mainAppSource = readFileSync('electron/App.ts', 'utf8')
@@ -310,4 +314,142 @@ test('SCM regressions', async (t) => {
     assert.match(docsFeaturesSource, /Git 文档版本管理/)
   })
 
+})
+
+let creativeGitReviewModulePromise
+
+async function loadCreativeGitReviewModule() {
+  if (!creativeGitReviewModulePromise) {
+    creativeGitReviewModulePromise = (async () => {
+      const result = await build({
+        entryPoints: ['electron/ai/ipc/CreativeReviewAdapter.ts'],
+        bundle: true,
+        platform: 'node',
+        format: 'esm',
+        write: false,
+      })
+      const code = result.outputFiles[0].text
+      return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+    })()
+  }
+  return creativeGitReviewModulePromise
+}
+
+let gitServiceModulePromise
+
+async function loadGitServiceModule() {
+  if (!gitServiceModulePromise) {
+    gitServiceModulePromise = (async () => {
+      const result = await build({
+        entryPoints: ['electron/GitService.ts'],
+        bundle: true,
+        platform: 'node',
+        format: 'esm',
+        write: false,
+        banner: {
+          js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(process.cwd() + '/tests/scm-regressions.test.mjs');",
+        },
+        plugins: [{
+          name: 'git-config-store-stub',
+          setup(buildApi) {
+            buildApi.onResolve({ filter: /GitConfigStore$/ }, () => ({
+              path: 'git-config-store',
+              namespace: 'test-stub',
+            }))
+            buildApi.onLoad({ filter: /^git-config-store$/, namespace: 'test-stub' }, () => ({
+              contents: `
+                export class GitConfigStore {
+                  getSettings() { return { gitPathMode: 'auto', gitPath: '' } }
+                  updateSettings(patch) { return { ...this.getSettings(), ...patch } }
+                }
+              `,
+              loader: 'js',
+            }))
+          },
+        }],
+      })
+      const code = result.outputFiles[0].text
+      return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+    })()
+  }
+  return gitServiceModulePromise
+}
+
+test('Git approval cards receive factual operation details', async (t) => {
+  await t.test('repository initialization reports paths and workspace entry counts without inferring a project name', async () => {
+    const { buildCreativeReviewItemFromAction, enrichCreativeGitReviewItem } = await loadCreativeGitReviewModule()
+    const workspacePath = mkdtempSync(join(tmpdir(), 'iwriter-git-init-review-'))
+    try {
+      writeFileSync(join(workspacePath, 'chapter.md'), '# Opening\n')
+      writeFileSync(join(workspacePath, '.gitignore'), '.DS_Store\n')
+      mkdirSync(join(workspacePath, 'notes'))
+      writeFileSync(join(workspacePath, 'notes', 'ideas.md'), 'Idea\n')
+
+      const review = buildCreativeReviewItemFromAction({ name: 'git_init', args: {} })
+      const enriched = await enrichCreativeGitReviewItem(review, workspacePath, {})
+
+      assert.equal(enriched.kind, 'creative_git_init')
+      assert.equal(enriched.workspacePath, workspacePath)
+      assert.equal(enriched.gitDirectoryPath, join(workspacePath, '.git'))
+      assert.equal(enriched.gitignorePath, join(workspacePath, '.gitignore'))
+      assert.equal(enriched.fileCount, 3)
+      assert.equal(enriched.directoryCount, 1)
+      assert.equal('projectName' in enriched, false)
+    } finally {
+      rmSync(workspacePath, { recursive: true, force: true })
+    }
+  })
+
+  await t.test('restore preview describes the changes that applying the source will make', async () => {
+    const { GitService } = await loadGitServiceModule()
+    const workspacePath = mkdtempSync(join(tmpdir(), 'iwriter-git-restore-review-'))
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: workspacePath })
+      execFileSync('git', ['config', 'user.name', 'iWriter Test'], { cwd: workspacePath })
+      execFileSync('git', ['config', 'user.email', 'test@iwriter.local'], { cwd: workspacePath })
+      writeFileSync(join(workspacePath, 'chapter.md'), 'old\nkeep\n')
+      execFileSync('git', ['add', 'chapter.md'], { cwd: workspacePath })
+      execFileSync('git', ['commit', '-qm', 'opening draft'], { cwd: workspacePath })
+      writeFileSync(join(workspacePath, 'chapter.md'), 'new\nkeep\nextra\n')
+
+      const gitService = new GitService()
+      const preview = await gitService.previewRestorePaths(workspacePath, ['chapter.md'], 'HEAD')
+
+      assert.equal(preview.source.ref, 'HEAD')
+      assert.match(preview.source.shortHash, /^[0-9a-f]+$/)
+      assert.equal(preview.source.subject, 'opening draft')
+      assert.deepEqual(preview.files, [{ path: 'chapter.md', additions: 1, deletions: 2 }])
+    } finally {
+      rmSync(workspacePath, { recursive: true, force: true })
+    }
+  })
+
+  await t.test('restore review preserves the full preview manifest supplied by Git', async () => {
+    const { buildCreativeReviewItemFromAction, enrichCreativeGitReviewItem } = await loadCreativeGitReviewModule()
+    const review = buildCreativeReviewItemFromAction({
+      name: 'git_restore',
+      args: { files: ['chapters/01-opening.md', 'storybible.md'], ref: 'HEAD~1' },
+    })
+    const expectedPreview = {
+      source: { ref: 'HEAD~1', shortHash: '8f31c2a', subject: 'refine opening chapter' },
+      files: [
+        { path: 'chapters/01-opening.md', additions: 12, deletions: 31 },
+        { path: 'storybible.md', additions: 6, deletions: 12 },
+      ],
+    }
+    const gitService = {
+      async previewRestorePaths(root, files, ref) {
+        assert.equal(root, '/workspace')
+        assert.deepEqual(files, ['chapters/01-opening.md', 'storybible.md'])
+        assert.equal(ref, 'HEAD~1')
+        return expectedPreview
+      },
+    }
+
+    const enriched = await enrichCreativeGitReviewItem(review, '/workspace', gitService)
+
+    assert.equal(enriched.kind, 'creative_git_restore')
+    assert.deepEqual(enriched.source, expectedPreview.source)
+    assert.deepEqual(enriched.changes, expectedPreview.files)
+  })
 })

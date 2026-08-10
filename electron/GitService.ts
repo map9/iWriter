@@ -33,6 +33,19 @@ export type GitServiceErrorCode =
   | 'no-staged-changes'
   | 'command-failed'
 
+export interface GitRestorePreview {
+  source: {
+    ref: string
+    shortHash?: string
+    subject?: string
+  }
+  files: Array<{
+    path: string
+    additions: number | null
+    deletions: number | null
+  }>
+}
+
 export class GitServiceError extends Error {
   constructor(
     public readonly code: GitServiceErrorCode,
@@ -460,6 +473,75 @@ export class GitService {
       ? ['restore', '--source', ref, '--', ...files]
       : ['restore', '--', ...files]
     await this.raw(root, args)
+  }
+
+  /**
+   * Preview the exact working-tree changes made by restorePaths(). Git numstat describes
+   * source → working tree, so additions/deletions are swapped to report working tree → source.
+   */
+  async previewRestorePaths(root: string, files: string[], ref?: string): Promise<GitRestorePreview> {
+    const trimmedRef = ref?.trim()
+    if (trimmedRef && (trimmedRef.startsWith('-') || /[\s\0-\x1f]/.test(trimmedRef))) {
+      throw new GitServiceError('command-failed', 'Invalid Git restore source.')
+    }
+
+    const source: GitRestorePreview['source'] = { ref: trimmedRef || 'index' }
+    if (trimmedRef) {
+      const metadata = (await this.raw(root, [
+        'log',
+        '-1',
+        '--format=%h%x1f%s',
+        trimmedRef,
+      ])).trim()
+      if (metadata) {
+        const separator = metadata.indexOf('\x1f')
+        source.shortHash = separator >= 0 ? metadata.slice(0, separator) : metadata
+        if (separator >= 0) source.subject = metadata.slice(separator + 1)
+      }
+    }
+
+    if (!files.length) return { source, files: [] }
+    const args = ['diff', '--numstat', '--no-renames']
+    if (trimmedRef) args.push(trimmedRef)
+    args.push('--', ...files)
+    const output = await this.raw(root, args)
+    const parsed = output
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const [workingAdditions = '-', workingDeletions = '-', ...pathParts] = line.split('\t')
+        const binary = workingAdditions === '-' || workingDeletions === '-'
+        return {
+          path: pathParts.join('\t'),
+          additions: binary ? null : Number(workingDeletions),
+          deletions: binary ? null : Number(workingAdditions),
+        }
+      })
+
+    const ordered: GitRestorePreview['files'] = []
+    const consumed = new Set<number>()
+    for (const requestedPath of files) {
+      const normalized = requestedPath.replace(/\\/g, '/').replace(/\/$/, '')
+      const matches = parsed
+        .map((entry, index) => ({ entry, index }))
+        .filter(({ entry, index }) => !consumed.has(index) && (
+          normalized === '.'
+          || entry.path === normalized
+          || entry.path.startsWith(`${normalized}/`)
+        ))
+      for (const { entry, index } of matches) {
+        consumed.add(index)
+        ordered.push(entry)
+      }
+      if (!matches.length && normalized !== '.') {
+        ordered.push({ path: normalized, additions: 0, deletions: 0 })
+      }
+    }
+    parsed.forEach((entry, index) => {
+      if (!consumed.has(index)) ordered.push(entry)
+    })
+
+    return { source, files: ordered }
   }
 
   async getLastTagInfo(root: string): Promise<{

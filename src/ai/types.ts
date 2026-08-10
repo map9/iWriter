@@ -394,6 +394,19 @@ export interface CreativeGitTagReviewItem extends BaseCreativeReviewItem {
 export interface CreativeGitInitReviewItem extends BaseCreativeReviewItem {
   kind: 'creative_git_init'
   toolName: 'git_init'
+  /** Absolute workspace facts captured when the approval card is built. Optional for persisted legacy cards. */
+  workspacePath?: string
+  gitDirectoryPath?: string
+  gitignorePath?: string
+  fileCount?: number
+  directoryCount?: number
+}
+
+export interface CreativeGitRestoreFilePreview {
+  path: string
+  /** Lines added/deleted by applying the restore, not the opposite working-tree diff direction. */
+  additions: number | null
+  deletions: number | null
 }
 
 export interface CreativeGitRestoreReviewItem extends BaseCreativeReviewItem {
@@ -401,6 +414,13 @@ export interface CreativeGitRestoreReviewItem extends BaseCreativeReviewItem {
   toolName: 'git_restore'
   files: string[]
   ref?: string
+  /** Resolved source metadata and actual affected-file manifest. Optional for persisted legacy cards. */
+  source?: {
+    ref: string
+    shortHash?: string
+    subject?: string
+  }
+  changes?: CreativeGitRestoreFilePreview[]
 }
 
 // Phase 2 M1b-3: whole-chapter finalize card closing a write-session. `baseline`/`current` are

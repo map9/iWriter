@@ -3,7 +3,10 @@ import * as path from 'path'
 import type { ResumeDecision } from '../../ipc/protocol'
 import { buildCreativeSystemPrompt } from '../../../../src/ai/thread/system-prompts/creative'
 import { buildCreativeCapabilities, CREATIVE_INTERRUPT_ON_NAMES } from './buildCreativeCapabilities'
-import { buildCreativeReviewItemFromAction } from '../../ipc/CreativeReviewAdapter'
+import {
+  buildCreativeReviewItemFromAction,
+  enrichCreativeGitReviewItem,
+} from '../../ipc/CreativeReviewAdapter'
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
 import { buildProposalFromAction } from '../../ipc/MessageAdapter'
 import { parseUntitledTabId } from '../../document/virtualId'
@@ -167,13 +170,18 @@ export class CreativeDomainStrategy implements DomainStrategy {
         continue
       }
 
+      const creativeReview = buildCreativeReviewItemFromAction(
+        ar,
+        takeToolCallId(ar.name),
+        ctx.partialMessage?.id,
+        ctx.turnId,
+      )
       results.push({
         kind: 'creative',
-        payload: buildCreativeReviewItemFromAction(
-          ar,
-          takeToolCallId(ar.name),
-          ctx.partialMessage?.id,
-          ctx.turnId,
+        payload: await enrichCreativeGitReviewItem(
+          creativeReview,
+          runtimeCtx?.workspacePath ?? null,
+          this.gitService,
         ),
       })
     }
