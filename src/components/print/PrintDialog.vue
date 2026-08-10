@@ -532,6 +532,7 @@ async function buildPreviewHtml(): Promise<string> {
     bodyBackground:    bgColor,
     pageContentHeightPx: getPageContentHeightPx(resolvedSettings.pageSetup),
     repeatTableHeader: resolvedSettings.pagination.repeatTableHeader,
+    mermaidTheme: effectivePrintTheme.value.print.mermaid,
   })
 }
 

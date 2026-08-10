@@ -115,6 +115,34 @@ iWriter 支持加载用户在 App 外部编写的 CSS 主题文件，通过文�
   "description": "A custom theme for iWriter",
   "version": "1.0.0",
   "author": "Your Name",
+  "mermaid": {
+    "screen": {
+      "colorScheme": "light",
+      "variables": {
+        "background": "#ffffff",
+        "primaryColor": "#f8fafc",
+        "primaryTextColor": "#2d2d2d",
+        "primaryBorderColor": "#cbd5e1",
+        "secondaryColor": "#eef2f7",
+        "tertiaryColor": "#fef08a",
+        "lineColor": "#475569",
+        "textColor": "#2d2d2d"
+      }
+    },
+    "print": {
+      "colorScheme": "light",
+      "variables": {
+        "background": "#ffffff",
+        "primaryColor": "#f8fafc",
+        "primaryTextColor": "#2d2d2d",
+        "primaryBorderColor": "#cbd5e1",
+        "secondaryColor": "#eef2f7",
+        "tertiaryColor": "#fef08a",
+        "lineColor": "#475569",
+        "textColor": "#2d2d2d"
+      }
+    }
+  },
   "print": {
     "pageSize": "A4",
     "pageOrientation": "portrait",
@@ -138,6 +166,10 @@ iWriter 支持加载用户在 App 外部编写的 CSS 主题文件，通过文�
 ```
 
 `print` 字段中的所有属性都是可选的，未指定的属性会使用系统默认值。
+
+`mermaid.screen` 和 `mermaid.print` 分别控制编辑器与打印/PDF 中的 Mermaid 配色，二者会跟随对应的 Markdown 主题切换。`screen.colorScheme` 可设为 `light`、`dark` 或 `dynamic`；`dynamic` 根据当前已解析的系统明暗模式计算派生色，适合像内置 `System` 这样本身会跟随 App 主题的 Markdown 主题。屏幕调色板可以引用定义在当前 Markdown 主题作用域内的 CSS 变量。
+
+打印/PDF 为保证输出稳定，仅使用 `light` 或 `dark`，其调色板颜色应为自包含的 CSS 颜色值，不能依赖 `print.css` 中的 `var()`、`currentColor`、`light-dark()`、系统颜色或继承色；这类值会回退到内置中性配色。`variables` 中未指定的颜色同样会由内置配色补齐。
 
 ### screen.css 编写指南
 

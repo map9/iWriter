@@ -113,6 +113,8 @@ iWriter 支持 GitHub Flavored Markdown Alert：
 
 mermaid 图使用 `mermaid` 语言代码块保存，适合流程图、时序图、ER 图等结构化图示。可以通过 `/` 选择 **mermaid 图** 快速插入，也可以手动创建 `mermaid` 代码块。
 
+Mermaid 图的颜色跟随当前 Markdown 屏幕主题，而不是直接跟随 App 主题。选择 `System` Markdown 主题时，由于该主题本身继承 App 的已解析明暗与语义颜色，Mermaid 图也会随之联动。
+
 如果 Mermaid 语法有误，图表区域会显示错误信息；修正源码后会重新渲染。
 
 打印和 PDF 导出时，iWriter 会将 `mermaid` 代码块预渲染为图形；语法错误时，预览中会显示对应错误，方便在输出前修正。

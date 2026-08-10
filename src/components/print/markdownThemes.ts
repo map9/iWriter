@@ -1,9 +1,11 @@
 import { shallowRef } from 'vue'
 import type {
+  CustomThemeManifestMermaidSurface,
   FacingPageMargins,
   HeaderFooterSetup,
   MarkdownPrintOverrides,
   MarkdownPrintPreferences,
+  MarkdownMermaidTheme,
   MarkdownTheme,
   MarkdownThemeId,
   MarginBoxSlot,
@@ -1640,14 +1642,150 @@ const SYSTEM_PRINT_CSS = `
   .markdown-alert.markdown-alert-comment::before { color: #6e7781; }
 `
 
+const SYSTEM_SCREEN_MERMAID_THEME: MarkdownMermaidTheme = {
+  colorScheme: 'dynamic',
+  variables: {
+    background: 'var(--color-base-100)',
+    primaryColor: 'var(--color-primary)',
+    primaryTextColor: 'var(--color-primary-content)',
+    primaryBorderColor: 'var(--color-base-300)',
+    secondaryColor: 'var(--color-secondary)',
+    tertiaryColor: 'var(--color-accent)',
+    lineColor: 'var(--color-base-content)',
+    textColor: 'var(--color-base-content)',
+  },
+}
+
+const SYSTEM_PRINT_MERMAID_THEME: MarkdownMermaidTheme = {
+  colorScheme: 'light',
+  variables: {
+    background: '#ffffff',
+    primaryColor: '#f6f8fa',
+    primaryTextColor: '#1f2328',
+    primaryBorderColor: '#d1d9e0',
+    secondaryColor: '#ddf4ff',
+    tertiaryColor: '#dafbe1',
+    lineColor: '#59636e',
+    textColor: '#1f2328',
+  },
+}
+
+const GITHUB_MERMAID_THEME: MarkdownMermaidTheme = {
+  colorScheme: 'light',
+  variables: {
+    background: '#ffffff',
+    primaryColor: '#f6f8fa',
+    primaryTextColor: '#1f2328',
+    primaryBorderColor: '#d1d9e0',
+    secondaryColor: '#ddf4ff',
+    tertiaryColor: '#dafbe1',
+    lineColor: '#59636e',
+    textColor: '#1f2328',
+  },
+}
+
+const GITHUB_DARK_MERMAID_THEME: MarkdownMermaidTheme = {
+  colorScheme: 'dark',
+  variables: {
+    background: '#0d1117',
+    primaryColor: '#151b23',
+    primaryTextColor: '#f0f6fc',
+    primaryBorderColor: '#3d444d',
+    secondaryColor: '#1f6feb',
+    tertiaryColor: '#262c36',
+    lineColor: '#9198a1',
+    textColor: '#f0f6fc',
+  },
+}
+
+const PROSE_MERMAID_THEME: MarkdownMermaidTheme = {
+  colorScheme: 'light',
+  variables: {
+    background: '#ffffff',
+    primaryColor: '#f8fafc',
+    primaryTextColor: '#1c1917',
+    primaryBorderColor: '#cbd5e1',
+    secondaryColor: '#eef2f7',
+    tertiaryColor: '#fef08a',
+    lineColor: '#475569',
+    textColor: '#1c1917',
+  },
+}
+
+const NOVEL_MERMAID_THEME: MarkdownMermaidTheme = {
+  colorScheme: 'light',
+  variables: {
+    background: '#ffffff',
+    primaryColor: '#f5f5f4',
+    primaryTextColor: '#111827',
+    primaryBorderColor: '#c7c7c7',
+    secondaryColor: '#fef3c7',
+    tertiaryColor: '#fafaf9',
+    lineColor: '#4b5563',
+    textColor: '#111827',
+  },
+}
+
+const EXTERNAL_COLOR_CONTEXT_KEYWORD_RE = new RegExp(
+  `\\b(?:${[
+    'currentcolor', 'inherit', 'initial', 'unset', 'revert', 'revert-layer',
+    'accentcolor', 'accentcolortext', 'activetext', 'buttonborder', 'buttonface', 'buttontext',
+    'canvas', 'canvastext', 'field', 'fieldtext', 'graytext', 'highlight', 'highlighttext',
+    'linktext', 'mark', 'marktext', 'selecteditem', 'selecteditemtext', 'visitedtext',
+    'activeborder', 'activecaption', 'appworkspace', 'background', 'buttonhighlight',
+    'buttonshadow', 'captiontext', 'inactiveborder', 'inactivecaption', 'inactivecaptiontext',
+    'infobackground', 'infotext', 'menu', 'menutext', 'scrollbar', 'threeddarkshadow',
+    'threedface', 'threedhighlight', 'threedlightshadow', 'threedshadow', 'window',
+    'windowframe', 'windowtext',
+  ].join('|')})\\b`,
+  'i',
+)
+
+function dependsOnExternalColorContext(color: string): boolean {
+  return /\b(?:var|env|light-dark)\s*\(/i.test(color)
+    || EXTERNAL_COLOR_CONTEXT_KEYWORD_RE.test(color)
+    || color.toLowerCase().includes('-webkit-focus-ring-color')
+}
+
+function normalizeCustomMermaidTheme(
+  value: CustomThemeManifestMermaidSurface | undefined,
+  fallback: MarkdownMermaidTheme,
+  allowDynamic: boolean,
+  allowCssVariables: boolean,
+): MarkdownMermaidTheme {
+  const colorScheme = value?.colorScheme === 'dark'
+    || value?.colorScheme === 'light'
+    || (allowDynamic && value?.colorScheme === 'dynamic')
+    ? value.colorScheme
+    : fallback.colorScheme
+  const variables = { ...fallback.variables }
+
+  if (value?.variables && typeof value.variables === 'object') {
+    for (const [key, color] of Object.entries(value.variables)) {
+      const normalizedColor = typeof color === 'string' ? color.trim() : ''
+      const dependsOnExternalCss = dependsOnExternalColorContext(normalizedColor)
+      if (normalizedColor && (allowCssVariables || !dependsOnExternalCss)) {
+        variables[key] = normalizedColor
+      }
+    }
+  }
+
+  return { colorScheme, variables }
+}
+
 export const builtInMarkdownThemes: MarkdownTheme[] = [
   {
     id: 'system',
     name: 'System',
     description: 'Follows the current app theme colors; layout matches the editor default.',
-    screen: { css: SYSTEM_SCREEN_CSS, backgroundColor: 'var(--color-base-100)' },
+    screen: {
+      css: SYSTEM_SCREEN_CSS,
+      backgroundColor: 'var(--color-base-100)',
+      mermaid: SYSTEM_SCREEN_MERMAID_THEME,
+    },
     print: {
       css: SYSTEM_PRINT_CSS,
+      mermaid: SYSTEM_PRINT_MERMAID_THEME,
       pageDefaults: createPageSetup(),
       paginationDefaults: createPaginationSetup(),
       headerFooterDefaults: createHeaderFooterSetup(),
@@ -1658,7 +1796,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
     id: 'github',
     name: 'GitHub',
     description: 'Technical document defaults inspired by GitHub Markdown.',
-    screen: { css: GITHUB_SCREEN_CSS, backgroundColor: '#ffffff' },
+    screen: { css: GITHUB_SCREEN_CSS, backgroundColor: '#ffffff', mermaid: GITHUB_MERMAID_THEME },
     print: {
       css: `
         body {
@@ -1783,6 +1921,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         .markdown-alert.markdown-alert-comment::before { color: #6e7781; }
         .tiptap-mathematics-render[data-type="block-math"] { display: block; margin: 0 0 1rem; padding: 1rem; text-align: center; background: #f6f8fa; border-radius: 6px; }
       `,
+      mermaid: GITHUB_MERMAID_THEME,
       pageDefaults: createPageSetup({
         margins: createSingleMargins('20mm', '18mm', '22mm', '18mm'),
       }),
@@ -1795,7 +1934,11 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
     id: 'github-dark',
     name: 'GitHub Dark',
     description: 'Dark variant of GitHub Markdown — faithful to GitHub\'s dark mode design tokens.',
-    screen: { css: GITHUB_DARK_SCREEN_CSS, backgroundColor: '#0d1117' },
+    screen: {
+      css: GITHUB_DARK_SCREEN_CSS,
+      backgroundColor: '#0d1117',
+      mermaid: GITHUB_DARK_MERMAID_THEME,
+    },
     print: {
       css: `
         body {
@@ -1927,6 +2070,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         .markdown-alert.markdown-alert-comment::before { color: #9198a1; }
         .tiptap-mathematics-render[data-type="block-math"] { display: block; margin: 0 0 1rem; padding: 1rem; text-align: center; background: #151b23; border-radius: 6px; }
       `,
+      mermaid: GITHUB_DARK_MERMAID_THEME,
       pageDefaults: createPageSetup({
         margins: createSingleMargins('20mm', '18mm', '22mm', '18mm'),
         background: true,
@@ -1940,7 +2084,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
     id: 'prose',
     name: 'Prose',
     description: 'Comfortable reading defaults for general articles.',
-    screen: { css: PROSE_SCREEN_CSS, backgroundColor: '#ffffff' },
+    screen: { css: PROSE_SCREEN_CSS, backgroundColor: '#ffffff', mermaid: PROSE_MERMAID_THEME },
     print: {
       css: `
         body {
@@ -2015,6 +2159,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         strong { font-weight: 700; }
         em { font-style: italic; }
       `,
+      mermaid: PROSE_MERMAID_THEME,
       pageDefaults: createPageSetup({
         margins: createSingleMargins('22mm', '20mm', '24mm', '20mm'),
       }),
@@ -2032,7 +2177,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
     id: 'novel',
     name: 'Novel',
     description: 'Loose body spacing for long-form and book-style output.',
-    screen: { css: NOVEL_SCREEN_CSS, backgroundColor: '#ffffff' },
+    screen: { css: NOVEL_SCREEN_CSS, backgroundColor: '#ffffff', mermaid: NOVEL_MERMAID_THEME },
     print: {
       css: `
         body {
@@ -2104,6 +2249,7 @@ export const builtInMarkdownThemes: MarkdownTheme[] = [
         strong { font-weight: 700; }
         em { font-style: italic; }
       `,
+      mermaid: NOVEL_MERMAID_THEME,
       pageDefaults: createPageSetup({
         marginMode: 'facing',
         margins: createFacingMargins('24mm', '28mm', '24mm', '18mm'),
@@ -2171,9 +2317,23 @@ export function buildMarkdownThemeFromRaw(raw: RawCustomTheme): MarkdownTheme {
     id: raw.id,
     name: raw.manifest.name,
     description: raw.manifest.description,
-    screen: { css: raw.screenCss },
+    screen: {
+      css: raw.screenCss,
+      mermaid: normalizeCustomMermaidTheme(
+        raw.manifest.mermaid?.screen,
+        GITHUB_MERMAID_THEME,
+        true,
+        true,
+      ),
+    },
     print: {
       css: raw.printCss,
+      mermaid: normalizeCustomMermaidTheme(
+        raw.manifest.mermaid?.print,
+        SYSTEM_PRINT_MERMAID_THEME,
+        false,
+        false,
+      ),
       pageDefaults: createPageSetup(pageOverrides),
       paginationDefaults: createPaginationSetup(p.paginationMode ? { mode: p.paginationMode } : {}),
       headerFooterDefaults: createHeaderFooterSetup(hfOverrides),

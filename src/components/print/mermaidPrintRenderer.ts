@@ -1,6 +1,5 @@
-import mermaid from 'mermaid'
-import { nanoid } from 'nanoid'
-import { resetMermaidInit } from '@/components/common/tiptap/utils/mermaidRenderer'
+import type { MarkdownMermaidTheme } from '@/types'
+import { renderMermaid } from '@/components/common/tiptap/utils/mermaidRenderer'
 
 /**
  * Pre-renders Mermaid code blocks in TipTap-serialised HTML into SVG.
@@ -9,20 +8,15 @@ import { resetMermaidInit } from '@/components/common/tiptap/utils/mermaidRender
  *   <pre><code class="language-mermaid">graph TD...</code></pre>
  *
  * Print/PDF contexts don't run the Vue NodeView, so this fills them with
- * actual SVG. Always renders with the light 'default' theme since all print
- * themes use a light page background, regardless of the editor's screen theme.
+ * actual SVG using the effective Markdown print theme.
  */
-export async function renderMermaidInHtml(html: string): Promise<string> {
+export async function renderMermaidInHtml(
+  html: string,
+  theme: MarkdownMermaidTheme,
+): Promise<string> {
   const doc = new DOMParser().parseFromString(html, 'text/html')
   const blocks = Array.from(doc.querySelectorAll<HTMLElement>('pre > code.language-mermaid'))
   if (!blocks.length) return html
-
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: 'strict',
-    theme: 'default',
-    htmlLabels: false,
-  })
 
   for (const code of blocks) {
     const pre = code.parentElement
@@ -31,19 +25,16 @@ export async function renderMermaidInHtml(html: string): Promise<string> {
     const wrapper = doc.createElement('div')
     wrapper.className = 'mermaid-print'
     if (source.trim()) {
-      try {
-        const { svg } = await mermaid.render(`mermaid-print-${nanoid(8)}`, source)
-        wrapper.innerHTML = svg
-      } catch (e) {
+      const result = await renderMermaid(source, theme)
+      if ('svg' in result) {
+        wrapper.innerHTML = result.svg
+      } else {
         wrapper.classList.add('mermaid-print-error')
-        wrapper.textContent = e instanceof Error ? e.message : String(e)
+        wrapper.textContent = result.error
       }
     }
     pre.replaceWith(wrapper)
   }
-
-  // Restore the editor's Mermaid theme on next render now that print is done.
-  resetMermaidInit()
 
   return doc.body.innerHTML
 }

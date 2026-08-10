@@ -186,9 +186,10 @@ import {
   IconZoomIn, IconZoomOut, IconZoomReset,
 } from '@tabler/icons-vue'
 import { formatCode, isLanguageSupported, type FormatResult } from "./utils/CodeFormatter"
-import { renderMermaid, initMermaid } from "./utils/mermaidRenderer"
+import { renderMermaid } from "./utils/mermaidRenderer"
 import { notify } from '@/utils/notifications'
 import { useAppStore } from '@/stores/app'
+import { getAllMarkdownThemes, getMarkdownThemeById } from '@/components/print/markdownThemes'
 import { createLowlight, common } from 'lowlight'
 
 const appStore = useAppStore()
@@ -253,6 +254,15 @@ const selectedLanguage = computed({
 })
 
 const isMermaid = computed(() => selectedLanguage.value === 'mermaid')
+const screenMarkdownTheme = computed(() => {
+  const themeId = appStore.globalMarkdownPrintSetting.themeAssignment.screenThemeId
+  return getMarkdownThemeById(themeId) ?? getAllMarkdownThemes()[0]!
+})
+const mermaidRenderContext = computed(() => ({
+  theme: screenMarkdownTheme.value,
+  appThemeId: screenMarkdownTheme.value.id === 'system' ? appStore.currentThemeId : null,
+  systemPrefersDark: screenMarkdownTheme.value.id === 'system' ? appStore.systemPrefersDark : null,
+}))
 
 const shouldShowToolbar = computed((): boolean => {
   return props.selected || isHovered.value || isEditing.value
@@ -295,7 +305,11 @@ async function doRender(): Promise<void> {
     mermaidError.value = ''
     return
   }
-  const result = await renderMermaid(code)
+  const result = await renderMermaid(
+    code,
+    screenMarkdownTheme.value.screen.mermaid,
+    mermaidContainer.value,
+  )
   if ('svg' in result) {
     // 渲染成功：原子替换 SVG，不经过空白状态
     mermaidSvg.value = result.svg
@@ -321,18 +335,12 @@ watch(isMermaid, (val) => {
   if (val) scheduleRender()
 })
 
-// Watch theme changes via data-theme attribute on documentElement
-let themeObserver: MutationObserver | null = null
-
-function setupThemeObserver(): void {
-  themeObserver = new MutationObserver(() => {
-    if (isMermaid.value) {
-      initMermaid() // force re-init with new theme
-      scheduleRender()
-    }
-  })
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
-}
+// The Markdown screen theme is authoritative. The App theme is included only
+// while the System Markdown theme is active, because that theme inherits
+// daisyUI's live semantic colors.
+watch(mermaidRenderContext, () => {
+  if (isMermaid.value) scheduleRender()
+})
 
 // --- Mermaid layout & zoom ---
 function toggleMermaidLayout(): void {
@@ -465,17 +473,14 @@ const deleteCodeBlock = (): void => {
 // --- Lifecycle ---
 onMounted(() => {
   if (isMermaid.value) {
-    initMermaid()
     doRender()
   }
-  setupThemeObserver()
   document.addEventListener('mousedown', handleMouseDownCapture, true)
   document.addEventListener('click', handleClickOutside, true)
 })
 
 onUnmounted(() => {
   if (renderTimer) clearTimeout(renderTimer)
-  themeObserver?.disconnect()
   document.removeEventListener('mousedown', handleMouseDownCapture, true)
   document.removeEventListener('click', handleClickOutside, true)
 })

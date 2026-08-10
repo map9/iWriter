@@ -33,6 +33,36 @@ export interface CustomThemeManifest {
   version?: string
   author?: string
   print?: CustomThemeManifestPrint
+  mermaid?: CustomThemeManifestMermaid
+}
+
+export type MarkdownMermaidColorScheme = 'light' | 'dark' | 'dynamic'
+
+export interface MarkdownMermaidVariables {
+  background: string
+  primaryColor: string
+  primaryTextColor: string
+  primaryBorderColor: string
+  secondaryColor: string
+  tertiaryColor: string
+  lineColor: string
+  textColor: string
+  [key: string]: string
+}
+
+export interface MarkdownMermaidTheme {
+  colorScheme: MarkdownMermaidColorScheme
+  variables: MarkdownMermaidVariables
+}
+
+export interface CustomThemeManifestMermaidSurface {
+  colorScheme?: MarkdownMermaidColorScheme
+  variables?: Partial<MarkdownMermaidVariables>
+}
+
+export interface CustomThemeManifestMermaid {
+  screen?: CustomThemeManifestMermaidSurface
+  print?: CustomThemeManifestMermaidSurface
 }
 
 export interface RawCustomTheme {
@@ -162,9 +192,11 @@ export interface MarkdownTheme {
   screen: {
     css: string
     backgroundColor?: string
+    mermaid: MarkdownMermaidTheme
   }
   print: {
     css: string
+    mermaid: MarkdownMermaidTheme
     pageDefaults: PageSetup
     paginationDefaults: PaginationSetup
     headerFooterDefaults: HeaderFooterSetup

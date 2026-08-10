@@ -8,6 +8,7 @@ import { KATEX_INLINE_CSS } from './katexAssets'
 import { renderMathInHtml } from './mathRenderer'
 import { renderMermaidInHtml } from './mermaidPrintRenderer'
 import { MARKDOWN_ALERT_ICON_CSS } from './markdownThemes'
+import type { MarkdownMermaidTheme } from '@/types'
 
 const MERMAID_PRINT_CSS = `
 .mermaid-print {
@@ -443,13 +444,16 @@ export async function buildPreviewDocumentWithOptions(
     bodyBackground?: string,
     pageContentHeightPx?: number
     repeatTableHeader?: boolean
+    mermaidTheme?: MarkdownMermaidTheme
   } = {},
 ): Promise<string> {
   // Pre-render KaTeX math nodes so formulas appear in print/PDF contexts that
   // don't run the Vue NodeView (editor.getHTML() emits empty containers only).
   const mathHtml = renderMathInHtml(html)
   // Pre-render Mermaid code blocks into SVG for the same reason.
-  const renderedHtml = await renderMermaidInHtml(mathHtml)
+  const renderedHtml = options.mermaidTheme
+    ? await renderMermaidInHtml(mathHtml, options.mermaidTheme)
+    : mathHtml
   // Prevent any </script sequences in user HTML from breaking the iframe document
   const safeHtml = renderedHtml.split('</script').join('<\\/script')
 

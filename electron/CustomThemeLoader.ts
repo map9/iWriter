@@ -131,6 +131,34 @@ export class CustomThemeLoader {
       description: 'A custom theme for iWriter',
       version: '1.0.0',
       author: 'Your Name',
+      mermaid: {
+        screen: {
+          colorScheme: 'light',
+          variables: {
+            background: '#ffffff',
+            primaryColor: '#f8fafc',
+            primaryTextColor: '#2d2d2d',
+            primaryBorderColor: '#cbd5e1',
+            secondaryColor: '#eef2f7',
+            tertiaryColor: '#fef08a',
+            lineColor: '#475569',
+            textColor: '#2d2d2d',
+          },
+        },
+        print: {
+          colorScheme: 'light',
+          variables: {
+            background: '#ffffff',
+            primaryColor: '#f8fafc',
+            primaryTextColor: '#2d2d2d',
+            primaryBorderColor: '#cbd5e1',
+            secondaryColor: '#eef2f7',
+            tertiaryColor: '#fef08a',
+            lineColor: '#475569',
+            textColor: '#2d2d2d',
+          },
+        },
+      },
       print: {
         pageSize: 'A4',
         pageOrientation: 'portrait',
