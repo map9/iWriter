@@ -107,7 +107,6 @@ const webSearchTool = new DynamicStructuredTool({
           const image_urls: WebSearchImage[] = rawImages.map(img =>
             typeof img === 'string' ? { url: img, description: '' } : { url: img.url, description: img.description ?? '' }
           )
-          console.log(`[web_search] tavily query="${query}" results=${results.length} images=${image_urls.length}`)
           return JSON.stringify({ provider: 'tavily', results, ...(image_urls.length ? { image_urls } : {}) })
         }
 
@@ -139,7 +138,6 @@ const webSearchTool = new DynamicStructuredTool({
           }))
           const rawImages = data.data?.images?.value ?? []
           const image_urls: WebSearchImage[] = rawImages.map(img => ({ url: img.contentUrl, description: img.name ?? '' }))
-          console.log(`[web_search] bocha query="${query}" results=${results.length} images=${image_urls.length}`)
           return JSON.stringify({ provider: 'bocha', results, ...(image_urls.length ? { image_urls } : {}) })
         }
 
@@ -171,7 +169,6 @@ const webSearchTool = new DynamicStructuredTool({
             url: r.link,
             snippet: r.snippet ?? '',
           }))
-          console.log(`[web_search] serper query="${query}" results=${results.length}`)
           return JSON.stringify({ provider: 'serper', results })
         }
 
@@ -202,7 +199,6 @@ const webSearchTool = new DynamicStructuredTool({
             url: r.url,
             snippet: r.text ?? '',
           }))
-          console.log(`[web_search] exa query="${query}" results=${results.length}`)
           return JSON.stringify({ provider: 'exa', results })
         }
 
