@@ -5,7 +5,7 @@ export const SUMMARIZATION_KEEP_FRACTION = 0.1
 export const UNKNOWN_MODEL_REQUEST_BUDGET_TOKENS = 128000
 
 // DeepSeek still advertises a 1M physical context in ModelProfile. iWriter deliberately limits
-// active requests to 75k for long-context quality and compacts at 80% (60k); keep this runtime
+// active requests to 400k for long-context quality and compacts at 80% (320k); keep this runtime
 // policy separate from model-profiles.ts so model capability metadata remains unchanged.
 const DEEPSEEK_REQUEST_BUDGET_TOKENS = 400000
 const DEEPSEEK_SUMMARIZATION_TRIGGER_FRACTION = 0.8

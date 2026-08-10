@@ -347,9 +347,9 @@ describe('AgentEngine initialization', () => {
     assert.deepEqual(stats, {
       visible: true,
       currentTokens: 0,
-      triggerTokens: 27200,
-      requestBudgetTokens: 32000,
-      keepTokens: 3200,
+      triggerTokens: 108800,
+      requestBudgetTokens: 128000,
+      keepTokens: 12800,
       maxInputTokens: undefined,
     })
   })
@@ -375,9 +375,9 @@ describe('AgentEngine initialization', () => {
     )
 
     const options = globalThis.__iwriterDeepAgentOptions.summarizationMiddlewareOptions
-    assert.deepEqual(options.trigger, { type: 'tokens', value: 60000 })
-    assert.deepEqual(options.keep, { type: 'tokens', value: 7500 })
-    assert.equal(options.trimTokensToSummarize, 60000)
+    assert.deepEqual(options.trigger, { type: 'tokens', value: 320000 })
+    assert.deepEqual(options.keep, { type: 'tokens', value: 40000 })
+    assert.equal(options.trimTokensToSummarize, 320000)
     assert.equal(options.model.runtime.modelId, 'deepseek-v4-pro')
     assert.equal(options.model.runtime.thinkingLevel, 'medium')
     assert.equal(options.model.runtime.disableThinking, true)
@@ -477,7 +477,7 @@ describe('AgentEngine initialization', () => {
 })
 
 describe('Effective model budget', () => {
-  it('limits DeepSeek requests to 75k and starts summarization at 60k', async () => {
+  it('limits DeepSeek requests to 400k and starts summarization at 320k', async () => {
     const { resolveEffectiveModelBudget } = await loadBudgetModule()
 
     assert.deepEqual(
@@ -488,9 +488,9 @@ describe('Effective model budget', () => {
       ),
       {
         maxInputTokens: 1000000,
-        requestBudgetTokens: 75000,
-        triggerTokens: 60000,
-        keepTokens: 7500,
+        requestBudgetTokens: 400000,
+        triggerTokens: 320000,
+        keepTokens: 40000,
         source: 'builtin-provider',
       },
     )
@@ -504,20 +504,20 @@ describe('Effective model budget', () => {
       resolveEffectiveModelBudget(config, 'gpt-5.4', { maxInputTokens: 1050000 }),
       {
         maxInputTokens: 1050000,
-        requestBudgetTokens: 200000,
-        triggerTokens: 170000,
-        keepTokens: 20000,
+        requestBudgetTokens: 400000,
+        triggerTokens: 340000,
+        keepTokens: 40000,
         source: 'builtin-provider',
       },
     )
     assert.equal(
       resolveEffectiveModelBudget(config, 'gpt-new-model', { maxInputTokens: 1000000 })
         .requestBudgetTokens,
-      200000,
+      400000,
     )
     assert.equal(
       resolveEffectiveModelBudget(config, 'gpt-even-newer-model').requestBudgetTokens,
-      32000,
+      128000,
     )
   })
 
@@ -534,7 +534,7 @@ describe('Effective model budget', () => {
     assert.equal(
       resolveEffectiveModelBudget(config, 'gpt-5.4-pro', { maxInputTokens: 1050000 })
         .requestBudgetTokens,
-      12000,
+      128000,
     )
     assert.deepEqual(
       resolveEffectiveModelBudget(config, 'custom', { maxInputTokens: 16000 }),
@@ -556,9 +556,9 @@ describe('Effective model budget', () => {
       { maxInputTokens: 1000000 },
     )
 
-    assert.equal(budget.requestBudgetTokens, 32000)
-    assert.equal(budget.triggerTokens, 27200)
-    assert.equal(budget.keepTokens, 3200)
+    assert.equal(budget.requestBudgetTokens, 128000)
+    assert.equal(budget.triggerTokens, 108800)
+    assert.equal(budget.keepTokens, 12800)
     assert.equal(budget.source, 'unknown-model')
   })
 })
