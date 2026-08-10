@@ -638,6 +638,7 @@ export default {
     },
     chatArea: {
       loadingSession: 'Loading session...',
+      scrollToLatest: 'Jump to latest',
       contextCompressing: '========== Compressing context... =========',
       contextCompressionCompleted: '========== Context compression completed =========',
       contextCompressionFailed: '========== Context compression failed =========',

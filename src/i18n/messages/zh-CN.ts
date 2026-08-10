@@ -635,6 +635,7 @@ export default {
     },
     chatArea: {
       loadingSession: '正在加载会话...',
+      scrollToLatest: '回到最新',
       contextCompressing: '正在压缩上下文...',
       contextCompressionCompleted: '上下文压缩已完成',
       contextCompressionFailed: '上下文压缩失败',

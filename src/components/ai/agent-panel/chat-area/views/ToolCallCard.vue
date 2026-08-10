@@ -4,7 +4,7 @@
     :class="[containerClass, groupContainerClass, groupDividerClass]"
   >
     <div
-      class="group flex items-center gap-2.5 px-2 py-0.5 cursor-pointer select-none"
+      class="group flex min-h-7 items-center gap-2.5 px-2 py-0.5 cursor-pointer select-none"
       @click="toggleExpanded"
     >
       <div class="w-3.5 shrink-0 flex items-center justify-center">

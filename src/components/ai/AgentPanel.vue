@@ -17,7 +17,12 @@
     />
 
     <template v-else>
-      <AgentChatArea class="flex-1" :bottom-padding="chatBottomPadding" />
+      <AgentChatArea
+        ref="chatAreaRef"
+        class="flex-1"
+        :bottom-padding="chatBottomPadding"
+        @follow-state-change="handleFollowStateChange"
+      />
       <div
         v-if="showBottomOverlay"
         ref="bottomOverlayRef"
@@ -34,6 +39,18 @@
           :commands="aiStore.pendingCommands"
         />
       </div>
+      <button
+        v-if="showScrollToLatest"
+        type="button"
+        class="btn btn-sm absolute left-1/2 z-20 h-7 min-h-0 -translate-x-1/2 gap-1 rounded-full border-base-300 bg-base-100 px-2.5 text-xs font-normal text-base-content shadow-md hover:bg-base-200"
+        :style="{ bottom: `${scrollToLatestBottom}px` }"
+        :aria-label="t('agentPanel.chatArea.scrollToLatest')"
+        :title="t('agentPanel.chatArea.scrollToLatest')"
+        @click="scrollToLatest"
+      >
+        <IconArrowDown class="icon-2xs shrink-0" />
+        <span>{{ t('agentPanel.chatArea.scrollToLatest') }}</span>
+      </button>
       <div ref="inputAreaRef" class="absolute bottom-0 left-0 right-0 z-10">
         <AgentInputArea />
       </div>
@@ -45,6 +62,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, reactive, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { IconArrowDown } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/store/ai'
 import { useAppStore } from '@/stores/app'
 import AgentHeader from './agent-panel/AgentHeader.vue'
@@ -82,11 +100,15 @@ const appStore = useAppStore()
 const { t } = useI18n()
 
 const inputAreaRef = ref<HTMLElement | null>(null)
+const chatAreaRef = ref<{ scrollToLatest: () => void } | null>(null)
 const inputAreaHeight = ref(0)
 const bottomOverlayRef = ref<HTMLElement | null>(null)
 const bottomOverlayHeight = ref(0)
 let resizeObserver: ResizeObserver | null = null
 let bottomOverlayResizeObserver: ResizeObserver | null = null
+
+type ChatFollowState = 'following' | 'soft-paused' | 'detached'
+const chatFollowState = ref<ChatFollowState>('following')
 
 const showHistory = computed(() => persistedPanelUi.view === 'history')
 
@@ -103,6 +125,10 @@ const showPendingCommands = computed(
   () => !aiStore.isInterrupted && aiStore.pendingCommands.length > 0,
 )
 const showBottomOverlay = computed(() => showTaskPlan.value || showPendingCommands.value)
+const showScrollToLatest = computed(() => chatFollowState.value !== 'following')
+const scrollToLatestBottom = computed(
+  () => inputAreaHeight.value + bottomOverlayHeight.value + 10,
+)
 
 const showBackButton = computed(() => showHistory.value)
 const chatBottomPadding = computed(() => inputAreaHeight.value + bottomOverlayHeight.value)
@@ -117,6 +143,14 @@ function toggleHistory() {
 
 function openSettings() {
   appStore.openPreferences('ai')
+}
+
+function handleFollowStateChange(state: ChatFollowState) {
+  chatFollowState.value = state
+}
+
+function scrollToLatest() {
+  chatAreaRef.value?.scrollToLatest()
 }
 
 function confirmThreadTermination(actionLabel: string): boolean {

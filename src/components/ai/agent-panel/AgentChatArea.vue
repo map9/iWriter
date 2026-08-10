@@ -54,6 +54,9 @@ import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 defineProps<{ bottomPadding?: number }>()
+const emit = defineEmits<{
+  followStateChange: [state: ScrollFollowState]
+}>()
 import { useAiStore } from '@/ai/store/ai'
 import ChatContextPill from './chat-area/ChatContextPill.vue'
 import AgentEmptyState from './chat-area/AgentEmptyState.vue'
@@ -153,18 +156,26 @@ const streamingStatusLabel = computed(() => {
 
 // ── Auto-scroll (sticky auto-follow) ──────────────────────────────────────
 const messagesEl = ref<HTMLDivElement>()
-const isAutoFollow = ref(true)
-const pendingNewContent = ref(false)
+type ScrollFollowState = 'following' | 'soft-paused' | 'detached'
+
+const followState = ref<ScrollFollowState>('following')
 let isProgrammaticScroll = false
 let idleTimer: ReturnType<typeof setTimeout> | null = null
 
 const STICK_THRESHOLD_PX = 40
-const IDLE_RESUME_MS = 3000
+const SOFT_PAUSE_THRESHOLD_PX = 200
+const IDLE_RESUME_MS = 5000
 
-function isNearBottom(): boolean {
+function distanceFromBottom(): number {
   const el = messagesEl.value
-  if (!el) return true
-  return el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD_PX
+  if (!el) return 0
+  return Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight)
+}
+
+function setFollowState(state: ScrollFollowState) {
+  if (followState.value === state) return
+  followState.value = state
+  emit('followStateChange', state)
 }
 
 function scrollToBottom() {
@@ -186,25 +197,34 @@ function scheduleIdleResume() {
   clearIdleTimer()
   idleTimer = setTimeout(() => {
     idleTimer = null
-    if (pendingNewContent.value) {
-      isAutoFollow.value = true
-      pendingNewContent.value = false
-      scrollToBottom()
-    }
+    if (followState.value !== 'soft-paused') return
+    setFollowState('following')
+    scrollToBottom()
   }, IDLE_RESUME_MS)
 }
 
 function onScroll() {
   if (isProgrammaticScroll) return
-  if (isNearBottom()) {
-    isAutoFollow.value = true
-    pendingNewContent.value = false
+  const distance = distanceFromBottom()
+  if (distance <= STICK_THRESHOLD_PX) {
     clearIdleTimer()
-  } else {
-    isAutoFollow.value = false
+    setFollowState('following')
+  } else if (isSessionActive.value && distance <= SOFT_PAUSE_THRESHOLD_PX) {
+    setFollowState('soft-paused')
     scheduleIdleResume()
+  } else {
+    clearIdleTimer()
+    setFollowState('detached')
   }
 }
+
+function scrollToLatest() {
+  clearIdleTimer()
+  setFollowState('following')
+  scrollToBottom()
+}
+
+defineExpose({ scrollToLatest })
 
 watch(
   () => [
@@ -216,10 +236,8 @@ watch(
   ],
   () => {
     nextTick(() => {
-      if (isAutoFollow.value) {
+      if (followState.value === 'following') {
         scrollToBottom()
-      } else {
-        pendingNewContent.value = true
       }
     })
   }
@@ -229,13 +247,13 @@ watch(
   () => aiStore.activeThreadId,
   () => {
     clearIdleTimer()
-    isAutoFollow.value = true
-    pendingNewContent.value = false
+    setFollowState('following')
     nextTick(() => scrollToBottom())
   }
 )
 
 onMounted(() => {
+  emit('followStateChange', 'following')
   nextTick(() => scrollToBottom())
 })
 
