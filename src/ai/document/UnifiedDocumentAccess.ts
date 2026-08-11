@@ -16,13 +16,19 @@ import { nanoid } from 'nanoid'
 
 import { loadDocumentFromDisk, isLoadError } from '@/services/document/DocumentLoader'
 import type { LoadedDocument } from '@/services/document/DocumentLoader'
-import { DocumentViewBuilder } from './DocumentViewBuilder'
+import { DocumentViewBuilder, type DocumentView } from './DocumentViewBuilder'
 import { applyBlockEditProposal } from './BlockEditApplier'
 import type { BlockEditProposal } from '@/ai/types'
-import type { DocumentViewSnapshot } from '../thread/ContextBuilder'
 
 export type { ApplyResult } from './BlockEditApplier'
 import type { ApplyResult } from './BlockEditApplier'
+
+export interface DocumentViewSnapshot {
+  view: DocumentView
+  editor: Editor
+  cursorBlockId: number | null
+  filePath?: string
+}
 
 // ── Virtual editor extensions ────────────────────────────────────────────────
 // createBaseExtensions() (via DocumentLoader) + UniqueID so blocks get stable node IDs

@@ -152,6 +152,13 @@ function lcMsgText(content: unknown): string {
   return String(content ?? '')
 }
 
+function stripGeneratedUserContext(content: string): string {
+  return content
+    .replace(/<turn_bindings>[\s\S]*?<\/turn_bindings>\s*/g, '')
+    .replace(/<attached_image\s+path="[^"]*"\s*\/>\s*/g, '')
+    .trim()
+}
+
 function assertLangChainContentBlocksAreSane(content: unknown[]): void {
   content.forEach((block, index) => {
     if (!block || typeof block !== 'object' || Array.isArray(block)) return
@@ -353,11 +360,7 @@ export function convertLcMessages(rawMessages: any[]): ThreadMessage[] {
     if (type === 'system' || type === 'remove') { i++; continue }
 
     if (type === 'human') {
-      const raw = lcMsgText(msg.content)
-      // Strip system-injected XML blocks added at send time.
-      const content = raw
-        .replace(/<runtime_context[\s\S]*?<\/runtime_context>\s*/g, '')
-        .trim()
+      const content = stripGeneratedUserContext(lcMsgText(msg.content))
       result.push({
         id: typeof msg.id === 'string' && msg.id ? msg.id : `msg-h-${i}`,
         role: 'user',
@@ -503,8 +506,6 @@ export function buildProposalFromAction(
   sourceTurnId?: string,
 ): EditProposal {
   const id = `proposal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-  const filePath = typeof args.file_path === 'string' ? args.file_path : undefined
-
   const description = typeof args.reason === 'string' ? args.reason : undefined
 
   if (toolName === 'create_document') {
@@ -527,6 +528,8 @@ export function buildProposalFromAction(
   }
 
   // Block operations
+  const filePath = typeof args.file_path === 'string' ? args.file_path.trim() : ''
+  if (!filePath) throw new Error(`${toolName} requires file_path.`)
   const blockProposal: Partial<BlockEditProposal> = {
     id,
     kind: 'block',

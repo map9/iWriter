@@ -1,5 +1,6 @@
 import * as path from 'path'
 import type { ResumeDecision } from '../../ipc/protocol'
+import { isPathInside } from '../../runtime/RuntimePathResolver'
 
 export type FilesystemApprovalDecision =
   | { kind: 'auto-approve'; decision: ResumeDecision; reason: string }
@@ -31,13 +32,6 @@ function isInternalWritablePath(filePath: string): boolean {
 
 function hasUnsafePathSegment(filePath: string): boolean {
   return filePath.split(/[\\/]+/).some(segment => segment === '..' || segment === '~')
-}
-
-function isInside(parentPath: string, childPath: string): boolean {
-  const parent = path.resolve(parentPath)
-  const child = path.resolve(childPath)
-  const relative = path.relative(parent, child)
-  return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 export function isFilesystemWriteToolName(toolName: string): boolean {
@@ -102,7 +96,7 @@ function extractCandidatePaths(toolName: string, args: Record<string, unknown>):
       if (/[\\/]/.test(newName) || newName === '.' || newName === '..' || newName.startsWith('~')) {
         return { error: `${toolName} was rejected because new_name must be a plain filename without path separators: ${newName}` }
       }
-      const target = path.isAbsolute(filePath) ? path.join(path.dirname(filePath), newName) : newName
+      const target = path.join(path.dirname(filePath), newName)
       return [filePath, target]
     }
     case 'move_file': {
@@ -153,7 +147,7 @@ export function decideFilesystemWriteApproval(input: FilesystemWriteApprovalInpu
     if (isInternalWritablePath(filePath)) continue
     if (!path.isAbsolute(filePath)) continue // already auto-rejected above
 
-    if (input.workspacePath && isInside(input.workspacePath, filePath)) {
+    if (input.workspacePath && isPathInside(input.workspacePath, filePath)) {
       continue
     }
 

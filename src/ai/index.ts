@@ -13,7 +13,6 @@ providerRegistry.register(new GeminiProvider())
 
 export { providerRegistry } from './model/providers/ProviderRegistry'
 export type { AgentSession, AgentChunk, LMMessage, LMTool } from './model/providers/types'
-export { buildEditorStateBlock } from './thread/ContextBuilder'
 export {
   createThread,
   createMessage,

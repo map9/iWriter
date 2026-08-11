@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
-import type { IWriterAgentContext } from '../../runtime/AgentContext'
+import { getRuntimeWorkspacePath, isPathInside } from '../../runtime/RuntimePathResolver'
 import {
   GitServiceError,
   type GitService,
@@ -25,16 +25,6 @@ type GitErrorCode =
 type GitResult =
   | { ok: true; stdout: string; stderr: string }
   | { ok: false; errorCode: GitErrorCode; message: string }
-
-function isInside(parent: string, child: string): boolean {
-  const rel = path.relative(parent, child)
-  return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel)
-}
-
-function getWorkspacePath(runtime: unknown, fallbackWorkspacePath?: string | null): string | null {
-  const wp = (runtime as { context?: IWriterAgentContext } | undefined)?.context?.workspacePath
-  return wp?.trim() || fallbackWorkspacePath || null
-}
 
 function ensureWorkspace(workspacePath: string | null): string | null {
   if (!workspacePath) return null
@@ -94,7 +84,7 @@ function resolveGitFile(workspacePath: string, file: string): { ok: true; relati
     return { ok: false, message: 'Git file paths cannot contain "..".' }
   }
   const resolved = path.resolve(workspacePath, trimmed)
-  if (!isInside(workspacePath, resolved)) {
+  if (!isPathInside(workspacePath, resolved)) {
     return { ok: false, message: 'Git file path escapes the workspace.' }
   }
   return { ok: true, relativePath: path.relative(workspacePath, resolved).replace(/\\/g, '/') }
@@ -126,13 +116,12 @@ export function getLastGitTagInfo(gitService: GitService, workspacePath: string)
 const NO_WORKSPACE = 'Error: this action requires an open workspace folder.'
 
 export function buildGitTools(options: {
-  workspacePath?: string | null
   gitService: GitService
   onMutation: (event: GitMutationEvent) => void
 }) {
   const gitService = options.gitService
   const resolveWorkspace = (runtime: unknown): string | null =>
-    ensureWorkspace(getWorkspacePath(runtime, options.workspacePath))
+    ensureWorkspace(getRuntimeWorkspacePath(runtime))
   const notifyMutation = (root: string, kind: GitMutationEvent['kind']): void => {
     try {
       options.onMutation({ root, kind })

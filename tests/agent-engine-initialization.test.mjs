@@ -91,6 +91,11 @@ function stubPlugin() {
           'export class SnapshotBroker { constructor() {} }',
         ],
         [
+          /document\/EditorStateBroker$/,
+          'editor-state-broker',
+          'export class EditorStateBroker { constructor() {} }',
+        ],
+        [
           /checkpoint\/CheckpointerFactory$/,
           'checkpointer',
           'export async function getCheckpointer() { return { checkpointer: {}, backend: "memory", db: null } }',
@@ -128,7 +133,7 @@ function stubPlugin() {
         [
           /runtime\/ThreadRuntimeStore$/,
           'thread-runtime-store',
-          'export class ThreadRuntimeStore { getInterrupted() { return null } clearInterrupted() {} buildConfigurable() { return {} } buildContext() { return {} } getCurrentTurnId() { return null } getContext() { return null } }',
+          'export class ThreadRuntimeStore { getInterrupted() { return null } clearInterrupted() {} buildContext() { return {} } getCurrentTurnId() { return null } getContext() { return null } }',
         ],
         [
           /scaffold\/filesystem\/AgentFilesystem$/,

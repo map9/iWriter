@@ -32,11 +32,13 @@ const BATCH_NOTE =
   'times in ONE turn using block IDs from a single read — they are reviewed and applied ' +
   'together in the correct order. Do not re-read between them; re-read only after the batch is applied.'
 
+const DOCUMENT_PATH_DESCRIPTION =
+  'Required. Workspace-relative path or real absolute host path to the target document, or an untitled: virtual ID returned by get_editor_state. Reuse the exact path form used to read the block IDs.'
+
 export function buildEditProposalTools() {
   const editBlock = tool(
-    async ({ block_id, file_path }: { block_id: number; new_content: string; expected_current_content?: string; reason?: string; file_path?: string }) => {
-      const target = file_path ? `file "${file_path}"` : 'the active document'
-      return `Edit applied to ${target} at block {b:${block_id}}. ${batchAppliedMessage()}`
+    async ({ block_id, file_path }: { block_id: number; new_content: string; expected_current_content?: string; reason?: string; file_path: string }) => {
+      return `Edit applied to file "${file_path}" at block {b:${block_id}}. ${batchAppliedMessage()}`
     },
     {
       name: 'edit_block',
@@ -58,17 +60,14 @@ export function buildEditProposalTools() {
           .optional()
           .describe('Exact current Markdown of the target block (without the {b:n} marker), usually copied from get_blocks.'),
         reason: z.string().optional().describe('Brief reason for the edit.'),
-        file_path: z.string().optional().describe(
-          'Required. Absolute host path to a disk file, or virtual_id (e.g. "untitled:...") for an in-memory unsaved document (status="unsaved_new"), from <active_document>/<open_tabs>. Never pass a basename, workspace-relative path, or virtual mount path.'
-        ),
+        file_path: z.string().describe(DOCUMENT_PATH_DESCRIPTION),
       }),
     }
   )
 
   const insertBlock = tool(
-    async ({ after_block_id, file_path }: { after_block_id: number; new_content: string; expected_anchor_content?: string; reason?: string; file_path?: string }) => {
-      const target = file_path ? `file "${file_path}"` : 'the active document'
-      return `Insert applied to ${target} after block {b:${after_block_id}}. ${batchAppliedMessage()}`
+    async ({ after_block_id, file_path }: { after_block_id: number; new_content: string; expected_anchor_content?: string; reason?: string; file_path: string }) => {
+      return `Insert applied to file "${file_path}" after block {b:${after_block_id}}. ${batchAppliedMessage()}`
     },
     {
       name: 'insert_block',
@@ -86,15 +85,14 @@ export function buildEditProposalTools() {
           .optional()
           .describe('Exact current Markdown of the anchor block (without the {b:n} marker), usually copied from get_blocks.'),
         reason: z.string().optional().describe('Brief reason for the insertion.'),
-        file_path: z.string().optional().describe('Required. Absolute host path to a disk file, or virtual_id (e.g. "untitled:...") for an in-memory unsaved document (status="unsaved_new"), from <active_document>/<open_tabs>. Never pass a basename, workspace-relative path, or virtual mount path.'),
+        file_path: z.string().describe(DOCUMENT_PATH_DESCRIPTION),
       }),
     }
   )
 
   const deleteBlock = tool(
-    async ({ block_id, file_path }: { block_id: number; expected_current_content?: string; reason?: string; file_path?: string }) => {
-      const target = file_path ? `file "${file_path}"` : 'the active document'
-      return `Delete applied to ${target} at block {b:${block_id}}. ${batchAppliedMessage()}`
+    async ({ block_id, file_path }: { block_id: number; expected_current_content?: string; reason?: string; file_path: string }) => {
+      return `Delete applied to file "${file_path}" at block {b:${block_id}}. ${batchAppliedMessage()}`
     },
     {
       name: 'delete_block',
@@ -109,15 +107,14 @@ export function buildEditProposalTools() {
           .optional()
           .describe('Exact current Markdown of the target block (without the {b:n} marker), usually copied from get_blocks.'),
         reason: z.string().optional().describe('Brief reason for the deletion.'),
-        file_path: z.string().optional().describe('Required. Absolute host path to a disk file, or virtual_id (e.g. "untitled:...") for an in-memory unsaved document (status="unsaved_new"), from <active_document>/<open_tabs>. Never pass a basename, workspace-relative path, or virtual mount path.'),
+        file_path: z.string().describe(DOCUMENT_PATH_DESCRIPTION),
       }),
     }
   )
 
   const replaceRange = tool(
-    async ({ start_block_id, end_block_id, file_path }: { start_block_id: number; end_block_id: number; new_content: string; expected_old_content?: string; reason?: string; file_path?: string }) => {
-      const target = file_path ? `file "${file_path}"` : 'the active document'
-      return `Replace applied to ${target} for blocks {b:${start_block_id}}–{b:${end_block_id}}. ${batchAppliedMessage()}`
+    async ({ start_block_id, end_block_id, file_path }: { start_block_id: number; end_block_id: number; new_content: string; expected_old_content?: string; reason?: string; file_path: string }) => {
+      return `Replace applied to file "${file_path}" for blocks {b:${start_block_id}}–{b:${end_block_id}}. ${batchAppliedMessage()}`
     },
     {
       name: 'replace_range',
@@ -135,7 +132,7 @@ export function buildEditProposalTools() {
           .optional()
           .describe('Exact current Markdown of the whole target range (without {b:n} markers), usually copied from get_blocks.'),
         reason: z.string().optional().describe('Brief reason for the replacement.'),
-        file_path: z.string().optional().describe('Required. Absolute host path to a disk file, or virtual_id (e.g. "untitled:...") for an in-memory unsaved document (status="unsaved_new"), from <active_document>/<open_tabs>. Never pass a basename, workspace-relative path, or virtual mount path.'),
+        file_path: z.string().describe(DOCUMENT_PATH_DESCRIPTION),
       }),
     }
   )
@@ -154,7 +151,7 @@ export function buildEditProposalTools() {
         filename: z.string().describe('Desired filename (basename only, no directory). Extension is optional; .md will be used when omitted.'),
         content: z.string().describe('Full Markdown content for the new document.'),
         reason: z.string().optional().describe('Brief description of the document.'),
-        directory: z.string().optional().describe('Absolute host path to the directory where the file should be written on disk (e.g. /Users/xxx/myproject/draft/). When provided the file is saved to disk and opened; when omitted, an in-memory tab is created.'),
+        directory: z.string().optional().describe('Workspace-relative or real absolute host directory where the file should be written. When provided the file is saved to disk and opened; when omitted, an in-memory tab is created.'),
         open_in_editor: z.boolean().optional().describe('Whether to open the created file as an editor tab. Default true. Set false when creating scaffold/skeleton objects that should be written to disk without opening (e.g. project bootstrap creating multiple empty objects). Only applies when directory is set.'),
       }),
     }

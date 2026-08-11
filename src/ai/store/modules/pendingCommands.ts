@@ -28,12 +28,10 @@ function uniquePaths(paths: string[]): string[] {
 function normalizeSendContext(sendContext?: SendContext): SendContext | undefined {
   if (!sendContext) return undefined
   const normalized: SendContext = {
-    textFilePaths: uniquePaths(sendContext.textFilePaths),
-    binaryFilePaths: uniquePaths(sendContext.binaryFilePaths),
+    filePaths: uniquePaths(sendContext.filePaths),
     directories: uniquePaths(sendContext.directories),
   }
-  return normalized.textFilePaths.length
-    || normalized.binaryFilePaths.length
+  return normalized.filePaths.length
     || normalized.directories.length
     ? normalized
     : undefined
@@ -107,8 +105,7 @@ export function createPendingCommandQueue(options: PendingCommandQueueOptions = 
       ids: commands.map(command => command.id),
       text: commands.map(command => command.text).join('\n\n'),
       sendContext: normalizeSendContext({
-        textFilePaths: commands.flatMap(command => command.sendContext?.textFilePaths ?? []),
-        binaryFilePaths: commands.flatMap(command => command.sendContext?.binaryFilePaths ?? []),
+        filePaths: commands.flatMap(command => command.sendContext?.filePaths ?? []),
         directories: commands.flatMap(command => command.sendContext?.directories ?? []),
       }),
     }

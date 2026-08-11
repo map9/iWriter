@@ -174,18 +174,10 @@ export function assembleSubagents(options: AssembleOptions): SubAgent[] {
       ? options.resolveModel(frontmatter.model, frontmatter.modelParams)
       : undefined
 
-    // Subagents start cold with no <runtime_context>, so the workspace root is injected here as
-    // runtime context. Agents join it with a workspace-relative object path to build the absolute
-    // path the document/filesystem tools require (they reject relative paths). Omitted when there
-    // is no open workspace.
-    const runtimeContextBlock = options.workspacePath
-      ? `<runtime_context>\n  <workspace>${options.workspacePath}</workspace>\n</runtime_context>\n\n`
-      : ''
-
     const subAgent: SubAgent = {
       name: frontmatter.name,
       description: frontmatter.description,
-      systemPrompt: `${buildOutputLanguagePrompt(options.language)}\n\n${runtimeContextBlock}${body}`,
+      systemPrompt: `${buildOutputLanguagePrompt(options.language)}\n\n${body}`,
       // Subagent trace identity comes for free from deepagents' `createAgent({ name })`: the subagent
       // subtree root run is named after `name` and every run carries `metadata.lc_agent_name`, so the
       // whole invocation is filterable/exportable in LangSmith without custom middleware.

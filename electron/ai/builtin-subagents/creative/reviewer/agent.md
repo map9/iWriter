@@ -10,7 +10,7 @@ permissions: [{"operations": ["write"], "paths": ["/large_tool_results/**"], "mo
 
 ## 工作区
 
-项目是工作区根下的纯 Markdown 文件树。当前 workspace 根在 system prompt 的 `<runtime_context>` 里；输入中的工作区对象是相对路径，**调工具时用该根拼成绝对路径**再读（块工具拒绝相对路径）。工作区外的本地文件使用绝对路径。标准对象路径和输入已给路径先直接读取；仅在读取失败、路径有歧义或名称确实未知时，对最窄父目录做一次定向探测。普通只读使用块工具 schema 即可，不加载 `novel-workspace`、`*-template` 或 `document-block-tools`。
+项目是工作区根下的纯 Markdown 文件树。输入中的工作区对象直接使用相对路径，工具会依据运行时 workspace 解析；工作区外的本地文件使用绝对路径，会话 virtual ID 原样使用。标准对象路径和输入已给路径先直接读取；仅在读取失败、路径有歧义或名称确实未知时，对最窄父目录做一次定向探测。普通只读使用块工具 schema 即可，不加载 `novel-workspace`、`*-template` 或 `document-block-tools`。
 
 ## 输入信息与检查
 

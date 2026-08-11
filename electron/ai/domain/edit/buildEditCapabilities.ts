@@ -1,4 +1,6 @@
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
+import type { EditorStateBroker } from '../../document/EditorStateBroker'
+import { buildEditorStateTool } from '../../tools/common/EditorStateTools'
 import { buildDocumentTools } from '../../tools/common/DocumentTools'
 import { buildEditProposalTools } from '../../tools/common/EditProposalTools'
 import { buildFilesystemMutationTools } from '../../tools/common/FilesystemMutationTools'
@@ -9,8 +11,10 @@ import type { InterruptOnConfig } from 'langchain'
 
 export function buildEditCapabilities({
   snapshotBroker,
+  editorStateBroker,
 }: {
   snapshotBroker: SnapshotBroker
+  editorStateBroker: EditorStateBroker
 }): DomainAgentCapabilities {
   const docTools = buildDocumentTools(snapshotBroker)
   const editTools = buildEditProposalTools()
@@ -19,7 +23,7 @@ export function buildEditCapabilities({
   const pdfTools = buildPdfTools()
 
   return {
-    tools: [...docTools, ...editTools, ...fsMutationTools, ...webTools, ...pdfTools],
+    tools: [buildEditorStateTool(editorStateBroker), ...docTools, ...editTools, ...fsMutationTools, ...webTools, ...pdfTools],
     interruptOn: EDIT_INTERRUPT_ON_CONFIG,
   }
 }

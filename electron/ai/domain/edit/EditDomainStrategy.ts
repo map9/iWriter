@@ -8,8 +8,8 @@ import { parseUntitledTabId } from '../../document/virtualId'
 import { withProjectSkills } from '../../scaffold/skills/SkillsMount'
 import { EDITING_SUMMARIZATION_PROFILE } from '../../scaffold/summarization/SummarizationFramework'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
-import type { ThreadRuntimeStore } from '../../runtime/ThreadRuntimeStore'
-import type { AiAgentMode } from '../../../../src/types/ai'
+import type { EditorStateBroker } from '../../document/EditorStateBroker'
+import { BLOCK_EDIT_TOOLS, type AiAgentMode } from '../../../../src/types/ai'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
 import type { ResumeDecision } from '../../ipc/protocol'
 import type {
@@ -23,12 +23,15 @@ import type { DomainAgentCapabilities } from '../types'
 export class EditDomainStrategy implements DomainStrategy {
   constructor(
     private readonly snapshotBroker: SnapshotBroker,
+    private readonly editorStateBroker: EditorStateBroker,
     private readonly aiRootPath: string,
-    private readonly runtimeStore: ThreadRuntimeStore,
   ) {}
 
   buildCapabilities(_ctx: DomainBuildContext): DomainAgentCapabilities {
-    return buildEditCapabilities({ snapshotBroker: this.snapshotBroker })
+    return buildEditCapabilities({
+      snapshotBroker: this.snapshotBroker,
+      editorStateBroker: this.editorStateBroker,
+    })
   }
 
   getSystemPrompt(_mode: AiAgentMode, language: DetectedInputLanguage): string {
@@ -80,17 +83,20 @@ export class EditDomainStrategy implements DomainStrategy {
   }
 
   async buildReviewItems(ctx: InterruptContext): Promise<DomainReviewItem[]> {
-    const firstArgs = ctx.actionRequests[0]?.args ?? {}
-    const argFilePath = typeof firstArgs.file_path === 'string' ? firstArgs.file_path : null
-    const activeFilePath = this.runtimeStore.getContext(ctx.threadId)?.activeFilePath ?? null
-    const untitledTabId = parseUntitledTabId(argFilePath)
-    const snapshotTargetPath = (!untitledTabId && argFilePath && argFilePath !== activeFilePath) ? argFilePath : null
-
     let snapshot = null
-    try {
-      snapshot = await this.snapshotBroker.requestSnapshot(snapshotTargetPath, untitledTabId)
-    } catch (err) {
-      console.warn('[EditDomainStrategy] snapshot failed:', err)
+    const blockAction = ctx.actionRequests.find(action => BLOCK_EDIT_TOOLS.has(action.name))
+    if (blockAction) {
+      const filePath = typeof blockAction.args.file_path === 'string'
+        ? blockAction.args.file_path.trim()
+        : ''
+      if (!filePath) throw new Error(`${blockAction.name} requires file_path.`)
+      const untitledTabId = parseUntitledTabId(filePath)
+      const snapshotTargetPath = untitledTabId ? null : filePath
+      try {
+        snapshot = await this.snapshotBroker.requestSnapshot(snapshotTargetPath, untitledTabId)
+      } catch (err) {
+        console.warn('[EditDomainStrategy] snapshot failed:', err)
+      }
     }
 
     // Per-name sequence counter: binds the Nth action of a given tool name

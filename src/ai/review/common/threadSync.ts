@@ -50,7 +50,7 @@ function proposalMatchesToolCall(proposal: EditProposal, toolCall: AiToolCall): 
       && String(args.filename ?? '') === String(proposal.filename ?? '')
   }
 
-  const sameFilePath = String(args.file_path ?? '') === String(proposal.filePath ?? '')
+  const sameFilePath = String(args.file_path ?? '') === proposal.filePath
   switch (proposal.type) {
     case 'edit':
       return toolCall.name === 'edit_block'

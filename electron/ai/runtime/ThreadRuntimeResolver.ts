@@ -23,7 +23,7 @@ export interface ResolvedThreadRuntime {
 
 export function resolveThreadRuntime(
   settings: AiSettings,
-  req?: SendMessageRequest,
+  req?: Pick<SendMessageRequest, 'domain' | 'mode' | 'threadRuntime'>,
   meta?: ThreadMeta | null,
 ): ResolvedThreadRuntime {
   const requestedProviderId = req?.threadRuntime?.providerConfigId

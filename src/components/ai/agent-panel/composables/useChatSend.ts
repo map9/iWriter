@@ -1,34 +1,10 @@
 import { watch, nextTick, computed, ref } from 'vue'
 import type { Ref } from 'vue'
 import { useAiStore } from '@/ai/store/ai'
-import type { SendContext, ThreadUsage } from '@/ai/types'
+import type { ContextAttachment, SendContext, ThreadUsage } from '@/ai/types'
 import { resolveAgentDomain, resolveAiProviderModelId } from '@/ai/types'
-import { pathUtils } from '@/utils/pathUtils'
 
-/** Binary file extensions that are sent as inline multimodal content. */
-const BINARY_EXTS = new Set([
-  'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg',
-  'pdf',
-])
-
-/** Text file extensions that are listed in <attached_files> inside runtime_context. */
-const TEXT_EXTS = new Set([
-  'md', 'markdown', 'txt', 'iwt',
-  'ts', 'tsx', 'js', 'jsx', 'vue', 'py', 'rb', 'go', 'rs', 'java',
-  'c', 'cpp', 'h', 'hpp', 'cs', 'swift', 'kt', 'sh', 'bash', 'zsh',
-  'json', 'yaml', 'yml', 'toml', 'xml', 'html', 'css', 'scss', 'sql',
-])
-
-function classifyAttachment(path: string): 'binary' | 'text' | 'directory' {
-  const name = pathUtils.basename(path)
-  if (!name.includes('.')) return 'directory'
-  const ext = pathUtils.extension(path)
-  if (BINARY_EXTS.has(ext)) return 'binary'
-  if (TEXT_EXTS.has(ext)) return 'text'
-  return 'text' // default: treat unknown extensions as text
-}
-
-export function useChatSend(contextFiles: Ref<string[]>) {
+export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
   const aiStore = useAiStore()
   const inputText = computed({
     get: () => aiStore.draftInput,
@@ -101,18 +77,13 @@ export function useChatSend(contextFiles: Ref<string[]>) {
   }
 
   function collectSendContext(): SendContext | undefined {
-    // Classify attached files into text / binary / directory
-    const sendContext: SendContext = { textFilePaths: [], binaryFilePaths: [], directories: [] }
-    for (const path of contextFiles.value) {
-      const kind = classifyAttachment(path)
-      if (kind === 'binary') sendContext.binaryFilePaths.push(path)
-      else if (kind === 'text') sendContext.textFilePaths.push(path)
-      else sendContext.directories.push(path)
+    const sendContext: SendContext = { filePaths: [], directories: [] }
+    for (const attachment of contextFiles.value) {
+      if (attachment.kind === 'file') sendContext.filePaths.push(attachment.path)
+      else sendContext.directories.push(attachment.path)
     }
 
-    const hasContext = sendContext.textFilePaths.length > 0
-                    || sendContext.binaryFilePaths.length > 0
-                    || sendContext.directories.length > 0
+    const hasContext = sendContext.filePaths.length > 0 || sendContext.directories.length > 0
     return hasContext ? sendContext : undefined
   }
 

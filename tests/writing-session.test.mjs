@@ -70,7 +70,7 @@ describe('decideWritingSessionApproval (Stage 2 pure verdict)', () => {
     assert.equal(d.kind, 'requires-review')
   })
 
-  it('sends a block edit without an explicit file_path (active document) to review', async () => {
+  it('sends an invalid block edit without file_path to review instead of authorizing it', async () => {
     const { decideWritingSessionApproval } = await loadModule()
     const d = decideWritingSessionApproval({
       toolName: 'edit_block',

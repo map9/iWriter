@@ -16,7 +16,7 @@ import * as fs from 'fs'
 import { app } from 'electron'
 import type { WebContents } from 'electron'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
-import type { BaseMessage } from '@langchain/core/messages'
+import type { BaseMessage, MessageContent } from '@langchain/core/messages'
 import type { ModelProfile } from '@langchain/core/language_models/profile'
 import { createDeepAgent, type DeepAgentRunStream } from 'deepagents'
 import { Command } from '@langchain/langgraph'
@@ -35,6 +35,7 @@ import {
 import { estimateTextTokens } from '../../src/ai/model/token-estimation'
 import { createChatModel } from './providers/ModelFactory'
 import { SnapshotBroker } from './document/SnapshotBroker'
+import { EditorStateBroker } from './document/EditorStateBroker'
 import type { CheckpointerInstance } from './checkpoint/CheckpointerFactory'
 import { getCheckpointer } from './checkpoint/CheckpointerFactory'
 import { ThreadListQuery, metaToAiThread } from './thread/ThreadListQuery'
@@ -50,6 +51,7 @@ import { RendererEventBridge } from './ipc/RendererEventBridge'
 import { buildUserMessage } from './ipc/UserMessageBuilder'
 import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore, type InterruptedRun } from './runtime/ThreadRuntimeStore'
+import { normalizeRuntimeToolPaths } from './runtime/RuntimeToolPathNormalizer'
 import { buildAgentFilesystem, FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './scaffold/filesystem/AgentFilesystem'
 import { decideFilesystemWriteApproval, isFilesystemWriteToolName } from './scaffold/approval/FilesystemApprovalPolicy'
 import {
@@ -63,7 +65,7 @@ import {
 } from './scaffold/approval/WritingSessionRegistry'
 import { AiConfigStore, resolveAiApiKeyEnvVar } from './config/AiConfigStore'
 import { generateThreadTitle } from '../../src/ai/thread/title'
-import { IWriterAgentContextSchema, type IWriterAgentContext } from './runtime/AgentContext'
+import { IWriterAgentContextSchema } from './runtime/AgentContext'
 import { createTaskToolCompatMiddleware } from './scaffold/middleware/TaskToolCompatMiddleware'
 import { createOrphanToolCallStripperMiddleware } from './scaffold/middleware/OrphanToolCallStripperMiddleware'
 import { createRateLimitRetryMiddleware } from './scaffold/middleware/RateLimitRetryMiddleware'
@@ -170,6 +172,7 @@ function getEffectiveModelBudget(
 
 export class AgentEngine {
   private snapshotBroker: SnapshotBroker
+  private editorStateBroker: EditorStateBroker
   private rendererBridge: RendererEventBridge
   private aiRootPath: string
   private bundledSkillsPath: string
@@ -213,6 +216,7 @@ export class AgentEngine {
     private readonly gitService: GitService,
   ) {
     this.snapshotBroker = new SnapshotBroker(getWebContents)
+    this.editorStateBroker = new EditorStateBroker(getWebContents)
     this.rendererBridge = new RendererEventBridge(getWebContents)
     this.aiRootPath = path.join(app.getPath('home'), '.iwriter', 'ai')
     this.bundledSkillsPath = app.isPackaged
@@ -222,9 +226,14 @@ export class AgentEngine {
       ? path.join(process.resourcesPath, 'builtin-subagents')
       : path.join(app.getAppPath(), 'electron', 'ai', 'builtin-subagents')
     this.strategies = {
-      editing: new EditDomainStrategy(this.snapshotBroker, this.aiRootPath, this.runtimeStore),
+      editing: new EditDomainStrategy(
+        this.snapshotBroker,
+        this.editorStateBroker,
+        this.aiRootPath,
+      ),
       creative: new CreativeDomainStrategy(
         this.snapshotBroker,
+        this.editorStateBroker,
         this.aiRootPath,
         this.runtimeStore,
         this.gitService,
@@ -316,7 +325,7 @@ export class AgentEngine {
         mode: runtime.mode,
         modelId: runtime.modelId,
         providerConfigId: runtime.providerConfig.id,
-        originFilePath: req.editorContext.filePath,
+        originFilePath: req.originFilePath,
         thinkingLevel: runtime.thinkingLevel,
       })
     } else {
@@ -326,19 +335,15 @@ export class AgentEngine {
         modelId: runtime.modelId,
         providerConfigId: runtime.providerConfig.id,
         thinkingLevel: runtime.thinkingLevel,
-        originFilePath: existingMeta?.originFilePath ?? req.editorContext.filePath,
+        originFilePath: existingMeta?.originFilePath ?? req.originFilePath,
       })
     }
 
     // Update thread-scoped context from request
     const language = detectInputLanguage([req.userText], req.uiLocale)
     this.runtimeStore.setContext(threadId, {
-      activeFilePath: req.editorContext.filePath ?? null,
-      workspacePath: req.editorContext.folderPath ?? null,
+      workspacePath: req.workspacePath,
       language,
-      attachmentTextFilePaths: req.attachments?.textFilePaths ?? [],
-      attachmentBinaryFilePaths: req.attachments?.binaryFilePaths ?? [],
-      attachmentDirectories: req.attachments?.directories ?? [],
     })
     this.runtimeStore.setCurrentTurnId(threadId, turnId)
 
@@ -347,7 +352,7 @@ export class AgentEngine {
       this.threadListQuery!.setTitle(threadId, generateThreadTitle(req.userText))
     }
 
-    const userContent = buildUserMessage(req)
+    const userContent = await buildUserMessage(req)
     this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language, threadId)
 
     // If this thread was left in an interrupted state (e.g., app restart during HITL),
@@ -384,19 +389,7 @@ export class AgentEngine {
     }
 
     const meta = req.threadId ? this.threadListQuery?.getMeta(req.threadId) : null
-    const runtime = resolveThreadRuntime(settings, {
-      userText: '',
-      domain: req.domain,
-      mode: req.mode,
-      threadId: req.threadId,
-      threadRuntime: req.threadRuntime,
-      editorContext: {
-        filePath: null,
-        isDirty: false,
-        folderPath: null,
-        openTabs: [],
-      },
-    }, meta)
+    const runtime = resolveThreadRuntime(settings, req, meta)
 
     const model = createChatModel(runtime.providerConfig, {
       modelId: runtime.modelId,
@@ -850,7 +843,7 @@ export class AgentEngine {
     mode: AiAgentMode,
     modelId: string,
     thinkingLevel: AiThinkingLevel,
-    userContent: string,
+    userContent: MessageContent,
     language: DetectedInputLanguage,
   ): Promise<void> {
     const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkingLevel, language)
@@ -859,8 +852,8 @@ export class AgentEngine {
 
     const turnId = this.runtimeStore.getCurrentTurnId(threadId)
     const runConfig = {
-      configurable: this._buildRunConfigurable(threadId),
-      context: this._buildRunContext(threadId, domain),
+      configurable: { thread_id: threadId },
+      context: this.runtimeStore.buildContext(threadId),
       signal: abortController.signal,
       recursionLimit: MIDDLEWARE_CONFIG.recursionLimit,
       durability: 'exit',
@@ -897,8 +890,8 @@ export class AgentEngine {
 
     const turnId = this.runtimeStore.getCurrentTurnId(threadId)
     const runConfig = {
-      configurable: this._buildRunConfigurable(threadId),
-      context: this._buildRunContext(threadId, domain),
+      configurable: { thread_id: threadId },
+      context: this.runtimeStore.buildContext(threadId),
       signal: abortController.signal,
       recursionLimit: MIDDLEWARE_CONFIG.recursionLimit,
       durability: 'exit',
@@ -1087,6 +1080,8 @@ export class AgentEngine {
     autoApplyFiles: Set<string>
   }> {
     const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
+    const normalized = normalizeRuntimeToolPaths(actionRequests, workspacePath)
+    actionRequests = normalized.actionRequests
     const reviewActionRequests: HitlActionRequest[] = []
     const reviewActionOriginalIndices: number[] = []
     const autoDecisionsByIndex: Record<number, ResumeDecision> = {}
@@ -1100,8 +1095,23 @@ export class AgentEngine {
     // (Stage 4, triggered *only* by a Stage-1 safety reject) is known before Stage 2 mutates
     // any write-session accumulation. Non-poisoned batches then decide in original index order.
     const fsDecisions = new Map<number, ReturnType<typeof decideFilesystemWriteApproval>>()
-    let hasAutoReject = false
+    let hasAutoReject = Object.keys(normalized.errors).length > 0
+    for (const [indexText, message] of Object.entries(normalized.errors)) {
+      const index = Number(indexText)
+      const actionRequest = actionRequests[index]
+      if (!actionRequest) continue
+      const primaryPath = actionRequest.args?.file_path
+        ?? actionRequest.args?.source_path
+        ?? actionRequest.args?.directory
+        ?? actionRequest.args?.chapter
+      autoRejects.push({
+        toolName: actionRequest.name,
+        filePath: typeof primaryPath === 'string' ? primaryPath : '',
+        message,
+      })
+    }
     actionRequests.forEach((actionRequest, index) => {
+      if (normalized.errors[index]) return
       if (!isFilesystemWriteToolName(actionRequest.name)) return
       const decision = decideFilesystemWriteApproval({
         toolName: actionRequest.name,
@@ -1124,6 +1134,11 @@ export class AgentEngine {
     // 不一致状态). Nothing reaches Stage 2, so no session accumulation happens on a poisoned batch.
     if (hasAutoReject) {
       actionRequests.forEach((_actionRequest, index) => {
+        const normalizationError = normalized.errors[index]
+        if (normalizationError) {
+          autoDecisionsByIndex[index] = { type: 'rejected', message: normalizationError }
+          return
+        }
         const fsDecision = fsDecisions.get(index)
         // Preserve Stage-1 auto decisions (auto-reject keeps its message; auto-approve of an
         // internal virtual path stays approved — ephemeral scratch, not a half-batch landing);
@@ -1556,10 +1571,6 @@ export class AgentEngine {
     return agent
   }
 
-  private _buildRunConfigurable(threadId: string): Record<string, string> {
-    return this.runtimeStore.buildConfigurable(threadId)
-  }
-
   private _fallbackNotificationKey(threadId: string, turnId: string | null): string {
     return `${threadId}:${turnId ?? '__no_turn__'}`
   }
@@ -1583,10 +1594,6 @@ export class AgentEngine {
 
     this.fallbackNotifiedTurnKeys.add(key)
     this.rendererBridge.sendRunModelFallback({ threadId, fallbackModelId })
-  }
-
-  private _buildRunContext(threadId: string, domain: AiAgentDomain): IWriterAgentContext {
-    return this.runtimeStore.buildContext(threadId, domain)
   }
 
   private _cleanupScaffold(scaffold: AgentFilesystemScaffold): void {
@@ -1772,7 +1779,7 @@ export class AgentEngine {
     mode: AiAgentMode,
     modelId: string,
     thinkingLevel: AiThinkingLevel,
-    userContent: string,
+    userContent: MessageContent,
     language: DetectedInputLanguage = 'en-US',
     threadId?: string,
   ): void {

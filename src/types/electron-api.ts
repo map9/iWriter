@@ -166,12 +166,14 @@ export interface ElectronAPI {
   aiClearThreads?: () => Promise<void>
   aiGetThreadMessages?: (threadId: string) => Promise<import('./ai').ThreadMessage[]>
   aiSnapshotResponse?: (resp: import('./ai-ipc').SnapshotResponse) => void
+  aiEditorStateResponse?: (resp: import('./ai-ipc').EditorStateResponse) => void
 
   onAiStreamChunk?: (cb: (chunk: import('./ai-ipc').StreamChunkEvent) => void) => void
   onAiRunInterrupted?: (cb: (e: import('./ai-ipc').RunInterruptedEvent) => void) => void
   onAiRunDone?: (cb: (e: import('./ai-ipc').RunDoneEvent) => void) => void
   onAiRunError?: (cb: (e: import('./ai-ipc').RunErrorEvent) => void) => void
   onAiRequestSnapshot?: (cb: (req: import('./ai-ipc').SnapshotRequestEvent) => void) => void
+  onAiRequestEditorState?: (cb: (req: import('./ai-ipc').EditorStateRequestEvent) => void) => void
   onAiModelFallback?: (cb: (e: import('./ai-ipc').RunModelFallbackEvent) => void) => void
   onAiFilesystemAutoReject?: (cb: (e: import('./ai-ipc').RunFilesystemAutoRejectEvent) => void) => void
   removeAiListeners?: () => void

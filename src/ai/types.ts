@@ -342,8 +342,8 @@ export interface BlockEditProposal extends BaseEditProposal {
   // Associated tool call ID
   toolCallId?: string
 
-  /** If set, this edit targets a file on disk (not the active editor). Must be an .iwt file. */
-  filePath?: string
+  /** Explicit workspace-relative, absolute, or untitled: document reference. */
+  filePath: string
 }
 
 /** File creation proposal — produced by create_document when no document is open. */
@@ -633,20 +633,15 @@ export interface AiContextCompressionEvent {
  * Passed from useChatSend → aiStore.sendMessage.
  */
 export interface SendContext {
-  /** Local text file paths (md/txt/iwt/code) — listed in <attached_files> inside runtime_context. */
-  textFilePaths: string[]
-  /** Binary file paths (images, PDFs) — read by the store and embedded as inline base64 in the message. */
-  binaryFilePaths: string[]
-  /** Attached directory paths — listed in <attached_dirs> inside runtime_context. */
+  /** User-selected files. The main process identifies supported images by signature. */
+  filePaths: string[]
+  /** User-selected directories. */
   directories: string[]
 }
 
-/** Info about an open editor tab (for environment context in system prompt). */
-export interface OpenTabInfo {
-  id: string           // FileTab.id, used to build virtual_id for unsaved new files
-  path?: string        // absolute file path (undefined for unsaved new files)
-  name: string         // tab display name
-  isDirty: boolean     // has unsaved changes
+export interface ContextAttachment {
+  path: string
+  kind: 'file' | 'directory'
 }
 
 // ── Thread-level token usage ───────────────────────────────────────────────
@@ -699,15 +694,6 @@ export interface AiThread {
   hasError?: boolean
   /** File path this thread was started against (set on first user message). Null = no file was open. */
   originFilePath?: string | null
-  // EditorState delta tracking (Phase C)
-  /** Hash of last injected editor state (filePath|outlineText|sectionHeading). */
-  editorStateHash?: string
-  /** File path from the last injected EditorState (to detect file switches). */
-  lastFilePath?: string | null
-  /** Section heading from the last injected EditorState (to detect cursor moves). */
-  lastSectionHeading?: string | null
-  /** Whether the workspace path has already been injected (only on first message). */
-  workspaceInjected?: boolean
   /**
    * Accumulated real token usage (main agent + sub-agents).
    * Populated from provider `usage_metadata` during streaming; in-memory only.

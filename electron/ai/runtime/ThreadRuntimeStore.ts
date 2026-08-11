@@ -1,4 +1,3 @@
-import type { AiAgentDomain } from '../../../src/types/ai'
 import type { DetectedInputLanguage } from '../../../src/ai/message/detectInputLanguage'
 import { IWriterAgentContextSchema, type IWriterAgentContext } from './AgentContext'
 import type { ResumeDecision } from '../ipc/protocol'
@@ -27,12 +26,8 @@ interface InterruptedRun {
 }
 
 interface ThreadExecutionContext {
-  activeFilePath: string | null
   workspacePath: string | null
   language?: DetectedInputLanguage
-  attachmentTextFilePaths: string[]
-  attachmentBinaryFilePaths: string[]
-  attachmentDirectories: string[]
 }
 
 export class ThreadRuntimeStore {
@@ -48,21 +43,10 @@ export class ThreadRuntimeStore {
     return this.threadContexts.get(threadId) ?? null
   }
 
-  buildConfigurable(threadId: string): Record<string, string> {
-    return { thread_id: threadId }
-  }
-
-  buildContext(threadId: string, domain?: AiAgentDomain): IWriterAgentContext {
+  buildContext(threadId: string): IWriterAgentContext {
     const ctx = this.getContext(threadId)
     return IWriterAgentContextSchema.parse({
-      threadId,
-      agentDomain: domain ?? 'editing',
-      activeFilePath: ctx?.activeFilePath ?? null,
       workspacePath: ctx?.workspacePath ?? null,
-      outputLanguage: ctx?.language ?? '',
-      attachedTextFilePaths: ctx?.attachmentTextFilePaths ?? [],
-      attachedBinaryFilePaths: ctx?.attachmentBinaryFilePaths ?? [],
-      attachedDirectories: ctx?.attachmentDirectories ?? [],
     })
   }
 
@@ -103,4 +87,4 @@ export class ThreadRuntimeStore {
   }
 }
 
-export type { InterruptedRun, ThreadExecutionContext, IWriterAgentContext }
+export type { InterruptedRun, ThreadExecutionContext }

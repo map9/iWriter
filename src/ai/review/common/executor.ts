@@ -12,7 +12,6 @@ export const UNTITLED_PREFIX = 'untitled:'
 
 export interface ReviewExecutorAppStoreLike {
   tabs?: FileTab[]
-  activeTab?: FileTab | null
   /** Absolute host path of the open workspace root; used to reject create_document writes outside it. */
   currentFolder?: string | null
   saveTab?: (tab: FileTab, saveAs?: boolean, silent?: boolean) => Promise<boolean>
@@ -23,7 +22,7 @@ export interface ReviewExecutorAppStoreLike {
     fileReadonly?: boolean,
     pendingImport?: { markdown: string; sourcePath?: string },
   ) => unknown
-  findExistingTab?: (key: { path?: string; name?: string; documentType?: import('@/types/document-type').DocumentType }) => FileTab | undefined
+  findExistingTab: (key: { path?: string; name?: string; documentType?: import('@/types/document-type').DocumentType }) => FileTab | undefined
 }
 
 async function saveAppliedOpenTab(
@@ -65,21 +64,11 @@ function hasOpenCreateDocumentTarget(
     : proposal.filename.trim()
   const targetPath = directory ? pathUtils.normalize(pathUtils.join(directory, filename)) : undefined
 
-  // 优先使用 store 的共享去重 helper
-  if (appStore.findExistingTab) {
-    return !!appStore.findExistingTab(
-      targetPath
-        ? { path: targetPath, documentType: DocumentType.MARKDOWN_EDITOR }
-        : { name: filename, documentType: DocumentType.MARKDOWN_EDITOR }
-    )
-  }
-
-  // 降级：直接检查 tabs（兼容测试 mock）
-  return (appStore.tabs ?? []).some(tab => {
-    const tabPath = tab.path ? pathUtils.normalize(tab.path) : undefined
-    if (targetPath && tabPath === targetPath) return true
-    return !targetPath && (tab.name ?? '').trim() === filename
-  })
+  return !!appStore.findExistingTab(
+    targetPath
+      ? { path: targetPath, documentType: DocumentType.MARKDOWN_EDITOR }
+      : { name: filename, documentType: DocumentType.MARKDOWN_EDITOR }
+  )
 }
 
 function buildApplyFailureRecoveryMessage(target: string): string {
@@ -87,7 +76,7 @@ function buildApplyFailureRecoveryMessage(target: string): string {
 }
 
 export function buildProposalFailureMessage(proposal: BlockEditProposal, error: string): string {
-  const target = proposal.filePath ? `file "${proposal.filePath}"` : 'the active document'
+  const target = `file "${proposal.filePath}"`
   const recovery = buildApplyFailureRecoveryMessage(target)
   switch (proposal.type) {
     case 'edit':
@@ -230,7 +219,7 @@ async function applyBlockProposalToTarget(
   appStore: ReviewExecutorAppStoreLike,
   proposal: BlockEditProposal,
 ) {
-  if (proposal.filePath?.startsWith(UNTITLED_PREFIX)) {
+  if (proposal.filePath.startsWith(UNTITLED_PREFIX)) {
     const tabId = proposal.filePath.slice(UNTITLED_PREFIX.length)
     const tab = (appStore.tabs ?? []).find(t => t.id === tabId)
     const editor = tab?.docState?.editorInstance as Editor | undefined
@@ -243,41 +232,26 @@ async function applyBlockProposalToTarget(
       : { success: false as const, error: result.error }
   }
 
-  if (proposal.filePath) {
-    const normalizedTarget = pathUtils.normalize(proposal.filePath)
-    const matchingTab = (appStore.tabs ?? []).find(
-      t => t.path && pathUtils.normalize(t.path) === normalizedTarget
-    )
-    const editor = matchingTab?.docState?.editorInstance as Editor | undefined
+  const normalizedTarget = pathUtils.normalize(proposal.filePath)
+  const matchingTab = (appStore.tabs ?? []).find(
+    t => t.path && pathUtils.normalize(t.path) === normalizedTarget
+  )
+  const editor = matchingTab?.docState?.editorInstance as Editor | undefined
 
-    if (!editor) {
-      const handle = await UnifiedDocumentAccess.createFreshFromFile(proposal.filePath)
-      if ('error' in handle) return { success: false as const, error: handle.error }
-      const result = await handle.applyBlockProposal(proposal)
-      handle.dispose()
-      return result.success
-        ? { success: true as const }
-        : { success: false as const, error: result.error }
-    }
-
-    const handle = UnifiedDocumentAccess.fromEditor(editor, matchingTab?.path ?? undefined)
+  if (!editor) {
+    const handle = await UnifiedDocumentAccess.createFreshFromFile(proposal.filePath)
+    if ('error' in handle) return { success: false as const, error: handle.error }
     const result = await handle.applyBlockProposal(proposal)
-    if (result.success && matchingTab) {
-      await saveAppliedOpenTab(appStore, matchingTab)
-    }
+    handle.dispose()
     return result.success
       ? { success: true as const }
       : { success: false as const, error: result.error }
   }
 
-  const activeTab = appStore.activeTab
-  const editor = activeTab?.docState?.editorInstance as Editor | undefined
-  if (!activeTab || !editor) return { success: false as const, error: '没有活动的编辑器文档' }
-
-  const handle = UnifiedDocumentAccess.fromEditor(editor, activeTab.path)
+  const handle = UnifiedDocumentAccess.fromEditor(editor, matchingTab?.path)
   const result = await handle.applyBlockProposal(proposal)
-  if (result.success) {
-    await saveAppliedOpenTab(appStore, activeTab)
+  if (result.success && matchingTab) {
+    await saveAppliedOpenTab(appStore, matchingTab)
   }
   return result.success
     ? { success: true as const }
@@ -292,7 +266,7 @@ function proposalSortKey(proposal: EditProposal): { fileKey: string; position: n
     ? (proposal.startDisplayBlockId ?? -1)
     : (proposal.displayBlockId ?? -1)
   const priority = proposal.type === 'delete' ? 0 : proposal.type === 'replace_range' ? 1 : proposal.type === 'edit' ? 2 : 3
-  return { fileKey: proposal.filePath ?? '__active__', position, priority }
+  return { fileKey: proposal.filePath, position, priority }
 }
 
 function sortedDecisionIndexes(batch: ReviewBatchState): number[] {

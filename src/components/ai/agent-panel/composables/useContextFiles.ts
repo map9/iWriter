@@ -1,15 +1,17 @@
 import { ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { i18n } from '@/i18n'
-import pathUtils from '@/utils/pathUtils'
+import type { ContextAttachment } from '@/ai/types'
 
 export function useContextFiles() {
   const appStore = useAppStore()
   const t = i18n.global.t
-  const contextFiles = ref<string[]>([])
+  const contextFiles = ref<ContextAttachment[]>([])
 
-  function fileName(path: string): string {
-    return pathUtils.basename(path)
+  function addAttachment(path: string, kind: ContextAttachment['kind']) {
+    if (!contextFiles.value.some(attachment => attachment.path === path)) {
+      contextFiles.value.push({ path, kind })
+    }
   }
 
   function removeContextFile(i: number) {
@@ -18,9 +20,7 @@ export function useContextFiles() {
 
   async function attachCurrentFile() {
     const path = appStore.activeTab?.path
-    if (path && !contextFiles.value.includes(path)) {
-      contextFiles.value.push(path)
-    }
+    if (path) addAttachment(path, 'file')
   }
 
   async function browseFiles() {
@@ -30,7 +30,7 @@ export function useContextFiles() {
     })
     if (!result.canceled) {
       for (const p of result.filePaths) {
-        if (!contextFiles.value.includes(p)) contextFiles.value.push(p)
+        addAttachment(p, 'file')
       }
     }
   }
@@ -42,10 +42,10 @@ export function useContextFiles() {
     })
     if (!result.canceled) {
       for (const p of result.filePaths) {
-        if (!contextFiles.value.includes(p)) contextFiles.value.push(p)
+        addAttachment(p, 'directory')
       }
     }
   }
 
-  return { contextFiles, fileName, removeContextFile, attachCurrentFile, browseFiles, browseFolder }
+  return { contextFiles, removeContextFile, attachCurrentFile, browseFiles, browseFolder }
 }

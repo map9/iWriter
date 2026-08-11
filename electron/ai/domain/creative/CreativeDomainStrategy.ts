@@ -13,6 +13,7 @@ import { parseUntitledTabId } from '../../document/virtualId'
 import { withProjectSkills } from '../../scaffold/skills/SkillsMount'
 import { CREATIVE_SUMMARIZATION_PROFILE } from '../../scaffold/summarization/SummarizationFramework'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
+import type { EditorStateBroker } from '../../document/EditorStateBroker'
 import type { SerializedSnapshot } from '../../ipc/protocol'
 import type { ThreadRuntimeStore } from '../../runtime/ThreadRuntimeStore'
 import type { AiAgentMode } from '../../../../src/types/ai'
@@ -30,6 +31,7 @@ import type { GitService } from '../../../GitService'
 export class CreativeDomainStrategy implements DomainStrategy {
   constructor(
     private readonly snapshotBroker: SnapshotBroker,
+    private readonly editorStateBroker: EditorStateBroker,
     private readonly aiRootPath: string,
     private readonly runtimeStore: ThreadRuntimeStore,
     private readonly gitService: GitService,
@@ -41,6 +43,7 @@ export class CreativeDomainStrategy implements DomainStrategy {
       aiRootPath: this.aiRootPath,
       workspacePath: ctx.workspacePath,
       snapshotBroker: this.snapshotBroker,
+      editorStateBroker: this.editorStateBroker,
       language: ctx.language,
       gitService: this.gitService,
       onGitMutation: this.onGitMutation,
@@ -109,22 +112,20 @@ export class CreativeDomainStrategy implements DomainStrategy {
 
   async buildReviewItems(ctx: InterruptContext): Promise<DomainReviewItem[]> {
     const runtimeCtx = this.runtimeStore.getContext(ctx.threadId)
-    const activeFilePath = runtimeCtx?.activeFilePath ?? null
 
     // Per-file snapshot cache: each file_path gets one snapshot across all block edit actions
-    const snapshotCache = new Map<string | null, SerializedSnapshot | null>()
-    const getSnapshot = async (filePath: string | null): Promise<SerializedSnapshot | null> => {
-      const key = filePath ?? null
-      if (snapshotCache.has(key)) return snapshotCache.get(key) ?? null
+    const snapshotCache = new Map<string, SerializedSnapshot | null>()
+    const getSnapshot = async (filePath: string): Promise<SerializedSnapshot | null> => {
+      if (snapshotCache.has(filePath)) return snapshotCache.get(filePath) ?? null
       let snapshot: SerializedSnapshot | null = null
       try {
         const untitledTabId = parseUntitledTabId(filePath)
-        const snapshotTarget = (!untitledTabId && filePath && filePath !== activeFilePath) ? filePath : null
+        const snapshotTarget = untitledTabId ? null : filePath
         snapshot = await this.snapshotBroker.requestSnapshot(snapshotTarget, untitledTabId)
       } catch (err) {
         console.warn('[CreativeDomainStrategy] snapshot failed for', filePath, err)
       }
-      snapshotCache.set(key, snapshot)
+      snapshotCache.set(filePath, snapshot)
       return snapshot
     }
 
@@ -154,7 +155,8 @@ export class CreativeDomainStrategy implements DomainStrategy {
       }
 
       if (BLOCK_EDIT_TOOLS.has(ar.name)) {
-        const filePath = typeof ar.args?.file_path === 'string' ? ar.args.file_path : null
+        const filePath = typeof ar.args?.file_path === 'string' ? ar.args.file_path.trim() : ''
+        if (!filePath) throw new Error(`${ar.name} requires file_path.`)
         const snapshot = await getSnapshot(filePath)
         results.push({
           kind: 'edit',

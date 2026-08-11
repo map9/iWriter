@@ -46,7 +46,7 @@ iWriter 的 AI 运行时已经切换到：
 ### 工具层
 
 - `electron/ai/tools/common/DocumentTools.ts`
-  读取活动文档或指定文件的 block-aware 工具，含文档/章节/目录内容搜索
+  读取显式文档引用的 block-aware 工具，含文档/章节/目录内容搜索
 - `electron/ai/tools/common/EditProposalTools.ts`
   生成需要审批的文档编辑 proposal
 - `electron/ai/tools/common/WebTools.ts`
@@ -78,6 +78,17 @@ iWriter 的 AI 运行时已经切换到：
 - `src/types/ai-ipc.ts`
 
 但它们只是 re-export，不再是主实现位置。
+
+## Runtime Context 与资源绑定
+
+- `runConfig.context` 由 `IWriterAgentContextSchema` 校验，目前只向 host 工具提供 `workspacePath`；它不进入模型消息。thread/domain 通过 run metadata 进入 trace，不再复制到 runtime context。
+- workspace 根路径不拼入 system prompt 或用户消息。工作区内路径由模型直接使用相对路径，`RuntimePathResolver` 在工具执行时解析；进入审批、文档快照和写作会话前，`RuntimeToolPathNormalizer` 再把合法相对路径规范化为绝对路径。
+- 当前轮选择的普通文件和目录只作为用户消息末尾的 `<turn_bindings>` 发送，不再重复保存在 `runConfig.context`。文件/目录类型由选择入口确定，不按扩展名猜测。
+- 主进程按文件签名识别 PNG/JPEG/GIF/WebP/BMP 图像；图像从 `<turn_bindings>` 中移除，改为 LangChain 多模态 image block。其他文件仍按普通文件路径绑定。
+- active tab、dirty、文件类型、virtual ID、outline、光标章节、选区和 open tabs 不在发送时注入。Edit 与 Creative 主 Agent 共享 `get_editor_state`，需要这些信息时通过 renderer IPC 获取即时快照；`activeDocument` 单独返回当前标签，`openTabs` 只列其他已打开标签，避免重复。
+- DocumentTools、block edit tools 和 PDF tools 的文档路径均为必填；当前标签也是先通过 `get_editor_state` 取得 path/virtual ID，再显式传给后续工具，不保留省略路径时回退到 active tab 的旧分支。
+- `.iwt/.md/.txt` 等 iWriter 文档仍应由 prompt 引导使用 DocumentTools 和 block edit tools，以保持打开/未打开及 dirty buffer 的统一读取和编辑语义；DeepAgents 内置原始文件工具未在本次改造中做强制拦截。
+- system prompt 因此不含 workspace 或编辑器动态状态，远端 prompt cache 的稳定前缀不会因切换文件、光标、选区或 dirty 状态而变化。
 
 ## 长会话上下文管理
 

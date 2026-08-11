@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import type { ElectronAPI, HtmlPrintReadyOptions, PdfSaveOptions, SaveFileOptions } from '../src/types/electron-api'
-import type { SendMessageRequest, SessionContextStatsRequest, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
+import type { SendMessageRequest, SessionContextStatsRequest, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, EditorStateRequestEvent, EditorStateResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
 import type { AiSettings } from '../src/types/ai'
 import type { GitMutationEvent, GitProgress } from '../src/types/git'
 import { createAppMenuRequest, createContextMenuRequest } from '../src/types/menu'
@@ -273,6 +273,7 @@ const electronAPI: ElectronAPI = {
   aiGetThreadMessages: (threadId: string) => ipcRenderer.invoke('ai:get-thread-messages', { threadId }),
   // Renderer sends snapshot back to main (not an invoke — fire-and-forget)
   aiSnapshotResponse: (resp: SnapshotResponse) => ipcRenderer.send('ai:snapshot-response', resp),
+  aiEditorStateResponse: (resp: EditorStateResponse) => ipcRenderer.send('ai:editor-state-response', resp),
 
   // Incoming events from main process
   onAiStreamChunk: (cb: (chunk: StreamChunkEvent) => void) => {
@@ -291,6 +292,9 @@ const electronAPI: ElectronAPI = {
   onAiRequestSnapshot: (cb: (req: SnapshotRequestEvent) => void) => {
     ipcRenderer.on('ai:request-snapshot', (_, r) => cb(r))
   },
+  onAiRequestEditorState: (cb: (req: EditorStateRequestEvent) => void) => {
+    ipcRenderer.on('ai:request-editor-state', (_, r) => cb(r))
+  },
   onAiModelFallback: (cb: (e: RunModelFallbackEvent) => void) => {
     ipcRenderer.on('ai:model-fallback', (_, e) => cb(e))
   },
@@ -304,6 +308,7 @@ const electronAPI: ElectronAPI = {
       'ai:run-done',
       'ai:run-error',
       'ai:request-snapshot',
+      'ai:request-editor-state',
       'ai:model-fallback',
       'ai:filesystem-auto-reject',
     ].forEach(ch => ipcRenderer.removeAllListeners(ch))

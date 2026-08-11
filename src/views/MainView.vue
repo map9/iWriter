@@ -132,10 +132,11 @@ import { useAiStore } from '@/ai/store/ai'
 import { useGitStore } from '@/stores/git'
 import { DocumentType } from '@/types'
 import type { FileTab } from '@/types'
-import type { SnapshotRequestEvent } from '@/ai/ipc'
+import type { EditorStateRequestEvent, SnapshotRequestEvent } from '@/ai/ipc'
 import { notify } from '@/utils/notifications'
 import updaterService from '@/updater/UpdaterService'
 import { buildSerializedSnapshot } from '@/ai/document/SnapshotSerializer'
+import { buildEditorStateSnapshot } from '@/ai/document/EditorStateSerializer'
 import TitleBar from '@/components/TitleBar.vue'
 import LeftSidebar from '@/components/LeftSidebar.vue'
 import RightSidebar from '@/components/RightSidebar.vue'
@@ -368,6 +369,13 @@ onMounted(() => {
       requestId: req.requestId,
       filePath: req.filePath,
       snapshot,
+    })
+  })
+
+  window.electronAPI.onAiRequestEditorState?.((req: EditorStateRequestEvent) => {
+    window.electronAPI.aiEditorStateResponse?.({
+      requestId: req.requestId,
+      state: buildEditorStateSnapshot(appStore.tabs, appStore.activeTab),
     })
   })
 

@@ -13,11 +13,11 @@
  */
 
 import * as fs from 'fs'
-import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import { DocumentSearch, listWorkspaceDocumentPaths, type DocumentSearchOptions } from '../../document/DocumentSearch'
+import { resolveRuntimePath } from '../../runtime/RuntimePathResolver'
 
 interface AggregatedBlock {
   block_id: number
@@ -57,12 +57,10 @@ export function buildFindReferencesTool(snapshotBroker: SnapshotBroker) {
       include_glob?: string
       exclude_glob?: string
       max_files?: number
-    }) => {
-      const dir = directory_path?.trim()
-      if (!dir) return 'Error: directory_path is required and must be an absolute host directory path.'
-      if (!path.isAbsolute(dir)) {
-        return `Error: directory_path must be an absolute host path, not "${dir}".`
-      }
+    }, runtime) => {
+      const resolved = resolveRuntimePath(directory_path, runtime, 'directory_path')
+      if (!resolved.ok) return resolved.error
+      const dir = resolved.path
       if (!fs.existsSync(dir)) {
         return `Error: directory_path does not exist on disk: "${dir}".`
       }
@@ -183,7 +181,7 @@ export function buildFindReferencesTool(snapshotBroker: SnapshotBroker) {
           .describe('The object\'s canonical name plus every known alias/nickname/pronoun-noun (e.g. ["Elena", "the Duchess", "Lady Vareth"]). Resolve these from the object\'s file first.'),
         directory_path: z
           .string()
-          .describe('Real absolute host path to the directory to scan (e.g. the manuscript/ dir, or the workspace root to include outline/characters too).'),
+          .describe('Workspace-relative or real absolute host directory to scan. Use "." for the workspace root.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Match whole words only (recommended for short names to avoid substring noise).'),
         regex: z.boolean().optional().describe('Treat each name as a regular expression.'),

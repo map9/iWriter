@@ -16,6 +16,7 @@ import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import { PandocService } from '../../../PandocService'
+import { resolveRuntimePath } from '../../runtime/RuntimePathResolver'
 
 type BoundaryConfidence = 'high' | 'medium'
 type BoundaryKind = 'chapter' | 'volume' | 'front-matter' | 'back-matter'
@@ -264,8 +265,11 @@ export function buildImportManuscriptTool() {
       back_matter_policy?: RetentionPolicy
       collision_policy?: CollisionPolicy
       pandoc_path?: string
-    }) => {
-      const converted = await convert(source_path, pandoc_path)
+    }, runtime) => {
+      const resolvedSource = resolveRuntimePath(source_path, runtime, 'source_path')
+      if (!resolvedSource.ok) return resolvedSource.error
+      const sourcePath = resolvedSource.path
+      const converted = await convert(sourcePath, pandoc_path)
       if (!converted.ok) return converted.error
       const { lines, sourceFormat } = converted
       const start = filename_start ?? 1
@@ -284,7 +288,7 @@ export function buildImportManuscriptTool() {
 
         return JSON.stringify({
           stage: 'dry-run',
-          source_path,
+          source_path: sourcePath,
           source_format: sourceFormat,
           conversion_notice:
             'The source was mechanically converted to Markdown by Pandoc. No prose passed through the model, but source formatting and edge whitespace may differ from the original file.',
@@ -307,13 +311,12 @@ export function buildImportManuscriptTool() {
       }
 
       // ── execute: validate the complete plan before writing anything ──
-      const dir = target_directory?.trim()
-      if (!dir) {
+      if (!target_directory?.trim()) {
         return 'Error: target_directory is required for the execute stage (when boundaries is provided).'
       }
-      if (!path.isAbsolute(dir)) {
-        return `Error: target_directory must be an absolute host path, not "${dir}".`
-      }
+      const resolvedDirectory = resolveRuntimePath(target_directory, runtime, 'target_directory')
+      if (!resolvedDirectory.ok) return resolvedDirectory.error
+      const dir = resolvedDirectory.path
 
       const invalid = invalidBoundaryLines(boundaries, lines.length)
       if (invalid.length > 0) {
@@ -468,10 +471,10 @@ export function buildImportManuscriptTool() {
       description:
         'Mechanically import an existing manuscript without sending its prose through the model. ' +
         'DRY-RUN: omit boundaries to convert via Pandoc and return separate chapter, volume, front-matter, and back-matter candidates with zero-based line indices and nearby context; writes nothing. ' +
-        'EXECUTE: pass author-confirmed chapter boundaries, optional confirmed volume boundaries (attached to the following chapter), an absolute target_directory, explicit front/back-matter decisions when applicable, numbering, and a collision policy. The tool validates the full plan before writing ch{NNN}.md plus optional front-matter.md/back-matter.md. ' +
+        'EXECUTE: pass author-confirmed chapter boundaries, optional confirmed volume boundaries (attached to the following chapter), a target_directory, explicit front/back-matter decisions when applicable, numbering, and a collision policy. The tool validates the full plan before writing ch{NNN}.md plus optional front-matter.md/back-matter.md. ' +
         'Pandoc conversion can change source formatting or edge whitespace; this is mechanical preservation, not byte-for-byte identity. Reverse reconstruction is a separate skill step.',
       schema: z.object({
-        source_path: z.string().describe('Real absolute host path to the source manuscript file.'),
+        source_path: z.string().describe('Workspace-relative or real absolute host path to the source manuscript file.'),
         boundaries: z
           .array(z.number().int().nonnegative())
           .optional()
@@ -483,7 +486,7 @@ export function buildImportManuscriptTool() {
         target_directory: z
           .string()
           .optional()
-          .describe('Real absolute host path of manuscript/. Required for execute; created if missing.'),
+          .describe('Workspace-relative or real absolute host path of manuscript/. Required for execute; created if missing.'),
         filename_start: z
           .number()
           .int()

@@ -136,7 +136,7 @@ export function proposalSummaryLabel(proposal: EditProposal): string {
     return `新建文档：${proposal.filename || '未命名文档'}`
   }
 
-  const fileLabel = proposal.filePath ? pathUtils.basename(proposal.filePath) : '当前文档'
+  const fileLabel = pathUtils.basename(proposal.filePath)
   switch (proposal.type) {
     case 'edit':
       return `${fileLabel} · 编辑块 {b:${proposal.displayBlockId ?? '?'}}`
@@ -313,7 +313,7 @@ export function buildBlockEditReviewSurfaceViewModel(input: {
   const rework = reviewSummary?.rework ?? 0
   const currentFileLabel = current?.kind === 'create_file'
     ? current.filename
-    : current?.filePath ? pathUtils.basename(current.filePath) : '当前文档'
+    : current ? pathUtils.basename(current.filePath) : '当前文档'
   const batchSummaryParts = [currentFileLabel || '当前文档', `共 ${batchTotal} 条建议`, `待审核 ${proposals.length} 条`]
   if (skipped > 0) batchSummaryParts.push(`拒绝 ${skipped} 条`)
   if (accepted > 0) batchSummaryParts.push(`将修改 ${accepted} 条`)

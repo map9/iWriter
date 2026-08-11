@@ -86,6 +86,39 @@ describe('MessageAdapter — DeepSeek reasoning→content promotion (empty-conte
   })
 })
 
+describe('MessageAdapter — current user-message bindings', () => {
+  it('hides generated turn bindings when restoring a user message', async () => {
+    const { convertLcMessages } = await loadModule()
+    const [msg] = convertLcMessages([{
+      type: 'human',
+      content: [
+        'Compare these references.',
+        '<turn_bindings>',
+        '  <attached_files>',
+        '    <file path="/project/reference.md" />',
+        '  </attached_files>',
+        '</turn_bindings>',
+      ].join('\n'),
+    }])
+
+    assert.equal(msg.content, 'Compare these references.')
+  })
+
+  it('hides generated image metadata when restoring a multimodal user message', async () => {
+    const { convertLcMessages } = await loadModule()
+    const [msg] = convertLcMessages([{
+      type: 'human',
+      content: [
+        { type: 'text', text: 'Describe this image.' },
+        { type: 'text', text: '\n<attached_image path="/project/cover.png" />' },
+        { type: 'image', mimeType: 'image/png', data: 'iVBORw0KGgo=' },
+      ],
+    }])
+
+    assert.equal(msg.content, 'Describe this image.')
+  })
+})
+
 describe('ChatDeepSeek — summary thinking control', () => {
   it('explicitly disables provider-default thinking for summary requests', async () => {
     const { ChatDeepSeek } = await loadDeepSeekModelModule()
@@ -164,6 +197,7 @@ describe('MessageAdapter — block proposal snapshots', () => {
       {
         start_block_id: 78,
         end_block_id: 81,
+        file_path: '/project/chapter.md',
         new_content: '',
         expected_old_content: '## 社会面（society）\n\n- 第一项\n- 第二项',
       },

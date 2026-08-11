@@ -30,9 +30,7 @@ import {
   normalizeThreadMessageForDisplay,
   normalizeThreadMessagesForDisplay,
 } from '@/ai/message/display-normalizer'
-import { buildSnapshot, buildEditorStateBlock } from '@/ai/thread/ContextBuilder'
 import { useAppStore } from '@/stores/app'
-import type { Editor } from '@tiptap/core'
 import { notify } from '@/utils/notifications'
 import { i18n } from '@/i18n'
 import { nanoid } from 'nanoid'
@@ -709,35 +707,6 @@ export const useAiStore = defineStore('ai', () => {
       updateThread(thread)
     }
 
-    // Collect open tabs (exclude active one)
-    const openTabs = appStore.tabs
-      .filter(t => t.id !== activeTab?.id)
-      .map(t => ({ id: t.id, path: t.path ?? undefined, name: t.name, isDirty: t.isDirty ?? false }))
-
-    // Build rich <runtime_context> XML at send time using the active editor snapshot
-    const activeEditor = activeTab?.docState?.editorInstance as Editor | null ?? null
-    const snapshot = thread.domain === 'editing' && activeEditor
-      ? buildSnapshot(activeEditor, undefined, currentFilePath ?? undefined)
-      : null
-
-    const editorStateResult = thread.domain === 'editing'
-      ? buildEditorStateBlock(thread, snapshot, {
-        filePath: currentFilePath,
-        tabId: activeTab?.id ?? null,
-        isDirty: activeTab?.isDirty ?? false,
-        folderPath: appStore.currentFolder ?? null,
-        openTabs,
-        textFilePaths: sendContext?.textFilePaths ?? [],
-        attachedDirectories: sendContext?.directories ?? [],
-      })
-      : { xml: null, threadUpdate: {} as Partial<AiThread> }
-
-    // Persist delta tracking fields back to the thread
-    if (Object.keys(editorStateResult.threadUpdate).length > 0) {
-      thread = { ...thread, ...editorStateResult.threadUpdate }
-      updateThread(thread)
-    }
-
     // Start streaming state
     runtimeEvents.resetRunErrorFlag()
     _threadRunState.value = 'streaming'
@@ -768,17 +737,10 @@ export const useAiStore = defineStore('ai', () => {
           ),
         },
         uiLocale: appStore.locale,
-        editorContext: {
-          filePath: currentFilePath,
-          isDirty: activeTab?.isDirty ?? false,
-          folderPath: appStore.currentFolder ?? null,
-          openTabs,
-          cursorBlockId: snapshot?.cursorBlockId ?? undefined,
-          editorStateXml: editorStateResult.xml ?? null,
-        },
+        originFilePath: currentFilePath,
+        workspacePath: appStore.currentFolder ?? null,
         attachments: {
-          textFilePaths: sendContext?.textFilePaths ?? [],
-          binaryFilePaths: sendContext?.binaryFilePaths ?? [],
+          filePaths: sendContext?.filePaths ?? [],
           directories: sendContext?.directories ?? [],
         },
       })

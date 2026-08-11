@@ -22,7 +22,7 @@ export function buildFinalizeChapterTool(): StructuredTool {
       name: 'finalize_chapter',
       description: 'Present a WHOLE-CHAPTER finalize card to the author once a chapter is fully drafted, closing its write-session. The card shows the baseline (session start) vs. the current chapter and offers three outcomes: approve (accept the draft, close the session), reply-with-feedback (rework — the session stays open for another writing pass), or reject (discard the session\'s writing, restore the baseline). Call this only after the chapter\'s prose is complete; do not commit or restore files yourself — approving/rejecting this card drives the write-session close.',
       schema: z.object({
-        chapter: z.string().describe('The manuscript chapter file this session wrote — an absolute host path (preferred; a workspace-relative path is resolved against the workspace root). This must be the same file that was authorized via confirm_writing_plan.target_files.'),
+        chapter: z.string().describe('The manuscript chapter file this session wrote — use the same workspace-relative or real absolute path authorized via confirm_writing_plan.target_files.'),
         summary: z.string().optional().describe('A one- or two-sentence summary of what this chapter covers / what changed, shown on the finalize card to orient the author before they accept or reject.'),
       }),
     },

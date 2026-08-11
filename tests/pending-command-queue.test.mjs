@@ -176,14 +176,12 @@ describe('pending command queue', () => {
     })
 
     queue.enqueue('thread-1', 'first', {
-      textFilePaths: ['/a.md'],
-      binaryFilePaths: ['/image.png'],
+      filePaths: ['/a.md', '/image.png'],
       directories: ['/notes'],
     })
     queue.enqueue('thread-2', 'other thread')
     queue.enqueue('thread-1', 'second', {
-      textFilePaths: ['/a.md', '/b.md'],
-      binaryFilePaths: ['/image.png'],
+      filePaths: ['/a.md', '/b.md', '/image.png'],
       directories: ['/drafts'],
     })
 
@@ -193,8 +191,7 @@ describe('pending command queue', () => {
       ids: ['command-1', 'command-3'],
       text: 'first\n\nsecond',
       sendContext: {
-        textFilePaths: ['/a.md', '/b.md'],
-        binaryFilePaths: ['/image.png'],
+        filePaths: ['/a.md', '/image.png', '/b.md'],
         directories: ['/notes', '/drafts'],
       },
     })
@@ -267,7 +264,11 @@ describe('pending command submission', () => {
         },
       },
     }
-    const contextFiles = module.ref(['/notes.md', '/image.png'])
+    const contextFiles = module.ref([
+      { path: '/notes.md', kind: 'file' },
+      { path: '/image.png', kind: 'file' },
+      { path: '/references', kind: 'directory' },
+    ])
     const state = module.useChatSend(contextFiles)
     await module.nextTick()
 
@@ -297,9 +298,8 @@ describe('pending command submission', () => {
         assert.deepEqual(harness.queued[0], {
           text: 'queued instruction',
           sendContext: {
-            textFilePaths: ['/notes.md'],
-            binaryFilePaths: ['/image.png'],
-            directories: [],
+            filePaths: ['/notes.md', '/image.png'],
+            directories: ['/references'],
           },
         })
         assert.equal(harness.store.draftInput, '')

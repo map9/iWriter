@@ -7,7 +7,6 @@ export type {
   SessionContextStatsRequest,
   SessionContextStatsResponse,
   SendMessageRequest,
-  EditorContext,
   ResumeDecision,
   ResumeRunRequest,
   StreamChunkEvent,
@@ -21,5 +20,10 @@ export type {
   SerializedSnapshot,
   SerializedBlockEntry,
   SerializedOutlineEntry,
+  EditorStateRequestEvent,
+  EditorStateResponse,
+  EditorStateSnapshot,
+  EditorStateDocument,
+  EditorStateTab,
   DomainReviewItem,
 } from '../../electron/ai/ipc/protocol'

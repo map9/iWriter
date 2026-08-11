@@ -6,34 +6,22 @@
  */
 
 import * as fs from 'fs'
-import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import { BlockParser } from '../../document/BlockParser'
 import { DocumentSearch, listWorkspaceDocumentPaths, SUPPORTED_DOC_EXTS, type DocumentSearchOptions } from '../../document/DocumentSearch'
-import type { IWriterAgentContext } from '../../runtime/AgentContext'
 import type { SerializedSnapshot } from '../../ipc/protocol'
 import { parseUntitledTabId } from '../../document/virtualId'
+import { resolveRuntimePath } from '../../runtime/RuntimePathResolver'
 
 function getExt(filePath: string): string {
   return filePath.split('.').pop()?.toLowerCase() ?? ''
 }
 
-function getRuntimeActiveFilePath(runtime: unknown): string | null {
-  return (runtime as { context?: IWriterAgentContext } | undefined)?.context?.activeFilePath ?? null
-}
-
-function isVirtualDocumentPath(requested: string): boolean {
-  const normalized = requested.replace(/\\/g, '/')
-  return normalized === '/attached_dirs' ||
-    normalized === '/attached_files' ||
-    normalized.startsWith('/attached_dirs/') ||
-    normalized.startsWith('/attached_files/')
-}
-
 type DocumentPathResolution =
-  | { ok: true; filePath: string | null; tabId?: string }
+  | { ok: true; filePath: string; tabId?: undefined }
+  | { ok: true; filePath: null; tabId: string }
   | { ok: false; error: string }
 
 function asErrorMessage(err: unknown): string {
@@ -44,54 +32,35 @@ function blockIdRecoveryMessage(): string {
   return 'The block IDs may be stale after document edits. Call get_document_outline(file_path=...) first, then retry with refreshed block IDs. Do not repeat the same call unchanged.'
 }
 
+function describeDocument(resolved: Extract<DocumentPathResolution, { ok: true }>): string {
+  return resolved.filePath ?? `untitled:${resolved.tabId}`
+}
+
 function formatBlockToolError(toolName: string, invalidArgument: string, reason: string): string {
   return `Error: ${toolName} failed. Invalid argument: ${invalidArgument}. Reason: ${reason} Recovery: ${blockIdRecoveryMessage()}`
 }
 
 function resolveDocumentPathForRuntime(argFilePath: string | undefined, runtime: unknown): DocumentPathResolution {
-  const activeFilePath = getRuntimeActiveFilePath(runtime)
-  const requested = argFilePath?.trim() || null
-
-  if (requested === null) {
-    if (activeFilePath === null) return { ok: true, filePath: null }
-    return {
-      ok: false,
-      error:
-        'Error: file_path is required. The active document has a path — pass the absolute path shown in <active_document>/<open_tabs>. ' +
-        'Omitting file_path (or passing its virtual_id) is only valid when targeting an in-memory unsaved document (status="unsaved_new").',
-    }
-  }
+  const requested = argFilePath?.trim()
+  if (!requested) return { ok: false, error: 'Error: file_path is required.' }
 
   const untitledTabId = parseUntitledTabId(requested)
   if (untitledTabId !== undefined) {
     return { ok: true, filePath: null, tabId: untitledTabId }
   }
 
-  if (isVirtualDocumentPath(requested)) {
+  const runtimePath = resolveRuntimePath(requested, runtime, 'file_path')
+  if (!runtimePath.ok) return runtimePath
+  const resolvedPath = runtimePath.path
+
+  if (!fs.existsSync(resolvedPath)) {
     return {
       ok: false,
-      error:
-        `Error: file_path must be a real absolute host path, not a virtual mount path like "${requested}". ` +
-        'Use the absolute path shown in <workspace>, <attached_files>, or the user message.',
+      error: `Error: FILE_NOT_FOUND — file_path does not exist on disk: "${resolvedPath}".`,
     }
   }
 
-  if (!path.isAbsolute(requested)) {
-    return {
-      ok: false,
-      error:
-        `Error: file_path must be an absolute host path. Relative, basename-only, and workspace-root paths are not allowed: "${requested}".`,
-    }
-  }
-
-  if (!fs.existsSync(requested)) {
-    return {
-      ok: false,
-      error: `Error: FILE_NOT_FOUND — file_path does not exist on disk: "${requested}".`,
-    }
-  }
-
-  return { ok: true, filePath: requested }
+  return { ok: true, filePath: resolvedPath }
 }
 
 function toSearchOptions(input: {
@@ -110,52 +79,39 @@ type DirectoryResolution =
   | { ok: true; directoryPath: string }
   | { ok: false; error: string }
 
-function resolveDirectoryPathForRuntime(argDirectoryPath: string | undefined, _runtime: unknown): DirectoryResolution {
+function resolveDirectoryPathForRuntime(argDirectoryPath: string | undefined, runtime: unknown): DirectoryResolution {
   const requested = argDirectoryPath?.trim()
   if (!requested) {
-    return { ok: false, error: 'Error: directory_path is required and must be an absolute host directory path.' }
+    return { ok: false, error: 'Error: directory_path is required.' }
   }
 
-  if (isVirtualDocumentPath(requested)) {
-    return {
-      ok: false,
-      error:
-        `Error: directory_path must be a real absolute host path, not a virtual mount path like "${requested}". ` +
-        'Use the absolute path shown in <workspace> or <attached_dirs>.',
-    }
-  }
+  const runtimePath = resolveRuntimePath(requested, runtime, 'directory_path')
+  if (!runtimePath.ok) return runtimePath
+  const resolvedPath = runtimePath.path
 
-  if (!path.isAbsolute(requested)) {
-    return {
-      ok: false,
-      error:
-        `Error: directory_path must be an absolute host path. Relative, basename-only, and workspace-root virtual paths are not allowed: "${requested}".`,
-    }
-  }
-
-  if (!fs.existsSync(requested)) {
-    return { ok: false, error: `Error: directory_path does not exist on disk: "${requested}".` }
+  if (!fs.existsSync(resolvedPath)) {
+    return { ok: false, error: `Error: directory_path does not exist on disk: "${resolvedPath}".` }
   }
 
   let stats: fs.Stats
   try {
-    stats = fs.statSync(requested)
+    stats = fs.statSync(resolvedPath)
   } catch {
-    return { ok: false, error: `Error: Could not stat directory_path: "${requested}".` }
+    return { ok: false, error: `Error: Could not stat directory_path: "${resolvedPath}".` }
   }
 
   if (!stats.isDirectory()) {
-    return { ok: false, error: `Error: directory_path must point to a directory: "${requested}".` }
+    return { ok: false, error: `Error: directory_path must point to a directory: "${resolvedPath}".` }
   }
 
-  return { ok: true, directoryPath: requested }
+  return { ok: true, directoryPath: resolvedPath }
 }
 
 export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
   // ── get_document_outline ──────────────────────────────────────────────────
 
   const getDocumentOutline = tool(
-    async ({ file_path }: { file_path?: string }, runtime) => {
+    async ({ file_path }: { file_path: string }, runtime) => {
       const resolved = resolveDocumentPathForRuntime(file_path, runtime)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
@@ -172,9 +128,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
 
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
       if (!snapshot) {
-        return resolvedPath
-          ? `Error: Could not load document "${resolvedPath}".`
-          : 'Error: No document is currently open.'
+        return `Error: Could not load document "${describeDocument(resolved)}".`
       }
 
       return BlockParser.getDocumentOutline(snapshot)
@@ -185,13 +139,12 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         'Get the document outline (heading structure with block count and word count per section). ' +
         'Always call this first to understand the document structure before editing or reading sections. ' +
         'Use the returned block_ids to call get_section or get_blocks for detailed content. ' +
-        'file_path is required: pass the absolute path (or virtual_id for an unsaved document) shown in <active_document>/<open_tabs>.',
+        'Pass an explicit workspace-relative path, absolute path, or untitled: virtual ID. Call get_editor_state when targeting the current tab.',
       schema: z.object({
         file_path: z
           .string()
-          .optional()
           .describe(
-            'Required. Absolute host path to a local .md/.txt/.iwt file, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead. Never pass a basename, workspace-relative path, workspace-root virtual path like "/foo.iwt", or virtual mount path like "/attached_dirs/...".'
+            'Required workspace-relative path or real absolute host path to a local .md/.txt/.iwt file. For an in-memory unsaved document, pass the untitled: virtual ID returned by get_editor_state.'
           ),
       }),
     }
@@ -209,16 +162,14 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       heading_block_id: number
       offset?: number
       limit?: number
-      file_path?: string
+      file_path: string
     }, runtime) => {
       const resolved = resolveDocumentPathForRuntime(file_path, runtime)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
       if (!snapshot) {
-        return resolvedPath
-          ? `Error: Could not load document "${resolvedPath}".`
-          : 'Error: No document is currently open.'
+        return `Error: Could not load document "${describeDocument(resolved)}".`
       }
 
       try {
@@ -239,7 +190,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         'Returns the heading and all blocks until the next same/higher-level heading, ' +
         'with block IDs ({b:n}) for targeted editing. Paginates by content budget (block-atomic); ' +
         'when has_more is true, pass offset=next_offset to fetch the next page. ' +
-        'file_path is required: pass the absolute path (or virtual_id for an unsaved document) shown in <active_document>/<open_tabs>.',
+        'Pass an explicit workspace-relative path, absolute path, or untitled: virtual ID. Call get_editor_state when targeting the current tab.',
       schema: z.object({
         heading_block_id: z
           .number()
@@ -248,8 +199,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         limit: z.number().optional().describe('Content budget in characters per page (default: 4000). Blocks are never split; a single over-budget block occupies its own page.'),
         file_path: z
           .string()
-          .optional()
-          .describe('Required. Absolute host path to the target document, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead.'),
+          .describe('Required workspace-relative or real absolute path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
       }),
     }
   )
@@ -288,7 +238,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           }
 
           const resolvedPath = resolved.filePath
-          const cacheKey = resolvedPath ?? (resolved.tabId ? `__tab:${resolved.tabId}__` : '__active__')
+          const cacheKey = resolvedPath ?? `__tab:${resolved.tabId}__`
           if (!snapshotCache.has(cacheKey)) {
             snapshotCache.set(cacheKey, await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId))
           }
@@ -298,9 +248,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
             sections.push({
               heading_block_id: headingBlockId,
               status: 'error',
-              error: resolvedPath
-                ? `Could not load document "${resolvedPath}".`
-                : 'No document is currently open.',
+              error: `Could not load document "${describeDocument(resolved)}".`,
             })
             continue
           }
@@ -356,7 +304,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
             file_path: z
               .string()
               .optional()
-              .describe('Absolute host path (or virtual_id) for this request. Omit to use the top-level file_path.'),
+              .describe('Workspace-relative, real absolute, or untitled: document reference for this request. Omit to use the top-level file_path.'),
           }))
           .min(1)
           .max(12)
@@ -364,7 +312,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Required (unless every request provides its own file_path). Absolute host path, or virtual_id (e.g. "untitled:...") for an in-memory unsaved document, from <active_document>/<open_tabs>, shared by all requests.'),
+          .describe('Shared workspace-relative or real absolute document path, or untitled: virtual ID. Required unless every request has file_path.'),
       }),
     }
   )
@@ -377,16 +325,14 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       file_path,
     }: {
       block_ids?: number[]
-      file_path?: string
+      file_path: string
     }, runtime) => {
       const resolved = resolveDocumentPathForRuntime(file_path, runtime)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
       if (!snapshot) {
-        return resolvedPath
-          ? `Error: Could not load document "${resolvedPath}".`
-          : 'Error: No document is currently open.'
+        return `Error: Could not load document "${describeDocument(resolved)}".`
       }
 
       const resolvedBlockIds = block_ids === undefined
@@ -401,7 +347,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         'Get document blocks by block IDs, or omit block_ids to read all blocks. ' +
         'Use when you need exact block-marked content (e.g., before editing). ' +
         'Returns each block\'s content with its {b:n} marker. ' +
-        'With file_path, this reads that exact file on disk even if it is not open in the editor.',
+        'The explicit file_path identifies the exact document, whether open or closed.',
       schema: z.object({
         block_ids: z
           .array(z.number())
@@ -409,8 +355,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           .describe('Optional array of block display IDs (the numbers in {b:n} markers) to retrieve. Omit to retrieve all blocks.'),
         file_path: z
           .string()
-          .optional()
-          .describe('Required. Absolute host path to the target document, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead.'),
+          .describe('Required workspace-relative or real absolute path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
       }),
     }
   )
@@ -425,16 +370,14 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
     }: {
       block_id: number
       window?: number
-      file_path?: string
+      file_path: string
     }, runtime) => {
       const resolved = resolveDocumentPathForRuntime(file_path, runtime)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
       if (!snapshot) {
-        return resolvedPath
-          ? `Error: Could not load document "${resolvedPath}".`
-          : 'Error: No document is currently open.'
+        return `Error: Could not load document "${describeDocument(resolved)}".`
       }
 
       const result = BlockParser.getBlockContext(
@@ -451,7 +394,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       description:
         'Get the surrounding context of a specific block (blocks before and after). ' +
         'Useful for understanding the local structure around a block you want to edit. ' +
-        'With file_path, this reads that exact file on disk even if it is not open in the editor.',
+        'The explicit file_path identifies the exact document, whether open or closed.',
       schema: z.object({
         block_id: z.number().describe('The block display ID to center the context around.'),
         window: z
@@ -460,8 +403,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           .describe('Number of blocks before and after to include (default: 3).'),
         file_path: z
           .string()
-          .optional()
-          .describe('Required. Absolute host path to the target document, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead.'),
+          .describe('Required workspace-relative or real absolute path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
       }),
     }
   )
@@ -476,7 +418,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       max_matches,
     }: {
       query: string
-      file_path?: string
+      file_path: string
       case_sensitive?: boolean
       whole_word?: boolean
       regex?: boolean
@@ -487,9 +429,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
       if (!snapshot) {
-        return resolvedPath
-          ? `Error: Could not load document "${resolvedPath}".`
-          : 'Error: No document is currently open.'
+        return `Error: Could not load document "${describeDocument(resolved)}".`
       }
 
       return DocumentSearch.searchDocumentBlocks(
@@ -509,8 +449,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         query: z.string().describe('Text to search for. Matched literally, with one exception: "one|other" is an alternation, so put every wording of the same thing in ONE query instead of one call per wording. For a real pattern, set regex: true.'),
         file_path: z
           .string()
-          .optional()
-          .describe('Required. Absolute host path to the target document, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead.'),
+          .describe('Required workspace-relative or real absolute path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Reject matches that are part of a longer word. Works in every writing system, including scripts without spaces.'),
         regex: z.boolean().optional().describe('Treat query as a JavaScript regular expression. Not needed for plain alternation — "one|other" already works without it.'),
@@ -530,7 +469,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       max_sections,
     }: {
       query: string
-      file_path?: string
+      file_path: string
       case_sensitive?: boolean
       whole_word?: boolean
       regex?: boolean
@@ -542,9 +481,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
       if (!snapshot) {
-        return resolvedPath
-          ? `Error: Could not load document "${resolvedPath}".`
-          : 'Error: No document is currently open.'
+        return `Error: Could not load document "${describeDocument(resolved)}".`
       }
 
       return DocumentSearch.searchDocumentSections(
@@ -565,8 +502,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         query: z.string().describe('Text to search for. Matched literally, with one exception: "one|other" is an alternation, so put every wording of the same thing in ONE query instead of one call per wording. For a real pattern, set regex: true.'),
         file_path: z
           .string()
-          .optional()
-          .describe('Required. Absolute host path to the target document, from <active_document>/<open_tabs>. For an in-memory unsaved document (status="unsaved_new"), pass its virtual_id (e.g. "untitled:...") instead.'),
+          .describe('Required workspace-relative or real absolute path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Reject matches that are part of a longer word. Works in every writing system, including scripts without spaces.'),
         regex: z.boolean().optional().describe('Treat query as a JavaScript regular expression. Not needed for plain alternation — "one|other" already works without it.'),
@@ -639,15 +575,15 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       description:
         'Search the CONTENT of .md/.txt/.iwt documents under one specific directory using block-aware matching. ' +
         'Returns only files whose document content matches the query, plus block IDs, section headings, and previews. ' +
-        'This works for the workspace root, a user-attached directory, or any directory the user explicitly named by absolute path. ' +
-        'Do NOT use this to locate filenames, folder paths, tabs, or documents you already know by absolute path. ' +
+        'This works for the workspace root (directory_path="."), a user-attached directory, or any explicitly named directory. ' +
+        'Do NOT use this to locate filenames, folder paths, tabs, or documents you already know by path. ' +
         'If you know the path, call get_document_outline/get_section/get_blocks with file_path directly. ' +
         'For file/path discovery, use shell file tools such as ls/glob/find/grep instead.',
       schema: z.object({
         query: z.string().describe('Text to search for. Matched literally, with one exception: "one|other" is an alternation, so put every wording of the same thing in ONE query instead of one call per wording. For a real pattern, set regex: true.'),
         directory_path: z
           .string()
-          .describe('Real absolute host path to the directory whose document contents should be searched. Prefer a user-specified directory, an attached directory, or the workspace root.'),
+          .describe('Workspace-relative or real absolute directory path whose document contents should be searched. Use "." for the workspace root.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Reject matches that are part of a longer word. Works in every writing system, including scripts without spaces.'),
         regex: z.boolean().optional().describe('Treat query as a JavaScript regular expression. Not needed for plain alternation — "one|other" already works without it.'),

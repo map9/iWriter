@@ -13,7 +13,6 @@ import type {
   ThreadMessage,
   AiAgentMode,
   AiAgentDomain,
-  OpenTabInfo,
   AiThinkingLevel,
 } from '../../../src/types/ai'
 import type { DomainReviewItem } from '../domain/DomainStrategy'
@@ -34,12 +33,13 @@ export interface SendMessageRequest {
     modelId?: string
     thinkingLevel?: AiThinkingLevel
   }
-  /** Context from the renderer at send time */
-  editorContext: EditorContext
-  /** Attachments: file paths, binary paths, directories */
+  /** Active file when the thread was created; used only for the thread context pill. */
+  originFilePath: string | null
+  /** Hidden workspace root supplied to runtime tools through runConfig.context. */
+  workspacePath: string | null
+  /** Attachments selected for this turn. Image files are identified by signature in the main process. */
   attachments?: {
-    textFilePaths: string[]
-    binaryFilePaths: string[]
+    filePaths: string[]
     directories: string[]
   }
 }
@@ -62,16 +62,6 @@ export interface SessionContextStatsResponse {
   requestBudgetTokens: number
   keepTokens: number
   maxInputTokens?: number
-}
-
-export interface EditorContext {
-  filePath: string | null      // Active editing file path (null = no file open)
-  isDirty: boolean             // Active file has unsaved changes
-  folderPath: string | null    // Open workspace folder path
-  openTabs: OpenTabInfo[]
-  cursorBlockId?: number       // Display block ID of cursor position
-  /** Pre-built <runtime_context> XML from renderer (built at send time using ContextBuilder). */
-  editorStateXml?: string | null
 }
 
 // ── LangGraph HITL — interrupt / resume ────────────────────────────────────
@@ -224,6 +214,41 @@ export interface SnapshotResponse {
   requestId: string
   filePath: string | null
   snapshot: SerializedSnapshot | null
+}
+
+export interface EditorStateRequestEvent {
+  requestId: string
+}
+
+export interface EditorStateTab {
+  path: string | null
+  virtualId: string | null
+  name: string
+  fileType: string
+  dirty: boolean
+}
+
+export interface EditorStateDocument extends EditorStateTab {
+  cursorBlockId: number | null
+  cursorSection: { heading: string | null; headingBlockId: number | null } | null
+  selection: { blockIds: number[]; content: string | null } | null
+  outline: Array<{
+    blockId: number
+    level: number
+    text: string
+    sectionBlocks: number
+    wordCount: number
+  }>
+}
+
+export interface EditorStateSnapshot {
+  activeDocument: EditorStateDocument | null
+  openTabs: EditorStateTab[]
+}
+
+export interface EditorStateResponse {
+  requestId: string
+  state: EditorStateSnapshot
 }
 
 export interface ProposalStatusUpdate {

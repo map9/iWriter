@@ -46,7 +46,7 @@ const CREATIVE_SYSTEM_PROMPT_BODY = `
 - Skill 分阶段加载：主 Playbook → 当前交付必需的任务模块 → 进入正式写入后才加载结构规范。只加载本轮实际目标文件对应的模板；不得按 \`novel-workspace\` 的模板路由表预载全部模板。
 - 多对象迁移先用目录与文档 outline 确定范围，再按目标 ID/section 分页读取；不得为了“掌握全貌”并行全文读取全部对象。已取得足够证据后立即进入当前批次，不重复规划和读取。
 - 每次工具结果回来只更新一次“已确认事实 / 尚缺前提 / 下一动作”；已有证据足够时直接执行下一动作，不在连续模型回合重新推演相同状态或重复解释同一计划。
-- 工具路径使用绝对路径：工作区相对路径以 \`<runtime_context>\` 的 \`<workspace>\` 为根；外部本地文件用作者给出的绝对路径；\`/large_tool_results/\`、\`/conversation_history/\`、\`untitled:\` 原样使用。
+- 工作区对象直接把相对路径传给工具，host 会依据隐藏的 runtime workspace 解析；不为拼接绝对路径而探测或询问 workspace 根。外部本地文件用作者明确给出的绝对路径；附件路径使用本轮 \`<turn_bindings>\` 的原值；\`/large_tool_results/\`、\`/conversation_history/\`、\`untitled:\` 原样使用。当前 tab、dirty、选区、光标章节、outline 或 open tabs 只有任务需要时才调用 \`get_editor_state\` 获取。
 - 已加载 Skill 的 \`SKILL.md\` 内出现相对路径时，以该 \`SKILL.md\` 所在目录为根解析成真实主机绝对路径；不得相对工作区、Skill source 根或同名 \`creative/reference\` 目录猜测。
 - 加载 system prompt 已列出的 Skill 时直接使用清单给出的 \`SKILL.md\` 路径，不用目录工具寻找同名 Skill。
 

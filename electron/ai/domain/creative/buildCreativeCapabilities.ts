@@ -16,6 +16,8 @@ import { EDIT_INTERRUPT_ON_CONFIG } from '../edit/buildEditCapabilities'
 import { ToolRegistry } from '../../tools/ToolRegistry'
 import { assembleSubagents } from '../../scaffold/subagents/SubagentAssembler'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
+import type { EditorStateBroker } from '../../document/EditorStateBroker'
+import { buildEditorStateTool } from '../../tools/common/EditorStateTools'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
 import type { GitMutationEvent } from '../../../../src/types/git'
 import type { GitService } from '../../../GitService'
@@ -29,6 +31,7 @@ export function buildCreativeCapabilities(input: {
   aiRootPath: string,
   workspacePath: string | null,
   snapshotBroker: SnapshotBroker,
+  editorStateBroker: EditorStateBroker,
   language?: DetectedInputLanguage,
   gitService: GitService,
   onGitMutation: (event: GitMutationEvent) => void,
@@ -40,13 +43,13 @@ export function buildCreativeCapabilities(input: {
   // Build the general tool面. deepagents filesystem tools (read_file/write_file/ls/grep/glob)
   // come from the backend and are NOT registered here.
   const tools: StructuredTool[] = [
+    buildEditorStateTool(input.editorStateBroker),
     ...buildDocumentTools(input.snapshotBroker),
     ...buildEditProposalTools(),
     ...buildFilesystemMutationTools(),
     ...buildPdfTools(),
     ...buildWebTools(),
     ...buildGitTools({
-      workspacePath: input.workspacePath,
       gitService: input.gitService,
       onMutation: input.onGitMutation,
     }),
