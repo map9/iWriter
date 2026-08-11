@@ -10,6 +10,7 @@ import {
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
 import { buildProposalFromAction } from '../../ipc/MessageAdapter'
 import { parseUntitledTabId } from '../../document/virtualId'
+import { isBlockEditToolName } from '../../scaffold/approval/WritingSessionRegistry'
 import { withProjectSkills } from '../../scaffold/skills/SkillsMount'
 import { CREATIVE_SUMMARIZATION_PROFILE } from '../../scaffold/summarization/SummarizationFramework'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
@@ -155,9 +156,12 @@ export class CreativeDomainStrategy implements DomainStrategy {
       }
 
       if (BLOCK_EDIT_TOOLS.has(ar.name)) {
-        const filePath = typeof ar.args?.file_path === 'string' ? ar.args.file_path.trim() : ''
-        if (!filePath) throw new Error(`${ar.name} requires file_path.`)
-        const snapshot = await getSnapshot(filePath)
+        let snapshot: SerializedSnapshot | null = null
+        if (isBlockEditToolName(ar.name)) {
+          const filePath = typeof ar.args?.file_path === 'string' ? ar.args.file_path.trim() : ''
+          if (!filePath) throw new Error(`${ar.name} requires file_path.`)
+          snapshot = await getSnapshot(filePath)
+        }
         results.push({
           kind: 'edit',
           payload: buildProposalFromAction(

@@ -5,11 +5,12 @@ import { buildEditCapabilities, EDIT_INTERRUPT_ON_NAMES } from './buildEditCapab
 import { buildProposalFromAction } from '../../ipc/MessageAdapter'
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
 import { parseUntitledTabId } from '../../document/virtualId'
+import { isBlockEditToolName } from '../../scaffold/approval/WritingSessionRegistry'
 import { withProjectSkills } from '../../scaffold/skills/SkillsMount'
 import { EDITING_SUMMARIZATION_PROFILE } from '../../scaffold/summarization/SummarizationFramework'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { EditorStateBroker } from '../../document/EditorStateBroker'
-import { BLOCK_EDIT_TOOLS, type AiAgentMode } from '../../../../src/types/ai'
+import type { AiAgentMode } from '../../../../src/types/ai'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
 import type { ResumeDecision } from '../../ipc/protocol'
 import type {
@@ -84,7 +85,7 @@ export class EditDomainStrategy implements DomainStrategy {
 
   async buildReviewItems(ctx: InterruptContext): Promise<DomainReviewItem[]> {
     let snapshot = null
-    const blockAction = ctx.actionRequests.find(action => BLOCK_EDIT_TOOLS.has(action.name))
+    const blockAction = ctx.actionRequests.find(action => isBlockEditToolName(action.name))
     if (blockAction) {
       const filePath = typeof blockAction.args.file_path === 'string'
         ? blockAction.args.file_path.trim()
