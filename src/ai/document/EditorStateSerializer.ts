@@ -4,16 +4,13 @@ import type { FileTab } from '@/types'
 import { DocumentType } from '@/types'
 import { DocumentViewBuilder } from './DocumentViewBuilder'
 
-const INLINE_SELECTION_BLOCK_LIMIT = 5
 const builder = new DocumentViewBuilder()
 
 function tabReference(tab: FileTab) {
   return {
-    path: tab.path ?? null,
-    virtualId: tab.path ? null : `untitled:${tab.id}`,
-    name: tab.name,
+    ref: tab.path ?? `untitled:${tab.id}`,
     fileType: tab.documentType ?? DocumentType.MARKDOWN_EDITOR,
-    dirty: tab.isDirty,
+    ...(!tab.path ? { displayName: tab.name } : {}),
   }
 }
 
@@ -23,57 +20,50 @@ function buildActiveDocument(tab: FileTab): EditorStateDocument {
   if (!editor) {
     return {
       ...base,
-      cursorBlockId: null,
-      cursorSection: null,
+      cursor: null,
       selection: null,
-      outline: [],
     }
   }
 
   try {
-    const view = builder.build(editor)
+    const blockMap = builder.buildBlockMap(editor)
     const { from, to } = editor.state.selection
-    const cursorBlockId = view.blockMap.find(entry => from >= entry.from && from < entry.to)?.displayId ?? null
-    const heading = cursorBlockId === null
+    const cursorEntry = blockMap
+      .filter(entry => !entry.isContainer && from >= entry.from && from < entry.to)
+      .sort((left, right) => (left.to - left.from) - (right.to - right.from))[0]
+      ?? blockMap.find(entry => from >= entry.from && from < entry.to)
+      ?? null
+    const headingEntry = cursorEntry === null
       ? null
-      : [...view.outline].reverse().find(entry => entry.displayId <= cursorBlockId) ?? null
+      : [...blockMap].reverse().find(entry => (
+        entry.nodeType === 'heading' && entry.displayId <= cursorEntry.displayId
+      )) ?? null
+    const headingNode = headingEntry ? editor.state.doc.nodeAt(headingEntry.from) : null
     const selectedBlocks = from === to
       ? []
-      : view.blockMap.filter(entry => entry.from < to && entry.to > from)
-    const selectionContent = selectedBlocks.length > 0 && selectedBlocks.length <= INLINE_SELECTION_BLOCK_LIMIT
-      ? builder.buildRangeView(
-        editor,
-        selectedBlocks[0]!.displayId,
-        selectedBlocks[selectedBlocks.length - 1]!.displayId,
-        view.blockMap,
-      )
-      : null
+      : blockMap.filter(entry => !entry.isContainer && entry.from < to && entry.to > from)
+    const selectedText = from === to ? null : editor.state.doc.textBetween(from, to, '\n') || null
 
     return {
       ...base,
-      cursorBlockId,
-      cursorSection: heading
-        ? { heading: heading.text, headingBlockId: heading.displayId }
-        : cursorBlockId === null ? null : { heading: null, headingBlockId: null },
-      selection: selectedBlocks.length
-        ? { blockIds: selectedBlocks.map(entry => entry.displayId), content: selectionContent }
+      cursor: cursorEntry
+        ? {
+          blockId: cursorEntry.displayId,
+          containerBlockId: cursorEntry.containerId ?? (cursorEntry.isContainer ? cursorEntry.displayId : null),
+          sectionHeadingBlockId: headingEntry?.displayId ?? null,
+          sectionHeading: headingNode?.textContent ?? null,
+        }
         : null,
-      outline: view.outline.map(entry => ({
-        blockId: entry.displayId,
-        level: entry.level,
-        text: entry.text,
-        sectionBlocks: entry.sectionBlocks,
-        wordCount: entry.wordCount,
-      })),
+      selection: selectedBlocks.length
+        ? { blockIds: selectedBlocks.map(entry => entry.displayId), selectedText }
+        : null,
     }
   } catch (error) {
     console.warn('[EditorStateSerializer] Failed to inspect active editor:', error)
     return {
       ...base,
-      cursorBlockId: null,
-      cursorSection: null,
+      cursor: null,
       selection: null,
-      outline: [],
     }
   }
 }
@@ -81,9 +71,12 @@ function buildActiveDocument(tab: FileTab): EditorStateDocument {
 export function buildEditorStateSnapshot(
   tabs: FileTab[],
   activeTab: FileTab | undefined,
+  options: { includeOpenTabs?: boolean } = {},
 ): EditorStateSnapshot {
   return {
     activeDocument: activeTab ? buildActiveDocument(activeTab) : null,
-    openTabs: tabs.filter(tab => tab.id !== activeTab?.id).map(tabReference),
+    ...(options.includeOpenTabs
+      ? { openTabs: tabs.filter(tab => tab.id !== activeTab?.id).map(tabReference) }
+      : {}),
   }
 }

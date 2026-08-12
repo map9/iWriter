@@ -697,16 +697,6 @@ export const useAiStore = defineStore('ai', () => {
     // Mark as no longer local-only once a message is being sent
     _localOnlyThreadIds.delete(thread.id)
 
-    // Get context from active editor
-    const activeTab = appStore.activeTab
-    const currentFilePath = activeTab?.path ?? null
-
-    // Record origin file on first message
-    if (thread.originFilePath === undefined) {
-      thread = { ...thread, originFilePath: currentFilePath }
-      updateThread(thread)
-    }
-
     // Start streaming state
     runtimeEvents.resetRunErrorFlag()
     _threadRunState.value = 'streaming'
@@ -737,7 +727,6 @@ export const useAiStore = defineStore('ai', () => {
           ),
         },
         uiLocale: appStore.locale,
-        originFilePath: currentFilePath,
         workspacePath: appStore.currentFolder ?? null,
         attachments: {
           filePaths: sendContext?.filePaths ?? [],

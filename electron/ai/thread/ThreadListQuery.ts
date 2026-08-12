@@ -26,7 +26,6 @@ export interface ThreadMeta {
   mode: AiAgentMode
   modelId: string
   providerConfigId: string
-  originFilePath: string | null
   createdAt: number
   updatedAt: number
   hasError?: boolean
@@ -43,7 +42,6 @@ interface RawThreadMetaRow {
   mode: string
   model_id: string
   provider_config_id: string
-  origin_file_path: string | null
   created_at: number
   updated_at: number
   has_error: number   // SQLite stores boolean as 0/1
@@ -59,7 +57,6 @@ function ensureTable(db: Database): void {
       mode              TEXT NOT NULL,
       model_id          TEXT NOT NULL,
       provider_config_id TEXT NOT NULL,
-      origin_file_path  TEXT,
       created_at        INTEGER NOT NULL,
       updated_at        INTEGER NOT NULL,
       has_error         INTEGER DEFAULT 0,
@@ -88,7 +85,6 @@ function rowToMeta(row: RawThreadMetaRow): ThreadMeta {
     mode: normalizeAgentMode(row.mode) as AiAgentMode,
     modelId: row.model_id,
     providerConfigId: row.provider_config_id,
-    originFilePath: row.origin_file_path ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     hasError: !!row.has_error,
@@ -146,7 +142,6 @@ export class ThreadListQuery {
     mode: AiAgentMode
     modelId: string
     providerConfigId: string
-    originFilePath?: string | null
     thinkingLevel?: AiThinkingLevel
   }): ThreadMeta {
     const now = Date.now()
@@ -157,7 +152,6 @@ export class ThreadListQuery {
       mode: params.mode,
       modelId: params.modelId,
       providerConfigId: params.providerConfigId,
-      originFilePath: params.originFilePath ?? null,
       createdAt: now,
       updatedAt: now,
       thinkingLevel: params.thinkingLevel,
@@ -170,7 +164,7 @@ export class ThreadListQuery {
     id: string,
     updates: Partial<Pick<
       ThreadMeta,
-      'title' | 'hasError' | 'updatedAt' | 'domain' | 'mode' | 'modelId' | 'providerConfigId' | 'thinkingLevel' | 'originFilePath'
+      'title' | 'hasError' | 'updatedAt' | 'domain' | 'mode' | 'modelId' | 'providerConfigId' | 'thinkingLevel'
     >>,
   ): void {
     const meta = this.getMeta(id)
@@ -214,8 +208,8 @@ export class ThreadListQuery {
       this.db.prepare(`
         INSERT OR REPLACE INTO thread_metadata
           (thread_id, title, domain, mode, model_id, provider_config_id,
-           origin_file_path, created_at, updated_at, has_error, thinking_level)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           created_at, updated_at, has_error, thinking_level)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         meta.id,
         meta.title,
@@ -223,7 +217,6 @@ export class ThreadListQuery {
         meta.mode,
         meta.modelId,
         meta.providerConfigId,
-        meta.originFilePath,
         meta.createdAt,
         meta.updatedAt,
         meta.hasError ? 1 : 0,
@@ -256,6 +249,5 @@ export function metaToAiThread(meta: ThreadMeta): AiThread {
     mode: meta.mode,
     thinkingLevel: meta.thinkingLevel,
     hasError: meta.hasError,
-    originFilePath: meta.originFilePath,
   }
 }

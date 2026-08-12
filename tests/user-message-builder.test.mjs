@@ -38,7 +38,6 @@ function request(attachments) {
     userText: 'Compare the attached references.',
     domain: 'editing',
     mode: 'ask',
-    originFilePath: '/workspace/chapter.md',
     workspacePath: '/workspace',
     attachments,
   }

@@ -24,7 +24,7 @@ export class EditorStateBroker {
     })
   }
 
-  async requestEditorState(): Promise<EditorStateSnapshot | null> {
+  async requestEditorState(options: { includeOpenTabs?: boolean } = {}): Promise<EditorStateSnapshot | null> {
     const webContents = this.getWebContents()
     if (!webContents) return null
 
@@ -37,7 +37,10 @@ export class EditorStateBroker {
       }, EDITOR_STATE_TIMEOUT_MS)
 
       this.pendingRequests.set(requestId, { resolve, timer })
-      const event: EditorStateRequestEvent = { requestId }
+      const event: EditorStateRequestEvent = {
+        requestId,
+        ...(options.includeOpenTabs ? { includeOpenTabs: true } : {}),
+      }
       webContents.send('ai:request-editor-state', event)
     })
   }

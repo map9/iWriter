@@ -1,7 +1,5 @@
 <template>
   <div ref="messagesEl" class="min-h-0 flex-1 space-y-3 overflow-y-auto bg-base-100 px-3 pb-2 pt-1" :style="{ paddingBottom: (bottomPadding ?? 0) + 24 + 'px' }" @scroll="onScroll">
-    <ChatContextPill />
-
     <AgentEmptyState @suggest="handleSuggestPrompt" />
 
     <div
@@ -58,7 +56,6 @@ const emit = defineEmits<{
   followStateChange: [state: ScrollFollowState]
 }>()
 import { useAiStore } from '@/ai/store/ai'
-import ChatContextPill from './chat-area/ChatContextPill.vue'
 import AgentEmptyState from './chat-area/AgentEmptyState.vue'
 import AgentMessageBubble from './chat-area/AgentMessageBubble.vue'
 import DomainReviewSurface from './domains/DomainReviewSurface.vue'

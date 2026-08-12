@@ -375,7 +375,9 @@ onMounted(() => {
   window.electronAPI.onAiRequestEditorState?.((req: EditorStateRequestEvent) => {
     window.electronAPI.aiEditorStateResponse?.({
       requestId: req.requestId,
-      state: buildEditorStateSnapshot(appStore.tabs, appStore.activeTab),
+      state: buildEditorStateSnapshot(appStore.tabs, appStore.activeTab, {
+        includeOpenTabs: req.includeOpenTabs,
+      }),
     })
   })
 

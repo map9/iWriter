@@ -33,8 +33,6 @@ export interface SendMessageRequest {
     modelId?: string
     thinkingLevel?: AiThinkingLevel
   }
-  /** Active file when the thread was created; used only for the thread context pill. */
-  originFilePath: string | null
   /** Hidden workspace root supplied to runtime tools through runConfig.context. */
   workspacePath: string | null
   /** Attachments selected for this turn. Image files are identified by signature in the main process. */
@@ -218,32 +216,28 @@ export interface SnapshotResponse {
 
 export interface EditorStateRequestEvent {
   requestId: string
+  includeOpenTabs?: boolean
 }
 
 export interface EditorStateTab {
-  path: string | null
-  virtualId: string | null
-  name: string
+  ref: string
   fileType: string
-  dirty: boolean
+  displayName?: string
 }
 
 export interface EditorStateDocument extends EditorStateTab {
-  cursorBlockId: number | null
-  cursorSection: { heading: string | null; headingBlockId: number | null } | null
-  selection: { blockIds: number[]; content: string | null } | null
-  outline: Array<{
+  cursor: {
     blockId: number
-    level: number
-    text: string
-    sectionBlocks: number
-    wordCount: number
-  }>
+    containerBlockId: number | null
+    sectionHeadingBlockId: number | null
+    sectionHeading: string | null
+  } | null
+  selection: { blockIds: number[]; selectedText: string | null } | null
 }
 
 export interface EditorStateSnapshot {
   activeDocument: EditorStateDocument | null
-  openTabs: EditorStateTab[]
+  openTabs?: EditorStateTab[]
 }
 
 export interface EditorStateResponse {

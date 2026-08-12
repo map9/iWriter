@@ -76,6 +76,11 @@ const PARA_SKIP_PARENTS = new Set(['listItem', 'taskItem', 'blockquote'])
 // ── Builder ───────────────────────────────────────────────────────────────
 
 export class DocumentViewBuilder {
+  /** Build only the positional block index, without rendering Markdown or computing outline statistics. */
+  buildBlockMap(editor: Editor): BlockViewMapping[] {
+    return buildPositionBlockMap(editor.state.doc)
+  }
+
   /**
    * Build a full document view from the current editor state.
    * The blockMap returned is valid for the rest of this "session" (until
@@ -83,84 +88,13 @@ export class DocumentViewBuilder {
    */
   build(editor: Editor): DocumentView {
     const doc = editor.state.doc
-    const blockMap: BlockViewMapping[] = []
-    const viewParts: string[] = []
-    let displayId = 0
-    // Active top-level list containers, for tagging item leaves with containerId.
-    const containers: { from: number; to: number; displayId: number }[] = []
-
-    doc.descendants((node, pos, parent) => {
-      const typeName = node.type.name
-      const parentType = parent?.type.name ?? 'doc'
-
-      // Skip paragraph that lives inside a listItem, taskItem, or blockquote
-      // (it is rendered as part of its parent block).
-      if (typeName === 'paragraph' && PARA_SKIP_PARENTS.has(parentType)) {
-        return false
-      }
-
-      // List containers: emit a container block for TOP-LEVEL lists only
-      // (nested lists live inside a listItem and are covered by the top container's
-      // whole-list replace). Then descend to register item leaves.
-      if (LIST_CONTAINER_TYPES.has(typeName)) {
-        if (parentType === 'doc') {
-          const firstItemId: string = node.firstChild?.attrs?.id ?? ''
-          if (firstItemId) {
-            displayId++
-            blockMap.push({
-              displayId,
-              nodeId: `list:${firstItemId}`,
-              nodeType: typeName,
-              from: pos,
-              to: pos + node.nodeSize,
-              isContainer: true,
-            })
-            containers.push({ from: pos, to: pos + node.nodeSize, displayId })
-            // Container is addressable-only: not pushed to viewParts (its items render individually).
-          }
-        }
-        return true
-      }
-
-      // A tracked block type
-      if (BLOCK_TYPES.has(typeName)) {
-        const nodeId: string = node.attrs?.id ?? ''
-        if (!nodeId) {
-          // UniqueID not yet assigned (edge case during initial load); skip
-          return !OPAQUE_BLOCKS.has(typeName)
-        }
-
-        displayId++
-        const isListLeaf = typeName === 'listItem' || typeName === 'taskItem'
-        const containerId = isListLeaf
-          ? containers.find(c => pos >= c.from && pos < c.to)?.displayId
-          : undefined
-        blockMap.push({
-          displayId,
-          nodeId,
-          nodeType: typeName,
-          from: pos,
-          to: pos + node.nodeSize,
-          ...(containerId !== undefined ? { containerId } : {}),
-        })
-
-        const md = nodeToMarkdown(node)
-        viewParts.push(`{b:${displayId}}\n${md}`)
-
-        // Opaque blocks and codeBlock/mathBlock: don't descend
-        if (OPAQUE_BLOCKS.has(typeName) || typeName === 'codeBlock') return false
-
-        // listItem / taskItem: descend to find nested list items (but not their paragraphs)
-        if (typeName === 'listItem' || typeName === 'taskItem') return true
-
-        // paragraph, heading: leaf, don't descend
-        return false
-      }
-
-      // All other nodes (tableRow, tableCell, doc, etc.): don't add, but allow traversal
-      // of the doc root (parent === null means we're at top-level children)
-      return parentType === 'doc' || false
-    })
+    const blockMap = this.buildBlockMap(editor)
+    const viewParts = blockMap
+      .filter(entry => !entry.isContainer)
+      .map(entry => {
+        const node = doc.nodeAt(entry.from)
+        return `{b:${entry.displayId}}\n${node ? nodeToMarkdown(node) : ''}`
+      })
 
     const outline = buildOutline(blockMap, doc)
     const totalWords = countWords(doc.textContent)
@@ -170,7 +104,7 @@ export class DocumentViewBuilder {
       outlineText: buildOutlineText(outline, blockMap, totalWords),
       blockMap,
       outline,
-      totalBlocks: displayId,
+      totalBlocks: blockMap.length,
       totalWords,
     }
   }
@@ -296,6 +230,67 @@ export class DocumentViewBuilder {
     })
     return parts.join('\n\n')
   }
+}
+
+function buildPositionBlockMap(doc: PmNode): BlockViewMapping[] {
+  const blockMap: BlockViewMapping[] = []
+  let displayId = 0
+  const containers: { from: number; to: number; displayId: number }[] = []
+
+  doc.descendants((node, pos, parent) => {
+    const typeName = node.type.name
+    const parentType = parent?.type.name ?? 'doc'
+
+    if (typeName === 'paragraph' && PARA_SKIP_PARENTS.has(parentType)) {
+      return false
+    }
+
+    if (LIST_CONTAINER_TYPES.has(typeName)) {
+      if (parentType === 'doc') {
+        const firstItemId: string = node.firstChild?.attrs?.id ?? ''
+        if (firstItemId) {
+          displayId++
+          blockMap.push({
+            displayId,
+            nodeId: `list:${firstItemId}`,
+            nodeType: typeName,
+            from: pos,
+            to: pos + node.nodeSize,
+            isContainer: true,
+          })
+          containers.push({ from: pos, to: pos + node.nodeSize, displayId })
+        }
+      }
+      return true
+    }
+
+    if (BLOCK_TYPES.has(typeName)) {
+      const nodeId: string = node.attrs?.id ?? ''
+      if (!nodeId) return !OPAQUE_BLOCKS.has(typeName)
+
+      displayId++
+      const isListLeaf = typeName === 'listItem' || typeName === 'taskItem'
+      const containerId = isListLeaf
+        ? containers.find(container => pos >= container.from && pos < container.to)?.displayId
+        : undefined
+      blockMap.push({
+        displayId,
+        nodeId,
+        nodeType: typeName,
+        from: pos,
+        to: pos + node.nodeSize,
+        ...(containerId !== undefined ? { containerId } : {}),
+      })
+
+      if (OPAQUE_BLOCKS.has(typeName) || typeName === 'codeBlock') return false
+      if (typeName === 'listItem' || typeName === 'taskItem') return true
+      return false
+    }
+
+    return parentType === 'doc' || false
+  })
+
+  return blockMap
 }
 
 // ── Node → Markdown ───────────────────────────────────────────────────────

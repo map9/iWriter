@@ -325,7 +325,6 @@ export class AgentEngine {
         mode: runtime.mode,
         modelId: runtime.modelId,
         providerConfigId: runtime.providerConfig.id,
-        originFilePath: req.originFilePath,
         thinkingLevel: runtime.thinkingLevel,
       })
     } else {
@@ -335,7 +334,6 @@ export class AgentEngine {
         modelId: runtime.modelId,
         providerConfigId: runtime.providerConfig.id,
         thinkingLevel: runtime.thinkingLevel,
-        originFilePath: existingMeta?.originFilePath ?? req.originFilePath,
       })
     }
 

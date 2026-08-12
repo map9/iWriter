@@ -692,8 +692,6 @@ export interface AiThread {
   thinkingLevel?: AiThinkingLevel
   /** Set to true when the last run ended with an error (shown in history list) */
   hasError?: boolean
-  /** File path this thread was started against (set on first user message). Null = no file was open. */
-  originFilePath?: string | null
   /**
    * Accumulated real token usage (main agent + sub-agents).
    * Populated from provider `usage_metadata` during streaming; in-memory only.
