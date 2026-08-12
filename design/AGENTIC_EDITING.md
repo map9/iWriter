@@ -81,14 +81,15 @@ iWriter 的 AI 运行时已经切换到：
 
 ## Runtime Context 与资源绑定
 
-- `runConfig.context` 由 `IWriterAgentContextSchema` 校验，目前只向 host 工具提供 `workspacePath`；它不进入模型消息。thread/domain 通过 run metadata 进入 trace，不再复制到 runtime context。
-- workspace 根路径不拼入 system prompt 或用户消息。工作区内路径由模型直接使用相对路径，`RuntimePathResolver` 在工具执行时解析；进入审批、文档快照和写作会话前，`RuntimeToolPathNormalizer` 再把合法相对路径规范化为绝对路径。
+- `runConfig.context` 由 `IWriterAgentContextSchema` 校验，向 host 工具提供 `workspacePath`；thread/domain 通过 run metadata 进入 trace，不再复制到 runtime context。文件系统脚手架会另外把同一个 workspace 真实绝对路径注入主 Agent、general-purpose 以及声明式 subagent 的最终 system prompt。
+- 模型使用 workspace 根目录下的完整绝对路径；附件和用户明确给出的外部绝对路径保持原值。`RuntimePathResolver` 继续兼容既有相对路径调用，并在进入审批、文档快照和写作会话前由 `RuntimeToolPathNormalizer` 规范化为绝对路径，但相对路径不再是 prompt 指导的首选形式。
+- 外部绝对路径不需要预先登记为“授权目录”：读取直接交给原生文件 backend，写入、编辑、重命名、移动和删除统一进入 HITL；只有 DeepAgents 内部临时虚拟路径可以自动批准。
 - 当前轮选择的普通文件和目录只作为用户消息末尾的 `<turn_bindings>` 发送，不再重复保存在 `runConfig.context`。文件/目录类型由选择入口确定，不按扩展名猜测。
 - 主进程按文件签名识别 PNG/JPEG/GIF/WebP/BMP 图像；图像从 `<turn_bindings>` 中移除，改为 LangChain 多模态 image block。其他文件仍按普通文件路径绑定。
 - active tab、文件类型、光标章节和选区不在发送时注入。Edit 与 Creative 主 Agent 共享 `get_editor_state`，需要时通过 renderer IPC 获取轻量即时快照：`activeDocument.ref` 返回真实路径或 `untitled:` virtual ID，cursor 区分叶子块与列表容器，selection 只返回命中块 ID 与精确选中文本。完整 outline 继续由 `get_document_outline` 负责，dirty 状态不进入 Agent 上下文。
 - `get_editor_state` 默认省略其他标签；只有调用方传 `include_open_tabs=true` 时才附带紧凑的 `openTabs` 引用列表。DocumentTools、block edit tools 和 PDF tools 的文档路径均为必填；当前标签也是先取得 `activeDocument.ref`，再显式传给后续工具，不保留省略路径时回退到 active tab 的旧分支。
 - `.iwt/.md/.txt` 等 iWriter 文档仍应由 prompt 引导使用 DocumentTools 和 block edit tools，以保持打开/未打开及 dirty buffer 的统一读取和编辑语义；DeepAgents 内置原始文件工具未在本次改造中做强制拦截。
-- system prompt 因此不含 workspace 或编辑器动态状态，远端 prompt cache 的稳定前缀不会因切换文件、光标、选区或 dirty 状态而变化。
+- system prompt 不含编辑器动态状态，但包含当前 workspace；workspace 变化会命中不同 Agent cache key 并重建 Agent，远端 prompt cache 也不再跨 workspace 复用。切换文件、光标、选区或 dirty 状态仍不会改变该稳定前缀。
 
 ## 长会话上下文管理
 
@@ -200,7 +201,7 @@ Creative 模式是工作区限定的小说创作域，采用纯 Markdown 对象�
 - `creative/reviewer/` —— Reviewer 专用评审约束。
 - `creative/delegated/` —— 可委托给 general-purpose 的独立任务。
 
-Creative 主 Agent 的装载顺序是 common → creative/common → creative/reference → creative/main → creative/delegated → `<workspace>/.iwriter/skills`。项目级技能最后加载，可以覆盖同名内置技能。Writer / Reviewer 由 `electron/ai/builtin-subagents/creative/` 的声明式 agent 定义装配。
+Creative 主 Agent 的装载顺序是 common → creative/common → creative/reference → creative/main → creative/delegated → `<workspace>/.iwriter/skills`。项目级技能最后加载，可以覆盖同名内置技能。所有 Skill source 都以真实主机绝对路径交给原生 `SkillsMiddleware + FilesystemBackend`，不映射到 `/skills/` 虚拟目录。文件系统只为 `/large_tool_results/` 和 `/conversation_history/` 保留 DeepAgents 的临时虚拟路由。Writer / Reviewer 由 `electron/ai/builtin-subagents/creative/` 的声明式 agent 定义装配。
 
 ## 文档快照与编辑执行
 

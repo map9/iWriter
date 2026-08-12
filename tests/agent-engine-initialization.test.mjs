@@ -138,7 +138,7 @@ function stubPlugin() {
         [
           /scaffold\/filesystem\/AgentFilesystem$/,
           'agent-filesystem',
-          'export const FILE_WRITE_INTERRUPT_ON_NAMES = []; export function buildAgentFilesystem() { return { backend: {}, tools: [], middlewares: [], interruptOn: {}, tempDirs: [] } }',
+          'export const FILE_WRITE_INTERRUPT_ON_NAMES = []; export function buildAgentFilesystem(input) { return { backend: {}, tools: [], middlewares: [], interruptOn: {}, tempDirs: [], workspaceSystemPrompt: "Current Workspace: " + JSON.stringify(input.workspacePath) } }',
         ],
         [
           /scaffold\/approval\/FilesystemApprovalPolicy$/,
@@ -208,7 +208,7 @@ function stubPlugin() {
         [
           /domain\/creative\/CreativeDomainStrategy$/,
           'creative-domain-strategy',
-          'export class CreativeDomainStrategy { constructor() {} getMemoryDir() { return "creative" } getSkillSources() { return [] } buildCapabilities() { return { tools: [], interruptOn: {}, subAgents: [] } } getSystemPrompt() { return "system" } getSummarizationProfile() { return { domain: "creative", domainStateInstructions: ["creative-state"] } } }',
+          'export class CreativeDomainStrategy { constructor() {} getMemoryDir() { return "creative" } getSkillSources() { return ["/Users/author/.iwriter/skills"] } buildCapabilities() { return { tools: [], interruptOn: {}, subAgents: [{ name: "writer", description: "Writer", systemPrompt: "writer prompt" }] } } getSystemPrompt() { return "system" } getSummarizationProfile() { return { domain: "creative", domainStateInstructions: ["creative-state"] } } }',
         ],
         [
           /src\/ai\/message\/detectInputLanguage$/,
@@ -394,6 +394,39 @@ describe('AgentEngine initialization', () => {
       ),
       false,
     )
+  })
+
+  it('adds the dynamic workspace context to declarative subagent prompts', async () => {
+    const { AgentEngine } = await loadModule()
+    const engine = new AgentEngine(() => null)
+    engine.runtimeStore = {
+      getContext() {
+        return { workspacePath: '/Users/author/Books/novel' }
+      },
+    }
+
+    engine._getOrCreateAgent(
+      'thread-workspace-prompt',
+      {
+        id: 'deepseek',
+        type: 'deepseek',
+        label: 'DeepSeek',
+        apiKey: 'test',
+        defaultModelId: 'deepseek-chat',
+        enabled: true,
+      },
+      'creative',
+      'edit',
+      'deepseek-chat',
+      'medium',
+    )
+
+    const [subagent] = globalThis.__iwriterDeepAgentOptions.subagents
+    assert.match(subagent.systemPrompt, /Current Workspace: "\/Users\/author\/Books\/novel"/)
+    assert.match(subagent.systemPrompt, /writer prompt/)
+    assert.deepEqual(globalThis.__iwriterDeepAgentOptions.skills, [
+      '/Users/author/.iwriter/skills',
+    ])
   })
 
   it('persists initial and resumed runs only when the graph exits', async () => {

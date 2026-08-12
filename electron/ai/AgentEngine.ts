@@ -1114,7 +1114,6 @@ export class AgentEngine {
       const decision = decideFilesystemWriteApproval({
         toolName: actionRequest.name,
         args: actionRequest.args ?? {},
-        workspacePath,
       })
       fsDecisions.set(index, decision)
       if (decision.kind === 'auto-reject') {
@@ -1492,6 +1491,10 @@ export class AgentEngine {
     const model = createChatModel(config, { modelId, thinkingLevel })
     const budget = getEffectiveModelBudget(config, modelId, model)
     const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath, language })
+    const subAgents = capabilities.subAgents?.map(subagent => ({
+      ...subagent,
+      systemPrompt: `${scaffold.workspaceSystemPrompt}\n\n${subagent.systemPrompt}`,
+    }))
     const memorySources = this._buildMemoryPaths(domain)
 
     const fallbackModels: BaseChatModel[] = []
@@ -1529,12 +1532,13 @@ export class AgentEngine {
       systemPrompt: this.strategies[domain].getSystemPrompt(mode, language),
       tools: capabilities.tools,
       backend: scaffold.backend,
+      skills: skillSources.length ? skillSources : undefined,
       summarizationMiddlewareOptions,
       // 记忆改由脚手架的只读中间件承载（本期记忆只读，见 scaffold/memory/MemorySources），
       // 不使用 deepagents 内置 `memory` 选项——后者注入的提示会鼓励 agent 自动写入记忆。
       checkpointer: this.checkpointerInstance?.checkpointer,
       interruptOn: { ...capabilities.interruptOn, ...scaffold.interruptOn },
-      subagents: capabilities.subAgents,
+      subagents: subAgents,
       // Middleware ordering note:
       // createDeepAgent places its built-in SummarizationMiddleware BEFORE customMiddleware
       // (outer wrapper), so our custom middlewares below run INNER (closer to the LLM).

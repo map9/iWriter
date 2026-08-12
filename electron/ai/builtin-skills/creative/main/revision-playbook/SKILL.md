@@ -85,7 +85,7 @@ description: 正文精修阶段的主流程 Playbook。当作者要评估、比�
 
 先完成或取得明确的 findings，再调用 `confirm_writing_plan`，`target_files` 使用目标章绝对路径。作者批准后，用 `task(subagent_type="writer")` 委托，输入包含：
 
-- **章节**：工作区相对路径；
+- **章节**：workspace 下的完整绝对路径；
 - **创建还是修改**：`修改`；
 - **目标范围**：允许修改的块与完成标准；
 - **写作要求**：选中的 findings 及作者当前目标；

@@ -19,7 +19,7 @@ const EDIT_SYSTEM_PROMPT_BODY = `
 # 资源与文档
 
 - 只有任务依赖当前标签、选区、光标或 open tabs 时，才调用 \`get_editor_state\`；仅在确实需要其他标签时传 \`include_open_tabs=true\`。用户切换标签或界面状态可能变化后重新获取，不凭历史状态推断当前界面。
-- 工作区对象使用相对路径，host 会依据隐藏的 runtime workspace 解析；不要为了调用工具探测、拼接或询问工作区绝对根路径。
+- system prompt 已注入当前 workspace 的真实绝对路径；工作区对象使用该根目录下的完整绝对路径，不再使用相对路径。
 - 附件和用户明确输入的外部绝对路径保持原值；附件来自本轮 \`<turn_bindings>\`。未保存文档的 \`untitled:\`，以及 \`/large_tool_results/\`、\`/conversation_history/\` 等虚拟路径也保持原值。
 - 用户文档 .iwt/.md/.txt 必须通过 DocumentTools 读取，通过块工具修改；不得用 \`read_file\`、\`write_file\`、\`edit_file\` 或 shell 绕过。工具临时文件是普通文件，使用通用文件工具。
 - 目标优先级：用户明确指定的对象 > 本线程已建立的目标 > 工具搜索结果 > 当前编辑器状态。目标仍不明确时询问，不根据 basename 猜测文件或目录。

@@ -1,6 +1,5 @@
 import * as path from 'path'
 import type { ResumeDecision } from '../../ipc/protocol'
-import { isPathInside } from '../../runtime/RuntimePathResolver'
 
 export type FilesystemApprovalDecision =
   | { kind: 'auto-approve'; decision: ResumeDecision; reason: string }
@@ -10,7 +9,6 @@ export type FilesystemApprovalDecision =
 export interface FilesystemWriteApprovalInput {
   toolName: string
   args: Record<string, unknown>
-  workspacePath: string | null
 }
 
 const INTERNAL_WRITABLE_PREFIXES = [
@@ -141,25 +139,8 @@ export function decideFilesystemWriteApproval(input: FilesystemWriteApprovalInpu
     }
   }
 
-  // At least one path requires the workspace-scope check below.
-  for (const rawPath of candidatePaths) {
-    const filePath = rawPath.trim()
-    if (isInternalWritablePath(filePath)) continue
-    if (!path.isAbsolute(filePath)) continue // already auto-rejected above
-
-    if (input.workspacePath && isPathInside(input.workspacePath, filePath)) {
-      continue
-    }
-
-    return {
-      kind: 'auto-reject',
-      decision: { type: 'rejected', message: `${input.toolName} was rejected because it targets a path outside the current workspace: ${filePath}` },
-      reason: 'Outside workspace.',
-    }
-  }
-
   return {
     kind: 'requires-review',
-    reason: 'Workspace file operation requires user review.',
+    reason: 'Absolute file operation requires user review.',
   }
 }

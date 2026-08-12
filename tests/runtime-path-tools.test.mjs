@@ -80,6 +80,19 @@ describe('runtime-relative paths in model-facing tools', () => {
     assert.equal(JSON.parse(result).path, filePath)
   })
 
+  it('allows an explicit external absolute mutation path after HITL', async () => {
+    const workspacePath = await createWorkspace()
+    const externalRoot = await createWorkspace()
+    const filePath = path.join(externalRoot, 'attachment-copy.md')
+    await writeFile(filePath, 'remove me')
+    const { buildFilesystemMutationTools } = await loadModule()
+    const deleteTool = buildFilesystemMutationTools().find(tool => tool.name === 'delete_file')
+
+    const result = await deleteTool.invoke({ file_path: filePath }, runConfig(workspacePath))
+
+    assert.equal(JSON.parse(result).path, filePath)
+  })
+
   it('requires an explicit document reference instead of falling back to the active tab', async () => {
     let requestCount = 0
     const snapshotBroker = {
