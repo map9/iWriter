@@ -82,7 +82,7 @@ iWriter 的 AI 运行时已经切换到：
 ## Runtime Context 与资源绑定
 
 - `runConfig.context` 由 `IWriterAgentContextSchema` 校验，向 host 工具提供 `workspacePath`；thread/domain 通过 run metadata 进入 trace，不再复制到 runtime context。文件系统脚手架会另外把同一个 workspace 真实绝对路径注入主 Agent、general-purpose 以及声明式 subagent 的最终 system prompt。
-- 模型使用 workspace 根目录下的完整绝对路径；附件和用户明确给出的外部绝对路径保持原值。`RuntimePathResolver` 继续兼容既有相对路径调用，并在进入审批、文档快照和写作会话前由 `RuntimeToolPathNormalizer` 规范化为绝对路径，但相对路径不再是 prompt 指导的首选形式。
+- 模型使用 workspace 根目录下的完整绝对路径；附件和用户明确给出的外部绝对路径保持原值。宿主不会再把相对路径补全到 workspace；相对路径在读取或进入审批前被拒绝，路径参数保持原值。
 - 外部绝对路径不需要预先登记为“授权目录”：读取直接交给原生文件 backend，写入、编辑、重命名、移动和删除统一进入 HITL；只有 DeepAgents 内部临时虚拟路径可以自动批准。
 - 当前轮选择的普通文件和目录只作为用户消息末尾的 `<turn_bindings>` 发送，不再重复保存在 `runConfig.context`。文件/目录类型由选择入口确定，不按扩展名猜测。
 - 主进程按文件签名识别 PNG/JPEG/GIF/WebP/BMP 图像；图像从 `<turn_bindings>` 中移除，改为 LangChain 多模态 image block。其他文件仍按普通文件路径绑定。

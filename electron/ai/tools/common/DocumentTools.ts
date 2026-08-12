@@ -6,6 +6,7 @@
  */
 
 import * as fs from 'fs'
+import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
@@ -13,7 +14,6 @@ import { BlockParser } from '../../document/BlockParser'
 import { DocumentSearch, listWorkspaceDocumentPaths, SUPPORTED_DOC_EXTS, type DocumentSearchOptions } from '../../document/DocumentSearch'
 import type { SerializedSnapshot } from '../../ipc/protocol'
 import { parseUntitledTabId } from '../../document/virtualId'
-import { resolveRuntimePath } from '../../runtime/RuntimePathResolver'
 
 function getExt(filePath: string): string {
   return filePath.split('.').pop()?.toLowerCase() ?? ''
@@ -40,7 +40,7 @@ function formatBlockToolError(toolName: string, invalidArgument: string, reason:
   return `Error: ${toolName} failed. Invalid argument: ${invalidArgument}. Reason: ${reason} Recovery: ${blockIdRecoveryMessage()}`
 }
 
-function resolveDocumentPathForRuntime(argFilePath: string | undefined, runtime: unknown): DocumentPathResolution {
+function resolveDocumentPath(argFilePath: string | undefined): DocumentPathResolution {
   const requested = argFilePath?.trim()
   if (!requested) return { ok: false, error: 'Error: file_path is required.' }
 
@@ -49,9 +49,10 @@ function resolveDocumentPathForRuntime(argFilePath: string | undefined, runtime:
     return { ok: true, filePath: null, tabId: untitledTabId }
   }
 
-  const runtimePath = resolveRuntimePath(requested, runtime, 'file_path')
-  if (!runtimePath.ok) return runtimePath
-  const resolvedPath = runtimePath.path
+  if (!path.isAbsolute(requested)) {
+    return { ok: false, error: `Error: file_path must be an absolute path: "${requested}".` }
+  }
+  const resolvedPath = requested
 
   if (!fs.existsSync(resolvedPath)) {
     return {
@@ -79,15 +80,16 @@ type DirectoryResolution =
   | { ok: true; directoryPath: string }
   | { ok: false; error: string }
 
-function resolveDirectoryPathForRuntime(argDirectoryPath: string | undefined, runtime: unknown): DirectoryResolution {
+function resolveDirectoryPath(argDirectoryPath: string | undefined): DirectoryResolution {
   const requested = argDirectoryPath?.trim()
   if (!requested) {
     return { ok: false, error: 'Error: directory_path is required.' }
   }
 
-  const runtimePath = resolveRuntimePath(requested, runtime, 'directory_path')
-  if (!runtimePath.ok) return runtimePath
-  const resolvedPath = runtimePath.path
+  if (!path.isAbsolute(requested)) {
+    return { ok: false, error: `Error: directory_path must be an absolute path: "${requested}".` }
+  }
+  const resolvedPath = requested
 
   if (!fs.existsSync(resolvedPath)) {
     return { ok: false, error: `Error: directory_path does not exist on disk: "${resolvedPath}".` }
@@ -111,8 +113,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
   // ── get_document_outline ──────────────────────────────────────────────────
 
   const getDocumentOutline = tool(
-    async ({ file_path }: { file_path: string }, runtime) => {
-      const resolved = resolveDocumentPathForRuntime(file_path, runtime)
+    async ({ file_path }: { file_path: string }) => {
+      const resolved = resolveDocumentPath(file_path)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
 
@@ -139,12 +141,12 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         'Get the document outline (heading structure with block count and word count per section). ' +
         'Always call this first to understand the document structure before editing or reading sections. ' +
         'Use the returned block_ids to call get_section or get_blocks for detailed content. ' +
-        'Pass an explicit workspace-relative path, absolute path, or untitled: virtual ID. Call get_editor_state when targeting the current tab.',
+        'Pass the document path or an untitled: virtual ID. Call get_editor_state when targeting the current tab.',
       schema: z.object({
         file_path: z
           .string()
           .describe(
-            'Required workspace-relative path or real absolute host path to a local .md/.txt/.iwt file. For an in-memory unsaved document, pass the untitled: virtual ID returned by get_editor_state.'
+            'Path to a local .md/.txt/.iwt file. For an in-memory unsaved document, pass the untitled: virtual ID returned by get_editor_state.'
           ),
       }),
     }
@@ -163,8 +165,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       offset?: number
       limit?: number
       file_path: string
-    }, runtime) => {
-      const resolved = resolveDocumentPathForRuntime(file_path, runtime)
+    }) => {
+      const resolved = resolveDocumentPath(file_path)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
@@ -190,7 +192,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         'Returns the heading and all blocks until the next same/higher-level heading, ' +
         'with block IDs ({b:n}) for targeted editing. Paginates by content budget (block-atomic); ' +
         'when has_more is true, pass offset=next_offset to fetch the next page. ' +
-        'Pass an explicit workspace-relative path, absolute path, or untitled: virtual ID. Call get_editor_state when targeting the current tab.',
+        'Pass the document path or an untitled: virtual ID. Call get_editor_state when targeting the current tab.',
       schema: z.object({
         heading_block_id: z
           .number()
@@ -199,7 +201,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         limit: z.number().optional().describe('Content budget in characters per page (default: 4000). Blocks are never split; a single over-budget block occupies its own page.'),
         file_path: z
           .string()
-          .describe('Required workspace-relative or real absolute path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
+          .describe('Path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
       }),
     }
   )
@@ -218,7 +220,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path?: string
       }>
       file_path?: string
-    }, runtime) => {
+    }) => {
       const snapshotCache = new Map<string, SerializedSnapshot | null>()
       const sections: Array<Record<string, unknown>> = []
 
@@ -227,7 +229,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         const headingBlockId = request.heading_block_id
 
         try {
-          const resolved = resolveDocumentPathForRuntime(requestFilePath, runtime)
+          const resolved = resolveDocumentPath(requestFilePath)
           if (!resolved.ok) {
             sections.push({
               heading_block_id: headingBlockId,
@@ -304,7 +306,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
             file_path: z
               .string()
               .optional()
-              .describe('Workspace-relative, real absolute, or untitled: document reference for this request. Omit to use the top-level file_path.'),
+              .describe('Document path or untitled: reference for this request. Omit to use the top-level file_path.'),
           }))
           .min(1)
           .max(12)
@@ -312,7 +314,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         file_path: z
           .string()
           .optional()
-          .describe('Shared workspace-relative or real absolute document path, or untitled: virtual ID. Required unless every request has file_path.'),
+          .describe('Shared document path or untitled: virtual ID. Required unless every request has file_path.'),
       }),
     }
   )
@@ -326,8 +328,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
     }: {
       block_ids?: number[]
       file_path: string
-    }, runtime) => {
-      const resolved = resolveDocumentPathForRuntime(file_path, runtime)
+    }) => {
+      const resolved = resolveDocumentPath(file_path)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
@@ -355,7 +357,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           .describe('Optional array of block display IDs (the numbers in {b:n} markers) to retrieve. Omit to retrieve all blocks.'),
         file_path: z
           .string()
-          .describe('Required workspace-relative or real absolute path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
+          .describe('Path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
       }),
     }
   )
@@ -371,8 +373,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       block_id: number
       window?: number
       file_path: string
-    }, runtime) => {
-      const resolved = resolveDocumentPathForRuntime(file_path, runtime)
+    }) => {
+      const resolved = resolveDocumentPath(file_path)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
@@ -403,7 +405,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
           .describe('Number of blocks before and after to include (default: 3).'),
         file_path: z
           .string()
-          .describe('Required workspace-relative or real absolute path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
+          .describe('Path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
       }),
     }
   )
@@ -423,8 +425,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       whole_word?: boolean
       regex?: boolean
       max_matches?: number
-    }, runtime) => {
-      const resolved = resolveDocumentPathForRuntime(file_path, runtime)
+    }) => {
+      const resolved = resolveDocumentPath(file_path)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
@@ -449,7 +451,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         query: z.string().describe('Text to search for. Matched literally, with one exception: "one|other" is an alternation, so put every wording of the same thing in ONE query instead of one call per wording. For a real pattern, set regex: true.'),
         file_path: z
           .string()
-          .describe('Required workspace-relative or real absolute path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
+          .describe('Path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Reject matches that are part of a longer word. Works in every writing system, including scripts without spaces.'),
         regex: z.boolean().optional().describe('Treat query as a JavaScript regular expression. Not needed for plain alternation — "one|other" already works without it.'),
@@ -475,8 +477,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       regex?: boolean
       max_matches?: number
       max_sections?: number
-    }, runtime) => {
-      const resolved = resolveDocumentPathForRuntime(file_path, runtime)
+    }) => {
+      const resolved = resolveDocumentPath(file_path)
       if (!resolved.ok) return resolved.error
       const resolvedPath = resolved.filePath
       const snapshot = await snapshotBroker.requestSnapshot(resolvedPath, resolved.tabId)
@@ -502,7 +504,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         query: z.string().describe('Text to search for. Matched literally, with one exception: "one|other" is an alternation, so put every wording of the same thing in ONE query instead of one call per wording. For a real pattern, set regex: true.'),
         file_path: z
           .string()
-          .describe('Required workspace-relative or real absolute path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
+          .describe('Path to the target document, or an untitled: virtual ID returned by get_editor_state.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Reject matches that are part of a longer word. Works in every writing system, including scripts without spaces.'),
         regex: z.boolean().optional().describe('Treat query as a JavaScript regular expression. Not needed for plain alternation — "one|other" already works without it.'),
@@ -533,8 +535,8 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
       exclude_glob?: string
       max_files?: number
       max_matches?: number
-    }, runtime) => {
-      const resolved = resolveDirectoryPathForRuntime(directory_path, runtime)
+    }) => {
+      const resolved = resolveDirectoryPath(directory_path)
       if (!resolved.ok) return resolved.error
       const rootDirectoryPath = resolved.directoryPath
 
@@ -583,7 +585,7 @@ export function buildDocumentTools(snapshotBroker: SnapshotBroker) {
         query: z.string().describe('Text to search for. Matched literally, with one exception: "one|other" is an alternation, so put every wording of the same thing in ONE query instead of one call per wording. For a real pattern, set regex: true.'),
         directory_path: z
           .string()
-          .describe('Workspace-relative or real absolute directory path whose document contents should be searched. Use "." for the workspace root.'),
+          .describe('Directory path whose document contents should be searched.'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive search.'),
         whole_word: z.boolean().optional().describe('Reject matches that are part of a longer word. Works in every writing system, including scripts without spaces.'),
         regex: z.boolean().optional().describe('Treat query as a JavaScript regular expression. Not needed for plain alternation — "one|other" already works without it.'),

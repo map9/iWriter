@@ -16,7 +16,6 @@ import { createRequire } from 'module'
 import { pathToFileURL } from 'url'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
-import { resolveRuntimePath } from '../../runtime/RuntimePathResolver'
 
 // ── pdf.js lazy loader (avoids loading ~3 MB at module init) ─────────────
 
@@ -106,10 +105,13 @@ type PdfPathResolution =
   | { ok: true; filePath: string }
   | { ok: false; error: string }
 
-function resolvePdfPathForRuntime(filePath: string, runtime: unknown): PdfPathResolution {
-  const runtimePath = resolveRuntimePath(filePath, runtime, 'file_path')
-  if (!runtimePath.ok) return runtimePath
-  const resolvedPath = runtimePath.path
+function resolvePdfPath(filePath: string): PdfPathResolution {
+  const requested = filePath?.trim()
+  if (!requested) return { ok: false, error: 'Error: file_path is required.' }
+  if (!path.isAbsolute(requested)) {
+    return { ok: false, error: `Error: file_path must be an absolute path: "${requested}".` }
+  }
+  const resolvedPath = requested
 
   if (!fs.existsSync(resolvedPath)) {
     return { ok: false, error: `Error: file_path does not exist on disk: "${resolvedPath}".` }
@@ -194,8 +196,8 @@ async function extractPageText(page: PdfPageProxy): Promise<string> {
 const MAX_PAGES_PER_CALL = 20
 
 const getPdfOutline = tool(
-    async ({ file_path }: { file_path: string }, runtime) => {
-    const resolved = resolvePdfPathForRuntime(file_path, runtime)
+    async ({ file_path }: { file_path: string }) => {
+    const resolved = resolvePdfPath(file_path)
     if (!resolved.ok) return resolved.error
 
     try {
@@ -235,7 +237,7 @@ const getPdfOutline = tool(
       file_path: z
         .string()
         .describe(
-          'Required workspace-relative or real absolute host path to a .pdf file. Call get_editor_state first when targeting the current PDF tab.'
+          'Path to a .pdf file. Call get_editor_state first when targeting the current PDF tab.'
         ),
     }),
   }
@@ -244,8 +246,8 @@ const getPdfOutline = tool(
 // ── Tool 2: get_pdf_pages ─────────────────────────────────────────────────
 
 const getPdfPages = tool(
-    async ({ file_path, start_page, end_page }: { file_path: string; start_page: number; end_page?: number }, runtime) => {
-    const resolved = resolvePdfPathForRuntime(file_path, runtime)
+    async ({ file_path, start_page, end_page }: { file_path: string; start_page: number; end_page?: number }) => {
+    const resolved = resolvePdfPath(file_path)
     if (!resolved.ok) return resolved.error
 
     try {
@@ -292,7 +294,7 @@ const getPdfPages = tool(
     schema: z.object({
       file_path: z
         .string()
-        .describe('Required workspace-relative or real absolute host path to a .pdf file. Call get_editor_state first when targeting the current PDF tab.'),
+        .describe('Path to a .pdf file. Call get_editor_state first when targeting the current PDF tab.'),
       start_page: z.number().int().min(1).describe('First page to read (1-based).'),
       end_page: z
         .number()

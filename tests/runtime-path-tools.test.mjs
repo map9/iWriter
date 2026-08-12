@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { after, describe, it } from 'node:test'
@@ -23,6 +23,10 @@ async function loadModule() {
             export { buildDocumentTools } from './electron/ai/tools/common/DocumentTools.ts'
             export { buildEditProposalTools } from './electron/ai/tools/common/EditProposalTools.ts'
             export { buildFilesystemMutationTools } from './electron/ai/tools/common/FilesystemMutationTools.ts'
+            export { buildPdfTools } from './electron/ai/tools/common/PdfTools.ts'
+            export { buildFindReferencesTool } from './electron/ai/tools/creative/FindReferences.ts'
+            export { buildConfirmWritingPlanTool } from './electron/ai/tools/creative/ConfirmWritingPlan.ts'
+            export { buildFinalizeChapterTool } from './electron/ai/tools/creative/FinalizeChapter.ts'
           `,
           resolveDir: process.cwd(),
           sourcefile: 'runtime-path-tools-entry.ts',
@@ -48,8 +52,8 @@ after(async () => {
   await Promise.all(tempDirs.map(dir => rm(dir, { recursive: true, force: true })))
 })
 
-describe('runtime-relative paths in model-facing tools', () => {
-  it('resolves a relative document path before requesting a live snapshot', async () => {
+describe('host paths in model-facing tools', () => {
+  it('rejects a relative document path instead of resolving it against the workspace', async () => {
     const workspacePath = await createWorkspace()
     const filePath = path.join(workspacePath, 'chapter.md')
     await writeFile(filePath, '# Chapter')
@@ -63,12 +67,13 @@ describe('runtime-relative paths in model-facing tools', () => {
     const { buildDocumentTools } = await loadModule()
     const outlineTool = buildDocumentTools(snapshotBroker).find(tool => tool.name === 'get_document_outline')
 
-    await outlineTool.invoke({ file_path: 'chapter.md' }, runConfig(workspacePath))
+    const result = await outlineTool.invoke({ file_path: 'chapter.md' }, runConfig(workspacePath))
 
-    assert.equal(requestedPath, filePath)
+    assert.match(result, /file_path must be an absolute path/i)
+    assert.equal(requestedPath, undefined)
   })
 
-  it('resolves a relative mutation path inside the workspace', async () => {
+  it('rejects a relative mutation path instead of deleting from the workspace', async () => {
     const workspacePath = await createWorkspace()
     const filePath = path.join(workspacePath, 'obsolete.md')
     await writeFile(filePath, 'remove me')
@@ -77,7 +82,8 @@ describe('runtime-relative paths in model-facing tools', () => {
 
     const result = await deleteTool.invoke({ file_path: 'obsolete.md' }, runConfig(workspacePath))
 
-    assert.equal(JSON.parse(result).path, filePath)
+    assert.match(result, /file_path must be an absolute path/i)
+    assert.equal(await readFile(filePath, 'utf8'), 'remove me')
   })
 
   it('allows an explicit external absolute mutation path after HITL', async () => {
@@ -91,6 +97,28 @@ describe('runtime-relative paths in model-facing tools', () => {
     const result = await deleteTool.invoke({ file_path: filePath }, runConfig(workspacePath))
 
     assert.equal(JSON.parse(result).path, filePath)
+  })
+
+  it('rejects a relative PDF path before touching the filesystem', async () => {
+    const { buildPdfTools } = await loadModule()
+    const outlineTool = buildPdfTools().find(tool => tool.name === 'get_pdf_outline')
+
+    const result = await outlineTool.invoke({ file_path: 'reference.pdf' }, runConfig('/project/book'))
+
+    assert.match(result, /file_path must be an absolute path/i)
+  })
+
+  it('rejects a relative reference-search directory', async () => {
+    const { buildFindReferencesTool } = await loadModule()
+    const tool = buildFindReferencesTool({
+      async requestSnapshot() {
+        return null
+      },
+    })
+
+    const result = await tool.invoke({ names: ['Alice'], directory_path: '.' }, runConfig('/project/book'))
+
+    assert.match(result, /directory_path must be an absolute path/i)
   })
 
   it('requires an explicit document reference instead of falling back to the active tab', async () => {
@@ -113,5 +141,51 @@ describe('runtime-relative paths in model-facing tools', () => {
     const editTool = buildEditProposalTools().find(tool => tool.name === 'edit_block')
 
     await assert.rejects(() => editTool.invoke({ block_id: 1, new_content: 'Updated' }))
+  })
+
+  it('rejects a relative block-edit document path', async () => {
+    const { buildEditProposalTools } = await loadModule()
+    const editTool = buildEditProposalTools().find(tool => tool.name === 'edit_block')
+
+    await assert.rejects(
+      () => editTool.invoke({ block_id: 1, new_content: 'Updated', file_path: 'chapter.md' }),
+      /absolute path or an untitled: virtual ID/i,
+    )
+  })
+
+  it('allows an untitled document reference only in document edit tools', async () => {
+    const { buildEditProposalTools } = await loadModule()
+    const editTool = buildEditProposalTools().find(tool => tool.name === 'edit_block')
+
+    const result = await editTool.invoke({
+      block_id: 1,
+      new_content: 'Updated',
+      file_path: 'untitled:tab-1',
+    })
+
+    assert.match(result, /untitled:tab-1/)
+  })
+
+  it('rejects a relative create-document directory', async () => {
+    const { buildEditProposalTools } = await loadModule()
+    const createTool = buildEditProposalTools().find(tool => tool.name === 'create_document')
+
+    await assert.rejects(
+      () => createTool.invoke({ filename: 'notes.md', content: '', directory: 'notes' }),
+      /directory must be an absolute path/i,
+    )
+  })
+
+  it('rejects relative chapter paths in writing-session tools', async () => {
+    const { buildConfirmWritingPlanTool, buildFinalizeChapterTool } = await loadModule()
+
+    await assert.rejects(
+      () => buildConfirmWritingPlanTool().invoke({ plan: 'Draft', target_files: ['manuscript/ch001.md'] }),
+      /target_files must contain absolute paths/i,
+    )
+    await assert.rejects(
+      () => buildFinalizeChapterTool().invoke({ chapter: 'manuscript/ch001.md' }),
+      /chapter must be an absolute path/i,
+    )
   })
 })

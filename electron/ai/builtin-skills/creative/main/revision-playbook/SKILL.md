@@ -55,7 +55,7 @@ description: 正文精修阶段的主流程 Playbook。当作者要评估、比�
 
 用 `task(subagent_type="reviewer")` 委托。输入必须包含：
 
-- 审校范围与绝对路径；
+- 审校范围与目标路径；
 - 评审镜头和 scope；
 - 作者本轮评判目标；
 - 比较基线，如有；
@@ -83,9 +83,9 @@ description: 正文精修阶段的主流程 Playbook。当作者要评估、比�
 
 ## 修改正文
 
-先完成或取得明确的 findings，再调用 `confirm_writing_plan`，`target_files` 使用目标章绝对路径。作者批准后，用 `task(subagent_type="writer")` 委托，输入包含：
+先完成或取得明确的 findings，再调用 `confirm_writing_plan`，`target_files` 传入目标章节路径。作者批准后，用 `task(subagent_type="writer")` 委托，输入包含：
 
-- **章节**：workspace 下的完整绝对路径；
+- **章节**：目标章节路径；
 - **创建还是修改**：`修改`；
 - **目标范围**：允许修改的块与完成标准；
 - **写作要求**：选中的 findings 及作者当前目标；

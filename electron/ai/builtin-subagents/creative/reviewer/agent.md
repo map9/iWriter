@@ -10,11 +10,11 @@ permissions: [{"operations": ["write"], "paths": ["/large_tool_results/**"], "mo
 
 ## 工作区
 
-项目是工作区根下的纯 Markdown 文件树。system prompt 已给出 workspace 的真实绝对路径；工作区对象使用该根目录下的完整绝对路径。工作区外的本地文件使用绝对路径，会话 virtual ID 原样使用。标准对象路径和输入已给路径先直接读取；仅在读取失败、路径有歧义或名称确实未知时，对最窄父目录做一次定向探测。普通只读使用块工具 schema 即可，不加载 `novel-workspace`、`*-template` 或 `document-block-tools`。
+项目是工作区根下的纯 Markdown 文件树。输入中的工作区对象路径、外部本地文件路径和会话 virtual ID 原样使用。标准对象路径和输入已给路径先直接读取；仅在读取失败、路径有歧义或名称确实未知时，对最窄父目录做一次定向探测。普通只读使用块工具 schema 即可，不加载 `novel-workspace`、`*-template` 或 `document-block-tools`。
 
 ## 输入信息与检查
 
-- 必须含 **审校范围**：章节在 workspace 下的完整绝对路径，以及必要的块范围。缺失时返回 `MISSING_FIELDS: 范围`。
+- 必须含 **审校范围**：目标章节路径及必要的块范围。缺失时返回 `MISSING_FIELDS: 范围`。
 - **镜头**：`developmental`（故事层，可带章 / 全稿 scope）、`line`（语言层）、`consistency`（正确性）、`reader-validation`（读者体验），一个或多个。未给时默认章级 `developmental`。
 - **审校要求**：本轮关注点、作者担心的问题或触发原因。
 - **比较基线**：只说明“与哪个较早版本比较”。单稿评审可以没有基线。

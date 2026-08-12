@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import { build } from 'esbuild'
 
 let pathUtilsModulePromise
+let runtimePathUtilsModulePromise
 
 async function loadPathUtilsModule() {
   if (!pathUtilsModulePromise) {
@@ -21,6 +22,24 @@ async function loadPathUtilsModule() {
   }
 
   return pathUtilsModulePromise
+}
+
+async function loadRuntimePathUtilsModule() {
+  if (!runtimePathUtilsModulePromise) {
+    runtimePathUtilsModulePromise = (async () => {
+      const result = await build({
+        entryPoints: ['electron/ai/runtime/PathUtils.ts'],
+        bundle: true,
+        platform: 'node',
+        format: 'esm',
+        write: false,
+      })
+      const code = result.outputFiles[0].text
+      return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+    })()
+  }
+
+  return runtimePathUtilsModulePromise
 }
 
 describe('pathUtils cross-platform parsing', () => {
@@ -67,5 +86,13 @@ describe('renderer path display code', () => {
         `${file} should use pathUtils.basename() for cross-platform file names`
       )
     }
+  })
+})
+
+describe('main-process path containment', () => {
+  it('does not confuse a sibling with a shared path prefix for a child', async () => {
+    const { isPathInside } = await loadRuntimePathUtilsModule()
+
+    assert.equal(isPathInside('/project/book', '/project/book-notes/chapter.md'), false)
   })
 })

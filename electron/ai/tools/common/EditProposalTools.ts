@@ -11,6 +11,7 @@
  * it inserts a rejection message into the conversation history automatically.
  */
 
+import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 
@@ -33,7 +34,12 @@ const BATCH_NOTE =
   'together in the correct order. Do not re-read between them; re-read only after the batch is applied.'
 
 const DOCUMENT_PATH_DESCRIPTION =
-  'Required. Workspace-relative path or real absolute host path to the target document, or an untitled: virtual ID returned by get_editor_state. Reuse the exact path form used to read the block IDs.'
+  'Path to the target document, or an untitled: virtual ID returned by get_editor_state. Reuse the exact path used to read the block IDs.'
+
+const DOCUMENT_PATH_SCHEMA = z.string().refine(value => {
+  const trimmed = value.trim()
+  return path.isAbsolute(trimmed) || trimmed.startsWith('untitled:')
+}, 'file_path must be an absolute path or an untitled: virtual ID.')
 
 export function buildEditProposalTools() {
   const editBlock = tool(
@@ -60,7 +66,7 @@ export function buildEditProposalTools() {
           .optional()
           .describe('Exact current Markdown of the target block (without the {b:n} marker), usually copied from get_blocks.'),
         reason: z.string().optional().describe('Brief reason for the edit.'),
-        file_path: z.string().describe(DOCUMENT_PATH_DESCRIPTION),
+        file_path: DOCUMENT_PATH_SCHEMA.describe(DOCUMENT_PATH_DESCRIPTION),
       }),
     }
   )
@@ -85,7 +91,7 @@ export function buildEditProposalTools() {
           .optional()
           .describe('Exact current Markdown of the anchor block (without the {b:n} marker), usually copied from get_blocks.'),
         reason: z.string().optional().describe('Brief reason for the insertion.'),
-        file_path: z.string().describe(DOCUMENT_PATH_DESCRIPTION),
+        file_path: DOCUMENT_PATH_SCHEMA.describe(DOCUMENT_PATH_DESCRIPTION),
       }),
     }
   )
@@ -107,7 +113,7 @@ export function buildEditProposalTools() {
           .optional()
           .describe('Exact current Markdown of the target block (without the {b:n} marker), usually copied from get_blocks.'),
         reason: z.string().optional().describe('Brief reason for the deletion.'),
-        file_path: z.string().describe(DOCUMENT_PATH_DESCRIPTION),
+        file_path: DOCUMENT_PATH_SCHEMA.describe(DOCUMENT_PATH_DESCRIPTION),
       }),
     }
   )
@@ -132,7 +138,7 @@ export function buildEditProposalTools() {
           .optional()
           .describe('Exact current Markdown of the whole target range (without {b:n} markers), usually copied from get_blocks.'),
         reason: z.string().optional().describe('Brief reason for the replacement.'),
-        file_path: z.string().describe(DOCUMENT_PATH_DESCRIPTION),
+        file_path: DOCUMENT_PATH_SCHEMA.describe(DOCUMENT_PATH_DESCRIPTION),
       }),
     }
   )
@@ -151,7 +157,11 @@ export function buildEditProposalTools() {
         filename: z.string().describe('Desired filename (basename only, no directory). Extension is optional; .md will be used when omitted.'),
         content: z.string().describe('Full Markdown content for the new document.'),
         reason: z.string().optional().describe('Brief description of the document.'),
-        directory: z.string().optional().describe('Workspace-relative or real absolute host directory where the file should be written. When provided the file is saved to disk and opened; when omitted, an in-memory tab is created.'),
+        directory: z
+          .string()
+          .refine(value => path.isAbsolute(value.trim()), 'directory must be an absolute path.')
+          .optional()
+          .describe('Directory where the file should be written. When provided the file is saved to disk and opened; when omitted, an in-memory tab is created.'),
         open_in_editor: z.boolean().optional().describe('Whether to open the created file as an editor tab. Default true. Set false when creating scaffold/skeleton objects that should be written to disk without opening (e.g. project bootstrap creating multiple empty objects). Only applies when directory is set.'),
       }),
     }

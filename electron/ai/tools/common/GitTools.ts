@@ -2,7 +2,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
-import { getRuntimeWorkspacePath, isPathInside } from '../../runtime/RuntimePathResolver'
+import type { IWriterAgentContext } from '../../runtime/AgentContext'
+import { isPathInside } from '../../runtime/PathUtils'
 import {
   GitServiceError,
   type GitService,
@@ -120,8 +121,10 @@ export function buildGitTools(options: {
   onMutation: (event: GitMutationEvent) => void
 }) {
   const gitService = options.gitService
-  const resolveWorkspace = (runtime: unknown): string | null =>
-    ensureWorkspace(getRuntimeWorkspacePath(runtime))
+  const resolveWorkspace = (runtime: unknown): string | null => {
+    const workspacePath = (runtime as { context?: IWriterAgentContext } | undefined)?.context?.workspacePath
+    return ensureWorkspace(workspacePath?.trim() || null)
+  }
   const notifyMutation = (root: string, kind: GitMutationEvent['kind']): void => {
     try {
       options.onMutation({ root, kind })

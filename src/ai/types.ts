@@ -342,7 +342,7 @@ export interface BlockEditProposal extends BaseEditProposal {
   // Associated tool call ID
   toolCallId?: string
 
-  /** Explicit workspace-relative, absolute, or untitled: document reference. */
+  /** Absolute host path or untitled: document reference. */
   filePath: string
 }
 

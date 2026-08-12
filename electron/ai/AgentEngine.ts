@@ -51,7 +51,6 @@ import { RendererEventBridge } from './ipc/RendererEventBridge'
 import { buildUserMessage } from './ipc/UserMessageBuilder'
 import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore, type InterruptedRun } from './runtime/ThreadRuntimeStore'
-import { normalizeRuntimeToolPaths } from './runtime/RuntimeToolPathNormalizer'
 import { buildAgentFilesystem, FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './scaffold/filesystem/AgentFilesystem'
 import { decideFilesystemWriteApproval, isFilesystemWriteToolName } from './scaffold/approval/FilesystemApprovalPolicy'
 import {
@@ -613,14 +612,10 @@ export class AgentEngine {
     return out
   }
 
-  /** Resolve a finalize_chapter `chapter` arg to an absolute disk path (relative → resolved against the workspace). */
-  private _resolveChapterPath(threadId: string, chapter: string): string | null {
+  /** Validate and canonicalize a finalize_chapter `chapter` disk path. */
+  private _resolveChapterPath(chapter: string): string | null {
     const trimmed = chapter.trim()
-    if (!trimmed) return null
-    if (path.isAbsolute(trimmed)) return path.resolve(trimmed)
-    const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
-    if (!workspacePath) return null
-    return path.resolve(workspacePath, trimmed)
+    return trimmed && path.isAbsolute(trimmed) ? trimmed : null
   }
 
   /** Read a chapter's content through the unified snapshot route (editor buffer if open, else disk). */
@@ -659,7 +654,7 @@ export class AgentEngine {
       if (r.kind !== 'creative') continue
       const payload = r.payload
       if (payload.kind !== 'creative_chapter_finalize') continue
-      const chapterPath = this._resolveChapterPath(threadId, payload.chapter)
+      const chapterPath = this._resolveChapterPath(payload.chapter)
       const current = chapterPath ? (await this._captureChapterBaseline(chapterPath) ?? '') : ''
       const session = chapterPath ? this.writingSessions.getActiveSession(threadId, chapterPath) : undefined
       payload.baseline = session?.baselineSnapshot ?? current
@@ -694,7 +689,7 @@ export class AgentEngine {
       if (!decision) continue
       // Rework: keep the write-session open so the next pass keeps auto-accumulating.
       if (decision.type === 'responded') continue
-      const chapterPath = this._resolveChapterPath(threadId, stashed.chapter)
+      const chapterPath = this._resolveChapterPath(stashed.chapter)
       if (!chapterPath) continue
       if (decision.type === 'rejected') {
         const session = this.writingSessions.getActiveSession(threadId, chapterPath)
@@ -783,11 +778,9 @@ export class AgentEngine {
    * writer touches the chapter — so the finalize card's「起点」reflects the pre-writing content.
    * (Stage-2 lazy activation used to capture the baseline at the first auto-approved block edit,
    * which slipped to "after writing" whenever the writer's initial draft bypassed lazy activation —
-   * e.g. new chapters landed via create_document, or relative target_files that never matched the
-   * authorization set.) Since ensureActiveSession is idempotent, the later Stage-2 capture is
-   * skipped. Targets are resolved to absolute paths so relative target_files still register and
-   * match subsequent block edits. A not-yet-created chapter captures null → '' (empty = the correct
-   * "before writing" baseline).
+   * e.g. new chapters landed via create_document.) Since ensureActiveSession is idempotent, the
+   * later Stage-2 capture is skipped. A not-yet-created chapter captures null → '' (empty = the
+   * correct "before writing" baseline).
    */
   private async _registerApprovedWritingPlans(
     threadId: string,
@@ -807,10 +800,11 @@ export class AgentEngine {
         const raw = decision.editedArgs.target_files
         if (Array.isArray(raw)) targetFiles = raw.filter((x): x is string => typeof x === 'string')
       }
-      const resolvedTargets = targetFiles.map(f => this._resolveChapterPath(threadId, f) ?? f)
+      const resolvedTargets = targetFiles
+        .map(file => this._resolveChapterPath(file))
+        .filter((file): file is string => file !== null)
       this.writingSessions.registerAuthorization(threadId, plan, resolvedTargets)
       for (const target of resolvedTargets) {
-        if (!path.isAbsolute(target)) continue
         const baseline = (await this._captureChapterBaseline(target)) ?? ''
         this.writingSessions.ensureActiveSession(threadId, target, baseline)
       }
@@ -1077,9 +1071,6 @@ export class AgentEngine {
     /** Chapter files this batch auto-applies to (M1-2 归因：resume 只对这些文件重取 agent 快照，不碰未命中的会话)。 */
     autoApplyFiles: Set<string>
   }> {
-    const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
-    const normalized = normalizeRuntimeToolPaths(actionRequests, workspacePath)
-    actionRequests = normalized.actionRequests
     const reviewActionRequests: HitlActionRequest[] = []
     const reviewActionOriginalIndices: number[] = []
     const autoDecisionsByIndex: Record<number, ResumeDecision> = {}
@@ -1093,23 +1084,8 @@ export class AgentEngine {
     // (Stage 4, triggered *only* by a Stage-1 safety reject) is known before Stage 2 mutates
     // any write-session accumulation. Non-poisoned batches then decide in original index order.
     const fsDecisions = new Map<number, ReturnType<typeof decideFilesystemWriteApproval>>()
-    let hasAutoReject = Object.keys(normalized.errors).length > 0
-    for (const [indexText, message] of Object.entries(normalized.errors)) {
-      const index = Number(indexText)
-      const actionRequest = actionRequests[index]
-      if (!actionRequest) continue
-      const primaryPath = actionRequest.args?.file_path
-        ?? actionRequest.args?.source_path
-        ?? actionRequest.args?.directory
-        ?? actionRequest.args?.chapter
-      autoRejects.push({
-        toolName: actionRequest.name,
-        filePath: typeof primaryPath === 'string' ? primaryPath : '',
-        message,
-      })
-    }
+    let hasAutoReject = false
     actionRequests.forEach((actionRequest, index) => {
-      if (normalized.errors[index]) return
       if (!isFilesystemWriteToolName(actionRequest.name)) return
       const decision = decideFilesystemWriteApproval({
         toolName: actionRequest.name,
@@ -1131,11 +1107,6 @@ export class AgentEngine {
     // 不一致状态). Nothing reaches Stage 2, so no session accumulation happens on a poisoned batch.
     if (hasAutoReject) {
       actionRequests.forEach((_actionRequest, index) => {
-        const normalizationError = normalized.errors[index]
-        if (normalizationError) {
-          autoDecisionsByIndex[index] = { type: 'rejected', message: normalizationError }
-          return
-        }
         const fsDecision = fsDecisions.get(index)
         // Preserve Stage-1 auto decisions (auto-reject keeps its message; auto-approve of an
         // internal virtual path stays approved — ephemeral scratch, not a half-batch landing);
