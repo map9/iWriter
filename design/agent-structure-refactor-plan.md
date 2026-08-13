@@ -1,12 +1,12 @@
 # Agent 代码结构重构实施计划
 
-> 实施状态（2026-08-13）：共享契约与纯逻辑、主进程 runtime/interrupt 拆分、renderer `AgentClient`/state/conversation 分层、AI 组件归并及兼容入口清理已落地。`AgentEngine` 中剩余的 thread/writing-session 编排可继续按 application 边界增量下沉；进程隔离仍不属于本计划范围。
+> 实施状态（2026-08-13）：共享契约与纯逻辑、主进程 runtime/interrupt 拆分、renderer `AgentClient`/state/conversation 分层、AI 组件归并及兼容入口清理已落地。`AgentEngine` 中剩余的 thread/writing-session 编排已完成设计确认，等待按本文件的严格行为等价方案实施；进程隔离仍不属于本计划范围。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox syntax for tracking.
 
 **目标：** 在不改变 Edit、Creative、流式显示、HITL 和 checkpoint 行为的前提下，建立测试护栏，把跨进程契约和纯逻辑迁入 `shared/ai/`，并消除 AI 主进程与 renderer 之间的反向依赖。
 
-**架构：** 先建立测试和依赖门禁，再把跨进程契约及纯逻辑迁到 `shared/ai/`。旧入口暂时变成 re-export，以便按批次迁移消费者。`AgentEngine`、renderer store 和 Vue 组件的拆分列入后续里程碑，分别制定实施计划；进程隔离不包含在本计划内。
+**架构：** 已通过测试和依赖门禁把跨进程契约及纯逻辑收敛到 `shared/ai/`，并删除旧兼容入口。`AgentEngine` 继续作为公共门面，将线程用例交给 `ThreadService`，将写作事务生命周期交给 `WritingSessionCoordinator`；renderer store 和 Vue 组件已按 AI feature 垂直聚合。进程隔离不包含在本计划内。
 
 **技术栈：** Electron 43、Vue 3、TypeScript 5.9、Pinia、DeepAgents 1.11、LangGraph 1.4、Node test runner、ESLint flat config。
 
@@ -389,6 +389,120 @@ src/ai/
 以下内容是总体路线，不属于本文件的当前执行批次。Phase 0–1 验收后，逐项重新检查真实代码并各自制定带测试循环的详细计划。
 
 ### 里程碑 2：拆解主进程 AgentEngine
+
+#### 已确认设计：线程与 writing-session 编排
+
+本批次只调整应用层职责归属，保持现有 IPC channel、公开方法签名、LangGraph
+resume payload、renderer review payload、审批顺序、自动应用条件、checkpoint 行为及错误
+处理不变。`AgentEngine` 继续作为 IPC 门面，保留模型装配、预算校验、初始/恢复运行、
+stream 消费和 LangGraph interrupt 接线，不引入新的事件总线或通用状态机。
+
+##### `ThreadService`
+
+`electron/ai/application/ThreadService.ts` 负责线程用例编排，依赖
+`ThreadListQuery`、`ThreadRuntimeStore`、`AgentRunner`、`AgentCache`、
+`WritingSessionRegistry`、`CheckpointerAdmin` 和 checkpointer 读取接口。它不创建模型、
+不启动 agent、不解析 stream，也不直接发送 renderer 事件。
+
+它提供以下应用接口：
+
+- `listThreads()`：读取 metadata 并转换为 `AiThread`。
+- `readMessages(threadId)`：从 checkpoint 读取 LangChain messages，返回
+  `{ messages: ThreadMessage[]; rawMessages: unknown[] }`，供 `AgentEngine` 维持现有 interrupt
+  rehydration 时机；读取失败时记录日志并返回两个空集合。
+- `prepareTurn(settings, request)`：解析或创建 thread/turn ID，更新 provider、model、domain、
+  mode、thinking level、标题、workspace、语言和 current turn，并清理该线程遗留的内存
+  interrupt；返回 `PreparedThreadTurn`，不构建用户消息、不校验预算、不启动运行。
+- `cancel(threadId)`：等待活动任务结束，然后清理 interrupted/current-turn 和本 turn 的
+  fallback 通知键。
+- `deleteThread(threadId)` 与 `clearThreads()`：按当前顺序清理 metadata、runtime、runner、
+  agent cache、writing session 和 checkpoint；fallback 通知状态通过显式回调清理。
+
+`PreparedThreadTurn` 包含 `threadId`、`turnId`、`isNewThread`、`ResolvedThreadRuntime` 和
+`DetectedInputLanguage`。`AgentEngine.sendMessage()` 只使用该结果构建消息、执行预算校验并启动
+`_runSession()`。
+
+##### `WritingSessionCoordinator`
+
+`electron/ai/application/WritingSessionCoordinator.ts` 围绕现有
+`WritingSessionRegistry` 管理 writing transaction 的副作用。Registry 继续只保存授权、
+活动 session、基线、累积编辑和 agent snapshot；既有纯裁决函数仍留在 approval 层。
+Coordinator 依赖 Registry、`SnapshotBroker`、`ThreadRuntimeStore`、domain strategy 查询和
+`RendererEventBridge`；不创建模型、不解析 stream、不访问 checkpoint，也不拼装 LangGraph
+resume decision。
+
+它负责：
+
+- 从 interrupt action requests 提取并保存 `confirm_writing_plan` 与 `finalize_chapter` 参数。
+- 执行 writing-session 相关的 interrupt Stage 2/2b 编排：调用既有纯裁决函数检查委派写入
+  授权，判定授权范围内的 block edit/`create_document` 是否进入 renderer 静默应用，并返回
+  `autoApplyOriginalIndices`、`autoApplyFiles`、累积结果或拒绝结果。Filesystem Stage 1、批次
+  poisoning 和 domain mixed-kind 规则仍由 `AgentEngine` 维持现有先后顺序。
+- 通过统一快照路由捕获章节：优先读取打开编辑器的 `viewMarkdown`，失败或未打开时回退
+  磁盘；文件不存在返回 `null`。
+- 对本批 `autoAppliedFiles` 逐一记录 agent snapshot，禁止扫描所有活动 session，以免把
+  中断期间的作者手改错误归因给 agent。
+- 在 plan 获批或修改后，以修改后的参数为准登记授权，并在任何正文编辑发生前锚定基线。
+- 为 finalize review 填充现有协议字段 `baseline`、`current` 和 `hasExternalEdits`；不扩展
+  renderer review payload。
+- 处理 finalize decision：approve/edit 保留文件并关闭 session；responded 保持 session
+  开放以便返工；rejected 将 baseline 写回磁盘后关闭 session。写回失败沿用现有错误日志，
+  不改变 decision 流程。
+- Creative run 正常结束但仍存在已累积且未 finalize 的 session 时，生成 synthetic
+  finalize interrupt；editing domain 不生成。Synthetic finalize 的 resume 只执行上述 host
+  副作用并发送 run-done，不向 LangGraph 发送不存在的 `Command`。
+
+##### 调用顺序与所有权
+
+初始消息的数据流固定为：
+
+```text
+AgentEngine.sendMessage
+  -> ThreadService.prepareTurn
+  -> buildUserMessage + budget check
+  -> AgentEngine._runSession
+```
+
+恢复审批的数据流固定为：
+
+```text
+AgentEngine.resumeRun
+  -> InterruptCoordinator.mergeDecisions
+  -> WritingSessionCoordinator.recordAutoAppliedSnapshots
+  -> WritingSessionCoordinator.registerApprovedPlans
+  -> WritingSessionCoordinator.applyFinalizeDecisions
+  -> synthetic finalize: run-done
+     live interrupt: InterruptCoordinator.buildLangGraphDecisions -> _continueSession
+```
+
+正常 run 结束的数据流固定为：
+
+```text
+AgentEngine._streamLoop
+  -> domain onSessionComplete
+  -> WritingSessionCoordinator.synthesizeRunEndFinalize
+  -> interrupted: 等待终审
+     not interrupted: run-done
+```
+
+依赖所有权保持单向：`AgentEngine -> application services -> runtime/registry/adapters`。
+`ThreadService` 与 `WritingSessionCoordinator` 不互相引用，二者通过 `AgentEngine` 现有调用顺序
+协作，避免形成新的中心对象。
+
+##### 测试与验收
+
+实现必须按 TDD 分成两个独立批次：
+
+1. `ThreadService` 直接测试覆盖新建/已有线程、标题和 context 初始化、读取失败、取消、单线程
+   删除及全部清理；测试先因模块/接口不存在而失败，再迁移生产逻辑。
+2. `WritingSessionCoordinator` 直接测试覆盖 approved/edited plan、auto-applied snapshot 归因、
+   finalize approve/reject/responded、拒绝回滚、Creative synthetic finalize 和 editing no-op；
+   测试先因模块/接口不存在而失败，再迁移生产逻辑。
+
+每批迁移后运行对应直接测试、`tests/agent-engine-initialization.test.mjs`、
+`tests/writing-session.test.mjs` 和类型检查。最终验收运行完整 `npm test`、`npm run lint`、
+`npm run type-check` 与 `git diff --check`，并确认 `AgentEngine` 不再持有线程资源清理及
+writing-session 生命周期私有方法。
 
 **文件：**
 
