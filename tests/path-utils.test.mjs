@@ -74,8 +74,8 @@ describe('renderer path display code', () => {
   it('does not derive file or folder names by splitting only on POSIX separators', async () => {
     const files = [
       'src/components/sidebar/ExplorerPanel.vue',
-      'src/components/ai/agent-panel/composables/useContextFiles.ts',
-      'src/components/ai/agent-panel/input/AgentContextChips.vue',
+      'src/ai/components/agent-panel/composables/useContextFiles.ts',
+      'src/ai/components/agent-panel/input/AgentContextChips.vue',
     ]
 
     for (const file of files) {

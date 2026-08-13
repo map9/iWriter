@@ -1,6 +1,7 @@
 import { ref, toRaw, type ComputedRef, type Ref } from 'vue'
 import type { AiThread, CreativeReviewItem, CreativeRoundResult, ThreadMessage } from '@/ai/types'
 import type { ResumeDecision, DomainReviewItem } from '@/ai/ipc'
+import { agentClient } from '@/ai/client/AgentClient'
 import { buildCreativeRoundResult, mergeCreativeRoundResults, type CreativeReviewBatch } from '@/ai/review/domains/creative/creativeSelectors'
 import { createCreativeThreadSync } from '@/ai/review/domains/creative/creativeThreadSync'
 import type { ToolCallStatusOverrides } from '@/ai/message/display-normalizer'
@@ -176,7 +177,7 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
         { length: interruptActionCount.value },
         () => ({ type: 'rejected' as const, message: 'User sent a new message' }),
       )
-      window.electronAPI.aiResume?.({ threadId, decisions })
+      agentClient.resume({ threadId, decisions })
     }
     deps.threadRunState.value = 'idle'
     resetReviewState({ clearLiveTurnReviews: true })
@@ -262,7 +263,7 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
     reviewBatch.value = null
     pendingApplyBatch.value = batch
 
-    window.electronAPI.aiResume?.({ threadId, decisions })
+    agentClient.resume({ threadId, decisions })
 
     const liveTurn = deps.ensureLiveTurn({ threadId, state: 'resuming' })
     if (liveTurn) {

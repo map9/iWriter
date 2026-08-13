@@ -188,7 +188,7 @@ import { notify } from '@/utils/notifications'
 import { DocumentType } from '@/types'
 import { PANDOC_IMPORT_EXTENSIONS } from '@/import-export'
 import AppMenuButton from './AppMenuButton.vue'
-import AiStatusButton from './AiStatusButton.vue'
+import AiStatusButton from '@/ai/components/shell/AiStatusButton.vue'
 import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,

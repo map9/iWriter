@@ -37,7 +37,7 @@ async function loadChatSendModule() {
         stdin: {
           contents: `
             export { reactive, ref, nextTick } from 'vue'
-            export { useChatSend } from './src/components/ai/agent-panel/composables/useChatSend.ts'
+            export { useChatSend } from './src/ai/components/agent-panel/composables/useChatSend.ts'
           `,
           resolveDir: process.cwd(),
           sourcefile: 'pending-command-chat-send-test-entry.ts',
@@ -101,7 +101,7 @@ async function loadAgentPanelModule() {
   if (!agentPanelModulePromise) {
     agentPanelModulePromise = (async () => {
       const { parse, compileScript } = await import('@vue/compiler-sfc')
-      const source = readFileSync('src/components/ai/AgentPanel.vue', 'utf8')
+      const source = readFileSync('src/ai/components/shell/AgentPanel.vue', 'utf8')
       const descriptor = parse(source, { filename: 'AgentPanel.vue' }).descriptor
       const compiled = compileScript(descriptor, {
         id: 'pending-command-agent-panel-test',
@@ -110,7 +110,7 @@ async function loadAgentPanelModule() {
       const result = await build({
         stdin: {
           contents: `${compiled.content}\nexport { reactive, createApp, nextTick } from 'vue'`,
-          resolveDir: resolve('src/components/ai'),
+          resolveDir: resolve('src/ai/components/shell'),
           sourcefile: 'AgentPanel.compiled.ts',
           loader: 'ts',
         },
@@ -553,8 +553,8 @@ describe('pending command UI contract', () => {
   })
 
   it('keeps each item and its icon actions on one line below the task plan', () => {
-    const panelSource = readFileSync('src/components/ai/AgentPanel.vue', 'utf8')
-    const listSource = readFileSync('src/components/ai/agent-panel/PendingCommandList.vue', 'utf8')
+    const panelSource = readFileSync('src/ai/components/shell/AgentPanel.vue', 'utf8')
+    const listSource = readFileSync('src/ai/components/agent-panel/PendingCommandList.vue', 'utf8')
 
     assert.ok(panelSource.indexOf('<TaskPlanCard') < panelSource.indexOf('<PendingCommandList'))
     assert.match(listSource, /flex[^\"]*items-center/)

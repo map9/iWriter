@@ -16,7 +16,7 @@
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue'
 import { useAppStore } from '@/stores/app'
-import AgentPanel from './ai/AgentPanel.vue'
+import AgentPanel from '@/ai/components/shell/AgentPanel.vue'
 
 const appStore = useAppStore()
 const isResizing = ref(false)

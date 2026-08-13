@@ -14,7 +14,7 @@ async function loadChatSendModule() {
         stdin: {
           contents: `
             export { reactive, ref, nextTick } from 'vue'
-            export { useChatSend } from './src/components/ai/agent-panel/composables/useChatSend.ts'
+            export { useChatSend } from './src/ai/components/agent-panel/composables/useChatSend.ts'
           `,
           resolveDir: process.cwd(),
           sourcefile: 'chat-send-test-entry.ts',
@@ -94,7 +94,7 @@ async function loadModule() {
             } from './electron/ai/scaffold/summarization/SummarizationFramework.ts'
             export {
               insertContextCompressionEvents,
-            } from './src/ai/store/modules/runtimeDisplay.ts'
+            } from './src/ai/presentation/conversation/buildConversationEntries.ts'
             export {
               createRuntimeEvents,
             } from './src/ai/store/modules/runtimeEvents.ts'
@@ -184,7 +184,7 @@ describe('context compression display event', () => {
     try {
       const Vue = await import('vue')
       const source = readFileSync(
-        'src/components/ai/agent-panel/chat-area/AgentMessageBubble.vue',
+        'src/ai/components/agent-panel/chat-area/AgentMessageBubble.vue',
         'utf8',
       )
       const descriptor = parse(source).descriptor
@@ -640,19 +640,19 @@ describe('context compression display event', () => {
 
   it('renders a reusable expandable card at root and inside subagents', () => {
     const chatAreaSource = readFileSync(
-      'src/components/ai/agent-panel/AgentChatArea.vue',
+      'src/ai/components/agent-panel/AgentChatArea.vue',
       'utf8',
     )
     const cardSource = readFileSync(
-      'src/components/ai/agent-panel/chat-area/views/ContextCompressionCard.vue',
+      'src/ai/components/agent-panel/chat-area/views/ContextCompressionCard.vue',
       'utf8',
     )
     const subTaskSource = readFileSync(
-      'src/components/ai/agent-panel/chat-area/views/SubTaskProgressView.vue',
+      'src/ai/components/agent-panel/chat-area/views/SubTaskProgressView.vue',
       'utf8',
     )
     const messageBubbleSource = readFileSync(
-      'src/components/ai/agent-panel/chat-area/AgentMessageBubble.vue',
+      'src/ai/components/agent-panel/chat-area/AgentMessageBubble.vue',
       'utf8',
     )
     const runtimeEventsSource = readFileSync('src/ai/store/modules/runtimeEvents.ts', 'utf8')

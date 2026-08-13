@@ -25,7 +25,7 @@ describe('ToolCallCard layout', () => {
       const { parse } = await import('@vue/compiler-sfc')
       const { compile } = await import('@vue/compiler-dom')
       const source = readFileSync(
-        'src/components/ai/agent-panel/chat-area/views/ToolCallCard.vue',
+        'src/ai/components/agent-panel/chat-area/views/ToolCallCard.vue',
         'utf8',
       )
       const descriptor = parse(source).descriptor

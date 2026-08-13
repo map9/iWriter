@@ -7,6 +7,7 @@ import type {
 } from '@/ai/types'
 import type { ToolCallStatusOverrides } from '@/ai/message/display-normalizer'
 import type { ResumeDecision, DomainReviewItem } from '@/ai/ipc'
+import { agentClient } from '@/ai/client/AgentClient'
 import {
   flushReviewedBatch,
   normalizeEditedArgsForProposal,
@@ -137,7 +138,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
         { length: interruptActionCount.value },
         () => ({ type: 'rejected' as const, message: 'User sent a new message' }),
       )
-      window.electronAPI.aiResume?.({ threadId, decisions })
+      agentClient.resume({ threadId, decisions })
     }
 
     deps.threadRunState.value = 'idle'
@@ -255,7 +256,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
     interruptActionCount.value = 0
     setReviewBatch(null)
 
-    window.electronAPI.aiResume?.({ threadId, decisions })
+    agentClient.resume({ threadId, decisions })
 
     const liveTurn = deps.ensureLiveTurn({ threadId, state: 'resuming' })
     if (liveTurn) {

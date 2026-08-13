@@ -18,6 +18,7 @@ import type {
   DomainReviewItem,
 } from '@/ai/ipc'
 import { isHitlInterruptPayload } from '@/ai/hitl'
+import { agentClient } from '@/ai/client/AgentClient'
 import type { LiveSubTask, LiveTurn, ThreadRunState } from './runtimeState'
 
 const KNOWN_TASK_VALIDATION_ERROR_PREFIXES = [
@@ -686,8 +687,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     if (thread && thread.id === event.threadId) {
       deps.updateThread({ ...thread, messagesLoaded: false })
 
-      window.electronAPI.aiGetThreadMessages?.(event.threadId)
-        .then(messages => {
+      agentClient.getThreadMessages(event.threadId)?.then(messages => {
           if (!messages?.length) return
           const current = deps.activeThread.value
           if (current && current.id !== event.threadId) return
@@ -755,7 +755,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     try {
       const thread = deps.activeThread.value
       if (thread && thread.id === event.threadId && completedSuccessfully) {
-        const messages = await window.electronAPI.aiGetThreadMessages?.(event.threadId)
+        const messages = await agentClient.getThreadMessages(event.threadId)
         if (messages?.length && isCurrent()) {
           const current = deps.activeThread.value
           if (current && current.id === event.threadId) {

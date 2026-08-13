@@ -247,7 +247,7 @@ describe('approval rejection guidance', () => {
 
   it('lets the review store provide the rejection guidance', () => {
     const source = readFileSync(
-      'src/components/ai/agent-panel/chat-area/BlockEditReviewSurface.vue',
+      'src/ai/components/agent-panel/chat-area/BlockEditReviewSurface.vue',
       'utf8',
     )
 

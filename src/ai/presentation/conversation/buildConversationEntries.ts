@@ -8,9 +8,13 @@ import type {
   ThreadMessage,
 } from '@/ai/types'
 import { BLOCK_EDIT_TOOLS } from '@/ai/types'
-import type { AiDisplayEntry, AiDisplayMessageEntry, AiDisplayThread } from '../ai'
-import type { LiveTurn, ThreadRunState } from './runtimeState'
-import { mergeLiveSubTaskStatus } from './runtimeEvents'
+import type {
+  ConversationEntry,
+  ConversationMessageEntry,
+  ConversationView,
+} from './types'
+import type { LiveTurn, ThreadRunState } from '../../store/modules/runtimeState'
+import { mergeLiveSubTaskStatus } from '../../store/modules/runtimeEvents'
 
 function hasAssistantText(message: ThreadMessage): boolean {
   if (message.role !== 'assistant') return false
@@ -113,7 +117,7 @@ function mergeThinking(host: ThreadMessage, thinkingMessages: ThreadMessage[]): 
 }
 
 function mergePendingThinkingBackward(
-  entries: AiDisplayMessageEntry[],
+  entries: ConversationMessageEntry[],
   pendingThinking: ThreadMessage[],
 ): boolean {
   if (!pendingThinking.length) return false
@@ -246,9 +250,9 @@ function attachSubagentCompressionEvents(
 }
 
 export function insertContextCompressionEvents(
-  entries: AiDisplayMessageEntry[],
+  entries: ConversationMessageEntry[],
   events: AiContextCompressionEvent[],
-): AiDisplayEntry[] {
+): ConversationEntry[] {
   if (!events.length) return entries
 
   const embeddedEventIds = new Set(
@@ -320,7 +324,7 @@ export function insertContextCompressionEvents(
     }
   })
 
-  const result: AiDisplayEntry[] = []
+  const result: ConversationEntry[] = []
   anchoredEntries.forEach((entry, index) => {
     result.push(entry)
     for (const event of eventsAfterEntryIndex.get(index) ?? []) {
@@ -341,7 +345,7 @@ export function insertContextCompressionEvents(
   return result
 }
 
-export function createRuntimeDisplay(deps: {
+export function createConversationPresentation(deps: {
   liveTurn: Ref<LiveTurn | null>
   threadRunState: Ref<ThreadRunState>
   activeThreadId: Ref<string | null>
@@ -452,7 +456,7 @@ export function createRuntimeDisplay(deps: {
     })
   })
 
-  const displayThread = computed<AiDisplayThread>(() => {
+  const conversation = computed<ConversationView>(() => {
     const persisted = deps.persistedMessages.value
     const liveTurn = deps.liveTurn.value
 
@@ -502,7 +506,7 @@ export function createRuntimeDisplay(deps: {
       return lastUserIndex >= 0 && index > lastUserIndex
     }
 
-    const entries: AiDisplayMessageEntry[] = []
+    const entries: ConversationMessageEntry[] = []
     let pendingThinking: ThreadMessage[] = []
 
     for (let index = 0; index < persisted.length; index += 1) {
@@ -593,11 +597,11 @@ export function createRuntimeDisplay(deps: {
 
     return {
       persistedMessages: persisted,
-      messages: insertContextCompressionEvents(adornedEntries, deps.contextCompressionEvents.value),
+      entries: insertContextCompressionEvents(adornedEntries, deps.contextCompressionEvents.value),
     }
   })
 
-  const displayMessages = computed<AiDisplayEntry[]>(() => displayThread.value.messages)
+  const conversationEntries = computed<ConversationEntry[]>(() => conversation.value.entries)
 
   const persistedAssistantMessageIds = computed<string[]>(() =>
     deps.persistedMessages.value
@@ -612,8 +616,8 @@ export function createRuntimeDisplay(deps: {
 
   return {
     streamingPreviewMessage,
-    displayThread,
-    displayMessages,
+    conversation,
+    conversationEntries,
     persistedAssistantMessageIds,
     latestPersistedAssistantMessageId,
   }

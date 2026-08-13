@@ -200,3 +200,17 @@ test('every process-neutral shared root rejects renderer, Electron, Vue, and Pin
     )
   }
 })
+
+test('renderer AI accesses preload AI APIs only through AgentClient', () => {
+  const directAccess = sourceFiles('src/ai')
+    .filter(filePath => filePath !== path.normalize('src/ai/client/AgentClient.ts'))
+    .filter(filePath => /window\.electronAPI(?:\?\.)?\.(?:ai|onAi|removeAi)/.test(
+      readFileSync(filePath, 'utf8'),
+    ))
+
+  assert.deepEqual(
+    directAccess,
+    [],
+    'Move direct preload AI calls behind src/ai/client/AgentClient.ts.',
+  )
+})

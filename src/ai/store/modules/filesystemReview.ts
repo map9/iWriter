@@ -1,6 +1,7 @@
 import { ref, type ComputedRef, type Ref } from 'vue'
 import type { FilesystemReviewItem } from '@/ai/types'
 import type { DomainReviewItem, ResumeDecision } from '@/ai/ipc'
+import { agentClient } from '@/ai/client/AgentClient'
 import type { LiveTurn, ThreadRunState } from './runtimeState'
 
 const FILESYSTEM_REJECTION_MESSAGE = 'The user rejected this file operation. Do not retry automatically. Briefly acknowledge and wait for the user to redirect.'
@@ -65,7 +66,7 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
         { length: interruptActionCount.value },
         () => ({ type: 'rejected' as const, message: 'User sent a new message' }),
       )
-      window.electronAPI.aiResume?.({ threadId, decisions })
+      agentClient.resume({ threadId, decisions })
     }
     deps.threadRunState.value = 'idle'
     resetReviewState({ clearLiveTurnReviews: true })
@@ -149,7 +150,7 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
     interruptActionCount.value = 0
     reviewBatch.value = null
 
-    await window.electronAPI.aiResume?.({ threadId, decisions })
+    await agentClient.resume({ threadId, decisions })
 
     const liveTurn = deps.ensureLiveTurn({ threadId, state: 'resuming' })
     if (liveTurn) {

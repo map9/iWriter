@@ -46,37 +46,25 @@ import {
 import {
   createRuntimeState,
 } from './modules/runtimeState'
-import { createRuntimeDisplay } from './modules/runtimeDisplay'
+import { createConversationPresentation } from '@/ai/presentation/conversation/buildConversationEntries'
 import { createRuntimeEvents } from './modules/runtimeEvents'
 import {
   createPendingCommandQueue,
   type PendingCommand,
 } from './modules/pendingCommands'
+import { agentClient } from '@/ai/client/AgentClient'
 
 export type {
   ProposalReviewEntry,
   ProposalReviewSummary,
 } from '@/ai/review/common/types'
 
-export interface AiDisplayMessageEntry {
-  kind: 'message'
-  key: string
-  message: ThreadMessage
-  isPreview?: boolean
-}
-
-export interface AiDisplayContextCompressionEntry {
-  kind: 'context-compressed'
-  key: string
-  event: AiContextCompressionEvent
-}
-
-export type AiDisplayEntry = AiDisplayMessageEntry | AiDisplayContextCompressionEntry
-
-export interface AiDisplayThread {
-  persistedMessages: ThreadMessage[]
-  messages: AiDisplayEntry[]
-}
+export type {
+  ConversationContextCompressionEntry,
+  ConversationEntry,
+  ConversationMessageEntry,
+  ConversationView,
+} from '@/ai/presentation/conversation/types'
 
 // ── Settings localStorage helpers ──────────────────────────────────────────
 const _STORAGE_KEY_SETTINGS = 'iwriter-ai-settings'
@@ -210,7 +198,7 @@ export const useAiStore = defineStore('ai', () => {
   function saveSettings() {
     _saveSettingsToStorage(settings.value)
     // Keep main-process AgentEngine in sync whenever settings change
-    window.electronAPI?.aiUpdateConfig?.(JSON.parse(JSON.stringify(toRaw(settings.value))))
+    agentClient.updateConfig(JSON.parse(JSON.stringify(toRaw(settings.value))))
   }
 
   function updateWebSearchProviderConfig(id: string, updates: Partial<WebSearchProviderConfig>) {
@@ -397,7 +385,7 @@ export const useAiStore = defineStore('ai', () => {
       clearContextCompressionEvents(t.id)
       pendingCommandQueue.clearThread(t.id)
       clearRunOwnershipForThread(t.id)
-      window.electronAPI.aiDeleteThread?.(t.id)
+      agentClient.deleteThread(t.id)
     }
     threads.value = threads.value.filter(t => !toRemove.some(r => r.id === t.id))
     if (!threads.value.find(t => t.id === activeThreadId.value)) {
@@ -445,7 +433,7 @@ export const useAiStore = defineStore('ai', () => {
     switchingThreadId.value = id
 
     try {
-      const messages = await window.electronAPI.aiGetThreadMessages?.(id)
+      const messages = await agentClient.getThreadMessages(id)
       const normalizedThread: AiThread = {
         ...thread,
         messages: messages?.length ? _normalizeMessagesForDisplay(messages) : (messages ?? []),
@@ -476,7 +464,7 @@ export const useAiStore = defineStore('ai', () => {
     pendingCommandQueue.clearThread(id)
     clearRunOwnershipForThread(id)
     threads.value = threads.value.filter(t => t.id !== id)
-    window.electronAPI.aiDeleteThread?.(id)
+    agentClient.deleteThread(id)
     if (activeThreadId.value === id) {
       activeThreadId.value = threads.value[0]?.id ?? null
     }
@@ -490,7 +478,7 @@ export const useAiStore = defineStore('ai', () => {
     subagentCompressionEventsByThread.value = {}
     threads.value = []
     activeThreadId.value = null
-    window.electronAPI.aiClearThreads?.()
+    agentClient.clearThreads()
   }
 
   function updateThread(thread: AiThread) {
@@ -711,7 +699,7 @@ export const useAiStore = defineStore('ai', () => {
     })
 
     try {
-      const result = await window.electronAPI.aiSendMessage?.({
+      const result = await agentClient.sendMessage({
         threadId: thread.id,
         turnId,
         userText,
@@ -903,7 +891,7 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   const persistedMessages = computed<ThreadMessage[]>(() => activeThread.value?.messages ?? [])
-  const runtimeDisplay = createRuntimeDisplay({
+  const conversationPresentation = createConversationPresentation({
     liveTurn: _liveTurn,
     threadRunState: _threadRunState,
     activeThreadId,
@@ -915,11 +903,11 @@ export const useAiStore = defineStore('ai', () => {
   })
   const {
     streamingPreviewMessage,
-    displayThread,
-    displayMessages,
+    conversation,
+    conversationEntries,
     persistedAssistantMessageIds,
     latestPersistedAssistantMessageId,
-  } = runtimeDisplay
+  } = conversationPresentation
 
   function cancelCurrentRun(showStoppedNotification: boolean): Promise<boolean> {
     _cancelNotificationRequested ||= showStoppedNotification
@@ -933,7 +921,7 @@ export const useAiStore = defineStore('ai', () => {
     const cancellation = (async (): Promise<boolean> => {
       try {
         if (tid) {
-          await window.electronAPI.aiCancel?.(tid)
+          await agentClient.cancel(tid)
         }
       } catch (error) {
         if (_runTransitionEpoch === cancellationEpoch) {
@@ -992,9 +980,9 @@ export const useAiStore = defineStore('ai', () => {
     settings.value = _loadSettings()
     // Push current settings to main process on init (handles first-launch and
     // cases where renderer localStorage has newer values than the main-process store)
-    window.electronAPI?.aiUpdateConfig?.(JSON.parse(JSON.stringify(toRaw(settings.value))))
+    agentClient.updateConfig(JSON.parse(JSON.stringify(toRaw(settings.value))))
 
-    window.electronAPI.aiGetThreads?.().then(async mainThreads => {
+    agentClient.getThreads()?.then(async mainThreads => {
       if (mainThreads?.length) {
         // Merge: preserve any local-only threads not yet in the backend list
         const localOnly = threads.value.filter(t => _localOnlyThreadIds.has(t.id))
@@ -1008,7 +996,7 @@ export const useAiStore = defineStore('ai', () => {
           const firstId = mainThreads[0]!.id
           activeThreadId.value = firstId
           try {
-            const messages = await window.electronAPI.aiGetThreadMessages?.(firstId)
+            const messages = await agentClient.getThreadMessages(firstId)
             if (messages?.length) {
               updateThread({ ...mainThreads[0]!, messages: _normalizeMessagesForDisplay(messages), messagesLoaded: true })
             }
@@ -1017,20 +1005,20 @@ export const useAiStore = defineStore('ai', () => {
       }
     }).catch(() => {/* ignore — main process may not be ready yet */})
 
-    window.electronAPI.onAiStreamChunk?.(runtimeEvents.onStreamChunk)
-    window.electronAPI.onAiRunInterrupted?.(handleRunInterrupted)
-    window.electronAPI.onAiRunDone?.(event => { void handleRunDone(event) })
-    window.electronAPI.onAiRunError?.(handleRunError)
-    window.electronAPI.onAiModelFallback?.((e) => {
+    agentClient.onStreamChunk(runtimeEvents.onStreamChunk)
+    agentClient.onRunInterrupted(handleRunInterrupted)
+    agentClient.onRunDone(event => { void handleRunDone(event) })
+    agentClient.onRunError(handleRunError)
+    agentClient.onModelFallback((e) => {
       notify.warning(i18n.global.t('notify.ai.modelFallback', { modelId: e.fallbackModelId }))
     })
-    window.electronAPI.onAiFilesystemAutoReject?.((e) => {
+    agentClient.onFilesystemAutoReject((e) => {
       notify.warning(i18n.global.t('notify.ai.filesystemAutoReject', { toolName: e.toolName, filePath: e.filePath }))
     })
   }
 
   function teardown() {
-    window.electronAPI.removeAiListeners?.()
+    agentClient.removeListeners()
   }
 
   return {
@@ -1080,8 +1068,11 @@ export const useAiStore = defineStore('ai', () => {
     streamingToolName,
     streamingPreviewMessage,
     persistedMessages,
-    displayThread,
-    displayMessages,
+    conversation,
+    conversationEntries,
+    // Compatibility aliases for UI consumers; removed when components move under src/ai/components.
+    displayThread: conversation,
+    displayMessages: conversationEntries,
     persistedAssistantMessageIds,
     latestPersistedAssistantMessageId,
     pendingEditProposals,

@@ -42,7 +42,7 @@ src/
 ├── components/pages/                     # Welcome, Markdown, Image, PDF, Unknown pages
 ├── components/pages/markdown-editor/     # Markdown editor actions, state, insertion, clipboard, stats
 ├── components/common/tiptap/             # Custom TipTap extensions and node views
-├── components/ai/agent-panel/            # Right-sidebar AI chat UI and review surfaces
+├── ai/components/                        # Right-sidebar AI chat UI, settings, and review surfaces
 ├── components/preferences/               # Preferences dialog and settings panels
 ├── components/print/                     # Markdown/image/PDF print and preview dialogs
 ├── components/sidebar/                   # Explorer, Search, Tag, Toc panels
@@ -100,7 +100,7 @@ Shared editor extensions are built from `src/utils/editorExtensions.ts`; check t
 
 ## AI Runtime
 
-The right sidebar is `src/components/ai/AgentPanel.vue` and `src/components/ai/agent-panel/`. Renderer AI state lives in `src/ai/store/ai.ts` and module files under `src/ai/store/modules/`.
+The right sidebar UI lives under `src/ai/components/`. Renderer AI state lives in `src/ai/store/ai.ts` and module files under `src/ai/store/modules/`; conversation presentation is assembled under `src/ai/presentation/conversation/`.
 
 Main-process AI execution is under `electron/ai/`:
 - `AgentEngine.ts` owns runs and streaming.

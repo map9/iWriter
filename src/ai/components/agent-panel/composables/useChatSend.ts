@@ -3,6 +3,7 @@ import type { Ref } from 'vue'
 import { useAiStore } from '@/ai/store/ai'
 import type { ContextAttachment, SendContext, ThreadUsage } from '@/ai/types'
 import { resolveAgentDomain, resolveAiProviderModelId } from '@/ai/types'
+import { agentClient } from '@/ai/client/AgentClient'
 
 export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
   const aiStore = useAiStore()
@@ -43,7 +44,7 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
     }
 
     try {
-      const result = await window.electronAPI.aiGetSessionContextStats?.({
+      const result = await agentClient.getSessionContextStats({
         threadId: thread?.id,
         domain,
         mode,

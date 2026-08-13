@@ -36,7 +36,7 @@ async function compileVueComponent(file, options = {}) {
 async function loadChatAreaModule() {
   if (!chatAreaModulePromise) {
     chatAreaModulePromise = compileVueComponent(
-      resolve('src/components/ai/agent-panel/AgentChatArea.vue'),
+      resolve('src/ai/components/agent-panel/AgentChatArea.vue'),
       {
         id: 'agent-chat-scroll-test',
         plugin: {
@@ -78,7 +78,7 @@ async function loadChatAreaModule() {
 async function loadAgentPanelModule() {
   if (!agentPanelModulePromise) {
     agentPanelModulePromise = compileVueComponent(
-      resolve('src/components/ai/AgentPanel.vue'),
+      resolve('src/ai/components/shell/AgentPanel.vue'),
       {
         id: 'agent-panel-scroll-button-test',
         plugin: {
