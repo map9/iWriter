@@ -15,23 +15,13 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { app } from 'electron'
 import type { WebContents } from 'electron'
-import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import type { BaseMessage, MessageContent } from '@langchain/core/messages'
-import type { ModelProfile } from '@langchain/core/language_models/profile'
-import { createDeepAgent, type DeepAgentRunStream } from 'deepagents'
+import type { DeepAgentRunStream } from 'deepagents'
 import { Command } from '@langchain/langgraph'
 import { HumanMessage, SystemMessage, isAIMessage, isToolMessage, isHumanMessage } from '@langchain/core/messages'
-import {
-  modelCallLimitMiddleware,
-  toolCallLimitMiddleware,
-} from 'langchain'
 
 import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage } from '../../shared/ai/contracts'
 import { isAiProviderUsable, resolveApiKeyReference } from '../../shared/ai/contracts'
-import {
-  resolveEffectiveModelBudget,
-  type EffectiveModelBudget,
-} from '../../shared/ai/core/modelBudget'
 import { estimateTextTokens } from '../../shared/ai/core/tokenEstimation'
 import { createChatModel } from './providers/ModelFactory'
 import { SnapshotBroker } from './document/SnapshotBroker'
@@ -51,7 +41,7 @@ import { RendererEventBridge } from './ipc/RendererEventBridge'
 import { buildUserMessage } from './ipc/UserMessageBuilder'
 import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore, type InterruptedRun } from './runtime/ThreadRuntimeStore'
-import { buildAgentFilesystem, FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './scaffold/filesystem/AgentFilesystem'
+import { FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './scaffold/filesystem/AgentFilesystem'
 import { decideFilesystemWriteApproval, isFilesystemWriteToolName } from './scaffold/approval/FilesystemApprovalPolicy'
 import {
   WritingSessionRegistry,
@@ -64,23 +54,17 @@ import {
 } from './scaffold/approval/WritingSessionRegistry'
 import { AiConfigStore, resolveAiApiKeyEnvVar } from './config/AiConfigStore'
 import { generateThreadTitle } from '../../shared/ai/core/threadTitle'
-import { IWriterAgentContextSchema } from './runtime/AgentContext'
-import { createTaskToolCompatMiddleware } from './scaffold/middleware/TaskToolCompatMiddleware'
-import { createOrphanToolCallStripperMiddleware } from './scaffold/middleware/OrphanToolCallStripperMiddleware'
-import { createRateLimitRetryMiddleware } from './scaffold/middleware/RateLimitRetryMiddleware'
-import { createHumanRespondMessageMiddleware, RESPOND_MARKER } from './scaffold/middleware/HumanRespondMessageMiddleware'
+import { RESPOND_MARKER } from './scaffold/middleware/HumanRespondMessageMiddleware'
 import { CheckpointerAdmin } from './checkpoint/CheckpointerAdmin'
-import { MIDDLEWARE_CONFIG, createInstrumentedFallbackMiddleware } from './scaffold/middleware/middleware-config'
-import { buildMemorySources, createReadonlyMemoryMiddleware } from './scaffold/memory/MemorySources'
-import {
-  buildSummarizationInstruction,
-  buildSummarizationPrompt,
-} from './scaffold/summarization/SummarizationFramework'
+import { MIDDLEWARE_CONFIG } from './scaffold/middleware/middleware-config'
 import type { DomainStrategy } from './domain/DomainStrategy'
 import { EditDomainStrategy } from './domain/edit/EditDomainStrategy'
 import { CreativeDomainStrategy } from './domain/creative/CreativeDomainStrategy'
 import { detectInputLanguage, type DetectedInputLanguage } from '../../shared/ai/core/detectInputLanguage'
 import type { GitService } from '../GitService'
+import { AgentCache } from './runtime/AgentCache'
+import { AgentFactory, type DeepAgentInstance } from './runtime/AgentFactory'
+import { createAgentRuntimeConfig, getEffectiveModelBudget } from './runtime/RuntimeConfig'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -98,18 +82,8 @@ const STREAM_DRAIN_GRACE_MS = 15_000
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-type DeepAgentInstance = { streamEvents: unknown }
 type HitlActionRequest = { name: string; args: Record<string, unknown> }
 type TokenCounter = (messages: BaseMessage[], tools?: unknown) => number
-type SummarizationMiddlewareOptions = {
-  model: BaseChatModel
-  tokenCounter: TokenCounter
-  trigger: { type: 'tokens', value: number }
-  keep: { type: 'tokens', value: number }
-  summaryInstruction: string
-  summaryPrompt: string
-  trimTokensToSummarize: number
-}
 
 export function countContextTokensCjkAware(
   messages: BaseMessage[],
@@ -152,23 +126,6 @@ export function countContextTokensCjkAware(
   return total
 }
 
-function readModelProfile(model: BaseChatModel): ModelProfile | undefined {
-  try {
-    const profile = (model as BaseChatModel & { profile?: ModelProfile }).profile
-    return profile && typeof profile === 'object' ? profile : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function getEffectiveModelBudget(
-  config: AiProviderConfig,
-  modelId: string,
-  model: BaseChatModel,
-): EffectiveModelBudget {
-  return resolveEffectiveModelBudget(config, modelId, readModelProfile(model))
-}
-
 export class AgentEngine {
   private snapshotBroker: SnapshotBroker
   private editorStateBroker: EditorStateBroker
@@ -197,7 +154,10 @@ export class AgentEngine {
   })
 
   /** Agent cache keyed by thread + runtime + filesystem fingerprint. */
-  private agentCache = new Map<string, { agent: DeepAgentInstance, scaffold: AgentFilesystemScaffold }>()
+  private agentCache = new AgentCache<DeepAgentInstance, AgentFilesystemScaffold>(
+    scaffold => this._cleanupScaffold(scaffold),
+  )
+  private agentFactory: AgentFactory
   /** One model fallback notification per thread turn, even when cached agents retry/resume. */
   private fallbackNotifiedTurnKeys = new Set<string>()
 
@@ -224,6 +184,14 @@ export class AgentEngine {
     this.bundledSubagentsPath = app.isPackaged
       ? path.join(process.resourcesPath, 'builtin-subagents')
       : path.join(app.getAppPath(), 'electron', 'ai', 'builtin-subagents')
+    this.agentFactory = new AgentFactory({
+      aiRootPath: this.aiRootPath,
+      getCheckpointer: () => this.checkpointerInstance?.checkpointer,
+      tokenCounter: this._makeCjkTokenCounter(),
+      onModelFallback: (threadId, fallbackModelId) => {
+        this._notifyModelFallbackOnce(threadId, fallbackModelId)
+      },
+    })
     this.strategies = {
       editing: new EditDomainStrategy(
         this.snapshotBroker,
@@ -285,7 +253,7 @@ export class AgentEngine {
     this.activeRuns.delete(threadId)
     this.activeRunTasks.delete(threadId)
     this._clearFallbackNotificationKeys(threadId)
-    this._deleteCachedAgentsForThread(threadId)
+    this.agentCache.deleteThread(threadId)
     this.writingSessions.clearThread(threadId)
     this.checkpointerAdmin?.deleteThread(threadId)
   }
@@ -296,7 +264,7 @@ export class AgentEngine {
     this.activeRuns.clear()
     this.activeRunTasks.clear()
     this.fallbackNotifiedTurnKeys.clear()
-    this._clearAgentCache()
+    this.agentCache.clear()
     this.writingSessions.clearAll()
     this.checkpointerAdmin?.clearAll()
   }
@@ -1425,7 +1393,7 @@ export class AgentEngine {
 
   /** Clears the agent cache so the next turn rebuilds agents (e.g. after new skills are written). */
   invalidateAgentCache(): void {
-    this._clearAgentCache()
+    this.agentCache.clear()
   }
 
   // ── Private: agent cache ──────────────────────────────────────────────────
@@ -1441,107 +1409,26 @@ export class AgentEngine {
   ): DeepAgentInstance {
     const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
     const skillSources = this.strategies[domain].getSkillSources?.(this.aiRootPath, workspacePath) ?? []
-    const filesystemFingerprint = `${workspacePath ?? ''}:${skillSources.join('|') || 'no-skills'}`
     // Include apiKey and baseUrl in the key so that credential updates immediately
     // produce a new agent instance rather than reusing a stale one.
     const resolvedApiKey = resolveApiKeyReference(config.apiKey, resolveAiApiKeyEnvVar)
-    const keyFingerprint = resolvedApiKey ? resolvedApiKey.slice(-8) : ''
-    const budgetFingerprint = JSON.stringify([
-      config.maxRequestTokens ?? null,
-      config.modelPolicies?.[modelId]?.maxRequestTokens ?? null,
-    ])
-    const cacheKey = `${threadId}:${config.id}:${domain}:${mode}:${modelId}:${thinkingLevel ?? ''}:${language}:${keyFingerprint}:${config.baseUrl ?? ''}:${config.fallbackModelId ?? ''}:${budgetFingerprint}:${filesystemFingerprint}`
-    const cached = this.agentCache.get(cacheKey)
-    if (cached) return cached.agent
-
-    const scaffold = buildAgentFilesystem({
+    const runtimeConfig = createAgentRuntimeConfig({
+      threadId,
+      providerConfig: config,
+      domain,
+      mode,
+      modelId,
+      thinkingLevel,
+      language,
       workspacePath,
-      aiRootPath: this.aiRootPath,
       skillSources,
-    })
-    const model = createChatModel(config, { modelId, thinkingLevel })
-    const budget = getEffectiveModelBudget(config, modelId, model)
-    const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath, language })
-    const subAgents = capabilities.subAgents?.map(subagent => ({
-      ...subagent,
-      systemPrompt: `${scaffold.workspaceSystemPrompt}\n\n${subagent.systemPrompt}`,
-    }))
-    const memorySources = this._buildMemoryPaths(domain)
-
-    const fallbackModels: BaseChatModel[] = []
-    if (config.fallbackModelId && config.fallbackModelId !== modelId) {
-      try {
-        fallbackModels.push(createChatModel(config, { modelId: config.fallbackModelId, thinkingLevel }))
-      } catch (err) {
-        console.warn(
-          `[AgentEngine] Failed to instantiate fallback model "${config.fallbackModelId}" for provider "${config.id}":`,
-          err,
-        )
-      }
-    }
-
-    const summarizationProfile = this.strategies[domain].getSummarizationProfile()
-    const summarizationMiddlewareOptions: SummarizationMiddlewareOptions = {
-      // Summary generation is a plain-text side request. Keep the same provider
-      // and model while disabling (or minimizing) provider-side thinking.
-      model: createChatModel(config, { modelId, thinkingLevel, disableThinking: true }),
-      summaryInstruction: buildSummarizationInstruction(summarizationProfile),
-      tokenCounter: this._makeCjkTokenCounter(),
-      trigger: { type: 'tokens', value: budget.triggerTokens },
-      keep: { type: 'tokens', value: budget.keepTokens },
-      summaryPrompt: buildSummarizationPrompt(summarizationProfile),
-      // DeepAgents defaults to summarizing only the latest 4k tokens of the old slice.
-      // At iWriter's larger trigger budgets that can discard the previous task capsule
-      // before producing the next one. Keep the full old slice for the fallback request;
-      // the primary request uses the exact prefix and falls back if the appended instruction
-      // pushes it beyond the provider's context window.
-      trimTokensToSummarize: budget.triggerTokens,
-    }
-
-    const agent: DeepAgentInstance = createDeepAgent({
-      model,
-      systemPrompt: this.strategies[domain].getSystemPrompt(mode, language),
-      tools: capabilities.tools,
-      backend: scaffold.backend,
-      skills: skillSources.length ? skillSources : undefined,
-      summarizationMiddlewareOptions,
-      // 记忆改由脚手架的只读中间件承载（本期记忆只读，见 scaffold/memory/MemorySources），
-      // 不使用 deepagents 内置 `memory` 选项——后者注入的提示会鼓励 agent 自动写入记忆。
-      checkpointer: this.checkpointerInstance?.checkpointer,
-      interruptOn: { ...capabilities.interruptOn, ...scaffold.interruptOn },
-      subagents: subAgents,
-      // Middleware ordering note:
-      // createDeepAgent places its built-in SummarizationMiddleware BEFORE customMiddleware
-      // (outer wrapper), so our custom middlewares below run INNER (closer to the LLM).
-      // HITL+summarization safety: SummarizationMiddleware splits messages into old/recent at
-      // cutoffIndex. RESPOND_MARKER is always on the most-recent ToolMessage (current HITL
-      // cycle), so it falls in the preserved (inner) portion — never in the old portion sent
-      // to the summary LLM. HumanRespondMessage (inner) then strips the marker before the
-      // main LLM call. Both LLMs remain marker-free; the invariant from Phase 4 §B1.4 holds.
-      middleware: [
-        ...scaffold.middlewares,
-        createOrphanToolCallStripperMiddleware(),
-        createHumanRespondMessageMiddleware(),
-        createTaskToolCompatMiddleware(),
-        modelCallLimitMiddleware(MIDDLEWARE_CONFIG.modelCallLimit),
-        toolCallLimitMiddleware(MIDDLEWARE_CONFIG.toolCallLimit),
-        ...(memorySources.length
-          ? [createReadonlyMemoryMiddleware({ backend: scaffold.backend, sources: memorySources })]
-          : []),
-        ...(fallbackModels.length
-          ? [createInstrumentedFallbackMiddleware(fallbackModels, (fallbackModelId) => {
-              this._notifyModelFallbackOnce(threadId, fallbackModelId)
-            })]
-          : []),
-        // Innermost: honor provider Retry-After on transient 429s and retry the SAME model before
-        // a persistent limit degrades to the fallback model (fallback wraps this, so it runs after).
-        createRateLimitRetryMiddleware(),
-      ],
-      contextSchema: IWriterAgentContextSchema,
+      resolvedApiKey,
     })
 
-    this.agentCache.set(cacheKey, { agent, scaffold })
-    return agent
+    return this.agentCache.getOrCreate(threadId, runtimeConfig.cacheKey, () => {
+      const built = this.agentFactory.build(runtimeConfig, this.strategies[domain])
+      return { agent: built.agent, resource: built.scaffold }
+    })
   }
 
   private _fallbackNotificationKey(threadId: string, turnId: string | null): string {
@@ -1576,21 +1463,6 @@ export class AgentEngine {
       } catch {
         // Best-effort cleanup only.
       }
-    }
-  }
-
-  private _clearAgentCache(): void {
-    for (const cached of this.agentCache.values()) {
-      this._cleanupScaffold(cached.scaffold)
-    }
-    this.agentCache.clear()
-  }
-
-  private _deleteCachedAgentsForThread(threadId: string): void {
-    for (const [key, cached] of this.agentCache) {
-      if (!key.startsWith(`${threadId}:`)) continue
-      this._cleanupScaffold(cached.scaffold)
-      this.agentCache.delete(key)
     }
   }
 
@@ -1740,10 +1612,6 @@ export class AgentEngine {
     await fs.promises.rm(targetRoot, { recursive: true, force: true })
     await fs.promises.mkdir(targetRoot, { recursive: true })
     fs.cpSync(this.bundledSubagentsPath, targetRoot, { recursive: true, dereference: true })
-  }
-
-  private _buildMemoryPaths(domain: AiAgentDomain): string[] {
-    return buildMemorySources(this.aiRootPath, this.strategies[domain].getMemoryDir())
   }
 
   private _assertWithinBudget(
