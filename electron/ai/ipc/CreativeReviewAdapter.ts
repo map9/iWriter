@@ -69,7 +69,7 @@ export function buildCreativeReviewItemFromAction(
       status: 'pending',
       chapter: asString(args.chapter),
       summary: asOptionalString(args.summary),
-      // Filled by the host on interrupt (AgentEngine._enrichFinalizeReviews):
+      // Filled by the host on interrupt (WritingSessionCoordinator.decorateReviews):
       // baseline/current + hasExternalEdits. autoFallback set only for run-end synthesized cards.
       baseline: '',
       current: '',

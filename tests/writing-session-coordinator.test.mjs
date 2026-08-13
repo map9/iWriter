@@ -68,6 +68,131 @@ function createChapter(testContext, content = 'DISK BASELINE') {
 }
 
 describe('WritingSessionCoordinator lifecycle', () => {
+  it('synthesizes a whole-chapter finalize interrupt for unfinished creative sessions', async testContext => {
+    const chapter = createChapter(testContext, 'DISK CURRENT')
+    const strategyCalls = []
+    const strategy = {
+      buildReviewItems: async context => {
+        strategyCalls.push(context)
+        return context.actionRequests.map((action, index) => ({
+          kind: 'creative',
+          payload: {
+            id: `finalize-${index}`,
+            status: 'pending',
+            kind: 'creative_chapter_finalize',
+            toolName: 'finalize_chapter',
+            chapter: action.args.chapter,
+            baseline: '',
+            current: '',
+          },
+        }))
+      },
+    }
+    const { coordinator, registry, runtimeStore, sentEvents } = await createHarness({
+      strategy,
+      requestSnapshot: async filePath => ({ filePath, viewMarkdown: 'EDITOR CURRENT' }),
+    })
+    registry.recordAccumulation('thread-synthetic', chapter, {
+      toolName: 'edit_block', args: { file_path: chapter }, at: 1,
+    }, 'SESSION BASELINE')
+
+    const synthesized = await coordinator.synthesizeRunEndFinalize('thread-synthetic', 'turn-7')
+
+    assert.equal(synthesized, true)
+    assert.equal(strategyCalls.length, 1)
+    assert.deepEqual(strategyCalls[0].actionRequests, [
+      { name: 'finalize_chapter', args: { chapter } },
+    ])
+    assert.deepEqual(runtimeStore.getInterrupted('thread-synthetic'), {
+      actionRequestCount: 1,
+      actionNames: ['finalize_chapter'],
+      turnId: 'turn-7',
+      reviewActionOriginalIndices: [0],
+      autoDecisionsByIndex: {},
+      finalizeArgsByIndex: { 0: { chapter, summary: undefined } },
+      syntheticFinalize: true,
+    })
+    assert.equal(sentEvents.length, 1)
+    assert.equal(sentEvents[0].reviews[0].payload.baseline, 'SESSION BASELINE')
+    assert.equal(sentEvents[0].reviews[0].payload.current, 'EDITOR CURRENT')
+    assert.equal(sentEvents[0].reviews[0].payload.autoFallback, true)
+  })
+
+  it('does not synthesize finalize interrupts outside the creative domain', async testContext => {
+    const chapter = createChapter(testContext)
+    const { coordinator, registry, sentEvents } = await createHarness({ domain: 'editing' })
+    registry.recordAccumulation('thread-editing', chapter, {
+      toolName: 'edit_block', args: { file_path: chapter }, at: 1,
+    }, 'BASELINE')
+
+    assert.equal(await coordinator.synthesizeRunEndFinalize('thread-editing'), false)
+    assert.equal(sentEvents.length, 0)
+  })
+
+  it('rejects an unauthorized delegated write without activating a session', async testContext => {
+    const chapter = createChapter(testContext)
+    const { coordinator, registry } = await createHarness()
+
+    const result = await coordinator.prepareAction('thread-delegated', {
+      name: 'edit_block', args: { file_path: chapter },
+    }, true)
+
+    assert.equal(result.kind, 'auto-reject')
+    assert.equal(result.filePath, chapter)
+    assert.equal(result.decision.type, 'rejected')
+    assert.equal(registry.hasActiveSession('thread-delegated', chapter), false)
+  })
+
+  it('accumulates an authorized block edit with a captured baseline', async testContext => {
+    const chapter = createChapter(testContext, 'DISK BASELINE')
+    const { coordinator, registry } = await createHarness({
+      requestSnapshot: async filePath => ({ filePath, viewMarkdown: 'EDITOR BASELINE' }),
+    })
+    registry.registerAuthorization('thread-block', '计划', [chapter])
+    const action = {
+      name: 'edit_block', args: { file_path: chapter, block_id: 1, content: '新内容' },
+    }
+
+    const result = await coordinator.prepareAction('thread-block', action, false)
+
+    assert.deepEqual(result, { kind: 'auto-apply', filePath: chapter })
+    const session = registry.getActiveSession('thread-block', chapter)
+    assert.equal(session.baselineSnapshot, 'EDITOR BASELINE')
+    assert.equal(session.accumulated.length, 1)
+    assert.equal(session.accumulated[0].toolName, 'edit_block')
+    assert.deepEqual(session.accumulated[0].args, action.args)
+  })
+
+  it('requires review before create_document can overwrite an authorized existing file', async testContext => {
+    const chapter = createChapter(testContext)
+    const { coordinator, registry } = await createHarness()
+    registry.registerAuthorization('thread-existing', '计划', [chapter])
+
+    const result = await coordinator.prepareAction('thread-existing', {
+      name: 'create_document',
+      args: { directory: path.dirname(chapter), filename: path.basename(chapter) },
+    }, false)
+
+    assert.deepEqual(result, { kind: 'requires-review' })
+    assert.equal(registry.hasActiveSession('thread-existing', chapter), false)
+  })
+
+  it('auto-applies an authorized new chapter with an empty baseline', async testContext => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'iwriter-writing-session-create-'))
+    testContext.after(() => rmSync(directory, { recursive: true, force: true }))
+    const chapter = path.join(directory, 'new-chapter.md')
+    const { coordinator, registry } = await createHarness()
+    registry.registerAuthorization('thread-create', '计划', [chapter])
+
+    const result = await coordinator.prepareAction('thread-create', {
+      name: 'create_document',
+      args: { directory, filename: 'new-chapter' },
+    }, false)
+
+    assert.deepEqual(result, { kind: 'auto-apply', filePath: chapter })
+    assert.equal(registry.getActiveSession('thread-create', chapter).baselineSnapshot, '')
+  })
+
   it('decorates auto-apply edits and whole-chapter finalize reviews', async testContext => {
     const chapter = createChapter(testContext, 'DISK CURRENT')
     const { coordinator, registry } = await createHarness({

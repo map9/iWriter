@@ -9,7 +9,7 @@ import type { StructuredTool } from '@langchain/core/tools'
 // baseline (the snapshot captured when the session lazy-activated) vs. current (the chapter on disk).
 //
 // The body only returns a confirmation string — all side effects happen in the host on resume
-// (AgentEngine._handleFinalizeDecisions), symmetric with confirm_writing_plan:
+// (WritingSessionCoordinator.applyFinalizeDecisions), symmetric with confirm_writing_plan:
 //   • approve  → close the write-session (the accepted chapter stays on disk; version-tracking commit
 //                is left to the model's existing git tool approval).
 //   • respond  → rework: the session stays OPEN, the writer revises, A00 finalizes again later.

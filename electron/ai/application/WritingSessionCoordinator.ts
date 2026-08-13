@@ -6,7 +6,22 @@ import type { SnapshotBroker } from '../document/SnapshotBroker'
 import type { DomainStrategy } from '../domain/DomainStrategy'
 import type { RendererEventBridge } from '../ipc/RendererEventBridge'
 import type { InterruptedRun, ThreadRuntimeStore } from '../runtime/ThreadRuntimeStore'
-import type { WritingSessionRegistry } from '../scaffold/approval/WritingSessionRegistry'
+import {
+  decideDelegatedWriteGate,
+  decideWritingSessionApproval,
+  isBlockEditToolName,
+  type WritingSessionRegistry,
+} from '../scaffold/approval/WritingSessionRegistry'
+
+export type WritingActionPreparation =
+  | { kind: 'requires-review' }
+  | { kind: 'auto-apply'; filePath: string }
+  | {
+    kind: 'auto-reject'
+    decision: ResumeDecision
+    filePath: string
+    message: string
+  }
 
 export interface WritingSessionCoordinatorDependencies {
   registry: WritingSessionRegistry
@@ -19,6 +34,98 @@ export interface WritingSessionCoordinatorDependencies {
 
 export class WritingSessionCoordinator {
   constructor(private readonly dependencies: WritingSessionCoordinatorDependencies) {}
+
+  async prepareAction(
+    threadId: string,
+    actionRequest: { name: string; args?: Record<string, unknown> },
+    delegated: boolean,
+  ): Promise<WritingActionPreparation> {
+    const args = actionRequest.args ?? {}
+    const authorizedFiles = this.dependencies.registry.getAuthorizedFiles(threadId)
+
+    if (delegated) {
+      const gate = decideDelegatedWriteGate({
+        toolName: actionRequest.name,
+        args,
+        authorizedFiles,
+      })
+      if (gate.kind === 'reject') {
+        return {
+          kind: 'auto-reject',
+          decision: gate.decision,
+          filePath: gate.targetFile ?? '',
+          message: gate.decision.message ?? gate.reason,
+        }
+      }
+    }
+
+    const isSessionCreate = actionRequest.name === 'create_document'
+    if (!isBlockEditToolName(actionRequest.name) && !isSessionCreate) {
+      return { kind: 'requires-review' }
+    }
+
+    const verdict = decideWritingSessionApproval({
+      toolName: actionRequest.name,
+      args,
+      authorizedFiles,
+    })
+    if (verdict.kind !== 'auto-approve') return { kind: 'requires-review' }
+    if (isSessionCreate && fs.existsSync(verdict.activateFile)) {
+      return { kind: 'requires-review' }
+    }
+
+    const baseline = this.dependencies.registry.getActiveSession(threadId, verdict.activateFile)
+      ? undefined
+      : isSessionCreate
+        ? ''
+        : await this.captureChapter(verdict.activateFile)
+    this.dependencies.registry.recordAccumulation(threadId, verdict.activateFile, {
+      toolName: actionRequest.name,
+      args,
+      at: Date.now(),
+    }, baseline)
+    return { kind: 'auto-apply', filePath: verdict.activateFile }
+  }
+
+  async synthesizeRunEndFinalize(threadId: string, turnId?: string): Promise<boolean> {
+    const domain = this.dependencies.getThreadDomain(threadId)
+    if (domain !== 'creative') return false
+
+    const sessions = this.dependencies.registry.getActiveSessions(threadId)
+    if (!sessions.length) return false
+
+    const actionRequests = sessions.map(({ file }) => ({
+      name: 'finalize_chapter',
+      args: { chapter: file },
+    }))
+    const { finalizeArgsByIndex } = this.stashInterruptArgs(actionRequests)
+    this.dependencies.runtimeStore.setInterrupted(threadId, {
+      actionRequestCount: actionRequests.length,
+      actionNames: actionRequests.map(action => action.name),
+      turnId,
+      reviewActionOriginalIndices: actionRequests.map((_action, index) => index),
+      autoDecisionsByIndex: {},
+      finalizeArgsByIndex,
+      syntheticFinalize: true,
+    })
+
+    const strategy = this.dependencies.getStrategy(domain)
+    const reviews = await strategy.buildReviewItems({ threadId, turnId, actionRequests })
+    await this.decorateReviews(reviews, threadId)
+    for (const review of reviews) {
+      if (review.kind === 'creative' && review.payload.kind === 'creative_chapter_finalize') {
+        review.payload.autoFallback = true
+      }
+    }
+
+    this.dependencies.rendererBridge.sendRunInterrupted({
+      threadId,
+      turnId,
+      reviews,
+      actionRequests,
+    })
+    return true
+  }
 
   stashInterruptArgs(
     actionRequests: Array<{ name: string; args?: Record<string, unknown> }>,

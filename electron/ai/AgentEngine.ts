@@ -39,16 +39,13 @@ import { StreamEventAdapter } from './ipc/StreamEventAdapter'
 import { RendererEventBridge } from './ipc/RendererEventBridge'
 import { buildUserMessage } from './ipc/UserMessageBuilder'
 import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
-import { ThreadRuntimeStore, type InterruptedRun } from './runtime/ThreadRuntimeStore'
+import { ThreadRuntimeStore } from './runtime/ThreadRuntimeStore'
 import { FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './scaffold/filesystem/AgentFilesystem'
 import { decideFilesystemWriteApproval, isFilesystemWriteToolName } from './scaffold/approval/FilesystemApprovalPolicy'
 import {
   WritingSessionRegistry,
   currentRootToolCallsFromMessages,
-  decideWritingSessionApproval,
-  decideDelegatedWriteGate,
   delegatedActionIndices,
-  isBlockEditToolName,
   type RootToolCall,
 } from './scaffold/approval/WritingSessionRegistry'
 import { AiConfigStore, resolveAiApiKeyEnvVar } from './config/AiConfigStore'
@@ -65,6 +62,7 @@ import { AgentRunner } from './runtime/AgentRunner'
 import { createAgentRuntimeConfig, getEffectiveModelBudget } from './runtime/RuntimeConfig'
 import { InterruptCoordinator } from './application/InterruptCoordinator'
 import { ThreadService } from './application/ThreadService'
+import { WritingSessionCoordinator } from './application/WritingSessionCoordinator'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -132,10 +130,9 @@ export class AgentEngine {
   /** Thread-scoped runtime data: editor context + pending interrupts. */
   private runtimeStore = new ThreadRuntimeStore()
 
-  // Write-session authorization (04.1 §6 Stage 2). Baselines are captured through the unified
-  // snapshot route (_captureChapterBaseline: editor buffer if the chapter is open, else disk) and
-  // passed explicitly into recordAccumulation; this disk-read capturer is only a last-resort
-  // fallback for callers that don't supply a baseline (tests / degraded paths).
+  // Write-session state holder (04.1 §6 Stage 2). WritingSessionCoordinator owns authorization,
+  // snapshot capture, accumulation and finalization; this synchronous capturer remains only as a
+  // last-resort fallback for callers that do not supply a baseline (tests / degraded paths).
   private writingSessions = new WritingSessionRegistry((_threadId, targetFile) => {
     try {
       return fs.readFileSync(targetFile, 'utf-8')
@@ -157,6 +154,7 @@ export class AgentEngine {
   private checkpointerAdmin: CheckpointerAdmin | null = null
   private threadListQuery: ThreadListQuery | null = null
   private threadService: ThreadService
+  private writingSessionCoordinator: WritingSessionCoordinator
   private initializationPromise: Promise<void> | null = null
 
   /** Domain strategy table — add new domains here only. AgentEngine itself never branches on domain. */
@@ -211,6 +209,14 @@ export class AgentEngine {
         event => this.rendererBridge.sendGitMutation(event),
       ),
     }
+    this.writingSessionCoordinator = new WritingSessionCoordinator({
+      registry: this.writingSessions,
+      snapshotBroker: this.snapshotBroker,
+      runtimeStore: this.runtimeStore,
+      getThreadDomain: threadId => this.threadService.getMeta(threadId)?.domain ?? 'editing',
+      getStrategy: domain => this.strategies[domain],
+      rendererBridge: this.rendererBridge,
+    })
     // 目录初始化移至 initialize()（异步），不在构造函数同步执行
   }
 
@@ -339,17 +345,17 @@ export class AgentEngine {
     // 之后」的改动（作者手改/外部改动）标为 hasExternalEdits。
     // 切勿笼统扫全部活动会话：本批次未命中的会话若在中断期间被作者手改，会把手改误记成 agent 快照，
     // 令终审漏标 hasExternalEdits（漏警）。放在 finalize 处理前——finalize 关闭会话后就取不到了。
-    for (const file of interrupted.autoAppliedFiles ?? []) {
-      const snap = await this._captureChapterBaseline(file)
-      this.writingSessions.recordAgentSnapshot(threadId, file, snap)
-    }
+    await this.writingSessionCoordinator.recordAutoAppliedSnapshots(
+      threadId,
+      interrupted.autoAppliedFiles ?? [],
+    )
 
     // An approved confirm_writing_plan opens the write-session authorization (04.1 §6 Stage 2) and
     // anchors the finalize baseline at write-session start (before the writer touches the chapter).
-    await this._registerApprovedWritingPlans(threadId, interrupted, fullDecisions)
+    await this.writingSessionCoordinator.registerApprovedPlans(threadId, interrupted, fullDecisions)
 
     // A finalize_chapter decision closes/restores the write-session (M1b-3).
-    this._handleFinalizeDecisions(threadId, interrupted, fullDecisions)
+    this.writingSessionCoordinator.applyFinalizeDecisions(threadId, interrupted, fullDecisions)
 
     // M1-1: a run-end synthesized finalize card has no live LangGraph interrupt to resume — the host
     // side effects above are the whole job. Complete the run instead of feeding a Command back.
@@ -384,234 +390,6 @@ export class AgentEngine {
       resumePromise.finally(() => {
         this.checkpointerAdmin?.stripRespondMarkers(threadId).catch(() => { /* ignore */ })
       }).catch(() => { /* ignore */ })
-    }
-  }
-
-  /** Collect confirm_writing_plan args by original index, to register the write-session authorization at resume. */
-  private _stashConfirmPlanArgs(
-    actionRequests: HitlActionRequest[],
-  ): Record<number, { plan: string; targetFiles: string[] }> {
-    const out: Record<number, { plan: string; targetFiles: string[] }> = {}
-    actionRequests.forEach((ar, i) => {
-      if (ar.name !== 'confirm_writing_plan') return
-      const plan = typeof ar.args?.plan === 'string' ? ar.args.plan : ''
-      const raw = ar.args?.target_files
-      const targetFiles = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []
-      out[i] = { plan, targetFiles }
-    })
-    return out
-  }
-
-  /** Collect finalize_chapter args by original index, to close/restore the write-session at resume (M1b-3). */
-  private _stashFinalizeArgs(
-    actionRequests: HitlActionRequest[],
-  ): Record<number, { chapter: string; summary?: string }> {
-    const out: Record<number, { chapter: string; summary?: string }> = {}
-    actionRequests.forEach((ar, i) => {
-      if (ar.name !== 'finalize_chapter') return
-      const chapter = typeof ar.args?.chapter === 'string' ? ar.args.chapter : ''
-      const summary = typeof ar.args?.summary === 'string' ? ar.args.summary : undefined
-      out[i] = { chapter, summary }
-    })
-    return out
-  }
-
-  /** Validate and canonicalize a finalize_chapter `chapter` disk path. */
-  private _resolveChapterPath(chapter: string): string | null {
-    const trimmed = chapter.trim()
-    return trimmed && path.isAbsolute(trimmed) ? trimmed : null
-  }
-
-  /** Read a chapter's content through the unified snapshot route (editor buffer if open, else disk). */
-  private async _captureChapterBaseline(chapterPath: string): Promise<string | null> {
-    // A not-yet-created chapter (confirm_writing_plan authorizing a new chapter, or beat authoring
-    // before materialization) has no content — baseline is '' (all callers coalesce null→''). Short-
-    // circuit before the snapshot broker / disk read so a legitimately-absent file logs no ENOENT
-    // noise. An unsaved editor doc is keyed by a virtual path, never a real disk path, so a missing
-    // disk path truly has no editor buffer to consult.
-    if (!fs.existsSync(chapterPath)) return null
-    try {
-      const snapshot = await this.snapshotBroker.requestSnapshot(chapterPath)
-      if (snapshot?.viewMarkdown != null) return snapshot.viewMarkdown
-    } catch (err) {
-      console.warn('[AgentEngine] snapshot baseline capture failed, falling back to disk:', err)
-    }
-    try {
-      return fs.readFileSync(chapterPath, 'utf-8')
-    } catch {
-      return null
-    }
-  }
-
-  /**
-   * Fill baseline/current on finalize review cards (M1b-3). baseline = the write-session's
-   * session-start snapshot (captured when confirm_writing_plan was approved, i.e. before the writer
-   * wrote — see _registerApprovedWritingPlans; falls back to current when no session is active);
-   * current = the chapter read through the unified snapshot route (editor buffer if open, else disk).
-   * Mutates the review payloads in place, mirroring _markAutoApplyReviews.
-   */
-  private async _enrichFinalizeReviews(
-    reviews: import('./domain/DomainStrategy').DomainReviewItem[],
-    threadId: string,
-  ): Promise<void> {
-    for (const r of reviews) {
-      if (r.kind !== 'creative') continue
-      const payload = r.payload
-      if (payload.kind !== 'creative_chapter_finalize') continue
-      const chapterPath = this._resolveChapterPath(payload.chapter)
-      const current = chapterPath ? (await this._captureChapterBaseline(chapterPath) ?? '') : ''
-      const session = chapterPath ? this.writingSessions.getActiveSession(threadId, chapterPath) : undefined
-      payload.baseline = session?.baselineSnapshot ?? current
-      payload.current = current
-      // M1-2 归因：current 与 agent 最近应用快照不一致 ⇒ 存在「agent 应用之后」的非 agent 改动
-      // （作者手改/外部改动）。lastAgentSnapshot 为 null（从未捕获）时不据此标注（未知）。
-      const lastAgentSnapshot = session?.lastAgentSnapshot
-      payload.hasExternalEdits = lastAgentSnapshot != null && lastAgentSnapshot !== current
-    }
-  }
-
-  /**
-   * On resume, apply the finalize_chapter decision's host side effects (M1b-3):
-   *   approve/edit → close the write-session (accepted chapter stays on disk);
-   *   responded    → rework: keep the session open (writer revises, A00 finalizes again);
-   *   rejected     → restore the session baseline to disk and close the session.
-   *
-   * The reject restore writes disk directly. An open chapter tab is clean (the auto-applied edits
-   * were saved via saveAppliedOpenTab), so the file watcher's
-   * external-change handler (handleOpenTabExternalChange) reloads it from disk — no autosave race.
-   */
-  private _handleFinalizeDecisions(
-    threadId: string,
-    interrupted: InterruptedRun,
-    fullDecisions: ResumeDecision[],
-  ): void {
-    const argsByIndex = interrupted.finalizeArgsByIndex
-    if (!argsByIndex) return
-    for (const [idxStr, stashed] of Object.entries(argsByIndex)) {
-      const idx = Number(idxStr)
-      const decision = fullDecisions[idx]
-      if (!decision) continue
-      // Rework: keep the write-session open so the next pass keeps auto-accumulating.
-      if (decision.type === 'responded') continue
-      const chapterPath = this._resolveChapterPath(stashed.chapter)
-      if (!chapterPath) continue
-      if (decision.type === 'rejected') {
-        const session = this.writingSessions.getActiveSession(threadId, chapterPath)
-        if (session?.baselineSnapshot != null) {
-          try {
-            fs.writeFileSync(chapterPath, session.baselineSnapshot, 'utf-8')
-          } catch (err) {
-            console.error('[AgentEngine] finalize reject restore failed:', err)
-          }
-        }
-      }
-      // approve / edit / reject all close the session.
-      this.writingSessions.closeSession(threadId, chapterPath)
-    }
-  }
-
-  /**
-   * M1-1 (变更 C run-end 兜底): when a run finishes cleanly but a write-session is still open with
-   * accumulated auto-applied edits, the agent wrote the chapter but never called finalize_chapter —
-   * the session would dangle and the chapter would land on disk with no end-of-chapter review. We
-   * synthesize a finalize interrupt card per un-finalized session so it flows through the same
-   * resume path (_handleFinalizeDecisions closes/restores the session). A session finalized this run
-   * was already removed by closeSession, so it never double-cards; rework leaves the session open and
-   * a later run-end re-prompts. Returns true if it synthesized an interrupt (caller must NOT send
-   * run-done — the run is now interrupted awaiting the finalize decision).
-   */
-  private async _maybeSynthesizeRunEndFinalize(threadId: string, turnId?: string): Promise<boolean> {
-    const domain = this.threadService.getMeta(threadId)?.domain ?? 'editing'
-    // finalize_chapter and the finalize card are creative-domain only.
-    if (domain !== 'creative') return false
-    const sessions = this.writingSessions.getActiveSessions(threadId)
-    if (!sessions.length) return false
-
-    const actionRequests: HitlActionRequest[] = sessions.map(({ file }) => ({
-      name: 'finalize_chapter',
-      args: { chapter: file },
-    }))
-    const finalizeArgsByIndex: Record<number, { chapter: string; summary?: string }> = {}
-    actionRequests.forEach((ar, i) => {
-      finalizeArgsByIndex[i] = { chapter: String(ar.args?.chapter ?? '') }
-    })
-
-    this.runtimeStore.setInterrupted(threadId, {
-      actionRequestCount: actionRequests.length,
-      actionNames: actionRequests.map(a => a.name),
-      turnId,
-      reviewActionOriginalIndices: actionRequests.map((_, i) => i),
-      autoDecisionsByIndex: {},
-      finalizeArgsByIndex,
-      syntheticFinalize: true,
-    })
-
-    const strategy = this.strategies[domain]
-    const reviews = await strategy.buildReviewItems({ threadId, turnId, actionRequests })
-    await this._enrichFinalizeReviews(reviews, threadId)
-    for (const r of reviews) {
-      if (r.kind === 'creative' && r.payload.kind === 'creative_chapter_finalize') {
-        r.payload.autoFallback = true
-      }
-    }
-
-    this.rendererBridge.sendRunInterrupted({ threadId, turnId, reviews, actionRequests })
-    return true
-  }
-
-  /** Flag the review items that are write-session auto-apply, so the renderer applies them silently (no card). */
-  private _markAutoApplyReviews(
-    reviews: import('./domain/DomainStrategy').DomainReviewItem[],
-    reviewOriginalIndices: number[],
-    autoApplyOriginalIndices: Set<number>,
-  ): void {
-    if (!autoApplyOriginalIndices.size) return
-    reviews.forEach((r, i) => {
-      const origIdx = reviewOriginalIndices[i]
-      if (r.kind === 'edit' && origIdx !== undefined && autoApplyOriginalIndices.has(origIdx)) {
-        r.payload.autoApply = true
-      }
-    })
-  }
-
-  /**
-   * On resume, an approved/edited confirm_writing_plan opens a write-session authorization (edited
-   * args win — 改完即契约) AND anchors the finalize baseline at write-session start.
-   *
-   * Baseline anchor: we pre-activate the session here and capture the baseline *now* — before the
-   * writer touches the chapter — so the finalize card's「起点」reflects the pre-writing content.
-   * (Stage-2 lazy activation used to capture the baseline at the first auto-approved block edit,
-   * which slipped to "after writing" whenever the writer's initial draft bypassed lazy activation —
-   * e.g. new chapters landed via create_document.) Since ensureActiveSession is idempotent, the
-   * later Stage-2 capture is skipped. A not-yet-created chapter captures null → '' (empty = the
-   * correct "before writing" baseline).
-   */
-  private async _registerApprovedWritingPlans(
-    threadId: string,
-    interrupted: InterruptedRun,
-    fullDecisions: ResumeDecision[],
-  ): Promise<void> {
-    const argsByIndex = interrupted.confirmPlanArgsByIndex
-    if (!argsByIndex) return
-    for (const [idxStr, stashed] of Object.entries(argsByIndex)) {
-      const idx = Number(idxStr)
-      const decision = fullDecisions[idx]
-      if (!decision || (decision.type !== 'approved' && decision.type !== 'edited')) continue
-      let plan = stashed.plan
-      let targetFiles = stashed.targetFiles
-      if (decision.type === 'edited' && decision.editedArgs) {
-        if (typeof decision.editedArgs.plan === 'string') plan = decision.editedArgs.plan
-        const raw = decision.editedArgs.target_files
-        if (Array.isArray(raw)) targetFiles = raw.filter((x): x is string => typeof x === 'string')
-      }
-      const resolvedTargets = targetFiles
-        .map(file => this._resolveChapterPath(file))
-        .filter((file): file is string => file !== null)
-      this.writingSessions.registerAuthorization(threadId, plan, resolvedTargets)
-      for (const target of resolvedTargets) {
-        const baseline = (await this._captureChapterBaseline(target)) ?? ''
-        this.writingSessions.ensureActiveSession(threadId, target, baseline)
-      }
     }
   }
 
@@ -757,7 +535,7 @@ export class AgentEngine {
       // M1-1: if the agent finished without finalizing an open write-session, synthesize a run-end
       // finalize card instead of completing — it leaves the thread interrupted awaiting the decision.
       const finalizeTurnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
-      if (await this._maybeSynthesizeRunEndFinalize(threadId, finalizeTurnId)) return
+      if (await this.writingSessionCoordinator.synthesizeRunEndFinalize(threadId, finalizeTurnId)) return
       this.rendererBridge.sendRunDone({
         threadId,
         turnId: finalizeTurnId,
@@ -853,7 +631,6 @@ export class AgentEngine {
     const autoRejects: Array<{ toolName: string; filePath: string; message: string }> = []
     const autoApplyOriginalIndices = new Set<number>()
     const autoApplyFiles = new Set<string>()
-    const authorizedFiles = this.writingSessions.getAuthorizedFiles(threadId)
     const delegatedIndices = delegatedActionIndices(actionRequests, currentRootToolCalls)
 
     // Stage 1 pre-scan — resolve every filesystem-write tool up front so batch poisoning
@@ -913,66 +690,23 @@ export class AgentEngine {
         continue
       }
 
-      // Stage 2b — delegated-write gate. A subagent may only write into a file covered by an active
-      // write-session: that is the form of approval its work is designed for (silent accumulation on a
-      // captured baseline, closed by one whole-chapter finalize). Outside a session it would fall through
-      // to per-block cards with no baseline and no way to roll the work back as a whole, so we reject and
-      // tell the caller to open the session first. Runs before Stage 2 so an unauthorized delegated write
-      // never activates a session as a side effect.
-      if (delegatedIndices.has(index)) {
-        const gate = decideDelegatedWriteGate({
+      const writingPreparation = await this.writingSessionCoordinator.prepareAction(
+        threadId,
+        actionRequest,
+        delegatedIndices.has(index),
+      )
+      if (writingPreparation.kind === 'auto-reject') {
+        autoDecisionsByIndex[index] = writingPreparation.decision
+        autoRejects.push({
           toolName: actionRequest.name,
-          args: actionRequest.args ?? {},
-          authorizedFiles,
+          filePath: writingPreparation.filePath,
+          message: writingPreparation.message,
         })
-        if (gate.kind === 'reject') {
-          autoDecisionsByIndex[index] = gate.decision
-          autoRejects.push({
-            toolName: actionRequest.name,
-            filePath: gate.targetFile ?? '',
-            message: gate.decision.message ?? gate.reason,
-          })
-          continue
-        }
+        continue
       }
-
-      // Stage 2 — write-session authorization. A block edit whose target file is inside an active
-      // write-session scope is destined for silent auto-apply: lazy-activate the session (capturing
-      // the baseline exactly once) and flag its index. It STILL enters the review batch — the
-      // renderer, not the host, applies the TipTap mutation (executor.flushReviewedBatch); marking
-      // it as auto-apply here lets the renderer flush it without a card. Host-side auto-approval
-      // WITHOUT a renderer apply would be a phantom edit, so we never route it to autoDecisionsByIndex.
-      const isSessionCreate = actionRequest.name === 'create_document'
-      if (isBlockEditToolName(actionRequest.name) || isSessionCreate) {
-        const verdict = decideWritingSessionApproval({
-          toolName: actionRequest.name,
-          args: actionRequest.args ?? {},
-          authorizedFiles,
-        })
-        if (verdict.kind === 'auto-approve') {
-          // create_document auto-applies only when the target file does not yet exist — never
-          // silently overwrite an existing file (an overwrite falls through to human review).
-          const canAutoApply = !isSessionCreate || !fs.existsSync(verdict.activateFile)
-          if (canAutoApply) {
-            // Capture the pre-edit baseline through the unified snapshot route (editor buffer if the
-            // chapter is open, else disk) the first time this file activates — the renderer has not
-            // applied the edit yet at interrupt time, so the snapshot is the true "before". Also record
-            // the accumulated edit so the finalize card (M1b-3) can report the session's diff. A brand-new
-            // chapter (create_document) baselines to '' (empty = the correct "before writing" content).
-            const baseline = this.writingSessions.getActiveSession(threadId, verdict.activateFile)
-              ? undefined
-              : isSessionCreate
-                ? ''
-                : await this._captureChapterBaseline(verdict.activateFile)
-            this.writingSessions.recordAccumulation(threadId, verdict.activateFile, {
-              toolName: actionRequest.name,
-              args: actionRequest.args ?? {},
-              at: Date.now(),
-            }, baseline)
-            autoApplyOriginalIndices.add(index)
-            autoApplyFiles.add(verdict.activateFile)
-          }
-        }
+      if (writingPreparation.kind === 'auto-apply') {
+        autoApplyOriginalIndices.add(index)
+        autoApplyFiles.add(writingPreparation.filePath)
       }
       reviewActionRequests.push(actionRequest)
       reviewActionOriginalIndices.push(index)
@@ -1027,14 +761,14 @@ export class AgentEngine {
       }
     }
 
+    const writingArgs = this.writingSessionCoordinator.stashInterruptArgs(actionRequests)
     this.runtimeStore.setInterrupted(threadId, {
       actionRequestCount: actionRequests.length,
       actionNames: actionRequests.map(ar => ar.name),
       turnId,
       reviewActionOriginalIndices: prepared.reviewActionOriginalIndices,
       autoDecisionsByIndex: prepared.autoDecisionsByIndex,
-      confirmPlanArgsByIndex: this._stashConfirmPlanArgs(actionRequests),
-      finalizeArgsByIndex: this._stashFinalizeArgs(actionRequests),
+      ...writingArgs,
       autoAppliedFiles: [...prepared.autoApplyFiles],
     })
 
@@ -1059,8 +793,12 @@ export class AgentEngine {
       actionRequests: prepared.reviewActionRequests,
       partialMessage,
     })
-    this._markAutoApplyReviews(reviews, prepared.reviewActionOriginalIndices, prepared.autoApplyOriginalIndices)
-    await this._enrichFinalizeReviews(reviews, threadId)
+    await this.writingSessionCoordinator.decorateReviews(
+      reviews,
+      threadId,
+      prepared.reviewActionOriginalIndices,
+      prepared.autoApplyOriginalIndices,
+    )
 
     this.rendererBridge.sendRunInterrupted({
       threadId,
@@ -1152,14 +890,14 @@ export class AgentEngine {
       }
     }
 
+    const writingArgs = this.writingSessionCoordinator.stashInterruptArgs(actionRequests)
     this.runtimeStore.setInterrupted(threadId, {
       actionRequestCount: actionRequests.length,
       actionNames: actionRequests.map((a) => a.name),
       turnId,
       reviewActionOriginalIndices: prepared.reviewActionOriginalIndices,
       autoDecisionsByIndex: prepared.autoDecisionsByIndex,
-      confirmPlanArgsByIndex: this._stashConfirmPlanArgs(actionRequests),
-      finalizeArgsByIndex: this._stashFinalizeArgs(actionRequests),
+      ...writingArgs,
       autoAppliedFiles: [...prepared.autoApplyFiles],
     })
 
@@ -1186,8 +924,12 @@ export class AgentEngine {
     } catch (err) {
       console.warn('[AgentEngine] _maybeRehydrateInterrupt: buildReviewItems failed:', err)
     }
-    this._markAutoApplyReviews(reviews, prepared.reviewActionOriginalIndices, prepared.autoApplyOriginalIndices)
-    await this._enrichFinalizeReviews(reviews, threadId)
+    await this.writingSessionCoordinator.decorateReviews(
+      reviews,
+      threadId,
+      prepared.reviewActionOriginalIndices,
+      prepared.autoApplyOriginalIndices,
+    )
 
     this.rendererBridge.sendRunInterrupted({
       threadId,

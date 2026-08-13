@@ -17,12 +17,10 @@ import type { ResumeDecision } from '@shared/ai/contracts'
 // target_files）时自动放行——该路径已在被批准的计划里露过脸，"新建面风险"已被前置授权覆盖；目标不在
 // 授权域、或该文件已存在（避免静默覆盖，存在性检查由调用方 AgentEngine 做）→ 照常人工。
 //
-// 接入状态（M1b-3 已 live）：AgentEngine 在 `_prepareActionRequestsForReview` 的 Stage 2 里
-// registerAuthorization（confirm_writing_plan approve/edit 时）/ ensureActiveSession + recordAccumulation
-// （块编辑命中授权域时懒激活并累积，标 autoApply 交 renderer 静默应用，host 不 auto-approve 以免幻影编辑）;
-// finalize_chapter 裁决（`_handleFinalizeDecisions`）approve→closeSession、reject→回写 baselineSnapshot
-// 到磁盘 restore + closeSession、rework→保持会话开着。基线经统一快照路由捕获（`_captureChapterBaseline`：
-// 打开的章节取编辑器缓冲、否则磁盘），显式传入 recordAccumulation；本类内置的同步磁盘 capturer 仅作降级兜底。
+// 接入状态（M1b-3 已 live）：WritingSessionCoordinator 负责 approve/edit 后登记授权、命中授权域时
+// 懒激活并累积、为 renderer 标记 autoApply，以及处理 finalize_chapter 的 close/restore/rework。
+// 基线经协调器的统一快照路由捕获（打开的章节取编辑器缓冲、否则磁盘），显式传入
+// recordAccumulation；本类内置的同步磁盘 capturer 仅作降级兜底。
 
 /** 参与写作会话自动累积的块级编辑工具（create_document 走 decideWritingSessionApproval 的独立分支，
  * 不在本集合；见 04.1 §6 授权域内造新章例外）。 */
@@ -372,7 +370,7 @@ export class WritingSessionRegistry {
    * 幂等——重复调用不重取基线。
    *
    * `baseline` 显式传入时用它（调用方经统一快照路由取"编辑器缓冲优先、否则磁盘"的基线，见
-   * AgentEngine._captureChapterBaseline）；未传入则回落到构造时注入的同步 capturer（测试/降级用）。
+   * WritingSessionCoordinator 的统一快照路由）；未传入则回落到构造时注入的同步 capturer（测试/降级用）。
    */
   ensureActiveSession(threadId: string, targetFile: string, baseline?: string | null): ActiveWritingSession {
     const state = this._ensure(threadId)

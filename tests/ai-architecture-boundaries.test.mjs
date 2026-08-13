@@ -109,6 +109,32 @@ function importSpecifiers(filePath) {
   return importSpecifiersFromSource(readFileSync(filePath, 'utf8'), filePath)
 }
 
+function classMethodNames(filePath, className) {
+  const source = readFileSync(filePath, 'utf8')
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  )
+  const methods = []
+
+  function visit(node) {
+    if (ts.isClassDeclaration(node) && node.name?.text === className) {
+      for (const member of node.members) {
+        if (ts.isMethodDeclaration(member) && ts.isIdentifier(member.name)) {
+          methods.push(member.name.text)
+        }
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+
+  visit(sourceFile)
+  return methods
+}
+
 function violationsForSource(owner, filePath, source) {
   const boundary = boundaries.find(item => item.owner === owner)
   if (!boundary) return []
@@ -252,4 +278,33 @@ test('retired AI compatibility entry points stay deleted', () => {
   ].filter(existsSync)
 
   assert.deepEqual(retired, [])
+})
+
+test('AgentEngine delegates writing-session orchestration to its application service', () => {
+  const agentEnginePath = 'electron/ai/AgentEngine.ts'
+  assert.equal(
+    importSpecifiers(agentEnginePath).includes('./application/WritingSessionCoordinator'),
+    true,
+    'AgentEngine must compose WritingSessionCoordinator.',
+  )
+
+  const privateWritingMethods = new Set([
+    '_stashConfirmPlanArgs',
+    '_stashFinalizeArgs',
+    '_resolveChapterPath',
+    '_captureChapterBaseline',
+    '_enrichFinalizeReviews',
+    '_handleFinalizeDecisions',
+    '_maybeSynthesizeRunEndFinalize',
+    '_markAutoApplyReviews',
+    '_registerApprovedWritingPlans',
+  ])
+  const remaining = classMethodNames(agentEnginePath, 'AgentEngine')
+    .filter(method => privateWritingMethods.has(method))
+
+  assert.deepEqual(
+    remaining,
+    [],
+    'Writing-session lifecycle methods belong in WritingSessionCoordinator, not AgentEngine.',
+  )
 })
