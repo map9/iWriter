@@ -133,7 +133,24 @@ function stubPlugin() {
         [
           /runtime\/ThreadRuntimeStore$/,
           'thread-runtime-store',
-          'export class ThreadRuntimeStore { getInterrupted() { return null } clearInterrupted() {} buildContext() { return {} } getCurrentTurnId() { return null } getContext() { return null } }',
+          `
+            export class ThreadRuntimeStore {
+              interrupted = new Map()
+              currentTurnIds = new Map()
+              contexts = new Map()
+              getInterrupted(threadId) { return this.interrupted.get(threadId) ?? null }
+              setInterrupted(threadId, value) { this.interrupted.set(threadId, value) }
+              clearInterrupted(threadId) { this.interrupted.delete(threadId) }
+              setCurrentTurnId(threadId, turnId) { this.currentTurnIds.set(threadId, turnId) }
+              getCurrentTurnId(threadId) { return this.currentTurnIds.get(threadId) ?? null }
+              clearCurrentTurnId(threadId) { this.currentTurnIds.delete(threadId) }
+              setContext(threadId, context) { this.contexts.set(threadId, context) }
+              getContext(threadId) { return this.contexts.get(threadId) ?? null }
+              buildContext() { return {} }
+              deleteThread(threadId) { this.interrupted.delete(threadId); this.currentTurnIds.delete(threadId); this.contexts.delete(threadId) }
+              clear() { this.interrupted.clear(); this.currentTurnIds.clear(); this.contexts.clear() }
+            }
+          `,
         ],
         [
           /scaffold\/filesystem\/AgentFilesystem$/,
@@ -289,6 +306,25 @@ async function loadBudgetModule() {
 }
 
 describe('AgentEngine initialization', () => {
+  it('uses ThreadService as the public thread-list facade', async () => {
+    const { AgentEngine } = await loadModule()
+
+    class InitializedAgentEngine extends AgentEngine {
+      async initialize() {
+        this.threadService = {
+          listThreads: () => [{ id: 'service-thread' }],
+        }
+        this.threadListQuery = {
+          loadMetas: () => [{ id: 'legacy-thread' }],
+        }
+      }
+    }
+
+    const engine = new InitializedAgentEngine(() => null)
+
+    assert.deepEqual(await engine.getThreads(), [{ id: 'service-thread' }])
+  })
+
   it('counts tool-call arguments once when providers expose both content blocks and tool_calls', async () => {
     const { countContextTokensCjkAware } = await loadModule()
     const args = { file_path: '/tmp/example.md' }
@@ -487,15 +523,10 @@ describe('AgentEngine initialization', () => {
     const { AgentEngine } = await loadModule()
     const engine = new AgentEngine(() => null)
     const release = Promise.withResolvers()
-    let runtimeCleared = false
 
     const abortController = engine.agentRunner.begin('thread-steer')
     engine.agentRunner.track('thread-steer', release.promise)
-    engine.runtimeStore = {
-      clearInterrupted() {},
-      getCurrentTurnId() { return 'turn-1' },
-      clearCurrentTurnId() { runtimeCleared = true },
-    }
+    engine.runtimeStore.setCurrentTurnId('thread-steer', 'turn-1')
 
     let cancellationSettled = false
     const cancellation = engine.cancel('thread-steer').then(() => {
@@ -505,11 +536,11 @@ describe('AgentEngine initialization', () => {
 
     assert.equal(abortController.signal.aborted, true)
     assert.equal(cancellationSettled, false)
-    assert.equal(runtimeCleared, false)
+    assert.equal(engine.runtimeStore.getCurrentTurnId('thread-steer'), 'turn-1')
 
     release.resolve()
     await cancellation
-    assert.equal(runtimeCleared, true)
+    assert.equal(engine.runtimeStore.getCurrentTurnId('thread-steer'), null)
   })
 })
 

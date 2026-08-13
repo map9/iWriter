@@ -28,14 +28,13 @@ import { SnapshotBroker } from './document/SnapshotBroker'
 import { EditorStateBroker } from './document/EditorStateBroker'
 import type { CheckpointerInstance } from './checkpoint/CheckpointerFactory'
 import { getCheckpointer } from './checkpoint/CheckpointerFactory'
-import { ThreadListQuery, metaToAiThread } from './thread/ThreadListQuery'
+import { ThreadListQuery } from './thread/ThreadListQuery'
 import type {
   SendMessageRequest,
   ResumeDecision,
   SessionContextStatsRequest,
   SessionContextStatsResponse,
 } from '@shared/ai/contracts'
-import { convertLcMessages } from './ipc/MessageAdapter'
 import { StreamEventAdapter } from './ipc/StreamEventAdapter'
 import { RendererEventBridge } from './ipc/RendererEventBridge'
 import { buildUserMessage } from './ipc/UserMessageBuilder'
@@ -53,19 +52,19 @@ import {
   type RootToolCall,
 } from './scaffold/approval/WritingSessionRegistry'
 import { AiConfigStore, resolveAiApiKeyEnvVar } from './config/AiConfigStore'
-import { generateThreadTitle } from '../../shared/ai/core/threadTitle'
 import { CheckpointerAdmin } from './checkpoint/CheckpointerAdmin'
 import { MIDDLEWARE_CONFIG } from './scaffold/middleware/middleware-config'
 import type { DomainStrategy } from './domain/DomainStrategy'
 import { EditDomainStrategy } from './domain/edit/EditDomainStrategy'
 import { CreativeDomainStrategy } from './domain/creative/CreativeDomainStrategy'
-import { detectInputLanguage, type DetectedInputLanguage } from '../../shared/ai/core/detectInputLanguage'
+import type { DetectedInputLanguage } from '../../shared/ai/core/detectInputLanguage'
 import type { GitService } from '../GitService'
 import { AgentCache } from './runtime/AgentCache'
 import { AgentFactory, type DeepAgentInstance } from './runtime/AgentFactory'
 import { AgentRunner } from './runtime/AgentRunner'
 import { createAgentRuntimeConfig, getEffectiveModelBudget } from './runtime/RuntimeConfig'
 import { InterruptCoordinator } from './application/InterruptCoordinator'
+import { ThreadService } from './application/ThreadService'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -157,6 +156,7 @@ export class AgentEngine {
   private checkpointerInstance: CheckpointerInstance | null = null
   private checkpointerAdmin: CheckpointerAdmin | null = null
   private threadListQuery: ThreadListQuery | null = null
+  private threadService: ThreadService
   private initializationPromise: Promise<void> | null = null
 
   /** Domain strategy table — add new domains here only. AgentEngine itself never branches on domain. */
@@ -169,6 +169,19 @@ export class AgentEngine {
     this.snapshotBroker = new SnapshotBroker(getWebContents)
     this.editorStateBroker = new EditorStateBroker(getWebContents)
     this.rendererBridge = new RendererEventBridge(getWebContents)
+    this.threadService = new ThreadService({
+      getCheckpointer: () => this.checkpointerInstance?.checkpointer ?? null,
+      getThreadListQuery: () => this.threadListQuery,
+      runtimeStore: this.runtimeStore,
+      agentRunner: this.agentRunner,
+      agentCache: this.agentCache,
+      writingSessions: this.writingSessions,
+      getCheckpointerAdmin: () => this.checkpointerAdmin,
+      clearFallbackNotifications: (threadId, turnId) => {
+        this._clearFallbackNotificationKeys(threadId, turnId)
+      },
+      clearAllFallbackNotifications: () => this.fallbackNotifiedTurnKeys.clear(),
+    })
     this.aiRootPath = path.join(app.getPath('home'), '.iwriter', 'ai')
     this.bundledSkillsPath = app.isPackaged
       ? path.join(process.resourcesPath, 'builtin-skills')
@@ -216,47 +229,24 @@ export class AgentEngine {
 
   async getThreads() {
     await this._ensureInitialized()
-    return (this.threadListQuery?.loadMetas() ?? []).map(metaToAiThread)
+    return this.threadService.listThreads()
   }
 
   async getThreadMessages(threadId: string): Promise<ThreadMessage[]> {
     await this._ensureInitialized()
-    try {
-      const tuple = await this.checkpointerInstance!.checkpointer.get({
-        configurable: { thread_id: threadId },
-      })
-      if (!tuple) return []
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const t = tuple as any
-      // checkpointer.get() returns the checkpoint object directly (not wrapped in { checkpoint: ... })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rawMessages: any[] = t.channel_values?.messages ?? []
+    const { messages, rawMessages } = await this.threadService.readMessages(threadId)
+    if (rawMessages.length > 0) {
       await this._maybeRehydrateInterrupt(threadId, rawMessages)
-      return convertLcMessages(rawMessages)
-    } catch (err) {
-      console.error('[AgentEngine] getThreadMessages error:', err)
-      return []
     }
+    return messages
   }
 
   deleteThread(threadId: string): void {
-    this.threadListQuery?.deleteMeta(threadId)
-    this.runtimeStore.deleteThread(threadId)
-    this.agentRunner.deleteThread(threadId)
-    this._clearFallbackNotificationKeys(threadId)
-    this.agentCache.deleteThread(threadId)
-    this.writingSessions.clearThread(threadId)
-    this.checkpointerAdmin?.deleteThread(threadId)
+    this.threadService.deleteThread(threadId)
   }
 
   clearThreads(): void {
-    this.threadListQuery?.clearMetas()
-    this.runtimeStore.clear()
-    this.agentRunner.clear()
-    this.fallbackNotifiedTurnKeys.clear()
-    this.agentCache.clear()
-    this.writingSessions.clearAll()
-    this.checkpointerAdmin?.clearAll()
+    this.threadService.clearThreads()
   }
 
   // ── Public: send message ──────────────────────────────────────────────────
@@ -266,55 +256,11 @@ export class AgentEngine {
 
     const settings = AiConfigStore.loadSettings()
 
-    // Resolve or create thread
-    const threadId = req.threadId
-      ?? `thread-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const existingMeta = req.threadId ? this.threadListQuery?.getMeta(req.threadId) : null
-    const runtime = resolveThreadRuntime(settings, req, existingMeta)
-    const turnId = req.turnId ?? `turn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-
-    const isNewThread = !existingMeta
-    if (isNewThread) {
-      this.threadListQuery!.createMeta({
-        id: threadId,
-        domain: runtime.domain,
-        mode: runtime.mode,
-        modelId: runtime.modelId,
-        providerConfigId: runtime.providerConfig.id,
-        thinkingLevel: runtime.thinkingLevel,
-      })
-    } else {
-      this.threadListQuery!.updateMeta(threadId, {
-        domain: runtime.domain,
-        mode: runtime.mode,
-        modelId: runtime.modelId,
-        providerConfigId: runtime.providerConfig.id,
-        thinkingLevel: runtime.thinkingLevel,
-      })
-    }
-
-    // Update thread-scoped context from request
-    const language = detectInputLanguage([req.userText], req.uiLocale)
-    this.runtimeStore.setContext(threadId, {
-      workspacePath: req.workspacePath,
-      language,
-    })
-    this.runtimeStore.setCurrentTurnId(threadId, turnId)
-
-    // Auto-title from first message
-    if (isNewThread) {
-      this.threadListQuery!.setTitle(threadId, generateThreadTitle(req.userText))
-    }
+    const prepared = this.threadService.prepareTurn(settings, req)
+    const { threadId, runtime, language } = prepared
 
     const userContent = await buildUserMessage(req)
     this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language, threadId)
-
-    // If this thread was left in an interrupted state (e.g., app restart during HITL),
-    // clear the stale in-memory entry so the new message starts a fresh run.
-    if (this.runtimeStore.getInterrupted(threadId)) {
-      console.warn('[AgentEngine] sendMessage: clearing stale interrupted state for threadId:', threadId)
-      this.runtimeStore.clearInterrupted(threadId)
-    }
 
     // Run agent in background
     const runTask = this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language).catch(err => {
@@ -342,7 +288,7 @@ export class AgentEngine {
       }
     }
 
-    const meta = req.threadId ? this.threadListQuery?.getMeta(req.threadId) : null
+    const meta = req.threadId ? this.threadService.getMeta(req.threadId) : null
     const runtime = resolveThreadRuntime(settings, req, meta)
 
     const model = createChatModel(runtime.providerConfig, {
@@ -365,10 +311,7 @@ export class AgentEngine {
   // ── Public: cancel ────────────────────────────────────────────────────────
 
   async cancel(threadId: string): Promise<void> {
-    await this.agentRunner.cancel(threadId)
-    this.runtimeStore.clearInterrupted(threadId)
-    this._clearFallbackNotificationKeys(threadId, this.runtimeStore.getCurrentTurnId(threadId))
-    this.runtimeStore.clearCurrentTurnId(threadId)
+    await this.threadService.cancel(threadId)
   }
 
   // ── Public: resume (LangGraph HITL batch decisions) ───────────────────────
@@ -382,7 +325,7 @@ export class AgentEngine {
     this.runtimeStore.clearInterrupted(threadId)
 
     const settings = AiConfigStore.loadSettings()
-    const meta = this.threadListQuery?.getMeta(threadId)
+    const meta = this.threadService.getMeta(threadId)
     const runtime = resolveThreadRuntime(settings, undefined, meta)
     if (!runtime) {
       console.error('[AgentEngine] resumeRun: could not resolve thread runtime')
@@ -578,7 +521,7 @@ export class AgentEngine {
    * run-done — the run is now interrupted awaiting the finalize decision).
    */
   private async _maybeSynthesizeRunEndFinalize(threadId: string, turnId?: string): Promise<boolean> {
-    const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
+    const domain = this.threadService.getMeta(threadId)?.domain ?? 'editing'
     // finalize_chapter and the finalize card are creative-domain only.
     if (domain !== 'creative') return false
     const sessions = this.writingSessions.getActiveSessions(threadId)
@@ -772,7 +715,7 @@ export class AgentEngine {
         )
 
         if (partialMessage) {
-          this.threadListQuery?.updateMeta(threadId, { updatedAt: Date.now() })
+          this.threadService.touchThread(threadId)
         }
 
         if (run.interrupts.length > 0) {
@@ -799,14 +742,14 @@ export class AgentEngine {
         const errorMsg = adapter.hasAnyAssistantSignal()
           ? '模型没有返回可显示内容或可执行工具调用，可能生成了非法工具调用参数。请重试。'
           : '模型没有返回可显示内容。请重试。'
-        this.threadListQuery?.updateMeta(threadId, { hasError: true, updatedAt: Date.now() })
+        this.threadService.touchThread(threadId, true)
         this.rendererBridge.sendRunError({ threadId, turnId, error: errorMsg })
         this.rendererBridge.sendRunDone({ threadId, turnId })
         return
       }
 
-      this.threadListQuery?.updateMeta(threadId, { updatedAt: Date.now() })
-      const sessionDomain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
+      this.threadService.touchThread(threadId)
+      const sessionDomain = this.threadService.getMeta(threadId)?.domain ?? 'editing'
       this.strategies[sessionDomain].onSessionComplete?.({
         threadId,
         workspacePath: this.runtimeStore.getContext(threadId)?.workspacePath ?? null,
@@ -827,7 +770,7 @@ export class AgentEngine {
       console.error('[AgentEngine] Stream error:', err)
       const errorMsg = err instanceof Error ? err.message : String(err)
 
-      this.threadListQuery?.updateMeta(threadId, { hasError: true, updatedAt: Date.now() })
+      this.threadService.touchThread(threadId, true)
 
       // ai:run-error carries the error message; renderer displays it and resets state.
       // ai:run-done (no message payload) signals completion so the renderer clears streaming UI.
@@ -1062,7 +1005,7 @@ export class AgentEngine {
       return
     }
 
-    const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
+    const domain = this.threadService.getMeta(threadId)?.domain ?? 'editing'
     const strategy = this.strategies[domain]
     const prepared = await this._prepareActionRequestsForReview(
       threadId,
@@ -1135,7 +1078,7 @@ export class AgentEngine {
     if (this.agentRunner.isActive(threadId)) return
     if (!lcMessages.length) return
 
-    const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
+    const domain = this.threadService.getMeta(threadId)?.domain ?? 'editing'
     const interruptOnNames = new Set([
       ...this.strategies[domain].getInterruptOnNames(),
       ...FILE_WRITE_INTERRUPT_ON_NAMES,
