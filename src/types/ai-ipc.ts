@@ -1,1 +1,1 @@
-export * from '../ai/ipc'
+export * from '../../shared/ai/contracts/protocol'

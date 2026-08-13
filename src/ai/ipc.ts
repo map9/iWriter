@@ -1,6 +1,6 @@
 /**
- * Re-exports of IPC protocol types for use in the renderer process.
- * The source of truth lives in electron/ai/ipc/protocol.ts.
+ * Compatibility exports of the shared AI IPC protocol for the renderer process.
+ * New code should import directly from `@shared/ai/contracts/protocol`.
  */
 
 export type {
@@ -26,4 +26,4 @@ export type {
   EditorStateDocument,
   EditorStateTab,
   DomainReviewItem,
-} from '../../electron/ai/ipc/protocol'
+} from '../../shared/ai/contracts/protocol'

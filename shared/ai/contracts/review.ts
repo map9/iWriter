@@ -110,6 +110,17 @@ export type DomainReviewItem =
   | { kind: 'creative'; payload: CreativeReviewItem }
   | { kind: 'filesystem'; payload: FilesystemReviewItem }
 
+export function isDomainReviewItem(value: unknown): value is DomainReviewItem {
+  if (!value || typeof value !== 'object') return false
+
+  const candidate = value as { kind?: unknown; payload?: unknown }
+  const hasSupportedKind = candidate.kind === 'edit'
+    || candidate.kind === 'creative'
+    || candidate.kind === 'filesystem'
+
+  return hasSupportedKind && !!candidate.payload && typeof candidate.payload === 'object'
+}
+
 export type EditRoundResultState =
   | 'applied'
   | 'applied_edited'

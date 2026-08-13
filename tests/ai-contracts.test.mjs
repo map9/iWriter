@@ -54,4 +54,12 @@ describe('shared AI contracts', () => {
       ['bocha', 'exa', 'serper', 'tavily'],
     )
   })
+
+  it('recognizes only supported domain review envelopes', async () => {
+    const { isDomainReviewItem } = await loadContracts()
+
+    assert.equal(isDomainReviewItem({ kind: 'filesystem', payload: { id: 'review-1' } }), true)
+    assert.equal(isDomainReviewItem({ kind: 'unknown', payload: {} }), false)
+    assert.equal(isDomainReviewItem(null), false)
+  })
 })

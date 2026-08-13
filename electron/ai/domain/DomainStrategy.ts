@@ -1,15 +1,10 @@
-import type { ThreadMessage } from '../../../src/types/ai'
 import type { DomainAgentCapabilities } from './types'
-import type { AiAgentMode, EditProposal, CreativeReviewItem, FilesystemReviewItem } from '../../../src/types/ai'
+import type { AiAgentMode, DomainReviewItem, ThreadMessage } from '../../../shared/ai/contracts'
 import type { DetectedInputLanguage } from '../../../src/ai/message/detectInputLanguage'
-import type { ResumeDecision } from '../ipc/protocol'
+import type { ResumeDecision } from '../../../shared/ai/contracts/protocol'
 import type { DomainSummarizationProfile } from '../scaffold/summarization/SummarizationFramework'
 
-/** Unified review payload — renderer dispatches to edit or creative UI by kind. */
-export type DomainReviewItem =
-  | { kind: 'edit'; payload: EditProposal }
-  | { kind: 'creative'; payload: CreativeReviewItem }
-  | { kind: 'filesystem'; payload: FilesystemReviewItem }
+export type { DomainReviewItem } from '../../../shared/ai/contracts'
 
 export interface DomainBuildContext {
   mode: AiAgentMode

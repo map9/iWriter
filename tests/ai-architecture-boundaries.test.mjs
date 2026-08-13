@@ -41,7 +41,6 @@ const LEGACY_BOUNDARY_ALLOWLIST = new Set([
   'electron/ai/config/AiConfigStore.ts -> ../../../src/types/ai',
   'electron/ai/document/DocumentSearch.ts -> ../../../src/services/workspace/filtering',
   'electron/ai/domain/DomainStrategy.ts -> ../../../src/ai/message/detectInputLanguage',
-  'electron/ai/domain/DomainStrategy.ts -> ../../../src/types/ai',
   'electron/ai/domain/creative/CreativeDomainStrategy.ts -> ../../../../src/ai/message/detectInputLanguage',
   'electron/ai/domain/creative/CreativeDomainStrategy.ts -> ../../../../src/ai/thread/system-prompts/creative',
   'electron/ai/domain/creative/CreativeDomainStrategy.ts -> ../../../../src/types/ai',
@@ -58,7 +57,6 @@ const LEGACY_BOUNDARY_ALLOWLIST = new Set([
   'electron/ai/ipc/RendererEventBridge.ts -> ../../../src/types/git',
   'electron/ai/ipc/StreamEventAdapter.ts -> ../../../src/ai/hitl',
   'electron/ai/ipc/StreamEventAdapter.ts -> ../../../src/types/ai',
-  'electron/ai/ipc/protocol.ts -> ../../../src/types/ai',
   'electron/ai/providers/ChatDeepSeek.ts -> ../../../src/ai/model/model-profiles',
   'electron/ai/providers/ChatDeepSeek.ts -> ../../../src/types/ai',
   'electron/ai/providers/ModelFactory.ts -> ../../../src/types/ai',
@@ -69,7 +67,6 @@ const LEGACY_BOUNDARY_ALLOWLIST = new Set([
   'electron/ai/tools/common/GitTools.ts -> ../../../../src/types/git',
   'electron/ai/tools/common/HtmlFetcher.ts -> ../../../../src/ai/model/token-estimation',
   'electron/ai/tools/common/WebTools.ts -> ../../../../src/types/ai',
-  'src/ai/ipc.ts -> ../../electron/ai/ipc/protocol',
 ])
 
 function sourceFiles(root) {
