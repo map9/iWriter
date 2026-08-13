@@ -30,6 +30,9 @@ function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, u
   if (review.kind === 'creative_plan') {
     return { plan: review.plan }
   }
+  if (review.kind === 'creative_git_command') {
+    return { args: review.args }
+  }
   if (review.kind === 'creative_git_commit') {
     return {
       message: review.message,
@@ -69,6 +72,9 @@ function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, u
 function defaultRejectMessage(review: CreativeReviewItem): string {
   if (review.kind === 'creative_plan') {
     return 'The user rejected this writing plan. Do not write, do not call confirm_writing_plan again in this run, and do not automatically propose a replacement plan. Briefly acknowledge the rejection and ask what direction the user wants next.'
+  }
+  if (review.kind === 'creative_git_command') {
+    return 'The user rejected this Git command. Do not retry the same command automatically. Briefly acknowledge the rejection.'
   }
   if (review.kind === 'creative_git_commit' || review.kind === 'creative_git_tag') {
     return 'The user rejected this git checkpoint. Do not commit or tag, and do not retry the same git action automatically. Briefly acknowledge the rejection.'

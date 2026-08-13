@@ -13,6 +13,9 @@ function creativeToolSignature(review: CreativeReviewItem): string {
   if (review.kind === 'creative_plan') {
     return `confirm_writing_plan:${stableStringify({ plan: review.plan })}`
   }
+  if (review.kind === 'creative_git_command') {
+    return `git:${stableStringify({ args: review.args })}`
+  }
   if (review.kind === 'creative_git_commit') {
     return `git_commit:${stableStringify({ message: review.message, files: review.files })}`
   }

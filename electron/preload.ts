@@ -148,6 +148,7 @@ const electronAPI: ElectronAPI = {
     identitySet: (root: string | null, name: string, email: string, global: boolean) => ipcRenderer.invoke('git:identity-set', root, name, email, global),
     identityClearLocal: (root: string) => ipcRenderer.invoke('git:identity-clear-local', root),
     checkout: (root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) => ipcRenderer.invoke('git:checkout', root, ref, opts),
+    preflightCheckout: (root: string, ref: string) => ipcRenderer.invoke('git:preflight-checkout', root, ref),
     createBranch: (root: string, name: string, base?: string, checkout?: boolean) => ipcRenderer.invoke('git:create-branch', root, name, base, checkout),
     deleteBranch: (root: string, name: string, force: boolean) => ipcRenderer.invoke('git:delete-branch', root, name, force),
     preflightDeleteBranch: (root: string, name: string) => ipcRenderer.invoke('git:preflight-delete-branch', root, name),

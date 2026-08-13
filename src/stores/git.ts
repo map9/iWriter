@@ -11,7 +11,9 @@ import type {
   DiffSpec,
   GitFileChange,
   GitActionResult,
+  DeleteBranchPreflight,
   GitIssue,
+  MergePreflight,
   GitMutationEvent,
   GitProgress,
   GitRemote,
@@ -402,11 +404,18 @@ export const useGitStore = defineStore('git', () => {
   async function checkout(ref_: string, opts?: { track?: boolean }): Promise<void> {
     if (!root.value) return
     try {
+      const preflight = await api().preflightCheckout(root.value, ref_)
+      if (!preflight.ok) {
+        presentGitIssue(preflight.issue, () => checkout(ref_, opts))
+        return
+      }
+      if (preflight.value.dirty) {
+        await promptDirtyCheckout(ref_, opts, preflight.value.hasConflicts)
+        return
+      }
       const result = await api().checkout(root.value, ref_, opts)
       if (result.ok) {
         await afterWrite()
-      } else if (result.issue.kind === 'checkout-dirty') {
-        await promptDirtyCheckout(ref_, opts)
       } else {
         presentGitIssue(result.issue, () => checkout(ref_, opts))
       }
@@ -415,24 +424,38 @@ export const useGitStore = defineStore('git', () => {
     }
   }
 
-  /** 脏工作区切分支的三选一（对标 VSCode） */
-  async function promptDirtyCheckout(ref_: string, opts?: { track?: boolean }): Promise<void> {
+  /** 脏工作区切分支；已有冲突时只允许取消或明确强制丢弃。 */
+  async function promptDirtyCheckout(ref_: string, opts?: { track?: boolean }, forceOnly = false): Promise<void> {
     if (!root.value) return
+    const buttons = forceOnly
+      ? [
+          i18n.global.t('sourceControl.checkout.force'),
+          i18n.global.t('common.cancel'),
+        ]
+      : [
+          i18n.global.t('sourceControl.checkout.stashAndCheckout'),
+          i18n.global.t('sourceControl.checkout.migrate'),
+          i18n.global.t('sourceControl.checkout.force'),
+          i18n.global.t('common.cancel'),
+        ]
     const res = await window.electronAPI.showMessageBox({
       type: 'warning',
       title: i18n.global.t('sourceControl.checkout.dirtyTitle'),
       message: i18n.global.t('sourceControl.checkout.dirtyTitle'),
-      detail: i18n.global.t('sourceControl.checkout.dirtyDetail', { ref: ref_ }),
-      buttons: [
-        i18n.global.t('sourceControl.checkout.stashAndCheckout'), // 0
-        i18n.global.t('sourceControl.checkout.migrate'),          // 1
-        i18n.global.t('sourceControl.checkout.force'),            // 2
-        i18n.global.t('common.cancel'),                           // 3
-      ],
-      defaultId: 0,
-      cancelId: 3,
+      detail: i18n.global.t(forceOnly ? 'sourceControl.checkout.conflictDetail' : 'sourceControl.checkout.dirtyDetail', { ref: ref_ }),
+      buttons,
+      defaultId: forceOnly ? 1 : 0,
+      cancelId: buttons.length - 1,
     })
     const choice = res?.response
+    if (forceOnly) {
+      if (choice === 0) {
+        const result = await api().checkout(root.value, ref_, { ...opts, force: true })
+        if (result.ok) await afterWrite()
+        else presentGitIssue(result.issue, () => checkout(ref_, opts))
+      }
+      return
+    }
     if (choice === 0) {
       // 贮藏后切换：stash 保留（用户可稍后弹出），非自动 pop
       const ok = await run(async () => {
@@ -444,10 +467,8 @@ export const useGitStore = defineStore('git', () => {
     } else if (choice === 1) {
       // 迁移改动：`checkout -m` 三方合并；冲突留标记进 Merge Changes，不作硬错误
       const result = await api().checkout(root.value, ref_, { ...opts, merge: true })
-      if (!result.ok && result.issue.kind !== 'checkout-dirty') presentGitIssue(result.issue, () => checkout(ref_, opts))
-      if (result.ok || result.issue.kind === 'checkout-dirty') {
-        await afterWrite()
-      }
+      if (result.ok) await afterWrite()
+      else presentGitIssue(result.issue, () => checkout(ref_, opts))
     } else if (choice === 2) {
       // 强制切换：丢弃本地改动（破坏性；弹窗本身即确认）
       const result = await api().checkout(root.value!, ref_, { ...opts, force: true })
@@ -475,9 +496,19 @@ export const useGitStore = defineStore('git', () => {
   }
   const addToGitignore = (relPath: string) => run(() => api().addToGitignore(root.value!, relPath))
   /** 删除分支预检（三查）：供 UI 组织问题清单，决定「删除」还是「强制删除」 */
-  const preflightDeleteBranch = (name: string) => api().preflightDeleteBranch(root.value!, name)
+  async function preflightDeleteBranch(name: string): Promise<DeleteBranchPreflight | null> {
+    const result = await api().preflightDeleteBranch(root.value!, name)
+    if (result.ok) return result.value
+    presentGitIssue(result.issue, () => preflightDeleteBranch(name))
+    return null
+  }
   /** 合并预检：能否快进 */
-  const preflightMerge = (branch: string) => api().preflightMerge(root.value!, branch)
+  async function preflightMerge(branch: string): Promise<MergePreflight | null> {
+    const result = await api().preflightMerge(root.value!, branch)
+    if (result.ok) return result.value
+    presentGitIssue(result.issue, () => preflightMerge(branch))
+    return null
+  }
 
   // ---------- 标签 Tags ----------
   const tags = ref<string[]>([])
@@ -527,13 +558,11 @@ export const useGitStore = defineStore('git', () => {
   async function merge(branch: string): Promise<void> {
     if (!root.value) return
     try {
-      await api().merge(root.value, branch)
-      notify.success(i18n.global.t('sourceControl.branch.mergeDone', { branch }))
+      const result = await api().merge(root.value, branch)
+      if (!result.conflicted) notify.success(i18n.global.t('sourceControl.branch.mergeDone', { branch }))
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (!/conflict|Automatic merge failed|fix conflicts/i.test(msg)) {
-        presentGitIssue({ kind: 'unknown', operation: 'merge', detail: msg }, () => merge(branch))
-      }
+      presentGitIssue({ kind: 'unknown', operation: 'merge', detail: msg }, () => merge(branch))
     } finally {
       await afterWrite()
     }
@@ -670,7 +699,7 @@ export const useGitStore = defineStore('git', () => {
       await api().stashPop(root.value, index)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (!/conflict|CONFLICT/i.test(msg)) presentGitIssue({ kind: 'unknown', operation: 'stash-pop', detail: msg }, () => stashPop(index))
+      presentGitIssue({ kind: 'unknown', operation: 'stash-pop', detail: msg }, () => stashPop(index))
     } finally {
       await afterWrite()
       await loadStashes()

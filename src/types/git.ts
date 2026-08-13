@@ -87,8 +87,15 @@ export type GitActionResult<T> =
   | { ok: true; value: T }
   | { ok: false; issue: GitIssue }
 
+export interface CheckoutPreflight {
+  dirty: boolean
+  hasConflicts: boolean
+}
+
 /** 删除分支预检结果（三查）：由渲染层组织成大白话问题清单 + 决定按钮为「删除」还是「强制删除」 */
 export interface DeleteBranchPreflight {
+  /** 是否配置了 upstream；用于区分“未推送”与纯本地分支。 */
+  hasUpstream: boolean
   /** 相对 upstream 未推送的提交数（无 upstream=0） */
   unpushedCommits: number
   /** 主干分支名（main/master），无则 null */
@@ -97,6 +104,17 @@ export interface DeleteBranchPreflight {
   mergedIntoMain: boolean
   /** 基于本分支派生的其他本地分支 */
   descendantBranches: string[]
+  /** 是否必须使用 `git branch -D`。 */
+  forceRequired: boolean
+}
+
+export interface MergePreflight {
+  fastForward: boolean
+  upToDate: boolean
+}
+
+export interface GitConflictResult {
+  conflicted: boolean
 }
 
 /** M=修改 A=新增 D=删除 R=重命名 U=未跟踪 C=冲突 */
@@ -240,7 +258,7 @@ export interface GitApi {
   commitFileDiff: (root: string, hash: string, filePath: string, oldPath?: string) => Promise<GitDiffPayload>
   conflictVersions: (root: string, filePath: string) => Promise<ConflictVersions>
   restoreFile: (root: string, hash: string, filePath: string) => Promise<void>
-  merge: (root: string, branch: string) => Promise<void>
+  merge: (root: string, branch: string) => Promise<GitConflictResult>
   applyPatch: (root: string, patch: string, opts: { cached?: boolean; reverse?: boolean }) => Promise<void>
   stage: (root: string, paths: string[]) => Promise<void>
   unstage: (root: string, paths: string[]) => Promise<void>
@@ -252,11 +270,12 @@ export interface GitApi {
   identityGetScopes: (root: string | null) => Promise<GitIdentityScopes>
   identitySet: (root: string | null, name: string, email: string, global: boolean) => Promise<void>
   identityClearLocal: (root: string) => Promise<void>
-  checkout: (root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) => Promise<GitActionResult<void>>
+  checkout: (root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) => Promise<GitActionResult<GitConflictResult>>
+  preflightCheckout: (root: string, ref: string) => Promise<GitActionResult<CheckoutPreflight>>
   createBranch: (root: string, name: string, base?: string, checkout?: boolean) => Promise<void>
   deleteBranch: (root: string, name: string, force: boolean) => Promise<GitActionResult<void>>
-  preflightDeleteBranch: (root: string, name: string) => Promise<DeleteBranchPreflight>
-  preflightMerge: (root: string, branch: string) => Promise<{ fastForward: boolean }>
+  preflightDeleteBranch: (root: string, name: string) => Promise<GitActionResult<DeleteBranchPreflight>>
+  preflightMerge: (root: string, branch: string) => Promise<GitActionResult<MergePreflight>>
   listTags: (root: string) => Promise<string[]>
   createTag: (root: string, name: string, opts: { message?: string; hash?: string }) => Promise<void>
   deleteTag: (root: string, name: string) => Promise<void>
@@ -276,7 +295,7 @@ export interface GitApi {
   stashPush: (root: string, message?: string, includeUntracked?: boolean) => Promise<void>
   stashList: (root: string) => Promise<GitStashEntry[]>
   stashApply: (root: string, index: number) => Promise<void>
-  stashPop: (root: string, index: number) => Promise<void>
+  stashPop: (root: string, index: number) => Promise<GitConflictResult>
   stashDrop: (root: string, index: number) => Promise<void>
   /** 订阅主进程 Git 写操作；返回取消订阅函数 */
   onMutation: (callback: (event: GitMutationEvent) => void) => () => void

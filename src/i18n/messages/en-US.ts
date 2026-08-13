@@ -654,6 +654,8 @@ export default {
         processing: 'Processing',
       },
       toolNames: {
+        get_editor_state: 'Read editor state',
+        git: 'Run Git command',
         get_document_outline: 'Read outline',
         get_section: 'Read section',
         get_sections: 'Read sections',
@@ -1051,6 +1053,7 @@ export default {
       titleWrite: 'Review Chapter Draft',
       titleChapterStructure: 'Review Chapter Structure',
       titleGitCommit: 'Review Git Commit',
+      titleGitCommand: 'Review Git Command',
       titleGitTag: 'Review Git Tag',
       titleGitInit: 'Initialize Git Repository',
       titleGitRestore: 'Review Git Restore',
@@ -1320,6 +1323,7 @@ export default {
       mergeDone: 'Merged {branch}',
       mergeTitle: 'Merge {branch} into the current branch?',
       mergeAction: 'Merge',
+      mergeUpToDate: 'The target branch is already contained in the current branch; no merge is needed.',
       mergeFastForward: 'This is a fast-forward merge; the current branch advances directly.',
       mergeCommitHint: 'This is not a fast-forward merge; it will create a merge commit. Conflicts will go to conflict resolution.',
       delete: 'Delete branch…',
@@ -1348,6 +1352,7 @@ export default {
     checkout: {
       dirtyTitle: 'Your local changes would be overwritten by checkout.',
       dirtyDetail: 'Before switching to “{ref}”, choose how to handle uncommitted changes: Stash & Checkout (keep them in a stash), Migrate Changes (carry them to the target branch), or Force Checkout (discard them).',
+      conflictDetail: 'The workspace has unresolved conflicts. Cancel and resolve them first, or force checkout “{ref}” and discard those changes.',
       stashAndCheckout: 'Stash & Checkout',
       migrate: 'Migrate Changes',
       force: 'Force Checkout',

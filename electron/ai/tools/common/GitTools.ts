@@ -1,355 +1,184 @@
-import * as fs from 'fs'
 import * as path from 'path'
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import type { IWriterAgentContext } from '../../runtime/AgentContext'
-import { isPathInside } from '../../runtime/PathUtils'
-import {
-  GitServiceError,
-  type GitService,
-} from '../../../GitService'
+import type { GitService } from '../../../GitService'
 import type { GitMutationEvent } from '../../../../src/types/git'
 
-// Generalized git tools (B1): moved from the storybible-specific CreativeGitTools to the
-// common tool面, workspace-generic (no storybible.md/draft defaults). Adds git_init and
-// git_restore (04.4 §3 / FR-1.6 / FR-6.4). Version tracking operates on the markdown object
-// tree at the workspace root; derived AI artifacts under `.iwriter/` are gitignored.
+export type GitCommandClassification =
+  | { kind: 'read' }
+  | { kind: 'write' }
+  | { kind: 'invalid', message: string }
 
-type GitErrorCode =
-  | 'NOT_A_REPO'
-  | 'GIT_NOT_INSTALLED'
-  | 'AUTHOR_NOT_CONFIGURED'
-  | 'INDEX_LOCKED'
-  | 'GIT_TIMEOUT'
-  | 'COMMAND_FAILED'
-
-type GitResult =
-  | { ok: true; stdout: string; stderr: string }
-  | { ok: false; errorCode: GitErrorCode; message: string }
-
-function ensureWorkspace(workspacePath: string | null): string | null {
-  if (!workspacePath) return null
-  return path.resolve(workspacePath)
+const SAFE_READ_OPTIONS: Record<string, RegExp[]> = {
+  status: [
+    /^-(?:s|b|u|z)$/, /^--short$/, /^--branch$/, /^--show-stash$/,
+    /^--(?:no-)?ahead-behind$/, /^--porcelain(?:=v[12])?$/,
+    /^--untracked-files(?:=(?:no|normal|all))?$/, /^--ignored(?:=(?:traditional|matching|no))?$/,
+  ],
+  log: [
+    /^-\d+$/, /^-(?:n|p|s|g)$/, /^--max-count(?:=\d+)?$/, /^--oneline$/,
+    /^--(?:no-)?decorate(?:=\w+)?$/, /^--graph$/, /^--all$/, /^--branches(?:=.*)?$/,
+    /^--tags(?:=.*)?$/, /^--remotes(?:=.*)?$/, /^--first-parent$/, /^--reverse$/,
+    /^--date(?:=.*)?$/, /^--format(?:=.*)?$/, /^--pretty(?:=.*)?$/,
+    /^--(?:no-)?abbrev-commit$/, /^--stat$/, /^--shortstat$/, /^--name-only$/,
+    /^--name-status$/, /^--since(?:=.*)?$/, /^--until(?:=.*)?$/, /^--author(?:=.*)?$/,
+    /^--committer(?:=.*)?$/, /^--grep(?:=.*)?$/, /^--merges$/, /^--no-merges$/,
+    /^--follow$/, /^--simplify-by-decoration$/, /^--topo-order$/, /^--date-order$/,
+    /^--author-date-order$/, /^--parents$/, /^--children$/, /^--boundary$/,
+    /^--left-right$/, /^--cherry(?:-mark)?$/, /^--walk-reflogs$/, /^--reflog$/,
+    /^--patch$/, /^--no-patch$/,
+  ],
+  diff: [
+    /^-(?:p|s|u|w|z)$/, /^-U\d+$/, /^--patch$/, /^--no-patch$/, /^--stat$/,
+    /^--shortstat$/, /^--numstat$/, /^--name-only$/, /^--name-status$/,
+    /^--summary$/, /^--check$/, /^--cached$/, /^--staged$/, /^--merge-base$/,
+    /^--color(?:=(?:always|never|auto))?$/, /^--no-color$/, /^--word-diff(?:=\w+)?$/,
+    /^--word-diff-regex(?:=.*)?$/, /^--unified(?:=\d+)?$/, /^--minimal$/,
+    /^--patience$/, /^--histogram$/, /^--ignore-space-at-eol$/,
+    /^--ignore-space-change$/, /^--ignore-all-space$/, /^--ignore-blank-lines$/,
+    /^--binary$/, /^--full-index$/, /^--abbrev(?:=\d+)?$/, /^--relative(?:=.*)?$/,
+    /^--submodule(?:=.*)?$/, /^--no-renames$/, /^--find-renames(?:=.*)?$/,
+    /^--find-copies(?:=.*)?$/, /^--diff-filter(?:=.*)?$/,
+  ],
+  show: [
+    /^-(?:p|s|w)$/, /^-U\d+$/, /^--format(?:=.*)?$/, /^--pretty(?:=.*)?$/,
+    /^--oneline$/, /^--stat$/, /^--shortstat$/, /^--name-only$/, /^--name-status$/,
+    /^--summary$/, /^--patch$/, /^--no-patch$/, /^--color(?:=(?:always|never|auto))?$/,
+    /^--no-color$/, /^--word-diff(?:=\w+)?$/, /^--unified(?:=\d+)?$/,
+  ],
+  'rev-parse': [
+    /^--verify$/, /^--quiet$/, /^-q$/, /^--short(?:=\d+)?$/, /^--symbolic$/,
+    /^--symbolic-full-name$/, /^--abbrev-ref(?:=(?:strict|loose))?$/,
+    /^--show-toplevel$/, /^--show-prefix$/, /^--show-cdup$/, /^--git-dir$/,
+    /^--is-inside-work-tree$/, /^--is-bare-repository$/, /^--is-shallow-repository$/,
+    /^--branches(?:=.*)?$/, /^--tags(?:=.*)?$/, /^--remotes(?:=.*)?$/, /^--all$/,
+  ],
+  'rev-list': [/^-\d+$/, /^--max-count(?:=\d+)?$/, /^--all$/, /^--count$/, /^--objects$/, /^--parents$/, /^--children$/, /^--reverse$/, /^--topo-order$/, /^--date-order$/],
+  'show-ref': [/^--head$/, /^--heads$/, /^--tags$/, /^--dereference$/, /^--hash(?:=\d+)?$/, /^--abbrev(?:=\d+)?$/, /^--verify$/, /^--exists$/, /^--quiet$/, /^-q$/],
+  'for-each-ref': [/^--format(?:=.*)?$/, /^--sort(?:=.*)?$/, /^--count(?:=\d+)?$/, /^--points-at(?:=.*)?$/, /^--contains(?:=.*)?$/, /^--no-contains(?:=.*)?$/],
+  'ls-files': [/^-(?:c|d|m|o|i|s|u|k|t|v|z)$/, /^--cached$/, /^--deleted$/, /^--modified$/, /^--others$/, /^--ignored$/, /^--stage$/, /^--unmerged$/, /^--killed$/, /^--resolve-undo$/, /^--directory$/, /^--no-empty-directory$/, /^--exclude(?:=.*)?$/, /^--exclude-standard$/, /^--error-unmatch$/, /^--full-name$/],
+  'ls-tree': [/^-(?:d|r|t|l|z)$/, /^--long$/, /^--name-only$/, /^--name-status$/, /^--object-only$/, /^--full-name$/, /^--full-tree$/, /^--abbrev(?:=\d+)?$/, /^--format(?:=.*)?$/],
+  'cat-file': [/^-[tsep]$/, /^--textconv$/, /^--batch(?:-check|-command)?(?:=.*)?$/, /^--buffer$/, /^--follow-symlinks$/, /^--use-mailmap$/],
+  'merge-base': [/^--all$/, /^--octopus$/, /^--independent$/, /^--is-ancestor$/, /^--fork-point$/],
+  'name-rev': [/^--name-only$/, /^--tags$/, /^--refs(?:=.*)?$/, /^--exclude(?:=.*)?$/, /^--all$/, /^--stdin$/, /^--always$/, /^--undefined$/],
+  describe: [/^--all$/, /^--tags$/, /^--contains$/, /^--abbrev(?:=\d+)?$/, /^--candidates(?:=\d+)?$/, /^--exact-match$/, /^--debug$/, /^--long$/, /^--match(?:=.*)?$/, /^--exclude(?:=.*)?$/, /^--always$/, /^--first-parent$/, /^--dirty(?:=.*)?$/, /^--broken(?:=.*)?$/],
+  shortlog: [/^-\d+$/, /^-(?:s|n|e|w)$/, /^--summary$/, /^--numbered$/, /^--email$/, /^--group(?:=.*)?$/, /^--format(?:=.*)?$/],
+  blame: [/^-L(?:.*)?$/, /^-(?:b|l|t|s|e|w)$/, /^--root$/, /^--show-stats$/, /^--score-debug$/, /^--show-name$/, /^--show-number$/, /^--porcelain$/, /^--line-porcelain$/, /^--incremental$/, /^--minimal$/, /^--reverse(?:=.*)?$/, /^--first-parent$/, /^--ignore-rev(?:=.*)?$/],
+  grep: [/^-\d+$/, /^-(?:n|l|L|c|h|H|i|I|w|v|E|F|G|P|q|e|z)$/, /^--line-number$/, /^--files-with-matches$/, /^--files-without-match$/, /^--count$/, /^--ignore-case$/, /^--word-regexp$/, /^--invert-match$/, /^--extended-regexp$/, /^--fixed-strings$/, /^--basic-regexp$/, /^--perl-regexp$/, /^--quiet$/, /^--all-match$/, /^--break$/, /^--heading$/, /^--full-name$/, /^--cached$/, /^--untracked$/, /^--exclude-standard$/, /^--recurse-submodules$/, /^--max-depth(?:=\d+)?$/],
 }
 
-function gitError(errorCode: GitErrorCode, message: string): Extract<GitResult, { ok: false }> {
-  return { ok: false, errorCode, message }
+const FORBIDDEN_OPTIONS = new Set([
+  '-C', '-c', '--git-dir', '--work-tree', '--namespace', '--config-env', '--exec-path',
+  '--ext-diff', '--textconv', '--open-files-in-pager', '--show-signature', '--paginate',
+])
+
+const NO_WORKSPACE = JSON.stringify({
+  ok: false,
+  exitCode: null,
+  stdout: '',
+  stderr: 'This Git command requires an open workspace folder.',
+}, null, 2)
+
+function resolveWorkspace(runtime: unknown): string | null {
+  const workspacePath = (runtime as { context?: IWriterAgentContext } | undefined)?.context?.workspacePath
+  return workspacePath?.trim() ? path.resolve(workspacePath) : null
 }
 
-function formatGitError(result: Extract<GitResult, { ok: false }>): string {
-  return JSON.stringify({ ok: false, errorCode: result.errorCode, message: result.message }, null, 2)
+function invalid(message: string): GitCommandClassification {
+  return { kind: 'invalid', message }
 }
 
-function serviceFailure(error: unknown): Extract<GitResult, { ok: false }> {
-  if (error instanceof GitServiceError) {
-    switch (error.code) {
-      case 'git-not-found':
-        return gitError('GIT_NOT_INSTALLED', error.message)
-      case 'not-a-repository':
-        return gitError('NOT_A_REPO', error.message)
-      case 'author-not-configured':
-        return gitError('AUTHOR_NOT_CONFIGURED', error.message)
-      case 'index-locked':
-        return gitError('INDEX_LOCKED', error.message)
-      case 'timeout':
-        return gitError('GIT_TIMEOUT', error.message)
-      default:
-        return gitError('COMMAND_FAILED', error.message)
+function isOutsidePath(value: string): boolean {
+  return path.isAbsolute(value)
+    || /^[a-zA-Z]:[\\/]/.test(value)
+    || value.split(/[\\/]/).includes('..')
+}
+
+/** Classifies one argv-style Git invocation for LangChain's native interruptOn.when predicate. */
+export function classifyGitCommand(value: unknown): GitCommandClassification {
+  if (!Array.isArray(value) || !value.every(arg => typeof arg === 'string')) {
+    return invalid('Git arguments must be a string array.')
+  }
+  if (!value.length || !value[0]!.trim() || value[0]!.startsWith('-')) {
+    return invalid('A Git subcommand is required as the first argument.')
+  }
+
+  for (const arg of value) {
+    if (/\0|[\r\n]/.test(arg)) return invalid('Git arguments cannot contain control characters.')
+    const option = arg.split('=', 1)[0]!
+    if (FORBIDDEN_OPTIONS.has(option) || (value[0] === 'grep' && /^-O/.test(arg))) {
+      return invalid(`Git option "${option}" is not allowed.`)
+    }
+    if (arg === '--global' || arg === '--system' || option === '--file') {
+      return invalid(`Git option "${option}" would escape repository-local configuration.`)
+    }
+    const embeddedValue = arg.includes('=') ? arg.slice(arg.indexOf('=') + 1) : null
+    if (isOutsidePath(arg) || (embeddedValue !== null && isOutsidePath(embeddedValue))) {
+      return invalid(`Git argument "${arg}" points outside the workspace.`)
     }
   }
-  return gitError('COMMAND_FAILED', error instanceof Error ? error.message : String(error))
+
+  const [command, ...commandArgs] = value
+  const safeOptions = SAFE_READ_OPTIONS[command!]
+  if (!safeOptions) return { kind: 'write' }
+  for (const arg of commandArgs) {
+    if (arg === '--' || !arg.startsWith('-')) continue
+    if (!safeOptions.some(pattern => pattern.test(arg))) return { kind: 'write' }
+  }
+  return { kind: 'read' }
 }
 
-async function preflightGit(gitService: GitService, workspacePath: string): Promise<GitResult> {
-  if (!fs.existsSync(path.join(workspacePath, '.git'))) {
-    return gitError('NOT_A_REPO', 'Not a git repository — call git_init first to start version tracking.')
-  }
-  const availability = await gitService.detect()
-  if (!availability.available) {
-    return gitError('GIT_NOT_INSTALLED', 'Configured git binary was not found.')
-  }
-  if (!await gitService.isRepo(workspacePath)) {
-    return gitError('NOT_A_REPO', 'Not a git repository — call git_init first to start version tracking.')
-  }
-  return { ok: true, stdout: availability.version ?? '', stderr: '' }
+export function shouldInterruptGit(value: unknown): boolean {
+  return classifyGitCommand(value).kind === 'write'
 }
 
-function resolveGitFile(workspacePath: string, file: string): { ok: true; relativePath: string } | { ok: false; message: string } {
-  const trimmed = file.trim()
-  if (!trimmed) return { ok: false, message: 'Git file path cannot be empty.' }
-  if (trimmed === '.') return { ok: true, relativePath: '.' }
-  if (path.isAbsolute(trimmed) || trimmed.startsWith('~') || /^[a-zA-Z]:[\\/]/.test(trimmed)) {
-    return { ok: false, message: 'Git file paths must be relative to the workspace.' }
-  }
-  if (trimmed.split(/[\\/]+/).includes('..')) {
-    return { ok: false, message: 'Git file paths cannot contain "..".' }
-  }
-  const resolved = path.resolve(workspacePath, trimmed)
-  if (!isPathInside(workspacePath, resolved)) {
-    return { ok: false, message: 'Git file path escapes the workspace.' }
-  }
-  return { ok: true, relativePath: path.relative(workspacePath, resolved).replace(/\\/g, '/') }
+function rejectedCommand(message: string): string {
+  return JSON.stringify({ ok: false, exitCode: null, stdout: '', stderr: message }, null, 2)
 }
 
-function isSafeGitRef(ref: string): boolean {
-  const trimmed = ref.trim()
-  return !!trimmed && !trimmed.startsWith('-') && !/[\s\0-\x1f]/.test(trimmed)
+function mutationKind(command: string): GitMutationEvent['kind'] {
+  if (command === 'init') return 'repository'
+  if (command === 'tag') return 'tags'
+  if ([
+    'commit', 'merge', 'rebase', 'cherry-pick', 'revert', 'reset', 'branch', 'checkout',
+    'switch', 'fetch', 'pull', 'push', 'remote',
+  ].includes(command)) return 'history'
+  return 'working-tree'
 }
 
-async function ensureAuthorConfigured(gitService: GitService, workspacePath: string): Promise<GitResult | null> {
-  const identity = await gitService.getUserIdentity(workspacePath)
-  if (!identity.name || !identity.email) {
-    return gitError('AUTHOR_NOT_CONFIGURED', 'Git is not configured with an author identity. Run `git config user.name` and `git config user.email` first.')
-  }
-  return null
-}
-
-export function getLastGitTagInfo(gitService: GitService, workspacePath: string): Promise<{
-  last_git_tag: { name: string; commit: string; message: string } | null
-  commits_since_last_tag: number | null
-}> {
-  if (!fs.existsSync(path.join(workspacePath, '.git'))) {
-    return Promise.resolve({ last_git_tag: null, commits_since_last_tag: null })
-  }
-  return gitService.getLastTagInfo(workspacePath)
-}
-
-const NO_WORKSPACE = 'Error: this action requires an open workspace folder.'
-
+/** One raw Agent Git surface; LangChain HITL decides per invocation whether approval is needed. */
 export function buildGitTools(options: {
   gitService: GitService
   onMutation: (event: GitMutationEvent) => void
 }) {
-  const gitService = options.gitService
-  const resolveWorkspace = (runtime: unknown): string | null => {
-    const workspacePath = (runtime as { context?: IWriterAgentContext } | undefined)?.context?.workspacePath
-    return ensureWorkspace(workspacePath?.trim() || null)
-  }
-  const notifyMutation = (root: string, kind: GitMutationEvent['kind']): void => {
-    try {
-      options.onMutation({ root, kind })
-    } catch (error) {
-      console.warn('[GitTools] Failed to notify SCM about Git mutation:', error)
-    }
-  }
-
-  const gitInit = tool(
-    async (_input: Record<string, never>, runtime) => {
+  const git = tool(
+    async ({ args }: { args: string[] }, runtime) => {
       const workspacePath = resolveWorkspace(runtime)
       if (!workspacePath) return NO_WORKSPACE
-      if (fs.existsSync(path.join(workspacePath, '.git'))) {
-        notifyMutation(workspacePath, 'repository')
-        return JSON.stringify({ ok: true, already_initialized: true, message: 'Workspace is already a git repository.' }, null, 2)
-      }
-      try {
-        await gitService.init(workspacePath)
-        notifyMutation(workspacePath, 'repository')
-      } catch (error) {
-        if (fs.existsSync(path.join(workspacePath, '.git'))) notifyMutation(workspacePath, 'repository')
-        return formatGitError(serviceFailure(error))
-      }
-      // Derived AI engineering state under .iwriter/ must not be tracked (04.1 §1.2).
-      const gitignorePath = path.join(workspacePath, '.gitignore')
-      if (!fs.existsSync(gitignorePath)) {
-        await fs.promises.writeFile(gitignorePath, ['.iwriter/', '.DS_Store', ''].join('\n'), 'utf8')
-      }
-      return JSON.stringify({ ok: true, message: 'Initialized empty git repository (with .gitignore for derived AI artifacts).' }, null, 2)
-    },
-    {
-      name: 'git_init',
-      description: 'Initialize a git repository in the workspace (with a .gitignore for derived AI artifacts under .iwriter/) after user approval. Use once when starting version tracking for a project.',
-      schema: z.object({}),
-    }
-  )
+      const classification = classifyGitCommand(args)
+      if (classification.kind === 'invalid') return rejectedCommand(classification.message)
 
-  const gitStatus = tool(
-    async (_input: Record<string, never>, runtime) => {
-      const workspacePath = resolveWorkspace(runtime)
-      if (!workspacePath) return NO_WORKSPACE
-      const preflight = await preflightGit(gitService, workspacePath)
-      if (!preflight.ok) return formatGitError(preflight)
-      try {
-        const status = await gitService.status(workspacePath)
-        return JSON.stringify({
-          ok: true,
-          staged: status.staged.map(file => file.path),
-          unstaged: [...status.changes, ...status.conflicts].map(file => file.path),
-          untracked: status.untracked.map(file => file.path),
-        }, null, 2)
-      } catch (error) {
-        return formatGitError(serviceFailure(error))
+      const result = await options.gitService.runCommand(workspacePath, args, {
+        readOnly: classification.kind === 'read',
+      })
+      if (classification.kind === 'write') {
+        try {
+          options.onMutation({ root: workspacePath, kind: mutationKind(args[0]!) })
+        } catch (error) {
+          console.warn('[GitTools] Failed to notify SCM about Git mutation:', error)
+        }
       }
+      return JSON.stringify(result, null, 2)
     },
     {
-      name: 'git_status',
-      description: 'Read git status for the workspace. Returns staged, unstaged, and untracked file lists.',
-      schema: z.object({}),
-    }
-  )
-
-  const gitLog = tool(
-    async ({ limit }: { limit?: number }, runtime) => {
-      const workspacePath = resolveWorkspace(runtime)
-      if (!workspacePath) return NO_WORKSPACE
-      const preflight = await preflightGit(gitService, workspacePath)
-      if (!preflight.ok) return formatGitError(preflight)
-      const safeLimit = Math.max(1, Math.min(limit ?? 10, 50))
-      try {
-        const commits = (await gitService.log(workspacePath, { limit: safeLimit })).map(commit => ({
-          shortHash: commit.shortHash,
-          hash: commit.hash,
-          date: commit.date,
-          message: commit.subject,
-        }))
-        return JSON.stringify({ ok: true, commits }, null, 2)
-      } catch (error) {
-        return formatGitError(serviceFailure(error))
-      }
-    },
-    {
-      name: 'git_log',
-      description: 'Read recent git commits for the workspace.',
+      name: 'git',
+      description: 'Run Git in the current workspace using an argv array. Safe read commands run directly; commands that can mutate the repository require user approval. Returns ok, exitCode, stdout, and stderr so you can inspect failures and adjust the next command.',
       schema: z.object({
-        limit: z.number().optional().describe('Number of commits to return. Default 10, max 50.'),
+        args: z.array(z.string()).min(1).describe('Git arguments without the leading "git", for example ["status", "--short"] or ["commit", "-m", "Revise opening"].'),
       }),
-    }
-  )
-
-  const gitDiff = tool(
-    async ({ from, to }: { from?: string; to?: string }, runtime) => {
-      const workspacePath = resolveWorkspace(runtime)
-      if (!workspacePath) return NO_WORKSPACE
-      const preflight = await preflightGit(gitService, workspacePath)
-      if (!preflight.ok) return formatGitError(preflight)
-      if (to && !from) return formatGitError(gitError('COMMAND_FAILED', 'git_diff requires from when to is provided.'))
-      if ((from && !isSafeGitRef(from)) || (to && !isSafeGitRef(to))) {
-        return formatGitError(gitError('COMMAND_FAILED', 'git_diff refs cannot be empty, whitespace, or option-like values.'))
-      }
-      try {
-        const result = await gitService.diffRefs(workspacePath, from, to)
-        return result || 'No diff.'
-      } catch (error) {
-        return formatGitError(serviceFailure(error))
-      }
     },
-    {
-      name: 'git_diff',
-      description: 'Read git diff. Defaults to unstaged diff; accepts an optional from/to ref range.',
-      schema: z.object({
-        from: z.string().optional().describe('Optional base commit or ref.'),
-        to: z.string().optional().describe('Optional head commit or ref. Requires from.'),
-      }),
-    }
   )
 
-  const gitCommit = tool(
-    async ({ message, files }: { message: string; files?: string[] }, runtime) => {
-      const workspacePath = resolveWorkspace(runtime)
-      if (!workspacePath) return NO_WORKSPACE
-      const preflight = await preflightGit(gitService, workspacePath)
-      if (!preflight.ok) return formatGitError(preflight)
-      const authorError = await ensureAuthorConfigured(gitService, workspacePath)
-      if (authorError) return formatGitError(authorError as Extract<GitResult, { ok: false }>)
-      const cleanMessage = message.trim()
-      if (!cleanMessage) return formatGitError(gitError('COMMAND_FAILED', 'Commit message is required.'))
-      // Default: stage the whole workspace ('.') — .gitignore excludes derived AI artifacts.
-      const requestedFiles = files?.length ? files : ['.']
-      const resolvedFiles: string[] = []
-      for (const file of requestedFiles) {
-        const resolved = resolveGitFile(workspacePath, file)
-        if (!resolved.ok) return formatGitError(gitError('COMMAND_FAILED', resolved.message))
-        resolvedFiles.push(resolved.relativePath)
-      }
-      try {
-        const commit = await gitService.commitPaths(workspacePath, cleanMessage, resolvedFiles)
-        notifyMutation(workspacePath, 'history')
-        return JSON.stringify({
-          ok: true,
-          message: cleanMessage,
-          files: commit.files,
-          output: commit.output,
-        }, null, 2)
-      } catch (error) {
-        // commitPaths may already have staged files before a hook/commit failure.
-        notifyMutation(workspacePath, 'working-tree')
-        return formatGitError(serviceFailure(error))
-      }
-    },
-    {
-      name: 'git_commit',
-      description: 'Stage workspace files and create a git commit after user approval. Defaults to staging the whole workspace ("."); derived AI artifacts are gitignored.',
-      schema: z.object({
-        message: z.string().describe('Commit message. The user may edit this before approval.'),
-        files: z.array(z.string()).optional().describe('Workspace-relative files or directories to stage. Default ["."] (whole workspace).'),
-      }),
-    }
-  )
-
-  const gitTag = tool(
-    async ({ name, message }: { name: string; message?: string }, runtime) => {
-      const workspacePath = resolveWorkspace(runtime)
-      if (!workspacePath) return NO_WORKSPACE
-      const preflight = await preflightGit(gitService, workspacePath)
-      if (!preflight.ok) return formatGitError(preflight)
-      const tagName = name.trim()
-      if (!tagName) return formatGitError(gitError('COMMAND_FAILED', 'Tag name is required.'))
-      if (!isSafeGitRef(tagName)) return formatGitError(gitError('COMMAND_FAILED', 'Invalid tag name.'))
-      if (!await gitService.checkRefFormat(workspacePath, `refs/tags/${tagName}`)) {
-        return formatGitError(gitError('COMMAND_FAILED', 'Invalid tag name.'))
-      }
-      try {
-        await gitService.createTag(workspacePath, tagName, { message: message?.trim() || tagName })
-        notifyMutation(workspacePath, 'tags')
-        const latest = await getLastGitTagInfo(gitService, workspacePath)
-        return JSON.stringify({ ok: true, name: tagName, ...latest }, null, 2)
-      } catch (error) {
-        return formatGitError(serviceFailure(error))
-      }
-    },
-    {
-      name: 'git_tag',
-      description: 'Create an annotated git tag for the current HEAD after user approval.',
-      schema: z.object({
-        name: z.string().describe('Tag name, e.g. arc1-complete.'),
-        message: z.string().optional().describe('Optional annotated tag message.'),
-      }),
-    }
-  )
-
-  const gitRestore = tool(
-    async ({ files, ref }: { files: string[]; ref?: string }, runtime) => {
-      const workspacePath = resolveWorkspace(runtime)
-      if (!workspacePath) return NO_WORKSPACE
-      const preflight = await preflightGit(gitService, workspacePath)
-      if (!preflight.ok) return formatGitError(preflight)
-      if (!files?.length) return formatGitError(gitError('COMMAND_FAILED', 'git_restore requires at least one file.'))
-      if (ref !== undefined && !isSafeGitRef(ref)) {
-        return formatGitError(gitError('COMMAND_FAILED', 'git_restore ref cannot be empty, whitespace, or option-like.'))
-      }
-      const resolvedFiles: string[] = []
-      for (const file of files) {
-        const resolved = resolveGitFile(workspacePath, file)
-        if (!resolved.ok) return formatGitError(gitError('COMMAND_FAILED', resolved.message))
-        resolvedFiles.push(resolved.relativePath)
-      }
-      try {
-        await gitService.restorePaths(workspacePath, resolvedFiles, ref)
-        notifyMutation(workspacePath, 'working-tree')
-        return JSON.stringify({ ok: true, restored: resolvedFiles, source: ref ?? 'index/HEAD' }, null, 2)
-      } catch (error) {
-        notifyMutation(workspacePath, 'working-tree')
-        return formatGitError(serviceFailure(error))
-      }
-    },
-    {
-      name: 'git_restore',
-      description: 'Restore workspace file(s) to their committed state, or to a specific commit/tag (ref), after user approval. Used for version rollback (FR-6.4). Discards working-tree changes to the named files.',
-      schema: z.object({
-        files: z.array(z.string()).min(1).describe('Workspace-relative files or directories to restore.'),
-        ref: z.string().optional().describe('Optional commit/tag to restore from. Omit to restore to the last committed state.'),
-      }),
-    }
-  )
-
-  return [gitInit, gitStatus, gitLog, gitDiff, gitCommit, gitTag, gitRestore] as const
+  return [git] as const
 }

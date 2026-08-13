@@ -35,7 +35,7 @@ description: 跨章节删并重排场景、改角色/地点/规则或移动故�
 
 1. 将重构目标、完整影响面、潜在冲突、节奏变化和回滚风险合并成一次计划，通过 `confirm_writing_plan` 交作者确认。
 2. 触及 confirmed 提纲或 beat 时，把对应上游变化一并列入计划；不能作为正文改写的副作用。
-3. 作者确认后建议先 `git_commit` 固定重构前基线；未经明确同意不提交。
+3. 作者确认后建议先用 `git`（如 `{"args":["add","."]}`，再提交）固定重构前基线；未经明确同意不提交。
 4. 提纲变化走 `ideation-outline-playbook`。
 5. 正文按章节委托 writer。每章 brief 引用同一份已批准重构计划，但仍为目标章节打开自己的 write-session；不为同一总计划反复要求作者确认。
 6. 加载 `scene-and-plot-construction`，检查重排后的原因—决定—后果链。

@@ -602,9 +602,17 @@ describe('Effective model budget', () => {
 })
 
 describe('Agent tool-name translations', () => {
-  it('covers every approval-gated filesystem mutation in both locales', async () => {
+  it('covers editor-state and approval-gated filesystem tools in both locales', async () => {
     const { zh, en } = await loadLocaleMessages()
-    const toolNames = ['write_file', 'edit_file', 'rename_file', 'delete_file', 'move_file']
+    const toolNames = [
+      'get_editor_state',
+      'git',
+      'write_file',
+      'edit_file',
+      'rename_file',
+      'delete_file',
+      'move_file',
+    ]
 
     for (const toolName of toolNames) {
       assert.equal(typeof zh.agentPanel.chatArea.toolNames[toolName], 'string', `missing zh ${toolName}`)

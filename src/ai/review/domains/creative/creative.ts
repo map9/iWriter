@@ -7,6 +7,7 @@ export function isCreativeReviewItem(value: unknown): value is CreativeReviewIte
     item.status === 'pending' &&
     (
       item.kind === 'creative_plan' ||
+      item.kind === 'creative_git_command' ||
       item.kind === 'creative_write' ||
       item.kind === 'creative_storybible' ||
       item.kind === 'creative_chapter_structure' ||

@@ -651,6 +651,8 @@ export default {
         processing: '正在处理',
       },
       toolNames: {
+        get_editor_state: '读取编辑器状态',
+        git: '执行 Git 命令',
         get_document_outline: '读取文档大纲',
         get_section: '读取章节',
         get_sections: '批量读取章节',
@@ -1048,6 +1050,7 @@ export default {
       titleWrite: '审核章节草稿',
       titleChapterStructure: '审核章节结构',
       titleGitCommit: '审核 Git 提交',
+      titleGitCommand: '审核 Git 命令',
       titleGitTag: '审核 Git 标签',
       titleGitInit: '初始化 Git 仓库',
       titleGitRestore: '审核 Git 回退',
@@ -1317,6 +1320,7 @@ export default {
       mergeDone: '已合并 {branch}',
       mergeTitle: '把 {branch} 合并进当前分支？',
       mergeAction: '合并',
+      mergeUpToDate: '目标分支的改动已包含在当前分支中，无需合并。',
       mergeFastForward: '这是快进合并，直接推进当前分支。',
       mergeCommitHint: '这不是快进合并，会生成一个合并提交；如果有冲突，会进入冲突解决。',
       delete: '删除分支…',
@@ -1345,6 +1349,7 @@ export default {
     checkout: {
       dirtyTitle: '本地更改将被切换覆盖',
       dirtyDetail: '切换到 “{ref}” 前，请选择如何处理未提交的本地更改：贮藏并切换（保留改动到贮藏）、迁移更改（把改动带到目标分支）、或强制切换（丢弃改动）。',
+      conflictDetail: '当前工作区存在未解决的冲突。请先取消并解决冲突，或强制切换到 “{ref}” 并丢弃这些改动。',
       stashAndCheckout: '贮藏并切换',
       migrate: '迁移更改',
       force: '强制切换',

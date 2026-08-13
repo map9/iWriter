@@ -605,6 +605,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
     case 'get_storybible_rebuild_signal':
     case 'git_status':
     case 'git_log':
+    case 'git':
     case 'list_explorations':
       return {
         actionLabel: toolNameLabel(toolCall.name),
@@ -614,7 +615,7 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
             ? 'draft/fragments.md'
             : toolCall.name === 'get_storybible_rebuild_signal'
               ? 'StoryBible'
-              : toolCall.name.startsWith('git_')
+              : toolCall.name === 'git' || toolCall.name.startsWith('git_')
                 ? 'Git'
                 : toolCall.name === 'list_explorations'
                   ? '.iwriter/explorations'

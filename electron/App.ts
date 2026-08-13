@@ -1503,10 +1503,9 @@ export class App {
   }
 
   private registerGitHandlers() {
-    const gitAction = async (operation: string, action: () => Promise<void>, branch?: string): Promise<GitActionResult<void>> => {
+    const gitAction = async <T>(operation: string, action: () => Promise<T>, branch?: string): Promise<GitActionResult<T>> => {
       try {
-        await action()
-        return { ok: true, value: undefined }
+        return { ok: true, value: await action() }
       } catch (error) {
         return { ok: false, issue: classifyGitIssue(error, operation, branch) }
       }
@@ -1547,6 +1546,8 @@ export class App {
     ipcMain.handle('git:identity-clear-local', async (_, root: string) => this.gitService.clearLocalUserIdentity(root))
     ipcMain.handle('git:checkout', async (_, root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }) =>
       gitAction('checkout', () => this.gitService.checkout(root, ref, opts)))
+    ipcMain.handle('git:preflight-checkout', async (_, root: string, ref: string) =>
+      this.gitService.preflightCheckout(root, ref))
     ipcMain.handle('git:create-branch', async (_, root: string, name: string, base?: string, checkout?: boolean) =>
       this.gitService.createBranch(root, name, base, checkout))
     ipcMain.handle('git:delete-branch', async (_, root: string, name: string, force: boolean): Promise<GitActionResult<void>> =>

@@ -2,7 +2,7 @@ import * as path from 'path'
 import type { DomainAgentCapabilities } from '../types'
 import type { InterruptOnConfig } from 'langchain'
 import type { StructuredTool } from '@langchain/core/tools'
-import { buildGitTools } from '../../tools/common/GitTools'
+import { buildGitTools, shouldInterruptGit } from '../../tools/common/GitTools'
 import { buildDocumentTools } from '../../tools/common/DocumentTools'
 import { buildEditProposalTools } from '../../tools/common/EditProposalTools'
 import { buildFilesystemMutationTools } from '../../tools/common/FilesystemMutationTools'
@@ -94,11 +94,17 @@ export const CREATIVE_INTERRUPT_ON_CONFIG: Record<string, InterruptOnConfig> = {
   // classifies candidate boundaries and writes nothing; execute validates the confirmed file
   // plan, front/back-matter decisions, and collision policy before writing.
   import_manuscript: { allowedDecisions: ['approve', 'reject'] },
-  // Version tracking (04.4 §3 / FR-1.6 / FR-6.4). File-mutation tools (delete/rename/move_file)
-  // interrupt via the scaffold FILE_WRITE_INTERRUPT_ON config, merged in AgentEngine.
-  git_init:    { allowedDecisions: ['approve', 'reject'] },
-  git_commit:  { allowedDecisions: ['approve', 'edit', 'reject'] },
-  git_tag:     { allowedDecisions: ['approve', 'reject'] },
+  // Reuse LangChain HITL's per-call predicate: safe reads auto-run; mutations interrupt.
+  git: {
+    allowedDecisions: ['approve', 'reject'],
+    when: request => shouldInterruptGit(request.toolCall.args.args),
+  },
+  // Resume-only compatibility: these tools are no longer exposed, but persisted interrupts
+  // must re-enter HITL so AgentEngine can reject them instead of auto-running an unknown tool.
+  git_write: { allowedDecisions: ['approve', 'reject'] },
+  git_init: { allowedDecisions: ['approve', 'reject'] },
+  git_commit: { allowedDecisions: ['approve', 'reject'] },
+  git_tag: { allowedDecisions: ['approve', 'reject'] },
   git_restore: { allowedDecisions: ['approve', 'reject'] },
 }
 

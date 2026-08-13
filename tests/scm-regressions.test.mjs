@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -18,6 +18,7 @@ const gitTypesSource = readFileSync('src/types/git.ts', 'utf8')
 const leftSidebarSource = readFileSync('src/components/LeftSidebar.vue', 'utf8')
 const explorerSource = readFileSync('src/components/sidebar/ExplorerPanel.vue', 'utf8')
 const gitToolsSource = readFileSync('electron/ai/tools/common/GitTools.ts', 'utf8')
+const creativeCapabilitiesSource = readFileSync('electron/ai/domain/creative/buildCreativeCapabilities.ts', 'utf8')
 const agentEngineSource = readFileSync('electron/ai/AgentEngine.ts', 'utf8')
 const rendererEventBridgeSource = readFileSync('electron/ai/ipc/RendererEventBridge.ts', 'utf8')
 const preloadSource = readFileSync('electron/preload.ts', 'utf8')
@@ -42,7 +43,7 @@ test('SCM regressions', async (t) => {
     assert.match(panelSource, /co-remote:/)
     assert.match(panelSource, /gitStore\.checkout\(ref, \{ track: true \}\)/)
     assert.match(gitServiceSource, /if \(opts\?\.track\) args\.push\('--track'\)/)
-    assert.match(gitStoreSource, /promptDirtyCheckout\(ref_, opts\)/)
+    assert.match(gitStoreSource, /promptDirtyCheckout\(ref_, opts, preflight\.value\.hasConflicts\)/)
     assert.match(gitStoreSource, /stashPush\(root\.value!, undefined, true\)/)
   })
 
@@ -148,6 +149,8 @@ test('SCM regressions', async (t) => {
     assert.match(commitFlow, /presentGitIssue/)
     assert.match(mergeFlow, /presentGitIssue/)
     assert.match(stashPopFlow, /presentGitIssue/)
+    assert.doesNotMatch(mergeFlow, /Automatic merge failed|fix conflicts/)
+    assert.doesNotMatch(stashPopFlow, /\/conflict\|CONFLICT/)
   })
 
   await t.test('repository initialization uses the SCM store error path', () => {
@@ -155,6 +158,119 @@ test('SCM regressions', async (t) => {
     assert.match(gitStoreSource, /operation: 'init'/)
     assert.match(panelSource, /await gitStore\.initRepo\(\)/)
     assert.doesNotMatch(panelSource, /window\.electronAPI\.git\.init\(appStore\.currentFolder\)/)
+  })
+
+  await t.test('empty repository history ignores localized Git error text', async () => {
+    const { GitService, GitServiceError } = await loadGitServiceModule()
+    const gitService = new GitService()
+
+    gitService.raw = async (_root, args) => {
+      if (args[0] === 'log') {
+        throw new GitServiceError('command-failed', "致命错误：您的当前分支 'master' 尚无任何提交")
+      }
+      if (args[0] === 'status') {
+        return '# branch.oid (initial)\n# branch.head master'
+      }
+      throw new Error(`Unexpected Git command: ${args.join(' ')}`)
+    }
+
+    assert.deepEqual(
+      await gitService.log('/workspace', { filePath: 'chapter.md', limit: 50 }),
+      [],
+    )
+  })
+
+  await t.test('SCM preflights fail closed and inspect repository state before writes', async () => {
+    const { GitService } = await loadGitServiceModule()
+    const workspacePath = mkdtempSync(join(tmpdir(), 'iwriter-git-preflight-'))
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: workspacePath })
+      execFileSync('git', ['config', 'user.name', 'iWriter Test'], { cwd: workspacePath })
+      execFileSync('git', ['config', 'user.email', 'test@iwriter.local'], { cwd: workspacePath })
+      writeFileSync(join(workspacePath, 'chapter.md'), 'base\n')
+      execFileSync('git', ['add', 'chapter.md'], { cwd: workspacePath })
+      execFileSync('git', ['commit', '-qm', 'base'], { cwd: workspacePath })
+      execFileSync('git', ['branch', 'draft'], { cwd: workspacePath })
+
+      const gitService = new GitService()
+      const merge = await gitService.preflightMerge(workspacePath, 'draft')
+      assert.equal(merge.ok, true)
+      assert.equal(merge.value.upToDate, true)
+
+      writeFileSync(join(workspacePath, 'chapter.md'), 'working change\n')
+
+      const checkout = await gitService.preflightCheckout(workspacePath, 'draft')
+      assert.equal(checkout.ok, true)
+      assert.equal(checkout.value.dirty, true)
+
+      const deletion = await gitService.preflightDeleteBranch(workspacePath, 'draft')
+      assert.equal(deletion.ok, true)
+      assert.equal(deletion.value.hasUpstream, false)
+      assert.equal(deletion.value.forceRequired, false)
+
+      const missingDelete = await gitService.preflightDeleteBranch(workspacePath, 'missing')
+      assert.equal(missingDelete.ok, false)
+
+      const missingMerge = await gitService.preflightMerge(workspacePath, 'missing')
+      assert.equal(missingMerge.ok, false)
+    } finally {
+      rmSync(workspacePath, { recursive: true, force: true })
+    }
+  })
+
+  await t.test('merge conflicts are reported from status instead of localized stderr', async () => {
+    const { GitService } = await loadGitServiceModule()
+    const workspacePath = mkdtempSync(join(tmpdir(), 'iwriter-git-merge-conflict-'))
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: workspacePath })
+      execFileSync('git', ['config', 'user.name', 'iWriter Test'], { cwd: workspacePath })
+      execFileSync('git', ['config', 'user.email', 'test@iwriter.local'], { cwd: workspacePath })
+      writeFileSync(join(workspacePath, 'chapter.md'), 'base\n')
+      execFileSync('git', ['add', 'chapter.md'], { cwd: workspacePath })
+      execFileSync('git', ['commit', '-qm', 'base'], { cwd: workspacePath })
+      execFileSync('git', ['checkout', '-qb', 'draft'], { cwd: workspacePath })
+      writeFileSync(join(workspacePath, 'chapter.md'), 'draft\n')
+      execFileSync('git', ['commit', '-qam', 'draft'], { cwd: workspacePath })
+      execFileSync('git', ['checkout', '-q', 'master'], { cwd: workspacePath })
+      writeFileSync(join(workspacePath, 'chapter.md'), 'main\n')
+      execFileSync('git', ['commit', '-qam', 'main'], { cwd: workspacePath })
+
+      const gitService = new GitService()
+      assert.deepEqual(await gitService.merge(workspacePath, 'draft'), { conflicted: true })
+      assert.equal((await gitService.status(workspacePath)).conflicts.length, 1)
+    } finally {
+      rmSync(workspacePath, { recursive: true, force: true })
+    }
+  })
+
+  await t.test('a clean merge commit failure is not mislabeled as a conflict', async () => {
+    const { GitService } = await loadGitServiceModule()
+    const workspacePath = mkdtempSync(join(tmpdir(), 'iwriter-git-merge-failure-'))
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: workspacePath })
+      execFileSync('git', ['config', 'user.name', 'iWriter Test'], { cwd: workspacePath })
+      execFileSync('git', ['config', 'user.email', 'test@iwriter.local'], { cwd: workspacePath })
+      writeFileSync(join(workspacePath, 'base.md'), 'base\n')
+      execFileSync('git', ['add', '.'], { cwd: workspacePath })
+      execFileSync('git', ['commit', '-qm', 'base'], { cwd: workspacePath })
+      execFileSync('git', ['checkout', '-qb', 'draft'], { cwd: workspacePath })
+      writeFileSync(join(workspacePath, 'draft.md'), 'draft\n')
+      execFileSync('git', ['add', '.'], { cwd: workspacePath })
+      execFileSync('git', ['commit', '-qm', 'draft'], { cwd: workspacePath })
+      execFileSync('git', ['checkout', '-q', 'master'], { cwd: workspacePath })
+      writeFileSync(join(workspacePath, 'main.md'), 'main\n')
+      execFileSync('git', ['add', '.'], { cwd: workspacePath })
+      execFileSync('git', ['commit', '-qm', 'main'], { cwd: workspacePath })
+      writeFileSync(
+        join(workspacePath, '.git', 'hooks', 'pre-merge-commit'),
+        '#!/bin/sh\nexit 1\n',
+        { mode: 0o755 },
+      )
+
+      await assert.rejects(new GitService().merge(workspacePath, 'draft'))
+    } finally {
+      rmSync(workspacePath, { recursive: true, force: true })
+    }
   })
 
   await t.test('SCM status indicators use the Explorer muted Git colors', () => {
@@ -166,22 +282,48 @@ test('SCM regressions', async (t) => {
     assert.match(groupSource, /:style="statusStyle\(row\.file!\.status\)"/)
   })
 
-  await t.test('Agent git tools share the application GitService instead of spawning git directly', () => {
+  await t.test('Agent exposes one raw Git tool through the application GitService', () => {
     assert.doesNotMatch(gitToolsSource, /child_process|execFile\(|spawn\(/)
     assert.match(gitToolsSource, /gitService: GitService/)
-    assert.match(gitToolsSource, /gitService\.commitPaths/)
-    assert.match(gitToolsSource, /gitService\.restorePaths/)
+    assert.match(gitToolsSource, /name: 'git'/)
+    assert.doesNotMatch(gitToolsSource, /name: 'git_(read|write)'/)
+    assert.match(gitToolsSource, /gitService\.runCommand/)
     assert.match(agentEngineSource, /private readonly gitService: GitService/)
     assert.match(mainAppSource, /new AgentEngineClass\([\s\S]*this\.gitService/)
+    assert.match(creativeCapabilitiesSource, /git: \{[\s\S]*when:/)
+  })
+
+  await t.test('Agent Git policy dynamically approves writes and blocks unsafe read helpers', async () => {
+    const { classifyGitCommand, shouldInterruptGit } = await loadGitToolsModule()
+
+    assert.equal(classifyGitCommand(['status', '--short']).kind, 'read')
+    assert.equal(shouldInterruptGit(['status', '--short']), false)
+    assert.equal(classifyGitCommand(['add', '.']).kind, 'write')
+    assert.equal(shouldInterruptGit(['add', '.']), true)
+    assert.equal(classifyGitCommand(['diff', '--output=changes.patch']).kind, 'write')
+    assert.equal(shouldInterruptGit(['diff', '--output=changes.patch']), true)
+    assert.equal(classifyGitCommand(['diff', '--output=/tmp/changes.patch']).kind, 'invalid')
+    assert.equal(classifyGitCommand(['diff', '--ext-diff']).kind, 'invalid')
+    assert.equal(classifyGitCommand(['grep', '-Oless', 'secret']).kind, 'invalid')
+    assert.equal(shouldInterruptGit(['grep', '-Oless', 'secret']), false)
+    assert.equal(classifyGitCommand(['grep', '--no-index', '.', './../secret']).kind, 'invalid')
+    assert.equal(classifyGitCommand(['blame', '--contents=./../secret', 'chapter.md']).kind, 'invalid')
+    assert.equal(classifyGitCommand(['grep', '-f', 'patterns.txt', 'chapter.md']).kind, 'write')
+    assert.equal(classifyGitCommand(['ls-files', '--exclude-from=patterns.txt']).kind, 'write')
+  })
+
+  await t.test('persisted approvals for retired Git tools are rejected safely and retried through git', () => {
+    assert.match(agentEngineSource, /RETIRED_GIT_REVIEW_TOOLS/)
+    assert.match(agentEngineSource, /RETIRED_GIT_REVIEW_TOOLS\.has\(actionName\)/)
+    assert.match(agentEngineSource, /retry with the current git tool/)
+    assert.match(creativeCapabilitiesSource, /git_write: \{ allowedDecisions: \['approve', 'reject'\] \}/)
+    assert.match(creativeCapabilitiesSource, /CREATIVE_INTERRUPT_ON_NAMES = new Set\(Object\.keys\(CREATIVE_INTERRUPT_ON_CONFIG\)\)/)
   })
 
   await t.test('Agent Git mutations explicitly refresh the affected SCM views', () => {
     assert.match(gitTypesSource, /export type GitMutationKind = 'repository' \| 'working-tree' \| 'history' \| 'tags'/)
     assert.match(gitToolsSource, /onMutation: \(event: GitMutationEvent\) => void/)
-    assert.match(gitToolsSource, /notifyMutation\(workspacePath, 'repository'\)/)
-    assert.match(gitToolsSource, /notifyMutation\(workspacePath, 'history'\)/)
-    assert.match(gitToolsSource, /notifyMutation\(workspacePath, 'tags'\)/)
-    assert.match(gitToolsSource, /notifyMutation\(workspacePath, 'working-tree'\)/)
+    assert.match(gitToolsSource, /options\.onMutation\(\{ root: workspacePath, kind: mutationKind\(args\[0\]!\) \}\)/)
     assert.match(agentEngineSource, /sendGitMutation\(event\)/)
     assert.match(rendererEventBridgeSource, /send\('git:mutation', event\)/)
     assert.match(preloadSource, /ipcRenderer\.on\('git:mutation', listener\)/)
@@ -189,6 +331,52 @@ test('SCM regressions', async (t) => {
     assert.match(gitStoreSource, /event\.kind === 'repository' \|\| !isRepo\.value/)
     assert.match(gitStoreSource, /await loadGraph\(\)/)
     assert.match(gitStoreSource, /if \(event\.kind === 'tags'\) await loadTags\(\)/)
+  })
+
+  await t.test('raw Agent Git commands return exit status and both output streams', async () => {
+    const { GitService } = await loadGitServiceModule()
+    const workspacePath = mkdtempSync(join(tmpdir(), 'iwriter-agent-git-'))
+    try {
+      const gitService = new GitService()
+      const init = await gitService.runCommand(workspacePath, ['init', '-q'])
+      assert.equal(init.ok, true)
+      assert.equal(init.exitCode, 0)
+
+      const failure = await gitService.runCommand(workspacePath, ['rev-parse', '--verify', 'missing-ref'])
+      assert.equal(failure.ok, false)
+      assert.notEqual(failure.exitCode, 0)
+      assert.equal(typeof failure.stdout, 'string')
+      assert.equal(typeof failure.stderr, 'string')
+      assert.ok(failure.stderr.length > 0)
+    } finally {
+      rmSync(workspacePath, { recursive: true, force: true })
+    }
+  })
+
+  await t.test('auto-approved Git reads do not execute repository-configured diff helpers', async () => {
+    const { GitService } = await loadGitServiceModule()
+    const workspacePath = mkdtempSync(join(tmpdir(), 'iwriter-git-read-hardening-'))
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: workspacePath })
+      execFileSync('git', ['config', 'user.name', 'iWriter Test'], { cwd: workspacePath })
+      execFileSync('git', ['config', 'user.email', 'test@iwriter.local'], { cwd: workspacePath })
+      writeFileSync(join(workspacePath, 'chapter.md'), 'old\n')
+      execFileSync('git', ['add', '.'], { cwd: workspacePath })
+      execFileSync('git', ['commit', '-qm', 'base'], { cwd: workspacePath })
+      writeFileSync(join(workspacePath, 'chapter.md'), 'new\n')
+
+      const markerPath = join(workspacePath, 'external-diff-ran')
+      const helperPath = join(workspacePath, 'external-diff.sh')
+      writeFileSync(helperPath, `#!/bin/sh\nprintf invoked > "${markerPath}"\n`, { mode: 0o755 })
+      execFileSync('git', ['config', 'diff.external', helperPath], { cwd: workspacePath })
+
+      const result = await new GitService().runCommand(workspacePath, ['diff'], { readOnly: true })
+
+      assert.equal(result.ok, true)
+      assert.equal(existsSync(markerPath), false)
+    } finally {
+      rmSync(workspacePath, { recursive: true, force: true })
+    }
   })
 
   await t.test('changing the Git executable keeps in-flight repository queues serialized', () => {
@@ -318,6 +506,25 @@ test('SCM regressions', async (t) => {
 
 let creativeGitReviewModulePromise
 
+let gitToolsModulePromise
+
+async function loadGitToolsModule() {
+  if (!gitToolsModulePromise) {
+    gitToolsModulePromise = (async () => {
+      const result = await build({
+        entryPoints: ['electron/ai/tools/common/GitTools.ts'],
+        bundle: true,
+        platform: 'node',
+        format: 'esm',
+        write: false,
+      })
+      const code = result.outputFiles[0].text
+      return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+    })()
+  }
+  return gitToolsModulePromise
+}
+
 async function loadCreativeGitReviewModule() {
   if (!creativeGitReviewModulePromise) {
     creativeGitReviewModulePromise = (async () => {
@@ -376,6 +583,29 @@ async function loadGitServiceModule() {
 }
 
 test('Git approval cards receive factual operation details', async (t) => {
+  await t.test('raw Git approval preserves the exact argv including whitespace', async () => {
+    const { buildCreativeReviewItemFromAction } = await loadCreativeGitReviewModule()
+    const review = buildCreativeReviewItemFromAction({
+      name: 'git',
+      args: { args: ['commit', '--allow-empty-message', '-m', ' '] },
+    })
+
+    assert.equal(review.kind, 'creative_git_command')
+    assert.deepEqual(review.args, ['commit', '--allow-empty-message', '-m', ' '])
+  })
+
+  await t.test('a persisted git_write interrupt can still be rendered for safe rejection', async () => {
+    const { buildCreativeReviewItemFromAction } = await loadCreativeGitReviewModule()
+    const review = buildCreativeReviewItemFromAction({
+      name: 'git_write',
+      args: { args: ['commit', '-m', 'legacy'] },
+    })
+
+    assert.equal(review.kind, 'creative_git_command')
+    assert.equal(review.toolName, 'git_write')
+    assert.deepEqual(review.args, ['commit', '-m', 'legacy'])
+  })
+
   await t.test('repository initialization reports paths and workspace entry counts without inferring a project name', async () => {
     const { buildCreativeReviewItemFromAction, enrichCreativeGitReviewItem } = await loadCreativeGitReviewModule()
     const workspacePath = mkdtempSync(join(tmpdir(), 'iwriter-git-init-review-'))

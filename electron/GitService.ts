@@ -15,6 +15,11 @@ import type {
   GitIdentity,
   GitIdentityScopes,
   GitIssue,
+  GitActionResult,
+  CheckoutPreflight,
+  DeleteBranchPreflight,
+  MergePreflight,
+  GitConflictResult,
   SourceControlSettings,
   GitStatus,
 } from '../src/types/git'
@@ -44,6 +49,13 @@ export interface GitRestorePreview {
     additions: number | null
     deletions: number | null
   }>
+}
+
+export interface GitCommandResult {
+  ok: boolean
+  exitCode: number | null
+  stdout: string
+  stderr: string
 }
 
 export class GitServiceError extends Error {
@@ -167,12 +179,15 @@ export class GitService {
   // 杜绝并发抢锁产生的 "Unable to create '.git/index.lock': File exists"。
   private tails = new Map<string, Promise<unknown>>()
 
-  private exec<T>(root: string, fn: (g: SimpleGit) => Promise<T>): Promise<T> {
+  private enqueue<T>(root: string, action: () => Promise<T>): Promise<T> {
     const prev = this.tails.get(root) ?? Promise.resolve()
-    const run = prev.then(() => this.execWithRetry(root, fn), () => this.execWithRetry(root, fn))
-    // 链尾吞掉成败，仅用于排队；调用方仍从返回的 run 拿到真实结果/错误
+    const run = prev.then(action, action)
     this.tails.set(root, run.then(() => undefined, () => undefined))
     return run
+  }
+
+  private exec<T>(root: string, fn: (g: SimpleGit) => Promise<T>): Promise<T> {
+    return this.enqueue(root, () => this.execWithRetry(root, fn))
   }
 
   private async execWithRetry<T>(root: string, fn: (g: SimpleGit) => Promise<T>, attempt = 0): Promise<T> {
@@ -192,6 +207,51 @@ export class GitService {
   /** 串行执行一条 raw git 命令（经 exec 互斥 + 重试） */
   private raw(root: string, args: string[]): Promise<string> {
     return this.exec(root, g => g.raw(args))
+  }
+
+  /** Agent 使用的原始 Git 参数调用：不预判结果，完整返回退出码和两个输出流。 */
+  runCommand(root: string, args: string[], options: { readOnly?: boolean } = {}): Promise<GitCommandResult> {
+    return this.enqueue(root, () => this.runCommandWithRetry(root, args, options))
+  }
+
+  private async runCommandWithRetry(
+    root: string,
+    args: string[],
+    options: { readOnly?: boolean },
+    attempt = 0,
+  ): Promise<GitCommandResult> {
+    const commandArgs = options.readOnly && ['diff', 'log', 'show'].includes(args[0] ?? '')
+      ? [args[0]!, '--no-ext-diff', '--no-textconv', ...args.slice(1)]
+      : args
+    const readOnlyConfig = options.readOnly ? ['-c', 'core.fsmonitor=false'] : []
+    const result = await new Promise<GitCommandResult>(resolve => {
+      execFile(this.binary(), ['-c', 'core.quotepath=false', ...readOnlyConfig, ...commandArgs], {
+        cwd: root,
+        timeout: 60_000,
+        maxBuffer: 4 * 1024 * 1024,
+        env: {
+          ...process.env,
+          GIT_OPTIONAL_LOCKS: '0',
+          GIT_PAGER: 'cat',
+          GIT_TERMINAL_PROMPT: '0',
+        },
+      }, (error, stdout, stderr) => {
+        const errorCode = error && typeof (error as { code?: string | number }).code === 'number'
+          ? (error as { code: number }).code
+          : null
+        resolve({
+          ok: !error,
+          exitCode: error ? errorCode : 0,
+          stdout: stdout.toString(),
+          stderr: stderr.toString() || (error?.message ?? ''),
+        })
+      })
+    })
+    if (!result.ok && attempt < 4 && /index\.lock/.test(result.stderr)) {
+      await new Promise(resolve => setTimeout(resolve, 100 * 2 ** attempt))
+      return this.runCommandWithRetry(root, args, options, attempt + 1)
+    }
+    return result
   }
 
   /**
@@ -648,13 +708,41 @@ export class GitService {
    * - force: `-f` 丢弃本地改动强制切换（破坏性）。
    * - merge: `-m` 三方合并，把本地未提交改动迁移到目标分支（冲突则留标记，进 Merge Changes）。
    */
-  async checkout(root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }): Promise<void> {
+  async checkout(root: string, ref: string, opts?: { force?: boolean; merge?: boolean; track?: boolean }): Promise<GitConflictResult> {
     const args = ['checkout']
     if (opts?.force) args.push('-f')
     if (opts?.merge) args.push('-m')
     if (opts?.track) args.push('--track')
     args.push(ref)
-    await this.raw(root,args)
+    let failure: unknown
+    try {
+      await this.raw(root,args)
+    } catch (error) {
+      failure = error
+    }
+    if (opts?.merge) {
+      const status = await this.status(root).catch(() => null)
+      if (status && status.conflicts.length > 0) return { conflicted: true }
+    }
+    if (failure) throw failure
+    return { conflicted: false }
+  }
+
+  /** SCM 切换预检：先验证目标，再读取工作区状态；任一步失败都不执行 checkout。 */
+  async preflightCheckout(root: string, ref: string): Promise<GitActionResult<CheckoutPreflight>> {
+    try {
+      await this.raw(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])
+      const status = await this.status(root)
+      return {
+        ok: true,
+        value: {
+          dirty: status.staged.length + status.changes.length + status.untracked.length + status.conflicts.length > 0,
+          hasConflicts: status.conflicts.length > 0 || status.isMerging,
+        },
+      }
+    } catch (error) {
+      return { ok: false, issue: classifyGitIssue(error, 'preflight-checkout', ref) }
+    }
   }
 
   async createBranch(root: string, name: string, base?: string, checkout?: boolean): Promise<void> {
@@ -670,45 +758,66 @@ export class GitService {
   }
 
   /** 删除分支预检（三查）：未推送到远程 / 未并入 main / 有其他分支基于它派生 */
-  async preflightDeleteBranch(root: string, name: string): Promise<{
-    unpushedCommits: number
-    mainRef: string | null
-    mergedIntoMain: boolean
-    descendantBranches: string[]
-  }> {
-    // 本地分支 → 确定主干（main/master）
-    let locals: string[] = []
+  async preflightDeleteBranch(root: string, name: string): Promise<GitActionResult<DeleteBranchPreflight>> {
     try {
-      locals = (await this.raw(root, ['branch', '--format=%(refname:short)'])).split('\n').map(s => s.trim()).filter(Boolean)
-    } catch { /* ignore */ }
-    const mainRef = locals.includes('main') ? 'main' : locals.includes('master') ? 'master' : null
-    // ① 未推送：相对 upstream 领先的提交数（无 upstream → 0，不噪扰纯本地库）
-    let unpushedCommits = 0
-    try {
-      unpushedCommits = parseInt((await this.raw(root, ['rev-list', '--count', `${name}@{upstream}..${name}`])).trim(), 10) || 0
-    } catch { unpushedCommits = 0 }
-    // ② 是否已并入主干
-    let mergedIntoMain = false
-    if (mainRef && mainRef !== name) {
-      try {
+      await this.raw(root, ['show-ref', '--verify', '--quiet', `refs/heads/${name}`])
+      const locals = (await this.raw(root, ['branch', '--format=%(refname:short)']))
+        .split('\n').map(s => s.trim()).filter(Boolean)
+      const mainRef = locals.includes('main') ? 'main' : locals.includes('master') ? 'master' : null
+      const upstream = (await this.raw(root, [
+        'for-each-ref',
+        '--format=%(upstream:short)',
+        `refs/heads/${name}`,
+      ])).trim()
+      const hasUpstream = upstream.length > 0
+      const unpushedCommits = hasUpstream
+        ? parseInt((await this.raw(root, ['rev-list', '--count', `${upstream}..${name}`])).trim(), 10) || 0
+        : 0
+      const deleteBase = upstream || 'HEAD'
+      const forceRequired = !(await this.raw(root, [
+        'branch',
+        '--merged',
+        deleteBase,
+        '--format=%(refname:short)',
+      ])).split('\n').map(s => s.trim()).includes(name)
+      let mergedIntoMain = false
+      if (mainRef && mainRef !== name) {
         mergedIntoMain = (await this.raw(root, ['branch', '--merged', mainRef, '--format=%(refname:short)'])).split('\n').map(s => s.trim()).includes(name)
-      } catch { mergedIntoMain = false }
+      }
+      const descendantBranches = (await this.raw(root, ['branch', '--contains', name, '--format=%(refname:short)']))
+        .split('\n').map(s => s.trim()).filter(n => n && n !== name)
+      return {
+        ok: true,
+        value: { hasUpstream, unpushedCommits, mainRef, mergedIntoMain, descendantBranches, forceRequired },
+      }
+    } catch (error) {
+      return { ok: false, issue: classifyGitIssue(error, 'preflight-delete-branch', name) }
     }
-    // ③ 其他本地分支包含它的 tip（= 基于它派生）
-    let descendantBranches: string[] = []
-    try {
-      descendantBranches = (await this.raw(root, ['branch', '--contains', name, '--format=%(refname:short)'])).split('\n').map(s => s.trim()).filter(n => n && n !== name)
-    } catch { descendantBranches = [] }
-    return { unpushedCommits, mainRef, mergedIntoMain, descendantBranches }
   }
 
   /** 合并预检：当前 HEAD 是否为目标分支的祖先（是→可快进，否→需合并提交/可能冲突） */
-  async preflightMerge(root: string, branch: string): Promise<{ fastForward: boolean }> {
+  async preflightMerge(root: string, branch: string): Promise<GitActionResult<MergePreflight>> {
     try {
-      await this.raw(root, ['merge-base', '--is-ancestor', 'HEAD', branch])
-      return { fastForward: true }
-    } catch {
-      return { fastForward: false }
+      const head = await this.raw(root, ['rev-parse', '--verify', 'HEAD^{commit}'])
+      const target = await this.raw(root, ['rev-parse', '--verify', `${branch}^{commit}`])
+      const status = await this.status(root)
+      if (status.conflicts.length > 0 || status.isMerging) {
+        throw new GitServiceError('command-failed', 'Resolve the current merge conflicts before starting another merge.')
+      }
+      if (status.staged.length + status.changes.length + status.untracked.length > 0) {
+        throw new GitServiceError('command-failed', 'Commit or stash local changes before merging branches.')
+      }
+      const base = await this.raw(root, ['merge-base', 'HEAD', branch])
+      const upToDate = base.trim() === target.trim()
+      return {
+        ok: true,
+        value: {
+          fastForward: !upToDate && base.trim() === head.trim(),
+          upToDate,
+        },
+      }
+    } catch (error) {
+      return { ok: false, issue: classifyGitIssue(error, 'preflight-merge', branch) }
     }
   }
 
@@ -839,8 +948,17 @@ export class GitService {
     await this.raw(root,['stash', 'apply', `stash@{${index}}`])
   }
 
-  async stashPop(root: string, index: number): Promise<void> {
-    await this.raw(root,['stash', 'pop', `stash@{${index}}`])
+  async stashPop(root: string, index: number): Promise<GitConflictResult> {
+    let failure: unknown
+    try {
+      await this.raw(root,['stash', 'pop', `stash@{${index}}`])
+    } catch (error) {
+      failure = error
+    }
+    const status = await this.status(root).catch(() => null)
+    if (status && status.conflicts.length > 0) return { conflicted: true }
+    if (failure) throw failure
+    return { conflicted: false }
   }
 
   async stashDrop(root: string, index: number): Promise<void> {
@@ -925,8 +1043,7 @@ export class GitService {
     try {
       out = await this.raw(root, ['log', ...args])
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error)
-      if (/does not have any commits yet/i.test(detail)) return []
+      if (!opts.ref && !opts.allBranches && await this.hasInitialHead(root)) return []
       throw error
     }
     const remoteNames = await this.remoteNames(root)
@@ -942,6 +1059,21 @@ export class GitService {
           parents: (parents ?? '').split(' ').filter(Boolean),
         } as GitCommit
       })
+  }
+
+  /** porcelain v2 的 (initial) 标记不受 Git 输出语言影响。 */
+  private async hasInitialHead(root: string): Promise<boolean> {
+    try {
+      const status = await this.raw(root, [
+        'status',
+        '--porcelain=v2',
+        '--branch',
+        '--untracked-files=no',
+      ])
+      return status.split('\n').some(line => line.trim() === '# branch.oid (initial)')
+    } catch {
+      return false
+    }
   }
 
   /** 已配置的远程名集合，用于把 `<remote>/<branch>` 装饰判为远程引用。 */
@@ -1024,8 +1156,17 @@ export class GitService {
   }
 
   /** 合并指定分支到当前分支（冲突时 git 以非零退出，交由渲染层按 status 呈现 Merge Changes） */
-  async merge(root: string, branch: string): Promise<void> {
-    await this.raw(root,['merge', branch])
+  async merge(root: string, branch: string): Promise<GitConflictResult> {
+    let failure: unknown
+    try {
+      await this.raw(root,['merge', branch])
+    } catch (error) {
+      failure = error
+    }
+    const status = await this.status(root).catch(() => null)
+    if (status && status.conflicts.length > 0) return { conflicted: true }
+    if (failure) throw failure
+    return { conflicted: false }
   }
 
   /**

@@ -802,22 +802,30 @@ async function showBranchMenu(event: MouseEvent, includeRepoActions = false) {
 /** 合并分支：先预检能否快进 → 确认后合并（现在是选完直接合、无确认，§5.6 预检总纲） */
 async function onMergeBranch(branch: string) {
   const pf = await gitStore.preflightMerge(branch)
+  if (!pf) return
   const res = await window.electronAPI.showMessageBox({
     type: 'question',
     title: t('sourceControl.branch.mergeTitle', { branch }),
     message: t('sourceControl.branch.mergeTitle', { branch }),
-    detail: pf.fastForward ? t('sourceControl.branch.mergeFastForward') : t('sourceControl.branch.mergeCommitHint'),
-    buttons: [t('common.cancel'), t('sourceControl.branch.mergeAction')],
-    defaultId: 1,
+    detail: pf.upToDate
+      ? t('sourceControl.branch.mergeUpToDate')
+      : pf.fastForward
+        ? t('sourceControl.branch.mergeFastForward')
+        : t('sourceControl.branch.mergeCommitHint'),
+    buttons: pf.upToDate
+      ? [t('common.ok')]
+      : [t('common.cancel'), t('sourceControl.branch.mergeAction')],
+    defaultId: pf.upToDate ? 0 : 1,
     cancelId: 0,
   })
-  if (res?.response === 1) gitStore.merge(branch)
+  if (!pf.upToDate && res?.response === 1) gitStore.merge(branch)
 }
 
 /** 删除分支：先预检（未推送/未并入 main/派生分支）→ 有问题列信息 + 强制删除，无问题防误点确认（§5.6 预检总纲） */
 async function onDeleteBranch(name: string) {
   if (!gitStore.root) return
   const pf = await gitStore.preflightDeleteBranch(name)
+  if (!pf) return
   const problems: string[] = []
   if (pf.unpushedCommits > 0) problems.push(t('sourceControl.branch.preflightUnpushed', { n: pf.unpushedCommits }))
   if (pf.mainRef && !pf.mergedIntoMain) problems.push(t('sourceControl.branch.preflightNotMerged', { main: pf.mainRef }))
@@ -828,11 +836,11 @@ async function onDeleteBranch(name: string) {
       title: t('sourceControl.branch.deleteTitle', { name }),
       message: t('sourceControl.branch.deleteTitle', { name }),
       detail: `${problems.join('\n')}\n\n${t('sourceControl.branch.deleteForceHint')}`,
-      buttons: [t('common.cancel'), t('sourceControl.branch.forceDelete')],
+      buttons: [t('common.cancel'), t(pf.forceRequired ? 'sourceControl.branch.forceDelete' : 'sourceControl.branch.deleteAction')],
       defaultId: 0,
       cancelId: 0,
     })
-    if (res?.response === 1) await gitStore.deleteBranch(name, true)
+    if (res?.response === 1) await gitStore.deleteBranch(name, pf.forceRequired)
   } else {
     const res = await window.electronAPI.showMessageBox({
       type: 'question',

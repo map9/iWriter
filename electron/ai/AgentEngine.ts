@@ -93,6 +93,18 @@ const BLOCK_EDIT_APPLIED_MESSAGE =
   'The edit was applied successfully by the editor. Block IDs for this file have now shifted — ' +
   're-read with get_document_outline / get_section before starting a new round of edits.'
 
+const RETIRED_GIT_REVIEW_TOOLS = new Set([
+  'git_write',
+  'git_init',
+  'git_commit',
+  'git_tag',
+  'git_restore',
+])
+
+const RETIRED_GIT_REVIEW_MESSAGE =
+  'This pending Git approval was created by an earlier iWriter version and was not executed. ' +
+  'Inspect the repository again and retry with the current git tool.'
+
 /** How long the v3 projections may stay pending after the graph run itself has ended. */
 const STREAM_DRAIN_GRACE_MS = 15_000
 
@@ -484,13 +496,25 @@ export class AgentEngine {
     // depend on ToolNode running. Non-poisoned batches keep the normal approve→ToolNode path, and
     // non-block-edit tools (e.g. filesystem writes that do real work on execution) are never
     // synthesized — they must still execute via ToolNode.
-    const batchPoisoned = fullDecisions.some(d => d.type === 'rejected' || d.type === 'responded')
+    const batchPoisoned = fullDecisions.some((d, idx) =>
+      d.type === 'rejected'
+      || d.type === 'responded'
+      || ((d.type === 'approved' || d.type === 'edited')
+        && RETIRED_GIT_REVIEW_TOOLS.has(interrupted.actionNames[idx] ?? '')),
+    )
 
     // Map decisions[] → LangGraph HITLResponse decisions.
     // decisions[i] corresponds to actionRequests[i] — array position is the contract.
     const lgDecisions = fullDecisions.map((d, idx) => {
+      const actionName = interrupted.actionNames[idx] ?? ''
+      if ((d.type === 'approved' || d.type === 'edited') && RETIRED_GIT_REVIEW_TOOLS.has(actionName)) {
+        return {
+          type: 'reject' as const,
+          message: `${RESPOND_MARKER}${RETIRED_GIT_REVIEW_MESSAGE}`,
+        }
+      }
       if (d.type === 'approved') {
-        if (batchPoisoned && isBlockEditToolName(interrupted.actionNames[idx] ?? '')) {
+        if (batchPoisoned && isBlockEditToolName(actionName)) {
           return {
             type: 'reject' as const,
             message: `${RESPOND_MARKER}${BLOCK_EDIT_APPLIED_MESSAGE}`,
@@ -501,7 +525,7 @@ export class AgentEngine {
       if (d.type === 'edited' && d.editedArgs) {
         // Same poisoned-batch guard as 'approved': an edited block-edit is also applied by the
         // renderer, so route it through the respond channel to avoid an orphan tool_call.
-        if (batchPoisoned && isBlockEditToolName(interrupted.actionNames[idx] ?? '')) {
+        if (batchPoisoned && isBlockEditToolName(actionName)) {
           return {
             type: 'reject' as const,
             message: `${RESPOND_MARKER}${BLOCK_EDIT_APPLIED_MESSAGE}`,
@@ -510,7 +534,7 @@ export class AgentEngine {
         return {
           type: 'edit' as const,
           editedAction: {
-            name: interrupted.actionNames[idx] ?? '',
+            name: actionName,
             args: d.editedArgs,
           },
         }

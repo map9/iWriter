@@ -52,6 +52,13 @@
       </label>
 
       <div
+        v-if="currentReview.kind === 'creative_git_command'"
+        class="rounded-box border border-base-300 bg-base-200 px-2 py-2 font-mono text-xs leading-relaxed"
+      >
+        git {{ currentReview.args.map(arg => JSON.stringify(arg)).join(' ') }}
+      </div>
+
+      <div
         v-if="currentReview.kind === 'creative_git_init'"
         class="space-y-2 text-[11px] leading-relaxed text-base-content/70"
       >
@@ -292,6 +299,7 @@ const title = computed(() => {
   const review = currentReview.value
   if (!review) return ''
   if (review.kind === 'creative_plan') return t('agentPanel.creativeReview.titlePlan')
+  if (review.kind === 'creative_git_command') return t('agentPanel.creativeReview.titleGitCommand')
   if (review.kind === 'creative_git_commit') return t('agentPanel.creativeReview.titleGitCommit')
   if (review.kind === 'creative_git_tag') return t('agentPanel.creativeReview.titleGitTag')
   if (review.kind === 'creative_git_init') return t('agentPanel.creativeReview.titleGitInit')
@@ -309,6 +317,7 @@ function basename(filePath: string): string {
 const subtitle = computed(() => {
   const review = currentReview.value
   if (!review) return ''
+  if (review.kind === 'creative_git_command') return `git ${review.args.join(' ')}`
   if (review.kind === 'creative_git_commit') return review.files.join(', ')
   if (review.kind === 'creative_git_tag') return review.name
   if (review.kind === 'creative_git_init') return ''

@@ -423,6 +423,12 @@ export interface CreativeGitRestoreReviewItem extends BaseCreativeReviewItem {
   changes?: CreativeGitRestoreFilePreview[]
 }
 
+export interface CreativeGitCommandReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_git_command'
+  toolName: 'git' | 'git_write'
+  args: string[]
+}
+
 // Phase 2 M1b-3: whole-chapter finalize card closing a write-session. `baseline`/`current` are
 // filled by the host (AgentEngine._enrichFinalizeReviews) — baseline = session-start snapshot,
 // current = chapter on disk — so the surface can show a baseline-vs-current diff.
@@ -463,6 +469,7 @@ export type CreativeReviewItem =
   | CreativeGitTagReviewItem
   | CreativeGitInitReviewItem
   | CreativeGitRestoreReviewItem
+  | CreativeGitCommandReviewItem
   | CreativeChapterFinalizeReviewItem
   | CreativeManuscriptImportReviewItem
 
@@ -911,9 +918,7 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     search_draft:         'search',
     get_session_diff:     'read',
     get_storybible_rebuild_signal: 'read',
-    git_status:            'read',
-    git_log:               'read',
-    git_diff:              'read',
+    git:                   'execute',
     get_character_psychology: 'read',
     advise_directions: 'read',
     analyze_story_architecture: 'read',
@@ -924,8 +929,6 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     replace_storybible_section: 'edit',
     rebuild_storybible:   'edit',
     compress_storybible_history: 'edit',
-    git_commit:           'edit',
-    git_tag:              'edit',
     list_explorations:    'read',
     start_exploration:    'edit',
     write_exploration_draft: 'edit',
@@ -966,6 +969,8 @@ export const BLOCK_EDIT_TOOLS = new Set([
 export const CREATIVE_REVIEW_TOOLS = new Set([
   'confirm_writing_plan',
   'finalize_chapter',
+  'git',
+  // Legacy review names remain accepted for persisted threads created before raw Git tools.
   'git_init',
   'git_commit',
   'git_tag',

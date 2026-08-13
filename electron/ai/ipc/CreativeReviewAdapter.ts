@@ -18,6 +18,12 @@ function asStringArray(value: unknown): string[] | undefined {
   return items.length ? items : undefined
 }
 
+function asExactStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((item): item is string => typeof item === 'string')
+    ? [...value]
+    : undefined
+}
+
 function asOptionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value ? value : undefined
 }
@@ -116,6 +122,19 @@ export function buildCreativeReviewItemFromAction(
       toolName: 'confirm_writing_plan',
       status: 'pending',
       plan: asString(args.plan),
+      toolCallId,
+      sourceMessageId,
+      sourceTurnId,
+    }
+  }
+
+  if (action.name === 'git' || action.name === 'git_write') {
+    return {
+      id,
+      kind: 'creative_git_command',
+      toolName: action.name,
+      status: 'pending',
+      args: asExactStringArray(args.args) ?? [],
       toolCallId,
       sourceMessageId,
       sourceTurnId,
