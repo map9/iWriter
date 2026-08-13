@@ -31,11 +31,15 @@ iWriter 的 AI 运行时已经切换到：
 ### 主进程 AI Runtime
 
 - `electron/ai/AgentEngine.ts`
-  主进程 AI facade 与高层编排入口
+  主进程 AI facade；保留模型装配、预算校验、初始/恢复运行和流式事件编排
 - `electron/ai/runtime/AgentFactory.ts` / `AgentCache.ts` / `AgentRunner.ts` / `RuntimeConfig.ts`
   Agent 装配、缓存、运行取消与稳定运行配置
 - `electron/ai/application/InterruptCoordinator.ts`
   审批结果的原始索引回填和 LangGraph HITL 决策映射
+- `electron/ai/application/ThreadService.ts`
+  线程列表/消息读取、新旧线程 turn 准备、metadata 更新、取消及线程资源清理
+- `electron/ai/application/WritingSessionCoordinator.ts`
+  写作计划授权、统一基线快照、Stage 2/2b 写入裁决、自动累积、整章终审与回滚
 - `electron/ai/runtime/ThreadRuntimeResolver.ts`
   解析线程级 provider / model / profile / domain
 - `electron/ai/runtime/ThreadRuntimeStore.ts`
@@ -85,6 +89,10 @@ iWriter 的 AI 运行时已经切换到：
   AI 侧栏、输入、conversation、review 与 Provider 设置组件；不再散落在 `src/components/ai/`
 
 跨进程类型直接从 `@shared/ai/contracts` 导入；旧的 renderer、主进程 protocol 和 store re-export 入口已删除。
+
+`AgentEngine` 通过 application service 组合线程和写作事务用例，不再直接持有线程资源清理或
+writing-session 生命周期私有方法。`ThreadService` 与 `WritingSessionCoordinator` 彼此不依赖，
+共同依赖既有 runtime store、registry 和 IPC/checkpoint 端口，保持依赖方向单向。
 
 ## Runtime Context 与资源绑定
 

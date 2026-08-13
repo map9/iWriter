@@ -1,6 +1,6 @@
 # Agent 代码结构重构实施计划
 
-> 实施状态（2026-08-13）：共享契约与纯逻辑、主进程 runtime/interrupt 拆分、renderer `AgentClient`/state/conversation 分层、AI 组件归并及兼容入口清理已落地。`AgentEngine` 中剩余的 thread/writing-session 编排已完成设计确认，等待按本文件的严格行为等价方案实施；进程隔离仍不属于本计划范围。
+> 实施状态（2026-08-13）：共享契约与纯逻辑、主进程 runtime/interrupt/thread/writing-session 拆分、renderer `AgentClient`/state/conversation 分层、AI 组件归并及兼容入口清理已落地。`AgentEngine` 继续作为 facade，保留模型装配、预算、运行与流式编排；本轮严格行为等价重构已完成。进程隔离及进一步提取 `RunCoordinator`/`AgentService` 不属于本轮范围。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox syntax for tracking.
 
@@ -546,7 +546,7 @@ export class ThreadService {
 `cancel/deleteThread/clear`、cache `deleteThread/clear`、writing registry `clearThread/clearAll`、
 checkpointer admin `deleteThread/clearAll`，以及 fallback 通知清理回调。
 
-- [ ] **Step 1：编写失败的 ThreadService 直接测试**
+- [x] **Step 1：编写失败的 ThreadService 直接测试**
 
   `tests/thread-service.test.mjs` 通过 esbuild 加载尚不存在的模块，使用记录调用的 fake ports。
   核心断言为：
@@ -573,13 +573,13 @@ checkpointer admin `deleteThread/clearAll`，以及 fallback 通知清理回调�
   另测新线程创建并生成标题、已有线程 runtime metadata 更新、checkpoint 消息转换、读取异常
   返回双空集合、cancel 的清理顺序、delete/clear 覆盖全部资源。
 
-- [ ] **Step 2：验证测试因模块缺失失败**
+- [x] **Step 2：验证测试因模块缺失失败**
 
   运行：`node --test tests/thread-service.test.mjs`
 
   预期：FAIL，esbuild 报告无法解析 `electron/ai/application/ThreadService.ts`。
 
-- [ ] **Step 3：实现最小 ThreadService 并接入 AgentEngine**
+- [x] **Step 3：实现最小 ThreadService 并接入 AgentEngine**
 
   在 `AgentEngine.initialize()` 创建 service；公开线程方法委托给 service。`sendMessage()` 改为：
 
@@ -603,7 +603,7 @@ checkpointer admin `deleteThread/clearAll`，以及 fallback 通知清理回调�
   `_maybeRehydrateInterrupt()` 调用，然后返回 renderer messages。Context stats 和 stream metadata
   查询统一改用 `threadService.getMeta()`。
 
-- [ ] **Step 4：验证 ThreadService 与 AgentEngine 回归**
+- [x] **Step 4：验证 ThreadService 与 AgentEngine 回归**
 
   运行：
 
@@ -614,7 +614,7 @@ checkpointer admin `deleteThread/clearAll`，以及 fallback 通知清理回调�
 
   预期：新增测试和现有 AgentEngine 初始化测试全部 PASS，TypeScript 无错误。
 
-- [ ] **Step 5：提交线程编排拆分**
+- [x] **Step 5：提交线程编排拆分**
 
   ```bash
   git add electron/ai/application/ThreadService.ts electron/ai/AgentEngine.ts \
@@ -638,8 +638,8 @@ export interface HitlActionRequest {
 }
 
 export type PreparedWritingAction =
-  | { kind: 'review' }
-  | { kind: 'auto-apply'; file: string }
+  | { kind: 'requires-review' }
+  | { kind: 'auto-apply'; filePath: string }
   | {
       kind: 'auto-reject'
       decision: ResumeDecision
@@ -676,7 +676,7 @@ export class WritingSessionCoordinator {
 回调、domain strategy 查询回调及 `RendererEventBridge`。文件存在性、磁盘读取和拒绝回滚继续使用
 Node `fs`，保持现有日志和 watcher 触发语义。
 
-- [ ] **Step 1：编写失败的 lifecycle 直接测试**
+- [x] **Step 1：编写失败的 lifecycle 直接测试**
 
   使用真实 `WritingSessionRegistry`、临时章节文件和 fake snapshot broker，覆盖：
 
@@ -700,14 +700,14 @@ Node `fs`，保持现有日志和 watcher 触发语义。
   保持、rejected 恢复 baseline 后关闭；`decorateReviews()` 只写入当前协议字段并正确计算
   `hasExternalEdits`。
 
-- [ ] **Step 2：验证测试因模块缺失失败**
+- [x] **Step 2：验证测试因模块缺失失败**
 
   运行：`node --test tests/writing-session-coordinator.test.mjs`
 
   预期：FAIL，esbuild 报告无法解析
   `electron/ai/application/WritingSessionCoordinator.ts`。
 
-- [ ] **Step 3：实现 lifecycle 方法**
+- [x] **Step 3：实现 lifecycle 方法**
 
   从 `AgentEngine` 原样迁移参数提取、路径验证、统一快照、计划登记、snapshot 归因、review
   decoration 和 finalize decision 副作用。拒绝回滚代码保持：
@@ -717,13 +717,13 @@ Node `fs`，保持现有日志和 watcher 触发语义。
     try {
       fs.writeFileSync(chapterPath, session.baselineSnapshot, 'utf-8')
     } catch (error) {
-      console.error('[WritingSessionCoordinator] finalize reject restore failed:', error)
+      console.error('[AgentEngine] finalize reject restore failed:', error)
     }
   }
   if (decision.type !== 'responded') registry.closeSession(threadId, chapterPath)
   ```
 
-- [ ] **Step 4：验证 lifecycle 测试**
+- [x] **Step 4：验证 lifecycle 测试**
 
   运行：
 
@@ -734,7 +734,7 @@ Node `fs`，保持现有日志和 watcher 触发语义。
 
   预期：新增 lifecycle 测试及 Registry 既有测试全部 PASS。
 
-- [ ] **Step 5：提交 writing-session 生命周期模块**
+- [x] **Step 5：提交 writing-session 生命周期模块**
 
   ```bash
   git add electron/ai/application/WritingSessionCoordinator.ts \
@@ -764,7 +764,7 @@ prepareAction(
 synthesizeRunEndFinalize(threadId: string, turnId?: string): Promise<boolean>
 ```
 
-- [ ] **Step 1：先增加失败测试**
+- [x] **Step 1：先增加失败测试**
 
   增加三类可观察断言：
 
@@ -779,7 +779,7 @@ synthesizeRunEndFinalize(threadId: string, turnId?: string): Promise<boolean>
     name: 'edit_block',
     args: { file_path: chapter, block_id: 1 },
   }, false)
-  assert.deepEqual(allowed, { kind: 'auto-apply', file: chapter })
+  assert.deepEqual(allowed, { kind: 'auto-apply', filePath: chapter })
 
   assert.equal(await coordinator.synthesizeRunEndFinalize('thread-1', 'turn-1'), true)
   assert.equal(sentEvents[0].reviews[0].payload.autoFallback, true)
@@ -790,7 +790,7 @@ synthesizeRunEndFinalize(threadId: string, turnId?: string): Promise<boolean>
   `decideWritingSessionApproval()`/`decideDelegatedWriteGate()`。保留既有断言，确保 delegated
   origin 仍只来自最新 root tool batch，而不是 run-wide partial message。
 
-- [ ] **Step 2：验证新增测试按预期失败**
+- [x] **Step 2：验证新增测试按预期失败**
 
   运行：
 
@@ -801,7 +801,7 @@ synthesizeRunEndFinalize(threadId: string, turnId?: string): Promise<boolean>
   预期：FAIL 于尚未实现的 `prepareAction()`/`synthesizeRunEndFinalize()`，以及 AgentEngine
   仍残留的直接编排断言。
 
-- [ ] **Step 3：迁移 AgentEngine 接线**
+- [x] **Step 3：迁移 AgentEngine 接线**
 
   - Filesystem Stage 1 和 poisoning 仍先执行。
   - `delegatedActionIndices()` 仍基于最新 root tool batch计算，但每项 Stage 2/2b 交给
@@ -812,7 +812,7 @@ synthesizeRunEndFinalize(threadId: string, turnId?: string): Promise<boolean>
   - resume 顺序保持 snapshot → plan registration → finalize decisions → synthetic/live 分支。
   - 正常 run complete 改调 `synthesizeRunEndFinalize()`；返回 true 时不发送 run-done。
 
-- [ ] **Step 4：删除 AgentEngine 中已迁移私有方法并修正注释**
+- [x] **Step 4：删除 AgentEngine 中已迁移私有方法并修正注释**
 
   删除 `_stashConfirmPlanArgs`、`_stashFinalizeArgs`、`_resolveChapterPath`、
   `_captureChapterBaseline`、`_enrichFinalizeReviews`、`_handleFinalizeDecisions`、
@@ -820,7 +820,7 @@ synthesizeRunEndFinalize(threadId: string, turnId?: string): Promise<boolean>
   `_registerApprovedWritingPlans`。更新 `CreativeReviewAdapter`、`FinalizeChapter`、
   `WritingSessionRegistry` 中指向旧私有方法的注释。
 
-- [ ] **Step 5：验证 interrupt/resume 与 AgentEngine 回归**
+- [x] **Step 5：验证 interrupt/resume 与 AgentEngine 回归**
 
   运行：
 
@@ -833,7 +833,7 @@ synthesizeRunEndFinalize(threadId: string, turnId?: string): Promise<boolean>
 
   预期：所有定向测试 PASS，`AgentEngine.ts` 不含上述九个私有方法。
 
-- [ ] **Step 6：提交 coordinator 接线**
+- [x] **Step 6：提交 coordinator 接线**
 
   ```bash
   git add electron/ai/AgentEngine.ts electron/ai/application/WritingSessionCoordinator.ts \
@@ -853,12 +853,12 @@ synthesizeRunEndFinalize(threadId: string, turnId?: string): Promise<boolean>
 - 修改：`design/AGENTIC_EDITING.md`
 - 修改：`design/agent-structure-refactor-plan.md`
 
-- [ ] **Step 1：更新现有架构说明与实施状态**
+- [x] **Step 1：更新现有架构说明与实施状态**
 
   `design/AGENTIC_EDITING.md` 记录 `ThreadService` 与 `WritingSessionCoordinator` 的职责；本文件
   顶部状态更新为已落地，并勾选 Task 2.1–2.4 的步骤。
 
-- [ ] **Step 2：执行最终验证**
+- [x] **Step 2：执行最终验证**
 
   运行：
 

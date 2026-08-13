@@ -135,6 +135,33 @@ function classMethodNames(filePath, className) {
   return methods
 }
 
+function namedImports(filePath) {
+  const source = readFileSync(filePath, 'utf8')
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  )
+  const imports = []
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) continue
+    const bindings = statement.importClause?.namedBindings
+    if (!bindings || !ts.isNamedImports(bindings)) continue
+    const specifier = statement.moduleSpecifier.text
+    for (const element of bindings.elements) {
+      imports.push({
+        name: element.propertyName?.text ?? element.name.text,
+        specifier,
+      })
+    }
+  }
+
+  return imports
+}
+
 function violationsForSource(owner, filePath, source) {
   const boundary = boundaries.find(item => item.owner === owner)
   if (!boundary) return []
@@ -307,4 +334,18 @@ test('AgentEngine delegates writing-session orchestration to its application ser
     [],
     'Writing-session lifecycle methods belong in WritingSessionCoordinator, not AgentEngine.',
   )
+
+  const decisionFunctions = new Set([
+    'decideWritingSessionApproval',
+    'decideDelegatedWriteGate',
+  ])
+  const decisionConsumers = sourceFiles('electron/ai').flatMap(filePath =>
+    namedImports(filePath)
+      .filter(item => decisionFunctions.has(item.name))
+      .map(item => `${filePath} -> ${item.name}`),
+  )
+  assert.deepEqual(decisionConsumers.sort(), [
+    'electron/ai/application/WritingSessionCoordinator.ts -> decideDelegatedWriteGate',
+    'electron/ai/application/WritingSessionCoordinator.ts -> decideWritingSessionApproval',
+  ])
 })
