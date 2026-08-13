@@ -50,11 +50,6 @@ export interface PreparedThreadTurn {
   language: DetectedInputLanguage
 }
 
-export interface ThreadMessagesResult {
-  messages: ThreadMessage[]
-  rawMessages: unknown[]
-}
-
 export class ThreadService {
   constructor(private readonly dependencies: ThreadServiceDependencies) {}
 
@@ -62,26 +57,21 @@ export class ThreadService {
     return (this.dependencies.getThreadListQuery()?.loadMetas() ?? []).map(metaToAiThread)
   }
 
-  async readMessages(threadId: string): Promise<ThreadMessagesResult> {
-    try {
-      const checkpointer = this.dependencies.getCheckpointer()
-      if (!checkpointer) return { messages: [], rawMessages: [] }
-      const tuple = await checkpointer.get({
-        configurable: { thread_id: threadId },
-      })
-      if (!tuple) return { messages: [], rawMessages: [] }
+  async readCheckpointMessages(threadId: string): Promise<unknown[]> {
+    const checkpointer = this.dependencies.getCheckpointer()
+    if (!checkpointer) return []
+    const tuple = await checkpointer.get({
+      configurable: { thread_id: threadId },
+    })
+    if (!tuple) return []
 
-      const rawMessages = (
-        tuple as { channel_values?: { messages?: unknown[] } }
-      ).channel_values?.messages ?? []
-      return {
-        messages: convertLcMessages(rawMessages),
-        rawMessages,
-      }
-    } catch (error) {
-      console.error('[AgentEngine] getThreadMessages error:', error)
-      return { messages: [], rawMessages: [] }
-    }
+    return (
+      tuple as { channel_values?: { messages?: unknown[] } }
+    ).channel_values?.messages ?? []
+  }
+
+  convertMessages(rawMessages: unknown[]): ThreadMessage[] {
+    return convertLcMessages(rawMessages)
   }
 
   getMeta(threadId: string): ThreadMeta | null {
@@ -157,11 +147,6 @@ export class ThreadService {
     })
     this.dependencies.runtimeStore.setCurrentTurnId(threadId, turnId)
 
-    if (this.dependencies.runtimeStore.getInterrupted(threadId)) {
-      console.warn('[AgentEngine] sendMessage: clearing stale interrupted state for threadId:', threadId)
-      this.dependencies.runtimeStore.clearInterrupted(threadId)
-    }
-
     return {
       threadId,
       turnId,
@@ -169,5 +154,11 @@ export class ThreadService {
       runtime,
       language,
     }
+  }
+
+  clearStaleInterrupt(threadId: string): void {
+    if (!this.dependencies.runtimeStore.getInterrupted(threadId)) return
+    console.warn('[AgentEngine] sendMessage: clearing stale interrupted state for threadId:', threadId)
+    this.dependencies.runtimeStore.clearInterrupted(threadId)
   }
 }

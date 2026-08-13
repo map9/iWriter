@@ -216,7 +216,7 @@ describe('ThreadService', () => {
     assert.deepEqual(fallbackClears, [['thread-1', 'turn-1']])
   })
 
-  it('reads checkpoint messages and preserves the raw messages for interrupt rehydration', async () => {
+  it('reads raw checkpoint messages before renderer conversion', async () => {
     const rawMessages = [{
       _getType: () => 'human',
       content: '<turn_bindings>hidden</turn_bindings>正文问题',
@@ -226,29 +226,24 @@ describe('ThreadService', () => {
       checkpointGet: async () => ({ channel_values: { messages: rawMessages } }),
     })
 
-    const result = await service.readMessages('thread-1')
+    const rawResult = await service.readCheckpointMessages('thread-1')
+    const messages = service.convertMessages(rawResult)
 
-    assert.equal(result.rawMessages, rawMessages)
-    assert.equal(result.messages.length, 1)
-    assert.equal(result.messages[0].role, 'user')
-    assert.equal(result.messages[0].content, '正文问题')
+    assert.equal(rawResult, rawMessages)
+    assert.equal(messages.length, 1)
+    assert.equal(messages[0].role, 'user')
+    assert.equal(messages[0].content, '正文问题')
   })
 
-  it('returns empty message collections when checkpoint reading fails', async () => {
+  it('lets the facade preserve the legacy error boundary when checkpoint reading fails', async () => {
     const { service } = await createHarness({
       checkpointGet: async () => { throw new Error('checkpoint unavailable') },
     })
 
-    const originalError = console.error
-    console.error = () => {}
-    try {
-      assert.deepEqual(await service.readMessages('thread-1'), {
-        messages: [],
-        rawMessages: [],
-      })
-    } finally {
-      console.error = originalError
-    }
+    await assert.rejects(
+      service.readCheckpointMessages('thread-1'),
+      /checkpoint unavailable/,
+    )
   })
 
   it('lists persisted thread metadata as renderer threads', async () => {
@@ -294,7 +289,7 @@ describe('ThreadService', () => {
     assert.equal(runtimeStore.getCurrentTurnId(prepared.threadId), 'turn-new')
   })
 
-  it('prepares an existing thread turn and clears a stale interrupt', async () => {
+  it('prepares an existing thread turn without clearing its stale interrupt early', async () => {
     const { service, threadListQuery, runtimeStore } = await createHarness()
     threadListQuery.createMeta({
       id: 'thread-1',
@@ -334,12 +329,24 @@ describe('ThreadService', () => {
       language: 'zh-CN',
     })
     assert.equal(runtimeStore.getCurrentTurnId('thread-1'), 'turn-1')
-    assert.equal(runtimeStore.getInterrupted('thread-1'), null)
+    assert.notEqual(runtimeStore.getInterrupted('thread-1'), null)
     const meta = service.getMeta('thread-1')
     assert.equal(meta.domain, 'editing')
     assert.equal(meta.mode, 'edit')
     assert.equal(meta.modelId, 'model-2')
     assert.equal(meta.providerConfigId, 'provider-1')
     assert.equal(meta.thinkingLevel, 'high')
+  })
+
+  it('clears a stale interrupt only when the facade is ready to start the new run', async () => {
+    const { service, runtimeStore } = await createHarness()
+    runtimeStore.setInterrupted('thread-1', {
+      actionRequestCount: 1,
+      actionNames: ['edit_block'],
+    })
+
+    service.clearStaleInterrupt('thread-1')
+
+    assert.equal(runtimeStore.getInterrupted('thread-1'), null)
   })
 })

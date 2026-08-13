@@ -123,7 +123,14 @@ function stubPlugin() {
         [
           /ipc\/UserMessageBuilder$/,
           'user-message-builder',
-          'export function buildUserMessage() { return "" }',
+          `
+            export function buildUserMessage() {
+              if (globalThis.__iwriterBuildUserMessageError) {
+                throw globalThis.__iwriterBuildUserMessageError
+              }
+              return ""
+            }
+          `,
         ],
         [
           /runtime\/ThreadRuntimeResolver$/,
@@ -306,6 +313,115 @@ async function loadBudgetModule() {
 }
 
 describe('AgentEngine initialization', () => {
+  it('rehydrates checkpoint interrupts before conversion and preserves the legacy error boundary', async () => {
+    const { AgentEngine } = await loadModule()
+    const calls = []
+    const rawMessages = [{ type: 'ai' }]
+
+    class InitializedAgentEngine extends AgentEngine {
+      async initialize() {
+        this.threadService = {
+          readCheckpointMessages: async () => rawMessages,
+          convertMessages: () => {
+            calls.push('convert')
+            throw new Error('invalid message content')
+          },
+        }
+      }
+
+      async _maybeRehydrateInterrupt(_threadId, messages) {
+        assert.equal(messages, rawMessages)
+        calls.push('rehydrate')
+      }
+    }
+
+    const engine = new InitializedAgentEngine(() => null)
+    const originalError = console.error
+    console.error = () => {}
+    try {
+      assert.deepEqual(await engine.getThreadMessages('thread-1'), [])
+    } finally {
+      console.error = originalError
+    }
+    assert.deepEqual(calls, ['rehydrate', 'convert'])
+  })
+
+  it('returns an empty message list when checkpoint interrupt rehydration fails', async () => {
+    const { AgentEngine } = await loadModule()
+    let converted = false
+
+    class InitializedAgentEngine extends AgentEngine {
+      async initialize() {
+        this.threadService = {
+          readCheckpointMessages: async () => [{ type: 'ai' }],
+          convertMessages: () => {
+            converted = true
+            return [{ role: 'assistant', content: 'unexpected' }]
+          },
+        }
+      }
+
+      async _maybeRehydrateInterrupt() {
+        throw new Error('rehydration failed')
+      }
+    }
+
+    const engine = new InitializedAgentEngine(() => null)
+    const originalError = console.error
+    console.error = () => {}
+    try {
+      assert.deepEqual(await engine.getThreadMessages('thread-1'), [])
+    } finally {
+      console.error = originalError
+    }
+    assert.equal(converted, false)
+  })
+
+  it('keeps a pending interrupt when message construction fails before a new run starts', async () => {
+    const { AgentEngine } = await loadModule()
+    const pending = { actionRequestCount: 1, actionNames: ['edit_block'] }
+    let clearCalls = 0
+
+    class InitializedAgentEngine extends AgentEngine {
+      async initialize() {
+        this.runtimeStore.setInterrupted('thread-1', pending)
+        this.threadService = {
+          prepareTurn: () => ({
+            threadId: 'thread-1',
+            turnId: 'turn-2',
+            isNewThread: false,
+            runtime: {
+              providerConfig: {},
+              domain: 'editing',
+              mode: 'edit',
+              modelId: 'model-1',
+              thinkingLevel: 'medium',
+            },
+            language: 'zh-CN',
+          }),
+          clearStaleInterrupt: () => {
+            clearCalls += 1
+            this.runtimeStore.clearInterrupted('thread-1')
+          },
+        }
+      }
+    }
+
+    const engine = new InitializedAgentEngine(() => null)
+    globalThis.__iwriterBuildUserMessageError = new Error('attachment unavailable')
+    try {
+      await assert.rejects(
+        engine.sendMessage({ threadId: 'thread-1', userText: '继续' }),
+        /attachment unavailable/,
+      )
+    } finally {
+      delete globalThis.__iwriterBuildUserMessageError
+    }
+
+    assert.equal(clearCalls, 0)
+    assert.equal(engine.runtimeStore.getInterrupted('thread-1'), pending)
+  })
+
   it('uses ThreadService as the public thread-list facade', async () => {
     const { AgentEngine } = await loadModule()
 

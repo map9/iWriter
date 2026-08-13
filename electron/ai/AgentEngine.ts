@@ -240,11 +240,14 @@ export class AgentEngine {
 
   async getThreadMessages(threadId: string): Promise<ThreadMessage[]> {
     await this._ensureInitialized()
-    const { messages, rawMessages } = await this.threadService.readMessages(threadId)
-    if (rawMessages.length > 0) {
+    try {
+      const rawMessages = await this.threadService.readCheckpointMessages(threadId)
       await this._maybeRehydrateInterrupt(threadId, rawMessages)
+      return this.threadService.convertMessages(rawMessages)
+    } catch (error) {
+      console.error('[AgentEngine] getThreadMessages error:', error)
+      return []
     }
-    return messages
   }
 
   deleteThread(threadId: string): void {
@@ -267,6 +270,7 @@ export class AgentEngine {
 
     const userContent = await buildUserMessage(req)
     this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language, threadId)
+    this.threadService.clearStaleInterrupt(threadId)
 
     // Run agent in background
     const runTask = this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language).catch(err => {

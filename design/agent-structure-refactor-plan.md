@@ -518,11 +518,6 @@ writing-session 生命周期私有方法。
 **接口：**
 
 ```ts
-export interface ThreadMessagesResult {
-  messages: ThreadMessage[]
-  rawMessages: unknown[]
-}
-
 export interface PreparedThreadTurn {
   threadId: string
   turnId: string
@@ -533,8 +528,10 @@ export interface PreparedThreadTurn {
 
 export class ThreadService {
   listThreads(): AiThread[]
-  readMessages(threadId: string): Promise<ThreadMessagesResult>
+  readCheckpointMessages(threadId: string): Promise<unknown[]>
+  convertMessages(rawMessages: unknown[]): ThreadMessage[]
   prepareTurn(settings: AiSettings, request: SendMessageRequest): PreparedThreadTurn
+  clearStaleInterrupt(threadId: string): void
   cancel(threadId: string): Promise<void>
   deleteThread(threadId: string): void
   clearThreads(): void
@@ -599,9 +596,10 @@ checkpointer admin `deleteThread/clearAll`，以及 fallback 通知清理回调�
   )
   ```
 
-  `getThreadMessages()` 调用 `readMessages()`，仅在 `rawMessages.length > 0` 时保持现有
-  `_maybeRehydrateInterrupt()` 调用，然后返回 renderer messages。Context stats 和 stream metadata
-  查询统一改用 `threadService.getMeta()`。
+  `getThreadMessages()` 依次调用 `readCheckpointMessages()`、`_maybeRehydrateInterrupt()` 和
+  `convertMessages()`，并以同一个 `try/catch` 保持旧错误边界。`sendMessage()` 仅在消息构建和预算
+  校验成功后调用 `clearStaleInterrupt()`。Context stats 和 stream metadata 查询统一改用
+  `threadService.getMeta()`。
 
 - [x] **Step 4：验证 ThreadService 与 AgentEngine 回归**
 
@@ -871,7 +869,7 @@ synthesizeRunEndFinalize(threadId: string, turnId?: string): Promise<boolean>
 
   预期：全部测试 PASS，ESLint 和两个 TypeScript project 无错误，diff 无空白错误。
 
-- [ ] **Step 3：提交验收门禁与文档**
+- [x] **Step 3：提交验收门禁与文档**
 
   ```bash
   git add tests/ai-architecture-boundaries.test.mjs design/AGENTIC_EDITING.md \
