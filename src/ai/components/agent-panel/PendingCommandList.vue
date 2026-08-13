@@ -80,8 +80,8 @@ import {
   IconTrash,
   IconX,
 } from '@tabler/icons-vue'
-import { useAiStore } from '@/ai/store/ai'
-import type { PendingCommand } from '@/ai/store/modules/pendingCommands'
+import { useAiStore } from '@/ai/state/aiStore'
+import type { PendingCommand } from '@/ai/state/pendingCommands'
 
 defineProps<{
   commands: PendingCommand[]

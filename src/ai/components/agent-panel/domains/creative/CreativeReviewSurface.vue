@@ -197,7 +197,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 
 const aiStore = useAiStore()
 const { t } = useI18n()

@@ -14,7 +14,7 @@ async function loadQueueModule() {
     queueModulePromise = (async () => {
       const result = await build({
         stdin: {
-          contents: `export * from './src/ai/store/modules/pendingCommands.ts'`,
+          contents: `export * from './src/ai/state/pendingCommands.ts'`,
           resolveDir: process.cwd(),
           sourcefile: 'pending-command-queue-test-entry.ts',
         },
@@ -52,7 +52,7 @@ async function loadChatSendModule() {
         plugins: [{
           name: 'stub-ai-store',
           setup(buildApi) {
-            buildApi.onResolve({ filter: /^@\/ai\/store\/ai$/ }, () => ({
+            buildApi.onResolve({ filter: /^@\/ai\/state\/aiStore$/ }, () => ({
               path: 'ai-store',
               namespace: 'test-stub',
             }))
@@ -77,7 +77,7 @@ async function loadRuntimeEventsModule() {
         stdin: {
           contents: `
             export { computed, ref } from 'vue'
-            export { createRuntimeEvents } from './src/ai/store/modules/runtimeEvents.ts'
+            export { createRuntimeEvents } from './src/ai/state/runEvents.ts'
           `,
           resolveDir: process.cwd(),
           sourcefile: 'pending-command-runtime-events-test-entry.ts',
@@ -121,7 +121,7 @@ async function loadAgentPanelModule() {
         plugins: [{
           name: 'stub-agent-panel-dependencies',
           setup(buildApi) {
-            buildApi.onResolve({ filter: /^@\/ai\/store\/ai$/ }, () => ({
+            buildApi.onResolve({ filter: /^@\/ai\/state\/aiStore$/ }, () => ({
               path: 'ai-store',
               namespace: 'agent-panel-stub',
             }))
@@ -375,7 +375,7 @@ describe('normal run completion handoff', () => {
   })
 
   it('wires automatic dispatch only after a successful done event', () => {
-    const storeSource = readFileSync('src/ai/store/ai.ts', 'utf8')
+    const storeSource = readFileSync('src/ai/state/aiStore.ts', 'utf8')
     assert.match(
       storeSource,
       /const completion = await runtimeEvents\.onRunDone\([\s\S]*if \(completion\.completedSuccessfully && completion\.checkpointRefreshed && completion\.stillCurrent\)[\s\S]*dispatchPendingCommands\(event\.threadId\)/,
@@ -385,7 +385,7 @@ describe('normal run completion handoff', () => {
   })
 
   it('can cancel before the main process returns the run id without restoring stale pointers', () => {
-    const storeSource = readFileSync('src/ai/store/ai.ts', 'utf8')
+    const storeSource = readFileSync('src/ai/state/aiStore.ts', 'utf8')
     assert.match(
       storeSource,
       /_currentThreadId\.value \?\? _interruptedThreadId\.value \?\? _liveTurn\.value\?\.threadId/,

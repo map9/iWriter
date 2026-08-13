@@ -63,7 +63,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import DiffSplitView from './views/DiffSplitView.vue'
 import ReviewSurfaceShell from './views/ReviewSurfaceShell.vue'
 

@@ -91,7 +91,7 @@ import IconDeepseek from '@/components/icons/IconDeepseek.vue'
 import IconGemini from '@/components/icons/IconGemini.vue'
 import IconGlm from '@/components/icons/IconGlm.vue'
 import IconOllama from '@/components/icons/IconOllama.vue'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import type { AiProviderConfig } from '@/ai/types'
 import { useProviderPicker } from '../composables/useProviderPicker'
 

@@ -1,6 +1,6 @@
 import { watch, nextTick, computed, ref } from 'vue'
 import type { Ref } from 'vue'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import type { ContextAttachment, SendContext, ThreadUsage } from '@/ai/types'
 import { resolveAgentDomain, resolveAiProviderModelId } from '@/ai/types'
 import { agentClient } from '@/ai/client/AgentClient'

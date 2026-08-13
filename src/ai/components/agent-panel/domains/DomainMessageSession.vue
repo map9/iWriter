@@ -25,7 +25,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { AiAgentDomain, AiToolCall, ThreadMessage } from '@/ai/types'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import EditMessageSession from './edit/EditMessageSession.vue'
 import CreativeMessageSession from './creative/CreativeMessageSession.vue'
 

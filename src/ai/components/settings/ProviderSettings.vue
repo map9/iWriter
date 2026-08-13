@@ -291,7 +291,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconTrash, IconPlus, IconEye, IconEyeOff, IconChevronRight } from '@tabler/icons-vue'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import type {
   AiModelProfile,
   AiProviderConfig,

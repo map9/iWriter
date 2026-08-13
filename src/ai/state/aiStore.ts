@@ -2,29 +2,19 @@ import { defineStore } from 'pinia'
 import { ref, computed, toRaw } from 'vue'
 import type {
   AiThread,
-  AiProviderConfig,
-  AiSettings,
-  AiThinkingLevel,
   AiAgentDomain,
-  AiAgentMode,
-  WebSearchProviderConfig,
   ThreadMessage,
   SendContext,
   AiContextCompressionEvent,
 } from '@/ai/types'
 import {
-  normalizeWebSearchProviderConfigs,
   inferToolKind,
-  DEFAULT_AI_SETTINGS,
   DEFAULT_THINKING_LEVEL,
-  getActiveAiProviderConfig,
-  normalizeAgentMode,
   normalizeModeForDomain,
   normalizeThinkingLevel,
   resolveAiProviderModelId,
   resolveAgentDomain,
 } from '@/ai/types'
-import { getProviderPresetById, getProviderPresets, type ProviderPreset } from '@/ai/model/providers/provider-presets'
 import { createThread, appendMessage, createMessage } from '@/ai/thread/Thread'
 import {
   normalizeThreadMessageForDisplay,
@@ -36,23 +26,24 @@ import { i18n } from '@/i18n'
 import { nanoid } from 'nanoid'
 import {
   createEditReviewModule,
-} from './modules/editReview'
+} from './reviews/editing'
 import {
   createCreativeReviewModule,
-} from './modules/creativeReview'
+} from './reviews/creative'
 import {
   createFilesystemReviewModule,
-} from './modules/filesystemReview'
+} from './reviews/filesystem'
 import {
   createRuntimeState,
-} from './modules/runtimeState'
+} from './run'
 import { createConversationPresentation } from '@/ai/presentation/conversation/buildConversationEntries'
-import { createRuntimeEvents } from './modules/runtimeEvents'
+import { createRuntimeEvents } from './runEvents'
 import {
   createPendingCommandQueue,
   type PendingCommand,
-} from './modules/pendingCommands'
+} from './pendingCommands'
 import { agentClient } from '@/ai/client/AgentClient'
+import { createAiSettingsState } from './settings'
 
 export type {
   ProposalReviewEntry,
@@ -66,74 +57,6 @@ export type {
   ConversationView,
 } from '@/ai/presentation/conversation/types'
 
-// ── Settings localStorage helpers ──────────────────────────────────────────
-const _STORAGE_KEY_SETTINGS = 'iwriter-ai-settings'
-
-function resolveDefaultModelProfiles(
-  cfg: AiProviderConfig,
-  preset?: ProviderPreset,
-): AiProviderConfig['modelProfiles'] {
-  if (preset?.id === 'openai') return undefined
-  return cfg.modelProfiles ?? preset?.modelProfiles
-}
-
-function normalizeOpenAiPresetConfig(
-  cfg: AiProviderConfig,
-  preset: ProviderPreset,
-): AiProviderConfig {
-  const presetModels = preset.models ?? []
-  const isPresetModel = (modelId: string | undefined): boolean => {
-    const normalized = modelId?.trim()
-    return !!normalized && presetModels.includes(normalized)
-  }
-
-  return {
-    ...cfg,
-    defaultModelId: isPresetModel(cfg.defaultModelId) ? cfg.defaultModelId : preset.defaultModelId,
-    models: presetModels,
-    modelProfiles: undefined,
-    lastSelectedModelId: isPresetModel(cfg.lastSelectedModelId) ? cfg.lastSelectedModelId : undefined,
-    fallbackModelId: isPresetModel(cfg.fallbackModelId) ? cfg.fallbackModelId : undefined,
-  }
-}
-
-function _loadSettings(): AiSettings {
-  try {
-    const raw = localStorage.getItem(_STORAGE_KEY_SETTINGS)
-    if (!raw) {
-      return {
-        ...DEFAULT_AI_SETTINGS,
-        webSearchProviderConfigs: normalizeWebSearchProviderConfigs(undefined),
-      }
-    }
-    const merged = { ...DEFAULT_AI_SETTINGS, ...JSON.parse(raw) } as AiSettings
-    merged.defaultMode = normalizeAgentMode(merged.defaultMode)
-    merged.webSearchProviderConfigs = normalizeWebSearchProviderConfigs(merged.webSearchProviderConfigs)
-    merged.activeWebSearchProviderConfigId = merged.activeWebSearchProviderConfigId ?? null
-    merged.providerConfigs = (merged.providerConfigs ?? []).map(cfg => {
-      const preset = getProviderPresetById(cfg.presetId)
-      const normalizedPresetConfig = preset?.id === 'openai'
-        ? normalizeOpenAiPresetConfig(cfg, preset)
-        : cfg
-      return {
-        ...normalizedPresetConfig,
-        modelProfiles: resolveDefaultModelProfiles(normalizedPresetConfig, preset),
-        lastSelectedThinkingLevel: normalizeThinkingLevel(normalizedPresetConfig.lastSelectedThinkingLevel),
-      }
-    })
-    return merged
-  } catch {
-    return { ...DEFAULT_AI_SETTINGS }
-  }
-}
-function _saveSettingsToStorage(s: AiSettings): void {
-  try {
-    localStorage.setItem(_STORAGE_KEY_SETTINGS, JSON.stringify(s))
-  } catch (err) {
-    console.error('[ai store] Failed to save settings:', err)
-  }
-}
-
 export const useAiStore = defineStore('ai', () => {
   const appStore = useAppStore()
 
@@ -141,157 +64,26 @@ export const useAiStore = defineStore('ai', () => {
   const switchingThreadId = ref<string | null>(null)
   const draftInput = ref('')
 
-  // ── Settings & Provider Config ────────────────────────────────────────────
-  const _initialSettings = _loadSettings()
-  // Seed all presets on first run
-  if (_initialSettings.providerConfigs.length === 0) {
-    _initialSettings.providerConfigs = getProviderPresets()
-      .map((p: ProviderPreset) => ({
-        id: `preset-${p.id}`,
-        enabled: true,
-        type: p.type,
-        label: p.label,
-        apiKey: '',
-        baseUrl: p.baseUrl,
-        defaultModelId: p.defaultModelId,
-        presetId: p.id,
-        models: p.models,
-        modelProfiles: p.id === 'openai' ? undefined : p.modelProfiles,
-        lastSelectedThinkingLevel: DEFAULT_THINKING_LEVEL,
-      }))
-    _initialSettings.activeProviderConfigId = _initialSettings.providerConfigs[0]?.id ?? null
-    _saveSettingsToStorage(_initialSettings)
-  }
-
-  const settings = ref<AiSettings>(_initialSettings)
-
-  const activeProviderConfig = computed<AiProviderConfig | null>(() => {
-    return getActiveAiProviderConfig(
-      settings.value.providerConfigs,
-      settings.value.activeProviderConfigId,
-    )
+  const {
+    settings,
+    activeProviderConfig,
+    effectiveProviderConfig,
+    availableModels,
+    saveSettings,
+    reloadSettings,
+    updateWebSearchProviderConfig,
+    setActiveWebSearchProviderConfig,
+    addProviderConfig,
+    updateProviderConfig,
+    removeProviderConfig,
+    setActiveProvider,
+    setCurrentModelId,
+    setCurrentThinkingLevel,
+    setCurrentMode,
+  } = createAiSettingsState({
+    getActiveThread: () => activeThread.value,
+    updateThread,
   })
-
-  const effectiveProviderConfig = computed<AiProviderConfig | null>(() => {
-    const threadProviderId = activeThread.value?.providerConfigId
-    if (threadProviderId) {
-      return getActiveAiProviderConfig(
-        settings.value.providerConfigs,
-        threadProviderId,
-        { preferredModelId: activeThread.value?.modelId },
-      ) ?? activeProviderConfig.value
-    }
-    return activeProviderConfig.value
-  })
-
-  /** Models available for the current provider (for model picker) */
-  const availableModels = computed<string[]>(() => {
-    const config = effectiveProviderConfig.value
-    if (!config) return []
-    if (config.models?.length) return config.models
-    const preset = getProviderPresetById(config.presetId)
-    const presetModels = preset?.models ?? []
-    if (presetModels.length) return presetModels
-    return [resolveAiProviderModelId(config)].filter(Boolean)
-  })
-
-  function saveSettings() {
-    _saveSettingsToStorage(settings.value)
-    // Keep main-process AgentEngine in sync whenever settings change
-    agentClient.updateConfig(JSON.parse(JSON.stringify(toRaw(settings.value))))
-  }
-
-  function updateWebSearchProviderConfig(id: string, updates: Partial<WebSearchProviderConfig>) {
-    const idx = settings.value.webSearchProviderConfigs.findIndex(c => c.id === id)
-    if (idx >= 0) {
-      settings.value.webSearchProviderConfigs[idx] = {
-        ...settings.value.webSearchProviderConfigs[idx]!,
-        ...updates,
-      }
-      saveSettings()
-    }
-  }
-
-  function setActiveWebSearchProviderConfig(id: string | null) {
-    settings.value.activeWebSearchProviderConfigId = id
-    saveSettings()
-  }
-
-  function addProviderConfig(config: AiProviderConfig) {
-    settings.value.providerConfigs.push(config)
-    if (!settings.value.activeProviderConfigId) {
-      settings.value.activeProviderConfigId = config.id
-    }
-    saveSettings()
-  }
-
-  function updateProviderConfig(id: string, updates: Partial<AiProviderConfig>) {
-    const idx = settings.value.providerConfigs.findIndex(c => c.id === id)
-    if (idx >= 0) {
-      settings.value.providerConfigs[idx] = {
-        ...settings.value.providerConfigs[idx]!,
-        ...updates,
-      }
-      saveSettings()
-    }
-  }
-
-  function removeProviderConfig(id: string) {
-    settings.value.providerConfigs = settings.value.providerConfigs.filter(c => c.id !== id)
-    if (settings.value.activeProviderConfigId === id) {
-      settings.value.activeProviderConfigId = settings.value.providerConfigs[0]?.id ?? null
-    }
-    saveSettings()
-  }
-
-  function setActiveProvider(id: string) {
-    settings.value.activeProviderConfigId = id
-    saveSettings()
-    const nextProvider = settings.value.providerConfigs.find(c => c.id === id) ?? null
-    const thread = activeThread.value
-    if (thread) {
-      updateThread({
-        ...thread,
-        providerConfigId: id,
-        modelId: nextProvider?.lastSelectedModelId || nextProvider?.defaultModelId || thread.modelId,
-        thinkingLevel: normalizeThinkingLevel(nextProvider?.lastSelectedThinkingLevel),
-      })
-    }
-  }
-
-  /** Persist selected model to provider config */
-  function setCurrentModelId(modelId: string) {
-    const config = effectiveProviderConfig.value
-    if (config) {
-      updateProviderConfig(config.id, { defaultModelId: modelId, lastSelectedModelId: modelId })
-    }
-    if (activeThread.value) {
-      updateThread({ ...activeThread.value, modelId })
-    }
-  }
-
-  /** Persist selected thinking level to provider config and current thread */
-  function setCurrentThinkingLevel(level: AiThinkingLevel) {
-    const normalizedLevel = normalizeThinkingLevel(level)
-    const config = effectiveProviderConfig.value
-    if (config) {
-      updateProviderConfig(config.id, { lastSelectedThinkingLevel: normalizedLevel })
-    }
-    if (activeThread.value) {
-      updateThread({ ...activeThread.value, thinkingLevel: normalizedLevel })
-    }
-  }
-
-  function setCurrentMode(mode: AiAgentMode) {
-    const domain = resolveAgentDomain(mode)
-    const normalizedMode = normalizeModeForDomain(mode, domain)
-    if (activeThread.value) {
-      updateThread({ ...activeThread.value, domain, mode: normalizedMode })
-      return
-    }
-    settings.value.defaultMode = normalizedMode
-    saveSettings()
-  }
 
   // ── Threads ───────────────────────────────────────────────────────────────
   const threads = ref<AiThread[]>([])
@@ -977,7 +769,7 @@ export const useAiStore = defineStore('ai', () => {
 
   // ── Initialization ────────────────────────────────────────────────────────
   function init() {
-    settings.value = _loadSettings()
+    reloadSettings()
     // Push current settings to main process on init (handles first-launch and
     // cases where renderer localStorage has newer values than the main-process store)
     agentClient.updateConfig(JSON.parse(JSON.stringify(toRaw(settings.value))))

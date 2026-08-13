@@ -21,7 +21,7 @@
 
 <script setup lang="ts">
 import type { EditSessionViewModel } from '@/ai/review/common/types'
-import type { ProposalReviewSummary } from '@/ai/store/ai'
+import type { ProposalReviewSummary } from '@/ai/state/aiStore'
 import EditSummaryCard from './EditSummaryCard.vue'
 import BlockEditReviewSurface from '../BlockEditReviewSurface.vue'
 

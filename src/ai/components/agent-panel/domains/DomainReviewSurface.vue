@@ -6,7 +6,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import { buildCreativeSessionViewModel } from '@/ai/review/domains/creative/creativeSelectors'
 import EditReviewSurface from './edit/EditReviewSurface.vue'
 import CreativeReviewSurface from './creative/CreativeReviewSurface.vue'

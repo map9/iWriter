@@ -126,7 +126,7 @@
 import { ref, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconTrash, IconSearch, IconPencil } from '@tabler/icons-vue'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import type { AiThread } from '@/ai/types'
 
 const aiStore = useAiStore()

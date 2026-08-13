@@ -55,7 +55,7 @@ defineProps<{ bottomPadding?: number }>()
 const emit = defineEmits<{
   followStateChange: [state: ScrollFollowState]
 }>()
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import AgentEmptyState from './chat-area/AgentEmptyState.vue'
 import AgentMessageBubble from './chat-area/AgentMessageBubble.vue'
 import DomainReviewSurface from './domains/DomainReviewSurface.vue'

@@ -29,7 +29,7 @@ async function loadChatSendModule() {
         plugins: [{
           name: 'stub-ai-store',
           setup(buildApi) {
-            buildApi.onResolve({ filter: /^@\/ai\/store\/ai$/ }, () => ({
+            buildApi.onResolve({ filter: /^@\/ai\/state\/aiStore$/ }, () => ({
               path: 'ai-store',
               namespace: 'test-stub',
             }))
@@ -97,7 +97,7 @@ async function loadModule() {
             } from './src/ai/presentation/conversation/buildConversationEntries.ts'
             export {
               createRuntimeEvents,
-            } from './src/ai/store/modules/runtimeEvents.ts'
+            } from './src/ai/state/runEvents.ts'
             export {
               StreamEventAdapter,
               parseDeepAgentsSummarizationEvent,
@@ -625,7 +625,7 @@ describe('context compression display event', () => {
   it('keeps compression in the stream protocol and renderer memory only', () => {
     const engineSource = readFileSync('electron/ai/AgentEngine.ts', 'utf8')
     const preloadSource = readFileSync('electron/preload.ts', 'utf8')
-    const storeSource = readFileSync('src/ai/store/ai.ts', 'utf8')
+    const storeSource = readFileSync('src/ai/state/aiStore.ts', 'utf8')
     const patchSource = readFileSync('patches/deepagents+1.11.1.patch', 'utf8')
 
     assert.match(engineSource, /durability: 'exit'/)
@@ -655,7 +655,7 @@ describe('context compression display event', () => {
       'src/ai/components/agent-panel/chat-area/AgentMessageBubble.vue',
       'utf8',
     )
-    const runtimeEventsSource = readFileSync('src/ai/store/modules/runtimeEvents.ts', 'utf8')
+    const runtimeEventsSource = readFileSync('src/ai/state/runEvents.ts', 'utf8')
     const assemblerSource = readFileSync(
       'electron/ai/scaffold/subagents/SubagentAssembler.ts',
       'utf8',

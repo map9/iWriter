@@ -11,7 +11,7 @@
 import { computed } from 'vue'
 import type { AiToolCall, ThreadMessage } from '@/ai/types'
 import { buildCreativeSessionViewModel } from '@/ai/review/domains/creative/creativeSelectors'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import CreativeSessionCard from '../../chat-area/views/CreativeSessionCard.vue'
 
 const props = defineProps<{

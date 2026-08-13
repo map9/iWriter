@@ -18,8 +18,8 @@ async function loadReviewModules() {
         stdin: {
           contents: `
             export { ref } from 'vue'
-            export { createEditReviewModule } from './src/ai/store/modules/editReview.ts'
-            export { createFilesystemReviewModule } from './src/ai/store/modules/filesystemReview.ts'
+            export { createEditReviewModule } from './src/ai/state/reviews/editing.ts'
+            export { createFilesystemReviewModule } from './src/ai/state/reviews/filesystem.ts'
           `,
           resolveDir: process.cwd(),
           sourcefile: 'review-rejection-test-entry.ts',

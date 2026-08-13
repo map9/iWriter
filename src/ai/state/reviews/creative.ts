@@ -5,7 +5,7 @@ import { agentClient } from '@/ai/client/AgentClient'
 import { buildCreativeRoundResult, mergeCreativeRoundResults, type CreativeReviewBatch } from '@/ai/review/domains/creative/creativeSelectors'
 import { createCreativeThreadSync } from '@/ai/review/domains/creative/creativeThreadSync'
 import type { ToolCallStatusOverrides } from '@/ai/message/display-normalizer'
-import type { LiveTurn, ThreadRunState } from './runtimeState'
+import type { LiveTurn, ThreadRunState } from '../run'
 
 interface CreativeReviewModuleDeps {
   activeThread: ComputedRef<AiThread | null>

@@ -13,8 +13,8 @@ import type {
   ConversationMessageEntry,
   ConversationView,
 } from './types'
-import type { LiveTurn, ThreadRunState } from '../../store/modules/runtimeState'
-import { mergeLiveSubTaskStatus } from '../../store/modules/runtimeEvents'
+import type { LiveTurn, ThreadRunState } from '../../state/run'
+import { mergeLiveSubTaskStatus } from '../../state/runEvents'
 
 function hasAssistantText(message: ThreadMessage): boolean {
   if (message.role !== 'assistant') return false

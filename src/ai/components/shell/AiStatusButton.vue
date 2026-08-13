@@ -24,7 +24,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useAppStore } from '@/stores/app'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import { IconRobot } from '@tabler/icons-vue'
 import { useI18n } from 'vue-i18n'
 

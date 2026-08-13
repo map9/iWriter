@@ -128,7 +128,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import { useGitStore } from '@/stores/git'
 import { DocumentType } from '@/types'
 import type { FileTab } from '@/types'

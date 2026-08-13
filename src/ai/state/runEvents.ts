@@ -19,7 +19,7 @@ import type {
 } from '@/ai/ipc'
 import { isHitlInterruptPayload } from '@/ai/hitl'
 import { agentClient } from '@/ai/client/AgentClient'
-import type { LiveSubTask, LiveTurn, ThreadRunState } from './runtimeState'
+import type { LiveSubTask, LiveTurn, ThreadRunState } from './run'
 
 const KNOWN_TASK_VALIDATION_ERROR_PREFIXES = [
   'Error: Planner subagent returned an invalid or empty result.',

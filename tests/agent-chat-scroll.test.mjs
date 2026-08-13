@@ -42,7 +42,7 @@ async function loadChatAreaModule() {
         plugin: {
           name: 'stub-agent-chat-area-dependencies',
           setup(buildApi) {
-            buildApi.onResolve({ filter: /^@\/ai\/store\/ai$/ }, () => ({
+            buildApi.onResolve({ filter: /^@\/ai\/state\/aiStore$/ }, () => ({
               path: 'ai-store',
               namespace: 'agent-chat-area-stub',
             }))
@@ -84,7 +84,7 @@ async function loadAgentPanelModule() {
         plugin: {
           name: 'stub-agent-panel-dependencies',
           setup(buildApi) {
-            buildApi.onResolve({ filter: /^@\/ai\/store\/ai$/ }, () => ({
+            buildApi.onResolve({ filter: /^@\/ai\/state\/aiStore$/ }, () => ({
               path: 'ai-store',
               namespace: 'agent-panel-stub',
             }))

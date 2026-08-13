@@ -15,7 +15,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { resolveProposalHostMessageId } from '@/ai/review/common/selectors'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import BlockEditReviewSurface from '../../chat-area/BlockEditReviewSurface.vue'
 
 const aiStore = useAiStore()

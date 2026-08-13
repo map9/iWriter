@@ -58,7 +58,7 @@
 import { type Component, computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconChevronDown, IconPencil, IconSparkles } from '@tabler/icons-vue'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import { useAppStore } from '@/stores/app'
 import type { AiAgentMode } from '@/ai/types'
 

@@ -45,7 +45,7 @@
 <script setup lang="ts">
 import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import AgentContextChips from './input/AgentContextChips.vue'
 import AgentToolbar from './input/AgentToolbar.vue'
 import { useContextFiles } from './composables/useContextFiles'

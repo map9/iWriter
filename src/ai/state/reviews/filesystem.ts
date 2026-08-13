@@ -2,7 +2,7 @@ import { ref, type ComputedRef, type Ref } from 'vue'
 import type { FilesystemReviewItem } from '@/ai/types'
 import type { DomainReviewItem, ResumeDecision } from '@/ai/ipc'
 import { agentClient } from '@/ai/client/AgentClient'
-import type { LiveTurn, ThreadRunState } from './runtimeState'
+import type { LiveTurn, ThreadRunState } from '../run'
 
 const FILESYSTEM_REJECTION_MESSAGE = 'The user rejected this file operation. Do not retry automatically. Briefly acknowledge and wait for the user to redirect.'
 const FILESYSTEM_BATCH_REJECTION_MESSAGE = 'The user rejected all file operations in this batch. Do not retry automatically. Briefly acknowledge and wait for the user to redirect.'

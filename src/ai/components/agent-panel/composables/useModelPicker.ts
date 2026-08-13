@@ -1,5 +1,5 @@
 import { ref, computed, watch, nextTick } from 'vue'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import type { AiThinkingLevel } from '@/ai/types'
 import { DEFAULT_THINKING_LEVEL, normalizeThinkingLevel } from '@/ai/types'
 

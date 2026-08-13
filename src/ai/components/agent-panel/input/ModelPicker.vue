@@ -163,7 +163,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconChevronDown, IconChevronRight, IconCloud, IconCube, IconDownload } from '@tabler/icons-vue'
 import { useModelPicker } from '../composables/useModelPicker'
-import { useAiStore } from '@/ai/store/ai'
+import { useAiStore } from '@/ai/state/aiStore'
 import { useAppStore } from '@/stores/app'
 import { isWebSearchProviderUsable, type AiThinkingLevel } from '@/ai/types'
 

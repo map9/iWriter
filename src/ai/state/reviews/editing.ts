@@ -26,7 +26,7 @@ import {
   setProposalDecisionInBatch,
 } from '@/ai/review/common/state'
 import { createReviewThreadSync } from '@/ai/review/common/threadSync'
-import type { LiveTurn } from './runtimeState'
+import type { LiveTurn } from '../run'
 import type {
   ProposalDecisionKind,
   ProposalReviewEntry,
