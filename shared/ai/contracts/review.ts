@@ -118,7 +118,11 @@ export function isDomainReviewItem(value: unknown): value is DomainReviewItem {
     || candidate.kind === 'creative'
     || candidate.kind === 'filesystem'
 
-  return hasSupportedKind && !!candidate.payload && typeof candidate.payload === 'object'
+  if (!hasSupportedKind || !candidate.payload || typeof candidate.payload !== 'object') return false
+  if (Array.isArray(candidate.payload)) return false
+
+  const prototype = Object.getPrototypeOf(candidate.payload)
+  return prototype === Object.prototype || prototype === null
 }
 
 export type EditRoundResultState =

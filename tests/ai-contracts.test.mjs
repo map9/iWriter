@@ -59,6 +59,7 @@ describe('shared AI contracts', () => {
     const { isDomainReviewItem } = await loadContracts()
 
     assert.equal(isDomainReviewItem({ kind: 'filesystem', payload: { id: 'review-1' } }), true)
+    assert.equal(isDomainReviewItem({ kind: 'filesystem', payload: [] }), false)
     assert.equal(isDomainReviewItem({ kind: 'unknown', payload: {} }), false)
     assert.equal(isDomainReviewItem(null), false)
   })
