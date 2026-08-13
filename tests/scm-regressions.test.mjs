@@ -30,7 +30,8 @@ const diffViewSource = readFileSync('src/components/common/diff/DiffView.vue', '
 const gitConfigStoreSource = readFileSync('electron/GitConfigStore.ts', 'utf8')
 const editSettingSource = readFileSync('src/types/edit-setting.ts', 'utf8')
 const stateStorageSource = readFileSync('src/utils/StateStorage.ts', 'utf8')
-const aiTypesSource = readFileSync('src/ai/types.ts', 'utf8')
+const aiReviewContractSource = readFileSync('shared/ai/contracts/review.ts', 'utf8')
+const aiToolContractSource = readFileSync('shared/ai/contracts/tool.ts', 'utf8')
 const displayNormalizerSource = readFileSync('src/ai/message/display-normalizer.ts', 'utf8')
 const creativeReviewSurfaceSource = readFileSync('src/components/ai/agent-panel/domains/creative/CreativeReviewSurface.vue', 'utf8')
 const zhMessagesSource = readFileSync('src/i18n/messages/zh-CN.ts', 'utf8')
@@ -322,7 +323,7 @@ test('SCM regressions', async (t) => {
       creativeCapabilitiesSource,
       agentEngineSource,
       creativeReviewAdapterSource,
-      aiTypesSource,
+      aiReviewContractSource,
       creativeReviewSurfaceSource,
     ].join('\n')
 
@@ -338,15 +339,15 @@ test('SCM regressions', async (t) => {
     ]) {
       assert.doesNotMatch(contractSource, new RegExp(`\\b${retiredKind}\\b`))
     }
-    assert.match(aiTypesSource, /kind: 'creative_git'/)
-    assert.match(aiTypesSource, /toolName: 'git'/)
+    assert.match(aiReviewContractSource, /kind: 'creative_git'/)
+    assert.match(aiReviewContractSource, /toolName: 'git'/)
     assert.match(creativeCapabilitiesSource, /CREATIVE_INTERRUPT_ON_NAMES = new Set\(Object\.keys\(CREATIVE_INTERRUPT_ON_CONFIG\)\)/)
     assert.doesNotMatch(creativeModeDocsSource, /\bgit_(?:write|init|commit|tag|restore)\b/)
     assert.match(creativeModeDocsSource, /`git\(args\)`/)
   })
 
   await t.test('retired creative tools are absent from renderer metadata', () => {
-    const metadataSource = [aiTypesSource, displayNormalizerSource, zhMessagesSource, enMessagesSource].join('\n')
+    const metadataSource = [aiToolContractSource, displayNormalizerSource, zhMessagesSource, enMessagesSource].join('\n')
     const retiredNames = [
       'read_storybible', 'read_fragments', 'list_chapters', 'get_session_diff',
       'get_storybible_rebuild_signal', 'read_chapter', 'write_to_chapter',

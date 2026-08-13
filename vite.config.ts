@@ -131,6 +131,7 @@ export default defineConfig(({ command }) => {
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src'),
+        '@shared': resolve(__dirname, 'shared'),
       }
     },
     css: {

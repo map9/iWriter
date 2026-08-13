@@ -3,6 +3,7 @@
   "include": [
     "env.d.ts",
     "src/types/**/*.d.ts",
+    "shared/**/*.ts",
     "electron/**/*.ts"
   ],
   "exclude": [
@@ -19,6 +20,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@shared/*": [
+        "./shared/*"
       ],
       "turndown": [
         "./node_modules/@types/turndown/index.d.ts"
