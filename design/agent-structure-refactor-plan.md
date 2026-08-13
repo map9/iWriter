@@ -1,4 +1,6 @@
-# Agent 代码结构重构 Phase 0–1 实施计划
+# Agent 代码结构重构实施计划
+
+> 实施状态（2026-08-13）：共享契约与纯逻辑、主进程 runtime/interrupt 拆分、renderer `AgentClient`/state/conversation 分层、AI 组件归并及兼容入口清理已落地。`AgentEngine` 中剩余的 thread/writing-session 编排可继续按 application 边界增量下沉；进程隔离仍不属于本计划范围。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox syntax for tracking.
 

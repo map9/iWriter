@@ -12,7 +12,7 @@ import { z } from 'zod'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import { BlockParser } from '../../document/BlockParser'
 import { DocumentSearch, listWorkspaceDocumentPaths, SUPPORTED_DOC_EXTS, type DocumentSearchOptions } from '../../document/DocumentSearch'
-import type { SerializedSnapshot } from '../../ipc/protocol'
+import type { SerializedSnapshot } from '@shared/ai/contracts'
 import { parseUntitledTabId } from '../../document/virtualId'
 
 function getExt(filePath: string): string {

@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core'
-import type { BlockEditProposal, EditProposal, FileCreateProposal } from '@/ai/types'
+import type { BlockEditProposal, EditProposal, FileCreateProposal } from '@shared/ai/contracts'
 import type { FileTab } from '@/types'
 import { UnifiedDocumentAccess } from '@/ai/document/UnifiedDocumentAccess'
 import { pathUtils } from '@/utils/pathUtils'

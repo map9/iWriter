@@ -10,7 +10,7 @@ import {
   resolveAgentDomain,
 } from '../../../shared/ai/contracts'
 import { resolveAiApiKeyEnvVar } from '../config/AiConfigStore'
-import type { SendMessageRequest } from '../ipc/protocol'
+import type { SendMessageRequest } from '@shared/ai/contracts'
 import type { ThreadMeta } from '../thread/ThreadListQuery'
 
 export interface ResolvedThreadRuntime {

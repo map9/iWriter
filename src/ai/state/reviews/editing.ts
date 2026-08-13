@@ -4,9 +4,9 @@ import type {
   EditProposal,
   EditRoundResult,
   ThreadMessage,
-} from '@/ai/types'
+} from '@shared/ai/contracts'
 import type { ToolCallStatusOverrides } from '@/ai/message/display-normalizer'
-import type { ResumeDecision, DomainReviewItem } from '@/ai/ipc'
+import type { ResumeDecision, DomainReviewItem } from '@shared/ai/contracts'
 import { agentClient } from '@/ai/client/AgentClient'
 import {
   flushReviewedBatch,

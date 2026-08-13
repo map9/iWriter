@@ -48,5 +48,31 @@ export default defineConfigWithVueTs(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
     },
-  }
+  },
+  {
+    files: ['shared/ai/**/*.ts', 'shared/git/**/*.ts', 'shared/workspace/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        paths: ['electron', 'vue', 'pinia'],
+        patterns: ['@/**', '**/src/**', '**/electron/**'],
+      }],
+    },
+  },
+  {
+    files: ['electron/ai/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: ['@/**', '**/src/**', '**/ipc/protocol', './protocol'],
+      }],
+    },
+  },
+  {
+    files: ['src/ai/**/*.{ts,vue}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        paths: ['electron', '@/ai/types', '@/ai/ipc'],
+        patterns: ['**/electron/**'],
+      }],
+    },
+  },
 )

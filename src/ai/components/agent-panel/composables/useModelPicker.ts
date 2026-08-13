@@ -1,7 +1,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useAiStore } from '@/ai/state/aiStore'
-import type { AiThinkingLevel } from '@/ai/types'
-import { DEFAULT_THINKING_LEVEL, normalizeThinkingLevel } from '@/ai/types'
+import type { AiThinkingLevel } from '@shared/ai/contracts'
+import { DEFAULT_THINKING_LEVEL, normalizeThinkingLevel } from '@shared/ai/contracts'
 
 export type ModelStatus = 'local' | 'cloud' | 'remote'
 

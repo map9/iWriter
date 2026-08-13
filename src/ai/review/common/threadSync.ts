@@ -1,5 +1,5 @@
 import { ref, type ComputedRef } from 'vue'
-import type { AiThread, AiToolCall, EditProposal, ThreadMessage } from '@/ai/types'
+import type { AiThread, AiToolCall, EditProposal, ThreadMessage } from '@shared/ai/contracts'
 import { stableStringify, toolCallSignature, type ToolCallStatusOverrides } from '@/ai/message/display-normalizer'
 
 interface ThreadSyncDeps {

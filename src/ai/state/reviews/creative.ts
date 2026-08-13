@@ -1,6 +1,6 @@
 import { ref, toRaw, type ComputedRef, type Ref } from 'vue'
-import type { AiThread, CreativeReviewItem, CreativeRoundResult, ThreadMessage } from '@/ai/types'
-import type { ResumeDecision, DomainReviewItem } from '@/ai/ipc'
+import type { AiThread, CreativeReviewItem, CreativeRoundResult, ThreadMessage } from '@shared/ai/contracts'
+import type { ResumeDecision, DomainReviewItem } from '@shared/ai/contracts'
 import { agentClient } from '@/ai/client/AgentClient'
 import { buildCreativeRoundResult, mergeCreativeRoundResults, type CreativeReviewBatch } from '@/ai/review/domains/creative/creativeSelectors'
 import { createCreativeThreadSync } from '@/ai/review/domains/creative/creativeThreadSync'

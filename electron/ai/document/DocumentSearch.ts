@@ -1,6 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import type { SerializedSnapshot } from '../ipc/protocol'
+import type { SerializedSnapshot } from '@shared/ai/contracts'
 import {
   DEFAULT_WORKSPACE_IGNORE_RULES,
   WORKSPACE_IGNORE_FILENAME,

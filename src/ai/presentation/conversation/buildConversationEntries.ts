@@ -6,8 +6,8 @@ import type {
   AiToolResult,
   MessageContentBlock,
   ThreadMessage,
-} from '@/ai/types'
-import { BLOCK_EDIT_TOOLS } from '@/ai/types'
+} from '@shared/ai/contracts'
+import { BLOCK_EDIT_TOOLS } from '@shared/ai/contracts'
 import type {
   ConversationEntry,
   ConversationMessageEntry,

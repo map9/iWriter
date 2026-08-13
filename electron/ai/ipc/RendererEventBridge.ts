@@ -7,7 +7,7 @@ import type {
   RunInterruptedEvent,
   RunModelFallbackEvent,
   StreamChunkEvent,
-} from './protocol'
+} from '@shared/ai/contracts'
 
 export class RendererEventBridge {
   constructor(private readonly getWebContents: () => WebContents | null) {}

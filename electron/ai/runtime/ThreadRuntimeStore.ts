@@ -1,6 +1,6 @@
 import type { DetectedInputLanguage } from '../../../shared/ai/core/detectInputLanguage'
 import { IWriterAgentContextSchema, type IWriterAgentContext } from './AgentContext'
-import type { ResumeDecision } from '../ipc/protocol'
+import type { ResumeDecision } from '@shared/ai/contracts'
 
 interface InterruptedRun {
   actionRequestCount: number

@@ -6,8 +6,8 @@
  * (API key, etc.); all other values come from here.
  */
 
-import type { AiModelProfile, AiProviderType } from '@/ai/types'
-import { DEFAULT_DEEPSEEK_MODEL_PROFILES } from '@/ai/model/model-profiles'
+import type { AiModelProfile, AiProviderType } from '@shared/ai/contracts'
+import { DEFAULT_DEEPSEEK_MODEL_PROFILES } from '@shared/ai/core/modelProfiles'
 import { i18n } from '@/i18n'
 
 export interface ProviderPreset {

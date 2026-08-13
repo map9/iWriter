@@ -6,7 +6,7 @@ import type {
   ThreadMessage,
   SendContext,
   AiContextCompressionEvent,
-} from '@/ai/types'
+} from '@shared/ai/contracts'
 import {
   inferToolKind,
   DEFAULT_THINKING_LEVEL,
@@ -14,7 +14,7 @@ import {
   normalizeThinkingLevel,
   resolveAiProviderModelId,
   resolveAgentDomain,
-} from '@/ai/types'
+} from '@shared/ai/contracts'
 import { createThread, appendMessage, createMessage } from '@/ai/thread/Thread'
 import {
   normalizeThreadMessageForDisplay,

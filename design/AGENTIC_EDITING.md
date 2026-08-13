@@ -31,7 +31,11 @@ iWriter 的 AI 运行时已经切换到：
 ### 主进程 AI Runtime
 
 - `electron/ai/AgentEngine.ts`
-  当前 DeepAgents runtime orchestrator
+  主进程 AI facade 与高层编排入口
+- `electron/ai/runtime/AgentFactory.ts` / `AgentCache.ts` / `AgentRunner.ts` / `RuntimeConfig.ts`
+  Agent 装配、缓存、运行取消与稳定运行配置
+- `electron/ai/application/InterruptCoordinator.ts`
+  审批结果的原始索引回填和 LangGraph HITL 决策映射
 - `electron/ai/runtime/ThreadRuntimeResolver.ts`
   解析线程级 provider / model / profile / domain
 - `electron/ai/runtime/ThreadRuntimeStore.ts`
@@ -71,20 +75,16 @@ iWriter 的 AI 运行时已经切换到：
 
 ### Renderer AI Domain
 
-- `src/ai/store/ai.ts`
-  前端 AI store 主实现
-- `src/ai/types.ts`
-  共享 AI contracts 的兼容入口
-- `src/ai/ipc.ts`
-  renderer 侧共享 IPC contracts 兼容入口
+- `src/ai/client/AgentClient.ts`
+  renderer 访问 preload AI API 的唯一入口
+- `src/ai/state/aiStore.ts`
+  Pinia facade；settings、run、run events、pending commands 与三类 review state 分文件装配
+- `src/ai/presentation/conversation/`
+  将 checkpoint 消息、实时 turn 与上下文压缩事件组合成 UI conversation entries
+- `src/ai/components/`
+  AI 侧栏、输入、conversation、review 与 Provider 设置组件；不再散落在 `src/components/ai/`
 
-兼容桥接仍然保留在：
-
-- `src/stores/ai.ts`
-- `src/types/ai.ts`
-- `src/types/ai-ipc.ts`
-
-但它们只是 re-export，不再是主实现位置。
+跨进程类型直接从 `@shared/ai/contracts` 导入；旧的 renderer、主进程 protocol 和 store re-export 入口已删除。
 
 ## Runtime Context 与资源绑定
 

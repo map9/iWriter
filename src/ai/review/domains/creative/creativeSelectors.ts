@@ -5,7 +5,7 @@ import type {
   CreativeRoundResultItem,
   CreativeRoundResultState,
   ThreadMessage,
-} from '@/ai/types'
+} from '@shared/ai/contracts'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 

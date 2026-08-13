@@ -70,7 +70,7 @@ import {
   IconChevronDown,
   IconListCheck,
 } from '@tabler/icons-vue'
-import type { TaskPlanItem } from '@/ai/types'
+import type { TaskPlanItem } from '@shared/ai/contracts'
 
 const props = withDefaults(defineProps<{
   items: TaskPlanItem[]

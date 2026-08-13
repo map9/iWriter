@@ -12,7 +12,7 @@ import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { EditorStateBroker } from '../../document/EditorStateBroker'
 import type { AiAgentMode } from '../../../../shared/ai/contracts'
 import type { DetectedInputLanguage } from '../../../../shared/ai/core/detectInputLanguage'
-import type { ResumeDecision } from '../../ipc/protocol'
+import type { ResumeDecision } from '@shared/ai/contracts'
 import type {
   DomainStrategy,
   DomainBuildContext,

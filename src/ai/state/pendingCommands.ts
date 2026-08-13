@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { nanoid } from 'nanoid'
-import type { SendContext } from '@/ai/types'
+import type { SendContext } from '@shared/ai/contracts'
 
 export interface PendingCommand {
   id: string

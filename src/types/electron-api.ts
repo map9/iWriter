@@ -155,27 +155,27 @@ export interface ElectronAPI {
   saveToPdfFromHtml: (htmlContent: string, printOptions?: Electron.PrintToPDFOptions, saveOptions?: PdfSaveOptions) => Promise<{ success: boolean; cancelled?: boolean; error?: string; filePath?: string }>
 
   // ── AI Agent (main-process deepagents) ──────────────────────────────────────
-  aiSendMessage?: (req: import('./ai-ipc').SendMessageRequest) => Promise<{ threadId: string }>
-  aiGetSessionContextStats?: (req: import('./ai-ipc').SessionContextStatsRequest) => Promise<import('./ai-ipc').SessionContextStatsResponse>
+  aiSendMessage?: (req: import('@shared/ai/contracts').SendMessageRequest) => Promise<{ threadId: string }>
+  aiGetSessionContextStats?: (req: import('@shared/ai/contracts').SessionContextStatsRequest) => Promise<import('@shared/ai/contracts').SessionContextStatsResponse>
   aiCancel?: (threadId: string) => Promise<void>
-  aiResume?: (req: import('./ai-ipc').ResumeRunRequest) => Promise<void>
-  aiGetConfig?: () => Promise<import('./ai').AiSettings>
-  aiUpdateConfig?: (patch: Partial<import('./ai').AiSettings>) => Promise<void>
-  aiGetThreads?: () => Promise<import('./ai').AiThread[]>
+  aiResume?: (req: import('@shared/ai/contracts').ResumeRunRequest) => Promise<void>
+  aiGetConfig?: () => Promise<import('@shared/ai/contracts').AiSettings>
+  aiUpdateConfig?: (patch: Partial<import('@shared/ai/contracts').AiSettings>) => Promise<void>
+  aiGetThreads?: () => Promise<import('@shared/ai/contracts').AiThread[]>
   aiDeleteThread?: (threadId: string) => Promise<void>
   aiClearThreads?: () => Promise<void>
-  aiGetThreadMessages?: (threadId: string) => Promise<import('./ai').ThreadMessage[]>
-  aiSnapshotResponse?: (resp: import('./ai-ipc').SnapshotResponse) => void
-  aiEditorStateResponse?: (resp: import('./ai-ipc').EditorStateResponse) => void
+  aiGetThreadMessages?: (threadId: string) => Promise<import('@shared/ai/contracts').ThreadMessage[]>
+  aiSnapshotResponse?: (resp: import('@shared/ai/contracts').SnapshotResponse) => void
+  aiEditorStateResponse?: (resp: import('@shared/ai/contracts').EditorStateResponse) => void
 
-  onAiStreamChunk?: (cb: (chunk: import('./ai-ipc').StreamChunkEvent) => void) => void
-  onAiRunInterrupted?: (cb: (e: import('./ai-ipc').RunInterruptedEvent) => void) => void
-  onAiRunDone?: (cb: (e: import('./ai-ipc').RunDoneEvent) => void) => void
-  onAiRunError?: (cb: (e: import('./ai-ipc').RunErrorEvent) => void) => void
-  onAiRequestSnapshot?: (cb: (req: import('./ai-ipc').SnapshotRequestEvent) => void) => void
-  onAiRequestEditorState?: (cb: (req: import('./ai-ipc').EditorStateRequestEvent) => void) => void
-  onAiModelFallback?: (cb: (e: import('./ai-ipc').RunModelFallbackEvent) => void) => void
-  onAiFilesystemAutoReject?: (cb: (e: import('./ai-ipc').RunFilesystemAutoRejectEvent) => void) => void
+  onAiStreamChunk?: (cb: (chunk: import('@shared/ai/contracts').StreamChunkEvent) => void) => void
+  onAiRunInterrupted?: (cb: (e: import('@shared/ai/contracts').RunInterruptedEvent) => void) => void
+  onAiRunDone?: (cb: (e: import('@shared/ai/contracts').RunDoneEvent) => void) => void
+  onAiRunError?: (cb: (e: import('@shared/ai/contracts').RunErrorEvent) => void) => void
+  onAiRequestSnapshot?: (cb: (req: import('@shared/ai/contracts').SnapshotRequestEvent) => void) => void
+  onAiRequestEditorState?: (cb: (req: import('@shared/ai/contracts').EditorStateRequestEvent) => void) => void
+  onAiModelFallback?: (cb: (e: import('@shared/ai/contracts').RunModelFallbackEvent) => void) => void
+  onAiFilesystemAutoReject?: (cb: (e: import('@shared/ai/contracts').RunFilesystemAutoRejectEvent) => void) => void
   removeAiListeners?: () => void
 
   // ACP (Agent Client Protocol) — external agent process management

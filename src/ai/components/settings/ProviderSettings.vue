@@ -297,12 +297,12 @@ import type {
   AiProviderConfig,
   AiProviderType,
   WebSearchProviderConfig,
-} from '@/ai/types'
+} from '@shared/ai/contracts'
 import {
   getActiveWebSearchProviderConfig,
   isAiProviderUsable,
   isWebSearchProviderUsable,
-} from '@/ai/types'
+} from '@shared/ai/contracts'
 import {
   getProviderPresetById,
   type ProviderPreset,

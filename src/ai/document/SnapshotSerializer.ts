@@ -13,7 +13,7 @@ import { nodeToMarkdown } from '@/ai/document/DocumentViewBuilder'
 import type {
   SerializedSnapshot,
   SerializedBlockEntry,
-} from '@/ai/ipc'
+} from '@shared/ai/contracts'
 
 // Re-export for convenience
 export type { SerializedSnapshot, SerializedBlockEntry }

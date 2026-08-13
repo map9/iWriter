@@ -100,10 +100,10 @@ Shared editor extensions are built from `src/utils/editorExtensions.ts`; check t
 
 ## AI Runtime
 
-The right sidebar UI lives under `src/ai/components/`. Renderer AI state lives in `src/ai/store/ai.ts` and module files under `src/ai/store/modules/`; conversation presentation is assembled under `src/ai/presentation/conversation/`.
+The right sidebar UI lives under `src/ai/components/`. Renderer AI state is assembled by `src/ai/state/aiStore.ts`, with settings, run state/events, pending commands, and review state split under `src/ai/state/`. Conversation presentation is assembled under `src/ai/presentation/conversation/`, and renderer-to-main calls go through `src/ai/client/AgentClient.ts`.
 
 Main-process AI execution is under `electron/ai/`:
-- `AgentEngine.ts` owns runs and streaming.
+- `AgentEngine.ts` is the main-process facade and delegates runtime assembly, caching, run lifecycle, and interrupt mapping to `runtime/` and `application/` modules.
 - `domain/edit` and `domain/creative` build domain-specific capabilities.
 - `runtime/` handles thread runtime resolution, middleware, and filesystem access.
 - `tools/` contains document, edit proposal, filesystem, web/PDF, creative, and writing-style tools.

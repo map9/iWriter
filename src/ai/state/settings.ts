@@ -6,7 +6,7 @@ import type {
   AiThinkingLevel,
   AiThread,
   WebSearchProviderConfig,
-} from '@/ai/types'
+} from '@shared/ai/contracts'
 import {
   DEFAULT_AI_SETTINGS,
   DEFAULT_THINKING_LEVEL,
@@ -17,7 +17,7 @@ import {
   normalizeWebSearchProviderConfigs,
   resolveAiProviderModelId,
   resolveAgentDomain,
-} from '@/ai/types'
+} from '@shared/ai/contracts'
 import {
   getProviderPresetById,
   getProviderPresets,

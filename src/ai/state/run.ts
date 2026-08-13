@@ -4,8 +4,8 @@ import type {
   AiSubTaskProgressStatus,
   AiToolCall,
   FilesystemReviewItem,
-} from '@/ai/types'
-import type { DomainReviewItem } from '@/ai/ipc'
+} from '@shared/ai/contracts'
+import type { DomainReviewItem } from '@shared/ai/contracts'
 
 export type ThreadRunState = 'idle' | 'streaming' | 'interrupted'
 

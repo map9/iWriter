@@ -92,7 +92,7 @@ import IconGemini from '@/components/icons/IconGemini.vue'
 import IconGlm from '@/components/icons/IconGlm.vue'
 import IconOllama from '@/components/icons/IconOllama.vue'
 import { useAiStore } from '@/ai/state/aiStore'
-import type { AiProviderConfig } from '@/ai/types'
+import type { AiProviderConfig } from '@shared/ai/contracts'
 import { useProviderPicker } from '../composables/useProviderPicker'
 
 const props = defineProps<{ isOpen: boolean; compact?: boolean }>()

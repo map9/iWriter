@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { i18n } from '@/i18n'
-import type { ContextAttachment } from '@/ai/types'
+import type { ContextAttachment } from '@shared/ai/contracts'
 
 export function useContextFiles() {
   const appStore = useAppStore()

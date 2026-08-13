@@ -15,7 +15,7 @@ import type {
   MessageContentBlock,
 } from '../../../shared/ai/contracts'
 import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS, inferToolKind } from '../../../shared/ai/contracts'
-import type { SerializedSnapshot } from './protocol'
+import type { SerializedSnapshot } from '@shared/ai/contracts'
 import { isHitlInterruptPayload } from '../../../shared/ai/core/hitl'
 
 // ── Tool argument parsing ────────────────────────────────────────────────────

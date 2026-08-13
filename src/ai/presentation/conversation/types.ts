@@ -1,4 +1,4 @@
-import type { AiContextCompressionEvent, ThreadMessage } from '@/ai/types'
+import type { AiContextCompressionEvent, ThreadMessage } from '@shared/ai/contracts'
 
 export interface ConversationMessageEntry {
   kind: 'message'

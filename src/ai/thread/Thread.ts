@@ -1,6 +1,6 @@
-import type { AiThinkingLevel, AiThread, AiToolCall, ThreadMessage } from '@/ai/types'
-import { normalizeAgentMode, resolveAgentDomain } from '@/ai/types'
-import { generateThreadTitle } from './title'
+import type { AiThinkingLevel, AiThread, AiToolCall, ThreadMessage } from '@shared/ai/contracts'
+import { normalizeAgentMode, resolveAgentDomain } from '@shared/ai/contracts'
+import { generateThreadTitle } from '@shared/ai/core/threadTitle'
 
 /**
  * Create a new thread with the given provider and model.

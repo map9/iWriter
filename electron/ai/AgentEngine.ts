@@ -34,7 +34,7 @@ import type {
   ResumeDecision,
   SessionContextStatsRequest,
   SessionContextStatsResponse,
-} from './ipc/protocol'
+} from '@shared/ai/contracts'
 import { convertLcMessages } from './ipc/MessageAdapter'
 import { StreamEventAdapter } from './ipc/StreamEventAdapter'
 import { RendererEventBridge } from './ipc/RendererEventBridge'

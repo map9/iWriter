@@ -18,7 +18,7 @@
 <script setup lang="ts">
 import { IconFile, IconFolder, IconX } from '@tabler/icons-vue'
 import pathUtils from '@/utils/pathUtils'
-import type { ContextAttachment } from '@/ai/types'
+import type { ContextAttachment } from '@shared/ai/contracts'
 
 defineProps<{ files: ContextAttachment[] }>()
 defineEmits<{ remove: [index: number] }>()

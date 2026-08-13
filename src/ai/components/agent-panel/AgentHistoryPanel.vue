@@ -127,7 +127,7 @@ import { ref, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconTrash, IconSearch, IconPencil } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/state/aiStore'
-import type { AiThread } from '@/ai/types'
+import type { AiThread } from '@shared/ai/contracts'
 
 const aiStore = useAiStore()
 const emit = defineEmits<{ select: [id: string] }>()

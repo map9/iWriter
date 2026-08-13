@@ -1,4 +1,4 @@
-import type { NormalizedUsage, StreamChunkEvent } from './protocol'
+import type { NormalizedUsage, StreamChunkEvent } from '@shared/ai/contracts'
 import type { AiToolCall, MessageContentBlock, ThreadMessage } from '../../../shared/ai/contracts'
 import { inferToolKind } from '../../../shared/ai/contracts'
 import { isHitlInterruptPayload } from '../../../shared/ai/core/hitl'

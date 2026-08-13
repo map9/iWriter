@@ -1,4 +1,4 @@
-import type { AiToolCall, AiToolDisplayMeta, AiToolResult, MessageContentBlock, TaskPlanItem, ThreadMessage } from '@/ai/types'
+import type { AiToolCall, AiToolDisplayMeta, AiToolResult, MessageContentBlock, TaskPlanItem, ThreadMessage } from '@shared/ai/contracts'
 import { i18n } from '@/i18n'
 import { pathUtils } from '@/utils/pathUtils'
 

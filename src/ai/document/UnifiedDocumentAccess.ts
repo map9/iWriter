@@ -18,7 +18,7 @@ import { loadDocumentFromDisk, isLoadError } from '@/services/document/DocumentL
 import type { LoadedDocument } from '@/services/document/DocumentLoader'
 import { DocumentViewBuilder, type DocumentView } from './DocumentViewBuilder'
 import { applyBlockEditProposal } from './BlockEditApplier'
-import type { BlockEditProposal } from '@/ai/types'
+import type { BlockEditProposal } from '@shared/ai/contracts'
 
 export type { ApplyResult } from './BlockEditApplier'
 import type { ApplyResult } from './BlockEditApplier'

@@ -5,7 +5,7 @@
  * operating on pure JSON data instead of a live TipTap Editor instance.
  */
 
-import type { SerializedSnapshot } from '../ipc/protocol'
+import type { SerializedSnapshot } from '@shared/ai/contracts'
 
 /**
  * 单页内容预算（字符数），块级读写协议 A4.1。

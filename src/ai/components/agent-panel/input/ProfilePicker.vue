@@ -60,7 +60,7 @@ import { useI18n } from 'vue-i18n'
 import { IconChevronDown, IconPencil, IconSparkles } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/state/aiStore'
 import { useAppStore } from '@/stores/app'
-import type { AiAgentMode } from '@/ai/types'
+import type { AiAgentMode } from '@shared/ai/contracts'
 
 const props = defineProps<{ isOpen: boolean; compact?: boolean }>()
 const emit = defineEmits<{ open: []; close: [] }>()

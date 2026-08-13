@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core'
-import type { EditorStateDocument, EditorStateSnapshot } from '@/ai/ipc'
+import type { EditorStateDocument, EditorStateSnapshot } from '@shared/ai/contracts'
 import type { FileTab } from '@/types'
 import { DocumentType } from '@/types'
 import { DocumentViewBuilder } from './DocumentViewBuilder'

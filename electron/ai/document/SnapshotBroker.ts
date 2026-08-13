@@ -8,7 +8,7 @@
 
 import { ipcMain } from 'electron'
 import type { WebContents } from 'electron'
-import type { SerializedSnapshot, SnapshotRequestEvent, SnapshotResponse } from '../ipc/protocol'
+import type { SerializedSnapshot, SnapshotRequestEvent, SnapshotResponse } from '@shared/ai/contracts'
 
 const SNAPSHOT_TIMEOUT_MS = 10_000 // 10 seconds
 

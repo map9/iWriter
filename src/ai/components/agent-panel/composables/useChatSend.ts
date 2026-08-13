@@ -1,8 +1,8 @@
 import { watch, nextTick, computed, ref } from 'vue'
 import type { Ref } from 'vue'
 import { useAiStore } from '@/ai/state/aiStore'
-import type { ContextAttachment, SendContext, ThreadUsage } from '@/ai/types'
-import { resolveAgentDomain, resolveAiProviderModelId } from '@/ai/types'
+import type { ContextAttachment, SendContext, ThreadUsage } from '@shared/ai/contracts'
+import { resolveAgentDomain, resolveAiProviderModelId } from '@shared/ai/contracts'
 import { agentClient } from '@/ai/client/AgentClient'
 
 export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {

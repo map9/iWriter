@@ -214,3 +214,42 @@ test('renderer AI accesses preload AI APIs only through AgentClient', () => {
     'Move direct preload AI calls behind src/ai/client/AgentClient.ts.',
   )
 })
+
+test('AI code imports shared contracts without compatibility protocol entry points', () => {
+  const compatibilityImports = [
+    ...sourceFiles('src/ai'),
+    ...sourceFiles('electron/ai'),
+  ].flatMap(filePath => importSpecifiers(filePath)
+    .filter(specifier =>
+      specifier === '@/ai/types'
+      || specifier === '@/ai/ipc'
+      || /(?:^|\/)ipc\/protocol$/.test(specifier)
+      || (filePath.startsWith('electron/ai/ipc/') && specifier === './protocol')
+    )
+    .map(specifier => `${filePath} -> ${specifier}`))
+
+  assert.deepEqual(
+    compatibilityImports,
+    [],
+    'Import cross-process contracts from @shared/ai/contracts.',
+  )
+})
+
+test('retired AI compatibility entry points stay deleted', () => {
+  const retired = [
+    'src/ai/types.ts',
+    'src/ai/ipc.ts',
+    'src/ai/hitl.ts',
+    'src/ai/message/detectInputLanguage.ts',
+    'src/ai/model/model-budget.ts',
+    'src/ai/model/model-profiles.ts',
+    'src/ai/model/token-estimation.ts',
+    'src/ai/thread/title.ts',
+    'src/types/ai.ts',
+    'src/types/ai-ipc.ts',
+    'src/stores/ai.ts',
+    'electron/ai/ipc/protocol.ts',
+  ].filter(existsSync)
+
+  assert.deepEqual(retired, [])
+})

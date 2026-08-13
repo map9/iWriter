@@ -8,7 +8,7 @@ import {
   IconUsers,
   IconTool,
 } from '@tabler/icons-vue'
-import type { AiToolCallKind } from '@/ai/types'
+import type { AiToolCallKind } from '@shared/ai/contracts'
 
 export function kindToIcon(kind: AiToolCallKind): Component {
   switch (kind) {

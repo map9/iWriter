@@ -1,5 +1,5 @@
-import type { AiAgentMode, AiToolCall, EditProposal, EditRoundResult, EditRoundResultItem, EditRoundResultState, ThreadMessage } from '@/ai/types'
-import { BLOCK_EDIT_TOOLS } from '@/ai/types'
+import type { AiAgentMode, AiToolCall, EditProposal, EditRoundResult, EditRoundResultItem, EditRoundResultState, ThreadMessage } from '@shared/ai/contracts'
+import { BLOCK_EDIT_TOOLS } from '@shared/ai/contracts'
 import { pathUtils } from '@/utils/pathUtils'
 import type {
   EditSessionPhase,

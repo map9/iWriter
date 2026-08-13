@@ -165,7 +165,7 @@ import { IconChevronDown, IconChevronRight, IconCloud, IconCube, IconDownload } 
 import { useModelPicker } from '../composables/useModelPicker'
 import { useAiStore } from '@/ai/state/aiStore'
 import { useAppStore } from '@/stores/app'
-import { isWebSearchProviderUsable, type AiThinkingLevel } from '@/ai/types'
+import { isWebSearchProviderUsable, type AiThinkingLevel } from '@shared/ai/contracts'
 
 const props = defineProps<{ isOpen: boolean; compact?: boolean }>()
 const emit = defineEmits<{ open: []; close: [] }>()

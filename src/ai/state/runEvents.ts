@@ -9,15 +9,15 @@ import type {
   ThreadMessage,
   ThreadUsage,
   UsageTotals,
-} from '@/ai/types'
+} from '@shared/ai/contracts'
 import type {
   RunDoneEvent,
   RunErrorEvent,
   RunInterruptedEvent,
   StreamChunkEvent,
   DomainReviewItem,
-} from '@/ai/ipc'
-import { isHitlInterruptPayload } from '@/ai/hitl'
+} from '@shared/ai/contracts'
+import { isHitlInterruptPayload } from '@shared/ai/core/hitl'
 import { agentClient } from '@/ai/client/AgentClient'
 import type { LiveSubTask, LiveTurn, ThreadRunState } from './run'
 

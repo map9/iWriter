@@ -138,7 +138,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { BlockEditProposal, EditProposal } from '@/ai/types'
+import type { BlockEditProposal, EditProposal } from '@shared/ai/contracts'
 import { buildBlockEditReviewSurfaceViewModel } from '@/ai/review/common/selectors'
 import type { ProposalReviewSummary } from '@/ai/state/aiStore'
 import type { Editor } from '@tiptap/core'

@@ -4,7 +4,7 @@ import type {
   EditorStateRequestEvent,
   EditorStateResponse,
   EditorStateSnapshot,
-} from '../ipc/protocol'
+} from '@shared/ai/contracts'
 
 const EDITOR_STATE_TIMEOUT_MS = 10_000
 

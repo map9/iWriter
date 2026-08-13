@@ -62,7 +62,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-vue'
-import type { CreativeRoundResult, CreativeRoundResultState } from '@/ai/types'
+import type { CreativeRoundResult, CreativeRoundResultState } from '@shared/ai/contracts'
 
 const props = defineProps<{
   result: CreativeRoundResult

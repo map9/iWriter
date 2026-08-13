@@ -1,4 +1,4 @@
-import type { EditProposal } from '@/ai/types'
+import type { EditProposal } from '@shared/ai/contracts'
 import type { ProposalDecisionKind, ReviewBatchState } from './types'
 
 export function createReviewBatchState(

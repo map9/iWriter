@@ -8,7 +8,7 @@ import {
   IconChevronUp,
   IconLoader2,
 } from '@tabler/icons-vue'
-import type { AiContextCompressionEvent } from '@/ai/types'
+import type { AiContextCompressionEvent } from '@shared/ai/contracts'
 import MarkdownContentView from './MarkdownContentView.vue'
 
 const props = withDefaults(defineProps<{

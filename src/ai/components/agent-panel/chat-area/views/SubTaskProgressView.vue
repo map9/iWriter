@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconLoader2, IconChevronDown, IconChevronUp, IconUsers } from '@tabler/icons-vue'
-import type { AiSubTaskProgress, MessageContentBlock } from '@/ai/types'
+import type { AiSubTaskProgress, MessageContentBlock } from '@shared/ai/contracts'
 import ToolCallCard from './ToolCallCard.vue'
 import MarkdownContentView from './MarkdownContentView.vue'
 import ThinkingBlock from './ThinkingBlock.vue'

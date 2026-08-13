@@ -1,5 +1,5 @@
 import * as path from 'path'
-import type { ResumeDecision } from '../../ipc/protocol'
+import type { ResumeDecision } from '@shared/ai/contracts'
 
 export type FilesystemApprovalDecision =
   | { kind: 'auto-approve'; decision: ResumeDecision; reason: string }

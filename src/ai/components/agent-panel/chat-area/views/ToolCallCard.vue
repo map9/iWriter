@@ -321,7 +321,7 @@ import {
   IconLoader2,
 } from '@tabler/icons-vue'
 import { useAppStore } from '@/stores/app'
-import type { AiToolCall } from '@/ai/types'
+import type { AiToolCall } from '@shared/ai/contracts'
 import MarkdownContentView from './MarkdownContentView.vue'
 import { kindToIcon } from './toolKindIcon'
 

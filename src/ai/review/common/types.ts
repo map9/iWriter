@@ -1,4 +1,4 @@
-import type { EditProposal, EditRoundResult } from '@/ai/types'
+import type { EditProposal, EditRoundResult } from '@shared/ai/contracts'
 
 export type ProposalDecisionKind =
   | 'approved'

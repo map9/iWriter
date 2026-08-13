@@ -1,6 +1,6 @@
 import { open, readFile } from 'node:fs/promises'
 import type { MessageContent } from '@langchain/core/messages'
-import type { SendMessageRequest } from './protocol'
+import type { SendMessageRequest } from '@shared/ai/contracts'
 
 interface AttachedImage {
   path: string

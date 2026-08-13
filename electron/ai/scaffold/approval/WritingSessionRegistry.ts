@@ -1,6 +1,6 @@
 import * as path from 'path'
 import { isDeepStrictEqual } from 'node:util'
-import type { ResumeDecision } from '../../ipc/protocol'
+import type { ResumeDecision } from '@shared/ai/contracts'
 
 // ── Stage 2 — 写作会话授权（04.1 §6，五段裁决级联中唯一新增裁决源）─────────────
 //

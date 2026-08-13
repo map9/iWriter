@@ -1,6 +1,6 @@
 import { ref, type ComputedRef, type Ref } from 'vue'
-import type { FilesystemReviewItem } from '@/ai/types'
-import type { DomainReviewItem, ResumeDecision } from '@/ai/ipc'
+import type { FilesystemReviewItem } from '@shared/ai/contracts'
+import type { DomainReviewItem, ResumeDecision } from '@shared/ai/contracts'
 import { agentClient } from '@/ai/client/AgentClient'
 import type { LiveTurn, ThreadRunState } from '../run'
 
