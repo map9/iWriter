@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -20,6 +20,7 @@ const explorerSource = readFileSync('src/components/sidebar/ExplorerPanel.vue', 
 const gitToolsSource = readFileSync('electron/ai/tools/common/GitTools.ts', 'utf8')
 const creativeCapabilitiesSource = readFileSync('electron/ai/domain/creative/buildCreativeCapabilities.ts', 'utf8')
 const agentEngineSource = readFileSync('electron/ai/AgentEngine.ts', 'utf8')
+const creativeReviewAdapterSource = readFileSync('electron/ai/ipc/CreativeReviewAdapter.ts', 'utf8')
 const rendererEventBridgeSource = readFileSync('electron/ai/ipc/RendererEventBridge.ts', 'utf8')
 const preloadSource = readFileSync('electron/preload.ts', 'utf8')
 const preferencesSource = readFileSync('src/components/preferences/PreferencesDialog.vue', 'utf8')
@@ -29,9 +30,13 @@ const diffViewSource = readFileSync('src/components/common/diff/DiffView.vue', '
 const gitConfigStoreSource = readFileSync('electron/GitConfigStore.ts', 'utf8')
 const editSettingSource = readFileSync('src/types/edit-setting.ts', 'utf8')
 const stateStorageSource = readFileSync('src/utils/StateStorage.ts', 'utf8')
+const aiTypesSource = readFileSync('src/ai/types.ts', 'utf8')
+const displayNormalizerSource = readFileSync('src/ai/message/display-normalizer.ts', 'utf8')
+const creativeReviewSurfaceSource = readFileSync('src/components/ai/agent-panel/domains/creative/CreativeReviewSurface.vue', 'utf8')
 const zhMessagesSource = readFileSync('src/i18n/messages/zh-CN.ts', 'utf8')
 const enMessagesSource = readFileSync('src/i18n/messages/en-US.ts', 'utf8')
 const docsFeaturesSource = readFileSync('docs/features.md', 'utf8')
+const creativeModeDocsSource = readFileSync('docs/docs/ai-creative-mode.md', 'utf8')
 
 test('SCM regressions', async (t) => {
   await t.test('Commit All stages untracked files before committing', () => {
@@ -312,12 +317,59 @@ test('SCM regressions', async (t) => {
     assert.equal(classifyGitCommand(['ls-files', '--exclude-from=patterns.txt']).kind, 'write')
   })
 
-  await t.test('persisted approvals for retired Git tools are rejected safely and retried through git', () => {
-    assert.match(agentEngineSource, /RETIRED_GIT_REVIEW_TOOLS/)
-    assert.match(agentEngineSource, /RETIRED_GIT_REVIEW_TOOLS\.has\(actionName\)/)
-    assert.match(agentEngineSource, /retry with the current git tool/)
-    assert.match(creativeCapabilitiesSource, /git_write: \{ allowedDecisions: \['approve', 'reject'\] \}/)
+  await t.test('Agent Git approval contract contains only the unified git tool and review kind', () => {
+    const contractSource = [
+      creativeCapabilitiesSource,
+      agentEngineSource,
+      creativeReviewAdapterSource,
+      aiTypesSource,
+      creativeReviewSurfaceSource,
+    ].join('\n')
+
+    for (const retiredName of ['git_write', 'git_init', 'git_commit', 'git_tag', 'git_restore']) {
+      assert.doesNotMatch(contractSource, new RegExp(`\\b${retiredName}\\b`))
+    }
+    for (const retiredKind of [
+      'creative_git_command',
+      'creative_git_init',
+      'creative_git_commit',
+      'creative_git_tag',
+      'creative_git_restore',
+    ]) {
+      assert.doesNotMatch(contractSource, new RegExp(`\\b${retiredKind}\\b`))
+    }
+    assert.match(aiTypesSource, /kind: 'creative_git'/)
+    assert.match(aiTypesSource, /toolName: 'git'/)
     assert.match(creativeCapabilitiesSource, /CREATIVE_INTERRUPT_ON_NAMES = new Set\(Object\.keys\(CREATIVE_INTERRUPT_ON_CONFIG\)\)/)
+    assert.doesNotMatch(creativeModeDocsSource, /\bgit_(?:write|init|commit|tag|restore)\b/)
+    assert.match(creativeModeDocsSource, /`git\(args\)`/)
+  })
+
+  await t.test('retired creative tools are absent from renderer metadata', () => {
+    const metadataSource = [aiTypesSource, displayNormalizerSource, zhMessagesSource, enMessagesSource].join('\n')
+    const retiredNames = [
+      'read_storybible', 'read_fragments', 'list_chapters', 'get_session_diff',
+      'get_storybible_rebuild_signal', 'read_chapter', 'write_to_chapter',
+      'advise_directions', 'analyze_story_architecture', 'search_draft',
+      'get_character_psychology', 'add_fragment', 'patch_storybible',
+      'resolve_open_question', 'compress_storybible_history', 'list_explorations',
+      'start_exploration', 'read_exploration', 'write_exploration_draft',
+      'finish_exploration', 'promote_exploration', 'delete_exploration',
+      'create_chapter', 'delete_chapter', 'rename_chapter', 'reorder_chapters',
+      'replace_storybible_section', 'rebuild_storybible',
+      'list_writing_styles', 'get_writing_style', 'save_writing_style_skill',
+      'create_writing_style', 'update_writing_style', 'delete_writing_style',
+      'WritingStyleExtractor', 'WritingStyleSkillCreator',
+    ]
+
+    for (const retiredName of retiredNames) {
+      assert.doesNotMatch(metadataSource, new RegExp(`\\b${retiredName}\\b`))
+    }
+    assert.equal(existsSync('src/ai/review/domains/creative/creative.ts'), false)
+    assert.doesNotMatch(enMessagesSource, /explorer: 'Explorer'/)
+    assert.doesNotMatch(zhMessagesSource, /explorer: '探索器'/)
+    assert.match(enMessagesSource, /writer: 'Writer'[\s\S]*reviewer: 'Reviewer'/)
+    assert.match(zhMessagesSource, /writer: '写作者'[\s\S]*reviewer: '审校者'/)
   })
 
   await t.test('Agent Git mutations explicitly refresh the affected SCM views', () => {
@@ -590,96 +642,19 @@ test('Git approval cards receive factual operation details', async (t) => {
       args: { args: ['commit', '--allow-empty-message', '-m', ' '] },
     })
 
-    assert.equal(review.kind, 'creative_git_command')
+    assert.equal(review.kind, 'creative_git')
+    assert.equal(review.toolName, 'git')
     assert.deepEqual(review.args, ['commit', '--allow-empty-message', '-m', ' '])
   })
 
-  await t.test('a persisted git_write interrupt can still be rendered for safe rejection', async () => {
+  await t.test('retired Git tool names are rejected by the approval adapter', async () => {
     const { buildCreativeReviewItemFromAction } = await loadCreativeGitReviewModule()
-    const review = buildCreativeReviewItemFromAction({
-      name: 'git_write',
-      args: { args: ['commit', '-m', 'legacy'] },
-    })
-
-    assert.equal(review.kind, 'creative_git_command')
-    assert.equal(review.toolName, 'git_write')
-    assert.deepEqual(review.args, ['commit', '-m', 'legacy'])
-  })
-
-  await t.test('repository initialization reports paths and workspace entry counts without inferring a project name', async () => {
-    const { buildCreativeReviewItemFromAction, enrichCreativeGitReviewItem } = await loadCreativeGitReviewModule()
-    const workspacePath = mkdtempSync(join(tmpdir(), 'iwriter-git-init-review-'))
-    try {
-      writeFileSync(join(workspacePath, 'chapter.md'), '# Opening\n')
-      writeFileSync(join(workspacePath, '.gitignore'), '.DS_Store\n')
-      mkdirSync(join(workspacePath, 'notes'))
-      writeFileSync(join(workspacePath, 'notes', 'ideas.md'), 'Idea\n')
-
-      const review = buildCreativeReviewItemFromAction({ name: 'git_init', args: {} })
-      const enriched = await enrichCreativeGitReviewItem(review, workspacePath, {})
-
-      assert.equal(enriched.kind, 'creative_git_init')
-      assert.equal(enriched.workspacePath, workspacePath)
-      assert.equal(enriched.gitDirectoryPath, join(workspacePath, '.git'))
-      assert.equal(enriched.gitignorePath, join(workspacePath, '.gitignore'))
-      assert.equal(enriched.fileCount, 3)
-      assert.equal(enriched.directoryCount, 1)
-      assert.equal('projectName' in enriched, false)
-    } finally {
-      rmSync(workspacePath, { recursive: true, force: true })
-    }
-  })
-
-  await t.test('restore preview describes the changes that applying the source will make', async () => {
-    const { GitService } = await loadGitServiceModule()
-    const workspacePath = mkdtempSync(join(tmpdir(), 'iwriter-git-restore-review-'))
-    try {
-      execFileSync('git', ['init', '-q'], { cwd: workspacePath })
-      execFileSync('git', ['config', 'user.name', 'iWriter Test'], { cwd: workspacePath })
-      execFileSync('git', ['config', 'user.email', 'test@iwriter.local'], { cwd: workspacePath })
-      writeFileSync(join(workspacePath, 'chapter.md'), 'old\nkeep\n')
-      execFileSync('git', ['add', 'chapter.md'], { cwd: workspacePath })
-      execFileSync('git', ['commit', '-qm', 'opening draft'], { cwd: workspacePath })
-      writeFileSync(join(workspacePath, 'chapter.md'), 'new\nkeep\nextra\n')
-
-      const gitService = new GitService()
-      const preview = await gitService.previewRestorePaths(workspacePath, ['chapter.md'], 'HEAD')
-
-      assert.equal(preview.source.ref, 'HEAD')
-      assert.match(preview.source.shortHash, /^[0-9a-f]+$/)
-      assert.equal(preview.source.subject, 'opening draft')
-      assert.deepEqual(preview.files, [{ path: 'chapter.md', additions: 1, deletions: 2 }])
-    } finally {
-      rmSync(workspacePath, { recursive: true, force: true })
-    }
-  })
-
-  await t.test('restore review preserves the full preview manifest supplied by Git', async () => {
-    const { buildCreativeReviewItemFromAction, enrichCreativeGitReviewItem } = await loadCreativeGitReviewModule()
-    const review = buildCreativeReviewItemFromAction({
-      name: 'git_restore',
-      args: { files: ['chapters/01-opening.md', 'storybible.md'], ref: 'HEAD~1' },
-    })
-    const expectedPreview = {
-      source: { ref: 'HEAD~1', shortHash: '8f31c2a', subject: 'refine opening chapter' },
-      files: [
-        { path: 'chapters/01-opening.md', additions: 12, deletions: 31 },
-        { path: 'storybible.md', additions: 6, deletions: 12 },
-      ],
-    }
-    const gitService = {
-      async previewRestorePaths(root, files, ref) {
-        assert.equal(root, '/workspace')
-        assert.deepEqual(files, ['chapters/01-opening.md', 'storybible.md'])
-        assert.equal(ref, 'HEAD~1')
-        return expectedPreview
-      },
-    }
-
-    const enriched = await enrichCreativeGitReviewItem(review, '/workspace', gitService)
-
-    assert.equal(enriched.kind, 'creative_git_restore')
-    assert.deepEqual(enriched.source, expectedPreview.source)
-    assert.deepEqual(enriched.changes, expectedPreview.files)
+    assert.throws(
+      () => buildCreativeReviewItemFromAction({
+        name: 'git_write',
+        args: { args: ['commit', '-m', 'legacy'] },
+      }),
+      /unexpected creative tool name/,
+    )
   })
 })

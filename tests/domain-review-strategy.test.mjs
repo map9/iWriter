@@ -21,7 +21,6 @@ function domainReviewDependencyStubs() {
         [/src\/ai\/thread\/system-prompts\/edit$/, 'edit-prompt', 'export function buildEditSystemPrompt() { return "" }'],
         [/ipc\/CreativeReviewAdapter$/, 'creative-review-adapter', `
           export function buildCreativeReviewItemFromAction() { throw new Error('unexpected creative review') }
-          export function enrichCreativeGitReviewItem(item) { return item }
         `],
         [/ipc\/FilesystemReviewAdapter$/, 'filesystem-review-adapter', `
           export function isFilesystemWriteTool() { return false }
@@ -152,7 +151,6 @@ describe('domain review strategies — create_document', () => {
       { requestSnapshot: async () => null },
       {},
       '/tmp/ai',
-      { getContext: () => ({ workspacePath: '/project' }) },
       {},
       () => {},
     )

@@ -312,16 +312,6 @@ function summarizeTodoList(parsedResult: Record<string, unknown> | null): string
   return parts.join(' · ')
 }
 
-function writingStyleTargetLabel(toolCall: AiToolCall, parsedResult: Record<string, unknown> | null): string | undefined {
-  const args = toolCall.arguments
-  if (toolCall.name === 'create_writing_style') return toStringValue(args.authorName) ?? undefined
-
-  return toStringValue(args.slug)
-    ?? (parsedResult ? toStringValue(parsedResult.slug) : null)
-    ?? (parsedResult ? toStringValue(parsedResult.skillName) : null)
-    ?? undefined
-}
-
 function buildStatusSummary(toolCall: AiToolCall, completedSummary?: string): string | undefined {
   if (toolCall.status === 'rejected') return t('agentPanel.displayNormalizer.status.rejected')
   if (toolCall.isError || toolCall.status === 'failed') return t('agentPanel.displayNormalizer.status.failed')
@@ -598,95 +588,24 @@ function buildToolDisplayMeta(toolCall: AiToolCall): AiToolDisplayMeta {
         parsedResult,
         rawResult,
       }
-    case 'read_storybible':
-    case 'read_fragments':
-    case 'list_chapters':
-    case 'get_session_diff':
-    case 'get_storybible_rebuild_signal':
-    case 'git_status':
-    case 'git_log':
     case 'git':
-    case 'list_explorations':
       return {
-        actionLabel: toolNameLabel(toolCall.name),
-        targetLabel: toolCall.name === 'read_storybible'
-          ? 'storybible.md'
-          : toolCall.name === 'read_fragments'
-            ? 'draft/fragments.md'
-            : toolCall.name === 'get_storybible_rebuild_signal'
-              ? 'StoryBible'
-              : toolCall.name === 'git' || toolCall.name.startsWith('git_')
-                ? 'Git'
-                : toolCall.name === 'list_explorations'
-                  ? '.iwriter/explorations'
-                  : 'story session',
+        actionLabel: toolNameLabel('git'),
+        targetLabel: 'Git',
         summaryLabel: buildStatusSummary(toolCall, rawResult ? t('agentPanel.displayNormalizer.status.completed') : undefined),
         detailType: parsedResult ? 'json' : 'text',
         parsedResult,
         rawResult,
       }
-    case 'read_chapter':
-    case 'write_to_chapter':
-      return {
-        actionLabel: toolNameLabel(toolCall.name),
-        targetLabel: toStringValue(args.filename) ?? undefined,
-        contextLabel: toStringValue(args.mode) ?? undefined,
-        summaryLabel: buildStatusSummary(
-          toolCall,
-          toolCall.status === 'completed' ? t('agentPanel.displayNormalizer.status.completed') : undefined
-        ),
-        detailType: parsedResult ? 'json' : 'text',
-        parsedResult,
-        rawResult,
-      }
-    case 'list_writing_styles':
-    case 'get_writing_style':
-    case 'save_writing_style_skill':
-    case 'create_writing_style':
-    case 'update_writing_style':
-    case 'delete_writing_style':
-      return {
-        actionLabel: toolNameLabel(toolCall.name),
-        targetLabel: writingStyleTargetLabel(toolCall, parsedResult),
-        summaryLabel: buildStatusSummary(
-          toolCall,
-          toolCall.status === 'completed' ? t('agentPanel.displayNormalizer.status.completed') : undefined
-        ),
-        detailType: parsedResult ? 'json' : 'text',
-        parsedResult,
-        rawResult,
-      }
-    case 'advise_directions':
-    case 'analyze_story_architecture':
-    case 'search_draft':
-    case 'git_diff':
-    case 'get_character_psychology':
-    case 'add_fragment':
-    case 'patch_storybible':
-    case 'resolve_open_question':
     case 'confirm_writing_plan':
-    case 'git_commit':
-    case 'git_tag':
-    case 'compress_storybible_history':
-    case 'start_exploration':
-    case 'read_exploration':
-    case 'write_exploration_draft':
-    case 'finish_exploration':
-    case 'promote_exploration':
-    case 'delete_exploration':
-    case 'create_chapter':
-    case 'delete_chapter':
-    case 'rename_chapter':
-    case 'reorder_chapters':
-    case 'replace_storybible_section':
-    case 'rebuild_storybible':
+    case 'finalize_chapter':
+    case 'find_references':
+    case 'import_manuscript':
       return {
         actionLabel: toolNameLabel(toolCall.name),
-        targetLabel: toStringValue(args.section)
+        targetLabel: toStringValue(args.chapter)
+          ?? toStringValue(args.source_path)
           ?? toStringValue(args.query)
-          ?? toStringValue(args.name)
-          ?? toStringValue(args.direction_name)
-          ?? toStringValue(args.target_chapter)
           ?? undefined,
         summaryLabel: buildStatusSummary(
           toolCall,

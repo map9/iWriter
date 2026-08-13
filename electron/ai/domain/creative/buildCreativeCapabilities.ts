@@ -99,13 +99,6 @@ export const CREATIVE_INTERRUPT_ON_CONFIG: Record<string, InterruptOnConfig> = {
     allowedDecisions: ['approve', 'reject'],
     when: request => shouldInterruptGit(request.toolCall.args.args),
   },
-  // Resume-only compatibility: these tools are no longer exposed, but persisted interrupts
-  // must re-enter HITL so AgentEngine can reject them instead of auto-running an unknown tool.
-  git_write: { allowedDecisions: ['approve', 'reject'] },
-  git_init: { allowedDecisions: ['approve', 'reject'] },
-  git_commit: { allowedDecisions: ['approve', 'reject'] },
-  git_tag: { allowedDecisions: ['approve', 'reject'] },
-  git_restore: { allowedDecisions: ['approve', 'reject'] },
 }
 
 export const CREATIVE_INTERRUPT_ON_NAMES = new Set(Object.keys(CREATIVE_INTERRUPT_ON_CONFIG))

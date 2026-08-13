@@ -13,20 +13,8 @@ function creativeToolSignature(review: CreativeReviewItem): string {
   if (review.kind === 'creative_plan') {
     return `confirm_writing_plan:${stableStringify({ plan: review.plan })}`
   }
-  if (review.kind === 'creative_git_command') {
+  if (review.kind === 'creative_git') {
     return `git:${stableStringify({ args: review.args })}`
-  }
-  if (review.kind === 'creative_git_commit') {
-    return `git_commit:${stableStringify({ message: review.message, files: review.files })}`
-  }
-  if (review.kind === 'creative_git_tag') {
-    return `git_tag:${stableStringify({ name: review.name })}`
-  }
-  if (review.kind === 'creative_git_init') {
-    return `git_init:${stableStringify({})}`
-  }
-  if (review.kind === 'creative_git_restore') {
-    return `git_restore:${stableStringify({ files: review.files, ref: review.ref ?? null })}`
   }
   if (review.kind === 'creative_chapter_finalize') {
     return `finalize_chapter:${stableStringify({ chapter: review.chapter })}`
@@ -42,10 +30,6 @@ function reviewMatchesToolCall(review: CreativeReviewItem, toolCall: AiToolCall)
   if (toolCall.id === review.toolCallId) return true
   if (toolCall.name !== review.toolName) return false
 
-  const args = toolCall.arguments
-  if (review.kind === 'creative_git_tag') {
-    return String(args.name ?? '') === String(review.name ?? '')
-  }
   return true
 }
 

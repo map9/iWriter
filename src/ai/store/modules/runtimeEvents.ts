@@ -704,7 +704,7 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
           deps.updateThread({ ...current!, messages: normalizedMessages, messagesLoaded: true })
 
           // Reconcile liveTurn tool statuses with checkpoint data so that sibling
-          // root tool calls (e.g. patch_storybible) that were still in_progress when
+          // root tool calls that were still in_progress when
           // the interrupt fired now reflect their settled state from the checkpoint.
           const liveTurn = deps.liveTurn.value
           if (!liveTurn || liveTurn.threadId !== event.threadId) return

@@ -97,7 +97,7 @@ const reasoningAndParallelToolBlocks = await collectFinishedBlocks([
         },
         {
           id: 'call_list',
-          name: 'list_writing_styles',
+          name: 'list_items',
           args: '{}',
           index: 1,
         },
@@ -118,7 +118,7 @@ assert.deepEqual(reasoningAndParallelToolBlocks, [
   {
     type: 'tool_call',
     id: 'call_list',
-    name: 'list_writing_styles',
+    name: 'list_items',
     args: {},
   },
 ])

@@ -49,11 +49,7 @@ export interface CreativeReviewBatch {
 
 function reviewLabel(review: CreativeReviewItem): string {
   if (review.kind === 'creative_plan') return 'writing plan'
-  if (review.kind === 'creative_git_command') return `git ${review.args.join(' ')}`
-  if (review.kind === 'creative_git_commit') return `git commit · ${review.message}`
-  if (review.kind === 'creative_git_tag') return `git tag · ${review.name}`
-  if (review.kind === 'creative_git_init') return 'git init'
-  if (review.kind === 'creative_git_restore') return `git restore · ${review.files.join(', ')}`
+  if (review.kind === 'creative_git') return `git ${review.args.join(' ')}`
   if (review.kind === 'creative_chapter_finalize') return `finalize · ${review.chapter}`
   return `import · ${review.sourcePath}`
 }
@@ -73,11 +69,7 @@ function finalContent(review: CreativeReviewItem, decision: CreativeDecision): s
     if (typeof plan === 'string') return plan
   }
   if (review.kind === 'creative_plan') return review.plan
-  if (review.kind === 'creative_git_command') return review.args.join(' ')
-  if (review.kind === 'creative_git_commit') return review.message
-  if (review.kind === 'creative_git_tag') return review.message ?? review.name
-  if (review.kind === 'creative_git_init') return undefined
-  if (review.kind === 'creative_git_restore') return review.files.join('\n')
+  if (review.kind === 'creative_git') return review.args.join(' ')
   if (review.kind === 'creative_chapter_finalize') return review.summary ?? review.chapter
   return undefined
 }

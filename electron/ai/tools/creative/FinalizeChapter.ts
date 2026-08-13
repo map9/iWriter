@@ -11,7 +11,7 @@ import type { StructuredTool } from '@langchain/core/tools'
 // The body only returns a confirmation string — all side effects happen in the host on resume
 // (AgentEngine._handleFinalizeDecisions), symmetric with confirm_writing_plan:
 //   • approve  → close the write-session (the accepted chapter stays on disk; version-tracking commit
-//                is left to the model's existing git_commit card).
+//                is left to the model's existing git tool approval).
 //   • respond  → rework: the session stays OPEN, the writer revises, A00 finalizes again later.
 //   • reject   → restore the baseline snapshot to disk (discard the session's writing) and close it.
 export function buildFinalizeChapterTool(): StructuredTool {

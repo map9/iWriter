@@ -3,10 +3,7 @@ import * as path from 'path'
 import type { ResumeDecision } from '../../ipc/protocol'
 import { buildCreativeSystemPrompt } from '../../../../src/ai/thread/system-prompts/creative'
 import { buildCreativeCapabilities, CREATIVE_INTERRUPT_ON_NAMES } from './buildCreativeCapabilities'
-import {
-  buildCreativeReviewItemFromAction,
-  enrichCreativeGitReviewItem,
-} from '../../ipc/CreativeReviewAdapter'
+import { buildCreativeReviewItemFromAction } from '../../ipc/CreativeReviewAdapter'
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
 import { buildProposalFromAction } from '../../ipc/MessageAdapter'
 import { parseUntitledTabId } from '../../document/virtualId'
@@ -16,7 +13,6 @@ import { CREATIVE_SUMMARIZATION_PROFILE } from '../../scaffold/summarization/Sum
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { EditorStateBroker } from '../../document/EditorStateBroker'
 import type { SerializedSnapshot } from '../../ipc/protocol'
-import type { ThreadRuntimeStore } from '../../runtime/ThreadRuntimeStore'
 import type { AiAgentMode } from '../../../../src/types/ai'
 import type { GitMutationEvent } from '../../../../src/types/git'
 import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
@@ -34,7 +30,6 @@ export class CreativeDomainStrategy implements DomainStrategy {
     private readonly snapshotBroker: SnapshotBroker,
     private readonly editorStateBroker: EditorStateBroker,
     private readonly aiRootPath: string,
-    private readonly runtimeStore: ThreadRuntimeStore,
     private readonly gitService: GitService,
     private readonly onGitMutation: (event: GitMutationEvent) => void,
   ) {}
@@ -112,8 +107,6 @@ export class CreativeDomainStrategy implements DomainStrategy {
   }
 
   async buildReviewItems(ctx: InterruptContext): Promise<DomainReviewItem[]> {
-    const runtimeCtx = this.runtimeStore.getContext(ctx.threadId)
-
     // Per-file snapshot cache: each file_path gets one snapshot across all block edit actions
     const snapshotCache = new Map<string, SerializedSnapshot | null>()
     const getSnapshot = async (filePath: string): Promise<SerializedSnapshot | null> => {
@@ -184,11 +177,7 @@ export class CreativeDomainStrategy implements DomainStrategy {
       )
       results.push({
         kind: 'creative',
-        payload: await enrichCreativeGitReviewItem(
-          creativeReview,
-          runtimeCtx?.workspacePath ?? null,
-          this.gitService,
-        ),
+        payload: creativeReview,
       })
     }
 

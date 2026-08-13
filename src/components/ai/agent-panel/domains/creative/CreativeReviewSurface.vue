@@ -29,91 +29,11 @@
         />
       </label>
 
-      <label
-        v-if="currentReview.kind === 'creative_git_commit'"
-        class="block"
-      >
-        <span class="mb-1 block text-[11px] font-medium text-base-content/50">{{ t('agentPanel.creativeReview.gitFiles') }}</span>
-        <textarea
-          v-model="filesDraft"
-          class="min-h-16 w-full resize-y rounded-field border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
-        />
-      </label>
-
-      <label
-        v-if="currentReview.kind === 'creative_git_tag'"
-        class="block"
-      >
-        <span class="mb-1 block text-[11px] font-medium text-base-content/50">{{ t('agentPanel.creativeReview.gitTagMessage') }}</span>
-        <textarea
-          v-model="tagMessageDraft"
-          class="min-h-16 w-full resize-y rounded-field border border-base-300 bg-base-200 px-2 py-1.5 text-xs leading-relaxed outline-none focus:border-primary"
-        />
-      </label>
-
       <div
-        v-if="currentReview.kind === 'creative_git_command'"
+        v-if="currentReview.kind === 'creative_git'"
         class="rounded-box border border-base-300 bg-base-200 px-2 py-2 font-mono text-xs leading-relaxed"
       >
         git {{ currentReview.args.map(arg => JSON.stringify(arg)).join(' ') }}
-      </div>
-
-      <div
-        v-if="currentReview.kind === 'creative_git_init'"
-        class="space-y-2 text-[11px] leading-relaxed text-base-content/70"
-      >
-        <div>
-          <div class="font-medium text-base-content/50">{{ t('agentPanel.creativeReview.gitInitRepositoryLocation') }}</div>
-          <div class="wrap-break-word font-mono">{{ currentReview.workspacePath ?? '—' }}</div>
-        </div>
-        <div>
-          <div class="font-medium text-base-content/50">{{ t('agentPanel.creativeReview.gitInitWillCreate') }}</div>
-          <div class="wrap-break-word font-mono">{{ currentReview.gitDirectoryPath ?? '—' }}</div>
-        </div>
-        <div v-if="currentReview.fileCount != null && currentReview.directoryCount != null">
-          <div class="font-medium text-base-content/50">{{ t('agentPanel.creativeReview.gitInitCurrentDirectory') }}</div>
-          <div>{{ t('agentPanel.creativeReview.gitInitEntryCount', { files: currentReview.fileCount, directories: currentReview.directoryCount }) }}</div>
-        </div>
-        <div v-if="currentReview.gitignorePath">
-          <div class="font-medium text-base-content/50">{{ t('agentPanel.creativeReview.gitInitIgnoreRules') }}</div>
-          <div class="wrap-break-word font-mono">{{ currentReview.gitignorePath }}</div>
-        </div>
-      </div>
-
-      <div
-        v-if="currentReview.kind === 'creative_git_restore'"
-        class="space-y-2 text-[11px] leading-relaxed text-base-content/70"
-      >
-        <div>
-          <div class="font-medium text-base-content/50">{{ t('agentPanel.creativeReview.gitRestoreSource') }}</div>
-          <div class="wrap-break-word font-mono">{{ restoreSourceText }}</div>
-        </div>
-        <div>
-          <div class="mb-1 font-medium text-base-content/50">
-            {{ t('agentPanel.creativeReview.gitRestoreFiles', { count: restoreChanges.length }) }}
-          </div>
-          <div class="max-h-48 divide-y divide-base-300 overflow-auto rounded-box border border-base-300 bg-base-200 px-2">
-            <div
-              v-for="change in restoreChanges"
-              :key="change.path"
-              class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 py-1.5"
-            >
-              <span class="truncate font-mono" :title="change.path">{{ change.path }}</span>
-              <template v-if="change.additions != null && change.deletions != null">
-                <span class="font-mono text-success">+{{ change.additions }}</span>
-                <span class="font-mono text-warning">−{{ change.deletions }}</span>
-              </template>
-              <span v-else class="col-span-2 text-base-content/40">—</span>
-            </div>
-          </div>
-        </div>
-        <div>
-          <div class="font-medium text-base-content/50">{{ t('agentPanel.creativeReview.gitRestoreTotal') }}</div>
-          <div v-if="hasRestoreStats">
-            {{ t('agentPanel.creativeReview.gitRestoreTotalStats', { files: restoreChanges.length, additions: restoreAdditions, deletions: restoreDeletions }) }}
-          </div>
-          <div v-else>{{ t('agentPanel.creativeReview.gitRestoreFileCount', { count: restoreChanges.length }) }}</div>
-        </div>
       </div>
 
       <div
@@ -287,8 +207,6 @@ const currentIndex = ref(0)
 const currentReview = computed(() => reviews.value[currentIndex.value] ?? null)
 
 const bodyDraft = ref('')
-const filesDraft = ref('')
-const tagMessageDraft = ref('')
 const isRespondOpen = ref(false)
 const respondMessage = ref('')
 // M1-2: finalize reject restores the session baseline to disk — a two-step confirm guards against
@@ -299,11 +217,7 @@ const title = computed(() => {
   const review = currentReview.value
   if (!review) return ''
   if (review.kind === 'creative_plan') return t('agentPanel.creativeReview.titlePlan')
-  if (review.kind === 'creative_git_command') return t('agentPanel.creativeReview.titleGitCommand')
-  if (review.kind === 'creative_git_commit') return t('agentPanel.creativeReview.titleGitCommit')
-  if (review.kind === 'creative_git_tag') return t('agentPanel.creativeReview.titleGitTag')
-  if (review.kind === 'creative_git_init') return t('agentPanel.creativeReview.titleGitInit')
-  if (review.kind === 'creative_git_restore') return t('agentPanel.creativeReview.titleGitRestore')
+  if (review.kind === 'creative_git') return t('agentPanel.creativeReview.titleGit')
   if (review.kind === 'creative_chapter_finalize') return t('agentPanel.creativeReview.titleFinalize')
   if (review.kind === 'creative_manuscript_import') return t('agentPanel.creativeReview.titleImport')
   return t('agentPanel.creativeReview.titlePlan')
@@ -317,11 +231,7 @@ function basename(filePath: string): string {
 const subtitle = computed(() => {
   const review = currentReview.value
   if (!review) return ''
-  if (review.kind === 'creative_git_command') return `git ${review.args.join(' ')}`
-  if (review.kind === 'creative_git_commit') return review.files.join(', ')
-  if (review.kind === 'creative_git_tag') return review.name
-  if (review.kind === 'creative_git_init') return ''
-  if (review.kind === 'creative_git_restore') return review.ref ? `${review.files.join(', ')} · ${review.ref}` : review.files.join(', ')
+  if (review.kind === 'creative_git') return `git ${review.args.join(' ')}`
   if (review.kind === 'creative_chapter_finalize') return basename(review.chapter)
   if (review.kind === 'creative_manuscript_import') return basename(review.sourcePath)
   return t('agentPanel.creativeReview.planFirstApproval')
@@ -334,40 +244,6 @@ const currentChars = computed(() =>
   currentReview.value?.kind === 'creative_chapter_finalize' ? currentReview.value.current.length : 0
 )
 const charDelta = computed(() => currentChars.value - baselineChars.value)
-
-const restoreChanges = computed(() => {
-  const review = currentReview.value
-  if (review?.kind !== 'creative_git_restore') return []
-  if (review.changes?.length) return review.changes
-  return review.files.map(file => ({ path: file, additions: null, deletions: null }))
-})
-
-const restoreSourceText = computed(() => {
-  const review = currentReview.value
-  if (review?.kind !== 'creative_git_restore') return ''
-  const source = review.source
-  const sourceRef = source?.ref ?? review.ref ?? 'index'
-  const parts = [
-    sourceRef === 'index'
-      ? t('agentPanel.creativeReview.gitRestoreIndexSource')
-      : sourceRef,
-    source?.shortHash,
-    source?.subject,
-  ]
-  return parts.filter(Boolean).join(' · ')
-})
-
-const hasRestoreStats = computed(() => restoreChanges.value.some(
-  change => change.additions != null && change.deletions != null
-))
-const restoreAdditions = computed(() => restoreChanges.value.reduce(
-  (total, change) => total + (change.additions ?? 0),
-  0,
-))
-const restoreDeletions = computed(() => restoreChanges.value.reduce(
-  (total, change) => total + (change.deletions ?? 0),
-  0,
-))
 
 // Run-end fallback finalize cards have no live agent turn to rework — hide the rework button.
 const isRunEndFallback = computed(() =>
@@ -389,8 +265,6 @@ const bodyLabel = computed(() => {
   const review = currentReview.value
   if (!review) return t('agentPanel.creativeReview.content')
   if (review.kind === 'creative_plan') return t('agentPanel.creativeReview.plan')
-  if (review.kind === 'creative_git_commit') return t('agentPanel.creativeReview.gitCommitMessage')
-  if (review.kind === 'creative_git_tag') return t('agentPanel.creativeReview.gitTagName')
   return t('agentPanel.creativeReview.content')
 })
 
@@ -398,8 +272,6 @@ const showsBodyEditor = computed(() => {
   const review = currentReview.value
   if (!review) return false
   return review.kind === 'creative_plan'
-    || review.kind === 'creative_git_commit'
-    || review.kind === 'creative_git_tag'
 })
 
 const hasEditedContent = computed(() => {
@@ -407,12 +279,6 @@ const hasEditedContent = computed(() => {
   if (!review) return false
   if (review.kind === 'creative_plan') {
     return bodyDraft.value !== review.plan
-  }
-  if (review.kind === 'creative_git_commit') {
-    return bodyDraft.value !== review.message || filesDraft.value !== review.files.join('\n')
-  }
-  if (review.kind === 'creative_git_tag') {
-    return bodyDraft.value !== review.name || tagMessageDraft.value !== (review.message ?? '')
   }
   return false
 })
@@ -436,32 +302,13 @@ watch(currentReview, review => {
   isFinalizeRejectConfirm.value = false
   if (!review) {
     bodyDraft.value = ''
-    filesDraft.value = ''
-    tagMessageDraft.value = ''
     return
   }
   if (review.kind === 'creative_plan') {
     bodyDraft.value = review.plan
-    filesDraft.value = ''
-    tagMessageDraft.value = ''
     return
   }
-  if (review.kind === 'creative_git_commit') {
-    bodyDraft.value = review.message
-    filesDraft.value = review.files.join('\n')
-    tagMessageDraft.value = ''
-    return
-  }
-  if (review.kind === 'creative_git_tag') {
-    bodyDraft.value = review.name
-    tagMessageDraft.value = review.message ?? ''
-    filesDraft.value = ''
-    return
-  }
-  // creative_git_init / creative_git_restore: no editable body
   bodyDraft.value = ''
-  filesDraft.value = ''
-  tagMessageDraft.value = ''
 }, { immediate: true })
 
 function editedArgs() {
@@ -469,18 +316,6 @@ function editedArgs() {
   if (!review) return {}
   if (review.kind === 'creative_plan') {
     return { plan: bodyDraft.value }
-  }
-  if (review.kind === 'creative_git_commit') {
-    return {
-      message: bodyDraft.value,
-      files: filesDraft.value.split(/\r?\n/).map(file => file.trim()).filter(Boolean),
-    }
-  }
-  if (review.kind === 'creative_git_tag') {
-    return {
-      name: bodyDraft.value,
-      ...(tagMessageDraft.value.trim() && { message: tagMessageDraft.value }),
-    }
   }
   return {}
 }

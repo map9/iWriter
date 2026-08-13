@@ -93,18 +93,6 @@ const BLOCK_EDIT_APPLIED_MESSAGE =
   'The edit was applied successfully by the editor. Block IDs for this file have now shifted — ' +
   're-read with get_document_outline / get_section before starting a new round of edits.'
 
-const RETIRED_GIT_REVIEW_TOOLS = new Set([
-  'git_write',
-  'git_init',
-  'git_commit',
-  'git_tag',
-  'git_restore',
-])
-
-const RETIRED_GIT_REVIEW_MESSAGE =
-  'This pending Git approval was created by an earlier iWriter version and was not executed. ' +
-  'Inspect the repository again and retry with the current git tool.'
-
 /** How long the v3 projections may stay pending after the graph run itself has ended. */
 const STREAM_DRAIN_GRACE_MS = 15_000
 
@@ -246,7 +234,6 @@ export class AgentEngine {
         this.snapshotBroker,
         this.editorStateBroker,
         this.aiRootPath,
-        this.runtimeStore,
         this.gitService,
         event => this.rendererBridge.sendGitMutation(event),
       ),
@@ -496,23 +483,12 @@ export class AgentEngine {
     // depend on ToolNode running. Non-poisoned batches keep the normal approve→ToolNode path, and
     // non-block-edit tools (e.g. filesystem writes that do real work on execution) are never
     // synthesized — they must still execute via ToolNode.
-    const batchPoisoned = fullDecisions.some((d, idx) =>
-      d.type === 'rejected'
-      || d.type === 'responded'
-      || ((d.type === 'approved' || d.type === 'edited')
-        && RETIRED_GIT_REVIEW_TOOLS.has(interrupted.actionNames[idx] ?? '')),
-    )
+    const batchPoisoned = fullDecisions.some(d => d.type === 'rejected' || d.type === 'responded')
 
     // Map decisions[] → LangGraph HITLResponse decisions.
     // decisions[i] corresponds to actionRequests[i] — array position is the contract.
     const lgDecisions = fullDecisions.map((d, idx) => {
       const actionName = interrupted.actionNames[idx] ?? ''
-      if ((d.type === 'approved' || d.type === 'edited') && RETIRED_GIT_REVIEW_TOOLS.has(actionName)) {
-        return {
-          type: 'reject' as const,
-          message: `${RESPOND_MARKER}${RETIRED_GIT_REVIEW_MESSAGE}`,
-        }
-      }
       if (d.type === 'approved') {
         if (batchPoisoned && isBlockEditToolName(actionName)) {
           return {
@@ -696,8 +672,8 @@ export class AgentEngine {
    *   responded    → rework: keep the session open (writer revises, A00 finalizes again);
    *   rejected     → restore the session baseline to disk and close the session.
    *
-   * The reject restore writes disk directly, like the git_restore tool: an open chapter tab is a
-   * clean tab (the auto-applied edits were saved via saveAppliedOpenTab), so the file watcher's
+   * The reject restore writes disk directly. An open chapter tab is clean (the auto-applied edits
+   * were saved via saveAppliedOpenTab), so the file watcher's
    * external-change handler (handleOpenTabExternalChange) reloads it from disk — no autosave race.
    */
   private _handleFinalizeDecisions(

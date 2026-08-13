@@ -30,29 +30,8 @@ function argsForReview(review: CreativeReviewItem, editedArgs?: Record<string, u
   if (review.kind === 'creative_plan') {
     return { plan: review.plan }
   }
-  if (review.kind === 'creative_git_command') {
+  if (review.kind === 'creative_git') {
     return { args: review.args }
-  }
-  if (review.kind === 'creative_git_commit') {
-    return {
-      message: review.message,
-      files: review.files,
-    }
-  }
-  if (review.kind === 'creative_git_tag') {
-    return {
-      name: review.name,
-      ...(review.message !== undefined && { message: review.message }),
-    }
-  }
-  if (review.kind === 'creative_git_init') {
-    return {}
-  }
-  if (review.kind === 'creative_git_restore') {
-    return {
-      files: review.files,
-      ...(review.ref !== undefined && { ref: review.ref }),
-    }
   }
   if (review.kind === 'creative_chapter_finalize') {
     return {
@@ -73,17 +52,8 @@ function defaultRejectMessage(review: CreativeReviewItem): string {
   if (review.kind === 'creative_plan') {
     return 'The user rejected this writing plan. Do not write, do not call confirm_writing_plan again in this run, and do not automatically propose a replacement plan. Briefly acknowledge the rejection and ask what direction the user wants next.'
   }
-  if (review.kind === 'creative_git_command') {
+  if (review.kind === 'creative_git') {
     return 'The user rejected this Git command. Do not retry the same command automatically. Briefly acknowledge the rejection.'
-  }
-  if (review.kind === 'creative_git_commit' || review.kind === 'creative_git_tag') {
-    return 'The user rejected this git checkpoint. Do not commit or tag, and do not retry the same git action automatically. Briefly acknowledge the rejection.'
-  }
-  if (review.kind === 'creative_git_init') {
-    return 'The user declined to initialize a git repository. Do not call git_init again automatically. Continue without version tracking and briefly acknowledge.'
-  }
-  if (review.kind === 'creative_git_restore') {
-    return 'The user rejected this git restore. Do not restore files or retry the same restore automatically. Briefly acknowledge the rejection.'
   }
   if (review.kind === 'creative_chapter_finalize') {
     return 'The user REJECTED this chapter finalize: the write-session\'s writing has been discarded and the chapter restored to its baseline. Do not re-finalize or re-draft automatically. Briefly acknowledge and ask what direction the user wants for this chapter.'

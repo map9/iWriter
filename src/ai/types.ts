@@ -377,55 +377,9 @@ export interface CreativePlanReviewItem extends BaseCreativeReviewItem {
   plan: string
 }
 
-export interface CreativeGitCommitReviewItem extends BaseCreativeReviewItem {
-  kind: 'creative_git_commit'
-  toolName: 'git_commit'
-  message: string
-  files: string[]
-}
-
-export interface CreativeGitTagReviewItem extends BaseCreativeReviewItem {
-  kind: 'creative_git_tag'
-  toolName: 'git_tag'
-  name: string
-  message?: string
-}
-
-export interface CreativeGitInitReviewItem extends BaseCreativeReviewItem {
-  kind: 'creative_git_init'
-  toolName: 'git_init'
-  /** Absolute workspace facts captured when the approval card is built. Optional for persisted legacy cards. */
-  workspacePath?: string
-  gitDirectoryPath?: string
-  gitignorePath?: string
-  fileCount?: number
-  directoryCount?: number
-}
-
-export interface CreativeGitRestoreFilePreview {
-  path: string
-  /** Lines added/deleted by applying the restore, not the opposite working-tree diff direction. */
-  additions: number | null
-  deletions: number | null
-}
-
-export interface CreativeGitRestoreReviewItem extends BaseCreativeReviewItem {
-  kind: 'creative_git_restore'
-  toolName: 'git_restore'
-  files: string[]
-  ref?: string
-  /** Resolved source metadata and actual affected-file manifest. Optional for persisted legacy cards. */
-  source?: {
-    ref: string
-    shortHash?: string
-    subject?: string
-  }
-  changes?: CreativeGitRestoreFilePreview[]
-}
-
-export interface CreativeGitCommandReviewItem extends BaseCreativeReviewItem {
-  kind: 'creative_git_command'
-  toolName: 'git' | 'git_write'
+export interface CreativeGitReviewItem extends BaseCreativeReviewItem {
+  kind: 'creative_git'
+  toolName: 'git'
   args: string[]
 }
 
@@ -453,7 +407,7 @@ export interface CreativeChapterFinalizeReviewItem extends BaseCreativeReviewIte
 
 // Approval gate for import_manuscript. Dry-run (no boundaries) scans; execute (boundaries
 // given) writes the confirmed file plan. chapterCount = number of chapter boundaries
-// (0 ⇒ dry-run scan). collisionPolicy is optional for persisted legacy review items.
+// (0 ⇒ dry-run scan).
 export interface CreativeManuscriptImportReviewItem extends BaseCreativeReviewItem {
   kind: 'creative_manuscript_import'
   toolName: 'import_manuscript'
@@ -465,11 +419,7 @@ export interface CreativeManuscriptImportReviewItem extends BaseCreativeReviewIt
 
 export type CreativeReviewItem =
   | CreativePlanReviewItem
-  | CreativeGitCommitReviewItem
-  | CreativeGitTagReviewItem
-  | CreativeGitInitReviewItem
-  | CreativeGitRestoreReviewItem
-  | CreativeGitCommandReviewItem
+  | CreativeGitReviewItem
   | CreativeChapterFinalizeReviewItem
   | CreativeManuscriptImportReviewItem
 
@@ -899,6 +849,7 @@ export function normalizeModeForDomain(
 
 export function inferToolKind(toolName: string): AiToolCallKind {
   const mapping: Record<string, AiToolCallKind> = {
+    get_editor_state:     'read',
     get_document_outline: 'read',
     get_section:          'read',
     get_sections:         'read',
@@ -912,36 +863,18 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     delete_block:         'delete',
     replace_range:        'edit',
     create_document:      'edit',
-    read_storybible:      'read',
-    read_chapter:         'read',
-    read_fragments:       'read',
-    search_draft:         'search',
-    get_session_diff:     'read',
-    get_storybible_rebuild_signal: 'read',
     git:                   'execute',
-    get_character_psychology: 'read',
-    advise_directions: 'read',
-    analyze_story_architecture: 'read',
-    add_fragment:         'edit',
-    patch_storybible:     'edit',
     confirm_writing_plan: 'edit',
-    write_to_chapter:     'edit',
-    replace_storybible_section: 'edit',
-    rebuild_storybible:   'edit',
-    compress_storybible_history: 'edit',
-    list_explorations:    'read',
-    start_exploration:    'edit',
-    write_exploration_draft: 'edit',
-    read_exploration:     'read',
-    finish_exploration:   'edit',
-    promote_exploration:  'edit',
-    delete_exploration:   'delete',
-    list_writing_styles:  'read',
-    get_writing_style:    'read',
-    save_writing_style_skill: 'edit',
-    create_writing_style: 'edit',
-    update_writing_style: 'edit',
-    delete_writing_style: 'delete',
+    finalize_chapter:     'edit',
+    find_references:      'read',
+    import_manuscript:    'edit',
+    delete_file:          'delete',
+    rename_file:          'edit',
+    move_file:            'edit',
+    get_pdf_outline:      'read',
+    get_pdf_pages:        'read',
+    web_search:           'search',
+    fetch_url:            'read',
     // deepagents built-in tools
     execute:              'execute',
     read_file:            'read',
@@ -951,6 +884,7 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     glob:                 'search',
     grep:                 'search',
     task:                 'delegate',
+    write_todos:          'edit',
   }
   return mapping[toolName] ?? 'other'
 }
@@ -964,17 +898,11 @@ export const BLOCK_EDIT_TOOLS = new Set([
   'create_document',
 ])
 
-// Phase 2 M0: the retired storybible/exploration/chapter review tools are removed. Live
-// creative-review tools are the plan gate and the git checkpoint/restore/init actions.
+// Tools routed to the creative approval surface.
 export const CREATIVE_REVIEW_TOOLS = new Set([
   'confirm_writing_plan',
   'finalize_chapter',
   'git',
-  // Legacy review names remain accepted for persisted threads created before raw Git tools.
-  'git_init',
-  'git_commit',
-  'git_tag',
-  'git_restore',
   // Physical manuscript import (one two-stage tool: dry-run scan / execute write, both gated).
   'import_manuscript',
 ])

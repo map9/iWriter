@@ -206,7 +206,7 @@ AI Story Buddy 可以读取 Git 状态、历史和差异，并在关键节点建
 - 为初稿、投稿版或出版版创建 tag
 - 在重构前建立可回退版本
 
-`git_init`、`git_commit`、`git_tag` 和 `git_restore` 都需要作者审批。也可以直接使用左侧 [Git 文档版本管理](/docs/source-control) 面板完成同样的版本操作。
+Agent 通过统一的 `git(args)` 工具执行 Git：只读命令直接运行，写命令在执行前显示完整参数并等待作者审批。也可以直接使用左侧 [Git 文档版本管理](/docs/source-control) 面板完成同样的版本操作。
 
 ## 审批与安全边界
 
