@@ -3,7 +3,7 @@ import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import type { IWriterAgentContext } from '../../runtime/AgentContext'
 import type { GitService } from '../../../GitService'
-import type { GitMutationEvent } from '../../../../src/types/git'
+import type { GitMutationEvent } from '../../../../shared/git/types'
 
 export type GitCommandClassification =
   | { kind: 'read' }

@@ -1,4 +1,4 @@
-import type { AiAgentDomain, AiAgentMode, AiProviderConfig, AiSettings, AiThinkingLevel } from '../../../src/types/ai'
+import type { AiAgentDomain, AiAgentMode, AiProviderConfig, AiSettings, AiThinkingLevel } from '../../../shared/ai/contracts'
 import {
   getDefaultModeForDomain,
   DEFAULT_THINKING_LEVEL,
@@ -8,7 +8,7 @@ import {
   normalizeThinkingLevel,
   resolveAiProviderModelId,
   resolveAgentDomain,
-} from '../../../src/types/ai'
+} from '../../../shared/ai/contracts'
 import { resolveAiApiKeyEnvVar } from '../config/AiConfigStore'
 import type { SendMessageRequest } from '../ipc/protocol'
 import type { ThreadMeta } from '../thread/ThreadListQuery'

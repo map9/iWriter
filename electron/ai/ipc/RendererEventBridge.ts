@@ -1,5 +1,5 @@
 import type { WebContents } from 'electron'
-import type { GitMutationEvent } from '../../../src/types/git'
+import type { GitMutationEvent } from '../../../shared/git/types'
 import type {
   RunDoneEvent,
   RunErrorEvent,

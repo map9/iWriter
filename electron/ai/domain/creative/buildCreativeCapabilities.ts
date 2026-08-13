@@ -18,8 +18,8 @@ import { assembleSubagents } from '../../scaffold/subagents/SubagentAssembler'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { EditorStateBroker } from '../../document/EditorStateBroker'
 import { buildEditorStateTool } from '../../tools/common/EditorStateTools'
-import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
-import type { GitMutationEvent } from '../../../../src/types/git'
+import type { DetectedInputLanguage } from '../../../../shared/ai/core/detectInputLanguage'
+import type { GitMutationEvent } from '../../../../shared/git/types'
 import type { GitService } from '../../../GitService'
 
 // Phase 2 M0 (B1剩余 + A1): the creative域 tool面 is now the general common + git tools plus

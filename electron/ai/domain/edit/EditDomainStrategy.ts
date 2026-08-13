@@ -1,6 +1,6 @@
 
 import * as path from 'path'
-import { buildEditSystemPrompt } from '../../../../src/ai/thread/system-prompts/edit'
+import { buildEditSystemPrompt } from './systemPrompt'
 import { buildEditCapabilities, EDIT_INTERRUPT_ON_NAMES } from './buildEditCapabilities'
 import { buildProposalFromAction } from '../../ipc/MessageAdapter'
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
@@ -10,8 +10,8 @@ import { withProjectSkills } from '../../scaffold/skills/SkillsMount'
 import { EDITING_SUMMARIZATION_PROFILE } from '../../scaffold/summarization/SummarizationFramework'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { EditorStateBroker } from '../../document/EditorStateBroker'
-import type { AiAgentMode } from '../../../../src/types/ai'
-import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
+import type { AiAgentMode } from '../../../../shared/ai/contracts'
+import type { DetectedInputLanguage } from '../../../../shared/ai/core/detectInputLanguage'
 import type { ResumeDecision } from '../../ipc/protocol'
 import type {
   DomainStrategy,

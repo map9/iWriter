@@ -60,12 +60,12 @@ function stubPlugin() {
           'export function createMiddleware(config) { return config } export function modelCallLimitMiddleware() { return {} } export function toolCallLimitMiddleware() { return {} }',
         ],
         [
-          /src\/types\/ai$/,
+          /shared\/ai\/contracts$/,
           'ai-types',
           'export function isAiProviderUsable() { return true } export function resolveApiKeyReference() { return null }',
         ],
         [
-          /src\/ai\/model\/token-estimation$/,
+          /shared\/ai\/core\/tokenEstimation$/,
           'token-estimation',
           'export function estimateTextTokens(text) { return String(text ?? "").length }',
         ],
@@ -156,7 +156,7 @@ function stubPlugin() {
           'export const AiConfigStore = { loadSettings() { return { providerConfigs: [{}] } } }; export function resolveAiApiKeyEnvVar() { return null }',
         ],
         [
-          /src\/ai\/thread\/title$/,
+          /shared\/ai\/core\/threadTitle$/,
           'thread-title',
           'export function generateThreadTitle() { return "New conversation" }',
         ],
@@ -211,7 +211,7 @@ function stubPlugin() {
           'export class CreativeDomainStrategy { constructor() {} getMemoryDir() { return "creative" } getSkillSources() { return ["/Users/author/.iwriter/skills"] } buildCapabilities() { return { tools: [], interruptOn: {}, subAgents: [{ name: "writer", description: "Writer", systemPrompt: "writer prompt" }] } } getSystemPrompt() { return "system" } getSummarizationProfile() { return { domain: "creative", domainStateInstructions: ["creative-state"] } } }',
         ],
         [
-          /src\/ai\/message\/detectInputLanguage$/,
+          /shared\/ai\/core\/detectInputLanguage$/,
           'detect-input-language',
           'export function detectInputLanguage() { return "en-US" }',
         ],
@@ -275,7 +275,7 @@ async function loadBudgetModule() {
   if (!budgetModulePromise) {
     budgetModulePromise = (async () => {
       const result = await build({
-        entryPoints: ['src/ai/model/model-budget.ts'],
+        entryPoints: ['shared/ai/core/modelBudget.ts'],
         bundle: true,
         platform: 'node',
         format: 'esm',

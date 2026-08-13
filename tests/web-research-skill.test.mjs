@@ -4,7 +4,7 @@ import { describe, it } from 'node:test'
 
 const skillPath = 'electron/ai/builtin-skills/common/web-research/SKILL.md'
 const researcherPath = 'electron/ai/builtin-subagents/common/researcher/agent.md'
-const creativePromptPath = 'src/ai/thread/system-prompts/creative.ts'
+const creativePromptPath = 'electron/ai/domain/creative/systemPrompt.ts'
 
 function read(path) {
   return readFileSync(path, 'utf8')

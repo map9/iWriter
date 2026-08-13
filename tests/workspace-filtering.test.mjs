@@ -8,7 +8,7 @@ async function loadFilteringModule() {
   if (!filteringModulePromise) {
     filteringModulePromise = (async () => {
       const result = await build({
-        entryPoints: ['src/services/workspace/filtering.ts'],
+        entryPoints: ['shared/workspace/filtering.ts'],
         bundle: true,
         platform: 'node',
         format: 'esm',

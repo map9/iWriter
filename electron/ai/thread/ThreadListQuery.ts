@@ -14,8 +14,8 @@
 
 import type { Database } from 'better-sqlite3'
 import type { CheckpointerInstance } from '../checkpoint/CheckpointerFactory'
-import type { AiThread, AiAgentMode, AiAgentDomain, AiThinkingLevel } from '../../../src/types/ai'
-import { normalizeAgentMode, normalizeThinkingLevel } from '../../../src/types/ai'
+import type { AiThread, AiAgentMode, AiAgentDomain, AiThinkingLevel } from '../../../shared/ai/contracts'
+import { normalizeAgentMode, normalizeThinkingLevel } from '../../../shared/ai/contracts'
 
 const MAX_THREADS = 100
 

@@ -13,10 +13,10 @@ import type {
   FileCreateProposal,
   EditProposal,
   MessageContentBlock,
-} from '../../../src/types/ai'
-import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS, inferToolKind } from '../../../src/types/ai'
+} from '../../../shared/ai/contracts'
+import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS, inferToolKind } from '../../../shared/ai/contracts'
 import type { SerializedSnapshot } from './protocol'
-import { isHitlInterruptPayload } from '../../../src/ai/hitl'
+import { isHitlInterruptPayload } from '../../../shared/ai/core/hitl'
 
 // ── Tool argument parsing ────────────────────────────────────────────────────
 

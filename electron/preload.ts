@@ -1,9 +1,9 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import type { ElectronAPI, HtmlPrintReadyOptions, PdfSaveOptions, SaveFileOptions } from '../src/types/electron-api'
-import type { SendMessageRequest, SessionContextStatsRequest, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, EditorStateRequestEvent, EditorStateResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../src/types/ai-ipc'
-import type { AiSettings } from '../src/types/ai'
-import type { GitMutationEvent, GitProgress } from '../src/types/git'
+import type { SendMessageRequest, SessionContextStatsRequest, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, EditorStateRequestEvent, EditorStateResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../shared/ai/contracts/protocol'
+import type { AiSettings } from '../shared/ai/contracts'
+import type { GitMutationEvent, GitProgress } from '../shared/git/types'
 import { createAppMenuRequest, createContextMenuRequest } from '../src/types/menu'
 import type { ContextMenuItem, MenuPosition } from '../src/types/menu'
 import type { FileChange } from '../src/types/file-operation'
@@ -123,7 +123,7 @@ const electronAPI: ElectronAPI = {
 
   git: {
     settingsGet: () => ipcRenderer.invoke('git:settings-get'),
-    settingsUpdate: (patch: Partial<import('../src/types/git').SourceControlSettings>) => ipcRenderer.invoke('git:settings-update', patch),
+    settingsUpdate: (patch: Partial<import('../shared/git/types').SourceControlSettings>) => ipcRenderer.invoke('git:settings-update', patch),
     detect: (force?: boolean, candidatePath?: string | null) => ipcRenderer.invoke('git:detect', force, candidatePath),
     isRepo: (root: string) => ipcRenderer.invoke('git:is-repo', root),
     init: (root: string) => ipcRenderer.invoke('git:init', root),

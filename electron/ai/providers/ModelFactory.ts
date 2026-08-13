@@ -10,12 +10,12 @@ import type { ModelProfile } from '@langchain/core/language_models/profile'
 import { ChatAnthropic } from '@langchain/anthropic'
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
 import { ChatOpenAI } from '@langchain/openai'
-import type { AiProviderConfig, AiThinkingLevel } from '../../../src/types/ai'
+import type { AiProviderConfig, AiThinkingLevel } from '../../../shared/ai/contracts'
 import {
   isOpenAIResponsesProtocol,
   normalizeThinkingLevel,
   resolveApiKeyReference,
-} from '../../../src/types/ai'
+} from '../../../shared/ai/contracts'
 import { resolveAiApiKeyEnvVar } from '../config/AiConfigStore'
 import { ChatDeepSeek } from './ChatDeepSeek'
 

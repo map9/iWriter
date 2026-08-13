@@ -1,4 +1,4 @@
-import type { CreativeReviewItem } from '../../../src/types/ai'
+import type { CreativeReviewItem } from '../../../shared/ai/contracts'
 
 interface ActionRequest {
   name: string

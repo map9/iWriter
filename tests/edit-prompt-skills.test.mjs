@@ -13,8 +13,8 @@ async function loadPrompts() {
       const result = await build({
         stdin: {
           contents: `
-            export { buildEditSystemPrompt } from './src/ai/thread/system-prompts/edit.ts'
-            export { buildCreativeSystemPrompt } from './src/ai/thread/system-prompts/creative.ts'
+            export { buildEditSystemPrompt } from './electron/ai/domain/edit/systemPrompt.ts'
+            export { buildCreativeSystemPrompt } from './electron/ai/domain/creative/systemPrompt.ts'
           `,
           resolveDir: process.cwd(),
           sourcefile: 'edit-prompt-skills-entry.ts',

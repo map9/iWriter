@@ -4,8 +4,8 @@ import type { SubAgent } from 'deepagents'
 import type { FilesystemPermission } from 'deepagents'
 import type { InterruptOnConfig } from 'langchain'
 import type { ToolRegistry } from '../../tools/ToolRegistry'
-import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
-import { buildOutputLanguagePrompt } from '../../../../src/ai/message/detectInputLanguage'
+import type { DetectedInputLanguage } from '../../../../shared/ai/core/detectInputLanguage'
+import { buildOutputLanguagePrompt } from '../../../../shared/ai/core/detectInputLanguage'
 
 /**
  * SubagentAssembler (04.1 §2 / 03 §2.10, plan A1) — the declarative装配 mechanism that

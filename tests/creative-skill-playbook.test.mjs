@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 import { parse as parseYaml } from 'yaml'
 
-const creativePromptPath = resolve('src/ai/thread/system-prompts/creative.ts')
+const creativePromptPath = resolve('electron/ai/domain/creative/systemPrompt.ts')
 const playbookPath = resolve(
   'electron/ai/builtin-skills/creative/main/ideation-outline-playbook/SKILL.md',
 )

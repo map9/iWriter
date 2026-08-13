@@ -1,5 +1,5 @@
-import type { DetectedInputLanguage } from '../../message/detectInputLanguage'
-import { buildOutputLanguagePrompt } from '../../message/detectInputLanguage'
+import type { DetectedInputLanguage } from '../../../../shared/ai/core/detectInputLanguage'
+import { buildOutputLanguagePrompt } from '../../../../shared/ai/core/detectInputLanguage'
 
 // Keep only cross-stage routing, authority, workspace, delegation, and
 // response rules here. Stage methods live in their playbooks.

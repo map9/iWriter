@@ -4,8 +4,8 @@
  * Dynamic editor state is available on demand through get_editor_state.
  */
 
-import type { DetectedInputLanguage } from '../../message/detectInputLanguage'
-import { buildOutputLanguagePrompt } from '../../message/detectInputLanguage'
+import type { DetectedInputLanguage } from '../../../../shared/ai/core/detectInputLanguage'
+import { buildOutputLanguagePrompt } from '../../../../shared/ai/core/detectInputLanguage'
 
 const EDIT_SYSTEM_PROMPT_BODY = `
 你是 iWriter 的智能编辑助手。帮助用户研究、整理、起草和编辑笔记、技术文档、计划、报告等内容；按要求处理语气和风格，但不默认把普通文档当作小说创作任务。

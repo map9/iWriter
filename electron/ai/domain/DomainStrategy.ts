@@ -1,6 +1,6 @@
 import type { DomainAgentCapabilities } from './types'
 import type { AiAgentMode, DomainReviewItem, ThreadMessage } from '../../../shared/ai/contracts'
-import type { DetectedInputLanguage } from '../../../src/ai/message/detectInputLanguage'
+import type { DetectedInputLanguage } from '../../../shared/ai/core/detectInputLanguage'
 import type { ResumeDecision } from '../../../shared/ai/contracts/protocol'
 import type { DomainSummarizationProfile } from '../scaffold/summarization/SummarizationFramework'
 

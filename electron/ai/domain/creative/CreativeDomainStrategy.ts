@@ -1,7 +1,7 @@
-import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS } from '../../../../src/types/ai'
+import { BLOCK_EDIT_TOOLS, CREATIVE_REVIEW_TOOLS } from '../../../../shared/ai/contracts'
 import * as path from 'path'
 import type { ResumeDecision } from '../../ipc/protocol'
-import { buildCreativeSystemPrompt } from '../../../../src/ai/thread/system-prompts/creative'
+import { buildCreativeSystemPrompt } from './systemPrompt'
 import { buildCreativeCapabilities, CREATIVE_INTERRUPT_ON_NAMES } from './buildCreativeCapabilities'
 import { buildCreativeReviewItemFromAction } from '../../ipc/CreativeReviewAdapter'
 import { buildFilesystemReviewItemFromAction, isFilesystemWriteTool } from '../../ipc/FilesystemReviewAdapter'
@@ -13,9 +13,9 @@ import { CREATIVE_SUMMARIZATION_PROFILE } from '../../scaffold/summarization/Sum
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { EditorStateBroker } from '../../document/EditorStateBroker'
 import type { SerializedSnapshot } from '../../ipc/protocol'
-import type { AiAgentMode } from '../../../../src/types/ai'
-import type { GitMutationEvent } from '../../../../src/types/git'
-import type { DetectedInputLanguage } from '../../../../src/ai/message/detectInputLanguage'
+import type { AiAgentMode } from '../../../../shared/ai/contracts'
+import type { GitMutationEvent } from '../../../../shared/git/types'
+import type { DetectedInputLanguage } from '../../../../shared/ai/core/detectInputLanguage'
 import type {
   DomainStrategy,
   DomainBuildContext,

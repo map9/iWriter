@@ -18,11 +18,11 @@ import { UpdaterManager } from '../src/updater/UpdaterManager'
 import { PandocService } from './PandocService'
 import { LibreOfficeService } from './LibreOfficeService'
 import { GitService, classifyGitIssue } from './GitService'
-import type { GitActionResult } from '../src/types/git'
+import type { GitActionResult } from '../shared/git/types'
 import type { AgentEngine } from './ai/AgentEngine'
 import { AiConfigStore } from './ai/config/AiConfigStore'
 import { perfLog } from './perf'
-import type { AiSettings } from '../src/types/ai'
+import type { AiSettings, ResumeRunRequest } from '../shared/ai/contracts'
 import { formatCodeInMain } from './CodeFormatService'
 import { createMainTranslator, formatMainText } from './i18n'
 import {
@@ -37,7 +37,7 @@ import {
   parseWorkspaceIgnoreRules,
   shouldIncludeWorkspaceEntry,
   shouldTraverseWorkspaceDirectory,
-} from '../src/services/workspace/filtering'
+} from '../shared/workspace/filtering'
 import type { ContextMenuItem, MenuPosition, ShowMenuRequest } from '../src/types/menu'
 import { CustomThemeLoader } from './CustomThemeLoader'
 
@@ -1620,7 +1620,7 @@ export class App {
     })
 
     // HITL resume — batch decisions array (approve / edit / reject)
-    ipcMain.handle('ai:resume', async (_, req: import('./ai/ipc/protocol').ResumeRunRequest) => {
+    ipcMain.handle('ai:resume', async (_, req: ResumeRunRequest) => {
       await (await this._getAgentEngine()).resumeRun(req.threadId, req.decisions)
     })
 

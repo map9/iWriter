@@ -1,4 +1,4 @@
-import type { DetectedInputLanguage } from '../../../src/ai/message/detectInputLanguage'
+import type { DetectedInputLanguage } from '../../../shared/ai/core/detectInputLanguage'
 import { IWriterAgentContextSchema, type IWriterAgentContext } from './AgentContext'
 import type { ResumeDecision } from '../ipc/protocol'
 

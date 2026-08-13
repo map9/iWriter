@@ -1,7 +1,7 @@
 import type { NormalizedUsage, StreamChunkEvent } from './protocol'
-import type { AiToolCall, MessageContentBlock, ThreadMessage } from '../../../src/types/ai'
-import { inferToolKind } from '../../../src/types/ai'
-import { isHitlInterruptPayload } from '../../../src/ai/hitl'
+import type { AiToolCall, MessageContentBlock, ThreadMessage } from '../../../shared/ai/contracts'
+import { inferToolKind } from '../../../shared/ai/contracts'
+import { isHitlInterruptPayload } from '../../../shared/ai/core/hitl'
 import { extractToolResult, invalidToolCallToAiToolCall } from './MessageAdapter'
 import type { RendererEventBridge } from './RendererEventBridge'
 

@@ -42,6 +42,17 @@ iWriter 的 AI 运行时已经切换到：
   主进程 -> renderer 的事件桥
 - `electron/ai/ipc/MessageAdapter.ts`
   checkpointer message -> 前端 message DTO
+- `electron/ai/domain/edit/systemPrompt.ts` / `electron/ai/domain/creative/systemPrompt.ts`
+  各 domain 自有的静态 system prompt
+
+### 跨进程共享层
+
+- `shared/ai/contracts/`
+  provider、thread、message、review、settings 与 IPC 协议的唯一类型入口
+- `shared/ai/core/`
+  语言检测、HITL guard、模型预算、token 估算和线程标题等纯逻辑
+- `shared/git/types.ts` / `shared/workspace/filtering.ts`
+  主进程与 renderer 共用的 Git 契约和 workspace 过滤规则
 
 ### 工具层
 
@@ -63,13 +74,9 @@ iWriter 的 AI 运行时已经切换到：
 - `src/ai/store/ai.ts`
   前端 AI store 主实现
 - `src/ai/types.ts`
-  前端 AI 类型定义
+  共享 AI contracts 的兼容入口
 - `src/ai/ipc.ts`
-  renderer 侧 IPC 类型入口
-- `src/ai/thread/system-prompts/edit.ts`
-  Edit 模式 prompt
-- `src/ai/thread/system-prompts/creative.ts`
-  Creative 模式 prompt
+  renderer 侧共享 IPC contracts 兼容入口
 
 兼容桥接仍然保留在：
 
@@ -94,7 +101,7 @@ iWriter 的 AI 运行时已经切换到：
 ## 长会话上下文管理
 
 - 会话历史摘要由 `createDeepAgent` 内置的 SummarizationMiddleware 在达到阈值后自动执行，iWriter 不提供手动摘要入口。
-- `src/ai/model/model-budget.ts` 计算唯一的 `effectiveBudget`，自动摘要、发送前预算检查、token 进度和工具栏提示共同读取该结果。DeepAgents 收到显式的 token `trigger` / `keep`，不再自行按完整 context window 计算另一套阈值。
+- `shared/ai/core/modelBudget.ts` 计算唯一的 `effectiveBudget`，自动摘要、发送前预算检查、token 进度和工具栏提示共同读取该结果。DeepAgents 收到显式的 token `trigger` / `keep`，不再自行按完整 context window 计算另一套阈值。
 - LangChain `ModelProfile` 只描述能力和物理上下文上限，不承载账号 TPM。iWriter 的运行预算由内置 model/provider policy、可选 `modelPolicies[modelId].maxRequestTokens` 和 provider 级 `maxRequestTokens` 决定，最终不会超过 `profile.maxInputTokens`。
 - 内置运行预算当前为：OpenAI 400k（`gpt-5.4-pro` 128k）、DeepSeek 400k、Anthropic 800k、Gemini 128k；新模型在 LangChain 已知 context profile 时继承 provider policy，完全未知模型保守使用 128k。用户无需逐模型配置，只有实际账号配额不同时才需要覆盖。
 - 自动摘要通常在运行预算的 85% 触发（DeepSeek 为 80%），压缩后保留约 10% 的最近上下文（上限 100k）。发送前检查只拒绝摘要无法缩小的系统提示、工具 schema 和本轮新输入；累积历史超过阈值时交由摘要中间件先压缩，不再由全局 250k 上限提前失败。
@@ -267,6 +274,7 @@ Agent Chat 的前端显示规则，不再由单个组件各自决定，而是以
 3. 不要把 creative skill 直接做成 block edit proposal
 4. 新的 renderer AI 逻辑优先放到 `src/ai/`
 5. 新的主进程运行时逻辑优先放到 `electron/ai/`
+6. 跨进程 DTO、协议和纯逻辑放到 `shared/`；`electron/ai` 与 `src/ai` 不允许相互反向导入
 
 ## 相关文档
 

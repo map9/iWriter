@@ -9,9 +9,9 @@ import { ChatGenerationChunk } from '@langchain/core/outputs'
 import { convertLangChainToolCallToOpenAI, parseToolCall } from '@langchain/core/output_parsers/openai_tools'
 import { toJsonSchema } from '@langchain/core/utils/json_schema'
 import { APIConnectionError, APIConnectionTimeoutError, APIError, APIUserAbortError } from 'openai'
-import { getDefaultDeepSeekProfile } from '../../../src/ai/model/model-profiles'
-import type { AiThinkingLevel } from '../../../src/types/ai'
-import { normalizeThinkingLevel } from '../../../src/types/ai'
+import { getDefaultDeepSeekProfile } from '../../../shared/ai/core/modelProfiles'
+import type { AiThinkingLevel } from '../../../shared/ai/contracts'
+import { normalizeThinkingLevel } from '../../../shared/ai/contracts'
 
 interface DeepSeekTool {
   type: 'function'

@@ -1,5 +1,5 @@
 import * as path from 'path'
-import type { FilesystemReviewItem } from '../../../src/ai/types'
+import type { FilesystemReviewItem } from '../../../shared/ai/contracts'
 
 interface ActionRequest {
   name: string

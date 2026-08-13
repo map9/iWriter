@@ -26,13 +26,13 @@ import {
   toolCallLimitMiddleware,
 } from 'langchain'
 
-import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage } from '../../src/types/ai'
-import { isAiProviderUsable, resolveApiKeyReference } from '../../src/types/ai'
+import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage } from '../../shared/ai/contracts'
+import { isAiProviderUsable, resolveApiKeyReference } from '../../shared/ai/contracts'
 import {
   resolveEffectiveModelBudget,
   type EffectiveModelBudget,
-} from '../../src/ai/model/model-budget'
-import { estimateTextTokens } from '../../src/ai/model/token-estimation'
+} from '../../shared/ai/core/modelBudget'
+import { estimateTextTokens } from '../../shared/ai/core/tokenEstimation'
 import { createChatModel } from './providers/ModelFactory'
 import { SnapshotBroker } from './document/SnapshotBroker'
 import { EditorStateBroker } from './document/EditorStateBroker'
@@ -63,7 +63,7 @@ import {
   type RootToolCall,
 } from './scaffold/approval/WritingSessionRegistry'
 import { AiConfigStore, resolveAiApiKeyEnvVar } from './config/AiConfigStore'
-import { generateThreadTitle } from '../../src/ai/thread/title'
+import { generateThreadTitle } from '../../shared/ai/core/threadTitle'
 import { IWriterAgentContextSchema } from './runtime/AgentContext'
 import { createTaskToolCompatMiddleware } from './scaffold/middleware/TaskToolCompatMiddleware'
 import { createOrphanToolCallStripperMiddleware } from './scaffold/middleware/OrphanToolCallStripperMiddleware'
@@ -79,7 +79,7 @@ import {
 import type { DomainStrategy } from './domain/DomainStrategy'
 import { EditDomainStrategy } from './domain/edit/EditDomainStrategy'
 import { CreativeDomainStrategy } from './domain/creative/CreativeDomainStrategy'
-import { detectInputLanguage, type DetectedInputLanguage } from '../../src/ai/message/detectInputLanguage'
+import { detectInputLanguage, type DetectedInputLanguage } from '../../shared/ai/core/detectInputLanguage'
 import type { GitService } from '../GitService'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -259,7 +259,7 @@ export class AgentEngine {
     return (this.threadListQuery?.loadMetas() ?? []).map(metaToAiThread)
   }
 
-  async getThreadMessages(threadId: string): Promise<import('../../src/types/ai').ThreadMessage[]> {
+  async getThreadMessages(threadId: string): Promise<ThreadMessage[]> {
     await this._ensureInitialized()
     try {
       const tuple = await this.checkpointerInstance!.checkpointer.get({

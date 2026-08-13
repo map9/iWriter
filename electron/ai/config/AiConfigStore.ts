@@ -6,8 +6,8 @@
  */
 
 import Store from 'electron-store'
-import type { AiSettings } from '../../../src/types/ai'
-import { DEFAULT_AI_SETTINGS, normalizeWebSearchProviderConfigs } from '../../../src/types/ai'
+import type { AiSettings } from '../../../shared/ai/contracts'
+import { DEFAULT_AI_SETTINGS, normalizeWebSearchProviderConfigs } from '../../../shared/ai/contracts'
 
 interface ConfigStoreSchema {
   settings: AiSettings

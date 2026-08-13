@@ -32,42 +32,7 @@ const boundaries = [
 
 // Ratchet only: every entry is existing debt captured when this test was introduced.
 // Removing an import requires removing its entry here; adding a new reverse dependency fails.
-const LEGACY_BOUNDARY_ALLOWLIST = new Set([
-  'electron/ai/AgentEngine.ts -> ../../src/ai/message/detectInputLanguage',
-  'electron/ai/AgentEngine.ts -> ../../src/ai/model/model-budget',
-  'electron/ai/AgentEngine.ts -> ../../src/ai/model/token-estimation',
-  'electron/ai/AgentEngine.ts -> ../../src/ai/thread/title',
-  'electron/ai/AgentEngine.ts -> ../../src/types/ai',
-  'electron/ai/config/AiConfigStore.ts -> ../../../src/types/ai',
-  'electron/ai/document/DocumentSearch.ts -> ../../../src/services/workspace/filtering',
-  'electron/ai/domain/DomainStrategy.ts -> ../../../src/ai/message/detectInputLanguage',
-  'electron/ai/domain/creative/CreativeDomainStrategy.ts -> ../../../../src/ai/message/detectInputLanguage',
-  'electron/ai/domain/creative/CreativeDomainStrategy.ts -> ../../../../src/ai/thread/system-prompts/creative',
-  'electron/ai/domain/creative/CreativeDomainStrategy.ts -> ../../../../src/types/ai',
-  'electron/ai/domain/creative/CreativeDomainStrategy.ts -> ../../../../src/types/git',
-  'electron/ai/domain/creative/buildCreativeCapabilities.ts -> ../../../../src/ai/message/detectInputLanguage',
-  'electron/ai/domain/creative/buildCreativeCapabilities.ts -> ../../../../src/types/git',
-  'electron/ai/domain/edit/EditDomainStrategy.ts -> ../../../../src/ai/message/detectInputLanguage',
-  'electron/ai/domain/edit/EditDomainStrategy.ts -> ../../../../src/ai/thread/system-prompts/edit',
-  'electron/ai/domain/edit/EditDomainStrategy.ts -> ../../../../src/types/ai',
-  'electron/ai/ipc/CreativeReviewAdapter.ts -> ../../../src/types/ai',
-  'electron/ai/ipc/FilesystemReviewAdapter.ts -> ../../../src/ai/types',
-  'electron/ai/ipc/MessageAdapter.ts -> ../../../src/ai/hitl',
-  'electron/ai/ipc/MessageAdapter.ts -> ../../../src/types/ai',
-  'electron/ai/ipc/RendererEventBridge.ts -> ../../../src/types/git',
-  'electron/ai/ipc/StreamEventAdapter.ts -> ../../../src/ai/hitl',
-  'electron/ai/ipc/StreamEventAdapter.ts -> ../../../src/types/ai',
-  'electron/ai/providers/ChatDeepSeek.ts -> ../../../src/ai/model/model-profiles',
-  'electron/ai/providers/ChatDeepSeek.ts -> ../../../src/types/ai',
-  'electron/ai/providers/ModelFactory.ts -> ../../../src/types/ai',
-  'electron/ai/runtime/ThreadRuntimeResolver.ts -> ../../../src/types/ai',
-  'electron/ai/runtime/ThreadRuntimeStore.ts -> ../../../src/ai/message/detectInputLanguage',
-  'electron/ai/scaffold/subagents/SubagentAssembler.ts -> ../../../../src/ai/message/detectInputLanguage',
-  'electron/ai/thread/ThreadListQuery.ts -> ../../../src/types/ai',
-  'electron/ai/tools/common/GitTools.ts -> ../../../../src/types/git',
-  'electron/ai/tools/common/HtmlFetcher.ts -> ../../../../src/ai/model/token-estimation',
-  'electron/ai/tools/common/WebTools.ts -> ../../../../src/types/ai',
-])
+const LEGACY_BOUNDARY_ALLOWLIST = new Set()
 
 function sourceFiles(root) {
   if (!existsSync(root)) return []
@@ -105,5 +70,13 @@ test('AI modules keep shared, main-process, and renderer dependency directions s
     violations,
     [...LEGACY_BOUNDARY_ALLOWLIST].sort(),
     'AI dependency debt changed. Remove resolved entries from LEGACY_BOUNDARY_ALLOWLIST; reject newly introduced entries.',
+  )
+})
+
+test('electron AI has no renderer reverse-dependency allowance', () => {
+  assert.equal(
+    LEGACY_BOUNDARY_ALLOWLIST.size,
+    0,
+    'Phase 1 is complete only when electron/ai no longer imports renderer-owned src modules.',
   )
 })

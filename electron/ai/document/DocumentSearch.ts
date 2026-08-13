@@ -7,7 +7,7 @@ import {
   mergeWorkspaceIgnoreRules,
   parseWorkspaceIgnoreRules,
   shouldIncludeWorkspaceEntry,
-} from '../../../src/services/workspace/filtering'
+} from '../../../shared/workspace/filtering'
 
 export const SUPPORTED_DOC_EXTS = new Set(['md', 'txt', 'iwt'])
 
