@@ -487,11 +487,10 @@ describe('AgentEngine initialization', () => {
     const { AgentEngine } = await loadModule()
     const engine = new AgentEngine(() => null)
     const release = Promise.withResolvers()
-    const abortController = new AbortController()
     let runtimeCleared = false
 
-    engine.activeRuns.set('thread-steer', abortController)
-    engine.activeRunTasks.set('thread-steer', release.promise)
+    const abortController = engine.agentRunner.begin('thread-steer')
+    engine.agentRunner.track('thread-steer', release.promise)
     engine.runtimeStore = {
       clearInterrupted() {},
       getCurrentTurnId() { return 'turn-1' },

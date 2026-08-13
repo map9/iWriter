@@ -12,6 +12,7 @@ async function loadRuntimeModules() {
           contents: `
             export * from './electron/ai/runtime/RuntimeConfig.ts'
             export * from './electron/ai/runtime/AgentCache.ts'
+            export * from './electron/ai/runtime/AgentRunner.ts'
           `,
           resolveDir: process.cwd(),
           sourcefile: 'agent-runtime-modules-test-entry.ts',
@@ -96,5 +97,21 @@ describe('agent runtime modules', () => {
     cache.clear()
     assert.deepEqual(cleaned, ['resource-1', 'resource-2'])
     assert.equal(cache.size, 0)
+  })
+
+  it('owns abort controllers and waits for tracked cancellation handoff', async () => {
+    const { AgentRunner } = await loadRuntimeModules()
+    const runner = new AgentRunner()
+    const release = Promise.withResolvers()
+    const controller = runner.begin('thread-1')
+    runner.track('thread-1', release.promise)
+
+    const cancellation = runner.cancel('thread-1')
+    assert.equal(controller.signal.aborted, true)
+    assert.equal(runner.isActive('thread-1'), true)
+
+    release.resolve()
+    await cancellation
+    assert.equal(runner.isActive('thread-1'), false)
   })
 })

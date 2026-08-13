@@ -64,6 +64,7 @@ import { detectInputLanguage, type DetectedInputLanguage } from '../../shared/ai
 import type { GitService } from '../GitService'
 import { AgentCache } from './runtime/AgentCache'
 import { AgentFactory, type DeepAgentInstance } from './runtime/AgentFactory'
+import { AgentRunner } from './runtime/AgentRunner'
 import { createAgentRuntimeConfig, getEffectiveModelBudget } from './runtime/RuntimeConfig'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -134,10 +135,8 @@ export class AgentEngine {
   private bundledSkillsPath: string
   private bundledSubagentsPath: string
 
-  /** One AbortController per active streaming threadId */
-  private activeRuns = new Map<string, AbortController>()
-  /** The matching run task, used to make cancellation an awaitable handoff. */
-  private activeRunTasks = new Map<string, Promise<void>>()
+  /** Active run controllers and awaitable task handoffs. */
+  private agentRunner = new AgentRunner()
   /** Thread-scoped runtime data: editor context + pending interrupts. */
   private runtimeStore = new ThreadRuntimeStore()
 
@@ -250,8 +249,7 @@ export class AgentEngine {
   deleteThread(threadId: string): void {
     this.threadListQuery?.deleteMeta(threadId)
     this.runtimeStore.deleteThread(threadId)
-    this.activeRuns.delete(threadId)
-    this.activeRunTasks.delete(threadId)
+    this.agentRunner.deleteThread(threadId)
     this._clearFallbackNotificationKeys(threadId)
     this.agentCache.deleteThread(threadId)
     this.writingSessions.clearThread(threadId)
@@ -261,8 +259,7 @@ export class AgentEngine {
   clearThreads(): void {
     this.threadListQuery?.clearMetas()
     this.runtimeStore.clear()
-    this.activeRuns.clear()
-    this.activeRunTasks.clear()
+    this.agentRunner.clear()
     this.fallbackNotifiedTurnKeys.clear()
     this.agentCache.clear()
     this.writingSessions.clearAll()
@@ -330,7 +327,7 @@ export class AgentEngine {
     const runTask = this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language).catch(err => {
       console.error('[AgentEngine] _runSession error:', err)
     })
-    this._trackRunTask(threadId, runTask)
+    this.agentRunner.track(threadId, runTask)
 
     return { threadId }
   }
@@ -375,21 +372,7 @@ export class AgentEngine {
   // ── Public: cancel ────────────────────────────────────────────────────────
 
   async cancel(threadId: string): Promise<void> {
-    const ac = this.activeRuns.get(threadId)
-    if (ac) {
-      ac.abort()
-    }
-    const runTask = this.activeRunTasks.get(threadId)
-    if (runTask) {
-      try {
-        await runTask
-      } catch {
-        // Run failures are already reported by the run owner. Cancellation only
-        // waits until its cleanup has finished before handing the thread back.
-      }
-    }
-    if (this.activeRuns.get(threadId) === ac) this.activeRuns.delete(threadId)
-    if (this.activeRunTasks.get(threadId) === runTask) this.activeRunTasks.delete(threadId)
+    await this.agentRunner.cancel(threadId)
     this.runtimeStore.clearInterrupted(threadId)
     this._clearFallbackNotificationKeys(threadId, this.runtimeStore.getCurrentTurnId(threadId))
     this.runtimeStore.clearCurrentTurnId(threadId)
@@ -515,7 +498,7 @@ export class AgentEngine {
       language,
     )
     resumePromise.catch(err => console.error('[AgentEngine] _continueSession error:', err))
-    this._trackRunTask(threadId, resumePromise)
+    this.agentRunner.track(threadId, resumePromise)
 
     if (fullDecisions.some(d => d.type === 'responded')) {
       // Housekeeping: strip RESPOND_MARKER after the resumed stream has settled, so we clean
@@ -807,8 +790,7 @@ export class AgentEngine {
     language: DetectedInputLanguage,
   ): Promise<void> {
     const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkingLevel, language)
-    const abortController = new AbortController()
-    this.activeRuns.set(threadId, abortController)
+    const abortController = this.agentRunner.begin(threadId)
 
     const turnId = this.runtimeStore.getCurrentTurnId(threadId)
     const runConfig = {
@@ -825,15 +807,6 @@ export class AgentEngine {
     await this._streamLoop(threadId, agent, { messages: [new HumanMessage(userContent)] }, runConfig)
   }
 
-  private _trackRunTask(threadId: string, runTask: Promise<void>): void {
-    this.activeRunTasks.set(threadId, runTask)
-    runTask.finally(() => {
-      if (this.activeRunTasks.get(threadId) === runTask) {
-        this.activeRunTasks.delete(threadId)
-      }
-    }).catch(() => { /* run owner reports the error */ })
-  }
-
   private async _continueSession(
     threadId: string,
     config: AiProviderConfig,
@@ -845,8 +818,7 @@ export class AgentEngine {
     language: DetectedInputLanguage,
   ): Promise<void> {
     const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkingLevel, language)
-    const abortController = new AbortController()
-    this.activeRuns.set(threadId, abortController)
+    const abortController = this.agentRunner.begin(threadId)
 
     const turnId = this.runtimeStore.getCurrentTurnId(threadId)
     const runConfig = {
@@ -871,11 +843,9 @@ export class AgentEngine {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     runConfig: any,
   ): Promise<void> {
-    const abortController = this.activeRuns.get(threadId)
+    const abortController = this.agentRunner.controller(threadId)
     const clearActiveRun = () => {
-      if (this.activeRuns.get(threadId) === abortController) {
-        this.activeRuns.delete(threadId)
-      }
+      this.agentRunner.finish(threadId, abortController)
     }
     const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
     const adapter = new StreamEventAdapter(threadId, turnId, this.rendererBridge)
@@ -1267,7 +1237,7 @@ export class AgentEngine {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async _maybeRehydrateInterrupt(threadId: string, lcMessages: any[]): Promise<void> {
     if (this.runtimeStore.getInterrupted(threadId)) return
-    if (this.activeRuns.has(threadId)) return
+    if (this.agentRunner.isActive(threadId)) return
     if (!lcMessages.length) return
 
     const domain = this.threadListQuery?.getMeta(threadId)?.domain ?? 'editing'
