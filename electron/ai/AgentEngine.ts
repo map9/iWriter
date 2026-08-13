@@ -54,7 +54,6 @@ import {
 } from './scaffold/approval/WritingSessionRegistry'
 import { AiConfigStore, resolveAiApiKeyEnvVar } from './config/AiConfigStore'
 import { generateThreadTitle } from '../../shared/ai/core/threadTitle'
-import { RESPOND_MARKER } from './scaffold/middleware/HumanRespondMessageMiddleware'
 import { CheckpointerAdmin } from './checkpoint/CheckpointerAdmin'
 import { MIDDLEWARE_CONFIG } from './scaffold/middleware/middleware-config'
 import type { DomainStrategy } from './domain/DomainStrategy'
@@ -66,17 +65,9 @@ import { AgentCache } from './runtime/AgentCache'
 import { AgentFactory, type DeepAgentInstance } from './runtime/AgentFactory'
 import { AgentRunner } from './runtime/AgentRunner'
 import { createAgentRuntimeConfig, getEffectiveModelBudget } from './runtime/RuntimeConfig'
+import { InterruptCoordinator } from './application/InterruptCoordinator'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-/**
- * Success message host-synthesized (via the respond channel) for an approved block-edit that lands
- * in a poisoned resume batch — the renderer already applied the mutation, so this reads as a plain
- * success to the LLM while guaranteeing the tool_call is answered. See resumeRun's poisoned-batch guard.
- */
-const BLOCK_EDIT_APPLIED_MESSAGE =
-  'The edit was applied successfully by the editor. Block IDs for this file have now shifted — ' +
-  're-read with get_document_outline / get_section before starting a new round of edits.'
 
 /** How long the v3 projections may stay pending after the graph run itself has ended. */
 const STREAM_DRAIN_GRACE_MS = 15_000
@@ -137,6 +128,8 @@ export class AgentEngine {
 
   /** Active run controllers and awaitable task handoffs. */
   private agentRunner = new AgentRunner()
+  /** Pure interrupt decision ordering and LangGraph payload mapping. */
+  private interruptCoordinator = new InterruptCoordinator()
   /** Thread-scoped runtime data: editor context + pending interrupts. */
   private runtimeStore = new ThreadRuntimeStore()
 
@@ -396,7 +389,7 @@ export class AgentEngine {
       return
     }
 
-    const fullDecisions = this._mergeResumeDecisions(interrupted, decisions)
+    const fullDecisions = this.interruptCoordinator.mergeDecisions(interrupted, decisions)
 
     // M1-2 归因基准：**仅**对本批次被 auto-apply 命中的章节重取快照——这些文件的块编辑已由 renderer
     // 在 ai:resume 前应用落盘，磁盘此刻反映 agent 的最新已应用状态。据此把之后整章终审里「agent 应用
@@ -424,65 +417,7 @@ export class AgentEngine {
       return
     }
 
-    // Poisoned-batch orphan guard. LangChain HITL sets jumpTo:"model" whenever ANY decision in
-    // the batch is a reject/respond, which SKIPS ToolNode for the WHOLE batch. Approved block-edit
-    // tool calls then never get a ToolMessage and dangle as orphan tool_calls → OpenAI 400
-    // "No tool output found for function call ...". Block-edit tools are pure acks (the renderer has
-    // ALREADY applied the mutation before ai:resume — see EditProposalTools), so for an approved
-    // block-edit in a poisoned batch we host-synthesize a success ToolMessage via the respond
-    // channel: every tool_call gets answered, the applied edit stays in history, and we no longer
-    // depend on ToolNode running. Non-poisoned batches keep the normal approve→ToolNode path, and
-    // non-block-edit tools (e.g. filesystem writes that do real work on execution) are never
-    // synthesized — they must still execute via ToolNode.
-    const batchPoisoned = fullDecisions.some(d => d.type === 'rejected' || d.type === 'responded')
-
-    // Map decisions[] → LangGraph HITLResponse decisions.
-    // decisions[i] corresponds to actionRequests[i] — array position is the contract.
-    const lgDecisions = fullDecisions.map((d, idx) => {
-      const actionName = interrupted.actionNames[idx] ?? ''
-      if (d.type === 'approved') {
-        if (batchPoisoned && isBlockEditToolName(actionName)) {
-          return {
-            type: 'reject' as const,
-            message: `${RESPOND_MARKER}${BLOCK_EDIT_APPLIED_MESSAGE}`,
-          }
-        }
-        return { type: 'approve' as const }
-      }
-      if (d.type === 'edited' && d.editedArgs) {
-        // Same poisoned-batch guard as 'approved': an edited block-edit is also applied by the
-        // renderer, so route it through the respond channel to avoid an orphan tool_call.
-        if (batchPoisoned && isBlockEditToolName(actionName)) {
-          return {
-            type: 'reject' as const,
-            message: `${RESPOND_MARKER}${BLOCK_EDIT_APPLIED_MESSAGE}`,
-          }
-        }
-        return {
-          type: 'edit' as const,
-          editedAction: {
-            name: actionName,
-            args: d.editedArgs,
-          },
-        }
-      }
-      if (d.type === 'responded') {
-        if (!d.message?.trim()) {
-          throw new Error('[AgentEngine] responded decision requires non-empty message')
-        }
-        // Use reject channel to satisfy langchain HITL's allowed-decisions constraint.
-        // HumanRespondMessageMiddleware strips the marker and removes status:'error'
-        // before the message reaches the LLM, so it reads as guidance, not a failure.
-        return {
-          type: 'reject' as const,
-          message: `${RESPOND_MARKER}${d.message}`,
-        }
-      }
-      return {
-        type: 'reject' as const,
-        message: d.message ?? 'User rejected the edit.',
-      }
-    })
+    const lgDecisions = this.interruptCoordinator.buildLangGraphDecisions(interrupted, fullDecisions)
 
     const hiResp = { decisions: lgDecisions }
 
@@ -507,31 +442,6 @@ export class AgentEngine {
         this.checkpointerAdmin?.stripRespondMarkers(threadId).catch(() => { /* ignore */ })
       }).catch(() => { /* ignore */ })
     }
-  }
-
-  private _mergeResumeDecisions(interrupted: InterruptedRun, reviewDecisions: ResumeDecision[]): ResumeDecision[] {
-    const fullDecisions: ResumeDecision[] = Array.from(
-      { length: interrupted.actionRequestCount },
-      () => ({ type: 'rejected' as const, message: 'User did not review this action.' }),
-    )
-
-    for (const [indexText, decision] of Object.entries(interrupted.autoDecisionsByIndex ?? {})) {
-      const index = Number(indexText)
-      if (Number.isInteger(index) && index >= 0 && index < fullDecisions.length) {
-        fullDecisions[index] = this._cloneResumeDecision(decision)
-      }
-    }
-
-    const reviewIndices = interrupted.reviewActionOriginalIndices
-      ?? reviewDecisions.map((_, index) => index)
-
-    reviewDecisions.forEach((decision, reviewIndex) => {
-      const originalIndex = reviewIndices[reviewIndex]
-      if (originalIndex === undefined || originalIndex < 0 || originalIndex >= fullDecisions.length) return
-      fullDecisions[originalIndex] = this._cloneResumeDecision(decision)
-    })
-
-    return fullDecisions
   }
 
   /** Collect confirm_writing_plan args by original index, to register the write-session authorization at resume. */
@@ -760,21 +670,6 @@ export class AgentEngine {
         this.writingSessions.ensureActiveSession(threadId, target, baseline)
       }
     }
-  }
-
-  private _cloneResumeDecision(decision: ResumeDecision): ResumeDecision {
-    if (decision.type === 'approved') return { type: 'approved' }
-    if (decision.type === 'edited') {
-      return {
-        type: 'edited',
-        editedArgs: decision.editedArgs ? { ...decision.editedArgs } : undefined,
-        message: decision.message,
-      }
-    }
-    if (decision.type === 'responded') {
-      return { type: 'responded', message: decision.message }
-    }
-    return { type: 'rejected', message: decision.message }
   }
 
   // ── Private: run session ──────────────────────────────────────────────────

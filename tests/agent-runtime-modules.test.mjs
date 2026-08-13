@@ -13,6 +13,7 @@ async function loadRuntimeModules() {
             export * from './electron/ai/runtime/RuntimeConfig.ts'
             export * from './electron/ai/runtime/AgentCache.ts'
             export * from './electron/ai/runtime/AgentRunner.ts'
+            export * from './electron/ai/application/InterruptCoordinator.ts'
           `,
           resolveDir: process.cwd(),
           sourcefile: 'agent-runtime-modules-test-entry.ts',
@@ -113,5 +114,103 @@ describe('agent runtime modules', () => {
     release.resolve()
     await cancellation
     assert.equal(runner.isActive('thread-1'), false)
+  })
+
+  it('merges reviewed decisions back into the original interrupt order', async () => {
+    const { InterruptCoordinator } = await loadRuntimeModules()
+    const coordinator = new InterruptCoordinator()
+    const interrupted = {
+      actionRequestCount: 4,
+      actionNames: ['read_file', 'replace_block', 'write_file', 'finalize_chapter'],
+      autoDecisionsByIndex: {
+        0: { type: 'edited', editedArgs: { source: 'auto' } },
+        2: { type: 'rejected', message: 'Policy rejected.' },
+      },
+      reviewActionOriginalIndices: [1, 3],
+    }
+
+    const merged = coordinator.mergeDecisions(interrupted, [
+      { type: 'edited', editedArgs: { block_id: 'b-2' } },
+      { type: 'responded', message: 'Revise the ending.' },
+    ])
+
+    assert.deepEqual(merged, [
+      { type: 'edited', editedArgs: { source: 'auto' }, message: undefined },
+      { type: 'edited', editedArgs: { block_id: 'b-2' }, message: undefined },
+      { type: 'rejected', message: 'Policy rejected.' },
+      { type: 'responded', message: 'Revise the ending.' },
+    ])
+
+    // The coordinator owns its copies; callers cannot mutate stored auto-decisions by alias.
+    merged[0].editedArgs.source = 'changed'
+    assert.equal(interrupted.autoDecisionsByIndex[0].editedArgs.source, 'auto')
+  })
+
+  it('defaults missing interrupt decisions to rejection', async () => {
+    const { InterruptCoordinator } = await loadRuntimeModules()
+    const coordinator = new InterruptCoordinator()
+
+    const merged = coordinator.mergeDecisions({
+      actionRequestCount: 2,
+      actionNames: ['read_file', 'write_file'],
+      reviewActionOriginalIndices: [9],
+    }, [{ type: 'approved' }])
+
+    assert.deepEqual(merged, [
+      { type: 'rejected', message: 'User did not review this action.' },
+      { type: 'rejected', message: 'User did not review this action.' },
+    ])
+  })
+
+  it('protects applied block edits when a resume batch contains reject-style decisions', async () => {
+    const { InterruptCoordinator, BLOCK_EDIT_APPLIED_MESSAGE } = await loadRuntimeModules()
+    const coordinator = new InterruptCoordinator()
+    const interrupted = {
+      actionRequestCount: 3,
+      actionNames: ['edit_block', 'write_file', 'insert_block'],
+    }
+
+    const decisions = coordinator.buildLangGraphDecisions(interrupted, [
+      { type: 'approved' },
+      { type: 'rejected', message: 'Do not write.' },
+      { type: 'edited', editedArgs: { block_id: 'b-3', content: 'New' } },
+    ])
+
+    assert.deepEqual(decisions, [
+      { type: 'reject', message: `__IWRITER_RESPOND__\n${BLOCK_EDIT_APPLIED_MESSAGE}` },
+      { type: 'reject', message: 'Do not write.' },
+      { type: 'reject', message: `__IWRITER_RESPOND__\n${BLOCK_EDIT_APPLIED_MESSAGE}` },
+    ])
+  })
+
+  it('maps normal approve, edit, respond, and reject decisions for LangGraph', async () => {
+    const { InterruptCoordinator } = await loadRuntimeModules()
+    const coordinator = new InterruptCoordinator()
+    const interrupted = {
+      actionRequestCount: 4,
+      actionNames: ['read_file', 'write_file', 'ask_human', 'delete_file'],
+    }
+
+    assert.deepEqual(coordinator.buildLangGraphDecisions(interrupted, [
+      { type: 'approved' },
+      { type: 'edited', editedArgs: { file_path: '/tmp/a.md' } },
+      { type: 'responded', message: 'Use a shorter title.' },
+      { type: 'rejected' },
+    ]), [
+      { type: 'approve' },
+      { type: 'edit', editedAction: { name: 'write_file', args: { file_path: '/tmp/a.md' } } },
+      { type: 'reject', message: '__IWRITER_RESPOND__\nUse a shorter title.' },
+      { type: 'reject', message: 'User rejected the edit.' },
+    ])
+  })
+
+  it('rejects an empty human response before resuming LangGraph', async () => {
+    const { InterruptCoordinator } = await loadRuntimeModules()
+    const coordinator = new InterruptCoordinator()
+
+    assert.throws(() => coordinator.buildLangGraphDecisions({
+      actionRequestCount: 1,
+      actionNames: ['ask_human'],
+    }, [{ type: 'responded', message: '   ' }]), /requires non-empty message/)
   })
 })
