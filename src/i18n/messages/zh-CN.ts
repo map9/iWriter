@@ -429,7 +429,6 @@ export default {
       save: '保存',
       confirmAdd: '确认添加',
       nameRequired: '请填写名称',
-      addCustomProviderTitle: '添加自定义提供方',
       configurationSuffix: '配置',
       providerPresets: {
         ollama: {

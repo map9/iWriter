@@ -388,7 +388,7 @@ export default {
     ai: {
       title: 'AI',
       providers: 'Model Providers',
-      addCustomProvider: 'Add Custom Model Provider',
+      addCustomProvider: 'Add Model Provider',
       defaultCustomProviderName: 'My Model Provider',
       removeProvider: 'Remove Model Provider',
       notConfigured: 'Not configured',
@@ -402,7 +402,7 @@ export default {
       },
       identity: 'Identity',
       name: 'Name',
-      customProviderName: 'Custom Model Provider Name',
+      customProviderName: 'Model Provider Name',
       interfaceType: 'Interface Type',
       interfaceOpenAICompat: 'OpenAI Compatible',
       interfaceDeepSeek: 'DeepSeek',
@@ -432,7 +432,6 @@ export default {
       save: 'Save',
       confirmAdd: 'Confirm Add',
       nameRequired: 'Please fill in the Name',
-      addCustomProviderTitle: 'Add Custom Provider',
       configurationSuffix: 'Configuration',
       providerPresets: {
         ollama: {
