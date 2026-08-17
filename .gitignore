@@ -6,6 +6,7 @@ dist-electron
 !electron/ai/builtin-skills/**/SKILL.md
 claude-**.sh
 .superpowers/
+.codegraph/
 
 # dictionaries files
 public/dictionaries
