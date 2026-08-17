@@ -18,7 +18,6 @@ import { assembleSubagents } from '../../scaffold/subagents/SubagentAssembler'
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { EditorStateBroker } from '../../document/EditorStateBroker'
 import { buildEditorStateTool } from '../../tools/common/EditorStateTools'
-import type { DetectedInputLanguage } from '../../../../shared/ai/core/detectInputLanguage'
 import type { GitMutationEvent } from '../../../../shared/git/types'
 import type { GitService } from '../../../GitService'
 
@@ -32,13 +31,11 @@ export function buildCreativeCapabilities(input: {
   workspacePath: string | null,
   snapshotBroker: SnapshotBroker,
   editorStateBroker: EditorStateBroker,
-  language?: DetectedInputLanguage,
   gitService: GitService,
   onGitMutation: (event: GitMutationEvent) => void,
 }): DomainAgentCapabilities {
   const skillsRoot = path.join(input.aiRootPath, 'skills')
   const subagentsRoot = path.join(input.aiRootPath, 'subagents')
-  const language = input.language ?? 'en-US'
 
   // Build the general tool面. deepagents filesystem tools (read_file/write_file/ls/grep/glob)
   // come from the backend and are NOT registered here.
@@ -68,7 +65,6 @@ export function buildCreativeCapabilities(input: {
     skillsRoot,
     workspacePath: input.workspacePath,
     domain: 'creative',
-    language,
     registry,
   })
 

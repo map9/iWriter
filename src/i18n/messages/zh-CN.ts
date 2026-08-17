@@ -37,9 +37,7 @@ export default {
     active: '当前',
     cancel: '取消',
     create: '创建',
-    save: '保存',
     browse: '浏览',
-    apply: '应用',
     detect: '检测',
     detecting: '检测中',
     detectionSucceeded: '{name} 检测成功',
@@ -60,44 +58,8 @@ export default {
       comment: '批注块',
     },
   },
-  consistencyFinding: {
-    title: '{count} 条一致性建议',
-    pending: '正在生成一致性建议…',
-    expand: '展开',
-    collapse: '收起',
-    severity: {
-      info: '提示',
-      minor: '轻微',
-      major: '重要',
-    },
-    layer: {
-      pov: '视角',
-      character: '人物',
-      logic: '逻辑',
-      voice: '声音',
-      pacing: '节奏',
-      continuity: '连续性',
-      common_sense: '常识',
-      other: '其他',
-    },
-  },
-  advisorDirection: {
-    title: '{count} 个创意方向',
-    expand: '展开',
-    collapse: '收起',
-    type: {
-      plot: '情节',
-      character: '人物',
-      structure: '结构',
-      scene: '场景',
-      theme: '主题',
-      voice: '叙事声音',
-      general: '创意',
-    },
-  },
   locale: {
     label: '语言',
-    system: '跟随系统',
     enUS: 'English',
     zhCN: '简体中文',
   },
@@ -154,7 +116,6 @@ export default {
     },
     workspace: {
       title: '工作区',
-      rulesTitle: '文件规则',
       useGitignoreTitle: 'Git 忽略规则联动',
       useGitignoreDesc: '默认不套用 .gitignore；需要时可按功能分别排除 Git 忽略的文件。',
       useGitignoreExplorerTitle: '资源管理器隐藏 .gitignore 中的文件',
@@ -167,13 +128,7 @@ export default {
     sourceControl: {
       title: '文档版本管理',
       environmentTitle: 'Git 环境',
-      gitStatusTitle: 'Git 状态',
-      recheck: '重新检测',
-      gitPathModeTitle: 'Git 可执行文件',
-      gitPathAuto: '自动检测',
-      gitPathCustom: '指定路径',
       gitPathTitle: 'Git 路径',
-      gitPathPlaceholder: '选择 Git 可执行文件',
       gitUnavailable: '未检测到可用的 Git',
       chooseGit: '选择 Git 可执行文件',
       gitHelp: '打开 Git 官方下载页面',
@@ -185,9 +140,6 @@ export default {
       localIdentityUnavailable: '打开 Git 仓库后可配置仓库级身份。',
       localIdentityUseGlobal: '与全局身份一致',
       localIdentityUseGlobalDesc: '启用时清除仓库级身份覆盖，自动使用全局身份。',
-      clearLocalIdentity: '清除仓库覆盖',
-      identitySaved: 'Git 提交身份已保存',
-      localIdentityCleared: '已清除当前仓库的身份覆盖',
       commitTitle: '提交',
       commitWhenEmptyTitle: '无暂存更改时提交',
       commitWhenEmptyDesc: '点击「提交」但没有已暂存更改时的行为。',
@@ -238,10 +190,6 @@ export default {
       codeBlockLanguageScopeDesc: '控制代码块语言下拉中显示的语言范围',
       codeBlockLanguageScopeCommon: '常用语言',
       codeBlockLanguageScopeAll: '全部支持的语言',
-      workspaceTitle: '工作区',
-      workspaceIgnoreRulesTitle: '默认文件过滤规则',
-      workspaceIgnoreRulesDesc: '用于资源管理器、跨文件搜索和文件监听。工作区根目录的 .iwtignore 会作为项目规则叠加。',
-      workspaceIgnoreRulesPlaceholder: '# 每行一条规则\n.DS_Store\n.iwriter/\nexports/\n!important.md',
     },
     spelling: {
       title: '拼写与语法',
@@ -286,21 +234,16 @@ export default {
     export: {
       title: '导出',
       commonLabel: '通用',
-      commonGroup: '通用偏好',
       defaultFolderTitle: '默认导出文件夹',
       defaultFolderPrompt: '自动',
       defaultFolderSameDirectory: '和原文件在同一目录',
       defaultFolderCustom: '自定义文件夹',
       pandocPathTitle: 'Pandoc 路径',
-      pandocPathAuto: '默认自动检测',
       pandocPathAutoPlaceholder: '（自动检测）',
-      pandocPathCustom: '自定义路径',
       pandocUnavailable: '未检测到可用的 Pandoc',
       pandocHelp: '打开 Pandoc 官方安装页面',
       libreOfficePathTitle: 'LibreOffice 路径',
-      libreOfficePathAuto: '默认自动检测',
       libreOfficePathAutoPlaceholder: '（自动检测）',
-      libreOfficePathCustom: '自定义路径',
       libreOfficeUnavailable: '未检测到可用的 LibreOffice',
       libreOfficeHelp: '打开 LibreOffice 官方下载页面',
       afterExportTitle: '导出后',
@@ -322,7 +265,6 @@ export default {
       pageGroup: '页面设置',
       paginationGroup: '分页',
       headerFooterGroup: '页眉 & 页脚',
-      screenTheme: '屏幕主题',
       printTheme: '打印主题',
       printUsesScreenTheme: '默认打印时跟随屏幕主题',
       marginMode: '边距模式',
@@ -330,8 +272,6 @@ export default {
       marginModeFacing: '对页',
       pageStartSide: '文档起始页',
       pageStartAuto: '自动',
-      pageStartRecto: 'Recto',
-      pageStartVerso: 'Verso',
       pageStartRectoFacing: '奇数页（右页）',
       pageStartVersoFacing: '偶数页（左页）',
       pageStartRectoSingle: '右页',
@@ -425,10 +365,6 @@ export default {
       fallbackModel: '备用模型',
       fallbackModelPlaceholder: '选填，主模型失败时自动切换',
       fallbackModelHint: '从上面的可用模型列表中选择',
-      cancel: '取消',
-      save: '保存',
-      confirmAdd: '确认添加',
-      nameRequired: '请填写名称',
       configurationSuffix: '配置',
       providerPresets: {
         ollama: {
@@ -857,7 +793,6 @@ export default {
       },
     },
     displayNormalizer: {
-      storyWorkspace: '故事工作区',
       subagent: {
         generalPurpose: '通用',
       },
@@ -872,8 +807,6 @@ export default {
         completed: '完成',
         written: '已写入',
         edited: '已编辑',
-        saved: '已保存',
-        empty: '暂无文件',
       },
       count: {
         chapters: '{count} 章',
@@ -896,7 +829,6 @@ export default {
         moreCount: ' +{count}',
         failedCount: '{count} 失败',
         returnedChars: '返回 {count} 字',
-        findings: '{count} 条建议',
         pdfPageRange: '第 {start}-{end} 页（共 {total} 页）',
       },
     },
@@ -981,7 +913,6 @@ export default {
       emptyContent: '(空)',
       insertSuggestion: '建议插入内容',
       insertPlaceholder: '按 Markdown 编辑将要插入的内容',
-      userRejected: '用户拒绝了这条建议。',
       highRisk: '高风险',
     },
     filesystemReview: {
@@ -1093,7 +1024,6 @@ export default {
     installDownload: '前往 libreoffice.org/download',
     installNote: '安装完成后，点击下方按钮，或切换回 iWriter 窗口——将自动重新检测。',
     convertError: '转换失败',
-    notInstalledError: '未找到 LibreOffice',
   },
   diffView: {
     split: '并排',
@@ -1147,12 +1077,6 @@ export default {
       repositories: '存储库',
       changes: '更改',
       graph: '图谱',
-    },
-    menu: {
-      remote: '远程',
-      stash: '贮藏',
-      tags: '标签',
-      views: '视图',
     },
     staged: '已暂存的更改',
     changes: '更改',
@@ -1224,7 +1148,6 @@ export default {
       mergeFastForward: '这是快进合并，直接推进当前分支。',
       mergeCommitHint: '这不是快进合并，会生成一个合并提交；如果有冲突，会进入冲突解决。',
       delete: '删除分支…',
-      forceDeleteConfirm: '强制删除分支',
       deleteTitle: '删除分支 {name}？',
       deleteAction: '删除',
       forceDelete: '强制删除',
@@ -1256,7 +1179,6 @@ export default {
       stashed: '本地更改已贮藏，可稍后从贮藏列表弹出。',
     },
     error: {
-      technicalDetails: '技术详情 ▸',
       copyDetails: '复制错误信息',
       retry: '重试',
       pullRetry: '拉取并重试',
@@ -1362,7 +1284,6 @@ export default {
       timeline: '时间线',
     },
     timeline: {
-      title: '时间线',
       noFile: '打开一个文件以查看其时间线。',
       noRepo: '此文件夹未纳入版本控制。',
       noRepoHint: '初始化仓库后显示历史。',
@@ -1505,7 +1426,6 @@ export default {
   },
   notify: {
     ai: {
-      contextCompressed: '会话历史已自动压缩以节省 context 空间',
       modelFallback: '主模型不可用，已切换至备用模型: {modelId}',
       filesystemAutoReject: '文件写入被策略拒绝，已自动继续: {toolName} → {filePath}',
     },
@@ -1562,7 +1482,6 @@ export default {
       watchWarning: '文件监听',
       watchStartError: '文件监听无法启动',
       watchStopError: '文件监听无法停止',
-      invalidDirectory: '无效的父目录',
       notDirectory: '文件不是目录',
       unknownError: '未知错误',
     },
@@ -1699,7 +1618,6 @@ export default {
       },
       printer: {
         label: '打印机',
-        saveAsPdf: '另存为 PDF',
         noPrinter: '未连接打印机',
       },
       pageRange: {
@@ -1714,9 +1632,6 @@ export default {
       },
       copies: {
         label: '份数',
-      },
-      printTheme: {
-        label: '打印主题',
       },
       orientation: {
         label: '布局',
@@ -1734,7 +1649,6 @@ export default {
       margins: {
         label: '边距',
         options: {
-          theme: '主题默认',
           default: '默认',
           none: '无',
           minimum: '最小',
@@ -1758,9 +1672,7 @@ export default {
         },
       },
       options: {
-        label: '选项',
         printBackground: '背景图形',
-        printHeaderFooter: '打印页眉和页脚',
       },
       actions: {
         cancel: '取消',

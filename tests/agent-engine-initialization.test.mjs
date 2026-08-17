@@ -234,11 +234,6 @@ function stubPlugin() {
           'creative-domain-strategy',
           'export class CreativeDomainStrategy { constructor() {} getMemoryDir() { return "creative" } getSkillSources() { return ["/Users/author/.iwriter/skills"] } buildCapabilities() { return { tools: [], interruptOn: {}, subAgents: [{ name: "writer", description: "Writer", systemPrompt: "writer prompt" }] } } getSystemPrompt() { return "system" } getSummarizationProfile() { return { domain: "creative", domainStateInstructions: ["creative-state"] } } }',
         ],
-        [
-          /shared\/ai\/core\/detectInputLanguage$/,
-          'detect-input-language',
-          'export function detectInputLanguage() { return "en-US" }',
-        ],
       ]
 
       for (const [filter, path, contents] of stubs) {

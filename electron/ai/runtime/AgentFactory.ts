@@ -61,7 +61,6 @@ export class AgentFactory {
       mode,
       modelId,
       thinkingLevel,
-      language,
       workspacePath,
       skillSources,
     } = runtime
@@ -72,7 +71,7 @@ export class AgentFactory {
     })
     const model = createChatModel(config, { modelId, thinkingLevel })
     const budget = getEffectiveModelBudget(config, modelId, model)
-    const capabilities = strategy.buildCapabilities({ mode, workspacePath, language })
+    const capabilities = strategy.buildCapabilities({ mode, workspacePath })
     const subAgents = capabilities.subAgents?.map(subagent => ({
       ...subagent,
       systemPrompt: `${scaffold.workspaceSystemPrompt}\n\n${subagent.systemPrompt}`,
@@ -104,7 +103,7 @@ export class AgentFactory {
 
     const agent: DeepAgentInstance = createDeepAgent({
       model,
-      systemPrompt: strategy.getSystemPrompt(mode, language),
+      systemPrompt: strategy.getSystemPrompt(mode),
       tools: capabilities.tools,
       backend: scaffold.backend,
       skills: skillSources.length ? skillSources : undefined,

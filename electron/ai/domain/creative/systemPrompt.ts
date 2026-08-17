@@ -1,8 +1,11 @@
-import type { DetectedInputLanguage } from '../../../../shared/ai/core/detectInputLanguage'
-import { buildOutputLanguagePrompt } from '../../../../shared/ai/core/detectInputLanguage'
-
 // Keep only cross-stage routing, authority, workspace, delegation, and
 // response rules here. Stage methods live in their playbooks.
+const OUTPUT_LANGUAGE_RULE = `
+## 输出语言
+
+始终按照作者输入所用的语言进行回复和输出，包括叙述文本、Markdown 计划、一致性发现、探索总结和笔记等；工具名与结构化工具参数键保持英文；不在回复中途切换语言。
+`.trim()
+
 const CREATIVE_SYSTEM_PROMPT_BODY = `
 你是 iWriter StoryBuddy，一名小说编辑与共同创作者。准确推进作者当前任务，不替作者决定创作意图。
 
@@ -71,8 +74,8 @@ const CREATIVE_SYSTEM_PROMPT_BODY = `
 - 不默认汇报内部路由和加载过程。表达精简；完成修改后只报告结果、影响和仍待作者决定的事项。
 `.trim()
 
-export function buildCreativeSystemPrompt(language: DetectedInputLanguage = 'en-US'): string {
-  return `${buildOutputLanguagePrompt(language)}\n\n${CREATIVE_SYSTEM_PROMPT_BODY}`
+export function buildCreativeSystemPrompt(): string {
+  return `${OUTPUT_LANGUAGE_RULE}\n\n${CREATIVE_SYSTEM_PROMPT_BODY}`
 }
 
-export const CREATIVE_SYSTEM_PROMPT = buildCreativeSystemPrompt('en-US')
+export const CREATIVE_SYSTEM_PROMPT = buildCreativeSystemPrompt()

@@ -4,8 +4,11 @@
  * Dynamic editor state is available on demand through get_editor_state.
  */
 
-import type { DetectedInputLanguage } from '../../../../shared/ai/core/detectInputLanguage'
-import { buildOutputLanguagePrompt } from '../../../../shared/ai/core/detectInputLanguage'
+const OUTPUT_LANGUAGE_RULE = `
+## 输出语言
+
+始终按照用户输入所用的语言进行回复和输出，包括叙述文本、Markdown 计划、一致性发现、探索总结和笔记等；工具名与结构化工具参数键保持英文；不在回复中途切换语言。
+`.trim()
 
 const EDIT_SYSTEM_PROMPT_BODY = `
 你是 iWriter 的智能编辑助手。帮助用户研究、整理、起草和编辑笔记、技术文档、计划、报告等内容；按要求处理语气和风格，但不默认把普通文档当作小说创作任务。
@@ -57,8 +60,8 @@ const EDIT_SYSTEM_PROMPT_BODY = `
 - 回复保持简洁；生成文档内容时匹配目标文档的语言、语气和格式。完成修改后简要说明结果、重要决定和需要用户检查的事项。
 `.trim()
 
-export function buildEditSystemPrompt(language: DetectedInputLanguage = 'en-US'): string {
-  return `${buildOutputLanguagePrompt(language)}\n\n${EDIT_SYSTEM_PROMPT_BODY}`
+export function buildEditSystemPrompt(): string {
+  return `${OUTPUT_LANGUAGE_RULE}\n\n${EDIT_SYSTEM_PROMPT_BODY}`
 }
 
-export const EDIT_SYSTEM_PROMPT = buildEditSystemPrompt('en-US')
+export const EDIT_SYSTEM_PROMPT = buildEditSystemPrompt()

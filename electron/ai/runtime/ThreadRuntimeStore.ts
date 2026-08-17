@@ -1,4 +1,3 @@
-import type { DetectedInputLanguage } from '../../../shared/ai/core/detectInputLanguage'
 import { IWriterAgentContextSchema, type IWriterAgentContext } from './AgentContext'
 import type { ResumeDecision } from '@shared/ai/contracts'
 
@@ -27,7 +26,6 @@ interface InterruptedRun {
 
 interface ThreadExecutionContext {
   workspacePath: string | null
-  language?: DetectedInputLanguage
 }
 
 export class ThreadRuntimeStore {

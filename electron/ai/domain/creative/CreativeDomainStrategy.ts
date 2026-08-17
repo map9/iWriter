@@ -15,7 +15,6 @@ import type { EditorStateBroker } from '../../document/EditorStateBroker'
 import type { SerializedSnapshot } from '@shared/ai/contracts'
 import type { AiAgentMode } from '../../../../shared/ai/contracts'
 import type { GitMutationEvent } from '../../../../shared/git/types'
-import type { DetectedInputLanguage } from '../../../../shared/ai/core/detectInputLanguage'
 import type {
   DomainStrategy,
   DomainBuildContext,
@@ -40,14 +39,13 @@ export class CreativeDomainStrategy implements DomainStrategy {
       workspacePath: ctx.workspacePath,
       snapshotBroker: this.snapshotBroker,
       editorStateBroker: this.editorStateBroker,
-      language: ctx.language,
       gitService: this.gitService,
       onGitMutation: this.onGitMutation,
     })
   }
 
-  getSystemPrompt(_mode: AiAgentMode, language: DetectedInputLanguage): string {
-    return buildCreativeSystemPrompt(language)
+  getSystemPrompt(_mode: AiAgentMode): string {
+    return buildCreativeSystemPrompt()
   }
 
   getSummarizationProfile() {

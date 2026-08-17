@@ -1,6 +1,5 @@
 import type { DomainAgentCapabilities } from './types'
 import type { AiAgentMode, DomainReviewItem, ThreadMessage } from '../../../shared/ai/contracts'
-import type { DetectedInputLanguage } from '../../../shared/ai/core/detectInputLanguage'
 import type { ResumeDecision } from '../../../shared/ai/contracts/protocol'
 import type { DomainSummarizationProfile } from '../scaffold/summarization/SummarizationFramework'
 
@@ -9,7 +8,6 @@ export type { DomainReviewItem } from '../../../shared/ai/contracts'
 export interface DomainBuildContext {
   mode: AiAgentMode
   workspacePath: string | null
-  language: DetectedInputLanguage
 }
 
 export interface InterruptContext {
@@ -36,7 +34,7 @@ export interface DomainStrategy {
   getSkillSources?(aiRootPath: string, workspacePath: string | null): string[]
 
   /** System prompt for the current domain + mode combination. */
-  getSystemPrompt(mode: AiAgentMode, language: DetectedInputLanguage): string
+  getSystemPrompt(mode: AiAgentMode): string
 
   /** Semantic fields the shared summarization framework must preserve for this domain. */
   getSummarizationProfile(): DomainSummarizationProfile

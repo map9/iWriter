@@ -11,7 +11,6 @@ import { EDITING_SUMMARIZATION_PROFILE } from '../../scaffold/summarization/Summ
 import type { SnapshotBroker } from '../../document/SnapshotBroker'
 import type { EditorStateBroker } from '../../document/EditorStateBroker'
 import type { AiAgentMode } from '../../../../shared/ai/contracts'
-import type { DetectedInputLanguage } from '../../../../shared/ai/core/detectInputLanguage'
 import type { ResumeDecision } from '@shared/ai/contracts'
 import type {
   DomainStrategy,
@@ -35,8 +34,8 @@ export class EditDomainStrategy implements DomainStrategy {
     })
   }
 
-  getSystemPrompt(_mode: AiAgentMode, language: DetectedInputLanguage): string {
-    return buildEditSystemPrompt(language)
+  getSystemPrompt(_mode: AiAgentMode): string {
+    return buildEditSystemPrompt()
   }
 
   getSummarizationProfile() {

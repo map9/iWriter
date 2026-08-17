@@ -6,7 +6,6 @@ import type {
   AiProviderConfig,
   AiThinkingLevel,
 } from '../../../shared/ai/contracts'
-import type { DetectedInputLanguage } from '../../../shared/ai/core/detectInputLanguage'
 import {
   resolveEffectiveModelBudget,
   type EffectiveModelBudget,
@@ -19,7 +18,6 @@ export interface AgentRuntimeConfigInput {
   mode: AiAgentMode
   modelId: string
   thinkingLevel: AiThinkingLevel
-  language: DetectedInputLanguage
   workspacePath: string | null
   skillSources: readonly string[]
   resolvedApiKey: string
@@ -45,7 +43,6 @@ export function createAgentRuntimeConfig(input: AgentRuntimeConfigInput): AgentR
     input.mode,
     input.modelId,
     input.thinkingLevel ?? '',
-    input.language,
     keyFingerprint,
     input.providerConfig.baseUrl ?? '',
     input.providerConfig.fallbackModelId ?? '',

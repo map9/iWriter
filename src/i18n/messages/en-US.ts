@@ -37,9 +37,7 @@ export default {
     active: 'Active',
     cancel: 'Cancel',
     create: 'Create',
-    save: 'Save',
     browse: 'Browse',
-    apply: 'Apply',
     detect: 'Detect',
     detecting: 'Detecting',
     detectionSucceeded: '{name} detected successfully',
@@ -60,44 +58,8 @@ export default {
       comment: 'Custom: Comment',
     },
   },
-  consistencyFinding: {
-    title: '{count} consistency suggestions',
-    pending: 'Drafting consistency suggestions…',
-    expand: 'Expand',
-    collapse: 'Collapse',
-    severity: {
-      info: 'Info',
-      minor: 'Minor',
-      major: 'Major',
-    },
-    layer: {
-      pov: 'POV',
-      character: 'Character',
-      logic: 'Logic',
-      voice: 'Voice',
-      pacing: 'Pacing',
-      continuity: 'Continuity',
-      common_sense: 'Common sense',
-      other: 'Other',
-    },
-  },
-  advisorDirection: {
-    title: '{count} creative directions',
-    expand: 'Expand',
-    collapse: 'Collapse',
-    type: {
-      plot: 'Plot',
-      character: 'Character',
-      structure: 'Structure',
-      scene: 'Scene',
-      theme: 'Theme',
-      voice: 'Voice',
-      general: 'Idea',
-    },
-  },
   locale: {
     label: 'Language',
-    system: 'System Default',
     enUS: 'English',
     zhCN: '简体中文',
   },
@@ -154,7 +116,6 @@ export default {
     },
     workspace: {
       title: 'Workspace',
-      rulesTitle: 'File Rules',
       useGitignoreTitle: 'Git ignore rule linking',
       useGitignoreDesc: '.gitignore is not applied by default. Enable it per feature when Git-ignored files should be excluded.',
       useGitignoreExplorerTitle: 'Hide .gitignore matches in Explorer',
@@ -167,13 +128,7 @@ export default {
     sourceControl: {
       title: 'Document Versioning',
       environmentTitle: 'Git Environment',
-      gitStatusTitle: 'Git Status',
-      recheck: 'Recheck',
-      gitPathModeTitle: 'Git Executable',
-      gitPathAuto: 'Auto detect',
-      gitPathCustom: 'Custom path',
       gitPathTitle: 'Git Path',
-      gitPathPlaceholder: 'Select the Git executable',
       gitUnavailable: 'No usable Git installation was detected',
       chooseGit: 'Select Git Executable',
       gitHelp: 'Open the official Git download page',
@@ -185,9 +140,6 @@ export default {
       localIdentityUnavailable: 'Open a Git repository to configure a repository identity.',
       localIdentityUseGlobal: 'Same as Global Identity',
       localIdentityUseGlobalDesc: 'Clears repository-level identity overrides and automatically uses the global identity.',
-      clearLocalIdentity: 'Clear Repository Override',
-      identitySaved: 'Git commit identity saved',
-      localIdentityCleared: 'Repository identity override cleared',
       commitTitle: 'Commit',
       commitWhenEmptyTitle: 'Commit With Nothing Staged',
       commitWhenEmptyDesc: 'What happens when you click Commit while nothing is staged.',
@@ -238,10 +190,6 @@ export default {
       codeBlockLanguageScopeDesc: 'Controls which languages appear in the code block language dropdown',
       codeBlockLanguageScopeCommon: 'Common languages',
       codeBlockLanguageScopeAll: 'All supported languages',
-      workspaceTitle: 'Workspace',
-      workspaceIgnoreRulesTitle: 'Default File Filter Rules',
-      workspaceIgnoreRulesDesc: 'Used by Explorer, search across files, and file watching. The workspace root .iwtignore is layered on as project rules.',
-      workspaceIgnoreRulesPlaceholder: '# One rule per line\n.DS_Store\n.iwriter/\nexports/\n!important.md',
     },
     spelling: {
       title: 'Spelling & Grammar',
@@ -286,21 +234,16 @@ export default {
     export: {
       title: 'Export',
       commonLabel: 'General',
-      commonGroup: 'General Preferences',
       defaultFolderTitle: 'Default Export Folder',
       defaultFolderPrompt: 'Auto',
       defaultFolderSameDirectory: 'Same directory as source file',
       defaultFolderCustom: 'Custom folder',
       pandocPathTitle: 'Pandoc Path',
-      pandocPathAuto: 'Auto detect',
       pandocPathAutoPlaceholder: '(Auto detect)',
-      pandocPathCustom: 'Custom path',
       pandocUnavailable: 'No usable Pandoc installation was detected',
       pandocHelp: 'Open the official Pandoc installation page',
       libreOfficePathTitle: 'LibreOffice Path',
-      libreOfficePathAuto: 'Auto detect',
       libreOfficePathAutoPlaceholder: '(Auto detect)',
-      libreOfficePathCustom: 'Custom path',
       libreOfficeUnavailable: 'No usable LibreOffice installation was detected',
       libreOfficeHelp: 'Open the official LibreOffice download page',
       afterExportTitle: 'After Export',
@@ -322,7 +265,6 @@ export default {
       pageGroup: 'Page Setup',
       paginationGroup: 'Pagination',
       headerFooterGroup: 'Header & Footer',
-      screenTheme: 'Screen Theme',
       printTheme: 'Print Theme',
       printUsesScreenTheme: 'Use the screen theme for print by default',
       marginMode: 'Margin Mode',
@@ -330,8 +272,6 @@ export default {
       marginModeFacing: 'Facing Pages',
       pageStartSide: 'Document Start Side',
       pageStartAuto: 'Auto',
-      pageStartRecto: 'Recto',
-      pageStartVerso: 'Verso',
       pageStartRectoFacing: 'Odd Page (Right)',
       pageStartVersoFacing: 'Even Page (Left)',
       pageStartRectoSingle: 'Right Page',
@@ -428,10 +368,6 @@ export default {
       fallbackModel: 'Fallback model',
       fallbackModelPlaceholder: 'Optional, used when primary model fails',
       fallbackModelHint: 'Pick from the available models above',
-      cancel: 'Cancel',
-      save: 'Save',
-      confirmAdd: 'Confirm Add',
-      nameRequired: 'Please fill in the Name',
       configurationSuffix: 'Configuration',
       providerPresets: {
         ollama: {
@@ -860,7 +796,6 @@ export default {
       },
     },
     displayNormalizer: {
-      storyWorkspace: 'story workspace',
       subagent: {
         generalPurpose: 'general-purpose',
       },
@@ -875,8 +810,6 @@ export default {
         completed: 'Completed',
         written: 'Written',
         edited: 'Edited',
-        saved: 'Saved',
-        empty: 'No files',
       },
       count: {
         chapters: '{count} chapters',
@@ -899,7 +832,6 @@ export default {
         moreCount: ' +{count}',
         failedCount: '{count} failed',
         returnedChars: 'Returned {count} chars',
-        findings: '{count} suggestions',
         pdfPageRange: 'Pages {start}-{end} of {total}',
       },
     },
@@ -984,7 +916,6 @@ export default {
       emptyContent: '(empty)',
       insertSuggestion: 'Suggested Insert Content',
       insertPlaceholder: 'Edit content to insert in Markdown',
-      userRejected: 'User rejected this proposal.',
       highRisk: 'High risk',
     },
     filesystemReview: {
@@ -1096,7 +1027,6 @@ export default {
     installDownload: 'Go to libreoffice.org/download',
     installNote: 'After installation, click the button below or switch back to iWriter — detection runs automatically.',
     convertError: 'Conversion failed',
-    notInstalledError: 'LibreOffice is not installed',
   },
   diffView: {
     split: 'Split',
@@ -1150,12 +1080,6 @@ export default {
       repositories: 'Repositories',
       changes: 'Changes',
       graph: 'Graph',
-    },
-    menu: {
-      remote: 'Remote',
-      stash: 'Stash',
-      tags: 'Tags',
-      views: 'Views',
     },
     staged: 'Staged Changes',
     changes: 'Changes',
@@ -1227,7 +1151,6 @@ export default {
       mergeFastForward: 'This is a fast-forward merge; the current branch advances directly.',
       mergeCommitHint: 'This is not a fast-forward merge; it will create a merge commit. Conflicts will go to conflict resolution.',
       delete: 'Delete branch…',
-      forceDeleteConfirm: 'Force Delete Branch',
       deleteTitle: 'Delete branch {name}?',
       deleteAction: 'Delete',
       forceDelete: 'Force Delete',
@@ -1259,7 +1182,6 @@ export default {
       stashed: 'Local changes stashed; you can pop them later from the stash list.',
     },
     error: {
-      technicalDetails: 'Technical details ▸',
       copyDetails: 'Copy error',
       retry: 'Retry',
       pullRetry: 'Pull and Retry',
@@ -1365,7 +1287,6 @@ export default {
       timeline: 'Timeline',
     },
     timeline: {
-      title: 'Timeline',
       noFile: 'Open a file to see its timeline.',
       noRepo: 'This folder is not under version control.',
       noRepoHint: 'History appears after initializing a repository.',
@@ -1508,7 +1429,6 @@ export default {
   },
   notify: {
     ai: {
-      contextCompressed: 'Conversation history was automatically compressed to save context space',
       modelFallback: 'Primary model unavailable, switched to fallback model: {modelId}',
       filesystemAutoReject: 'File write rejected by policy, run continued automatically: {toolName} → {filePath}',
     },
@@ -1567,7 +1487,6 @@ export default {
       watchWarning: 'File watching',
       watchStartError: 'Failed to start file watching',
       watchStopError: 'Failed to stop file watching',
-      invalidDirectory: 'Invalid parent directory',
       notDirectory: 'Path is not a directory',
       unknownError: 'Unknown error',
     },
@@ -1710,7 +1629,6 @@ export default {
       },
       printer: {
         label: 'Printer',
-        saveAsPdf: 'Save as PDF',
         noPrinter: 'No printer connected',
       },
       pageRange: {
@@ -1725,9 +1643,6 @@ export default {
       },
       copies: {
         label: 'Copies',
-      },
-      printTheme: {
-        label: 'Print theme',
       },
       orientation: {
         label: 'Layout',
@@ -1745,7 +1660,6 @@ export default {
       margins: {
         label: 'Margins',
         options: {
-          theme: 'Theme default',
           default: 'Default',
           none: 'None',
           minimum: 'Minimum',
@@ -1769,9 +1683,7 @@ export default {
         },
       },
       options: {
-        label: 'Options',
         printBackground: 'Background graphics',
-        printHeaderFooter: 'Print headers and footers',
       },
       actions: {
         cancel: 'Cancel',

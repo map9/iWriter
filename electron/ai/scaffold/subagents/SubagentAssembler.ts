@@ -4,8 +4,6 @@ import type { SubAgent } from 'deepagents'
 import type { FilesystemPermission } from 'deepagents'
 import type { InterruptOnConfig } from 'langchain'
 import type { ToolRegistry } from '../../tools/ToolRegistry'
-import type { DetectedInputLanguage } from '../../../../shared/ai/core/detectInputLanguage'
-import { buildOutputLanguagePrompt } from '../../../../shared/ai/core/detectInputLanguage'
 
 /**
  * SubagentAssembler (04.1 §2 / 03 §2.10, plan A1) — the declarative装配 mechanism that
@@ -55,7 +53,6 @@ export interface AssembleOptions {
   skillsRoot: string
   workspacePath: string | null
   domain: string
-  language: DetectedInputLanguage
   registry: ToolRegistry
   /** Optional per-subagent model resolver (deferred; not wired in M0). */
   resolveModel?: (modelId: string, modelParams?: Record<string, unknown>) => SubAgent['model'] | undefined
@@ -177,7 +174,7 @@ export function assembleSubagents(options: AssembleOptions): SubAgent[] {
     const subAgent: SubAgent = {
       name: frontmatter.name,
       description: frontmatter.description,
-      systemPrompt: `${buildOutputLanguagePrompt(options.language)}\n\n${body}`,
+      systemPrompt: body,
       // Subagent trace identity comes for free from deepagents' `createAgent({ name })`: the subagent
       // subtree root run is named after `name` and every run carries `metadata.lc_agent_name`, so the
       // whole invocation is filterable/exportable in LangSmith without custom middleware.

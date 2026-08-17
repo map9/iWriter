@@ -1,5 +1,4 @@
 import type { AiSettings, AiThread, SendMessageRequest, ThreadMessage } from '@shared/ai/contracts'
-import { detectInputLanguage, type DetectedInputLanguage } from '../../../shared/ai/core/detectInputLanguage'
 import { generateThreadTitle } from '../../../shared/ai/core/threadTitle'
 import { metaToAiThread, type ThreadListQuery, type ThreadMeta } from '../thread/ThreadListQuery'
 import { resolveThreadRuntime, type ResolvedThreadRuntime } from '../runtime/ThreadRuntimeResolver'
@@ -47,7 +46,6 @@ export interface PreparedThreadTurn {
   turnId: string
   isNewThread: boolean
   runtime: ResolvedThreadRuntime
-  language: DetectedInputLanguage
 }
 
 export class ThreadService {
@@ -140,10 +138,8 @@ export class ThreadService {
       threadListQuery.updateMeta(threadId, metadata)
     }
 
-    const language = detectInputLanguage([request.userText], request.uiLocale)
     this.dependencies.runtimeStore.setContext(threadId, {
       workspacePath: request.workspacePath,
-      language,
     })
     this.dependencies.runtimeStore.setCurrentTurnId(threadId, turnId)
 
@@ -152,7 +148,6 @@ export class ThreadService {
       turnId,
       isNewThread,
       runtime,
-      language,
     }
   }
 

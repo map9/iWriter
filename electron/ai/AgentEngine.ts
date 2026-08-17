@@ -54,7 +54,6 @@ import { MIDDLEWARE_CONFIG } from './scaffold/middleware/middleware-config'
 import type { DomainStrategy } from './domain/DomainStrategy'
 import { EditDomainStrategy } from './domain/edit/EditDomainStrategy'
 import { CreativeDomainStrategy } from './domain/creative/CreativeDomainStrategy'
-import type { DetectedInputLanguage } from '../../shared/ai/core/detectInputLanguage'
 import type { GitService } from '../GitService'
 import { AgentCache } from './runtime/AgentCache'
 import { AgentFactory, type DeepAgentInstance } from './runtime/AgentFactory'
@@ -266,14 +265,14 @@ export class AgentEngine {
     const settings = AiConfigStore.loadSettings()
 
     const prepared = this.threadService.prepareTurn(settings, req)
-    const { threadId, runtime, language } = prepared
+    const { threadId, runtime } = prepared
 
     const userContent = await buildUserMessage(req)
-    this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language, threadId)
+    this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, threadId)
     this.threadService.clearStaleInterrupt(threadId)
 
     // Run agent in background
-    const runTask = this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, language).catch(err => {
+    const runTask = this._runSession(threadId, runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent).catch(err => {
       console.error('[AgentEngine] _runSession error:', err)
     })
     this.agentRunner.track(threadId, runTask)
@@ -374,7 +373,6 @@ export class AgentEngine {
 
     const hiResp = { decisions: lgDecisions }
 
-    const language = this.runtimeStore.getContext(threadId)?.language ?? 'en-US'
     const resumePromise = this._continueSession(
       threadId,
       runtime.providerConfig,
@@ -383,7 +381,6 @@ export class AgentEngine {
       runtime.modelId,
       runtime.thinkingLevel,
       new Command({ resume: hiResp }),
-      language,
     )
     resumePromise.catch(err => console.error('[AgentEngine] _continueSession error:', err))
     this.agentRunner.track(threadId, resumePromise)
@@ -407,9 +404,8 @@ export class AgentEngine {
     modelId: string,
     thinkingLevel: AiThinkingLevel,
     userContent: MessageContent,
-    language: DetectedInputLanguage,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkingLevel, language)
+    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkingLevel)
     const abortController = this.agentRunner.begin(threadId)
 
     const turnId = this.runtimeStore.getCurrentTurnId(threadId)
@@ -435,9 +431,8 @@ export class AgentEngine {
     modelId: string,
     thinkingLevel: AiThinkingLevel,
     command: typeof Command.prototype,
-    language: DetectedInputLanguage,
   ): Promise<void> {
-    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkingLevel, language)
+    const agent = this._getOrCreateAgent(threadId, config, domain, mode, modelId, thinkingLevel)
     const abortController = this.agentRunner.begin(threadId)
 
     const turnId = this.runtimeStore.getCurrentTurnId(threadId)
@@ -959,7 +954,6 @@ export class AgentEngine {
     mode: AiAgentMode,
     modelId: string,
     thinkingLevel: AiThinkingLevel,
-    language: DetectedInputLanguage = 'en-US',
   ): DeepAgentInstance {
     const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
     const skillSources = this.strategies[domain].getSkillSources?.(this.aiRootPath, workspacePath) ?? []
@@ -973,7 +967,6 @@ export class AgentEngine {
       mode,
       modelId,
       thinkingLevel,
-      language,
       workspacePath,
       skillSources,
       resolvedApiKey,
@@ -1040,10 +1033,9 @@ export class AgentEngine {
       const effectiveMessages = summarizationEvent?.summaryMessage
         ? [summarizationEvent.summaryMessage, ...rawMessages.slice(summarizationEvent.cutoffIndex ?? 0)]
         : rawMessages
-      const language = this.runtimeStore.getContext(threadId)?.language ?? 'en-US'
       const workspacePath = this.runtimeStore.getContext(threadId)?.workspacePath ?? null
-      const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath, language })
-      const systemPrompt = new SystemMessage(this.strategies[domain].getSystemPrompt(mode, language))
+      const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath })
+      const systemPrompt = new SystemMessage(this.strategies[domain].getSystemPrompt(mode))
       return this._countTokensCjkAware(
         [systemPrompt, ...effectiveMessages],
         capabilities.tools as unknown as Array<Record<string, unknown>>
@@ -1175,16 +1167,15 @@ export class AgentEngine {
     modelId: string,
     thinkingLevel: AiThinkingLevel,
     userContent: MessageContent,
-    language: DetectedInputLanguage = 'en-US',
     threadId?: string,
   ): void {
     const workspacePath = threadId
       ? this.runtimeStore.getContext(threadId)?.workspacePath ?? null
       : null
-    const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath, language })
+    const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath })
     const requestTokens = this._countTokensCjkAware(
       [
-        new SystemMessage(this.strategies[domain].getSystemPrompt(mode, language)),
+        new SystemMessage(this.strategies[domain].getSystemPrompt(mode)),
         new HumanMessage(userContent),
       ],
       capabilities.tools as unknown as Array<Record<string, unknown>>,
