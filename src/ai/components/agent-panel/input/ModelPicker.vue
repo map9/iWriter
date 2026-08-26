@@ -60,6 +60,18 @@
             <span class="truncate flex-1"
               :class="m.id === currentModelId ? 'font-semibold text-base-content' : ''"
             >{{ m.id }}</span>
+            <template v-if="isOllamaProvider">
+              <IconPhoto
+                v-if="getModelProfile(m.id)?.imageInputs"
+                class="icon-2xs shrink-0 text-base-content/60"
+                :title="t('agentPanel.modelPicker.imageSupport')"
+              />
+              <span
+                v-if="formatModelContext(m.id)"
+                class="shrink-0 text-2xs tabular-nums text-base-content/50"
+                :title="t('agentPanel.modelPicker.contextTokens')"
+              >{{ formatModelContext(m.id) }}</span>
+            </template>
             <IconCloud v-if="m.status === 'cloud'" class="icon-2xs shrink-0 text-neutral-content" :title="t('agentPanel.modelPicker.cloudModel')" />
             <IconDownload v-else-if="m.status === 'remote'" class="icon-2xs shrink-0 text-base-content" :title="t('agentPanel.modelPicker.remoteModel')" />
           </button>
@@ -161,7 +173,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconChevronDown, IconChevronRight, IconCloud, IconCube, IconDownload } from '@tabler/icons-vue'
+import { IconChevronDown, IconChevronRight, IconCloud, IconCube, IconDownload, IconPhoto } from '@tabler/icons-vue'
 import { useModelPicker } from '../composables/useModelPicker'
 import { useAiStore } from '@/ai/state/aiStore'
 import { useAppStore } from '@/stores/app'
@@ -178,6 +190,7 @@ const {
   modelSearch,
   modelSearchEl,
   isLoadingOllamaModels,
+  isOllamaProvider,
   allModelItems,
   filteredModelItems,
   showModelPicker,
@@ -187,6 +200,8 @@ const {
   onMenuOpen,
   selectModel,
   selectThinkingLevel,
+  getModelProfile,
+  formatModelContext,
 } = useModelPicker()
 const triggerEl = ref<HTMLElement | null>(null)
 const menuEl = ref<HTMLElement | null>(null)

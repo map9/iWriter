@@ -492,6 +492,8 @@ export default {
       cloudModel: 'Cloud Model',
       remoteModel: 'Remote Model',
       noModelsFound: 'No models found',
+      contextTokens: 'Context window',
+      imageSupport: 'Image input',
       thinkingLevel: 'Thinking Level',
       thinkingLevels: {
         low: 'Low',

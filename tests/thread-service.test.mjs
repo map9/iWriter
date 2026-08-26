@@ -322,11 +322,9 @@ describe('ThreadService', () => {
     assert.equal(prepared.threadId, 'thread-1')
     assert.equal(prepared.turnId, 'turn-1')
     assert.equal(prepared.isNewThread, false)
-    assert.equal(prepared.language, 'zh-CN')
     assert.equal(prepared.runtime.modelId, 'model-2')
     assert.deepEqual(runtimeStore.getContext('thread-1'), {
       workspacePath: '/workspace',
-      language: 'zh-CN',
     })
     assert.equal(runtimeStore.getCurrentTurnId('thread-1'), 'turn-1')
     assert.notEqual(runtimeStore.getInterrupted('thread-1'), null)

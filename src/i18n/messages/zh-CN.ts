@@ -489,6 +489,8 @@ export default {
       cloudModel: '云端模型',
       remoteModel: '远程模型',
       noModelsFound: '未找到模型',
+      contextTokens: '上下文窗口',
+      imageSupport: '图片输入',
       thinkingLevel: '推理强度',
       thinkingLevels: {
         low: '低',
