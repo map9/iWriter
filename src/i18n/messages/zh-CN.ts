@@ -1430,6 +1430,7 @@ export default {
     ai: {
       modelFallback: '主模型不可用，已切换至备用模型: {modelId}',
       filesystemAutoReject: '文件写入被策略拒绝，已自动继续: {toolName} → {filePath}',
+      runtimeSwitchContextExceeded: '无法切换到 {modelId}：当前上下文约 {current} tokens，已达到该模型的自动摘要阈值 {trigger} tokens。请继续使用当前模型，或新建对话后再切换。',
     },
     editor: {
       loadFailed: '加载文档 {filepath} 失败: {error}',

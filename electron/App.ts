@@ -1620,7 +1620,7 @@ export class App {
     })
 
     ipcMain.handle('ai:cancel', async (_, { threadId }: { threadId: string }) => {
-      await (await this._getAgentEngine()).cancel(threadId)
+      return (await this._getAgentEngine()).cancel(threadId)
     })
 
     // HITL resume — batch decisions array (approve / edit / reject)

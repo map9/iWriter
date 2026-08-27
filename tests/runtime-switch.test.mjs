@@ -83,4 +83,26 @@ describe('RuntimeSwitchService', () => {
     assert.deepEqual(commits, [['thread-1', candidate]])
     assert.deepEqual(deferrals, [['thread-2', candidate]])
   })
+
+  it('revalidates pending selection against the final context before committing it', async () => {
+    const { RuntimeSwitchService } = await loadModule()
+    const commits = []
+    const cleared = []
+    let currentTokens = 79_999
+    const service = new RuntimeSwitchService({
+      inspect: async () => ({ currentTokens, budget: budget(80_000) }),
+      getThreadState: () => 'active',
+      commit: (...args) => commits.push(args),
+      defer: () => {},
+      clearPending: threadId => cleared.push(threadId),
+    })
+
+    assert.equal((await service.request({ threadId: 'thread-1', candidate })).status, 'pending')
+    currentTokens = 80_000
+    const result = await service.finalize('thread-1', candidate)
+
+    assert.equal(result.status, 'rejected')
+    assert.deepEqual(commits, [])
+    assert.deepEqual(cleared, ['thread-1'])
+  })
 })

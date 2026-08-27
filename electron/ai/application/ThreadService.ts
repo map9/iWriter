@@ -105,6 +105,12 @@ export class ThreadService {
     })
   }
 
+  clearPendingRuntimeSelection(threadId: string): void {
+    this.dependencies.getThreadListQuery()?.updateMeta(threadId, {
+      pendingRuntime: undefined,
+    })
+  }
+
   async cancel(threadId: string): Promise<void> {
     await this.dependencies.agentRunner.cancel(threadId)
     this.dependencies.runtimeStore.clearInterrupted(threadId)

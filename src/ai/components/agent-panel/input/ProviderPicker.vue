@@ -3,6 +3,7 @@
     <button
       v-if="compact"
       @click="onToggle"
+      :disabled="aiStore.isRuntimeSwitching"
       class="flex items-center gap-0.5 px-1.5 py-1 rounded-field text-xs transition-colors"
       :class="currentProvider ? 'text-base-content hover:bg-base-300' : 'text-error hover:bg-base-300'"
       :title="currentProviderLabel ?? t('agentPanel.providerPicker.noProvider')"
@@ -13,6 +14,7 @@
     <button
       v-else
       @click="onToggle"
+      :disabled="aiStore.isRuntimeSwitching"
       class="flex items-center gap-1 px-2 py-1 rounded-field text-xs transition-colors"
       :class="currentProvider ? 'text-base-content hover:bg-base-300' : 'text-error hover:bg-base-300'"
       :title="t('agentPanel.providerPicker.switchProvider')"
@@ -47,6 +49,7 @@
               v-for="cfg in filteredProviders"
               :key="cfg.id"
               @click="isLlmProviderUsable(cfg) && doSelect(cfg.id)"
+              :disabled="aiStore.isRuntimeSwitching || !isLlmProviderUsable(cfg)"
               class="w-full flex items-center gap-2 px-2 py-1.5 rounded-field text-xs text-base-content text-left"
               :class="isLlmProviderUsable(cfg)
                 ? 'hover:bg-base-300 cursor-pointer'
@@ -154,12 +157,13 @@ const menuStyle = computed(() => {
 })
 
 function onToggle() {
+  if (aiStore.isRuntimeSwitching) return
   if (props.isOpen) emit('close')
   else emit('open')
 }
 
-function doSelect(id: string) {
-  selectProvider(id)
+async function doSelect(id: string) {
+  await selectProvider(id)
   emit('close')
 }
 

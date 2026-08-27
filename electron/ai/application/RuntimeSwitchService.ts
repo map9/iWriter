@@ -17,6 +17,7 @@ export interface RuntimeSwitchServicePorts {
   getThreadState(threadId: string): RuntimeSwitchThreadState
   commit(threadId: string, candidate: ThreadRuntimeSelection): void
   defer(threadId: string, candidate: ThreadRuntimeSelection): void
+  clearPending?(threadId: string): void
 }
 
 export function evaluateRuntimeCompatibility(
@@ -67,6 +68,31 @@ export class RuntimeSwitchService {
       ...compatibility,
       status: 'pending',
       candidate: request.candidate,
+    }
+  }
+
+  async finalize(
+    threadId: string,
+    candidate: ThreadRuntimeSelection,
+  ): Promise<RuntimeSwitchResponse> {
+    const inspection = await this.ports.inspect(threadId, candidate)
+    const compatibility = evaluateRuntimeCompatibility(
+      inspection.currentTokens,
+      inspection.budget,
+    )
+    if (!compatibility.compatible) {
+      this.ports.clearPending?.(threadId)
+      return {
+        ...compatibility,
+        status: 'rejected',
+        candidate,
+      }
+    }
+    this.ports.commit(threadId, candidate)
+    return {
+      ...compatibility,
+      status: 'committed',
+      candidate,
     }
   }
 }

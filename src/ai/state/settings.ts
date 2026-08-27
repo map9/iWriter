@@ -24,6 +24,10 @@ import {
   type ProviderPreset,
 } from '@/ai/model/providers/provider-presets'
 import { agentClient } from '@/ai/client/AgentClient'
+import { RuntimeSelectionController } from './runtimeSelection'
+import { notify } from '@/utils/notifications'
+import { i18n } from '@/i18n'
+import type { RuntimeSwitchResponse, ThreadRuntimeSelection } from '@shared/ai/contracts'
 
 const STORAGE_KEY_SETTINGS = 'iwriter-ai-settings'
 
@@ -115,9 +119,38 @@ function seedProviderPresets(settings: AiSettings): AiSettings {
 
 export function createAiSettingsState(deps: {
   getActiveThread: () => AiThread | null
+  getThreadById: (threadId: string) => AiThread | null
+  isLocalOnlyThread: (threadId: string) => boolean
   updateThread: (thread: AiThread) => void
 }) {
   const settings = ref<AiSettings>(seedProviderPresets(loadAiSettings()))
+  const isRuntimeSwitching = ref(false)
+  let runtimeSwitchRequestVersion = 0
+
+  interface RuntimeSelectionIntent {
+    threadId: string
+    candidate: ThreadRuntimeSelection
+  }
+
+  const runtimeSelectionController = new RuntimeSelectionController<RuntimeSelectionIntent>({
+    request: async intent => {
+      const result = await agentClient.switchThreadRuntime({
+        threadId: intent.threadId,
+        candidate: intent.candidate,
+      })
+      if (!result) throw new Error('Runtime switch IPC is unavailable.')
+      return result
+    },
+    apply: (intent, status) => {
+      const thread = deps.getThreadById(intent.threadId)
+      if (!thread) return
+      if (status === 'pending') {
+        deps.updateThread({ ...thread, pendingRuntime: intent.candidate })
+        return
+      }
+      commitRuntimeSelection(thread, intent.candidate)
+    },
+  })
 
   const activeProviderConfig = computed<AiProviderConfig | null>(() =>
     getActiveAiProviderConfig(
@@ -150,6 +183,87 @@ export function createAiSettingsState(deps: {
   function saveSettings(): void {
     saveSettingsToStorage(settings.value)
     agentClient.updateConfig(JSON.parse(JSON.stringify(toRaw(settings.value))))
+  }
+
+  function commitRuntimeSelection(
+    thread: AiThread,
+    candidate: ThreadRuntimeSelection,
+  ): void {
+    settings.value.activeProviderConfigId = candidate.providerConfigId
+    const configIndex = settings.value.providerConfigs.findIndex(
+      config => config.id === candidate.providerConfigId,
+    )
+    if (configIndex >= 0) {
+      const config = settings.value.providerConfigs[configIndex]!
+      settings.value.providerConfigs[configIndex] = {
+        ...config,
+        defaultModelId: candidate.modelId,
+        lastSelectedModelId: candidate.modelId,
+        lastSelectedThinkingLevel: candidate.thinkingLevel,
+      }
+    }
+    deps.updateThread({
+      ...thread,
+      providerConfigId: candidate.providerConfigId,
+      modelId: candidate.modelId,
+      thinkingLevel: candidate.thinkingLevel,
+      pendingRuntime: undefined,
+    })
+    saveSettings()
+  }
+
+  function notifyRuntimeSwitchRejected(response: RuntimeSwitchResponse): void {
+    notify.warning(i18n.global.t('notify.ai.runtimeSwitchContextExceeded', {
+      modelId: response.candidate.modelId,
+      current: response.currentEffectiveContextTokens.toLocaleString(),
+      trigger: response.candidateCompactTriggerTokens.toLocaleString(),
+    }))
+  }
+
+  async function requestRuntimeSelection(candidate: ThreadRuntimeSelection): Promise<boolean> {
+    const thread = deps.getActiveThread()
+    if (!thread || deps.isLocalOnlyThread(thread.id)) {
+      if (thread) commitRuntimeSelection(thread, candidate)
+      else {
+        settings.value.activeProviderConfigId = candidate.providerConfigId
+        saveSettings()
+      }
+      return true
+    }
+
+    const requestVersion = ++runtimeSwitchRequestVersion
+    isRuntimeSwitching.value = true
+    try {
+      const result = await runtimeSelectionController.select({ threadId: thread.id, candidate })
+      if (requestVersion !== runtimeSwitchRequestVersion || result.stale) return false
+      if (!result.accepted) {
+        const response = result.decision as RuntimeSwitchResponse | undefined
+        if (response) notifyRuntimeSwitchRejected(response)
+      }
+      return result.accepted
+    } catch (error) {
+      if (requestVersion === runtimeSwitchRequestVersion) {
+        notify.error(error instanceof Error ? error.message : String(error))
+      }
+      return false
+    } finally {
+      if (requestVersion === runtimeSwitchRequestVersion) isRuntimeSwitching.value = false
+    }
+  }
+
+  function applyRuntimeSwitchResolution(
+    threadId: string,
+    response: RuntimeSwitchResponse | undefined,
+  ): void {
+    if (!response) return
+    const thread = deps.getThreadById(threadId)
+    if (!thread) return
+    if (response.status === 'committed' && response.compatible) {
+      commitRuntimeSelection(thread, response.candidate)
+      return
+    }
+    deps.updateThread({ ...thread, pendingRuntime: undefined })
+    notifyRuntimeSwitchRejected(response)
   }
 
   function reloadSettings(): void {
@@ -195,27 +309,27 @@ export function createAiSettingsState(deps: {
     saveSettings()
   }
 
-  function setActiveProvider(id: string): void {
-    settings.value.activeProviderConfigId = id
-    saveSettings()
+  async function setActiveProvider(id: string): Promise<boolean> {
     const nextProvider = settings.value.providerConfigs.find(config => config.id === id) ?? null
+    if (!nextProvider) return false
     const thread = deps.getActiveThread()
-    if (!thread) return
-    deps.updateThread({
-      ...thread,
+    return requestRuntimeSelection({
       providerConfigId: id,
-      modelId: nextProvider?.lastSelectedModelId || nextProvider?.defaultModelId || thread.modelId,
+      modelId: nextProvider.lastSelectedModelId || nextProvider.defaultModelId || thread?.modelId || '',
       thinkingLevel: normalizeThinkingLevel(nextProvider?.lastSelectedThinkingLevel),
     })
   }
 
-  function setCurrentModelId(modelId: string): void {
+  async function setCurrentModelId(modelId: string): Promise<boolean> {
     const config = effectiveProviderConfig.value
-    if (config) {
-      updateProviderConfig(config.id, { defaultModelId: modelId, lastSelectedModelId: modelId })
-    }
-    const thread = deps.getActiveThread()
-    if (thread) deps.updateThread({ ...thread, modelId })
+    if (!config) return false
+    return requestRuntimeSelection({
+      providerConfigId: config.id,
+      modelId,
+      thinkingLevel: normalizeThinkingLevel(
+        deps.getActiveThread()?.thinkingLevel ?? config.lastSelectedThinkingLevel,
+      ),
+    })
   }
 
   function setCurrentThinkingLevel(level: AiThinkingLevel): void {
@@ -240,6 +354,7 @@ export function createAiSettingsState(deps: {
 
   return {
     settings,
+    isRuntimeSwitching,
     activeProviderConfig,
     effectiveProviderConfig,
     availableModels,
@@ -254,5 +369,6 @@ export function createAiSettingsState(deps: {
     setCurrentModelId,
     setCurrentThinkingLevel,
     setCurrentMode,
+    applyRuntimeSwitchResolution,
   }
 }

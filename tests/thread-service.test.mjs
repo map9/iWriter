@@ -12,6 +12,7 @@ async function loadModules() {
           contents: `
             export * from './electron/ai/application/ThreadService.ts'
             export * from './electron/ai/runtime/ThreadRuntimeStore.ts'
+            export * from './electron/ai/runtime/ThreadRuntimeResolver.ts'
             export * from './electron/ai/runtime/AgentRunner.ts'
             export * from './electron/ai/runtime/AgentCache.ts'
             export * from './electron/ai/scaffold/approval/WritingSessionRegistry.ts'
@@ -351,6 +352,39 @@ describe('ThreadService', () => {
     service.completeTurn('thread-runtime-snapshot')
 
     assert.equal(service.getMeta('thread-runtime-snapshot').activeRuntime, undefined)
+  })
+
+  it('resolves HITL resume from the frozen active runtime instead of next-turn metadata', async () => {
+    const { resolveResumeThreadRuntime } = await loadModules()
+    const settings = aiSettings()
+    settings.providerConfigs[0].models = ['model-active', 'model-next']
+    settings.providerConfigs[0].defaultModelId = 'model-next'
+    const meta = {
+      id: 'thread-resume-runtime',
+      title: 'Resume runtime',
+      domain: 'editing',
+      mode: 'edit',
+      providerConfigId: 'provider-1',
+      modelId: 'model-next',
+      thinkingLevel: 'high',
+      createdAt: 1,
+      updatedAt: 1,
+      activeRuntime: {
+        turnId: 'turn-active',
+        providerConfigId: 'provider-1',
+        providerConfigRevision: 'revision-active',
+        modelId: 'model-active',
+        thinkingLevel: 'medium',
+        domain: 'editing',
+        mode: 'edit',
+        workspacePath: '/workspace',
+      },
+    }
+
+    const runtime = resolveResumeThreadRuntime(settings, meta)
+
+    assert.equal(runtime.modelId, 'model-active')
+    assert.equal(runtime.thinkingLevel, 'medium')
   })
 
   it('prepares an existing thread turn without clearing its stale interrupt early', async () => {

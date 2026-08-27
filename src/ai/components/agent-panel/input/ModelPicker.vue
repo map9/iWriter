@@ -7,6 +7,7 @@
     <button
       v-if="compact"
       @click="onToggle"
+      :disabled="aiStore.isRuntimeSwitching"
       class="flex items-center gap-0.5 px-1.5 py-1 rounded-field text-xs text-base-content hover:bg-base-300 transition-colors"
       :title="currentModelId || t('agentPanel.modelPicker.chooseModel')"
     >
@@ -16,6 +17,7 @@
     <button
       v-else
       @click="onToggle"
+      :disabled="aiStore.isRuntimeSwitching"
       class="flex items-center gap-1 px-2 py-1 rounded-field text-xs text-base-content hover:bg-base-300 transition-colors"
       :title="t('agentPanel.modelPicker.switchModel')"
     >
@@ -52,6 +54,7 @@
             v-for="m in filteredModelItems"
             :key="m.id"
             @click="doSelect(m.id)"
+            :disabled="aiStore.isRuntimeSwitching"
             class="w-full flex items-center gap-2 px-2 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300 text-left"
           >
             <span class="icon-dot shrink-0"
@@ -257,6 +260,7 @@ const submenuStyle = computed(() => {
 })
 
 function onToggle() {
+  if (aiStore.isRuntimeSwitching) return
   if (props.isOpen) emit('close')
   else emit('open')
 }
@@ -286,8 +290,8 @@ function scheduleCloseSubmenu() {
   }, 150)
 }
 
-function doSelect(id: string) {
-  selectModel(id)
+async function doSelect(id: string) {
+  await selectModel(id)
   emit('close')
 }
 

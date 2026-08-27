@@ -59,6 +59,7 @@ export type {
 
 export const useAiStore = defineStore('ai', () => {
   const appStore = useAppStore()
+  const _localOnlyThreadIds = new Set<string>()
 
   const isSwitchingThread = ref(false)
   const switchingThreadId = ref<string | null>(null)
@@ -66,6 +67,7 @@ export const useAiStore = defineStore('ai', () => {
 
   const {
     settings,
+    isRuntimeSwitching,
     activeProviderConfig,
     effectiveProviderConfig,
     availableModels,
@@ -80,8 +82,11 @@ export const useAiStore = defineStore('ai', () => {
     setCurrentModelId,
     setCurrentThinkingLevel,
     setCurrentMode,
+    applyRuntimeSwitchResolution,
   } = createAiSettingsState({
     getActiveThread: () => activeThread.value,
+    getThreadById: (threadId: string) => threads.value.find(thread => thread.id === threadId) ?? null,
+    isLocalOnlyThread: (threadId: string) => _localOnlyThreadIds.has(threadId),
     updateThread,
   })
 
@@ -166,8 +171,6 @@ export const useAiStore = defineStore('ai', () => {
    * Track threads that were created locally (via createNewThread) but have never
    * had a message sent to the backend. These are safe to discard.
    */
-  const _localOnlyThreadIds = new Set<string>()
-
   /** Remove threads that were created locally but never used (no message sent). */
   function _purgeEmptyThreads() {
     const toRemove = threads.value.filter(t => _localOnlyThreadIds.has(t.id))
@@ -651,6 +654,7 @@ export const useAiStore = defineStore('ai', () => {
       && ownership.threadId === event.threadId
       && ownership.epoch === _runTransitionEpoch
     const completion = await runtimeEvents.onRunDone(event, isCurrent)
+    applyRuntimeSwitchResolution(event.threadId, event.runtimeSwitch)
     if (turnId && _runOwnershipByTurnId.get(turnId) === ownership) {
       _runOwnershipByTurnId.delete(turnId)
     }
@@ -713,7 +717,8 @@ export const useAiStore = defineStore('ai', () => {
     const cancellation = (async (): Promise<boolean> => {
       try {
         if (tid) {
-          await agentClient.cancel(tid)
+          const runtimeSwitch = await agentClient.cancel(tid)
+          applyRuntimeSwitchResolution(tid, runtimeSwitch)
         }
       } catch (error) {
         if (_runTransitionEpoch === cancellationEpoch) {
@@ -816,6 +821,7 @@ export const useAiStore = defineStore('ai', () => {
   return {
     // Settings
     settings,
+    isRuntimeSwitching,
     activeProviderConfig,
     effectiveProviderConfig,
     availableModels,

@@ -393,9 +393,9 @@ export function useModelPicker() {
     }
   }
 
-  function selectModel(modelId: string) {
+  async function selectModel(modelId: string): Promise<boolean> {
     modelSearch.value = ''
-    aiStore.setCurrentModelId(modelId)
+    return aiStore.setCurrentModelId(modelId)
   }
 
   function selectThinkingLevel(level: AiThinkingLevel) {

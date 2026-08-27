@@ -31,7 +31,7 @@ export class AgentClient {
     return window.electronAPI.aiSwitchThreadRuntime?.(request)
   }
 
-  cancel(threadId: string): Promise<void> | undefined {
+  cancel(threadId: string): Promise<RuntimeSwitchResponse | undefined> | undefined {
     return window.electronAPI.aiCancel?.(threadId)
   }
 

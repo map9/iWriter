@@ -69,3 +69,20 @@ export function resolveThreadRuntime(
 
   return { providerConfig, domain, mode, modelId, thinkingLevel }
 }
+
+export function resolveResumeThreadRuntime(
+  settings: AiSettings,
+  meta: ThreadMeta | null,
+): ResolvedThreadRuntime {
+  const activeRuntime = meta?.activeRuntime
+  if (!activeRuntime) return resolveThreadRuntime(settings, undefined, meta)
+  return resolveThreadRuntime(settings, {
+    domain: activeRuntime.domain,
+    mode: activeRuntime.mode,
+    threadRuntime: {
+      providerConfigId: activeRuntime.providerConfigId,
+      modelId: activeRuntime.modelId,
+      thinkingLevel: activeRuntime.thinkingLevel,
+    },
+  }, meta)
+}

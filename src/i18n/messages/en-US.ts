@@ -1433,6 +1433,7 @@ export default {
     ai: {
       modelFallback: 'Primary model unavailable, switched to fallback model: {modelId}',
       filesystemAutoReject: 'File write rejected by policy, run continued automatically: {toolName} → {filePath}',
+      runtimeSwitchContextExceeded: 'Cannot switch to {modelId}: the current context is about {current} tokens and has reached this model\'s automatic compact threshold of {trigger} tokens. Keep using the current model or start a new conversation.',
     },
     editor: {
       loadFailed: 'Failed to load document {filepath}: {error}',

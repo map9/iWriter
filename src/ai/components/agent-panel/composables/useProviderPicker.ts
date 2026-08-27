@@ -34,9 +34,9 @@ export function useProviderPicker() {
     nextTick(() => providerSearchEl.value?.focus())
   }
 
-  function selectProvider(id: string) {
+  async function selectProvider(id: string): Promise<boolean> {
     providerSearch.value = ''
-    aiStore.setActiveProvider(id)
+    return aiStore.setActiveProvider(id)
   }
 
   return {

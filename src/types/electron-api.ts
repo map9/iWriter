@@ -158,7 +158,7 @@ export interface ElectronAPI {
   aiSendMessage?: (req: import('@shared/ai/contracts').SendMessageRequest) => Promise<{ threadId: string }>
   aiGetSessionContextStats?: (req: import('@shared/ai/contracts').SessionContextStatsRequest) => Promise<import('@shared/ai/contracts').SessionContextStatsResponse>
   aiSwitchThreadRuntime?: (req: import('@shared/ai/contracts').RuntimeSwitchRequest) => Promise<import('@shared/ai/contracts').RuntimeSwitchResponse>
-  aiCancel?: (threadId: string) => Promise<void>
+  aiCancel?: (threadId: string) => Promise<import('@shared/ai/contracts').RuntimeSwitchResponse | undefined>
   aiResume?: (req: import('@shared/ai/contracts').ResumeRunRequest) => Promise<void>
   aiGetConfig?: () => Promise<import('@shared/ai/contracts').AiSettings>
   aiUpdateConfig?: (patch: Partial<import('@shared/ai/contracts').AiSettings>) => Promise<void>

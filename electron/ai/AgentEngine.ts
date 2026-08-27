@@ -38,7 +38,7 @@ import type {
 import { StreamEventAdapter } from './ipc/StreamEventAdapter'
 import { RendererEventBridge } from './ipc/RendererEventBridge'
 import { buildUserMessage } from './ipc/UserMessageBuilder'
-import { resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
+import { resolveResumeThreadRuntime, resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
 import { ThreadRuntimeStore } from './runtime/ThreadRuntimeStore'
 import { FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './scaffold/filesystem/AgentFilesystem'
 import { decideFilesystemWriteApproval, isFilesystemWriteToolName } from './scaffold/approval/FilesystemApprovalPolicy'
@@ -322,8 +322,14 @@ export class AgentEngine {
     await this._ensureInitialized()
     const meta = this.threadService.getMeta(req.threadId)
     if (!meta) throw new Error(`Thread not found: ${req.threadId}`)
+    return this._createRuntimeSwitchService(meta).request({
+      threadId: req.threadId,
+      candidate: this._normalizeRuntimeSwitchCandidate(req.candidate),
+    })
+  }
 
-    const service = new RuntimeSwitchService({
+  private _createRuntimeSwitchService(meta: NonNullable<ReturnType<ThreadService['getMeta']>>): RuntimeSwitchService {
+    return new RuntimeSwitchService({
       inspect: async (threadId, candidate) => {
         const settings = AiConfigStore.loadSettings()
         const candidateConfig = settings.providerConfigs.find(config => config.id === candidate.providerConfigId)
@@ -351,12 +357,14 @@ export class AgentEngine {
       },
       commit: (threadId, candidate) => this.threadService.commitRuntimeSelection(threadId, candidate),
       defer: (threadId, candidate) => this.threadService.deferRuntimeSelection(threadId, candidate),
+      clearPending: threadId => this.threadService.clearPendingRuntimeSelection(threadId),
     })
+  }
 
-    return service.request({
-      threadId: req.threadId,
-      candidate: this._normalizeRuntimeSwitchCandidate(req.candidate),
-    })
+  private async _finalizePendingRuntimeSwitch(threadId: string): Promise<RuntimeSwitchResponse | undefined> {
+    const meta = this.threadService.getMeta(threadId)
+    if (!meta?.pendingRuntime) return undefined
+    return this._createRuntimeSwitchService(meta).finalize(threadId, meta.pendingRuntime)
   }
 
   private _normalizeRuntimeSwitchCandidate(candidate: ThreadRuntimeSelection): ThreadRuntimeSelection {
@@ -369,8 +377,9 @@ export class AgentEngine {
 
   // ── Public: cancel ────────────────────────────────────────────────────────
 
-  async cancel(threadId: string): Promise<void> {
+  async cancel(threadId: string): Promise<RuntimeSwitchResponse | undefined> {
     await this.threadService.cancel(threadId)
+    return this._finalizePendingRuntimeSwitch(threadId)
   }
 
   // ── Public: resume (LangGraph HITL batch decisions) ───────────────────────
@@ -385,7 +394,7 @@ export class AgentEngine {
 
     const settings = AiConfigStore.loadSettings()
     const meta = this.threadService.getMeta(threadId)
-    const runtime = resolveThreadRuntime(settings, undefined, meta)
+    const runtime = resolveResumeThreadRuntime(settings, meta)
     if (!runtime) {
       console.error('[AgentEngine] resumeRun: could not resolve thread runtime')
       return
@@ -413,9 +422,11 @@ export class AgentEngine {
     // M1-1: a run-end synthesized finalize card has no live LangGraph interrupt to resume — the host
     // side effects above are the whole job. Complete the run instead of feeding a Command back.
     if (interrupted.syntheticFinalize) {
-      this.rendererBridge.sendRunDone({ threadId, turnId: interrupted.turnId })
+      const runtimeSwitch = await this._finalizePendingRuntimeSwitch(threadId)
+      this.rendererBridge.sendRunDone({ threadId, turnId: interrupted.turnId, runtimeSwitch })
       this._clearFallbackNotificationKeys(threadId, interrupted.turnId ?? null)
       this.runtimeStore.clearCurrentTurnId(threadId)
+      this.threadService.completeTurn(threadId)
       return
     }
 
@@ -571,7 +582,8 @@ export class AgentEngine {
           : '模型没有返回可显示内容。请重试。'
         this.threadService.touchThread(threadId, true)
         this.rendererBridge.sendRunError({ threadId, turnId, error: errorMsg })
-        this.rendererBridge.sendRunDone({ threadId, turnId })
+        const runtimeSwitch = await this._finalizePendingRuntimeSwitch(threadId)
+        this.rendererBridge.sendRunDone({ threadId, turnId, runtimeSwitch })
         return
       }
 
@@ -585,9 +597,11 @@ export class AgentEngine {
       // finalize card instead of completing — it leaves the thread interrupted awaiting the decision.
       const finalizeTurnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
       if (await this.writingSessionCoordinator.synthesizeRunEndFinalize(threadId, finalizeTurnId)) return
+      const runtimeSwitch = await this._finalizePendingRuntimeSwitch(threadId)
       this.rendererBridge.sendRunDone({
         threadId,
         turnId: finalizeTurnId,
+        runtimeSwitch,
       })
     } catch (err) {
       if (abortController?.signal.aborted) {
@@ -605,11 +619,13 @@ export class AgentEngine {
       // creates the chat message, and a second message here causes duplicate error display.
       const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
       this.rendererBridge.sendRunError({ threadId, turnId, error: errorMsg })
-      this.rendererBridge.sendRunDone({ threadId, turnId })
+      const runtimeSwitch = await this._finalizePendingRuntimeSwitch(threadId)
+      this.rendererBridge.sendRunDone({ threadId, turnId, runtimeSwitch })
     } finally {
       if (!this.runtimeStore.getInterrupted(threadId)) {
         this._clearFallbackNotificationKeys(threadId, this.runtimeStore.getCurrentTurnId(threadId))
         this.runtimeStore.clearCurrentTurnId(threadId)
+        this.threadService.completeTurn(threadId)
       }
       clearActiveRun()
     }

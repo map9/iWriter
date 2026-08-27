@@ -186,6 +186,7 @@ export interface RunInterruptedEvent {
 export interface RunDoneEvent {
   threadId: string
   turnId?: string
+  runtimeSwitch?: RuntimeSwitchResponse
   /**
    * Optional error message for fallback display.
    * Normal completions omit this — the renderer reloads messages from the checkpointer.
@@ -321,7 +322,7 @@ export type AiIpcInvokeMap = {
   'ai:send-message': [SendMessageRequest, { threadId: string }]
   'ai:get-session-context-stats': [SessionContextStatsRequest, SessionContextStatsResponse]
   'ai:switch-thread-runtime': [RuntimeSwitchRequest, RuntimeSwitchResponse]
-  'ai:cancel': [{ threadId: string }, void]
+  'ai:cancel': [{ threadId: string }, RuntimeSwitchResponse | undefined]
   'ai:resume': [ResumeRunRequest, void]
   'ai:get-config': [void, AiSettings]
   'ai:update-config': [Partial<AiSettings>, void]
