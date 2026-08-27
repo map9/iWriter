@@ -1,4 +1,10 @@
-import type { AiSettings, AiThread, SendMessageRequest, ThreadMessage } from '@shared/ai/contracts'
+import type {
+  AiSettings,
+  AiThread,
+  SendMessageRequest,
+  ThreadMessage,
+  ThreadRuntimeSelection,
+} from '@shared/ai/contracts'
 import { generateThreadTitle } from '../../../shared/ai/core/threadTitle'
 import { metaToAiThread, type ThreadListQuery, type ThreadMeta } from '../thread/ThreadListQuery'
 import { resolveThreadRuntime, type ResolvedThreadRuntime } from '../runtime/ThreadRuntimeResolver'
@@ -81,6 +87,21 @@ export class ThreadService {
     this.dependencies.getThreadListQuery()?.updateMeta(threadId, {
       updatedAt: Date.now(),
       ...(hasError === undefined ? {} : { hasError }),
+    })
+  }
+
+  commitRuntimeSelection(threadId: string, candidate: ThreadRuntimeSelection): void {
+    this.dependencies.getThreadListQuery()?.updateMeta(threadId, {
+      providerConfigId: candidate.providerConfigId,
+      modelId: candidate.modelId,
+      thinkingLevel: candidate.thinkingLevel,
+      pendingRuntime: undefined,
+    })
+  }
+
+  deferRuntimeSelection(threadId: string, candidate: ThreadRuntimeSelection): void {
+    this.dependencies.getThreadListQuery()?.updateMeta(threadId, {
+      pendingRuntime: candidate,
     })
   }
 

@@ -10,7 +10,8 @@ import type { AiAgentDomain, AiAgentMode, AiThinkingLevel } from './agent'
 import type { ThreadMessage } from './message'
 import type { DomainReviewItem } from './review'
 import type { AiSettings } from './settings'
-import type { AiThread } from './thread'
+import type { AiThread, ThreadRuntimeSelection } from './thread'
+import type { ModelBudgetSource } from '../core/modelBudget'
 import type { AiToolCall } from './tool'
 export type { DomainReviewItem }
 
@@ -56,6 +57,23 @@ export interface SessionContextStatsResponse {
   requestBudgetTokens: number
   keepTokens: number
   maxInputTokens?: number
+}
+
+export interface RuntimeSwitchRequest {
+  threadId: string
+  candidate: ThreadRuntimeSelection
+}
+
+export interface RuntimeSwitchResponse {
+  status: 'committed' | 'pending' | 'rejected'
+  compatible: boolean
+  candidate: ThreadRuntimeSelection
+  currentEffectiveContextTokens: number
+  candidateCompactTriggerTokens: number
+  candidateRequestBudgetTokens: number
+  candidateMaxInputTokens?: number
+  budgetSource: ModelBudgetSource
+  reason?: 'context-exceeds-compact-trigger' | 'provider-not-found' | 'model-invalid'
 }
 
 // ── LangGraph HITL — interrupt / resume ────────────────────────────────────
@@ -302,6 +320,7 @@ export interface SerializedOutlineEntry {
 export type AiIpcInvokeMap = {
   'ai:send-message': [SendMessageRequest, { threadId: string }]
   'ai:get-session-context-stats': [SessionContextStatsRequest, SessionContextStatsResponse]
+  'ai:switch-thread-runtime': [RuntimeSwitchRequest, RuntimeSwitchResponse]
   'ai:cancel': [{ threadId: string }, void]
   'ai:resume': [ResumeRunRequest, void]
   'ai:get-config': [void, AiSettings]

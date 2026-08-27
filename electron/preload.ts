@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import type { ElectronAPI, HtmlPrintReadyOptions, PdfSaveOptions, SaveFileOptions } from '../src/types/electron-api'
-import type { SendMessageRequest, SessionContextStatsRequest, SessionContextStatsResponse, ResumeRunRequest, SnapshotResponse, EditorStateRequestEvent, EditorStateResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../shared/ai/contracts/protocol'
+import type { SendMessageRequest, SessionContextStatsRequest, SessionContextStatsResponse, RuntimeSwitchRequest, RuntimeSwitchResponse, ResumeRunRequest, SnapshotResponse, EditorStateRequestEvent, EditorStateResponse, StreamChunkEvent, RunInterruptedEvent, RunDoneEvent, RunErrorEvent, RunModelFallbackEvent, RunFilesystemAutoRejectEvent, SnapshotRequestEvent } from '../shared/ai/contracts/protocol'
 import type { AiSettings } from '../shared/ai/contracts'
 import type { GitMutationEvent, GitProgress } from '../shared/git/types'
 import { createAppMenuRequest, createContextMenuRequest } from '../src/types/menu'
@@ -264,6 +264,7 @@ const electronAPI: ElectronAPI = {
   // ── AI Agent (main-process deepagents) ────────────────────────────────────
   aiSendMessage: (req: SendMessageRequest): Promise<{ threadId: string }> => ipcRenderer.invoke('ai:send-message', req),
   aiGetSessionContextStats: (req: SessionContextStatsRequest): Promise<SessionContextStatsResponse> => ipcRenderer.invoke('ai:get-session-context-stats', req),
+  aiSwitchThreadRuntime: (req: RuntimeSwitchRequest): Promise<RuntimeSwitchResponse> => ipcRenderer.invoke('ai:switch-thread-runtime', req),
   aiCancel: (threadId: string) => ipcRenderer.invoke('ai:cancel', { threadId }),
   aiResume: (req: ResumeRunRequest) => ipcRenderer.invoke('ai:resume', req),
   aiGetConfig: () => ipcRenderer.invoke('ai:get-config'),

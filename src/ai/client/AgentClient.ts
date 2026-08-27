@@ -2,6 +2,8 @@ import type {
   AiSettings,
   AiThread,
   ResumeRunRequest,
+  RuntimeSwitchRequest,
+  RuntimeSwitchResponse,
   RunDoneEvent,
   RunErrorEvent,
   RunFilesystemAutoRejectEvent,
@@ -23,6 +25,10 @@ export class AgentClient {
     request: SessionContextStatsRequest,
   ): Promise<SessionContextStatsResponse> | undefined {
     return window.electronAPI.aiGetSessionContextStats?.(request)
+  }
+
+  switchThreadRuntime(request: RuntimeSwitchRequest): Promise<RuntimeSwitchResponse> | undefined {
+    return window.electronAPI.aiSwitchThreadRuntime?.(request)
   }
 
   cancel(threadId: string): Promise<void> | undefined {

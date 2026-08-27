@@ -20,7 +20,7 @@ import type { DeepAgentRunStream } from 'deepagents'
 import { Command } from '@langchain/langgraph'
 import { HumanMessage, SystemMessage, isAIMessage, isToolMessage, isHumanMessage } from '@langchain/core/messages'
 
-import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage } from '../../shared/ai/contracts'
+import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage, RuntimeSwitchRequest, RuntimeSwitchResponse, ThreadRuntimeSelection } from '../../shared/ai/contracts'
 import { isAiProviderUsable, resolveApiKeyReference } from '../../shared/ai/contracts'
 import { estimateTextTokens } from '../../shared/ai/core/tokenEstimation'
 import { createChatModel } from './providers/ModelFactory'
@@ -62,6 +62,7 @@ import { createAgentRuntimeConfig, getEffectiveModelBudget } from './runtime/Run
 import { InterruptCoordinator } from './application/InterruptCoordinator'
 import { ThreadService } from './application/ThreadService'
 import { WritingSessionCoordinator } from './application/WritingSessionCoordinator'
+import { RuntimeSwitchService } from './application/RuntimeSwitchService'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -314,6 +315,55 @@ export class AgentEngine {
       requestBudgetTokens: budget.requestBudgetTokens,
       keepTokens: budget.keepTokens,
       maxInputTokens: budget.maxInputTokens,
+    }
+  }
+
+  async switchThreadRuntime(req: RuntimeSwitchRequest): Promise<RuntimeSwitchResponse> {
+    await this._ensureInitialized()
+    const meta = this.threadService.getMeta(req.threadId)
+    if (!meta) throw new Error(`Thread not found: ${req.threadId}`)
+
+    const service = new RuntimeSwitchService({
+      inspect: async (threadId, candidate) => {
+        const settings = AiConfigStore.loadSettings()
+        const candidateConfig = settings.providerConfigs.find(config => config.id === candidate.providerConfigId)
+        if (!candidateConfig || !isAiProviderUsable(candidateConfig, { resolveApiKey: resolveAiApiKeyEnvVar })) {
+          throw new Error(`AI provider is not available: ${candidate.providerConfigId}`)
+        }
+        const runtime = resolveThreadRuntime(settings, {
+          domain: meta.domain,
+          mode: meta.mode,
+          threadRuntime: candidate,
+        }, meta)
+        const model = createChatModel(runtime.providerConfig, {
+          modelId: runtime.modelId,
+          thinkingLevel: runtime.thinkingLevel,
+        })
+        return {
+          currentTokens: await this._getCurrentSessionTokens(threadId, meta.domain, meta.mode),
+          budget: getEffectiveModelBudget(runtime.providerConfig, runtime.modelId, model),
+        }
+      },
+      getThreadState: threadId => {
+        if (this.runtimeStore.getInterrupted(threadId)) return 'interrupted'
+        if (this.agentRunner.isActive(threadId)) return 'active'
+        return 'idle'
+      },
+      commit: (threadId, candidate) => this.threadService.commitRuntimeSelection(threadId, candidate),
+      defer: (threadId, candidate) => this.threadService.deferRuntimeSelection(threadId, candidate),
+    })
+
+    return service.request({
+      threadId: req.threadId,
+      candidate: this._normalizeRuntimeSwitchCandidate(req.candidate),
+    })
+  }
+
+  private _normalizeRuntimeSwitchCandidate(candidate: ThreadRuntimeSelection): ThreadRuntimeSelection {
+    return {
+      providerConfigId: candidate.providerConfigId,
+      modelId: candidate.modelId,
+      thinkingLevel: candidate.thinkingLevel,
     }
   }
 

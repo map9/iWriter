@@ -1615,6 +1615,10 @@ export class App {
       return (await this._getAgentEngine()).getSessionContextStats(req)
     })
 
+    ipcMain.handle('ai:switch-thread-runtime', async (_, req) => {
+      return (await this._getAgentEngine()).switchThreadRuntime(req)
+    })
+
     ipcMain.handle('ai:cancel', async (_, { threadId }: { threadId: string }) => {
       await (await this._getAgentEngine()).cancel(threadId)
     })
@@ -1630,7 +1634,6 @@ export class App {
 
     ipcMain.handle('ai:update-config', async (_, settings: AiSettings) => {
       AiConfigStore.saveSettings(settings)
-      this._agentEngine?.invalidateAgentCache()
     })
 
     ipcMain.handle('ai:get-threads', async () => {

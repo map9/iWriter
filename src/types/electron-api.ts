@@ -157,6 +157,7 @@ export interface ElectronAPI {
   // ── AI Agent (main-process deepagents) ──────────────────────────────────────
   aiSendMessage?: (req: import('@shared/ai/contracts').SendMessageRequest) => Promise<{ threadId: string }>
   aiGetSessionContextStats?: (req: import('@shared/ai/contracts').SessionContextStatsRequest) => Promise<import('@shared/ai/contracts').SessionContextStatsResponse>
+  aiSwitchThreadRuntime?: (req: import('@shared/ai/contracts').RuntimeSwitchRequest) => Promise<import('@shared/ai/contracts').RuntimeSwitchResponse>
   aiCancel?: (threadId: string) => Promise<void>
   aiResume?: (req: import('@shared/ai/contracts').ResumeRunRequest) => Promise<void>
   aiGetConfig?: () => Promise<import('@shared/ai/contracts').AiSettings>
