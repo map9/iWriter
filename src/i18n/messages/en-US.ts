@@ -431,6 +431,11 @@ export default {
       waitingApproval: 'Current thread is waiting for your approval to modify',
       threadRunning: 'Current thread is running',
       terminateConfirm: '{status}, {action} will terminate the current thread execution. Continue?',
+      workspaceSwitchTitle: 'Switch Workspace',
+      workspaceSwitchRunning: 'The current task is still running. Switching workspace will interrupt it and create a new thread. Continue?',
+      workspaceSwitchHitl: 'The current task is waiting for your approval. Switching workspace will interrupt it and create a new thread. Continue?',
+      workspaceSwitchDetail: 'The original thread stays in History and can only be selected again from its workspace.',
+      workspaceSwitchContinue: 'Interrupt and Switch',
       actions: {
         createNewThread: 'create new thread',
         switchThread: 'switch thread',
@@ -454,6 +459,9 @@ export default {
       clearAll: 'Clear All',
       now: 'now',
       subtitle: '{count} messages · {size}',
+      unboundWorkspace: 'Unbound workspace',
+      differentWorkspace: 'This thread belongs to another workspace: {workspace}',
+      unboundWorkspaceDisabled: 'This legacy thread has no workspace binding and cannot be selected here',
       group: {
         today: 'Today',
         pastWeek: 'Past week',

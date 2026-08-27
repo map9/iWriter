@@ -45,6 +45,7 @@ import {
 import { agentClient } from '@/ai/client/AgentClient'
 import { createAiSettingsState } from './settings'
 import { isThreadDraft } from '@/ai/thread/threadPresentation'
+import { isThreadWorkspaceSelectable } from '@/stores/workspaceTransition'
 
 export type {
   ProposalReviewEntry,
@@ -194,10 +195,11 @@ export const useAiStore = defineStore('ai', () => {
     }
   }
 
-  function createNewThread(): AiThread | null {
+  function createNewThread(workspacePath: string | null = appStore.currentFolder ?? null): AiThread | null {
     _purgeEmptyThreads()
     const config = activeProviderConfig.value
     if (!config) {
+      activeThreadId.value = null
       notify.error('请先配置可用的 AI Provider（API Key、模型等）')
       return null
     }
@@ -206,7 +208,7 @@ export const useAiStore = defineStore('ai', () => {
       resolveAiProviderModelId(config),
       settings.value.defaultMode,
       normalizeThinkingLevel(config.lastSelectedThinkingLevel),
-      appStore.currentFolder ?? null,
+      workspacePath,
     )
     threads.value.unshift(thread)
     activeThreadId.value = thread.id
@@ -215,12 +217,13 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   async function selectThread(id: string): Promise<boolean> {
+    const thread = threads.value.find(t => t.id === id)
+    if (!thread || !isThreadSelectable(thread)) return false
+
     // Clean up any local-only empty threads before switching
     if (activeThreadId.value !== id) {
       _purgeEmptyThreads()
     }
-    const thread = threads.value.find(t => t.id === id)
-    if (!thread) return false
 
     const previousActiveThreadId = activeThreadId.value
 
@@ -258,6 +261,10 @@ export const useAiStore = defineStore('ai', () => {
 
   function setDraftInput(value: string) {
     draftInput.value = value
+  }
+
+  function isThreadSelectable(thread: AiThread): boolean {
+    return isThreadWorkspaceSelectable(thread.workspacePath, appStore.currentFolder)
   }
 
   function deleteThread(id: string) {
@@ -806,17 +813,25 @@ export const useAiStore = defineStore('ai', () => {
         ]
         threads.value = merged
         // Keep active thread if still valid, otherwise default to first backend thread
-        if (!activeThreadId.value || !merged.some(t => t.id === activeThreadId.value)) {
-          const firstId = mainThreads[0]!.id
+        const currentActive = merged.find(t => t.id === activeThreadId.value)
+        if (!currentActive || !isThreadSelectable(currentActive)) {
+          const firstSelectable = mainThreads.find(isThreadSelectable)
+          if (!firstSelectable) {
+            createNewThread(appStore.currentFolder ?? null)
+            return
+          }
+          const firstId = firstSelectable.id
           activeThreadId.value = firstId
           try {
             const messages = await agentClient.getThreadMessages(firstId)
             if (messages?.length) {
-              updateThread({ ...mainThreads[0]!, messages: _normalizeMessagesForDisplay(messages), messagesLoaded: true })
+              updateThread({ ...firstSelectable, messages: _normalizeMessagesForDisplay(messages), messagesLoaded: true })
             }
           } catch { /* ignore */ }
         }
+        return
       }
+      if (!activeThread.value) createNewThread(appStore.currentFolder ?? null)
     }).catch(() => {/* ignore — main process may not be ready yet */})
 
     agentClient.onStreamChunk(runtimeEvents.onStreamChunk)
@@ -858,6 +873,7 @@ export const useAiStore = defineStore('ai', () => {
     activeThreadId,
     activeThread,
     isActiveThreadDraft,
+    isThreadSelectable,
     createNewThread,
     selectThread,
     deleteThread,

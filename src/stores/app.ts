@@ -62,6 +62,18 @@ import {
   type WorkspaceFilterScope,
   WORKSPACE_IGNORE_FILENAME,
 } from '@/services/workspace/filtering'
+import {
+  executeWorkspaceTransition,
+  normalizeWorkspacePath,
+  type WorkspaceTransitionActivity,
+} from './workspaceTransition'
+
+export interface WorkspaceTransitionHooks {
+  getActivity(): WorkspaceTransitionActivity
+  confirm(activity: Exclude<WorkspaceTransitionActivity, 'idle'>, targetPath: string | null): Promise<boolean>
+  terminateCurrent(activity: WorkspaceTransitionActivity): Promise<boolean>
+  afterCommit(targetPath: string | null): void
+}
 
 export const useAppStore = defineStore('app', () => {
   type PreferencesTab = 'workspace' | 'sourceControl' | 'editor' | 'spelling' | 'themes' | 'print' | 'export' | 'ai' | 'updates'
@@ -167,6 +179,13 @@ export const useAppStore = defineStore('app', () => {
   let fileWatchListenersRegistered = false
   let workspaceRestoreCheckTimer: ReturnType<typeof setInterval> | null = null
   let workspaceLoadGeneration = 0
+  let workspaceTransitionInFlight = false
+  let workspaceTransitionHooks: WorkspaceTransitionHooks = {
+    getActivity: () => 'idle',
+    confirm: async () => true,
+    terminateCurrent: async () => true,
+    afterCommit: () => {},
+  }
 
   // 控制是否应该保存状态（在退出清理时设为 false）
   const shouldPersistState = ref(true)
@@ -1333,6 +1352,50 @@ export const useAppStore = defineStore('app', () => {
   */
 
   // File or Folder operations
+  function setWorkspaceTransitionHooks(hooks: WorkspaceTransitionHooks | null): void {
+    workspaceTransitionHooks = hooks ?? {
+      getActivity: () => 'idle',
+      confirm: async () => true,
+      terminateCurrent: async () => true,
+      afterCommit: () => {},
+    }
+  }
+
+  async function prepareWorkspaceTarget(targetPath: string | null): Promise<boolean> {
+    if (targetPath === null) return true
+    if (!window.electronAPI) return false
+    try {
+      if (!await window.electronAPI.pathExists(targetPath)) {
+        notify.error(t('notify.file.notDirectory'), t('notify.file.operation'))
+        return false
+      }
+      const roots = await window.electronAPI.getFiles(targetPath, true)
+      if (!roots?.[0]?.isDirectory) {
+        notify.error(t('notify.file.notDirectory'), t('notify.file.operation'))
+        return false
+      }
+      return true
+    } catch (error) {
+      notify.error(
+        error instanceof Error ? error.message : String(error),
+        t('notify.file.treeLoadError'),
+      )
+      return false
+    }
+  }
+
+  function commitWorkspace(targetPath: string | null): void {
+    if (currentFolder.value) void stopAdvancedFileWatching()
+    currentFolder.value = targetPath
+    workspaceStatus.value = 'available'
+    workspaceLoadGeneration += 1
+    workspaceLoadState.value = 'idle'
+    stopWorkspaceRestorePolling()
+    fileTree.value = null
+    selectedItem.value = null
+    leftSidebarMode.value = targetPath ? SidebarMode.EXPLORER : SidebarMode.START
+  }
+
   async function openFolder() {
     if (!window.electronAPI) return
 
@@ -1343,60 +1406,69 @@ export const useAppStore = defineStore('app', () => {
   }
 
   /** 打开指定路径的文件夹为工作空间（供 openFolder / git clone 复用） */
-  async function openFolderByPath(folderPath: string) {
-    if (!window.electronAPI) return
+  async function openFolderByPath(folderPath: string): Promise<boolean> {
+    if (!window.electronAPI || workspaceTransitionInFlight) return false
 
-    if (folderPath === currentFolder.value) {
+    if (
+      currentFolder.value
+      && normalizeWorkspacePath(folderPath) === normalizeWorkspacePath(currentFolder.value)
+    ) {
       if (isWorkspaceDeleted.value) {
         await checkWorkspaceDirectoryRestored(false)
-        return
+        return true
       }
       notify.success(t('notify.file.alreadyOpened', { path: folderPath }), t('notify.file.operation'))
-      return
+      return true
     }
 
-    let resultClosed: boolean = false
-    if (currentFolder.value) {
-      resultClosed = await closeFolder()
-    } else {
-      resultClosed = await closeAllTab();
+    workspaceTransitionInFlight = true
+    try {
+      const result = await executeWorkspaceTransition(folderPath, {
+        prepareTarget: prepareWorkspaceTarget,
+        getActivity: workspaceTransitionHooks.getActivity,
+        confirm: workspaceTransitionHooks.confirm,
+        terminateCurrent: async activity => {
+          if (!await closeAllTab()) return false
+          return workspaceTransitionHooks.terminateCurrent(activity)
+        },
+        commit: commitWorkspace,
+        afterCommit: workspaceTransitionHooks.afterCommit,
+      })
+      if (result.status !== 'completed') return false
+
+      await loadFileTree('opening')
+      void startAdvancedFileWatching()
+
+      // 成功通知
+      const folderName = pathUtils.basename(folderPath)
+      notify.success(t('notify.file.opened', { name: folderName }), t('notify.file.operation'))
+      return true
+    } finally {
+      workspaceTransitionInFlight = false
     }
-    if (resultClosed === false)
-      return
-
-    currentFolder.value = folderPath
-    workspaceStatus.value = 'available'
-    stopWorkspaceRestorePolling()
-    leftSidebarMode.value = SidebarMode.EXPLORER
-    await loadFileTree('opening')
-    startAdvancedFileWatching() // Start advanced file watching
-
-    // 成功通知
-    const folderName = pathUtils.basename(folderPath)
-    notify.success(t('notify.file.opened', { name: folderName }), t('notify.file.operation'))
   }
   
   async function closeFolder(): Promise<boolean> {
-    if (currentFolder.value !== null) {
-      // Close all tabs since no folder is open
-      const result = await closeAllTab();
-      
-      if (result) {
-        stopAdvancedFileWatching() // Stop file watching when folder is closed
-        currentFolder.value = null
-        workspaceStatus.value = 'available'
-        workspaceLoadGeneration += 1
-        workspaceLoadState.value = 'idle'
-        stopWorkspaceRestorePolling()
-        fileTree.value = null
-        selectedItem.value = null
-        leftSidebarMode.value = SidebarMode.START
-      }
+    if (currentFolder.value === null) return true
+    if (workspaceTransitionInFlight) return false
 
-      return result
+    workspaceTransitionInFlight = true
+    try {
+      const result = await executeWorkspaceTransition(null, {
+        prepareTarget: prepareWorkspaceTarget,
+        getActivity: workspaceTransitionHooks.getActivity,
+        confirm: workspaceTransitionHooks.confirm,
+        terminateCurrent: async activity => {
+          if (!await closeAllTab()) return false
+          return workspaceTransitionHooks.terminateCurrent(activity)
+        },
+        commit: commitWorkspace,
+        afterCommit: workspaceTransitionHooks.afterCommit,
+      })
+      return result.status === 'completed'
+    } finally {
+      workspaceTransitionInFlight = false
     }
-
-    return true
   }
 
   async function rebuildWorkspaceDirectory(): Promise<boolean> {
@@ -3504,6 +3576,7 @@ export const useAppStore = defineStore('app', () => {
     openFolder,
     openFolderByPath,
     closeFolder,
+    setWorkspaceTransitionHooks,
     rebuildWorkspaceDirectory,
     checkWorkspaceDirectoryRestored,
     loadFileTree,

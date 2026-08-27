@@ -133,6 +133,7 @@ import { useGitStore } from '@/stores/git'
 import { DocumentType } from '@/types'
 import type { FileTab } from '@/types'
 import type { EditorStateRequestEvent, SnapshotRequestEvent } from '@shared/ai/contracts'
+import type { WorkspaceTransitionActivity } from '@/stores/workspaceTransition'
 import { notify } from '@/utils/notifications'
 import updaterService from '@/updater/UpdaterService'
 import { buildSerializedSnapshot } from '@/ai/document/SnapshotSerializer'
@@ -324,6 +325,35 @@ watch(
 )
 
 onMounted(() => {
+  appStore.setWorkspaceTransitionHooks({
+    getActivity: (): WorkspaceTransitionActivity => {
+      if (aiStore.isInterrupted) return 'hitl'
+      if (aiStore.isStreaming) return 'running'
+      return 'idle'
+    },
+    confirm: async activity => {
+      const message = activity === 'hitl'
+        ? t('agentPanel.panel.workspaceSwitchHitl')
+        : t('agentPanel.panel.workspaceSwitchRunning')
+      const result = await window.electronAPI.showMessageBox({
+        type: 'question',
+        title: t('agentPanel.panel.workspaceSwitchTitle'),
+        message,
+        detail: t('agentPanel.panel.workspaceSwitchDetail'),
+        buttons: [
+          t('agentPanel.panel.workspaceSwitchContinue'),
+          t('agentPanel.common.cancel'),
+        ],
+        defaultId: 1,
+        cancelId: 1,
+      })
+      return result.response === 0
+    },
+    terminateCurrent: async activity => activity === 'idle' || aiStore.cancelStreaming(),
+    afterCommit: targetPath => {
+      aiStore.createNewThread(targetPath)
+    },
+  })
   aiStore.init()
 
   // MarkdownEditorPage 做了懒加载以缩短首屏时间（TipTap/highlight/katex ~2.5MB）。
@@ -396,6 +426,7 @@ onUnmounted(() => {
   clearCleanModeChromeTimer()
   document.removeEventListener('keydown', handleWindowEscape, true)
   document.removeEventListener('mousemove', handleWindowMouseMove, true)
+  appStore.setWorkspaceTransitionHooks(null)
   aiStore.teardown()
 })
 

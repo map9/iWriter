@@ -33,7 +33,12 @@
           v-for="thread in group.threads"
           :key="thread.id"
           @click="handleSelect(thread.id)"
-          class="group relative flex items-start gap-2 px-2 py-2 rounded-field hover:bg-base-200 mb-0.5"
+          :aria-disabled="!aiStore.isThreadSelectable(thread)"
+          :title="threadItemTitle(thread)"
+          class="group relative flex items-start gap-2 px-2 py-2 rounded-field mb-0.5"
+          :class="aiStore.isThreadSelectable(thread)
+            ? 'cursor-pointer hover:bg-base-200'
+            : 'cursor-not-allowed opacity-45'"
         >
           <!-- Dot Indicator -->
           <div class="shrink-0 mt-1.5">
@@ -81,7 +86,7 @@
               <span class="text-2xs text-base-content">{{ threadSubtitle(thread) }}</span>
               <!-- Action Buttons (hover) -->
               <div
-                v-if="renamingId !== thread.id"
+                v-if="renamingId !== thread.id && aiStore.isThreadSelectable(thread)"
                 class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                 @click.stop
               >
@@ -184,7 +189,17 @@ function formatBytes(bytes: number): string {
 function threadSubtitle(thread: AiThread): string {
   const msgCount = thread.messages?.length ?? 0
   const size = formatBytes(JSON.stringify(thread).length)
-  return t('agentPanel.history.subtitle', { count: msgCount, size })
+  const workspace = thread.workspacePath
+    ? thread.workspacePath.replace(/\\/g, '/').replace(/\/$/, '').split('/').pop()
+    : t('agentPanel.history.unboundWorkspace')
+  return `${workspace} · ${t('agentPanel.history.subtitle', { count: msgCount, size })}`
+}
+
+function threadItemTitle(thread: AiThread): string {
+  if (aiStore.isThreadSelectable(thread)) return thread.title
+  return thread.workspacePath
+    ? t('agentPanel.history.differentWorkspace', { workspace: thread.workspacePath })
+    : t('agentPanel.history.unboundWorkspaceDisabled')
 }
 
 // ── Rename ────────────────────────────────────────────────────────────────────
@@ -216,6 +231,8 @@ function cancelRename() {
 // ── Select ────────────────────────────────────────────────────────────────────
 function handleSelect(id: string) {
   if (renamingId.value || aiStore.isSwitchingThread) return
+  const thread = aiStore.threads.find(item => item.id === id)
+  if (!thread || !aiStore.isThreadSelectable(thread)) return
   emit('select', id)
 }
 

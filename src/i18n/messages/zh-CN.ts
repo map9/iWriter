@@ -428,6 +428,11 @@ export default {
       waitingApproval: '当前会话正在等待你确认修改',
       threadRunning: '当前会话正在运行',
       terminateConfirm: '{status}，{action}将终止当前会话执行。是否继续？',
+      workspaceSwitchTitle: '切换工作区',
+      workspaceSwitchRunning: '当前任务仍在运行。切换工作区会中断任务并创建新对话，是否继续？',
+      workspaceSwitchHitl: '当前任务正在等待你的确认。切换工作区会中断该任务并创建新对话，是否继续？',
+      workspaceSwitchDetail: '原对话会保留在历史记录中，并只能在其所属工作区重新选择。',
+      workspaceSwitchContinue: '中断并切换',
       actions: {
         createNewThread: '创建新对话',
         switchThread: '切换对话',
@@ -451,6 +456,9 @@ export default {
       clearAll: '清空全部',
       now: '刚刚',
       subtitle: '{count} 条消息 · {size}',
+      unboundWorkspace: '未绑定工作区',
+      differentWorkspace: '此对话属于其他工作区：{workspace}',
+      unboundWorkspaceDisabled: '旧对话未绑定工作区，不能在当前工作区选择',
       group: {
         today: '今天',
         pastWeek: '过去一周',

@@ -39,6 +39,13 @@ describe('workspace lifecycle', () => {
     assert.match(open, /await loadFileTree\('opening'\)/)
   })
 
+  it('switches folders without publishing an intermediate null workspace', () => {
+    const open = sourceBetween(appStoreSource, 'async function openFolderByPath', 'async function closeFolder')
+
+    assert.doesNotMatch(open, /await closeFolder\(\)/)
+    assert.match(open, /executeWorkspaceTransition/)
+  })
+
   it('clears SCM when workspace availability changes and ignores stale Git detection', () => {
     assert.match(mainViewSource, /\[\(\) => appStore\.currentFolder, \(\) => appStore\.isWorkspaceAvailable\]/)
     assert.match(mainViewSource, /available \? folder : null/)
