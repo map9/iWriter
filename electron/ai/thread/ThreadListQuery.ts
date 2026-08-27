@@ -23,6 +23,7 @@ import type {
   TurnRuntimeSnapshot,
 } from '../../../shared/ai/contracts'
 import { normalizeAgentMode, normalizeThinkingLevel } from '../../../shared/ai/contracts'
+import { normalizeWorkspaceBinding } from '../../../shared/workspace/path'
 
 const MAX_THREADS = 100
 
@@ -114,6 +115,14 @@ function parseJsonObject<T>(value: string | null | undefined): T | undefined {
   }
 }
 
+function normalizeRuntimeWorkspace(
+  runtime: TurnRuntimeSnapshot | undefined,
+): TurnRuntimeSnapshot | undefined {
+  return runtime
+    ? { ...runtime, workspacePath: normalizeWorkspaceBinding(runtime.workspacePath) }
+    : undefined
+}
+
 function rowToMeta(row: RawThreadMetaRow): ThreadMeta {
   return {
     id: row.thread_id,
@@ -126,8 +135,10 @@ function rowToMeta(row: RawThreadMetaRow): ThreadMeta {
     updatedAt: row.updated_at,
     hasError: !!row.has_error,
     thinkingLevel: row.thinking_level ? normalizeThinkingLevel(row.thinking_level) : undefined,
-    workspacePath: row.workspace_path ?? null,
-    activeRuntime: parseJsonObject<TurnRuntimeSnapshot>(row.active_runtime_json),
+    workspacePath: normalizeWorkspaceBinding(row.workspace_path),
+    activeRuntime: normalizeRuntimeWorkspace(
+      parseJsonObject<TurnRuntimeSnapshot>(row.active_runtime_json),
+    ),
     pendingRuntime: parseJsonObject<ThreadRuntimeSelection>(row.pending_runtime_json),
   }
 }
@@ -198,8 +209,8 @@ export class ThreadListQuery {
       createdAt: now,
       updatedAt: now,
       thinkingLevel: params.thinkingLevel,
-      workspacePath: params.workspacePath ?? null,
-      activeRuntime: params.activeRuntime,
+      workspacePath: normalizeWorkspaceBinding(params.workspacePath),
+      activeRuntime: normalizeRuntimeWorkspace(params.activeRuntime),
       pendingRuntime: params.pendingRuntime,
     }
     this._saveMeta(meta)
@@ -215,7 +226,16 @@ export class ThreadListQuery {
   ): void {
     const meta = this.getMeta(id)
     if (!meta) return
-    Object.assign(meta, updates, { updatedAt: updates.updatedAt ?? Date.now() })
+    const normalizedUpdates = {
+      ...updates,
+      ...('workspacePath' in updates
+        ? { workspacePath: normalizeWorkspaceBinding(updates.workspacePath) }
+        : {}),
+      ...('activeRuntime' in updates
+        ? { activeRuntime: normalizeRuntimeWorkspace(updates.activeRuntime) }
+        : {}),
+    }
+    Object.assign(meta, normalizedUpdates, { updatedAt: updates.updatedAt ?? Date.now() })
     this._saveMeta(meta)
   }
 
@@ -298,8 +318,7 @@ export function metaToAiThread(meta: ThreadMeta): AiThread {
     domain: meta.domain,
     mode: meta.mode,
     thinkingLevel: meta.thinkingLevel,
-    workspacePath: meta.workspacePath ?? null,
-    activeRuntime: meta.activeRuntime,
+    workspacePath: normalizeWorkspaceBinding(meta.workspacePath),
     pendingRuntime: meta.pendingRuntime,
     hasError: meta.hasError,
   }

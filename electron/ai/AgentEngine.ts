@@ -20,7 +20,19 @@ import type { DeepAgentRunStream } from 'deepagents'
 import { Command } from '@langchain/langgraph'
 import { HumanMessage, SystemMessage, isAIMessage, isToolMessage, isHumanMessage } from '@langchain/core/messages'
 
-import type { AiProviderConfig, AiAgentDomain, AiAgentMode, AiThinkingLevel, ThreadMessage, RuntimeSwitchRequest, RuntimeSwitchResponse, ThreadRuntimeSelection } from '../../shared/ai/contracts'
+import type {
+  AiAgentDomain,
+  AiAgentMode,
+  AiProviderConfig,
+  AiThinkingLevel,
+  ResumeDecision,
+  RuntimeSwitchRequest,
+  RuntimeSwitchResponse,
+  SendMessageRequest,
+  SessionContextStatsRequest,
+  SessionContextStatsResponse,
+  ThreadMessage,
+} from '../../shared/ai/contracts'
 import { isAiProviderUsable, resolveApiKeyReference } from '../../shared/ai/contracts'
 import { estimateTextTokens } from '../../shared/ai/core/tokenEstimation'
 import { createChatModel } from './providers/ModelFactory'
@@ -29,12 +41,6 @@ import { EditorStateBroker } from './document/EditorStateBroker'
 import type { CheckpointerInstance } from './checkpoint/CheckpointerFactory'
 import { getCheckpointer } from './checkpoint/CheckpointerFactory'
 import { ThreadListQuery } from './thread/ThreadListQuery'
-import type {
-  SendMessageRequest,
-  ResumeDecision,
-  SessionContextStatsRequest,
-  SessionContextStatsResponse,
-} from '@shared/ai/contracts'
 import { StreamEventAdapter } from './ipc/StreamEventAdapter'
 import { RendererEventBridge } from './ipc/RendererEventBridge'
 import { buildUserMessage } from './ipc/UserMessageBuilder'
@@ -179,6 +185,7 @@ export class AgentEngine {
         this._clearFallbackNotificationKeys(threadId, turnId)
       },
       clearAllFallbackNotifications: () => this.fallbackNotifiedTurnKeys.clear(),
+      rememberProviderConfig: config => AiConfigStore.rememberProviderConfig(config),
     })
     this.aiRootPath = path.join(app.getPath('home'), '.iwriter', 'ai')
     this.bundledSkillsPath = app.isPackaged
@@ -305,13 +312,7 @@ export class AgentEngine {
       isAiProviderUsable(config, { resolveApiKey: resolveAiApiKeyEnvVar })
     )
     if (!hasUsableProvider) {
-      return {
-        visible: false,
-        currentTokens: 0,
-        triggerTokens: 0,
-        requestBudgetTokens: 0,
-        keepTokens: 0,
-      }
+      return {}
     }
 
     const meta = req.threadId ? this.threadService.getMeta(req.threadId) : null
@@ -332,24 +333,20 @@ export class AgentEngine {
         currentTokens,
         triggerTokens: budget.triggerTokens,
         requestBudgetTokens: budget.requestBudgetTokens,
-        keepTokens: budget.keepTokens,
         maxInputTokens: budget.maxInputTokens,
       }
     }
     const nextStats = buildStats(nextRuntime)
     const activeStats = meta?.activeRuntime
-      ? buildStats(resolveResumeThreadRuntime(settings, meta))
+      ? buildStats(resolveResumeThreadRuntime(
+        settings,
+        meta,
+        revision => AiConfigStore.loadProviderConfigRevision(revision),
+      ))
       : undefined
     return {
-      visible: true,
-      currentTokens: nextStats.currentTokens,
-      triggerTokens: nextStats.triggerTokens,
-      requestBudgetTokens: nextStats.requestBudgetTokens,
-      keepTokens: nextStats.keepTokens,
-      maxInputTokens: nextStats.maxInputTokens,
       nextRuntime: nextStats,
       ...(activeStats ? { activeRuntime: activeStats } : {}),
-      ...(meta?.pendingRuntime ? { pendingRuntime: meta.pendingRuntime } : {}),
     }
   }
 
@@ -359,7 +356,7 @@ export class AgentEngine {
     if (!meta) throw new Error(`Thread not found: ${req.threadId}`)
     return this._createRuntimeSwitchService(meta).request({
       threadId: req.threadId,
-      candidate: this._normalizeRuntimeSwitchCandidate(req.candidate),
+      candidate: req.candidate,
     })
   }
 
@@ -402,14 +399,6 @@ export class AgentEngine {
     return this._createRuntimeSwitchService(meta).finalize(threadId, meta.pendingRuntime)
   }
 
-  private _normalizeRuntimeSwitchCandidate(candidate: ThreadRuntimeSelection): ThreadRuntimeSelection {
-    return {
-      providerConfigId: candidate.providerConfigId,
-      modelId: candidate.modelId,
-      thinkingLevel: candidate.thinkingLevel,
-    }
-  }
-
   // ── Public: cancel ────────────────────────────────────────────────────────
 
   async cancel(threadId: string): Promise<RuntimeSwitchResponse | undefined> {
@@ -429,7 +418,11 @@ export class AgentEngine {
 
     const settings = AiConfigStore.loadSettings()
     const meta = this.threadService.getMeta(threadId)
-    const runtime = resolveResumeThreadRuntime(settings, meta)
+    const runtime = resolveResumeThreadRuntime(
+      settings,
+      meta,
+      revision => AiConfigStore.loadProviderConfigRevision(revision),
+    )
     if (!runtime) {
       console.error('[AgentEngine] resumeRun: could not resolve thread runtime')
       return
@@ -1037,13 +1030,6 @@ export class AgentEngine {
       reviews,
       actionRequests: prepared.reviewActionRequests,
     })
-  }
-
-  // ── Public: cache management ──────────────────────────────────────────────
-
-  /** Clears the agent cache so the next turn rebuilds agents (e.g. after new skills are written). */
-  invalidateAgentCache(): void {
-    this.agentCache.clear()
   }
 
   // ── Private: agent cache ──────────────────────────────────────────────────

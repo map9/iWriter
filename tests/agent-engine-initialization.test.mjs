@@ -190,7 +190,7 @@ function stubPlugin() {
         [
           /config\/AiConfigStore$/,
           'ai-config-store',
-          'export const AiConfigStore = { loadSettings() { return { providerConfigs: [{}] } } }; export function resolveAiApiKeyEnvVar() { return null }',
+          'export const AiConfigStore = { loadSettings() { return { providerConfigs: [{}] } }, rememberProviderConfig() { return "revision-test" }, loadProviderConfigRevision() { return {} } }; export function resolveAiApiKeyEnvVar() { return null }',
         ],
         [
           /shared\/ai\/core\/threadTitle$/,
@@ -545,18 +545,11 @@ describe('AgentEngine initialization', () => {
     })
 
     assert.deepEqual(stats, {
-      visible: true,
-      currentTokens: 0,
-      triggerTokens: 108800,
-      requestBudgetTokens: 128000,
-      keepTokens: 12800,
-      maxInputTokens: undefined,
       nextRuntime: {
         modelId: 'test',
         currentTokens: 0,
         triggerTokens: 108800,
         requestBudgetTokens: 128000,
-        keepTokens: 12800,
         maxInputTokens: undefined,
       },
     })
@@ -627,7 +620,7 @@ describe('AgentEngine initialization', () => {
       assert.equal(stats.activeRuntime.triggerTokens, 85)
       assert.equal(stats.nextRuntime.modelId, 'next-model')
       assert.equal(stats.nextRuntime.triggerTokens, 850)
-      assert.deepEqual(stats.pendingRuntime, pendingRuntime)
+      assert.equal('pendingRuntime' in stats, false)
     } finally {
       delete globalThis.__iwriterResolveRuntime
     }

@@ -43,7 +43,8 @@ describe('workspace lifecycle', () => {
     const open = sourceBetween(appStoreSource, 'async function openFolderByPath', 'async function closeFolder')
 
     assert.doesNotMatch(open, /await closeFolder\(\)/)
-    assert.match(open, /executeWorkspaceTransition/)
+    assert.match(open, /transitionWorkspace/)
+    assert.match(appStoreSource, /return executeWorkspaceTransition\(targetPath/)
   })
 
   it('clears SCM when workspace availability changes and ignores stale Git detection', () => {

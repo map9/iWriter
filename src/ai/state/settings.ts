@@ -24,7 +24,6 @@ import {
   type ProviderPreset,
 } from '@/ai/model/providers/provider-presets'
 import { agentClient } from '@/ai/client/AgentClient'
-import { RuntimeSelectionController } from './runtimeSelection'
 import { notify } from '@/utils/notifications'
 import { i18n } from '@/i18n'
 import type { RuntimeSwitchResponse, ThreadRuntimeSelection } from '@shared/ai/contracts'
@@ -128,31 +127,6 @@ export function createAiSettingsState(deps: {
   const isRuntimeSwitching = ref(false)
   let runtimeSwitchRequestVersion = 0
 
-  interface RuntimeSelectionIntent {
-    threadId: string
-    candidate: ThreadRuntimeSelection
-  }
-
-  const runtimeSelectionController = new RuntimeSelectionController<RuntimeSelectionIntent>({
-    request: async intent => {
-      const result = await agentClient.switchThreadRuntime({
-        threadId: intent.threadId,
-        candidate: intent.candidate,
-      })
-      if (!result) throw new Error('Runtime switch IPC is unavailable.')
-      return result
-    },
-    apply: (intent, status) => {
-      const thread = deps.getThreadById(intent.threadId)
-      if (!thread) return
-      if (status === 'pending') {
-        deps.updateThread({ ...thread, pendingRuntime: intent.candidate })
-        return
-      }
-      commitRuntimeSelection(thread, intent.candidate)
-    },
-  })
-
   const activeProviderConfig = computed<AiProviderConfig | null>(() =>
     getActiveAiProviderConfig(
       settings.value.providerConfigs,
@@ -235,13 +209,22 @@ export function createAiSettingsState(deps: {
     const requestVersion = ++runtimeSwitchRequestVersion
     isRuntimeSwitching.value = true
     try {
-      const result = await runtimeSelectionController.select({ threadId: thread.id, candidate })
-      if (requestVersion !== runtimeSwitchRequestVersion || result.stale) return false
-      if (!result.accepted) {
-        const response = result.decision as RuntimeSwitchResponse | undefined
-        if (response) notifyRuntimeSwitchRejected(response)
+      const response = await agentClient.switchThreadRuntime({ threadId: thread.id, candidate })
+      if (!response) throw new Error('Runtime switch IPC is unavailable.')
+      if (requestVersion !== runtimeSwitchRequestVersion) return false
+      if (response.status === 'rejected') {
+        notifyRuntimeSwitchRejected(response)
+        return false
       }
-      return result.accepted
+
+      const currentThread = deps.getThreadById(thread.id)
+      if (!currentThread) return false
+      if (response.status === 'pending') {
+        deps.updateThread({ ...currentThread, pendingRuntime: response.candidate })
+      } else {
+        commitRuntimeSelection(currentThread, response.candidate)
+      }
+      return true
     } catch (error) {
       if (requestVersion === runtimeSwitchRequestVersion) {
         notify.error(error instanceof Error ? error.message : String(error))
@@ -259,12 +242,12 @@ export function createAiSettingsState(deps: {
     if (!response) return
     const thread = deps.getThreadById(threadId)
     if (!thread) return
-    if (response.status === 'committed' && response.compatible) {
+    if (response.status === 'committed') {
       commitRuntimeSelection(thread, response.candidate)
       return
     }
     deps.updateThread({ ...thread, pendingRuntime: undefined })
-    notifyRuntimeSwitchRejected(response)
+    if (response.status === 'rejected') notifyRuntimeSwitchRejected(response)
   }
 
   function reloadSettings(): void {

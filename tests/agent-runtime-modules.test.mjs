@@ -11,6 +11,7 @@ async function loadRuntimeModules() {
         stdin: {
           contents: `
             export * from './electron/ai/runtime/RuntimeConfig.ts'
+            export * from './electron/ai/config/ProviderConfigRevision.ts'
             export * from './electron/ai/runtime/AgentCache.ts'
             export * from './electron/ai/runtime/AgentRunner.ts'
             export * from './electron/ai/application/InterruptCoordinator.ts'
@@ -55,6 +56,23 @@ function runtimeInput(overrides = {}) {
 }
 
 describe('agent runtime modules', () => {
+  it('creates the same provider revision regardless of object key order', async () => {
+    const { createProviderConfigRevision } = await loadRuntimeModules()
+    const first = runtimeInput().providerConfig
+    const reordered = {
+      modelPolicies: first.modelPolicies,
+      maxRequestTokens: first.maxRequestTokens,
+      fallbackModelId: first.fallbackModelId,
+      baseUrl: first.baseUrl,
+      id: first.id,
+    }
+
+    assert.equal(
+      createProviderConfigRevision(first),
+      createProviderConfigRevision(reordered),
+    )
+  })
+
   it('builds a stable runtime identity and changes it for effective runtime inputs', async () => {
     const { createAgentRuntimeConfig } = await loadRuntimeModules()
 
@@ -62,10 +80,19 @@ describe('agent runtime modules', () => {
     const same = createAgentRuntimeConfig(runtimeInput())
     const changedWorkspace = createAgentRuntimeConfig(runtimeInput({ workspacePath: '/other' }))
     const changedCredential = createAgentRuntimeConfig(runtimeInput({ resolvedApiKey: 'secret-87654321' }))
+    const changedProfiles = createAgentRuntimeConfig(runtimeInput({
+      providerConfig: {
+        ...runtimeInput().providerConfig,
+        modelProfiles: {
+          'model-1': { maxInputTokens: 320_000 },
+        },
+      },
+    }))
 
     assert.equal(first.cacheKey, same.cacheKey)
     assert.notEqual(first.cacheKey, changedWorkspace.cacheKey)
     assert.notEqual(first.cacheKey, changedCredential.cacheKey)
+    assert.notEqual(first.cacheKey, changedProfiles.cacheKey)
     assert.deepEqual(first.skillSources, ['/builtin-skills', '/workspace/.iwriter/skills'])
   })
 

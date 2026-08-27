@@ -6,11 +6,13 @@
  */
 
 import Store from 'electron-store'
-import type { AiSettings } from '../../../shared/ai/contracts'
+import type { AiProviderConfig, AiSettings } from '../../../shared/ai/contracts'
 import { DEFAULT_AI_SETTINGS, normalizeWebSearchProviderConfigs } from '../../../shared/ai/contracts'
+import { createProviderConfigRevision } from './ProviderConfigRevision'
 
 interface ConfigStoreSchema {
   settings: AiSettings
+  providerConfigRevisions: Record<string, AiProviderConfig>
 }
 
 let _store: Store<ConfigStoreSchema> | null = null
@@ -21,6 +23,7 @@ function getStore(): Store<ConfigStoreSchema> {
       name: 'ai-config',
       defaults: {
         settings: DEFAULT_AI_SETTINGS,
+        providerConfigRevisions: {},
       },
     })
   }
@@ -54,6 +57,27 @@ export const AiConfigStore = {
   updateSettings(partial: Partial<AiSettings>): void {
     const current = this.loadSettings()
     this.saveSettings({ ...current, ...partial })
+  },
+
+  rememberProviderConfig(config: AiProviderConfig): string {
+    const revision = createProviderConfigRevision(config)
+    try {
+      getStore().set(`providerConfigRevisions.${revision}`, structuredClone(config))
+      return revision
+    } catch (err) {
+      console.error('[AiConfigStore] Failed to retain provider config revision:', err)
+      throw err
+    }
+  },
+
+  loadProviderConfigRevision(revision: string): AiProviderConfig | null {
+    try {
+      const config = getStore().get(`providerConfigRevisions.${revision}`)
+      return config ? structuredClone(config) : null
+    } catch (err) {
+      console.error('[AiConfigStore] Failed to load provider config revision:', err)
+      return null
+    }
   },
 }
 

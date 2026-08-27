@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { build } from 'esbuild'
+import { readFileSync } from 'node:fs'
 
 let modulePromise
 
@@ -38,11 +39,11 @@ function budget(triggerTokens) {
 
 describe('RuntimeSwitchService', () => {
   it('accepts only context strictly below the candidate compact trigger', async () => {
-    const { evaluateRuntimeCompatibility } = await loadModule()
+    const { canSwitchRuntime } = await loadModule()
 
-    assert.equal(evaluateRuntimeCompatibility(79_999, budget(80_000)).compatible, true)
-    assert.equal(evaluateRuntimeCompatibility(80_000, budget(80_000)).compatible, false)
-    assert.equal(evaluateRuntimeCompatibility(80_001, budget(80_000)).reason, 'context-exceeds-compact-trigger')
+    assert.equal(canSwitchRuntime(79_999, budget(80_000)), true)
+    assert.equal(canSwitchRuntime(80_000, budget(80_000)), false)
+    assert.equal(canSwitchRuntime(80_001, budget(80_000)), false)
   })
 
   it('rejects an incompatible candidate without mutating thread runtime metadata', async () => {
@@ -54,12 +55,18 @@ describe('RuntimeSwitchService', () => {
       getThreadState: () => 'idle',
       commit: (...args) => commits.push(args),
       defer: (...args) => deferrals.push(args),
+      clearPending: () => {},
     })
 
     const result = await service.request({ threadId: 'thread-1', candidate })
 
-    assert.equal(result.status, 'rejected')
-    assert.equal(result.reason, 'context-exceeds-compact-trigger')
+    assert.deepEqual(result, {
+      status: 'rejected',
+      candidate,
+      currentEffectiveContextTokens: 80_000,
+      candidateCompactTriggerTokens: 80_000,
+      reason: 'context-exceeds-compact-trigger',
+    })
     assert.deepEqual(commits, [])
     assert.deepEqual(deferrals, [])
   })
@@ -74,9 +81,15 @@ describe('RuntimeSwitchService', () => {
       getThreadState: () => state,
       commit: (...args) => commits.push(args),
       defer: (...args) => deferrals.push(args),
+      clearPending: () => {},
     })
 
-    assert.equal((await service.request({ threadId: 'thread-1', candidate })).status, 'committed')
+    assert.deepEqual(await service.request({ threadId: 'thread-1', candidate }), {
+      status: 'committed',
+      candidate,
+      currentEffectiveContextTokens: 20_000,
+      candidateCompactTriggerTokens: 80_000,
+    })
     state = 'active'
     assert.equal((await service.request({ threadId: 'thread-2', candidate })).status, 'pending')
 
@@ -104,5 +117,10 @@ describe('RuntimeSwitchService', () => {
     assert.equal(result.status, 'rejected')
     assert.deepEqual(commits, [])
     assert.deepEqual(cleared, ['thread-1'])
+  })
+
+  it('unregisters the runtime-switch IPC handler with the other AI handlers', () => {
+    const source = readFileSync('electron/App.ts', 'utf8')
+    assert.match(source, /removeHandler\('ai:switch-thread-runtime'\)/)
   })
 })

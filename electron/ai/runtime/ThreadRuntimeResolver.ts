@@ -73,10 +73,23 @@ export function resolveThreadRuntime(
 export function resolveResumeThreadRuntime(
   settings: AiSettings,
   meta: ThreadMeta | null,
+  resolveProviderConfigRevision: (revision: string) => AiProviderConfig | null,
 ): ResolvedThreadRuntime {
   const activeRuntime = meta?.activeRuntime
   if (!activeRuntime) return resolveThreadRuntime(settings, undefined, meta)
-  return resolveThreadRuntime(settings, {
+
+  const providerConfig = resolveProviderConfigRevision(activeRuntime.providerConfigRevision)
+  if (!providerConfig) {
+    throw new Error(
+      `Active turn provider configuration revision is unavailable: ${activeRuntime.providerConfigRevision}`,
+    )
+  }
+
+  return resolveThreadRuntime({
+    ...settings,
+    providerConfigs: [providerConfig],
+    activeProviderConfigId: providerConfig.id,
+  }, {
     domain: activeRuntime.domain,
     mode: activeRuntime.mode,
     threadRuntime: {

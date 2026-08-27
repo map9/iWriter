@@ -32,7 +32,7 @@
 
     <div class="flex items-center gap-1.5 min-w-0 ml-auto shrink-0">
       <span
-        v-if="showCompactIndicator"
+        v-if="primaryContextStats"
         ref="compactIndicatorRef"
         @mouseenter="handleCompactMouseEnter"
         @mouseleave="handleCompactMouseLeave"
@@ -76,12 +76,10 @@
 
     <div class="flex items-center shrink-0">
       <SendButton
-        :is-pending-send="isPendingSend"
-        :is-streaming="isStreaming"
+        :is-streaming="aiStore.isStreaming"
         :can-send="canSend"
         @send="$emit('send')"
         @stop="$emit('stop')"
-        @cancel-queued="$emit('cancel-queued')"
       />
     </div>
 
@@ -95,8 +93,6 @@ import type { TooltipContent } from '@/components/common/statusbar'
 import { tooltipManager } from '@/components/common/statusbar'
 import type {
   SessionRuntimeContextStats,
-  ThreadRuntimeSelection,
-  ThreadUsage,
 } from '@shared/ai/contracts'
 import AttachPicker from './AttachPicker.vue'
 import ProviderPicker from './ProviderPicker.vue'
@@ -104,23 +100,13 @@ import ModelPicker from './ModelPicker.vue'
 import ModePicker from './ProfilePicker.vue'
 import SendButton from './SendButton.vue'
 import { useAiStore } from '@/ai/state/aiStore'
+import { computeCompactProgress } from '../composables/useChatSend'
 
 const props = defineProps<{
-  isPendingSend: boolean
-  isStreaming: boolean
   canSend: boolean
-  showCompact: boolean
-  currentSessionTokens: number
-  compactProgressRatioRaw: number
-  compactProgressRatioVisual: number
-  compactTriggerTokens: number
-  requestBudgetTokens: number
-  maxInputTokens: number | null
   activeContextStats: SessionRuntimeContextStats | null
   nextContextStats: SessionRuntimeContextStats | null
-  pendingRuntime: ThreadRuntimeSelection | null
-  /** Real accumulated token usage for this thread (null if no run yet). */
-  sessionUsage: ThreadUsage | null
+  primaryContextStats: SessionRuntimeContextStats | null
 }>()
 const { t } = useI18n()
 const aiStore = useAiStore()
@@ -130,7 +116,6 @@ defineEmits<{
   'browse-folder': []
   send: []
   stop: []
-  'cancel-queued': []
 }>()
 
 type MenuName = 'provider' | 'model' | 'mode'
@@ -171,12 +156,21 @@ async function updateLayout() {
 
   providerCompact.value = true
 }
-const showCompactIndicator = computed(() => props.showCompact)
+const compactProgress = computed(() => computeCompactProgress(
+  props.primaryContextStats?.currentTokens ?? 0,
+  props.primaryContextStats?.triggerTokens ?? 0,
+))
+const compactProgressRatioRaw = computed(() => compactProgress.value.raw)
+const compactProgressRatioVisual = computed(() => compactProgress.value.visual)
+const pendingRuntime = computed(() => aiStore.activeThread?.pendingRuntime ?? null)
+const sessionUsage = computed(() => aiStore.activeThread?.usage ?? null)
 
 const compactTooltip = computed<TooltipContent>(() => {
+  const primaryStats = props.primaryContextStats
+  if (!primaryStats) return { type: 'markdown', content: '' }
   const parts: string[] = [
     `**${t('agentPanel.toolbar.compactThreshold')}:**<br>`,
-    t('agentPanel.toolbar.compactProgress', { percent: Math.round(props.compactProgressRatioRaw * 100) }) + '<br>',
+    t('agentPanel.toolbar.compactProgress', { percent: Math.round(compactProgressRatioRaw.value * 100) }) + '<br>',
   ]
 
   if (props.activeContextStats) {
@@ -199,31 +193,26 @@ const compactTooltip = computed<TooltipContent>(() => {
       current: formatCompactTokens(props.nextContextStats.currentTokens),
       trigger: formatCompactTokens(props.nextContextStats.triggerTokens),
     }))
-  } else {
-    parts.push(t('agentPanel.toolbar.tokensUsed', {
-      current: formatCompactTokens(props.currentSessionTokens),
-      max: formatCompactTokens(props.compactTriggerTokens),
-    }))
   }
 
-  if (props.pendingRuntime) {
+  if (pendingRuntime.value) {
     parts.push('<br>')
-    parts.push(t('agentPanel.toolbar.pendingRuntime', { model: props.pendingRuntime.modelId }))
+    parts.push(t('agentPanel.toolbar.pendingRuntime', { model: pendingRuntime.value.modelId }))
   }
 
   parts.push('<br>')
   parts.push(t('agentPanel.toolbar.requestBudget', {
-    max: formatCompactTokens(props.requestBudgetTokens),
+    max: formatCompactTokens(primaryStats.requestBudgetTokens),
   }))
 
-  if (props.maxInputTokens !== null) {
+  if (primaryStats.maxInputTokens !== undefined) {
     parts.push('<br>')
     parts.push(t('agentPanel.toolbar.modelContextLimit', {
-      max: formatCompactTokens(props.maxInputTokens),
+      max: formatCompactTokens(primaryStats.maxInputTokens),
     }))
   }
 
-  const usage = props.sessionUsage
+  const usage = sessionUsage.value
   if (usage && (usage.main.inputTokens > 0 || usage.subagents.inputTokens > 0)) {
     parts.push('<br><br>')
     parts.push(`**${t('agentPanel.toolbar.realUsage')}:**<br>`)
@@ -258,7 +247,7 @@ function closeMenu() {
 }
 
 function handleCompactMouseEnter() {
-  if (!props.showCompact || !compactIndicatorRef.value) return
+  if (!props.primaryContextStats || !compactIndicatorRef.value) return
   tooltipManager.show(compactTooltip.value, compactIndicatorRef.value)
 }
 
@@ -278,8 +267,8 @@ function formatCompactTokens(value: number): string {
 }
 
 function compactProgressClass(): string {
-  if (props.compactProgressRatioRaw < 0.6) return 'text-success'
-  if (props.compactProgressRatioRaw < 0.9) return 'text-warning'
+  if (compactProgressRatioRaw.value < 0.6) return 'text-success'
+  if (compactProgressRatioRaw.value < 0.9) return 'text-warning'
   return 'text-error'
 }
 

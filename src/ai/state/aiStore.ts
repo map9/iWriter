@@ -46,6 +46,7 @@ import { agentClient } from '@/ai/client/AgentClient'
 import { createAiSettingsState } from './settings'
 import { isThreadDraft } from '@/ai/thread/threadPresentation'
 import { isThreadWorkspaceSelectable } from '@/stores/workspaceTransition'
+import { normalizeWorkspaceBinding } from '@shared/workspace/path'
 
 export type {
   ProposalReviewEntry,
@@ -195,24 +196,39 @@ export const useAiStore = defineStore('ai', () => {
     }
   }
 
-  function createNewThread(workspacePath: string | null = appStore.currentFolder ?? null): AiThread | null {
-    _purgeEmptyThreads()
+  function buildNewThread(workspacePath: string | null): AiThread | null {
     const config = activeProviderConfig.value
     if (!config) {
-      activeThreadId.value = null
       notify.error('请先配置可用的 AI Provider（API Key、模型等）')
       return null
     }
-    const thread = createThread(
+    return createThread(
       config.id,
       resolveAiProviderModelId(config),
       settings.value.defaultMode,
       normalizeThinkingLevel(config.lastSelectedThinkingLevel),
-      workspacePath,
+      normalizeWorkspaceBinding(workspacePath),
     )
+  }
+
+  function publishNewThread(thread: AiThread): void {
+    _purgeEmptyThreads()
     threads.value.unshift(thread)
     activeThreadId.value = thread.id
     _localOnlyThreadIds.add(thread.id)
+  }
+
+  function prepareNewThread(
+    workspacePath: string | null = appStore.currentFolder ?? null,
+  ): (() => void) | null {
+    const thread = buildNewThread(workspacePath)
+    return thread ? () => publishNewThread(thread) : null
+  }
+
+  function createNewThread(workspacePath: string | null = appStore.currentFolder ?? null): AiThread | null {
+    const thread = buildNewThread(workspacePath)
+    if (!thread) return null
+    publishNewThread(thread)
     return thread
   }
 
@@ -874,6 +890,7 @@ export const useAiStore = defineStore('ai', () => {
     activeThread,
     isActiveThreadDraft,
     isThreadSelectable,
+    prepareNewThread,
     createNewThread,
     selectThread,
     deleteThread,

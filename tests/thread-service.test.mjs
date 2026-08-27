@@ -78,6 +78,7 @@ async function createHarness(options = {}) {
   }
   const fallbackClears = []
   let fallbackClearAllCount = 0
+  const rememberedProviderConfigs = []
   const service = new ThreadService({
     getCheckpointer: () => checkpointer,
     getThreadListQuery: () => threadListQuery,
@@ -88,6 +89,10 @@ async function createHarness(options = {}) {
     getCheckpointerAdmin: () => checkpointerAdmin,
     clearFallbackNotifications: (...args) => fallbackClears.push(args),
     clearAllFallbackNotifications: () => { fallbackClearAllCount += 1 },
+    rememberProviderConfig: config => {
+      rememberedProviderConfigs.push(structuredClone(config))
+      return options.providerConfigRevision ?? 'revision-stored'
+    },
   })
   return {
     service,
@@ -100,6 +105,7 @@ async function createHarness(options = {}) {
     getAdminClearCount: () => adminClearCount,
     fallbackClears,
     getFallbackClearAllCount: () => fallbackClearAllCount,
+    rememberedProviderConfigs,
   }
 }
 
@@ -318,8 +324,66 @@ describe('ThreadService', () => {
     assert.equal(meta.mode, 'edit')
   })
 
+  it('compares and persists workspace bindings using the shared canonical form', async () => {
+    const { service, threadListQuery, runtimeStore } = await createHarness()
+    threadListQuery.createMeta({
+      id: 'thread-windows-workspace',
+      domain: 'editing',
+      mode: 'edit',
+      modelId: 'model-1',
+      providerConfigId: 'provider-1',
+      workspacePath: 'C:\\Work\\Book\\',
+    })
+
+    service.prepareTurn(aiSettings(), {
+      threadId: 'thread-windows-workspace',
+      turnId: 'turn-windows-workspace',
+      userText: '继续',
+      uiLocale: 'zh-CN',
+      domain: 'editing',
+      mode: 'edit',
+      workspacePath: 'c:/work/book',
+    })
+
+    assert.equal(service.getMeta('thread-windows-workspace').workspacePath, 'c:/work/book')
+    assert.equal(
+      service.getMeta('thread-windows-workspace').activeRuntime.workspacePath,
+      'c:/work/book',
+    )
+    assert.deepEqual(runtimeStore.getContext('thread-windows-workspace'), {
+      workspacePath: 'c:/work/book',
+    })
+  })
+
+  it('normalizes legacy workspace spellings at the thread persistence boundary', async () => {
+    const { threadListQuery } = await createHarness()
+
+    const created = threadListQuery.createMeta({
+      id: 'thread-normalized-row',
+      domain: 'editing',
+      mode: 'edit',
+      modelId: 'model-1',
+      providerConfigId: 'provider-1',
+      workspacePath: 'C:\\Work\\Book\\',
+      activeRuntime: {
+        turnId: 'turn-1',
+        providerConfigId: 'provider-1',
+        providerConfigRevision: 'revision-1',
+        modelId: 'model-1',
+        thinkingLevel: 'medium',
+        domain: 'editing',
+        mode: 'edit',
+        workspacePath: 'C:\\Work\\Book\\',
+      },
+    })
+
+    assert.equal(created.workspacePath, 'c:/work/book')
+    assert.equal(created.activeRuntime.workspacePath, 'c:/work/book')
+    assert.equal(threadListQuery.getMeta(created.id).workspacePath, 'c:/work/book')
+  })
+
   it('keeps the frozen active runtime until the turn is completed', async () => {
-    const { service, threadListQuery } = await createHarness()
+    const { service, threadListQuery, rememberedProviderConfigs } = await createHarness()
     threadListQuery.createMeta({
       id: 'thread-runtime-snapshot',
       domain: 'editing',
@@ -346,8 +410,10 @@ describe('ThreadService', () => {
 
     const activeRuntime = service.getMeta('thread-runtime-snapshot').activeRuntime
     assert.equal(activeRuntime.turnId, 'turn-runtime-snapshot')
+    assert.equal(activeRuntime.providerConfigRevision, 'revision-stored')
     assert.equal(activeRuntime.modelId, 'model-1')
     assert.equal(activeRuntime.workspacePath, '/workspace')
+    assert.deepEqual(rememberedProviderConfigs, [aiSettings().providerConfigs[0]])
 
     service.completeTurn('thread-runtime-snapshot')
 
@@ -357,8 +423,16 @@ describe('ThreadService', () => {
   it('resolves HITL resume from the frozen active runtime instead of next-turn metadata', async () => {
     const { resolveResumeThreadRuntime } = await loadModules()
     const settings = aiSettings()
+    settings.providerConfigs[0].baseUrl = 'https://new.example/v1'
+    settings.providerConfigs[0].apiKey = 'new-secret'
     settings.providerConfigs[0].models = ['model-active', 'model-next']
     settings.providerConfigs[0].defaultModelId = 'model-next'
+    const archivedProvider = {
+      ...settings.providerConfigs[0],
+      baseUrl: 'https://old.example/v1',
+      apiKey: 'old-secret',
+      defaultModelId: 'model-active',
+    }
     const meta = {
       id: 'thread-resume-runtime',
       title: 'Resume runtime',
@@ -381,10 +455,46 @@ describe('ThreadService', () => {
       },
     }
 
-    const runtime = resolveResumeThreadRuntime(settings, meta)
+    const runtime = resolveResumeThreadRuntime(
+      settings,
+      meta,
+      revision => revision === 'revision-active' ? archivedProvider : null,
+    )
 
+    assert.equal(runtime.providerConfig.baseUrl, 'https://old.example/v1')
+    assert.equal(runtime.providerConfig.apiKey, 'old-secret')
     assert.equal(runtime.modelId, 'model-active')
     assert.equal(runtime.thinkingLevel, 'medium')
+  })
+
+  it('fails closed when the frozen provider revision is unavailable', async () => {
+    const { resolveResumeThreadRuntime } = await loadModules()
+    const settings = aiSettings()
+    const meta = {
+      id: 'thread-missing-provider-revision',
+      title: 'Missing revision',
+      domain: 'editing',
+      mode: 'edit',
+      providerConfigId: 'provider-1',
+      modelId: 'model-next',
+      createdAt: 1,
+      updatedAt: 1,
+      activeRuntime: {
+        turnId: 'turn-active',
+        providerConfigId: 'provider-1',
+        providerConfigRevision: 'revision-missing',
+        modelId: 'model-active',
+        thinkingLevel: 'medium',
+        domain: 'editing',
+        mode: 'edit',
+        workspacePath: '/workspace',
+      },
+    }
+
+    assert.throws(
+      () => resolveResumeThreadRuntime(settings, meta, () => null),
+      /provider configuration revision is unavailable/i,
+    )
   })
 
   it('prepares an existing thread turn without clearing its stale interrupt early', async () => {
@@ -396,6 +506,7 @@ describe('ThreadService', () => {
       modelId: 'model-1',
       providerConfigId: 'provider-1',
       thinkingLevel: 'medium',
+      workspacePath: '/workspace',
     })
     runtimeStore.setInterrupted('thread-1', {
       actionRequestCount: 1,

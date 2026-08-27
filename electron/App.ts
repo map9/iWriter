@@ -1719,6 +1719,7 @@ export class App {
 
     ipcMain.removeHandler('ai:send-message')
     ipcMain.removeHandler('ai:get-session-context-stats')
+    ipcMain.removeHandler('ai:switch-thread-runtime')
     ipcMain.removeHandler('ai:cancel')
     ipcMain.removeHandler('ai:resume')
     ipcMain.removeHandler('ai:get-config')

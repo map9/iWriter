@@ -22,25 +22,14 @@
     <div class="mx-3 border-t border-base-300" />
 
     <AgentToolbar
-      :is-pending-send="pendingSend"
-      :is-streaming="aiStore.isStreaming"
       :can-send="!!inputText.trim()"
-      :show-compact="showCompact"
-      :current-session-tokens="currentSessionTokens"
-      :compact-progress-ratio-raw="compactProgressRatioRaw"
-      :compact-progress-ratio-visual="compactProgressRatioVisual"
-      :compact-trigger-tokens="compactTriggerTokens"
-      :request-budget-tokens="requestBudgetTokens"
-      :max-input-tokens="maxInputTokens"
       :active-context-stats="activeContextStats"
       :next-context-stats="nextContextStats"
-      :pending-runtime="pendingRuntime"
-      :session-usage="sessionUsage"
+      :primary-context-stats="primaryContextStats"
       @browse-files="browseFiles"
       @browse-folder="browseFolder"
       @send="sendMessage"
       @stop="aiStore.cancelStreaming()"
-      @cancel-queued="cancelPendingSend"
     />
 
   </div>
@@ -62,21 +51,11 @@ const { contextFiles, removeContextFile, browseFiles, browseFolder } = useContex
 const {
   inputText,
   inputEl,
-  pendingSend,
-  showCompact,
-  currentSessionTokens,
-  compactTriggerTokens,
-  requestBudgetTokens,
-  compactProgressRatioRaw,
-  compactProgressRatioVisual,
-  maxInputTokens,
   activeContextStats,
   nextContextStats,
-  pendingRuntime,
-  sessionUsage,
+  primaryContextStats,
   handleKeydown,
   sendMessage,
-  cancelPendingSend,
 } = useChatSend(contextFiles)
 
 // text-sm line-height is 1.25rem = 20px; 5 lines = 100px

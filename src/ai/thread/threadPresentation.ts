@@ -8,7 +8,3 @@ export interface ThreadDraftState {
 export function isThreadDraft(state: ThreadDraftState): boolean {
   return state.localOnly && !state.active && !state.interrupted
 }
-
-export function formatThreadHeaderTitle(domainLabel: string, originalTitle: string): string {
-  return `${domainLabel} | ${originalTitle}`
-}

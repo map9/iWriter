@@ -255,12 +255,7 @@ describe('pending command submission', () => {
     globalThis.window = {
       electronAPI: {
         async aiGetSessionContextStats() {
-          return {
-            visible: true,
-            currentTokens: 10,
-            triggerTokens: 100,
-            requestBudgetTokens: 120,
-          }
+          return {}
         },
       },
     }

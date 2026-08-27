@@ -1,4 +1,5 @@
 import type {
+  AiProviderConfig,
   AiSettings,
   AiThread,
   SendMessageRequest,
@@ -11,7 +12,7 @@ import { resolveThreadRuntime, type ResolvedThreadRuntime } from '../runtime/Thr
 import type { ThreadRuntimeStore } from '../runtime/ThreadRuntimeStore'
 import { convertLcMessages } from '../ipc/MessageAdapter'
 import type { CheckpointerInstance } from '../checkpoint/CheckpointerFactory'
-import { createHash } from 'node:crypto'
+import { normalizeWorkspaceBinding } from '../../../shared/workspace/path'
 
 type CheckpointReader = Pick<CheckpointerInstance['checkpointer'], 'get'>
 
@@ -46,6 +47,7 @@ export interface ThreadServiceDependencies {
   getCheckpointerAdmin(): CheckpointerAdminPort | null
   clearFallbackNotifications(threadId: string, turnId?: string | null): void
   clearAllFallbackNotifications(): void
+  rememberProviderConfig(config: AiProviderConfig): string
 }
 
 export interface PreparedThreadTurn {
@@ -149,18 +151,18 @@ export class ThreadService {
     const existingMeta = request.threadId
       ? threadListQuery.getMeta(request.threadId)
       : null
+    const requestWorkspacePath = normalizeWorkspaceBinding(request.workspacePath)
     if (existingMeta) {
       if (request.domain !== existingMeta.domain || request.mode !== existingMeta.mode) {
         throw new Error('Thread domain is locked after the first accepted turn.')
       }
-      if (
-        existingMeta.workspacePath != null
-        && request.workspacePath !== existingMeta.workspacePath
-      ) {
+      const existingWorkspacePath = normalizeWorkspaceBinding(existingMeta.workspacePath)
+      if (requestWorkspacePath !== existingWorkspacePath) {
         throw new Error('Thread workspace is locked after the first accepted turn.')
       }
     }
     const runtime = resolveThreadRuntime(settings, request, existingMeta)
+    const providerConfigRevision = this.dependencies.rememberProviderConfig(runtime.providerConfig)
     const turnId = request.turnId ?? `turn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const metadata = {
       domain: runtime.domain,
@@ -168,18 +170,16 @@ export class ThreadService {
       modelId: runtime.modelId,
       providerConfigId: runtime.providerConfig.id,
       thinkingLevel: runtime.thinkingLevel,
-      workspacePath: existingMeta?.workspacePath ?? request.workspacePath,
+      workspacePath: normalizeWorkspaceBinding(existingMeta?.workspacePath) ?? requestWorkspacePath,
       activeRuntime: {
         turnId,
         providerConfigId: runtime.providerConfig.id,
-        providerConfigRevision: createHash('sha256')
-          .update(JSON.stringify(runtime.providerConfig))
-          .digest('hex'),
+        providerConfigRevision,
         modelId: runtime.modelId,
         thinkingLevel: runtime.thinkingLevel,
         domain: runtime.domain,
         mode: runtime.mode,
-        workspacePath: existingMeta?.workspacePath ?? request.workspacePath,
+        workspacePath: normalizeWorkspaceBinding(existingMeta?.workspacePath) ?? requestWorkspacePath,
       },
     }
     const isNewThread = !existingMeta
@@ -191,7 +191,7 @@ export class ThreadService {
     }
 
     this.dependencies.runtimeStore.setContext(threadId, {
-      workspacePath: request.workspacePath,
+      workspacePath: requestWorkspacePath,
     })
     this.dependencies.runtimeStore.setCurrentTurnId(threadId, turnId)
 

@@ -65,12 +65,13 @@ async function loadTooltipModule() {
 
 function sessionStats(currentTokens) {
   return {
-    visible: true,
-    currentTokens,
-    triggerTokens: 1000,
-    requestBudgetTokens: 1200,
-    keepTokens: 100,
-    maxInputTokens: 2000,
+    nextRuntime: {
+      modelId: 'model-1',
+      currentTokens,
+      triggerTokens: 1000,
+      requestBudgetTokens: 1200,
+      maxInputTokens: 2000,
+    },
   }
 }
 
@@ -756,13 +757,13 @@ describe('compact context indicator', () => {
   it('uses the latest main-agent input usage before the checkpoint catches up', async () => {
     const harness = await createChatSendHarness()
     try {
-      assert.equal(harness.state.currentSessionTokens.value, 100)
+      assert.equal(harness.state.primaryContextStats.value.currentTokens, 100)
       harness.store.activeThread.usage.main.inputTokens = 120
       harness.store.activeThread.usage.latestMainInputTokens = 240
       await flushVueWatchers(harness.nextTick)
 
       assert.equal(harness.getRequestCount(), 1)
-      assert.equal(harness.state.currentSessionTokens.value, 240)
+      assert.equal(harness.state.primaryContextStats.value.currentTokens, 240)
     } finally {
       harness.restore()
     }
@@ -776,6 +777,7 @@ describe('compact context indicator', () => {
   })
 
   it('pairs live usage with the active runtime threshold and keeps next runtime separate', async () => {
+    const chatSendModule = await loadChatSendModule()
     const harness = await createChatSendHarness([{
       ...sessionStats(900),
       activeRuntime: {
@@ -783,7 +785,6 @@ describe('compact context indicator', () => {
         currentTokens: 80,
         triggerTokens: 100,
         requestBudgetTokens: 120,
-        keepTokens: 10,
         maxInputTokens: 150,
       },
       nextRuntime: {
@@ -791,13 +792,12 @@ describe('compact context indicator', () => {
         currentTokens: 900,
         triggerTokens: 1000,
         requestBudgetTokens: 1200,
-        keepTokens: 100,
         maxInputTokens: 2000,
       },
     }])
     try {
-      assert.equal(harness.state.currentSessionTokens.value, 80)
-      assert.equal(harness.state.compactTriggerTokens.value, 100)
+      assert.equal(harness.state.primaryContextStats.value.currentTokens, 80)
+      assert.equal(harness.state.primaryContextStats.value.triggerTokens, 100)
       assert.equal(harness.state.activeContextStats.value.modelId, 'active-model')
       assert.equal(harness.state.nextContextStats.value.modelId, 'next-model')
 
@@ -805,8 +805,13 @@ describe('compact context indicator', () => {
       harness.store.activeThread.usage.latestMainInputTokens = 120
       await flushVueWatchers(harness.nextTick)
 
-      assert.equal(harness.state.compactProgressRatioRaw.value, 1.2)
-      assert.equal(harness.state.compactProgressRatioVisual.value, 1)
+      assert.deepEqual(
+        chatSendModule.computeCompactProgress(
+          harness.state.primaryContextStats.value.currentTokens,
+          harness.state.primaryContextStats.value.triggerTokens,
+        ),
+        { raw: 1.2, visual: 1 },
+      )
       assert.equal(harness.state.activeContextStats.value.currentTokens, 120)
       assert.equal(harness.state.nextContextStats.value.currentTokens, 900)
     } finally {
@@ -817,12 +822,12 @@ describe('compact context indicator', () => {
   it('recalibrates context tokens when the run finishes', async () => {
     const harness = await createChatSendHarness()
     try {
-      assert.equal(harness.state.currentSessionTokens.value, 100)
+      assert.equal(harness.state.primaryContextStats.value.currentTokens, 100)
       harness.store.isStreaming = false
       await flushVueWatchers(harness.nextTick)
 
       assert.equal(harness.getRequestCount(), 2)
-      assert.equal(harness.state.currentSessionTokens.value, 360)
+      assert.equal(harness.state.primaryContextStats.value.currentTokens, 360)
     } finally {
       harness.restore()
     }
@@ -846,7 +851,7 @@ describe('compact context indicator', () => {
       await flushVueWatchers(harness.nextTick)
 
       assert.equal(harness.getRequestCount(), 2)
-      assert.equal(harness.state.currentSessionTokens.value, 360)
+      assert.equal(harness.state.primaryContextStats.value.currentTokens, 360)
     } finally {
       harness.restore()
     }
@@ -862,7 +867,7 @@ describe('compact context indicator', () => {
       harness.store.activeThread.usage.main.inputTokens = 120
       harness.store.activeThread.usage.latestMainInputTokens = 240
       await flushVueWatchers(harness.nextTick)
-      assert.equal(harness.state.currentSessionTokens.value, 240)
+      assert.equal(harness.state.primaryContextStats.value.currentTokens, 240)
 
       harness.store.displayMessages.push({ id: 'message-1' })
       await flushVueWatchers(harness.nextTick)
@@ -873,7 +878,7 @@ describe('compact context indicator', () => {
       staleStats.resolve(sessionStats(100))
       await flushVueWatchers(harness.nextTick)
 
-      assert.equal(harness.state.currentSessionTokens.value, 240)
+      assert.equal(harness.state.primaryContextStats.value.currentTokens, 240)
     } finally {
       harness.restore()
     }

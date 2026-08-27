@@ -64,15 +64,15 @@ import {
 } from '@/services/workspace/filtering'
 import {
   executeWorkspaceTransition,
-  normalizeWorkspacePath,
   type WorkspaceTransitionActivity,
 } from './workspaceTransition'
+import { normalizeWorkspacePath } from '@shared/workspace/path'
 
 export interface WorkspaceTransitionHooks {
   getActivity(): WorkspaceTransitionActivity
   confirm(activity: Exclude<WorkspaceTransitionActivity, 'idle'>, targetPath: string | null): Promise<boolean>
   terminateCurrent(activity: WorkspaceTransitionActivity): Promise<boolean>
-  afterCommit(targetPath: string | null): void
+  prepareNext(targetPath: string | null): (() => void) | null
 }
 
 export const useAppStore = defineStore('app', () => {
@@ -184,7 +184,7 @@ export const useAppStore = defineStore('app', () => {
     getActivity: () => 'idle',
     confirm: async () => true,
     terminateCurrent: async () => true,
-    afterCommit: () => {},
+    prepareNext: () => () => {},
   }
 
   // 控制是否应该保存状态（在退出清理时设为 false）
@@ -1357,7 +1357,7 @@ export const useAppStore = defineStore('app', () => {
       getActivity: () => 'idle',
       confirm: async () => true,
       terminateCurrent: async () => true,
-      afterCommit: () => {},
+      prepareNext: () => () => {},
     }
   }
 
@@ -1396,6 +1396,20 @@ export const useAppStore = defineStore('app', () => {
     leftSidebarMode.value = targetPath ? SidebarMode.EXPLORER : SidebarMode.START
   }
 
+  function transitionWorkspace(targetPath: string | null): Promise<boolean> {
+    return executeWorkspaceTransition(targetPath, {
+      prepareTarget: prepareWorkspaceTarget,
+      getActivity: workspaceTransitionHooks.getActivity,
+      confirm: workspaceTransitionHooks.confirm,
+      prepareCurrent: prepareCloseAllTabs,
+      prepareNext: path => shouldPersistState.value
+        ? workspaceTransitionHooks.prepareNext(path)
+        : () => {},
+      terminateCurrent: workspaceTransitionHooks.terminateCurrent,
+      commitWorkspace,
+    })
+  }
+
   async function openFolder() {
     if (!window.electronAPI) return
 
@@ -1423,18 +1437,7 @@ export const useAppStore = defineStore('app', () => {
 
     workspaceTransitionInFlight = true
     try {
-      const result = await executeWorkspaceTransition(folderPath, {
-        prepareTarget: prepareWorkspaceTarget,
-        getActivity: workspaceTransitionHooks.getActivity,
-        confirm: workspaceTransitionHooks.confirm,
-        terminateCurrent: async activity => {
-          if (!await closeAllTab()) return false
-          return workspaceTransitionHooks.terminateCurrent(activity)
-        },
-        commit: commitWorkspace,
-        afterCommit: workspaceTransitionHooks.afterCommit,
-      })
-      if (result.status !== 'completed') return false
+      if (!await transitionWorkspace(folderPath)) return false
 
       await loadFileTree('opening')
       void startAdvancedFileWatching()
@@ -1454,18 +1457,7 @@ export const useAppStore = defineStore('app', () => {
 
     workspaceTransitionInFlight = true
     try {
-      const result = await executeWorkspaceTransition(null, {
-        prepareTarget: prepareWorkspaceTarget,
-        getActivity: workspaceTransitionHooks.getActivity,
-        confirm: workspaceTransitionHooks.confirm,
-        terminateCurrent: async activity => {
-          if (!await closeAllTab()) return false
-          return workspaceTransitionHooks.terminateCurrent(activity)
-        },
-        commit: commitWorkspace,
-        afterCommit: workspaceTransitionHooks.afterCommit,
-      })
-      return result.status === 'completed'
+      return await transitionWorkspace(null)
     } finally {
       workspaceTransitionInFlight = false
     }
@@ -2687,14 +2679,8 @@ export const useAppStore = defineStore('app', () => {
     setActiveTab(movedTab.id)
   }
   
-  async function closeTab(tabId: string): Promise<boolean> {
-    const index = tabs.value.findIndex(tab => tab.id === tabId)
-    if (index === -1) return false
-    
-    const tab = tabs.value[index]
-    
-    // Check if tab has unsaved changes
-    if (tab && tab.isDirty) {
+  async function confirmTabClose(tab: FileTab): Promise<boolean> {
+    if (tab.isDirty) {
       if (!window.electronAPI?.showMessageBox) {
         console.warn('showMessageBox not available')
         return false
@@ -2747,60 +2733,75 @@ export const useAppStore = defineStore('app', () => {
           return false
       }
     }
+    return true
+  }
 
-    // Remove the tab
-    if (tab?.path) {
+  function removeTab(tabId: string): boolean {
+    const index = tabs.value.findIndex(tab => tab.id === tabId)
+    if (index === -1) return false
+    const tab = tabs.value[index]!
+    if (tab.path) {
       const normalizedTabPath = pathUtils.normalize(tab.path)
       ignoredExternalChangePaths.delete(normalizedTabPath)
       externalChangePromptPaths.delete(normalizedTabPath)
       suspiciousEmptyExternalChangeRetries.delete(normalizedTabPath)
     }
     tabs.value.splice(index, 1)
-    
-    // If closing active tab, activate another tab
+
     if (activeTabId.value === tabId) {
       if (tabs.value.length > 0) {
         const newActiveIndex = Math.min(index, tabs.value.length - 1)
-        if (tabs.value[newActiveIndex]) {
-          activeTabId.value = tabs.value[newActiveIndex].id
-          tabs.value[newActiveIndex].isActive = true
-          return true
-        }
+        const nextActiveTab = tabs.value[newActiveIndex]!
+        activeTabId.value = nextActiveTab.id
+        nextActiveTab.isActive = true
+        return true
       }
       activeTabId.value = null
     }
-    
     return true
   }
-  
-  async function closeAllTab(): Promise<boolean> {
-    let result: boolean = true
 
-    const tabIds = tabs.value.map(tab => tab.id)
+  async function prepareCloseTabs(tabIds: string[]): Promise<(() => void) | null> {
     for (const tabId of tabIds) {
-      const closeResult = await closeTab(tabId)
-      if (closeResult === false) {
-        result = false
-        break
-      }
+      const tab = tabs.value.find(candidate => candidate.id === tabId)
+      if (!tab || !await confirmTabClose(tab)) return null
     }
+    return () => {
+      for (const tabId of tabIds) removeTab(tabId)
+    }
+  }
 
-    return result
+  async function prepareCloseAllTabs(): Promise<(() => void) | null> {
+    return prepareCloseTabs(tabs.value.map(tab => tab.id))
+  }
+
+  async function closeTab(tabId: string): Promise<boolean> {
+    const commit = await prepareCloseTabs([tabId])
+    if (!commit) return false
+    commit()
+    return true
+  }
+
+  async function closeAllTab(): Promise<boolean> {
+    const commit = await prepareCloseAllTabs()
+    if (!commit) return false
+    commit()
+    return true
   }
 
   async function closeOtherTabs(keepTabId: string): Promise<boolean> {
     const ids = tabs.value.filter(t => t.id !== keepTabId).map(t => t.id)
-    for (const id of ids) {
-      if (await closeTab(id) === false) return false
-    }
+    const commit = await prepareCloseTabs(ids)
+    if (!commit) return false
+    commit()
     return true
   }
 
   async function closeSavedTabs(): Promise<boolean> {
     const ids = tabs.value.filter(t => !t.isDirty).map(t => t.id)
-    for (const id of ids) {
-      if (await closeTab(id) === false) return false
-    }
+    const commit = await prepareCloseTabs(ids)
+    if (!commit) return false
+    commit()
     return true
   }
 
@@ -3602,6 +3603,7 @@ export const useAppStore = defineStore('app', () => {
     createOrActivateTab,
     moveTab,
     closeTab,
+    prepareCloseAllTabs,
     closeAllTab,
     closeOtherTabs,
     closeSavedTabs,

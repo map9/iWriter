@@ -534,7 +534,6 @@ export default {
       goToPreferences: 'Go to AI Preferences to configure',
     },
     sendButton: {
-      pendingTitle: 'Message queued, waiting for agent initialization. Click to cancel.',
       stoppingTitle: 'Stopping the response...',
       sendTitle: 'Send Message',
     },
@@ -545,7 +544,6 @@ export default {
     toolbar: {
       compactThreshold: 'Automatic compact threshold',
       compactProgress: '{percent}% of threshold',
-      tokensUsed: '{current} / {max} tokens used',
       currentRuntime: 'Current turn: {model} · {current} / {trigger} tokens',
       nextRuntime: 'Next turn: {model} · {current} / {trigger} tokens',
       pendingRuntime: 'Candidate: {model} · awaiting end-of-turn validation',

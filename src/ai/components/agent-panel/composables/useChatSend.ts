@@ -4,9 +4,8 @@ import { useAiStore } from '@/ai/state/aiStore'
 import type {
   ContextAttachment,
   SendContext,
+  SessionContextStatsResponse,
   SessionRuntimeContextStats,
-  ThreadRuntimeSelection,
-  ThreadUsage,
 } from '@shared/ai/contracts'
 import { resolveAgentDomain, resolveAiProviderModelId } from '@shared/ai/contracts'
 import { agentClient } from '@/ai/client/AgentClient'
@@ -27,24 +26,32 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
     set: (value: string) => aiStore.setDraftInput(value),
   })
   const inputEl = ref<HTMLTextAreaElement>()
-  const pendingSend = ref(false)
-  const showCompact = ref(false)
-  const currentSessionTokens = ref(0)
-  const compactTriggerTokens = ref(0)
-  const requestBudgetTokens = ref(0)
-  const maxInputTokens = ref<number | null>(null)
-  const activeContextStats = ref<SessionRuntimeContextStats | null>(null)
-  const nextContextStats = ref<SessionRuntimeContextStats | null>(null)
-  const pendingRuntime = computed<ThreadRuntimeSelection | null>(
-    () => aiStore.activeThread?.pendingRuntime ?? null,
+  const contextStats = ref<SessionContextStatsResponse>({})
+  const liveInputTokens = ref<number | null>(null)
+  const nextContextStats = computed<SessionRuntimeContextStats | null>(
+    () => contextStats.value.nextRuntime ?? null,
   )
-  const sessionUsage = computed<ThreadUsage | null>(() => aiStore.activeThread?.usage ?? null)
-  const compactProgress = computed(() => computeCompactProgress(
-    currentSessionTokens.value,
-    compactTriggerTokens.value,
-  ))
-  const compactProgressRatioRaw = computed(() => compactProgress.value.raw)
-  const compactProgressRatioVisual = computed(() => compactProgress.value.visual)
+  const canUseLiveInput = computed(() =>
+    liveInputTokens.value !== null
+    && aiStore.isStreaming
+    && aiStore.activeThread?.id === aiStore.liveTurnThreadId,
+  )
+  const activeContextStats = computed<SessionRuntimeContextStats | null>(() => {
+    if (!aiStore.isStreaming && !aiStore.isInterrupted) return null
+    const stats = contextStats.value.activeRuntime
+    if (!stats) return null
+    return canUseLiveInput.value
+      ? { ...stats, currentTokens: liveInputTokens.value! }
+      : stats
+  })
+  const primaryContextStats = computed<SessionRuntimeContextStats | null>(() => {
+    const activeStats = activeContextStats.value
+    const stats = activeStats ?? nextContextStats.value
+    if (!stats) return null
+    return canUseLiveInput.value && !activeStats
+      ? { ...stats, currentTokens: liveInputTokens.value! }
+      : stats
+  })
   let sessionContextStatsRequestVersion = 0
 
   async function refreshSessionContextStats() {
@@ -57,13 +64,8 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
     const modelId = provider ? resolveAiProviderModelId(provider, thread?.modelId) : ''
     if (!providerId || !modelId) {
       if (requestVersion !== sessionContextStatsRequestVersion) return
-      showCompact.value = false
-      currentSessionTokens.value = 0
-      compactTriggerTokens.value = 0
-      requestBudgetTokens.value = 0
-      maxInputTokens.value = null
-      activeContextStats.value = null
-      nextContextStats.value = null
+      contextStats.value = {}
+      liveInputTokens.value = null
       return
     }
 
@@ -79,34 +81,12 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
         },
       })
       if (!result || requestVersion !== sessionContextStatsRequestVersion) return
-      showCompact.value = result.visible
-      const nextStats: SessionRuntimeContextStats = result.nextRuntime ?? {
-        modelId,
-        currentTokens: result.currentTokens,
-        triggerTokens: result.triggerTokens,
-        requestBudgetTokens: result.requestBudgetTokens,
-        keepTokens: result.keepTokens,
-        maxInputTokens: result.maxInputTokens,
-      }
-      const activeStats = (aiStore.isStreaming || aiStore.isInterrupted)
-        ? result.activeRuntime ?? null
-        : null
-      nextContextStats.value = nextStats
-      activeContextStats.value = activeStats
-      const primaryStats = activeStats ?? nextStats
-      currentSessionTokens.value = primaryStats.currentTokens
-      compactTriggerTokens.value = primaryStats.triggerTokens
-      requestBudgetTokens.value = primaryStats.requestBudgetTokens
-      maxInputTokens.value = primaryStats.maxInputTokens ?? null
+      contextStats.value = result
+      liveInputTokens.value = null
     } catch {
       if (requestVersion !== sessionContextStatsRequestVersion) return
-      showCompact.value = false
-      currentSessionTokens.value = 0
-      compactTriggerTokens.value = 0
-      requestBudgetTokens.value = 0
-      maxInputTokens.value = null
-      activeContextStats.value = null
-      nextContextStats.value = null
+      contextStats.value = {}
+      liveInputTokens.value = null
     }
   }
 
@@ -157,10 +137,6 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
     await executeSend()
   }
 
-  function cancelPendingSend() {
-    pendingSend.value = false
-  }
-
   watch(
     [
       () => aiStore.activeThread?.id ?? '',
@@ -192,35 +168,17 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
       if (!aiStore.isStreaming || activeThreadId !== aiStore.liveTurnThreadId) return
       if (latestInputTokens <= 0) return
       sessionContextStatsRequestVersion += 1
-      currentSessionTokens.value = latestInputTokens
-      if (activeContextStats.value) {
-        activeContextStats.value = {
-          ...activeContextStats.value,
-          currentTokens: latestInputTokens,
-        }
-      }
+      liveInputTokens.value = latestInputTokens
     },
   )
 
   return {
     inputText,
     inputEl,
-    pendingSend,
-    showCompact,
-    currentSessionTokens,
-    compactTriggerTokens,
-    requestBudgetTokens,
-    compactProgressRatio: compactProgressRatioRaw,
-    compactProgressRatioRaw,
-    compactProgressRatioVisual,
-    maxInputTokens,
     activeContextStats,
     nextContextStats,
-    pendingRuntime,
-    sessionUsage,
+    primaryContextStats,
     handleKeydown,
-    executeSend,
     sendMessage,
-    cancelPendingSend,
   }
 }

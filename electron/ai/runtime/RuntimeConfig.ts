@@ -10,6 +10,8 @@ import {
   resolveEffectiveModelBudget,
   type EffectiveModelBudget,
 } from '../../../shared/ai/core/modelBudget'
+import { createHash } from 'node:crypto'
+import { createProviderConfigRevision } from '../config/ProviderConfigRevision'
 
 export interface AgentRuntimeConfigInput {
   threadId: string
@@ -31,22 +33,16 @@ export interface AgentRuntimeConfig extends AgentRuntimeConfigInput {
 export function createAgentRuntimeConfig(input: AgentRuntimeConfigInput): AgentRuntimeConfig {
   const skillSources = [...input.skillSources]
   const filesystemFingerprint = `${input.workspacePath ?? ''}:${skillSources.join('|') || 'no-skills'}`
-  const keyFingerprint = input.resolvedApiKey ? input.resolvedApiKey.slice(-8) : ''
-  const budgetFingerprint = JSON.stringify([
-    input.providerConfig.maxRequestTokens ?? null,
-    input.providerConfig.modelPolicies?.[input.modelId]?.maxRequestTokens ?? null,
-  ])
+  const providerRevision = createProviderConfigRevision(input.providerConfig)
+  const resolvedKeyRevision = createHash('sha256').update(input.resolvedApiKey ?? '').digest('hex')
   const cacheKey = [
     input.threadId,
-    input.providerConfig.id,
+    providerRevision,
     input.domain,
     input.mode,
     input.modelId,
     input.thinkingLevel ?? '',
-    keyFingerprint,
-    input.providerConfig.baseUrl ?? '',
-    input.providerConfig.fallbackModelId ?? '',
-    budgetFingerprint,
+    resolvedKeyRevision,
     filesystemFingerprint,
   ].join(':')
 

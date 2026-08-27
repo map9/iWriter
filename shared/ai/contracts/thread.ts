@@ -51,7 +51,6 @@ export interface AiThread {
   mode: AiAgentMode
   thinkingLevel?: AiThinkingLevel
   workspacePath?: string | null
-  activeRuntime?: TurnRuntimeSnapshot
   pendingRuntime?: ThreadRuntimeSelection
   hasError?: boolean
   usage?: ThreadUsage

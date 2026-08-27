@@ -531,7 +531,6 @@ export default {
       goToPreferences: '前往 AI 偏好设置进行配置',
     },
     sendButton: {
-      pendingTitle: '消息已排队，等待智能体初始化。点击取消。',
       stoppingTitle: '正在停止响应...',
       sendTitle: '发送消息',
     },
@@ -542,7 +541,6 @@ export default {
     toolbar: {
       compactThreshold: '自动压缩阈值',
       compactProgress: '已达到阈值的 {percent}%',
-      tokensUsed: '已使用 {current} / {max} tokens',
       currentRuntime: '当前轮：{model} · {current} / {trigger} tokens',
       nextRuntime: '下一轮：{model} · {current} / {trigger} tokens',
       pendingRuntime: '候选：{model} · 待本轮结束复检',

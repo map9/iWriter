@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { build } from 'esbuild'
 
@@ -24,11 +25,9 @@ describe('draft thread domain presentation', () => {
     assert.equal(isThreadDraft({ localOnly: true, active: false, interrupted: true }), false)
   })
 
-  it('composes a domain label without mutating the original title', async () => {
-    const { formatThreadHeaderTitle } = await loadModule()
-    const originalTitle = '雨夜人物设定'
-
-    assert.equal(formatThreadHeaderTitle('创意写作', originalTitle), '创意写作 | 雨夜人物设定')
-    assert.equal(originalTitle, '雨夜人物设定')
+  it('composes the domain and original title directly in the panel header', () => {
+    const source = readFileSync('src/ai/components/shell/AgentPanel.vue', 'utf8')
+    assert.match(source, /return `\$\{domainLabel\} \| \$\{originalTitle\}`/)
+    assert.doesNotMatch(source, /formatThreadHeaderTitle/)
   })
 })

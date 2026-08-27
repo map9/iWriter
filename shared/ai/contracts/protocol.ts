@@ -11,7 +11,6 @@ import type { ThreadMessage } from './message'
 import type { DomainReviewItem } from './review'
 import type { AiSettings } from './settings'
 import type { AiThread, ThreadRuntimeSelection } from './thread'
-import type { ModelBudgetSource } from '../core/modelBudget'
 import type { AiToolCall } from './tool'
 export type { DomainReviewItem }
 
@@ -51,18 +50,10 @@ export interface SessionContextStatsRequest {
 }
 
 export interface SessionContextStatsResponse {
-  visible: boolean
-  currentTokens: number
-  triggerTokens: number
-  requestBudgetTokens: number
-  keepTokens: number
-  maxInputTokens?: number
   /** Frozen runtime for the active/HITL turn. Omitted while the Thread is idle. */
   activeRuntime?: SessionRuntimeContextStats
   /** Committed runtime that will be used by the next turn. */
   nextRuntime?: SessionRuntimeContextStats
-  /** Compatible candidate awaiting terminal-boundary revalidation. */
-  pendingRuntime?: ThreadRuntimeSelection
 }
 
 export interface SessionRuntimeContextStats {
@@ -70,7 +61,6 @@ export interface SessionRuntimeContextStats {
   currentTokens: number
   triggerTokens: number
   requestBudgetTokens: number
-  keepTokens: number
   maxInputTokens?: number
 }
 
@@ -81,14 +71,10 @@ export interface RuntimeSwitchRequest {
 
 export interface RuntimeSwitchResponse {
   status: 'committed' | 'pending' | 'rejected'
-  compatible: boolean
   candidate: ThreadRuntimeSelection
   currentEffectiveContextTokens: number
   candidateCompactTriggerTokens: number
-  candidateRequestBudgetTokens: number
-  candidateMaxInputTokens?: number
-  budgetSource: ModelBudgetSource
-  reason?: 'context-exceeds-compact-trigger' | 'provider-not-found' | 'model-invalid'
+  reason?: 'context-exceeds-compact-trigger'
 }
 
 // ── LangGraph HITL — interrupt / resume ────────────────────────────────────

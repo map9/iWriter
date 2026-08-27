@@ -350,9 +350,7 @@ onMounted(() => {
       return result.response === 0
     },
     terminateCurrent: async activity => activity === 'idle' || aiStore.cancelStreaming(),
-    afterCommit: targetPath => {
-      aiStore.createNewThread(targetPath)
-    },
+    prepareNext: targetPath => aiStore.prepareNewThread(targetPath),
   })
   aiStore.init()
 

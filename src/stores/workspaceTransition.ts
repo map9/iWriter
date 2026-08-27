@@ -1,10 +1,10 @@
+import {
+  areWorkspacePathsEqual,
+} from '@shared/workspace/path'
+
 export type WorkspaceTransitionActivity = 'idle' | 'running' | 'hitl'
 
-export type WorkspaceTransitionResult =
-  | { status: 'completed' }
-  | { status: 'preparation-failed' }
-  | { status: 'cancelled' }
-  | { status: 'termination-failed' }
+export type WorkspaceTransitionCommit = () => void
 
 export interface WorkspaceTransitionPorts {
   prepareTarget(targetPath: string | null): Promise<boolean>
@@ -13,48 +13,38 @@ export interface WorkspaceTransitionPorts {
     activity: Exclude<WorkspaceTransitionActivity, 'idle'>,
     targetPath: string | null,
   ): Promise<boolean>
+  prepareCurrent(): Promise<WorkspaceTransitionCommit | null>
+  prepareNext(targetPath: string | null): WorkspaceTransitionCommit | null
   terminateCurrent(activity: WorkspaceTransitionActivity): Promise<boolean>
-  commit(targetPath: string | null): void
-  afterCommit(targetPath: string | null): void
+  commitWorkspace(targetPath: string | null): void
 }
 
 export async function executeWorkspaceTransition(
   targetPath: string | null,
   ports: WorkspaceTransitionPorts,
-): Promise<WorkspaceTransitionResult> {
-  if (!await ports.prepareTarget(targetPath)) {
-    return { status: 'preparation-failed' }
-  }
+): Promise<boolean> {
+  if (!await ports.prepareTarget(targetPath)) return false
 
   const activity = ports.getActivity()
   if (activity !== 'idle' && !await ports.confirm(activity, targetPath)) {
-    return { status: 'cancelled' }
+    return false
   }
 
-  if (!await ports.terminateCurrent(activity)) {
-    return { status: 'termination-failed' }
-  }
+  const commitCurrent = await ports.prepareCurrent()
+  if (!commitCurrent) return false
+  const commitNext = ports.prepareNext(targetPath)
+  if (!commitNext) return false
+  if (!await ports.terminateCurrent(activity)) return false
 
-  // Everything after this boundary is an in-memory commit. Any fallible target
-  // validation and current-resource shutdown has already completed.
-  ports.commit(targetPath)
-  ports.afterCommit(targetPath)
-  return { status: 'completed' }
-}
-
-export function normalizeWorkspacePath(workspacePath: string): string {
-  const withForwardSlashes = workspacePath.trim().replace(/\\/g, '/')
-  const normalized = withForwardSlashes === '/' || /^[a-z]:\/$/i.test(withForwardSlashes)
-    ? withForwardSlashes
-    : withForwardSlashes.replace(/\/+$/, '')
-  const isWindowsPath = /^[a-z]:\//i.test(normalized) || normalized.startsWith('//')
-  return isWindowsPath ? normalized.toLowerCase() : normalized
+  ports.commitWorkspace(targetPath)
+  commitCurrent()
+  commitNext()
+  return true
 }
 
 export function isThreadWorkspaceSelectable(
   threadWorkspacePath: string | null | undefined,
   currentWorkspacePath: string | null | undefined,
 ): boolean {
-  if (!threadWorkspacePath || !currentWorkspacePath) return false
-  return normalizeWorkspacePath(threadWorkspacePath) === normalizeWorkspacePath(currentWorkspacePath)
+  return areWorkspacePathsEqual(threadWorkspacePath, currentWorkspacePath)
 }
