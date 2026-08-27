@@ -121,6 +121,7 @@ export function createAiSettingsState(deps: {
   getActiveThread: () => AiThread | null
   getThreadById: (threadId: string) => AiThread | null
   isLocalOnlyThread: (threadId: string) => boolean
+  canChangeThreadDomain: (threadId: string) => boolean
   updateThread: (thread: AiThread) => void
 }) {
   const settings = ref<AiSettings>(seedProviderPresets(loadAiSettings()))
@@ -345,6 +346,7 @@ export function createAiSettingsState(deps: {
     const normalizedMode = normalizeModeForDomain(mode, domain)
     const thread = deps.getActiveThread()
     if (thread) {
+      if (!deps.canChangeThreadDomain(thread.id)) return
       deps.updateThread({ ...thread, domain, mode: normalizedMode })
       return
     }

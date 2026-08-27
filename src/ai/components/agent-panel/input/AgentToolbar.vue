@@ -22,6 +22,7 @@
       />
 
       <ModePicker
+        v-if="aiStore.isActiveThreadDraft"
         :compact="profileCompact"
         :is-open="activeMenu === 'mode'"
         @open="openMenu('mode')"
@@ -98,6 +99,7 @@ import ProviderPicker from './ProviderPicker.vue'
 import ModelPicker from './ModelPicker.vue'
 import ModePicker from './ProfilePicker.vue'
 import SendButton from './SendButton.vue'
+import { useAiStore } from '@/ai/state/aiStore'
 
 const props = defineProps<{
   isPendingSend: boolean
@@ -113,6 +115,7 @@ const props = defineProps<{
   sessionUsage: ThreadUsage | null
 }>()
 const { t } = useI18n()
+const aiStore = useAiStore()
 
 defineEmits<{
   'browse-files': []

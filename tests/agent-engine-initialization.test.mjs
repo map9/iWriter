@@ -135,7 +135,7 @@ function stubPlugin() {
         [
           /runtime\/ThreadRuntimeResolver$/,
           'thread-runtime-resolver',
-          'export function resolveThreadRuntime() { return { providerConfig: {}, domain: "editing", mode: "ask", modelId: "test", thinkingLevel: "medium" } }',
+          'export function resolveThreadRuntime() { return { providerConfig: {}, domain: "editing", mode: "ask", modelId: "test", thinkingLevel: "medium" } } export function resolveResumeThreadRuntime() { return resolveThreadRuntime() }',
         ],
         [
           /runtime\/ThreadRuntimeStore$/,
@@ -415,6 +415,41 @@ describe('AgentEngine initialization', () => {
 
     assert.equal(clearCalls, 0)
     assert.equal(engine.runtimeStore.getInterrupted('thread-1'), pending)
+  })
+
+  it('validates fixed context before creating first-turn thread metadata', async () => {
+    const { AgentEngine } = await loadModule()
+    let prepareCalls = 0
+
+    class InitializedAgentEngine extends AgentEngine {
+      async initialize() {
+        this.threadService = {
+          getMeta: () => null,
+          prepareTurn: () => {
+            prepareCalls += 1
+            throw new Error('metadata should not be created')
+          },
+        }
+      }
+
+      _assertWithinBudget() {
+        throw new Error('fixed context exceeds budget')
+      }
+    }
+
+    const engine = new InitializedAgentEngine(() => null)
+    await assert.rejects(
+      engine.sendMessage({
+        threadId: 'thread-local-draft',
+        userText: '超大输入',
+        domain: 'editing',
+        mode: 'edit',
+        workspacePath: '/workspace',
+      }),
+      /fixed context exceeds budget/,
+    )
+
+    assert.equal(prepareCalls, 0)
   })
 
   it('uses ThreadService as the public thread-list facade', async () => {

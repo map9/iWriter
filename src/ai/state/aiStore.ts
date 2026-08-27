@@ -44,6 +44,7 @@ import {
 } from './pendingCommands'
 import { agentClient } from '@/ai/client/AgentClient'
 import { createAiSettingsState } from './settings'
+import { isThreadDraft } from '@/ai/thread/threadPresentation'
 
 export type {
   ProposalReviewEntry,
@@ -87,6 +88,11 @@ export const useAiStore = defineStore('ai', () => {
     getActiveThread: () => activeThread.value,
     getThreadById: (threadId: string) => threads.value.find(thread => thread.id === threadId) ?? null,
     isLocalOnlyThread: (threadId: string) => _localOnlyThreadIds.has(threadId),
+    canChangeThreadDomain: (threadId: string) => isThreadDraft({
+      localOnly: _localOnlyThreadIds.has(threadId),
+      active: _threadRunState.value !== 'idle' && _liveTurn.value?.threadId === threadId,
+      interrupted: _interruptedThreadId.value === threadId,
+    }),
     updateThread,
   })
 
@@ -200,6 +206,7 @@ export const useAiStore = defineStore('ai', () => {
       resolveAiProviderModelId(config),
       settings.value.defaultMode,
       normalizeThinkingLevel(config.lastSelectedThinkingLevel),
+      appStore.currentFolder ?? null,
     )
     threads.value.unshift(thread)
     activeThreadId.value = thread.id
@@ -354,6 +361,16 @@ export const useAiStore = defineStore('ai', () => {
     clearRunPointers: _clearRunPointers,
   } = runtimeState
 
+  const isActiveThreadDraft = computed(() => {
+    const thread = activeThread.value
+    if (!thread) return false
+    return isThreadDraft({
+      localOnly: _localOnlyThreadIds.has(thread.id),
+      active: _threadRunState.value !== 'idle' && _liveTurn.value?.threadId === thread.id,
+      interrupted: _interruptedThreadId.value === thread.id,
+    })
+  })
+
   let _runTransitionEpoch = 0
   const _runOwnershipByTurnId = new Map<string, { epoch: number; threadId: string }>()
   let _cancelInFlight: Promise<boolean> | null = null
@@ -477,9 +494,6 @@ export const useAiStore = defineStore('ai', () => {
     // messagesLoaded = false so the next selectThread re-fetches from checkpointer
     thread = { ...thread, messagesLoaded: false }
     updateThread(thread)
-    // Mark as no longer local-only once a message is being sent
-    _localOnlyThreadIds.delete(thread.id)
-
     // Start streaming state
     runtimeEvents.resetRunErrorFlag()
     _threadRunState.value = 'streaming'
@@ -516,6 +530,9 @@ export const useAiStore = defineStore('ai', () => {
           directories: sendContext?.directories ?? [],
         },
       })
+
+      // Main has accepted the first turn and persisted its immutable domain.
+      if (result) _localOnlyThreadIds.delete(thread.id)
 
       if (
         result
@@ -840,6 +857,7 @@ export const useAiStore = defineStore('ai', () => {
     threads,
     activeThreadId,
     activeThread,
+    isActiveThreadDraft,
     createNewThread,
     selectThread,
     deleteThread,

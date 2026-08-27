@@ -71,6 +71,8 @@ import AgentChatArea from '../agent-panel/AgentChatArea.vue'
 import TaskPlanCard from '../agent-panel/TaskPlanCard.vue'
 import PendingCommandList from '../agent-panel/PendingCommandList.vue'
 import AgentInputArea from '../agent-panel/AgentInputArea.vue'
+import { formatThreadHeaderTitle } from '@/ai/thread/threadPresentation'
+import { resolveAgentDomain } from '@shared/ai/contracts'
 
 const PANEL_UI_STATE_KEY = 'iwriter-ai-panel-ui'
 
@@ -115,8 +117,12 @@ const showHistory = computed(() => persistedPanelUi.view === 'history')
 const headerTitle = computed(() => {
   if (showHistory.value) return t('agentPanel.panel.historyTitle')
   const thread = aiStore.activeThread
-  if (!thread || !thread.messages?.length) return t('agentPanel.panel.newThreadTitle')
-  return thread.title
+  const originalTitle = thread?.title ?? t('agentPanel.panel.newThreadTitle')
+  const domain = thread?.domain ?? resolveAgentDomain(aiStore.settings.defaultMode)
+  const domainLabel = domain === 'creative'
+    ? t('agentPanel.modePicker.options.creative')
+    : t('agentPanel.modePicker.options.edit')
+  return formatThreadHeaderTitle(domainLabel, originalTitle)
 })
 
 const streamingTaskPlan = computed(() => aiStore.streamingPreviewMessage?.taskPlan)

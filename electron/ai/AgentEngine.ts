@@ -264,12 +264,28 @@ export class AgentEngine {
     await this._ensureInitialized()
 
     const settings = AiConfigStore.loadSettings()
+    const userContent = await buildUserMessage(req)
+
+    // Resolve and validate without mutating persistence. In particular, a rejected
+    // first turn must leave the renderer-owned Thread as a draft so its domain can
+    // still be changed.
+    const existingMeta = req.threadId
+      ? this.threadService.getMeta?.(req.threadId) ?? null
+      : null
+    const previewRuntime = resolveThreadRuntime(settings, req, existingMeta)
+    this._assertWithinBudget(
+      previewRuntime.providerConfig,
+      previewRuntime.domain,
+      previewRuntime.mode,
+      previewRuntime.modelId,
+      previewRuntime.thinkingLevel,
+      userContent,
+      req.threadId,
+      req.workspacePath,
+    )
 
     const prepared = this.threadService.prepareTurn(settings, req)
     const { threadId, runtime } = prepared
-
-    const userContent = await buildUserMessage(req)
-    this._assertWithinBudget(runtime.providerConfig, runtime.domain, runtime.mode, runtime.modelId, runtime.thinkingLevel, userContent, threadId)
     this.threadService.clearStaleInterrupt(threadId)
 
     // Run agent in background
@@ -1234,10 +1250,13 @@ export class AgentEngine {
     thinkingLevel: AiThinkingLevel,
     userContent: MessageContent,
     threadId?: string,
+    workspacePathOverride?: string | null,
   ): void {
-    const workspacePath = threadId
-      ? this.runtimeStore.getContext(threadId)?.workspacePath ?? null
-      : null
+    const workspacePath = workspacePathOverride !== undefined
+      ? workspacePathOverride
+      : threadId
+        ? this.runtimeStore.getContext(threadId)?.workspacePath ?? null
+        : null
     const capabilities = this.strategies[domain].buildCapabilities({ mode, workspacePath })
     const requestTokens = this._countTokensCjkAware(
       [
