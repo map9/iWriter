@@ -14,7 +14,7 @@ async function loadChatSendModule() {
         stdin: {
           contents: `
             export { reactive, ref, nextTick } from 'vue'
-            export { useChatSend } from './src/ai/components/agent-panel/composables/useChatSend.ts'
+            export * from './src/ai/components/agent-panel/composables/useChatSend.ts'
           `,
           resolveDir: process.cwd(),
           sourcefile: 'chat-send-test-entry.ts',
@@ -721,6 +721,7 @@ describe('compact context indicator', () => {
       effectiveProviderConfig: { id: 'provider-1', defaultModelId: 'model-1' },
       displayMessages: [],
       isStreaming: true,
+      isInterrupted: false,
       liveTurnThreadId: 'thread-1',
       draftInput: '',
       setDraftInput(value) { this.draftInput = value },
@@ -762,6 +763,52 @@ describe('compact context indicator', () => {
 
       assert.equal(harness.getRequestCount(), 1)
       assert.equal(harness.state.currentSessionTokens.value, 240)
+    } finally {
+      harness.restore()
+    }
+  })
+
+  it('keeps raw progress above 100% while clamping only the visual ring', async () => {
+    const chatSendModule = await loadChatSendModule()
+    const progress = chatSendModule.computeCompactProgress(120, 100)
+
+    assert.deepEqual(progress, { raw: 1.2, visual: 1 })
+  })
+
+  it('pairs live usage with the active runtime threshold and keeps next runtime separate', async () => {
+    const harness = await createChatSendHarness([{
+      ...sessionStats(900),
+      activeRuntime: {
+        modelId: 'active-model',
+        currentTokens: 80,
+        triggerTokens: 100,
+        requestBudgetTokens: 120,
+        keepTokens: 10,
+        maxInputTokens: 150,
+      },
+      nextRuntime: {
+        modelId: 'next-model',
+        currentTokens: 900,
+        triggerTokens: 1000,
+        requestBudgetTokens: 1200,
+        keepTokens: 100,
+        maxInputTokens: 2000,
+      },
+    }])
+    try {
+      assert.equal(harness.state.currentSessionTokens.value, 80)
+      assert.equal(harness.state.compactTriggerTokens.value, 100)
+      assert.equal(harness.state.activeContextStats.value.modelId, 'active-model')
+      assert.equal(harness.state.nextContextStats.value.modelId, 'next-model')
+
+      harness.store.activeThread.usage.main.inputTokens = 120
+      harness.store.activeThread.usage.latestMainInputTokens = 120
+      await flushVueWatchers(harness.nextTick)
+
+      assert.equal(harness.state.compactProgressRatioRaw.value, 1.2)
+      assert.equal(harness.state.compactProgressRatioVisual.value, 1)
+      assert.equal(harness.state.activeContextStats.value.currentTokens, 120)
+      assert.equal(harness.state.nextContextStats.value.currentTokens, 900)
     } finally {
       harness.restore()
     }

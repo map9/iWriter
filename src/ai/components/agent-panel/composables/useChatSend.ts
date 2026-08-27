@@ -1,9 +1,24 @@
 import { watch, nextTick, computed, ref } from 'vue'
 import type { Ref } from 'vue'
 import { useAiStore } from '@/ai/state/aiStore'
-import type { ContextAttachment, SendContext, ThreadUsage } from '@shared/ai/contracts'
+import type {
+  ContextAttachment,
+  SendContext,
+  SessionRuntimeContextStats,
+  ThreadRuntimeSelection,
+  ThreadUsage,
+} from '@shared/ai/contracts'
 import { resolveAgentDomain, resolveAiProviderModelId } from '@shared/ai/contracts'
 import { agentClient } from '@/ai/client/AgentClient'
+
+export function computeCompactProgress(
+  currentTokens: number,
+  triggerTokens: number,
+): { raw: number; visual: number } {
+  if (triggerTokens <= 0) return { raw: 0, visual: 0 }
+  const raw = Math.max(0, currentTokens / triggerTokens)
+  return { raw, visual: Math.min(1, raw) }
+}
 
 export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
   const aiStore = useAiStore()
@@ -18,11 +33,18 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
   const compactTriggerTokens = ref(0)
   const requestBudgetTokens = ref(0)
   const maxInputTokens = ref<number | null>(null)
+  const activeContextStats = ref<SessionRuntimeContextStats | null>(null)
+  const nextContextStats = ref<SessionRuntimeContextStats | null>(null)
+  const pendingRuntime = computed<ThreadRuntimeSelection | null>(
+    () => aiStore.activeThread?.pendingRuntime ?? null,
+  )
   const sessionUsage = computed<ThreadUsage | null>(() => aiStore.activeThread?.usage ?? null)
-  const compactProgressRatio = computed(() => {
-    if (compactTriggerTokens.value <= 0) return 0
-    return Math.max(0, Math.min(1, currentSessionTokens.value / compactTriggerTokens.value))
-  })
+  const compactProgress = computed(() => computeCompactProgress(
+    currentSessionTokens.value,
+    compactTriggerTokens.value,
+  ))
+  const compactProgressRatioRaw = computed(() => compactProgress.value.raw)
+  const compactProgressRatioVisual = computed(() => compactProgress.value.visual)
   let sessionContextStatsRequestVersion = 0
 
   async function refreshSessionContextStats() {
@@ -40,6 +62,8 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
       compactTriggerTokens.value = 0
       requestBudgetTokens.value = 0
       maxInputTokens.value = null
+      activeContextStats.value = null
+      nextContextStats.value = null
       return
     }
 
@@ -56,10 +80,24 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
       })
       if (!result || requestVersion !== sessionContextStatsRequestVersion) return
       showCompact.value = result.visible
-      currentSessionTokens.value = result.currentTokens
-      compactTriggerTokens.value = result.triggerTokens
-      requestBudgetTokens.value = result.requestBudgetTokens
-      maxInputTokens.value = result.maxInputTokens ?? null
+      const nextStats: SessionRuntimeContextStats = result.nextRuntime ?? {
+        modelId,
+        currentTokens: result.currentTokens,
+        triggerTokens: result.triggerTokens,
+        requestBudgetTokens: result.requestBudgetTokens,
+        keepTokens: result.keepTokens,
+        maxInputTokens: result.maxInputTokens,
+      }
+      const activeStats = (aiStore.isStreaming || aiStore.isInterrupted)
+        ? result.activeRuntime ?? null
+        : null
+      nextContextStats.value = nextStats
+      activeContextStats.value = activeStats
+      const primaryStats = activeStats ?? nextStats
+      currentSessionTokens.value = primaryStats.currentTokens
+      compactTriggerTokens.value = primaryStats.triggerTokens
+      requestBudgetTokens.value = primaryStats.requestBudgetTokens
+      maxInputTokens.value = primaryStats.maxInputTokens ?? null
     } catch {
       if (requestVersion !== sessionContextStatsRequestVersion) return
       showCompact.value = false
@@ -67,6 +105,8 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
       compactTriggerTokens.value = 0
       requestBudgetTokens.value = 0
       maxInputTokens.value = null
+      activeContextStats.value = null
+      nextContextStats.value = null
     }
   }
 
@@ -132,6 +172,7 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
       () => aiStore.activeThread?.updatedAt ?? 0,
       () => aiStore.displayMessages.length,
       () => aiStore.isStreaming,
+      () => aiStore.isInterrupted,
     ],
     () => { void refreshSessionContextStats() },
     { immediate: true }
@@ -152,6 +193,12 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
       if (latestInputTokens <= 0) return
       sessionContextStatsRequestVersion += 1
       currentSessionTokens.value = latestInputTokens
+      if (activeContextStats.value) {
+        activeContextStats.value = {
+          ...activeContextStats.value,
+          currentTokens: latestInputTokens,
+        }
+      }
     },
   )
 
@@ -163,8 +210,13 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
     currentSessionTokens,
     compactTriggerTokens,
     requestBudgetTokens,
-    compactProgressRatio,
+    compactProgressRatio: compactProgressRatioRaw,
+    compactProgressRatioRaw,
+    compactProgressRatioVisual,
     maxInputTokens,
+    activeContextStats,
+    nextContextStats,
+    pendingRuntime,
     sessionUsage,
     handleKeydown,
     executeSend,

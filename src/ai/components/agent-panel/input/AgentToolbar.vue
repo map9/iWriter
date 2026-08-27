@@ -60,7 +60,7 @@
             stroke-width="3"
             stroke-linecap="round"
             :stroke-dasharray="43.98"
-            :stroke-dashoffset="43.98 * (1 - compactProgressRatio)"
+            :stroke-dashoffset="43.98 * (1 - compactProgressRatioVisual)"
             transform="rotate(-90 10 10)"
           />
           <circle
@@ -93,7 +93,11 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TooltipContent } from '@/components/common/statusbar'
 import { tooltipManager } from '@/components/common/statusbar'
-import type { ThreadUsage } from '@shared/ai/contracts'
+import type {
+  SessionRuntimeContextStats,
+  ThreadRuntimeSelection,
+  ThreadUsage,
+} from '@shared/ai/contracts'
 import AttachPicker from './AttachPicker.vue'
 import ProviderPicker from './ProviderPicker.vue'
 import ModelPicker from './ModelPicker.vue'
@@ -107,10 +111,14 @@ const props = defineProps<{
   canSend: boolean
   showCompact: boolean
   currentSessionTokens: number
-  compactProgressRatio: number
+  compactProgressRatioRaw: number
+  compactProgressRatioVisual: number
   compactTriggerTokens: number
   requestBudgetTokens: number
   maxInputTokens: number | null
+  activeContextStats: SessionRuntimeContextStats | null
+  nextContextStats: SessionRuntimeContextStats | null
+  pendingRuntime: ThreadRuntimeSelection | null
   /** Real accumulated token usage for this thread (null if no run yet). */
   sessionUsage: ThreadUsage | null
 }>()
@@ -168,16 +176,45 @@ const showCompactIndicator = computed(() => props.showCompact)
 const compactTooltip = computed<TooltipContent>(() => {
   const parts: string[] = [
     `**${t('agentPanel.toolbar.compactThreshold')}:**<br>`,
-    t('agentPanel.toolbar.compactProgress', { percent: Math.round(props.compactProgressRatio * 100) }) + '<br>',
-    t('agentPanel.toolbar.tokensUsed', {
+    t('agentPanel.toolbar.compactProgress', { percent: Math.round(props.compactProgressRatioRaw * 100) }) + '<br>',
+  ]
+
+  if (props.activeContextStats) {
+    parts.push(t('agentPanel.toolbar.currentRuntime', {
+      model: props.activeContextStats.modelId,
+      current: formatCompactTokens(props.activeContextStats.currentTokens),
+      trigger: formatCompactTokens(props.activeContextStats.triggerTokens),
+    }))
+    if (props.nextContextStats) {
+      parts.push('<br>')
+      parts.push(t('agentPanel.toolbar.nextRuntime', {
+        model: props.nextContextStats.modelId,
+        current: formatCompactTokens(props.nextContextStats.currentTokens),
+        trigger: formatCompactTokens(props.nextContextStats.triggerTokens),
+      }))
+    }
+  } else if (props.nextContextStats) {
+    parts.push(t('agentPanel.toolbar.nextRuntime', {
+      model: props.nextContextStats.modelId,
+      current: formatCompactTokens(props.nextContextStats.currentTokens),
+      trigger: formatCompactTokens(props.nextContextStats.triggerTokens),
+    }))
+  } else {
+    parts.push(t('agentPanel.toolbar.tokensUsed', {
       current: formatCompactTokens(props.currentSessionTokens),
       max: formatCompactTokens(props.compactTriggerTokens),
-    }),
-    '<br>',
-    t('agentPanel.toolbar.requestBudget', {
-      max: formatCompactTokens(props.requestBudgetTokens),
-    }),
-  ]
+    }))
+  }
+
+  if (props.pendingRuntime) {
+    parts.push('<br>')
+    parts.push(t('agentPanel.toolbar.pendingRuntime', { model: props.pendingRuntime.modelId }))
+  }
+
+  parts.push('<br>')
+  parts.push(t('agentPanel.toolbar.requestBudget', {
+    max: formatCompactTokens(props.requestBudgetTokens),
+  }))
 
   if (props.maxInputTokens !== null) {
     parts.push('<br>')
@@ -241,8 +278,8 @@ function formatCompactTokens(value: number): string {
 }
 
 function compactProgressClass(): string {
-  if (props.compactProgressRatio < 0.6) return 'text-success'
-  if (props.compactProgressRatio < 0.9) return 'text-warning'
+  if (props.compactProgressRatioRaw < 0.6) return 'text-success'
+  if (props.compactProgressRatioRaw < 0.9) return 'text-warning'
   return 'text-error'
 }
 

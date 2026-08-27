@@ -135,7 +135,20 @@ function stubPlugin() {
         [
           /runtime\/ThreadRuntimeResolver$/,
           'thread-runtime-resolver',
-          'export function resolveThreadRuntime() { return { providerConfig: {}, domain: "editing", mode: "ask", modelId: "test", thinkingLevel: "medium" } } export function resolveResumeThreadRuntime() { return resolveThreadRuntime() }',
+          `
+            export function resolveThreadRuntime(settings, request, meta) {
+              if (globalThis.__iwriterResolveRuntime) {
+                return globalThis.__iwriterResolveRuntime('next', request, meta)
+              }
+              return { providerConfig: {}, domain: "editing", mode: "ask", modelId: "test", thinkingLevel: "medium" }
+            }
+            export function resolveResumeThreadRuntime(settings, meta) {
+              if (globalThis.__iwriterResolveRuntime) {
+                return globalThis.__iwriterResolveRuntime('active', undefined, meta)
+              }
+              return resolveThreadRuntime(settings, undefined, meta)
+            }
+          `,
         ],
         [
           /runtime\/ThreadRuntimeStore$/,
@@ -538,7 +551,86 @@ describe('AgentEngine initialization', () => {
       requestBudgetTokens: 128000,
       keepTokens: 12800,
       maxInputTokens: undefined,
+      nextRuntime: {
+        modelId: 'test',
+        currentTokens: 0,
+        triggerTokens: 108800,
+        requestBudgetTokens: 128000,
+        keepTokens: 12800,
+        maxInputTokens: undefined,
+      },
     })
+  })
+
+  it('reports active and next runtime thresholds without mixing their model budgets', async () => {
+    const { AgentEngine } = await loadModule()
+    const pendingRuntime = {
+      providerConfigId: 'provider-pending',
+      modelId: 'pending-model',
+      thinkingLevel: 'medium',
+    }
+    const meta = {
+      domain: 'editing',
+      mode: 'edit',
+      providerConfigId: 'provider-next',
+      modelId: 'next-model',
+      thinkingLevel: 'medium',
+      activeRuntime: {
+        turnId: 'turn-1',
+        providerConfigId: 'provider-active',
+        providerConfigRevision: 'revision-1',
+        modelId: 'active-model',
+        thinkingLevel: 'medium',
+        domain: 'editing',
+        mode: 'edit',
+        workspacePath: '/workspace',
+      },
+      pendingRuntime,
+    }
+
+    class InitializedAgentEngine extends AgentEngine {
+      async initialize() {
+        this.checkpointerInstance = {
+          checkpointer: { get: async () => null },
+          backend: 'memory',
+          db: null,
+        }
+        this.threadService = { getMeta: () => meta }
+      }
+    }
+
+    globalThis.__iwriterResolveRuntime = phase => ({
+      providerConfig: {
+        id: `provider-${phase}`,
+        type: 'openai-compat',
+        maxRequestTokens: phase === 'active' ? 100 : 1000,
+      },
+      domain: 'editing',
+      mode: 'edit',
+      modelId: `${phase}-model`,
+      thinkingLevel: 'medium',
+    })
+    try {
+      const engine = new InitializedAgentEngine(() => null)
+      const stats = await engine.getSessionContextStats({
+        threadId: 'thread-1',
+        domain: 'editing',
+        mode: 'edit',
+        threadRuntime: {
+          providerConfigId: 'provider-next',
+          modelId: 'next-model',
+          thinkingLevel: 'medium',
+        },
+      })
+
+      assert.equal(stats.activeRuntime.modelId, 'active-model')
+      assert.equal(stats.activeRuntime.triggerTokens, 85)
+      assert.equal(stats.nextRuntime.modelId, 'next-model')
+      assert.equal(stats.nextRuntime.triggerTokens, 850)
+      assert.deepEqual(stats.pendingRuntime, pendingRuntime)
+    } finally {
+      delete globalThis.__iwriterResolveRuntime
+    }
   })
 
   it('passes the effective request budget and disables thinking for DeepAgents summarization', async () => {

@@ -118,7 +118,7 @@ const headerTitle = computed(() => {
   if (showHistory.value) return t('agentPanel.panel.historyTitle')
   const thread = aiStore.activeThread
   const originalTitle = thread?.title ?? t('agentPanel.panel.newThreadTitle')
-  const domain = thread?.domain ?? resolveAgentDomain(aiStore.settings.defaultMode)
+  const domain = thread?.domain ?? resolveAgentDomain(aiStore.settings?.defaultMode ?? 'edit')
   const domainLabel = domain === 'creative'
     ? t('agentPanel.modePicker.options.creative')
     : t('agentPanel.modePicker.options.edit')

@@ -315,22 +315,41 @@ export class AgentEngine {
     }
 
     const meta = req.threadId ? this.threadService.getMeta(req.threadId) : null
-    const runtime = resolveThreadRuntime(settings, req, meta)
-
-    const model = createChatModel(runtime.providerConfig, {
-      modelId: runtime.modelId,
-      thinkingLevel: runtime.thinkingLevel,
-    })
-    const budget = getEffectiveModelBudget(runtime.providerConfig, runtime.modelId, model)
-
-    const currentTokens = await this._getCurrentSessionTokens(req.threadId, runtime.domain, runtime.mode)
+    const nextRuntime = resolveThreadRuntime(settings, req, meta)
+    const currentTokens = await this._getCurrentSessionTokens(
+      req.threadId,
+      nextRuntime.domain,
+      nextRuntime.mode,
+    )
+    const buildStats = (runtime: typeof nextRuntime) => {
+      const model = createChatModel(runtime.providerConfig, {
+        modelId: runtime.modelId,
+        thinkingLevel: runtime.thinkingLevel,
+      })
+      const budget = getEffectiveModelBudget(runtime.providerConfig, runtime.modelId, model)
+      return {
+        modelId: runtime.modelId,
+        currentTokens,
+        triggerTokens: budget.triggerTokens,
+        requestBudgetTokens: budget.requestBudgetTokens,
+        keepTokens: budget.keepTokens,
+        maxInputTokens: budget.maxInputTokens,
+      }
+    }
+    const nextStats = buildStats(nextRuntime)
+    const activeStats = meta?.activeRuntime
+      ? buildStats(resolveResumeThreadRuntime(settings, meta))
+      : undefined
     return {
       visible: true,
-      currentTokens,
-      triggerTokens: budget.triggerTokens,
-      requestBudgetTokens: budget.requestBudgetTokens,
-      keepTokens: budget.keepTokens,
-      maxInputTokens: budget.maxInputTokens,
+      currentTokens: nextStats.currentTokens,
+      triggerTokens: nextStats.triggerTokens,
+      requestBudgetTokens: nextStats.requestBudgetTokens,
+      keepTokens: nextStats.keepTokens,
+      maxInputTokens: nextStats.maxInputTokens,
+      nextRuntime: nextStats,
+      ...(activeStats ? { activeRuntime: activeStats } : {}),
+      ...(meta?.pendingRuntime ? { pendingRuntime: meta.pendingRuntime } : {}),
     }
   }
 

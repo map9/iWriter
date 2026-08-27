@@ -27,10 +27,14 @@
       :can-send="!!inputText.trim()"
       :show-compact="showCompact"
       :current-session-tokens="currentSessionTokens"
-      :compact-progress-ratio="compactProgressRatio"
+      :compact-progress-ratio-raw="compactProgressRatioRaw"
+      :compact-progress-ratio-visual="compactProgressRatioVisual"
       :compact-trigger-tokens="compactTriggerTokens"
       :request-budget-tokens="requestBudgetTokens"
       :max-input-tokens="maxInputTokens"
+      :active-context-stats="activeContextStats"
+      :next-context-stats="nextContextStats"
+      :pending-runtime="pendingRuntime"
       :session-usage="sessionUsage"
       @browse-files="browseFiles"
       @browse-folder="browseFolder"
@@ -63,8 +67,12 @@ const {
   currentSessionTokens,
   compactTriggerTokens,
   requestBudgetTokens,
-  compactProgressRatio,
+  compactProgressRatioRaw,
+  compactProgressRatioVisual,
   maxInputTokens,
+  activeContextStats,
+  nextContextStats,
+  pendingRuntime,
   sessionUsage,
   handleKeydown,
   sendMessage,

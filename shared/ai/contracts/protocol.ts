@@ -57,6 +57,21 @@ export interface SessionContextStatsResponse {
   requestBudgetTokens: number
   keepTokens: number
   maxInputTokens?: number
+  /** Frozen runtime for the active/HITL turn. Omitted while the Thread is idle. */
+  activeRuntime?: SessionRuntimeContextStats
+  /** Committed runtime that will be used by the next turn. */
+  nextRuntime?: SessionRuntimeContextStats
+  /** Compatible candidate awaiting terminal-boundary revalidation. */
+  pendingRuntime?: ThreadRuntimeSelection
+}
+
+export interface SessionRuntimeContextStats {
+  modelId: string
+  currentTokens: number
+  triggerTokens: number
+  requestBudgetTokens: number
+  keepTokens: number
+  maxInputTokens?: number
 }
 
 export interface RuntimeSwitchRequest {
