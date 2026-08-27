@@ -286,7 +286,71 @@ describe('ThreadService', () => {
     assert.equal(meta.title, '写第一章')
     assert.equal(meta.domain, 'creative')
     assert.equal(meta.mode, 'creative')
+    assert.equal(meta.workspacePath, '/workspace')
+    assert.equal(service.listThreads()[0].workspacePath, '/workspace')
     assert.equal(runtimeStore.getCurrentTurnId(prepared.threadId), 'turn-new')
+  })
+
+  it('locks domain and mode after a thread has been persisted', async () => {
+    const { service, threadListQuery } = await createHarness()
+    threadListQuery.createMeta({
+      id: 'thread-domain-lock',
+      domain: 'editing',
+      mode: 'edit',
+      modelId: 'model-1',
+      providerConfigId: 'provider-1',
+      workspacePath: '/workspace',
+    })
+
+    assert.throws(() => service.prepareTurn(aiSettings(), {
+      threadId: 'thread-domain-lock',
+      turnId: 'turn-domain-change',
+      userText: '改成创作模式',
+      uiLocale: 'zh-CN',
+      domain: 'creative',
+      mode: 'creative',
+      workspacePath: '/workspace',
+    }), /domain.*locked/i)
+
+    const meta = service.getMeta('thread-domain-lock')
+    assert.equal(meta.domain, 'editing')
+    assert.equal(meta.mode, 'edit')
+  })
+
+  it('keeps the frozen active runtime until the turn is completed', async () => {
+    const { service, threadListQuery } = await createHarness()
+    threadListQuery.createMeta({
+      id: 'thread-runtime-snapshot',
+      domain: 'editing',
+      mode: 'edit',
+      modelId: 'model-1',
+      providerConfigId: 'provider-1',
+      workspacePath: '/workspace',
+    })
+
+    service.prepareTurn(aiSettings(), {
+      threadId: 'thread-runtime-snapshot',
+      turnId: 'turn-runtime-snapshot',
+      userText: '继续',
+      uiLocale: 'zh-CN',
+      domain: 'editing',
+      mode: 'edit',
+      threadRuntime: {
+        providerConfigId: 'provider-1',
+        modelId: 'model-1',
+        thinkingLevel: 'medium',
+      },
+      workspacePath: '/workspace',
+    })
+
+    const activeRuntime = service.getMeta('thread-runtime-snapshot').activeRuntime
+    assert.equal(activeRuntime.turnId, 'turn-runtime-snapshot')
+    assert.equal(activeRuntime.modelId, 'model-1')
+    assert.equal(activeRuntime.workspacePath, '/workspace')
+
+    service.completeTurn('thread-runtime-snapshot')
+
+    assert.equal(service.getMeta('thread-runtime-snapshot').activeRuntime, undefined)
   })
 
   it('prepares an existing thread turn without clearing its stale interrupt early', async () => {

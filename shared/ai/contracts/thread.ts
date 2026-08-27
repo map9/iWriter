@@ -1,6 +1,20 @@
 import type { AiAgentDomain, AiAgentMode, AiThinkingLevel } from './agent'
 import type { ThreadMessage } from './message'
 
+export interface ThreadRuntimeSelection {
+  providerConfigId: string
+  modelId: string
+  thinkingLevel: AiThinkingLevel
+}
+
+export interface TurnRuntimeSnapshot extends ThreadRuntimeSelection {
+  turnId: string
+  providerConfigRevision: string
+  domain: AiAgentDomain
+  mode: AiAgentMode
+  workspacePath: string | null
+}
+
 export interface SendContext {
   filePaths: string[]
   directories: string[]
@@ -36,6 +50,9 @@ export interface AiThread {
   domain: AiAgentDomain
   mode: AiAgentMode
   thinkingLevel?: AiThinkingLevel
+  workspacePath?: string | null
+  activeRuntime?: TurnRuntimeSnapshot
+  pendingRuntime?: ThreadRuntimeSelection
   hasError?: boolean
   usage?: ThreadUsage
 }

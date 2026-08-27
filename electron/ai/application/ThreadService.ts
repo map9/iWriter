@@ -5,6 +5,7 @@ import { resolveThreadRuntime, type ResolvedThreadRuntime } from '../runtime/Thr
 import type { ThreadRuntimeStore } from '../runtime/ThreadRuntimeStore'
 import { convertLcMessages } from '../ipc/MessageAdapter'
 import type { CheckpointerInstance } from '../checkpoint/CheckpointerFactory'
+import { createHash } from 'node:crypto'
 
 type CheckpointReader = Pick<CheckpointerInstance['checkpointer'], 'get'>
 
@@ -121,6 +122,17 @@ export class ThreadService {
     const existingMeta = request.threadId
       ? threadListQuery.getMeta(request.threadId)
       : null
+    if (existingMeta) {
+      if (request.domain !== existingMeta.domain || request.mode !== existingMeta.mode) {
+        throw new Error('Thread domain is locked after the first accepted turn.')
+      }
+      if (
+        existingMeta.workspacePath != null
+        && request.workspacePath !== existingMeta.workspacePath
+      ) {
+        throw new Error('Thread workspace is locked after the first accepted turn.')
+      }
+    }
     const runtime = resolveThreadRuntime(settings, request, existingMeta)
     const turnId = request.turnId ?? `turn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const metadata = {
@@ -129,6 +141,19 @@ export class ThreadService {
       modelId: runtime.modelId,
       providerConfigId: runtime.providerConfig.id,
       thinkingLevel: runtime.thinkingLevel,
+      workspacePath: existingMeta?.workspacePath ?? request.workspacePath,
+      activeRuntime: {
+        turnId,
+        providerConfigId: runtime.providerConfig.id,
+        providerConfigRevision: createHash('sha256')
+          .update(JSON.stringify(runtime.providerConfig))
+          .digest('hex'),
+        modelId: runtime.modelId,
+        thinkingLevel: runtime.thinkingLevel,
+        domain: runtime.domain,
+        mode: runtime.mode,
+        workspacePath: existingMeta?.workspacePath ?? request.workspacePath,
+      },
     }
     const isNewThread = !existingMeta
     if (isNewThread) {
@@ -149,6 +174,12 @@ export class ThreadService {
       isNewThread,
       runtime,
     }
+  }
+
+  completeTurn(threadId: string): void {
+    this.dependencies.getThreadListQuery()?.updateMeta(threadId, {
+      activeRuntime: undefined,
+    })
   }
 
   clearStaleInterrupt(threadId: string): void {

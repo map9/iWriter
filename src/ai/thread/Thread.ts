@@ -11,6 +11,7 @@ export function createThread(
   modelId: string,
   mode: AiThread['mode'],
   thinkingLevel?: AiThinkingLevel,
+  workspacePath: string | null = null,
 ): AiThread {
   const normalizedMode = normalizeAgentMode(mode)
   const now = Date.now()
@@ -26,6 +27,7 @@ export function createThread(
     domain: resolveAgentDomain(normalizedMode),
     mode: normalizedMode,
     thinkingLevel,
+    workspacePath,
   }
 }
 

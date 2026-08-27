@@ -14,7 +14,14 @@
 
 import type { Database } from 'better-sqlite3'
 import type { CheckpointerInstance } from '../checkpoint/CheckpointerFactory'
-import type { AiThread, AiAgentMode, AiAgentDomain, AiThinkingLevel } from '../../../shared/ai/contracts'
+import type {
+  AiThread,
+  AiAgentMode,
+  AiAgentDomain,
+  AiThinkingLevel,
+  ThreadRuntimeSelection,
+  TurnRuntimeSnapshot,
+} from '../../../shared/ai/contracts'
 import { normalizeAgentMode, normalizeThinkingLevel } from '../../../shared/ai/contracts'
 
 const MAX_THREADS = 100
@@ -30,6 +37,9 @@ export interface ThreadMeta {
   updatedAt: number
   hasError?: boolean
   thinkingLevel?: AiThinkingLevel
+  workspacePath?: string | null
+  activeRuntime?: TurnRuntimeSnapshot
+  pendingRuntime?: ThreadRuntimeSelection
 }
 
 // ─── SQLite helpers ──────────────────────────────────────────────────────────
@@ -46,6 +56,9 @@ interface RawThreadMetaRow {
   updated_at: number
   has_error: number   // SQLite stores boolean as 0/1
   thinking_level: string | null
+  workspace_path: string | null
+  active_runtime_json: string | null
+  pending_runtime_json: string | null
 }
 
 function ensureTable(db: Database): void {
@@ -60,7 +73,10 @@ function ensureTable(db: Database): void {
       created_at        INTEGER NOT NULL,
       updated_at        INTEGER NOT NULL,
       has_error         INTEGER DEFAULT 0,
-      thinking_level        TEXT
+      thinking_level        TEXT,
+      workspace_path        TEXT,
+      active_runtime_json   TEXT,
+      pending_runtime_json  TEXT
     )
   `)
   try {
@@ -72,8 +88,29 @@ function ensureTable(db: Database): void {
     if (!cols.includes('thinking_level')) {
       db.exec('ALTER TABLE thread_metadata ADD COLUMN thinking_level TEXT')
     }
+    if (!cols.includes('workspace_path')) {
+      db.exec('ALTER TABLE thread_metadata ADD COLUMN workspace_path TEXT')
+    }
+    if (!cols.includes('active_runtime_json')) {
+      db.exec('ALTER TABLE thread_metadata ADD COLUMN active_runtime_json TEXT')
+    }
+    if (!cols.includes('pending_runtime_json')) {
+      db.exec('ALTER TABLE thread_metadata ADD COLUMN pending_runtime_json TEXT')
+    }
   } catch {
     // ignore migration errors; CREATE TABLE path already covers new installs
+  }
+}
+
+function parseJsonObject<T>(value: string | null | undefined): T | undefined {
+  if (!value) return undefined
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as T
+      : undefined
+  } catch {
+    return undefined
   }
 }
 
@@ -89,6 +126,9 @@ function rowToMeta(row: RawThreadMetaRow): ThreadMeta {
     updatedAt: row.updated_at,
     hasError: !!row.has_error,
     thinkingLevel: row.thinking_level ? normalizeThinkingLevel(row.thinking_level) : undefined,
+    workspacePath: row.workspace_path ?? null,
+    activeRuntime: parseJsonObject<TurnRuntimeSnapshot>(row.active_runtime_json),
+    pendingRuntime: parseJsonObject<ThreadRuntimeSelection>(row.pending_runtime_json),
   }
 }
 
@@ -143,6 +183,9 @@ export class ThreadListQuery {
     modelId: string
     providerConfigId: string
     thinkingLevel?: AiThinkingLevel
+    workspacePath?: string | null
+    activeRuntime?: TurnRuntimeSnapshot
+    pendingRuntime?: ThreadRuntimeSelection
   }): ThreadMeta {
     const now = Date.now()
     const meta: ThreadMeta = {
@@ -155,6 +198,9 @@ export class ThreadListQuery {
       createdAt: now,
       updatedAt: now,
       thinkingLevel: params.thinkingLevel,
+      workspacePath: params.workspacePath ?? null,
+      activeRuntime: params.activeRuntime,
+      pendingRuntime: params.pendingRuntime,
     }
     this._saveMeta(meta)
     return meta
@@ -164,7 +210,7 @@ export class ThreadListQuery {
     id: string,
     updates: Partial<Pick<
       ThreadMeta,
-      'title' | 'hasError' | 'updatedAt' | 'domain' | 'mode' | 'modelId' | 'providerConfigId' | 'thinkingLevel'
+      'title' | 'hasError' | 'updatedAt' | 'domain' | 'mode' | 'modelId' | 'providerConfigId' | 'thinkingLevel' | 'workspacePath' | 'activeRuntime' | 'pendingRuntime'
     >>,
   ): void {
     const meta = this.getMeta(id)
@@ -208,8 +254,9 @@ export class ThreadListQuery {
       this.db.prepare(`
         INSERT OR REPLACE INTO thread_metadata
           (thread_id, title, domain, mode, model_id, provider_config_id,
-           created_at, updated_at, has_error, thinking_level)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           created_at, updated_at, has_error, thinking_level, workspace_path,
+           active_runtime_json, pending_runtime_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         meta.id,
         meta.title,
@@ -221,6 +268,9 @@ export class ThreadListQuery {
         meta.updatedAt,
         meta.hasError ? 1 : 0,
         meta.thinkingLevel ?? null,
+        meta.workspacePath ?? null,
+        meta.activeRuntime ? JSON.stringify(meta.activeRuntime) : null,
+        meta.pendingRuntime ? JSON.stringify(meta.pendingRuntime) : null,
       )
       return
     }
@@ -248,6 +298,9 @@ export function metaToAiThread(meta: ThreadMeta): AiThread {
     domain: meta.domain,
     mode: meta.mode,
     thinkingLevel: meta.thinkingLevel,
+    workspacePath: meta.workspacePath ?? null,
+    activeRuntime: meta.activeRuntime,
+    pendingRuntime: meta.pendingRuntime,
     hasError: meta.hasError,
   }
 }
