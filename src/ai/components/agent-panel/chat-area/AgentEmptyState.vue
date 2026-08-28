@@ -1,47 +1,53 @@
 <template>
   <div
     v-if="!aiStore.displayMessages.length && !aiStore.liveTurnState && !aiStore.isSwitchingThread"
-    class="flex flex-col items-center justify-center h-full text-center"
+    class="flex min-h-full flex-col items-center text-center"
   >
-    <div class="mt-4 flex flex-col items-center">
-      <IconBrain class="size-12 text-base-content" />
-      <p class="mt-2 text-md font-medium text-base-content">{{ brand }}</p>
-      <p class="mt-1 max-w-xs text-xs leading-5 text-base-content/50">
-        {{ subtitle }}
-      </p>
-    </div>
+    <div class="my-auto flex w-full flex-col items-center py-4">
+      <h2 class="text-xl font-medium text-base-content pb-2">
+        {{ modePrompt }}
+      </h2>
+      <AgentModeSwitch
+        v-if="aiStore.isActiveThreadDraft"
+        class="mt-3"
+        :label="t('agentPanel.modePicker.switchMode')"
+        :model-value="currentMode"
+        :options="modeOptions"
+        @update:model-value="aiStore.setCurrentMode"
+      />
 
-    <div class="mt-7 w-full max-w-md">
-      <div class="min-h-5">
-        <p class="text-sm font-semibold text-base-content">
-          {{ currentGroup.title }}
-        </p>
-      </div>
+      <div class="mt-7 w-full max-w-md">
+        <div class="min-h-5">
+          <p class="text-sm font-semibold text-base-content">
+            {{ currentGroup.title }}
+          </p>
+        </div>
 
-      <div class="mt-4 grid grid-cols-2 gap-3 auto-rows-fr">
-        <button
-          v-for="prompt in currentGroup.prompts"
-          :key="prompt"
-          type="button"
-          class="h-14 rounded-field border border-base-300 bg-base-100 px-2 py-2 text-left text-xs leading-4 text-base-content shadow-sm transition-colors overflow-hidden hover:bg-base-200"
-          @click="emit('suggest', prompt)"
-        >
-          <span class="block">
-            {{ prompt }}
-          </span>
-        </button>
-      </div>
+        <div class="mt-4 grid grid-cols-2 gap-3 auto-rows-fr">
+          <button
+            v-for="prompt in currentGroup.prompts"
+            :key="prompt"
+            type="button"
+            class="h-14 rounded-field border border-base-300 bg-base-100 px-2 py-2 text-left text-xs leading-4 text-base-content shadow-sm transition-colors overflow-hidden hover:bg-base-200"
+            @click="emit('suggest', prompt)"
+          >
+            <span class="block">
+              {{ prompt }}
+            </span>
+          </button>
+        </div>
 
-      <div class="mt-5 flex items-center justify-center gap-2">
-        <button
-          v-for="(group, index) in promptGroups"
-          :key="group.title"
-          type="button"
-          class="icon-dot transition-all"
-          :class="index === activeGroupIndex ? 'bg-base-content scale-150' : 'bg-base-100 border border-base-300 hover:bg-base-300 hover:cursor-pointer hover:scale-150'"
-          :title="group.title"
-          @click="activeGroupIndex = index"
-        />
+        <div class="mt-5 flex items-center justify-center gap-2">
+          <button
+            v-for="(group, index) in promptGroups"
+            :key="group.title"
+            type="button"
+            class="icon-dot transition-all"
+            :class="index === activeGroupIndex ? 'bg-base-content scale-150' : 'bg-base-100 border border-base-300 hover:bg-base-300 hover:cursor-pointer hover:scale-150'"
+            :title="group.title"
+            @click="activeGroupIndex = index"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -50,9 +56,9 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconBrain } from '@tabler/icons-vue'
 import { useAiStore } from '@/ai/state/aiStore'
 import { useAppStore } from '@/stores/app'
+import AgentModeSwitch from './AgentModeSwitch.vue'
 
 interface PromptGroup {
   title: string
@@ -66,15 +72,27 @@ const emit = defineEmits<{ suggest: [prompt: string] }>()
 
 const hasActiveDocument = computed(() => !!appStore.activeTab)
 const currentMode = computed(() => aiStore.activeThread?.mode ?? aiStore.settings.defaultMode)
-const brand = computed(() =>
+const modeOptions = computed(() => {
+  const creativeDisabled = !appStore.currentFolder
+  return [
+    {
+      value: 'edit' as const,
+      label: t('agentPanel.modePicker.options.edit'),
+    },
+    {
+      value: 'creative' as const,
+      label: t('agentPanel.modePicker.options.creative'),
+      disabled: creativeDisabled,
+      disabledHint: creativeDisabled
+        ? t('agentPanel.modePicker.options.creativeDisabledHint')
+        : undefined,
+    },
+  ]
+})
+const modePrompt = computed(() =>
   currentMode.value === 'creative'
-    ? t('agentPanel.emptyState.brandCreative')
-    : t('agentPanel.emptyState.brandEdit'),
-)
-const subtitle = computed(() =>
-  currentMode.value === 'creative'
-    ? t('agentPanel.emptyState.subtitleCreative')
-    : t('agentPanel.emptyState.subtitleEdit'),
+    ? t('agentPanel.emptyState.promptCreative')
+    : t('agentPanel.emptyState.promptEdit'),
 )
 const activeGroupIndex = ref(0)
 let carouselTimer: ReturnType<typeof setInterval> | null = null

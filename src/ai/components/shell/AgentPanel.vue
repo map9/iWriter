@@ -130,7 +130,9 @@ const showPendingCommands = computed(
   () => !aiStore.isInterrupted && aiStore.pendingCommands.length > 0,
 )
 const showBottomOverlay = computed(() => showTaskPlan.value || showPendingCommands.value)
-const showScrollToLatest = computed(() => chatFollowState.value !== 'following')
+const showScrollToLatest = computed(() =>
+  !aiStore.isActiveThreadDraft && chatFollowState.value !== 'following',
+)
 const scrollToLatestBottom = computed(
   () => inputAreaHeight.value + bottomOverlayHeight.value + 10,
 )

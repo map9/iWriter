@@ -17,6 +17,12 @@ import {
 } from '@shared/ai/contracts'
 import { createThread, appendMessage, createMessage } from '@/ai/thread/Thread'
 import {
+  clearActiveThreadSelection,
+  loadActiveThreadSelection,
+  resolveInitialThreadSelection,
+  saveActiveThreadSelection,
+} from '@/ai/thread/threadSelectionPersistence'
+import {
   normalizeThreadMessageForDisplay,
   normalizeThreadMessagesForDisplay,
 } from '@/ai/message/display-normalizer'
@@ -126,6 +132,14 @@ export const useAiStore = defineStore('ai', () => {
     return threadId ? pendingCommandQueue.getCommands(threadId) : []
   })
 
+  function persistActiveThreadSelection(thread: AiThread | null = activeThread.value): void {
+    if (!thread) {
+      clearActiveThreadSelection()
+      return
+    }
+    saveActiveThreadSelection(thread, _localOnlyThreadIds.has(thread.id))
+  }
+
   function upsertCompressionEventList(
     events: AiContextCompressionEvent[],
     event: AiContextCompressionEvent,
@@ -193,6 +207,7 @@ export const useAiStore = defineStore('ai', () => {
     threads.value = threads.value.filter(t => !toRemove.some(r => r.id === t.id))
     if (!threads.value.find(t => t.id === activeThreadId.value)) {
       activeThreadId.value = threads.value[0]?.id ?? null
+      persistActiveThreadSelection()
     }
   }
 
@@ -214,8 +229,9 @@ export const useAiStore = defineStore('ai', () => {
   function publishNewThread(thread: AiThread): void {
     _purgeEmptyThreads()
     threads.value.unshift(thread)
-    activeThreadId.value = thread.id
     _localOnlyThreadIds.add(thread.id)
+    activeThreadId.value = thread.id
+    persistActiveThreadSelection(thread)
   }
 
   function prepareNewThread(
@@ -245,6 +261,7 @@ export const useAiStore = defineStore('ai', () => {
 
     if (thread.messagesLoaded) {
       activeThreadId.value = id
+      persistActiveThreadSelection(thread)
       isSwitchingThread.value = false
       switchingThreadId.value = null
       return true
@@ -262,6 +279,7 @@ export const useAiStore = defineStore('ai', () => {
       }
       updateThread(normalizedThread)
       activeThreadId.value = id
+      persistActiveThreadSelection(normalizedThread)
       return true
     } catch (error) {
       activeThreadId.value = previousActiveThreadId
@@ -292,6 +310,7 @@ export const useAiStore = defineStore('ai', () => {
     agentClient.deleteThread(id)
     if (activeThreadId.value === id) {
       activeThreadId.value = threads.value[0]?.id ?? null
+      persistActiveThreadSelection()
     }
   }
 
@@ -303,6 +322,7 @@ export const useAiStore = defineStore('ai', () => {
     subagentCompressionEventsByThread.value = {}
     threads.value = []
     activeThreadId.value = null
+    clearActiveThreadSelection()
     agentClient.clearThreads()
   }
 
@@ -316,6 +336,9 @@ export const useAiStore = defineStore('ai', () => {
     const idx = threads.value.findIndex(t => t.id === thread.id)
     if (idx >= 0) {
       threads.value[idx] = normalizedThread
+      if (activeThreadId.value === normalizedThread.id) {
+        persistActiveThreadSelection(normalizedThread)
+      }
     }
   }
 
@@ -555,7 +578,10 @@ export const useAiStore = defineStore('ai', () => {
       })
 
       // Main has accepted the first turn and persisted its immutable domain.
-      if (result) _localOnlyThreadIds.delete(thread.id)
+      if (result) {
+        _localOnlyThreadIds.delete(thread.id)
+        saveActiveThreadSelection(thread, false)
+      }
 
       if (
         result
@@ -819,35 +845,53 @@ export const useAiStore = defineStore('ai', () => {
     // cases where renderer localStorage has newer values than the main-process store)
     agentClient.updateConfig(JSON.parse(JSON.stringify(toRaw(settings.value))))
 
+    const savedSelection = loadActiveThreadSelection()
     agentClient.getThreads()?.then(async mainThreads => {
-      if (mainThreads?.length) {
-        // Merge: preserve any local-only threads not yet in the backend list
-        const localOnly = threads.value.filter(t => _localOnlyThreadIds.has(t.id))
-        const merged = [
-          ...localOnly,
-          ...mainThreads.filter(m => !localOnly.some(l => l.id === m.id)),
+      const backendThreads = mainThreads ?? []
+      // A draft created while the backend list was loading takes precedence over
+      // the selection captured before this init call.
+      const liveLocalOnly = threads.value.filter(t => _localOnlyThreadIds.has(t.id))
+      const liveDraft = liveLocalOnly.find(thread =>
+        thread.id === activeThreadId.value && isThreadSelectable(thread),
+      )
+      if (liveDraft) {
+        threads.value = [
+          ...liveLocalOnly,
+          ...backendThreads.filter(thread => !liveLocalOnly.some(local => local.id === thread.id)),
         ]
-        threads.value = merged
-        // Keep active thread if still valid, otherwise default to first backend thread
-        const currentActive = merged.find(t => t.id === activeThreadId.value)
-        if (!currentActive || !isThreadSelectable(currentActive)) {
-          const firstSelectable = mainThreads.find(isThreadSelectable)
-          if (!firstSelectable) {
-            createNewThread(appStore.currentFolder ?? null)
-            return
-          }
-          const firstId = firstSelectable.id
-          activeThreadId.value = firstId
-          try {
-            const messages = await agentClient.getThreadMessages(firstId)
-            if (messages?.length) {
-              updateThread({ ...firstSelectable, messages: _normalizeMessagesForDisplay(messages), messagesLoaded: true })
-            }
-          } catch { /* ignore */ }
-        }
         return
       }
-      if (!activeThread.value) createNewThread(appStore.currentFolder ?? null)
+
+      const restored = resolveInitialThreadSelection(
+        savedSelection,
+        backendThreads,
+        appStore.currentFolder ?? null,
+      )
+      threads.value = restored.threads
+      if (restored.localDraftThreadId) {
+        _localOnlyThreadIds.add(restored.localDraftThreadId)
+      }
+
+      const selectedThread = restored.activeThreadId
+        ? restored.threads.find(thread => thread.id === restored.activeThreadId) ?? null
+        : backendThreads.find(isThreadSelectable) ?? null
+      if (!selectedThread) {
+        createNewThread(appStore.currentFolder ?? null)
+        return
+      }
+
+      activeThreadId.value = selectedThread.id
+      persistActiveThreadSelection(selectedThread)
+      if (_localOnlyThreadIds.has(selectedThread.id) || selectedThread.messagesLoaded) return
+
+      try {
+        const messages = await agentClient.getThreadMessages(selectedThread.id)
+        updateThread({
+          ...selectedThread,
+          messages: messages?.length ? _normalizeMessagesForDisplay(messages) : (messages ?? []),
+          messagesLoaded: true,
+        })
+      } catch { /* ignore */ }
     }).catch(() => {/* ignore — main process may not be ready yet */})
 
     agentClient.onStreamChunk(runtimeEvents.onStreamChunk)

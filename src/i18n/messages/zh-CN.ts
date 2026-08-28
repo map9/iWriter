@@ -376,7 +376,7 @@ export default {
           description: '深度求索 API',
         },
         glm: {
-          label: 'GLM（智谱）',
+          label: 'GLM',
           description: '智谱 AI GLM 系列',
         },
         openai: {
@@ -512,11 +512,8 @@ export default {
       switchMode: '切换创作搭子',
       options: {
         edit: '日常写作搭子',
-        editDesc: '围绕个人知识管理与日常文档写作，提供从信息收集、内容创作到文稿打磨的全链路智能助手。',
         creative: '小说创作搭子',
-        creativeDesc: '陪伴作者从灵感构思到作品完稿的全流程 AI 小说创作伙伴。',
-        creativeDisabledDesc: '需要打开工作空间文件夹才能使用小说创作搭子。',
-        creativeDisabledTooltip: '小说创作搭子需要打开一个工作空间文件夹。',
+        creativeDisabledHint: '需打开工程空间',
       },
     },
     statusButton: {
@@ -632,10 +629,8 @@ export default {
       },
     },
     emptyState: {
-      brandEdit: '日常写作搭子',
-      brandCreative: '小说创作搭子',
-      subtitleEdit: '围绕个人知识管理与日常文档写作，从信息收集、内容创作到文稿打磨，全程陪你完成。',
-      subtitleCreative: '陪伴你从灵感构思到作品完稿，完成小说创作全流程。',
+      promptEdit: '我能帮你写点什么？',
+      promptCreative: '今天，想讲一个怎样的故事？',
       edit: {
         withDocument: {
           group1: {

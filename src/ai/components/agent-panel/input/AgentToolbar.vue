@@ -20,14 +20,6 @@
         @open="openMenu('model')"
         @close="closeMenu()"
       />
-
-      <ModePicker
-        v-if="aiStore.isActiveThreadDraft"
-        :compact="profileCompact"
-        :is-open="activeMenu === 'mode'"
-        @open="openMenu('mode')"
-        @close="closeMenu()"
-      />
     </div>
 
     <div class="flex items-center gap-1.5 min-w-0 ml-auto shrink-0">
@@ -97,7 +89,6 @@ import type {
 import AttachPicker from './AttachPicker.vue'
 import ProviderPicker from './ProviderPicker.vue'
 import ModelPicker from './ModelPicker.vue'
-import ModePicker from './ProfilePicker.vue'
 import SendButton from './SendButton.vue'
 import { useAiStore } from '@/ai/state/aiStore'
 import { computeCompactProgress } from '../composables/useChatSend'
@@ -118,13 +109,12 @@ defineEmits<{
   stop: []
 }>()
 
-type MenuName = 'provider' | 'model' | 'mode'
+type MenuName = 'provider' | 'model'
 const activeMenu = ref<MenuName | null>(null)
 const compactIndicatorRef = ref<HTMLElement | null>(null)
 const pickerGroupEl = ref<HTMLElement | null>(null)
 const providerCompact = ref(false)
 const modelCompact = ref(false)
-const profileCompact = ref(false)
 let resizeObserver: ResizeObserver | null = null
 
 function getUsedWidth(): number {
@@ -142,11 +132,6 @@ async function updateLayout() {
   // Reset all to text mode and re-measure after each step
   providerCompact.value = false
   modelCompact.value = false
-  profileCompact.value = false
-  await nextTick()
-  if (getUsedWidth() <= available) return
-
-  profileCompact.value = true
   await nextTick()
   if (getUsedWidth() <= available) return
 

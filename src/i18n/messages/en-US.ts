@@ -515,11 +515,8 @@ export default {
       switchMode: 'Switch Writing Buddy',
       options: {
         edit: 'AI Doc Buddy',
-        editDesc: 'An end-to-end assistant for personal knowledge management and everyday writing, from research and creation to polishing.',
         creative: 'AI Story Buddy',
-        creativeDesc: 'An AI novel-writing partner alongside authors from first inspiration to finished manuscript.',
-        creativeDisabledDesc: 'Open a workspace folder to use AI Story Buddy.',
-        creativeDisabledTooltip: 'AI Story Buddy requires an open workspace folder.',
+        creativeDisabledHint: 'Workspace required',
       },
     },
     statusButton: {
@@ -635,10 +632,8 @@ export default {
       },
     },
     emptyState: {
-      brandEdit: 'AI Doc Buddy',
-      brandCreative: 'AI Story Buddy',
-      subtitleEdit: 'Your end-to-end partner for personal knowledge and everyday writing, from research and creation to polishing.',
-      subtitleCreative: 'Your AI novel-writing partner from first inspiration to finished manuscript.',
+      promptEdit: 'What can I help you write?',
+      promptCreative: 'What kind of story would you like to tell today?',
       edit: {
         withDocument: {
           group1: {

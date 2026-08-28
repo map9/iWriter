@@ -183,6 +183,14 @@ function scrollToBottom() {
   requestAnimationFrame(() => { isProgrammaticScroll = false })
 }
 
+function scrollToTop() {
+  const el = messagesEl.value
+  if (!el) return
+  isProgrammaticScroll = true
+  el.scrollTop = 0
+  requestAnimationFrame(() => { isProgrammaticScroll = false })
+}
+
 function clearIdleTimer() {
   if (idleTimer) {
     clearTimeout(idleTimer)
@@ -221,6 +229,19 @@ function scrollToLatest() {
   scrollToBottom()
 }
 
+function resetScrollForActiveThread() {
+  clearIdleTimer()
+  followState.value = 'following'
+  emit('followStateChange', 'following')
+  nextTick(() => {
+    if (aiStore.isActiveThreadDraft) {
+      scrollToTop()
+      return
+    }
+    scrollToBottom()
+  })
+}
+
 defineExpose({ scrollToLatest })
 
 watch(
@@ -242,16 +263,11 @@ watch(
 
 watch(
   () => aiStore.activeThreadId,
-  () => {
-    clearIdleTimer()
-    setFollowState('following')
-    nextTick(() => scrollToBottom())
-  }
+  resetScrollForActiveThread,
 )
 
 onMounted(() => {
-  emit('followStateChange', 'following')
-  nextTick(() => scrollToBottom())
+  resetScrollForActiveThread()
 })
 
 async function handleResend(messageId: string, newContent: string) {

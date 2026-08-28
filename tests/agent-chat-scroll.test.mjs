@@ -186,6 +186,7 @@ function createChatStore(module) {
   return module.reactive({
     activeThreadId: 'thread-1',
     displayMessages: [],
+    isActiveThreadDraft: false,
     isInterrupted: false,
     isStreaming: true,
     isSwitchingThread: false,
@@ -200,7 +201,61 @@ function createChatStore(module) {
   })
 }
 
+class ResizeObserverStub {
+  constructor(callback) {
+    this.callback = callback
+  }
+
+  observe(element) {
+    const height = element.classList.contains('bottom-0') ? 64 : 48
+    this.callback([{ contentRect: { height } }])
+  }
+
+  disconnect() {}
+}
+
 describe('agent chat streaming scroll behavior', () => {
+  it('resets a selected draft to the top and clears the detached follow state', async () => {
+    const dom = new JSDOM('<div id="app"></div>', { url: 'http://localhost' })
+    const followStates = []
+    const restoreDom = installDom(dom)
+    let app
+    try {
+      const module = await loadChatAreaModule()
+      const store = createChatStore(module)
+      globalThis.__iwriterAgentChatStore = store
+      app = module.createApp(module.default, {
+        onFollowStateChange: state => followStates.push(state),
+      })
+      app.mount(dom.window.document.querySelector('#app'))
+      await module.nextTick()
+
+      const scroller = dom.window.document.querySelector('#app')?.firstElementChild
+      assert.ok(scroller)
+      Object.defineProperties(scroller, {
+        clientHeight: { configurable: true, value: 400 },
+        scrollHeight: { configurable: true, value: 1000 },
+        scrollTop: { configurable: true, value: 300, writable: true },
+      })
+
+      scroller.dispatchEvent(new dom.window.Event('scroll'))
+      assert.equal(followStates.at(-1), 'detached')
+
+      store.isActiveThreadDraft = true
+      store.activeThreadId = 'thread-draft'
+      await module.nextTick()
+      await module.nextTick()
+
+      assert.equal(scroller.scrollTop, 0)
+      assert.equal(followStates.at(-1), 'following')
+    } finally {
+      app?.unmount()
+      delete globalThis.__iwriterAgentChatStore
+      dom.window.close()
+      restoreDom()
+    }
+  })
+
   it('resumes following five seconds after a shallow user scroll', async () => {
     const dom = new JSDOM('<div id="app"></div>', { url: 'http://localhost' })
     const timers = []
@@ -292,18 +347,6 @@ describe('agent chat streaming scroll behavior', () => {
 describe('scroll-to-latest affordance', () => {
   it('sits above the input and bottom overlay and restores following when clicked', async () => {
     const dom = new JSDOM('<div id="app"></div>', { url: 'http://localhost' })
-    class ResizeObserverStub {
-      constructor(callback) {
-        this.callback = callback
-      }
-
-      observe(element) {
-        const height = element.classList.contains('bottom-0') ? 64 : 48
-        this.callback([{ contentRect: { height } }])
-      }
-
-      disconnect() {}
-    }
     const restoreDom = installDom(dom, { ResizeObserver: ResizeObserverStub })
     let app
     try {
@@ -312,6 +355,7 @@ describe('scroll-to-latest affordance', () => {
       globalThis.__iwriterAgentPanelStore = module.reactive({
         activeThread: { id: 'thread-1', messages: [], title: 'Thread' },
         activeThreadId: 'thread-1',
+        isActiveThreadDraft: false,
         isInterrupted: false,
         isStreaming: true,
         liveTurnThreadId: 'thread-1',
@@ -336,6 +380,44 @@ describe('scroll-to-latest affordance', () => {
 
       button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }))
       assert.equal(globalThis.__iwriterScrollToLatestCalls, 1)
+    } finally {
+      app?.unmount()
+      delete globalThis.__iwriterAgentPanelStore
+      delete globalThis.__iwriterScrollToLatestCalls
+      dom.window.close()
+      restoreDom()
+    }
+  })
+
+  it('stays hidden for a draft thread even when the chat reports detached scrolling', async () => {
+    const dom = new JSDOM('<div id="app"></div>', { url: 'http://localhost' })
+    const restoreDom = installDom(dom, { ResizeObserver: ResizeObserverStub })
+    let app
+    try {
+      const module = await loadAgentPanelModule()
+      globalThis.__iwriterScrollToLatestCalls = 0
+      globalThis.__iwriterAgentPanelStore = module.reactive({
+        activeThread: { id: 'thread-draft', messages: [], title: 'New conversation' },
+        activeThreadId: 'thread-draft',
+        isActiveThreadDraft: true,
+        isInterrupted: false,
+        isStreaming: false,
+        liveTurnThreadId: null,
+        pendingCommands: [],
+        streamingPreviewMessage: null,
+      })
+      app = module.createApp(module.default)
+      app.mount(dom.window.document.querySelector('#app'))
+      await module.nextTick()
+
+      dom.window.document.querySelector('.detach-chat-trigger')
+        ?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }))
+      await module.nextTick()
+
+      assert.equal(
+        dom.window.document.querySelector('button[aria-label="agentPanel.chatArea.scrollToLatest"]'),
+        null,
+      )
     } finally {
       app?.unmount()
       delete globalThis.__iwriterAgentPanelStore
