@@ -1,11 +1,22 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { after, describe, it } from 'node:test'
 import { build } from 'esbuild'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { join, resolve } from 'node:path'
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from '@langchain/core/messages'
 
 let modulePromise
 let chatSendModulePromise
+let middlewareModulePromise
+let transformerModulePromise
+const tempDirs = []
+const require = createRequire(import.meta.url)
+
+after(async () => {
+  await Promise.all(tempDirs.map(dir => rm(dir, { recursive: true, force: true })))
+})
 
 async function loadChatSendModule() {
   if (!chatSendModulePromise) {
@@ -122,6 +133,54 @@ async function loadModule() {
   return modulePromise
 }
 
+async function loadSummarizationMiddlewareModule() {
+  if (!middlewareModulePromise) {
+    middlewareModulePromise = (async () => {
+      const buildDir = await mkdtemp(join(
+        process.cwd(),
+        'node_modules',
+        '.iwriter-context-summary-build-',
+      ))
+      const outputPath = join(buildDir, 'iwriter-summarization.cjs')
+      tempDirs.push(buildDir)
+      await build({
+        entryPoints: ['electron/ai/scaffold/summarization/IWriterSummarizationMiddleware.ts'],
+        bundle: true,
+        packages: 'external',
+        platform: 'node',
+        format: 'cjs',
+        outfile: outputPath,
+      })
+      return require(outputPath)
+    })()
+  }
+  return middlewareModulePromise
+}
+
+async function loadContextCompressionTransformerModule() {
+  if (!transformerModulePromise) {
+    transformerModulePromise = (async () => {
+      const buildDir = await mkdtemp(join(
+        process.cwd(),
+        'node_modules',
+        '.iwriter-context-compression-transformer-build-',
+      ))
+      const outputPath = join(buildDir, 'context-compression-transformer.cjs')
+      tempDirs.push(buildDir)
+      await build({
+        entryPoints: ['electron/ai/scaffold/summarization/ContextCompressionStreamTransformer.ts'],
+        bundle: true,
+        packages: 'external',
+        platform: 'node',
+        format: 'cjs',
+        outfile: outputPath,
+      })
+      return require(outputPath)
+    })()
+  }
+  return transformerModulePromise
+}
+
 describe('summarization framework', () => {
   it('uses one common envelope with domain-specific state fields', async () => {
     const {
@@ -159,6 +218,286 @@ describe('summarization framework', () => {
     assert.doesNotMatch(editing, /selected Playbook/)
     assert.match(creative, /selected Playbook/)
     assert.match(creative, /confirmed project facts from candidates/)
+  })
+})
+
+function createArchiveBackend() {
+  const files = new Map()
+  const encoder = new TextEncoder()
+  const decoder = new TextDecoder()
+  return {
+    files,
+    async write(filePath, content) {
+      files.set(filePath, String(content))
+      return { path: filePath }
+    },
+    async edit(filePath, oldContent, newContent) {
+      if (files.get(filePath) !== oldContent) return { error: 'content mismatch' }
+      files.set(filePath, newContent)
+      return { path: filePath }
+    },
+    async downloadFiles(paths) {
+      return paths.map(filePath => files.has(filePath)
+        ? { path: filePath, content: encoder.encode(files.get(filePath)) }
+        : { path: filePath, error: 'not found' })
+    },
+    async uploadFiles(entries) {
+      return entries.map(([filePath, content]) => {
+        files.set(filePath, decoder.decode(content))
+        return { path: filePath }
+      })
+    },
+  }
+}
+
+function modelRequest(messages, writer) {
+  const systemMessage = new SystemMessage('system')
+  return {
+    model: { profile: {} },
+    messages,
+    state: { messages },
+    systemPrompt: 'system',
+    systemMessage,
+    tools: [],
+    runtime: {
+      context: {},
+      configurable: { thread_id: 'thread-1' },
+      writer,
+    },
+  }
+}
+
+describe('IWriter summarization middleware', () => {
+  it('uses the injected token counter, falls back, archives the summary, and emits completion', async () => {
+    const { createIWriterSummarizationMiddleware } = await loadSummarizationMiddlewareModule()
+    const backend = createArchiveBackend()
+    const events = []
+    let primaryCalls = 0
+    let fallbackCalls = 0
+    const primaryModel = {
+      profile: {},
+      async invoke() {
+        primaryCalls += 1
+        throw new Error('primary summary unavailable')
+      },
+    }
+    const fallbackModel = {
+      profile: {},
+      async invoke() {
+        fallbackCalls += 1
+        return new AIMessage('fallback working-state summary')
+      },
+    }
+    const middleware = createIWriterSummarizationMiddleware({
+      model: primaryModel,
+      fallbackModel,
+      backend,
+      tokenCounter: messages => messages.length * 10,
+      trigger: { type: 'tokens', value: 30 },
+      keep: { type: 'tokens', value: 10 },
+      summaryPrompt: 'Compact this:\n{conversation}',
+      trimTokensToSummarize: 1000,
+    })
+    const messages = [
+      new HumanMessage('first'),
+      new AIMessage('second'),
+      new HumanMessage('third'),
+    ]
+
+    const result = await middleware.wrapModelCall(
+      modelRequest(messages, event => events.push(event)),
+      async request => {
+        assert.equal(request.messages.length, 2)
+        assert.match(request.messages[0].text, /fallback working-state summary/)
+        assert.equal(request.messages[1].text, 'third')
+        return new AIMessage('final response')
+      },
+    )
+
+    assert.equal(middleware.name, 'SummarizationMiddleware')
+    assert.equal(primaryCalls, 1)
+    assert.equal(fallbackCalls, 1)
+    assert.equal(result.update._summarizationEvent.cutoffIndex, 2)
+    assert.equal(result.update._summarizationEvent.filePath.startsWith('/conversation_history/'), true)
+    const archive = backend.files.get(result.update._summarizationEvent.filePath)
+    assert.match(archive, /first/)
+    assert.match(archive, /second/)
+    assert.match(archive, /fallback working-state summary/)
+    assert.deepEqual(events.map(event => event.payload.phase), ['started', 'completed'])
+    assert.equal(events[1].payload.compressedMessageCount, 2)
+  })
+
+  it('persists a post-response summary without calling the main model twice', async () => {
+    const { createIWriterSummarizationMiddleware } = await loadSummarizationMiddlewareModule()
+    const backend = createArchiveBackend()
+    const events = []
+    let handlerCalls = 0
+    const middleware = createIWriterSummarizationMiddleware({
+      model: {
+        profile: {},
+        async invoke() {
+          return new AIMessage('post-response summary')
+        },
+      },
+      backend,
+      tokenCounter: messages => messages.length * 10,
+      trigger: { type: 'tokens', value: 40 },
+      keep: { type: 'tokens', value: 10 },
+      summaryPrompt: 'Compact this:\n{conversation}',
+      trimTokensToSummarize: 1000,
+    })
+    const messages = [new HumanMessage('first'), new AIMessage('second')]
+
+    const result = await middleware.wrapModelCall(
+      modelRequest(messages, event => events.push(event)),
+      async () => {
+        handlerCalls += 1
+        return new AIMessage({ content: 'final response', id: 'response-1' })
+      },
+    )
+
+    assert.equal(handlerCalls, 1)
+    assert.equal(result.update._summarizationEvent.cutoffIndex, 2)
+    assert.equal(events[0].payload.anchorMessageId, 'response-1')
+    assert.deepEqual(events.map(event => event.payload.phase), ['started', 'completed'])
+  })
+
+  it('always terminates a started event when native summarization is skipped', async () => {
+    const { createIWriterSummarizationMiddleware } = await loadSummarizationMiddlewareModule()
+    const events = []
+    const middleware = createIWriterSummarizationMiddleware({
+      model: {
+        profile: { maxInputTokens: 1000 },
+        async invoke() {
+          return new AIMessage('summary should not be needed')
+        },
+      },
+      backend: createArchiveBackend(),
+      tokenCounter: () => 100,
+      trigger: { type: 'tokens', value: 10 },
+      keep: { type: 'tokens', value: 0 },
+      summaryPrompt: 'Compact this:\n{conversation}',
+    })
+    const messages = [new ToolMessage({
+      content: 'x'.repeat(10_000),
+      tool_call_id: 'large-tool-result',
+    })]
+
+    const result = await middleware.wrapModelCall(
+      modelRequest(messages, event => events.push(event)),
+      async () => new AIMessage('continued after transient tool compaction'),
+    )
+
+    assert.equal(result.text, 'continued after transient tool compaction')
+    assert.deepEqual(events.map(event => event.payload.phase), ['started', 'failed'])
+    assert.match(events[1].payload.error, /did not persist a summary/i)
+  })
+
+  it('keeps a successful main response when post-response summarization fails', async () => {
+    const { createIWriterSummarizationMiddleware } = await loadSummarizationMiddlewareModule()
+    const events = []
+    let fallbackCalls = 0
+    const middleware = createIWriterSummarizationMiddleware({
+      model: {
+        profile: {},
+        async invoke() {
+          throw new Error('primary summary offline')
+        },
+      },
+      fallbackModel: {
+        profile: {},
+        async invoke() {
+          fallbackCalls += 1
+          throw new Error('fallback summary offline')
+        },
+      },
+      backend: createArchiveBackend(),
+      tokenCounter: messages => messages.length * 10,
+      trigger: { type: 'tokens', value: 40 },
+      keep: { type: 'tokens', value: 10 },
+      summaryPrompt: 'Compact this:\n{conversation}',
+    })
+    const response = new AIMessage({ content: 'main response survives', id: 'response-ok' })
+
+    const result = await middleware.wrapModelCall(
+      modelRequest([new HumanMessage('first'), new AIMessage('second')], event => events.push(event)),
+      async () => response,
+    )
+
+    assert.equal(result, response)
+    assert.equal(fallbackCalls, 1)
+    assert.deepEqual(events.map(event => event.payload.phase), ['started', 'failed'])
+  })
+
+  it('falls back when the primary summary has no usable visible text', async () => {
+    const { createIWriterSummarizationMiddleware } = await loadSummarizationMiddlewareModule()
+    const invalidPrimaryResponses = [
+      new AIMessage({ content: [{ type: 'reasoning', reasoning: 'private only' }] }),
+      new AIMessage({
+        content: '',
+        tool_calls: [{ name: 'read_file', args: {}, id: 'unexpected-tool' }],
+      }),
+    ]
+
+    for (const primaryResponse of invalidPrimaryResponses) {
+      let fallbackCalls = 0
+      const middleware = createIWriterSummarizationMiddleware({
+        model: { profile: {}, async invoke() { return primaryResponse } },
+        fallbackModel: {
+          profile: {},
+          async invoke() {
+            fallbackCalls += 1
+            return new AIMessage('usable fallback summary')
+          },
+        },
+        backend: createArchiveBackend(),
+        tokenCounter: messages => messages.length * 10,
+        trigger: { type: 'tokens', value: 30 },
+        keep: { type: 'tokens', value: 10 },
+        summaryPrompt: 'Compact this:\n{conversation}',
+      })
+      const messages = [new HumanMessage('first'), new AIMessage('second'), new HumanMessage('third')]
+
+      const result = await middleware.wrapModelCall(
+        modelRequest(messages, () => {}),
+        async request => new AIMessage(`continued with ${request.messages[0].text}`),
+      )
+
+      assert.equal(fallbackCalls, 1)
+      assert.match(result.update._summarizationEvent.summaryMessage.text, /usable fallback summary/)
+    }
+  })
+
+  it('does not start a fallback summary after cancellation', async () => {
+    const { createIWriterSummarizationMiddleware } = await loadSummarizationMiddlewareModule()
+    const cancellation = new Error('cancelled')
+    cancellation.name = 'AbortError'
+    let fallbackCalls = 0
+    const middleware = createIWriterSummarizationMiddleware({
+      model: { profile: {}, async invoke() { throw cancellation } },
+      fallbackModel: {
+        profile: {},
+        async invoke() {
+          fallbackCalls += 1
+          return new AIMessage('must not run')
+        },
+      },
+      backend: createArchiveBackend(),
+      tokenCounter: messages => messages.length * 10,
+      trigger: { type: 'tokens', value: 30 },
+      keep: { type: 'tokens', value: 10 },
+      summaryPrompt: 'Compact this:\n{conversation}',
+    })
+    const messages = [new HumanMessage('first'), new AIMessage('second'), new HumanMessage('third')]
+
+    await assert.rejects(
+      middleware.wrapModelCall(
+        modelRequest(messages, () => {}),
+        async () => new AIMessage('should not continue'),
+      ),
+      error => error === cancellation,
+    )
+    assert.equal(fallbackCalls, 0)
   })
 })
 
@@ -484,6 +823,66 @@ describe('context compression display event', () => {
     )
   })
 
+  it('attributes raw compression events through the public v3 transformer projection', async () => {
+    const { createContextCompressionStreamTransformer } = await loadContextCompressionTransformerModule()
+    const { parseDeepAgentsSummarizationEvent } = await loadModule()
+    const transformer = createContextCompressionStreamTransformer()()
+    const { contextCompressionEvents } = transformer.init()
+    const protocolEvent = (method, namespace, data, seq) => ({
+      type: 'event',
+      seq,
+      method,
+      params: { namespace, timestamp: seq, data },
+    })
+
+    transformer.process(protocolEvent('tools', ['tools:task-a'], {
+      event: 'tool-started',
+      tool_call_id: 'task-call-a',
+    }, 1))
+    transformer.process(protocolEvent('tasks', ['tools:task-a'], {
+      id: 'task-a',
+      metadata: { lc_agent_name: 'reviewer' },
+    }, 2))
+    transformer.process(protocolEvent('tools', ['tools:task-b'], {
+      event: 'tool-started',
+      tool_call_id: 'task-call-b',
+    }, 3))
+    transformer.process(protocolEvent('tasks', ['tools:task-b'], {
+      id: 'task-b',
+      metadata: { lc_agent_name: 'reviewer' },
+    }, 4))
+
+    const compression = (namespace, eventId, seq) => protocolEvent('custom', namespace, {
+      name: 'deepagents_summarization',
+      payload: {
+        eventId,
+        phase: 'started',
+        startedAt: seq,
+        timestamp: seq,
+      },
+    }, seq)
+    transformer.process(compression(['tools:task-a', 'model:1'], 'summary-a', 5))
+    transformer.process(compression(['tools:task-b'], 'summary-b', 6))
+    transformer.process(compression([], 'summary-root', 7))
+    transformer.finalize?.()
+
+    const projected = []
+    for await (const event of contextCompressionEvents) projected.push(event)
+    assert.equal(projected.length, 3)
+    assert.deepEqual(
+      projected.map(parseDeepAgentsSummarizationEvent).map(event => ({
+        eventId: event.eventId,
+        subagentName: event.subagentName,
+        subagentId: event.subagentId,
+      })),
+      [
+        { eventId: 'summary-a', subagentName: 'reviewer', subagentId: 'task-call-a' },
+        { eventId: 'summary-b', subagentName: 'reviewer', subagentId: 'task-call-b' },
+        { eventId: 'summary-root', subagentName: undefined, subagentId: undefined },
+      ],
+    )
+  })
+
   it('streams subagent summarization started/completed events to the same task card', async () => {
     const { StreamEventAdapter, parseDeepAgentsSummarizationEvent } = await loadModule()
     const customEvent = (phase, payload = {}) => ({
@@ -625,18 +1024,19 @@ describe('context compression display event', () => {
 
   it('keeps compression in the stream protocol and renderer memory only', () => {
     const engineSource = readFileSync('electron/ai/AgentEngine.ts', 'utf8')
+    const factorySource = readFileSync('electron/ai/runtime/AgentFactory.ts', 'utf8')
     const preloadSource = readFileSync('electron/preload.ts', 'utf8')
     const storeSource = readFileSync('src/ai/state/aiStore.ts', 'utf8')
-    const patchSource = readFileSync('patches/deepagents+1.11.1.patch', 'utf8')
 
     assert.match(engineSource, /durability: 'exit'/)
-    assert.match(engineSource, /consumeSummarizationEvents\(run\)/)
+    assert.match(engineSource, /consumeSummarizationEvents\(run\.extensions\.contextCompressionEvents\)/)
+    assert.match(factorySource, /streamTransformers: \[createContextCompressionStreamTransformer\(\)\]/)
+    assert.doesNotMatch(factorySource, /summarizationMiddlewareOptions/)
     assert.doesNotMatch(engineSource, /_detectAndNotifySummarization/)
     assert.doesNotMatch(engineSource, /_seedSummarizationBaseline/)
     assert.doesNotMatch(preloadSource, /ai:context-compressed/)
     assert.doesNotMatch(storeSource, /onAiContextCompressed/)
-    assert.match(patchSource, /deepagents_summarization/)
-    assert.match(patchSource, /iwriter_subagent_id/)
+    assert.equal(existsSync('patches/deepagents+1.11.1.patch'), false)
   })
 
   it('renders a reusable expandable card at root and inside subagents', () => {

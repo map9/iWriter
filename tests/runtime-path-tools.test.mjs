@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { after, describe, it } from 'node:test'
@@ -73,30 +73,13 @@ describe('host paths in model-facing tools', () => {
     assert.equal(requestedPath, undefined)
   })
 
-  it('rejects a relative mutation path instead of deleting from the workspace', async () => {
-    const workspacePath = await createWorkspace()
-    const filePath = path.join(workspacePath, 'obsolete.md')
-    await writeFile(filePath, 'remove me')
+  it('leaves deletion to the native DeepAgents filesystem middleware', async () => {
     const { buildFilesystemMutationTools } = await loadModule()
-    const deleteTool = buildFilesystemMutationTools().find(tool => tool.name === 'delete_file')
 
-    const result = await deleteTool.invoke({ file_path: 'obsolete.md' }, runConfig(workspacePath))
-
-    assert.match(result, /file_path must be an absolute path/i)
-    assert.equal(await readFile(filePath, 'utf8'), 'remove me')
-  })
-
-  it('allows an explicit external absolute mutation path after HITL', async () => {
-    const workspacePath = await createWorkspace()
-    const externalRoot = await createWorkspace()
-    const filePath = path.join(externalRoot, 'attachment-copy.md')
-    await writeFile(filePath, 'remove me')
-    const { buildFilesystemMutationTools } = await loadModule()
-    const deleteTool = buildFilesystemMutationTools().find(tool => tool.name === 'delete_file')
-
-    const result = await deleteTool.invoke({ file_path: filePath }, runConfig(workspacePath))
-
-    assert.equal(JSON.parse(result).path, filePath)
+    assert.deepEqual(
+      buildFilesystemMutationTools().map(tool => tool.name),
+      ['rename_file', 'move_file'],
+    )
   })
 
   it('rejects a relative PDF path before touching the filesystem', async () => {

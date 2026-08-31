@@ -47,7 +47,15 @@ function stubPlugin() {
         [
           /^@langchain\/langgraph$/,
           'langgraph',
-          'export class Command { constructor(input) { Object.assign(this, input) } }',
+          `
+            export class Command { constructor(input) { Object.assign(this, input) } }
+            export class StreamChannel {
+              static local() { return new StreamChannel() }
+              push() {}
+              close() {}
+              fail() {}
+            }
+          `,
         ],
         [
           /^deepagents$/,
@@ -216,6 +224,11 @@ function stubPlugin() {
           /scaffold\/middleware\/ModelNetworkResilience$/,
           'model-network-resilience',
           'export function createModelNetworkRetryMiddleware() { return { name: "modelRetryMiddleware" } } export function toUserFacingModelError(error) { return error instanceof Error ? error.message : String(error) }',
+        ],
+        [
+          /scaffold\/summarization\/IWriterSummarizationMiddleware$/,
+          'iwriter-summarization-middleware',
+          'export function createIWriterSummarizationMiddleware(options) { return { name: "SummarizationMiddleware", options } }',
         ],
         [
           /scaffold\/middleware\/HumanRespondMessageMiddleware$/,
@@ -647,7 +660,11 @@ describe('AgentEngine initialization', () => {
     )
 
     const agentOptions = globalThis.__iwriterDeepAgentOptions
-    const options = agentOptions.summarizationMiddlewareOptions
+    assert.equal(agentOptions.summarizationMiddlewareOptions, undefined)
+    const rootSummary = agentOptions.middleware.find(
+      middleware => middleware?.name === 'SummarizationMiddleware',
+    )
+    const options = rootSummary.options
     assert.deepEqual(options.trigger, { type: 'tokens', value: 320000 })
     assert.deepEqual(options.keep, { type: 'tokens', value: 40000 })
     assert.equal(options.trimTokensToSummarize, 320000)
@@ -656,6 +673,7 @@ describe('AgentEngine initialization', () => {
     assert.equal(options.model.runtime.disableThinking, true)
     assert.match(options.summaryPrompt, /editing-state/)
     assert.match(options.summaryPrompt, /\{conversation\}/)
+    assert.equal(agentOptions.streamTransformers.length, 1)
     assert.equal(agentOptions.middleware.at(-1)?.name, 'modelRetryMiddleware')
     assert.equal(
       globalThis.__iwriterDeepAgentOptions.middleware.some(
@@ -694,6 +712,15 @@ describe('AgentEngine initialization', () => {
     assert.match(subagent.systemPrompt, /Current Workspace: "\/Users\/author\/Books\/novel"/)
     assert.match(subagent.systemPrompt, /writer prompt/)
     assert.equal(subagent.middleware.at(-1)?.name, 'modelRetryMiddleware')
+    const rootSummary = globalThis.__iwriterDeepAgentOptions.middleware.find(
+      middleware => middleware?.name === 'SummarizationMiddleware',
+    )
+    const subagentSummary = subagent.middleware.find(
+      middleware => middleware?.name === 'SummarizationMiddleware',
+    )
+    assert.ok(rootSummary)
+    assert.ok(subagentSummary)
+    assert.notEqual(rootSummary, subagentSummary)
     assert.deepEqual(globalThis.__iwriterDeepAgentOptions.skills, [
       '/Users/author/.iwriter/skills',
     ])
@@ -874,6 +901,7 @@ describe('Agent tool-name translations', () => {
       'write_file',
       'edit_file',
       'rename_file',
+      'delete',
       'delete_file',
       'move_file',
     ]

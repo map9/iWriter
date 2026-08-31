@@ -91,7 +91,7 @@ export interface FilesystemReviewItem {
   id: string
   kind: 'filesystem'
   status: 'pending' | 'applied' | 'rejected'
-  toolName: 'write_file' | 'edit_file' | 'rename_file' | 'delete_file' | 'move_file'
+  toolName: 'write_file' | 'edit_file' | 'rename_file' | 'delete' | 'delete_file' | 'move_file'
   targetPath: string
   newContent?: string
   oldString?: string

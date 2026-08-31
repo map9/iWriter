@@ -1,3 +1,4 @@
+import * as fs from 'fs'
 import * as path from 'path'
 import type { ResumeDecision } from '@shared/ai/contracts'
 
@@ -9,6 +10,7 @@ export type FilesystemApprovalDecision =
 export interface FilesystemWriteApprovalInput {
   toolName: string
   args: Record<string, unknown>
+  protectedRoots?: Array<string | null | undefined>
 }
 
 const INTERNAL_WRITABLE_PREFIXES = [
@@ -19,9 +21,17 @@ const INTERNAL_WRITABLE_PREFIXES = [
 const FILESYSTEM_WRITE_TOOL_NAMES = new Set([
   'write_file',
   'edit_file',
+  'delete',
   'rename_file',
+  // Compatibility for interrupted checkpoints created before the native
+  // DeepAgents delete migration. New agents no longer publish this tool.
   'delete_file',
   'move_file',
+])
+
+const INTERNAL_VIRTUAL_ROOTS = new Set([
+  '/large_tool_results',
+  '/conversation_history',
 ])
 
 function isInternalWritablePath(filePath: string): boolean {
@@ -30,6 +40,64 @@ function isInternalWritablePath(filePath: string): boolean {
 
 function hasUnsafePathSegment(filePath: string): boolean {
   return filePath.split(/[\\/]+/).some(segment => segment === '..' || segment === '~')
+}
+
+function normalizeHostPathCase(filePath: string): string {
+  return process.platform === 'win32' || process.platform === 'darwin'
+    ? filePath.toLocaleLowerCase('en-US')
+    : filePath
+}
+
+function comparableHostPath(filePath: string): string {
+  return normalizeHostPathCase(path.resolve(filePath))
+}
+
+function comparableRealHostPath(filePath: string): string {
+  const resolved = path.resolve(filePath)
+  let existingAncestor = resolved
+  const missingSegments: string[] = []
+
+  for (;;) {
+    try {
+      const realAncestor = fs.realpathSync.native(existingAncestor)
+      return normalizeHostPathCase(path.join(realAncestor, ...missingSegments))
+    } catch {
+      const parent = path.dirname(existingAncestor)
+      if (parent === existingAncestor) return normalizeHostPathCase(resolved)
+      missingSegments.unshift(path.basename(existingAncestor))
+      existingAncestor = parent
+    }
+  }
+}
+
+function comparableVirtualPath(filePath: string): string {
+  const normalized = path.posix.normalize(filePath.replace(/\\/g, '/')).replace(/\/+$/, '')
+  return normalized || '/'
+}
+
+function isSameOrAncestorPath(candidate: string, protectedRoot: string): boolean {
+  const relative = path.relative(candidate, protectedRoot)
+  return relative === '' || (
+    relative !== '..'
+    && !relative.startsWith(`..${path.sep}`)
+    && !path.isAbsolute(relative)
+  )
+}
+
+function isProtectedDeleteRoot(filePath: string, protectedRoots: Array<string | null | undefined>): boolean {
+  const virtualPath = comparableVirtualPath(filePath)
+  if (virtualPath === '/' || INTERNAL_VIRTUAL_ROOTS.has(virtualPath)) return true
+
+  const hostPath = comparableHostPath(filePath)
+  const realHostPath = comparableRealHostPath(filePath)
+  if (hostPath === comparableHostPath(path.parse(hostPath).root)) return true
+  return protectedRoots.some(root => {
+    if (!root) return false
+    const protectedHostPath = comparableHostPath(root)
+    const protectedRealHostPath = comparableRealHostPath(root)
+    return isSameOrAncestorPath(hostPath, protectedHostPath)
+      || isSameOrAncestorPath(realHostPath, protectedRealHostPath)
+  })
 }
 
 export function isFilesystemWriteToolName(toolName: string): boolean {
@@ -81,6 +149,7 @@ function extractCandidatePaths(toolName: string, args: Record<string, unknown>):
   switch (toolName) {
     case 'write_file':
     case 'edit_file':
+    case 'delete':
     case 'delete_file': {
       const filePath = asString(args.file_path)
       if (filePath === null) return { error: `${toolName} requires a non-empty file_path.` }
@@ -114,6 +183,17 @@ export function decideFilesystemWriteApproval(input: FilesystemWriteApprovalInpu
     return { kind: 'requires-review', reason: 'Not a filesystem write tool.' }
   }
 
+  if (input.toolName === 'delete_file') {
+    return {
+      kind: 'auto-reject',
+      decision: {
+        type: 'rejected',
+        message: 'This historical delete_file request can no longer execute. Retry the operation with the native delete tool.',
+      },
+      reason: 'Legacy delete tool retired.',
+    }
+  }
+
   const candidatePaths = extractCandidatePaths(input.toolName, input.args)
   if (!Array.isArray(candidatePaths)) {
     return {
@@ -123,11 +203,29 @@ export function decideFilesystemWriteApproval(input: FilesystemWriteApprovalInpu
     }
   }
 
+  const isDelete = input.toolName === 'delete' || input.toolName === 'delete_file'
   let needsReview = false
   for (const rawPath of candidatePaths) {
     const decision = decidePathApproval(input.toolName, rawPath)
     if (decision.kind === 'auto-reject') return decision
+    if (isDelete && isProtectedDeleteRoot(rawPath.trim(), input.protectedRoots ?? [])) {
+      return {
+        kind: 'auto-reject',
+        decision: {
+          type: 'rejected',
+          message: `${input.toolName} was rejected because it targets a protected root: ${rawPath}`,
+        },
+        reason: 'Protected root.',
+      }
+    }
     if (decision.kind === 'requires-review') needsReview = true
+  }
+
+  if (isDelete) {
+    return {
+      kind: 'requires-review',
+      reason: 'Delete operation requires user review.',
+    }
   }
 
   if (!needsReview) {

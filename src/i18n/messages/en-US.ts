@@ -617,6 +617,7 @@ export default {
         write_file: 'Write file',
         edit_file: 'Edit file',
         rename_file: 'Rename file',
+        delete: 'Delete file',
         delete_file: 'Delete file',
         move_file: 'Move file',
         confirm_writing_plan: 'Confirm writing plan',

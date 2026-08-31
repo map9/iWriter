@@ -41,7 +41,7 @@
       <div class="mt-2 text-xs" :class="toneDescriptionClass">
         {{ reviewWarning }}
       </div>
-      <div v-if="current.toolName === 'delete_file' && current.recursive" class="mt-1 text-xs" :class="toneDescriptionClass">
+      <div v-if="isDelete && current.recursive" class="mt-1 text-xs" :class="toneDescriptionClass">
         {{ t('agentPanel.filesystemReview.deleteDirectoryHint') }}
       </div>
     </template>
@@ -72,13 +72,14 @@ const aiStore = useAiStore()
 const currentIndex = ref(0)
 const reviews = computed(() => aiStore.pendingFilesystemReviews)
 const current = computed(() => reviews.value[currentIndex.value] ?? null)
-const isDelete = computed(() => current.value?.toolName === 'delete_file')
+const isDelete = computed(() => current.value?.toolName === 'delete' || current.value?.toolName === 'delete_file')
 
 const REVIEW_TITLE_KEYS: Record<string, string> = {
   write_file: 'titleWriteFile',
   edit_file: 'titleEditFile',
   rename_file: 'titleRenameFile',
   move_file: 'titleMoveFile',
+  delete: 'titleDeleteFile',
   delete_file: 'titleDeleteFile',
 }
 
@@ -87,6 +88,7 @@ const REVIEW_WARNING_KEYS: Record<string, string> = {
   edit_file: 'warningEditFile',
   rename_file: 'warningRenameFile',
   move_file: 'warningMoveFile',
+  delete: 'warningDeleteFile',
   delete_file: 'warningDeleteFile',
 }
 

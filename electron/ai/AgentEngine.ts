@@ -70,6 +70,7 @@ import { InterruptCoordinator } from './application/InterruptCoordinator'
 import { ThreadService } from './application/ThreadService'
 import { WritingSessionCoordinator } from './application/WritingSessionCoordinator'
 import { RuntimeSwitchService } from './application/RuntimeSwitchService'
+import type { ContextCompressionStreamProjection } from './scaffold/summarization/ContextCompressionStreamTransformer'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,12 @@ const STREAM_DRAIN_GRACE_MS = 15_000
 
 type HitlActionRequest = { name: string; args: Record<string, unknown> }
 type TokenCounter = (messages: BaseMessage[], tools?: unknown) => number
+type IWriterDeepAgentRunStream = DeepAgentRunStream<
+  Record<string, unknown>,
+  readonly [],
+  readonly [],
+  ContextCompressionStreamProjection
+>
 
 export function countContextTokensCjkAware(
   messages: BaseMessage[],
@@ -557,9 +564,12 @@ export class AgentEngine {
 
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const run = await (agent.streamEvents as any)(input, { ...runConfig, version: 'v3' }) as DeepAgentRunStream
+      const run = await (agent.streamEvents as any)(input, { ...runConfig, version: 'v3' }) as IWriterDeepAgentRunStream
       await this._drainRunStreams(threadId, [
-        { name: 'summarizationEvents', promise: adapter.consumeSummarizationEvents(run) },
+        {
+          name: 'summarizationEvents',
+          promise: adapter.consumeSummarizationEvents(run.extensions.contextCompressionEvents),
+        },
         { name: 'messages', promise: adapter.consumeMessages(run.messages) },
         { name: 'toolCalls', promise: adapter.consumeToolCalls(run.toolCalls) },
         { name: 'subagents', promise: adapter.consumeSubagents(run.subagents) },
@@ -675,7 +685,7 @@ export class AgentEngine {
   private async _drainRunStreams(
     threadId: string,
     consumers: Array<{ name: string; promise: Promise<void> }>,
-    run: DeepAgentRunStream,
+    run: { output: PromiseLike<unknown> },
     adapter: StreamEventAdapter,
   ): Promise<void> {
     const pending = new Set(consumers.map(c => c.name))
@@ -684,7 +694,7 @@ export class AgentEngine {
       (err) => { pending.delete(c.name); throw err },
     )))
 
-    const runEnded = (run.output as Promise<unknown>).then(() => undefined, () => undefined)
+    const runEnded = Promise.resolve(run.output).then(() => undefined, () => undefined)
     const watchdog = runEnded.then(() => new Promise<'timeout'>((resolve) => {
       const timer = setTimeout(() => resolve('timeout'), STREAM_DRAIN_GRACE_MS)
       timer.unref?.()
@@ -737,6 +747,10 @@ export class AgentEngine {
       const decision = decideFilesystemWriteApproval({
         toolName: actionRequest.name,
         args: actionRequest.args ?? {},
+        protectedRoots: [
+          this.runtimeStore.getContext(threadId)?.workspacePath,
+          this.aiRootPath,
+        ],
       })
       fsDecisions.set(index, decision)
       if (decision.kind === 'auto-reject') {
@@ -915,6 +929,9 @@ export class AgentEngine {
       ...this.strategies[domain].getInterruptOnNames(),
       ...FILE_WRITE_INTERRUPT_ON_NAMES,
     ])
+    // Rehydrate pre-1.13 checkpoints only so the policy can reject them with
+    // migration guidance; new agents do not publish or execute delete_file.
+    interruptOnNames.add('delete_file')
 
     // Collect all tool_call_ids that already have a ToolMessage response
     const responded = new Set<string>()

@@ -19,25 +19,14 @@ import {
   createInstrumentedFallbackMiddleware,
 } from '../scaffold/middleware/middleware-config'
 import { buildMemorySources, createReadonlyMemoryMiddleware } from '../scaffold/memory/MemorySources'
-import {
-  buildSummarizationInstruction,
-  buildSummarizationPrompt,
-} from '../scaffold/summarization/SummarizationFramework'
+import { buildSummarizationPrompt } from '../scaffold/summarization/SummarizationFramework'
+import { createIWriterSummarizationMiddleware } from '../scaffold/summarization/IWriterSummarizationMiddleware'
+import { createContextCompressionStreamTransformer } from '../scaffold/summarization/ContextCompressionStreamTransformer'
 import type { AgentRuntimeConfig } from './RuntimeConfig'
 import { getEffectiveModelBudget } from './RuntimeConfig'
 
 export type DeepAgentInstance = { streamEvents: unknown }
 type TokenCounter = (messages: BaseMessage[], tools?: unknown) => number
-
-interface SummarizationMiddlewareOptions {
-  model: BaseChatModel
-  tokenCounter: TokenCounter
-  trigger: { type: 'tokens', value: number }
-  keep: { type: 'tokens', value: number }
-  summaryInstruction: string
-  summaryPrompt: string
-  trimTokensToSummarize: number
-}
 
 export interface AgentFactoryOptions {
   aiRootPath: string
@@ -72,22 +61,18 @@ export class AgentFactory {
     const model = createChatModel(config, { modelId, thinkingLevel })
     const budget = getEffectiveModelBudget(config, modelId, model)
     const capabilities = strategy.buildCapabilities({ mode, workspacePath })
-    const subAgents = capabilities.subAgents?.map(subagent => ({
-      ...subagent,
-      systemPrompt: `${scaffold.workspaceSystemPrompt}\n\n${subagent.systemPrompt}`,
-      // DeepAgents intentionally does not inherit arbitrary root middleware for
-      // custom subagents, so opt each declarative subagent into the same built-in retry.
-      middleware: [
-        ...(subagent.middleware ?? []),
-        createModelNetworkRetryMiddleware(),
-      ],
-    }))
     const memorySources = buildMemorySources(this.options.aiRootPath, strategy.getMemoryDir())
 
     const fallbackModels: BaseChatModel[] = []
+    let summaryFallbackModel: BaseChatModel | undefined
     if (config.fallbackModelId && config.fallbackModelId !== modelId) {
       try {
         fallbackModels.push(createChatModel(config, { modelId: config.fallbackModelId, thinkingLevel }))
+        summaryFallbackModel = createChatModel(config, {
+          modelId: config.fallbackModelId,
+          thinkingLevel,
+          disableThinking: true,
+        })
       } catch (err) {
         console.warn(
           `[AgentFactory] Failed to instantiate fallback model "${config.fallbackModelId}" for provider "${config.id}":`,
@@ -97,15 +82,29 @@ export class AgentFactory {
     }
 
     const summarizationProfile = strategy.getSummarizationProfile()
-    const summarizationMiddlewareOptions: SummarizationMiddlewareOptions = {
-      model: createChatModel(config, { modelId, thinkingLevel, disableThinking: true }),
-      summaryInstruction: buildSummarizationInstruction(summarizationProfile),
+    const summaryModel = createChatModel(config, { modelId, thinkingLevel, disableThinking: true })
+    const createSummaryMiddleware = () => createIWriterSummarizationMiddleware({
+      backend: scaffold.backend,
+      fallbackModel: summaryFallbackModel,
+      model: summaryModel,
       tokenCounter: this.options.tokenCounter,
       trigger: { type: 'tokens', value: budget.triggerTokens },
       keep: { type: 'tokens', value: budget.keepTokens },
       summaryPrompt: buildSummarizationPrompt(summarizationProfile),
       trimTokensToSummarize: budget.triggerTokens,
-    }
+    })
+    const subAgents = capabilities.subAgents?.map(subagent => ({
+      ...subagent,
+      systemPrompt: `${scaffold.workspaceSystemPrompt}\n\n${subagent.systemPrompt}`,
+      // DeepAgents intentionally does not inherit arbitrary root middleware for
+      // custom subagents. Each subagent gets an independent summarization
+      // instance so concurrent task runs never share mutable summary state.
+      middleware: [
+        ...(subagent.middleware ?? []),
+        createSummaryMiddleware(),
+        createModelNetworkRetryMiddleware(),
+      ],
+    }))
 
     const agent: DeepAgentInstance = createDeepAgent({
       model,
@@ -113,7 +112,6 @@ export class AgentFactory {
       tools: capabilities.tools,
       backend: scaffold.backend,
       skills: skillSources.length ? skillSources : undefined,
-      summarizationMiddlewareOptions,
       checkpointer: this.options.getCheckpointer(),
       interruptOn: { ...capabilities.interruptOn, ...scaffold.interruptOn },
       subagents: subAgents,
@@ -132,9 +130,11 @@ export class AgentFactory {
               this.options.onModelFallback(threadId, fallbackModelId)
             })]
           : []),
+        createSummaryMiddleware(),
         createModelNetworkRetryMiddleware(),
       ],
       contextSchema: IWriterAgentContextSchema,
+      streamTransformers: [createContextCompressionStreamTransformer()],
     })
 
     return { agent, scaffold }

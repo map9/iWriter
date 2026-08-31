@@ -48,7 +48,7 @@ const EDIT_SYSTEM_PROMPT_BODY = `
 一次响应只能提交一种需要审批的写操作家族：
 
 1. 块编辑与 \`create_document\`
-2. \`write_file\`、\`edit_file\`、\`rename_file\`、\`move_file\`、\`delete_file\`
+2. \`write_file\`、\`edit_file\`、\`rename_file\`、\`move_file\`、\`delete\`
 
 普通读取、搜索和分析工具不受此限制。提交一个审批家族后停止并等待结果，不在同一响应中提交另一家族。迁移任务先创建、更新并验证目标文档，再在后续独立的文件系统批次中删除旧源文件。
 

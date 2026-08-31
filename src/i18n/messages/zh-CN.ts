@@ -614,6 +614,7 @@ export default {
         write_file: '写入文件',
         edit_file: '编辑文件',
         rename_file: '重命名文件',
+        delete: '删除文件',
         delete_file: '删除文件',
         move_file: '移动文件',
         confirm_writing_plan: '确认写作计划',

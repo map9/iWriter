@@ -9,6 +9,7 @@ interface ActionRequest {
 const FILESYSTEM_REVIEW_TOOL_NAMES = new Set<FilesystemReviewItem['toolName']>([
   'write_file',
   'edit_file',
+  'delete',
   'rename_file',
   'delete_file',
   'move_file',
@@ -59,6 +60,14 @@ export function buildFilesystemReviewItemFromAction(
         oldString: asString(args.old_string),
         newString: asString(args.new_string),
         replaceAll: args.replace_all === true,
+      }
+    case 'delete':
+      return {
+        ...base,
+        targetPath: asString(args.file_path),
+        // DeepAgents' native delete recursively removes directories and does
+        // not expose a separate recursive flag.
+        recursive: true,
       }
     case 'delete_file':
       return {

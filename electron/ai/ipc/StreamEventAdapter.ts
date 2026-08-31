@@ -31,7 +31,7 @@ interface DeepAgentsSummarizationEvent {
   error?: string
 }
 
-/** Parse the named LangGraph v3 custom event emitted by deepagents' summarization middleware. */
+/** Parse the named LangGraph v3 event projected by iWriter's compression transformer. */
 export function parseDeepAgentsSummarizationEvent(raw: unknown): DeepAgentsSummarizationEvent | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const protocolEvent = raw as Record<string, unknown>
@@ -195,9 +195,9 @@ export class StreamEventAdapter {
         const event = parseDeepAgentsSummarizationEvent(rawEvent)
         if (!event) continue
         const hasSubagent = !!event.subagentName && !!event.subagentId
-        // The patched middleware supplies the checkpoint-stable anchor. During local development an
-        // already-installed deepagents build may still emit the older payload, so retain a causal
-        // fallback to the latest root tool call observed by this run adapter.
+        // The middleware supplies a checkpoint-stable message/tool anchor when one exists.
+        // Retain a causal fallback to the latest root tool call for older live events that
+        // predate that anchor contract.
         const fallbackToolCallId = hasSubagent || event.anchorMessageId
           ? undefined
           : this.toolCalls[this.toolCalls.length - 1]?.id

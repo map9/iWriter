@@ -35,6 +35,24 @@ after(async () => {
 })
 
 describe('agent filesystem workspace context', () => {
+  it('publishes the native delete tool and interrupts every delete call', async () => {
+    const { buildAgentFilesystem } = await loadModule()
+    const workspacePath = path.join(os.tmpdir(), 'iWriter workspace', 'book')
+    const aiRootPath = path.join(os.tmpdir(), 'iwriter-agent-filesystem-test')
+    const scaffold = buildAgentFilesystem({ workspacePath, aiRootPath })
+    tempDirs.push(...scaffold.tempDirs)
+
+    const filesystemMiddleware = scaffold.middlewares.find(
+      middleware => middleware.name === 'FilesystemMiddleware',
+    )
+    assert.ok(filesystemMiddleware)
+    assert.ok(filesystemMiddleware.tools.some(tool => tool.name === 'delete'))
+    assert.deepEqual(scaffold.interruptOn.delete, {
+      allowedDecisions: ['approve', 'reject'],
+    })
+    assert.equal(scaffold.interruptOn.delete_file, undefined)
+  })
+
   it('adds the real workspace absolute path to the filesystem system message', async () => {
     const { buildAgentFilesystem } = await loadModule()
     const workspacePath = path.join(os.tmpdir(), 'iWriter workspace', 'book')

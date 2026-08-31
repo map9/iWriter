@@ -31,11 +31,7 @@ export const CREATIVE_SUMMARIZATION_PROFILE: DomainSummarizationProfile = {
   ],
 }
 
-/**
- * Build the cache-aware instruction appended after the original request
- * prefix. Keep it free of serialized conversation content so providers can
- * reuse the cached system/tool/message prefix.
- */
+/** Build the domain-aware working-state instructions shared by summary prompts. */
 export function buildSummarizationInstruction(profile: DomainSummarizationProfile): string {
   const common = COMMON_STATE_INSTRUCTIONS.map(item => `- ${item}`).join('\n')
   const domain = profile.domainStateInstructions.map(item => `- ${item}`).join('\n')
@@ -75,10 +71,7 @@ Rules:
 - Under "Retrieval keys", list 6-10 discriminative literal keys from this conversation. Prefer exact paths, block or scene IDs, names, and distinctive multi-word phrases; avoid generic single words when a lower-frequency key exists. Do not write prose there.`
 }
 
-/**
- * Build the standalone fallback prompt used when the cache-aware request
- * fails or returns a tool call/non-text response.
- */
+/** Build the standalone prompt consumed by DeepAgents' native summarizer. */
 export function buildSummarizationPrompt(profile: DomainSummarizationProfile): string {
   return `${buildSummarizationInstruction(profile)}
 
