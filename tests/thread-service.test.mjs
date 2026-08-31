@@ -110,6 +110,16 @@ async function createHarness(options = {}) {
 }
 
 describe('ThreadService', () => {
+  it('uses the provider default when a legacy provider selection is still persisted', async () => {
+    const { resolveThreadRuntime } = await loadModules()
+    const settings = aiSettings()
+    settings.providerConfigs[0].lastSelectedModelId = 'model-legacy'
+
+    const runtime = resolveThreadRuntime(settings)
+
+    assert.equal(runtime.modelId, 'model-1')
+  })
+
   it('marks thread metadata as updated and records run errors', async () => {
     const { service, threadListQuery } = await createHarness()
     const before = threadListQuery.createMeta({

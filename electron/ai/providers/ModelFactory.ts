@@ -158,7 +158,7 @@ export function createChatModel(
   config: AiProviderConfig,
   runtime: ChatModelRuntimeOptions = {},
 ): BaseChatModel {
-  const modelId = runtime.modelId || config.lastSelectedModelId || config.defaultModelId
+  const modelId = runtime.modelId || config.defaultModelId
   const thinkingLevel = normalizeThinkingLevel(runtime.thinkingLevel ?? config.lastSelectedThinkingLevel)
   const disableThinking = runtime.disableThinking === true
   const resolvedApiKey = resolveApiKeyReference(config.apiKey, resolveAiApiKeyEnvVar)

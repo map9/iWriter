@@ -79,8 +79,8 @@ function deferred() {
   return { promise, resolve }
 }
 
-function createHarness(createAiSettingsState) {
-  let thread = {
+function createHarness(createAiSettingsState, options = {}) {
+  let thread = options.thread === undefined ? {
     id: 'thread-1',
     title: 'Thread',
     createdAt: 1,
@@ -90,7 +90,7 @@ function createHarness(createAiSettingsState) {
     domain: 'editing',
     mode: 'edit',
     thinkingLevel: 'medium',
-  }
+  } : options.thread
   const updates = []
   const settings = {
     providerConfigs: [{
@@ -117,7 +117,7 @@ function createHarness(createAiSettingsState) {
 
   const state = createAiSettingsState({
     getActiveThread: () => thread,
-    getThreadById: threadId => threadId === thread.id ? thread : null,
+    getThreadById: threadId => threadId === thread?.id ? thread : null,
     isLocalOnlyThread: () => false,
     canChangeThreadDomain: () => false,
     updateThread: nextThread => {
@@ -143,6 +143,114 @@ const responseFor = (status, modelId) => ({
 })
 
 describe('renderer runtime selection', () => {
+  it('drops the legacy provider model selection when loading settings', async () => {
+    const { loadAiSettings } = await loadModule()
+    globalThis.localStorage = {
+      getItem: () => JSON.stringify({
+        providerConfigs: [{
+          id: 'provider-legacy',
+          type: 'openai-compat',
+          label: 'Legacy Provider',
+          apiKey: 'secret',
+          defaultModelId: 'model-default',
+          lastSelectedModelId: 'model-legacy',
+          models: ['model-default'],
+          enabled: true,
+        }],
+        activeProviderConfigId: 'provider-legacy',
+        defaultMode: 'edit',
+        toolPermissions: {},
+        webSearchProviderConfigs: [],
+        activeWebSearchProviderConfigId: null,
+      }),
+      setItem: () => {},
+    }
+
+    const settings = loadAiSettings()
+
+    assert.equal(settings.providerConfigs[0].defaultModelId, 'model-default')
+    assert.equal(Object.hasOwn(settings.providerConfigs[0], 'lastSelectedModelId'), false)
+  })
+
+  it('updates the provider default when selecting a model without an active thread', async () => {
+    const { createAiSettingsState } = await loadModule()
+    const { state } = createHarness(createAiSettingsState, { thread: null })
+    const storedSettings = []
+    const pushedSettings = []
+    globalThis.localStorage.setItem = (_key, value) => {
+      storedSettings.push(JSON.parse(value))
+    }
+    globalThis.__updateAiConfig = settings => {
+      pushedSettings.push(settings)
+    }
+
+    assert.equal(await state.setCurrentModelId('model-second'), true)
+    assert.equal(state.settings.value.providerConfigs[0].defaultModelId, 'model-second')
+    assert.equal(storedSettings[0].providerConfigs[0].defaultModelId, 'model-second')
+    assert.equal(pushedSettings[0].providerConfigs[0].defaultModelId, 'model-second')
+  })
+
+  it('uses the provider default when switching providers', async () => {
+    const { createAiSettingsState } = await loadModule()
+    const requests = []
+    globalThis.__switchThreadRuntime = async request => {
+      requests.push(request)
+      return {
+        status: 'committed',
+        candidate: request.candidate,
+        currentEffectiveContextTokens: 10_000,
+        candidateCompactTriggerTokens: 20_000,
+      }
+    }
+    const { state, getThread } = createHarness(createAiSettingsState)
+    state.settings.value.providerConfigs.push({
+      id: 'provider-2',
+      type: 'openai-compat',
+      label: 'Second Provider',
+      apiKey: 'secret',
+      defaultModelId: 'model-provider-default',
+      lastSelectedModelId: 'model-provider-legacy',
+      models: ['model-provider-default'],
+      enabled: true,
+    })
+
+    assert.equal(await state.setActiveProvider('provider-2'), true)
+    assert.equal(requests[0].candidate.modelId, 'model-provider-default')
+    assert.equal(getThread().providerConfigId, 'provider-2')
+    assert.equal(getThread().modelId, 'model-provider-default')
+  })
+
+  it('falls back to the provider model list when switching to a provider without a default', async () => {
+    const { createAiSettingsState } = await loadModule()
+    const requests = []
+    globalThis.__switchThreadRuntime = async request => {
+      requests.push(request)
+      return {
+        status: 'committed',
+        candidate: request.candidate,
+        currentEffectiveContextTokens: 10_000,
+        candidateCompactTriggerTokens: 20_000,
+      }
+    }
+    const { state, getThread } = createHarness(createAiSettingsState)
+    state.settings.value.providerConfigs.push({
+      id: 'provider-2',
+      type: 'openai-compat',
+      label: 'Second Provider',
+      apiKey: 'secret',
+      defaultModelId: '',
+      lastSelectedModelId: 'model-provider-legacy',
+      models: ['model-provider-first'],
+      enabled: true,
+    })
+
+    assert.equal(await state.setActiveProvider('provider-2'), true)
+    assert.equal(requests[0].candidate.modelId, 'model-provider-first')
+    assert.equal(getThread().providerConfigId, 'provider-2')
+    assert.equal(getThread().modelId, 'model-provider-first')
+    assert.equal(state.settings.value.providerConfigs[1].defaultModelId, 'model-provider-first')
+  })
+
   it('lets only the latest provider/model request mutate the thread', async () => {
     const { createAiSettingsState } = await loadModule()
     const requests = []
@@ -181,5 +289,6 @@ describe('renderer runtime selection', () => {
     )
     assert.equal(getThread().modelId, 'model-first')
     assert.equal(getThread().pendingRuntime, undefined)
+    assert.equal(state.settings.value.providerConfigs[0].defaultModelId, 'model-first')
   })
 })

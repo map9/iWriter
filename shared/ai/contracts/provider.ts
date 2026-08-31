@@ -37,7 +37,6 @@ export interface AiProviderConfig {
   models?: string[]
   modelProfiles?: Record<string, AiModelProfile>
   modelPolicies?: Record<string, AiModelRuntimePolicy>
-  lastSelectedModelId?: string
   lastSelectedThinkingLevel?: AiThinkingLevel
   fallbackModelId?: string
   maxRequestTokens?: number
@@ -117,8 +116,6 @@ export function resolveAiProviderModelId(
 ): string {
   const preferred = preferredModelId?.trim()
   if (preferred) return preferred
-  const lastSelected = config.lastSelectedModelId?.trim()
-  if (lastSelected) return lastSelected
   const defaultModel = config.defaultModelId?.trim()
   if (defaultModel) return defaultModel
   return config.models?.find(model => !!model.trim())?.trim() ?? ''

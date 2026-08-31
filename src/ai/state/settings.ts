@@ -30,6 +30,12 @@ import type { RuntimeSwitchResponse, ThreadRuntimeSelection } from '@shared/ai/c
 
 const STORAGE_KEY_SETTINGS = 'iwriter-ai-settings'
 
+function withoutLegacyModelSelection(config: AiProviderConfig): AiProviderConfig {
+  const normalized = { ...config } as AiProviderConfig & { lastSelectedModelId?: unknown }
+  delete normalized.lastSelectedModelId
+  return normalized
+}
+
 function resolveDefaultModelProfiles(
   config: AiProviderConfig,
   preset?: ProviderPreset,
@@ -53,7 +59,6 @@ function normalizeOpenAiPresetConfig(
     defaultModelId: isPresetModel(config.defaultModelId) ? config.defaultModelId : preset.defaultModelId,
     models: presetModels,
     modelProfiles: undefined,
-    lastSelectedModelId: isPresetModel(config.lastSelectedModelId) ? config.lastSelectedModelId : undefined,
     fallbackModelId: isPresetModel(config.fallbackModelId) ? config.fallbackModelId : undefined,
   }
 }
@@ -72,10 +77,11 @@ export function loadAiSettings(): AiSettings {
     merged.webSearchProviderConfigs = normalizeWebSearchProviderConfigs(merged.webSearchProviderConfigs)
     merged.activeWebSearchProviderConfigId = merged.activeWebSearchProviderConfigId ?? null
     merged.providerConfigs = (merged.providerConfigs ?? []).map(config => {
-      const preset = getProviderPresetById(config.presetId)
+      const currentConfig = withoutLegacyModelSelection(config)
+      const preset = getProviderPresetById(currentConfig.presetId)
       const normalizedPresetConfig = preset?.id === 'openai'
-        ? normalizeOpenAiPresetConfig(config, preset)
-        : config
+        ? normalizeOpenAiPresetConfig(currentConfig, preset)
+        : currentConfig
       return {
         ...normalizedPresetConfig,
         modelProfiles: resolveDefaultModelProfiles(normalizedPresetConfig, preset),
@@ -160,23 +166,25 @@ export function createAiSettingsState(deps: {
     agentClient.updateConfig(JSON.parse(JSON.stringify(toRaw(settings.value))))
   }
 
-  function commitRuntimeSelection(
-    thread: AiThread,
-    candidate: ThreadRuntimeSelection,
-  ): void {
+  function commitProviderRuntimeSelection(candidate: ThreadRuntimeSelection): void {
     settings.value.activeProviderConfigId = candidate.providerConfigId
     const configIndex = settings.value.providerConfigs.findIndex(
       config => config.id === candidate.providerConfigId,
     )
-    if (configIndex >= 0) {
-      const config = settings.value.providerConfigs[configIndex]!
-      settings.value.providerConfigs[configIndex] = {
-        ...config,
-        defaultModelId: candidate.modelId,
-        lastSelectedModelId: candidate.modelId,
-        lastSelectedThinkingLevel: candidate.thinkingLevel,
-      }
+    if (configIndex < 0) return
+    const config = settings.value.providerConfigs[configIndex]!
+    settings.value.providerConfigs[configIndex] = {
+      ...config,
+      defaultModelId: candidate.modelId,
+      lastSelectedThinkingLevel: candidate.thinkingLevel,
     }
+  }
+
+  function commitRuntimeSelection(
+    thread: AiThread,
+    candidate: ThreadRuntimeSelection,
+  ): void {
+    commitProviderRuntimeSelection(candidate)
     deps.updateThread({
       ...thread,
       providerConfigId: candidate.providerConfigId,
@@ -200,7 +208,7 @@ export function createAiSettingsState(deps: {
     if (!thread || deps.isLocalOnlyThread(thread.id)) {
       if (thread) commitRuntimeSelection(thread, candidate)
       else {
-        settings.value.activeProviderConfigId = candidate.providerConfigId
+        commitProviderRuntimeSelection(candidate)
         saveSettings()
       }
       return true
@@ -296,10 +304,9 @@ export function createAiSettingsState(deps: {
   async function setActiveProvider(id: string): Promise<boolean> {
     const nextProvider = settings.value.providerConfigs.find(config => config.id === id) ?? null
     if (!nextProvider) return false
-    const thread = deps.getActiveThread()
     return requestRuntimeSelection({
       providerConfigId: id,
-      modelId: nextProvider.lastSelectedModelId || nextProvider.defaultModelId || thread?.modelId || '',
+      modelId: resolveAiProviderModelId(nextProvider),
       thinkingLevel: normalizeThinkingLevel(nextProvider?.lastSelectedThinkingLevel),
     })
   }
