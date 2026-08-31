@@ -57,6 +57,7 @@ import {
 import { AiConfigStore, resolveAiApiKeyEnvVar } from './config/AiConfigStore'
 import { CheckpointerAdmin } from './checkpoint/CheckpointerAdmin'
 import { MIDDLEWARE_CONFIG } from './scaffold/middleware/middleware-config'
+import { toUserFacingModelError } from './scaffold/middleware/ModelNetworkResilience'
 import type { DomainStrategy } from './domain/DomainStrategy'
 import { EditDomainStrategy } from './domain/edit/EditDomainStrategy'
 import { CreativeDomainStrategy } from './domain/creative/CreativeDomainStrategy'
@@ -637,7 +638,7 @@ export class AgentEngine {
         return
       }
       console.error('[AgentEngine] Stream error:', err)
-      const errorMsg = err instanceof Error ? err.message : String(err)
+      const errorMsg = toUserFacingModelError(err)
 
       this.threadService.touchThread(threadId, true)
 

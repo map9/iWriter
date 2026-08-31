@@ -154,7 +154,9 @@ const replayedSummaryMessage = {
   response_metadata: {},
 }
 
-assert.equal(replayedSummaryMessage instanceof HumanMessage, false)
+// @langchain/core >=1.2.9 routes instanceof through HumanMessage.isInstance,
+// so checkpoint-rehydrated message objects now satisfy both checks.
+assert.equal(replayedSummaryMessage instanceof HumanMessage, true)
 assert.equal(HumanMessage.isInstance(replayedSummaryMessage), true)
 assert.equal(summarizationMiddleware.stateSchema.safeParse({
   _summarizationEvent: {

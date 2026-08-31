@@ -1,5 +1,5 @@
 diff --git a/node_modules/@langchain/langgraph/dist/pregel/utils/config.cjs b/node_modules/@langchain/langgraph/dist/pregel/utils/config.cjs
-index b2e0250..6dac027 100644
+index b4d33ff..6dac027 100644
 --- a/node_modules/@langchain/langgraph/dist/pregel/utils/config.cjs
 +++ b/node_modules/@langchain/langgraph/dist/pregel/utils/config.cjs
 @@ -66,6 +66,24 @@ function filterToUserTags(tags) {
@@ -50,15 +50,15 @@ index b2e0250..6dac027 100644
  		return manager;
  	}
  	return new _langchain_core_callbacks_manager.CallbackManager(provided._parentRunId, {
--		handlers: base.handlers.concat(provided.handlers),
--		inheritableHandlers: base.inheritableHandlers.concat(provided.inheritableHandlers),
+-		handlers: Array.from(new Set(base.handlers.concat(provided.handlers))),
+-		inheritableHandlers: Array.from(new Set(base.inheritableHandlers.concat(provided.inheritableHandlers))),
 +		handlers: uniqueHandlers(base.handlers.concat(provided.handlers)),
 +		inheritableHandlers: uniqueHandlers(base.inheritableHandlers.concat(provided.inheritableHandlers)),
  		tags: Array.from(new Set(base.tags.concat(provided.tags))),
  		inheritableTags: Array.from(new Set(base.inheritableTags.concat(provided.inheritableTags))),
  		metadata: {
 diff --git a/node_modules/@langchain/langgraph/dist/pregel/utils/config.js b/node_modules/@langchain/langgraph/dist/pregel/utils/config.js
-index ce88d9e..4793684 100644
+index a0edba3..4793684 100644
 --- a/node_modules/@langchain/langgraph/dist/pregel/utils/config.js
 +++ b/node_modules/@langchain/langgraph/dist/pregel/utils/config.js
 @@ -66,6 +66,24 @@ function filterToUserTags(tags) {
@@ -109,28 +109,25 @@ index ce88d9e..4793684 100644
  		return manager;
  	}
  	return new CallbackManager(provided._parentRunId, {
--		handlers: base.handlers.concat(provided.handlers),
--		inheritableHandlers: base.inheritableHandlers.concat(provided.inheritableHandlers),
+-		handlers: Array.from(new Set(base.handlers.concat(provided.handlers))),
+-		inheritableHandlers: Array.from(new Set(base.inheritableHandlers.concat(provided.inheritableHandlers))),
 +		handlers: uniqueHandlers(base.handlers.concat(provided.handlers)),
 +		inheritableHandlers: uniqueHandlers(base.inheritableHandlers.concat(provided.inheritableHandlers)),
  		tags: Array.from(new Set(base.tags.concat(provided.tags))),
  		inheritableTags: Array.from(new Set(base.inheritableTags.concat(provided.inheritableTags))),
  		metadata: {
 diff --git a/node_modules/@langchain/langgraph/dist/stream/transformers/messages.cjs b/node_modules/@langchain/langgraph/dist/stream/transformers/messages.cjs
-index 6e956ba..50ae0c1 100644
+index 6e956ba..13d7eac 100644
 --- a/node_modules/@langchain/langgraph/dist/stream/transformers/messages.cjs
 +++ b/node_modules/@langchain/langgraph/dist/stream/transformers/messages.cjs
-@@ -38,6 +38,19 @@ function createMessagesTransformer(path, nodeFilter) {
+@@ -38,6 +38,16 @@ function createMessagesTransformer(path, nodeFilter) {
  			switch (data.event) {
  				case "message-start": {
  					const key = getMessageStreamKey(data);
 +					// A key can repeat: messages emitted from a node's output all carry that
 +					// node's chain run_id, so two AI messages out of one node share `run:<id>`
 +					// (and messages with neither run_id nor id all collapse to "__default__").
-+					// The entry must be closed before it is replaced or shadowed by `ignored` —
-+					// an overwritten source is unreachable from both `message-finish` and
-+					// `finalize()`, so its ChatModelStream never ends and any consumer awaiting
-+					// its `.text` / `.reasoning` / `.output` hangs for the rest of the process.
++					// Close the old source before replacing it so consumers cannot hang.
 +					const superseded = active.get(key);
 +					if (superseded) {
 +						superseded.source.push({ event: "message-finish" });
@@ -141,20 +138,17 @@ index 6e956ba..50ae0c1 100644
  						ignored.add(key);
  						break;
 diff --git a/node_modules/@langchain/langgraph/dist/stream/transformers/messages.js b/node_modules/@langchain/langgraph/dist/stream/transformers/messages.js
-index 1203e86..47626c0 100644
+index 1203e86..0fecef1 100644
 --- a/node_modules/@langchain/langgraph/dist/stream/transformers/messages.js
 +++ b/node_modules/@langchain/langgraph/dist/stream/transformers/messages.js
-@@ -38,6 +38,19 @@ function createMessagesTransformer(path, nodeFilter) {
+@@ -38,6 +38,16 @@ function createMessagesTransformer(path, nodeFilter) {
  			switch (data.event) {
  				case "message-start": {
  					const key = getMessageStreamKey(data);
 +					// A key can repeat: messages emitted from a node's output all carry that
 +					// node's chain run_id, so two AI messages out of one node share `run:<id>`
 +					// (and messages with neither run_id nor id all collapse to "__default__").
-+					// The entry must be closed before it is replaced or shadowed by `ignored` —
-+					// an overwritten source is unreachable from both `message-finish` and
-+					// `finalize()`, so its ChatModelStream never ends and any consumer awaiting
-+					// its `.text` / `.reasoning` / `.output` hangs for the rest of the process.
++					// Close the old source before replacing it so consumers cannot hang.
 +					const superseded = active.get(key);
 +					if (superseded) {
 +						superseded.source.push({ event: "message-finish" });

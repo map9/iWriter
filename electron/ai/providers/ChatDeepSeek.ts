@@ -1,4 +1,5 @@
 import { BaseChatModel } from '@langchain/core/language_models/chat_models'
+import { stampRetryable } from '@langchain/core/errors'
 import type { BaseChatModelCallOptions, BaseChatModelParams, BindToolsInput } from '@langchain/core/language_models/chat_models'
 import type { ModelProfile } from '@langchain/core/language_models/profile'
 import type { BaseMessage, OpenAIToolCall } from '@langchain/core/messages'
@@ -230,6 +231,7 @@ function augmentDeepSeekError<T extends Error>(
   if (metadata.retryable !== undefined) augmented.retryable = metadata.retryable
   if (metadata.streamState) augmented.streamState = metadata.streamState
   if (metadata.rawMessage) augmented.rawMessage = metadata.rawMessage
+  if (metadata.retryable !== undefined) stampRetryable(augmented, metadata.retryable)
   return augmented
 }
 
@@ -283,14 +285,22 @@ function createDeepSeekConnectionError(
         : 'DeepSeek request timed out.',
     })
     if (err instanceof Error) error.cause = err
-    return augmentDeepSeekError(error, { phase, retryable: true, streamState })
+    return augmentDeepSeekError(error, {
+      phase,
+      retryable: streamState?.receivedFirstChunk !== true,
+      streamState,
+    })
   }
 
   const error = new APIConnectionError({
     message: phase === 'read' ? 'DeepSeek stream connection error.' : 'DeepSeek connection error.',
     cause: err instanceof Error ? err : new Error(String(err)),
   })
-  return augmentDeepSeekError(error, { phase, retryable: true, streamState })
+  return augmentDeepSeekError(error, {
+    phase,
+    retryable: streamState?.receivedFirstChunk !== true,
+    streamState,
+  })
 }
 
 function extractTextContent(content: unknown): string {
@@ -624,7 +634,7 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
             cause: err instanceof Error ? err : new Error(String(err)),
           }), {
             phase: 'parse',
-            retryable: true,
+            retryable: !receivedFirstChunk,
             rawMessage: payload,
             streamState: {
               receivedFirstChunk,
@@ -738,14 +748,14 @@ export class ChatDeepSeek extends BaseChatModel<ChatDeepSeekCallOptions> {
     }
 
     // Premature EOF: server closed the stream without sending [DONE].
-    // Any yielded content is incomplete — surface as a retryable connection error rather
-    // than letting a truncated response be persisted as a successful completion.
+    // Any yielded content is incomplete. Fail the run instead of retrying the whole model
+    // call: the renderer may already show partial chunks, so a retry would duplicate them.
     if (receivedFirstChunk && !receivedDoneMarker) {
       throw augmentDeepSeekError(new APIConnectionError({
         message: 'DeepSeek stream closed before [DONE] marker was received.',
       }), {
         phase: 'read',
-        retryable: true,
+        retryable: false,
         streamState: { receivedFirstChunk, receivedDoneMarker, chunkCount, totalBytes },
       })
     }

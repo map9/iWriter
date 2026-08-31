@@ -213,9 +213,9 @@ function stubPlugin() {
           'export function createOrphanToolCallStripperMiddleware() { return {} }',
         ],
         [
-          /scaffold\/middleware\/RateLimitRetryMiddleware$/,
-          'rate-limit-retry-middleware',
-          'export function createRateLimitRetryMiddleware() { return {} }',
+          /scaffold\/middleware\/ModelNetworkResilience$/,
+          'model-network-resilience',
+          'export function createModelNetworkRetryMiddleware() { return { name: "modelRetryMiddleware" } } export function toUserFacingModelError(error) { return error instanceof Error ? error.message : String(error) }',
         ],
         [
           /scaffold\/middleware\/HumanRespondMessageMiddleware$/,
@@ -646,7 +646,8 @@ describe('AgentEngine initialization', () => {
       'medium',
     )
 
-    const options = globalThis.__iwriterDeepAgentOptions.summarizationMiddlewareOptions
+    const agentOptions = globalThis.__iwriterDeepAgentOptions
+    const options = agentOptions.summarizationMiddlewareOptions
     assert.deepEqual(options.trigger, { type: 'tokens', value: 320000 })
     assert.deepEqual(options.keep, { type: 'tokens', value: 40000 })
     assert.equal(options.trimTokensToSummarize, 320000)
@@ -655,6 +656,7 @@ describe('AgentEngine initialization', () => {
     assert.equal(options.model.runtime.disableThinking, true)
     assert.match(options.summaryPrompt, /editing-state/)
     assert.match(options.summaryPrompt, /\{conversation\}/)
+    assert.equal(agentOptions.middleware.at(-1)?.name, 'modelRetryMiddleware')
     assert.equal(
       globalThis.__iwriterDeepAgentOptions.middleware.some(
         middleware => middleware?.name === 'ContextLedgerMiddleware',
@@ -691,6 +693,7 @@ describe('AgentEngine initialization', () => {
     const [subagent] = globalThis.__iwriterDeepAgentOptions.subagents
     assert.match(subagent.systemPrompt, /Current Workspace: "\/Users\/author\/Books\/novel"/)
     assert.match(subagent.systemPrompt, /writer prompt/)
+    assert.equal(subagent.middleware.at(-1)?.name, 'modelRetryMiddleware')
     assert.deepEqual(globalThis.__iwriterDeepAgentOptions.skills, [
       '/Users/author/.iwriter/skills',
     ])

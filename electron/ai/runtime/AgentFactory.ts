@@ -12,7 +12,7 @@ import {
 import { IWriterAgentContextSchema } from './AgentContext'
 import { createTaskToolCompatMiddleware } from '../scaffold/middleware/TaskToolCompatMiddleware'
 import { createOrphanToolCallStripperMiddleware } from '../scaffold/middleware/OrphanToolCallStripperMiddleware'
-import { createRateLimitRetryMiddleware } from '../scaffold/middleware/RateLimitRetryMiddleware'
+import { createModelNetworkRetryMiddleware } from '../scaffold/middleware/ModelNetworkResilience'
 import { createHumanRespondMessageMiddleware } from '../scaffold/middleware/HumanRespondMessageMiddleware'
 import {
   MIDDLEWARE_CONFIG,
@@ -75,6 +75,12 @@ export class AgentFactory {
     const subAgents = capabilities.subAgents?.map(subagent => ({
       ...subagent,
       systemPrompt: `${scaffold.workspaceSystemPrompt}\n\n${subagent.systemPrompt}`,
+      // DeepAgents intentionally does not inherit arbitrary root middleware for
+      // custom subagents, so opt each declarative subagent into the same built-in retry.
+      middleware: [
+        ...(subagent.middleware ?? []),
+        createModelNetworkRetryMiddleware(),
+      ],
     }))
     const memorySources = buildMemorySources(this.options.aiRootPath, strategy.getMemoryDir())
 
@@ -126,7 +132,7 @@ export class AgentFactory {
               this.options.onModelFallback(threadId, fallbackModelId)
             })]
           : []),
-        createRateLimitRetryMiddleware(),
+        createModelNetworkRetryMiddleware(),
       ],
       contextSchema: IWriterAgentContextSchema,
     })
