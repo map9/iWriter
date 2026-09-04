@@ -7,7 +7,7 @@ let modulePromise
 
 const client = {
   getThreads: () => Promise.resolve(globalThis.__iwriterThreadSelectionBackendThreads ?? []),
-  getThreadMessages: () => Promise.resolve([]),
+  getThreadMessages: threadId => globalThis.__iwriterThreadSelectionMessages?.(threadId) ?? Promise.resolve([]),
   updateConfig: () => Promise.resolve(),
   deleteThread: () => Promise.resolve(),
   clearThreads: () => Promise.resolve(),
@@ -220,6 +220,7 @@ async function withStore(run) {
   } finally {
     delete globalThis.__iwriterThreadSelectionAppStore
     delete globalThis.__iwriterThreadSelectionBackendThreads
+    delete globalThis.__iwriterThreadSelectionMessages
     dom.window.close()
     for (const [key, descriptor] of previous) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor)
@@ -284,6 +285,48 @@ describe('AI store active thread restoration', () => {
       assert.equal(store.activeThread?.mode, 'creative')
       assert.equal(store.isActiveThreadDraft, true)
       assert.deepEqual(store.threads.map(thread => thread.id), ['thread-draft', 'thread-history'])
+    })
+  })
+
+  it('does not reactivate a thread deleted while its history is loading', async () => {
+    await withStore(async ({ store }) => {
+      const history = Promise.withResolvers()
+      globalThis.__iwriterThreadSelectionMessages = () => history.promise
+      store.threads.push({
+        id: 'thread-history',
+        title: 'History',
+        createdAt: 1,
+        updatedAt: 1,
+        messages: [],
+        messagesLoaded: false,
+        providerConfigId: 'provider-1',
+        modelId: 'model-1',
+        domain: 'editing',
+        mode: 'edit',
+        thinkingLevel: 'medium',
+        workspacePath: '/workspace',
+      })
+
+      const selection = store.selectThread('thread-history')
+      store.deleteThread('thread-history')
+      history.resolve([{ id: 'message-1', role: 'assistant', content: 'late', timestamp: 1 }])
+
+      assert.equal(await selection, false)
+      assert.notEqual(store.activeThreadId, 'thread-history')
+      assert.equal(store.threads.some(thread => thread.id === 'thread-history'), false)
+    })
+  })
+
+  it('constructs a prepared workspace draft from runtime settings at commit time', async () => {
+    await withStore(async ({ store }) => {
+      const commitDraft = store.prepareNewThread('/workspace-next')
+      assert.equal(typeof commitDraft, 'function')
+
+      store.settings.providerConfigs[0].defaultModelId = 'model-after-cancel'
+      commitDraft()
+
+      assert.equal(store.activeThread.modelId, 'model-after-cancel')
+      assert.equal(store.activeThread.workspacePath, '/workspace-next')
     })
   })
 })

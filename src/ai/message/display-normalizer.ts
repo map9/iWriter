@@ -711,29 +711,11 @@ function parseTaskPlanFromToolCall(toolCall: AiToolCall): { toolCallId?: string;
   return { toolCallId: toolCall.id, items }
 }
 
-function synthesizeContentBlocks(message: ThreadMessage, toolCalls: AiToolCall[] | undefined): MessageContentBlock[] | undefined {
-  const blocks: MessageContentBlock[] = []
-
-  if (message.role === 'assistant') {
-    const text = normalizeText(message.content)
-    if (text) blocks.push({ type: 'text', text })
-    for (const toolCall of toolCalls ?? []) {
-      blocks.push({ type: 'tool_call', toolCallId: toolCall.id })
-    }
-    return blocks.length ? blocks : undefined
-  }
-
-  const text = normalizeText(message.content)
-  return text ? [{ type: 'text', text }] : undefined
-}
-
 function normalizeContentBlocks(
   message: ThreadMessage,
   toolCalls: AiToolCall[] | undefined,
 ): MessageContentBlock[] | undefined {
-  if (!message.contentBlocks?.length) {
-    return synthesizeContentBlocks(message, toolCalls)
-  }
+  if (!message.contentBlocks?.length) return undefined
 
   const validIds = new Set((toolCalls ?? []).map(toolCall => toolCall.id))
   const normalized: MessageContentBlock[] = []
@@ -775,7 +757,7 @@ function normalizeContentBlocks(
     }
   }
 
-  return normalized.length ? normalized : synthesizeContentBlocks(message, toolCalls)
+  return normalized.length ? normalized : undefined
 }
 
 export function normalizeThreadMessageForDisplay(

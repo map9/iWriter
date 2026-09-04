@@ -2,7 +2,7 @@
  * ThreadListQuery — thread metadata persistence layer.
  *
  * When SqliteSaver is available (backend === 'sqlite'), stores thread metadata
- * in a `thread_metadata` table in the same SQLite DB file as the checkpoints.
+ * in the current versioned metadata table in the same SQLite DB file as the checkpoints.
  * This avoids maintaining a separate electron-store.
  *
  * When backend === 'memory', metadata is kept in-memory only.
@@ -26,6 +26,7 @@ import { normalizeAgentMode, normalizeThinkingLevel } from '../../../shared/ai/c
 import { normalizeWorkspaceBinding } from '../../../shared/workspace/path'
 
 const MAX_THREADS = 100
+const THREAD_METADATA_TABLE = 'thread_metadata_v2'
 
 export interface ThreadMeta {
   id: string
@@ -45,7 +46,7 @@ export interface ThreadMeta {
 
 // ─── SQLite helpers ──────────────────────────────────────────────────────────
 
-/** Mirror of the thread_metadata table columns returned by SELECT *. */
+/** Mirror of the current metadata table columns returned by SELECT *. */
 interface RawThreadMetaRow {
   thread_id: string
   title: string
@@ -64,7 +65,7 @@ interface RawThreadMetaRow {
 
 function ensureTable(db: Database): void {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS thread_metadata (
+    CREATE TABLE IF NOT EXISTS ${THREAD_METADATA_TABLE} (
       thread_id         TEXT PRIMARY KEY,
       title             TEXT NOT NULL DEFAULT 'New conversation',
       domain            TEXT NOT NULL DEFAULT 'editing',
@@ -80,27 +81,6 @@ function ensureTable(db: Database): void {
       pending_runtime_json  TEXT
     )
   `)
-  try {
-    const cols = (db.prepare('PRAGMA table_info(thread_metadata)').all() as Array<{ name: string }>)
-      .map(col => col.name)
-    if (!cols.includes('domain')) {
-      db.exec(`ALTER TABLE thread_metadata ADD COLUMN domain TEXT NOT NULL DEFAULT 'editing'`)
-    }
-    if (!cols.includes('thinking_level')) {
-      db.exec('ALTER TABLE thread_metadata ADD COLUMN thinking_level TEXT')
-    }
-    if (!cols.includes('workspace_path')) {
-      db.exec('ALTER TABLE thread_metadata ADD COLUMN workspace_path TEXT')
-    }
-    if (!cols.includes('active_runtime_json')) {
-      db.exec('ALTER TABLE thread_metadata ADD COLUMN active_runtime_json TEXT')
-    }
-    if (!cols.includes('pending_runtime_json')) {
-      db.exec('ALTER TABLE thread_metadata ADD COLUMN pending_runtime_json TEXT')
-    }
-  } catch {
-    // ignore migration errors; CREATE TABLE path already covers new installs
-  }
 }
 
 function parseJsonObject<T>(value: string | null | undefined): T | undefined {
@@ -162,7 +142,7 @@ export class ThreadListQuery {
     try {
       if (this.db) {
         const rows = this.db
-          .prepare('SELECT * FROM thread_metadata ORDER BY updated_at DESC LIMIT ?')
+          .prepare(`SELECT * FROM ${THREAD_METADATA_TABLE} ORDER BY updated_at DESC LIMIT ?`)
           .all(MAX_THREADS) as RawThreadMetaRow[]
         return rows.map(rowToMeta)
       }
@@ -177,7 +157,7 @@ export class ThreadListQuery {
     try {
       if (this.db) {
         const row = this.db
-          .prepare('SELECT * FROM thread_metadata WHERE thread_id = ?')
+          .prepare(`SELECT * FROM ${THREAD_METADATA_TABLE} WHERE thread_id = ?`)
           .get(id) as RawThreadMetaRow | undefined
         return row ? rowToMeta(row) : null
       }
@@ -246,7 +226,7 @@ export class ThreadListQuery {
   deleteMeta(id: string): void {
     try {
       if (this.db) {
-        this.db.prepare('DELETE FROM thread_metadata WHERE thread_id = ?').run(id)
+        this.db.prepare(`DELETE FROM ${THREAD_METADATA_TABLE} WHERE thread_id = ?`).run(id)
         return
       }
       this.memoryMetas.delete(id)
@@ -258,7 +238,7 @@ export class ThreadListQuery {
   clearMetas(): void {
     try {
       if (this.db) {
-        this.db.prepare('DELETE FROM thread_metadata').run()
+        this.db.prepare(`DELETE FROM ${THREAD_METADATA_TABLE}`).run()
         return
       }
       this.memoryMetas.clear()
@@ -272,7 +252,7 @@ export class ThreadListQuery {
   private _saveMeta(meta: ThreadMeta): void {
     if (this.db) {
       this.db.prepare(`
-        INSERT OR REPLACE INTO thread_metadata
+        INSERT OR REPLACE INTO ${THREAD_METADATA_TABLE}
           (thread_id, title, domain, mode, model_id, provider_config_id,
            created_at, updated_at, has_error, thinking_level, workspace_path,
            active_runtime_json, pending_runtime_json)
@@ -302,7 +282,7 @@ export class ThreadListQuery {
   }
 }
 
-// ─── Convert ThreadMeta → AiThread (backward compat for IPC layer) ───────────
+// ─── Convert ThreadMeta → AiThread ──────────────────────────────────────────
 
 /** Converts ThreadMeta to AiThread with empty messages for the IPC layer.
  * Messages are no longer stored in the renderer — they are managed by checkpointer. */

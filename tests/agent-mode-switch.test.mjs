@@ -245,7 +245,7 @@ async function withMountedEmptyState({ currentFolder = '/workspace', draft = tru
     const module = await loadEmptyStateComponent()
     const activeThread = module.reactive({ mode: 'edit' })
     const store = module.reactive({
-      displayMessages: [],
+      conversationEntries: [],
       liveTurnState: null,
       isSwitchingThread: false,
       isActiveThreadDraft: draft,

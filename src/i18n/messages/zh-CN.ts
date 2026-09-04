@@ -458,7 +458,7 @@ export default {
       subtitle: '{count} 条消息 · {size}',
       unboundWorkspace: '未绑定工作区',
       differentWorkspace: '此对话属于其他工作区：{workspace}',
-      unboundWorkspaceDisabled: '旧对话未绑定工作区，不能在当前工作区选择',
+      unboundWorkspaceDisabled: '此对话未绑定工作区，不能在当前工作区选择',
       group: {
         today: '今天',
         pastWeek: '过去一周',
@@ -615,7 +615,6 @@ export default {
         edit_file: '编辑文件',
         rename_file: '重命名文件',
         delete: '删除文件',
-        delete_file: '删除文件',
         move_file: '移动文件',
         confirm_writing_plan: '确认写作计划',
         finalize_chapter: '章节定稿',

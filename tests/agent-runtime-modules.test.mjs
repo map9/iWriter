@@ -215,7 +215,7 @@ describe('agent runtime modules', () => {
     const coordinator = new InterruptCoordinator()
     const interrupted = {
       actionRequestCount: 4,
-      actionNames: ['read_file', 'write_file', 'ask_human', 'delete_file'],
+      actionNames: ['read_file', 'write_file', 'ask_human', 'delete'],
     }
 
     assert.deepEqual(coordinator.buildLangGraphDecisions(interrupted, [

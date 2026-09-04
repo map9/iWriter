@@ -108,16 +108,19 @@ describe('filesystem approval policy', () => {
     }
   })
 
-  it('auto-rejects historical delete_file checkpoints with retry guidance', async () => {
-    const { decideFilesystemWriteApproval } = await loadModule()
+  it('does not recognize the retired delete_file name as a filesystem mutation', async () => {
+    const { decideFilesystemWriteApproval, isFilesystemWriteToolName } = await loadModule()
 
     const decision = decideFilesystemWriteApproval({
       toolName: 'delete_file',
       args: { file_path: '/Users/author/Book/obsolete.md' },
     })
 
-    assert.equal(decision.kind, 'auto-reject')
-    assert.match(decision.decision.message, /retry.*delete/i)
+    assert.equal(isFilesystemWriteToolName('delete_file'), false)
+    assert.deepEqual(decision, {
+      kind: 'requires-review',
+      reason: 'Not a filesystem write tool.',
+    })
   })
 
   it('projects native delete as an always-recursive high-risk review item', async () => {

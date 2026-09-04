@@ -119,6 +119,58 @@ describe('RuntimeSwitchService', () => {
     assert.deepEqual(cleared, ['thread-1'])
   })
 
+  it('does not let an older inspection commit after a newer request', async () => {
+    const { RuntimeSwitchService } = await loadModule()
+    const inspections = new Map()
+    const commits = []
+    const service = new RuntimeSwitchService({
+      inspect: (_threadId, requestedCandidate) => {
+        const pending = Promise.withResolvers()
+        inspections.set(requestedCandidate.modelId, pending)
+        return pending.promise
+      },
+      getThreadState: () => 'idle',
+      commit: (_threadId, requestedCandidate) => commits.push(requestedCandidate.modelId),
+      defer: () => {},
+      clearPending: () => {},
+    })
+    const firstCandidate = { ...candidate, modelId: 'model-first' }
+    const secondCandidate = { ...candidate, modelId: 'model-second' }
+
+    const first = service.request({ threadId: 'thread-1', candidate: firstCandidate })
+    const second = service.request({ threadId: 'thread-1', candidate: secondCandidate })
+    inspections.get('model-second').resolve({ currentTokens: 1, budget: budget(80_000) })
+    await second
+    inspections.get('model-first').resolve({ currentTokens: 1, budget: budget(80_000) })
+    await Promise.allSettled([first])
+
+    assert.deepEqual(commits, ['model-second'])
+  })
+
+  it('updates only thinking on the authoritative pending runtime without inspecting budget', async () => {
+    const { RuntimeSwitchService } = await loadModule()
+    const pending = { ...candidate, thinkingLevel: 'medium' }
+    const deferrals = []
+    const service = new RuntimeSwitchService({
+      inspect: async () => { throw new Error('thinking-only must not inspect budget') },
+      getCurrentSelection: () => pending,
+      getThreadState: () => 'active',
+      commit: () => {},
+      defer: (_threadId, requestedCandidate) => deferrals.push(requestedCandidate),
+      clearPending: () => {},
+    })
+    const thinkingCandidate = { ...pending, thinkingLevel: 'high' }
+
+    const result = await service.request({
+      threadId: 'thread-1',
+      candidate: thinkingCandidate,
+      validation: 'thinking-only',
+    })
+
+    assert.deepEqual(result, { status: 'pending', candidate: thinkingCandidate })
+    assert.deepEqual(deferrals, [thinkingCandidate])
+  })
+
   it('unregisters the runtime-switch IPC handler with the other AI handlers', () => {
     const source = readFileSync('electron/App.ts', 'utf8')
     assert.match(source, /removeHandler\('ai:switch-thread-runtime'\)/)

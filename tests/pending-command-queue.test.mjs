@@ -234,7 +234,7 @@ describe('pending command submission', () => {
       activeThread: { id: 'thread-1', domain: 'editing', mode: 'edit', updatedAt: 1 },
       settings: { defaultMode: 'edit' },
       effectiveProviderConfig: { id: 'provider-1', defaultModelId: 'model-1' },
-      displayMessages: [],
+      conversationEntries: [],
       isStreaming,
       isInterrupted,
       liveTurnThreadId: 'thread-1',

@@ -111,6 +111,9 @@ async function loadModule() {
               createRuntimeEvents,
             } from './src/ai/state/runEvents.ts'
             export {
+              normalizeThreadMessageForDisplay,
+            } from './src/ai/message/display-normalizer.ts'
+            export {
               StreamEventAdapter,
               parseDeepAgentsSummarizationEvent,
             } from './electron/ai/ipc/StreamEventAdapter.ts'
@@ -502,6 +505,25 @@ describe('IWriter summarization middleware', () => {
 })
 
 describe('context compression display event', () => {
+  it('does not synthesize display blocks for assistant messages outside the current contract', async () => {
+    const { normalizeThreadMessageForDisplay } = await loadModule()
+
+    const normalized = normalizeThreadMessageForDisplay({
+      id: 'assistant-without-blocks',
+      role: 'assistant',
+      content: 'historical assistant text',
+      toolCalls: [{
+        id: 'tool-1',
+        name: 'read_file',
+        arguments: { file_path: '/book.md' },
+        status: 'completed',
+      }],
+      timestamp: 1,
+    })
+
+    assert.equal(normalized.contentBlocks, undefined)
+  })
+
   it('keeps a live compression card at its stream position before later text and status', async () => {
     const { JSDOM } = await import('jsdom')
     const { parse } = await import('@vue/compiler-sfc')
@@ -1120,7 +1142,7 @@ describe('compact context indicator', () => {
       },
       settings: { defaultMode: 'edit' },
       effectiveProviderConfig: { id: 'provider-1', defaultModelId: 'model-1' },
-      displayMessages: [],
+      conversationEntries: [],
       isStreaming: true,
       isInterrupted: false,
       liveTurnThreadId: 'thread-1',
@@ -1269,7 +1291,7 @@ describe('compact context indicator', () => {
       await flushVueWatchers(harness.nextTick)
       assert.equal(harness.state.primaryContextStats.value.currentTokens, 240)
 
-      harness.store.displayMessages.push({ id: 'message-1' })
+      harness.store.conversationEntries.push({ id: 'message-1' })
       await flushVueWatchers(harness.nextTick)
       assert.equal(harness.getRequestCount(), 2)
 

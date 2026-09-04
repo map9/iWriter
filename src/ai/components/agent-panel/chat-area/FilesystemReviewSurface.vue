@@ -72,7 +72,7 @@ const aiStore = useAiStore()
 const currentIndex = ref(0)
 const reviews = computed(() => aiStore.pendingFilesystemReviews)
 const current = computed(() => reviews.value[currentIndex.value] ?? null)
-const isDelete = computed(() => current.value?.toolName === 'delete' || current.value?.toolName === 'delete_file')
+const isDelete = computed(() => current.value?.toolName === 'delete')
 
 const REVIEW_TITLE_KEYS: Record<string, string> = {
   write_file: 'titleWriteFile',
@@ -80,7 +80,6 @@ const REVIEW_TITLE_KEYS: Record<string, string> = {
   rename_file: 'titleRenameFile',
   move_file: 'titleMoveFile',
   delete: 'titleDeleteFile',
-  delete_file: 'titleDeleteFile',
 }
 
 const REVIEW_WARNING_KEYS: Record<string, string> = {
@@ -89,7 +88,6 @@ const REVIEW_WARNING_KEYS: Record<string, string> = {
   rename_file: 'warningRenameFile',
   move_file: 'warningMoveFile',
   delete: 'warningDeleteFile',
-  delete_file: 'warningDeleteFile',
 }
 
 const reviewTitle = computed(() =>

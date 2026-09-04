@@ -168,6 +168,7 @@ export class AgentEngine {
   private checkpointerAdmin: CheckpointerAdmin | null = null
   private threadListQuery: ThreadListQuery | null = null
   private threadService: ThreadService
+  private runtimeSwitchService: RuntimeSwitchService
   private writingSessionCoordinator: WritingSessionCoordinator
   private initializationPromise: Promise<void> | null = null
 
@@ -195,6 +196,7 @@ export class AgentEngine {
       clearAllFallbackNotifications: () => this.fallbackNotifiedTurnKeys.clear(),
       rememberProviderConfig: config => AiConfigStore.rememberProviderConfig(config),
     })
+    this.runtimeSwitchService = this._createRuntimeSwitchService()
     this.aiRootPath = path.join(app.getPath('home'), '.iwriter', 'ai')
     this.bundledSkillsPath = app.isPackaged
       ? path.join(process.resourcesPath, 'builtin-skills')
@@ -362,15 +364,18 @@ export class AgentEngine {
     await this._ensureInitialized()
     const meta = this.threadService.getMeta(req.threadId)
     if (!meta) throw new Error(`Thread not found: ${req.threadId}`)
-    return this._createRuntimeSwitchService(meta).request({
+    return this.runtimeSwitchService.request({
       threadId: req.threadId,
       candidate: req.candidate,
+      validation: req.validation,
     })
   }
 
-  private _createRuntimeSwitchService(meta: NonNullable<ReturnType<ThreadService['getMeta']>>): RuntimeSwitchService {
+  private _createRuntimeSwitchService(): RuntimeSwitchService {
     return new RuntimeSwitchService({
       inspect: async (threadId, candidate) => {
+        const meta = this.threadService.getMeta(threadId)
+        if (!meta) throw new Error(`Thread not found: ${threadId}`)
         const settings = AiConfigStore.loadSettings()
         const candidateConfig = settings.providerConfigs.find(config => config.id === candidate.providerConfigId)
         if (!candidateConfig || !isAiProviderUsable(candidateConfig, { resolveApiKey: resolveAiApiKeyEnvVar })) {
@@ -390,6 +395,15 @@ export class AgentEngine {
           budget: getEffectiveModelBudget(runtime.providerConfig, runtime.modelId, model),
         }
       },
+      getCurrentSelection: threadId => {
+        const currentMeta = this.threadService.getMeta(threadId)
+        if (!currentMeta) return null
+        return currentMeta.pendingRuntime ?? {
+          providerConfigId: currentMeta.providerConfigId,
+          modelId: currentMeta.modelId,
+          thinkingLevel: currentMeta.thinkingLevel ?? 'medium',
+        }
+      },
       getThreadState: threadId => {
         if (this.runtimeStore.getInterrupted(threadId)) return 'interrupted'
         if (this.agentRunner.isActive(threadId)) return 'active'
@@ -404,14 +418,18 @@ export class AgentEngine {
   private async _finalizePendingRuntimeSwitch(threadId: string): Promise<RuntimeSwitchResponse | undefined> {
     const meta = this.threadService.getMeta(threadId)
     if (!meta?.pendingRuntime) return undefined
-    return this._createRuntimeSwitchService(meta).finalize(threadId, meta.pendingRuntime)
+    return this.runtimeSwitchService.finalize(threadId, meta.pendingRuntime)
   }
 
   // ── Public: cancel ────────────────────────────────────────────────────────
 
   async cancel(threadId: string): Promise<RuntimeSwitchResponse | undefined> {
-    await this.threadService.cancel(threadId)
-    return this._finalizePendingRuntimeSwitch(threadId)
+    try {
+      await this.threadService.cancel(threadId)
+      return await this._finalizePendingRuntimeSwitch(threadId)
+    } finally {
+      this.threadService.completeTurn(threadId)
+    }
   }
 
   // ── Public: resume (LangGraph HITL batch decisions) ───────────────────────
@@ -422,38 +440,40 @@ export class AgentEngine {
       console.warn('[AgentEngine] resumeRun: no interrupted run for threadId:', threadId)
       return
     }
-    this.runtimeStore.clearInterrupted(threadId)
+    let runtime: ReturnType<typeof resolveResumeThreadRuntime>
+    let fullDecisions: ResumeDecision[]
+    try {
+      const settings = AiConfigStore.loadSettings()
+      const meta = this.threadService.getMeta(threadId)
+      runtime = resolveResumeThreadRuntime(
+        settings,
+        meta,
+        revision => AiConfigStore.loadProviderConfigRevision(revision),
+      )
+      fullDecisions = this.interruptCoordinator.mergeDecisions(interrupted, decisions)
 
-    const settings = AiConfigStore.loadSettings()
-    const meta = this.threadService.getMeta(threadId)
-    const runtime = resolveResumeThreadRuntime(
-      settings,
-      meta,
-      revision => AiConfigStore.loadProviderConfigRevision(revision),
-    )
-    if (!runtime) {
-      console.error('[AgentEngine] resumeRun: could not resolve thread runtime')
+      // M1-2 归因基准：**仅**对本批次被 auto-apply 命中的章节重取快照——这些文件的块编辑已由 renderer
+      // 在 ai:resume 前应用落盘，磁盘此刻反映 agent 的最新已应用状态。据此把之后整章终审里「agent 应用
+      // 之后」的改动（作者手改/外部改动）标为 hasExternalEdits。
+      // 切勿笼统扫全部活动会话：本批次未命中的会话若在中断期间被作者手改，会把手改误记成 agent 快照，
+      // 令终审漏标 hasExternalEdits（漏警）。放在 finalize 处理前——finalize 关闭会话后就取不到了。
+      await this.writingSessionCoordinator.recordAutoAppliedSnapshots(
+        threadId,
+        interrupted.autoAppliedFiles ?? [],
+      )
+
+      // An approved confirm_writing_plan opens the write-session authorization (04.1 §6 Stage 2) and
+      // anchors the finalize baseline at write-session start (before the writer touches the chapter).
+      await this.writingSessionCoordinator.registerApprovedPlans(threadId, interrupted, fullDecisions)
+
+      // A finalize_chapter decision closes/restores the write-session (M1b-3).
+      this.writingSessionCoordinator.applyFinalizeDecisions(threadId, interrupted, fullDecisions)
+    } catch (error) {
+      await this._terminateFailedResumeSetup(threadId, interrupted.turnId, error)
       return
     }
 
-    const fullDecisions = this.interruptCoordinator.mergeDecisions(interrupted, decisions)
-
-    // M1-2 归因基准：**仅**对本批次被 auto-apply 命中的章节重取快照——这些文件的块编辑已由 renderer
-    // 在 ai:resume 前应用落盘，磁盘此刻反映 agent 的最新已应用状态。据此把之后整章终审里「agent 应用
-    // 之后」的改动（作者手改/外部改动）标为 hasExternalEdits。
-    // 切勿笼统扫全部活动会话：本批次未命中的会话若在中断期间被作者手改，会把手改误记成 agent 快照，
-    // 令终审漏标 hasExternalEdits（漏警）。放在 finalize 处理前——finalize 关闭会话后就取不到了。
-    await this.writingSessionCoordinator.recordAutoAppliedSnapshots(
-      threadId,
-      interrupted.autoAppliedFiles ?? [],
-    )
-
-    // An approved confirm_writing_plan opens the write-session authorization (04.1 §6 Stage 2) and
-    // anchors the finalize baseline at write-session start (before the writer touches the chapter).
-    await this.writingSessionCoordinator.registerApprovedPlans(threadId, interrupted, fullDecisions)
-
-    // A finalize_chapter decision closes/restores the write-session (M1b-3).
-    this.writingSessionCoordinator.applyFinalizeDecisions(threadId, interrupted, fullDecisions)
+    this.runtimeStore.clearInterrupted(threadId)
 
     // M1-1: a run-end synthesized finalize card has no live LangGraph interrupt to resume — the host
     // side effects above are the whole job. Complete the run instead of feeding a Command back.
@@ -489,6 +509,31 @@ export class AgentEngine {
         this.checkpointerAdmin?.stripRespondMarkers(threadId).catch(() => { /* ignore */ })
       }).catch(() => { /* ignore */ })
     }
+  }
+
+  private async _terminateFailedResumeSetup(
+    threadId: string,
+    turnId: string | undefined,
+    error: unknown,
+  ): Promise<void> {
+    console.error('[AgentEngine] resumeRun setup error:', error)
+    this.runtimeStore.clearInterrupted(threadId)
+    this.threadService.touchThread(threadId, true)
+    this.rendererBridge.sendRunError({
+      threadId,
+      turnId,
+      error: toUserFacingModelError(error),
+    })
+    let runtimeSwitch: RuntimeSwitchResponse | undefined
+    try {
+      runtimeSwitch = await this._finalizePendingRuntimeSwitch(threadId)
+    } catch (runtimeSwitchError) {
+      console.error('[AgentEngine] resumeRun pending runtime finalization error:', runtimeSwitchError)
+    }
+    this.rendererBridge.sendRunDone({ threadId, turnId, runtimeSwitch })
+    this._clearFallbackNotificationKeys(threadId, turnId ?? null)
+    this.runtimeStore.clearCurrentTurnId(threadId)
+    this.threadService.completeTurn(threadId)
   }
 
   // ── Private: run session ──────────────────────────────────────────────────
@@ -929,9 +974,6 @@ export class AgentEngine {
       ...this.strategies[domain].getInterruptOnNames(),
       ...FILE_WRITE_INTERRUPT_ON_NAMES,
     ])
-    // Rehydrate pre-1.13 checkpoints only so the policy can reject them with
-    // migration guidance; new agents do not publish or execute delete_file.
-    interruptOnNames.add('delete_file')
 
     // Collect all tool_call_ids that already have a ToolMessage response
     const responded = new Set<string>()

@@ -72,7 +72,6 @@ export function inferToolKind(toolName: string): AiToolCallKind {
     find_references: 'read',
     import_manuscript: 'edit',
     delete: 'delete',
-    delete_file: 'delete',
     rename_file: 'edit',
     move_file: 'edit',
     get_pdf_outline: 'read',

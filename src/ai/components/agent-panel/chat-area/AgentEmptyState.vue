@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="!aiStore.displayMessages.length && !aiStore.liveTurnState && !aiStore.isSwitchingThread"
+    v-if="!aiStore.conversationEntries.length && !aiStore.liveTurnState && !aiStore.isSwitchingThread"
     class="flex min-h-full flex-col items-center text-center"
   >
     <div class="my-auto flex w-full flex-col items-center py-4">

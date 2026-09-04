@@ -1,5 +1,4 @@
 import type { AiAgentMode, AiToolCall, EditProposal, EditRoundResult, EditRoundResultItem, EditRoundResultState, ThreadMessage } from '@shared/ai/contracts'
-import { BLOCK_EDIT_TOOLS } from '@shared/ai/contracts'
 import { pathUtils } from '@/utils/pathUtils'
 import type {
   EditSessionPhase,
@@ -11,33 +10,20 @@ import type {
   ReviewBatchState,
 } from './types'
 
-function hasRenderableTextBlocks(message: ThreadMessage): boolean {
-  return (message.contentBlocks ?? []).some(block => block.type === 'text' && !!block.text?.trim())
-}
-
-function getReadToolCalls(message: ThreadMessage): AiToolCall[] {
-  return (message.toolCalls ?? []).filter(tc => tc.isInvalid || (!BLOCK_EDIT_TOOLS.has(tc.name) && tc.name !== 'write_todos'))
+function hasRenderableContentBlocks(message: ThreadMessage): boolean {
+  return (message.contentBlocks ?? []).some(block => {
+    if (block.type === 'text') return !!block.text?.trim()
+    if (block.type === 'thinking') return false
+    if (block.type === 'agent_event') return !!(block.text?.trim() || block.agentName)
+    return true
+  })
 }
 
 export function isRenderableAssistantMessage(message: ThreadMessage): boolean {
   if (message.role !== 'assistant') return false
-  if (hasRenderableTextBlocks(message)) return true
-  if (!!message.content?.trim()) return true
-  if (getReadToolCalls(message).length > 0) return true
+  if (hasRenderableContentBlocks(message)) return true
   if (!!message.editRoundResult) return true
-  if (!!message.creativeRoundResult) return true
-
-  const thinkingContent = message.thinkingContent?.trim() ?? ''
-  if (!thinkingContent) return false
-
-  const hasReadToolOutput = getReadToolCalls(message).length > 0
-  const hasEditHost = !!message.editRoundResult || !!message.creativeRoundResult
-  if (!message.content?.trim() && !hasRenderableTextBlocks(message) && !hasReadToolOutput && !hasEditHost) {
-    return false
-  }
-
-  const minLength = import.meta.env.DEV ? 80 : 160
-  return thinkingContent.length >= minLength
+  return !!message.creativeRoundResult
 }
 
 export function resolveProposalHostMessageId(input: {

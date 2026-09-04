@@ -143,35 +143,6 @@ const responseFor = (status, modelId) => ({
 })
 
 describe('renderer runtime selection', () => {
-  it('drops the legacy provider model selection when loading settings', async () => {
-    const { loadAiSettings } = await loadModule()
-    globalThis.localStorage = {
-      getItem: () => JSON.stringify({
-        providerConfigs: [{
-          id: 'provider-legacy',
-          type: 'openai-compat',
-          label: 'Legacy Provider',
-          apiKey: 'secret',
-          defaultModelId: 'model-default',
-          lastSelectedModelId: 'model-legacy',
-          models: ['model-default'],
-          enabled: true,
-        }],
-        activeProviderConfigId: 'provider-legacy',
-        defaultMode: 'edit',
-        toolPermissions: {},
-        webSearchProviderConfigs: [],
-        activeWebSearchProviderConfigId: null,
-      }),
-      setItem: () => {},
-    }
-
-    const settings = loadAiSettings()
-
-    assert.equal(settings.providerConfigs[0].defaultModelId, 'model-default')
-    assert.equal(Object.hasOwn(settings.providerConfigs[0], 'lastSelectedModelId'), false)
-  })
-
   it('updates the provider default when selecting a model without an active thread', async () => {
     const { createAiSettingsState } = await loadModule()
     const { state } = createHarness(createAiSettingsState, { thread: null })
@@ -209,7 +180,6 @@ describe('renderer runtime selection', () => {
       label: 'Second Provider',
       apiKey: 'secret',
       defaultModelId: 'model-provider-default',
-      lastSelectedModelId: 'model-provider-legacy',
       models: ['model-provider-default'],
       enabled: true,
     })
@@ -239,7 +209,6 @@ describe('renderer runtime selection', () => {
       label: 'Second Provider',
       apiKey: 'secret',
       defaultModelId: '',
-      lastSelectedModelId: 'model-provider-legacy',
       models: ['model-provider-first'],
       enabled: true,
     })
@@ -290,5 +259,79 @@ describe('renderer runtime selection', () => {
     assert.equal(getThread().modelId, 'model-first')
     assert.equal(getThread().pendingRuntime, undefined)
     assert.equal(state.settings.value.providerConfigs[0].defaultModelId, 'model-first')
+  })
+
+  it('persists a thinking change on the authoritative pending runtime', async () => {
+    const { createAiSettingsState } = await loadModule()
+    const requests = []
+    globalThis.__switchThreadRuntime = async request => {
+      requests.push(request)
+      return { status: 'pending', candidate: request.candidate }
+    }
+    const { state, getThread } = createHarness(createAiSettingsState, {
+      thread: {
+        id: 'thread-1',
+        title: 'Thread',
+        createdAt: 1,
+        updatedAt: 1,
+        providerConfigId: 'provider-1',
+        modelId: 'model-current',
+        domain: 'editing',
+        mode: 'edit',
+        thinkingLevel: 'medium',
+        pendingRuntime: candidateFor('model-first'),
+      },
+    })
+
+    assert.equal(await state.setCurrentThinkingLevel('high'), true)
+    assert.deepEqual(requests, [{
+      threadId: 'thread-1',
+      validation: 'thinking-only',
+      candidate: {
+        providerConfigId: 'provider-1',
+        modelId: 'model-first',
+        thinkingLevel: 'high',
+      },
+    }])
+    assert.equal(getThread().thinkingLevel, 'high')
+    assert.equal(getThread().pendingRuntime.thinkingLevel, 'high')
+  })
+
+  it('does not fall back to the active provider for a missing thread provider', async () => {
+    const { createAiSettingsState } = await loadModule()
+    const { state } = createHarness(createAiSettingsState, {
+      thread: {
+        id: 'thread-1',
+        title: 'Thread',
+        createdAt: 1,
+        updatedAt: 1,
+        providerConfigId: 'provider-missing',
+        modelId: 'model-current',
+        domain: 'editing',
+        mode: 'edit',
+        thinkingLevel: 'medium',
+      },
+    })
+
+    assert.equal(state.effectiveProviderConfig.value, null)
+  })
+
+  it('does not expose a provider when the thread model id is not declared exactly', async () => {
+    const { createAiSettingsState } = await loadModule()
+    const { state } = createHarness(createAiSettingsState, {
+      thread: {
+        id: 'thread-1',
+        title: 'Thread',
+        createdAt: 1,
+        updatedAt: 1,
+        providerConfigId: 'provider-1',
+        modelId: ' model-first ',
+        domain: 'editing',
+        mode: 'edit',
+        thinkingLevel: 'medium',
+      },
+    })
+
+    assert.equal(state.effectiveProviderConfig.value, null)
   })
 })

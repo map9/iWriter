@@ -90,19 +90,6 @@ async function loadModule() {
               }
             }
 
-            export function getOpenAiDefaultModelIdWithLegacySelection() {
-              const model = createChatModel({
-                id: 'legacy-openai-provider',
-                type: 'openai-compat',
-                label: 'Legacy OpenAI Provider',
-                apiKey: 'test-key',
-                baseUrl: 'https://example.test/v1',
-                defaultModelId: 'model-default',
-                lastSelectedModelId: 'model-legacy',
-                enabled: true,
-              })
-              return model.model
-            }
           `,
           resolveDir: process.cwd(),
           loader: 'ts',
@@ -121,12 +108,6 @@ async function loadModule() {
 }
 
 describe('Gemini tool schema compatibility', () => {
-  it('uses the provider default when no runtime model is supplied', async () => {
-    const { getOpenAiDefaultModelIdWithLegacySelection } = await loadModule()
-
-    assert.equal(getOpenAiDefaultModelIdWithLegacySelection(), 'model-default')
-  })
-
   it('removes unsupported exclusive numeric bounds from bound tool declarations', async () => {
     const { bindProbeTool } = await loadModule()
 

@@ -146,7 +146,7 @@ export function useChatSend(contextFiles: Ref<ContextAttachment[]>) {
       () => aiStore.activeThread?.domain ?? resolveAgentDomain(aiStore.settings.defaultMode),
       () => aiStore.activeThread?.mode ?? aiStore.settings.defaultMode,
       () => aiStore.activeThread?.updatedAt ?? 0,
-      () => aiStore.displayMessages.length,
+      () => aiStore.conversationEntries.length,
       () => aiStore.isStreaming,
       () => aiStore.isInterrupted,
     ],

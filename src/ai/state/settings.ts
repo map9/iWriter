@@ -11,6 +11,7 @@ import {
   DEFAULT_AI_SETTINGS,
   DEFAULT_THINKING_LEVEL,
   getActiveAiProviderConfig,
+  isAiProviderUsable,
   normalizeAgentMode,
   normalizeModeForDomain,
   normalizeThinkingLevel,
@@ -29,12 +30,6 @@ import { i18n } from '@/i18n'
 import type { RuntimeSwitchResponse, ThreadRuntimeSelection } from '@shared/ai/contracts'
 
 const STORAGE_KEY_SETTINGS = 'iwriter-ai-settings'
-
-function withoutLegacyModelSelection(config: AiProviderConfig): AiProviderConfig {
-  const normalized = { ...config } as AiProviderConfig & { lastSelectedModelId?: unknown }
-  delete normalized.lastSelectedModelId
-  return normalized
-}
 
 function resolveDefaultModelProfiles(
   config: AiProviderConfig,
@@ -77,11 +72,10 @@ export function loadAiSettings(): AiSettings {
     merged.webSearchProviderConfigs = normalizeWebSearchProviderConfigs(merged.webSearchProviderConfigs)
     merged.activeWebSearchProviderConfigId = merged.activeWebSearchProviderConfigId ?? null
     merged.providerConfigs = (merged.providerConfigs ?? []).map(config => {
-      const currentConfig = withoutLegacyModelSelection(config)
-      const preset = getProviderPresetById(currentConfig.presetId)
+      const preset = getProviderPresetById(config.presetId)
       const normalizedPresetConfig = preset?.id === 'openai'
-        ? normalizeOpenAiPresetConfig(currentConfig, preset)
-        : currentConfig
+        ? normalizeOpenAiPresetConfig(config, preset)
+        : config
       return {
         ...normalizedPresetConfig,
         modelProfiles: resolveDefaultModelProfiles(normalizedPresetConfig, preset),
@@ -143,11 +137,17 @@ export function createAiSettingsState(deps: {
   const effectiveProviderConfig = computed<AiProviderConfig | null>(() => {
     const thread = deps.getActiveThread()
     if (thread?.providerConfigId) {
-      return getActiveAiProviderConfig(
-        settings.value.providerConfigs,
-        thread.providerConfigId,
-        { preferredModelId: thread.modelId },
-      ) ?? activeProviderConfig.value
+      const config = settings.value.providerConfigs.find(
+        candidate => candidate.id === thread.providerConfigId,
+      )
+      const declaredModelIds = config
+        ? [config.defaultModelId, ...(config.models ?? [])]
+        : []
+      return config
+        && declaredModelIds.includes(thread.modelId)
+        && isAiProviderUsable(config)
+        ? config
+        : null
     }
     return activeProviderConfig.value
   })
@@ -198,12 +198,15 @@ export function createAiSettingsState(deps: {
   function notifyRuntimeSwitchRejected(response: RuntimeSwitchResponse): void {
     notify.warning(i18n.global.t('notify.ai.runtimeSwitchContextExceeded', {
       modelId: response.candidate.modelId,
-      current: response.currentEffectiveContextTokens.toLocaleString(),
-      trigger: response.candidateCompactTriggerTokens.toLocaleString(),
+      current: response.currentEffectiveContextTokens!.toLocaleString(),
+      trigger: response.candidateCompactTriggerTokens!.toLocaleString(),
     }))
   }
 
-  async function requestRuntimeSelection(candidate: ThreadRuntimeSelection): Promise<boolean> {
+  async function requestRuntimeSelection(
+    candidate: ThreadRuntimeSelection,
+    validation: 'model-budget' | 'thinking-only' = 'model-budget',
+  ): Promise<boolean> {
     const thread = deps.getActiveThread()
     if (!thread || deps.isLocalOnlyThread(thread.id)) {
       if (thread) commitRuntimeSelection(thread, candidate)
@@ -217,7 +220,11 @@ export function createAiSettingsState(deps: {
     const requestVersion = ++runtimeSwitchRequestVersion
     isRuntimeSwitching.value = true
     try {
-      const response = await agentClient.switchThreadRuntime({ threadId: thread.id, candidate })
+      const response = await agentClient.switchThreadRuntime({
+        threadId: thread.id,
+        candidate,
+        validation,
+      })
       if (!response) throw new Error('Runtime switch IPC is unavailable.')
       if (requestVersion !== runtimeSwitchRequestVersion) return false
       if (response.status === 'rejected') {
@@ -228,7 +235,11 @@ export function createAiSettingsState(deps: {
       const currentThread = deps.getThreadById(thread.id)
       if (!currentThread) return false
       if (response.status === 'pending') {
-        deps.updateThread({ ...currentThread, pendingRuntime: response.candidate })
+        deps.updateThread({
+          ...currentThread,
+          thinkingLevel: response.candidate.thinkingLevel,
+          pendingRuntime: response.candidate,
+        })
       } else {
         commitRuntimeSelection(currentThread, response.candidate)
       }
@@ -323,12 +334,24 @@ export function createAiSettingsState(deps: {
     })
   }
 
-  function setCurrentThinkingLevel(level: AiThinkingLevel): void {
+  async function setCurrentThinkingLevel(level: AiThinkingLevel): Promise<boolean> {
     const normalizedLevel = normalizeThinkingLevel(level)
     const config = effectiveProviderConfig.value
-    if (config) updateProviderConfig(config.id, { lastSelectedThinkingLevel: normalizedLevel })
     const thread = deps.getActiveThread()
-    if (thread) deps.updateThread({ ...thread, thinkingLevel: normalizedLevel })
+    const currentRuntime = thread?.pendingRuntime ?? (thread ? {
+      providerConfigId: thread.providerConfigId,
+      modelId: thread.modelId,
+      thinkingLevel: normalizeThinkingLevel(thread.thinkingLevel),
+    } : config ? {
+      providerConfigId: config.id,
+      modelId: resolveAiProviderModelId(config),
+      thinkingLevel: normalizeThinkingLevel(config.lastSelectedThinkingLevel),
+    } : null)
+    if (!currentRuntime) return false
+    return requestRuntimeSelection({
+      ...currentRuntime,
+      thinkingLevel: normalizedLevel,
+    }, 'thinking-only')
   }
 
   function setCurrentMode(mode: AiAgentMode): void {

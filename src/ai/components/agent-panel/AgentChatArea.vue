@@ -3,7 +3,7 @@
     <AgentEmptyState @suggest="handleSuggestPrompt" />
 
     <div
-      v-if="aiStore.isSwitchingThread && !aiStore.displayMessages.length"
+      v-if="aiStore.isSwitchingThread && !aiStore.conversationEntries.length"
       class="flex gap-2.5"
     >
       <div class="flex-1 min-w-0 space-y-1.5">
@@ -14,7 +14,7 @@
       </div>
     </div>
 
-    <template v-for="entry in aiStore.displayMessages" :key="entry.key">
+    <template v-for="entry in aiStore.conversationEntries" :key="entry.key">
       <ContextCompressionCard
         v-if="entry.kind === 'context-compressed'"
         :event="entry.event"
@@ -250,7 +250,7 @@ watch(
     aiStore.streamingCurrentText,
     aiStore.streamingBlocks.length,
     aiStore.liveTurnState,
-    aiStore.displayMessages.length,
+    aiStore.conversationEntries.length,
   ],
   () => {
     nextTick(() => {

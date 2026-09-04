@@ -185,7 +185,7 @@ function installDom(dom, extras = {}) {
 function createChatStore(module) {
   return module.reactive({
     activeThreadId: 'thread-1',
-    displayMessages: [],
+    conversationEntries: [],
     isActiveThreadDraft: false,
     isInterrupted: false,
     isStreaming: true,

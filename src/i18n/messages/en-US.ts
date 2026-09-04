@@ -461,7 +461,7 @@ export default {
       subtitle: '{count} messages · {size}',
       unboundWorkspace: 'Unbound workspace',
       differentWorkspace: 'This thread belongs to another workspace: {workspace}',
-      unboundWorkspaceDisabled: 'This legacy thread has no workspace binding and cannot be selected here',
+      unboundWorkspaceDisabled: 'This thread has no workspace binding and cannot be selected here',
       group: {
         today: 'Today',
         pastWeek: 'Past week',
@@ -618,7 +618,6 @@ export default {
         edit_file: 'Edit file',
         rename_file: 'Rename file',
         delete: 'Delete file',
-        delete_file: 'Delete file',
         move_file: 'Move file',
         confirm_writing_plan: 'Confirm writing plan',
         finalize_chapter: 'Finalize chapter',

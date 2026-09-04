@@ -803,6 +803,62 @@ describe('AgentEngine initialization', () => {
     await cancellation
     assert.equal(engine.runtimeStore.getCurrentTurnId('thread-steer'), null)
   })
+
+  it('completes active runtime metadata when cancellation finishes', async () => {
+    const { AgentEngine } = await loadModule()
+    const engine = new AgentEngine(() => null)
+    const completed = []
+    engine.threadService = {
+      cancel: async () => {},
+      getMeta: () => null,
+      completeTurn: threadId => completed.push(threadId),
+    }
+
+    await engine.cancel('thread-cancel')
+
+    assert.deepEqual(completed, ['thread-cancel'])
+  })
+
+  it('keeps the interrupt through frozen runtime resolution and terminates on resolution failure', async () => {
+    const { AgentEngine } = await loadModule()
+    const engine = new AgentEngine(() => null)
+    const interrupted = { actionRequestCount: 1, actionNames: ['edit_block'], turnId: 'turn-1' }
+    const events = []
+    const completed = []
+    engine.runtimeStore.setInterrupted('thread-resume', interrupted)
+    engine.runtimeStore.setCurrentTurnId('thread-resume', 'turn-1')
+    engine.threadService = {
+      getMeta: () => ({ activeRuntime: { providerConfigRevision: 'revision-missing' } }),
+      touchThread: () => {},
+      completeTurn: threadId => completed.push(threadId),
+    }
+    engine.rendererBridge = {
+      sendRunError: event => events.push({ type: 'error', event }),
+      sendRunDone: event => events.push({ type: 'done', event }),
+    }
+    globalThis.__iwriterResolveRuntime = phase => {
+      assert.equal(phase, 'active')
+      assert.equal(engine.runtimeStore.getInterrupted('thread-resume'), interrupted)
+      throw new Error('frozen provider revision unavailable')
+    }
+
+    const originalConsoleError = console.error
+    console.error = () => {}
+    try {
+      await engine.resumeRun('thread-resume', [{ type: 'approved' }])
+    } finally {
+      console.error = originalConsoleError
+      delete globalThis.__iwriterResolveRuntime
+    }
+
+    assert.equal(engine.runtimeStore.getInterrupted('thread-resume'), null)
+    assert.equal(engine.runtimeStore.getCurrentTurnId('thread-resume'), null)
+    assert.deepEqual(completed, ['thread-resume'])
+    assert.equal(events.length, 2)
+    assert.equal(events[0].type, 'error')
+    assert.match(events[0].event.error, /frozen provider revision unavailable/)
+    assert.equal(events[1].type, 'done')
+  })
 })
 
 describe('Effective model budget', () => {
@@ -902,7 +958,6 @@ describe('Agent tool-name translations', () => {
       'edit_file',
       'rename_file',
       'delete',
-      'delete_file',
       'move_file',
     ]
 

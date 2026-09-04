@@ -64,7 +64,7 @@
 
       <!-- ── ASSISTANT MESSAGE BUBBLE ── -->
 
-      <!-- Path A: Interleaved content blocks (text + read tool calls in correct order) -->
+      <!-- Interleaved content blocks (text + read tool calls in correct order) -->
       <template v-if="message.role === 'assistant' && visibleContentBlocks.length">
         <template v-for="(block, idx) in visibleContentBlocks" :key="idx">
           <div
@@ -121,56 +121,6 @@
           </div>
         </template>
       </template>
-
-      <!-- Path B: Legacy messages without contentBlocks -->
-      <div
-        v-else-if="message.role === 'assistant' && message.content"
-        class="inline-block rounded-box text-sm max-w-full text-left wrap-break-word"
-        :class="message.isError ? 'bg-error/50 border border-error-content/15 text-error-content px-3 py-2' : 'text-base-content'"
-      >
-        <template v-for="(part, partIdx) in splitAssistantText(message.content)" :key="partIdx">
-          <MarkdownContentView
-            v-if="part.kind === 'prose'"
-            :content="part.text"
-            mode="markdown"
-            size="sm"
-            :class="partIdx > 0 ? 'mt-1.5' : ''"
-          />
-        </template>
-      </div>
-
-      <!-- Legacy read tool calls (only when no contentBlocks) -->
-      <div
-        v-if="!visibleContentBlocks.length && readToolCalls.length"
-        class="w-full"
-        :class="message.content ? 'mt-1.5' : ''"
-      >
-        <template
-          v-for="(tc, idx) in readToolCalls"
-          :key="tc.id"
-        >
-          <SubTaskProgressView
-            v-if="findSubTaskFor(tc.id)"
-            :sub-task="findSubTaskFor(tc.id)!"
-            :group-position="readToolPosition(idx)"
-            :class="idx > 0 ? 'mt-0' : ''"
-          />
-          <div
-            v-else-if="shouldShowTaskFallback(tc.id)"
-            class="flex w-full items-center gap-2 rounded-box border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70"
-            :class="idx > 0 ? 'mt-0' : ''"
-          >
-            <span class="loading loading-spinner loading-xs shrink-0" />
-            <span>{{ taskSubagentTypeOf(tc.id) ?? '...' }}</span>
-          </div>
-          <ToolCallCard
-            v-else
-            :tool-call="tc"
-            :group-position="readToolPosition(idx)"
-            :class="idx > 0 ? 'mt-0' : ''"
-          />
-        </template>
-      </div>
 
       <DomainMessageSession
         :message="message"
@@ -310,11 +260,6 @@ watch(editText, (val) => {
 
 const effectiveToolCalls = computed<AiToolCall[]>(() => props.message.toolCalls ?? [])
 const thinkingContent = computed(() => props.message.thinkingContent?.trim() ?? '')
-const readToolCalls = computed(() =>
-  effectiveToolCalls.value.filter(
-    tc => tc.isInvalid || (!BLOCK_EDIT_TOOLS.has(tc.name) && !CREATIVE_REVIEW_TOOLS.has(tc.name) && tc.name !== 'write_todos'),
-  )
-)
 const editToolCalls = computed(() =>
   effectiveToolCalls.value.filter(tc => !tc.isInvalid && BLOCK_EDIT_TOOLS.has(tc.name))
 )
@@ -347,10 +292,7 @@ const visibleContentBlocks = computed(() =>
 
 const hasAssistantTextOutput = computed(() => {
   if (props.message.role !== 'assistant') return false
-  if (visibleContentBlocks.value.length) {
-    return visibleContentBlocks.value.some(block => block.type === 'text' && !!block.text?.trim())
-  }
-  return !!props.message.content?.trim()
+  return visibleContentBlocks.value.some(block => block.type === 'text' && !!block.text?.trim())
 })
 
 const showHoverToolbar = computed(() => {
@@ -359,13 +301,16 @@ const showHoverToolbar = computed(() => {
   return hasAssistantTextOutput.value
 })
 
-const hasToolDrivenOutput = computed(() => readToolCalls.value.length > 0 || editToolCalls.value.length > 0)
+const hasToolDrivenOutput = computed(() =>
+  visibleContentBlocks.value.some(block => block.type === 'tool_call')
+  || editToolCalls.value.length > 0
+)
 
 const shouldShowThinkingToggle = computed(() => {
   if (props.message.role !== 'assistant' || props.isPreview) return false
   if (!thinkingContent.value) return false
   if (props.message.isError) return true
-  const hasReadToolOutput = readToolCalls.value.length > 0
+  const hasReadToolOutput = visibleContentBlocks.value.some(block => block.type === 'tool_call')
   const hasEditHost = !!props.message.editRoundResult
   if (!hasAssistantTextOutput.value && !hasReadToolOutput && !hasEditHost) return false
   const minLength = import.meta.env.DEV ? 80 : 160
@@ -413,11 +358,6 @@ function contentBlockToolMarginClass(index: number): string {
   const prevIsTool = isReadToolBlockAt(index - 1)
   return prevIsTool ? 'mt-0' : 'mt-1'
 }
-
-function readToolPosition(index: number): 'single' | 'start' | 'middle' | 'end' {
-  return toolGroupPosition(index > 0, index < readToolCalls.value.length - 1)
-}
-
 
 async function checkOverflow() {
   if (props.message.role !== 'user') return

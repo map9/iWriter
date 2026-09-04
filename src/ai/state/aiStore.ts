@@ -72,7 +72,13 @@ export const useAiStore = defineStore('ai', () => {
 
   const isSwitchingThread = ref(false)
   const switchingThreadId = ref<string | null>(null)
+  let threadSelectionVersion = 0
   const draftInput = ref('')
+
+  function invalidateThreadSelection(): number {
+    threadSelectionVersion += 1
+    return threadSelectionVersion
+  }
 
   const {
     settings,
@@ -227,18 +233,27 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   function publishNewThread(thread: AiThread): void {
+    invalidateThreadSelection()
     _purgeEmptyThreads()
     threads.value.unshift(thread)
     _localOnlyThreadIds.add(thread.id)
     activeThreadId.value = thread.id
+    isSwitchingThread.value = false
+    switchingThreadId.value = null
     persistActiveThreadSelection(thread)
   }
 
   function prepareNewThread(
     workspacePath: string | null = appStore.currentFolder ?? null,
   ): (() => void) | null {
-    const thread = buildNewThread(workspacePath)
-    return thread ? () => publishNewThread(thread) : null
+    if (!activeProviderConfig.value) {
+      notify.error('请先配置可用的 AI Provider（API Key、模型等）')
+      return null
+    }
+    return () => {
+      const thread = buildNewThread(workspacePath)
+      if (thread) publishNewThread(thread)
+    }
   }
 
   function createNewThread(workspacePath: string | null = appStore.currentFolder ?? null): AiThread | null {
@@ -249,6 +264,7 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   async function selectThread(id: string): Promise<boolean> {
+    const selectionVersion = invalidateThreadSelection()
     const thread = threads.value.find(t => t.id === id)
     if (!thread || !isThreadSelectable(thread)) return false
 
@@ -260,6 +276,7 @@ export const useAiStore = defineStore('ai', () => {
     const previousActiveThreadId = activeThreadId.value
 
     if (thread.messagesLoaded) {
+      if (selectionVersion !== threadSelectionVersion || !isThreadSelectable(thread)) return false
       activeThreadId.value = id
       persistActiveThreadSelection(thread)
       isSwitchingThread.value = false
@@ -272,8 +289,16 @@ export const useAiStore = defineStore('ai', () => {
 
     try {
       const messages = await agentClient.getThreadMessages(id)
+      const currentThread = threads.value.find(candidate => candidate.id === id)
+      if (
+        selectionVersion !== threadSelectionVersion
+        || !currentThread
+        || !isThreadSelectable(currentThread)
+      ) {
+        return false
+      }
       const normalizedThread: AiThread = {
-        ...thread,
+        ...currentThread,
         messages: messages?.length ? _normalizeMessagesForDisplay(messages) : (messages ?? []),
         messagesLoaded: true,
       }
@@ -282,11 +307,15 @@ export const useAiStore = defineStore('ai', () => {
       persistActiveThreadSelection(normalizedThread)
       return true
     } catch (error) {
-      activeThreadId.value = previousActiveThreadId
-      notify.error(`载入会话失败: ${error instanceof Error ? error.message : String(error)}`)
+      if (selectionVersion === threadSelectionVersion) {
+        activeThreadId.value = threads.value.some(candidate => candidate.id === previousActiveThreadId)
+          ? previousActiveThreadId
+          : threads.value.find(isThreadSelectable)?.id ?? null
+        notify.error(`载入会话失败: ${error instanceof Error ? error.message : String(error)}`)
+      }
       return false
     } finally {
-      if (switchingThreadId.value === id) {
+      if (selectionVersion === threadSelectionVersion && switchingThreadId.value === id) {
         isSwitchingThread.value = false
         switchingThreadId.value = null
       }
@@ -302,6 +331,7 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   function deleteThread(id: string) {
+    invalidateThreadSelection()
     runtimeEvents.clearThreadUsage(id)
     clearContextCompressionEvents(id)
     pendingCommandQueue.clearThread(id)
@@ -315,6 +345,7 @@ export const useAiStore = defineStore('ai', () => {
   }
 
   function clearAllThreads() {
+    invalidateThreadSelection()
     runtimeEvents.clearAllUsage()
     pendingCommandQueue.clearAll()
     _runOwnershipByTurnId.clear()
@@ -607,6 +638,7 @@ export const useAiStore = defineStore('ai', () => {
             role: 'assistant',
             turnId,
             content: msg,
+            contentBlocks: [{ type: 'text', text: msg }],
             isError: true,
             timestamp: Date.now(),
           }
@@ -963,9 +995,6 @@ export const useAiStore = defineStore('ai', () => {
     persistedMessages,
     conversation,
     conversationEntries,
-    // Compatibility aliases for UI consumers; removed when components move under src/ai/components.
-    displayThread: conversation,
-    displayMessages: conversationEntries,
     persistedAssistantMessageIds,
     latestPersistedAssistantMessageId,
     pendingEditProposals,

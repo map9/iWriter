@@ -132,9 +132,12 @@ interface DeepSeekStreamState {
 type DeepSeekAugmentedError = Error & {
   provider?: 'deepseek'
   phase?: 'fetch' | 'read' | 'parse' | 'stream'
-  retryable?: boolean
   streamState?: DeepSeekStreamState
   rawMessage?: string
+}
+
+type DeepSeekErrorMetadata = Omit<DeepSeekAugmentedError, keyof Error> & {
+  retryable?: boolean
 }
 
 interface DeepSeekMessageParam {
@@ -223,12 +226,11 @@ function isTerminatedReadTimeout(err: unknown): boolean {
 
 function augmentDeepSeekError<T extends Error>(
   error: T,
-  metadata: Omit<DeepSeekAugmentedError, keyof Error>,
+  metadata: DeepSeekErrorMetadata,
 ): T & DeepSeekAugmentedError {
   const augmented = error as T & DeepSeekAugmentedError
   augmented.provider = 'deepseek'
   if (metadata.phase) augmented.phase = metadata.phase
-  if (metadata.retryable !== undefined) augmented.retryable = metadata.retryable
   if (metadata.streamState) augmented.streamState = metadata.streamState
   if (metadata.rawMessage) augmented.rawMessage = metadata.rawMessage
   if (metadata.retryable !== undefined) stampRetryable(augmented, metadata.retryable)
@@ -255,7 +257,6 @@ function createDeepSeekHttpError(response: Response, bodyText: string, phase: De
         configurable: true,
       })
     }
-    augmented.retryable = false
   }
   return augmented
 }

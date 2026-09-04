@@ -398,8 +398,8 @@ export function useModelPicker() {
     return aiStore.setCurrentModelId(modelId)
   }
 
-  function selectThinkingLevel(level: AiThinkingLevel) {
-    aiStore.setCurrentThinkingLevel(level)
+  function selectThinkingLevel(level: AiThinkingLevel): Promise<boolean> {
+    return aiStore.setCurrentThinkingLevel(level)
   }
 
   watch(

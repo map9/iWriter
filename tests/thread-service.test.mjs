@@ -110,14 +110,58 @@ async function createHarness(options = {}) {
 }
 
 describe('ThreadService', () => {
-  it('uses the provider default when a legacy provider selection is still persisted', async () => {
+  it('fails closed when a persisted provider is unavailable', async () => {
     const { resolveThreadRuntime } = await loadModules()
     const settings = aiSettings()
-    settings.providerConfigs[0].lastSelectedModelId = 'model-legacy'
+    settings.providerConfigs.push({
+      ...settings.providerConfigs[0],
+      id: 'provider-fallback',
+    })
 
-    const runtime = resolveThreadRuntime(settings)
+    assert.throws(() => resolveThreadRuntime(settings, undefined, {
+      id: 'thread-missing-provider',
+      title: 'Missing provider',
+      domain: 'editing',
+      mode: 'edit',
+      modelId: 'model-1',
+      providerConfigId: 'provider-missing',
+      createdAt: 1,
+      updatedAt: 1,
+    }), /provider.*not available/i)
+  })
 
-    assert.equal(runtime.modelId, 'model-1')
+  it('fails closed when a persisted model is not declared by its provider', async () => {
+    const { resolveThreadRuntime } = await loadModules()
+    const settings = aiSettings()
+    settings.providerConfigs[0].models = ['model-1']
+
+    assert.throws(() => resolveThreadRuntime(settings, undefined, {
+      id: 'thread-missing-model',
+      title: 'Missing model',
+      domain: 'editing',
+      mode: 'edit',
+      modelId: 'model-removed',
+      providerConfigId: 'provider-1',
+      createdAt: 1,
+      updatedAt: 1,
+    }), /model.*not available/i)
+  })
+
+  it('rejects alternate spellings of an otherwise declared model id', async () => {
+    const { resolveThreadRuntime } = await loadModules()
+    const settings = aiSettings()
+    settings.providerConfigs[0].models = ['model-1']
+
+    assert.throws(() => resolveThreadRuntime(settings, undefined, {
+      id: 'thread-model-spelling',
+      title: 'Model spelling',
+      domain: 'editing',
+      mode: 'edit',
+      modelId: ' model-1 ',
+      providerConfigId: 'provider-1',
+      createdAt: 1,
+      updatedAt: 1,
+    }), /model.*not available/i)
   })
 
   it('marks thread metadata as updated and records run errors', async () => {
@@ -334,8 +378,8 @@ describe('ThreadService', () => {
     assert.equal(meta.mode, 'edit')
   })
 
-  it('compares and persists workspace bindings using the shared canonical form', async () => {
-    const { service, threadListQuery, runtimeStore } = await createHarness()
+  it('rejects an alternate spelling of a persisted workspace path', async () => {
+    const { service, threadListQuery } = await createHarness()
     threadListQuery.createMeta({
       id: 'thread-windows-workspace',
       domain: 'editing',
@@ -345,7 +389,7 @@ describe('ThreadService', () => {
       workspacePath: 'C:\\Work\\Book\\',
     })
 
-    service.prepareTurn(aiSettings(), {
+    assert.throws(() => service.prepareTurn(aiSettings(), {
       threadId: 'thread-windows-workspace',
       turnId: 'turn-windows-workspace',
       userText: '继续',
@@ -353,19 +397,10 @@ describe('ThreadService', () => {
       domain: 'editing',
       mode: 'edit',
       workspacePath: 'c:/work/book',
-    })
-
-    assert.equal(service.getMeta('thread-windows-workspace').workspacePath, 'c:/work/book')
-    assert.equal(
-      service.getMeta('thread-windows-workspace').activeRuntime.workspacePath,
-      'c:/work/book',
-    )
-    assert.deepEqual(runtimeStore.getContext('thread-windows-workspace'), {
-      workspacePath: 'c:/work/book',
-    })
+    }), /workspace.*locked/i)
   })
 
-  it('normalizes legacy workspace spellings at the thread persistence boundary', async () => {
+  it('preserves workspace path bytes at the thread persistence boundary', async () => {
     const { threadListQuery } = await createHarness()
 
     const created = threadListQuery.createMeta({
@@ -387,9 +422,27 @@ describe('ThreadService', () => {
       },
     })
 
-    assert.equal(created.workspacePath, 'c:/work/book')
-    assert.equal(created.activeRuntime.workspacePath, 'c:/work/book')
-    assert.equal(threadListQuery.getMeta(created.id).workspacePath, 'c:/work/book')
+    assert.equal(created.workspacePath, 'C:\\Work\\Book\\')
+    assert.equal(created.activeRuntime.workspacePath, 'C:\\Work\\Book\\')
+    assert.equal(threadListQuery.getMeta(created.id).workspacePath, 'C:\\Work\\Book\\')
+  })
+
+  it('creates only the current versioned metadata table without migrations', async () => {
+    const { ThreadListQuery } = await loadModules()
+    const executedSql = []
+    const db = {
+      exec(sql) { executedSql.push(sql) },
+      prepare(sql) {
+        assert.match(sql, /^PRAGMA table_info\(/)
+        return { all: () => [] }
+      },
+    }
+
+    new ThreadListQuery({ backend: 'sqlite', db, checkpointer: { get: async () => undefined } })
+
+    assert.equal(executedSql.length, 1)
+    assert.match(executedSql[0], /CREATE TABLE IF NOT EXISTS thread_metadata_v2/)
+    assert.doesNotMatch(executedSql[0], /ALTER TABLE/)
   })
 
   it('keeps the frozen active runtime until the turn is completed', async () => {
@@ -509,6 +562,8 @@ describe('ThreadService', () => {
 
   it('prepares an existing thread turn without clearing its stale interrupt early', async () => {
     const { service, threadListQuery, runtimeStore } = await createHarness()
+    const settings = aiSettings()
+    settings.providerConfigs[0].models = ['model-1', 'model-2']
     threadListQuery.createMeta({
       id: 'thread-1',
       domain: 'editing',
@@ -523,7 +578,7 @@ describe('ThreadService', () => {
       actionNames: ['edit_block'],
     })
 
-    const prepared = service.prepareTurn(aiSettings(), {
+    const prepared = service.prepareTurn(settings, {
       threadId: 'thread-1',
       turnId: 'turn-1',
       userText: '继续修改',

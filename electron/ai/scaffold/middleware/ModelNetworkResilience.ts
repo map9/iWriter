@@ -30,13 +30,6 @@ function shouldRetryModelError(error: Error): boolean {
   for (const candidate of errorChain(error)) {
     const marked = getRetryable(candidate)
     if (marked !== undefined) return marked
-
-    // Compatibility for custom providers created before @langchain/core exposed
-    // stampRetryable/getRetryable. New iWriter errors use the official mark below.
-    if (typeof candidate === 'object' && candidate !== null) {
-      const legacy = (candidate as Record<string, unknown>).retryable
-      if (typeof legacy === 'boolean') return legacy
-    }
   }
   // Match LangChain's documented default: unclassified errors remain retryable.
   return true

@@ -3,6 +3,7 @@ import {
   getDefaultModeForDomain,
   DEFAULT_THINKING_LEVEL,
   getActiveAiProviderConfig,
+  isAiProviderUsable,
   normalizeAgentMode,
   normalizeModeForDomain,
   normalizeThinkingLevel,
@@ -21,6 +22,39 @@ export interface ResolvedThreadRuntime {
   thinkingLevel: AiThinkingLevel
 }
 
+function resolveExactProvider(
+  settings: AiSettings,
+  providerId: string,
+  preferredModelId: string | undefined,
+): AiProviderConfig {
+  const providerConfig = settings.providerConfigs.find(config => config.id === providerId)
+  if (!providerConfig || !isAiProviderUsable(providerConfig, {
+    preferredModelId,
+    resolveApiKey: resolveAiApiKeyEnvVar,
+  })) {
+    throw new Error(`AI provider is not available: ${providerId}`)
+  }
+  return providerConfig
+}
+
+function resolveExactModelId(
+  providerConfig: AiProviderConfig,
+  preferredModelId: string | undefined,
+): string {
+  if (preferredModelId === undefined || preferredModelId.length === 0) {
+    return resolveAiProviderModelId(providerConfig)
+  }
+
+  const declaredModels = new Set([
+    providerConfig.defaultModelId,
+    ...(providerConfig.models ?? []),
+  ].filter((candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0))
+  if (!declaredModels.has(preferredModelId)) {
+    throw new Error(`AI model is not available for provider ${providerConfig.id}: ${preferredModelId}`)
+  }
+  return preferredModelId
+}
+
 export function resolveThreadRuntime(
   settings: AiSettings,
   req?: Pick<SendMessageRequest, 'domain' | 'mode' | 'threadRuntime'>,
@@ -31,14 +65,17 @@ export function resolveThreadRuntime(
   const activeProviderId = settings.activeProviderConfigId ?? undefined
   const providerId = requestedProviderId || metaProviderId || activeProviderId
   const preferredModelId = req?.threadRuntime?.modelId || meta?.modelId
-  const providerConfig = getActiveAiProviderConfig(
-    settings.providerConfigs,
-    providerId,
-    {
-      preferredModelId,
-      resolveApiKey: resolveAiApiKeyEnvVar,
-    },
-  )
+  const requiresExactRuntime = !!(requestedProviderId || metaProviderId)
+  const providerConfig = providerId && requiresExactRuntime
+    ? resolveExactProvider(settings, providerId, preferredModelId)
+    : getActiveAiProviderConfig(
+      settings.providerConfigs,
+      providerId,
+      {
+        preferredModelId,
+        resolveApiKey: resolveAiApiKeyEnvVar,
+      },
+    )
 
   if (!providerConfig) {
     throw new Error('No usable AI provider configured. Please add an API key and model in settings.')
@@ -58,8 +95,9 @@ export function resolveThreadRuntime(
       ?? getDefaultModeForDomain(domain),
     domain,
   )
-  const modelId =
-    resolveAiProviderModelId(providerConfig, preferredModelId)
+  const modelId = requiresExactRuntime
+    ? resolveExactModelId(providerConfig, preferredModelId)
+    : resolveAiProviderModelId(providerConfig, preferredModelId)
   const thinkingLevel = normalizeThinkingLevel(
     req?.threadRuntime?.thinkingLevel
     ?? meta?.thinkingLevel

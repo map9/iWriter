@@ -73,6 +73,27 @@ describe('model network resilience', () => {
     assert.equal(attempts, 1)
   })
 
+  it('ignores ad-hoc retryable properties without the official LangChain mark', async () => {
+    const { createModelNetworkRetryMiddleware } = await loadResilienceModule()
+    const middleware = createModelNetworkRetryMiddleware({
+      maxRetries: 1,
+      initialDelayMs: 0,
+      jitter: false,
+    })
+    let attempts = 0
+
+    const result = await middleware.wrapModelCall({}, async () => {
+      attempts += 1
+      if (attempts === 1) {
+        throw Object.assign(new Error('unclassified provider failure'), { retryable: false })
+      }
+      return { content: 'ok' }
+    })
+
+    assert.equal(attempts, 2)
+    assert.equal(result.content, 'ok')
+  })
+
   it('turns exhausted network and rate-limit errors into concise chat messages', async () => {
     const { toUserFacingModelError } = await loadResilienceModule()
 

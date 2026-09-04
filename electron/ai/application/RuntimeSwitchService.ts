@@ -14,6 +14,7 @@ interface RuntimeSwitchInspection {
 
 export interface RuntimeSwitchServicePorts {
   inspect(threadId: string, candidate: ThreadRuntimeSelection): Promise<RuntimeSwitchInspection>
+  getCurrentSelection(threadId: string): ThreadRuntimeSelection | null
   getThreadState(threadId: string): RuntimeSwitchThreadState
   commit(threadId: string, candidate: ThreadRuntimeSelection): void
   defer(threadId: string, candidate: ThreadRuntimeSelection): void
@@ -43,10 +44,30 @@ function createResponse(
 }
 
 export class RuntimeSwitchService {
+  private readonly requestVersions = new Map<string, number>()
+
   constructor(private readonly ports: RuntimeSwitchServicePorts) {}
 
   async request(request: RuntimeSwitchRequest): Promise<RuntimeSwitchResponse> {
+    const requestVersion = (this.requestVersions.get(request.threadId) ?? 0) + 1
+    this.requestVersions.set(request.threadId, requestVersion)
+
+    if (request.validation === 'thinking-only') {
+      const current = this.ports.getCurrentSelection(request.threadId)
+      if (!current) throw new Error(`Thread runtime is unavailable: ${request.threadId}`)
+      if (
+        current.providerConfigId !== request.candidate.providerConfigId
+        || current.modelId !== request.candidate.modelId
+      ) {
+        throw new Error('A thinking-only runtime update cannot change provider or model.')
+      }
+      return this.applyCandidate(request.threadId, request.candidate)
+    }
+
     const inspection = await this.ports.inspect(request.threadId, request.candidate)
+    if (this.requestVersions.get(request.threadId) !== requestVersion) {
+      throw new Error('Runtime switch request was superseded by a newer request.')
+    }
     if (!canSwitchRuntime(inspection.currentTokens, inspection.budget)) {
       return createResponse(
         'rejected',
@@ -56,24 +77,27 @@ export class RuntimeSwitchService {
       )
     }
 
-    const state = this.ports.getThreadState(request.threadId)
-    if (state === 'idle') {
-      this.ports.commit(request.threadId, request.candidate)
-      return createResponse(
-        'committed',
-        request.candidate,
-        inspection.currentTokens,
-        inspection.budget,
-      )
-    }
-
-    this.ports.defer(request.threadId, request.candidate)
+    const result = this.applyCandidate(request.threadId, request.candidate)
     return createResponse(
-      'pending',
+      result.status,
       request.candidate,
       inspection.currentTokens,
       inspection.budget,
     )
+  }
+
+  private applyCandidate(
+    threadId: string,
+    candidate: ThreadRuntimeSelection,
+  ): Pick<RuntimeSwitchResponse, 'status' | 'candidate'> {
+    const state = this.ports.getThreadState(threadId)
+    if (state === 'idle') {
+      this.ports.commit(threadId, candidate)
+      return { status: 'committed', candidate }
+    }
+
+    this.ports.defer(threadId, candidate)
+    return { status: 'pending', candidate }
   }
 
   async finalize(

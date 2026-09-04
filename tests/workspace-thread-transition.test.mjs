@@ -140,13 +140,14 @@ describe('workspace thread transition', () => {
     assert.deepEqual(events, ['prepare:/b', 'prepare-tabs', 'prepare-draft:/b'])
   })
 
-  it('selects only threads bound to the normalized current workspace', async () => {
+  it('selects threads only when workspace paths are exactly identical', async () => {
     const { isThreadWorkspaceSelectable } = await loadModule()
 
-    assert.equal(isThreadWorkspaceSelectable('/workspace/a/', '/workspace/a'), true)
-    assert.equal(isThreadWorkspaceSelectable('C:\\Work\\Book', 'c:/work/book/'), true)
+    assert.equal(isThreadWorkspaceSelectable('/workspace/a', '/workspace/a'), true)
+    assert.equal(isThreadWorkspaceSelectable('/workspace/a/', '/workspace/a'), false)
+    assert.equal(isThreadWorkspaceSelectable('C:\\Work\\Book', 'c:/work/book'), false)
+    assert.equal(isThreadWorkspaceSelectable(' /workspace/a ', '/workspace/a'), false)
     assert.equal(isThreadWorkspaceSelectable('/', '/'), true)
-    assert.equal(isThreadWorkspaceSelectable('C:\\', 'c:/'), true)
     assert.equal(isThreadWorkspaceSelectable('/workspace/b', '/workspace/a'), false)
     assert.equal(isThreadWorkspaceSelectable(null, '/workspace/a'), false)
     assert.equal(isThreadWorkspaceSelectable('/workspace/a', null), false)

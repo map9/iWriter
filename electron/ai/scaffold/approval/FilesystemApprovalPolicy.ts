@@ -23,9 +23,6 @@ const FILESYSTEM_WRITE_TOOL_NAMES = new Set([
   'edit_file',
   'delete',
   'rename_file',
-  // Compatibility for interrupted checkpoints created before the native
-  // DeepAgents delete migration. New agents no longer publish this tool.
-  'delete_file',
   'move_file',
 ])
 
@@ -149,8 +146,7 @@ function extractCandidatePaths(toolName: string, args: Record<string, unknown>):
   switch (toolName) {
     case 'write_file':
     case 'edit_file':
-    case 'delete':
-    case 'delete_file': {
+    case 'delete': {
       const filePath = asString(args.file_path)
       if (filePath === null) return { error: `${toolName} requires a non-empty file_path.` }
       return [filePath]
@@ -183,17 +179,6 @@ export function decideFilesystemWriteApproval(input: FilesystemWriteApprovalInpu
     return { kind: 'requires-review', reason: 'Not a filesystem write tool.' }
   }
 
-  if (input.toolName === 'delete_file') {
-    return {
-      kind: 'auto-reject',
-      decision: {
-        type: 'rejected',
-        message: 'This historical delete_file request can no longer execute. Retry the operation with the native delete tool.',
-      },
-      reason: 'Legacy delete tool retired.',
-    }
-  }
-
   const candidatePaths = extractCandidatePaths(input.toolName, input.args)
   if (!Array.isArray(candidatePaths)) {
     return {
@@ -203,7 +188,7 @@ export function decideFilesystemWriteApproval(input: FilesystemWriteApprovalInpu
     }
   }
 
-  const isDelete = input.toolName === 'delete' || input.toolName === 'delete_file'
+  const isDelete = input.toolName === 'delete'
   let needsReview = false
   for (const rawPath of candidatePaths) {
     const decision = decidePathApproval(input.toolName, rawPath)

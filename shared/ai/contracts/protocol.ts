@@ -67,13 +67,14 @@ export interface SessionRuntimeContextStats {
 export interface RuntimeSwitchRequest {
   threadId: string
   candidate: ThreadRuntimeSelection
+  validation?: 'model-budget' | 'thinking-only'
 }
 
 export interface RuntimeSwitchResponse {
   status: 'committed' | 'pending' | 'rejected'
   candidate: ThreadRuntimeSelection
-  currentEffectiveContextTokens: number
-  candidateCompactTriggerTokens: number
+  currentEffectiveContextTokens?: number
+  candidateCompactTriggerTokens?: number
   reason?: 'context-exceeds-compact-trigger'
 }
 

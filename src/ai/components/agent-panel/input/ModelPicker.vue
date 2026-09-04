@@ -126,8 +126,9 @@
         <button
           v-for="option in thinkingLevelItems"
           :key="option.value"
+          :disabled="aiStore.isRuntimeSwitching"
           @click="doSelectThinkingLevel(option.value)"
-          class="w-full flex items-center gap-2 px-2 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300 text-left"
+          class="w-full flex items-center gap-2 px-2 py-1.5 rounded-field text-xs text-base-content hover:bg-base-300 text-left disabled:opacity-50 disabled:pointer-events-none"
         >
           <span class="icon-dot shrink-0"
             :class="option.value === currentThinkingLevel ? 'bg-primary' : 'bg-transparent'"
@@ -295,8 +296,9 @@ async function doSelect(id: string) {
   emit('close')
 }
 
-function doSelectThinkingLevel(level: AiThinkingLevel) {
-  selectThinkingLevel(level)
+async function doSelectThinkingLevel(level: AiThinkingLevel) {
+  if (aiStore.isRuntimeSwitching) return
+  await selectThinkingLevel(level)
   activeSubmenu.value = null
   emit('close')
 }
