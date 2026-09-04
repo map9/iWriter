@@ -7,6 +7,8 @@ dist-electron
 claude-**.sh
 .superpowers/
 .codegraph/
+superpowers/
+tests/
 
 # dictionaries files
 public/dictionaries
