@@ -17,7 +17,15 @@
     />
 
     <template v-else>
+      <AgentConfigurationHint
+        v-if="showFullConfigurationHint"
+        class="flex-1"
+        :kind="configurationIssue!"
+        variant="full"
+        @open-settings="openSettings"
+      />
       <AgentChatArea
+        v-else
         ref="chatAreaRef"
         class="flex-1"
         :bottom-padding="chatBottomPadding"
@@ -51,8 +59,14 @@
         <IconArrowDown class="icon-2xs shrink-0" />
         <span>{{ t('agentPanel.chatArea.scrollToLatest') }}</span>
       </button>
-      <div ref="inputAreaRef" class="absolute bottom-0 left-0 right-0 z-10">
-        <AgentInputArea />
+      <div v-if="!showFullConfigurationHint" ref="inputAreaRef" class="absolute bottom-0 left-0 right-0 z-10">
+        <AgentConfigurationHint
+          v-if="showCompactConfigurationHint"
+          :kind="configurationIssue!"
+          variant="compact"
+          @open-settings="openSettings"
+        />
+        <AgentInputArea v-else />
       </div>
     </template>
 
@@ -71,6 +85,7 @@ import AgentChatArea from '../agent-panel/AgentChatArea.vue'
 import TaskPlanCard from '../agent-panel/TaskPlanCard.vue'
 import PendingCommandList from '../agent-panel/PendingCommandList.vue'
 import AgentInputArea from '../agent-panel/AgentInputArea.vue'
+import AgentConfigurationHint from '../agent-panel/chat-area/AgentConfigurationHint.vue'
 import { resolveAgentDomain } from '@shared/ai/contracts'
 
 const PANEL_UI_STATE_KEY = 'iwriter-ai-panel-ui'
@@ -112,6 +127,28 @@ type ChatFollowState = 'following' | 'soft-paused' | 'detached'
 const chatFollowState = ref<ChatFollowState>('following')
 
 const showHistory = computed(() => persistedPanelUi.view === 'history')
+type AgentConfigurationIssue = 'no-usable-provider' | 'thread-runtime-unavailable'
+const configurationIssue = computed<AgentConfigurationIssue | null>(() => {
+  if (!aiStore.activeProviderConfig) return 'no-usable-provider'
+  if (aiStore.activeThread && !aiStore.effectiveProviderConfig) {
+    return 'thread-runtime-unavailable'
+  }
+  return null
+})
+const isConfigurationBlocking = computed(() =>
+  !!configurationIssue.value
+  && !aiStore.liveTurnState
+  && !aiStore.isStreaming
+  && !aiStore.isInterrupted
+  && !aiStore.isSwitchingThread,
+)
+const showFullConfigurationHint = computed(() =>
+  isConfigurationBlocking.value
+  && !aiStore.conversationEntries.length
+)
+const showCompactConfigurationHint = computed(() =>
+  isConfigurationBlocking.value && !showFullConfigurationHint.value,
+)
 
 const headerTitle = computed(() => {
   if (showHistory.value) return t('agentPanel.panel.historyTitle')

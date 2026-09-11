@@ -100,16 +100,21 @@ async function loadAgentPanelModule() {
               path: 'tabler-icons',
               namespace: 'agent-panel-stub',
             }))
-            buildApi.onResolve({ filter: /\.vue$/ }, args => ({
-              path: args.path,
-              namespace: 'agent-panel-vue-stub',
-            }))
+            buildApi.onResolve({ filter: /\.vue$/ }, args => {
+              const path = args.path.startsWith('/') ? args.path : resolve(args.resolveDir, args.path)
+              return {
+                path,
+                namespace: path.endsWith('AgentConfigurationHint.vue')
+                  ? 'agent-panel-real-vue'
+                  : 'agent-panel-vue-stub',
+              }
+            })
             buildApi.onLoad({ filter: /^ai-store$/, namespace: 'agent-panel-stub' }, () => ({
               contents: 'export function useAiStore() { return globalThis.__iwriterAgentPanelStore }',
               loader: 'js',
             }))
             buildApi.onLoad({ filter: /^app-store$/, namespace: 'agent-panel-stub' }, () => ({
-              contents: 'export function useAppStore() { return { openPreferences() {} } }',
+              contents: 'export function useAppStore() { return globalThis.__iwriterAgentPanelAppStore }',
               loader: 'js',
             }))
             buildApi.onLoad({ filter: /^vue-i18n$/, namespace: 'agent-panel-stub' }, () => ({
@@ -117,13 +122,21 @@ async function loadAgentPanelModule() {
               loader: 'js',
             }))
             buildApi.onLoad({ filter: /^tabler-icons$/, namespace: 'agent-panel-stub' }, () => ({
-              contents: `import { h } from 'vue'; export const IconArrowDown = { setup() { return () => h('span') } }`,
+              contents: `
+                import { h } from 'vue'
+                const icon = name => ({ setup() { return () => h('span', { 'data-icon': name }) } })
+                export const IconArrowDown = icon('arrow-down')
+                export const IconAlertTriangle = icon('alert-triangle')
+                export const IconRobot = icon('robot')
+                export const IconSettings = icon('settings')
+              `,
               loader: 'js',
               resolveDir: process.cwd(),
             }))
-            buildApi.onLoad({ filter: /.*/, namespace: 'agent-panel-vue-stub' }, args => ({
-              contents: args.path.endsWith('AgentChatArea.vue')
-                ? `
+            buildApi.onLoad({ filter: /.*/, namespace: 'agent-panel-vue-stub' }, args => {
+              let contents
+              if (args.path.endsWith('AgentChatArea.vue')) {
+                contents = `
                   import { h } from 'vue'
                   export default {
                     emits: ['follow-state-change'],
@@ -140,10 +153,31 @@ async function loadAgentPanelModule() {
                     },
                   }
                 `
-                : `import { h } from 'vue'; export default { setup() { return () => h('div') } }`,
-              loader: 'js',
-              resolveDir: process.cwd(),
-            }))
+              } else if (args.path.endsWith('AgentInputArea.vue')) {
+                contents = `import { h } from 'vue'; export default { setup() { return () => h('div', { class: 'agent-input-area' }) } }`
+              } else {
+                contents = `import { h } from 'vue'; export default { setup() { return () => h('div') } }`
+              }
+              return {
+                contents,
+                loader: 'js',
+                resolveDir: process.cwd(),
+              }
+            })
+            buildApi.onLoad({ filter: /.*/, namespace: 'agent-panel-real-vue' }, async args => {
+              const { parse, compileScript } = await import('@vue/compiler-sfc')
+              const source = readFileSync(args.path, 'utf8')
+              const descriptor = parse(source, { filename: args.path }).descriptor
+              const compiled = compileScript(descriptor, {
+                id: 'agent-configuration-hint-test',
+                inlineTemplate: true,
+              })
+              return {
+                contents: compiled.content,
+                loader: 'ts',
+                resolveDir: resolve(args.path, '..'),
+              }
+            })
           },
         },
       },
@@ -353,11 +387,16 @@ describe('scroll-to-latest affordance', () => {
       const module = await loadAgentPanelModule()
       globalThis.__iwriterScrollToLatestCalls = 0
       globalThis.__iwriterAgentPanelStore = module.reactive({
+        activeProviderConfig: { id: 'provider-1' },
+        effectiveProviderConfig: { id: 'provider-1' },
         activeThread: { id: 'thread-1', messages: [], title: 'Thread' },
         activeThreadId: 'thread-1',
+        conversationEntries: [],
         isActiveThreadDraft: false,
         isInterrupted: false,
         isStreaming: true,
+        isSwitchingThread: false,
+        liveTurnState: 'streaming',
         liveTurnThreadId: 'thread-1',
         pendingCommands: [],
         streamingPreviewMessage: {
@@ -397,11 +436,16 @@ describe('scroll-to-latest affordance', () => {
       const module = await loadAgentPanelModule()
       globalThis.__iwriterScrollToLatestCalls = 0
       globalThis.__iwriterAgentPanelStore = module.reactive({
+        activeProviderConfig: { id: 'provider-1' },
+        effectiveProviderConfig: { id: 'provider-1' },
         activeThread: { id: 'thread-draft', messages: [], title: 'New conversation' },
         activeThreadId: 'thread-draft',
+        conversationEntries: [],
         isActiveThreadDraft: true,
         isInterrupted: false,
         isStreaming: false,
+        isSwitchingThread: false,
+        liveTurnState: null,
         liveTurnThreadId: null,
         pendingCommands: [],
         streamingPreviewMessage: null,
@@ -422,6 +466,148 @@ describe('scroll-to-latest affordance', () => {
       app?.unmount()
       delete globalThis.__iwriterAgentPanelStore
       delete globalThis.__iwriterScrollToLatestCalls
+      dom.window.close()
+      restoreDom()
+    }
+  })
+})
+
+describe('agent provider configuration recovery', () => {
+  it('replaces an empty chat composer with a settings prompt when no provider is usable', async () => {
+    const dom = new JSDOM('<div id="app"></div>', { url: 'http://localhost' })
+    const openedTabs = []
+    const restoreDom = installDom(dom, { ResizeObserver: ResizeObserverStub })
+    let app
+    try {
+      const module = await loadAgentPanelModule()
+      globalThis.__iwriterAgentPanelAppStore = {
+        openPreferences(tab) {
+          openedTabs.push(tab)
+        },
+      }
+      const store = module.reactive({
+        activeProviderConfig: null,
+        effectiveProviderConfig: null,
+        activeThread: null,
+        activeThreadId: null,
+        conversationEntries: [],
+        isActiveThreadDraft: false,
+        isInterrupted: false,
+        isStreaming: false,
+        isSwitchingThread: false,
+        liveTurnState: null,
+        liveTurnThreadId: null,
+        pendingCommands: [],
+        settings: { defaultMode: 'edit' },
+        streamingPreviewMessage: null,
+      })
+      globalThis.__iwriterAgentPanelStore = store
+
+      app = module.createApp(module.default)
+      app.mount(dom.window.document.querySelector('#app'))
+      await module.nextTick()
+
+      const hint = dom.window.document.querySelector('.agent-configuration-hint')
+      assert.ok(hint)
+      assert.equal(hint.getAttribute('data-kind'), 'no-usable-provider')
+      assert.equal(hint.getAttribute('data-variant'), 'full')
+      assert.equal(dom.window.document.querySelector('.agent-input-area'), null)
+
+      hint.querySelector('button').click()
+      assert.deepEqual(openedTabs, ['ai'])
+
+      store.activeProviderConfig = { id: 'provider-configured' }
+      store.effectiveProviderConfig = { id: 'provider-configured' }
+      await module.nextTick()
+
+      assert.equal(dom.window.document.querySelector('.agent-configuration-hint'), null)
+      assert.ok(dom.window.document.querySelector('.agent-input-area'))
+    } finally {
+      app?.unmount()
+      delete globalThis.__iwriterAgentPanelAppStore
+      delete globalThis.__iwriterAgentPanelStore
+      dom.window.close()
+      restoreDom()
+    }
+  })
+
+  it('keeps history visible and replaces the composer when the thread runtime is unavailable', async () => {
+    const dom = new JSDOM('<div id="app"></div>', { url: 'http://localhost' })
+    const restoreDom = installDom(dom, { ResizeObserver: ResizeObserverStub })
+    let app
+    try {
+      const module = await loadAgentPanelModule()
+      globalThis.__iwriterAgentPanelAppStore = { openPreferences() {} }
+      globalThis.__iwriterAgentPanelStore = module.reactive({
+        activeProviderConfig: { id: 'provider-available' },
+        effectiveProviderConfig: null,
+        activeThread: { id: 'thread-history', messages: [], title: 'History' },
+        activeThreadId: 'thread-history',
+        conversationEntries: [{ key: 'message-1' }],
+        isActiveThreadDraft: false,
+        isInterrupted: false,
+        isStreaming: false,
+        isSwitchingThread: false,
+        liveTurnState: null,
+        liveTurnThreadId: null,
+        pendingCommands: [],
+        settings: { defaultMode: 'edit' },
+        streamingPreviewMessage: null,
+      })
+
+      app = module.createApp(module.default)
+      app.mount(dom.window.document.querySelector('#app'))
+      await module.nextTick()
+
+      assert.ok(dom.window.document.querySelector('.detach-chat-trigger'))
+      const hint = dom.window.document.querySelector('.agent-configuration-hint')
+      assert.ok(hint)
+      assert.equal(hint.getAttribute('data-kind'), 'thread-runtime-unavailable')
+      assert.equal(hint.getAttribute('data-variant'), 'compact')
+      assert.equal(dom.window.document.querySelector('.agent-input-area'), null)
+    } finally {
+      app?.unmount()
+      delete globalThis.__iwriterAgentPanelAppStore
+      delete globalThis.__iwriterAgentPanelStore
+      dom.window.close()
+      restoreDom()
+    }
+  })
+
+  it('keeps the active-turn controls available if configuration disappears mid-run', async () => {
+    const dom = new JSDOM('<div id="app"></div>', { url: 'http://localhost' })
+    const restoreDom = installDom(dom, { ResizeObserver: ResizeObserverStub })
+    let app
+    try {
+      const module = await loadAgentPanelModule()
+      globalThis.__iwriterAgentPanelAppStore = { openPreferences() {} }
+      globalThis.__iwriterAgentPanelStore = module.reactive({
+        activeProviderConfig: null,
+        effectiveProviderConfig: null,
+        activeThread: { id: 'thread-running', messages: [], title: 'Running' },
+        activeThreadId: 'thread-running',
+        conversationEntries: [],
+        isActiveThreadDraft: false,
+        isInterrupted: false,
+        isStreaming: true,
+        isSwitchingThread: false,
+        liveTurnState: 'streaming',
+        liveTurnThreadId: 'thread-running',
+        pendingCommands: [],
+        settings: { defaultMode: 'edit' },
+        streamingPreviewMessage: null,
+      })
+
+      app = module.createApp(module.default)
+      app.mount(dom.window.document.querySelector('#app'))
+      await module.nextTick()
+
+      assert.equal(dom.window.document.querySelector('.agent-configuration-hint'), null)
+      assert.ok(dom.window.document.querySelector('.agent-input-area'))
+    } finally {
+      app?.unmount()
+      delete globalThis.__iwriterAgentPanelAppStore
+      delete globalThis.__iwriterAgentPanelStore
       dom.window.close()
       restoreDom()
     }

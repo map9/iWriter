@@ -468,6 +468,17 @@ export default {
     input: {
       sendMessagePlaceholder: '发送消息...',
     },
+    configuration: {
+      noUsableProvider: {
+        title: 'AI 尚未配置',
+        description: '请先配置可用的 AI Provider、API Key 和模型，然后开始对话。',
+      },
+      threadRuntimeUnavailable: {
+        title: '当前对话的 AI 配置不可用',
+        description: '此对话使用的 Provider 或模型已不可用。请恢复对应配置，或新建对话选择其他可用配置。',
+      },
+      openSettings: '打开 AI 设置',
+    },
     pendingCommands: {
       steer: '中断并执行',
       edit: '编辑',

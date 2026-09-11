@@ -471,6 +471,17 @@ export default {
     input: {
       sendMessagePlaceholder: 'Send message...',
     },
+    configuration: {
+      noUsableProvider: {
+        title: 'AI is not configured',
+        description: 'Configure an AI provider, API key, and model before starting a conversation.',
+      },
+      threadRuntimeUnavailable: {
+        title: 'This conversation\'s AI configuration is unavailable',
+        description: 'Its provider or model is no longer available. Restore that configuration, or start a new conversation with another one.',
+      },
+      openSettings: 'Open AI Settings',
+    },
     pendingCommands: {
       steer: 'Interrupt and run',
       edit: 'Edit',
