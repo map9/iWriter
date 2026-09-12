@@ -112,6 +112,7 @@ function toIpcCloneableArgs(args: Record<string, unknown>): Record<string, unkno
 
 export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
   const interruptActionCount = ref(0)
+  const activeInterruptId = ref<string | null>(null)
   const isResumingCreativeReview = ref(false)
   const reviewBatch = ref<CreativeReviewBatch | null>(null)
   const pendingApplyBatch = ref<CreativeReviewBatch | null>(null)
@@ -138,6 +139,7 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
     deps.interruptedThreadId.value = null
     deps.interruptedTurnId.value = null
     interruptActionCount.value = 0
+    activeInterruptId.value = null
     isResumingCreativeReview.value = false
     reviewBatch.value = null
     if (options?.clearLiveTurnReviews) {
@@ -172,12 +174,12 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
   function rejectAllPendingReviews() {
     if (!deps.pendingCreativeReviews.value.length && !interruptActionCount.value) return
     const threadId = deps.interruptedThreadId.value
-    if (threadId && interruptActionCount.value > 0) {
+    if (threadId && activeInterruptId.value && interruptActionCount.value > 0) {
       const decisions: ResumeDecision[] = Array.from(
         { length: interruptActionCount.value },
         () => ({ type: 'rejected' as const, message: 'User sent a new message' }),
       )
-      agentClient.resume({ threadId, decisions })
+      agentClient.resume({ threadId, interruptId: activeInterruptId.value, decisions })
     }
     deps.threadRunState.value = 'idle'
     resetReviewState({ clearLiveTurnReviews: true })
@@ -185,10 +187,12 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
 
   function handleInterrupt(params: {
     threadId: string
+    interruptId: string
     turnId: string | null
     reviews: CreativeReviewItem[]
   }) {
     deps.interruptedThreadId.value = params.threadId
+    activeInterruptId.value = params.interruptId
     deps.interruptedTurnId.value = params.turnId ?? deps.currentTurnId.value
     interruptActionCount.value = params.reviews.length
     isResumingCreativeReview.value = false
@@ -222,9 +226,10 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
 
   async function maybeFlushResume() {
     const threadId = deps.interruptedThreadId.value
+    const interruptId = activeInterruptId.value
     const count = interruptActionCount.value
     const batch = reviewBatch.value
-    if (!threadId || count === 0 || !batch || Object.keys(batch.decisionsById).length < count) return
+    if (!threadId || !interruptId || count === 0 || !batch || Object.keys(batch.decisionsById).length < count) return
 
     const decisions: ResumeDecision[] = batch.order.map(reviewId => {
       const review = batch.reviewsById[reviewId]
@@ -263,7 +268,7 @@ export function createCreativeReviewModule(deps: CreativeReviewModuleDeps) {
     reviewBatch.value = null
     pendingApplyBatch.value = batch
 
-    agentClient.resume({ threadId, decisions })
+    agentClient.resume({ threadId, interruptId, decisions })
 
     const liveTurn = deps.ensureLiveTurn({ threadId, state: 'resuming' })
     if (liveTurn) {

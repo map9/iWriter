@@ -822,7 +822,20 @@ describe('AgentEngine initialization', () => {
   it('keeps the interrupt through frozen runtime resolution and terminates on resolution failure', async () => {
     const { AgentEngine } = await loadModule()
     const engine = new AgentEngine(() => null)
-    const interrupted = { actionRequestCount: 1, actionNames: ['edit_block'], turnId: 'turn-1' }
+    const interruptId = '9231f57d01c646333010498b865ea658'
+    const interrupted = {
+      turnId: 'turn-1',
+      scopes: {
+        [interruptId]: {
+          interruptId,
+          actionRequestCount: 1,
+          actionNames: ['edit_block'],
+          reviewActionOriginalIndices: [0],
+        },
+      },
+      reviewQueue: [interruptId],
+      activeReviewInterruptId: interruptId,
+    }
     const events = []
     const completed = []
     engine.runtimeStore.setInterrupted('thread-resume', interrupted)
@@ -845,7 +858,7 @@ describe('AgentEngine initialization', () => {
     const originalConsoleError = console.error
     console.error = () => {}
     try {
-      await engine.resumeRun('thread-resume', [{ type: 'approved' }])
+      await engine.resumeRun('thread-resume', interruptId, [{ type: 'approved' }])
     } finally {
       console.error = originalConsoleError
       delete globalThis.__iwriterResolveRuntime
@@ -858,6 +871,223 @@ describe('AgentEngine initialization', () => {
     assert.equal(events[0].type, 'error')
     assert.match(events[0].event.error, /frozen provider revision unavailable/)
     assert.equal(events[1].type, 'done')
+  })
+
+  it('resumes concurrent interrupt scopes with a namespace-keyed decision map', async () => {
+    const { AgentEngine } = await loadModule()
+    const engine = new AgentEngine(() => null)
+    const firstId = '9231f57d01c646333010498b865ea658'
+    const secondId = 'd5aeea8c983732d43593ef83865c5b1e'
+    const interrupted = {
+      turnId: 'turn-keyed',
+      scopes: {
+        [firstId]: {
+          interruptId: firstId,
+          actionRequestCount: 1,
+          actionNames: ['edit_block'],
+          reviewActionOriginalIndices: [0],
+        },
+        [secondId]: {
+          interruptId: secondId,
+          actionRequestCount: 2,
+          actionNames: ['edit_block', 'edit_block'],
+          reviewActionOriginalIndices: [],
+          autoDecisionsByIndex: {
+            0: { type: 'rejected', message: 'Research subagent is read-only.' },
+            1: { type: 'rejected', message: 'Research subagent is read-only.' },
+          },
+          resolvedDecisions: [
+            { type: 'rejected', message: 'Research subagent is read-only.' },
+            { type: 'rejected', message: 'Research subagent is read-only.' },
+          ],
+        },
+      },
+      reviewQueue: [firstId],
+      activeReviewInterruptId: firstId,
+    }
+    let resumedCommand
+
+    engine.runtimeStore.setInterrupted('thread-keyed', interrupted)
+    engine.runtimeStore.setCurrentTurnId('thread-keyed', 'turn-keyed')
+    engine.threadService = {
+      getMeta: () => ({ domain: 'editing', mode: 'edit' }),
+      completeTurn() {},
+    }
+    engine.writingSessionCoordinator = {
+      recordAutoAppliedSnapshots: async () => {},
+      registerApprovedPlans: async () => {},
+      applyFinalizeDecisions: () => {},
+    }
+    engine._continueSession = async (...args) => {
+      resumedCommand = args[6]
+    }
+
+    await engine.resumeRun('thread-keyed', firstId, [
+      { type: 'rejected', message: 'User rejected the edit.' },
+    ])
+
+    assert.deepEqual(resumedCommand.resume, {
+      [firstId]: {
+        decisions: [{ type: 'reject', message: 'User rejected the edit.' }],
+      },
+      [secondId]: {
+        decisions: [
+          { type: 'reject', message: 'Research subagent is read-only.' },
+          { type: 'reject', message: 'Research subagent is read-only.' },
+        ],
+      },
+    })
+  })
+
+  it('waits for every review scope before resuming concurrent interrupts', async () => {
+    const { AgentEngine } = await loadModule()
+    const engine = new AgentEngine(() => null)
+    const firstId = '9231f57d01c646333010498b865ea658'
+    const secondId = 'd5aeea8c983732d43593ef83865c5b1e'
+    const reviewEvents = []
+    let resumedCommand
+    const interrupted = {
+      turnId: 'turn-sequential-review',
+      scopes: {
+        [firstId]: {
+          interruptId: firstId,
+          actionRequestCount: 1,
+          actionNames: ['edit_block'],
+          reviewActionOriginalIndices: [0],
+          review: {
+            reviews: [{ id: 'review-first' }],
+            actionRequests: [{ name: 'edit_block', args: { blockId: 'first' } }],
+          },
+        },
+        [secondId]: {
+          interruptId: secondId,
+          actionRequestCount: 1,
+          actionNames: ['edit_block'],
+          reviewActionOriginalIndices: [0],
+          review: {
+            reviews: [{ id: 'review-second' }],
+            actionRequests: [{ name: 'edit_block', args: { blockId: 'second' } }],
+          },
+        },
+      },
+      reviewQueue: [firstId, secondId],
+      activeReviewInterruptId: firstId,
+    }
+
+    engine.runtimeStore.setInterrupted('thread-sequential-review', interrupted)
+    engine.runtimeStore.setCurrentTurnId('thread-sequential-review', 'turn-sequential-review')
+    engine.rendererBridge = {
+      sendRunInterrupted: event => reviewEvents.push(event),
+    }
+    engine.threadService = {
+      getMeta: () => ({ domain: 'editing', mode: 'edit' }),
+      completeTurn() {},
+    }
+    engine.writingSessionCoordinator = {
+      recordAutoAppliedSnapshots: async () => {},
+      registerApprovedPlans: async () => {},
+      applyFinalizeDecisions: () => {},
+    }
+    engine._continueSession = async (...args) => {
+      resumedCommand = args[6]
+    }
+
+    await engine.resumeRun('thread-sequential-review', firstId, [{ type: 'approved' }])
+
+    assert.equal(resumedCommand, undefined)
+    assert.deepEqual(interrupted.reviewQueue, [secondId])
+    assert.equal(interrupted.activeReviewInterruptId, undefined)
+    assert.equal(reviewEvents.length, 0)
+
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 0))
+
+    assert.equal(interrupted.activeReviewInterruptId, secondId)
+    assert.equal(reviewEvents.length, 1)
+    assert.equal(reviewEvents[0].interruptId, secondId)
+
+    await engine.resumeRun('thread-sequential-review', secondId, [
+      { type: 'rejected', message: 'Keep the second block unchanged.' },
+    ])
+
+    assert.deepEqual(resumedCommand.resume, {
+      [firstId]: { decisions: [{ type: 'approve' }] },
+      [secondId]: {
+        decisions: [{ type: 'reject', message: 'Keep the second block unchanged.' }],
+      },
+    })
+  })
+
+  it('keeps the pending run when a stale interrupt scope responds', async () => {
+    const { AgentEngine } = await loadModule()
+    const engine = new AgentEngine(() => null)
+    const interruptId = '9231f57d01c646333010498b865ea658'
+    const interrupted = {
+      turnId: 'turn-stale',
+      scopes: {
+        [interruptId]: {
+          interruptId,
+          actionRequestCount: 1,
+          actionNames: ['edit_block'],
+          reviewActionOriginalIndices: [0],
+        },
+      },
+      reviewQueue: [interruptId],
+      activeReviewInterruptId: interruptId,
+    }
+    let resumeCalls = 0
+
+    engine.runtimeStore.setInterrupted('thread-stale', interrupted)
+    engine._continueSession = async () => { resumeCalls += 1 }
+    const originalWarn = console.warn
+    console.warn = () => {}
+    try {
+      await engine.resumeRun('thread-stale', 'missing-scope', [{ type: 'approved' }])
+    } finally {
+      console.warn = originalWarn
+    }
+
+    assert.equal(engine.runtimeStore.getInterrupted('thread-stale'), interrupted)
+    assert.equal(resumeCalls, 0)
+  })
+
+  it('collects every unique concurrent interrupt before presenting reviews', async () => {
+    const { AgentEngine } = await loadModule()
+    const engine = new AgentEngine(() => null)
+    const reviewEvents = []
+    const firstId = '9231f57d01c646333010498b865ea658'
+    const secondId = 'd5aeea8c983732d43593ef83865c5b1e'
+
+    engine._buildInterruptScope = async (_threadId, interruptId) => ({
+      scope: {
+        interruptId,
+        actionRequestCount: interruptId === firstId ? 1 : 2,
+        actionNames: interruptId === firstId
+          ? ['edit_block']
+          : ['edit_block', 'edit_block'],
+        reviewActionOriginalIndices: [0],
+        review: {
+          reviews: [],
+          actionRequests: [{ name: 'edit_block', args: {} }],
+        },
+      },
+      autoRejects: [],
+    })
+    engine.rendererBridge = {
+      sendRunInterrupted: event => reviewEvents.push(event),
+      sendRunFilesystemAutoReject() {},
+    }
+
+    await engine._handleInterrupts('thread-collect', [
+      { interruptId: firstId, payload: { source: 'first' } },
+      { interruptId: secondId, payload: { source: 'second' } },
+      { interruptId: secondId, payload: { source: 'duplicate projection' } },
+    ])
+
+    const interrupted = engine.runtimeStore.getInterrupted('thread-collect')
+    assert.deepEqual(Object.keys(interrupted.scopes), [firstId, secondId])
+    assert.deepEqual(interrupted.reviewQueue, [firstId, secondId])
+    assert.equal(reviewEvents.length, 1)
+    assert.equal(reviewEvents[0].interruptId, firstId)
   })
 })
 

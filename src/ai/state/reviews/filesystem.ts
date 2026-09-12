@@ -40,6 +40,7 @@ function reviewIdAt(index: number, review: DomainReviewItem): string {
 
 export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
   const interruptActionCount = ref(0)
+  const activeInterruptId = ref<string | null>(null)
   const isResumingFilesystemReview = ref(false)
   const reviewBatch = ref<FilesystemReviewBatch | null>(null)
 
@@ -47,6 +48,7 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
     deps.interruptedThreadId.value = null
     deps.interruptedTurnId.value = null
     interruptActionCount.value = 0
+    activeInterruptId.value = null
     isResumingFilesystemReview.value = false
     reviewBatch.value = null
     if (options?.clearLiveTurnReviews) {
@@ -61,12 +63,12 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
   function rejectAllPendingReviews() {
     if (!deps.pendingFilesystemReviews.value.length && !interruptActionCount.value) return
     const threadId = deps.interruptedThreadId.value
-    if (threadId && interruptActionCount.value > 0) {
+    if (threadId && activeInterruptId.value && interruptActionCount.value > 0) {
       const decisions: ResumeDecision[] = Array.from(
         { length: interruptActionCount.value },
         () => ({ type: 'rejected' as const, message: 'User sent a new message' }),
       )
-      agentClient.resume({ threadId, decisions })
+      agentClient.resume({ threadId, interruptId: activeInterruptId.value, decisions })
     }
     deps.threadRunState.value = 'idle'
     resetReviewState({ clearLiveTurnReviews: true })
@@ -74,6 +76,7 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
 
   function handleInterrupt(params: {
     threadId: string
+    interruptId: string
     turnId: string | null
     reviews: DomainReviewItem[]
   }) {
@@ -82,6 +85,7 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
       .map(r => r.payload)
 
     deps.interruptedThreadId.value = params.threadId
+    activeInterruptId.value = params.interruptId
     deps.interruptedTurnId.value = params.turnId ?? deps.currentTurnId.value
     interruptActionCount.value = params.reviews.length
     isResumingFilesystemReview.value = false
@@ -116,8 +120,9 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
 
   async function maybeFlushResume() {
     const threadId = deps.interruptedThreadId.value
+    const interruptId = activeInterruptId.value
     const batch = reviewBatch.value
-    if (!threadId || !batch) return
+    if (!threadId || !interruptId || !batch) return
     const reviewedCount = Object.keys(batch.decisionsById).length
     if (reviewedCount < batch.filesystemIds.size) return
 
@@ -150,7 +155,7 @@ export function createFilesystemReviewModule(deps: FilesystemReviewModuleDeps) {
     interruptActionCount.value = 0
     reviewBatch.value = null
 
-    await agentClient.resume({ threadId, decisions })
+    await agentClient.resume({ threadId, interruptId, decisions })
 
     const liveTurn = deps.ensureLiveTurn({ threadId, state: 'resuming' })
     if (liveTurn) {

@@ -1,12 +1,21 @@
 import { IWriterAgentContextSchema, type IWriterAgentContext } from './AgentContext'
-import type { ResumeDecision } from '@shared/ai/contracts'
+import type { DomainReviewItem, ResumeDecision, ThreadMessage } from '@shared/ai/contracts'
 
-interface InterruptedRun {
+interface InterruptedScope {
+  /** LangGraph interrupt namespace hash used as the key in Command.resume maps. */
+  interruptId: string
   actionRequestCount: number
   actionNames: string[]
-  turnId?: string
   reviewActionOriginalIndices?: number[]
   autoDecisionsByIndex?: Record<number, ResumeDecision>
+  /** Full original-order decisions after automatic and renderer decisions have been merged. */
+  resolvedDecisions?: ResumeDecision[]
+  /** Renderer payload retained while other concurrent interrupt scopes are reviewed. */
+  review?: {
+    partialMessage?: ThreadMessage
+    reviews: DomainReviewItem[]
+    actionRequests: Array<{ name: string; args: Record<string, unknown> }>
+  }
   /** confirm_writing_plan args by original index — read at resume to register the write-session authorization (04.1 §6 Stage 2). */
   confirmPlanArgsByIndex?: Record<number, { plan: string; targetFiles: string[] }>
   /** finalize_chapter args by original index — read at resume to close/restore the write-session (M1b-3). */
@@ -16,11 +25,19 @@ interface InterruptedRun {
    * （recordAgentSnapshot），避免笼统扫全部活动会话把中断期间的作者手改误吸收进 lastAgentSnapshot。
    */
   autoAppliedFiles?: string[]
-  /**
-   * M1-1: this interrupt was synthesized at run-end (the agent finished without finalizing an active
-   * write-session), not produced by a live LangGraph interrupt. resumeRun applies the finalize host
-   * side effects but MUST NOT feed a Command back into the graph — there is no interrupt to resume.
-   */
+}
+
+interface InterruptedRun {
+  turnId?: string
+  /** Live runs use keyed multi-resume; checkpoint rehydration may only recover one unkeyed batch. */
+  resumeMode?: 'keyed' | 'unkeyed'
+  /** Every concurrent LangGraph interrupt, keyed by its namespace-derived interrupt id. */
+  scopes: Record<string, InterruptedScope>
+  /** Interrupt ids that still require renderer decisions, in presentation order. */
+  reviewQueue: string[]
+  /** Scope currently displayed by the renderer. Used to reject stale resume responses. */
+  activeReviewInterruptId?: string
+  /** Host-only run-end finalization has no live LangGraph interrupt to resume. */
   syntheticFinalize?: boolean
 }
 
@@ -85,4 +102,4 @@ export class ThreadRuntimeStore {
   }
 }
 
-export type { InterruptedRun, ThreadExecutionContext }
+export type { InterruptedRun, InterruptedScope, ThreadExecutionContext }

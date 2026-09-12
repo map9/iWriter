@@ -101,9 +101,12 @@ export interface ResumeDecision {
 
 export interface ResumeRunRequest {
   threadId: string
+  /** LangGraph interrupt namespace being decided. Prevents stale UI decisions crossing scopes. */
+  interruptId: string
   /**
    * One decision per review item, in the same order as RunInterruptedEvent.reviews.
-   * Length MUST equal the number of actionRequests in the interrupt.
+   * Length MUST equal the reviewable actionRequests carried by that event. The main process
+   * restores any auto-decisions at their original positions before resuming this scope.
    */
   decisions: ResumeDecision[]
 }
@@ -162,14 +165,17 @@ export type StreamChunkEvent =
  * - reviews: unified DomainReviewItem[] for actionRequests that require user review
  * - actionRequests: reviewable LangGraph actionRequests in the same order as reviews
  *
- * The renderer must collect one decision per review/action before calling ai:resume.
+ * Concurrent LangGraph interrupts are emitted as separate events, one scope at a time. The
+ * renderer must collect one decision per review/action before calling ai:resume for that scope.
  * decisions[i] corresponds to the reviewable actionRequests[i] and reviews[i].
  * Main process merges these decisions with any auto-approved/auto-rejected actions
- * before resuming LangGraph's original interrupt batch.
+ * and resumes the graph only after every concurrent scope has been resolved.
  * Dispatch to edit or creative UI by inspecting reviews[i].kind.
  */
 export interface RunInterruptedEvent {
   threadId: string
+  /** LangGraph interrupt namespace for this review batch. */
+  interruptId: string
   turnId?: string
   /**
    * Assistant message (text + tool calls) accumulated before the interrupt.

@@ -5,7 +5,7 @@ import type { DomainReviewItem } from '../domain/DomainStrategy'
 import type { SnapshotBroker } from '../document/SnapshotBroker'
 import type { DomainStrategy } from '../domain/DomainStrategy'
 import type { RendererEventBridge } from '../ipc/RendererEventBridge'
-import type { InterruptedRun, ThreadRuntimeStore } from '../runtime/ThreadRuntimeStore'
+import type { InterruptedScope, ThreadRuntimeStore } from '../runtime/ThreadRuntimeStore'
 import {
   decideDelegatedWriteGate,
   decideWritingSessionApproval,
@@ -99,16 +99,15 @@ export class WritingSessionCoordinator {
       args: { chapter: file },
     }))
     const { finalizeArgsByIndex } = this.stashInterruptArgs(actionRequests)
-    this.dependencies.runtimeStore.setInterrupted(threadId, {
+    const interruptId = 'synthetic-finalize'
+    const scope: InterruptedScope = {
+      interruptId,
       actionRequestCount: actionRequests.length,
       actionNames: actionRequests.map(action => action.name),
-      turnId,
       reviewActionOriginalIndices: actionRequests.map((_action, index) => index),
       autoDecisionsByIndex: {},
       finalizeArgsByIndex,
-      syntheticFinalize: true,
-    })
-
+    }
     const strategy = this.dependencies.getStrategy(domain)
     const reviews = await strategy.buildReviewItems({ threadId, turnId, actionRequests })
     await this.decorateReviews(reviews, threadId)
@@ -117,9 +116,19 @@ export class WritingSessionCoordinator {
         review.payload.autoFallback = true
       }
     }
+    scope.review = { reviews, actionRequests }
+
+    this.dependencies.runtimeStore.setInterrupted(threadId, {
+      turnId,
+      scopes: { [interruptId]: scope },
+      reviewQueue: [interruptId],
+      activeReviewInterruptId: interruptId,
+      syntheticFinalize: true,
+    })
 
     this.dependencies.rendererBridge.sendRunInterrupted({
       threadId,
+      interruptId,
       turnId,
       reviews,
       actionRequests,
@@ -129,9 +138,9 @@ export class WritingSessionCoordinator {
 
   stashInterruptArgs(
     actionRequests: Array<{ name: string; args?: Record<string, unknown> }>,
-  ): Pick<InterruptedRun, 'confirmPlanArgsByIndex' | 'finalizeArgsByIndex'> {
-    const confirmPlanArgsByIndex: NonNullable<InterruptedRun['confirmPlanArgsByIndex']> = {}
-    const finalizeArgsByIndex: NonNullable<InterruptedRun['finalizeArgsByIndex']> = {}
+  ): Pick<InterruptedScope, 'confirmPlanArgsByIndex' | 'finalizeArgsByIndex'> {
+    const confirmPlanArgsByIndex: NonNullable<InterruptedScope['confirmPlanArgsByIndex']> = {}
+    const finalizeArgsByIndex: NonNullable<InterruptedScope['finalizeArgsByIndex']> = {}
 
     actionRequests.forEach((actionRequest, index) => {
       if (actionRequest.name === 'confirm_writing_plan') {
@@ -165,7 +174,7 @@ export class WritingSessionCoordinator {
 
   async registerApprovedPlans(
     threadId: string,
-    interrupted: InterruptedRun,
+    interrupted: InterruptedScope,
     decisions: ResumeDecision[],
   ): Promise<void> {
     const argsByIndex = interrupted.confirmPlanArgsByIndex
@@ -198,7 +207,7 @@ export class WritingSessionCoordinator {
 
   applyFinalizeDecisions(
     threadId: string,
-    interrupted: InterruptedRun,
+    interrupted: InterruptedScope,
     decisions: ResumeDecision[],
   ): void {
     const argsByIndex = interrupted.finalizeArgsByIndex

@@ -70,16 +70,19 @@ interface RuntimeEventsDeps {
   clearLiveTurn: () => void
   handleEditInterrupt: (params: {
     threadId: string
+    interruptId: string
     turnId: string | null
     proposals: EditProposal[]
   }) => void
   handleCreativeInterrupt: (params: {
     threadId: string
+    interruptId: string
     turnId: string | null
     reviews: CreativeReviewItem[]
   }) => void
   handleFilesystemInterrupt: (params: {
     threadId: string
+    interruptId: string
     turnId: string | null
     reviews: DomainReviewItem[]
   }) => void
@@ -666,18 +669,21 @@ export function createRuntimeEvents(deps: RuntimeEventsDeps) {
     if (filesystemReviews.length) {
       deps.handleFilesystemInterrupt({
         threadId: event.threadId,
+        interruptId: event.interruptId,
         turnId: event.turnId ?? deps.currentTurnId.value,
         reviews: event.reviews,
       })
     } else if (creativeReviews.length) {
       deps.handleCreativeInterrupt({
         threadId: event.threadId,
+        interruptId: event.interruptId,
         turnId: event.turnId ?? deps.currentTurnId.value,
         reviews: creativeReviews,
       })
     } else {
       deps.handleEditInterrupt({
         threadId: event.threadId,
+        interruptId: event.interruptId,
         turnId: event.turnId ?? deps.currentTurnId.value,
         proposals: editProposals,
       })
