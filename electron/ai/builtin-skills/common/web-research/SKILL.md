@@ -56,7 +56,9 @@ Return only: status, result path, and a concise summary.
 """)
 ```
 
-Workers write only their findings file. They do not write the plan, final report, or user-facing documents.
+Workers write only their findings file under `/large_tool_results/`. They never edit the user workspace,
+never request edit approval, and do not write the plan, final report, or user-facing documents. The main
+agent reads their evidence, synthesizes the answer, and performs any separately authorized document edit.
 
 ### Step 3: Synthesize Findings
 

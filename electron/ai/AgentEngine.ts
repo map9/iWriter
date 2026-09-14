@@ -45,7 +45,7 @@ import { StreamEventAdapter } from './ipc/StreamEventAdapter'
 import { RendererEventBridge } from './ipc/RendererEventBridge'
 import { buildUserMessage } from './ipc/UserMessageBuilder'
 import { resolveResumeThreadRuntime, resolveThreadRuntime } from './runtime/ThreadRuntimeResolver'
-import { ThreadRuntimeStore } from './runtime/ThreadRuntimeStore'
+import { ThreadRuntimeStore, type InterruptedRun, type InterruptedScope } from './runtime/ThreadRuntimeStore'
 import { FILE_WRITE_INTERRUPT_ON_NAMES, type AgentFilesystemScaffold } from './scaffold/filesystem/AgentFilesystem'
 import { decideFilesystemWriteApproval, isFilesystemWriteToolName } from './scaffold/approval/FilesystemApprovalPolicy'
 import {
@@ -434,14 +434,64 @@ export class AgentEngine {
 
   // ── Public: resume (LangGraph HITL batch decisions) ───────────────────────
 
-  async resumeRun(threadId: string, decisions: ResumeDecision[]): Promise<void> {
+  async resumeRun(
+    threadId: string,
+    interruptId: string,
+    decisions: ResumeDecision[],
+  ): Promise<void> {
     const interrupted = this.runtimeStore.getInterrupted(threadId)
     if (!interrupted) {
       console.warn('[AgentEngine] resumeRun: no interrupted run for threadId:', threadId)
       return
     }
+
+    if (
+      interrupted.activeReviewInterruptId
+      && interrupted.activeReviewInterruptId !== interruptId
+    ) {
+      console.warn('[AgentEngine] resumeRun: stale interrupt scope:', {
+        threadId,
+        expected: interrupted.activeReviewInterruptId,
+        received: interruptId,
+      })
+      return
+    }
+
+    if (!this.interruptCoordinator.resolveScope(interrupted, interruptId, decisions)) {
+      console.warn('[AgentEngine] resumeRun: unknown interrupt scope:', { threadId, interruptId })
+      return
+    }
+
+    interrupted.reviewQueue = interrupted.reviewQueue.filter(id => id !== interruptId)
+    interrupted.activeReviewInterruptId = undefined
+    if (interrupted.reviewQueue.length > 0) {
+      // Let the current ai:resume IPC settle before the renderer receives the next review scope.
+      // Otherwise the first card's post-resume cleanup can race with and erase the next card.
+      setTimeout(() => {
+        if (this.runtimeStore.getInterrupted(threadId) !== interrupted) return
+        this._sendNextInterruptReview(threadId, interrupted)
+      }, 0)
+      return
+    }
+
+    if (!this.interruptCoordinator.isFullyResolved(interrupted)) {
+      console.warn('[AgentEngine] resumeRun: unresolved interrupt scopes remain:', {
+        threadId,
+        interruptIds: Object.entries(interrupted.scopes)
+          .filter(([, scope]) => scope.resolvedDecisions === undefined)
+          .map(([id]) => id),
+      })
+      return
+    }
+
+    await this._resumeInterruptedRun(threadId, interrupted)
+  }
+
+  private async _resumeInterruptedRun(
+    threadId: string,
+    interrupted: InterruptedRun,
+  ): Promise<void> {
     let runtime: ReturnType<typeof resolveResumeThreadRuntime>
-    let fullDecisions: ResumeDecision[]
     try {
       const settings = AiConfigStore.loadSettings()
       const meta = this.threadService.getMeta(threadId)
@@ -450,24 +500,19 @@ export class AgentEngine {
         meta,
         revision => AiConfigStore.loadProviderConfigRevision(revision),
       )
-      fullDecisions = this.interruptCoordinator.mergeDecisions(interrupted, decisions)
 
-      // M1-2 归因基准：**仅**对本批次被 auto-apply 命中的章节重取快照——这些文件的块编辑已由 renderer
-      // 在 ai:resume 前应用落盘，磁盘此刻反映 agent 的最新已应用状态。据此把之后整章终审里「agent 应用
-      // 之后」的改动（作者手改/外部改动）标为 hasExternalEdits。
-      // 切勿笼统扫全部活动会话：本批次未命中的会话若在中断期间被作者手改，会把手改误记成 agent 快照，
-      // 令终审漏标 hasExternalEdits（漏警）。放在 finalize 处理前——finalize 关闭会话后就取不到了。
-      await this.writingSessionCoordinator.recordAutoAppliedSnapshots(
-        threadId,
-        interrupted.autoAppliedFiles ?? [],
-      )
+      for (const scope of Object.values(interrupted.scopes)) {
+        const scopeDecisions = scope.resolvedDecisions
+          ?? this.interruptCoordinator.mergeDecisions(scope, [])
+        scope.resolvedDecisions = scopeDecisions
 
-      // An approved confirm_writing_plan opens the write-session authorization (04.1 §6 Stage 2) and
-      // anchors the finalize baseline at write-session start (before the writer touches the chapter).
-      await this.writingSessionCoordinator.registerApprovedPlans(threadId, interrupted, fullDecisions)
-
-      // A finalize_chapter decision closes/restores the write-session (M1b-3).
-      this.writingSessionCoordinator.applyFinalizeDecisions(threadId, interrupted, fullDecisions)
+        await this.writingSessionCoordinator.recordAutoAppliedSnapshots(
+          threadId,
+          scope.autoAppliedFiles ?? [],
+        )
+        await this.writingSessionCoordinator.registerApprovedPlans(threadId, scope, scopeDecisions)
+        this.writingSessionCoordinator.applyFinalizeDecisions(threadId, scope, scopeDecisions)
+      }
     } catch (error) {
       await this._terminateFailedResumeSetup(threadId, interrupted.turnId, error)
       return
@@ -475,8 +520,6 @@ export class AgentEngine {
 
     this.runtimeStore.clearInterrupted(threadId)
 
-    // M1-1: a run-end synthesized finalize card has no live LangGraph interrupt to resume — the host
-    // side effects above are the whole job. Complete the run instead of feeding a Command back.
     if (interrupted.syntheticFinalize) {
       const runtimeSwitch = await this._finalizePendingRuntimeSwitch(threadId)
       this.rendererBridge.sendRunDone({ threadId, turnId: interrupted.turnId, runtimeSwitch })
@@ -486,9 +529,20 @@ export class AgentEngine {
       return
     }
 
-    const lgDecisions = this.interruptCoordinator.buildLangGraphDecisions(interrupted, fullDecisions)
-
-    const hiResp = { decisions: lgDecisions }
+    const resumePayload = interrupted.resumeMode === 'unkeyed'
+      ? (() => {
+          const scope = Object.values(interrupted.scopes)[0]
+          if (!scope?.resolvedDecisions) {
+            throw new Error('[AgentEngine] rehydrated interrupt has no resolved scope')
+          }
+          return {
+            decisions: this.interruptCoordinator.buildLangGraphDecisions(
+              scope,
+              scope.resolvedDecisions,
+            ),
+          }
+        })()
+      : this.interruptCoordinator.buildLangGraphResumeMap(interrupted)
 
     const resumePromise = this._continueSession(
       threadId,
@@ -497,14 +551,14 @@ export class AgentEngine {
       runtime.mode,
       runtime.modelId,
       runtime.thinkingLevel,
-      new Command({ resume: hiResp }),
+      new Command({ resume: resumePayload }),
     )
     resumePromise.catch(err => console.error('[AgentEngine] _continueSession error:', err))
     this.agentRunner.track(threadId, resumePromise)
 
-    if (fullDecisions.some(d => d.type === 'responded')) {
-      // Housekeeping: strip RESPOND_MARKER after the resumed stream has settled, so we clean
-      // both the new checkpoint and any LangGraph write rows produced during resume.
+    if (Object.values(interrupted.scopes).some(scope =>
+      scope.resolvedDecisions?.some(decision => decision.type === 'responded'),
+    )) {
       resumePromise.finally(() => {
         this.checkpointerAdmin?.stripRespondMarkers(threadId).catch(() => { /* ignore */ })
       }).catch(() => { /* ignore */ })
@@ -641,9 +695,9 @@ export class AgentEngine {
         }
 
         if (run.interrupts.length > 0) {
-          await this._handleInterrupt(
+          await this._handleInterrupts(
             threadId,
-            run.interrupts[0]!.payload,
+            run.interrupts,
             partialMessage,
             currentRootToolCalls,
           )
@@ -875,21 +929,24 @@ export class AgentEngine {
     }
   }
 
-  private async _handleInterrupt(
+  private async _buildInterruptScope(
     threadId: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    interruptValue: any,
+    interruptId: string,
+    interruptValue: unknown,
     partialMessage?: ThreadMessage,
     currentRootToolCalls?: RootToolCall[],
-  ): Promise<void> {
+  ): Promise<{
+    scope: InterruptedScope
+    autoRejects: Array<{ toolName: string; filePath: string; message: string }>
+  } | null> {
     // interruptValue: HITLRequest { actionRequests: [{ name, args }], reviewConfigs: [...] }
     const actionRequests: HitlActionRequest[] =
-      interruptValue?.actionRequests ?? []
+      (interruptValue as { actionRequests?: HitlActionRequest[] } | null)?.actionRequests ?? []
     const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
 
     if (!actionRequests.length) {
       console.warn('[AgentEngine] Interrupt with no actionRequests:', interruptValue)
-      return
+      return null
     }
 
     const domain = this.threadService.getMeta(threadId)?.domain ?? 'editing'
@@ -915,49 +972,121 @@ export class AgentEngine {
     }
 
     const writingArgs = this.writingSessionCoordinator.stashInterruptArgs(actionRequests)
-    this.runtimeStore.setInterrupted(threadId, {
+    const scope: InterruptedScope = {
+      interruptId,
       actionRequestCount: actionRequests.length,
       actionNames: actionRequests.map(ar => ar.name),
-      turnId,
       reviewActionOriginalIndices: prepared.reviewActionOriginalIndices,
       autoDecisionsByIndex: prepared.autoDecisionsByIndex,
       ...writingArgs,
       autoAppliedFiles: [...prepared.autoApplyFiles],
-    })
+    }
 
-    if (!prepared.reviewActionRequests.length) {
-      for (const autoReject of prepared.autoRejects) {
-        this.rendererBridge.sendRunFilesystemAutoReject({
-          threadId,
-          toolName: autoReject.toolName,
-          filePath: autoReject.filePath,
-          message: autoReject.message,
-        })
+    if (prepared.reviewActionRequests.length > 0) {
+      const reviews = await strategy.buildReviewItems({
+        threadId,
+        turnId,
+        actionRequests: prepared.reviewActionRequests,
+        partialMessage,
+      })
+      await this.writingSessionCoordinator.decorateReviews(
+        reviews,
+        threadId,
+        prepared.reviewActionOriginalIndices,
+        prepared.autoApplyOriginalIndices,
+      )
+      scope.review = {
+        partialMessage,
+        reviews,
+        actionRequests: prepared.reviewActionRequests,
       }
-      setTimeout(() => {
-        this.resumeRun(threadId, []).catch(err => console.error('[AgentEngine] auto resumeRun error:', err))
-      }, 0)
+    }
+
+    return { scope, autoRejects: prepared.autoRejects }
+  }
+
+  private async _handleInterrupts(
+    threadId: string,
+    interrupts: ReadonlyArray<{ interruptId: string; payload: unknown }>,
+    partialMessage?: ThreadMessage,
+    currentRootToolCalls?: RootToolCall[],
+  ): Promise<void> {
+    const uniqueInterrupts = new Map<string, unknown>()
+    for (const interrupt of interrupts) {
+      if (!interrupt?.interruptId || uniqueInterrupts.has(interrupt.interruptId)) continue
+      uniqueInterrupts.set(interrupt.interruptId, interrupt.payload)
+    }
+
+    const turnId = this.runtimeStore.getCurrentTurnId(threadId) ?? undefined
+    const interrupted: InterruptedRun = {
+      turnId,
+      resumeMode: 'keyed',
+      scopes: {},
+      reviewQueue: [],
+    }
+    const autoRejects: Array<{ toolName: string; filePath: string; message: string }> = []
+
+    for (const [interruptId, payload] of uniqueInterrupts) {
+      const built = await this._buildInterruptScope(
+        threadId,
+        interruptId,
+        payload,
+        partialMessage,
+        currentRootToolCalls,
+      )
+      if (!built) continue
+      interrupted.scopes[interruptId] = built.scope
+      autoRejects.push(...built.autoRejects)
+      if (built.scope.review) {
+        interrupted.reviewQueue.push(interruptId)
+      } else {
+        this.interruptCoordinator.resolveScope(interrupted, interruptId, [])
+      }
+    }
+
+    if (!Object.keys(interrupted.scopes).length) {
+      console.warn('[AgentEngine] run interrupted but no valid interrupt scopes', { threadId })
       return
     }
 
-    const reviews = await strategy.buildReviewItems({
-      threadId,
-      turnId,
-      actionRequests: prepared.reviewActionRequests,
-      partialMessage,
-    })
-    await this.writingSessionCoordinator.decorateReviews(
-      reviews,
-      threadId,
-      prepared.reviewActionOriginalIndices,
-      prepared.autoApplyOriginalIndices,
-    )
+    this.runtimeStore.setInterrupted(threadId, interrupted)
+    for (const autoReject of autoRejects) {
+      this.rendererBridge.sendRunFilesystemAutoReject({
+        threadId,
+        toolName: autoReject.toolName,
+        filePath: autoReject.filePath,
+        message: autoReject.message,
+      })
+    }
 
+    if (interrupted.reviewQueue.length > 0) {
+      this._sendNextInterruptReview(threadId, interrupted)
+      return
+    }
+
+    setTimeout(() => {
+      this._resumeInterruptedRun(threadId, interrupted)
+        .catch(err => console.error('[AgentEngine] auto resume error:', err))
+    }, 0)
+  }
+
+  private _sendNextInterruptReview(threadId: string, interrupted: InterruptedRun): void {
+    const interruptId = interrupted.reviewQueue[0]
+    const scope = interruptId ? interrupted.scopes[interruptId] : undefined
+    if (!interruptId || !scope?.review) {
+      console.warn('[AgentEngine] pending review scope has no renderer payload:', {
+        threadId,
+        interruptId,
+      })
+      return
+    }
+
+    interrupted.activeReviewInterruptId = interruptId
     this.rendererBridge.sendRunInterrupted({
       threadId,
-      turnId,
-      reviews,
-      actionRequests: prepared.reviewActionRequests,
+      interruptId,
+      turnId: interrupted.turnId,
+      ...scope.review,
     })
   }
 
@@ -1044,17 +1173,26 @@ export class AgentEngine {
     }
 
     const writingArgs = this.writingSessionCoordinator.stashInterruptArgs(actionRequests)
-    this.runtimeStore.setInterrupted(threadId, {
+    const interruptId = 'rehydrated-interrupt'
+    const scope: InterruptedScope = {
+      interruptId,
       actionRequestCount: actionRequests.length,
       actionNames: actionRequests.map((a) => a.name),
-      turnId,
       reviewActionOriginalIndices: prepared.reviewActionOriginalIndices,
       autoDecisionsByIndex: prepared.autoDecisionsByIndex,
       ...writingArgs,
       autoAppliedFiles: [...prepared.autoApplyFiles],
-    })
+    }
+    const interrupted: InterruptedRun = {
+      turnId,
+      resumeMode: 'unkeyed',
+      scopes: { [interruptId]: scope },
+      reviewQueue: [],
+    }
 
     if (!prepared.reviewActionRequests.length) {
+      this.interruptCoordinator.resolveScope(interrupted, interruptId, [])
+      this.runtimeStore.setInterrupted(threadId, interrupted)
       for (const autoReject of prepared.autoRejects) {
         this.rendererBridge.sendRunFilesystemAutoReject({
           threadId,
@@ -1063,7 +1201,7 @@ export class AgentEngine {
           message: autoReject.message,
         })
       }
-      await this.resumeRun(threadId, [])
+      await this._resumeInterruptedRun(threadId, interrupted)
       return
     }
 
@@ -1084,12 +1222,13 @@ export class AgentEngine {
       prepared.autoApplyOriginalIndices,
     )
 
-    this.rendererBridge.sendRunInterrupted({
-      threadId,
-      turnId,
+    scope.review = {
       reviews,
       actionRequests: prepared.reviewActionRequests,
-    })
+    }
+    interrupted.reviewQueue.push(interruptId)
+    this.runtimeStore.setInterrupted(threadId, interrupted)
+    this._sendNextInterruptReview(threadId, interrupted)
   }
 
   // ── Private: agent cache ──────────────────────────────────────────────────

@@ -189,6 +189,55 @@ describe('agent runtime modules', () => {
     ])
   })
 
+  it('builds one exact resume batch per concurrent interrupt scope', async () => {
+    const { InterruptCoordinator } = await loadRuntimeModules()
+    const coordinator = new InterruptCoordinator()
+    const interrupted = {
+      scopes: {
+        '9231f57d01c646333010498b865ea658': {
+          interruptId: '9231f57d01c646333010498b865ea658',
+          actionRequestCount: 1,
+          actionNames: ['edit_block'],
+          reviewActionOriginalIndices: [],
+          autoDecisionsByIndex: {
+            0: { type: 'rejected', message: 'Research subagent is read-only.' },
+          },
+        },
+        d5aeea8c983732d43593ef83865c5b1e: {
+          interruptId: 'd5aeea8c983732d43593ef83865c5b1e',
+          actionRequestCount: 2,
+          actionNames: ['edit_block', 'edit_block'],
+          reviewActionOriginalIndices: [],
+          autoDecisionsByIndex: {
+            0: { type: 'rejected', message: 'Research subagent is read-only.' },
+            1: { type: 'rejected', message: 'Research subagent is read-only.' },
+          },
+        },
+      },
+      reviewQueue: [],
+    }
+
+    assert.equal(
+      coordinator.resolveScope(interrupted, '9231f57d01c646333010498b865ea658', []),
+      true,
+    )
+    assert.equal(
+      coordinator.resolveScope(interrupted, 'd5aeea8c983732d43593ef83865c5b1e', []),
+      true,
+    )
+    assert.deepEqual(coordinator.buildLangGraphResumeMap(interrupted), {
+      '9231f57d01c646333010498b865ea658': {
+        decisions: [{ type: 'reject', message: 'Research subagent is read-only.' }],
+      },
+      d5aeea8c983732d43593ef83865c5b1e: {
+        decisions: [
+          { type: 'reject', message: 'Research subagent is read-only.' },
+          { type: 'reject', message: 'Research subagent is read-only.' },
+        ],
+      },
+    })
+  })
+
   it('protects applied block edits when a resume batch contains reject-style decisions', async () => {
     const { InterruptCoordinator, BLOCK_EDIT_APPLIED_MESSAGE } = await loadRuntimeModules()
     const coordinator = new InterruptCoordinator()

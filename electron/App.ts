@@ -1625,7 +1625,7 @@ export class App {
 
     // HITL resume — batch decisions array (approve / edit / reject)
     ipcMain.handle('ai:resume', async (_, req: ResumeRunRequest) => {
-      await (await this._getAgentEngine()).resumeRun(req.threadId, req.decisions)
+      await (await this._getAgentEngine()).resumeRun(req.threadId, req.interruptId, req.decisions)
     })
 
     ipcMain.handle('ai:get-config', async () => {

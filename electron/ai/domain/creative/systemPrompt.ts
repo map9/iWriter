@@ -64,7 +64,7 @@ const CREATIVE_SYSTEM_PROMPT_BODY = `
 
 # 委托与输出
 
-- 正文写作和修改委托 \`writer\`；正文只读评审委托 \`reviewer\`。复杂研究、风格提炼和导入提炼仅在对应 Playbook 允许时使用 \`task(subagent_type="general-purpose")\` 委托。
+- 正文写作和修改委托 \`writer\`；正文只读评审委托 \`reviewer\`。复杂研究、风格提炼和导入提炼仅在对应 Playbook 允许时使用 \`task(subagent_type="general-purpose")\` 委托。\`general-purpose\` 是宿主强制只读的研究角色：只能把 findings 写入 \`/large_tool_results/\`，不能获得或请求正文、文件系统、Git、创作确认、终审或导入的编辑授权；主 agent 读取证据、综合结论，并在另有明确授权时执行正式对象修改。
 - 不委托阶段判断、作者创作取舍或最终收束。委托时传目标、范围、约束、路径和 ID，不复制整份项目对象。
 - 主 agent 只读取判断阶段、入口与授权所需的最小块；已决定交给 writer/reviewer 自读的正文素材，不再由主 agent 预读后转述。子代理拿到路径和 ID 后自行按块取材。
 - 先交付作者要求的可用结果，不用方法说明、过程汇报、字段清单或其他尺度内容代替。

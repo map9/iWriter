@@ -139,6 +139,31 @@ function createFilesystemReview(id) {
 }
 
 describe('approval rejection guidance', () => {
+  it('forwards an approved filesystem write to its exact interrupt scope', async () => {
+    const { createFilesystemReviewModule, ref } = await loadReviewModules()
+    const reviewItem = createFilesystemReview('filesystem-approved')
+    let resumed
+    const runtime = createRuntimeDeps(ref, payload => { resumed = payload })
+    const review = createFilesystemReviewModule({
+      ...runtime,
+      pendingFilesystemReviews: ref([reviewItem]),
+    })
+
+    review.handleInterrupt({
+      threadId: 'thread-approved',
+      interruptId: 'interrupt-filesystem-approved',
+      turnId: 'turn-approved',
+      reviews: [{ kind: 'filesystem', payload: reviewItem }],
+    })
+    await review.approveFilesystemReview('filesystem-approved')
+
+    assert.deepEqual(resumed, {
+      threadId: 'thread-approved',
+      interruptId: 'interrupt-filesystem-approved',
+      decisions: [{ type: 'approved' }],
+    })
+  })
+
   it('asks for direction after one content proposal is rejected', async () => {
     const { createEditReviewModule, ref } = await loadReviewModules()
     const proposals = [createProposal('proposal-1')]
@@ -153,9 +178,15 @@ describe('approval rejection guidance', () => {
       updateThread() {},
     })
 
-    review.handleInterrupt({ threadId: 'thread-1', turnId: 'turn-1', proposals })
+    review.handleInterrupt({
+      threadId: 'thread-1',
+      interruptId: 'interrupt-edit-single',
+      turnId: 'turn-1',
+      proposals,
+    })
     await review.rejectEditProposal('proposal-1')
 
+    assert.equal(resumed.interruptId, 'interrupt-edit-single')
     assert.equal(resumed.decisions[0].message, EDIT_REJECTION)
   })
 
@@ -173,7 +204,12 @@ describe('approval rejection guidance', () => {
       updateThread() {},
     })
 
-    review.handleInterrupt({ threadId: 'thread-1', turnId: 'turn-1', proposals })
+    review.handleInterrupt({
+      threadId: 'thread-1',
+      interruptId: 'interrupt-edit-batch',
+      turnId: 'turn-1',
+      proposals,
+    })
     await review.rejectAllProposals()
 
     assert.deepEqual(resumed.decisions.map(decision => decision.message), [
@@ -193,7 +229,12 @@ describe('approval rejection guidance', () => {
       ...singleRuntime,
       pendingFilesystemReviews: ref([reviews[0]]),
     })
-    singleReview.handleInterrupt({ threadId: 'thread-1', turnId: 'turn-1', reviews: [domainReviews[0]] })
+    singleReview.handleInterrupt({
+      threadId: 'thread-1',
+      interruptId: 'interrupt-filesystem-single',
+      turnId: 'turn-1',
+      reviews: [domainReviews[0]],
+    })
     await singleReview.rejectFilesystemReview('filesystem-1')
 
     const batchRuntime = createRuntimeDeps(ref, payload => { resumedPayloads.push(payload) })
@@ -201,7 +242,12 @@ describe('approval rejection guidance', () => {
       ...batchRuntime,
       pendingFilesystemReviews: ref(reviews),
     })
-    batchReview.handleInterrupt({ threadId: 'thread-2', turnId: 'turn-2', reviews: domainReviews })
+    batchReview.handleInterrupt({
+      threadId: 'thread-2',
+      interruptId: 'interrupt-filesystem-batch',
+      turnId: 'turn-2',
+      reviews: domainReviews,
+    })
     await batchReview.rejectAllFilesystemReviews()
 
     assert.equal(resumedPayloads[0].decisions[0].message, FILESYSTEM_REJECTION)
@@ -225,7 +271,12 @@ describe('approval rejection guidance', () => {
       normalizeMessagesForDisplay: messages => messages,
       updateThread() {},
     })
-    editReview.handleInterrupt({ threadId: 'thread-1', turnId: 'turn-1', proposals: [proposal] })
+    editReview.handleInterrupt({
+      threadId: 'thread-1',
+      interruptId: 'interrupt-edit-reason',
+      turnId: 'turn-1',
+      proposals: [proposal],
+    })
     await editReview.rejectEditProposal('proposal-1', 'Keep the existing chapter structure.')
 
     const filesystem = createFilesystemReview('filesystem-1')
@@ -236,6 +287,7 @@ describe('approval rejection guidance', () => {
     })
     filesystemReview.handleInterrupt({
       threadId: 'thread-2',
+      interruptId: 'interrupt-filesystem-reason',
       turnId: 'turn-2',
       reviews: [{ kind: 'filesystem', payload: filesystem }],
     })

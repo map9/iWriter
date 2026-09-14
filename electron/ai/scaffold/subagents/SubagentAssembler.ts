@@ -15,13 +15,12 @@ import type { ToolRegistry } from '../../tools/ToolRegistry'
  *   - description   routing signal shown to the delegating agent
  *   - model         optional model id override (see note below)
  *   - model-params  optional param overrides (parsed; applied via resolveModel if provided)
+ *   - capability    optional host-enforced capability profile. `research-readonly` restricts
+ *                   both registered tools and filesystem writes at assembly time.
  *   - tools         JSON array of tool names → resolved via ToolRegistry (fail-fast on unknown).
- *                   NOT a fence. It replaces the *default tool list* deepagents would hand the
- *                   subagent (`tools: agentParams.tools ?? defaultTools`), but the default
- *                   middleware stack is prepended regardless — so `read_file`/`write_file`/
- *                   `ls`/`glob`/`grep` reach the subagent whatever this array says. A tool
- *                   listing that reads as "read-only" is a statement of intent to the model,
- *                   not an enforcement: `permissions` below is the only real restriction.
+ *                   It replaces the registered-tool list deepagents would hand the subagent.
+ *                   Built-in filesystem tools still come from middleware, so capability profiles
+ *                   must pair this whitelist with `permissions` to form a complete fence.
  *   - skills        JSON array of skill source keys (e.g. "creative/prose") → absolute paths;
  *                   the project-level `{workspace}/.iwriter/skills` dir is always appended末位
  *   - permissions   optional JSON array of FilesystemPermission (full replacement, e.g. read-only)
@@ -40,6 +39,7 @@ import type { ToolRegistry } from '../../tools/ToolRegistry'
 export interface SubagentFrontmatter {
   name: string
   description: string
+  capability?: string
   model?: string
   modelParams?: Record<string, unknown>
   tools?: string[]
@@ -85,6 +85,9 @@ export function parseSubagentDefinition(raw: string): { frontmatter: SubagentFro
   const frontmatter: SubagentFrontmatter = {
     name,
     description,
+    ...(typeof fm.capability === 'string' && fm.capability.trim()
+      ? { capability: fm.capability.trim() }
+      : {}),
     ...(typeof fm.model === 'string' && fm.model.trim() ? { model: fm.model.trim() } : {}),
     ...(isRecord(fm['model-params']) ? { modelParams: fm['model-params'] as Record<string, unknown> } : {}),
     ...(isStringArray(fm.tools) ? { tools: fm.tools } : {}),
@@ -124,6 +127,68 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(item => typeof item === 'string')
 }
 
+const RESEARCH_READONLY_CAPABILITY = 'research-readonly'
+
+// Fail closed: adding a new registered tool does not silently grant it to research workers.
+const RESEARCH_READONLY_TOOL_NAMES = new Set([
+  'get_editor_state',
+  'get_document_outline',
+  'get_section',
+  'get_sections',
+  'get_blocks',
+  'get_block_context',
+  'search_blocks_in_document',
+  'search_sections_in_document',
+  'search_in_directory',
+  'get_pdf_outline',
+  'get_pdf_pages',
+  'fetch_url',
+  'web_search',
+  'find_references',
+])
+
+function validateResearchReadonlyProfile(frontmatter: SubagentFrontmatter, file: string): void {
+  if (frontmatter.name === 'general-purpose' && frontmatter.capability !== RESEARCH_READONLY_CAPABILITY) {
+    throw new Error(
+      `[SubagentAssembler] general-purpose must declare capability: ${RESEARCH_READONLY_CAPABILITY} ` +
+      `(in ${file})`,
+    )
+  }
+  if (frontmatter.capability !== RESEARCH_READONLY_CAPABILITY) return
+
+  if (!frontmatter.tools?.length) {
+    throw new Error(
+      `[SubagentAssembler] ${RESEARCH_READONLY_CAPABILITY} requires an explicit tool whitelist ` +
+      `(in ${file})`,
+    )
+  }
+  const disallowedTool = frontmatter.tools.find(name => !RESEARCH_READONLY_TOOL_NAMES.has(name))
+  if (disallowedTool) {
+    throw new Error(
+      `[SubagentAssembler] ${RESEARCH_READONLY_CAPABILITY} disallows tool "${disallowedTool}" ` +
+      `(in ${file})`,
+    )
+  }
+
+  // DeepAgents permissions are first-match-wins with a permissive default. Requiring this exact
+  // write rule pair guarantees that middleware filesystem writes can only target result storage.
+  const writeRules = (frontmatter.permissions ?? [])
+    .filter(rule => rule.operations.includes('write'))
+  const hasCanonicalWriteFence = writeRules.length === 2
+    && writeRules[0]?.mode === 'allow'
+    && writeRules[0].paths.length === 1
+    && writeRules[0].paths[0] === '/large_tool_results/**'
+    && writeRules[1]?.mode === 'deny'
+    && writeRules[1].paths.length === 1
+    && writeRules[1].paths[0] === '/**'
+  if (!hasCanonicalWriteFence) {
+    throw new Error(
+      `[SubagentAssembler] ${RESEARCH_READONLY_CAPABILITY} filesystem write permissions must ` +
+      `allow only /large_tool_results/** and then deny /** (in ${file})`,
+    )
+  }
+}
+
 /** Resolve skill source keys (e.g. "creative/prose") to absolute dirs, appending项目末位. */
 function resolveSkillSources(keys: string[] | undefined, skillsRoot: string, workspacePath: string | null): string[] {
   const sources = (keys ?? []).map(key => path.join(skillsRoot, ...key.split('/')))
@@ -161,6 +226,7 @@ export function assembleSubagents(options: AssembleOptions): SubAgent[] {
       throw new Error(`${(err as Error).message} (in ${entry.file})`)
     }
     const { frontmatter, body } = parsed
+    validateResearchReadonlyProfile(frontmatter, entry.file)
     if (frontmatter.model && !options.resolveModel) {
       console.warn(
         `[SubagentAssembler] subagent "${frontmatter.name}" declares model "${frontmatter.model}" ` +

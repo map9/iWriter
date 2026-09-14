@@ -1,5 +1,5 @@
 import type { ResumeDecision } from '../../../shared/ai/contracts'
-import type { InterruptedRun } from '../runtime/ThreadRuntimeStore'
+import type { InterruptedRun, InterruptedScope } from '../runtime/ThreadRuntimeStore'
 import { isBlockEditToolName } from '../scaffold/approval/WritingSessionRegistry'
 import { RESPOND_MARKER } from '../scaffold/middleware/HumanRespondMessageMiddleware'
 
@@ -19,7 +19,7 @@ export type LangGraphResumeDecision =
   | { type: 'reject'; message: string }
 
 export class InterruptCoordinator {
-  mergeDecisions(interrupted: InterruptedRun, reviewDecisions: ResumeDecision[]): ResumeDecision[] {
+  mergeDecisions(interrupted: InterruptedScope, reviewDecisions: ResumeDecision[]): ResumeDecision[] {
     const fullDecisions: ResumeDecision[] = Array.from(
       { length: interrupted.actionRequestCount },
       () => ({ type: 'rejected' as const, message: 'User did not review this action.' }),
@@ -45,7 +45,7 @@ export class InterruptCoordinator {
   }
 
   buildLangGraphDecisions(
-    interrupted: InterruptedRun,
+    interrupted: InterruptedScope,
     decisions: ResumeDecision[],
   ): LangGraphResumeDecision[] {
     const batchPoisoned = decisions.some(
@@ -89,6 +89,38 @@ export class InterruptCoordinator {
         message: decision.message ?? 'User rejected the edit.',
       }
     })
+  }
+
+  /** Resolve exactly one LangGraph interrupt without disturbing sibling scopes. */
+  resolveScope(
+    interrupted: InterruptedRun,
+    interruptId: string,
+    reviewDecisions: ResumeDecision[],
+  ): boolean {
+    const scope = interrupted.scopes[interruptId]
+    if (!scope) return false
+    scope.resolvedDecisions = this.mergeDecisions(scope, reviewDecisions)
+    return true
+  }
+
+  isFullyResolved(interrupted: InterruptedRun): boolean {
+    return Object.values(interrupted.scopes).every(scope => scope.resolvedDecisions !== undefined)
+  }
+
+  /** Build one namespace-keyed decision batch per concurrent interrupt. */
+  buildLangGraphResumeMap(
+    interrupted: InterruptedRun,
+  ): Record<string, { decisions: LangGraphResumeDecision[] }> {
+    const resumeMap: Record<string, { decisions: LangGraphResumeDecision[] }> = {}
+    for (const [interruptId, scope] of Object.entries(interrupted.scopes)) {
+      if (!scope.resolvedDecisions) {
+        throw new Error(`[InterruptCoordinator] interrupt scope ${interruptId} is not resolved`)
+      }
+      resumeMap[interruptId] = {
+        decisions: this.buildLangGraphDecisions(scope, scope.resolvedDecisions),
+      }
+    }
+    return resumeMap
   }
 
   private appliedBlockEditDecision(): LangGraphResumeDecision {

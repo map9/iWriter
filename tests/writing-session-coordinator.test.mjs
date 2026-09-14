@@ -103,16 +103,35 @@ describe('WritingSessionCoordinator lifecycle', () => {
     assert.deepEqual(strategyCalls[0].actionRequests, [
       { name: 'finalize_chapter', args: { chapter } },
     ])
-    assert.deepEqual(runtimeStore.getInterrupted('thread-synthetic'), {
+    const interrupted = runtimeStore.getInterrupted('thread-synthetic')
+    assert.deepEqual({
+      turnId: interrupted.turnId,
+      reviewQueue: interrupted.reviewQueue,
+      activeReviewInterruptId: interrupted.activeReviewInterruptId,
+      syntheticFinalize: interrupted.syntheticFinalize,
+    }, {
+      turnId: 'turn-7',
+      reviewQueue: ['synthetic-finalize'],
+      activeReviewInterruptId: 'synthetic-finalize',
+      syntheticFinalize: true,
+    })
+    assert.deepEqual({
+      interruptId: interrupted.scopes['synthetic-finalize'].interruptId,
+      actionRequestCount: interrupted.scopes['synthetic-finalize'].actionRequestCount,
+      actionNames: interrupted.scopes['synthetic-finalize'].actionNames,
+      reviewActionOriginalIndices: interrupted.scopes['synthetic-finalize'].reviewActionOriginalIndices,
+      autoDecisionsByIndex: interrupted.scopes['synthetic-finalize'].autoDecisionsByIndex,
+      finalizeArgsByIndex: interrupted.scopes['synthetic-finalize'].finalizeArgsByIndex,
+    }, {
+      interruptId: 'synthetic-finalize',
       actionRequestCount: 1,
       actionNames: ['finalize_chapter'],
-      turnId: 'turn-7',
       reviewActionOriginalIndices: [0],
       autoDecisionsByIndex: {},
       finalizeArgsByIndex: { 0: { chapter, summary: undefined } },
-      syntheticFinalize: true,
     })
     assert.equal(sentEvents.length, 1)
+    assert.equal(sentEvents[0].interruptId, 'synthetic-finalize')
     assert.equal(sentEvents[0].reviews[0].payload.baseline, 'SESSION BASELINE')
     assert.equal(sentEvents[0].reviews[0].payload.current, 'EDITOR CURRENT')
     assert.equal(sentEvents[0].reviews[0].payload.autoFallback, true)

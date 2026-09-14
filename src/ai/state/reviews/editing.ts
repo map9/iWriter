@@ -60,6 +60,7 @@ interface EditReviewModuleDeps {
 
 export function createEditReviewModule(deps: EditReviewModuleDeps) {
   const interruptActionCount = ref(0)
+  const activeInterruptId = ref<string | null>(null)
   const isResumingReviewedEdits = ref(false)
   const reviewBatch = ref<ReviewBatchState | null>(null)
   const completedRoundResults = ref<Record<string, EditRoundResult[]>>({})
@@ -107,6 +108,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
     deps.interruptedThreadId.value = null
     deps.interruptedTurnId.value = null
     interruptActionCount.value = 0
+    activeInterruptId.value = null
     isResumingReviewedEdits.value = false
     setReviewBatch(null)
     if (options?.clearLiveTurnProposals) {
@@ -133,12 +135,12 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
     if (!deps.pendingEditProposals.value.length && !interruptActionCount.value) return
 
     const threadId = deps.interruptedThreadId.value
-    if (threadId && interruptActionCount.value > 0) {
+    if (threadId && activeInterruptId.value && interruptActionCount.value > 0) {
       const decisions: ResumeDecision[] = Array.from(
         { length: interruptActionCount.value },
         () => ({ type: 'rejected' as const, message: 'User sent a new message' }),
       )
-      agentClient.resume({ threadId, decisions })
+      agentClient.resume({ threadId, interruptId: activeInterruptId.value, decisions })
     }
 
     deps.threadRunState.value = 'idle'
@@ -147,10 +149,12 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
 
   function handleInterrupt(params: {
     threadId: string
+    interruptId: string
     turnId: string | null
     proposals: EditProposal[]
   }) {
     deps.interruptedThreadId.value = params.threadId
+    activeInterruptId.value = params.interruptId
     deps.interruptedTurnId.value = params.turnId ?? deps.currentTurnId.value
     // Count spans ALL proposals (auto-apply + manual) — the resume decisions array must cover them.
     interruptActionCount.value = params.proposals.length
@@ -204,9 +208,10 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
 
   async function maybeFlushResume() {
     const threadId = deps.interruptedThreadId.value
+    const interruptId = activeInterruptId.value
     const count = interruptActionCount.value
     const batch = getReviewBatch()
-    if (!threadId || count === 0 || !batch || Object.keys(batch.decisionsById).length < count) return
+    if (!threadId || !interruptId || count === 0 || !batch || Object.keys(batch.decisionsById).length < count) return
 
     await flushReviewedBatch({
       appStore: deps.appStore,
@@ -256,7 +261,7 @@ export function createEditReviewModule(deps: EditReviewModuleDeps) {
     interruptActionCount.value = 0
     setReviewBatch(null)
 
-    agentClient.resume({ threadId, decisions })
+    agentClient.resume({ threadId, interruptId, decisions })
 
     const liveTurn = deps.ensureLiveTurn({ threadId, state: 'resuming' })
     if (liveTurn) {
